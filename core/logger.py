@@ -9,13 +9,16 @@ import os
 def setup_logger():
     """
     Configure the logger for the entire system
+    
+    Returns:
+        Logger instance
     """
     # Remove default handler
     logger.remove()
-    
+
     # Get log level from environment
     log_level = os.getenv('LOG_LEVEL', 'INFO')
-    
+
     # Add console handler (simplified format)
     logger.add(
         sys.stdout,
@@ -23,11 +26,11 @@ def setup_logger():
         format="{time:HH:mm:ss} | {level} | {message}",
         level=log_level
     )
-    
+
     # Add file handler
     log_file = "data/logs/system.log"
     os.makedirs(os.path.dirname(log_file), exist_ok=True)
-    
+
     logger.add(
         log_file,
         rotation="10 MB",
@@ -35,16 +38,19 @@ def setup_logger():
         level=log_level,
         format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {name}:{function} - {message}"
     )
-    
+
     logger.info("Logger initialized")
+    
+    # Return the logger object
+    return logger
 
 def get_logger(name: str):
     """
     Get a logger instance for a module
-    
+
     Args:
         name: Module name (usually __name__)
-    
+
     Returns:
         Logger instance
     """

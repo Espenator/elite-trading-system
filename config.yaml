@@ -94,3 +94,41 @@ ml:
   retrain_schedule: Sunday 23:00
   min_trades_for_training: 50
   test_size: 0.2
+
+
+# ============================================================================
+# API CREDENTIALS
+# ============================================================================
+api_credentials:
+  finviz:
+    api_key: "4475cd42-70ea-4fa7-9630-0d9cd30d9620"
+    email: "Espen@embodier.ai"
+    password: "Eastsound1!#"
+    base_url: "https://elite.finviz.com/export.ashx"
+    enabled: true
+  
+  unusual_whales:
+    google_sheets:
+      enabled: false
+      spreadsheet_id: ""
+      credentials_file: "credentials/google_sheets_credentials.json"
+      worksheets:
+        dark_pool: "Dark Pool"
+        options_flow: "Options Flow"
+    use_finviz_fallback: true
+    cache_duration_minutes: 15
+
+# ============================================================================
+# DATA SOURCES
+# ============================================================================
+data_sources:
+  use_mock_data: false
+  cache_duration_minutes: 30
+  finviz_filters:
+    min_price: 5.0
+    max_price: 500.0
+    min_volume_millions: 0.5
+  whale_data:
+    enabled: true
+    min_premium_dollars: 100000
+    dark_pool_blocks_threshold: 5
