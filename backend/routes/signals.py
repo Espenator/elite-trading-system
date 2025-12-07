@@ -1,6 +1,6 @@
-"""
+﻿"""
 API Routes for Trading Signals - Glass House UI Backend
-Connects to existing SQLite database and provides real-time signal data
+FIXED: Removed duplicate function definitions
 """
 
 from fastapi import APIRouter, HTTPException, Query
@@ -12,12 +12,9 @@ import json
 import os
 
 router = APIRouter(prefix="/api/signals", tags=["signals"])
-
-# Database path - connects to your existing trading.db
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "data", "trading.db")
 
 
-# Response Models
 class Factor(BaseModel):
     name: str
     impact: float
@@ -144,10 +141,8 @@ async def get_all_signals(
             })
         
         return signals
-    
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching signals: {str(e)}")
-    
     finally:
         conn.close()
 
@@ -184,12 +179,10 @@ async def get_signal_by_ticker(ticker: str):
         }
         
         return signal
-    
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching signal: {str(e)}")
-    
     finally:
         conn.close()
 
@@ -209,8 +202,8 @@ async def get_system_health():
                 "status": "operational",
                 "dbLatency": 12,
                 "ingestionRate": 600,
-                "tierCounts": {"CORE": 9, "HOT": 8, "LIQUID": 512},
-                "marketRegime": "Bullish Trend / Low Vol"
+                "tierCounts": {"CORE": 0, "HOT": 0, "LIQUID": 0},
+                "marketRegime": "Normal"
             }
         
         health = {
@@ -218,81 +211,105 @@ async def get_system_health():
             "dbLatency": row[2] or 12,
             "ingestionRate": row[3] or 600,
             "tierCounts": json.loads(row[4]) if row[4] else {"CORE": 0, "HOT": 0, "LIQUID": 0},
-            "marketRegime": row[5] or "Unknown"
+            "marketRegime": row[5] or "Normal"
         }
         
         return health
-    
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching system health: {str(e)}")
-    
     finally:
         conn.close()
 
 
 @router.get("/tiers/{tier}/count")
 async def get_tier_count(tier: str):
-    """Get the count of signals for a specific tier"""
+    """Get count of signals by tier (CORE, HOT, LIQUID) - SINGLE DEFINITION"""
     conn = get_db_connection()
     cursor = conn.cursor()
     
     try:
         cursor.execute("SELECT COUNT(*) FROM signals WHERE tier = ?", (tier.upper(),))
         count = cursor.fetchone()[0]
-        
         return {
             "tier": tier.upper(),
-            "count": count
+            "count": count,
+            "timestamp": datetime.now().isoformat()
         }
-    
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error counting signals: {str(e)}")
-    
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
     finally:
         conn.close()
 
 
-@router.get("/ranked", response_model=dict)
+@router.get("/ranked")
 async def get_ranked_signals(limit: int = Query(25, ge=1, le=100)):
-    """Get top ranked signals (top 25 by confidence score)"""
+    """Get top ranked signals by confidence score"""
     conn = get_db_connection()
     cursor = conn.cursor()
+    
     try:
         cursor.execute("SELECT * FROM signals ORDER BY global_confidence DESC LIMIT ?", (limit,))
         signals = []
         for idx, row in enumerate(cursor.fetchall(), start=1):
-            signals.append({"id": row[0], "rank": idx, "ticker": row[1], "tier": row[2], "price": row[3] or 0.0, "percentChange": row[5] or 0.0, "volume": row[12] or 0.0, "rvol": row[6] or 1.0, "globalConfidence": row[7] or 50, "modelAgreement": row[11] or 0.5, "catalyst": "Signal detected", "sparklineData": [], "signals": json.loads(row[9]) if row[9] else {}, "timestamp": row[14] or datetime.now().isoformat()})
-        return {"signals": signals, "timestamp": datetime.now().isoformat(), "totalProcessed": len(signals)}
+            signals.append({
+                "id": row[0],
+                "rank": idx,
+                "ticker": row[1],
+                "tier": row[2],
+                "price": row[3] or 0.0,
+                "percentChange": row[5] or 0.0,
+                "volume": row[12] or 0.0,
+                "rvol": row[6] or 1.0,
+                "globalConfidence": row[7] or 50,
+                "modelAgreement": row[11] or 0.5,
+                "timestamp": row[14] or datetime.now().isoformat()
+            })
+        return {
+            "signals": signals,
+            "timestamp": datetime.now().isoformat(),
+            "totalProcessed": len(signals)
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
     finally:
         conn.close()
 
-@router.get("/feed", response_model=dict)
+
+@router.get("/feed")
 async def get_signal_feed(limit: int = Query(1000, ge=1, le=1000)):
-    """Get live signal feed (up to 1000 recent signals)"""
+    """Get live signal feed"""
     conn = get_db_connection()
     cursor = conn.cursor()
+    
     try:
-        cursor.execute("SELECT id, timestamp, ticker, tier, global_confidence, model_agreement, rvol, percent_change, current_price FROM signals ORDER BY timestamp DESC LIMIT ?", (limit,))
+        cursor.execute("""
+            SELECT id, timestamp, ticker, tier, global_confidence, model_agreement, rvol, percent_change, current_price 
+            FROM signals 
+            ORDER BY timestamp DESC 
+            LIMIT ?
+        """, (limit,))
+        
         signals = []
         for row in cursor.fetchall():
-            signals.append({"id": row[0], "timestamp": row[1] or datetime.now().isoformat(), "ticker": row[2], "tier": row[3], "globalConfidence": row[4] or 50, "modelAgreement": row[5] or 0.5, "rvol": row[6] or 1.0, "catalyst": f"Signal @ {row[8]:.2f}" if row[8] else "Active", "price": row[8] or 0.0, "percentChange": row[7] or 0.0})
-        return {"signals": signals, "hasMore": False, "cursor": None, "timestamp": datetime.now().isoformat()}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
-    finally:
-        conn.close()
-
-@router.get("/tiers/{tier}/count", response_model=dict)
-async def get_tier_count(tier: str):
-    """Get count of signals by tier (CORE, HOT, LIQUID)"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute("SELECT COUNT(*) FROM signals WHERE tier = ?", (tier.upper(),))
-        count = cursor.fetchone()[0]
-        return {"tier": tier.upper(), "count": count, "timestamp": datetime.now().isoformat()}
+            signals.append({
+                "id": row[0],
+                "timestamp": row[1] or datetime.now().isoformat(),
+                "ticker": row[2],
+                "tier": row[3],
+                "globalConfidence": row[4] or 50,
+                "modelAgreement": row[5] or 0.5,
+                "rvol": row[6] or 1.0,
+                "catalyst": f"Signal @ ${row[8]:.2f}" if row[8] else "Active",
+                "price": row[8] or 0.0,
+                "percentChange": row[7] or 0.0
+            })
+        
+        return {
+            "signals": signals,
+            "hasMore": False,
+            "cursor": None,
+            "timestamp": datetime.now().isoformat()
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
     finally:
