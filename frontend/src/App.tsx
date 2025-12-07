@@ -1,23 +1,19 @@
-﻿import IntelligenceRadar from './components/Zone1_IntelligenceRadar/IntelligenceRadar';
+﻿import { useState } from 'react';
+import CommandBar from './components/Zone0_CommandBar/CommandBar';
+import IntelligenceRadar from './components/Zone1_IntelligenceRadar/IntelligenceRadar';
 import TacticalChart from './components/Zone2_TacticalChart/TacticalChart';
 import ExecutionDeck from './components/Zone3_ExecutionDeck/ExecutionDeck';
 import LiveSignalFeed from './components/Zone4_LiveFeed/LiveSignalFeed';
+import SettingsModal from './components/Settings/SettingsModal';
 import './App.css';
 
 function App() {
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
   return (
     <div className="app-container">
-      <header className="app-header">
-        <div className="header-left">
-          <span className="header-icon">🎯</span>
-          <h1>Elite Trading Terminal</h1>
-        </div>
-        <div className="header-right">
-          <span className="status-indicator">●</span>
-          <span className="status-text">Real-time AI-powered trade signals</span>
-        </div>
-      </header>
-
+      <CommandBar />
+      
       <div className="terminal-grid">
         <div className="zone zone-1">
           <IntelligenceRadar />
@@ -35,6 +31,11 @@ function App() {
           <LiveSignalFeed />
         </div>
       </div>
+
+      <SettingsModal 
+        isOpen={settingsOpen} 
+        onClose={() => setSettingsOpen(false)} 
+      />
     </div>
   );
 }
