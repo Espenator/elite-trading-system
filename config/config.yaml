@@ -1,0 +1,30 @@
+database:
+  type: sqlite
+  path: data/elite_trading.db
+
+unusual_whales:
+  api_key: d1cb154c-7988-41c6-ac00-09379ae7395c
+  base_url: https://api.unusualwhales.com/api
+  max_requests_per_minute: 100
+
+prediction_engine:
+  enabled: true
+  horizons:
+    - 1H
+    - 1D
+    - 1W
+
+symbols:
+  core_4:
+    - SPY
+    - QQQ
+    - IBIT
+    - ETHT
+
+dashboard:
+  enabled: true
+  port: 8501
+
+development:
+  debug_mode: false
+  paper_trading_only: true

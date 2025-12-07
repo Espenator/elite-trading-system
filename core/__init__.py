@@ -1,8 +1,14 @@
 """
-Core utilities for Elite Trading System
+Elite Trading System - Core Package
+===================================
+
+Core orchestration and system control.
+
+Author: Elite Trading Team
+Date: December 5, 2025
 """
 
-from .logger import setup_logger, get_logger
-from .event_bus import EventBus
+# Don't import orchestrator at package level to avoid circular imports
+# Import it directly when needed instead
 
-__all__ = ['setup_logger', 'get_logger', 'EventBus']
+__all__ = []

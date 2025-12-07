@@ -1,0 +1,77 @@
+﻿@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-deep-space: linear-gradient(135deg, #0a0e17 0%, #131720 50%, #0f1419 100%);
+  --bg-glass: rgba(19, 23, 32, 0.7);
+  --text-primary: #e4e4e7;
+  --text-secondary: #94a3b8;
+  --text-dimmed: #64748b;
+  --border-subtle: rgba(255, 255, 255, 0.05);
+  --math-cyan: #06b6d4;
+  --ai-purple: #a855f7;
+  --profit-gold: #fbbf24;
+  --hedge-green: #10b981;
+  --alert-red: #ef4444;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: linear-gradient(135deg, #0a0e17 0%, #131720 50%, #0f1419 100%);
+}
+
+body {
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+}
+
+.font-data {
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.glass {
+  background: var(--bg-glass);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.glow-cyan {
+  border-color: var(--math-cyan) !important;
+  box-shadow: 0 0 20px rgba(6, 182, 212, 0.4) !important;
+}
+
+button { transition: all 0.2s ease; }
+button:hover { transform: translateY(-1px); }
+
+input[type="range"] {
+  width: 100%;
+  height: 6px;
+  background: rgba(30, 41, 59, 0.5);
+  border-radius: 3px;
+  outline: none;
+  appearance: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: var(--math-cyan);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 10px var(--math-cyan);
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: rgba(30, 41, 59, 0.3); }
+::-webkit-scrollbar-thumb { background: var(--math-cyan); border-radius: 3px; }

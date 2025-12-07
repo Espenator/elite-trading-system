@@ -1,0 +1,94 @@
+'use client';
+import { useEffect, useState } from 'react';
+import { useMarketStore } from '@/lib/store';
+
+const TierBadge = ({ tier }: { tier: 'CORE' | 'HOT' | 'LIQUID' }) => {
+  const colors = { CORE: 'bg-aurora-accent-blue text-aurora-accent-blue', HOT: 'bg-aurora-accent-red text-aurora-accent-red', LIQUID: 'bg-aurora-accent-cyan text-aurora-accent-cyan' };
+  return <span className={`${colors[tier]} bg-opacity-20 px-2 py-0.5 rounded text-xs font-semibold uppercase tracking-wide`}>{tier}</span>;
+};
+
+const SignalCard = ({ signal, isSelected, onClick }: any) => {
+  const changeColor = signal.change >= 0 ? 'text-aurora-success' : 'text-aurora-danger';
+  return (
+    <div onClick={() => onClick(signal)} className={`glass-panel p-3 mb-2 cursor-pointer transition-all duration-200 hover:shadow-aurora-glow ${isSelected ? 'border border-aurora-accent-blue shadow-aurora-glow' : ''}`}>
+      <div className="flex items-start justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <h3 className="text-lg font-bold text-aurora-text-primary">{signal.symbol}</h3>
+          <TierBadge tier={signal.tier} />
+        </div>
+        <span className={`text-sm font-semibold ${changeColor}`}>{signal.change >= 0 ? '+' : ''}{signal.change}%</span>
+      </div>
+      <div className="flex items-center justify-between text-xs text-aurora-text-secondary">
+        <span>Conf: {signal.confidence}%</span>
+        <span className={signal.direction === 'LONG' ? 'text-aurora-success' : 'text-aurora-danger'}>{signal.direction}</span>
+      </div>
+    </div>
+  );
+};
+
+const LeftSidebar = ({ selectedSignal, onSelectSignal }: any) => {
+  const { coreSignals, hotSignals, liquidSignals } = useMarketStore();
+  const [activeTab, setActiveTab] = useState<'CORE' | 'HOT' | 'LIQUID'>('HOT');
+  const signals = { CORE: coreSignals, HOT: hotSignals, LIQUID: liquidSignals };
+  const tabColors = { CORE: 'border-aurora-accent-blue', HOT: 'border-aurora-accent-red', LIQUID: 'border-aurora-accent-cyan' };
+  return (
+    <div className="w-80 h-full flex flex-col glass-panel">
+      <div className="flex border-b border-aurora-glass-border">
+        {(['CORE', 'HOT', 'LIQUID'] as const).map((tier) => (
+          <button key={tier} onClick={() => setActiveTab(tier)} className={`flex-1 py-3 text-sm font-semibold transition-all ${activeTab === tier ? `${tabColors[tier]} border-b-2 text-aurora-text-primary` : 'text-aurora-text-secondary hover:text-aurora-text-primary'}`}>
+            {tier}<span className="ml-2 text-xs opacity-70">({signals[tier].length})</span>
+          </button>
+        ))}
+      </div>
+      <div className="flex-1 overflow-y-auto p-3 custom-scrollbar">
+        {signals[activeTab].length === 0 ? <div className="text-center text-aurora-text-secondary py-8"><p className="text-sm">No {activeTab} signals</p></div> : signals[activeTab].map((signal: any) => <SignalCard key={signal.id} signal={signal} isSelected={selectedSignal?.id === signal.id} onClick={onSelectSignal} />)}
+      </div>
+    </div>
+  );
+};
+
+const CenterStage = ({ signal }: any) => {
+  if (!signal) return <div className="flex-1 flex items-center justify-center glass-panel mx-4"><div className="text-center text-aurora-text-secondary"><div className="mb-4 text-6xl">📊</div><p className="text-lg mb-2">Select a signal to view details</p><p className="text-sm opacity-70">Choose from CORE, HOT, or LIQUID tiers</p></div></div>;
+  const changeColor = signal.change >= 0 ? 'text-aurora-success' : 'text-aurora-danger';
+  return (
+    <div className="flex-1 glass-panel mx-4 p-6 overflow-y-auto custom-scrollbar">
+      <div className="flex items-start justify-between mb-6">
+        <div><div className="flex items-center gap-3 mb-2"><h1 className="text-4xl font-bold text-aurora-text-primary">{signal.symbol}</h1><TierBadge tier={signal.tier} /></div><p className="text-xl text-aurora-text-secondary">Current Price: <span className="text-aurora-text-primary font-semibold">${signal.current_price}</span></p></div>
+        <div className="text-right"><p className={`text-3xl font-bold ${changeColor}`}>{signal.change >= 0 ? '+' : ''}{signal.change}%</p><p className="text-sm text-aurora-text-secondary mt-1">Direction: <span className={signal.direction === 'LONG' ? 'text-aurora-success' : 'text-aurora-danger'}>{signal.direction}</span></p></div>
+      </div>
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="glass-panel-inner p-4"><p className="text-sm text-aurora-text-secondary mb-1">Confidence</p><p className="text-2xl font-bold text-aurora-accent-orange">{signal.confidence}%</p></div>
+        <div className="glass-panel-inner p-4"><p className="text-sm text-aurora-text-secondary mb-1">RVol</p><p className="text-2xl font-bold text-aurora-text-primary">{signal.rvol}x</p></div>
+        <div className="glass-panel-inner p-4"><p className="text-sm text-aurora-text-secondary mb-1">Volume</p><p className="text-xl font-bold text-aurora-text-primary">{signal.volume}</p></div>
+        <div className="glass-panel-inner p-4"><p className="text-sm text-aurora-text-secondary mb-1">Signal Time</p><p className="text-sm font-semibold text-aurora-text-primary">{new Date(signal.timestamp).toLocaleTimeString()}</p></div>
+      </div>
+      <div className="mb-6"><h3 className="text-lg font-semibold text-aurora-text-primary mb-3">Key Factors</h3><div className="flex flex-wrap gap-2">{signal.key_factors && signal.key_factors.map((factor: string, idx: number) => <span key={idx} className="glass-panel-inner px-3 py-2 text-sm text-aurora-text-secondary">{factor}</span>)}</div></div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="glass-panel-inner p-6 h-64 flex flex-col items-center justify-center"><div className="text-4xl mb-3">📈</div><p className="text-aurora-text-secondary text-center">Price Chart</p><p className="text-xs text-aurora-text-tertiary mt-1">(Live data)</p></div>
+        <div className="glass-panel-inner p-6 h-64 flex flex-col items-center justify-center"><div className="text-4xl mb-3">🤖</div><p className="text-aurora-text-secondary text-center">AI Prediction</p><p className="text-xs text-aurora-text-tertiary mt-1">(Claude AI)</p></div>
+      </div>
+    </div>
+  );
+};
+
+const RightPanel = () => {
+  const { systemHealth, mlConfig, updateMLConfig } = useMarketStore();
+  return (
+    <div className="w-96 h-full flex flex-col glass-panel">
+      <div className="p-4 border-b border-aurora-glass-border"><h3 className="text-lg font-semibold text-aurora-text-primary mb-3 flex items-center gap-2"><span>⚡</span> System Health</h3><div className="space-y-3"><div className="flex items-center justify-between"><span className="text-sm text-aurora-text-secondary">API Status</span><span className={`text-sm font-semibold flex items-center gap-2 ${systemHealth.apiConnected ? 'text-aurora-success' : 'text-aurora-danger'}`}><span className={`w-2 h-2 rounded-full ${systemHealth.apiConnected ? 'bg-aurora-success' : 'bg-aurora-danger'} animate-pulse`}></span>{systemHealth.apiConnected ? 'Connected' : 'Disconnected'}</span></div><div className="flex items-center justify-between"><span className="text-sm text-aurora-text-secondary">Total Signals</span><span className="text-sm font-semibold text-aurora-accent-blue">{systemHealth.signalCount}</span></div><div className="flex items-center justify-between"><span className="text-sm text-aurora-text-secondary">Last Update</span><span className="text-xs font-semibold text-aurora-text-primary">{new Date(systemHealth.lastUpdate).toLocaleTimeString()}</span></div></div></div>
+      <div className="flex-1 p-4 overflow-y-auto custom-scrollbar"><h3 className="text-lg font-semibold text-aurora-text-primary mb-4 flex items-center gap-2"><span>🎛️</span> ML Controls</h3><div className="space-y-6"><div><div className="flex justify-between mb-2"><label className="text-sm text-aurora-text-secondary">Confidence Threshold</label><span className="text-sm font-semibold text-aurora-accent-blue">{mlConfig.confidenceThreshold}%</span></div><input type="range" min="0" max="100" value={mlConfig.confidenceThreshold} onChange={(e) => updateMLConfig({ confidenceThreshold: parseInt(e.target.value) })} className="w-full aurora-slider" /></div><div><div className="flex justify-between mb-2"><label className="text-sm text-aurora-text-secondary">Volume Weight</label><span className="text-sm font-semibold text-aurora-accent-cyan">{mlConfig.volumeWeight}%</span></div><input type="range" min="0" max="100" value={mlConfig.volumeWeight} onChange={(e) => updateMLConfig({ volumeWeight: parseInt(e.target.value) })} className="w-full aurora-slider" /></div><div><div className="flex justify-between mb-2"><label className="text-sm text-aurora-text-secondary">RVol Weight</label><span className="text-sm font-semibold text-aurora-accent-purple">{mlConfig.rvolWeight}%</span></div><input type="range" min="0" max="100" value={mlConfig.rvolWeight} onChange={(e) => updateMLConfig({ rvolWeight: parseInt(e.target.value) })} className="w-full aurora-slider" /></div><div><div className="flex justify-between mb-2"><label className="text-sm text-aurora-text-secondary">Dark Pool Weight</label><span className="text-sm font-semibold text-aurora-accent-orange">{mlConfig.darkPoolWeight}%</span></div><input type="range" min="0" max="100" value={mlConfig.darkPoolWeight} onChange={(e) => updateMLConfig({ darkPoolWeight: parseInt(e.target.value) })} className="w-full aurora-slider" /></div><div><div className="flex justify-between mb-2"><label className="text-sm text-aurora-text-secondary">Options Flow Weight</label><span className="text-sm font-semibold text-aurora-accent-red">{mlConfig.optionsFlowWeight}%</span></div><input type="range" min="0" max="100" value={mlConfig.optionsFlowWeight} onChange={(e) => updateMLConfig({ optionsFlowWeight: parseInt(e.target.value) })} className="w-full aurora-slider" /></div></div></div>
+    </div>
+  );
+};
+
+export default function GlassHouseDashboard() {
+  const { fetchSignals } = useMarketStore();
+  const [selectedSignal, setSelectedSignal] = useState<any>(null);
+  useEffect(() => { fetchSignals(); const interval = setInterval(() => fetchSignals(), 30000); return () => clearInterval(interval); }, [fetchSignals]);
+  return (
+    <div className="h-screen bg-aurora-bg-primary flex flex-col">
+      <div className="glass-panel m-4 p-4"><h1 className="text-2xl font-bold text-aurora-text-primary">Elite Trading Glass House</h1><p className="text-sm text-aurora-text-secondary">Real-time signals with live backend data</p></div>
+      <div className="flex-1 flex gap-0 mx-4 mb-4 overflow-hidden"><LeftSidebar selectedSignal={selectedSignal} onSelectSignal={setSelectedSignal} /><CenterStage signal={selectedSignal} /><RightPanel /></div>
+    </div>
+  );
+}
