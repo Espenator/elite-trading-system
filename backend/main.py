@@ -115,3 +115,78 @@ async def websocket_prices(websocket: WebSocket):
     except Exception as e:
         print(f"WebSocket error: {e}")
         manager.disconnect(websocket)
+
+# Import WebSocket manager
+from websocket_manager import ws_manager
+from fastapi import WebSocket, WebSocketDisconnect
+import asyncio
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """
+    WebSocket endpoint for real-time updates
+    Frontend connects at: ws://localhost:8000/ws
+    """
+    await ws_manager.connect(websocket)
+    
+    try:
+        while True:
+            # Send periodic updates every 3 seconds
+            import sqlite3
+            import os
+            import json
+            
+            # Get latest signals from database
+            db_path = os.path.join(os.path.dirname(__file__), "..", "data", "trading.db")
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            
+            # Get signal counts by tier
+            cursor.execute("SELECT tier, COUNT(*) FROM signals GROUP BY tier")
+            tier_counts = {row[0]: row[1] for row in cursor.fetchall()}
+            
+            # Get latest 10 signals
+            cursor.execute("SELECT ticker, tier, current_price, percent_change, global_confidence FROM signals ORDER BY timestamp DESC LIMIT 10")
+            recent_signals = []
+            for row in cursor.fetchall():
+                recent_signals.append({
+                    "ticker": row[0],
+                    "tier": row[1],
+                    "currentPrice": row[2],
+                    "percentChange": row[3],
+                    "globalConfidence": row[4]
+                })
+            
+            conn.close()
+            
+            # Send update to client
+            update = {
+                "type": "system_update",
+                "data": {
+                    "tierCounts": tier_counts,
+                    "recentSignals": recent_signals,
+                    "timestamp": datetime.now().isoformat(),
+                    "status": "operational"
+                }
+            }
+            
+            await websocket.send_json(update)
+            await asyncio.sleep(3)
+            
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket)
+        print("Client disconnected normally")
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+        ws_manager.disconnect(websocket)
+
+# CORS configuration for frontend
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:3001"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
