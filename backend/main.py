@@ -1,6 +1,6 @@
 ﻿"""
 Elite Trading System - FastAPI Backend
-Version 7.0 - Glass House Edition - FIXED
+Version 7.0 - Glass House Edition - PRODUCTION READY
 """
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -161,6 +161,7 @@ async def startup_event():
     print(f"✅ Signals API: http://localhost:8000/api/signals")
     print(f"✅ Market API: http://localhost:8000/api/market/indices")
     print(f"✅ Trading API: http://localhost:8000/api/trades")
+    print(f"✅ ML Config API: http://localhost:8000/api/ml/config")
     print("=" * 60)
 
 
@@ -180,4 +181,3 @@ if __name__ == "__main__":
         reload=True,
         log_level="info"
     )
-
