@@ -4,16 +4,16 @@ import './CandidateCard.css';
 
 interface CandidateCardProps {
   candidate: any;
+  isActive?: boolean;
 }
 
-const CandidateCard: React.FC<CandidateCardProps> = ({ candidate }) => {
-  // Generate sample sparkline data
+const CandidateCard: React.FC<CandidateCardProps> = ({ candidate, isActive = false }) => {
   const sparklineData = Array.from({ length: 24 }, () => 
     Math.random() * 10 + 45
   );
 
   return (
-    <div className="candidate-card">
+    <div className={`candidate-card ${isActive ? 'active-scroll' : ''}`}>
       <div className="card-header">
         <span className="card-rank">#{candidate.rank || 1}</span>
         <span className="card-ticker">{candidate.ticker}</span>

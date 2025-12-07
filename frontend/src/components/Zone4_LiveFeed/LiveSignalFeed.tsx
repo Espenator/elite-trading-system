@@ -1,17 +1,45 @@
-﻿import React from 'react';
+﻿import React, { useState } from 'react';
 import { FixedSizeList as List } from 'react-window';
 import { useRealtimeSignals } from '../../hooks/useRealtimeSignals';
 import './LiveSignalFeed.css';
 
-const LiveSignalFeed: React.FC = () => {
+interface LiveSignalFeedProps {
+  onTickerClick?: (ticker: string) => void;
+}
+
+const LiveSignalFeed: React.FC<LiveSignalFeedProps> = ({ onTickerClick }) => {
   const { signals } = useRealtimeSignals();
+  const [flashingRows, setFlashingRows] = useState<Set<number>>(new Set());
+
+  const handleRowClick = (ticker: string, index: number) => {
+    // Flash animation
+    setFlashingRows(prev => new Set(prev).add(index));
+    setTimeout(() => {
+      setFlashingRows(prev => {
+        const next = new Set(prev);
+        next.delete(index);
+        return next;
+      });
+    }, 800);
+
+    // Load ticker in chart
+    if (onTickerClick) {
+      onTickerClick(ticker);
+    }
+  };
 
   const Row = ({ index, style }: { index: number; style: React.CSSProperties }) => {
     const signal = signals[index];
     if (!signal) return null;
 
+    const isFlashing = flashingRows.has(index);
+
     return (
-      <div className="feed-row" style={style}>
+      <div 
+        className={`feed-row ${isFlashing ? 'flash-green' : ''}`}
+        style={style}
+        onClick={() => handleRowClick(signal.ticker, index)}
+      >
         <span className="feed-cell time">{new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
         <span className="feed-cell ticker">{signal.ticker}</span>
         <span className={`feed-cell tier tier-${signal.tier?.toLowerCase()}`}>{signal.tier}</span>

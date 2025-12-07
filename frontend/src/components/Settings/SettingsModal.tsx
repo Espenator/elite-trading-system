@@ -1,4 +1,5 @@
 ﻿import React, { useState } from 'react';
+import { useSettings } from '../../hooks/useSettings';
 import './SettingsModal.css';
 
 interface SettingsModalProps {
@@ -7,7 +8,14 @@ interface SettingsModalProps {
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
+  const { settings, saveSettings, resetSettings } = useSettings();
   const [activeTab, setActiveTab] = useState('api');
+  const [localSettings, setLocalSettings] = useState(settings);
+
+  const handleSave = () => {
+    saveSettings(localSettings);
+    onClose();
+  };
 
   if (!isOpen) return null;
 
@@ -47,19 +55,43 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               
               <div className="api-key-group">
                 <label>🐋 Unusual Whales API Key</label>
-                <input type="password" placeholder="Enter API key..." />
+                <input 
+                  type="password" 
+                  placeholder="Enter API key..."
+                  value={localSettings.apiKeys.unusualWhales}
+                  onChange={(e) => setLocalSettings({
+                    ...localSettings,
+                    apiKeys: { ...localSettings.apiKeys, unusualWhales: e.target.value }
+                  })}
+                />
                 <button className="test-btn">Test Connection</button>
               </div>
 
               <div className="api-key-group">
                 <label>📈 Finviz Elite API Key</label>
-                <input type="password" placeholder="Enter API key..." />
+                <input 
+                  type="password" 
+                  placeholder="Enter API key..."
+                  value={localSettings.apiKeys.finviz}
+                  onChange={(e) => setLocalSettings({
+                    ...localSettings,
+                    apiKeys: { ...localSettings.apiKeys, finviz: e.target.value }
+                  })}
+                />
                 <button className="test-btn">Test Connection</button>
               </div>
 
               <div className="api-key-group">
                 <label>🤖 Anthropic API Key</label>
-                <input type="password" placeholder="Enter API key..." />
+                <input 
+                  type="password" 
+                  placeholder="Enter API key..."
+                  value={localSettings.apiKeys.anthropic}
+                  onChange={(e) => setLocalSettings({
+                    ...localSettings,
+                    apiKeys: { ...localSettings.apiKeys, anthropic: e.target.value }
+                  })}
+                />
                 <button className="test-btn">Test Connection</button>
               </div>
             </div>
@@ -71,12 +103,30 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               
               <div className="setting-group">
                 <label>Scan Interval (minutes)</label>
-                <input type="number" defaultValue={15} min={5} max={60} />
+                <input 
+                  type="number" 
+                  value={localSettings.scanner.interval}
+                  onChange={(e) => setLocalSettings({
+                    ...localSettings,
+                    scanner: { ...localSettings.scanner, interval: Number(e.target.value) }
+                  })}
+                  min={5} 
+                  max={60} 
+                />
               </div>
 
               <div className="setting-group">
                 <label>Minimum Confidence (%)</label>
-                <input type="number" defaultValue={70} min={0} max={100} />
+                <input 
+                  type="number" 
+                  value={localSettings.scanner.minConfidence}
+                  onChange={(e) => setLocalSettings({
+                    ...localSettings,
+                    scanner: { ...localSettings.scanner, minConfidence: Number(e.target.value) }
+                  })}
+                  min={0} 
+                  max={100} 
+                />
               </div>
             </div>
           )}
@@ -87,17 +137,43 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
               
               <div className="setting-group">
                 <label>Starting Capital ($)</label>
-                <input type="number" defaultValue={1000000} />
+                <input 
+                  type="number" 
+                  value={localSettings.trading.startingCapital}
+                  onChange={(e) => setLocalSettings({
+                    ...localSettings,
+                    trading: { ...localSettings.trading, startingCapital: Number(e.target.value) }
+                  })}
+                />
               </div>
 
               <div className="setting-group">
                 <label>Max Risk Per Trade (%)</label>
-                <input type="number" defaultValue={2} min={0.5} max={10} step={0.5} />
+                <input 
+                  type="number" 
+                  value={localSettings.trading.maxRiskPerTrade}
+                  onChange={(e) => setLocalSettings({
+                    ...localSettings,
+                    trading: { ...localSettings.trading, maxRiskPerTrade: Number(e.target.value) }
+                  })}
+                  min={0.5} 
+                  max={10} 
+                  step={0.5} 
+                />
               </div>
 
               <div className="setting-group">
                 <label>Max Open Positions</label>
-                <input type="number" defaultValue={15} min={1} max={50} />
+                <input 
+                  type="number" 
+                  value={localSettings.trading.maxPositions}
+                  onChange={(e) => setLocalSettings({
+                    ...localSettings,
+                    trading: { ...localSettings.trading, maxPositions: Number(e.target.value) }
+                  })}
+                  min={1} 
+                  max={50} 
+                />
               </div>
             </div>
           )}
@@ -105,7 +181,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 
         <div className="settings-footer">
           <button className="cancel-btn" onClick={onClose}>Cancel</button>
-          <button className="save-btn">Save Changes</button>
+          <button className="reset-btn" onClick={resetSettings}>Reset Defaults</button>
+          <button className="save-btn" onClick={handleSave}>Save Changes</button>
         </div>
       </div>
     </div>

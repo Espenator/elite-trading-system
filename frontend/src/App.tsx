@@ -10,10 +10,19 @@ import './App.css';
 
 function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [activeSymbol, setActiveSymbol] = useState('SPY');
+
+  const handleTickerClick = (ticker: string) => {
+    setActiveSymbol(ticker);
+    console.log('Loading ticker:', ticker);
+  };
 
   return (
     <div className="app-container">
-      <CommandBar />
+      <CommandBar 
+        activeSymbol={activeSymbol}
+        onSymbolChange={setActiveSymbol}
+      />
       
       <div className="terminal-grid">
         <div className="zone zone-1">
@@ -21,7 +30,7 @@ function App() {
         </div>
 
         <div className="zone zone-2">
-          <TacticalChart symbol="SPY" />
+          <TacticalChart symbol={activeSymbol} />
         </div>
 
         <div className="zone zone-3">
@@ -29,7 +38,7 @@ function App() {
         </div>
 
         <div className="zone zone-4">
-          <LiveSignalFeed />
+          <LiveSignalFeed onTickerClick={handleTickerClick} />
         </div>
       </div>
 
