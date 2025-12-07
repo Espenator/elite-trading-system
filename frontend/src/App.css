@@ -48,3 +48,27 @@
   flex-direction: column;
   gap: 12px;
 }
+.zone3-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.zone3-stack::-webkit-scrollbar {
+  width: 6px;
+}
+
+.zone3-stack::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.zone3-stack::-webkit-scrollbar-thumb {
+  background: rgba(0, 217, 255, 0.3);
+  border-radius: 3px;
+}
+
+.zone3-stack::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 217, 255, 0.5);
+}

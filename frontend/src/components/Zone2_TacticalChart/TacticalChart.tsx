@@ -1,24 +1,28 @@
 ﻿import React, { useEffect, useRef, useState } from 'react';
-import { createChart, IChartApi, ISeriesApi } from 'lightweight-charts';
+import { createChart, IChartApi, ISeriesApi, IPriceLine } from 'lightweight-charts';
+import { addVelezLevels, calculateVelezLevels, removeVelezLevels } from '../../utils/velezLevels';
 import './TacticalChart.css';
 
 interface TacticalChartProps {
   symbol?: string;
+  compact?: boolean;
 }
 
-const TacticalChart: React.FC<TacticalChartProps> = ({ symbol = 'SPY' }) => {
+const TacticalChart: React.FC<TacticalChartProps> = ({ symbol = 'SPY', compact = false }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candlestickSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
+  const priceLinesRef = useRef<IPriceLine[]>([]);
   const [timeframe, setTimeframe] = useState('1D');
+  const [showLevels, setShowLevels] = useState(true);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
-      height: 500,
+      height: compact ? 200 : 500,
       layout: {
         background: { color: 'transparent' },
         textColor: '#94a3b8',
@@ -41,7 +45,6 @@ const TacticalChart: React.FC<TacticalChartProps> = ({ symbol = 'SPY' }) => {
 
     chartRef.current = chart;
 
-    // Candlestick series
     const candlestickSeries = chart.addCandlestickSeries({
       upColor: '#10b981',
       downColor: '#ef4444',
@@ -53,22 +56,23 @@ const TacticalChart: React.FC<TacticalChartProps> = ({ symbol = 'SPY' }) => {
 
     candlestickSeriesRef.current = candlestickSeries;
 
-    // Volume series
-    const volumeSeries = chart.addHistogramSeries({
-      color: '#26a69a',
-      priceFormat: {
-        type: 'volume',
-      },
-      priceScaleId: '',
-      scaleMargins: {
-        top: 0.8,
-        bottom: 0,
-      },
-    });
+    if (!compact) {
+      const volumeSeries = chart.addHistogramSeries({
+        color: '#26a69a',
+        priceFormat: {
+          type: 'volume',
+        },
+        priceScaleId: '',
+        scaleMargins: {
+          top: 0.8,
+          bottom: 0,
+        },
+      });
 
-    volumeSeriesRef.current = volumeSeries;
+      volumeSeriesRef.current = volumeSeries;
+    }
 
-    // Mock data
+    // Generate mock data
     const generateMockData = () => {
       const data = [];
       const volumeData = [];
@@ -93,12 +97,26 @@ const TacticalChart: React.FC<TacticalChartProps> = ({ symbol = 'SPY' }) => {
         basePrice = close;
       }
 
-      return { data, volumeData };
+      return { data, volumeData, currentPrice: basePrice };
     };
 
-    const { data, volumeData } = generateMockData();
+    const { data, volumeData, currentPrice } = generateMockData();
     candlestickSeries.setData(data);
-    volumeSeries.setData(volumeData);
+    
+    if (volumeSeriesRef.current) {
+      volumeSeriesRef.current.setData(volumeData);
+    }
+
+    // Add Velez levels if not compact
+    if (!compact && showLevels) {
+      const levels = calculateVelezLevels(
+        currentPrice,
+        currentPrice * 1.08, // ML prediction +8%
+        currentPrice * 0.015 // ATR ~1.5%
+      );
+
+      priceLinesRef.current = addVelezLevels(chart, levels);
+    }
 
     const handleResize = () => {
       if (chartContainerRef.current && chartRef.current) {
@@ -112,64 +130,82 @@ const TacticalChart: React.FC<TacticalChartProps> = ({ symbol = 'SPY' }) => {
 
     return () => {
       window.removeEventListener('resize', handleResize);
+      if (priceLinesRef.current.length > 0 && chartRef.current) {
+        removeVelezLevels(chartRef.current, priceLinesRef.current);
+      }
       chart.remove();
     };
-  }, [symbol, timeframe]);
+  }, [symbol, timeframe, compact, showLevels]);
 
   return (
     <div className="tactical-chart-container">
-      <div className="chart-header">
-        <div className="chart-title">
-          <h3>{symbol}</h3>
-          <span className="chart-subtitle">Candlestick Chart with Volume</span>
-        </div>
+      {!compact && (
+        <div className="chart-header">
+          <div className="chart-title">
+            <h3>{symbol}</h3>
+            <span className="chart-subtitle">Velez System Analysis</span>
+          </div>
 
-        <div className="timeframe-selector">
-          {['5M', '15M', '1H', '4H', '1D', '1W'].map((tf) => (
-            <button
-              key={tf}
-              className={`timeframe-btn ${timeframe === tf ? 'active' : ''}`}
-              onClick={() => setTimeframe(tf)}
-            >
-              {tf}
-            </button>
-          ))}
-        </div>
+          <div className="chart-options">
+            <label className="levels-toggle">
+              <input 
+                type="checkbox" 
+                checked={showLevels}
+                onChange={(e) => setShowLevels(e.target.checked)}
+              />
+              <span>Show Velez Levels</span>
+            </label>
+          </div>
 
-        <div className="chart-controls">
-          <button className="control-btn" title="Indicators">📊</button>
-          <button className="control-btn" title="Settings">⚙️</button>
-          <button className="control-btn" title="Fullscreen">⛶</button>
+          <div className="timeframe-selector">
+            {['5M', '15M', '1H', '4H', '1D', '1W'].map((tf) => (
+              <button
+                key={tf}
+                className={`timeframe-btn ${timeframe === tf ? 'active' : ''}`}
+                onClick={() => setTimeframe(tf)}
+              >
+                {tf}
+              </button>
+            ))}
+          </div>
+
+          <div className="chart-controls">
+            <button className="control-btn" title="Indicators">📊</button>
+            <button className="control-btn" title="Settings">⚙️</button>
+            <button className="control-btn" title="Fullscreen">⛶</button>
+          </div>
         </div>
-      </div>
+      )}
 
       <div ref={chartContainerRef} className="chart-canvas" />
 
-      <div className="factor-strip">
-        <div className="factor-card">
-          <span className="factor-label">Volume Spike</span>
-          <div className="strength-bar">
-            <div className="strength-fill" style={{ width: '85%', backgroundColor: '#fbbf24' }}></div>
+      {!compact && (
+        <div className="factor-strip">
+          <div className="factor-card">
+            <span className="factor-label">Volume Spike</span>
+            <div className="strength-bar">
+              <div className="strength-fill" style={{ width: '85%', backgroundColor: '#fbbf24' }}></div>
+            </div>
+            <span className="factor-value">High</span>
           </div>
-          <span className="factor-value">High</span>
-        </div>
 
-        <div className="factor-card">
-          <span className="factor-label">Breakout</span>
-          <div className="strength-bar">
-            <div className="strength-fill" style={{ width: '70%', backgroundColor: '#10b981' }}></div>
+          <div className="factor-card">
+            <span className="factor-label">Breakout</span>
+            <div className="strength-bar">
+              <div className="strength-fill" style={{ width: '70%', backgroundColor: '#10b981' }}></div>
+            </div>
+            <span className="factor-value">Confirmed</span>
           </div>
-          <span className="factor-value">Confirmed</span>
-        </div>
 
-        <div className="factor-card">
-          <span className="factor-label">RSI Surge</span>
-          <div className="strength-bar">
-            <div className="strength-fill" style={{ width: '60%', backgroundColor: '#7c3aed' }}></div>
+          <div className="factor-card">
+            <span className="factor-label">RSI Surge</span>
+            <div className="strength-bar">
+              <div className="strength-fill" style={{ width: '60%', backgroundColor: '#7c3aed' }}></div>
+            </div>
+            <span className="factor-value">Overbought</span>
           </div>
-          <span className="factor-value">Overbought</span>
         </div>
-      </div>
+      )}
     </div>
   );
 };
