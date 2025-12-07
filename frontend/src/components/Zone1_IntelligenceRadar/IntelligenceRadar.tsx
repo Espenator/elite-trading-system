@@ -1,10 +1,13 @@
-﻿import { useRealtimeSignals } from '../../hooks/useRealtimeSignals';
+﻿import { useState } from 'react';
+import { useRealtimeSignals } from '../../hooks/useRealtimeSignals';
 import CandidateCard from './CandidateCard';
 import LiveAnalysisHeader from './LiveAnalysisHeader';
+import WatchlistPanel from './WatchlistPanel';
 import './IntelligenceRadar.css';
 
 const IntelligenceRadar = () => {
   const { signals, loading, error } = useRealtimeSignals();
+  const [activeTab, setActiveTab] = useState<'signals' | 'watchlist'>('signals');
 
   if (loading) {
     return (
@@ -23,7 +26,6 @@ const IntelligenceRadar = () => {
         <div className="radar-error">
           <p>⚠️ Backend connection failed</p>
           <p className="error-detail">{error}</p>
-          <p className="error-hint">Make sure backend is running on port 8000</p>
         </div>
       </div>
     );
@@ -31,19 +33,39 @@ const IntelligenceRadar = () => {
 
   return (
     <div className="intelligence-radar">
-      <LiveAnalysisHeader />
-      <div className="candidate-stream">
-        {signals.length === 0 ? (
-          <div className="no-signals">
-            <p>No signals available</p>
-            <p className="hint">Waiting for trading signals...</p>
-          </div>
-        ) : (
-          signals.map((signal) => (
-            <CandidateCard key={signal.id} candidate={signal} />
-          ))
-        )}
+      <div className="radar-tabs">
+        <button 
+          className={`tab-btn ${activeTab === 'signals' ? 'active' : ''}`}
+          onClick={() => setActiveTab('signals')}
+        >
+          🤖 AI Signals
+        </button>
+        <button 
+          className={`tab-btn ${activeTab === 'watchlist' ? 'active' : ''}`}
+          onClick={() => setActiveTab('watchlist')}
+        >
+          ⭐ Watchlist
+        </button>
       </div>
+
+      {activeTab === 'signals' ? (
+        <>
+          <LiveAnalysisHeader />
+          <div className="candidate-stream">
+            {signals.length === 0 ? (
+              <div className="no-signals">
+                <p>No signals available</p>
+              </div>
+            ) : (
+              signals.slice(0, 25).map((signal) => (
+                <CandidateCard key={signal.id} candidate={signal} />
+              ))
+            )}
+          </div>
+        </>
+      ) : (
+        <WatchlistPanel />
+      )}
     </div>
   );
 };
