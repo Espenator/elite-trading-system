@@ -1,43 +1,38 @@
-﻿import React from 'react';
-import { IntelligenceRadar } from './components/Zone1_IntelligenceRadar/IntelligenceRadar';
+﻿import IntelligenceRadar from './components/Zone1_IntelligenceRadar/IntelligenceRadar';
+import TacticalChart from './components/Zone2_TacticalChart/TacticalChart';
+import ExecutionDeck from './components/Zone3_ExecutionDeck/ExecutionDeck';
+import LiveSignalFeed from './components/Zone4_LiveFeed/LiveSignalFeed';
 import './App.css';
 
 function App() {
   return (
-    <div className="elite-terminal">
-      <div className="terminal-header">
-        <h1>🎯 Elite Trading Terminal</h1>
-        <p>Real-time AI-powered trade signals</p>
-      </div>
-      
+    <div className="app-container">
+      <header className="app-header">
+        <div className="header-left">
+          <span className="header-icon">🎯</span>
+          <h1>Elite Trading Terminal</h1>
+        </div>
+        <div className="header-right">
+          <span className="status-indicator">●</span>
+          <span className="status-text">Real-time AI-powered trade signals</span>
+        </div>
+      </header>
+
       <div className="terminal-grid">
-        {/* Zone 1: Intelligence Radar */}
         <div className="zone zone-1">
           <IntelligenceRadar />
         </div>
-        
-        {/* Zone 2: Chart (placeholder) */}
+
         <div className="zone zone-2">
-          <div className="placeholder">
-            <h2>📈 Tactical Chart</h2>
-            <p>Chart component coming soon</p>
-          </div>
+          <TacticalChart symbol="SPY" />
         </div>
-        
-        {/* Zone 3: Execution (placeholder) */}
+
         <div className="zone zone-3">
-          <div className="placeholder">
-            <h2>🎯 Execution Deck</h2>
-            <p>Trade execution coming soon</p>
-          </div>
+          <ExecutionDeck />
         </div>
-        
-        {/* Zone 4: Live Feed (placeholder) */}
+
         <div className="zone zone-4">
-          <div className="placeholder">
-            <h2>🔴 Live Signal Feed</h2>
-            <p>Signal feed coming soon</p>
-          </div>
+          <LiveSignalFeed />
         </div>
       </div>
     </div>

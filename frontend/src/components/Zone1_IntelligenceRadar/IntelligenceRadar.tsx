@@ -1,51 +1,51 @@
-﻿import React, { useState } from 'react';
-import { LiveAnalysisHeader } from './LiveAnalysisHeader';
-import { CandidateCard } from './CandidateCard';
-import { useCandidateStream } from '../../hooks/useCandidateStream';
+﻿import { useRealtimeSignals } from '../../hooks/useRealtimeSignals';
+import CandidateCard from './CandidateCard';
+import LiveAnalysisHeader from './LiveAnalysisHeader';
 import './IntelligenceRadar.css';
 
-export const IntelligenceRadar: React.FC = () => {
-  const [isHeaderExpanded, setIsHeaderExpanded] = useState(false);
-  const { candidates, progress, isAnalyzing } = useCandidateStream();
+const IntelligenceRadar = () => {
+  const { signals, loading, error } = useRealtimeSignals();
 
-  const handleCandidateClick = (candidate: any) => {
-    console.log('Selected candidate:', candidate);
-    // TODO: Load full analysis in Zone 2 & Zone 3
-  };
+  if (loading) {
+    return (
+      <div className="intelligence-radar">
+        <div className="radar-loading">
+          <div className="loading-spinner"></div>
+          <p>Connecting to backend...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="intelligence-radar">
+        <div className="radar-error">
+          <p>⚠️ Backend connection failed</p>
+          <p className="error-detail">{error}</p>
+          <p className="error-hint">Make sure backend is running on port 8000</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="intelligence-radar">
-      <LiveAnalysisHeader
-        progress={progress}
-        isAnalyzing={isAnalyzing}
-        isExpanded={isHeaderExpanded}
-        onToggle={() => setIsHeaderExpanded(!isHeaderExpanded)}
-      />
-
-      <div className="candidates-list">
-        {candidates.map((candidate, index) => (
-          <CandidateCard
-            key={candidate.id}
-            candidate={candidate}
-            rank={index + 1}
-            onClick={handleCandidateClick}
-            animationDelay={index * 100}
-          />
-        ))}
-
-        {isAnalyzing && (
-          <div className="analyzing-indicator">
-            <div className="spinner" />
-            <span>Analyzing more candidates...</span>
+      <LiveAnalysisHeader />
+      <div className="candidate-stream">
+        {signals.length === 0 ? (
+          <div className="no-signals">
+            <p>No signals available</p>
+            <p className="hint">Waiting for trading signals...</p>
           </div>
-        )}
-
-        {!isAnalyzing && candidates.length === 0 && (
-          <div className="empty-state">
-            <p>No candidates yet. Waiting for signals...</p>
-          </div>
+        ) : (
+          signals.map((signal) => (
+            <CandidateCard key={signal.id} candidate={signal} />
+          ))
         )}
       </div>
     </div>
   );
 };
+
+export default IntelligenceRadar;

@@ -1,25 +1,17 @@
 ﻿export interface Candidate {
   id: string;
   ticker: string;
-  companyName: string;
-  price: number;
-  change: number;
-  volume: number;
+  tier: string;
+  currentPrice: number;
+  netChange: number;
+  percentChange: number;
   rvol: number;
-  score: number;
-  aiConfidence: number;
+  globalConfidence: number;
+  direction: string;
+  factors: any[];
+  predictions: any;
   modelAgreement: number;
-  tier: 'Core' | 'Hot' | 'Liquid';
-  structure: 'HHHL' | 'LLLH' | 'NEUTRAL';
-  timestamp: number;
-  priceHistory: number[];
-  velezScores: {
-    weekly: number;
-    daily: number;
-    fourHour: number;
-    oneHour: number;
-  };
-  darkPoolBlocks: number;
-  catalyst: string;
-  status?: 'NEW' | 'WATCHING' | 'TRADED' | 'IGNORED';
+  volume: number;
+  marketCap: number;
+  timestamp: string;
 }
