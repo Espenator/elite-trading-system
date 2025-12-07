@@ -13,7 +13,7 @@ import os
 from typing import List
 
 # Import routes
-from routes import signals, market, trading
+from routes import signals, market, trading, ml_config
 
 # Import WebSocket manager
 from websocket_manager import ws_manager
@@ -43,6 +43,7 @@ app.add_middleware(
 app.include_router(signals.router)
 app.include_router(market.router)
 app.include_router(trading.router)
+app.include_router(ml_config.router)
 
 
 # Root endpoint
@@ -179,3 +180,4 @@ if __name__ == "__main__":
         reload=True,
         log_level="info"
     )
+

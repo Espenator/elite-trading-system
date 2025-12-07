@@ -1,6 +1,4 @@
-﻿// COMPLETE FRONTEND API SERVICE
-// Located at: glass-house-ui/src/lib/api-service.ts
-
+﻿// COMPLETE FRONTEND API SERVICE - ALL FEATURES
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000';
 
@@ -9,7 +7,7 @@ export class ApiService {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
 
-  // ===== HTTP API CALLS =====
+  // ===== SIGNALS API =====
   
   async getSignals(limit = 100) {
     const res = await fetch(`${API_BASE}/api/signals/?limit=${limit}`);
@@ -20,18 +18,6 @@ export class ApiService {
   async getSignalByTicker(ticker: string) {
     const res = await fetch(`${API_BASE}/api/signals/${ticker}`);
     if (!res.ok) throw new Error(`Failed to fetch signal for ${ticker}`);
-    return res.json();
-  }
-
-  async getSystemHealth() {
-    const res = await fetch(`${API_BASE}/api/signals/health/system`);
-    if (!res.ok) throw new Error('Failed to fetch system health');
-    return res.json();
-  }
-
-  async getTierCount(tier: string) {
-    const res = await fetch(`${API_BASE}/api/signals/tiers/${tier}/count`);
-    if (!res.ok) throw new Error(`Failed to fetch ${tier} tier count`);
     return res.json();
   }
 
@@ -47,6 +33,48 @@ export class ApiService {
     return res.json();
   }
 
+  async getTierCount(tier: string) {
+    const res = await fetch(`${API_BASE}/api/signals/tiers/${tier}/count`);
+    if (!res.ok) throw new Error(`Failed to fetch ${tier} tier count`);
+    return res.json();
+  }
+
+  // ===== SYSTEM HEALTH API =====
+  
+  async getSystemHealth() {
+    const res = await fetch(`${API_BASE}/api/signals/health/system`);
+    if (!res.ok) throw new Error('Failed to fetch system health');
+    return res.json();
+  }
+
+  // ===== ML CONFIG API =====
+  
+  async getMLConfig() {
+    const res = await fetch(`${API_BASE}/api/ml/config`);
+    if (!res.ok) throw new Error('Failed to fetch ML config');
+    return res.json();
+  }
+
+  async updateMLConfig(config: any) {
+    const res = await fetch(`${API_BASE}/api/ml/config`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config)
+    });
+    if (!res.ok) throw new Error('Failed to update ML config');
+    return res.json();
+  }
+
+  async resetMLConfig() {
+    const res = await fetch(`${API_BASE}/api/ml/config/reset`, {
+      method: 'POST'
+    });
+    if (!res.ok) throw new Error('Failed to reset ML config');
+    return res.json();
+  }
+
+  // ===== MARKET DATA API =====
+  
   async getMarketIndices() {
     const res = await fetch(`${API_BASE}/api/market/indices`);
     if (!res.ok) throw new Error('Failed to fetch market indices');
@@ -59,6 +87,14 @@ export class ApiService {
     return res.json();
   }
 
+  async getOHLCV(symbol: string, timeframe = '1d', limit = 500) {
+    const res = await fetch(`${API_BASE}/api/market/ohlcv/${symbol}?timeframe=${timeframe}&limit=${limit}`);
+    if (!res.ok) throw new Error(`Failed to fetch OHLCV for ${symbol}`);
+    return res.json();
+  }
+
+  // ===== TRADING API =====
+  
   async executeTrade(trade: any) {
     const res = await fetch(`${API_BASE}/api/trades`, {
       method: 'POST',
@@ -72,6 +108,12 @@ export class ApiService {
   async getPortfolio() {
     const res = await fetch(`${API_BASE}/api/portfolio`);
     if (!res.ok) throw new Error('Failed to fetch portfolio');
+    return res.json();
+  }
+
+  async getTradeHistory(limit = 100) {
+    const res = await fetch(`${API_BASE}/api/trades/history?limit=${limit}`);
+    if (!res.ok) throw new Error('Failed to fetch trade history');
     return res.json();
   }
 

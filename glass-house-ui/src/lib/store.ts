@@ -24,6 +24,10 @@ interface SystemHealth {
   wsConnected: boolean;
   lastUpdate: string;
   signalCount: number;
+  status: string;
+  dbLatency: number;
+  ingestionRate: number;
+  marketRegime: string;
 }
 
 interface MLConfig {
@@ -32,6 +36,7 @@ interface MLConfig {
   rvolWeight: number;
   darkPoolWeight: number;
   optionsFlowWeight: number;
+  lastUpdated?: string;
 }
 
 interface MarketStore {
@@ -45,8 +50,10 @@ interface MarketStore {
   setSelectedSignal: (signal: MarketSignal | null) => void;
   updateSignals: (signals: MarketSignal[]) => void;
   fetchSignals: () => Promise<void>;
-  updateSystemHealth: (health: Partial<SystemHealth>) => void;
-  updateMLConfig: (config: Partial<MLConfig>) => void;
+  fetchSystemHealth: () => Promise<void>;
+  fetchMLConfig: () => Promise<void>;
+  updateMLConfig: (config: Partial<MLConfig>) => Promise<void>;
+  resetMLConfig: () => Promise<void>;
   setConnectionStatus: (status: "connected" | "disconnected") => void;
   connectWebSocket: () => void;
   disconnectWebSocket: () => void;
@@ -63,6 +70,10 @@ export const useMarketStore = create<MarketStore>((set, get) => ({
     wsConnected: false,
     lastUpdate: new Date().toISOString(),
     signalCount: 0,
+    status: "unknown",
+    dbLatency: 0,
+    ingestionRate: 0,
+    marketRegime: "Unknown",
   },
   mlConfig: {
     confidenceThreshold: 80,
@@ -106,15 +117,52 @@ export const useMarketStore = create<MarketStore>((set, get) => ({
     }
   },
 
-  updateSystemHealth: (health) =>
-    set((state) => ({
-      systemHealth: { ...state.systemHealth, ...health },
-    })),
+  fetchSystemHealth: async () => {
+    try {
+      const health = await apiService.getSystemHealth();
+      set((state) => ({
+        systemHealth: {
+          ...state.systemHealth,
+          status: health.status,
+          dbLatency: health.dbLatency,
+          ingestionRate: health.ingestionRate,
+          marketRegime: health.marketRegime,
+          lastUpdate: new Date().toISOString(),
+        },
+      }));
+    } catch (error) {
+      console.error("Error fetching system health:", error);
+    }
+  },
 
-  updateMLConfig: (config) =>
-    set((state) => ({
-      mlConfig: { ...state.mlConfig, ...config },
-    })),
+  fetchMLConfig: async () => {
+    try {
+      const config = await apiService.getMLConfig();
+      set({ mlConfig: config });
+    } catch (error) {
+      console.error("Error fetching ML config:", error);
+    }
+  },
+
+  updateMLConfig: async (config) => {
+    try {
+      const currentConfig = get().mlConfig;
+      const updatedConfig = { ...currentConfig, ...config };
+      const savedConfig = await apiService.updateMLConfig(updatedConfig);
+      set({ mlConfig: savedConfig });
+    } catch (error) {
+      console.error("Error updating ML config:", error);
+    }
+  },
+
+  resetMLConfig: async () => {
+    try {
+      const result = await apiService.resetMLConfig();
+      set({ mlConfig: result.config });
+    } catch (error) {
+      console.error("Error resetting ML config:", error);
+    }
+  },
 
   setConnectionStatus: (status) =>
     set((state) => ({
@@ -127,14 +175,13 @@ export const useMarketStore = create<MarketStore>((set, get) => ({
   connectWebSocket: () => {
     apiService.connectWebSocket(
       (data) => {
-        // Handle WebSocket messages
         if (data.type === "system_update") {
           set((state) => ({
             systemHealth: {
               ...state.systemHealth,
               wsConnected: true,
               lastUpdate: data.data.timestamp,
-              signalCount: data.data.recentSignals?.length || 0,
+              signalCount: data.data.recentSignals?.length || state.systemHealth.signalCount,
             },
           }));
         }
