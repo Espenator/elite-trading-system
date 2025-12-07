@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 
 interface LiveAnalysisHeaderProps {
   progress: {
@@ -12,7 +12,7 @@ interface LiveAnalysisHeaderProps {
   onToggle: () => void;
 }
 
-export const LiveAnalysisHeader: React.FC<LiveAnalysisHeaderProps> = ({
+const LiveAnalysisHeader: React.FC<LiveAnalysisHeaderProps> = ({
   progress,
   isAnalyzing,
   isExpanded,
@@ -26,7 +26,7 @@ export const LiveAnalysisHeader: React.FC<LiveAnalysisHeaderProps> = ({
       {!isExpanded && (
         <div className="header-collapsed">
           <div className="header-title">
-            <span className="icon">🎯</span>
+            <span className="icon">??</span>
             <span className="title-text">LIVE AI ANALYSIS</span>
             {isAnalyzing && <div className="pulse-indicator" />}
           </div>
@@ -37,11 +37,11 @@ export const LiveAnalysisHeader: React.FC<LiveAnalysisHeaderProps> = ({
 
           <div className="header-stats">
             <span className="stat">{tier4Approved} Approved</span>
-            <span className="separator">•</span>
+            <span className="separator">�</span>
             <span className="stat-muted">{current}/{total}</span>
           </div>
 
-          <button className="expand-button" onClick={onToggle}>▼</button>
+          <button className="expand-button" onClick={onToggle}>?</button>
         </div>
       )}
 
@@ -49,7 +49,7 @@ export const LiveAnalysisHeader: React.FC<LiveAnalysisHeaderProps> = ({
         <div className="header-expanded">
           <div className="header-title-row">
             <span>AI VALIDATION FUNNEL</span>
-            <button className="collapse-button" onClick={onToggle}>▲ Collapse</button>
+            <button className="collapse-button" onClick={onToggle}>? Collapse</button>
           </div>
           <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '8px' }}>
             Detailed funnel visualization coming soon...
@@ -59,3 +59,5 @@ export const LiveAnalysisHeader: React.FC<LiveAnalysisHeaderProps> = ({
     </div>
   );
 };
+
+export default LiveAnalysisHeader;
