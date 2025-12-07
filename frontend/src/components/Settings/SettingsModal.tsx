@@ -1,4 +1,5 @@
-﻿import React, { useState } from 'react';
+﻿import React from 'react';
+import React, { useState } from 'react';
 import { useSettings } from '../../hooks/useSettings';
 import './SettingsModal.css';
 
@@ -190,3 +191,4 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 };
 
 export default SettingsModal;
+

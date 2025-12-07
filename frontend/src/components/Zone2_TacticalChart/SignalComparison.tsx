@@ -1,4 +1,5 @@
-﻿import React, { useState } from 'react';
+﻿import React from 'react';
+import React, { useState } from 'react';
 import TacticalChart from './TacticalChart';
 import './SignalComparison.css';
 
@@ -91,3 +92,4 @@ const SignalComparison: React.FC<SignalComparisonProps> = ({ signals }) => {
 };
 
 export default SignalComparison;
+

@@ -1,4 +1,5 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+﻿import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './ContextMenu.css';
 
 interface ContextMenuProps {
@@ -66,3 +67,4 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, ticker, onClose }) => {
 };
 
 export default ContextMenu;
+

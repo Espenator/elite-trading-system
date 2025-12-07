@@ -1,4 +1,5 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Sparkline from '../Common/Sparkline';
 import SettingsModal from '../Settings/SettingsModal';
 import './CommandBar.css';
@@ -139,3 +140,4 @@ const CommandBar: React.FC<CommandBarProps> = ({
 };
 
 export default CommandBar;
+

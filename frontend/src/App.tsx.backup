@@ -1,5 +1,4 @@
-﻿import React from 'react';
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import CommandBar from './components/Zone0_CommandBar/CommandBar';
 import IntelligenceRadar from './components/Zone1_IntelligenceRadar/IntelligenceRadar';
 import SignalComparison from './components/Zone2_TacticalChart/SignalComparison';
@@ -101,4 +100,3 @@ function App() {
 }
 
 export default App;
-

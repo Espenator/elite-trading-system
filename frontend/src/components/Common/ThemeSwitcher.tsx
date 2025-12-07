@@ -1,4 +1,5 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { themes, applyTheme } from '../../utils/themes';
 import './ThemeSwitcher.css';
 
@@ -51,3 +52,4 @@ const ThemeSwitcher = () => {
 };
 
 export default ThemeSwitcher;
+

@@ -1,4 +1,5 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React from 'react';
+import React, { useState, useEffect } from 'react';
 import './PositionSizer.css';
 
 interface PositionSizerProps {
@@ -123,3 +124,4 @@ const PositionSizer: React.FC<PositionSizerProps> = ({
 };
 
 export default PositionSizer;
+

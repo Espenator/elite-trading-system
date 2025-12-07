@@ -1,4 +1,5 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React from 'react';
+import React, { useState, useEffect } from 'react';
 import PortfolioPanel from './PortfolioPanel';
 import './ExecutionDeck.css';
 
@@ -176,3 +177,4 @@ const ExecutionDeck: React.FC<ExecutionDeckProps> = ({ selectedSignal }) => {
 };
 
 export default ExecutionDeck;
+

@@ -1,4 +1,5 @@
-﻿import { useState, useEffect, useRef } from 'react';
+﻿import React from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRealtimeSignals } from '../../hooks/useRealtimeSignals';
 import CandidateCard from './CandidateCard';
 import LiveAnalysisHeader from './LiveAnalysisHeader';
@@ -112,3 +113,4 @@ const IntelligenceRadar = () => {
 };
 
 export default IntelligenceRadar;
+

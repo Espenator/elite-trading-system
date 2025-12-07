@@ -1,4 +1,5 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import './KeyboardShortcuts.css';
 
@@ -55,3 +56,4 @@ const KeyboardShortcuts = () => {
 };
 
 export default KeyboardShortcuts;
+

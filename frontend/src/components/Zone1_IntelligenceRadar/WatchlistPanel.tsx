@@ -1,4 +1,5 @@
-﻿import { useState } from 'react';
+﻿import React from 'react';
+import { useState } from 'react';
 import './WatchlistPanel.css';
 
 interface WatchlistItem {
@@ -51,3 +52,4 @@ const WatchlistPanel = () => {
 };
 
 export default WatchlistPanel;
+
