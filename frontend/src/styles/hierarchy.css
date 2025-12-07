@@ -1,0 +1,119 @@
+﻿/* ============================================
+   VISUAL HIERARCHY - Depth Layers System
+   Zone 2 (Chart) = HERO - Everything else supports
+   ============================================ */
+
+:root {
+  /* Z-index hierarchy */
+  --z-command-bar: 100;
+  --z-modal: 90;
+  --z-notifications: 80;
+  --z-hero: 50;
+  --z-execution: 40;
+  --z-intelligence: 30;
+  --z-feed: 20;
+  --z-background: 10;
+  
+  /* Shadow depths */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.2);
+  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.3);
+  --shadow-2xl: 0 25px 50px rgba(0, 0, 0, 0.4);
+  
+  /* Glow intensities */
+  --glow-subtle: 0 0 10px rgba(0, 217, 255, 0.1);
+  --glow-medium: 0 0 20px rgba(0, 217, 255, 0.15);
+  --glow-strong: 0 0 40px rgba(0, 217, 255, 0.25);
+  --glow-hero: 0 0 60px rgba(0, 217, 255, 0.3);
+}
+
+/* Zone depth hierarchy */
+.zone-0 {
+  z-index: var(--z-command-bar);
+  box-shadow: var(--shadow-lg);
+}
+
+.zone-1 {
+  z-index: var(--z-intelligence);
+  opacity: 0.92; /* Slightly subdued */
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.zone-1:hover {
+  opacity: 1;
+  transform: translateY(-2px);
+}
+
+.zone-2 {
+  z-index: var(--z-hero);
+  box-shadow: 
+    var(--shadow-2xl),
+    var(--glow-hero);
+  border: 2px solid rgba(0, 217, 255, 0.4);
+  position: relative;
+}
+
+/* Hero zone emphasis glow */
+.zone-2::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background: linear-gradient(135deg, 
+    rgba(0, 217, 255, 0.1), 
+    rgba(124, 58, 237, 0.1)
+  );
+  border-radius: inherit;
+  z-index: -1;
+  opacity: 0.6;
+  animation: pulse-glow 4s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 0.8; }
+}
+
+.zone-3 {
+  z-index: var(--z-execution);
+  opacity: 0.92;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.zone-3:hover {
+  opacity: 1;
+  transform: translateY(-2px);
+}
+
+.zone-4 {
+  z-index: var(--z-feed);
+  box-shadow: var(--shadow-md);
+}
+
+/* Reduce glow intensity globally */
+.cyan-glow {
+  box-shadow: var(--glow-medium); /* Down from strong */
+  border-color: rgba(0, 217, 255, 0.3);
+}
+
+.cyan-glow-text {
+  color: #00d9ff;
+  text-shadow: 0 0 6px rgba(0, 217, 255, 0.5); /* Down from 0.6 */
+}
+
+/* Sacred cyan - ONLY for AI features */
+.ai-feature {
+  color: #00d9ff;
+  border-color: rgba(0, 217, 255, 0.4);
+}
+
+.ml-prediction {
+  color: #7c3aed; /* Purple for ML */
+  border-color: rgba(124, 58, 237, 0.4);
+}
+
+/* Generic hover - subtle white, NOT cyan */
+.interactive-element:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.15);
+}

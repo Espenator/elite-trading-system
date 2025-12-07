@@ -1,0 +1,110 @@
+﻿/* ============================================
+   ANIMATION SYSTEM - Refined & Purposeful
+   Reduced intensity, increased duration
+   ============================================ */
+
+:root {
+  /* Animation durations */
+  --duration-fast: 150ms;
+  --duration-normal: 300ms;
+  --duration-slow: 500ms;
+  --duration-slower: 800ms;
+  
+  /* Easing functions */
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* LEVEL 1: Critical alerts only */
+.new-signal {
+  animation: flash-green var(--duration-slower) var(--ease-out);
+}
+
+@keyframes flash-green {
+  0% { background: rgba(16, 185, 129, 0.2); } /* Reduced from 0.3 */
+  100% { background: transparent; }
+}
+
+.signal-updated {
+  animation: flash-cyan var(--duration-normal) var(--ease-out);
+}
+
+@keyframes flash-cyan {
+  0% { background: rgba(0, 217, 255, 0.15); } /* Reduced from 0.2 */
+  100% { background: transparent; }
+}
+
+/* LEVEL 2: Subtle pulse (slower) */
+.live-indicator {
+  animation: pulse 4s infinite; /* Increased from 2s */
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; } /* Less dramatic than 0.6 */
+}
+
+/* LEVEL 3: Hover effects (subtle) */
+.interactive-lift {
+  transition: 
+    transform var(--duration-normal) var(--ease-out),
+    box-shadow var(--duration-normal) var(--ease-out);
+}
+
+.interactive-lift:hover {
+  transform: translateY(-2px); /* Reduced from -4px */
+  box-shadow: var(--shadow-lg);
+}
+
+/* LEVEL 4: Loading states */
+.skeleton-pulse {
+  animation: skeleton var(--duration-slow) ease-in-out infinite;
+}
+
+@keyframes skeleton {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.6; }
+}
+
+/* REMOVE shimmer effect entirely */
+.race-bar::before {
+  display: none; /* No more shimmer */
+}
+
+/* Entrance animations (one-time only) */
+.slide-in {
+  animation: slideIn var(--duration-slow) var(--ease-out);
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(-10px); /* Reduced from -20px */
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Fade transitions */
+.fade-in {
+  animation: fadeIn var(--duration-normal) var(--ease-out);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Success animation (micro-interaction) */
+.success-check {
+  animation: successPop var(--duration-slow) var(--ease-out);
+}
+
+@keyframes successPop {
+  0% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
