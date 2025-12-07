@@ -1,0 +1,63 @@
+﻿.performance-overlay {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(0, 217, 255, 0.3);
+  border-radius: 8px;
+  padding: 12px 16px;
+  min-width: 150px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  z-index: 9999;
+  font-family: 'Roboto Mono', monospace;
+}
+
+.perf-header {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.perf-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.perf-metric {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.perf-label {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.perf-value {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.perf-value.good {
+  color: #10b981;
+}
+
+.perf-value.ok {
+  color: #fbbf24;
+}
+
+.perf-value.bad {
+  color: #ef4444;
+}
+
+.perf-hint {
+  margin-top: 8px;
+  font-size: 9px;
+  color: #64748b;
+  text-align: center;
+}

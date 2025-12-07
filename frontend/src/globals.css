@@ -1,25 +1,29 @@
-﻿/* Disabled state for all interactive elements */
-button:disabled,
-input:disabled,
-select:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  pointer-events: none;
+﻿:root {
+  --bg-primary: #0A0E1A;
+  --bg-surface: #1A1F2E;
+  --accent-primary: #00D9FF;
+  --accent-secondary: #7C3AED;
+  --color-bull: #10B981;
+  --color-bear: #EF4444;
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
 }
 
-button:disabled:hover,
-input:disabled:hover,
-select:disabled:hover {
-  transform: none;
-  box-shadow: none;
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-.candidate-card.disabled {
-  opacity: 0.6;
-  pointer-events: none;
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  overflow: hidden;
 }
 
-.feed-row.disabled {
-  opacity: 0.5;
-  pointer-events: none;
+/* Track mouse position for radial effects */
+body {
+  --mouse-x: 50%;
+  --mouse-y: 50%;
 }

@@ -39,3 +39,12 @@
   grid-column: 1 / -1;
   grid-row: 2;
 }
+.floating-controls {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
