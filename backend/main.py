@@ -55,3 +55,63 @@ from routes import market, trading
 # Include new routers
 app.include_router(market.router)
 app.include_router(trading.router)
+
+# WebSocket endpoint for real-time price updates
+from fastapi import WebSocket, WebSocketDisconnect
+from typing import List
+import asyncio
+
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+    
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+    
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+    
+    async def broadcast(self, message: dict):
+        for connection in self.active_connections:
+            try:
+                await connection.send_json(message)
+            except:
+                pass
+
+manager = ConnectionManager()
+
+@app.websocket("/ws/prices")
+async def websocket_prices(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            import yfinance as yf
+            btc = yf.Ticker("BTC-USD")
+            eth = yf.Ticker("ETH-USD")
+            
+            btc_data = btc.history(period="1d")
+            eth_data = eth.history(period="1d")
+            
+            if not btc_data.empty and not eth_data.empty:
+                btc_price = float(btc_data['Close'].iloc[-1])
+                eth_price = float(eth_data['Close'].iloc[-1])
+                
+                btc_change = ((btc_price - float(btc_data['Open'].iloc[0])) / float(btc_data['Open'].iloc[0])) * 100
+                eth_change = ((eth_price - float(eth_data['Open'].iloc[0])) / float(eth_data['Open'].iloc[0])) * 100
+                
+                await websocket.send_json({
+                    "type": "price_update",
+                    "data": {
+                        "BTC": {"symbol": "BTC", "price": round(btc_price, 2), "change_percent_24h": round(btc_change, 2)},
+                        "ETH": {"symbol": "ETH", "price": round(eth_price, 2), "change_percent_24h": round(eth_change, 2)}
+                    },
+                    "timestamp": datetime.now().isoformat()
+                })
+            
+            await asyncio.sleep(5)
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+        manager.disconnect(websocket)
