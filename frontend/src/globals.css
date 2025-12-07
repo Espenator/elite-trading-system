@@ -1,0 +1,25 @@
+﻿/* Disabled state for all interactive elements */
+button:disabled,
+input:disabled,
+select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+button:disabled:hover,
+input:disabled:hover,
+select:disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.candidate-card.disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.feed-row.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}

@@ -4,17 +4,14 @@ import IntelligenceRadar from './components/Zone1_IntelligenceRadar/Intelligence
 import TacticalChart from './components/Zone2_TacticalChart/TacticalChart';
 import ExecutionDeck from './components/Zone3_ExecutionDeck/ExecutionDeck';
 import LiveSignalFeed from './components/Zone4_LiveFeed/LiveSignalFeed';
-import SettingsModal from './components/Settings/SettingsModal';
 import KeyboardShortcuts from './components/Common/KeyboardShortcuts';
 import './App.css';
 
 function App() {
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeSymbol, setActiveSymbol] = useState('SPY');
 
   const handleTickerClick = (ticker: string) => {
     setActiveSymbol(ticker);
-    console.log('Loading ticker:', ticker);
   };
 
   return (
@@ -41,11 +38,6 @@ function App() {
           <LiveSignalFeed onTickerClick={handleTickerClick} />
         </div>
       </div>
-
-      <SettingsModal 
-        isOpen={settingsOpen} 
-        onClose={() => setSettingsOpen(false)} 
-      />
 
       <KeyboardShortcuts />
     </div>

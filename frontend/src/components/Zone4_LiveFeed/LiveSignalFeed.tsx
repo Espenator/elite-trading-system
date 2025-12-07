@@ -1,6 +1,7 @@
 ﻿import React, { useState } from 'react';
 import { FixedSizeList as List } from 'react-window';
 import { useRealtimeSignals } from '../../hooks/useRealtimeSignals';
+import { exportSignalsToCSV } from '../../utils/csvExport';
 import './LiveSignalFeed.css';
 
 interface LiveSignalFeedProps {
@@ -10,9 +11,9 @@ interface LiveSignalFeedProps {
 const LiveSignalFeed: React.FC<LiveSignalFeedProps> = ({ onTickerClick }) => {
   const { signals } = useRealtimeSignals();
   const [flashingRows, setFlashingRows] = useState<Set<number>>(new Set());
+  const [isPaused, setIsPaused] = useState(false);
 
   const handleRowClick = (ticker: string, index: number) => {
-    // Flash animation
     setFlashingRows(prev => new Set(prev).add(index));
     setTimeout(() => {
       setFlashingRows(prev => {
@@ -22,10 +23,13 @@ const LiveSignalFeed: React.FC<LiveSignalFeedProps> = ({ onTickerClick }) => {
       });
     }, 800);
 
-    // Load ticker in chart
     if (onTickerClick) {
       onTickerClick(ticker);
     }
+  };
+
+  const handleExport = () => {
+    exportSignalsToCSV(signals);
   };
 
   const Row = ({ index, style }: { index: number; style: React.CSSProperties }) => {
@@ -58,8 +62,10 @@ const LiveSignalFeed: React.FC<LiveSignalFeedProps> = ({ onTickerClick }) => {
         <h3 className="feed-title">Live Signal Feed</h3>
         <span className="feed-status active">● LIVE</span>
         <div className="feed-controls">
-          <button className="feed-btn">Pause</button>
-          <button className="feed-btn">Export</button>
+          <button className="feed-btn" onClick={() => setIsPaused(!isPaused)}>
+            {isPaused ? '▶️ Resume' : '⏸️ Pause'}
+          </button>
+          <button className="feed-btn" onClick={handleExport}>📥 Export CSV</button>
         </div>
       </div>
 
