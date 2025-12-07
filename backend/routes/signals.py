@@ -251,3 +251,35 @@ async def get_tier_count(tier: str):
     finally:
         conn.close()
 
+
+@router.get("/ranked", response_model=dict)
+async def get_ranked_signals(limit: int = Query(25, ge=1, le=100)):
+    """Get top ranked signals (top 25 by confidence score)"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT * FROM signals ORDER BY global_confidence DESC LIMIT ?", (limit,))
+        signals = []
+        for idx, row in enumerate(cursor.fetchall(), start=1):
+            signals.append({"id": row[0], "rank": idx, "ticker": row[1], "tier": row[2], "price": row[3] or 0.0, "percentChange": row[5] or 0.0, "volume": row[12] or 0.0, "rvol": row[6] or 1.0, "globalConfidence": row[7] or 50, "modelAgreement": row[11] or 0.5, "catalyst": "Signal detected", "sparklineData": [], "signals": json.loads(row[9]) if row[9] else {}, "timestamp": row[14] or datetime.now().isoformat()})
+        return {"signals": signals, "timestamp": datetime.now().isoformat(), "totalProcessed": len(signals)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+    finally:
+        conn.close()
+
+@router.get("/feed", response_model=dict)
+async def get_signal_feed(limit: int = Query(1000, ge=1, le=1000)):
+    """Get live signal feed (up to 1000 recent signals)"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT id, timestamp, ticker, tier, global_confidence, model_agreement, rvol, percent_change, current_price FROM signals ORDER BY timestamp DESC LIMIT ?", (limit,))
+        signals = []
+        for row in cursor.fetchall():
+            signals.append({"id": row[0], "timestamp": row[1] or datetime.now().isoformat(), "ticker": row[2], "tier": row[3], "globalConfidence": row[4] or 50, "modelAgreement": row[5] or 0.5, "rvol": row[6] or 1.0, "catalyst": f"Signal @ {row[8]:.2f}" if row[8] else "Active", "price": row[8] or 0.0, "percentChange": row[7] or 0.0})
+        return {"signals": signals, "hasMore": False, "cursor": None, "timestamp": datetime.now().isoformat()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+    finally:
+        conn.close()

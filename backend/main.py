@@ -48,3 +48,10 @@ async def health():
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+# Import new route modules
+from routes import market, trading
+
+# Include new routers
+app.include_router(market.router)
+app.include_router(trading.router)
