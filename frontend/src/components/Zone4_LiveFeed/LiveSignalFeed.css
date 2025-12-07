@@ -1,12 +1,9 @@
 ﻿.live-feed {
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(135deg, #0a0e1a 0%, #1a1f2e 100%);
-  border-radius: 12px;
-  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  height: 100%;
+  background: linear-gradient(135deg, #0a0e1a 0%, #1a1f2e 100%);
+  padding: 16px;
 }
 
 .feed-header {
@@ -18,7 +15,7 @@
 }
 
 .feed-icon {
-  font-size: 20px;
+  font-size: 16px;
   animation: pulse 2s ease-in-out infinite;
 }
 
@@ -30,108 +27,118 @@
 .feed-title {
   flex: 1;
   margin: 0;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
   color: #e2e8f0;
 }
 
 .feed-status {
-  font-size: 11px;
+  font-size: 10px;
   color: #64748b;
   text-transform: uppercase;
   font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 6px;
 }
 
 .feed-status.active {
   color: #10b981;
 }
 
-.ticker-container {
-  flex: 1;
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(100, 116, 139, 0.2);
-  border-radius: 8px;
-  padding: 12px;
-  overflow: hidden;
-  position: relative;
-}
-
-.ticker-scroll {
+.feed-controls {
   display: flex;
-  flex-direction: column;
   gap: 8px;
-  animation: scroll-up 20s linear infinite;
 }
 
-@keyframes scroll-up {
-  0% { transform: translateY(0); }
-  100% { transform: translateY(-50%); }
+.feed-btn {
+  padding: 6px 12px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(100, 116, 139, 0.3);
+  border-radius: 4px;
+  color: #94a3b8;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
-.ticker-item {
-  display: grid;
-  grid-template-columns: 80px 80px 80px 60px;
-  gap: 12px;
-  padding: 10px 12px;
-  background: rgba(26, 31, 46, 0.6);
-  border: 1px solid rgba(100, 116, 139, 0.2);
-  border-radius: 6px;
-  transition: all 0.3s ease;
-  flex-shrink: 0;
-}
-
-.ticker-item:hover {
+.feed-btn:hover {
+  background: rgba(0, 217, 255, 0.1);
   border-color: #00d9ff;
-  transform: translateX(4px);
-  background: rgba(0, 217, 255, 0.05);
-}
-
-.ticker-item.active {
-  border-color: #00d9ff;
-  box-shadow: 0 0 20px rgba(0, 217, 255, 0.2);
-}
-
-.ticker-symbol {
-  font-size: 14px;
-  font-weight: 700;
   color: #00d9ff;
 }
 
-.ticker-change {
-  font-size: 13px;
+.feed-table-header {
+  display: grid;
+  grid-template-columns: 80px 100px 90px 80px 100px 80px 1fr;
+  gap: 12px;
+  padding: 12px 16px;
+  background: rgba(15, 23, 42, 0.8);
+  border-bottom: 2px solid rgba(0, 217, 255, 0.3);
+  margin-top: 12px;
+}
+
+.header-cell {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #94a3b8;
+}
+
+.feed-list {
+  flex: 1;
+}
+
+.feed-row {
+  display: grid;
+  grid-template-columns: 80px 100px 90px 80px 100px 80px 1fr;
+  gap: 12px;
+  padding: 0 16px;
+  align-items: center;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+  transition: background 0.15s;
+  cursor: pointer;
+}
+
+.feed-row:hover {
+  background: rgba(0, 217, 255, 0.08);
+}
+
+.feed-cell {
+  font-size: 12px;
+  color: #e2e8f0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.feed-cell.ticker {
+  font-weight: 700;
+  color: #00d9ff;
+  font-family: 'Roboto Mono', monospace;
+}
+
+.feed-cell.tier {
+  text-transform: uppercase;
+  font-size: 10px;
   font-weight: 600;
 }
 
-.ticker-change.positive {
+.feed-cell.tier-core {
   color: #10b981;
 }
 
-.ticker-change.negative {
-  color: #ef4444;
+.feed-cell.tier-hot {
+  color: #fbbf24;
 }
 
-.ticker-price {
-  font-size: 13px;
-  color: #e2e8f0;
-  font-weight: 600;
+.feed-cell.tier-liquid {
+  color: #3b82f6;
 }
 
-.ticker-confidence {
-  font-size: 12px;
-  color: #a855f7;
-  font-weight: 700;
-}
-
-.feed-empty {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #64748b;
-  font-size: 14px;
+.feed-cell.score,
+.feed-cell.confidence,
+.feed-cell.rvol {
+  font-family: 'Roboto Mono', monospace;
+  text-align: right;
 }
 
 .feed-stats {
@@ -140,6 +147,7 @@
   gap: 12px;
   padding-top: 12px;
   border-top: 1px solid rgba(100, 116, 139, 0.2);
+  margin-top: auto;
 }
 
 .stat {
@@ -150,14 +158,14 @@
 }
 
 .stat-label {
-  font-size: 10px;
+  font-size: 9px;
   color: #64748b;
   text-transform: uppercase;
   font-weight: 600;
 }
 
 .stat-value {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
   color: #e2e8f0;
 }

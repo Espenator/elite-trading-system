@@ -5,6 +5,7 @@ import TacticalChart from './components/Zone2_TacticalChart/TacticalChart';
 import ExecutionDeck from './components/Zone3_ExecutionDeck/ExecutionDeck';
 import LiveSignalFeed from './components/Zone4_LiveFeed/LiveSignalFeed';
 import SettingsModal from './components/Settings/SettingsModal';
+import KeyboardShortcuts from './components/Common/KeyboardShortcuts';
 import './App.css';
 
 function App() {
@@ -36,6 +37,8 @@ function App() {
         isOpen={settingsOpen} 
         onClose={() => setSettingsOpen(false)} 
       />
+
+      <KeyboardShortcuts />
     </div>
   );
 }

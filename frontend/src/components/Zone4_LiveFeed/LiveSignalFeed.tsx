@@ -1,35 +1,27 @@
-﻿import React, { useEffect, useState } from 'react';
+﻿import React from 'react';
+import { FixedSizeList as List } from 'react-window';
 import { useRealtimeSignals } from '../../hooks/useRealtimeSignals';
 import './LiveSignalFeed.css';
 
 const LiveSignalFeed: React.FC = () => {
   const { signals } = useRealtimeSignals();
-  const [tickerIndex, setTickerIndex] = useState(0);
 
-  useEffect(() => {
-    if (signals.length === 0) return;
-    
-    const interval = setInterval(() => {
-      setTickerIndex(prev => (prev + 1) % signals.length);
-    }, 3000);
+  const Row = ({ index, style }: { index: number; style: React.CSSProperties }) => {
+    const signal = signals[index];
+    if (!signal) return null;
 
-    return () => clearInterval(interval);
-  }, [signals.length]);
-
-  if (signals.length === 0) {
     return (
-      <div className="live-feed">
-        <div className="feed-header">
-          <span className="feed-icon">🔴</span>
-          <h3 className="feed-title">Live Signal Feed</h3>
-          <span className="feed-status">● WAITING</span>
-        </div>
-        <div className="feed-empty">
-          <p>No signals available</p>
-        </div>
+      <div className="feed-row" style={style}>
+        <span className="feed-cell time">{new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+        <span className="feed-cell ticker">{signal.ticker}</span>
+        <span className={`feed-cell tier tier-${signal.tier?.toLowerCase()}`}>{signal.tier}</span>
+        <span className="feed-cell score">{signal.globalConfidence}</span>
+        <span className="feed-cell confidence">{signal.modelAgreement}%</span>
+        <span className="feed-cell rvol">{signal.rvol?.toFixed(1)}x</span>
+        <span className="feed-cell catalyst">Volume spike + momentum</span>
       </div>
     );
-  }
+  };
 
   return (
     <div className="live-feed">
@@ -37,22 +29,31 @@ const LiveSignalFeed: React.FC = () => {
         <span className="feed-icon">🔴</span>
         <h3 className="feed-title">Live Signal Feed</h3>
         <span className="feed-status active">● LIVE</span>
-      </div>
-
-      <div className="ticker-container">
-        <div className="ticker-scroll">
-          {signals.map((signal, idx) => (
-            <div key={signal.id} className={`ticker-item ${idx === tickerIndex ? 'active' : ''}`}>
-              <span className="ticker-symbol">{signal.ticker}</span>
-              <span className={`ticker-change ${signal.percentChange >= 0 ? 'positive' : 'negative'}`}>
-                {signal.percentChange >= 0 ? '▲' : '▼'} {Math.abs(signal.percentChange).toFixed(2)}%
-              </span>
-              <span className="ticker-price">${signal.currentPrice?.toFixed(2)}</span>
-              <span className="ticker-confidence">{signal.globalConfidence}%</span>
-            </div>
-          ))}
+        <div className="feed-controls">
+          <button className="feed-btn">Pause</button>
+          <button className="feed-btn">Export</button>
         </div>
       </div>
+
+      <div className="feed-table-header">
+        <span className="header-cell time">TIME</span>
+        <span className="header-cell ticker">TICKER</span>
+        <span className="header-cell tier">TIER</span>
+        <span className="header-cell score">SCORE</span>
+        <span className="header-cell confidence">AI CONF</span>
+        <span className="header-cell rvol">RVOL</span>
+        <span className="header-cell catalyst">CATALYST</span>
+      </div>
+
+      <List
+        height={240}
+        itemCount={signals.length}
+        itemSize={40}
+        width="100%"
+        className="feed-list"
+      >
+        {Row}
+      </List>
 
       <div className="feed-stats">
         <div className="stat">
@@ -68,7 +69,9 @@ const LiveSignalFeed: React.FC = () => {
         <div className="stat">
           <span className="stat-label">Avg Confidence</span>
           <span className="stat-value">
-            {(signals.reduce((sum, s) => sum + s.globalConfidence, 0) / signals.length).toFixed(0)}%
+            {signals.length > 0 
+              ? (signals.reduce((sum, s) => sum + s.globalConfidence, 0) / signals.length).toFixed(0)
+              : 0}%
           </span>
         </div>
       </div>
