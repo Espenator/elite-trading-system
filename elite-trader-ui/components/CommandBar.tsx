@@ -16,12 +16,18 @@ interface MarketIndex {
 
 export default function CommandBar({ selectedSymbol, wsConnected }: CommandBarProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [mounted, setMounted] = useState(false);
   const [indices, setIndices] = useState<MarketIndex[]>([
     { symbol: 'S&P 500', price: 6050.00, change: 0.15 },
     { symbol: 'DJI', price: 47950, change: -0.01 },
     { symbol: 'NASDAQ', price: 21180, change: 0.32 },
   ]);
   const [mainSymbolData, setMainSymbolData] = useState({ price: 685.69, volume: '25.6M', change: 2.51 });
+
+  // FIX: Prevent hydration mismatch by only rendering client-only content after mount
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <div className="command-bar">
@@ -83,7 +89,7 @@ export default function CommandBar({ selectedSymbol, wsConnected }: CommandBarPr
         <span className="text-xs text-slate-400">
           {wsConnected ? 'Active' : 'Offline'}
         </span>
-        {wsConnected && (
+        {wsConnected && mounted && (
           <span className="text-xs text-slate-500">12ms</span>
         )}
       </div>

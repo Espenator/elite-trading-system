@@ -13,12 +13,12 @@ from backend.api.websocket_endpoint import websocket_endpoint, manager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    print("?? Elite Trading System Starting...")
-    print("? FastAPI server initialized")
-    print("? WebSocket manager ready")
+    print("🚀 Elite Trading System Starting...")
+    print("✅ FastAPI server initialized")
+    print("✅ WebSocket manager ready")
     yield
     # Shutdown
-    print("?? Elite Trading System shutting down...")
+    print("👋 Elite Trading System shutting down...")
 
 app = FastAPI(
     title="Elite Trading System API",
@@ -27,10 +27,10 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware
+# CORS middleware - FIX: Add all localhost ports
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001"],
+    allow_origins=["*"],  # Allow all origins in development
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
