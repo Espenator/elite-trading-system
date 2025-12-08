@@ -1,9 +1,9 @@
-﻿import type { Metadata } from "next";
-import "../src/app/aurora.css";
+import type { Metadata } from 'next';
+import './globals.css';
 
 export const metadata: Metadata = {
-  title: "Elite Trading Glass House",
-  description: "Real-time Signal Intelligence System",
+  title: 'Elite Trader Terminal',
+  description: 'Professional trading terminal with AI-powered signals and real-time market data',
 };
 
 export default function RootLayout({
@@ -13,9 +13,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="antialiased">
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
