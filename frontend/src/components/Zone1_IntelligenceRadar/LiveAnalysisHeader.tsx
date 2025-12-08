@@ -1,61 +1,56 @@
-import React from 'react';
+﻿import React from 'react';
+import './LiveAnalysisHeader.css';
 
 interface LiveAnalysisHeaderProps {
-  progress: {
+  progress?: {
     current: number;
     total: number;
     tier3Passed: number;
     tier4Approved: number;
   };
-  isAnalyzing: boolean;
-  isExpanded: boolean;
-  onToggle: () => void;
 }
 
+const defaultProgress = {
+  current: 0,
+  total: 0,
+  tier3Passed: 0,
+  tier4Approved: 0
+};
+
 const LiveAnalysisHeader: React.FC<LiveAnalysisHeaderProps> = ({
-  progress,
-  isAnalyzing,
-  isExpanded,
-  onToggle,
+  progress = defaultProgress
 }) => {
-  const { current, total, tier4Approved } = progress;
-  const percentComplete = total > 0 ? (current / total) * 100 : 0;
+  const { current, total, tier3Passed, tier4Approved } = progress;
+  const progressPercent = total > 0 ? (current / total) * 100 : 0;
 
   return (
-    <div className={`live-analysis-header ${isExpanded ? 'expanded' : 'collapsed'}`}>
-      {!isExpanded && (
-        <div className="header-collapsed">
-          <div className="header-title">
-            <span className="icon">??</span>
-            <span className="title-text">LIVE AI ANALYSIS</span>
-            {isAnalyzing && <div className="pulse-indicator" />}
+    <div className="live-analysis-header">
+      <div className="header-title">
+        <span className="icon">📡</span>
+        <h2>LIVE MARKET INTELLIGENCE</h2>
+        <span className="status-indicator">●</span>
+      </div>
+      
+      <div className="analysis-progress">
+        <div className="progress-stats">
+          <div className="stat">
+            <span className="label">Scanning:</span>
+            <span className="value">{current}/{total}</span>
           </div>
-
-          <div className="progress-bar">
-            <div className="progress-bar-fill" style={{ width: `${percentComplete}%` }} />
+          <div className="stat">
+            <span className="label">Tier 3 Passed:</span>
+            <span className="value tier3">{tier3Passed}</span>
           </div>
-
-          <div className="header-stats">
-            <span className="stat">{tier4Approved} Approved</span>
-            <span className="separator">�</span>
-            <span className="stat-muted">{current}/{total}</span>
+          <div className="stat">
+            <span className="label">Tier 4 Approved:</span>
+            <span className="value tier4">{tier4Approved}</span>
           </div>
-
-          <button className="expand-button" onClick={onToggle}>?</button>
         </div>
-      )}
-
-      {isExpanded && (
-        <div className="header-expanded">
-          <div className="header-title-row">
-            <span>AI VALIDATION FUNNEL</span>
-            <button className="collapse-button" onClick={onToggle}>? Collapse</button>
-          </div>
-          <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '8px' }}>
-            Detailed funnel visualization coming soon...
-          </p>
+        
+        <div className="progress-bar">
+          <div className="progress-fill" style={{width: `${progressPercent}%`}}></div>
         </div>
-      )}
+      </div>
     </div>
   );
 };
