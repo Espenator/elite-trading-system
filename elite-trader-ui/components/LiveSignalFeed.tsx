@@ -7,43 +7,116 @@ interface LiveSignalFeedProps {
 }
 
 interface Signal {
-  id: string;
-  time: string;
-  ticker: string;
+  id?: string;
+  time?: string;
+  ticker?: string;
+  symbol?: string;  // Scanner returns 'symbol', not 'ticker'
   tier?: string;
   score?: number;
+  composite_score?: number;  // Scanner returns this
   aiConf?: number;
   rvol?: number;
+  volume_ratio?: number;  // Scanner returns this
   catalyst?: string;
+  timestamp?: string;  // Scanner returns this
 }
 
 export default function LiveSignalFeed({ onSelectSymbol }: LiveSignalFeedProps) {
   const [signals, setSignals] = useState<Signal[]>([]);
   const [isPaused, setIsPaused] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState('connecting');
 
   useEffect(() => {
     const ws = new WebSocket('ws://localhost:8000/ws');
     
+    ws.onopen = () => {
+      console.log('✅ WebSocket Connected to signal feed');
+      setConnectionStatus('connected');
+    };
+    
+    ws.onclose = () => {
+      console.log('❌ WebSocket Disconnected');
+      setConnectionStatus('disconnected');
+    };
+    
+    ws.onerror = (error) => {
+      console.error('WebSocket Error:', error);
+      setConnectionStatus('error');
+    };
+    
     ws.onmessage = (event) => {
-      if (!isPaused) {
-        try {
-          const newSignal = JSON.parse(event.data);
-          if (newSignal && newSignal.ticker) {
-            setSignals(prev => [newSignal, ...prev].slice(0, 100));
-          }
-        } catch (err) {
-          console.error('Error parsing signal:', err);
+      if (isPaused) return;
+      
+      try {
+        const message = JSON.parse(event.data);
+        console.log('📡 Received message:', message.type);
+        
+        // Handle different message types
+        if (message.type === 'signals_update' && message.signals) {
+          // Full signals update from scanner
+          console.log(`📊 Received ${message.signals.length} signals`);
+          
+          const formattedSignals = message.signals.map((sig: Signal, index: number) => ({
+            id: `sig_${Date.now()}_${index}`,
+            time: sig.timestamp ? new Date(sig.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString(),
+            ticker: sig.symbol || sig.ticker || 'N/A',
+            tier: sig.composite_score ? 
+              (sig.composite_score >= 80 ? 'T1' : sig.composite_score >= 60 ? 'T2' : 'T3') : 
+              sig.tier || 'T3',
+            score: sig.composite_score || sig.score || 0,
+            aiConf: sig.composite_score || sig.aiConf || 0,
+            rvol: sig.volume_ratio || sig.rvol || 1.0,
+            catalyst: sig.catalyst || 'Signal detected'
+          }));
+          
+          setSignals(formattedSignals);
         }
+        else if (message.type === 'new_signal' && message.signal) {
+          // Individual signal update
+          const sig = message.signal;
+          const newSignal = {
+            id: `sig_${Date.now()}`,
+            time: sig.timestamp ? new Date(sig.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString(),
+            ticker: sig.symbol || sig.ticker || 'N/A',
+            tier: sig.composite_score ? 
+              (sig.composite_score >= 80 ? 'T1' : sig.composite_score >= 60 ? 'T2' : 'T3') : 
+              sig.tier || 'T3',
+            score: sig.composite_score || sig.score || 0,
+            aiConf: sig.composite_score || sig.aiConf || 0,
+            rvol: sig.volume_ratio || sig.rvol || 1.0,
+            catalyst: sig.catalyst || 'Signal detected'
+          };
+          
+          setSignals(prev => [newSignal, ...prev].slice(0, 100));
+        }
+        else if (message.type === 'connection') {
+          console.log('✅ Connection confirmed:', message.message);
+        }
+        else if (message.type === 'scan_complete') {
+          console.log('✅ Scan complete');
+        }
+        else if (message.type === 'status') {
+          console.log('ℹ️ Status:', message.message);
+        }
+      } catch (err) {
+        console.error('Error parsing signal:', err);
       }
     };
 
     return () => ws.close();
   }, [isPaused]);
 
+  const handleClearSignals = () => {
+    setSignals([]);
+  };
+
   return (
     <div className="live-signal-feed">
       <div className="feed-header">
-        <h2 className="feed-title">🔴 LIVE SIGNAL FEED</h2>
+        <h2 className="feed-title">
+          {connectionStatus === 'connected' ? '🟢' : connectionStatus === 'connecting' ? '🟡' : '🔴'}
+          {' '}LIVE SIGNAL FEED
+        </h2>
         <div className="feed-controls">
           <span className="signal-count">{signals.length} signals</span>
           <button 
@@ -52,7 +125,12 @@ export default function LiveSignalFeed({ onSelectSymbol }: LiveSignalFeedProps) 
           >
             {isPaused ? '▶ Resume' : '⏸ Pause'}
           </button>
-          <button className="feed-control-btn">📥 Export</button>
+          <button 
+            className="feed-control-btn"
+            onClick={handleClearSignals}
+          >
+            🗑️ Clear
+          </button>
         </div>
       </div>
 
@@ -74,7 +152,13 @@ export default function LiveSignalFeed({ onSelectSymbol }: LiveSignalFeedProps) 
               <tr className="empty-row">
                 <td colSpan={7}>
                   <div className="feed-empty-state">
-                    <p>No signals - Click "Force Scan" to load market data</p>
+                    {connectionStatus === 'connected' ? (
+                      <p>✅ Connected - Waiting for signals...</p>
+                    ) : connectionStatus === 'connecting' ? (
+                      <p>🟡 Connecting to backend...</p>
+                    ) : (
+                      <p>❌ Connection error - Check backend is running</p>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -83,7 +167,7 @@ export default function LiveSignalFeed({ onSelectSymbol }: LiveSignalFeedProps) 
                 <tr 
                   key={signal.id}
                   className="feed-row"
-                  onClick={() => onSelectSymbol(signal.ticker)}
+                  onClick={() => onSelectSymbol(signal.ticker || 'SPY')}
                 >
                   <td className="time-cell">{signal.time || '-'}</td>
                   <td className="ticker-cell">{signal.ticker || '-'}</td>
@@ -92,9 +176,9 @@ export default function LiveSignalFeed({ onSelectSymbol }: LiveSignalFeedProps) 
                       {signal.tier || 'N/A'}
                     </span>
                   </td>
-                  <td className="score-cell">{signal.score?.toFixed(1) || '-'}</td>
-                  <td className="conf-cell">{signal.aiConf ? `${signal.aiConf}%` : '-'}</td>
-                  <td className="rvol-cell">{signal.rvol?.toFixed(1) ? `${signal.rvol.toFixed(1)}x` : '-'}</td>
+                  <td className="score-cell">{signal.score ? signal.score.toFixed(1) : '-'}</td>
+                  <td className="conf-cell">{signal.aiConf ? `${signal.aiConf.toFixed(0)}%` : '-'}</td>
+                  <td className="rvol-cell">{signal.rvol ? `${signal.rvol.toFixed(1)}x` : '-'}</td>
                   <td className="catalyst-cell">{signal.catalyst || '-'}</td>
                 </tr>
               ))
