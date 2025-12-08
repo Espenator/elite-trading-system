@@ -1,77 +1,335 @@
-﻿@tailwind base;
+@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ELITE TRADER TERMINAL - Military Futuristic Theme */
+
 :root {
-  --bg-deep-space: linear-gradient(135deg, #0a0e17 0%, #131720 50%, #0f1419 100%);
-  --bg-glass: rgba(19, 23, 32, 0.7);
-  --text-primary: #e4e4e7;
-  --text-secondary: #94a3b8;
-  --text-dimmed: #64748b;
-  --border-subtle: rgba(255, 255, 255, 0.05);
-  --math-cyan: #06b6d4;
-  --ai-purple: #a855f7;
-  --profit-gold: #fbbf24;
-  --hedge-green: #10b981;
-  --alert-red: #ef4444;
+  /* Color System - Military HUD Aesthetic */
+  --bg-primary: #0A0E1A;        /* Deep space navy */
+  --bg-secondary: #111827;       /* Darker navy */
+  --bg-card: #1A1F2E;            /* Semi-translucent card */
+  --accent-cyan: #00D9FF;        /* Cyan glow - military HUD */
+  --accent-purple: #A855F7;      /* Purple - AI/ML indicators */
+  --accent-orange: #FB923C;      /* Orange alerts */
+  --bull-green: #10B981;         /* Emerald */
+  --bear-red: #EF4444;           /* Crimson */
+  --text-primary: #F8FAFC;       /* Off-white */
+  --text-secondary: #94A3B8;     /* Slate gray */
+  --border-glass: rgba(148, 163, 184, 0.15);
+  --glass-effect: rgba(26, 31, 46, 0.85);
+  
+  /* Typography */
+  --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'Roboto Mono', 'Courier New', monospace;
 }
 
 * {
-  box-sizing: border-box;
   margin: 0;
   padding: 0;
-}
-
-html, body {
-  height: 100%;
-  overflow: hidden;
-  background: linear-gradient(135deg, #0a0e17 0%, #131720 50%, #0f1419 100%);
+  box-sizing: border-box;
 }
 
 body {
+  font-family: var(--font-primary);
+  background: var(--bg-primary);
   color: var(--text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-size: 14px;
+  overflow: hidden;
 }
 
-.font-data {
-  font-family: 'Courier New', Courier, monospace;
+/* ELITE TERMINAL GRID - 5 ZONES */
+.elite-terminal-grid {
+  display: grid;
+  grid-template-columns: 280px 1fr 340px;
+  grid-template-rows: 72px calc(100vh - 392px) 320px;
+  gap: 0;
+  height: 100vh;
+  width: 100vw;
+  background: var(--bg-primary);
 }
 
-.glass {
-  background: var(--bg-glass);
-  backdrop-filter: blur(20px);
-  border: 1px solid var(--border-subtle);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+/* Zone Assignments */
+.command-bar {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  background: linear-gradient(135deg, #1A1F2E 0%, #0F1419 100%);
+  border-bottom: 1px solid rgba(0, 217, 255, 0.2);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
 }
 
-.glow-cyan {
-  border-color: var(--math-cyan) !important;
-  box-shadow: 0 0 20px rgba(6, 182, 212, 0.4) !important;
+.intelligence-radar {
+  grid-column: 1;
+  grid-row: 2;
+  overflow-y: auto;
+  padding: 16px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-glass);
 }
 
-button { transition: all 0.2s ease; }
-button:hover { transform: translateY(-1px); }
-
-input[type="range"] {
-  width: 100%;
-  height: 6px;
-  background: rgba(30, 41, 59, 0.5);
-  border-radius: 3px;
-  outline: none;
-  appearance: none;
+.tactical-chart {
+  grid-column: 2;
+  grid-row: 2;
+  background: var(--bg-primary);
+  padding: 16px;
 }
 
-input[type="range"]::-webkit-slider-thumb {
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  background: var(--math-cyan);
-  border-radius: 50%;
+.execution-deck {
+  grid-column: 3;
+  grid-row: 2;
+  overflow-y: auto;
+  padding: 16px;
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border-glass);
+}
+
+.live-feed {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  overflow-y: auto;
+  background: var(--bg-secondary);
+  border-top: 2px solid rgba(0, 217, 255, 0.3);
+}
+
+/* Glassmorphism Effect */
+.glass-card {
+  background: var(--glass-effect);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-glass);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  border-radius: 12px;
+}
+
+/* Cyan Glow Effect - Military HUD */
+.cyan-glow {
+  box-shadow: 0 0 20px rgba(0, 217, 255, 0.2);
+  border-color: rgba(0, 217, 255, 0.4);
+}
+
+.cyan-glow-text {
+  color: var(--accent-cyan);
+  text-shadow: 0 0 8px rgba(0, 217, 255, 0.6);
+}
+
+/* Candidate Cards - Intelligence Radar */
+.candidate-card {
+  background: rgba(26, 31, 46, 0.9);
+  border: 1px solid var(--border-glass);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 8px;
+  transition: all 0.2s ease;
   cursor: pointer;
-  box-shadow: 0 0 10px var(--math-cyan);
 }
 
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: rgba(30, 41, 59, 0.3); }
-::-webkit-scrollbar-thumb { background: var(--math-cyan); border-radius: 3px; }
+.candidate-card:hover {
+  background: rgba(0, 217, 255, 0.1);
+  border-color: rgba(0, 217, 255, 0.4);
+  box-shadow: 0 0 16px rgba(0, 217, 255, 0.2);
+}
+
+/* Signal Cards - Execution Deck */
+.signal-card {
+  background: linear-gradient(135deg, rgba(26, 31, 46, 0.95) 0%, rgba(15, 20, 35, 0.95) 100%);
+  border: 1px solid var(--border-glass);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.signal-card.ignition {
+  border-left: 4px solid var(--bull-green);
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.15);
+}
+
+.signal-card.compression {
+  border-left: 4px solid var(--bear-red);
+}
+
+/* Live Feed Table */
+.live-feed-header {
+  position: sticky;
+  top: 0;
+  background: var(--bg-primary);
+  border-bottom: 2px solid rgba(0, 217, 255, 0.3);
+  padding: 12px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-secondary);
+  z-index: 10;
+}
+
+.live-feed-row {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  height: 40px;
+  transition: background 0.15s;
+}
+
+.live-feed-row:hover {
+  background: rgba(0, 217, 255, 0.08);
+  cursor: pointer;
+}
+
+/* Tier Badges */
+.tier-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tier-core {
+  background: var(--bull-green);
+  color: white;
+}
+
+.tier-hot {
+  background: #FBBF24;
+  color: #0A0E1A;
+}
+
+.tier-liquid {
+  background: #3B82F6;
+  color: white;
+}
+
+/* Execution Buttons */
+.execution-button {
+  border: none;
+  border-radius: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 16px 32px;
+  font-size: 16px;
+  width: 100%;
+}
+
+.execution-button.buy {
+  background: linear-gradient(135deg, var(--bull-green) 0%, #059669 100%);
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+  color: white;
+}
+
+.execution-button.buy:hover {
+  box-shadow: 0 6px 24px rgba(16, 185, 129, 0.5);
+  transform: translateY(-2px);
+}
+
+.execution-button.sell {
+  background: linear-gradient(135deg, var(--bear-red) 0%, #DC2626 100%);
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3);
+  color: white;
+}
+
+.execution-button.sell:hover {
+  box-shadow: 0 6px 24px rgba(239, 68, 68, 0.5);
+  transform: translateY(-2px);
+}
+
+/* Animations */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.live-indicator {
+  animation: pulse 2s infinite;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes flash-green {
+  0% { background: rgba(16, 185, 129, 0.3); }
+  100% { background: transparent; }
+}
+
+.flash-success {
+  animation: flash-green 800ms ease-out;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--accent-cyan);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #00B8D9;
+}
+
+/* Typography Utilities */
+h1 {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+h2 {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+h3 {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-secondary);
+}
+
+.data-value {
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
+.ticker {
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+/* Main Symbol Card */
+.main-symbol-card {
+  background: rgba(0, 217, 255, 0.08);
+  border: 1px solid rgba(0, 217, 255, 0.3);
+  border-radius: 8px;
+  padding: 12px 20px;
+  box-shadow: 0 0 20px rgba(0, 217, 255, 0.15);
+}
