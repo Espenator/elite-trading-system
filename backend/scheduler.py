@@ -6,12 +6,16 @@ import pandas as pd
 import numpy as np
 from core.logger import get_logger
 from data_collection.finviz_scraper import get_universe
+from database import get_db_session
+from sqlalchemy import text
 
 
 class ScannerManager:
     """
     REAL DATA SCANNER - Shows actual stocks with real-time data
     Finviz Elite + yfinance OHLCV - SCANS ALL STOCKS
+    
+    🚨 NO HARDCODED FALLBACKS - Uses database universe if API fails
     """
     
     def __init__(self, config: Dict[str, Any]):
@@ -32,10 +36,28 @@ class ScannerManager:
             universe = await get_universe(regime, max_results=1000)
             self.logger.info(f"✅ Finviz Elite: {len(universe)} stocks")
         except Exception as e:
-            self.logger.error(f"Finviz failed: {e}")
-            universe = ["AAPL","MSFT","GOOGL","AMZN","NVDA","TSLA","META","NFLX","AMD","CRM",
-                       "INTC","QCOM","AVGO","TXN","AMAT","LRCX","ADBE","ORCL","CSCO","NOW"]
-            self.logger.warning(f"Using fallback: {len(universe)} stocks")
+            self.logger.error(f"❌ Finviz failed: {e}")
+            
+            # FALLBACK: Try database symbols table
+            self.logger.warning("⚡ Attempting database fallback...")
+            try:
+                with get_db_session() as session:
+                    result = session.execute(
+                        text("SELECT symbol FROM symbols WHERE is_active = 1 ORDER BY RANDOM() LIMIT 100")
+                    )
+                    universe = [row[0] for row in result]
+                    
+                    if universe:
+                        self.logger.info(f"✅ Database fallback: {len(universe)} symbols")
+                    else:
+                        # If database is also empty, fail gracefully
+                        self.logger.error("❌ Database is empty. Run populate_symbols_from_apis() first.")
+                        return []
+                        
+            except Exception as db_error:
+                self.logger.error(f"❌ Database fallback failed: {db_error}")
+                self.logger.error("❌ No data sources available. Cannot scan.")
+                return []
         
         # STAGE 2: Download real OHLCV data for ALL stocks
         self.logger.info(f"📊 Downloading price data for ALL {len(universe)} stocks...")
@@ -48,7 +70,7 @@ class ScannerManager:
                 if (i + 1) % 50 == 0:
                     self.logger.info(f"   Progress: {i+1}/{len(universe)} stocks processed")
                 
-                # Get 3 months of daily data
+                # Get 3 months of daily data from yfinance
                 ticker = yf.Ticker(symbol)
                 hist = ticker.history(period="3mo", interval="1d")
                 
@@ -166,7 +188,5 @@ class ScannerManager:
         return {
             "is_scanning": False,
             "last_scan": datetime.now().isoformat(),
-            "scanner_type": "REAL_DATA_FINVIZ_YFINANCE_ALL_STOCKS"
+            "scanner_type": "REAL_DATA_FINVIZ_YFINANCE_DATABASE_FALLBACK"
         }
-
-
