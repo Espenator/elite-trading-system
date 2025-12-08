@@ -1,12 +1,11 @@
 <#
 .SYNOPSIS
-    Elite Trading System Launcher (FIXED PATHS)
+    Elite Trading System Launcher (FIXED)
 .DESCRIPTION
     Launches the complete Elite Trading System with correct paths
 .NOTES
-    Version: 1.0 FIXED
+    Version: 1.1 FIXED
     Date: December 8, 2025
-    NO ONEDRIVE PATHS
 #>
 
 # ============================================================================
@@ -32,7 +31,7 @@ $COLOR_WARNING = "Yellow"
 
 Clear-Host
 Write-Host "================================================================================" -ForegroundColor $COLOR_INFO
-Write-Host "  🚀 ELITE TRADING SYSTEM LAUNCHER v1.0 🚀" -ForegroundColor $COLOR_INFO
+Write-Host "  ELITE TRADING SYSTEM LAUNCHER v1.1" -ForegroundColor $COLOR_INFO
 Write-Host "================================================================================" -ForegroundColor $COLOR_INFO
 Write-Host ""
 Write-Host "  Project Root: $PROJECT_ROOT" -ForegroundColor $COLOR_WARNING
@@ -48,7 +47,7 @@ if (-not (Test-Path $PROJECT_ROOT)) {
     Write-Host " ERROR" -ForegroundColor $COLOR_ERROR
     Write-Host "      Project not found: $PROJECT_ROOT" -ForegroundColor $COLOR_ERROR
     Write-Host ""
-    Write-Host "  ⚠️ Please run this script from the project root directory!" -ForegroundColor $COLOR_ERROR
+    Write-Host "  Please run this script from the project root directory!" -ForegroundColor $COLOR_ERROR
     pause
     exit 1
 }
@@ -131,7 +130,7 @@ Write-Host "      Docs: http://localhost:$BACKEND_PORT/docs" -ForegroundColor $C
 
 $backendScript = @"
     Set-Location '$PROJECT_ROOT'
-    Write-Host "🚀 Starting Backend API on port $BACKEND_PORT..." -ForegroundColor Cyan
+    Write-Host 'Starting Backend API on port $BACKEND_PORT...' -ForegroundColor Cyan
     python -m uvicorn backend.main:app --host 0.0.0.0 --port $BACKEND_PORT --reload
 "@
 
@@ -140,9 +139,9 @@ Start-Sleep -Seconds 5
 
 $backendRunning = (Get-NetTCPConnection -LocalPort $BACKEND_PORT -ErrorAction SilentlyContinue) -ne $null
 if ($backendRunning) {
-    Write-Host "      ✅ Backend started successfully" -ForegroundColor $COLOR_SUCCESS
+    Write-Host "      Backend started successfully" -ForegroundColor $COLOR_SUCCESS
 } else {
-    Write-Host "      ⚠️ WARNING: Backend may not have started" -ForegroundColor $COLOR_WARNING
+    Write-Host "      WARNING: Backend may not have started" -ForegroundColor $COLOR_WARNING
 }
 
 # ============================================================================
@@ -154,7 +153,7 @@ Write-Host "      URL: http://localhost:$FRONTEND_PORT" -ForegroundColor $COLOR_
 
 $frontendScript = @"
     Set-Location '$PROJECT_ROOT\elite-trader-ui'
-    Write-Host "🌐 Starting Elite Trader UI on port $FRONTEND_PORT..." -ForegroundColor Cyan
+    Write-Host 'Starting Elite Trader UI on port $FRONTEND_PORT...' -ForegroundColor Cyan
     npm run dev
 "@
 
@@ -163,9 +162,9 @@ Start-Sleep -Seconds 10
 
 $frontendRunning = (Get-NetTCPConnection -LocalPort $FRONTEND_PORT -ErrorAction SilentlyContinue) -ne $null
 if ($frontendRunning) {
-    Write-Host "      ✅ Elite Trader UI started successfully" -ForegroundColor $COLOR_SUCCESS
+    Write-Host "      Elite Trader UI started successfully" -ForegroundColor $COLOR_SUCCESS
 } else {
-    Write-Host "      ⚠️ WARNING: Elite Trader UI may not have started" -ForegroundColor $COLOR_WARNING
+    Write-Host "      WARNING: Elite Trader UI may not have started" -ForegroundColor $COLOR_WARNING
 }
 
 # ============================================================================
@@ -187,23 +186,23 @@ Write-Host " OK" -ForegroundColor $COLOR_SUCCESS
 
 Write-Host ""
 Write-Host "================================================================================" -ForegroundColor $COLOR_INFO
-Write-Host "  ✅ ELITE TRADING SYSTEM LAUNCHED SUCCESSFULLY" -ForegroundColor $COLOR_SUCCESS
+Write-Host "  ELITE TRADING SYSTEM LAUNCHED SUCCESSFULLY" -ForegroundColor $COLOR_SUCCESS
 Write-Host "================================================================================" -ForegroundColor $COLOR_INFO
 Write-Host ""
-Write-Host "  🎯 ACTIVE SERVICES:" -ForegroundColor $COLOR_INFO
-Write-Host "    • Backend API:      http://localhost:$BACKEND_PORT" -ForegroundColor $COLOR_SUCCESS
-Write-Host "    • API Docs:         http://localhost:$BACKEND_PORT/docs" -ForegroundColor $COLOR_SUCCESS
-Write-Host "    • Elite Trader UI:  http://localhost:$FRONTEND_PORT" -ForegroundColor $COLOR_SUCCESS
-Write-Host "    • WebSocket:        ws://localhost:$BACKEND_PORT/ws" -ForegroundColor $COLOR_SUCCESS
+Write-Host "  ACTIVE SERVICES:" -ForegroundColor $COLOR_INFO
+Write-Host "    Backend API:      http://localhost:$BACKEND_PORT" -ForegroundColor $COLOR_SUCCESS
+Write-Host "    API Docs:         http://localhost:$BACKEND_PORT/docs" -ForegroundColor $COLOR_SUCCESS
+Write-Host "    Elite Trader UI:  http://localhost:$FRONTEND_PORT" -ForegroundColor $COLOR_SUCCESS
+Write-Host "    WebSocket:        ws://localhost:$BACKEND_PORT/ws" -ForegroundColor $COLOR_SUCCESS
 Write-Host ""
-Write-Host "  📌 PROJECT LOCATION:" -ForegroundColor $COLOR_INFO
+Write-Host "  PROJECT LOCATION:" -ForegroundColor $COLOR_INFO
 Write-Host "    $PROJECT_ROOT" -ForegroundColor $COLOR_WARNING
 Write-Host ""
-Write-Host "  🛡️ SYSTEM HEALTH:" -ForegroundColor $COLOR_INFO
+Write-Host "  SYSTEM HEALTH:" -ForegroundColor $COLOR_INFO
 if ($backendRunning -and $frontendRunning) {
-    Write-Host "    ✅ All services running" -ForegroundColor $COLOR_SUCCESS
+    Write-Host "    All services running" -ForegroundColor $COLOR_SUCCESS
 } else {
-    Write-Host "    ⚠️ Some services may need manual start" -ForegroundColor $COLOR_WARNING
+    Write-Host "    Some services may need manual start" -ForegroundColor $COLOR_WARNING
 }
 Write-Host ""
 Write-Host "================================================================================" -ForegroundColor $COLOR_INFO
@@ -223,13 +222,13 @@ while ($true) {
     $timestamp = Get-Date -Format "HH:mm:ss"
     
     if ($backendAlive -and $frontendAlive) {
-        Write-Host "[$timestamp] ✅ System healthy - All services running" -ForegroundColor $COLOR_SUCCESS
+        Write-Host "[$timestamp] System healthy - All services running" -ForegroundColor $COLOR_SUCCESS
     } else {
         if (-not $backendAlive) {
-            Write-Host "[$timestamp] ❌ Backend not responding on port $BACKEND_PORT" -ForegroundColor $COLOR_ERROR
+            Write-Host "[$timestamp] Backend not responding on port $BACKEND_PORT" -ForegroundColor $COLOR_ERROR
         }
         if (-not $frontendAlive) {
-            Write-Host "[$timestamp] ❌ Frontend not responding on port $FRONTEND_PORT" -ForegroundColor $COLOR_ERROR
+            Write-Host "[$timestamp] Frontend not responding on port $FRONTEND_PORT" -ForegroundColor $COLOR_ERROR
         }
     }
 }
