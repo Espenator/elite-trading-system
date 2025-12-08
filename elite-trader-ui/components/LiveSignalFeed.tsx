@@ -10,11 +10,11 @@ interface Signal {
   id: string;
   time: string;
   ticker: string;
-  tier: string;
-  score: number;
-  aiConf: number;
-  rvol: number;
-  catalyst: string;
+  tier?: string;
+  score?: number;
+  aiConf?: number;
+  rvol?: number;
+  catalyst?: string;
 }
 
 export default function LiveSignalFeed({ onSelectSymbol }: LiveSignalFeedProps) {
@@ -26,8 +26,14 @@ export default function LiveSignalFeed({ onSelectSymbol }: LiveSignalFeedProps) 
     
     ws.onmessage = (event) => {
       if (!isPaused) {
-        const newSignal = JSON.parse(event.data);
-        setSignals(prev => [newSignal, ...prev].slice(0, 100));
+        try {
+          const newSignal = JSON.parse(event.data);
+          if (newSignal && newSignal.ticker) {
+            setSignals(prev => [newSignal, ...prev].slice(0, 100));
+          }
+        } catch (err) {
+          console.error('Error parsing signal:', err);
+        }
       }
     };
 
@@ -79,17 +85,17 @@ export default function LiveSignalFeed({ onSelectSymbol }: LiveSignalFeedProps) 
                   className="feed-row"
                   onClick={() => onSelectSymbol(signal.ticker)}
                 >
-                  <td className="time-cell">{signal.time}</td>
-                  <td className="ticker-cell">{signal.ticker}</td>
+                  <td className="time-cell">{signal.time || '-'}</td>
+                  <td className="ticker-cell">{signal.ticker || '-'}</td>
                   <td>
-                    <span className={`tier-badge ${signal.tier.toLowerCase()}`}>
-                      {signal.tier}
+                    <span className={`tier-badge ${(signal.tier || 'default').toLowerCase()}`}>
+                      {signal.tier || 'N/A'}
                     </span>
                   </td>
-                  <td className="score-cell">{signal.score.toFixed(1)}</td>
-                  <td className="conf-cell">{signal.aiConf}%</td>
-                  <td className="rvol-cell">{signal.rvol.toFixed(1)}x</td>
-                  <td className="catalyst-cell">{signal.catalyst}</td>
+                  <td className="score-cell">{signal.score?.toFixed(1) || '-'}</td>
+                  <td className="conf-cell">{signal.aiConf ? `${signal.aiConf}%` : '-'}</td>
+                  <td className="rvol-cell">{signal.rvol?.toFixed(1) ? `${signal.rvol.toFixed(1)}x` : '-'}</td>
+                  <td className="catalyst-cell">{signal.catalyst || '-'}</td>
                 </tr>
               ))
             )}
