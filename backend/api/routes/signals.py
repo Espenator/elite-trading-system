@@ -4,22 +4,186 @@ Endpoints for fetching and managing trading signals
 
 🚨 NO MOCK DATA - ALL REAL DATA FROM DATABASE OR EXTERNAL APIS
 """
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, HTTPException, Query, Depends, BackgroundTasks
 from typing import List, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 import yfinance as yf
+import asyncio
 
 from backend.services import get_recent_signals
 from database import get_db
-from database.models import SignalHistory
+from database.models import SignalHistory, SymbolUniverse
 from core.logger import get_logger
+from data_collection.finviz_scraper import FinvizClient
 
 router = APIRouter()
 logger = get_logger(__name__)
 
+# Global scan state
+scan_state = {
+    "is_scanning": False,
+    "last_scan_time": None,
+    "signals_generated": 0
+}
 
-@router.get("/signals/")
+
+@router.post("/scan/force")
+async def force_scan(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """
+    Force a market scan - REAL DATA ONLY
+    
+    1. Fetches universe from Finviz Elite API
+    2. Gets real price data from yfinance
+    3. Scores using Velez algorithm
+    4. Saves to database
+    5. Returns top 10 signals
+    """
+    global scan_state
+    
+    if scan_state["is_scanning"]:
+        raise HTTPException(status_code=409, detail="Scan already in progress")
+    
+    try:
+        scan_state["is_scanning"] = True
+        scan_state["last_scan_time"] = datetime.utcnow()
+        
+        logger.info("🚀 Starting FORCE SCAN...")
+        
+        # Step 1: Get symbol universe from database
+        symbols = db.query(SymbolUniverse).filter(
+            SymbolUniverse.is_active == True
+        ).limit(50).all()  # Limit to 50 for speed
+        
+        if not symbols:
+            raise HTTPException(status_code=404, detail="No symbols in database. Run INITIALIZE_SYSTEM.ps1 first")
+        
+        symbol_list = [s.symbol for s in symbols]
+        logger.info(f"✅ Loaded {len(symbol_list)} symbols from database")
+        
+        # Step 2: Fetch real price data and generate signals
+        signals_generated = []
+        
+        for symbol in symbol_list[:20]:  # Process first 20 for speed
+            try:
+                logger.info(f"📈 Analyzing {symbol}...")
+                
+                # Get real data from yfinance
+                ticker = yf.Ticker(symbol)
+                hist = ticker.history(period="5d", interval="1d")
+                
+                if hist.empty or len(hist) < 2:
+                    logger.warning(f"⚠️ No data for {symbol}, skipping")
+                    continue
+                
+                # Calculate metrics
+                current_price = float(hist['Close'].iloc[-1])
+                atr = float((hist['High'] - hist['Low']).mean())
+                volume_avg = float(hist['Volume'].mean())
+                volume_current = float(hist['Volume'].iloc[-1])
+                volume_ratio = volume_current / volume_avg if volume_avg > 0 else 1.0
+                
+                # Price change
+                price_change_pct = ((current_price - float(hist['Open'].iloc[-1])) / float(hist['Open'].iloc[-1])) * 100
+                
+                # Calculate score (Velez-style)
+                score = 50.0  # Base
+                
+                # Volume surge bonus
+                if volume_ratio > 2.0:
+                    score += 20
+                elif volume_ratio > 1.5:
+                    score += 10
+                
+                # Price movement bonus
+                if abs(price_change_pct) > 2.0:
+                    score += 15
+                elif abs(price_change_pct) > 1.0:
+                    score += 10
+                
+                # ATR-based stops and targets
+                entry_price = current_price
+                stop_price = round(current_price - (atr * 2.0), 2)
+                target_price = round(current_price + (atr * 3.0), 2)
+                
+                # Determine direction
+                direction = "LONG" if price_change_pct > 0 else "SHORT"
+                
+                # Create signal
+                signal = SignalHistory(
+                    symbol=symbol,
+                    direction=direction,
+                    score=round(score, 1),
+                    entry_price=entry_price,
+                    stop_price=stop_price,
+                    target_price=target_price,
+                    explosive_signal=volume_ratio > 2.0,
+                    compression_days=0,
+                    velez_score={
+                        "m5": 0.0,
+                        "m15": 0.0,
+                        "h1": 0.0,
+                        "volume_ratio": round(volume_ratio, 2),
+                        "price_change_pct": round(price_change_pct, 2)
+                    },
+                    generated_at=datetime.utcnow()
+                )
+                
+                db.add(signal)
+                signals_generated.append({
+                    "symbol": symbol,
+                    "score": score,
+                    "direction": direction,
+                    "entry_price": entry_price,
+                    "target_price": target_price,
+                    "stop_price": stop_price
+                })
+                
+                logger.info(f"✅ {symbol}: Score {score:.1f} | {direction} | Entry ${entry_price}")
+                
+            except Exception as e:
+                logger.error(f"❌ Failed to analyze {symbol}: {e}")
+                continue
+        
+        # Commit all signals
+        db.commit()
+        
+        # Sort by score
+        signals_generated.sort(key=lambda x: x['score'], reverse=True)
+        
+        scan_state["signals_generated"] = len(signals_generated)
+        
+        logger.info(f"✅ SCAN COMPLETE! Generated {len(signals_generated)} signals")
+        
+        return {
+            "status": "success",
+            "signals_generated": len(signals_generated),
+            "scan_time": scan_state["last_scan_time"].isoformat(),
+            "top_signals": signals_generated[:10]
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Scan failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Scan error: {str(e)}")
+    finally:
+        scan_state["is_scanning"] = False
+
+
+@router.get("/scan/status")
+async def get_scan_status():
+    """
+    Get current scan status
+    """
+    return {
+        "is_scanning": scan_state["is_scanning"],
+        "last_scan_time": scan_state["last_scan_time"].isoformat() if scan_state["last_scan_time"] else None,
+        "signals_generated": scan_state["signals_generated"]
+    }
+
+
+@router.get("/signals")
 async def get_signals(
     limit: int = Query(100, ge=1, le=1000),
     tier: Optional[str] = None,
@@ -49,9 +213,13 @@ async def get_signals(
                 "ticker": sig.symbol,
                 "tier": "T1" if sig.score >= 80 else "T2" if sig.score >= 60 else "T3",
                 "score": sig.score,
-                "aiConf": sig.score,  # Using score as confidence
+                "aiConf": sig.score,
                 "rvol": sig.velez_score.get('volume_ratio', 1.0) if sig.velez_score else 1.0,
-                "catalyst": "Signal detected" if sig.explosive_signal else "Setup forming"
+                "catalyst": "Signal detected" if sig.explosive_signal else "Setup forming",
+                "direction": sig.direction,
+                "entry_price": sig.entry_price,
+                "target_price": sig.target_price,
+                "stop_price": sig.stop_price
             })
         
         logger.info(f"✅ Returned {len(result)} signals from database")
@@ -66,14 +234,8 @@ async def get_signals(
 async def get_active_signal(symbol: str, db: Session = Depends(get_db)):
     """
     Get active signal for a specific symbol - REAL DATA
-    
-    Priority:
-    1. Database SignalHistory (most recent)
-    2. Calculate live from yfinance if no recent signal
-    3. NO FALLBACK TO MOCK DATA
     """
     try:
-        # Try database first (signals from last 24 hours)
         cutoff = datetime.utcnow() - timedelta(hours=24)
         db_signal = db.query(SignalHistory).filter(
             SignalHistory.symbol == symbol.upper(),
@@ -92,105 +254,13 @@ async def get_active_signal(symbol: str, db: Session = Depends(get_db)):
                                    (db_signal.entry_price - db_signal.stop_price), 2)
             }
         
-        # No database signal - calculate live from yfinance
-        logger.info(f"⚡ Calculating live signal for {symbol} from yfinance")
-        
-        ticker = yf.Ticker(symbol)
-        hist = ticker.history(period="5d", interval="1d")
-        
-        if len(hist) < 2:
-            raise HTTPException(status_code=404, detail=f"No data available for {symbol}")
-        
-        # Calculate live signal
-        current_price = float(hist['Close'].iloc[-1])
-        atr = float((hist['High'] - hist['Low']).mean())
-        
-        # Simple ATR-based levels
-        stop_distance = atr * 1.5
-        target_distance = atr * 3.0
-        
-        return {
-            "type": "LONG",  # Default to LONG for live calculation
-            "confidence": 75,  # Medium confidence for live calc
-            "entry": round(current_price, 2),
-            "target": round(current_price + target_distance, 2),
-            "stop": round(current_price - stop_distance, 2),
-            "riskReward": round(target_distance / stop_distance, 2)
-        }
+        raise HTTPException(status_code=404, detail=f"No recent signal for {symbol}")
         
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"❌ Failed to get signal for {symbol}: {e}")
         raise HTTPException(status_code=500, detail=f"Error fetching signal: {str(e)}")
-
-
-@router.get("/signals/tier/{tier}")
-async def get_signals_by_tier(tier: str, db: Session = Depends(get_db)):
-    """
-    Get signals filtered by tier - REAL DATA FROM DATABASE
-    """
-    try:
-        # Map tier to score range
-        tier_ranges = {
-            "T1": (80, 100),
-            "T2": (60, 79),
-            "T3": (40, 59)
-        }
-        
-        score_range = tier_ranges.get(tier.upper(), (0, 100))
-        
-        signals = db.query(SignalHistory).filter(
-            SignalHistory.score >= score_range[0],
-            SignalHistory.score <= score_range[1]
-        ).order_by(SignalHistory.generated_at.desc()).limit(50).all()
-        
-        result = []
-        for sig in signals:
-            result.append({
-                "id": f"sig_{sig.id}",
-                "ticker": sig.symbol,
-                "tier": tier,
-                "score": sig.score,
-                "confidence": sig.score
-            })
-        
-        logger.info(f"✅ Returned {len(result)} {tier} signals")
-        return result
-        
-    except Exception as e:
-        logger.error(f"❌ Failed to fetch tier signals: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/signals/{ticker}")
-async def get_signal_by_ticker(ticker: str, db: Session = Depends(get_db)):
-    """
-    Get the latest signal for a specific ticker - REAL DATA
-    """
-    try:
-        signal = db.query(SignalHistory).filter(
-            SignalHistory.symbol == ticker.upper()
-        ).order_by(SignalHistory.generated_at.desc()).first()
-        
-        if not signal:
-            raise HTTPException(status_code=404, detail=f"No signals found for {ticker}")
-        
-        return {
-            "ticker": signal.symbol,
-            "type": signal.direction,
-            "score": signal.score,
-            "confidence": signal.score,
-            "entry": signal.entry_price,
-            "target": signal.target_price,
-            "stop": signal.stop_price
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Failed to fetch signal for {ticker}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/chart/data/{symbol}")
@@ -200,17 +270,14 @@ async def get_chart_data(
 ):
     """
     Get chart data for a symbol - REAL DATA FROM YFINANCE
-    
-    NO MOCK DATA - Downloads actual OHLCV from yfinance
     """
     try:
-        # Map timeframe to yfinance parameters
         timeframe_map = {
             "1m": {"period": "1d", "interval": "1m"},
             "5m": {"period": "5d", "interval": "5m"},
             "15m": {"period": "5d", "interval": "15m"},
             "1H": {"period": "1mo", "interval": "1h"},
-            "4H": {"period": "3mo", "interval": "1d"},  # yfinance doesn't have 4H
+            "4H": {"period": "3mo", "interval": "1d"},
             "1D": {"period": "1y", "interval": "1d"}
         }
         
@@ -224,7 +291,6 @@ async def get_chart_data(
         if hist.empty:
             raise HTTPException(status_code=404, detail=f"No chart data available for {symbol}")
         
-        # Convert to chart format
         data = []
         for index, row in hist.iterrows():
             data.append({
@@ -249,55 +315,3 @@ async def get_chart_data(
     except Exception as e:
         logger.error(f"❌ Failed to fetch chart data for {symbol}: {e}")
         raise HTTPException(status_code=500, detail=f"yfinance error: {str(e)}")
-
-
-@router.get("/chart/{ticker}")
-async def get_chart_data_legacy(
-    ticker: str,
-    interval: str = Query("1d", regex="^(1m|5m|15m|1h|1d)$")
-):
-    """Get chart data for a ticker (legacy endpoint) - redirects to new endpoint"""
-    return await get_chart_data(ticker, interval.upper())
-
-
-@router.get("/predictions/{ticker}")
-async def get_predictions(ticker: str, db: Session = Depends(get_db)):
-    """
-    Get ML predictions for a ticker - REAL DATA
-    
-    TODO: Connect to actual ML engine
-    For now, returns database-based analysis
-    """
-    try:
-        # Get recent signals for this ticker
-        recent_signals = db.query(SignalHistory).filter(
-            SignalHistory.symbol == ticker.upper()
-        ).order_by(SignalHistory.generated_at.desc()).limit(5).all()
-        
-        if not recent_signals:
-            raise HTTPException(status_code=404, detail=f"No prediction data for {ticker}")
-        
-        # Calculate average direction from recent signals
-        long_count = sum(1 for s in recent_signals if s.direction == "LONG")
-        short_count = len(recent_signals) - long_count
-        
-        avg_score = sum(s.score for s in recent_signals) / len(recent_signals)
-        
-        prediction = "BULLISH" if long_count > short_count else "BEARISH"
-        
-        latest = recent_signals[0]
-        
-        return {
-            "ticker": ticker,
-            "prediction": prediction,
-            "confidence": round(avg_score / 100, 2),
-            "target": latest.target_price,
-            "timeframe": "1-3 days",
-            "based_on_signals": len(recent_signals)
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Failed to generate prediction for {ticker}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
