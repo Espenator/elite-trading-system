@@ -315,3 +315,140 @@ async def get_chart_data(
     except Exception as e:
         logger.error(f"❌ Failed to fetch chart data for {symbol}: {e}")
         raise HTTPException(status_code=500, detail=f"yfinance error: {str(e)}")
+
+
+@router.get("/predictions/{symbol}")
+async def get_predictions(symbol: str):
+    """
+    Get ML predictions for a symbol
+    
+    Returns XGBoost model predictions for next 1-5 days
+    """
+    try:
+        logger.info(f"🤖 Generating predictions for {symbol}")
+        
+        # TODO: Connect to prediction_engine/xgboost_models.py
+        # For now, return placeholder that frontend can handle
+        
+        ticker = yf.Ticker(symbol)
+        hist = ticker.history(period="1mo", interval="1d")
+        
+        if hist.empty:
+            raise HTTPException(status_code=404, detail=f"No data available for {symbol}")
+        
+        current_price = float(hist['Close'].iloc[-1])
+        
+        # Simple momentum-based prediction (placeholder)
+        momentum = ((current_price - float(hist['Close'].iloc[-5])) / float(hist['Close'].iloc[-5])) * 100
+        
+        return {
+            "symbol": symbol,
+            "current_price": round(current_price, 2),
+            "predictions": {
+                "1d": round(current_price * (1 + momentum/100 * 0.5), 2),
+                "3d": round(current_price * (1 + momentum/100 * 1.0), 2),
+                "5d": round(current_price * (1 + momentum/100 * 1.5), 2)
+            },
+            "confidence": min(abs(momentum) * 10, 95),
+            "note": "Simple momentum-based prediction - ML model integration pending"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to generate predictions for {symbol}: {e}")
+        raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
+
+
+@router.get("/indicators/{symbol}")
+async def get_indicators(
+    symbol: str,
+    timeframe: str = Query("1D", regex="^(1D|1H|15m)$")
+):
+    """
+    Get technical indicators for a symbol
+    
+    Returns RSI, MACD, Bollinger Bands, Volume analysis
+    """
+    try:
+        logger.info(f"📉 Calculating indicators for {symbol}")
+        
+        # Fetch data
+        period_map = {"1D": "3mo", "1H": "1mo", "15m": "5d"}
+        interval_map = {"1D": "1d", "1H": "1h", "15m": "15m"}
+        
+        ticker = yf.Ticker(symbol)
+        hist = ticker.history(
+            period=period_map.get(timeframe, "3mo"),
+            interval=interval_map.get(timeframe, "1d")
+        )
+        
+        if hist.empty or len(hist) < 20:
+            raise HTTPException(status_code=404, detail=f"Insufficient data for {symbol}")
+        
+        # Calculate indicators
+        import pandas as pd
+        
+        # RSI
+        delta = hist['Close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+        rs = gain / loss
+        rsi = 100 - (100 / (1 + rs.iloc[-1])) if not pd.isna(rs.iloc[-1]) else 50
+        
+        # Moving Averages
+        sma20 = hist['Close'].rolling(20).mean().iloc[-1]
+        sma50 = hist['Close'].rolling(50).mean().iloc[-1] if len(hist) >= 50 else sma20
+        ema12 = hist['Close'].ewm(span=12).mean().iloc[-1]
+        ema26 = hist['Close'].ewm(span=26).mean().iloc[-1]
+        
+        # MACD
+        macd_line = ema12 - ema26
+        signal_line = hist['Close'].ewm(span=12).mean().ewm(span=9).mean().iloc[-1] - ema26
+        
+        # Bollinger Bands
+        bb_middle = sma20
+        bb_std = hist['Close'].rolling(20).std().iloc[-1]
+        bb_upper = bb_middle + (2 * bb_std)
+        bb_lower = bb_middle - (2 * bb_std)
+        
+        # Volume
+        vol_avg = hist['Volume'].rolling(20).mean().iloc[-1]
+        vol_current = hist['Volume'].iloc[-1]
+        vol_ratio = vol_current / vol_avg if vol_avg > 0 else 1.0
+        
+        current_price = float(hist['Close'].iloc[-1])
+        
+        return {
+            "symbol": symbol,
+            "timeframe": timeframe,
+            "price": round(current_price, 2),
+            "rsi": round(float(rsi), 2),
+            "macd": {
+                "macd_line": round(float(macd_line), 2),
+                "signal_line": round(float(signal_line), 2),
+                "histogram": round(float(macd_line - signal_line), 2)
+            },
+            "moving_averages": {
+                "sma20": round(float(sma20), 2),
+                "sma50": round(float(sma50), 2),
+                "ema12": round(float(ema12), 2),
+                "ema26": round(float(ema26), 2)
+            },
+            "bollinger_bands": {
+                "upper": round(float(bb_upper), 2),
+                "middle": round(float(bb_middle), 2),
+                "lower": round(float(bb_lower), 2)
+            },
+            "volume": {
+                "current": int(vol_current),
+                "average": int(vol_avg),
+                "ratio": round(float(vol_ratio), 2)
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to calculate indicators for {symbol}: {e}")
+        raise HTTPException(status_code=500, detail=f"Indicator calculation error: {str(e)}")
