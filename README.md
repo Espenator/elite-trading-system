@@ -1,15 +1,20 @@
-
-ART 1: Lines 1-100
-text
-# 🚀 Elite Trading System v1.0
+# 🚀 Elite Trading System v7.0 - Glass House Edition
 
 **Real-time ML Price Predictions + Unusual Whales Flow Analysis**
 
-A production-grade quantitative trading system that combines machine learning predictions with institutional options flow data.
+A production-grade quantitative trading system that combines machine learning predictions with institutional options flow data, featuring the Glass House Next.js UI.
 
 ---
 
 ## 🎯 Key Features
+
+### 🏛️ Glass House UI (Next.js)
+- **Modern React interface**: Built with Next.js 14 and TypeScript
+- **Real-time updates**: WebSocket integration for live data
+- **Command bar**: Quick access to all features (Cmd/Ctrl+K)
+- **Intelligence Radar**: Live candidate scanning and analysis
+- **Tactical Charts**: Advanced charting with TradingView integration
+- **Execution Deck**: Portfolio management and position sizing
 
 ### 🤖 AI Prediction Engine
 - **Multi-horizon predictions**: 1-hour, 1-day, 1-week price targets
@@ -41,13 +46,17 @@ A production-grade quantitative trading system that combines machine learning pr
 ## 📋 Prerequisites
 
 ### Required Software
-Python 3.11 or 3.13
+```bash
+# Python 3.11 or 3.13
 python --version
 
-PostgreSQL 14+ with TimescaleDB extension
-psql --version
+# Node.js 18+ (for Glass House UI)
+node --version
+npm --version
 
-text
+# PostgreSQL 14+ with TimescaleDB extension
+psql --version
+```
 
 ### Required API Keys
 - **Unusual Whales API** key (get from unusualwhales.com)
@@ -58,318 +67,290 @@ text
 ## 🚀 Installation
 
 ### Step 1: Clone Repository
-git clone https://github.com/yourusername/elite-trading-system.git
+```bash
+git clone https://github.com/Espenator/elite-trading-system.git
 cd elite-trading-system
-
-text
+```
 
 ### Step 2: Install Python Dependencies
+```bash
 pip install -r requirements.txt
+```
 
-text
+### Step 3: Install Glass House UI Dependencies
+```bash
+cd glass-house-ui
+npm install
+cd ..
+```
 
-### Step 3: Setup TimescaleDB
+### Step 4: Setup TimescaleDB
 
 #### Option A: Docker (Recommended)
-docker run -d --name timescaledb
--p 5432:5432
--e POSTGRES_PASSWORD=your_secure_password
-timescale/timescaledb:latest-pg14
-
-text
+```bash
+docker run -d --name timescaledb \
+  -p 5432:5432 \
+  -e POSTGRES_PASSWORD=your_secure_password \
+  timescale/timescaledb:latest-pg14
+```
 
 #### Option B: Local Installation
 
 **Ubuntu/Debian:**
+```bash
 sudo apt-get install postgresql-14 timescaledb-2-postgresql-14
-
-text
+```
 
 **macOS:**
+```bash
 brew install timescaledb
-
-text
+```
 
 **Windows:**
 Download installer from [timescale.com](https://www.timescale.com)
 
-### Step 4: Initialize Database
-Connect to PostgreSQL
+### Step 5: Initialize Database
+```bash
+# Connect to PostgreSQL
 psql -U postgres -h localhost
 
-Create database
+# Create database
 CREATE DATABASE elite_trading;
 \q
 
-Load schema
+# Load schema
 psql -U postgres -h localhost -d elite_trading -f database/schema.sql
+```
 
-text
-
-### Step 5: Configure System
-Edit configuration file
-notepad config/config.yaml # Windows
-nano config/config.yaml # Linux/Mac
-
-text
+### Step 6: Configure System
+```bash
+# Edit configuration file
+notepad config/config.yaml  # Windows
+nano config/config.yaml     # Linux/Mac
+```
 
 **Required configuration:**
+```yaml
 database:
-host: localhost
-port: 5432
-database: elite_trading
-user: postgres
-password: your_secure_password
+  host: localhost
+  port: 5432
+  database: elite_trading
+  user: postgres
+  password: your_secure_password
 
 unusual_whales:
-api_key: YOUR_UW_API_KEY_HERE
+  api_key: YOUR_UW_API_KEY_HERE
 
 alpha_vantage:
-api_key: YOUR_AV_API_KEY_HERE
-
-text
+  api_key: YOUR_AV_API_KEY_HERE
+```
 
 ---
 
 ## 🎮 Usage
 
-### Start the System
-python run.py
+### Quick Launch (Recommended)
 
-text
+**Windows:**
+```powershell
+# Double-click or run:
+.\LAUNCH_GLASS_HOUSE.bat
 
-**The system will:**
-1. ✅ Check database connection
-2. ✅ Test Unusual Whales API
-3. ✅ Load ML models (or create defaults)
-4. 🔄 Start continuous data ingestion
-5. 🤖 Generate predictions every 60 seconds
-6. 📊 Display real-time statistics every 15 minutes
+# OR use Aurora launcher:
+.\LAUNCH_AURORA.ps1
+```
 
-### Stop the System
-Press `Ctrl+C` to gracefully shutdown.
+**Manual Launch:**
+```bash
+# Terminal 1: Start Backend
+python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+
+# Terminal 2: Start Glass House UI
+cd glass-house-ui
+npm run dev
+```
+
+### Access Points
+- **Glass House UI**: http://localhost:3000
+- **Backend API**: http://localhost:8000/docs
 
 ---
 
 ## 📊 System Architecture
 
+```
 elite-trading-system/
-├── config/
-│ └── config.yaml # System configuration
+├── backend/
+│   ├── main.py              # FastAPI application
+│   ├── routers/             # API endpoints
+│   └── services/            # Business logic
+│
+├── glass-house-ui/          # Next.js frontend
+│   ├── app/                 # Next.js app router
+│   ├── components/          # React components
+│   └── lib/                 # Utilities
 │
 ├── database/
-│ ├── schema.sql # TimescaleDB schema (1,157 lines)
-│ ├── models.py # SQLAlchemy ORM models
-│ ├── timescale_manager.py # Database operations
-│ └── init.py
+│   ├── schema.sql           # TimescaleDB schema
+│   ├── models.py            # SQLAlchemy ORM models
+│   └── timescale_manager.py # Database operations
 │
 ├── data_ingestion/
-│ ├── unusual_whales_client.py # UW API client (720 lines)
-│ └── init.py
+│   └── unusual_whales_client.py  # UW API client
 │
 ├── prediction_engine/
-│ ├── predictor.py # ML prediction engine (950 lines)
-│ └── init.py
+│   └── predictor.py         # ML prediction engine
 │
 ├── core/
-│ ├── orchestrator.py # System orchestrator (650 lines)
-│ └── init.py
+│   └── orchestrator.py      # System orchestrator
 │
-├── run.py # Main entry point
-├── requirements.txt # Python dependencies
-└── README.md # This file
-
-text
-
-**Total: 5,400+ lines of production code**
+├── config/
+│   └── config.yaml          # Configuration
+│
+├── LAUNCH_AURORA.ps1        # PowerShell launcher
+├── LAUNCH_GLASS_HOUSE.bat   # Batch launcher
+├── requirements.txt         # Python dependencies
+└── README.md               # This file
+```
 
 ---
 
 ## 🔧 Configuration Options
 
 ### Database Settings
+```yaml
 database:
-host: localhost
-port: 5432
-database: elite_trading
-user: postgres
-password: your_password
-pool_size: 10
-max_overflow: 20
-
-text
-undefined
-✋ STOP - Save Part 1
-
-Paste back the last 10 lines to verify, then I'll give you Part 2 (final)! 🚀
-
-sure give me part 2 i have no ideas what all this other stuff aboce is tarting with the sql 13 etc
-📂 README.md - PART 2 OF 2 (FINAL)
-CONTINUE IN THE SAME FILE
-Scroll to the bottom and paste Part 2:
-
-PART 2: Lines 101-200 (FINAL)
-text
+  host: localhost
+  port: 5432
+  database: elite_trading
+  user: postgres
+  password: your_password
+  pool_size: 10
+  max_overflow: 20
+```
 
 ### Unusual Whales Settings
+```yaml
 unusual_whales:
-api_key: YOUR_API_KEY
-base_url: https://api.unusualwhales.com/api
-max_requests_per_minute: 100
-
-polling:
-options_flow_seconds: 60
-darkpool_seconds: 60
-market_tide_seconds: 300
-
-text
+  api_key: YOUR_API_KEY
+  base_url: https://api.unusualwhales.com/api
+  max_requests_per_minute: 100
+  
+  polling:
+    options_flow_seconds: 60
+    darkpool_seconds: 60
+    market_tide_seconds: 300
+```
 
 ### Prediction Engine Settings
+```yaml
 prediction_engine:
-horizons: ['1H', '1D', '1W']
-min_confidence_to_display: 50
-
-update_intervals:
-prediction_1h: 60 # Generate predictions every 60s
-prediction_1d: 900 # Generate predictions every 15min
-resolution_1h: 60 # Check for resolved predictions
-
-models:
-max_depth: 6
-learning_rate: 0.1
-n_estimators: 100
-
-text
+  horizons: ['1H', '1D', '1W']
+  min_confidence_to_display: 50
+  
+  update_intervals:
+    prediction_1h: 60      # Generate predictions every 60s
+    prediction_1d: 900     # Generate predictions every 15min
+    resolution_1h: 60      # Check for resolved predictions
+  
+  models:
+    max_depth: 6
+    learning_rate: 0.1
+    n_estimators: 100
+```
 
 ### Symbol Tracking
+```yaml
 symbols:
-core_4: ['SPY', 'QQQ', 'IBIT', 'ETHT'] # Always tracked
-indices: ['SPY', 'QQQ', 'IWM', 'DIA']
-etfs: ['XLF', 'XLE', 'XLK', 'XLV']
-
-text
-
----
-
-## 📈 How It Works
-
-### Data Flow
-Unusual Whales API
-↓
-
-Data Ingestion (every 60s)
-↓
-
-TimescaleDB Storage
-↓
-
-Feature Engineering (50+ features)
-↓
-
-ML Prediction (XGBoost)
-↓
-
-Confidence Scoring
-↓
-
-Database Storage
-↓
-
-Prediction Resolution (after time horizon)
-↓
-
-Accuracy Calculation
-↓
-
-Model Weight Updates
-
-text
-
-### Prediction Features
-**Price Features (20%):**
-- Returns: 1D, 5D, 20D
-- Momentum: 5D, 10D averages
-- Volatility: 10D, 20D standard deviation
-- Volume ratios and trends
-
-**Flow Features (25%):**
-- Call/Put premium ratios
-- Bullish vs Bearish sentiment %
-- Whale count, sweep count
-- Total premium volume
-
-**Correlation Features (20%):**
-- SPY, QQQ, IWM correlations
-- Multiple timeframes (1H, 1D, 5D, 20D)
-
-**Regime Features (15%):**
-- Market regime (GREEN/YELLOW/RED/RED_RECOVERY)
-- VIX level and RSI
-- Market breadth
-- SPY/QQQ changes
-
-**Technical Features (20%):**
-- RSI, MACD, Bollinger Bands
-- ADX, Volume ratio
+  core_4: ['SPY', 'QQQ', 'IBIT', 'ETHT']  # Always tracked
+  indices: ['SPY', 'QQQ', 'IWM', 'DIA']
+  etfs: ['XLF', 'XLE', 'XLK', 'XLV']
+```
 
 ---
 
-## 🎯 Example Output
+## 📈 Glass House UI Features
 
-================================================================================
-ELITE TRADING SYSTEM - STATISTICS
-Status: RUNNING
-Uptime: 2:15:34
-Start Time: 2025-12-05 14:30:00
+### Zone 0: Command Bar
+- **Keyboard shortcuts**: Cmd/Ctrl+K to open
+- **Quick navigation**: Jump to any feature instantly
+- **Search**: Find stocks, execute commands
 
---- Data Ingestion ---
-Flow Records Ingested: 1,247
-Last Data Fetch: 2025-12-05 16:45:23
+### Zone 1: Intelligence Radar
+- **Live candidates**: Real-time scanning results
+- **Scoring**: Multi-factor analysis (Velez, ML, Flow)
+- **Watchlist**: Track favorites
+- **Filters**: Price, volume, sector, regime
 
---- Predictions ---
-Predictions Generated: 156
-Predictions Resolved: 42
-Last Prediction Update: 2025-12-05 16:45:15
-Last Resolution Check: 2025-12-05 16:44:50
+### Zone 2: Tactical Chart
+- **TradingView integration**: Professional charting
+- **Signal overlay**: Entry/exit points
+- **Multi-timeframe**: 1m to 1W analysis
+- **Comparison**: Side-by-side analysis
 
---- Model Accuracy ---
-1H: 62.5%
-1D: 58.3%
-1W: 54.2%
+### Zone 3: Execution Deck
+- **Position sizing**: Kelly Criterion calculator
+- **Portfolio tracking**: Real-time P&L
+- **Risk management**: Stop-loss automation
+- **Order execution**: Direct broker integration (coming soon)
 
---- System ---
-Errors: 0
-Active Threads: 4
-text
+### Zone 4: Live Feed
+- **Real-time signals**: As they happen
+- **Notifications**: Desktop alerts
+- **Signal history**: Track all generated signals
+- **Export**: CSV download for analysis
+
+---
+
+## 🎯 Example Usage Flow
+
+1. **Launch System**: Run `LAUNCH_GLASS_HOUSE.bat`
+2. **Monitor Radar**: Watch Zone 1 for high-score candidates
+3. **Analyze Chart**: Click candidate → Opens Zone 2 tactical view
+4. **Size Position**: Use Zone 3 calculator for risk-appropriate sizing
+5. **Execute Trade**: Manual execution (auto-execution coming Q1 2025)
+6. **Track Performance**: Monitor in Zone 3 portfolio panel
 
 ---
 
 ## 🛠️ Troubleshooting
 
+### Glass House UI Won't Start
+```bash
+# Check Node.js version
+node --version  # Should be 18+
+
+# Reinstall dependencies
+cd glass-house-ui
+rm -rf node_modules package-lock.json
+npm install
+```
+
+### Backend API Connection Failed
+```bash
+# Check if backend is running
+curl http://localhost:8000/health
+
+# Check logs
+tail -f backend/logs/app.log
+```
+
 ### Database Connection Failed
-Check TimescaleDB is running
+```bash
+# Check TimescaleDB is running
 docker ps | grep timescaledb
 
-Verify connection
+# Verify connection
 psql -U postgres -h localhost -d elite_trading
-
-text
+```
 
 ### API Rate Limit Errors
-Reduce polling frequency in config.yaml
+```yaml
+# Reduce polling frequency in config.yaml
 unusual_whales:
-polling:
-options_flow_seconds: 120 # Increase from 60
-
-text
-
-### No Predictions Generated
-Check if symbols exist in database
-psql -U postgres -h localhost -d elite_trading
-SELECT * FROM symbols WHERE ticker IN ('SPY', 'QQQ', 'IBIT', 'ETHT');
-
-If missing, they'll be auto-created on first data fetch
-text
+  polling:
+    options_flow_seconds: 120  # Increase from 60
+```
 
 ---
 
@@ -397,23 +378,23 @@ text
 
 ## 🚀 Roadmap
 
-**v1.1 (Q1 2025)**
-- [ ] REST API for external access
-- [ ] Streamlit dashboard
-- [ ] Real-time trade execution
+**v7.1 (Q1 2025)**
+- [x] Glass House UI (Next.js)
+- [ ] WebSocket real-time updates
+- [ ] Broker integration (Alpaca, IBKR)
 - [ ] Telegram alerts
 
-**v1.2 (Q2 2025)**
-- [ ] Multi-model ensemble
-- [ ] Advanced feature engineering
+**v7.2 (Q2 2025)**
+- [ ] Auto-execution with risk controls
+- [ ] Advanced backtesting
 - [ ] Portfolio optimization
 - [ ] Paper trading simulator
 
-**v2.0 (Q3 2025)**
-- [ ] Live trading integration
-- [ ] Risk management system
-- [ ] Performance analytics
-- [ ] Mobile app
+**v8.0 (Q3 2025)**
+- [ ] Mobile app (React Native)
+- [ ] Multi-account support
+- [ ] Social trading features
+- [ ] Advanced analytics dashboard
 
 ---
 
@@ -435,8 +416,8 @@ Contributions welcome! Please:
 ## 📧 Contact
 
 Questions? Issues? Reach out:
-- GitHub Issues: [Create an issue](https://github.com/yourusername/elite-trading-system/issues)
-- Email: your.email@example.com
+- GitHub Issues: [Create an issue](https://github.com/Espenator/elite-trading-system/issues)
+- Repository: [Elite Trading System](https://github.com/Espenator/elite-trading-system)
 
 ---
 
@@ -447,5 +428,4 @@ This software is for educational and research purposes only. Trading involves su
 ---
 
 **Built with ❤️ by the Elite Trading Team**
-
-
+**Glass House Edition - Version 7.0**
