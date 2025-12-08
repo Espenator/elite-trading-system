@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 import uvicorn
 
 # Import routers
-from backend.api.routes import signals, trading, market, config
+from backend.api.routes import signals, trading, market, config, charts
 from backend.api.websocket_endpoint import websocket_endpoint, manager
 
 @asynccontextmanager
@@ -16,6 +16,7 @@ async def lifespan(app: FastAPI):
     print("🚀 Elite Trading System Starting...")
     print("✅ FastAPI server initialized")
     print("✅ WebSocket manager ready")
+    print("✅ Chart data endpoint ready")
     yield
     # Shutdown
     print("👋 Elite Trading System shutting down...")
@@ -27,10 +28,10 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware - FIX: Add all localhost ports
+# CORS middleware - Allow all origins in development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins in development
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -41,6 +42,7 @@ app.include_router(signals.router, prefix="/api", tags=["signals"])
 app.include_router(trading.router, prefix="/api", tags=["trading"])
 app.include_router(market.router, prefix="/api", tags=["market"])
 app.include_router(config.router, prefix="/api", tags=["config"])
+app.include_router(charts.router, prefix="/api", tags=["charts"])
 
 # WebSocket endpoint
 @app.websocket("/ws")
@@ -62,7 +64,14 @@ async def root():
     return {
         "message": "Elite Trading System API",
         "version": "1.0.0",
-        "status": "operational"
+        "status": "operational",
+        "endpoints": {
+            "websocket": "ws://localhost:8000/ws",
+            "chart_data": "/api/chart/data/{symbol}?timeframe=1H",
+            "active_signal": "/api/signals/active/{symbol}",
+            "health": "/api/health",
+            "docs": "/docs"
+        }
     }
 
 if __name__ == "__main__":
