@@ -1,0 +1,341 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===================================
+   ELITE TRADER TERMINAL - GLOBAL STYLES
+   Military Futuristic Theme
+   =================================== */
+
+:root {
+  /* Color System - Military HUD */
+  --bg-primary: #0A0E1A;        /* Deep space navy */
+  --bg-secondary: #111827;      /* Dark slate */
+  --bg-card: #1A1F2E;           /* Semi-translucent cards */
+  --accent-cyan: #00D9FF;       /* Cyan glow - military HUD */
+  --accent-purple: #7C3AED;     /* Purple - AI/ML indicators */
+  --accent-orange: #FB923C;     /* Orange - warnings */
+  --bull-green: #10B981;        /* Emerald - bullish */
+  --bear-red: #EF4444;          /* Crimson - bearish */
+  --text-primary: #F8FAFC;      /* Off-white */
+  --text-secondary: #94A3B8;    /* Slate gray */
+  --border-color: rgba(148, 163, 184, 0.15);
+  --glass-effect: rgba(26, 31, 46, 0.85);
+  
+  /* Typography */
+  --font-primary: var(--font-inter), -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: var(--font-roboto-mono), 'Courier New', monospace;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  font-family: var(--font-primary);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+body {
+  background: linear-gradient(135deg, #0A0E1A 0%, #0F1419 100%);
+  min-height: 100vh;
+}
+
+/* ===================================
+   GLASSMORPHISM EFFECTS
+   =================================== */
+
+.glass-card {
+  background: var(--glass-effect);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  border-radius: 12px;
+}
+
+.glass-card-hover {
+  transition: all 0.2s ease;
+}
+
+.glass-card-hover:hover {
+  background: rgba(0, 217, 255, 0.08);
+  border-color: rgba(0, 217, 255, 0.4);
+  box-shadow: 0 0 20px rgba(0, 217, 255, 0.2);
+}
+
+/* ===================================
+   CYAN GLOW EFFECTS - Military HUD
+   =================================== */
+
+.cyan-glow {
+  box-shadow: 0 0 20px rgba(0, 217, 255, 0.2);
+  border-color: rgba(0, 217, 255, 0.4);
+}
+
+.cyan-glow-text {
+  color: var(--accent-cyan);
+  text-shadow: 0 0 8px rgba(0, 217, 255, 0.6);
+}
+
+.cyan-glow-strong {
+  box-shadow: 0 0 30px rgba(0, 217, 255, 0.4);
+  border-color: var(--accent-cyan);
+}
+
+/* ===================================
+   TYPOGRAPHY SYSTEM
+   =================================== */
+
+h1 {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+h2 {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+h3 {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-secondary);
+}
+
+.data-value {
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
+.ticker {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 18px;
+}
+
+/* ===================================
+   ANIMATION SYSTEM
+   =================================== */
+
+/* Pulse animation for live indicators */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.live-indicator {
+  animation: pulse 2s infinite;
+}
+
+/* Slide in animation for new cards */
+@keyframes slideIn {
+  from {
+    transform: translateX(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+/* Flash animation for new signals */
+@keyframes flash-green {
+  0% { background: rgba(16, 185, 129, 0.3); }
+  100% { background: transparent; }
+}
+
+.flash-new-signal {
+  animation: flash-green 800ms ease-out;
+}
+
+@keyframes flash-cyan {
+  0% { background: rgba(0, 217, 255, 0.3); }
+  100% { background: transparent; }
+}
+
+.flash-update {
+  animation: flash-cyan 500ms ease-out;
+}
+
+/* ===================================
+   TIER BADGES
+   =================================== */
+
+.tier-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tier-badge.core {
+  background: var(--bull-green);
+  color: #000;
+}
+
+.tier-badge.hot {
+  background: #FBBF24;
+  color: #000;
+}
+
+.tier-badge.liquid {
+  background: #3B82F6;
+  color: #FFF;
+}
+
+/* ===================================
+   BUTTON SYSTEM
+   =================================== */
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent-cyan) 0%, #00B4DB 100%);
+  border: none;
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 16px rgba(0, 217, 255, 0.3);
+}
+
+.btn-primary:hover {
+  box-shadow: 0 6px 24px rgba(0, 217, 255, 0.5);
+  transform: translateY(-2px);
+}
+
+.btn-buy {
+  background: linear-gradient(135deg, var(--bull-green) 0%, #059669 100%);
+  border: none;
+  border-radius: 8px;
+  padding: 16px 32px;
+  font-weight: 700;
+  font-size: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+  color: white;
+}
+
+.btn-buy:hover {
+  box-shadow: 0 6px 24px rgba(16, 185, 129, 0.5);
+  transform: translateY(-2px);
+}
+
+.btn-sell {
+  background: linear-gradient(135deg, var(--bear-red) 0%, #DC2626 100%);
+  border: none;
+  border-radius: 8px;
+  padding: 16px 32px;
+  font-weight: 700;
+  font-size: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3);
+  color: white;
+}
+
+.btn-sell:hover {
+  box-shadow: 0 6px 24px rgba(239, 68, 68, 0.5);
+  transform: translateY(-2px);
+}
+
+/* ===================================
+   SCROLLBAR CUSTOMIZATION
+   =================================== */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--accent-cyan);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #00B4DB;
+}
+
+/* ===================================
+   UTILITY CLASSES
+   =================================== */
+
+.text-bull {
+  color: var(--bull-green);
+}
+
+.text-bear {
+  color: var(--bear-red);
+}
+
+.text-mono {
+  font-family: var(--font-mono);
+}
+
+.bg-bull {
+  background: var(--bull-green);
+}
+
+.bg-bear {
+  background: var(--bear-red);
+}
+
+/* ===================================
+   LOADING STATES
+   =================================== */
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.loading-spinner {
+  animation: spin 1s linear infinite;
+}
+
+/* ===================================
+   RESPONSIVE BREAKPOINTS
+   =================================== */
+
+@media (max-width: 1440px) {
+  .elite-terminal-grid {
+    grid-template-columns: 240px 1fr 300px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .elite-terminal-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+  }
+}
