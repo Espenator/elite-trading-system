@@ -9,10 +9,10 @@ interface ExecutionDeckProps {
 interface SignalData {
   type: string;
   confidence: number;
-  entry: number;
-  target: number;
-  stop: number;
-  riskReward: number;
+  entry?: number;
+  target?: number;
+  stop?: number;
+  riskReward?: number;
 }
 
 export default function ExecutionDeck({ symbol }: ExecutionDeckProps) {
@@ -23,8 +23,12 @@ export default function ExecutionDeck({ symbol }: ExecutionDeckProps) {
   useEffect(() => {
     // Fetch active signal for symbol
     fetch(`http://localhost:8000/api/signals/active/${symbol}`)
-      .then(res => res.json())
-      .then(data => setActiveSignal(data))
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data && data.entry) {
+          setActiveSignal(data);
+        }
+      })
       .catch(err => console.error('Signal fetch error:', err));
   }, [symbol]);
 
@@ -32,6 +36,11 @@ export default function ExecutionDeck({ symbol }: ExecutionDeckProps) {
     console.log(`Executing ${side.toUpperCase()} order for ${quantity} shares of ${symbol}`);
     // TODO: Connect to paper trading API
   };
+
+  const entryPrice = activeSignal?.entry || 0;
+  const targetPrice = activeSignal?.target || 0;
+  const stopPrice = activeSignal?.stop || 0;
+  const riskReward = activeSignal?.riskReward || 0;
 
   return (
     <div className="execution-deck">
@@ -54,7 +63,7 @@ export default function ExecutionDeck({ symbol }: ExecutionDeckProps) {
       </div>
 
       {/* Active Signal Card */}
-      {activeSignal ? (
+      {activeSignal && entryPrice > 0 ? (
         <div className="signal-card active">
           <div className="signal-header">
             <span className="signal-type">🟢 {activeSignal.type}</span>
@@ -63,19 +72,19 @@ export default function ExecutionDeck({ symbol }: ExecutionDeckProps) {
           <div className="signal-details">
             <div className="detail-row">
               <span>Entry:</span>
-              <span className="value">${activeSignal.entry.toFixed(2)}</span>
+              <span className="value">${entryPrice.toFixed(2)}</span>
             </div>
             <div className="detail-row">
               <span>Target:</span>
-              <span className="value positive">${activeSignal.target.toFixed(2)}</span>
+              <span className="value positive">${targetPrice.toFixed(2)}</span>
             </div>
             <div className="detail-row">
               <span>Stop:</span>
-              <span className="value negative">${activeSignal.stop.toFixed(2)}</span>
+              <span className="value negative">${stopPrice.toFixed(2)}</span>
             </div>
             <div className="detail-row">
               <span>R/R:</span>
-              <span className="value">{activeSignal.riskReward.toFixed(1)}:1</span>
+              <span className="value">{riskReward.toFixed(1)}:1</span>
             </div>
           </div>
         </div>
@@ -130,7 +139,7 @@ export default function ExecutionDeck({ symbol }: ExecutionDeckProps) {
       <div className="risk-display">
         <div className="risk-row">
           <span>Total Cost:</span>
-          <span className="risk-value">${(quantity * (activeSignal?.entry || 0)).toLocaleString()}</span>
+          <span className="risk-value">${(quantity * entryPrice).toLocaleString()}</span>
         </div>
         <div className="risk-row">
           <span>Portfolio %:</span>
