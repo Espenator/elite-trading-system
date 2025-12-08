@@ -1,115 +1,81 @@
+// Elite Trader State Management
+// Zustand store for global application state
+
 import { create } from 'zustand';
+import { Signal } from './api-client';
 
-// Types matching your backend API
-export interface Signal {
-  id: string;
-  ticker: string;
-  tier: 'CORE' | 'HOT' | 'LIQUID';
-  currentPrice: number;
-  netChange: number;
-  percentChange: number;
-  rvol: number;
-  globalConfidence: number;
-  direction: 'long' | 'short';
-  factors: Array<{
-    name: string;
-    impact: number;
-    type: string;
-  }>;
-  predictions?: {
-    '1H': {
-      priceTarget: number;
-      confidence: number;
-    };
-    '1D': {
-      priceTarget: number;
-      confidence: number;
-    };
-  };
-  modelAgreement?: number;
-  volume: number;
-  marketCap: number;
-  timestamp: string;
-  mathScore?: number;
-  aiScore?: number;
-  compositeScore?: number;
-  predictedPath?: any[];
-}
-
-export interface MarketState {
-  signals: Map<string, Signal>;
-  selectedSignalId: string | null;
-  wsConnected: boolean;
-  loading: boolean;
-  error: string | null;
-  coreWatchlist: string[];
-  hotSignals: Signal[];
-  liquidSignals: Signal[];
-  systemHealth: {
-    dbLatency: number;
-    ingestionRate: number;
-  } | null;
-  criteria: {
-    minCompositeScore: number;
-  };
-  
-  // Actions
+interface EliteTraderStore {
+  // Signals
+  signals: Signal[];
   setSignals: (signals: Signal[]) => void;
   addSignal: (signal: Signal) => void;
-  selectSignal: (signalId: string | null) => void;
-  setWsConnected: (connected: boolean) => void;
-  setLoading: (loading: boolean) => void;
-  setError: (error: string | null) => void;
-  updateCriteria: (criteria: Partial<MarketState['criteria']>) => void;
+  updateSignal: (id: string, updates: Partial<Signal>) => void;
+
+  // Selected ticker
+  selectedTicker: string;
+  setSelectedTicker: (ticker: string) => void;
+
+  // Chart timeframe
+  timeframe: '1D' | '1H' | '15M' | '5M';
+  setTimeframe: (timeframe: '1D' | '1H' | '15M' | '5M') => void;
+
+  // System status
+  systemStatus: 'active' | 'degraded' | 'offline';
+  latency: number;
+  setSystemStatus: (status: 'active' | 'degraded' | 'offline', latency?: number) => void;
+
+  // Filters
+  tierFilter: 'all' | 'Core' | 'Hot' | 'Liquid';
+  setTierFilter: (tier: 'all' | 'Core' | 'Hot' | 'Liquid') => void;
+
+  minConfidence: number;
+  setMinConfidence: (confidence: number) => void;
+
+  // UI State
+  isPaused: boolean;
+  togglePause: () => void;
+
+  soundEnabled: boolean;
+  toggleSound: () => void;
 }
 
-export const useMarketStore = create<MarketState>((set) => ({
-  signals: new Map(),
-  selectedSignalId: null,
-  wsConnected: false,
-  loading: false,
-  error: null,
-  coreWatchlist: ['NVDA', 'AAPL', 'TSLA', 'MSFT', 'GOOGL'],
-  hotSignals: [],
-  liquidSignals: [],
-  systemHealth: {
-    dbLatency: 12,
-    ingestionRate: 45,
-  },
-  criteria: {
-    minCompositeScore: 70,
-  },
+export const useEliteStore = create<EliteTraderStore>((set) => ({
+  // Initial state
+  signals: [],
+  selectedTicker: 'SPY',
+  timeframe: '1D',
+  systemStatus: 'active',
+  latency: 12,
+  tierFilter: 'all',
+  minConfidence: 0,
+  isPaused: false,
+  soundEnabled: true,
 
-  setSignals: (signalsArray) => {
-    const signalsMap = new Map<string, Signal>();
-    const hot: Signal[] = [];
-    const liquid: Signal[] = [];
-    
-    signalsArray.forEach(signal => {
-      signalsMap.set(signal.id, signal);
-      
-      if (signal.tier === 'HOT') {
-        hot.push(signal);
-      } else if (signal.tier === 'LIQUID') {
-        liquid.push(signal);
-      }
-    });
-    
-    set({ signals: signalsMap, hotSignals: hot, liquidSignals: liquid });
-  },
+  // Actions
+  setSignals: (signals) => set({ signals }),
   
-  addSignal: (signal) => set((state) => {
-    const newSignals = new Map(state.signals);
-    newSignals.set(signal.id, signal);
-    return { signals: newSignals };
-  }),
-  
-  selectSignal: (signalId) => set({ selectedSignalId: signalId }),
-  setWsConnected: (connected) => set({ wsConnected: connected }),
-  setLoading: (loading) => set({ loading }),
-  setError: (error) => set({ error }),
-  updateCriteria: (newCriteria) => set((state) => ({
-    criteria: { ...state.criteria, ...newCriteria }
+  addSignal: (signal) => set((state) => ({
+    signals: [signal, ...state.signals].slice(0, 1000), // Keep max 1000 signals
   })),
-}));
 
+  updateSignal: (id, updates) => set((state) => ({
+    signals: state.signals.map(s => s.id === id ? { ...s, ...updates } : s),
+  })),
+
+  setSelectedTicker: (ticker) => set({ selectedTicker: ticker }),
+  
+  setTimeframe: (timeframe) => set({ timeframe }),
+  
+  setSystemStatus: (status, latency) => set({ 
+    systemStatus: status,
+    ...(latency !== undefined && { latency })
+  }),
+
+  setTierFilter: (tier) => set({ tierFilter: tier }),
+  
+  setMinConfidence: (confidence) => set({ minConfidence: confidence }),
+  
+  togglePause: () => set((state) => ({ isPaused: !state.isPaused })),
+  
+  toggleSound: () => set((state) => ({ soundEnabled: !state.soundEnabled })),
+}));
