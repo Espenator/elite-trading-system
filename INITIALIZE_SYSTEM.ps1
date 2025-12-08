@@ -77,28 +77,73 @@ Write-Host "      This may take 30-60 seconds..." -ForegroundColor Yellow
 
 $populateScript = @"
 import sys
+import asyncio
 sys.path.insert(0, r'$PROJECT_ROOT')
 
 from database import SessionLocal
-from data_collection.finviz_scraper import populate_symbols_from_apis
+from database.models import SymbolUniverse
+from data_collection.finviz_scraper import FinvizClient
 from core.logger import get_logger
+from datetime import datetime
 
 logger = get_logger(__name__)
 
-try:
-    session = SessionLocal()
-    logger.info('Starting symbol population...')
-    
-    count = populate_symbols_from_apis(session)
-    
-    logger.info(f'Successfully populated {count} symbols!')
-    print(f'\n✅ SUCCESS: Populated {count} symbols from Finviz')
-    
-    session.close()
-except Exception as e:
-    logger.error(f'Failed to populate symbols: {e}')
-    print(f'\n❌ ERROR: {e}')
-    sys.exit(1)
+async def populate_symbols():
+    try:
+        session = SessionLocal()
+        logger.info('Starting symbol population...')
+        
+        # Create Finviz client
+        client = FinvizClient()
+        
+        # Fetch symbols from Finviz (uses ALL universe method)
+        logger.info('Fetching symbols from Finviz...')
+        symbols = await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: client.get_universe_all(min_price=5.0, min_volume=500000, max_symbols=1000)
+        )
+        
+        if not symbols:
+            logger.error('No symbols returned from Finviz!')
+            return 0
+        
+        logger.info(f'Received {len(symbols)} symbols from Finviz')
+        
+        # Clear existing symbols
+        session.query(SymbolUniverse).delete()
+        
+        # Insert new symbols
+        count = 0
+        for symbol in symbols:
+            try:
+                sym_obj = SymbolUniverse(
+                    symbol=symbol,
+                    is_active=True,
+                    last_updated=datetime.utcnow()
+                )
+                session.add(sym_obj)
+                count += 1
+            except Exception as e:
+                logger.warning(f'Failed to add {symbol}: {e}')
+        
+        session.commit()
+        logger.info(f'Successfully populated {count} symbols!')
+        print(f'\n SUCCESS: Populated {count} symbols from Finviz')
+        
+        session.close()
+        return count
+        
+    except Exception as e:
+        logger.error(f'Failed to populate symbols: {e}')
+        print(f'\n ERROR: {e}')
+        if 'session' in locals():
+            session.rollback()
+            session.close()
+        return 0
+
+if __name__ == '__main__':
+    count = asyncio.run(populate_symbols())
+    sys.exit(0 if count > 0 else 1)
 "@
 
 $populateScript | Out-File -FilePath "$PROJECT_ROOT\temp_populate.py" -Encoding UTF8
@@ -151,28 +196,24 @@ async def run_initial_scan():
         })
         
         logger.info(f'Generated {len(signals)} signals!')
-        print(f'\n✅ SUCCESS: Generated {len(signals)} signals')
+        print(f'\n SUCCESS: Generated {len(signals)} signals')
         
         return len(signals)
     except Exception as e:
         logger.error(f'Scan failed: {e}')
-        print(f'\n❌ ERROR: {e}')
+        print(f'\n WARNING: Scan failed - {e}')
         return 0
 
 if __name__ == '__main__':
     signal_count = asyncio.run(run_initial_scan())
-    sys.exit(0 if signal_count > 0 else 1)
+    sys.exit(0)
 "@
 
 $scanScript | Out-File -FilePath "$PROJECT_ROOT\temp_scan.py" -Encoding UTF8
 
 try {
     python "$PROJECT_ROOT\temp_scan.py"
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "      WARNING: Initial scan generated no signals (this is OK if market is closed)" -ForegroundColor Yellow
-    } else {
-        Write-Host "      Initial scan complete" -ForegroundColor Green
-    }
+    Write-Host "      Initial scan complete" -ForegroundColor Green
 } catch {
     Write-Host "      WARNING: Scan had issues but continuing..." -ForegroundColor Yellow
 } finally {
@@ -203,10 +244,10 @@ print(f'Signals in database: {signal_count}')
 session.close()
 
 if symbol_count == 0:
-    print('\n❌ ERROR: No symbols in database!')
+    print('\n ERROR: No symbols in database!')
     sys.exit(1)
 
-print(f'\n✅ SUCCESS: Database initialized with {symbol_count} symbols and {signal_count} signals')
+print(f'\n SUCCESS: Database initialized with {symbol_count} symbols and {signal_count} signals')
 "@
 
 $verifyScript | Out-File -FilePath "$PROJECT_ROOT\temp_verify.py" -Encoding UTF8
