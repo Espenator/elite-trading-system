@@ -15,6 +15,7 @@ Date: December 5, 2025
 
 import logging
 import time
+import asyncio
 from typing import List, Dict, Optional, Callable
 from datetime import datetime, timedelta
 from finviz.screener import Screener
@@ -397,3 +398,66 @@ class FinvizClient:
                          if self.cached_symbols['timestamp'] else None,
             'cached_symbols_count': len(self.cached_symbols.get('ALL', []))
         }
+
+
+# ============================================================================
+# GLOBAL CLIENT INSTANCE & CONVENIENCE FUNCTIONS
+# ============================================================================
+
+# Global client instance (singleton pattern)
+_global_client = None
+
+def _get_client() -> FinvizClient:
+    """Get or create global Finviz client"""
+    global _global_client
+    if _global_client is None:
+        _global_client = FinvizClient()
+    return _global_client
+
+
+# ============================================================================
+# ASYNC WRAPPER FOR SCHEDULER COMPATIBILITY - FIXES IMPORT ERROR
+# ============================================================================
+
+async def get_universe(regime: str = "YELLOW", max_results: int = 1000) -> List[str]:
+    """
+    Async wrapper function for scheduler.py compatibility.
+    
+    This function was missing and causing import errors in scheduler.py
+    
+    Args:
+        regime: Market regime ("LONG", "SHORT", "YELLOW", etc.)
+        max_results: Maximum number of symbols to return
+        
+    Returns:
+        List of ticker symbols based on regime
+    """
+    client = _get_client()
+    
+    # Run synchronous Finviz fetch in executor to avoid blocking
+    loop = asyncio.get_event_loop()
+    
+    if regime in ["SHORT", "BEAR", "RED"]:
+        # Fetch SHORT universe
+        symbols = await loop.run_in_executor(
+            None,
+            lambda: client.get_universe_short(min_price=10.0, min_volume=500000)
+        )
+    elif regime in ["LONG", "BULL", "GREEN"]:
+        # Fetch LONG universe
+        symbols = await loop.run_in_executor(
+            None,
+            lambda: client.get_universe_long(min_price=10.0, min_volume=500000)
+        )
+    else:
+        # Default: Fetch ALL universe
+        symbols = await loop.run_in_executor(
+            None,
+            lambda: client.get_universe_all(min_price=5.0, min_volume=500000, max_symbols=max_results)
+        )
+    
+    # Limit results
+    if len(symbols) > max_results:
+        symbols = symbols[:max_results]
+    
+    return symbols
