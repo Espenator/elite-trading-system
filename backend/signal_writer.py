@@ -160,3 +160,27 @@ class SignalWriter:
 
 # Singleton instance
 signal_writer = SignalWriter()
+
+
+"""
+Signal Writer - Enhanced with WebSocket Broadcasting
+Writes signals to database AND broadcasts to connected clients
+"""
+import asyncio
+from backend.api.websocket_endpoint import broadcast_new_signal
+
+async def write_signal_with_broadcast(signal_data: dict):
+    """
+    Write signal to database and broadcast to WebSocket clients
+    """
+    from database.database_manager import DatabaseManager
+    
+    db = DatabaseManager()
+    
+    # Write to database
+    db.write_signal(signal_data)
+    
+    # Broadcast to WebSocket clients
+    await broadcast_new_signal(signal_data)
+    
+    print(f"? Signal written and broadcasted: {signal_data['ticker']}")
