@@ -1,4 +1,4 @@
-﻿"""
+"""
 Elite Trading System - FastAPI Backend
 Version 7.0 - Glass House Edition - PRODUCTION READY
 """
@@ -12,11 +12,11 @@ import json
 import os
 from typing import List
 
-# Import routes
-from routes import signals, market, trading, ml_config
+# Import routes using relative imports
+from .routes import signals, market, trading, ml_config
 
 # Import WebSocket manager
-from websocket_manager import ws_manager
+from .websocket_manager import ws_manager
 
 # Initialize FastAPI app
 app = FastAPI(
