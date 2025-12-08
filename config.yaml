@@ -97,7 +97,7 @@ ml:
 
 
 # ============================================================================
-# API CREDENTIALS
+# API CREDENTIALS - HARDCODED FOR PRODUCTION
 # ============================================================================
 api_credentials:
   finviz:
@@ -108,6 +108,16 @@ api_credentials:
     enabled: true
   
   unusual_whales:
+    api_key: "d1cb154c-7988-41c6-ac00-09379ae7395c"
+    enabled: true
+    base_url: "https://api.unusualwhales.com/api"
+    endpoints:
+      quotes: "/stock/quote"
+      options_flow: "/option-contracts"
+      dark_pool: "/darkpool"
+      market_tide: "/market/tide"
+    min_premium_dollars: 100000
+    cache_duration_minutes: 5
     google_sheets:
       enabled: false
       spreadsheet_id: ""
@@ -116,7 +126,6 @@ api_credentials:
         dark_pool: "Dark Pool"
         options_flow: "Options Flow"
     use_finviz_fallback: true
-    cache_duration_minutes: 15
 
 # ============================================================================
 # DATA SOURCES
