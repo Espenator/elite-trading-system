@@ -25,7 +25,7 @@ def fetch_yfinance_data(symbol: str, period: str, interval: str):
         # Return empty dataframe to trigger fallback
         import pandas as pd
 
-        return pd.DataFrame()F
+        return pd.DataFrame()
 
 
 @router.get("/chart/data/{symbol}")
