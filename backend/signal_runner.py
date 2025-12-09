@@ -13,7 +13,7 @@ from datetime import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import after path is set
-from signal_generation.signal_aggregator import signal_aggregator
+from backend.signal_generation.signal_aggregator import signal_aggregator
 
 
 def print_header():

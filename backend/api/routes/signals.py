@@ -12,10 +12,10 @@ import yfinance as yf
 import asyncio
 
 from backend.services import get_recent_signals
-from database import get_db
-from database.models import SignalHistory, SymbolUniverse
-from core.logger import get_logger
-from data_collection.finviz_scraper import FinvizClient
+from backend.database import get_db
+from backend.database.models import SignalHistory, SymbolUniverse
+from backend.core.logger import get_logger
+from backend.data_collection.finviz_scraper import FinvizClient
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -236,11 +236,15 @@ async def get_active_signal(symbol: str, db: Session = Depends(get_db)):
     Get active signal for a specific symbol - REAL DATA
     """
     try:
-        cutoff = datetime.utcnow() - timedelta(hours=24)
-        db_signal = db.query(SignalHistory).filter(
-            SignalHistory.symbol == symbol.upper(),
-            SignalHistory.generated_at >= cutoff
-        ).order_by(SignalHistory.generated_at.desc()).first()
+        try:
+            cutoff = datetime.utcnow() - timedelta(hours=24)
+            db_signal = db.query(SignalHistory).filter(
+                SignalHistory.symbol == symbol.upper(),
+                SignalHistory.generated_at >= cutoff
+            ).order_by(SignalHistory.generated_at.desc()).first()
+        except Exception as db_error:
+            logger.error(f"Database query error: {db_error}")
+            raise HTTPException(status_code=500, detail=f"Database error: {str(db_error)}")
         
         if db_signal:
             logger.info(f"✅ Found signal in database for {symbol}")
@@ -261,60 +265,6 @@ async def get_active_signal(symbol: str, db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"❌ Failed to get signal for {symbol}: {e}")
         raise HTTPException(status_code=500, detail=f"Error fetching signal: {str(e)}")
-
-
-@router.get("/chart/data/{symbol}")
-async def get_chart_data(
-    symbol: str,
-    timeframe: str = Query("1H", regex="^(1m|5m|15m|1H|4H|1D)$")
-):
-    """
-    Get chart data for a symbol - REAL DATA FROM YFINANCE
-    """
-    try:
-        timeframe_map = {
-            "1m": {"period": "1d", "interval": "1m"},
-            "5m": {"period": "5d", "interval": "5m"},
-            "15m": {"period": "5d", "interval": "15m"},
-            "1H": {"period": "1mo", "interval": "1h"},
-            "4H": {"period": "3mo", "interval": "1d"},
-            "1D": {"period": "1y", "interval": "1d"}
-        }
-        
-        params = timeframe_map.get(timeframe, {"period": "1mo", "interval": "1h"})
-        
-        logger.info(f"📊 Downloading {timeframe} chart data for {symbol} from yfinance")
-        
-        ticker = yf.Ticker(symbol)
-        hist = ticker.history(period=params["period"], interval=params["interval"])
-        
-        if hist.empty:
-            raise HTTPException(status_code=404, detail=f"No chart data available for {symbol}")
-        
-        data = []
-        for index, row in hist.iterrows():
-            data.append({
-                "time": int(index.timestamp()),
-                "open": round(float(row['Open']), 2),
-                "high": round(float(row['High']), 2),
-                "low": round(float(row['Low']), 2),
-                "close": round(float(row['Close']), 2),
-                "volume": int(row['Volume'])
-            })
-        
-        logger.info(f"✅ Returned {len(data)} real candles for {symbol}")
-        
-        return {
-            "symbol": symbol,
-            "timeframe": timeframe,
-            "data": data
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Failed to fetch chart data for {symbol}: {e}")
-        raise HTTPException(status_code=500, detail=f"yfinance error: {str(e)}")
 
 
 @router.get("/predictions/{symbol}")

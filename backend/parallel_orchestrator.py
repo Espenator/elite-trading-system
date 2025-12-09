@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 import multiprocessing as mp
 from typing import List, Callable, Any
 
-from core.logger import get_logger
+from backend.core.logger import get_logger
 
 logger = get_logger(__name__)
 

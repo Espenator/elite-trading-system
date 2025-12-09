@@ -3,7 +3,7 @@ AI Decision Engine - Makes buy/sell/hold decisions
 """
 
 from typing import Dict, Optional
-from core.logger import get_logger
+from backend.core.logger import get_logger
 
 logger = get_logger(__name__)
 

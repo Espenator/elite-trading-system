@@ -2,25 +2,29 @@
 Chart Data API Routes
 Provides TradingView-compatible candlestick data
 """
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.orm import Session
 from typing import Optional
 import yfinance as yf
 from datetime import datetime
-from core.logger import get_logger
-from database import get_db
+from backend.core.logger import get_logger
+from backend.database import get_db
 
 logger = get_logger(__name__)
 router = APIRouter()
 
+def fetch_yfinance_data(symbol: str, period: str, interval: str):
+    """Synchronous function to fetch yfinance data"""
+    ticker = yf.Ticker(symbol)
+    return ticker.history(period=period, interval=interval)
+
 @router.get("/chart/data/{symbol}")
-async def get_chart_data(
+def get_chart_data(
     symbol: str,
-    timeframe: str = "1H",
-    db: Session = Depends(get_db)
+    timeframe: str = Query("1H", regex="^(1m|5m|15m|1H|4H|1D)$"),
 ):
     """
-    Get chart data for TradingView
+    Get chart data for TradingView (synchronous endpoint)
     
     Args:
         symbol: Stock ticker symbol
@@ -44,9 +48,12 @@ async def get_chart_data(
         
         logger.info(f"Fetching chart data for {symbol} with {timeframe} timeframe")
         
-        # Fetch data from yfinance
-        ticker = yf.Ticker(symbol)
-        hist = ticker.history(period=period, interval=interval)
+        # Fetch data from yfinance (synchronous - FastAPI handles threading)
+        try:
+            hist = fetch_yfinance_data(symbol, period, interval)
+        except Exception as e:
+            logger.error(f"Error fetching yfinance data for {symbol}: {e}")
+            raise HTTPException(status_code=500, detail=f"Error fetching data: {str(e)}")
         
         if hist.empty:
             raise HTTPException(
@@ -81,51 +88,3 @@ async def get_chart_data(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/signals/active/{symbol}")
-async def get_active_signal(symbol: str, db: Session = Depends(get_db)):
-    """
-    Get the most recent active signal for a specific symbol
-    
-    Args:
-        symbol: Stock ticker symbol
-    
-    Returns:
-        Most recent signal from last 24 hours
-    """
-    try:
-        from database.models import SignalHistory
-        from datetime import timedelta
-        
-        # Get most recent signal from last 24 hours
-        cutoff_time = datetime.utcnow() - timedelta(hours=24)
-        
-        signal = db.query(SignalHistory).filter(
-            SignalHistory.symbol == symbol.upper(),
-            SignalHistory.generated_at >= cutoff_time
-        ).order_by(SignalHistory.generated_at.desc()).first()
-        
-        if not signal:
-            raise HTTPException(
-                status_code=404,
-                detail=f"No active signal found for {symbol}"
-            )
-        
-        return {
-            "id": signal.id,
-            "symbol": signal.symbol,
-            "direction": signal.direction,
-            "score": signal.score,
-            "entry_price": signal.entry_price,
-            "stop_price": signal.stop_price,
-            "target_price": signal.target_price,
-            "velez_score": signal.velez_score,
-            "explosive_signal": signal.explosive_signal,
-            "generated_at": signal.generated_at.isoformat(),
-            "was_traded": signal.was_traded
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to get active signal for {symbol}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))

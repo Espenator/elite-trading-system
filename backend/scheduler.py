@@ -4,9 +4,9 @@ from datetime import datetime
 import yfinance as yf
 import pandas as pd
 import numpy as np
-from core.logger import get_logger
-from data_collection.finviz_scraper import get_universe
-from database import get_db_session
+from backend.core.logger import get_logger
+from backend.data_collection.finviz_scraper import get_universe
+from backend.database import get_db_session
 from sqlalchemy import text
 
 

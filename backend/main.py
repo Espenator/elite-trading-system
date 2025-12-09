@@ -47,7 +47,16 @@ app.include_router(charts.router, prefix="/api", tags=["charts"])
 # WebSocket endpoint
 @app.websocket("/ws")
 async def websocket_route(websocket: WebSocket):
-    await websocket_endpoint(websocket)
+    try:
+        await websocket_endpoint(websocket)
+    except Exception as e:
+        print(f"❌ WebSocket route error: {e}")
+        import traceback
+        traceback.print_exc()
+        try:
+            await websocket.close()
+        except:
+            pass
 
 # Health check
 @app.get("/api/health")

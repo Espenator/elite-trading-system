@@ -14,12 +14,12 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 from sqlalchemy.orm import Session
 
-from database.models import (
+from backend.database.models import (
     ShadowPortfolio, Position, Trade, SignalHistory,
     SystemEvent, MacroRegime, HedgePosition, Prediction
 )
-from database import get_db_session
-from core.logger import get_logger
+from backend.database import get_db_session
+from backend.core.logger import get_logger
 
 logger = get_logger(__name__)
 

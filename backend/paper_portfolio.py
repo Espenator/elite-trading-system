@@ -9,8 +9,8 @@ from dataclasses import dataclass, asdict
 import yaml
 from pathlib import Path
 
-from core.logger import get_logger
-from core.event_bus import event_bus
+from backend.core.logger import get_logger
+from backend.core.event_bus import event_bus
 
 logger = get_logger(__name__)
 

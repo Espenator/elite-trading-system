@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import List, Dict, Any
 import os
 
+# Path relative to backend directory
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "trading.db")
 
 

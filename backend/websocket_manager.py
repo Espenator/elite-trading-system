@@ -1,6 +1,6 @@
 ﻿"""
-COMPLETE BACKEND-FRONTEND INTEGRATION LAYER
-Ensures 100% compatibility between Glass House UI and Backend API
+WebSocket Connection Manager
+Manages WebSocket connections for real-time data streaming
 """
 
 from fastapi import WebSocket, WebSocketDisconnect

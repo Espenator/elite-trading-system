@@ -7,7 +7,7 @@ from typing import List
 import json
 import asyncio
 from datetime import datetime, time as dt_time
-from core.logger import get_logger
+from backend.core.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -21,9 +21,13 @@ class ConnectionManager:
     
     async def connect(self, websocket: WebSocket):
         """Accept new WebSocket connection"""
-        await websocket.accept()
-        self.active_connections.append(websocket)
-        self.logger.info(f"✅ WebSocket connected. Total: {len(self.active_connections)}")
+        try:
+            await websocket.accept()
+            self.active_connections.append(websocket)
+            self.logger.info(f"✅ WebSocket connected. Total: {len(self.active_connections)}")
+        except Exception as e:
+            self.logger.error(f"❌ Error in websocket.accept(): {e}", exc_info=True)
+            raise
     
     def disconnect(self, websocket: WebSocket):
         """Remove disconnected WebSocket"""
@@ -67,10 +71,17 @@ async def broadcast_signals_loop():
     This connects the existing ScannerManager to the WebSocket
     so frontend receives real-time signals
     """
-    from backend.scheduler import ScannerManager
+    # Wait a bit before starting to ensure WebSocket connections are established
+    await asyncio.sleep(2)
     
-    scanner = ScannerManager(config={})
-    logger.info("🚀 Signal broadcasting loop started")
+    try:
+        from backend.scheduler import ScannerManager
+        scanner = ScannerManager(config={})
+        logger.info("🚀 Signal broadcasting loop started")
+    except Exception as e:
+        logger.error(f"Failed to initialize ScannerManager: {e}")
+        # Still try to send status messages even if scanner fails
+        scanner = None
     
     while True:
         try:
@@ -91,13 +102,25 @@ async def broadcast_signals_loop():
             is_weekday = True
             
             if is_market_hours and is_weekday:
-                logger.info("⏰ Starting scheduled scan...")
-                
-                # Run the scanner (YELLOW = neutral regime, TOP 20)
-                signals = await scanner.run_scan({
-                    "regime": "YELLOW",
-                    "top_n": 20
-                })
+                if scanner is None:
+                    logger.warning("⚠️ Scanner not available, sending status message")
+                    await manager.broadcast({
+                        "type": "status",
+                        "message": "Scanner initialization failed - check backend logs",
+                        "timestamp": datetime.now().isoformat()
+                    })
+                else:
+                    logger.info("⏰ Starting scheduled scan...")
+                    
+                    # Run the scanner (YELLOW = neutral regime, TOP 20)
+                    try:
+                        signals = await scanner.run_scan({
+                            "regime": "YELLOW",
+                            "top_n": 20
+                        })
+                    except Exception as scan_error:
+                        logger.error(f"Scanner run_scan failed: {scan_error}")
+                        signals = []
                 
                 if signals:
                     logger.info(f"✅ Generated {len(signals)} signals, broadcasting...")
@@ -157,28 +180,56 @@ async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint handler"""
     global broadcast_task_started
     
-    await manager.connect(websocket)
+    logger.info(f"🔌 New WebSocket connection attempt from {websocket.client}")
     
-    # Start broadcast loop on first connection
+    try:
+        await manager.connect(websocket)
+        logger.info("✅ WebSocket connection accepted successfully")
+    except Exception as e:
+        logger.error(f"❌ Failed to accept WebSocket connection: {e}", exc_info=True)
+        try:
+            await websocket.close()
+        except:
+            pass
+        return
+    
+    # Start broadcast loop on first connection (with delay to ensure connection is stable)
     if not broadcast_task_started:
         broadcast_task_started = True
+        # Delay starting the broadcast loop to ensure WebSocket is fully established
         asyncio.create_task(broadcast_signals_loop())
         logger.info("🚀 Started background signal broadcasting task")
     
     try:
         # Send welcome message
-        await manager.send_personal_message({
-            "type": "connection",
-            "status": "connected",
-            "message": "Elite Trading System WebSocket Connected",
-            "broadcast_interval": "5 minutes"
-        }, websocket)
+        try:
+            await manager.send_personal_message({
+                "type": "connection",
+                "status": "connected",
+                "message": "Elite Trading System WebSocket Connected",
+                "broadcast_interval": "5 minutes"
+            }, websocket)
+        except Exception as e:
+            logger.error(f"Failed to send welcome message: {e}")
         
         # Keep connection alive and handle incoming messages
         while True:
             try:
-                # Receive messages from client
-                data = await websocket.receive_text()
+                # Receive messages from client (with timeout to allow periodic checks)
+                # Use receive() instead of receive_text() to handle both text and binary
+                message_data = await asyncio.wait_for(
+                    websocket.receive(),
+                    timeout=30.0  # 30 second timeout to allow periodic connection checks
+                )
+                
+                # Handle different message types
+                if "text" in message_data:
+                    data = message_data["text"]
+                elif "bytes" in message_data:
+                    data = message_data["bytes"].decode("utf-8")
+                else:
+                    continue  # Skip non-text/binary messages
+                
                 message = json.loads(data)
                 
                 # Handle different message types
@@ -204,17 +255,34 @@ async def websocket_endpoint(websocket: WebSocket):
                     }, websocket)
                     # Trigger immediate scan (could add this feature)
                 
+            except asyncio.TimeoutError:
+                # Send periodic heartbeat to keep connection alive
+                try:
+                    await manager.send_personal_message({
+                        "type": "heartbeat",
+                        "timestamp": datetime.now().isoformat()
+                    }, websocket)
+                except:
+                    break  # Connection is dead
+                continue
             except WebSocketDisconnect:
+                logger.info("WebSocket disconnected by client")
                 break
-            except json.JSONDecodeError:
-                await manager.send_personal_message({
-                    "type": "error",
-                    "message": "Invalid JSON"
-                }, websocket)
+            except json.JSONDecodeError as e:
+                logger.warning(f"Invalid JSON received: {e}")
+                try:
+                    await manager.send_personal_message({
+                        "type": "error",
+                        "message": "Invalid JSON"
+                    }, websocket)
+                except:
+                    pass  # Connection might be closed
             except Exception as e:
                 logger.error(f"WebSocket error: {e}")
                 break
     
+    except Exception as e:
+        logger.error(f"WebSocket endpoint error: {e}")
     finally:
         manager.disconnect(websocket)
 

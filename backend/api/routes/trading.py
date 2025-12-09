@@ -28,7 +28,7 @@ async def execute_trade(trade: TradeRequest):
     """Execute a paper trade"""
     try:
         # Import paper broker
-        from execution.paper_broker import PaperBroker
+        from backend.execution.paper_broker import PaperBroker
         
         broker = PaperBroker()
         
@@ -55,7 +55,7 @@ async def execute_trade(trade: TradeRequest):
 async def get_portfolio():
     """Get current portfolio positions"""
     try:
-        from execution.paper_broker import PaperBroker
+        from backend.execution.paper_broker import PaperBroker
         
         broker = PaperBroker()
         portfolio = broker.get_portfolio()
@@ -68,7 +68,7 @@ async def get_portfolio():
 async def get_orders():
     """Get order history"""
     try:
-        from execution.paper_broker import PaperBroker
+        from backend.execution.paper_broker import PaperBroker
         
         broker = PaperBroker()
         orders = broker.get_order_history()
