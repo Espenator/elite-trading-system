@@ -58,34 +58,36 @@ def get_chart_data(
 
         logger.info(f"Fetching chart data for {symbol} with {timeframe} timeframe")
 
-        # Fetch data from yfinance (synchronous - FastAPI handles threading)
-        hist = fetch_yfinance_data(symbol, period, interval)
+        # TODO: yfinance is currently timing out - using mock data for development
+        # Uncomment below to enable real data fetching when network issues are resolved:
+        # hist = fetch_yfinance_data(symbol, period, interval)
+        
+        # Generate mock OHLCV data (using mock data to avoid yfinance timeout)
+        logger.info(f"Using mock data for {symbol} (yfinance disabled due to network issues)")
+        import pandas as pd
+        import numpy as np
+        from datetime import datetime, timedelta
 
-        if hist.empty:
-            # yfinance failed - return mock data for development
-            logger.warning(f"yfinance returned no data for {symbol}, using mock data")
-            import pandas as pd
-            import numpy as np
-            from datetime import datetime, timedelta
+        # Generate realistic mock data
+        now = datetime.now()
+        dates = pd.date_range(end=now, periods=100, freq="1H")
 
-            # Generate mock OHLCV data
-            now = datetime.now()
-            dates = pd.date_range(end=now, periods=100, freq="1H")
+        # Simulate realistic price movement with trends
+        base_price = 450.0 if symbol == "SPY" else 100.0
+        trend = np.linspace(0, 5, 100)  # Slight upward trend
+        noise = np.cumsum(np.random.randn(100) * 0.5)  # Random walk
+        prices = base_price + trend + noise
 
-            # Simulate price movement
-            base_price = 450.0 if symbol == "SPY" else 100.0
-            prices = base_price + np.cumsum(np.random.randn(100) * 2)
-
-            hist = pd.DataFrame(
-                {
-                    "Open": prices + np.random.randn(100) * 0.5,
-                    "High": prices + np.abs(np.random.randn(100) * 1),
-                    "Low": prices - np.abs(np.random.randn(100) * 1),
-                    "Close": prices,
-                    "Volume": np.random.randint(1000000, 10000000, 100),
-                },
-                index=dates,
-            )
+        hist = pd.DataFrame(
+            {
+                "Open": prices + np.random.randn(100) * 0.3,
+                "High": prices + np.abs(np.random.randn(100) * 0.8),
+                "Low": prices - np.abs(np.random.randn(100) * 0.8),
+                "Close": prices,
+                "Volume": np.random.randint(5000000, 15000000, 100),
+            },
+            index=dates,
+        )
 
         # Convert to TradingView format
         chart_data = []
