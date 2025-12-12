@@ -14,10 +14,8 @@ env/
 ENV/
 
 # Database
-*.db
 *.sqlite
 *.sqlite3
-finviz_stocks.db
 
 # IDE
 .vscode/
