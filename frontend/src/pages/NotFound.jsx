@@ -1,10 +1,8 @@
 import { Link } from 'react-router-dom';
-import Layout from '../components/layout/Layout';
 import Button from '../components/ui/Button';
 
 export default function NotFound() {
   return (
-    <Layout>
       <div className="min-h-[70vh] flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-9xl font-bold text-purple-500 mb-4">404</h1>
@@ -17,6 +15,5 @@ export default function NotFound() {
           </Link>
         </div>
       </div>
-    </Layout>
   );
 }

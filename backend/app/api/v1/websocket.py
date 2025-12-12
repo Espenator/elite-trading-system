@@ -76,6 +76,7 @@ class ConnectionManager:
             self._watchlist = self._get_default_tickers()
         
         self._watchlist_loaded = True
+        """
     
     def _get_default_tickers(self) -> List[str]:
         """Fallback default tickers if database is empty"""
