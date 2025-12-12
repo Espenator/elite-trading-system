@@ -1,16 +1,26 @@
 /** @type {import('tailwindcss').Config} */
-module.exports = {
+export default {
   content: [
-    './pages/**/*.{js,ts,jsx,tsx,mdx}',
-    './components/**/*.{js,ts,jsx,tsx,mdx}',
-    './app/**/*.{js,ts,jsx,tsx,mdx}',
+    "./index.html",
+    "./src/**/*.{js,jsx}"
   ],
+  darkMode: 'class',
   theme: {
     extend: {
-      colors: {
-        background: 'var(--background)',
-        foreground: 'var(--foreground)',
+      fontFamily: {
+        rubik: ['Rubik', 'sans-serif'],
+        'league-spartan': ['League Spartan', 'sans-serif'],
+        'league-spartan-bold': ['LeagueSpartan-Bold', 'sans-serif'],
       },
+      colors: {
+        primary: '#5938CC',
+        danger: '#ff0000',
+        light: '#f2f2f2',
+        gray: "#656565"
+      },
+      animation: {
+        'spin-slow': 'spin 3s linear infinite',
+      }
     },
   },
   plugins: [],
