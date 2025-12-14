@@ -5,7 +5,7 @@ import SettingsSection from '../components/SettingsSection';
 import '../styles/Settings.css';
 
 export default function Settings() {
-  const { theme, toggleTheme, colorScheme, updateColorScheme, fontSize, updateFontSize } = useTheme();
+  const { theme, toggleTheme } = useTheme();
   const { settings, updateSetting, updateSettings, resetToDefaults, maskApiKey, saved } = useSettings();
   const [activeTab, setActiveTab] = useState('appearance');
   const [showApiKeys, setShowApiKeys] = useState({});
@@ -79,11 +79,7 @@ export default function Settings() {
       >
         <div className="settings-row">
           <label className="settings-label">Scheme</label>
-          <select 
-            className="settings-select"
-            value={colorScheme}
-            onChange={(e) => updateColorScheme(e.target.value)}
-          >
+          <select className="settings-select">
             <option value="default">Default (Cyan/Purple)</option>
             <option value="bloomberg">Bloomberg (Orange/Blue)</option>
             <option value="modern">Modern (Green/Red)</option>
@@ -103,12 +99,7 @@ export default function Settings() {
           <div className="radio-group">
             {['small', 'medium', 'large'].map(size => (
               <label key={size} className="radio-label">
-                <input 
-                  type="radio" 
-                  value={size} 
-                  checked={fontSize === size}
-                  onChange={(e) => updateFontSize(e.target.value)}
-                />
+                <input type="radio" value={size} name="font-size" />
                 <span className="radio-text">{size.charAt(0).toUpperCase() + size.slice(1)}</span>
               </label>
             ))}
@@ -124,11 +115,7 @@ export default function Settings() {
       >
         <div className="settings-row">
           <label className="settings-label">Chart Colors</label>
-          <select 
-            className="settings-select"
-            value={settings.chartTheme}
-            onChange={(e) => updateSetting('chartTheme', e.target.value)}
-          >
+          <select className="settings-select">
             <option value="dark">Dark Theme</option>
             <option value="light">Light Theme</option>
             <option value="custom">Custom Colors</option>
@@ -515,7 +502,7 @@ export default function Settings() {
               className="reveal-btn"
               onClick={() => handleToggleApiKey('alpaca-key')}
             >
-              {showApiKeys['alpaca-key'] ? '🙈' : '👁️'}
+              {showApiKeys['alpaca-key'] ? '😨' : '👁️'}
             </button>
           </div>
           <span className="api-masked">{maskApiKey(settings.alpacaApiKey)}</span>
@@ -534,7 +521,7 @@ export default function Settings() {
               className="reveal-btn"
               onClick={() => handleToggleApiKey('alpaca-secret')}
             >
-              {showApiKeys['alpaca-secret'] ? '🙈' : '👁️'}
+              {showApiKeys['alpaca-secret'] ? '😨' : '👁️'}
             </button>
           </div>
           <span className="api-masked">{maskApiKey(settings.alpacaSecretKey)}</span>
@@ -561,7 +548,7 @@ export default function Settings() {
               className="reveal-btn"
               onClick={() => handleToggleApiKey('perplexity')}
             >
-              {showApiKeys['perplexity'] ? '🙈' : '👁️'}
+              {showApiKeys['perplexity'] ? '😨' : '👁️'}
             </button>
           </div>
           <span className="api-masked">{maskApiKey(settings.perplexityApiKey)}</span>
@@ -588,7 +575,7 @@ export default function Settings() {
               className="reveal-btn"
               onClick={() => handleToggleApiKey('unusual-whales')}
             >
-              {showApiKeys['unusual-whales'] ? '🙈' : '👁️'}
+              {showApiKeys['unusual-whales'] ? '😨' : '👁️'}
             </button>
           </div>
           <span className="api-masked">{maskApiKey(settings.unusualWhalesApiKey)}</span>
@@ -615,7 +602,7 @@ export default function Settings() {
               className="reveal-btn"
               onClick={() => handleToggleApiKey('finviz')}
             >
-              {showApiKeys['finviz'] ? '🙈' : '👁️'}
+              {showApiKeys['finviz'] ? '😨' : '👁️'}
             </button>
           </div>
           <span className="api-masked">{maskApiKey(settings.finvizApiKey)}</span>
@@ -672,11 +659,11 @@ export default function Settings() {
       <SettingsSection 
         title="Download Logs"
         description="Debug logs for troubleshooting"
-        icon="📜"
+        icon="📝"
       >
         <div className="settings-row">
           <button className="action-btn">
-            📜 Download Logs
+            📝 Download Logs
           </button>
         </div>
       </SettingsSection>
@@ -713,7 +700,7 @@ export default function Settings() {
         <div className="settings-row">
           <div className="info-item">
             <span className="info-label">App Version</span>
-            <span className="info-value">2.0.0</span>
+            <span className="info-value">2.1.0</span>
           </div>
           <div className="info-item">
             <span className="info-label">Build Date</span>
@@ -735,7 +722,7 @@ export default function Settings() {
         <div className="settings-row">
           <div className="status-item">
             <span className="status-indicator" style={{
-              background: backendStatus === 'connected' ? '#00ff88' : '#ff5459'
+              background: backendStatus === 'connected' ? '#10b981' : '#ef4444'
             }}></span>
             <span className="status-text">
               {backendStatus === 'connected' ? '🟢 Connected' : '🔴 Disconnected'}
