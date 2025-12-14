@@ -1,0 +1,164 @@
+/* ==================== ROOT THEME VARIABLES ==================== */
+
+:root {
+  /* DARK THEME (default) */
+  --bg-primary: #0a0e27;
+  --bg-secondary: #1a1f3a;
+  --bg-tertiary: #252b4a;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --accent-primary: #00d9ff;
+  --accent-secondary: #a78bfa;
+  --success: #10b981;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+
+  /* Smooth transitions */
+  --transition-speed: 200ms;
+  --transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ==================== LIGHT THEME ==================== */
+
+.light {
+  /* Light theme colors */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8fafc;
+  --bg-tertiary: #e2e8f0;
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --accent-primary: #0ea5e9;
+  --accent-secondary: #8b5cf6;
+  --success: #10b981;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+}
+
+/* ==================== DARK THEME ==================== */
+
+.dark {
+  /* Dark theme colors */
+  --bg-primary: #0a0e27;
+  --bg-secondary: #1a1f3a;
+  --bg-tertiary: #252b4a;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --accent-primary: #00d9ff;
+  --accent-secondary: #a78bfa;
+  --success: #10b981;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+}
+
+/* ==================== THEME TRANSITIONS ==================== */
+
+body,
+.page-container,
+.dashboard,
+.settings-page,
+.header,
+.sidebar,
+.card,
+.table,
+.btn,
+.input,
+.select,
+[class*="bg-"] {
+  transition: background-color var(--transition-speed) var(--transition-timing),
+              color var(--transition-speed) var(--transition-timing),
+              border-color var(--transition-speed) var(--transition-timing);
+}
+
+/* ==================== THEME TOGGLE BUTTON ==================== */
+
+.theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 217, 255, 0.2);
+  background: rgba(0, 217, 255, 0.05);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all var(--transition-speed) var(--transition-timing);
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
+}
+
+.theme-toggle-btn:hover {
+  background: rgba(0, 217, 255, 0.15);
+  border-color: rgba(0, 217, 255, 0.4);
+  transform: scale(1.05);
+}
+
+.theme-toggle-btn:active {
+  transform: scale(0.95);
+}
+
+.theme-icon {
+  display: inline-block;
+  animation: themeSwitch 300ms ease;
+}
+
+@keyframes themeSwitch {
+  0% {
+    opacity: 0;
+    transform: rotate(-180deg);
+  }
+  100% {
+    opacity: 1;
+    transform: rotate(0);
+  }
+}
+
+/* ==================== LIGHT MODE SPECIFIC ==================== */
+
+.light .theme-toggle-btn {
+  border-color: rgba(14, 165, 233, 0.2);
+  background: rgba(14, 165, 233, 0.05);
+}
+
+.light .theme-toggle-btn:hover {
+  background: rgba(14, 165, 233, 0.15);
+  border-color: rgba(14, 165, 233, 0.4);
+}
+
+/* ==================== ACCESSIBILITY ==================== */
+
+@media (prefers-reduced-motion: reduce) {
+  body,
+  .page-container,
+  .dashboard,
+  .settings-page,
+  .header,
+  .sidebar,
+  .card,
+  .table,
+  .btn,
+  .input,
+  .select,
+  .theme-toggle-btn,
+  .theme-icon,
+  [class*="bg-"] {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* ==================== FOCUS STATES ==================== */
+
+.theme-toggle-btn:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+/* ==================== PRINT STYLES ==================== */
+
+@media print {
+  .theme-toggle-btn {
+    display: none;
+  }
+}
