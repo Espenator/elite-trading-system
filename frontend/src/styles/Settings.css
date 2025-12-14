@@ -1,0 +1,611 @@
+/* ==================== SETTINGS PAGE LAYOUT ==================== */
+
+.settings-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 24px;
+  background: linear-gradient(135deg, #0a1428 0%, #1a2332 100%);
+  min-height: 100vh;
+}
+
+/* ==================== SETTINGS HEADER ==================== */
+
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(33, 128, 141, 0.2);
+}
+
+.settings-title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.save-indicator {
+  display: inline-block;
+  padding: 6px 12px;
+  background: rgba(0, 255, 136, 0.15);
+  color: #00ff88;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  animation: slideIn 300ms ease;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ==================== SETTINGS CONTAINER ==================== */
+
+.settings-container {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 24px;
+  min-height: 600px;
+}
+
+/* ==================== TAB NAVIGATION ==================== */
+
+.settings-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 12px;
+  border: 1px solid rgba(33, 128, 141, 0.1);
+  height: fit-content;
+  position: sticky;
+  top: 20px;
+}
+
+.settings-tab {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  transition: all 150ms ease;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.settings-tab:hover {
+  background: rgba(33, 128, 141, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.settings-tab.active {
+  background: linear-gradient(135deg, rgba(33, 128, 141, 0.3), rgba(33, 128, 141, 0.1));
+  color: #00ff88;
+  border-left: 2px solid #208085;
+  padding-left: 10px;
+}
+
+.tab-icon {
+  font-size: 14px;
+}
+
+.tab-label {
+  display: none;
+}
+
+/* ==================== TAB CONTENT ==================== */
+
+.settings-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 12px;
+  border: 1px solid rgba(33, 128, 141, 0.1);
+  backdrop-filter: blur(10px);
+  animation: fadeIn 300ms ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.settings-tabs-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ==================== SETTINGS SECTION ==================== */
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 8px;
+  border: 1px solid rgba(33, 128, 141, 0.1);
+  transition: all 150ms ease;
+}
+
+.settings-section:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(33, 128, 141, 0.2);
+}
+
+.settings-section-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.settings-section-icon {
+  font-size: 20px;
+  margin-top: 2px;
+}
+
+.settings-section-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.settings-section-description {
+  margin: 4px 0 0 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.settings-section-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ==================== SETTINGS ROW ==================== */
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.settings-label {
+  display: inline-block;
+  min-width: 140px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* ==================== FORM INPUTS ==================== */
+
+.settings-input,
+.settings-select {
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(33, 128, 141, 0.3);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 150ms ease;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.settings-input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.settings-input:focus,
+.settings-select:focus {
+  outline: none;
+  border-color: #208085;
+  background: rgba(33, 128, 141, 0.1);
+  box-shadow: 0 0 0 3px rgba(33, 128, 141, 0.2);
+}
+
+.settings-input {
+  min-width: 200px;
+  flex: 1;
+}
+
+.settings-select {
+  min-width: 180px;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 16px;
+  padding-right: 28px;
+}
+
+.input-suffix {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 600;
+}
+
+/* ==================== CHECKBOXES & RADIOS ==================== */
+
+.checkbox-label,
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 100ms ease;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.checkbox-label:hover,
+.radio-label:hover {
+  background: rgba(33, 128, 141, 0.1);
+}
+
+.checkbox-label input[type="checkbox"],
+.checkbox-label input[type="radio"],
+.radio-label input[type="radio"] {
+  cursor: pointer;
+  accent-color: #208085;
+}
+
+.checkbox-group,
+.radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ==================== THEME TOGGLE ==================== */
+
+.theme-toggle {
+  display: flex;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 6px;
+  padding: 4px;
+  border: 1px solid rgba(33, 128, 141, 0.2);
+}
+
+.toggle-btn {
+  padding: 8px 14px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  transition: all 150ms ease;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.toggle-btn.active {
+  background: rgba(33, 128, 141, 0.3);
+  color: #00ff88;
+}
+
+/* ==================== API KEY INPUT ==================== */
+
+.api-key-input {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex: 1;
+}
+
+.api-key-input .settings-input {
+  flex: 1;
+}
+
+.reveal-btn {
+  padding: 6px 10px;
+  background: rgba(33, 128, 141, 0.15);
+  border: 1px solid rgba(33, 128, 141, 0.3);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 100ms ease;
+}
+
+.reveal-btn:hover {
+  background: rgba(33, 128, 141, 0.25);
+  color: #fff;
+}
+
+.api-masked {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  font-family: 'Monaco', 'Courier New', monospace;
+  padding: 2px 6px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+  margin-top: -8px;
+  margin-left: auto;
+}
+
+/* ==================== ACTION BUTTONS ==================== */
+
+.action-btn {
+  padding: 10px 16px;
+  background: rgba(33, 128, 141, 0.2);
+  border: 1px solid rgba(33, 128, 141, 0.3);
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+  transition: all 150ms ease;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.action-btn:hover {
+  background: rgba(33, 128, 141, 0.3);
+  border-color: rgba(33, 128, 141, 0.5);
+}
+
+.action-btn.primary {
+  background: linear-gradient(135deg, rgba(33, 128, 141, 0.4), rgba(0, 255, 136, 0.1));
+  border-color: #208085;
+  color: #00ff88;
+}
+
+.action-btn.primary:hover {
+  background: linear-gradient(135deg, rgba(33, 128, 141, 0.6), rgba(0, 255, 136, 0.2));
+}
+
+.action-btn.danger {
+  background: rgba(255, 84, 89, 0.15);
+  border-color: rgba(255, 84, 89, 0.3);
+  color: #ff5459;
+}
+
+.action-btn.danger:hover {
+  background: rgba(255, 84, 89, 0.25);
+  border-color: rgba(255, 84, 89, 0.5);
+}
+
+.button-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ==================== STATUS INDICATORS ==================== */
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 6px;
+}
+
+.status-indicator {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.status-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* ==================== INFO DISPLAY ==================== */
+
+.info-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 6px;
+  gap: 16px;
+}
+
+.info-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.info-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: #00ff88;
+  font-family: 'Monaco', 'Courier New', monospace;
+}
+
+/* ==================== RESPONSIVE DESIGN ==================== */
+
+@media (max-width: 1200px) {
+  .settings-container {
+    grid-template-columns: 160px 1fr;
+    gap: 16px;
+  }
+
+  .tab-label {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .settings-container {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-tabs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+    gap: 8px;
+    position: static;
+    padding: 8px;
+  }
+
+  .settings-tab {
+    flex-direction: column;
+    padding: 8px 6px;
+  }
+
+  .tab-icon {
+    font-size: 16px;
+  }
+
+  .tab-label {
+    display: block;
+    font-size: 9px;
+  }
+
+  .settings-tab.active {
+    border-left: none;
+    border-bottom: 2px solid #208085;
+  }
+}
+
+@media (max-width: 768px) {
+  .settings-page {
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .settings-title {
+    font-size: 24px;
+  }
+
+  .settings-content {
+    padding: 16px;
+  }
+
+  .settings-section {
+    padding: 12px;
+  }
+
+  .settings-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .settings-label {
+    min-width: auto;
+    margin-bottom: 4px;
+  }
+
+  .settings-input,
+  .settings-select {
+    min-width: auto;
+    width: 100%;
+  }
+
+  .info-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .settings-page {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .settings-title {
+    font-size: 20px;
+  }
+
+  .settings-tabs {
+    grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+    gap: 4px;
+    padding: 4px;
+  }
+
+  .settings-tab {
+    padding: 6px 4px;
+  }
+
+  .tab-icon {
+    font-size: 14px;
+  }
+
+  .settings-section {
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .settings-content {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .button-group {
+    flex-direction: column;
+  }
+
+  .action-btn {
+    width: 100%;
+  }
+}
+
+/* ==================== PRINT STYLES ==================== */
+
+@media print {
+  .settings-tabs {
+    display: none;
+  }
+
+  .settings-container {
+    grid-template-columns: 1fr;
+  }
+}
