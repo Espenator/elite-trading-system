@@ -2,38 +2,28 @@
 export default {
   content: [
     "./index.html",
-    "./src/**/*.{js,jsx}"
+    "./src/**/*.{js,ts,jsx,tsx}",
   ],
   darkMode: 'class',
   theme: {
     extend: {
-      fontFamily: {
-        rubik: ['Rubik', 'sans-serif'],
-        'league-spartan': ['League Spartan', 'sans-serif'],
-        'league-spartan-bold': ['LeagueSpartan-Bold', 'sans-serif'],
-      },
       colors: {
-        // Legacy colors (backward compatibility)
-        primary: '#5938CC',
-        danger: '#ff0000',
-        light: '#f2f2f2',
-        gray: "#656565",
-        
-        // Theme system CSS variables
-        'bg-primary': 'var(--bg-primary)',
-        'bg-secondary': 'var(--bg-secondary)',
-        'bg-tertiary': 'var(--bg-tertiary)',
-        'text-primary': 'var(--text-primary)',
-        'text-secondary': 'var(--text-secondary)',
-        'accent-primary': 'var(--accent-primary)',
-        'accent-secondary': 'var(--accent-secondary)',
-        'success': 'var(--success)',
-        'danger-theme': 'var(--danger)',
-        'warning': 'var(--warning)',
+        primary: {
+          50: '#eff6ff',
+          100: '#dbeafe',
+          200: '#bfdbfe',
+          300: '#93c5fd',
+          400: '#60a5fa',
+          500: '#3b82f6',
+          600: '#2563eb',
+          700: '#1d4ed8',
+          800: '#1e40af',
+          900: '#1e3a8a',
+        },
       },
-      animation: {
-        'spin-slow': 'spin 3s linear infinite',
-      }
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+      },
     },
   },
   plugins: [],

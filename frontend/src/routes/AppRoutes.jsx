@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import MainLayout from '../components/layout/MainLayout';
 import Dashboard from '../pages/Dashboard';
 import TradeExecution from '../pages/TradeExecution';
@@ -16,25 +16,23 @@ import NotFound from '../pages/NotFound';
 
 export default function AppRoutes() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<MainLayout />}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="trade" element={<TradeExecution />} />
-          <Route path="portfolio" element={<PortfolioHeatmap />} />
-          <Route path="model-training" element={<ModelTraining />} />
-          <Route path="performance" element={<PerformanceAnalytics />} />
-          <Route path="screener" element={<ScreenerResults />} />
-          <Route path="order-history" element={<OrderHistory />} />
-          <Route path="settings" element={<Settings />} />
-          <Route path="account-settings" element={<AccountSettings />} />
-          <Route path="risk-config" element={<RiskConfiguration />} />
-          <Route path="strategy" element={<StrategySettings />} />
-          <Route path="account" element={<Account />} />
-          <Route path="*" element={<NotFound />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <Routes>
+      <Route path="/" element={<MainLayout />}>
+        <Route index element={<Navigate to="/dashboard" replace />} />
+        <Route path="dashboard" element={<Dashboard />} />
+        <Route path="trade" element={<TradeExecution />} />
+        <Route path="portfolio" element={<PortfolioHeatmap />} />
+        <Route path="model-training" element={<ModelTraining />} />
+        <Route path="performance" element={<PerformanceAnalytics />} />
+        <Route path="screener" element={<ScreenerResults />} />
+        <Route path="order-history" element={<OrderHistory />} />
+        <Route path="settings" element={<Settings />} />
+        <Route path="account-settings" element={<AccountSettings />} />
+        <Route path="risk-config" element={<RiskConfiguration />} />
+        <Route path="strategy" element={<StrategySettings />} />
+        <Route path="account" element={<Account />} />
+        <Route path="*" element={<NotFound />} />
+      </Route>
+    </Routes>
   );
 }

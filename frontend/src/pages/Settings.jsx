@@ -1,799 +1,456 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { 
+  faUser, faKey, faShieldAlt, faChessKnight, faBell, faPalette, 
+  faPlug, faTrash, faSave, faCopy
+} from '@fortawesome/free-solid-svg-icons';
 import { useTheme } from '../context/ThemeContext';
-import { useSettings } from '../context/SettingsContext';
-import SettingsSection from '../components/SettingsSection';
-import '../styles/Settings.css';
 
 export default function Settings() {
   const { theme, toggleTheme } = useTheme();
-  const { settings, updateSetting, updateSettings, resetToDefaults, maskApiKey, saved } = useSettings();
-  const [activeTab, setActiveTab] = useState('appearance');
-  const [showApiKeys, setShowApiKeys] = useState({});
-  const [backendStatus, setBackendStatus] = useState('connected');
-  const [latency, setLatency] = useState('12ms');
+  const [darkMode, setDarkMode] = useState(theme === 'dark');
+  const [autoSave, setAutoSave] = useState(true);
+  const [realtimeUpdates, setRealtimeUpdates] = useState(true);
+  const [tradeAlerts, setTradeAlerts] = useState(true);
+  const [marketEvents, setMarketEvents] = useState(false);
+  const [systemStatus, setSystemStatus] = useState(true);
+  const [emailNotifications, setEmailNotifications] = useState(false);
+  const [riskShield, setRiskShield] = useState(true);
 
-  // ==================== TAB NAVIGATION ====================
-  const tabs = [
-    { id: 'appearance', label: '🎨 Appearance', icon: '🎨' },
-    { id: 'trading', label: '💰 Trading', icon: '💰' },
-    { id: 'risk', label: '⚠️ Risk', icon: '⚠️' },
-    { id: 'notifications', label: '🔔 Notifications', icon: '🔔' },
-    { id: 'apis', label: '🔑 API Keys', icon: '🔑' },
-    { id: 'data', label: '💾 Data', icon: '💾' },
-    { id: 'system', label: '⚙️ System', icon: '⚙️' },
+  const apiKeys = [
+    { id: 'key1', service: 'Alpaca Trading', expiration: '2024-12-31', status: 'Active' },
+    { id: 'key2', service: 'Finviz Elite', expiration: '2025-06-15', status: 'Active' },
+    { id: 'key3', service: 'UnusualWhales', expiration: '2024-10-01', status: 'Expired' },
   ];
 
-  // ==================== HELPERS ====================
-  const handleToggleApiKey = (key) => {
-    setShowApiKeys(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
+  const handleThemeToggle = () => {
+    setDarkMode(!darkMode);
+    toggleTheme();
   };
 
-  const handleExportTrades = (format) => {
-    console.log(`Export trades as ${format}`);
-    // TODO: Implement trade export
-  };
-
-  const handleClearHistory = () => {
-    if (confirm('Clear all trade history? This cannot be undone.')) {
-      console.log('Clear trade history');
-      // TODO: Implement
-    }
-  };
-
-  // ==================== RENDER: APPEARANCE TAB ====================
-  const renderAppearance = () => (
-    <div className="settings-tabs-content">
-      {/* Theme Toggle */}
-      <SettingsSection 
-        title="Theme"
-        description="Choose between dark and light modes"
-        icon="🌙"
-      >
-        <div className="settings-row">
-          <label className="settings-label">Display Mode</label>
-          <div className="theme-toggle">
-            <button 
-              className={`toggle-btn ${theme === 'dark' ? 'active' : ''}`}
-              onClick={toggleTheme}
-            >
-              🌙 Dark
-            </button>
-            <button 
-              className={`toggle-btn ${theme === 'light' ? 'active' : ''}`}
-              onClick={toggleTheme}
-            >
-              ☀️ Light
-            </button>
-          </div>
-        </div>
-      </SettingsSection>
-
-      {/* Color Scheme */}
-      <SettingsSection 
-        title="Color Scheme"
-        description="Choose your preferred color palette"
-        icon="🎭"
-      >
-        <div className="settings-row">
-          <label className="settings-label">Scheme</label>
-          <select className="settings-select">
-            <option value="default">Default (Cyan/Purple)</option>
-            <option value="bloomberg">Bloomberg (Orange/Blue)</option>
-            <option value="modern">Modern (Green/Red)</option>
-            <option value="custom">Custom</option>
-          </select>
-        </div>
-      </SettingsSection>
-
-      {/* Font Size */}
-      <SettingsSection 
-        title="Font Size"
-        description="Adjust text size across the application"
-        icon="📝"
-      >
-        <div className="settings-row">
-          <label className="settings-label">Size</label>
-          <div className="radio-group">
-            {['small', 'medium', 'large'].map(size => (
-              <label key={size} className="radio-label">
-                <input type="radio" value={size} name="font-size" />
-                <span className="radio-text">{size.charAt(0).toUpperCase() + size.slice(1)}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-      </SettingsSection>
-
-      {/* Chart Theme */}
-      <SettingsSection 
-        title="Chart Theme"
-        description="Configure how charts are displayed"
-        icon="📊"
-      >
-        <div className="settings-row">
-          <label className="settings-label">Chart Colors</label>
-          <select className="settings-select">
-            <option value="dark">Dark Theme</option>
-            <option value="light">Light Theme</option>
-            <option value="custom">Custom Colors</option>
-          </select>
-        </div>
-      </SettingsSection>
-
-      {/* Compact Mode */}
-      <SettingsSection 
-        title="Compact Mode"
-        description="Dense tables and reduced spacing"
-        icon="📦"
-      >
-        <div className="settings-row">
-          <label className="settings-label">Layout</label>
-          <label className="checkbox-label">
-            <input 
-              type="checkbox" 
-              checked={settings.compactMode}
-              onChange={(e) => updateSetting('compactMode', e.target.checked)}
-            />
-            <span>Enable compact mode</span>
-          </label>
-        </div>
-      </SettingsSection>
-    </div>
-  );
-
-  // ==================== RENDER: TRADING TAB ====================
-  const renderTrading = () => (
-    <div className="settings-tabs-content">
-      {/* Default Order Size */}
-      <SettingsSection 
-        title="Default Order Size"
-        description="Pre-selected quantity for quick trades"
-        icon="🛒"
-      >
-        <div className="settings-row">
-          <label className="settings-label">Shares per Trade</label>
-          <select 
-            className="settings-select"
-            value={settings.defaultOrderSize}
-            onChange={(e) => updateSetting('defaultOrderSize', parseInt(e.target.value))}
-          >
-            <option value={100}>100 shares</option>
-            <option value={500}>500 shares</option>
-            <option value={1000}>1,000 shares</option>
-            <option value={2500}>2,500 shares</option>
-            <option value={5000}>5,000 shares</option>
-          </select>
-        </div>
-      </SettingsSection>
-
-      {/* Quick Trade */}
-      <SettingsSection 
-        title="Quick Trade Buttons"
-        description="Enable/disable one-click trading"
-        icon="⚡"
-      >
-        <div className="settings-row">
-          <label className="settings-label">Status</label>
-          <label className="checkbox-label">
-            <input 
-              type="checkbox" 
-              checked={settings.quickTradeEnabled}
-              onChange={(e) => updateSetting('quickTradeEnabled', e.target.checked)}
-            />
-            <span>Enable quick trade buttons</span>
-          </label>
-        </div>
-      </SettingsSection>
-
-      {/* Confirmation Dialogs */}
-      <SettingsSection 
-        title="Confirmation Dialogs"
-        description="Require confirmation before executing trades"
-        icon="✓"
-      >
-        <div className="settings-row">
-          <label className="settings-label">Confirmations</label>
-          <select 
-            className="settings-select"
-            value={settings.confirmationDialogs}
-            onChange={(e) => updateSetting('confirmationDialogs', e.target.value)}
-          >
-            <option value="always">Always confirm</option>
-            <option value="t1_only">T1 signals only</option>
-            <option value="never">Never confirm</option>
-          </select>
-        </div>
-      </SettingsSection>
-
-      {/* Auto-Refresh */}
-      <SettingsSection 
-        title="Auto-Refresh Interval"
-        description="How often signals update"
-        icon="🔄"
-      >
-        <div className="settings-row">
-          <label className="settings-label">Interval</label>
-          <select 
-            className="settings-select"
-            value={settings.autoRefreshInterval}
-            onChange={(e) => updateSetting('autoRefreshInterval', parseInt(e.target.value))}
-          >
-            <option value={5}>5 seconds</option>
-            <option value={10}>10 seconds</option>
-            <option value={30}>30 seconds</option>
-            <option value={60}>60 seconds</option>
-          </select>
-        </div>
-      </SettingsSection>
-
-      {/* Signal Filters */}
-      <SettingsSection 
-        title="Default Signal Filters"
-        description="Pre-filter signals by score and type"
-        icon="🎯"
-      >
-        <div className="settings-row">
-          <label className="settings-label">Minimum Score</label>
-          <input 
-            type="number" 
-            min="0" 
-            max="100" 
-            value={settings.minSignalScore}
-            onChange={(e) => updateSetting('minSignalScore', parseInt(e.target.value))}
-            className="settings-input"
-          />
-          <span className="input-suffix">/ 100</span>
-        </div>
-        <div className="settings-row">
-          <label className="settings-label">Preferred Tiers</label>
-          <div className="checkbox-group">
-            {['T1', 'T2', 'T3'].map(tier => (
-              <label key={tier} className="checkbox-label">
-                <input 
-                  type="checkbox" 
-                  checked={settings.preferredTiers.includes(tier)}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      updateSetting('preferredTiers', [...settings.preferredTiers, tier]);
-                    } else {
-                      updateSetting('preferredTiers', settings.preferredTiers.filter(t => t !== tier));
-                    }
-                  }}
-                />
-                <span>{tier}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-      </SettingsSection>
-    </div>
-  );
-
-  // ==================== RENDER: RISK TAB ====================
-  const renderRisk = () => (
-    <div className="settings-tabs-content">
-      {/* Daily Loss Limit */}
-      <SettingsSection 
-        title="Daily Loss Limit"
-        description="Stop trading when daily loss reached"
-        icon="💰"
-      >
-        <div className="settings-row">
-          <label className="settings-label">Max Daily Loss</label>
-          <input 
-            type="number" 
-            value={settings.maxDailyLossLimit}
-            onChange={(e) => updateSetting('maxDailyLossLimit', parseInt(e.target.value))}
-            className="settings-input"
-          />
-          <span className="input-suffix">USD</span>
-        </div>
-      </SettingsSection>
-
-      {/* Position Size */}
-      <SettingsSection 
-        title="Position Sizing"
-        description="Maximum size per individual trade"
-        icon="📊"
-      >
-        <div className="settings-row">
-          <label className="settings-label">Max Position Size</label>
-          <input 
-            type="number" 
-            value={settings.maxPositionSize}
-            onChange={(e) => updateSetting('maxPositionSize', parseInt(e.target.value))}
-            className="settings-input"
-          />
-          <span className="input-suffix">USD</span>
-        </div>
-      </SettingsSection>
-
-      {/* Max Positions */}
-      <SettingsSection 
-        title="Portfolio Limits"
-        description="Maximum simultaneous open positions"
-        icon="🎯"
-      >
-        <div className="settings-row">
-          <label className="settings-label">Max Positions</label>
-          <input 
-            type="number" 
-            min="1" 
-            max="50" 
-            value={settings.maxPositions}
-            onChange={(e) => updateSetting('maxPositions', parseInt(e.target.value))}
-            className="settings-input"
-          />
-          <span className="input-suffix">trades</span>
-        </div>
-      </SettingsSection>
-
-      {/* Sector Limits */}
-      <SettingsSection 
-        title="Sector Concentration"
-        description="Maximum portfolio % in any single sector"
-        icon="🏭"
-      >
-        <div className="settings-row">
-          <label className="settings-label">Sector Limit</label>
-          <input 
-            type="number" 
-            min="0" 
-            max="100" 
-            step="5"
-            value={Math.round(settings.sectorLimits * 100)}
-            onChange={(e) => updateSetting('sectorLimits', parseInt(e.target.value) / 100)}
-            className="settings-input"
-          />
-          <span className="input-suffix">%</span>
-        </div>
-      </SettingsSection>
-
-      {/* Correlation Check */}
-      <SettingsSection 
-        title="Correlation Check"
-        description="Prevent correlated positions"
-        icon="🔗"
-      >
-        <div className="settings-row">
-          <label className="settings-label">Risk Management</label>
-          <label className="checkbox-label">
-            <input 
-              type="checkbox" 
-              checked={settings.correlationCheck}
-              onChange={(e) => updateSetting('correlationCheck', e.target.checked)}
-            />
-            <span>Enable correlation check</span>
-          </label>
-        </div>
-      </SettingsSection>
-    </div>
-  );
-
-  // ==================== RENDER: NOTIFICATIONS TAB ====================
-  const renderNotifications = () => (
-    <div className="settings-tabs-content">
-      {/* Browser Notifications */}
-      <SettingsSection 
-        title="Browser Notifications"
-        description="Desktop alerts for trading signals"
-        icon="🔔"
-      >
-        <div className="settings-row">
-          <label className="settings-label">Alerts</label>
-          <select 
-            className="settings-select"
-            value={settings.browserNotifications}
-            onChange={(e) => updateSetting('browserNotifications', e.target.value)}
-          >
-            <option value="off">Off</option>
-            <option value="t1_only">T1 signals only</option>
-            <option value="all">All signals</option>
-          </select>
-        </div>
-      </SettingsSection>
-
-      {/* Sound Alerts */}
-      <SettingsSection 
-        title="Sound Alerts"
-        description="Audio notification for new signals"
-        icon="🔊"
-      >
-        <div className="settings-row">
-          <label className="settings-label">Status</label>
-          <label className="checkbox-label">
-            <input 
-              type="checkbox" 
-              checked={settings.soundAlerts}
-              onChange={(e) => updateSetting('soundAlerts', e.target.checked)}
-            />
-            <span>Enable sound alerts</span>
-          </label>
-        </div>
-      </SettingsSection>
-
-      {/* Email Notifications */}
-      <SettingsSection 
-        title="Email Alerts"
-        description="Receive trading updates via email"
-        icon="📧"
-      >
-        <div className="settings-row">
-          <label className="settings-label">Status</label>
-          <label className="checkbox-label">
-            <input 
-              type="checkbox" 
-              checked={settings.emailNotifications}
-              onChange={(e) => updateSetting('emailNotifications', e.target.checked)}
-            />
-            <span>Enable email notifications</span>
-          </label>
-        </div>
-      </SettingsSection>
-
-      {/* Telegram Integration */}
-      <SettingsSection 
-        title="Telegram Alerts"
-        description="Receive signals on Telegram"
-        icon="📱"
-      >
-        <div className="settings-row">
-          <label className="settings-label">Enable Telegram</label>
-          <label className="checkbox-label">
-            <input 
-              type="checkbox" 
-              checked={settings.telegramEnabled}
-              onChange={(e) => updateSetting('telegramEnabled', e.target.checked)}
-            />
-            <span>Connect Telegram bot</span>
-          </label>
-        </div>
-        {settings.telegramEnabled && (
-          <>
-            <div className="settings-row">
-              <label className="settings-label">Bot Token</label>
-              <input 
-                type="password" 
-                value={settings.telegramBotToken}
-                onChange={(e) => updateSetting('telegramBotToken', e.target.value)}
-                placeholder="Paste your Telegram bot token"
-                className="settings-input"
-              />
-            </div>
-            <div className="settings-row">
-              <label className="settings-label">Chat ID</label>
-              <input 
-                type="text" 
-                value={settings.telegramChatId}
-                onChange={(e) => updateSetting('telegramChatId', e.target.value)}
-                placeholder="Your Telegram chat ID"
-                className="settings-input"
-              />
-            </div>
-          </>
-        )}
-      </SettingsSection>
-    </div>
-  );
-
-  // ==================== RENDER: API KEYS TAB ====================
-  const renderApiKeys = () => (
-    <div className="settings-tabs-content">
-      {/* Alpaca */}
-      <SettingsSection 
-        title="Alpaca Trading API"
-        description="Connect to Alpaca broker for trade execution"
-        icon="🚀"
-      >
-        <div className="settings-row">
-          <label className="settings-label">API Key</label>
-          <div className="api-key-input">
-            <input 
-              type={showApiKeys['alpaca-key'] ? 'text' : 'password'}
-              value={settings.alpacaApiKey}
-              onChange={(e) => updateSetting('alpacaApiKey', e.target.value)}
-              placeholder="sk_live_..."
-              className="settings-input"
-            />
-            <button 
-              className="reveal-btn"
-              onClick={() => handleToggleApiKey('alpaca-key')}
-            >
-              {showApiKeys['alpaca-key'] ? '😨' : '👁️'}
-            </button>
-          </div>
-          <span className="api-masked">{maskApiKey(settings.alpacaApiKey)}</span>
-        </div>
-        <div className="settings-row">
-          <label className="settings-label">Secret Key</label>
-          <div className="api-key-input">
-            <input 
-              type={showApiKeys['alpaca-secret'] ? 'text' : 'password'}
-              value={settings.alpacaSecretKey}
-              onChange={(e) => updateSetting('alpacaSecretKey', e.target.value)}
-              placeholder="sk_live_..."
-              className="settings-input"
-            />
-            <button 
-              className="reveal-btn"
-              onClick={() => handleToggleApiKey('alpaca-secret')}
-            >
-              {showApiKeys['alpaca-secret'] ? '😨' : '👁️'}
-            </button>
-          </div>
-          <span className="api-masked">{maskApiKey(settings.alpacaSecretKey)}</span>
-        </div>
-      </SettingsSection>
-
-      {/* Perplexity */}
-      <SettingsSection 
-        title="Perplexity AI API"
-        description="Market analysis and insights"
-        icon="🤖"
-      >
-        <div className="settings-row">
-          <label className="settings-label">API Key</label>
-          <div className="api-key-input">
-            <input 
-              type={showApiKeys['perplexity'] ? 'text' : 'password'}
-              value={settings.perplexityApiKey}
-              onChange={(e) => updateSetting('perplexityApiKey', e.target.value)}
-              placeholder="pplx-..."
-              className="settings-input"
-            />
-            <button 
-              className="reveal-btn"
-              onClick={() => handleToggleApiKey('perplexity')}
-            >
-              {showApiKeys['perplexity'] ? '😨' : '👁️'}
-            </button>
-          </div>
-          <span className="api-masked">{maskApiKey(settings.perplexityApiKey)}</span>
-        </div>
-      </SettingsSection>
-
-      {/* Unusual Whales */}
-      <SettingsSection 
-        title="Unusual Whales API"
-        description="Unusual activity and flow detection"
-        icon="🐋"
-      >
-        <div className="settings-row">
-          <label className="settings-label">API Key</label>
-          <div className="api-key-input">
-            <input 
-              type={showApiKeys['unusual-whales'] ? 'text' : 'password'}
-              value={settings.unusualWhalesApiKey}
-              onChange={(e) => updateSetting('unusualWhalesApiKey', e.target.value)}
-              placeholder="Your API key"
-              className="settings-input"
-            />
-            <button 
-              className="reveal-btn"
-              onClick={() => handleToggleApiKey('unusual-whales')}
-            >
-              {showApiKeys['unusual-whales'] ? '😨' : '👁️'}
-            </button>
-          </div>
-          <span className="api-masked">{maskApiKey(settings.unusualWhalesApiKey)}</span>
-        </div>
-      </SettingsSection>
-
-      {/* Finviz */}
-      <SettingsSection 
-        title="Finviz Elite API"
-        description="Stock screener and data"
-        icon="📈"
-      >
-        <div className="settings-row">
-          <label className="settings-label">API Key</label>
-          <div className="api-key-input">
-            <input 
-              type={showApiKeys['finviz'] ? 'text' : 'password'}
-              value={settings.finvizApiKey}
-              onChange={(e) => updateSetting('finvizApiKey', e.target.value)}
-              placeholder="Your API key"
-              className="settings-input"
-            />
-            <button 
-              className="reveal-btn"
-              onClick={() => handleToggleApiKey('finviz')}
-            >
-              {showApiKeys['finviz'] ? '😨' : '👁️'}
-            </button>
-          </div>
-          <span className="api-masked">{maskApiKey(settings.finvizApiKey)}</span>
-        </div>
-      </SettingsSection>
-    </div>
-  );
-
-  // ==================== RENDER: DATA TAB ====================
-  const renderData = () => (
-    <div className="settings-tabs-content">
-      {/* Export Trades */}
-      <SettingsSection 
-        title="Export Trades"
-        description="Download your trading history"
-        icon="📥"
-      >
-        <div className="settings-row">
-          <label className="settings-label">Format</label>
-          <div className="button-group">
-            <button 
-              className="action-btn primary"
-              onClick={() => handleExportTrades('csv')}
-            >
-              📄 Export CSV
-            </button>
-            <button 
-              className="action-btn"
-              onClick={() => handleExportTrades('json')}
-            >
-              📋 Export JSON
-            </button>
-          </div>
-        </div>
-      </SettingsSection>
-
-      {/* Clear History */}
-      <SettingsSection 
-        title="Clear Trade History"
-        description="Permanently delete all trades (cannot be undone)"
-        icon="🗑️"
-      >
-        <div className="settings-row">
-          <button 
-            className="action-btn danger"
-            onClick={handleClearHistory}
-          >
-            🗑️ Clear History
-          </button>
-        </div>
-      </SettingsSection>
-
-      {/* Download Logs */}
-      <SettingsSection 
-        title="Download Logs"
-        description="Debug logs for troubleshooting"
-        icon="📝"
-      >
-        <div className="settings-row">
-          <button className="action-btn">
-            📝 Download Logs
-          </button>
-        </div>
-      </SettingsSection>
-
-      {/* Database Backup */}
-      <SettingsSection 
-        title="Database Backup"
-        description="Backup and restore your settings"
-        icon="💾"
-      >
-        <div className="settings-row">
-          <div className="button-group">
-            <button className="action-btn">
-              ☁️ Backup Now
-            </button>
-            <button className="action-btn">
-              ↩️ Restore
-            </button>
-          </div>
-        </div>
-      </SettingsSection>
-    </div>
-  );
-
-  // ==================== RENDER: SYSTEM TAB ====================
-  const renderSystem = () => (
-    <div className="settings-tabs-content">
-      {/* Version Info */}
-      <SettingsSection 
-        title="Version Information"
-        description="System version and build details"
-        icon="ℹ️"
-      >
-        <div className="settings-row">
-          <div className="info-item">
-            <span className="info-label">App Version</span>
-            <span className="info-value">2.1.0</span>
-          </div>
-          <div className="info-item">
-            <span className="info-label">Build Date</span>
-            <span className="info-value">Dec 14, 2025</span>
-          </div>
-          <div className="info-item">
-            <span className="info-label">Backend Version</span>
-            <span className="info-value">1.5.2</span>
-          </div>
-        </div>
-      </SettingsSection>
-
-      {/* Backend Status */}
-      <SettingsSection 
-        title="Backend Connection"
-        description="Real-time system status"
-        icon="🔌"
-      >
-        <div className="settings-row">
-          <div className="status-item">
-            <span className="status-indicator" style={{
-              background: backendStatus === 'connected' ? '#10b981' : '#ef4444'
-            }}></span>
-            <span className="status-text">
-              {backendStatus === 'connected' ? '🟢 Connected' : '🔴 Disconnected'}
-            </span>
-          </div>
-        </div>
-        <div className="settings-row">
-          <div className="info-item">
-            <span className="info-label">Latency</span>
-            <span className="info-value">{latency}</span>
-          </div>
-          <div className="info-item">
-            <span className="info-label">Last Update</span>
-            <span className="info-value">2 seconds ago</span>
-          </div>
-        </div>
-      </SettingsSection>
-
-      {/* Advanced */}
-      <SettingsSection 
-        title="Advanced Settings"
-        description="Reset and debug options"
-        icon="⚙️"
-      >
-        <div className="settings-row">
-          <button 
-            className="action-btn danger"
-            onClick={resetToDefaults}
-          >
-            🔄 Reset All Settings
-          </button>
-        </div>
-      </SettingsSection>
-    </div>
-  );
-
-  // ==================== MAIN RENDER ====================
   return (
-    <div className="settings-page">
-      <div className="settings-header">
-        <h1 className="settings-title">⚙️ Settings</h1>
-        {saved && <span className="save-indicator">✓ Saved</span>}
+    <div className="p-6 space-y-6 max-w-5xl mx-auto">
+      {/* Page Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Settings</h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-1">Configure your Elite Trading System environment.</p>
       </div>
 
-      <div className="settings-container">
-        {/* Tab Navigation */}
-        <div className="settings-tabs">
-          {tabs.map(tab => (
+      {/* Account Settings */}
+      <section className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center">
+            <FontAwesomeIcon icon={faUser} className="text-blue-600 mr-3" />
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Account Settings</h2>
+          </div>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Manage your profile, display preferences, and general system settings.</p>
+        </div>
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Leon Basil</label>
+            <input
+              type="text"
+              value="Leon Basil"
+              className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white"
+              readOnly
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">leon.basil@trading.com</label>
+            <input
+              type="email"
+              value="leon.basil@trading.com"
+              className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white"
+              readOnly
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Timezone</label>
+            <select className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white">
+              <option>UTC-05:00 (Eastern Time US & Canada)</option>
+              <option>UTC-08:00 (Pacific Time)</option>
+              <option>UTC+00:00 (GMT)</option>
+            </select>
+          </div>
+          <div className="flex items-center justify-between py-3">
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">Dark Mode</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Toggle between light and dark themes.</p>
+            </div>
             <button
-              key={tab.id}
-              className={`settings-tab ${activeTab === tab.id ? 'active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
-              title={tab.label}
+              onClick={handleThemeToggle}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                darkMode ? 'bg-blue-600' : 'bg-gray-300'
+              }`}
             >
-              <span className="tab-icon">{tab.icon}</span>
-              <span className="tab-label">{tab.label}</span>
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  darkMode ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
             </button>
-          ))}
+          </div>
+          <div className="flex items-center justify-between py-3">
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">Show Real-time Updates</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Enable/disable live data streaming and chart updates.</p>
+            </div>
+            <button
+              onClick={() => setRealtimeUpdates(!realtimeUpdates)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                realtimeUpdates ? 'bg-blue-600' : 'bg-gray-300'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  realtimeUpdates ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+          <div className="flex items-center justify-between py-3">
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">Enable Auto-Save Strategies</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Automatically save changes to your trading strategies.</p>
+            </div>
+            <button
+              onClick={() => setAutoSave(!autoSave)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                autoSave ? 'bg-blue-600' : 'bg-gray-300'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  autoSave ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
         </div>
+      </section>
 
-        {/* Tab Content */}
-        <div className="settings-content">
-          {activeTab === 'appearance' && renderAppearance()}
-          {activeTab === 'trading' && renderTrading()}
-          {activeTab === 'risk' && renderRisk()}
-          {activeTab === 'notifications' && renderNotifications()}
-          {activeTab === 'apis' && renderApiKeys()}
-          {activeTab === 'data' && renderData()}
-          {activeTab === 'system' && renderSystem()}
+      {/* API Keys */}
+      <section className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center">
+            <FontAwesomeIcon icon={faKey} className="text-purple-600 mr-3" />
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">API Keys</h2>
+          </div>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Manage your API keys for broker connections and data feeds.</p>
         </div>
+        <div className="p-6">
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Current API Key</label>
+            <div className="flex items-center space-x-2">
+              <input
+                type="password"
+                value="ets_sk_xxxx_xxxxx"
+                className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white"
+                readOnly
+              />
+              <button className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600">
+                <FontAwesomeIcon icon={faCopy} />
+              </button>
+            </div>
+          </div>
+
+          <button className="mb-6 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            Generate New API Key
+          </button>
+
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Existing API Keys</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 dark:bg-gray-900/50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Key ID</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Service</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Expiration</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                {apiKeys.map((key) => (
+                  <tr key={key.id}>
+                    <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{key.id}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{key.service}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{key.expiration}</td>
+                    <td className="px-4 py-3 text-sm">
+                      <button className="text-red-600 hover:text-red-800">Revoke</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      {/* Risk Limits */}
+      <section className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center">
+            <FontAwesomeIcon icon={faShieldAlt} className="text-red-600 mr-3" />
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Risk Limits</h2>
+          </div>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Define and adjust your global trading risk parameters.</p>
+        </div>
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Daily Loss Limit</label>
+            <input
+              type="number"
+              defaultValue="500.00"
+              className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Maximum acceptable loss in a trading day.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Max Position Size</label>
+            <input
+              type="number"
+              defaultValue="100"
+              className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Maximum number of shares/contracts per position.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Max Drawdown Threshold</label>
+            <input
+              type="number"
+              defaultValue="0.05"
+              step="0.01"
+              className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Percentage drawdown from peak before automatic pause.</p>
+          </div>
+          <div className="flex items-center justify-between py-3">
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">Enable RiskShield</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Activate system-wide risk monitoring and automatic enforcement.</p>
+            </div>
+            <button
+              onClick={() => setRiskShield(!riskShield)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                riskShield ? 'bg-blue-600' : 'bg-gray-300'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  riskShield ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+          <button className="w-full mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            Go to Risk Configuration →
+          </button>
+        </div>
+      </section>
+
+      {/* Strategy Settings */}
+      <section className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center">
+            <FontAwesomeIcon icon={faChessKnight} className="text-green-600 mr-3" />
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Strategy Settings</h2>
+          </div>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Configure and manage your individual trading strategies.</p>
+        </div>
+        <div className="p-6">
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Access a dedicated page to build, modify, and monitor your algorithmic trading strategies.</p>
+          <button className="px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
+            Manage Strategies →
+          </button>
+        </div>
+      </section>
+
+      {/* Notifications */}
+      <section className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center">
+            <FontAwesomeIcon icon={faBell} className="text-yellow-600 mr-3" />
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Notifications</h2>
+          </div>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Choose how and when you receive alerts from the system.</p>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="flex items-center justify-between py-3">
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">Trade Execution Alerts</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Receive instant alerts for order fills, rejections, and cancellations.</p>
+            </div>
+            <button
+              onClick={() => setTradeAlerts(!tradeAlerts)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                tradeAlerts ? 'bg-blue-600' : 'bg-gray-300'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  tradeAlerts ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+          <div className="flex items-center justify-between py-3">
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">Market Event Notifications</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Get notified about significant market movements or chaos events.</p>
+            </div>
+            <button
+              onClick={() => setMarketEvents(!marketEvents)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                marketEvents ? 'bg-blue-600' : 'bg-gray-300'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  marketEvents ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+          <div className="flex items-center justify-between py-3">
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">System Status Updates</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Receive alerts for platform maintenance, updates, or outages.</p>
+            </div>
+            <button
+              onClick={() => setSystemStatus(!systemStatus)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                systemStatus ? 'bg-blue-600' : 'bg-gray-300'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  systemStatus ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+          <div className="flex items-center justify-between py-3">
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">Email Notifications</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Receive important updates and summaries via email.</p>
+            </div>
+            <button
+              onClick={() => setEmailNotifications(!emailNotifications)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                emailNotifications ? 'bg-blue-600' : 'bg-gray-300'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  emailNotifications ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Appearance */}
+      <section className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center">
+            <FontAwesomeIcon icon={faPalette} className="text-pink-600 mr-3" />
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Appearance</h2>
+          </div>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Customize the visual elements of your trading terminal.</p>
+        </div>
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Chart Color Theme</label>
+            <select className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white">
+              <option>Dark Professional</option>
+              <option>Light Classic</option>
+              <option>Trading View Style</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Font Size</label>
+            <select className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white">
+              <option>Small</option>
+              <option>Medium</option>
+              <option>Large</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">UI Density</label>
+            <select className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white">
+              <option>Compact</option>
+              <option>Normal</option>
+              <option>Comfortable</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      {/* Integrations */}
+      <section className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center">
+            <FontAwesomeIcon icon={faPlug} className="text-cyan-600 mr-3" />
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Integrations</h2>
+          </div>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Connect to external brokers, data providers, and AI services.</p>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+            <div>
+              <p className="font-medium text-gray-900 dark:text-white">Alpaca Broker Connection</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Link your Alpaca brokerage account for live trading and paper trading.</p>
+            </div>
+            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Configure →</button>
+          </div>
+          <div className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+            <div>
+              <p className="font-medium text-gray-900 dark:text-white">Finviz Elite Data Feed</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Integrate Finviz Elite for advanced market screening and fundamental data.</p>
+            </div>
+            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Connect →</button>
+          </div>
+          <div className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+            <div>
+              <p className="font-medium text-gray-900 dark:text-white">ML Model Integration</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Connect and fine-tune external machine learning models for signal generation.</p>
+            </div>
+            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Manage →</button>
+          </div>
+        </div>
+      </section>
+
+      {/* Danger Zone */}
+      <section className="bg-red-50 dark:bg-red-900/10 rounded-lg border-2 border-red-300 dark:border-red-800">
+        <div className="p-6 border-b border-red-300 dark:border-red-800">
+          <div className="flex items-center">
+            <FontAwesomeIcon icon={faTrash} className="text-red-600 mr-3" />
+            <h2 className="text-lg font-semibold text-red-900 dark:text-red-400">Danger Zone</h2>
+          </div>
+          <p className="text-sm text-red-700 dark:text-red-300 mt-1">Critical actions that can significantly impact your account. Proceed with caution.</p>
+        </div>
+        <div className="p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium text-red-900 dark:text-red-400">Delete Account</p>
+              <p className="text-sm text-red-700 dark:text-red-300">Permanently delete your Elite Trading System account and all associated data. This action cannot be undone.</p>
+            </div>
+            <button className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium">
+              Delete Account
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Save Button */}
+      <div className="flex justify-end">
+        <button className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center space-x-2">
+          <FontAwesomeIcon icon={faSave} />
+          <span>Save All Changes</span>
+        </button>
       </div>
     </div>
   );
 }
+
