@@ -31,7 +31,7 @@ export default function AppRoutes() {
         <Route path="risk-config" element={<RiskConfiguration />} />
         <Route path="strategy" element={<StrategySettings />} />
         <Route path="account" element={<Account />} />
-        <Route path="*" element={<NotFound />} />
+      <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
   );

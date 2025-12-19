@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowUp, faArrowDown, faCircle } from '@fortawesome/free-solid-svg-icons';
+import { ChartArea } from '../components/ChartArea';
 
 export default function Dashboard() {
   const [liveSignals, setLiveSignals] = useState([]);
@@ -134,6 +135,16 @@ export default function Dashboard() {
               ))}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Tactical Chart */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Tactical Chart</h2>
+        </div>
+        <div className="p-6" style={{ height: '500px' }}>
+          <ChartArea selectedSignal={null} />
         </div>
       </div>
 

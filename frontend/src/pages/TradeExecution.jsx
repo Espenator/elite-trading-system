@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChartLine, faArrowUp, faArrowDown } from '@fortawesome/free-solid-svg-icons';
+import { ChartArea } from '../components/ChartArea';
 
 export default function TradeExecution() {
   const [selectedSymbol, setSelectedSymbol] = useState('TSLA');
@@ -44,22 +45,12 @@ export default function TradeExecution() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Chart Section - Takes 2 columns */}
         <div className="lg:col-span-2">
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-            <div className="flex items-center justify-between mb-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{selectedSymbol} Chart</h2>
-              <div className="flex space-x-2">
-                <button className="px-3 py-1 text-sm rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">15M</button>
-                <button className="px-3 py-1 text-sm rounded bg-blue-600 text-white">1H</button>
-                <button className="px-3 py-1 text-sm rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">4H</button>
-                <button className="px-3 py-1 text-sm rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">1D</button>
-                <button className="px-3 py-1 text-sm rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">1W</button>
-              </div>
             </div>
-            <div className="h-96 bg-gray-50 dark:bg-gray-900 rounded flex items-center justify-center border border-gray-200 dark:border-gray-700">
-              <div className="text-center">
-                <FontAwesomeIcon icon={faChartLine} className="text-6xl text-gray-400 dark:text-gray-600 mb-4" />
-                <p className="text-gray-500 dark:text-gray-400">Interactive Chart for {selectedSymbol}</p>
-              </div>
+            <div className="h-96">
+              <ChartArea selectedSignal={{ symbol: selectedSymbol }} />
             </div>
           </div>
         </div>
