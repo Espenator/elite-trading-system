@@ -2,11 +2,39 @@ import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faDownload, faSync } from '@fortawesome/free-solid-svg-icons';
 
+interface Sector {
+  name: string;
+  performance: number;
+  color: 'green' | 'red';
+}
+
+interface Position {
+  symbol: string;
+  company: string;
+  quantity: number;
+  avgPrice: number;
+  currentPrice: number;
+  pnl: number;
+  pnlPercent: number;
+  sector: string;
+}
+
+interface PortfolioSummary {
+  totalValue: number;
+  dailyPnL: number;
+  dailyPnLPercent: number;
+  totalPnL: number;
+  totalPnLPercent: number;
+  exposure: number;
+  maxDrawdown: number;
+  sharpeRatio: number;
+}
+
 export default function PortfolioHeatmap() {
   const [dateRange, setDateRange] = useState('Last 30 Days');
   const [aggregation, setAggregation] = useState('Daily');
 
-  const sectors = [
+  const sectors: Sector[] = [
     { name: 'Technology', performance: 3.50, color: 'green' },
     { name: 'Healthcare', performance: -1.20, color: 'red' },
     { name: 'Financials', performance: 0.80, color: 'green' },
@@ -21,7 +49,7 @@ export default function PortfolioHeatmap() {
     { name: 'Information Tech', performance: 5.20, color: 'green' },
   ];
 
-  const positions = [
+  const positions: Position[] = [
     { symbol: 'AAPL', company: 'Apple Inc.', quantity: 500, avgPrice: 170.25, currentPrice: 175.80, pnl: 2775.00, pnlPercent: 3.26, sector: 'Technology' },
     { symbol: 'MSFT', company: 'Microsoft Corp.', quantity: 300, avgPrice: 400.10, currentPrice: 402.50, pnl: 720.00, pnlPercent: 0.60, sector: 'Technology' },
     { symbol: 'GOOGL', company: 'Alphabet Inc.', quantity: 150, avgPrice: 155.00, currentPrice: 152.10, pnl: -435.00, pnlPercent: -1.87, sector: 'Communication Services' },
@@ -31,7 +59,7 @@ export default function PortfolioHeatmap() {
     { symbol: 'XOM', company: 'Exxon Mobil Corp.', quantity: 250, avgPrice: 110.00, currentPrice: 111.80, pnl: 450.00, pnlPercent: 1.64, sector: 'Energy' },
   ];
 
-  const portfolioSummary = {
+  const portfolioSummary: PortfolioSummary = {
     totalValue: 1250000.00,
     dailyPnL: 5200.75,
     dailyPnLPercent: 0.42,

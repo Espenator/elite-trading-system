@@ -50,11 +50,11 @@ export default function Header() {
         break;
       case 'change-password':
         // Navigate to change password page or show modal
-        console.log('Change password clicked');
+        // TODO: Implement change password functionality
         break;
       case 'sign-out':
         // Handle sign out logic
-        console.log('Sign out clicked');
+        // TODO: Implement sign out functionality
         break;
       default:
         break;
