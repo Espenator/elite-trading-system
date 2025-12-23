@@ -471,7 +471,7 @@ export default function ModelTraining() {
             </tbody>
           </table>
         </div>
-      </div>
+        </div>
 
       {/* Training History & Metrics */}
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">

@@ -358,7 +358,7 @@ export default function ScreenerResults() {
                 <span className="px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 rounded-full text-xs font-medium">
                   Strong Buy Signal
                 </span>
-              </div>
+        </div>
               <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
                 AI detects increasing institutional interest and positive news sentiment, driving short-term momentum.
               </p>
