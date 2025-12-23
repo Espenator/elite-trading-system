@@ -31,8 +31,8 @@ export default function ExecutionDeck({ symbol }) {
   }, [symbol]);
 
   const handleTrade = (side) => {
-    console.log(`Executing ${side.toUpperCase()} order for ${quantity} shares of ${symbol}`);
     // TODO: Connect to paper trading API
+    // Execute order: ${side.toUpperCase()} ${quantity} shares of ${symbol}
   };
 
   const entryPrice = activeSignal?.entry || 0;

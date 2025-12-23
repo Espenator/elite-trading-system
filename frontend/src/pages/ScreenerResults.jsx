@@ -5,37 +5,50 @@ import {
   faChartLine
 } from '@fortawesome/free-solid-svg-icons';
 
+interface StockData {
+  symbol: string;
+  company: string;
+  price: number;
+  change: number;
+  marketCap: string;
+  peRatio: number;
+}
+
+interface FilterState {
+  [key: string]: boolean;
+}
+
 export default function ScreenerResults() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSymbol, setSelectedSymbol] = useState('AAPL');
   const [currentPage, setCurrentPage] = useState(1);
-  const [priceRange, setPriceRange] = useState([0, 2000]);
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, 2000]);
   
   // Filter states
-  const [assetTypes, setAssetTypes] = useState({
+  const [assetTypes, setAssetTypes] = useState<FilterState>({
     stocks: true,
     options: false,
     futures: false,
     crypto: false,
   });
-  const [marketCaps, setMarketCaps] = useState({
+  const [marketCaps, setMarketCaps] = useState<FilterState>({
     small: false,
     mid: false,
     large: true,
   });
-  const [exchanges, setExchanges] = useState({
+  const [exchanges, setExchanges] = useState<FilterState>({
     nasdaq: true,
     nyse: true,
     amex: false,
   });
-  const [expandedFilters, setExpandedFilters] = useState({
+  const [expandedFilters, setExpandedFilters] = useState<FilterState>({
     assetType: true,
     priceRange: true,
     marketCap: true,
     exchange: true,
   });
 
-  const screenerResults = [
+  const screenerResults: StockData[] = [
     { symbol: 'AAPL', company: 'Apple Inc.', price: 172.03, change: 1.56, marketCap: '2.7T', peRatio: 28.50 },
     { symbol: 'MSFT', company: 'Microsoft Corp.', price: 420.50, change: 0.98, marketCap: '3.1T', peRatio: 37.15 },
     { symbol: 'GOOG', company: 'Alphabet Inc.', price: 155.70, change: -0.25, marketCap: '1.9T', peRatio: 26.33 },
@@ -48,7 +61,7 @@ export default function ScreenerResults() {
 
   const selectedStock = screenerResults.find(s => s.symbol === selectedSymbol) || screenerResults[0];
 
-  const toggleFilter = (category, key) => {
+  const toggleFilter = (category: string, key: string) => {
     if (category === 'assetType') {
       setAssetTypes(prev => ({ ...prev, [key]: !prev[key] }));
     } else if (category === 'marketCap') {
@@ -58,7 +71,7 @@ export default function ScreenerResults() {
     }
   };
 
-  const toggleFilterSection = (section) => {
+  const toggleFilterSection = (section: string) => {
     setExpandedFilters(prev => ({ ...prev, [section]: !prev[section] }));
   };
 

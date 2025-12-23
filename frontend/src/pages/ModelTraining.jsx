@@ -6,6 +6,60 @@ import {
   faArrowTrendUp
 } from '@fortawesome/free-solid-svg-icons';
 
+interface Dataset {
+  name: string;
+  size: string;
+  lastUpdated: string;
+  status: 'Ready' | 'Processing' | 'Error';
+}
+
+interface TrainingProgress {
+  epochsCompleted: number;
+  totalEpochs: number;
+  accuracy: number;
+  loss: number;
+}
+
+interface Feature {
+  name: string;
+  importance: number;
+}
+
+interface PerformanceMetrics {
+  accuracy: number;
+  precision: number;
+  recall: number;
+  f1Score: number;
+  confusionMatrix: {
+    truePositive: number;
+    falseNegative: number;
+    falsePositive: number;
+    trueNegative: number;
+  };
+}
+
+interface ModelComparison {
+  model: string;
+  accuracy: number;
+  precision: number;
+  recall: number;
+  f1Score: number;
+  trainingTime: string;
+  datasetSize: string;
+}
+
+interface TrainingHistory {
+  runId: string;
+  modelName: string;
+  dataset: string;
+  algorithm: string;
+  startTime: string;
+  endTime: string;
+  status: 'Completed' | 'Failed' | 'Running';
+  accuracy: string;
+  loss: string;
+}
+
 export default function ModelTraining() {
   const [modelName, setModelName] = useState('XGBoost_V1_Financial');
   const [datasetSource, setDatasetSource] = useState('FinancialTimeSeries_V1');
@@ -14,21 +68,21 @@ export default function ModelTraining() {
   const [validationSplit, setValidationSplit] = useState('20%');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const datasets = [
+  const datasets: Dataset[] = [
     { name: 'FinancialTimeSeries_V1', size: '1.2 GB', lastUpdated: '2023-11-20', status: 'Ready' },
     { name: 'MarketSentiment_V1', size: '850 MB', lastUpdated: '2023-11-18', status: 'Processing' },
     { name: 'AlternativeData_V3', size: '2.1 GB', lastUpdated: '2023-11-15', status: 'Error' },
     { name: 'TechnicalIndicators_V2', size: '650 MB', lastUpdated: '2023-11-12', status: 'Ready' },
   ];
 
-  const trainingProgress = {
+  const trainingProgress: TrainingProgress = {
     epochsCompleted: 75,
     totalEpochs: 100,
     accuracy: 88.0,
     loss: 0.12,
   };
 
-  const features = [
+  const features: Feature[] = [
     { name: 'Volume', importance: 95 },
     { name: 'Change', importance: 82 },
     { name: 'RSIDivergence', importance: 75 },
@@ -38,7 +92,7 @@ export default function ModelTraining() {
     { name: 'Historical Volatility', importance: 42 },
   ];
 
-  const performanceMetrics = {
+  const performanceMetrics: PerformanceMetrics = {
     accuracy: 92.5,
     precision: 88.1,
     recall: 90.3,
@@ -51,13 +105,13 @@ export default function ModelTraining() {
     },
   };
 
-  const modelComparison = [
+  const modelComparison: ModelComparison[] = [
     { model: 'XGBoost_V1', accuracy: 92.5, precision: 88.1, recall: 90.3, f1Score: 89.2, trainingTime: '15m', datasetSize: '1.2 GB' },
     { model: 'RandomForest_V2', accuracy: 89.3, precision: 85.2, recall: 87.8, f1Score: 86.5, trainingTime: '22m', datasetSize: '1.2 GB' },
     { model: 'NeuralNet_V3', accuracy: 91.0, precision: 87.5, recall: 89.1, f1Score: 88.3, trainingTime: '45m', datasetSize: '1.2 GB' },
   ];
 
-  const trainingHistory = [
+  const trainingHistory: TrainingHistory[] = [
     { runId: 'MT-001', modelName: 'XGBoost_V1', dataset: 'FinancialTimeSeries_V1', algorithm: 'XGBoost', startTime: '2023-12-10 10:00', endTime: '2023-12-10 10:15', status: 'Completed', accuracy: '92.5%', loss: '0.22' },
     { runId: 'MT-002', modelName: 'RandomForest_V2', dataset: 'FinancialTimeSeries_V1', algorithm: 'Random Forest', startTime: '2023-12-09 14:30', endTime: '2023-12-09 14:52', status: 'Completed', accuracy: '89.3%', loss: '0.28' },
     { runId: 'MT-003', modelName: 'NeuralNet_V3', dataset: 'FinancialTimeSeries_V1', algorithm: 'Neural Network', startTime: '2023-12-08 09:15', endTime: '2023-12-08 10:00', status: 'Completed', accuracy: '91.0%', loss: '0.25' },
@@ -65,23 +119,7 @@ export default function ModelTraining() {
     { runId: 'MT-005', modelName: 'Ensemble_V1', dataset: 'MarketSentiment_V1', algorithm: 'Ensemble', startTime: '2023-12-06 16:00', endTime: '2023-12-06 16:10', status: 'Running', accuracy: '75.0%', loss: '0.35' },
   ];
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'Ready':
-      case 'Completed':
-        return 'text-green-600 dark:text-green-400';
-      case 'Processing':
-      case 'Running':
-        return 'text-blue-600 dark:text-blue-400';
-      case 'Error':
-      case 'Failed':
-        return 'text-red-600 dark:text-red-400';
-      default:
-        return 'text-gray-600 dark:text-gray-400';
-    }
-  };
-
-  const getStatusBg = (status) => {
+  const getStatusBg = (status: string): string => {
     switch (status) {
       case 'Ready':
       case 'Completed':

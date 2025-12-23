@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowTrendUp } from '@fortawesome/free-solid-svg-icons';
 
@@ -11,16 +11,22 @@ interface CandleData {
   volume: number;
 }
 
-export function ChartArea({ selectedSignal }) {
+interface ChartAreaProps {
+  selectedSignal?: {
+    symbol?: string;
+  } | null;
+}
+
+export function ChartArea({ selectedSignal }: ChartAreaProps) {
   const [timeframe, setTimeframe] = useState('5m');
-  const [candleData, setCandleData] = useState<CandleData[]>([]);
+  const [candleData, setCandleData] = useState([] as CandleData[]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPrice, setCurrentPrice] = useState(188.50);
 
   const symbol = selectedSignal?.symbol || 'NVDA';
 
   // Fallback: Generate sample data
-  const generateSampleData = () => {
+  const generateSampleData = useCallback(() => {
     const candles: CandleData[] = []; 
     let price = 185.0;
     for (let i = 50; i > 0; i--) {
@@ -42,7 +48,7 @@ export function ChartArea({ selectedSignal }) {
     if (candles.length > 0) {
       setCurrentPrice(candles[candles.length - 1].close);
     }
-  };
+  }, []);
 
   // Fetch chart data from backend API
   useEffect(() => {
@@ -59,7 +65,7 @@ export function ChartArea({ selectedSignal }) {
         return res.json();
       })
       .then(data => {
-        if (data && data.data && data.data.length > 0) {
+        if (data?.data?.length > 0) {
           // Convert API data format to our CandleData format
           const candles: CandleData[] = data.data.map((d: any) => ({
             time: typeof d.time === 'string' ? Date.parse(d.time) / 1000 : d.time,
@@ -82,13 +88,12 @@ export function ChartArea({ selectedSignal }) {
           setIsLoading(false);
         }
       })
-      .catch(err => {
-        console.error('Chart data error:', err);
+      .catch(() => {
         // Fallback to sample data on error
         generateSampleData();
         setIsLoading(false);
       });
-  }, [symbol, timeframe]);
+  }, [symbol, timeframe, generateSampleData]);
 
   const maxPrice = candleData.length > 0 ? Math.max(...candleData.map(c => c.high)) : 190;
   const minPrice = candleData.length > 0 ? Math.min(...candleData.map(c => c.low)) : 180;
@@ -97,11 +102,30 @@ export function ChartArea({ selectedSignal }) {
     <div className="bg-slate-900 rounded-lg border border-slate-700 flex flex-col h-full">
       <div className="p-4 border-b border-slate-700">
         <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2"><FontAwesomeIcon icon={faArrowTrendUp} className="text-cyan-400" style={{ width: '20px', height: '20px' }} /><h2 className="font-bold">{selectedSignal ? selectedSignal.symbol : 'NVDA'} - {timeframe}</h2></div>
+          <div className="flex items-center gap-2">
+            <FontAwesomeIcon
+              icon={faArrowTrendUp}
+              className="text-cyan-400"
+              style={{ width: '20px', height: '20px' }}
+            />
+            <h2 className="font-bold">{symbol} - {timeframe}</h2>
+          </div>
           <div className="text-sm text-slate-400">Current: <span className="font-mono font-bold text-cyan-400">${currentPrice.toFixed(2)}</span></div>
         </div>
         <div className="flex gap-2">
-          {['1m', '5m', '15m', '1H', '4H', '1D'].map(tf => (<button key={tf} onClick={() => setTimeframe(tf)} className={'px-3 py-1 rounded text-xs font-bold transition ' + (timeframe === tf ? 'bg-cyan-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600')}>{tf}</button>))}
+          {['1m', '5m', '15m', '1H', '4H', '1D'].map(tf => (
+            <button
+              key={tf}
+              onClick={() => setTimeframe(tf)}
+              className={`px-3 py-1 rounded text-xs font-bold transition ${
+                timeframe === tf
+                  ? 'bg-cyan-600 text-white'
+                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+              }`}
+            >
+              {tf}
+            </button>
+          ))}
         </div>
       </div>
       <div className="flex-1 p-4 overflow-hidden flex flex-col">
@@ -113,10 +137,17 @@ export function ChartArea({ selectedSignal }) {
           ) : (
             <div className="flex items-end justify-around h-full min-h-[200px]">
               {candleData.slice(-40).map((candle, i) => {
-              const range = maxPrice - minPrice || 1;
-              const bodyHeight = Math.abs(candle.close - candle.open) / range * 100 || 2;
-              const color = candle.close >= candle.open ? 'bg-green-400' : 'bg-red-400';
-              return (<div key={i} className="flex flex-col items-center justify-end h-full"><div className={'w-2 ' + color} style={{ height: bodyHeight + '%', minHeight: '2px' }} /></div>);
+                const range = maxPrice - minPrice || 1;
+                const bodyHeight = Math.abs(candle.close - candle.open) / range * 100 || 2;
+                const color = candle.close >= candle.open ? 'bg-green-400' : 'bg-red-400';
+                return (
+                  <div key={i} className="flex flex-col items-center justify-end h-full">
+                    <div
+                      className={`w-2 ${color}`}
+                      style={{ height: `${bodyHeight}%`, minHeight: '2px' }}
+                    />
+                  </div>
+                );
               })}
             </div>
           )}
