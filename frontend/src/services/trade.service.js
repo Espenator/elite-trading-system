@@ -159,6 +159,67 @@ class TradeService {
       return [];
     }
   }
+
+  /**
+   * Create a new order
+   */
+  async createOrder(orderData) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/orders/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(orderData),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('Error creating order:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get recent orders
+   */
+  async getRecentOrders(limit = 10) {
+    try {
+      const url = new URL(`${API_BASE_URL}/orders/recent`);
+      url.searchParams.append('limit', limit);
+
+      const response = await fetch(url.toString());
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('Error fetching recent orders:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all orders
+   */
+  async getAllOrders() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/orders/`);
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('Error fetching all orders:', error);
+      throw error;
+    }
+  }
 }
 
 export const tradeService = new TradeService();

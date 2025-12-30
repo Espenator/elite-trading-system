@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api.v1 import stocks, quotes
+from app.api.v1 import stocks, quotes, orders
 
 # Configure logging
 logging.basicConfig(
@@ -40,6 +40,12 @@ app.include_router(
     quotes.router,
     prefix=f"{settings.API_V1_PREFIX}/quotes",
     tags=["quotes"]
+)
+
+app.include_router(
+    orders.router,
+    prefix=f"{settings.API_V1_PREFIX}/orders",
+    tags=["orders"]
 )
 
 

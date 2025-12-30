@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChartLine, faArrowUp, faArrowDown } from '@fortawesome/free-solid-svg-icons';
+import { faArrowUp, faArrowDown } from '@fortawesome/free-solid-svg-icons';
 import { ChartArea } from '../components/ChartArea';
 import tradeService from '../services/trade.service';
 
@@ -12,14 +12,9 @@ export default function TradeExecution() {
   const [price, setPrice] = useState(150.25);
   const [stockList, setStockList] = useState([]);
   const [isLoadingStocks, setIsLoadingStocks] = useState(true);
-
-  const recentOrders = [
-    { time: '10:30:15', symbol: 'TSLA', side: 'Buy', qty: 100, price: 150.25, status: 'Filled' },
-    { time: '10:25:01', symbol: 'MSFT', side: 'Sell', qty: 50, price: 410.50, status: 'Filled' },
-    { time: '10:20:30', symbol: 'GOOG', side: 'Buy', qty: 20, price: 175.80, status: 'Pending' },
-    { time: '10:15:45', symbol: 'AAPL', side: 'Stop', qty: 150, price: 170.00, status: 'Filled' },
-    { time: '10:10:00', symbol: 'AMZN', side: 'Buy', qty: 30, price: 185.10, status: 'Filled' },
-  ];
+  const [recentOrders, setRecentOrders] = useState([]);
+  const [isLoadingOrders, setIsLoadingOrders] = useState(false);
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
 
   // Fetch stock list on mount
   useEffect(() => {
@@ -43,6 +38,24 @@ export default function TradeExecution() {
     fetchStocks();
   }, []);
 
+  // Fetch recent orders on mount and when orders change
+  useEffect(() => {
+    const fetchRecentOrders = async () => {
+      try {
+        setIsLoadingOrders(true);
+        const orders = await tradeService.getRecentOrders(10);
+        setRecentOrders(orders);
+      } catch (error) {
+        console.error('Error fetching recent orders:', error);
+        setRecentOrders([]);
+      } finally {
+        setIsLoadingOrders(false);
+      }
+    };
+
+    fetchRecentOrders();
+  }, []);
+
   // Update price when symbol changes (you can enhance this to fetch real-time price)
   useEffect(() => {
     if (selectedSymbol && stockList.length > 0) {
@@ -56,20 +69,62 @@ export default function TradeExecution() {
     }
   }, [selectedSymbol, stockList]);
 
-  const executionLogs = [
-    { timestamp: '2023-10-27 10:30:15', symbol: 'TSLA', type: 'Limit', side: 'Buy', qty: 100, price: 150.25, filled: 100, status: 'Filled' },
-    { timestamp: '2023-10-27 10:25:01', symbol: 'MSFT', type: 'Limit', side: 'Sell', qty: 50, price: 410.50, filled: 50, status: 'Filled' },
-    { timestamp: '2023-10-27 10:20:30', symbol: 'GOOG', type: 'Limit', side: 'Buy', qty: 20, price: 175.80, filled: 0, status: 'Pending' },
-    { timestamp: '2023-10-27 10:15:45', symbol: 'AAPL', type: 'Stop', side: 'Sell', qty: 150, price: 170.00, filled: 150, status: 'Filled' },
-    { timestamp: '2023-10-27 10:10:00', symbol: 'AMZN', type: 'Limit', side: 'Buy', qty: 30, price: 185.10, filled: 30, status: 'Filled' },
-    { timestamp: '2023-10-27 09:55:20', symbol: 'NVDA', type: 'Market', side: 'Buy', qty: 10, price: 480.00, filled: 10, status: 'Filled' },
-    { timestamp: '2023-10-27 09:45:10', symbol: 'AMD', type: 'Limit', side: 'Buy', qty: 200, price: 105.50, filled: 0, status: 'Cancelled' },
-    { timestamp: '2023-10-27 09:30:05', symbol: 'NFLX', type: 'Market', side: 'Buy', qty: 5, price: 400.00, filled: 5, status: 'Filled' },
-  ];
-
   const estimatedCost = quantity * price;
   const requiredMargin = estimatedCost * 0.5;
   const potentialPnL = estimatedCost * 0.02;
+
+  // Handle order submission
+  const handleSubmitOrder = async (side = null) => {
+    const orderSideToUse = side || orderSide;
+    
+    if (!selectedSymbol || quantity <= 0 || price <= 0) {
+      alert('Please fill in all required fields with valid values');
+      return;
+    }
+
+    try {
+      setIsSubmittingOrder(true);
+      const orderData = {
+        symbol: selectedSymbol,
+        order_type: orderType,
+        side: orderSideToUse,
+        quantity: quantity,
+        price: price,
+        estimated_cost: estimatedCost,
+        required_margin: requiredMargin,
+        potential_pnl: potentialPnL
+      };
+
+      await tradeService.createOrder(orderData);
+      
+      // Refresh recent orders
+      const orders = await tradeService.getRecentOrders(10);
+      setRecentOrders(orders);
+      
+      alert(`Order placed successfully! ${orderSideToUse === 'buy' ? 'Buy' : 'Sell'} ${quantity} shares of ${selectedSymbol} at $${price.toFixed(2)}`);
+    } catch (error) {
+      console.error('Error submitting order:', error);
+      alert('Failed to place order. Please try again.');
+    } finally {
+      setIsSubmittingOrder(false);
+    }
+  };
+
+  // Format time from ISO string to HH:MM:SS
+  const formatTime = (isoString) => {
+    if (!isoString) return '';
+    try {
+      const date = new Date(isoString);
+      return date.toLocaleTimeString('en-US', { 
+        hour12: false, 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        second: '2-digit' 
+      });
+    } catch (error) {
+      return isoString;
+    }
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -107,7 +162,7 @@ export default function TradeExecution() {
                 </select>
               </div>
             </div>
-            <div className="h-120">
+            <div className="h-[550px]">
               <ChartArea selectedSignal={{ symbol: selectedSymbol }} />
             </div>
           </div>
@@ -160,18 +215,30 @@ export default function TradeExecution() {
             {/* Buy/Sell Buttons */}
             <div className="flex space-x-3">
               <button 
-                onClick={() => setOrderSide('buy')}
-                className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+                onClick={() => {
+                  setOrderSide('buy');
+                  handleSubmitOrder('buy');
+                }}
+                disabled={isSubmittingOrder}
+                className={`flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors ${
+                  orderSide === 'buy' ? 'ring-2 ring-green-400' : ''
+                } ${isSubmittingOrder ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <FontAwesomeIcon icon={faArrowUp} className="mr-2" />
-                Buy
+                {isSubmittingOrder && orderSide === 'buy' ? 'Submitting...' : 'Buy'}
               </button>
               <button 
-                onClick={() => setOrderSide('sell')}
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
+                onClick={() => {
+                  setOrderSide('sell');
+                  handleSubmitOrder('sell');
+                }}
+                disabled={isSubmittingOrder}
+                className={`flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors ${
+                  orderSide === 'sell' ? 'ring-2 ring-red-400' : ''
+                } ${isSubmittingOrder ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <FontAwesomeIcon icon={faArrowDown} className="mr-2" />
-                Sell
+                {isSubmittingOrder && orderSide === 'sell' ? 'Submitting...' : 'Sell'}
               </button>
             </div>
 
@@ -219,27 +286,44 @@ export default function TradeExecution() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {recentOrders.map((order, index) => (
-                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                  <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{order.time}</td>
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{order.symbol}</td>
-                  <td className="px-6 py-4 text-sm">
-                    <span className={order.side === 'Buy' ? 'text-green-600' : 'text-red-600'}>
-                      {order.side}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{order.qty}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">${order.price}</td>
-                  <td className="px-6 py-4 text-sm">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      order.status === 'Filled' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
-                      'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300'
-                    }`}>
-                      {order.status}
-                    </span>
+              {isLoadingOrders ? (
+                <tr>
+                  <td colSpan="6" className="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                    Loading orders...
                   </td>
                 </tr>
-              ))}
+              ) : recentOrders.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                    No orders yet. Place your first order above!
+                  </td>
+                </tr>
+              ) : (
+                recentOrders.map((order) => (
+                  <tr key={order.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
+                      {formatTime(order.created_at)}
+                    </td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{order.symbol}</td>
+                    <td className="px-6 py-4 text-sm">
+                      <span className={order.side === 'buy' || order.side === 'Buy' ? 'text-green-600' : 'text-red-600'}>
+                        {order.side === 'buy' ? 'Buy' : 'Sell'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{order.quantity}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">${parseFloat(order.price).toFixed(2)}</td>
+                    <td className="px-6 py-4 text-sm">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        order.status === 'Filled' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
+                        order.status === 'Pending' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300' :
+                        'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
+                      }`}>
+                        {order.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -319,30 +403,48 @@ export default function TradeExecution() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {executionLogs.map((log, index) => (
-                <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                  <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">{log.timestamp}</td>
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{log.symbol}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{log.type}</td>
-                  <td className="px-4 py-3 text-sm">
-                    <span className={log.side === 'Buy' ? 'text-green-600' : 'text-red-600'}>
-                      {log.side}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{log.qty}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">${log.price}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{log.filled}</td>
-                  <td className="px-4 py-3 text-sm">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      log.status === 'Filled' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
-                      log.status === 'Pending' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300' :
-                      'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
-                    }`}>
-                      {log.status}
-                    </span>
+              {isLoadingOrders ? (
+                <tr>
+                  <td colSpan="8" className="px-4 py-3 text-center text-sm text-gray-500 dark:text-gray-400">
+                    Loading execution logs...
                   </td>
                 </tr>
-              ))}
+              ) : recentOrders.length === 0 ? (
+                <tr>
+                  <td colSpan="8" className="px-4 py-3 text-center text-sm text-gray-500 dark:text-gray-400">
+                    No execution logs available.
+                  </td>
+                </tr>
+              ) : (
+                recentOrders.map((log) => (
+                  <tr key={log.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">
+                      {new Date(log.created_at).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{log.symbol}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{log.order_type}</td>
+                    <td className="px-4 py-3 text-sm">
+                      <span className={log.side === 'buy' || log.side === 'Buy' ? 'text-green-600' : 'text-red-600'}>
+                        {log.side === 'buy' ? 'Buy' : 'Sell'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{log.quantity}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">${parseFloat(log.price).toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                      {log.status === 'Filled' ? log.quantity : 0}
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        log.status === 'Filled' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' :
+                        log.status === 'Pending' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300' :
+                        'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
+                      }`}>
+                        {log.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
