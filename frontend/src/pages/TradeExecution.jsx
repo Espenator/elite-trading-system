@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChartLine, faArrowUp, faArrowDown } from '@fortawesome/free-solid-svg-icons';
 import { ChartArea } from '../components/ChartArea';
+import tradeService from '../services/trade.service';
 
 export default function TradeExecution() {
   const [selectedSymbol, setSelectedSymbol] = useState('TSLA');
@@ -9,6 +10,8 @@ export default function TradeExecution() {
   const [orderSide, setOrderSide] = useState('buy');
   const [quantity, setQuantity] = useState(100);
   const [price, setPrice] = useState(150.25);
+  const [stockList, setStockList] = useState([]);
+  const [isLoadingStocks, setIsLoadingStocks] = useState(true);
 
   const recentOrders = [
     { time: '10:30:15', symbol: 'TSLA', side: 'Buy', qty: 100, price: 150.25, status: 'Filled' },
@@ -17,6 +20,41 @@ export default function TradeExecution() {
     { time: '10:15:45', symbol: 'AAPL', side: 'Stop', qty: 150, price: 170.00, status: 'Filled' },
     { time: '10:10:00', symbol: 'AMZN', side: 'Buy', qty: 30, price: 185.10, status: 'Filled' },
   ];
+
+  // Fetch stock list on mount
+  useEffect(() => {
+    const fetchStocks = async () => {
+      try {
+        setIsLoadingStocks(true);
+        const stocks = await tradeService.getStockList();
+        setStockList(stocks);
+        
+        // Set default symbol if available
+        if (stocks && stocks.length > 0 && !selectedSymbol) {
+          setSelectedSymbol(stocks[0].Ticker || 'TSLA');
+        }
+      } catch (error) {
+        console.error('Error fetching stock list:', error);
+      } finally {
+        setIsLoadingStocks(false);
+      }
+    };
+
+    fetchStocks();
+  }, []);
+
+  // Update price when symbol changes (you can enhance this to fetch real-time price)
+  useEffect(() => {
+    if (selectedSymbol && stockList.length > 0) {
+      const stock = stockList.find(s => s.Ticker === selectedSymbol);
+      if (stock && stock.Price) {
+        const priceValue = parseFloat(stock.Price.toString().replace(/[^0-9.-]/g, '') || '0');
+        if (priceValue > 0) {
+          setPrice(priceValue);
+        }
+      }
+    }
+  }, [selectedSymbol, stockList]);
 
   const executionLogs = [
     { timestamp: '2023-10-27 10:30:15', symbol: 'TSLA', type: 'Limit', side: 'Buy', qty: 100, price: 150.25, filled: 100, status: 'Filled' },
@@ -46,10 +84,30 @@ export default function TradeExecution() {
         {/* Chart Section - Takes 2 columns */}
         <div className="lg:col-span-2">
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{selectedSymbol} Chart</h2>
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">              
+              <div className="flex items-center gap-3">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Select Ticker:</label>
+                <select
+                  value={selectedSymbol}
+                  onChange={(e) => setSelectedSymbol(e.target.value)}
+                  disabled={isLoadingStocks}
+                  className="px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 min-w-[150px] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isLoadingStocks ? (
+                    <option>Loading...</option>
+                  ) : stockList.length > 0 ? (
+                    stockList.map((stock) => (
+                      <option key={stock.Ticker} value={stock.Ticker}>
+                        {stock.Ticker} - {stock.Company}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="TSLA">TSLA - Tesla Inc</option>
+                  )}
+                </select>
               </div>
-            <div className="h-96">
+            </div>
+            <div className="h-120">
               <ChartArea selectedSignal={{ symbol: selectedSymbol }} />
             </div>
           </div>

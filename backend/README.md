@@ -1,38 +1,31 @@
-# Elite Trading System - Backend
+# Elite Trading System - Backend API
 
-A high-performance FastAPI backend providing real-time trading signals, market data analysis, and stock screening capabilities. Features live WebSocket streaming of trading signals with multi-factor scoring algorithms.
+A clean, modern Python backend API for fetching stock data from Finviz Elite API.
 
 ## 🚀 Features
 
-- **Real-Time Signal Feed**: WebSocket-based live trading signal streaming
-- **Multi-Factor Signal Engine**: Analyzes momentum, volume, RSI, VWAP, and gap patterns
-- **Tiered Signal Classification**: T1/T2/T3 signals based on confidence scores (0-100)
-- **Stock Screener**: Scrapes and stores stock data from Finviz.com
-- **Live Market Data**: Integrated with yfinance for real-time price and volume data
-- **Chart Data API**: Historical price data for charting applications
-- **SQLite Database**: Persistent storage for stock screener results
-- **Auto-Reconnecting WebSockets**: Robust connection handling with heartbeat
-- **RESTful API**: Full CRUD operations for stock data management
+- **Stock Screener API**: Get filtered stock lists from Finviz
+- **Quote/Chart Data API**: Get historical price data for trading charts
+- **Environment Configuration**: Easy configuration via `.env` file
+- **Clean Architecture**: Well-organized service layer and API endpoints
+- **API Test Tools**: Built-in testing utilities
 
 ## 🛠️ Tech Stack
 
-- **Framework**: FastAPI 0.104+
-- **ASGI Server**: Uvicorn with WebSocket support
-- **Database**: SQLAlchemy 2.0 + SQLite (aiosqlite)
-- **Market Data**: yfinance, pandas, numpy
-- **Web Scraping**: httpx, BeautifulSoup4, lxml
-- **Data Validation**: Pydantic 2.0+
+- **Framework**: FastAPI
+- **HTTP Client**: httpx (async)
 - **Configuration**: pydantic-settings, python-dotenv
+- **Data Validation**: Pydantic
 
 ## 📋 Prerequisites
 
 - Python 3.11 or higher
+- Finviz Elite API key
 - pip (Python package manager)
-- Virtual environment (recommended)
 
 ## 🔧 Installation
 
-### 1. Clone the Repository
+### 1. Navigate to Backend Directory
 
 ```bash
 cd backend
@@ -56,165 +49,126 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. Environment Configuration (Optional)
+### 4. Configure Environment
 
-Create a `.env` file in the backend directory:
+Copy `.env.example` to `.env` and update with your API key:
+
+```bash
+# Windows
+copy .env.example .env
+
+# Linux/Mac
+cp .env.example .env
+```
+
+Edit `.env` file:
 
 ```env
 # Application Settings
-APP_NAME="Elite Trading System API"
-DEBUG=False
+PORT=8001
+HOST=0.0.0.0
 
-# Database
-DATABASE_URL="sqlite:///./finviz_stocks.db"
-
-# Finviz Settings
-FINVIZ_USE_ELITE=False
-DEFAULT_FILTERS="cap_midover,sh_avgvol_o500,sh_price_o10"
+# Finviz API
+FINVIZ_API_KEY=your_api_key_here
+FINVIZ_SCREENER_FILTERS=cap_midover,sh_avgvol_o500,sh_price_o10
 ```
 
 ## 🚀 Running the Server
 
-### Development Mode (with auto-reload)
+### Development Mode
 
 ```bash
 python start_server.py
 ```
 
-### Production Mode
-
+Or with uvicorn directly:
 ```bash
-python start_server.py --prod
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
 ```
 
-### Custom Host and Port
-
-```bash
-python start_server.py --host 0.0.0.0 --port 8080
-```
-
-### Using Uvicorn Directly
-
-```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-The server will start on `http://localhost:8000`
-
-- **API Documentation**: http://localhost:8000/docs
-- **Alternative Docs**: http://localhost:8000/redoc
-- **Health Check**: http://localhost:8000/health
-- **WebSocket**: ws://localhost:8000/ws
+The API will be available at:
+- **API**: http://localhost:8001
+- **Interactive Docs**: http://localhost:8001/docs
+- **Alternative Docs**: http://localhost:8001/redoc
 
 ## 📡 API Endpoints
 
-### Root & Health
+### 1. Get Stock List
 
-- `GET /` - API information and available endpoints
-- `GET /health` - Server health check with WebSocket status
+**GET** `/api/v1/stocks/list`
 
-### Stock Data
+Get filtered stock list from Finviz screener.
 
-- `GET /api/v1/stocks` - List stocks (paginated)
-  - Query params: `page`, `per_page`, `ticker`, `sector`, `country`
-- `GET /api/v1/stocks/ticker/{ticker}` - Get single stock by ticker
-- `GET /api/v1/stocks/sectors` - List unique sectors
-- `GET /api/v1/stocks/countries` - List unique countries
-- `POST /api/v1/stocks/scrape` - Scrape stocks from Finviz
-  - Body: `{"filters": "cap_midover,sh_avgvol_o500"}`
-  - Query params: `max_pages` (optional)
-- `DELETE /api/v1/stocks` - Delete all stocks
+**Query Parameters:**
+- `filters` (optional): Comma-separated filter parameters
+- `version` (optional): Screener version
+- `filter_type` (optional): Filter type
+- `columns` (optional): Comma-separated column names to export
 
-### Chart Data
-
-- `GET /api/chart/data/{symbol}` - Get historical chart data
-  - Query params: `period` (1d, 5d, 1mo, 3mo, 6mo, 1y, 5y)
-  - Query params: `interval` (1m, 5m, 15m, 1h, 1d)
-
-### WebSocket
-
-- `WS /ws` - Live trading signal feed
-- `WS /api/v1/ws` - Alternative WebSocket endpoint
-
-#### WebSocket Message Format
-
-**Signals Update:**
-```json
-{
-  "type": "signals_update",
-  "signals": [
-    {
-      "symbol": "AAPL",
-      "signal_type": "momentum",
-      "tier": "T1",
-      "score": 85.5,
-      "price": 178.50,
-      "change_pct": 2.5,
-      "volume_ratio": 2.3,
-      "catalyst": "Strong momentum +2.5% with 2.3x vol",
-      "rsi": 65.2,
-      "momentum": 3.1,
-      "vwap": 177.80,
-      "timestamp": "2024-12-12T10:30:00"
-    }
-  ],
-  "timestamp": "2024-12-12T10:30:00"
-}
+**Example:**
+```bash
+curl "http://localhost:8001/api/v1/stocks/list"
 ```
 
-**Connection Status:**
-```json
-{
-  "type": "connection_status",
-  "status": "connected",
-  "message": "Connected to live signal feed"
-}
+**With custom filters:**
+```bash
+curl "http://localhost:8000/api/v1/stocks/list?filters=cap_midover,sh_avgvol_o500"
 ```
 
-## 🎯 Signal Engine
+### 2. Get Quote Data
 
-### Signal Types
+**GET** `/api/v1/quotes/{ticker}`
 
-1. **MOMENTUM** - Strong price momentum with volume
-2. **VOLUME_SPIKE** - Unusual volume activity (2x+ average)
-3. **RSI_OVERSOLD** - RSI below 30 (potential reversal)
-4. **RSI_OVERBOUGHT** - RSI above 70 (potential reversal)
-5. **BREAKOUT** - Price breakout patterns
-6. **VWAP_CROSS** - Price crossing VWAP indicator
-7. **GAP_UP** - Significant gap up from previous close
-8. **GAP_DOWN** - Significant gap down from previous close
+Get historical price data for a specific ticker.
 
-### Signal Tiers
+**Path Parameters:**
+- `ticker`: Stock ticker symbol (e.g., MSFT, AAPL)
 
-- **T1 (High Confidence)**: Score ≥ 80 - Strongest signals with multiple confirming factors
-- **T2 (Medium Confidence)**: Score ≥ 60 - Good signals with decent setup
-- **T3 (Lower Confidence)**: Score < 60 - Weaker signals, lower probability
+**Query Parameters:**
+- `p` (optional): Timeframe/unit - i1, i3, i5, i15, i30, h, d, w, m (default: from config)
+- `r` (optional): Duration/range - d1, d5, m1, m3, m6, ytd, y1, y2, y5, max
 
-### Scoring Components
+**Example:**
+```bash
+curl "http://localhost:8001/api/v1/quotes/MSFT"
+```
 
-The signal engine uses a weighted multi-factor scoring system:
+**With timeframe:**
+```bash
+curl "http://localhost:8001/api/v1/quotes/MSFT?p=d"
+```
 
-- **Volume (25%)**: Volume ratio vs average volume
-- **Momentum (30%)**: Price change and momentum indicators
-- **RSI (20%)**: Relative Strength Index positioning
-- **Gap (15%)**: Gap from previous close
-- **VWAP (10%)**: Price relationship to VWAP
+**With duration:**
+```bash
+curl "http://localhost:8001/api/v1/quotes/MSFT?p=d&r=ytd"
+```
 
-**Composite Score**: 0-100 weighted average of all factors
+**With both timeframe and duration:**
+```bash
+curl "http://localhost:8001/api/v1/quotes/MSFT?p=d&r=y1"
+```
 
-### Configuration Thresholds
+## 🧪 Testing
 
-```python
-{
-    'volume_spike_threshold': 2.0,    # 2x average volume
-    'high_volume_threshold': 3.0,     # 3x for stronger signal
-    'rsi_oversold': 30,
-    'rsi_overbought': 70,
-    'momentum_threshold': 2.0,         # 2% move
-    'strong_momentum': 5.0,            # 5% move
-    'gap_threshold': 2.0,              # 2% gap
-    'min_signal_score': 40,            # Minimum score to generate
-}
+### Test Backend API
+
+Run the API test tool:
+
+```bash
+python tools/test_api.py
+```
+
+This will test:
+- Health check endpoint
+- Stock list endpoint
+- Quote data endpoint
+
+### Test Finviz API Directly
+
+Test Finviz API directly (bypasses backend):
+
+```bash
+python tools/test_finviz_direct.py
 ```
 
 ## 📁 Project Structure
@@ -223,202 +177,86 @@ The signal engine uses a weighted multi-factor scoring system:
 backend/
 ├── app/
 │   ├── __init__.py
-│   ├── main.py                      # FastAPI application entry point
+│   ├── main.py                 # FastAPI application entry point
 │   ├── api/
 │   │   ├── __init__.py
 │   │   └── v1/
 │   │       ├── __init__.py
-│   │       ├── chart.py             # Chart data endpoints
-│   │       ├── items.py             # Sample CRUD endpoints
-│   │       ├── stocks.py            # Stock data endpoints
-│   │       └── websocket.py         # WebSocket endpoint & manager
+│   │       ├── stocks.py       # Stock screener endpoints
+│   │       └── quotes.py       # Quote/chart data endpoints
 │   ├── core/
 │   │   ├── __init__.py
-│   │   └── config.py                # Application configuration
-│   ├── db/
-│   │   ├── __init__.py
-│   │   ├── models.py                # SQLAlchemy models
-│   │   └── session.py               # Database session management
-│   ├── schemas/
-│   │   ├── __init__.py
-│   │   ├── item.py                  # Item schemas
-│   │   └── stock.py                 # Stock schemas
+│   │   └── config.py           # Application configuration
 │   └── services/
 │       ├── __init__.py
-│       ├── finviz_scraper.py        # Finviz web scraper
-│       ├── live_data_service.py     # Real-time market data service
-│       ├── signal_engine.py         # Trading signal generation
-│       ├── stock_service.py         # Stock CRUD operations
-│       └── item_service.py          # Item CRUD operations
-├── tests/
+│       └── finviz_service.py   # Finviz API service
+├── tools/
 │   ├── __init__.py
-│   └── test_items.py                # Test suite
-├── start_server.py                  # Server startup script
-├── requirements.txt                 # Python dependencies
-├── finviz_stocks.db                 # SQLite database (auto-created)
-└── README.md                        # This file
+│   ├── test_api.py             # Backend API test tool
+│   └── test_finviz_direct.py   # Direct Finviz API test tool
+├── .env                        # Environment variables (create from .env.example)
+├── .env.example                # Example environment file
+├── requirements.txt            # Python dependencies
+└── README.md                   # This file
 ```
 
-## 🔍 Key Components
+## ⚙️ Configuration
 
-### LiveDataService
+All configuration is done via `.env` file:
 
-Manages real-time market data streaming:
-- Fetches live data from yfinance
-- Calculates technical indicators (RSI, VWAP, momentum)
-- Updates every 5 seconds (configurable)
-- Handles watchlist of symbols
-- Thread-safe background processing
+```env
+# Finviz API
+FINVIZ_API_KEY=your_api_key_here
+FINVIZ_BASE_URL=https://elite.finviz.com
 
-### SignalEngine
+# Screener Filters
+FINVIZ_SCREENER_FILTERS=cap_midover,sh_avgvol_o500,sh_price_o10
+FINVIZ_SCREENER_VERSION=111
+FINVIZ_SCREENER_FILTER_TYPE=4
 
-Multi-factor signal analysis:
-- Analyzes market data using 5 scoring components
-- Generates signals with 0-100 confidence scores
-- Implements signal cooldown (60s per symbol)
-- Configurable thresholds for all indicators
-- Batch processing for multiple symbols
-
-### WebSocketManager
-
-Real-time communication:
-- Manages multiple concurrent WebSocket connections
-- Broadcasting signals to all connected clients
-- Heartbeat mechanism (every 30s)
-- Automatic scanner start/stop based on connections
-- Connection state tracking
-
-### FinvizScraper
-
-Web scraping for stock data:
-- Scrapes Finviz screener with custom filters
-- Multi-page scraping support
-- Parses market cap, P/E, price, volume, etc.
-- Handles both free and Elite Finviz accounts
-- Built-in rate limiting and error handling
-
-## 🧪 Testing
-
-Run the test suite:
-
-```bash
-# Install test dependencies
-pip install pytest pytest-asyncio httpx
-
-# Run tests
-pytest
-
-# Run with coverage
-pytest --cov=app tests/
+# Quote Settings
+FINVIZ_QUOTE_TIMEFRAME=d
 ```
 
-## 🔐 Security Considerations
+### Filter Options
 
-**For Production Deployment:**
+You can customize screener filters in `.env`:
 
-1. **CORS Configuration**: Update allowed origins in `app/main.py`
-   ```python
-   allow_origins=["https://yourdomain.com"]  # Replace "*"
-   ```
+- `cap_midover`: Mid-cap stocks and above
+- `sh_avgvol_o500`: Average volume over 500K
+- `sh_price_o10`: Price over $10
 
-2. **Environment Variables**: Use production-grade secrets management
-3. **Rate Limiting**: Implement rate limiting for API endpoints
-4. **Authentication**: Add JWT or OAuth2 authentication
-5. **HTTPS**: Use reverse proxy (nginx) with SSL certificates
-6. **Database**: Consider PostgreSQL for production use
-7. **Monitoring**: Add logging aggregation and error tracking
+See [Finviz Screener Documentation](https://elite.finviz.com) for more filter options.
+
+## 🔒 Security Notes
+
+- Never commit `.env` file to version control
+- Keep your API key secure
+- Use environment variables in production
+- Configure CORS appropriately for production
+
+## 📚 Documentation
+
+- **FastAPI Docs**: http://localhost:8001/docs (interactive)
+- **ReDoc**: http://localhost:8001/redoc (alternative)
 
 ## 🐛 Troubleshooting
 
-### Database Issues
+### API Key Issues
 
-```bash
-# Reset database
-rm finviz_stocks.db
+If you get authentication errors:
+1. Verify your API key in `.env`
+2. Check that the key is valid in Finviz Elite
+3. Ensure no extra spaces in `.env` file
 
-# Restart server (will auto-create tables)
-python start_server.py
-```
+### Connection Timeouts
 
-### WebSocket Connection Failed
+If requests timeout:
+1. Check your internet connection
+2. Verify Finviz API is accessible
+3. Increase timeout in `finviz_service.py` if needed
 
-- Ensure server is running on correct host/port
-- Check firewall settings
-- Verify CORS configuration for frontend origin
-- Check browser console for connection errors
+## 📝 License
 
-### Scraping Fails
-
-- Finviz may have changed HTML structure
-- Check if Finviz is accessible from your network
-- Try with different filters
-- Consider using Elite Finviz account
-
-### No Signals Generated
-
-- Ensure stocks are in database (run scraper first)
-- Check if market is open (signals based on live data)
-- Lower `min_signal_score` threshold in signal engine config
-- Monitor logs for errors
-
-## 📚 Additional Resources
-
-- [FastAPI Documentation](https://fastapi.tiangolo.com/)
-- [yfinance Documentation](https://pypi.org/project/yfinance/)
-- [Finviz Screener](https://finviz.com/screener.ashx)
-- [SQLAlchemy Documentation](https://docs.sqlalchemy.org/)
-- [WebSocket Protocol](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API)
-
-## 📝 Development Notes
-
-### Adding New Signal Types
-
-1. Add enum value to `SignalType` in `signal_engine.py`
-2. Implement scoring logic in `SignalEngine._score_*` method
-3. Update `_determine_signal_type` to handle new type
-4. Adjust weights in `analyze` method if needed
-
-### Adding New API Endpoints
-
-1. Create router in `app/api/v1/`
-2. Define schemas in `app/schemas/`
-3. Implement business logic in `app/services/`
-4. Include router in `app/main.py`
-
-### Database Migrations
-
-For schema changes:
-
-```bash
-# Install Alembic
-pip install alembic
-
-# Initialize migrations
-alembic init alembic
-
-# Create migration
-alembic revision --autogenerate -m "description"
-
-# Apply migration
-alembic upgrade head
-```
-
-## 🤝 Contributing
-
-1. Follow PEP 8 style guidelines
-2. Add docstrings to all functions/classes
-3. Write tests for new features
-4. Update README for significant changes
-
-## 📄 License
-
-This project is part of the Elite Trading System suite.
-
-## 💬 Support
-
-For issues, questions, or contributions, please refer to the main project repository.
-
----
-
-**Built with FastAPI** ⚡ | **Powered by yfinance** 📈 | **Elite Trading System** 🎯
+Copyright © 2025 Elite Trading System. All rights reserved.
 

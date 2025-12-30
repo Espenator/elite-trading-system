@@ -1,27 +1,36 @@
-# app/core/config.py
+"""Application configuration using pydantic-settings."""
 from pydantic_settings import BaseSettings
-from functools import lru_cache
+from typing import Optional
 
 
 class Settings(BaseSettings):
-    """Application settings"""
+    """Application settings loaded from environment variables."""
     
-    # App
-    app_name: str = "Elite Trading System API"
-    debug: bool = False
+    # Application
+    APP_NAME: str = "Elite Trading System API"
+    DEBUG: bool = False
+    API_V1_PREFIX: str = "/api/v1"
+    PORT: int = 8001
+    HOST: str = "0.0.0.0"
     
-    # Database
-    database_url: str = "sqlite:///./finviz_stocks.db"
+    # Finviz API
+    FINVIZ_API_KEY: str = ""
+    FINVIZ_BASE_URL: str = "https://elite.finviz.com"
     
-    # Finviz
-    finviz_use_elite: bool = False
-    default_filters: str = "cap_midover,sh_avgvol_o500,sh_price_o10"
+    # Screener filters (comma-separated, e.g., "cap_midover,sh_avgvol_o500,sh_price_o10")
+    FINVIZ_SCREENER_FILTERS: str = "cap_midover,sh_avgvol_o500,sh_price_o10"
+    FINVIZ_SCREENER_VERSION: str = "111"
+    FINVIZ_SCREENER_FILTER_TYPE: str = "4"
+    
+    # Quote/Chart settings
+    FINVIZ_QUOTE_TIMEFRAME: str = "d"  # d=daily, w=weekly, m=monthly, etc.
     
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+        case_sensitive = True
 
 
-@lru_cache()
-def get_settings() -> Settings:
-    return Settings()
+# Global settings instance
+settings = Settings()
+
