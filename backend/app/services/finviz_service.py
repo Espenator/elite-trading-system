@@ -16,9 +16,11 @@ class FinvizService:
     def __init__(self):
         self.base_url = settings.FINVIZ_BASE_URL
         self.api_key = settings.FINVIZ_API_KEY
-        
+    
+    def _validate_api_key(self):
+        """Validate that API key is set before making API calls."""
         if not self.api_key:
-            raise ValueError("FINVIZ_API_KEY is not set in environment variables")
+            raise ValueError("FINVIZ_API_KEY is not set in environment variables. Please set it in your .env file.")
     
     async def get_stock_list(
         self,
@@ -39,6 +41,9 @@ class FinvizService:
         Returns:
             List of dictionaries containing stock data
         """
+        # Validate API key before making request
+        self._validate_api_key()
+        
         # Use provided filters or fall back to config
         filters = filters or settings.FINVIZ_SCREENER_FILTERS
         version = version or settings.FINVIZ_SCREENER_VERSION
@@ -98,6 +103,9 @@ class FinvizService:
         Returns:
             List of dictionaries containing quote/chart data
         """
+        # Validate API key before making request
+        self._validate_api_key()
+        
         timeframe = timeframe or settings.FINVIZ_QUOTE_TIMEFRAME
         
         # Build URL

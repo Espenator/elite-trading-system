@@ -37,9 +37,28 @@ class DatabaseService:
                 filled_at TEXT,
                 estimated_cost REAL,
                 required_margin REAL,
-                potential_pnl REAL
+                potential_pnl REAL,
+                alpaca_order_id TEXT,
+                alpaca_status TEXT,
+                alpaca_response TEXT
             )
         """)
+        
+        # Add new columns if they don't exist (for existing databases)
+        try:
+            cursor.execute("ALTER TABLE orders ADD COLUMN alpaca_order_id TEXT")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        
+        try:
+            cursor.execute("ALTER TABLE orders ADD COLUMN alpaca_status TEXT")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        
+        try:
+            cursor.execute("ALTER TABLE orders ADD COLUMN alpaca_response TEXT")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
         
         conn.commit()
         conn.close()
@@ -53,7 +72,10 @@ class DatabaseService:
         price: float,
         estimated_cost: float = None,
         required_margin: float = None,
-        potential_pnl: float = None
+        potential_pnl: float = None,
+        alpaca_order_id: str = None,
+        alpaca_status: str = None,
+        alpaca_response: str = None
     ) -> Dict:
         """Create a new order."""
         conn = sqlite3.connect(self.db_path)
@@ -64,14 +86,28 @@ class DatabaseService:
         required_margin = required_margin or (estimated_cost * 0.5)
         potential_pnl = potential_pnl or (estimated_cost * 0.02)
         
+        # Map Alpaca status to our status
+        status = 'Pending'
+        if alpaca_status:
+            if alpaca_status in ['filled', 'partially_filled']:
+                status = 'Filled'
+            elif alpaca_status == 'canceled':
+                status = 'Cancelled'
+            elif alpaca_status == 'rejected':
+                status = 'Rejected'
+            else:
+                status = 'Pending'
+        
         cursor.execute("""
             INSERT INTO orders (
                 symbol, order_type, side, quantity, price, status,
-                created_at, estimated_cost, required_margin, potential_pnl
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                created_at, estimated_cost, required_margin, potential_pnl,
+                alpaca_order_id, alpaca_status, alpaca_response
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            symbol, order_type, side, quantity, price, 'Filled',
-            now, estimated_cost, required_margin, potential_pnl
+            symbol, order_type, side, quantity, price, status,
+            now, estimated_cost, required_margin, potential_pnl,
+            alpaca_order_id, alpaca_status, alpaca_response
         ))
         
         order_id = cursor.lastrowid

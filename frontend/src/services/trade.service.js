@@ -173,11 +173,15 @@ class TradeService {
         body: JSON.stringify(orderData),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+        const error = new Error(data.detail || `API Error: ${response.status} ${response.statusText}`);
+        error.response = { data };
+        throw error;
       }
 
-      return response.json();
+      return data;
     } catch (error) {
       console.error('Error creating order:', error);
       throw error;

@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     # Quote/Chart settings
     FINVIZ_QUOTE_TIMEFRAME: str = "d"  # d=daily, w=weekly, m=monthly, etc.
     
+    # Alpaca Markets API
+    ALPACA_API_KEY: str = ""
+    ALPACA_SECRET_KEY: str = ""
+    ALPACA_BASE_URL: str = "https://paper-api.alpaca.markets/v2"
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

@@ -95,16 +95,23 @@ export default function TradeExecution() {
         potential_pnl: potentialPnL
       };
 
-      await tradeService.createOrder(orderData);
+      const result = await tradeService.createOrder(orderData);
       
       // Refresh recent orders
       const orders = await tradeService.getRecentOrders(10);
       setRecentOrders(orders);
       
-      alert(`Order placed successfully! ${orderSideToUse === 'buy' ? 'Buy' : 'Sell'} ${quantity} shares of ${selectedSymbol} at $${price.toFixed(2)}`);
+      // Check if there was an Alpaca error but order was saved
+      if (result.alpaca_error) {
+        alert(`Order saved but Alpaca API error: ${result.alpaca_error}`);
+      } else {
+        const priceText = orderType === 'Market' ? 'market price' : `$${price.toFixed(2)}`;
+        alert(`Order placed successfully! ${orderSideToUse === 'buy' ? 'Buy' : 'Sell'} ${quantity} shares of ${selectedSymbol} at ${priceText}`);
+      }
     } catch (error) {
       console.error('Error submitting order:', error);
-      alert('Failed to place order. Please try again.');
+      const errorMessage = error.response?.data?.detail || error.message || 'Failed to place order. Please try again.';
+      alert(`Error: ${errorMessage}`);
     } finally {
       setIsSubmittingOrder(false);
     }
