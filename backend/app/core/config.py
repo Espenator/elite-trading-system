@@ -25,10 +25,11 @@ class Settings(BaseSettings):
     # Quote/Chart settings
     FINVIZ_QUOTE_TIMEFRAME: str = "d"  # d=daily, w=weekly, m=monthly, etc.
     
-    # Alpaca Markets API
+    # Alpaca Markets API — paper by default; set TRADING_MODE=live for real money
     ALPACA_API_KEY: str = ""
     ALPACA_SECRET_KEY: str = ""
     ALPACA_BASE_URL: str = "https://paper-api.alpaca.markets/v2"
+    TRADING_MODE: str = "paper"  # "paper" | "live" — only use "live" when explicitly ready
     
     class Config:
         env_file = ".env"

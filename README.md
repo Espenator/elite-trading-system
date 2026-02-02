@@ -7,6 +7,18 @@
 
 ---
 
+## Modular architecture (AI + ML, paper-first)
+
+For the **modular system design** (symbol DB, social/news engine, chart patterns, ML engine, execution) and **paper-first** trading, see **[MODULAR_ARCHITECTURE.md](./MODULAR_ARCHITECTURE.md)**. It describes:
+
+- **Five components**: Symbol Universe, Social/News Engine, Chart Patterns, ML Engine, Execution Engine
+- **Paper vs live**: `TRADING_MODE=paper` by default; Alpaca paper URL; switch to live only when ready
+- **Glass-box UI**: System status API at `GET /api/v1/system/status` (trading mode + module statuses) for compartmentalized UI and manual controls
+
+Backend module skeletons live under `backend/app/modules/` (symbol_universe, social_news_engine, chart_patterns, ml_engine, execution_engine).
+
+---
+
 ## 🆕 **NEW: UI/UX UPGRADE PACKAGE**
 
 ### Critical UI Enhancements Ready for Implementation

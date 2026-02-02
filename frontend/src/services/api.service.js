@@ -51,6 +51,11 @@ class ApiService {
   async scrapeStocks(filters = null) {
     return this.post('/stocks/scrape', { filters });
   }
+
+  // System status for glass-box UI (trading mode + module statuses)
+  async getSystemStatus() {
+    return this.get('/system/status');
+  }
 }
 
 export const apiService = new ApiService();

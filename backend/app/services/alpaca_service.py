@@ -5,13 +5,16 @@ from app.core.config import settings
 
 
 class AlpacaService:
-    """Service for interacting with Alpaca Markets API."""
+    """Service for interacting with Alpaca Markets API. Uses paper by default."""
     
     def __init__(self):
-        """Initialize Alpaca service with API credentials."""
-        self.base_url = "https://paper-api.alpaca.markets/v2"
+        """Initialize Alpaca service with API credentials and TRADING_MODE."""
+        self.base_url = settings.ALPACA_BASE_URL or "https://paper-api.alpaca.markets/v2"
         self.api_key = settings.ALPACA_API_KEY
         self.secret_key = settings.ALPACA_SECRET_KEY
+        self.trading_mode = (getattr(settings, "TRADING_MODE", None) or "paper").lower()
+        if self.trading_mode not in ("paper", "live"):
+            self.trading_mode = "paper"
     
     def _get_headers(self) -> Dict[str, str]:
         """Get headers for Alpaca API requests."""

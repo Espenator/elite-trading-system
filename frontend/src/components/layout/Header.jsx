@@ -4,17 +4,36 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faBars, faSun, faMoon, faBell, faCog, faSignOutAlt, 
   faKey, faChevronDown, faCheckCircle, faExclamationCircle, 
-  faInfoCircle, faTimesCircle
+  faInfoCircle, faTimesCircle, faBoxesStacked
 } from '@fortawesome/free-solid-svg-icons';
 import { useTheme } from '../../context/ThemeContext';
+import { apiService } from '../../services/api.service';
 
 export default function Header() {
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
+  const [showSystemStatus, setShowSystemStatus] = useState(false);
+  const [systemStatus, setSystemStatus] = useState(null);
   const userDropdownRef = useRef(null);
   const notificationsDropdownRef = useRef(null);
+  const systemStatusRef = useRef(null);
+
+  // Fetch system status for glass-box UI (trading mode + modules)
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const data = await apiService.getSystemStatus();
+        setSystemStatus(data);
+      } catch {
+        setSystemStatus({ trading_mode: 'unknown', modules: {} });
+      }
+    };
+    load();
+    const interval = setInterval(load, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Sample notifications data
   const notifications = [
@@ -34,6 +53,9 @@ export default function Header() {
       if (notificationsDropdownRef.current && !notificationsDropdownRef.current.contains(event.target)) {
         setShowNotificationsDropdown(false);
       }
+      if (systemStatusRef.current && !systemStatusRef.current.contains(event.target)) {
+        setShowSystemStatus(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
@@ -41,6 +63,9 @@ export default function Header() {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  const tradingMode = systemStatus?.trading_mode ?? 'paper';
+  const isPaper = tradingMode === 'paper';
 
   const handleUserMenuClick = (action) => {
     setShowUserDropdown(false);
@@ -99,6 +124,51 @@ export default function Header() {
       </div>
 
       <div className="flex items-center space-x-4">
+        {/* System Status (glass-box: trading mode + modules) */}
+        <div className="relative" ref={systemStatusRef}>
+          <button
+            onClick={() => setShowSystemStatus(!showSystemStatus)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+              isPaper
+                ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800'
+            }`}
+            title="Trading mode and module status"
+          >
+            <FontAwesomeIcon icon={faBoxesStacked} className="w-4 h-4" />
+            <span>{isPaper ? 'PAPER' : 'LIVE'}</span>
+            <FontAwesomeIcon icon={faChevronDown} className="w-3 h-3 opacity-70" />
+          </button>
+          {showSystemStatus && systemStatus && (
+            <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden z-50">
+              <div className="p-3 border-b border-gray-200 dark:border-gray-700">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">System Status</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  Trading: <span className={isPaper ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}>{tradingMode}</span>
+                </p>
+              </div>
+              <div className="max-h-64 overflow-y-auto p-2">
+                {systemStatus.modules && Object.entries(systemStatus.modules).map(([name, mod]) => {
+                  const value = typeof mod === 'object' && mod !== null
+                    ? (mod.status ?? mod.trading_mode ?? (mod.broker_connected ? 'connected' : '—'))
+                    : String(mod);
+                  const isActive = value === 'ready' || value === 'paper' || value === 'live' || value === 'connected';
+                  return (
+                    <div key={name} className="flex items-center justify-between py-1.5 px-2 rounded text-sm">
+                      <span className="text-gray-700 dark:text-gray-300 capitalize">{name.replace(/_/g, ' ')}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded ${
+                        isActive ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                      }`}>
+                        {value}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Theme Toggle */}
         <button
           onClick={toggleTheme}

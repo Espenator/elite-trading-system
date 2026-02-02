@@ -12,12 +12,22 @@ backend/
 │   │   └── v1/                   # API version 1
 │   │       ├── __init__.py
 │   │       ├── stocks.py         # Stock screener endpoints
-│   │       └── quotes.py         # Quote/chart data endpoints
+│   │       ├── quotes.py         # Quote/chart data endpoints
+│   │       ├── orders.py         # Order execution endpoints
+│   │       └── system.py         # System status (glass-box: trading mode + modules)
 │   ├── core/                     # Core configuration
 │   │   ├── __init__.py
-│   │   └── config.py             # Settings and configuration
+│   │   └── config.py             # Settings and configuration (TRADING_MODE=paper|live)
+│   ├── modules/                  # Modular components (see MODULAR_ARCHITECTURE.md at repo root)
+│   │   ├── symbol_universe/      # Stock/symbol database and watchlists
+│   │   ├── social_news_engine/   # Real-time social/news search and compute
+│   │   ├── chart_patterns/       # Pattern library and detection pipeline
+│   │   ├── ml_engine/            # ML and algorithms (signal fusion, learning)
+│   │   └── execution_engine/    # Paper/live execution (Alpaca)
 │   └── services/                 # Business logic services
 │       ├── __init__.py
+│       ├── alpaca_service.py     # Alpaca API (paper by default)
+│       ├── database.py          # SQLite orders DB
 │       └── finviz_service.py     # Finviz API integration
 ├── tools/                        # Testing and utility tools
 │   ├── __init__.py
@@ -54,6 +64,12 @@ backend/
 
 ## 🚀 API Endpoints
 
+### 0. System Status (glass-box)
+```
+GET /api/v1/system/status
+```
+Returns `trading_mode` (paper | live) and status of each module (symbol_universe, social_news_engine, chart_patterns, ml_engine, execution_engine) for the UI.
+
 ### 1. Stock List
 ```
 GET /api/v1/stocks/list
@@ -87,6 +103,12 @@ FINVIZ_SCREENER_FILTERS=cap_midover,sh_avgvol_o500,sh_price_o10
 FINVIZ_SCREENER_VERSION=111
 FINVIZ_SCREENER_FILTER_TYPE=4
 FINVIZ_QUOTE_TIMEFRAME=d
+
+# Alpaca — paper by default; set TRADING_MODE=live for real execution
+ALPACA_API_KEY=...
+ALPACA_SECRET_KEY=...
+ALPACA_BASE_URL=https://paper-api.alpaca.markets/v2
+TRADING_MODE=paper
 ```
 
 ## 📝 Next Steps
