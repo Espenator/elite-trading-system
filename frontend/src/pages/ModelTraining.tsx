@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faUpload, faSearch, faEye, faDownload, faTrash,
   faPlay, faSave, faRocket, faChartLine, faCheckCircle,
-  faArrowTrendUp
+  faArrowTrendUp, faSpinner, faStopCircle
 } from '@fortawesome/free-solid-svg-icons';
+import modelTrainingService from '../services/modelTraining.service';
 
 interface Dataset {
   name: string;
@@ -68,56 +69,176 @@ export default function ModelTraining() {
   const [validationSplit, setValidationSplit] = useState('20%');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const datasets: Dataset[] = [
-    { name: 'FinancialTimeSeries_V1', size: '1.2 GB', lastUpdated: '2023-11-20', status: 'Ready' },
-    { name: 'MarketSentiment_V1', size: '850 MB', lastUpdated: '2023-11-18', status: 'Processing' },
-    { name: 'AlternativeData_V3', size: '2.1 GB', lastUpdated: '2023-11-15', status: 'Error' },
-    { name: 'TechnicalIndicators_V2', size: '650 MB', lastUpdated: '2023-11-12', status: 'Ready' },
-  ];
+  const [datasets, setDatasets] = useState([] as Dataset[]);
+  const [trainingHistory, setTrainingHistory] = useState([] as TrainingHistory[]);
+  const [modelComparison, setModelComparison] = useState([] as ModelComparison[]);
+  const [activeProgress, setActiveProgress] = useState(null as { active: boolean; progress: TrainingProgress | null; runId?: string } | null);
+  const [selectedRunId, setSelectedRunId] = useState(null as string | null);
+  const [runDetails, setRunDetails] = useState(null as { performanceMetrics: PerformanceMetrics; featureImportance: Feature[] } | null);
 
-  const trainingProgress: TrainingProgress = {
-    epochsCompleted: 75,
-    totalEpochs: 100,
-    accuracy: 88.0,
-    loss: 0.12,
+  const [loading, setLoading] = useState({ datasets: true, runs: true, comparison: true });
+  const [error, setError] = useState(null as string | null);
+  const [actionLoading, setActionLoading] = useState(null as 'train' | 'save' | 'deploy' | 'stop' | null);
+  const [actionMessage, setActionMessage] = useState(null as { type: 'success' | 'error'; text: string } | null);
+  const progressPollRef = useRef(null as ReturnType<typeof setInterval> | null);
+
+  const trainingProgress: TrainingProgress = activeProgress?.progress ?? {
+    epochsCompleted: 0,
+    totalEpochs: epochs,
+    accuracy: 0,
+    loss: 0,
   };
 
-  const features: Feature[] = [
-    { name: 'Volume', importance: 95 },
-    { name: 'Change', importance: 82 },
-    { name: 'RSIDivergence', importance: 75 },
-    { name: 'MACDCrossover', importance: 68 },
-    { name: 'VIXProximity', importance: 55 },
-    { name: 'Market Regime', importance: 48 },
-    { name: 'Historical Volatility', importance: 42 },
-  ];
-
-  const performanceMetrics: PerformanceMetrics = {
-    accuracy: 92.5,
-    precision: 88.1,
-    recall: 90.3,
-    f1Score: 89.2,
-    confusionMatrix: {
-      truePositive: 850,
-      falseNegative: 50,
-      falsePositive: 70,
-      trueNegative: 930,
-    },
+  const features: Feature[] = runDetails?.featureImportance ?? [];
+  const performanceMetrics: PerformanceMetrics = runDetails?.performanceMetrics ?? {
+    accuracy: 0,
+    precision: 0,
+    recall: 0,
+    f1Score: 0,
+    confusionMatrix: { truePositive: 0, falseNegative: 0, falsePositive: 0, trueNegative: 0 },
   };
 
-  const modelComparison: ModelComparison[] = [
-    { model: 'XGBoost_V1', accuracy: 92.5, precision: 88.1, recall: 90.3, f1Score: 89.2, trainingTime: '15m', datasetSize: '1.2 GB' },
-    { model: 'RandomForest_V2', accuracy: 89.3, precision: 85.2, recall: 87.8, f1Score: 86.5, trainingTime: '22m', datasetSize: '1.2 GB' },
-    { model: 'NeuralNet_V3', accuracy: 91.0, precision: 87.5, recall: 89.1, f1Score: 88.3, trainingTime: '45m', datasetSize: '1.2 GB' },
-  ];
+  const filteredDatasets = useMemo(() => {
+    if (!searchQuery.trim()) return datasets;
+    const q = searchQuery.toLowerCase();
+    return datasets.filter((d) => d.name.toLowerCase().includes(q));
+  }, [datasets, searchQuery]);
 
-  const trainingHistory: TrainingHistory[] = [
-    { runId: 'MT-001', modelName: 'XGBoost_V1', dataset: 'FinancialTimeSeries_V1', algorithm: 'XGBoost', startTime: '2023-12-10 10:00', endTime: '2023-12-10 10:15', status: 'Completed', accuracy: '92.5%', loss: '0.22' },
-    { runId: 'MT-002', modelName: 'RandomForest_V2', dataset: 'FinancialTimeSeries_V1', algorithm: 'Random Forest', startTime: '2023-12-09 14:30', endTime: '2023-12-09 14:52', status: 'Completed', accuracy: '89.3%', loss: '0.28' },
-    { runId: 'MT-003', modelName: 'NeuralNet_V3', dataset: 'FinancialTimeSeries_V1', algorithm: 'Neural Network', startTime: '2023-12-08 09:15', endTime: '2023-12-08 10:00', status: 'Completed', accuracy: '91.0%', loss: '0.25' },
-    { runId: 'MT-004', modelName: 'XGBoost_V2', dataset: 'AlternativeData_V3', algorithm: 'XGBoost', startTime: '2023-12-07 11:00', endTime: '2023-12-07 11:05', status: 'Failed', accuracy: 'N/A', loss: '0.45' },
-    { runId: 'MT-005', modelName: 'Ensemble_V1', dataset: 'MarketSentiment_V1', algorithm: 'Ensemble', startTime: '2023-12-06 16:00', endTime: '2023-12-06 16:10', status: 'Running', accuracy: '75.0%', loss: '0.35' },
-  ];
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchInitial() {
+      setError(null);
+      try {
+        const [ds, runs, comparison] = await Promise.all([
+          modelTrainingService.getDatasets(),
+          modelTrainingService.getTrainingRuns(),
+          modelTrainingService.getModelComparison(),
+        ]);
+        if (!cancelled) {
+          setDatasets(ds);
+          setTrainingHistory(runs);
+          setModelComparison(comparison);
+          if (runs.length > 0 && !selectedRunId) setSelectedRunId(runs[0].runId);
+        }
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load data');
+      } finally {
+        if (!cancelled) setLoading({ datasets: false, runs: false, comparison: false });
+      }
+    }
+    fetchInitial();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchProgress() {
+      try {
+        const res = await modelTrainingService.getActiveProgress();
+        if (!cancelled) setActiveProgress(res);
+      } catch {
+        if (!cancelled) setActiveProgress({ active: false, progress: null });
+      }
+    }
+    fetchProgress();
+    const id = setInterval(fetchProgress, 2000);
+    progressPollRef.current = id;
+    return () => {
+      cancelled = true;
+      if (progressPollRef.current) clearInterval(progressPollRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedRunId) {
+      setRunDetails(null);
+      return;
+    }
+    let cancelled = false;
+    modelTrainingService.getRunDetails(selectedRunId).then((data) => {
+      if (!cancelled)
+        setRunDetails({
+          performanceMetrics: data.performanceMetrics ?? {
+            accuracy: 0, precision: 0, recall: 0, f1Score: 0,
+            confusionMatrix: { truePositive: 0, falseNegative: 0, falsePositive: 0, trueNegative: 0 },
+          },
+          featureImportance: data.featureImportance ?? [],
+        });
+    }).catch(() => {
+      if (!cancelled) setRunDetails(null);
+    });
+    return () => { cancelled = true; };
+  }, [selectedRunId]);
+
+  const handleStartTraining = async () => {
+    setActionLoading('train');
+    setActionMessage(null);
+    try {
+      await modelTrainingService.startTraining({
+        modelName,
+        datasetSource,
+        algorithm,
+        epochs,
+        validationSplit,
+      });
+      setActionMessage({ type: 'success', text: 'Training started. Progress will update below.' });
+      const res = await modelTrainingService.getActiveProgress();
+      setActiveProgress(res);
+      setTrainingHistory(await modelTrainingService.getTrainingRuns());
+    } catch (e) {
+      setActionMessage({ type: 'error', text: e instanceof Error ? e.message : 'Failed to start training' });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleStopTraining = async () => {
+    if (!activeProgress?.runId) return;
+    setActionLoading('stop');
+    setActionMessage(null);
+    try {
+      await modelTrainingService.stopTraining(activeProgress.runId);
+      setActionMessage({ type: 'success', text: 'Training stopped.' });
+      setActiveProgress({ active: false, progress: null });
+      setTrainingHistory(await modelTrainingService.getTrainingRuns());
+    } catch (e) {
+      setActionMessage({ type: 'error', text: e instanceof Error ? e.message : 'Failed to stop training' });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleSaveConfig = async () => {
+    setActionLoading('save');
+    setActionMessage(null);
+    try {
+      await modelTrainingService.saveConfig({
+        modelName,
+        datasetSource,
+        algorithm,
+        epochs,
+        validationSplit,
+      });
+      setActionMessage({ type: 'success', text: 'Configuration saved.' });
+    } catch (e) {
+      setActionMessage({ type: 'error', text: e instanceof Error ? e.message : 'Failed to save config' });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDeploy = async () => {
+    setActionLoading('deploy');
+    setActionMessage(null);
+    try {
+      const res = await modelTrainingService.deployModel();
+      setActionMessage({ type: 'success', text: res.message || 'Deployment requested.' });
+    } catch (e) {
+      setActionMessage({ type: 'error', text: e instanceof Error ? e.message : 'Deployment failed' });
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   const getStatusBg = (status: string): string => {
     switch (status) {
@@ -142,6 +263,18 @@ export default function ModelTraining() {
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Model Training & Metrics</h1>
         <p className="text-gray-600 dark:text-gray-400 mt-1">Train and evaluate machine learning models with comprehensive metrics tracking</p>
       </div>
+
+      {/* Error / Action messages */}
+      {error && (
+        <div className="p-4 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 text-sm">
+          {error}
+        </div>
+      )}
+      {actionMessage && (
+        <div className={`p-4 rounded-lg text-sm ${actionMessage.type === 'success' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'}`}>
+          {actionMessage.text}
+        </div>
+      )}
 
       {/* Dataset Management */}
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
@@ -169,6 +302,11 @@ export default function ModelTraining() {
             </button>
           </div>
           <div className="overflow-x-auto">
+            {loading.datasets ? (
+              <div className="flex items-center justify-center py-12 text-gray-500 dark:text-gray-400">
+                <FontAwesomeIcon icon={faSpinner} spin className="mr-2" /> Loading datasets...
+              </div>
+            ) : (
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-gray-900/50">
                 <tr>
@@ -180,7 +318,7 @@ export default function ModelTraining() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                {datasets.map((dataset, index) => (
+                {filteredDatasets.map((dataset, index) => (
                   <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                     <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{dataset.name}</td>
                     <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{dataset.size}</td>
@@ -221,6 +359,7 @@ export default function ModelTraining() {
                 ))}
               </tbody>
             </table>
+            )}
           </div>
         </div>
       </div>
@@ -247,10 +386,10 @@ export default function ModelTraining() {
                 onChange={(e) => setDatasetSource(e.target.value)}
                 className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
               >
-                <option>FinancialTimeSeries_V1</option>
-                <option>MarketSentiment_V1</option>
-                <option>AlternativeData_V3</option>
-                <option>TechnicalIndicators_V2</option>
+                {datasets.map((d) => (
+                  <option key={d.name} value={d.name}>{d.name}</option>
+                ))}
+                {datasets.length === 0 && <option value={datasetSource}>{datasetSource}</option>}
               </select>
             </div>
             <div>
@@ -285,12 +424,20 @@ export default function ModelTraining() {
               />
             </div>
             <div className="pt-2 space-y-2">
-              <button className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2">
-                <FontAwesomeIcon icon={faPlay} />
-                Start Training
+              <button
+                onClick={handleStartTraining}
+                disabled={!!activeProgress?.active || actionLoading === 'train'}
+                className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                {actionLoading === 'train' ? <FontAwesomeIcon icon={faSpinner} spin /> : <FontAwesomeIcon icon={faPlay} />}
+                {actionLoading === 'train' ? 'Starting...' : 'Start Training'}
               </button>
-              <button className="w-full py-2 px-4 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors flex items-center justify-center gap-2">
-                <FontAwesomeIcon icon={faSave} />
+              <button
+                onClick={handleSaveConfig}
+                disabled={!!actionLoading}
+                className="w-full py-2 px-4 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {actionLoading === 'save' ? <FontAwesomeIcon icon={faSpinner} spin /> : <FontAwesomeIcon icon={faSave} />}
                 Save Configuration
               </button>
             </div>
@@ -300,52 +447,77 @@ export default function ModelTraining() {
         {/* Real-time Training Progress */}
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Real-time Training Progress</h3>
-          <div className="space-y-4">
-            <div>
-              <div className="flex justify-between text-sm mb-2">
-                <span className="text-gray-600 dark:text-gray-400">Epochs Completed</span>
-                <span className="font-medium text-gray-900 dark:text-white">
-                  {trainingProgress.epochsCompleted}/{trainingProgress.totalEpochs}
-                </span>
+          {activeProgress?.active ? (
+            <>
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Run: {activeProgress.runId}</span>
+                <button
+                  onClick={handleStopTraining}
+                  disabled={actionLoading === 'stop'}
+                  className="px-3 py-1.5 text-sm bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg flex items-center gap-2"
+                >
+                  {actionLoading === 'stop' ? <FontAwesomeIcon icon={faSpinner} spin /> : <FontAwesomeIcon icon={faStopCircle} />}
+                  Stop
+                </button>
               </div>
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
-                <div 
-                  className="bg-blue-600 h-2.5 rounded-full transition-all"
-                  style={{ width: `${(trainingProgress.epochsCompleted / trainingProgress.totalEpochs) * 100}%` }}
-                />
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between text-sm mb-2">
-                <span className="text-gray-600 dark:text-gray-400">Accuracy</span>
-                <span className="font-medium text-gray-900 dark:text-white">{trainingProgress.accuracy}%</span>
-              </div>
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
-                <div 
-                  className="bg-green-600 h-2.5 rounded-full transition-all"
-                  style={{ width: `${trainingProgress.accuracy}%` }}
-                />
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between text-sm mb-2">
-                <span className="text-gray-600 dark:text-gray-400">Loss</span>
-                <span className="font-medium text-gray-900 dark:text-white">{trainingProgress.loss}</span>
-              </div>
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
-                <div 
-                  className="bg-red-600 h-2.5 rounded-full transition-all"
-                  style={{ width: `${(1 - trainingProgress.loss) * 100}%` }}
-                />
-              </div>
-            </div>
-            {/* Simple Line Chart Placeholder */}
-            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-              <div className="h-32 bg-gray-50 dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-700 flex items-center justify-center">
-                <div className="text-center">
-                  <FontAwesomeIcon icon={faChartLine} className="text-4xl text-gray-400 dark:text-gray-600 mb-2" />
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Training Progress Chart</p>
+              <div className="space-y-4">
+                <div>
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="text-gray-600 dark:text-gray-400">Epochs Completed</span>
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      {trainingProgress.epochsCompleted}/{trainingProgress.totalEpochs}
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                    <div 
+                      className="bg-blue-600 h-2.5 rounded-full transition-all"
+                      style={{ width: `${trainingProgress.totalEpochs ? (trainingProgress.epochsCompleted / trainingProgress.totalEpochs) * 100 : 0}%` }}
+                    />
+                  </div>
                 </div>
+                <div>
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="text-gray-600 dark:text-gray-400">Accuracy</span>
+                    <span className="font-medium text-gray-900 dark:text-white">{trainingProgress.accuracy}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                    <div 
+                      className="bg-green-600 h-2.5 rounded-full transition-all"
+                      style={{ width: `${Math.min(100, trainingProgress.accuracy)}%` }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="text-gray-600 dark:text-gray-400">Loss</span>
+                    <span className="font-medium text-gray-900 dark:text-white">{trainingProgress.loss}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                    <div 
+                      className="bg-red-600 h-2.5 rounded-full transition-all"
+                      style={{ width: `${Math.min(100, (1 - trainingProgress.loss) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-500 dark:text-gray-400">No active training run. Start a run from the configuration panel.</p>
+              <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
+                <span>Epochs</span>
+                <span>0/{epochs}</span>
+              </div>
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                <div className="bg-gray-400 dark:bg-gray-600 h-2.5 rounded-full" style={{ width: '0%' }} />
+              </div>
+            </div>
+          )}
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="h-32 bg-gray-50 dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-700 flex items-center justify-center">
+              <div className="text-center">
+                <FontAwesomeIcon icon={faChartLine} className="text-4xl text-gray-400 dark:text-gray-600 mb-2" />
+                <p className="text-xs text-gray-500 dark:text-gray-400">Training Progress Chart</p>
               </div>
             </div>
           </div>
@@ -378,8 +550,12 @@ export default function ModelTraining() {
             </div>
           </div>
           <div className="pt-4 space-y-2">
-            <button className="w-full py-2 px-4 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2">
-              <FontAwesomeIcon icon={faRocket} />
+            <button
+              onClick={handleDeploy}
+              disabled={!!actionLoading}
+              className="w-full py-2 px-4 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+            >
+              {actionLoading === 'deploy' ? <FontAwesomeIcon icon={faSpinner} spin /> : <FontAwesomeIcon icon={faRocket} />}
               Deploy Model
             </button>
             <button className="w-full py-2 px-4 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors flex items-center justify-center gap-2">
@@ -394,8 +570,11 @@ export default function ModelTraining() {
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Feature Importance Analysis</h3>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-          Understand which features are most influential in your model's decision-making process.
+          Understand which features are most influential in your model's decision-making process. Select a run from Training History to view.
         </p>
+        {!selectedRunId && (
+          <p className="text-sm text-gray-500 dark:text-gray-400 py-4">Select a run from the table below to see feature importance.</p>
+        )}
         <div className="space-y-3">
           {features.map((feature, index) => (
             <div key={index} className="flex items-center gap-4">
@@ -417,7 +596,7 @@ export default function ModelTraining() {
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Model Performance Breakdown</h3>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-          Detailed breakdown of the selected model's performance metrics.
+          Detailed breakdown of the selected model's performance metrics. {selectedRunId ? `Showing run ${selectedRunId}.` : 'Select a run from Training History to view metrics.'}
         </p>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Metrics Table */}
@@ -481,6 +660,11 @@ export default function ModelTraining() {
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
           Compare different model versions or training runs side-by-side.
         </p>
+        {loading.comparison ? (
+          <div className="flex items-center justify-center py-8 text-gray-500 dark:text-gray-400">
+            <FontAwesomeIcon icon={faSpinner} spin className="mr-2" /> Loading...
+          </div>
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-gray-900/50">
@@ -509,6 +693,7 @@ export default function ModelTraining() {
             </tbody>
           </table>
         </div>
+        )}
         </div>
 
       {/* Training History & Metrics */}
@@ -516,9 +701,14 @@ export default function ModelTraining() {
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Training History & Metrics</h3>
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Review historical training runs and their key performance indicators.
+            Review historical training runs and their key performance indicators. Click View to see metrics for a run.
           </p>
         </div>
+        {loading.runs ? (
+          <div className="flex items-center justify-center py-12 text-gray-500 dark:text-gray-400">
+            <FontAwesomeIcon icon={faSpinner} spin className="mr-2" /> Loading runs...
+          </div>
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-gray-900/50">
@@ -552,7 +742,11 @@ export default function ModelTraining() {
                   <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{run.accuracy}</td>
                   <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{run.loss}</td>
                   <td className="px-4 py-3 text-sm">
-                    <button className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                    <button
+                      onClick={() => setSelectedRunId(run.runId)}
+                      className={`transition-colors ${selectedRunId === run.runId ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 hover:text-blue-600 dark:hover:text-blue-400'}`}
+                      title="View metrics"
+                    >
                       <FontAwesomeIcon icon={faEye} />
                     </button>
                   </td>
@@ -561,6 +755,7 @@ export default function ModelTraining() {
             </tbody>
           </table>
         </div>
+        )}
       </div>
     </div>
   );
