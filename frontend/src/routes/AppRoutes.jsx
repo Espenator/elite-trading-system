@@ -6,6 +6,8 @@ import PortfolioHeatmap from '../pages/PortfolioHeatmap';
 import ModelTraining from '../pages/ModelTraining';
 import PerformanceAnalytics from '../pages/PerformanceAnalytics';
 import ScreenerResults from '../pages/ScreenerResults';
+import Signals from '../pages/Signals';
+import Backtest from '../pages/Backtest';
 import OrderHistory from '../pages/OrderHistory';
 import Settings from '../pages/Settings';
 import AccountSettings from '../pages/AccountSettings';
@@ -25,6 +27,8 @@ export default function AppRoutes() {
         <Route path="model-training" element={<ModelTraining />} />
         <Route path="performance" element={<PerformanceAnalytics />} />
         <Route path="screener" element={<ScreenerResults />} />
+        <Route path="signals" element={<Signals />} />
+        <Route path="backtest" element={<Backtest />} />
         <Route path="order-history" element={<OrderHistory />} />
         <Route path="settings" element={<Settings />} />
         <Route path="account-settings" element={<AccountSettings />} />

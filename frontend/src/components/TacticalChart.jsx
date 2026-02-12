@@ -19,7 +19,8 @@ export default function TacticalChart({ symbol }) {
     
     setIsLoadingMore(true);
     try {
-      const url = `http://localhost:8000/api/chart/data/${symbol}?timeframe=${timeframe}&before=${oldestTimestampRef.current}`;
+      const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001/api/v1';
+      const url = `${base.replace(/\/api\/v1$/, '')}/api/v1/chart/data/${symbol}?timeframe=${timeframe}&before=${oldestTimestampRef.current}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
       
@@ -66,7 +67,8 @@ export default function TacticalChart({ symbol }) {
     allDataRef.current = [];
     oldestTimestampRef.current = null;
     
-    const url = `http://localhost:8000/api/chart/data/${symbol}?timeframe=${timeframe}`;
+    const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001/api/v1';
+    const url = `${base.replace(/\/api\/v1$/, '')}/api/v1/chart/data/${symbol}?timeframe=${timeframe}`;
     
     fetch(url, { signal: abortController.signal })
       .then(res => {

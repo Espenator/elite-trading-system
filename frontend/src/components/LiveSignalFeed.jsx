@@ -15,7 +15,8 @@ export default function LiveSignalFeed({ onSelectSymbol }) {
     const connect = () => {
       try {
         setConnectionStatus('connecting');
-        ws = new WebSocket('ws://localhost:8000/ws');
+        const wsHost = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001/api/v1').replace(/^https/, 'wss').replace(/^http/, 'ws').replace(/\/api\/v1.*/, '') || 'ws://localhost:8001';
+        ws = new WebSocket(`${wsHost}/ws`);
         
         ws.onopen = () => {
           console.log('✅ WebSocket Connected to signal feed');

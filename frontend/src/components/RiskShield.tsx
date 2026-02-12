@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Shield, ShieldCheck, ShieldX, RefreshCw, AlertTriangle, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 
 interface RiskCheck {
@@ -26,7 +26,7 @@ interface RiskShieldProps {
   refreshInterval?: number;
 }
 
-const API_URL = 'http://localhost:8000/api/v1/risk';
+const API_URL = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001/api/v1'}/risk`;
 
 export function RiskShield({ symbol = 'NVDA', quantity = 100, onValidationComplete, autoRefresh = true, refreshInterval = 10000 }: RiskShieldProps) {
   const [validation, setValidation] = useState<RiskValidationResponse | null>(null);

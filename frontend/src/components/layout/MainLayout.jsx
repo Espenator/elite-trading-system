@@ -4,7 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faChartLine, faExchangeAlt, faThLarge, faBrain, faChartBar,
   faSearch, faHistory, faCog, faShieldAlt, faChessKnight,
-  faChevronLeft, faChevronRight
+  faChevronLeft, faChevronRight, faSignal, faFlask
 } from '@fortawesome/free-solid-svg-icons';
 import Header from './Header';
 import Footer from './Footer';
@@ -16,7 +16,9 @@ const menuItems = [
   { path: '/model-training', icon: faBrain, label: 'Model Training & Metrics' },
   { path: '/performance', icon: faChartBar, label: 'Performance Analytics' },
   { path: '/screener', icon: faSearch, label: 'Screener Results' },
-  { path: '/order-history', icon: faHistory, label: 'Order History & Backtest' },
+  { path: '/signals', icon: faSignal, label: 'ML Signals' },
+  { path: '/backtest', icon: faFlask, label: 'Backtest' },
+  { path: '/order-history', icon: faHistory, label: 'Order History' },
   { path: '/risk-config', icon: faShieldAlt, label: 'Risk Configuration' },
   { path: '/strategy', icon: faChessKnight, label: 'Strategy Settings' },
   { path: '/settings', icon: faCog, label: 'Settings' },

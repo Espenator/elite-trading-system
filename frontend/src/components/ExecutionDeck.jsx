@@ -8,18 +8,22 @@ export default function ExecutionDeck({ symbol }) {
   useEffect(() => {
     if (!symbol) return;
     
-    // Fetch active signal for symbol
-    fetch(`http://localhost:8000/api/signals/active/${symbol}`)
+    // Fetch active signal for symbol (GET /api/v1/signals/active/{symbol})
+    const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001/api/v1';
+    fetch(`${base}/signals/active/${encodeURIComponent(symbol)}`)
       .then(res => {
         if (!res.ok) {
-          // No active signal is not an error
+          // 404 = no active signal for this symbol
           return null;
         }
         return res.json();
       })
       .then(data => {
-        if (data && data.entry) {
-          setActiveSignal(data);
+        if (data && (data.entry != null || data.action === 'BUY')) {
+          setActiveSignal({
+            ...data,
+            riskReward: data.riskReward ?? data.risk_reward ?? 0,
+          });
         } else {
           setActiveSignal(null);
         }

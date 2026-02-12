@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Brain, TrendingUp, TrendingDown, RefreshCw, AlertTriangle, Activity, BarChart3, Loader2, CheckCircle, XCircle } from 'lucide-react';
 
 interface ModelStats {
@@ -27,7 +27,7 @@ interface PredictionRecord {
   actual?: 'WIN' | 'LOSS' | 'PENDING';
 }
 
-const API_URL = 'http://localhost:8000/api/v1/ml';
+const API_URL = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001/api/v1'}/ml`;
 
 export function MLInsightsPanel() {
   const [stats, setStats] = useState<ModelStats | null>(null);

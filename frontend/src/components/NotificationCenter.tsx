@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { AlertCircle, CheckCircle, AlertTriangle, Info, X, Bell, BellOff } from 'lucide-react';
 
 interface Notification {
@@ -11,7 +11,7 @@ interface Notification {
   symbol?: string;
 }
 
-const WS_URL = 'ws://localhost:8000/api/v1/notifications/ws/alerts';
+const WS_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001/api/v1').replace(/^https/, 'wss').replace(/^http/, 'ws').replace(/\/api\/v1.*/, '') + '/api/v1/notifications/ws/alerts';
 const MAX_NOTIFICATIONS = 50;
 const RECONNECT_DELAY = 3000;
 

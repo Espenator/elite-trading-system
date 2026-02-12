@@ -58,7 +58,8 @@ const MarketHeader = () => {
     try {
       // In production, these would call your backend endpoints
       // For now, we simulate with mock data that updates
-      const response = await fetch('http://localhost:8000/api/v1/market/overview');
+      const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001/api/v1';
+      const response = await fetch(`${base}/market/overview`);
       
       if (response.ok) {
         const data = await response.json();
@@ -102,7 +103,8 @@ const MarketHeader = () => {
    */
   const connectWebSocket = () => {
     try {
-      const ws = new WebSocket('ws://localhost:8000/ws/market');
+      const host = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001/api/v1').replace(/^https/, 'wss').replace(/^http/, 'ws').replace(/\/api\/v1.*/, '');
+      const ws = new WebSocket(`${host || 'ws://localhost:8001'}/ws/market`);
       
       ws.onopen = () => {
         console.log('✅ Market WebSocket Connected');

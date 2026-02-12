@@ -1,9 +1,10 @@
 """FastAPI application entry point."""
 import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api.v1 import stocks, quotes, orders, system, training
+from app.api.v1 import stocks, quotes, orders, system, training, signals, backtest_routes, status
 
 # Configure logging
 logging.basicConfig(
@@ -12,12 +13,24 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize data schema on startup."""
+    try:
+        from app.data.storage import init_schema
+        init_schema()
+    except Exception:
+        pass
+    yield
+
+
 # Create FastAPI app
 app = FastAPI(
     title=settings.APP_NAME,
-    description="Elite Trading System Backend API - Finviz Integration",
+    description="Elite Trading System Backend API - Finviz, Alpaca, ML Signals & Backtest",
     version="1.0.0",
-    debug=settings.DEBUG
+    debug=settings.DEBUG,
+    lifespan=lifespan,
 )
 
 # CORS middleware
@@ -58,6 +71,21 @@ app.include_router(
     training.router,
     prefix=f"{settings.API_V1_PREFIX}/training",
     tags=["training"]
+)
+app.include_router(
+    signals.router,
+    prefix=f"{settings.API_V1_PREFIX}/signals",
+    tags=["signals"]
+)
+app.include_router(
+    backtest_routes.router,
+    prefix=f"{settings.API_V1_PREFIX}/backtest",
+    tags=["backtest"]
+)
+app.include_router(
+    status.router,
+    prefix=f"{settings.API_V1_PREFIX}/status",
+    tags=["status"]
 )
 
 

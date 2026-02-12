@@ -31,9 +31,9 @@ class ApiService {
     return response.json();
   }
 
-  // Stock endpoints
+  // Stock endpoints (backend exposes /stocks/list for Finviz screener)
   async getStocks(params = {}) {
-    return this.get('/stocks/', params);
+    return this.get('/stocks/list', params);
   }
 
   async getStockByTicker(ticker) {
