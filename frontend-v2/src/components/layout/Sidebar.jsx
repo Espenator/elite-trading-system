@@ -1,10 +1,12 @@
 // SIDEBAR NAVIGATION - Embodier.ai Glass House Intelligence System
-// OLEH: This is the main navigation for all pages
-// Organized by section: Command, Intelligence, ML & Analysis, Portfolio, Execution, System
+// OLEH: This is the main navigation for all 15 pages
+// Organized by section: Command, Intelligence, ML & Analysis, Execution, System
 // Every page maps 1:1 to a backend module per the architecture doc
+
 import { NavLink, useLocation } from 'react-router-dom';
 import { useState } from 'react';
-// ========== NAV SECTIONS ==========
+
+// ----------- NAV SECTIONS -----------
 // Grouped logically so Espen can find anything in 2 clicks
 const navSections = [
   {
@@ -12,12 +14,17 @@ const navSections = [
     items: [
       { to: '/dashboard', icon: '⬢', label: 'Intelligence Dashboard' },
       { to: '/agents', icon: '⚙️', label: 'Agent Command Center' },
+      { to: '/operator', icon: '🖥️', label: 'Operator Console' },
     ]
   },
   {
     label: 'INTELLIGENCE',
     items: [
       { to: '/signals', icon: '⚡', label: 'Signal Intelligence' },
+      { to: '/signal-heatmap', icon: '🗺️', label: 'Signal Heatmap' },
+      { to: '/sentiment', icon: '🔴', label: 'Sentiment Intelligence' },
+      { to: '/data-sources', icon: '🔗', label: 'Data Sources Monitor' },
+      { to: '/youtube', icon: '🎬', label: 'YouTube Knowledge' },
     ]
   },
   {
@@ -30,10 +37,11 @@ const navSections = [
     ]
   },
   {
-    label: 'PORTFOLIO',
+    label: 'EXECUTION',
     items: [
-      { to: '/portfolio', icon: '📊', label: 'Portfolio Heatmap' },
       { to: '/trades', icon: '💹', label: 'Trade Execution' },
+      { to: '/risk', icon: '🛡️', label: 'Risk Intelligence' },
+      { to: '/strategy', icon: '🎯', label: 'Strategy Intelligence' },
     ]
   },
   {
@@ -43,9 +51,11 @@ const navSections = [
     ]
   },
 ];
+
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
+
   return (
     <aside
       className={`${
@@ -80,6 +90,7 @@ export default function Sidebar() {
           </svg>
         </button>
       </div>
+
       {/* Navigation Sections */}
       <nav className="flex-1 overflow-y-auto custom-scrollbar py-2">
         {navSections.map((section) => (
@@ -93,6 +104,7 @@ export default function Sidebar() {
               </div>
             )}
             {collapsed && <div className="border-b border-gray-800/30 mx-2 my-1" />}
+
             {/* Nav Items */}
             <ul className="space-y-0.5 px-2">
               {section.items.map((item) => {
@@ -129,6 +141,7 @@ export default function Sidebar() {
           </div>
         ))}
       </nav>
+
       {/* Bottom: System Status */}
       {!collapsed && (
         <div className="border-t border-gray-800/50 p-3">
