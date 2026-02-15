@@ -7,34 +7,30 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 import Layout from './components/layout/Layout';
 
-// ========== PAGE IMPORTS ==========
+// ----------- PAGE IMPORTS -----------
 // COMMAND section
 import Dashboard from './pages/Dashboard';
 import AgentCommandCenter from './pages/AgentCommandCenter';
-import OperatorConsole from './pages/OperatorConsole';
 
 // INTELLIGENCE section
 import Signals from './pages/Signals';
-import SignalHeatmap from './pages/SignalHeatmap';
-import Sentiment from './pages/Sentiment';
-import DataSources from './pages/DataSources';
-import YouTubeKnowledge from './pages/YouTubeKnowledge';
 
 // ML & ANALYSIS section
 import MLInsights from './pages/MLInsights';
 import Patterns from './pages/Patterns';
-import BacktestLab from './pages/BacktestLab';
+import Backtesting from './pages/Backtesting';
 import PerformanceAnalytics from './pages/PerformanceAnalytics';
+
+// PORTFOLIO section
+import Portfolio from './pages/Portfolio';
 
 // EXECUTION section
 import Trades from './pages/Trades';
-import RiskIntelligence from './pages/RiskIntelligence';
-import StrategyIntelligence from './pages/StrategyIntelligence';
 
 // SYSTEM section
 import Settings from './pages/Settings';
 
-// ========== LOADING FALLBACK ==========
+// ----------- LOADING FALLBACK -----------
 function PageLoader() {
   return (
     <div className="flex items-center justify-center h-full">
@@ -57,25 +53,21 @@ function App() {
           {/* COMMAND */}
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="agents" element={<AgentCommandCenter />} />
-          <Route path="operator" element={<OperatorConsole />} />
 
           {/* INTELLIGENCE */}
           <Route path="signals" element={<Signals />} />
-          <Route path="signal-heatmap" element={<SignalHeatmap />} />
-          <Route path="sentiment" element={<Sentiment />} />
-          <Route path="data-sources" element={<DataSources />} />
-          <Route path="youtube" element={<YouTubeKnowledge />} />
 
           {/* ML & ANALYSIS */}
           <Route path="ml-insights" element={<MLInsights />} />
           <Route path="patterns" element={<Patterns />} />
-          <Route path="backtest" element={<BacktestLab />} />
+          <Route path="backtest" element={<Backtesting />} />
           <Route path="performance" element={<PerformanceAnalytics />} />
+
+          {/* PORTFOLIO */}
+          <Route path="portfolio" element={<Portfolio />} />
 
           {/* EXECUTION */}
           <Route path="trades" element={<Trades />} />
-          <Route path="risk" element={<RiskIntelligence />} />
-          <Route path="strategy" element={<StrategyIntelligence />} />
 
           {/* SYSTEM */}
           <Route path="settings" element={<Settings />} />
