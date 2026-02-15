@@ -8,24 +8,28 @@ import { Suspense, lazy } from 'react';
 import Layout from './components/layout/Layout';
 
 // ----------- PAGE IMPORTS -----------
-// COMMAND section
+// COMMAND section (3 pages)
 import Dashboard from './pages/Dashboard';
 import AgentCommandCenter from './pages/AgentCommandCenter';
+import OperatorConsole from './pages/OperatorConsole';
 
-// INTELLIGENCE section
+// INTELLIGENCE section (4 pages)
 import Signals from './pages/Signals';
+import SignalHeatmap from './pages/SignalHeatmap';
+import SentimentIntelligence from './pages/SentimentIntelligence';
+import DataSourcesMonitor from './pages/DataSourcesMonitor';
+import YouTubeKnowledge from './pages/YouTubeKnowledge';
 
-// ML & ANALYSIS section
+// ML & ANALYSIS section (4 pages)
 import MLInsights from './pages/MLInsights';
 import Patterns from './pages/Patterns';
 import Backtesting from './pages/Backtesting';
 import PerformanceAnalytics from './pages/PerformanceAnalytics';
 
-// PORTFOLIO section
-import Portfolio from './pages/Portfolio';
-
-// EXECUTION section
+// EXECUTION section (3 pages)
 import Trades from './pages/Trades';
+import RiskIntelligence from './pages/RiskIntelligence';
+import StrategyIntelligence from './pages/StrategyIntelligence';
 
 // SYSTEM section
 import Settings from './pages/Settings';
@@ -53,9 +57,14 @@ function App() {
           {/* COMMAND */}
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="agents" element={<AgentCommandCenter />} />
+          <Route path="operator" element={<OperatorConsole />} />
 
           {/* INTELLIGENCE */}
           <Route path="signals" element={<Signals />} />
+          <Route path="signal-heatmap" element={<SignalHeatmap />} />
+          <Route path="sentiment" element={<SentimentIntelligence />} />
+          <Route path="data-sources" element={<DataSourcesMonitor />} />
+          <Route path="youtube" element={<YouTubeKnowledge />} />
 
           {/* ML & ANALYSIS */}
           <Route path="ml-insights" element={<MLInsights />} />
@@ -63,11 +72,10 @@ function App() {
           <Route path="backtest" element={<Backtesting />} />
           <Route path="performance" element={<PerformanceAnalytics />} />
 
-          {/* PORTFOLIO */}
-          <Route path="portfolio" element={<Portfolio />} />
-
           {/* EXECUTION */}
           <Route path="trades" element={<Trades />} />
+          <Route path="risk" element={<RiskIntelligence />} />
+          <Route path="strategy" element={<StrategyIntelligence />} />
 
           {/* SYSTEM */}
           <Route path="settings" element={<Settings />} />
