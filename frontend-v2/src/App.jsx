@@ -1,7 +1,7 @@
-// APP ROUTER - Embodier.ai Glass House Intelligence System
+// APP ROUTER - Embodier.ai Trading Intelligence System
 // OLEH: This is the main router. Every page listed in the sidebar has a route here.
 // If you add a new page, add: 1) import, 2) route, 3) sidebar entry in Sidebar.jsx
-// All 15 pages map 1:1 to backend modules per V2-EMBODIER-AI-README.md
+// All 16 pages map 1:1 to backend modules per V2-EMBODIER-AI-README.md
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
@@ -13,7 +13,7 @@ import Dashboard from './pages/Dashboard';
 import AgentCommandCenter from './pages/AgentCommandCenter';
 import OperatorConsole from './pages/OperatorConsole';
 
-// INTELLIGENCE section (4 pages)
+// INTELLIGENCE section (5 pages)
 import Signals from './pages/Signals';
 import SignalHeatmap from './pages/SignalHeatmap';
 import SentimentIntelligence from './pages/SentimentIntelligence';
