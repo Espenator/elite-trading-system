@@ -1,4 +1,3 @@
-// SIDEBAR NAVIGATION - Embodier.ai Glass House Intelligence System
 // OLEH: This is the main navigation for all 15 pages
 // Organized by section: Command, Intelligence, ML & Analysis, Execution, System
 // Every page maps 1:1 to a backend module per the architecture doc
@@ -71,7 +70,7 @@ export default function Sidebar() {
             </div>
             <div>
               <h1 className="text-sm font-bold text-white leading-tight">Embodier.ai</h1>
-              <p className="text-[10px] text-cyan-400/70">Glass House Intelligence</p>
+                            <p className="text-[10px] text-cyan-400/70">Trading Intelligence</p>
             </div>
           </div>
         )}
