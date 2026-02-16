@@ -126,13 +126,13 @@ frontend-v2/src/
     useDataSources.js         -- Data source health monitoring
   components/
     layout/
-      Layout.jsx              -- REWRITE: Glass House wrapper
-      Sidebar.jsx             -- REWRITE: Embodier.ai branding + 15 nav items
+      Layout.jsx              -- REWRITE: Trading Intelligence wrapper
+      Sidebar.jsx             -- REWRITE: Embodier.ai branding + 16 nav items
       Header.jsx              -- REWRITE: Agent health ticker bar
     shared/
       AgentStatusPill.jsx     -- Reusable agent status indicator
       DataSourceBadge.jsx     -- Reusable source health badge
-      GlassHouseBar.jsx       -- Top-level system health strip
+      TradingIntelligenceBar.jsx       -- Top-level system health strip
       MicroControlSlider.jsx  -- Reusable variable control widget
       OperatorVetoButton.jsx  -- Confirm/Veto action button
   pages/
@@ -149,9 +149,9 @@ frontend-v2/src/
     StrategyIntelligence.jsx  -- REWRITE: Strategy A/B testing
     BacktestLab.jsx           -- REWRITE: On-demand + scheduled
     PerformanceAnalytics.jsx  -- REWRITE: Deep analytics
-    OperatorConsole.jsx       -- NEW: Master Glass House view
+    OperatorConsole.jsx       -- NEW: Master Trading Intelligence view
     Settings.jsx              -- REWRITE: 10 API keys + configs
-  App.jsx                     -- REWRITE: 15 routes
+  App.jsx                     -- REWRITE: 16 routes
 ```
 
 ---
@@ -189,7 +189,7 @@ The sidebar shows:
 3. Start with: `config/api.js` and `hooks/useApi.js` (foundation)
 4. Then: `Layout.jsx` + `Sidebar.jsx` + `Header.jsx` (shell)
 5. Then: `Dashboard.jsx` (main page)
-6. Then: Agent Command Center (core Glass House feature)
+6. Then: Agent Command Center (core Trading Intelligence feature)
 7. Then: All remaining pages in any order
 8. Backend endpoints needed are documented in each page file
 
@@ -267,7 +267,7 @@ Visily Project: https://app.visily.ai/projects/b8aeaef9-c6a5-4386-bf1c-f1d3aaed5
 
 ### Current Visily Screens (23 screens on board):
 1. Screen 29 (blank placeholder)
-2. Embodier Trader - Glass House Intelligence Overview (Dashboard v1)
+2. Embodier Trader - Trading Intelligence Overview (Dashboard v1)
 3. Dashboard (main dashboard)
 4. Trade Execution
 5. Model Training & Metrics (maps to MLInsights.jsx)
@@ -321,7 +321,7 @@ SYSTEM:
 
 ### Visily Branding Rules:
 - Header: "Embodier Trader" (NOT "Elite Trading Terminal")
-- Sidebar logo: Embodier.ai with "Glass House Intelligence" subtitle
+- Sidebar logo: Embodier.ai with "Trading Intelligence" subtitle
 - Footer: "(c) 2025 Embodier Trader. All rights reserved."
 - Page subtitles: Use the code subtitle text, not "Elite Trading System"
 
@@ -380,7 +380,7 @@ All endpoints live under `/api/v1/` prefix.
 2. [ ] Add 8 missing page screens
 3. [ ] Remove duplicate/legacy screens
 4. [ ] Ensure all branding is Embodier Trader
-5. 5. | | Remove all "Glass House" text from all screens
+5. 5. | | Remove all "Trading Intelligence" text from all screens
 6. | | Fix sidebar menus on screens 11-21 to match Sidebar.jsx 16-page structure
 
 Lets build the worlds smartest trading intelligence system.
