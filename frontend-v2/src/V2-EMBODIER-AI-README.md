@@ -201,4 +201,184 @@ Every page has a header comment block like:
 // OLEH: See backend TODO at bottom of this file
 ```
 
+
+Lets build the worlds smartest trading intelligence system.
+
+---
+
+## MASTER SYNC STATUS (Updated Feb 15 2026 9PM EST)
+
+### CRITICAL MISMATCHES TO FIX
+
+App.jsx imports files that DO NOT EXIST yet:
+- `DataSourcesMonitor` from `./pages/DataSourcesMonitor` -- FILE MISSING, needs creation
+- `YouTubeKnowledge` from `./pages/YouTubeKnowledge` -- FILE MISSING, needs creation
+- `RiskIntelligence` from `./pages/RiskIntelligence` -- FILE MISSING (we have RiskConfiguration.jsx)
+- `StrategyIntelligence` from `./pages/StrategyIntelligence` -- FILE MISSING (we have StrategySettings.jsx)
+
+Files that EXIST but are NOT routed in App.jsx:
+- `ScreenerResults.jsx` -- exists but no route in App.jsx
+- `TradeExecution.jsx` -- exists but no route (Trades.jsx is routed instead)
+
+### DECISION NEEDED: Rename vs Create
+
+Option A (Rename existing to match App.jsx):
+- `RiskConfiguration.jsx` -> rename to `RiskIntelligence.jsx`
+- `StrategySettings.jsx` -> rename to `StrategyIntelligence.jsx`
+- Create new: `DataSourcesMonitor.jsx` and `YouTubeKnowledge.jsx`
+
+Option B (Update App.jsx to match existing files):
+- Change App.jsx import from `RiskIntelligence` to `RiskConfiguration`
+- Change App.jsx import from `StrategyIntelligence` to `StrategySettings`
+- Still need: `DataSourcesMonitor.jsx` and `YouTubeKnowledge.jsx`
+
+---
+
+## COMPLETE FILE-TO-ROUTE-TO-SIDEBAR-TO-VISILY MAP
+
+| # | JSX File (exists) | App.jsx Route | Sidebar Label | Sidebar Section | Visily Screen | Backend API |
+|---|---|---|---|---|---|---|
+| 1 | Dashboard.jsx | /dashboard | Intelligence Dashboard | COMMAND | Dashboard | All modules |
+| 2 | AgentCommandCenter.jsx | /agents | Agent Command Center | COMMAND | (needs screen) | /api/v1/agents |
+| 3 | OperatorConsole.jsx | /operator | Operator Console | COMMAND | (needs screen) | /api/v1/system |
+| 4 | Signals.jsx | /signals | Signal Intelligence | INTELLIGENCE | (needs screen) | /api/v1/signals |
+| 5 | SignalHeatmap.jsx | /signal-heatmap | Signal Heatmap | INTELLIGENCE | (needs screen) | /api/v1/signals/heatmap |
+| 6 | SentimentIntelligence.jsx | /sentiment | Sentiment Intelligence | INTELLIGENCE | (needs screen) | /api/v1/sentiment |
+| 7 | DataSourcesMonitor.jsx (MISSING) | /data-sources | Data Sources Monitor | INTELLIGENCE | (needs screen) | /api/v1/data-sources |
+| 8 | YouTubeKnowledge.jsx (MISSING) | /youtube | YouTube Knowledge | INTELLIGENCE | (needs screen) | /api/v1/youtube-knowledge |
+| 9 | MLInsights.jsx | /ml-insights | ML Brain & Flywheel | ML & ANALYSIS | Model Training & Metrics | /api/v1/training |
+| 10 | Patterns.jsx | /patterns | Screener & Patterns | ML & ANALYSIS | (needs screen) | /api/v1/patterns |
+| 11 | Backtesting.jsx | /backtest | Backtesting Lab | ML & ANALYSIS | Backtesting Lab | /api/v1/backtest |
+| 12 | PerformanceAnalytics.jsx | /performance | Performance Analytics | ML & ANALYSIS | Performance Analytics | /api/v1/performance |
+| 13 | Trades.jsx | /trades | Trade Execution | EXECUTION | Trade Execution | /api/v1/orders |
+| 14 | RiskConfiguration.jsx | /risk (as RiskIntelligence) | Risk Intelligence | EXECUTION | Risk Configuration | /api/v1/risk |
+| 15 | StrategySettings.jsx | /strategy (as StrategyIntelligence) | Strategy Intelligence | EXECUTION | Strategy Settings | /api/v1/strategy |
+| 16 | Settings.jsx | /settings | Settings | SYSTEM | Settings | /api/v1/system/config |
+
+Extra files with no App.jsx route:
+- `ScreenerResults.jsx` -- legacy, content merged into Patterns.jsx
+- `TradeExecution.jsx` -- legacy, content merged into Trades.jsx
+
+---
+
+## VISILY UI/UX DESIGN LINK
+
+Visily Project: https://app.visily.ai/projects/b8aeaef9-c6a5-4386-bf1c-f1d3aaed51f7/boards/2389672
+
+### Current Visily Screens (23 screens on board):
+1. Screen 29 (blank placeholder)
+2. Embodier Trader - Glass House Intelligence Overview (Dashboard v1)
+3. Dashboard (main dashboard)
+4. Trade Execution
+5. Model Training & Metrics (maps to MLInsights.jsx)
+6. Screener Results (maps to Patterns.jsx / ScreenerResults.jsx)
+7. Order History & Backtest (maps to Backtesting.jsx)
+8. Settings
+9. Risk Configuration
+10-14. (Signal Fusion Weights, Quantify Analytics, ML Model Control, etc)
+15. Backtesting Lab
+16. Performance Analytics
+17-23. (duplicates and older versions)
+
+### Visily Screens Still Needed:
+- Agent Command Center
+- Operator Console
+- Signal Intelligence
+- Signal Heatmap
+- Sentiment Intelligence
+- Data Sources Monitor
+- YouTube Knowledge
+- Screener & Patterns (updated from Screener Results)
+
+### Visily Sidebar Menu (must match on ALL screens):
+Every screen in Visily must show this EXACT sidebar structure:
+
+COMMAND:
+- Intelligence Dashboard
+- Agent Command Center
+- Operator Console
+
+INTELLIGENCE:
+- Signal Intelligence
+- Signal Heatmap
+- Sentiment Intelligence
+- Data Sources Monitor
+- YouTube Knowledge
+
+ML & ANALYSIS:
+- ML Brain & Flywheel
+- Screener & Patterns
+- Backtesting Lab
+- Performance Analytics
+
+EXECUTION:
+- Trade Execution
+- Risk Intelligence
+- Strategy Intelligence
+
+SYSTEM:
+- Settings
+
+### Visily Branding Rules:
+- Header: "Embodier Trader" (NOT "Elite Trading Terminal")
+- Sidebar logo: Embodier.ai with "Glass House Intelligence" subtitle
+- Footer: "(c) 2025 Embodier Trader. All rights reserved."
+- Page subtitles: Use the code subtitle text, not "Elite Trading System"
+
+---
+
+## BACKEND API ENDPOINTS NEEDED
+
+All endpoints live under `/api/v1/` prefix.
+
+| Endpoint | Method | Page | Purpose |
+|---|---|---|---|
+| /api/v1/dashboard | GET | Dashboard | Aggregated overview data |
+| /api/v1/agents | GET/POST | Agent Command Center | Agent status and control |
+| /api/v1/agents/:id/start | POST | Agent Command Center | Start specific agent |
+| /api/v1/agents/:id/stop | POST | Agent Command Center | Stop specific agent |
+| /api/v1/system | GET | Operator Console | System logs, all agent activity |
+| /api/v1/signals | GET | Signal Intelligence | Live signals with evidence |
+| /api/v1/signals/heatmap | GET | Signal Heatmap | Heatmap data by sector/ticker |
+| /api/v1/sentiment | GET | Sentiment Intelligence | Multi-source sentiment scores |
+| /api/v1/data-sources | GET | Data Sources Monitor | Health of all 10 feeds |
+| /api/v1/youtube-knowledge | GET | YouTube Knowledge | Transcript data and ideas |
+| /api/v1/training | GET/POST | ML Brain & Flywheel | ML model data and retrain |
+| /api/v1/flywheel | GET | ML Brain & Flywheel | Flywheel accuracy metrics |
+| /api/v1/patterns | GET | Screener & Patterns | Pattern scan results |
+| /api/v1/backtest | GET/POST | Backtesting Lab | Backtest configs and results |
+| /api/v1/performance | GET | Performance Analytics | Equity curve, metrics |
+| /api/v1/orders | GET/POST | Trade Execution | Order management |
+| /api/v1/risk | GET | Risk Intelligence | Position sizing, drawdown |
+| /api/v1/strategy | GET/PUT | Strategy Intelligence | Strategy configs, A/B tests |
+| /api/v1/system/config | GET/PUT | Settings | All API keys, model configs |
+
+---
+
+## NEXT STEPS CHECKLIST
+
+### Frontend (Priority Order):
+1. [ ] Fix App.jsx imports to match actual filenames OR rename files
+2. [ ] Create DataSourcesMonitor.jsx (new page)
+3. [ ] Create YouTubeKnowledge.jsx (new page)
+4. [ ] Update all Visily sidebar menus to match code Sidebar.jsx
+5. [ ] Create missing Visily screens for new pages
+6. [ ] Replace all "Elite Trading System" text with "Embodier Trader"
+7. [ ] Verify all 16 page screens match their JSX code structure
+
+### Backend (Priority Order):
+1. [ ] Set up /api/v1/ route prefix
+2. [ ] Implement /api/v1/agents endpoint (Agent Command Center)
+3. [ ] Implement /api/v1/signals endpoint (Signal Intelligence)
+4. [ ] Implement /api/v1/data-sources endpoint (Data Sources Monitor)
+5. [ ] Implement /api/v1/youtube-knowledge endpoint (YouTube Knowledge)
+6. [ ] Implement /api/v1/sentiment endpoint (Sentiment Intelligence)
+7. [ ] Implement all remaining endpoints per table above
+
+### Design (Visily):
+1. [ ] Standardize sidebar across all 23 screens
+2. [ ] Add 8 missing page screens
+3. [ ] Remove duplicate/legacy screens
+4. [ ] Ensure all branding is Embodier Trader
+
 Lets build the worlds smartest trading intelligence system.
