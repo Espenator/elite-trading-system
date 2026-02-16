@@ -1,4 +1,4 @@
-// OLEH: This is the main navigation for all 15 pages
+// OLEH: This is the main navigation for all 16 pages
 // Organized by section: Command, Intelligence, ML & Analysis, Execution, System
 // Every page maps 1:1 to a backend module per the architecture doc
 
