@@ -1,6 +1,6 @@
-// ELITE TRADER - Embodier.ai Glass House Intelligence System
+// EMBODIER TRADER - Embodier.ai Trading Intelligence System
 // HEADER: Top navigation bar with search, notifications, agent status, user menu
-// Glass House gradient aesthetic with futuristic controls
+// Modern gradient aesthetic with futuristic controls
 
 import { useState } from 'react';
 import {
@@ -47,7 +47,7 @@ export default function Header({ onMenuToggle }) {
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/10">
-      {/* Glass House gradient background */}
+              {/* Gradient background */}
       <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 opacity-95" />
       <div className="absolute inset-0 bg-gradient-to-b from-blue-500/5 via-purple-500/5 to-transparent" />
       
@@ -177,7 +177,7 @@ export default function Header({ onMenuToggle }) {
                   <User className="w-4 h-4 text-white" />
                 </div>
                 <div className="hidden md:block text-left">
-                  <div className="text-sm font-medium text-white">Elite Trader</div>
+                            <div className="text-sm font-medium text-white">Embodier Trader</div>
                   <div className="text-xs text-gray-500">Pro Account</div>
                 </div>
                 <ChevronDown className="w-4 h-4 text-gray-400" />
@@ -187,8 +187,8 @@ export default function Header({ onMenuToggle }) {
               {showUserMenu && (
                 <div className="absolute right-0 mt-2 w-56 rounded-xl bg-slate-800/95 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50 overflow-hidden">
                   <div className="px-4 py-3 border-b border-white/10">
-                    <div className="font-medium text-white">elite@trader.ai</div>
-                    <div className="text-xs text-gray-500 mt-0.5">Account ID: ET-2024-001</div>
+                                  <div className="font-medium text-white">espen@embodier.ai</div>
+                                  <div className="text-xs text-gray-500 mt-0.5">Account ID: EMB-2025-001</div>
                   </div>
                   <div className="py-2">
                     <a href="#" className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 transition-colors">
