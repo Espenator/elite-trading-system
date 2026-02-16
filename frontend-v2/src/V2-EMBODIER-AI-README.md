@@ -10,7 +10,7 @@
 This is NOT a trading app. This is a **pure AI intelligence system** that happens to generate trading signals. Think of it as a brain you can see inside of.
 
 ### Core Principles:
-1. **Glass House (not Black Box)** - The operator (Espen) sees EVERYTHING the AI sees, in real-time
+1. **Transparency (not Black Box)** - the operator (Espen) sees EVERYTHING the AI sees, in real time
 2. **Human as Final Oversight Layer** - The system does the heavy lifting, but the human adds intuitive pattern recognition, veto power, and confirmation
 3. **Self-Learning Flywheel** - Gets smarter after every trade, every data ingestion, every Sunday retrain
 4. **5 AI Agents Working as a Team** - Each visible, controllable, pausable, with every variable exposed
@@ -46,7 +46,7 @@ Every page in the UI corresponds to a backend module or agent:
 | Strategy Intelligence | /api/v1/strategy | Active strategies, parameter tuning, A/B testing |
 | Backtest Lab | /api/v1/backtest | On-demand and scheduled backtesting |
 | Performance Analytics | /api/v1/performance | Equity curve, win rate, Sharpe, by-strategy breakdown |
-| Operator Console | /api/v1/system | Master Glass House view - system logs, all agent activity |
+| Operator Console | /api/v1/system | Master overview - system logs, all agent activity |
 | Settings | /api/v1/system/config | All 10 API keys, model configs, schedule settings |
 
 ---
@@ -361,7 +361,7 @@ All endpoints live under `/api/v1/` prefix.
 1. [ ] Fix App.jsx imports to match actual filenames OR rename files
 2. [ ] Create DataSourcesMonitor.jsx (new page)
 3. [ ] Create YouTubeKnowledge.jsx (new page)
-4. [ ] Update all Visily sidebar menus to match code Sidebar.jsx
+4. | | Update all Visily sidebar menus to match code Sidebar.jsx (5 sections: COMMAND, INTELLIGENCE, ML & ANALYSIS, EXECUTION, SYSTEM)
 5. [ ] Create missing Visily screens for new pages
 6. [ ] Replace all "Elite Trading System" text with "Embodier Trader"
 7. [ ] Verify all 16 page screens match their JSX code structure
@@ -380,5 +380,7 @@ All endpoints live under `/api/v1/` prefix.
 2. [ ] Add 8 missing page screens
 3. [ ] Remove duplicate/legacy screens
 4. [ ] Ensure all branding is Embodier Trader
+5. 5. | | Remove all "Glass House" text from all screens
+6. | | Fix sidebar menus on screens 11-21 to match Sidebar.jsx 16-page structure
 
 Lets build the worlds smartest trading intelligence system.
