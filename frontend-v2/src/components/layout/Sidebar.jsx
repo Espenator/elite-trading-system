@@ -112,7 +112,7 @@ export default function Sidebar() {
           <div key={section.label} className={collapsed ? '' : 'mb-1'}>
             {!collapsed && (
               <div className="px-4 py-2">
-                <span className="text-[10px] font-bold text-secondary tracking-widest uppercase">
+                <span className="text-xs font-bold text-white/80 tracking-widest uppercase">
                   {section.label}
                 </span>
               </div>
