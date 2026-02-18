@@ -17,8 +17,8 @@ import OperatorConsole from './pages/OperatorConsole';
 import Signals from './pages/Signals';
 import SignalHeatmap from './pages/SignalHeatmap';
 import SentimentIntelligence from './pages/SentimentIntelligence';
-// import DataSourcesMonitor from './pages/DataSourcesMonitor';
-// import YouTubeKnowledge from './pages/YouTubeKnowledge';
+import DataSourcesMonitor from './pages/DataSourcesMonitor';
+import YouTubeKnowledge from './pages/YouTubeKnowledge';
 
 // ML & ANALYSIS section (4 pages)
 import MLInsights from './pages/MLInsights';
@@ -63,8 +63,8 @@ function App() {
           <Route path="signals" element={<Signals />} />
           <Route path="signal-heatmap" element={<SignalHeatmap />} />
           <Route path="sentiment" element={<SentimentIntelligence />} />
-          {/* <Route path="data-sources" element={<DataSourcesMonitor />} /> */}
-          {/* <Route path="youtube" element={<YouTubeKnowledge />} /> */}
+          <Route path="data-sources" element={<DataSourcesMonitor />} />
+          <Route path="youtube" element={<YouTubeKnowledge />} />
 
           {/* ML & ANALYSIS */}
           <Route path="ml-insights" element={<MLInsights />} />
