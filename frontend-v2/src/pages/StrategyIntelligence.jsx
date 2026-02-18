@@ -49,7 +49,7 @@ const StrategyIntelligence = () => {
       case 'Active': return 'text-green-500';
       case 'Paused': return 'text-yellow-500';
       case 'Error': return 'text-red-500';
-      default: return 'text-gray-500';
+      default: return 'text-secondary';
     }
   };
 
@@ -58,14 +58,14 @@ const StrategyIntelligence = () => {
       case 'Active': return 'bg-green-900/20 border-green-700';
       case 'Paused': return 'bg-yellow-900/20 border-yellow-700';
       case 'Error': return 'bg-red-900/20 border-red-700';
-      default: return 'bg-gray-900/20 border-gray-700';
+      default: return 'bg-secondary/20 border-secondary/50';
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6">
+    <div className="min-h-screen bg-dark text-white p-6">
       {/* Emergency Controls */}
-      <div className="bg-black border border-gray-700 rounded-lg p-6 mb-6">
+      <div className="bg-black border border-secondary/50 rounded-lg p-6 mb-6">
         <h2 className="text-xl font-bold mb-2">Emergency Controls</h2>
         <p className="text-sm text-gray-400 mb-6">Global settings to manage all active strategies and positions.</p>
         
@@ -80,7 +80,7 @@ const StrategyIntelligence = () => {
                 onChange={() => setMasterSwitch(!masterSwitch)}
                 className="sr-only peer"
               />
-              <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              <div className="w-11 h-6 bg-secondary/50 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-secondary after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
             </label>
           </div>
 
@@ -94,7 +94,7 @@ const StrategyIntelligence = () => {
                 onChange={() => setPauseAll(!pauseAll)}
                 className="sr-only peer"
               />
-              <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gray-600"></div>
+              <div className="w-11 h-6 bg-secondary/50 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-secondary after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-secondary"></div>
             </label>
           </div>
 
@@ -108,7 +108,7 @@ const StrategyIntelligence = () => {
                 onChange={() => setCloseAllPositions(!closeAllPositions)}
                 className="sr-only peer"
               />
-              <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gray-600"></div>
+              <div className="w-11 h-6 bg-secondary/50 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-secondary after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-secondary"></div>
             </label>
           </div>
         </div>
@@ -127,7 +127,7 @@ const StrategyIntelligence = () => {
         {strategies.map((strategy) => (
           <div 
             key={strategy.id}
-            className={`bg-gray-800/50 rounded-lg p-6 border-2 ${getStatusBg(strategy.status)}`}
+            className={`bg-secondary/10 rounded-lg p-6 border-2 ${getStatusBg(strategy.status)}`}
           >
             <div className="flex items-start justify-between mb-4">
               <div>
@@ -160,10 +160,10 @@ const StrategyIntelligence = () => {
             </div>
 
             <div className="flex gap-3">
-              <button className="flex-1 bg-gray-700 hover:bg-gray-600 py-2 rounded flex items-center justify-center gap-2">
+              <button className="flex-1 bg-secondary/50 hover:bg-secondary/80 py-2 rounded flex items-center justify-center gap-2">
                 <span>ὄ1</span> View Details
               </button>
-              <button className="flex-1 bg-gray-700 hover:bg-gray-600 py-2 rounded flex items-center justify-center gap-2">
+              <button className="flex-1 bg-secondary/50 hover:bg-secondary/80 py-2 rounded flex items-center justify-center gap-2">
                 <span>✏</span> Edit
               </button>
             </div>

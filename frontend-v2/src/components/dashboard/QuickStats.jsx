@@ -63,10 +63,10 @@ export default function QuickStats() {
       {stats.map((stat) => (
         <div
           key={stat.label}
-          className="bg-dark-card border border-dark-border rounded-xl p-4 card-hover"
+          className="bg-secondary/10 border border-secondary/50 rounded-xl p-4 card-hover"
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-gray-400">{stat.label}</span>
+            <span className="text-xs text-secondary">{stat.label}</span>
             <stat.icon className={clsx(
               'w-4 h-4',
               stat.isPositive ? 'text-bullish' : 'text-bearish'
@@ -78,7 +78,7 @@ export default function QuickStats() {
           )}>
             {stat.value}
           </div>
-          <div className="text-xs text-gray-500 mt-1">
+          <div className="text-xs text-secondary mt-1">
             {stat.change}
           </div>
         </div>

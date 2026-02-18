@@ -37,19 +37,19 @@ export default function Header({ onMenuToggle }) {
 
   const getStatusColor = (status) => {
     switch(status) {
-      case 'active': return 'bg-emerald-500';
-      case 'learning': return 'bg-amber-500';
-      case 'idle': return 'bg-gray-500';
-      case 'error': return 'bg-red-500';
-      default: return 'bg-gray-500';
+      case 'active': return 'bg-success';
+      case 'learning': return 'bg-warning';
+      case 'idle': return 'bg-secondary';
+      case 'error': return 'bg-danger';
+      default: return 'bg-secondary';
     }
   };
 
   return (
-    <header className="sticky top-0 z-50 border-b border-white/10">
+    <header className="sticky top-0 z-50 border-b border-secondary/30">
               {/* Gradient background */}
-      <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 opacity-95" />
-      <div className="absolute inset-0 bg-gradient-to-b from-blue-500/5 via-purple-500/5 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-r from-dark via-dark to-dark opacity-95" />
+      <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent" />
       
       <div className="relative px-6 py-4">
         <div className="flex items-center justify-between gap-6">
@@ -61,7 +61,7 @@ export default function Header({ onMenuToggle }) {
               onClick={onMenuToggle}
               className="lg:hidden p-2 rounded-lg hover:bg-white/5 transition-colors"
             >
-              <Menu className="w-5 h-5 text-gray-400" />
+              <Menu className="w-5 h-5 text-secondary" />
             </button>
 
             {/* Search bar */}
@@ -69,19 +69,19 @@ export default function Header({ onMenuToggle }) {
               <div className={`
                 relative rounded-xl border transition-all duration-300
                 ${searchFocused 
-                  ? 'border-blue-500/50 bg-slate-800/60 shadow-lg shadow-blue-500/10' 
-                  : 'border-white/10 bg-slate-800/40 hover:border-white/20'
+                  ? 'border-primary/50 bg-secondary/20 shadow-lg shadow-primary/10' 
+                  : 'border-secondary/30 bg-secondary/10 hover:border-secondary/50'
                 }
               `}>
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-secondary" />
                 <input
                   type="text"
                   placeholder="Search tickers, patterns, signals..."
-                  className="w-full pl-11 pr-4 py-2.5 bg-transparent text-sm text-white placeholder-gray-500 outline-none"
+                  className="w-full pl-11 pr-4 py-2.5 bg-transparent text-sm text-white placeholder-secondary outline-none"
                   onFocus={() => setSearchFocused(true)}
                   onBlur={() => setSearchFocused(false)}
                 />
-                <kbd className="absolute right-4 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-medium text-gray-500 bg-slate-700/50 rounded border border-white/10">
+                <kbd className="absolute right-4 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-medium text-secondary bg-secondary/20 rounded border border-secondary/30">
                   ⌘K
                 </kbd>
               </div>
@@ -92,74 +92,74 @@ export default function Header({ onMenuToggle }) {
           <div className="flex items-center gap-4">
             
             {/* Agent status indicators */}
-            <div className="hidden xl:flex items-center gap-3 px-4 py-2 rounded-xl bg-slate-800/40 border border-white/10">
-              <Activity className="w-4 h-4 text-emerald-400" />
+            <div className="hidden xl:flex items-center gap-3 px-4 py-2 rounded-xl bg-secondary/10 border border-secondary/30">
+              <Activity className="w-4 h-4 text-success" />
               <div className="flex items-center gap-2">
                 {agents.map((agent, idx) => (
                   <div key={idx} className="group relative">
                     <div className={`w-2 h-2 rounded-full ${getStatusColor(agent.status)} animate-pulse`} />
                     {/* Tooltip */}
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-slate-800 border border-white/10 rounded-lg text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-dark border border-secondary/30 rounded-lg text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                       <div className="font-medium text-white">{agent.name}</div>
-                      <div className="text-gray-400 capitalize">{agent.status}</div>
+                      <div className="text-secondary capitalize">{agent.status}</div>
                     </div>
                   </div>
                 ))}
               </div>
-              <span className="text-xs font-medium text-gray-400">
+              <span className="text-xs font-medium text-secondary">
                 4/4 Active
               </span>
             </div>
 
             {/* Market status indicator */}
-            <div className="hidden lg:flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-              <TrendingUp className="w-4 h-4 text-emerald-400" />
-              <span className="text-sm font-medium text-emerald-400">Market Open</span>
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <div className="hidden lg:flex items-center gap-2 px-4 py-2 rounded-xl bg-success/10 border border-success/30">
+              <TrendingUp className="w-4 h-4 text-success" />
+              <span className="text-sm font-medium text-success">Market Open</span>
+              <div className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
             </div>
 
             {/* Notifications */}
             <div className="relative">
               <button
                 onClick={() => setShowNotifications(!showNotifications)}
-                className="relative p-2.5 rounded-xl bg-slate-800/40 border border-white/10 hover:bg-slate-700/40 hover:border-white/20 transition-all"
+                className="relative p-2.5 rounded-xl bg-secondary/10 border border-secondary/30 hover:bg-secondary/20 hover:border-white/20 transition-all"
               >
-                <Bell className="w-5 h-5 text-gray-400" />
+                <Bell className="w-5 h-5 text-secondary" />
                 {/* Notification badge */}
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-xs font-bold text-white flex items-center justify-center border-2 border-slate-900">
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-xs font-bold text-white flex items-center justify-center border-2 border-dark">
                   4
                 </span>
               </button>
 
               {/* Notifications dropdown */}
               {showNotifications && (
-                <div className="absolute right-0 mt-2 w-80 rounded-xl bg-slate-800/95 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-white/10">
+                <div className="absolute right-0 mt-2 w-80 rounded-xl bg-dark backdrop-blur-xl border border-secondary/30 shadow-2xl shadow-black/50 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-secondary/30">
                     <div className="flex items-center justify-between">
                       <h3 className="text-sm font-semibold text-white">Notifications</h3>
-                      <button className="text-xs text-blue-400 hover:text-blue-300">Mark all read</button>
+                      <button className="text-xs text-primary hover:text-primary/80">Mark all read</button>
                     </div>
                   </div>
                   <div className="max-h-96 overflow-y-auto">
                     {notifications.map((notif) => (
                       <div key={notif.id} className="px-4 py-3 hover:bg-white/5 border-b border-white/5 cursor-pointer transition-colors">
                         <div className="flex items-start gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-                            {notif.type === 'signal' && <Zap className="w-4 h-4 text-blue-400" />}
-                            {notif.type === 'trade' && <TrendingUp className="w-4 h-4 text-emerald-400" />}
-                            {notif.type === 'alert' && <Activity className="w-4 h-4 text-amber-400" />}
-                            {notif.type === 'agent' && <Brain className="w-4 h-4 text-purple-400" />}
+                          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            {notif.type === 'signal' && <Zap className="w-4 h-4 text-primary" />}
+                            {notif.type === 'trade' && <TrendingUp className="w-4 h-4 text-success" />}
+                            {notif.type === 'alert' && <Activity className="w-4 h-4 text-warning" />}
+                            {notif.type === 'agent' && <Brain className="w-4 h-4 text-primary" />}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm text-white leading-snug">{notif.message}</p>
-                            <p className="text-xs text-gray-500 mt-1">{notif.time}</p>
+                            <p className="text-xs text-secondary mt-1">{notif.time}</p>
                           </div>
                         </div>
                       </div>
                     ))}
                   </div>
-                  <div className="px-4 py-3 border-t border-white/10">
-                    <button className="w-full text-sm text-blue-400 hover:text-blue-300 font-medium">
+                  <div className="px-4 py-3 border-t border-secondary/30">
+                    <button className="w-full text-sm text-primary hover:text-primary/80 font-medium">
                       View all notifications
                     </button>
                   </div>
@@ -171,41 +171,41 @@ export default function Header({ onMenuToggle }) {
             <div className="relative">
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
-                className="flex items-center gap-3 pl-3 pr-4 py-2 rounded-xl bg-slate-800/40 border border-white/10 hover:bg-slate-700/40 hover:border-white/20 transition-all"
+                className="flex items-center gap-3 pl-3 pr-4 py-2 rounded-xl bg-secondary/10 border border-secondary/30 hover:bg-secondary/20 hover:border-white/20 transition-all"
               >
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br bg-primary flex items-center justify-center">
                   <User className="w-4 h-4 text-white" />
                 </div>
                 <div className="hidden md:block text-left">
                             <div className="text-sm font-medium text-white">Embodier Trader</div>
-                  <div className="text-xs text-gray-500">Pro Account</div>
+                  <div className="text-xs text-secondary">Pro Account</div>
                 </div>
-                <ChevronDown className="w-4 h-4 text-gray-400" />
+                <ChevronDown className="w-4 h-4 text-secondary" />
               </button>
 
               {/* User dropdown */}
               {showUserMenu && (
-                <div className="absolute right-0 mt-2 w-56 rounded-xl bg-slate-800/95 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-white/10">
+                <div className="absolute right-0 mt-2 w-56 rounded-xl bg-dark backdrop-blur-xl border border-secondary/30 shadow-2xl shadow-black/50 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-secondary/30">
                                   <div className="font-medium text-white">espen@embodier.ai</div>
-                                  <div className="text-xs text-gray-500 mt-0.5">Account ID: EMB-2025-001</div>
+                                  <div className="text-xs text-secondary mt-0.5">Account ID: EMB-2025-001</div>
                   </div>
                   <div className="py-2">
                     <a href="#" className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 transition-colors">
-                      <User className="w-4 h-4 text-gray-400" />
+                      <User className="w-4 h-4 text-secondary" />
                       <span className="text-sm text-white">Profile</span>
                     </a>
                     <a href="#" className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 transition-colors">
-                      <Settings className="w-4 h-4 text-gray-400" />
+                      <Settings className="w-4 h-4 text-secondary" />
                       <span className="text-sm text-white">Settings</span>
                     </a>
                     <a href="#" className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 transition-colors">
-                      <Activity className="w-4 h-4 text-gray-400" />
+                      <Activity className="w-4 h-4 text-secondary" />
                       <span className="text-sm text-white">API Status</span>
                     </a>
                   </div>
-                  <div className="border-t border-white/10 py-2">
-                    <a href="#" className="flex items-center gap-3 px-4 py-2.5 text-red-400 hover:bg-red-500/5 transition-colors">
+                  <div className="border-t border-secondary/30 py-2">
+                    <a href="#" className="flex items-center gap-3 px-4 py-2.5 text-danger hover:bg-danger/10 transition-colors">
                       <span className="text-sm font-medium">Sign out</span>
                     </a>
                   </div>

@@ -32,7 +32,7 @@ export default function Trades() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Trades</h1>
-          <p className="text-sm text-gray-400 mt-1">Manage positions and review history</p>
+          <p className="text-sm text-secondary mt-1">Manage positions and review history</p>
         </div>
         <div className="flex items-center gap-4">
           <div className={`px-4 py-2 rounded-xl border text-sm font-medium ${totalPnl >= 0 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
@@ -52,7 +52,7 @@ export default function Trades() {
           <div key={i} className="bg-slate-800/30 border border-white/10 rounded-2xl p-4">
             <div className="flex items-center gap-2 mb-2">
               <stat.icon className={`w-4 h-4 ${stat.color}`} />
-              <span className="text-xs text-gray-500">{stat.label}</span>
+              <span className="text-xs text-secondary">{stat.label}</span>
             </div>
             <div className="text-xl font-bold text-white">{stat.value}</div>
           </div>
@@ -64,7 +64,7 @@ export default function Trades() {
         {['active', 'history'].map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-6 py-3 text-sm font-medium border-b-2 transition-all ${
-              tab === t ? 'text-blue-400 border-blue-400' : 'text-gray-500 border-transparent hover:text-white'
+              tab === t ? 'text-primary border-primary' : 'text-secondary border-transparent hover:text-white'
             }`}>
             {t === 'active' ? `Active (${ACTIVE_POSITIONS.length})` : `History (${TRADE_HISTORY.length})`}
           </button>
@@ -77,7 +77,7 @@ export default function Trades() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="text-xs text-gray-500 uppercase border-b border-white/5">
+                <tr className="text-xs text-secondary uppercase border-b border-white/5">
                   <th className="text-left px-5 py-3">Ticker</th>
                   <th className="text-left px-3 py-3">Side</th>
                   <th className="text-right px-3 py-3">Qty</th>
@@ -99,15 +99,15 @@ export default function Trades() {
                         {p.side}
                       </span>
                     </td>
-                    <td className="px-3 py-4 text-sm text-gray-400 text-right">{p.qty}</td>
-                    <td className="px-3 py-4 text-sm text-gray-400 text-right">${p.entry.toFixed(2)}</td>
+                    <td className="px-3 py-4 text-sm text-secondary text-right">{p.qty}</td>
+                    <td className="px-3 py-4 text-sm text-secondary text-right">${p.entry.toFixed(2)}</td>
                     <td className="px-3 py-4 text-sm text-white text-right">${p.current.toFixed(2)}</td>
                     <td className={`px-3 py-4 text-sm font-medium text-right ${p.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                       {p.pnl >= 0 ? '+' : ''}${p.pnl} ({p.pnlPct >= 0 ? '+' : ''}{p.pnlPct}%)
                     </td>
                     <td className="px-3 py-4 text-sm text-red-400 text-right">${p.stop.toFixed(2)}</td>
                     <td className="px-3 py-4 text-sm text-emerald-400 text-right">${p.target.toFixed(2)}</td>
-                    <td className="px-3 py-4 text-xs text-gray-500">{p.signal}</td>
+                    <td className="px-3 py-4 text-xs text-secondary">{p.signal}</td>
                     <td className="px-5 py-4 text-right">
                       <button className="px-3 py-1.5 bg-red-500/20 text-red-400 rounded-lg text-xs font-medium hover:bg-red-500/30 transition-colors">
                         Close
@@ -127,7 +127,7 @@ export default function Trades() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="text-xs text-gray-500 uppercase border-b border-white/5">
+                <tr className="text-xs text-secondary uppercase border-b border-white/5">
                   <th className="text-left px-5 py-3">Date</th>
                   <th className="text-left px-3 py-3">Ticker</th>
                   <th className="text-left px-3 py-3">Side</th>
@@ -141,20 +141,20 @@ export default function Trades() {
               <tbody className="divide-y divide-white/5">
                 {TRADE_HISTORY.map(t => (
                   <tr key={t.id} className="hover:bg-white/5 transition-colors">
-                    <td className="px-5 py-4 text-sm text-gray-500">{t.date}</td>
+                    <td className="px-5 py-4 text-sm text-secondary">{t.date}</td>
                     <td className="px-3 py-4 text-sm font-semibold text-white">{t.ticker}</td>
                     <td className="px-3 py-4">
                       <span className={`px-2 py-1 rounded-lg text-xs font-medium ${t.side === 'Long' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
                         {t.side}
                       </span>
                     </td>
-                    <td className="px-3 py-4 text-sm text-gray-400 text-right">{t.qty}</td>
-                    <td className="px-3 py-4 text-sm text-gray-400 text-right">${t.entry.toFixed(2)}</td>
+                    <td className="px-3 py-4 text-sm text-secondary text-right">{t.qty}</td>
+                    <td className="px-3 py-4 text-sm text-secondary text-right">${t.entry.toFixed(2)}</td>
                     <td className="px-3 py-4 text-sm text-white text-right">${t.exit.toFixed(2)}</td>
                     <td className={`px-3 py-4 text-sm font-medium text-right ${t.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                       {t.pnl >= 0 ? '+' : ''}${t.pnl} ({t.pnlPct >= 0 ? '+' : ''}{t.pnlPct}%)
                     </td>
-                    <td className="px-5 py-4 text-sm text-gray-500 text-right">{t.duration}</td>
+                    <td className="px-5 py-4 text-sm text-secondary text-right">{t.duration}</td>
                   </tr>
                 ))}
               </tbody>

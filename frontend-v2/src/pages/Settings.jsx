@@ -21,9 +21,9 @@ function Toggle({ enabled, onChange, label, description }) {
     <div className="flex items-center justify-between py-3">
       <div>
         <div className="text-sm font-medium text-white">{label}</div>
-        {description && <div className="text-xs text-gray-500 mt-0.5">{description}</div>}
+        {description && <div className="text-xs text-secondary mt-0.5">{description}</div>}
       </div>
-      <button onClick={onChange} className="text-gray-400 hover:text-white transition-colors">
+      <button onClick={onChange} className="text-secondary hover:text-white transition-colors">
         {enabled ? <ToggleRight className="w-8 h-8 text-emerald-400" /> : <ToggleLeft className="w-8 h-8" />}
       </button>
     </div>
@@ -42,7 +42,7 @@ function InputField({ label, value, onChange, type = 'text', placeholder, suffix
           placeholder={placeholder}
           className="w-full px-4 py-2.5 bg-slate-800/60 border border-white/10 rounded-xl text-sm text-white placeholder-gray-500 outline-none focus:border-blue-500/50 transition-colors"
         />
-        {suffix && <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-gray-500">{suffix}</span>}
+        {suffix && <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-secondary">{suffix}</span>}
       </div>
     </div>
   );
@@ -175,10 +175,10 @@ export default function Settings() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Settings</h1>
-          <p className="text-sm text-gray-400 mt-1">Configure your trading system</p>
+          <p className="text-sm text-secondary mt-1">Configure your trading system</p>
         </div>
         <div className="flex gap-3">
-          <button className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800/60 border border-white/10 text-sm text-gray-400 hover:text-white hover:border-white/20 transition-all">
+          <button className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800/60 border border-white/10 text-sm text-secondary hover:text-white hover:border-white/20 transition-all">
             <RotateCcw className="w-4 h-4" /> Reset
           </button>
           <button className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-sm font-medium text-white transition-colors">
@@ -199,7 +199,7 @@ export default function Settings() {
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
                   activeTab === tab.id
                     ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
-                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                    : 'text-secondary hover:text-white hover:bg-white/5'
                 }`}
               >
                 <tab.icon className="w-4 h-4" />

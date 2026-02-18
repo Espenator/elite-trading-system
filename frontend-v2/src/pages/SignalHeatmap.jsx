@@ -81,7 +81,7 @@ export default function SignalHeatmap() {
     if (score >= 80) return { label: 'EXTREME', color: 'text-emerald-400' };
     if (score >= 70) return { label: 'HIGH', color: 'text-cyan-400' };
     if (score >= 60) return { label: 'MODERATE', color: 'text-blue-400' };
-    if (score >= 50) return { label: 'LOW', color: 'text-gray-400' };
+    if (score >= 50) return { label: 'LOW', color: 'text-secondary' };
     return { label: 'AVOID', color: 'text-red-400' };
   };
 
@@ -97,7 +97,7 @@ export default function SignalHeatmap() {
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
           <RefreshCw className="w-8 h-8 text-cyan-400 animate-spin mx-auto mb-2" />
-          <p className="text-gray-400">Loading AI composite scores...</p>
+          <p className="text-secondary">Loading AI composite scores...</p>
         </div>
       </div>
     );
@@ -112,12 +112,12 @@ export default function SignalHeatmap() {
             <Map className="w-7 h-7 text-cyan-400" />
             AI Signal Heatmap
           </h1>
-          <p className="text-gray-400 text-sm mt-1">
+          <p className="text-secondary text-sm mt-1">
             Composite scores from all data sources + AI reasoning (Claude/Perplexity)
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <div className="text-xs text-gray-500">
+          <div className="text-xs text-secondary">
             Last update: {lastUpdate.toLocaleTimeString()}
           </div>
           <button
@@ -137,23 +137,23 @@ export default function SignalHeatmap() {
         </div>
         <div className="grid grid-cols-5 gap-3 text-xs">
           <div>
-            <div className="text-gray-500">Technical Signals</div>
+            <div className="text-secondary">Technical Signals</div>
             <div className="text-white font-medium">✓ Active</div>
           </div>
           <div>
-            <div className="text-gray-500">ML Pattern Detection</div>
+            <div className="text-secondary">ML Pattern Detection</div>
             <div className="text-white font-medium">✓ Active</div>
           </div>
           <div>
-            <div className="text-gray-500">Sentiment Fusion</div>
+            <div className="text-secondary">Sentiment Fusion</div>
             <div className="text-white font-medium">✓ Active</div>
           </div>
           <div>
-            <div className="text-gray-500">Volume Analysis</div>
+            <div className="text-secondary">Volume Analysis</div>
             <div className="text-white font-medium">✓ Active</div>
           </div>
           <div>
-            <div className="text-gray-500">AI Reasoning</div>
+            <div className="text-secondary">AI Reasoning</div>
             <div className="text-emerald-400 font-medium">✓ Claude + Perplexity</div>
           </div>
         </div>
@@ -172,7 +172,7 @@ export default function SignalHeatmap() {
               return (
                 <div
                   key={signal.ticker}
-                  className="bg-gray-800/50 rounded-lg p-3 border border-emerald-500/20 hover:border-emerald-500/40 transition-all cursor-pointer"
+                  className="bg-secondary/10 rounded-lg p-3 border border-success/30 hover:border-success/50 transition-all cursor-pointer"
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-bold text-white text-lg">{signal.ticker}</span>
@@ -183,11 +183,11 @@ export default function SignalHeatmap() {
                   <div className="text-2xl font-bold text-emerald-400 mb-1">
                     {signal.compositeScore.toFixed(1)}
                   </div>
-                  <div className="text-xs text-gray-500 mb-2">Composite Score</div>
+                  <div className="text-xs text-secondary mb-2">Composite Score</div>
                   <div className="text-sm text-white mb-1">
                     Expected: +{signal.expectedMove}%
                   </div>
-                  <div className="text-xs text-gray-400">
+                  <div className="text-xs text-secondary">
                     {signal.timeframe}
                   </div>
                 </div>
@@ -199,16 +199,16 @@ export default function SignalHeatmap() {
 
       {/* Signal Grid - Grouped by Sector */}
       {signals.length === 0 ? (
-        <div className="bg-gray-800/30 rounded-xl p-12 text-center border border-gray-700/50">
-          <AlertCircle className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-          <p className="text-gray-400">No signals generated yet. System is processing...</p>
-          <p className="text-xs text-gray-600 mt-2">Signals appear when AI confidence threshold is met</p>
+        <div className="bg-secondary/10 rounded-xl p-12 text-center border border-secondary/50">
+          <AlertCircle className="w-12 h-12 text-secondary mx-auto mb-4" />
+          <p className="text-secondary">No signals generated yet. System is processing...</p>
+          <p className="text-xs text-secondary mt-2">Signals appear when AI confidence threshold is met</p>
         </div>
       ) : (
-        <div className="bg-gray-800/30 rounded-xl border border-gray-700/50">
-          <div className="p-4 border-b border-gray-700/50">
+        <div className="bg-secondary/10 rounded-xl border border-secondary/50">
+          <div className="p-4 border-b border-secondary/50">
             <h2 className="text-lg font-semibold text-white">All Composite Signals</h2>
-            <p className="text-xs text-gray-500 mt-1">{signals.length} active signals</p>
+            <p className="text-xs text-secondary mt-1">{signals.length} active signals</p>
           </div>
           <div className="p-4">
             <div className="grid grid-cols-6 gap-2">
@@ -229,9 +229,9 @@ export default function SignalHeatmap() {
                     
                     {/* Hover Tooltip */}
                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
-                      <div className="bg-gray-900 rounded-lg p-3 text-xs whitespace-nowrap border border-gray-700 min-w-64">
+                      <div className="bg-dark rounded-lg p-3 text-xs whitespace-nowrap border border-secondary/50 min-w-64">
                         <div className="font-bold text-white mb-2">{signal.ticker} - {signal.sector}</div>
-                        <div className="space-y-1 text-gray-400">
+                        <div className="space-y-1 text-secondary">
                           <div className="flex justify-between">
                             <span>Composite Score:</span>
                             <span className="text-white font-bold">{signal.compositeScore.toFixed(1)}</span>
@@ -253,7 +253,7 @@ export default function SignalHeatmap() {
                             <span className="text-yellow-400">{signal.components.aiReasoning}</span>
                           </div>
                         </div>
-                        <div className="mt-2 pt-2 border-t border-gray-700 text-gray-300 text-[10px]">
+                        <div className="mt-2 pt-2 border-t border-secondary/50 text-secondary text-[10px]">
                           {signal.aiAnalysis}
                         </div>
                       </div>
@@ -268,7 +268,7 @@ export default function SignalHeatmap() {
 
       {/* Legend */}
       <div className="flex items-center justify-center gap-4 text-xs">
-        <span className="text-gray-500">LOW SCORE</span>
+        <span className="text-secondary">LOW SCORE</span>
         <div className="flex gap-1">
           <div className="w-6 h-4 bg-red-500 rounded" />
           <div className="w-6 h-4 bg-red-600/80 rounded" />
@@ -278,7 +278,7 @@ export default function SignalHeatmap() {
           <div className="w-6 h-4 bg-emerald-600/80 rounded" />
           <div className="w-6 h-4 bg-emerald-500 rounded" />
         </div>
-        <span className="text-gray-500">HIGH SCORE (80+)</span>
+        <span className="text-secondary">HIGH SCORE (80+)</span>
       </div>
     </div>
   );

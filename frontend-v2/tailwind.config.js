@@ -3,6 +3,7 @@ export default {
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
+    "./src/**/*.css",
   ],
   theme: {
     extend: {
@@ -11,21 +12,12 @@ export default {
         mono: ['JetBrains Mono', 'monospace'],
       },
       colors: {
-        // Trading-specific colors
-        'bullish': '#10b981',
-        'bearish': '#ef4444',
-        'neutral': '#6b7280',
-        // Regime colors
-        'regime-green': '#22c55e',
-        'regime-yellow': '#eab308',
-        'regime-red': '#ef4444',
-        // Dark theme
-        'dark': {
-          'bg': '#0f1117',
-          'card': '#1a1d26',
-          'border': '#2d3748',
-          'hover': '#252a36',
-        }
+        primary: '#06b6d4',
+        success: '#22c55e',
+        danger: '#ef4444',
+        warning: '#eab308',
+        dark: '#0f1117',
+        secondary: '#6b7280',
       },
       animation: {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',

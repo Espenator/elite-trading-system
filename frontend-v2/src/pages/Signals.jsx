@@ -49,7 +49,7 @@ export default function Signals() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Signals</h1>
-          <p className="text-sm text-gray-400 mt-1">{filtered.length} active signals detected</p>
+          <p className="text-sm text-secondary mt-1">{filtered.length} active signals detected</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -71,7 +71,7 @@ export default function Signals() {
           {['all', 'long', 'short'].map(f => (
             <button key={f} onClick={() => setFilter(f)}
               className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                filter === f ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'text-gray-400 hover:text-white bg-slate-800/40 border border-white/10'
+                filter === f ? 'bg-primary/20 text-primary border border-primary/30' : 'text-secondary hover:text-white bg-secondary/10 border border-secondary/30'
               }`}>
               {f === 'all' ? 'All' : f === 'long' ? 'Long' : 'Short'}
             </button>
@@ -103,7 +103,7 @@ export default function Signals() {
                   </span>
                   <span className="text-xs text-gray-500">{signal.timeframe}</span>
                 </div>
-                <div className="text-sm text-gray-400 mb-2">{signal.type}</div>
+                <div className="text-sm text-secondary mb-2">{signal.type}</div>
                 <div className="flex items-center gap-4 text-xs text-gray-500">
                   <span className="flex items-center gap-1"><Target className="w-3 h-3" /> T: ${signal.target}</span>
                   <span className="flex items-center gap-1 text-red-400">S: ${signal.stop}</span>

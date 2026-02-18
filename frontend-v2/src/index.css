@@ -13,21 +13,16 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #1a1d26;
+  background: #0f1117;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #3f4451;
+  background: #6b7280;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #565b69;
-}
-
-/* Monospace for numbers */
-.font-mono {
-  font-family: 'JetBrains Mono', monospace;
+  background: #9ca3af;
 }
 
 /* Glow effects */
@@ -41,7 +36,7 @@
 
 /* Card hover effects */
 .card-hover {
-  @apply transition-all duration-200 hover:bg-dark-hover hover:border-gray-600;
+  @apply transition-all duration-200 hover:bg-secondary/20 hover:border-secondary;
 }
 
 /* Pulse animation for live indicators */
@@ -58,12 +53,12 @@
   }
 }
 
-/* Score bar gradient */
+/* Score bar gradient - danger, warning, success */
 .score-bar {
   background: linear-gradient(90deg, #ef4444 0%, #eab308 50%, #22c55e 100%);
 }
 
 /* Table row hover */
 .table-row-hover {
-  @apply transition-colors hover:bg-dark-hover cursor-pointer;
+  @apply transition-colors hover:bg-secondary/20 cursor-pointer;
 }

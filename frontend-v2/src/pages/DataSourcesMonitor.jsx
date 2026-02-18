@@ -20,15 +20,15 @@ const DataSourcesMonitor = () => {
       case 'healthy': return 'text-green-500 bg-green-900/20 border-green-700';
       case 'degraded': return 'text-yellow-500 bg-yellow-900/20 border-yellow-700';
       case 'error': return 'text-red-500 bg-red-900/20 border-red-700';
-      default: return 'text-gray-500 bg-gray-900/20 border-gray-700';
+      default: return 'text-secondary bg-secondary/20 border-secondary/50';
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6">
+    <div className="min-h-screen bg-dark text-white p-6">
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Data Sources Monitor</h1>
-        <p className="text-gray-400 mt-1">Health of all 10 feeds with latency and record counts.</p>
+        <p className="text-secondary mt-1">Health of all 10 feeds with latency and record counts.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -40,7 +40,7 @@ const DataSourcesMonitor = () => {
             <div className="flex items-start justify-between mb-3">
               <div>
                 <h3 className="text-lg font-bold">{source.name}</h3>
-                <span className="text-xs text-gray-400">{source.type}</span>
+                <span className="text-xs text-secondary">{source.type}</span>
               </div>
               <span className={`text-sm font-semibold capitalize px-2 py-1 rounded ${getStatusStyle(source.status)}`}>
                 {source.status}
@@ -48,15 +48,15 @@ const DataSourcesMonitor = () => {
             </div>
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
-                <span className="text-gray-400">Latency</span>
+                <span className="text-secondary">Latency</span>
                 <p className="font-mono">{source.latencyMs != null ? `${source.latencyMs} ms` : '—'}</p>
               </div>
               <div>
-                <span className="text-gray-400">Last sync</span>
+                <span className="text-secondary">Last sync</span>
                 <p>{source.lastSync}</p>
               </div>
               <div>
-                <span className="text-gray-400">Records</span>
+                <span className="text-secondary">Records</span>
                 <p className="font-mono">{source.recordCount.toLocaleString()}</p>
               </div>
             </div>
@@ -64,9 +64,9 @@ const DataSourcesMonitor = () => {
         ))}
       </div>
 
-      <div className="mt-8 bg-gray-800/50 rounded-lg p-6">
+      <div className="mt-8 bg-secondary/10 rounded-lg p-6">
         <h2 className="text-xl font-bold mb-4">FRED Macro / SEC Placeholders</h2>
-        <p className="text-gray-400 text-sm">Connect to GET /api/v1/data-sources, /data-sources/fred/regime, /data-sources/edgar/filings for live data.</p>
+        <p className="text-secondary text-sm">Connect to GET /api/v1/data-sources, /data-sources/fred/regime, /data-sources/edgar/filings for live data.</p>
       </div>
     </div>
   );

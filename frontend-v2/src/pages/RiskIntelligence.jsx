@@ -13,7 +13,7 @@ const RiskIntelligence = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6">
+    <div className="min-h-screen bg-dark text-white p-6">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Risk Configuration</h1>
@@ -22,7 +22,7 @@ const RiskIntelligence = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* General Risk Parameters */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-gray-800/50 rounded-lg p-6">
+          <div className="bg-secondary/10 rounded-lg p-6">
             <h2 className="text-xl font-bold mb-6">General Risk Parameters</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -43,9 +43,9 @@ const RiskIntelligence = () => {
                       type="number" 
                       value={maxDrawdown}
                       onChange={(e) => setMaxDrawdown(parseFloat(e.target.value))}
-                      className="w-16 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-right"
+                      className="w-16 bg-dark border border-secondary/50 rounded px-2 py-1 text-right"
                     />
-                    <span className="text-gray-400">%</span>
+                    <span className="text-secondary">%</span>
                   </div>
                 </div>
               </div>
@@ -67,9 +67,9 @@ const RiskIntelligence = () => {
                       type="number" 
                       value={positionSizeLimit}
                       onChange={(e) => setPositionSizeLimit(parseFloat(e.target.value))}
-                      className="w-16 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-right"
+                      className="w-16 bg-dark border border-secondary/50 rounded px-2 py-1 text-right"
                     />
-                    <span className="text-gray-400">%</span>
+                    <span className="text-secondary">%</span>
                   </div>
                 </div>
               </div>
@@ -93,9 +93,9 @@ const RiskIntelligence = () => {
                       value={maxDailyLoss}
                       onChange={(e) => setMaxDailyLoss(parseFloat(e.target.value))}
                       step="0.1"
-                      className="w-16 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-right"
+                      className="w-16 bg-dark border border-secondary/50 rounded px-2 py-1 text-right"
                     />
-                    <span className="text-gray-400">%</span>
+                    <span className="text-secondary">%</span>
                   </div>
                 </div>
               </div>
@@ -119,9 +119,9 @@ const RiskIntelligence = () => {
                       value={varLimit}
                       onChange={(e) => setVarLimit(parseFloat(e.target.value))}
                       step="0.1"
-                      className="w-16 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-right"
+                      className="w-16 bg-dark border border-secondary/50 rounded px-2 py-1 text-right"
                     />
-                    <span className="text-gray-400">%</span>
+                    <span className="text-secondary">%</span>
                   </div>
                 </div>
               </div>
@@ -129,7 +129,7 @@ const RiskIntelligence = () => {
           </div>
 
           {/* Risk Scenario Simulator */}
-          <div className="bg-gray-800/50 rounded-lg p-6">
+          <div className="bg-secondary/10 rounded-lg p-6">
             <h2 className="text-xl font-bold mb-6">Risk Scenario Simulator</h2>
             
             <div className="space-y-4">
@@ -141,9 +141,9 @@ const RiskIntelligence = () => {
                     type="number" 
                     value={equityDrop}
                     onChange={(e) => setEquityDrop(parseFloat(e.target.value))}
-                    className="w-24 bg-gray-900 border border-gray-700 rounded px-3 py-2"
+                    className="w-24 bg-dark border border-secondary/50 rounded px-3 py-2"
                   />
-                  <span className="text-gray-400">%</span>
+                  <span className="text-secondary">%</span>
                 </div>
               </div>
 
@@ -155,9 +155,9 @@ const RiskIntelligence = () => {
                     type="number" 
                     value={volatilityIncrease}
                     onChange={(e) => setVolatilityIncrease(parseFloat(e.target.value))}
-                    className="w-24 bg-gray-900 border border-gray-700 rounded px-3 py-2"
+                    className="w-24 bg-dark border border-secondary/50 rounded px-3 py-2"
                   />
-                  <span className="text-gray-400">%</span>
+                  <span className="text-secondary">%</span>
                 </div>
               </div>
 
@@ -168,13 +168,13 @@ const RiskIntelligence = () => {
                 Run Simulation
               </button>
 
-              <div className="mt-4 pt-4 border-t border-gray-700">
+              <div className="mt-4 pt-4 border-t border-secondary/50">
                 <div className="flex justify-between mb-2">
-                  <span className="text-sm text-gray-400">Estimated Max Drawdown:</span>
+                  <span className="text-sm text-secondary">Estimated Max Drawdown:</span>
                   <span className="text-sm font-semibold text-red-500">10.0%</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sm text-gray-400">Potential Daily Loss:</span>
+                  <span className="text-sm text-secondary">Potential Daily Loss:</span>
                   <span className="text-sm font-semibold text-red-500">1.5%</span>
                 </div>
               </div>
@@ -182,24 +182,24 @@ const RiskIntelligence = () => {
           </div>
 
           {/* Risk History Chart */}
-          <div className="bg-gray-800/50 rounded-lg p-6">
+          <div className="bg-secondary/10 rounded-lg p-6">
             <h2 className="text-xl font-bold mb-4">Risk History Chart</h2>
-            <div className="h-64 flex items-center justify-center bg-gray-900/50 rounded">
-              <p className="text-gray-500">Historical Risk Metrics Chart (Placeholder)</p>
+            <div className="h-64 flex items-center justify-center bg-dark/50 rounded">
+              <p className="text-secondary">Historical Risk Metrics Chart (Placeholder)</p>
             </div>
           </div>
         </div>
 
         {/* Real-time Risk Monitor */}
         <div className="lg:col-span-1">
-          <div className="bg-gray-800/50 rounded-lg p-6 sticky top-6">
+          <div className="bg-secondary/10 rounded-lg p-6 sticky top-6">
             <h2 className="text-xl font-bold mb-6">Real-time Risk Monitor</h2>
             
             <div className="space-y-6">
               {/* Current Exposure */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-gray-400">$ Current Exposure</span>
+                  <span className="text-sm text-secondary">$ Current Exposure</span>
                   <span className="text-2xl font-bold">$12,500</span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -207,10 +207,10 @@ const RiskIntelligence = () => {
                 </div>
               </div>
 
-              <div className="border-t border-gray-700 pt-6">
+              <div className="border-t border-secondary/50 pt-6">
                 {/* VaR (95%) */}
                 <div className="flex items-center justify-between mb-4">
-                  <span className="text-sm text-gray-400">○ VaR (95%, 1-day)</span>
+                  <span className="text-sm text-secondary">○ VaR (95%, 1-day)</span>
                   <span className="text-xl font-bold">$350</span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -218,10 +218,10 @@ const RiskIntelligence = () => {
                 </div>
               </div>
 
-              <div className="border-t border-gray-700 pt-6">
+              <div className="border-t border-secondary/50 pt-6">
                 {/* Expected Shortfall */}
                 <div className="flex items-center justify-between mb-4">
-                  <span className="text-sm text-gray-400">○ Expected Shortfall</span>
+                  <span className="text-sm text-secondary">○ Expected Shortfall</span>
                   <span className="text-xl font-bold">$520</span>
                 </div>
                 <div className="flex items-center gap-2">

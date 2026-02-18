@@ -6,21 +6,21 @@ export default function LiveSignalFeed() {
   const signals = mockSignals.slice(0, 8);
 
   return (
-    <div className="bg-dark-card border border-dark-border rounded-xl">
+    <div className="bg-secondary/10 border border-secondary/50 rounded-xl">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-dark-border flex items-center justify-between">
+      <div className="px-4 py-3 border-b border-secondary/50 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Zap className="w-4 h-4 text-regime-yellow" />
           <h3 className="font-semibold">Live Signals</h3>
         </div>
         <div className="flex items-center gap-1">
           <div className="w-2 h-2 bg-bullish rounded-full animate-pulse" />
-          <span className="text-xs text-gray-400">Live</span>
+          <span className="text-xs text-secondary">Live</span>
         </div>
       </div>
 
       {/* Signal list */}
-      <div className="divide-y divide-dark-border">
+      <div className="divide-y divide-secondary/50">
         {signals.map((signal) => (
           <div
             key={signal.id}
@@ -54,23 +54,23 @@ export default function LiveSignalFeed() {
                     {signal.direction}
                   </span>
                 </div>
-                <span className="text-xs text-gray-500">{signal.setupType.replace(/_/g, ' ')}</span>
+                <span className="text-xs text-secondary">{signal.setupType.replace(/_/g, ' ')}</span>
               </div>
             </div>
 
             {/* Scores */}
             <div className="text-right">
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-400">Score</span>
+                <span className="text-xs text-secondary">Score</span>
                 <span className={clsx(
                   'font-bold font-mono',
                   signal.compositeScore >= 80 ? 'text-bullish' :
-                  signal.compositeScore >= 70 ? 'text-regime-yellow' : 'text-gray-400'
+                  signal.compositeScore >= 70 ? 'text-regime-yellow' : 'text-secondary'
                 )}>
                   {signal.compositeScore}
                 </span>
               </div>
-              <div className="text-xs text-gray-500">
+              <div className="text-xs text-secondary">
                 ML: {signal.mlConfidence}%
               </div>
             </div>
@@ -79,7 +79,7 @@ export default function LiveSignalFeed() {
       </div>
 
       {/* Footer */}
-      <div className="px-4 py-2 border-t border-dark-border">
+      <div className="px-4 py-2 border-t border-secondary/50">
         <button className="text-xs text-bullish hover:text-bullish/80 transition-colors">
           View all signals →
         </button>

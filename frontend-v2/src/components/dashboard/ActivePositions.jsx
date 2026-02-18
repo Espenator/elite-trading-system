@@ -7,13 +7,13 @@ export default function ActivePositions() {
   const totalPnl = positions.reduce((sum, p) => sum + p.pnlDollars, 0);
 
   return (
-    <div className="bg-dark-card border border-dark-border rounded-xl">
+    <div className="bg-secondary/10 border border-secondary/50 rounded-xl">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-dark-border flex items-center justify-between">
+      <div className="px-4 py-3 border-b border-secondary/50 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Briefcase className="w-4 h-4 text-blue-400" />
+          <Briefcase className="w-4 h-4 text-primary" />
           <h3 className="font-semibold">Active Positions</h3>
-          <span className="text-xs bg-dark-bg px-2 py-0.5 rounded-full text-gray-400">
+          <span className="text-xs bg-dark-bg px-2 py-0.5 rounded-full text-secondary">
             {positions.length}
           </span>
         </div>
@@ -26,7 +26,7 @@ export default function ActivePositions() {
       </div>
 
       {/* Positions list */}
-      <div className="divide-y divide-dark-border">
+      <div className="divide-y divide-secondary/50">
         {positions.map((pos) => (
           <div
             key={pos.id}
@@ -43,7 +43,7 @@ export default function ActivePositions() {
                 )}>
                   {pos.direction}
                 </span>
-                <span className="text-xs text-gray-500">{pos.shares} shares</span>
+                <span className="text-xs text-secondary">{pos.shares} shares</span>
               </div>
               <div className={clsx(
                 'font-mono font-bold',
@@ -57,11 +57,11 @@ export default function ActivePositions() {
             <div className="flex items-center justify-between text-xs">
               <div className="flex items-center gap-4">
                 <div>
-                  <span className="text-gray-500">Entry </span>
+                  <span className="text-secondary">Entry </span>
                   <span className="font-mono">${pos.entryPrice.toFixed(2)}</span>
                 </div>
                 <div>
-                  <span className="text-gray-500">Current </span>
+                  <span className="text-secondary">Current </span>
                   <span className={clsx(
                     'font-mono',
                     pos.currentPrice >= pos.entryPrice ? 'text-bullish' : 'text-bearish'
@@ -70,11 +70,11 @@ export default function ActivePositions() {
                   </span>
                 </div>
                 <div>
-                  <span className="text-gray-500">Stop </span>
+                  <span className="text-secondary">Stop </span>
                   <span className="font-mono text-bearish">${pos.stopPrice.toFixed(2)}</span>
                 </div>
               </div>
-              <div className="flex items-center gap-1 text-gray-500">
+              <div className="flex items-center gap-1 text-secondary">
                 <Clock className="w-3 h-3" />
                 <span>{pos.holdingHours.toFixed(1)}h</span>
               </div>
@@ -83,7 +83,7 @@ export default function ActivePositions() {
             {/* R-multiple bar */}
             <div className="mt-2">
               <div className="flex justify-between text-xs mb-1">
-                <span className="text-gray-500">R-Multiple</span>
+                <span className="text-secondary">R-Multiple</span>
                 <span className={clsx(
                   'font-mono',
                   pos.rMultiple >= 0 ? 'text-bullish' : 'text-bearish'
@@ -110,7 +110,7 @@ export default function ActivePositions() {
 
       {/* Empty state */}
       {positions.length === 0 && (
-        <div className="p-8 text-center text-gray-500">
+        <div className="p-8 text-center text-secondary">
           <Briefcase className="w-8 h-8 mx-auto mb-2 opacity-50" />
           <p>No active positions</p>
         </div>

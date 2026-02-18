@@ -8,20 +8,20 @@ export default function EquityCurveChart() {
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-dark-card border border-dark-border rounded-lg p-3 shadow-lg">
-          <p className="text-xs text-gray-400 mb-2">{label}</p>
+        <div className="bg-secondary/10 border border-secondary/50 rounded-lg p-3 shadow-lg">
+          <p className="text-xs text-secondary mb-2">{label}</p>
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-bullish" />
+              <div className="w-2 h-2 rounded-full bg-success" />
               <span className="text-sm">Portfolio: </span>
-              <span className="font-mono font-bold text-bullish">
+              <span className="font-mono font-bold text-success">
                 ${payload[0]?.value?.toLocaleString()}
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-gray-500" />
+              <div className="w-2 h-2 rounded-full bg-secondary" />
               <span className="text-sm">Benchmark: </span>
-              <span className="font-mono text-gray-400">
+              <span className="font-mono text-secondary">
                 ${payload[1]?.value?.toLocaleString()}
               </span>
             </div>
@@ -37,19 +37,19 @@ export default function EquityCurveChart() {
   const totalReturn = ((currentEquity - initialEquity) / initialEquity * 100).toFixed(2);
 
   return (
-    <div className="bg-dark-card border border-dark-border rounded-xl">
+    <div className="bg-secondary/10 border border-secondary/50 rounded-xl">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-dark-border flex items-center justify-between">
+      <div className="px-4 py-3 border-b border-secondary/50 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <TrendingUp className="w-4 h-4 text-bullish" />
+          <TrendingUp className="w-4 h-4 text-success" />
           <h3 className="font-semibold">Equity Curve</h3>
         </div>
         <div className="flex items-center gap-4">
           <div className="text-right">
-            <span className="text-xs text-gray-500">30-Day Return</span>
-            <p className="font-mono font-bold text-bullish">+{totalReturn}%</p>
+            <span className="text-xs text-secondary">30-Day Return</span>
+            <p className="font-mono font-bold text-success">+{totalReturn}%</p>
           </div>
-          <select className="bg-dark-bg text-sm px-2 py-1 rounded border border-dark-border">
+          <select className="bg-dark text-sm px-2 py-1 rounded border border-secondary/50">
             <option>30 Days</option>
             <option>90 Days</option>
             <option>1 Year</option>
@@ -79,7 +79,7 @@ export default function EquityCurveChart() {
             <Tooltip content={<CustomTooltip />} />
             <Legend 
               wrapperStyle={{ paddingTop: '10px' }}
-              formatter={(value) => <span className="text-gray-400 text-xs">{value}</span>}
+              formatter={(value) => <span className="text-secondary text-xs">{value}</span>}
             />
             <Line
               type="monotone"

@@ -59,29 +59,29 @@ export default function Sidebar() {
     <aside
       className={`${
         collapsed ? 'w-16' : 'w-64'
-      } bg-gradient-to-b from-gray-950 via-gray-900 to-gray-950 border-r border-gray-800/50 flex flex-col transition-all duration-300 overflow-hidden`}
+      } bg-dark border-r border-secondary/50 flex flex-col transition-all duration-300 overflow-hidden`}
     >
       {/* Logo + Collapse */}
-      <div className="flex items-center justify-between px-4 py-4 border-b border-gray-800/50">
+      <div className="flex items-center justify-between px-4 py-4 border-b border-secondary/50">
         {!collapsed && (
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-emerald-500 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-success flex items-center justify-center">
               <span className="text-white font-bold text-sm">◈</span>
             </div>
             <div>
               <h1 className="text-sm font-bold text-white leading-tight">Embodier.ai</h1>
-                            <p className="text-[10px] text-cyan-400/70">Trading Intelligence</p>
+                            <p className="text-[10px] text-primary/70">Trading Intelligence</p>
             </div>
           </div>
         )}
         {collapsed && (
-          <div className="w-8 h-8 mx-auto rounded-lg bg-gradient-to-br from-cyan-500 to-emerald-500 flex items-center justify-center">
+          <div className="w-8 h-8 mx-auto rounded-lg bg-gradient-to-br from-primary to-success flex items-center justify-center">
             <span className="text-white font-bold text-sm">◈</span>
           </div>
         )}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="text-gray-500 hover:text-white transition-colors p-1"
+          className="text-secondary hover:text-white transition-colors p-1"
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           <svg className={`w-4 h-4 transition-transform duration-300 ${collapsed ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -97,12 +97,12 @@ export default function Sidebar() {
             {/* Section Label */}
             {!collapsed && (
               <div className="px-4 py-2">
-                <span className="text-[10px] font-bold text-gray-600 tracking-widest">
+                <span className="text-[10px] font-bold text-secondary tracking-widest">
                   {section.label}
                 </span>
               </div>
             )}
-            {collapsed && <div className="border-b border-gray-800/30 mx-2 my-1" />}
+            {collapsed && <div className="border-b border-secondary/30 mx-2 my-1" />}
 
             {/* Nav Items */}
             <ul className="space-y-0.5 px-2">
@@ -115,8 +115,8 @@ export default function Sidebar() {
                       className={() =>
                         `flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 group ${
                           isActive
-                            ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shadow-sm shadow-cyan-500/5'
-                            : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+                            ? 'bg-primary/10 text-primary border border-primary/20 shadow-sm shadow-primary/5'
+                            : 'text-secondary hover:text-white hover:bg-secondary/20'
                         }`
                       }
                       title={collapsed ? item.label : undefined}
@@ -125,12 +125,12 @@ export default function Sidebar() {
                         {item.icon}
                       </span>
                       {!collapsed && (
-                        <span className={`text-xs font-medium truncate ${isActive ? 'text-cyan-300' : ''}`}>
+                        <span className={`text-xs font-medium truncate ${isActive ? 'text-primary' : ''}`}>
                           {item.label}
                         </span>
                       )}
                       {isActive && !collapsed && (
-                        <div className="ml-auto w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                        <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
                       )}
                     </NavLink>
                   </li>
@@ -143,15 +143,15 @@ export default function Sidebar() {
 
       {/* Bottom: System Status */}
       {!collapsed && (
-        <div className="border-t border-gray-800/50 p-3">
-          <div className="bg-gray-800/30 rounded-lg p-2">
+        <div className="border-t border-secondary/50 p-3">
+          <div className="bg-secondary/10 rounded-lg p-2">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] text-gray-500 font-medium">SYSTEM STATUS</span>
-              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-[10px] text-secondary font-medium">SYSTEM STATUS</span>
+              <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
             </div>
             <div className="flex items-center justify-between text-[10px]">
-              <span className="text-gray-400">3 Agents Running</span>
-              <span className="text-emerald-400">All Healthy</span>
+              <span className="text-secondary">3 Agents Running</span>
+              <span className="text-success">All Healthy</span>
             </div>
           </div>
         </div>
