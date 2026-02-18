@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'Sarala', system-ui, -apple-system, sans-serif;
 }
 
 /* Custom scrollbar */

@@ -164,7 +164,7 @@ export default function SentimentIntelligence() {
                       </div>
                     </div>
                     <div>
-                      <div className="text-3xl font-bold" className={getSentimentColor(item.overallScore)}>
+                      <div className={`text-3xl font-bold ${getSentimentColor(item.overallScore)}`}>
                         {item.overallScore}
                       </div>
                       <div className="text-xs text-gray-500">Composite Score</div>
