@@ -4,6 +4,26 @@
 
 import { NavLink, useLocation } from 'react-router-dom';
 import { useState } from 'react';
+import {
+  LayoutDashboard,
+  Bot,
+  Monitor,
+  Zap,
+  Map,
+  MessageCircle,
+  Link2,
+  Youtube,
+  Brain,
+  Search,
+  RotateCcw,
+  TrendingUp,
+  LineChart,
+  Shield,
+  Target,
+  Settings,
+  ChevronLeft,
+  Sparkles,
+} from 'lucide-react';
 
 // ----------- NAV SECTIONS -----------
 // Grouped logically so Espen can find anything in 2 clicks
@@ -11,42 +31,42 @@ const navSections = [
   {
     label: 'COMMAND',
     items: [
-      { to: '/dashboard', icon: '⬢', label: 'Intelligence Dashboard' },
-      { to: '/agents', icon: '⚙️', label: 'Agent Command Center' },
-      { to: '/operator', icon: '🖥️', label: 'Operator Console' },
+      { to: '/dashboard', icon: LayoutDashboard, label: 'Intelligence Dashboard' },
+      { to: '/agents', icon: Bot, label: 'Agent Command Center' },
+      { to: '/operator', icon: Monitor, label: 'Operator Console' },
     ]
   },
   {
     label: 'INTELLIGENCE',
     items: [
-      { to: '/signals', icon: '⚡', label: 'Signal Intelligence' },
-      { to: '/signal-heatmap', icon: '🗺️', label: 'Signal Heatmap' },
-      { to: '/sentiment', icon: '🔴', label: 'Sentiment Intelligence' },
-      { to: '/data-sources', icon: '🔗', label: 'Data Sources Monitor' },
-      { to: '/youtube', icon: '🎬', label: 'YouTube Knowledge' },
+      { to: '/signals', icon: Zap, label: 'Signal Intelligence' },
+      { to: '/signal-heatmap', icon: Map, label: 'Signal Heatmap' },
+      { to: '/sentiment', icon: MessageCircle, label: 'Sentiment Intelligence' },
+      { to: '/data-sources', icon: Link2, label: 'Data Sources Monitor' },
+      { to: '/youtube', icon: Youtube, label: 'YouTube Knowledge' },
     ]
   },
   {
     label: 'ML & ANALYSIS',
     items: [
-      { to: '/ml-insights', icon: '🧬', label: 'ML Brain & Flywheel' },
-      { to: '/patterns', icon: '🔍', label: 'Screener & Patterns' },
-      { to: '/backtest', icon: '⏪', label: 'Backtesting Lab' },
-      { to: '/performance', icon: '📈', label: 'Performance Analytics' },
+      { to: '/ml-insights', icon: Brain, label: 'ML Brain & Flywheel' },
+      { to: '/patterns', icon: Search, label: 'Screener & Patterns' },
+      { to: '/backtest', icon: RotateCcw, label: 'Backtesting Lab' },
+      { to: '/performance', icon: TrendingUp, label: 'Performance Analytics' },
     ]
   },
   {
     label: 'EXECUTION',
     items: [
-      { to: '/trades', icon: '💹', label: 'Trade Execution' },
-      { to: '/risk', icon: '🛡️', label: 'Risk Intelligence' },
-      { to: '/strategy', icon: '🎯', label: 'Strategy Intelligence' },
+      { to: '/trades', icon: LineChart, label: 'Trade Execution' },
+      { to: '/risk', icon: Shield, label: 'Risk Intelligence' },
+      { to: '/strategy', icon: Target, label: 'Strategy Intelligence' },
     ]
   },
   {
     label: 'SYSTEM',
     items: [
-      { to: '/settings', icon: '⚙️', label: 'Settings' },
+      { to: '/settings', icon: Settings, label: 'Settings' },
     ]
   },
 ];
@@ -66,7 +86,7 @@ export default function Sidebar() {
         {!collapsed && (
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-success flex items-center justify-center">
-              <span className="text-white font-bold text-sm">◈</span>
+              <Sparkles className="w-4 h-4 text-white" />
             </div>
             <div>
               <h1 className="text-sm font-bold text-white leading-tight">Embodier.ai</h1>
@@ -76,7 +96,7 @@ export default function Sidebar() {
         )}
         {collapsed && (
           <div className="w-8 h-8 mx-auto rounded-lg bg-gradient-to-br from-primary to-success flex items-center justify-center">
-            <span className="text-white font-bold text-sm">◈</span>
+            <Sparkles className="w-4 h-4 text-white" />
           </div>
         )}
         <button
@@ -84,9 +104,7 @@ export default function Sidebar() {
           className="text-secondary hover:text-white transition-colors p-1"
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
-          <svg className={`w-4 h-4 transition-transform duration-300 ${collapsed ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7" />
-          </svg>
+          <ChevronLeft className={`w-4 h-4 transition-transform duration-300 ${collapsed ? 'rotate-180' : ''}`} />
         </button>
       </div>
 
@@ -108,6 +126,7 @@ export default function Sidebar() {
             <ul className="space-y-0.5 px-2">
               {section.items.map((item) => {
                 const isActive = location.pathname === item.to;
+                const Icon = item.icon;
                 return (
                   <li key={item.to}>
                     <NavLink
@@ -121,8 +140,8 @@ export default function Sidebar() {
                       }
                       title={collapsed ? item.label : undefined}
                     >
-                      <span className={`text-base flex-shrink-0 ${isActive ? 'drop-shadow-[0_0_4px_rgba(6,182,212,0.5)]' : ''}`}>
-                        {item.icon}
+                      <span className={`flex-shrink-0 ${isActive ? 'drop-shadow-[0_0_4px_rgba(6,182,212,0.5)]' : ''}`}>
+                        <Icon className="w-4 h-4" />
                       </span>
                       {!collapsed && (
                         <span className={`text-xs font-medium truncate ${isActive ? 'text-primary' : ''}`}>
