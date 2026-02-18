@@ -82,7 +82,7 @@ export default function Sidebar() {
     >
       {/* Logo + Collapse — when collapsed: single centered strip */}
       <div
-        className={`flex items-center border-b border-secondary/50 relative transition-all duration-300 ${collapsed ? 'justify-center gap-1 px-2 py-3' : 'justify-between px-4 py-4'
+        className={`flex items-center h-16 border-b border-secondary/50 relative transition-all duration-300 ${collapsed ? 'justify-center gap-1 px-2 py-3' : 'justify-between px-4'
           }`}
       >
         <div className="flex items-center gap-3">

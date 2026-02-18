@@ -9,7 +9,7 @@ import Sidebar from './Sidebar';
 
 export default function Layout() {
   return (
-    <div className="flex h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-white overflow-hidden">
+    <div className="flex min-h-screen bg-dark text-white overflow-hidden">
       {/* Glass House Sidebar */}
       <Sidebar />
 
