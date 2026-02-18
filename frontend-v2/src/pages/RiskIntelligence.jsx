@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const RiskConfiguration = () => {
+const RiskIntelligence = () => {
   const [maxDrawdown, setMaxDrawdown] = useState(10);
   const [positionSizeLimit, setPositionSizeLimit] = useState(5);
   const [maxDailyLoss, setMaxDailyLoss] = useState(2);
@@ -240,4 +240,4 @@ const RiskConfiguration = () => {
   );
 };
 
-export default RiskConfiguration;
+export default RiskIntelligence;

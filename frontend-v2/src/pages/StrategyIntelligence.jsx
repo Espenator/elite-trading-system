@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const StrategySettings = () => {
+const StrategyIntelligence = () => {
   const [masterSwitch, setMasterSwitch] = useState(true);
   const [pauseAll, setPauseAll] = useState(false);
   const [closeAllPositions, setCloseAllPositions] = useState(false);
@@ -174,4 +174,4 @@ const StrategySettings = () => {
   );
 };
 
-export default StrategySettings;
+export default StrategyIntelligence;
