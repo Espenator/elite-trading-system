@@ -1,10 +1,11 @@
 // TRADES PAGE - Embodier.ai Glass House Intelligence System
 // Trade management: active positions, order history, P&L tracking
 import { useState } from 'react';
-import {
-  TrendingUp, TrendingDown, Clock, DollarSign,
-  ArrowUpRight, ArrowDownRight, Filter, X
-} from 'lucide-react';
+import { TrendingUp, Clock, DollarSign, ArrowUpRight } from 'lucide-react';
+import Card from '../components/ui/Card';
+import DataTable from '../components/ui/DataTable';
+import Badge from '../components/ui/Badge';
+import Button from '../components/ui/Button';
 
 const ACTIVE_POSITIONS = [
   { id: 1, ticker: 'AAPL', side: 'Long', qty: 50, entry: 189.50, current: 192.30, pnl: 140, pnlPct: 1.48, stop: 185.00, target: 198.00, signal: 'AI Signal #1', time: '2h ago' },
@@ -35,132 +36,88 @@ export default function Trades() {
           <p className="text-sm text-secondary mt-1">Manage positions and review history</p>
         </div>
         <div className="flex items-center gap-4">
-          <div className={`px-4 py-2 rounded-xl border text-sm font-medium ${totalPnl >= 0 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+          <Badge variant={totalPnl >= 0 ? 'success' : 'danger'} size="lg" className="px-4 py-2">
             Today: {totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(0)}
-          </div>
+          </Badge>
         </div>
       </div>
 
       {/* Stats row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Active Positions', value: ACTIVE_POSITIONS.length, icon: TrendingUp, color: 'text-blue-400' },
-          { label: 'Unrealized P&L', value: `$${totalPnl >= 0 ? '+' : ''}${totalPnl}`, icon: DollarSign, color: totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400' },
-          { label: 'Win Rate (30d)', value: '68.5%', icon: ArrowUpRight, color: 'text-emerald-400' },
-          { label: 'Avg Hold Time', value: '1.4 days', icon: Clock, color: 'text-amber-400' },
+          { label: 'Active Positions', value: ACTIVE_POSITIONS.length, icon: TrendingUp, color: 'text-primary' },
+          { label: 'Unrealized P&L', value: `$${totalPnl >= 0 ? '+' : ''}${totalPnl}`, icon: DollarSign, color: totalPnl >= 0 ? 'text-success' : 'text-danger' },
+          { label: 'Win Rate (30d)', value: '68.5%', icon: ArrowUpRight, color: 'text-success' },
+          { label: 'Avg Hold Time', value: '1.4 days', icon: Clock, color: 'text-warning' },
         ].map((stat, i) => (
-          <div key={i} className="bg-slate-800/30 border border-white/10 rounded-2xl p-4">
+          <Card key={i} noPadding className="p-4">
             <div className="flex items-center gap-2 mb-2">
               <stat.icon className={`w-4 h-4 ${stat.color}`} />
               <span className="text-xs text-secondary">{stat.label}</span>
             </div>
             <div className="text-xl font-bold text-white">{stat.value}</div>
-          </div>
+          </Card>
         ))}
       </div>
 
-      {/* Tab navigation */}
-      <div className="flex gap-2 border-b border-white/10 pb-0">
+      <div className="flex gap-2 border-b border-secondary/50 pb-0">
         {['active', 'history'].map(t => (
-          <button key={t} onClick={() => setTab(t)}
-            className={`px-6 py-3 text-sm font-medium border-b-2 transition-all ${
-              tab === t ? 'text-primary border-primary' : 'text-secondary border-transparent hover:text-white'
-            }`}>
+          <Button
+            key={t}
+            variant={tab === t ? 'primary' : 'ghost'}
+            size="sm"
+            onClick={() => setTab(t)}
+            className={tab === t ? 'border-b-2 border-primary rounded-b-none' : 'rounded-b-none'}
+          >
             {t === 'active' ? `Active (${ACTIVE_POSITIONS.length})` : `History (${TRADE_HISTORY.length})`}
-          </button>
+          </Button>
         ))}
       </div>
 
-      {/* Active Positions Table */}
       {tab === 'active' && (
-        <div className="bg-slate-800/30 border border-white/10 rounded-2xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="text-xs text-secondary uppercase border-b border-white/5">
-                  <th className="text-left px-5 py-3">Ticker</th>
-                  <th className="text-left px-3 py-3">Side</th>
-                  <th className="text-right px-3 py-3">Qty</th>
-                  <th className="text-right px-3 py-3">Entry</th>
-                  <th className="text-right px-3 py-3">Current</th>
-                  <th className="text-right px-3 py-3">P&L</th>
-                  <th className="text-right px-3 py-3">Stop</th>
-                  <th className="text-right px-3 py-3">Target</th>
-                  <th className="text-left px-3 py-3">Signal</th>
-                  <th className="text-right px-5 py-3">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {ACTIVE_POSITIONS.map(p => (
-                  <tr key={p.id} className="hover:bg-white/5 transition-colors">
-                    <td className="px-5 py-4 text-sm font-semibold text-white">{p.ticker}</td>
-                    <td className="px-3 py-4">
-                      <span className={`px-2 py-1 rounded-lg text-xs font-medium ${p.side === 'Long' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
-                        {p.side}
-                      </span>
-                    </td>
-                    <td className="px-3 py-4 text-sm text-secondary text-right">{p.qty}</td>
-                    <td className="px-3 py-4 text-sm text-secondary text-right">${p.entry.toFixed(2)}</td>
-                    <td className="px-3 py-4 text-sm text-white text-right">${p.current.toFixed(2)}</td>
-                    <td className={`px-3 py-4 text-sm font-medium text-right ${p.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {p.pnl >= 0 ? '+' : ''}${p.pnl} ({p.pnlPct >= 0 ? '+' : ''}{p.pnlPct}%)
-                    </td>
-                    <td className="px-3 py-4 text-sm text-red-400 text-right">${p.stop.toFixed(2)}</td>
-                    <td className="px-3 py-4 text-sm text-emerald-400 text-right">${p.target.toFixed(2)}</td>
-                    <td className="px-3 py-4 text-xs text-secondary">{p.signal}</td>
-                    <td className="px-5 py-4 text-right">
-                      <button className="px-3 py-1.5 bg-red-500/20 text-red-400 rounded-lg text-xs font-medium hover:bg-red-500/30 transition-colors">
-                        Close
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <Card noPadding className="overflow-hidden">
+          <DataTable
+            columns={[
+              { key: 'ticker', label: 'Ticker', render: (v) => <span className="font-semibold text-white">{v}</span> },
+              { key: 'side', label: 'Side', render: (v) => <Badge variant={v === 'Long' ? 'success' : 'danger'}>{v}</Badge> },
+              { key: 'qty', label: 'Qty', cellClassName: 'text-right' },
+              { key: 'entry', label: 'Entry', cellClassName: 'text-right', render: (v) => `$${Number(v).toFixed(2)}` },
+              { key: 'current', label: 'Current', cellClassName: 'text-right', render: (v) => `$${Number(v).toFixed(2)}` },
+              { key: 'pnl', label: 'P&L', cellClassName: 'text-right', render: (_, row) => (
+                <span className={row.pnl >= 0 ? 'text-success' : 'text-danger'}>
+                  {row.pnl >= 0 ? '+' : ''}${row.pnl} ({row.pnlPct >= 0 ? '+' : ''}{row.pnlPct}%)
+                </span>
+              ) },
+              { key: 'stop', label: 'Stop', cellClassName: 'text-right text-danger', render: (v) => `$${Number(v).toFixed(2)}` },
+              { key: 'target', label: 'Target', cellClassName: 'text-right text-success', render: (v) => `$${Number(v).toFixed(2)}` },
+              { key: 'signal', label: 'Signal', render: (v) => <span className="text-secondary">{v}</span> },
+              { key: 'id', label: 'Actions', cellClassName: 'text-right', render: () => <Button variant="danger" size="sm">Close</Button> },
+            ]}
+            data={ACTIVE_POSITIONS}
+          />
+        </Card>
       )}
 
-      {/* Trade History Table */}
       {tab === 'history' && (
-        <div className="bg-slate-800/30 border border-white/10 rounded-2xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="text-xs text-secondary uppercase border-b border-white/5">
-                  <th className="text-left px-5 py-3">Date</th>
-                  <th className="text-left px-3 py-3">Ticker</th>
-                  <th className="text-left px-3 py-3">Side</th>
-                  <th className="text-right px-3 py-3">Qty</th>
-                  <th className="text-right px-3 py-3">Entry</th>
-                  <th className="text-right px-3 py-3">Exit</th>
-                  <th className="text-right px-3 py-3">P&L</th>
-                  <th className="text-right px-5 py-3">Duration</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {TRADE_HISTORY.map(t => (
-                  <tr key={t.id} className="hover:bg-white/5 transition-colors">
-                    <td className="px-5 py-4 text-sm text-secondary">{t.date}</td>
-                    <td className="px-3 py-4 text-sm font-semibold text-white">{t.ticker}</td>
-                    <td className="px-3 py-4">
-                      <span className={`px-2 py-1 rounded-lg text-xs font-medium ${t.side === 'Long' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
-                        {t.side}
-                      </span>
-                    </td>
-                    <td className="px-3 py-4 text-sm text-secondary text-right">{t.qty}</td>
-                    <td className="px-3 py-4 text-sm text-secondary text-right">${t.entry.toFixed(2)}</td>
-                    <td className="px-3 py-4 text-sm text-white text-right">${t.exit.toFixed(2)}</td>
-                    <td className={`px-3 py-4 text-sm font-medium text-right ${t.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {t.pnl >= 0 ? '+' : ''}${t.pnl} ({t.pnlPct >= 0 ? '+' : ''}{t.pnlPct}%)
-                    </td>
-                    <td className="px-5 py-4 text-sm text-secondary text-right">{t.duration}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <Card noPadding className="overflow-hidden">
+          <DataTable
+            columns={[
+              { key: 'date', label: 'Date', render: (v) => <span className="text-secondary">{v}</span> },
+              { key: 'ticker', label: 'Ticker', render: (v) => <span className="font-semibold text-white">{v}</span> },
+              { key: 'side', label: 'Side', render: (v) => <Badge variant={v === 'Long' ? 'success' : 'danger'}>{v}</Badge> },
+              { key: 'qty', label: 'Qty', cellClassName: 'text-right' },
+              { key: 'entry', label: 'Entry', cellClassName: 'text-right', render: (v) => `$${Number(v).toFixed(2)}` },
+              { key: 'exit', label: 'Exit', cellClassName: 'text-right', render: (v) => `$${Number(v).toFixed(2)}` },
+              { key: 'pnl', label: 'P&L', cellClassName: 'text-right', render: (_, row) => (
+                <span className={row.pnl >= 0 ? 'text-success' : 'text-danger'}>
+                  {row.pnl >= 0 ? '+' : ''}${row.pnl} ({row.pnlPct >= 0 ? '+' : ''}{row.pnlPct}%)
+                </span>
+              ) },
+              { key: 'duration', label: 'Duration', cellClassName: 'text-right', render: (v) => <span className="text-secondary">{v}</span> },
+            ]}
+            data={TRADE_HISTORY}
+          />
+        </Card>
       )}
     </div>
   );

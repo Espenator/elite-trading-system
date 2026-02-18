@@ -3,50 +3,35 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  TrendingUp, TrendingDown, DollarSign, Activity, Zap,
+  TrendingUp, DollarSign, Activity, Zap,
   Brain, BarChart3, ArrowUpRight, ArrowDownRight, Eye,
   Bot, Target, ShieldCheck, Clock
 } from 'lucide-react';
+import Card from '../components/ui/Card';
+import DataTable from '../components/ui/DataTable';
+import Badge from '../components/ui/Badge';
 
 function StatCard({ title, value, change, changeType, icon: Icon, color }) {
   const colors = {
-    emerald: 'from-emerald-500/20 to-emerald-500/5 border-emerald-500/20',
-    blue: 'from-blue-500/20 to-blue-500/5 border-blue-500/20',
-    purple: 'from-purple-500/20 to-purple-500/5 border-purple-500/20',
-    amber: 'from-amber-500/20 to-amber-500/5 border-amber-500/20',
+    success: 'from-success/20 to-success/5 border-success/30',
+    primary: 'from-primary/20 to-primary/5 border-primary/30',
+    secondary: 'from-secondary/20 to-secondary/5 border-secondary/30',
+    warning: 'from-warning/20 to-warning/5 border-warning/30',
   };
-  const iconColors = {
-    emerald: 'text-emerald-400', blue: 'text-blue-400',
-    purple: 'text-purple-400', amber: 'text-amber-400',
-  };
+  const iconColors = { success: 'text-success', primary: 'text-primary', secondary: 'text-secondary', warning: 'text-warning' };
   return (
     <div className={`bg-gradient-to-br ${colors[color]} border rounded-2xl p-5`}>
       <div className="flex items-center justify-between mb-3">
-        <span className="text-sm text-gray-400">{title}</span>
-        <Icon className={`w-5 h-5 ${iconColors[color]}`} />
+        <span className="text-sm text-secondary">{title}</span>
+        {Icon && <Icon className={`w-5 h-5 ${iconColors[color]}`} />}
       </div>
       <div className="text-2xl font-bold text-white mb-1">{value}</div>
       {change && (
-        <div className={`flex items-center gap-1 text-sm ${changeType === 'up' ? 'text-emerald-400' : 'text-red-400'}`}>
+        <div className={`flex items-center gap-1 text-sm ${changeType === 'up' ? 'text-success' : 'text-danger'}`}>
           {changeType === 'up' ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
           {change}
         </div>
       )}
-    </div>
-  );
-}
-
-function GlassCard({ title, icon: Icon, children, action }) {
-  return (
-    <div className="bg-slate-800/30 border border-white/10 rounded-2xl overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
-        <div className="flex items-center gap-2">
-          {Icon && <Icon className="w-4 h-4 text-gray-400" />}
-          <h3 className="text-sm font-semibold text-white">{title}</h3>
-        </div>
-        {action}
-      </div>
-      <div className="p-5">{children}</div>
     </div>
   );
 }
@@ -77,136 +62,125 @@ export default function Dashboard() {
       {/* Page header */}
       <div>
         <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-        <p className="text-sm text-gray-400 mt-1">Glass House Intelligence Overview</p>
+        <p className="text-sm text-secondary mt-1">Glass House Intelligence Overview</p>
       </div>
 
       {/* Stat cards row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Portfolio Value" value="$124,850" change="+2.4% today" changeType="up" icon={DollarSign} color="emerald" />
-        <StatCard title="Daily P&L" value="+$2,340" change="+1.9%" changeType="up" icon={TrendingUp} color="blue" />
-        <StatCard title="Active Signals" value="12" change="3 new" changeType="up" icon={Zap} color="purple" />
-        <StatCard title="Win Rate (30d)" value="68.5%" change="+2.1%" changeType="up" icon={Target} color="amber" />
+        <StatCard title="Portfolio Value" value="$124,850" change="+2.4% today" changeType="up" icon={DollarSign} color="success" />
+        <StatCard title="Daily P&L" value="+$2,340" change="+1.9%" changeType="up" icon={TrendingUp} color="primary" />
+        <StatCard title="Active Signals" value="12" change="3 new" changeType="up" icon={Zap} color="secondary" />
+        <StatCard title="Win Rate (30d)" value="68.5%" change="+2.1%" changeType="up" icon={Target} color="warning" />
       </div>
 
       {/* Main grid: Positions + Signals + Agents */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Active Positions - spans 2 cols */}
         <div className="lg:col-span-2">
-          <GlassCard
+          <Card
             title="Active Positions"
-            icon={BarChart3}
-            action={<Link to="/trades" className="text-xs text-blue-400 hover:text-blue-300">View All</Link>}
+            bodyClassName="p-0"
+            className="overflow-hidden"
           >
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="text-xs text-gray-500 uppercase">
-                    <th className="text-left pb-3">Ticker</th>
-                    <th className="text-left pb-3">Side</th>
-                    <th className="text-right pb-3">Entry</th>
-                    <th className="text-right pb-3">Current</th>
-                    <th className="text-right pb-3">P&L</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {positions.map((p, i) => (
-                    <tr key={i} className="hover:bg-white/5 transition-colors">
-                      <td className="py-3 text-sm font-semibold text-white">{p.ticker}</td>
-                      <td className="py-3 text-sm text-gray-400">{p.side}</td>
-                      <td className="py-3 text-sm text-gray-400 text-right">${p.entry.toFixed(2)}</td>
-                      <td className="py-3 text-sm text-white text-right">${p.current.toFixed(2)}</td>
-                      <td className={`py-3 text-sm font-medium text-right ${p.pnlColor}`}>{p.pnl}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="flex items-center justify-between px-4 py-2 border-b border-secondary/50">
+              <span />
+              <Link to="/trades" className="text-xs text-primary hover:text-primary/80">View All</Link>
             </div>
-          </GlassCard>
+            <DataTable
+              columns={[
+                { key: 'ticker', label: 'Ticker', render: (v) => <span className="font-semibold text-white">{v}</span> },
+                { key: 'side', label: 'Side' },
+                { key: 'entry', label: 'Entry', cellClassName: 'text-right', render: (v) => `$${Number(v).toFixed(2)}` },
+                { key: 'current', label: 'Current', cellClassName: 'text-right', render: (v) => `$${Number(v).toFixed(2)}` },
+                { key: 'pnl', label: 'P&L', cellClassName: 'text-right', render: (v) => <span className={v.startsWith('+') ? 'text-success' : 'text-danger'}>{v}</span> },
+              ]}
+              data={positions}
+            />
+          </Card>
         </div>
 
-        {/* Latest Signals */}
-        <GlassCard
+        <Card
           title="Latest Signals"
-          icon={Zap}
-          action={<Link to="/signals" className="text-xs text-blue-400 hover:text-blue-300">View All</Link>}
+          bodyClassName="flex flex-col"
         >
+          <div className="flex justify-end -mt-2 mb-2"><Link to="/signals" className="text-xs text-primary hover:text-primary/80">View All</Link></div>
           <div className="space-y-3">
             {signals.map((s, i) => (
-              <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-slate-800/40 border border-white/5">
-                <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                  <Zap className="w-5 h-5 text-blue-400" />
+              <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-secondary/10 border border-secondary/30">
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Zap className="w-5 h-5 text-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold text-white">{s.ticker}</span>
-                    <span className="text-xs text-gray-500">{s.time}</span>
+                    <span className="text-xs text-secondary">{s.time}</span>
                   </div>
-                  <div className="text-xs text-gray-400">{s.type}</div>
+                  <div className="text-xs text-secondary">{s.type}</div>
                 </div>
                 <div className="text-right">
-                  <div className={`text-sm font-bold ${s.score >= 80 ? 'text-emerald-400' : 'text-amber-400'}`}>{s.score}</div>
-                  <div className="text-xs text-gray-500">score</div>
+                  <div className={`text-sm font-bold ${s.score >= 80 ? 'text-success' : 'text-warning'}`}>{s.score}</div>
+                  <div className="text-xs text-secondary">score</div>
                 </div>
               </div>
             ))}
           </div>
-        </GlassCard>
+        </Card>
       </div>
 
-      {/* Agent Status Row */}
-      <GlassCard title="Agent Status" icon={Bot}>
+      <Card title="Agent Status">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {agents.map((a, i) => (
-            <div key={i} className="flex items-center gap-3 p-4 rounded-xl bg-slate-800/40 border border-white/5">
-              <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                <a.icon className="w-5 h-5 text-purple-400" />
-              </div>
-              <div className="flex-1">
-                <div className="text-sm font-medium text-white">{a.name}</div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <div className={`w-1.5 h-1.5 rounded-full ${a.status === 'active' ? 'bg-emerald-400' : 'bg-amber-400'} animate-pulse`} />
-                  <span className="text-xs text-gray-500 capitalize">{a.status}</span>
-                  <span className="text-xs text-gray-600">|</span>
-                  <span className="text-xs text-gray-500">{a.tasks} tasks</span>
+          {agents.map((a, i) => {
+            const Icon = a.icon;
+            return (
+              <div key={i} className="flex items-center gap-3 p-4 rounded-xl bg-secondary/10 border border-secondary/30">
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Icon className="w-5 h-5 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-white">{a.name}</div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <div className={`w-1.5 h-1.5 rounded-full ${a.status === 'active' ? 'bg-success' : 'bg-warning'} animate-pulse`} />
+                    <span className="text-xs text-secondary capitalize">{a.status}</span>
+                    <span className="text-xs text-secondary">|</span>
+                    <span className="text-xs text-secondary">{a.tasks} tasks</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
-      </GlassCard>
+      </Card>
 
-      {/* Quick Performance Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <GlassCard title="Recent Trades" icon={Clock}>
+        <Card title="Recent Trades">
           <div className="space-y-2">
             {['AAPL +$320 (Long)', 'GOOGL +$180 (Long)', 'TSLA -$95 (Short)', 'SPY +$450 (Short)'].map((t, i) => (
-              <div key={i} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
-                <span className="text-sm text-gray-300">{t.split(' ')[0]}</span>
-                <span className={`text-sm font-medium ${t.includes('+') ? 'text-emerald-400' : 'text-red-400'}`}>
+              <div key={i} className="flex items-center justify-between py-2 border-b border-secondary/30 last:border-0">
+                <span className="text-sm text-white">{t.split(' ')[0]}</span>
+                <span className={`text-sm font-medium ${t.includes('+') ? 'text-success' : 'text-danger'}`}>
                   {t.split(' ').slice(1).join(' ')}
                 </span>
               </div>
             ))}
           </div>
-        </GlassCard>
-        <GlassCard title="System Health" icon={Activity}>
+        </Card>
+        <Card title="System Health">
           <div className="space-y-3">
             {[
-              { label: 'API Latency', value: '12ms', status: 'good' },
-              { label: 'WebSocket', value: 'Connected', status: 'good' },
-              { label: 'ML Models', value: '4/4 Loaded', status: 'good' },
-              { label: 'Data Feed', value: 'Live', status: 'good' },
+              { label: 'API Latency', value: '12ms' },
+              { label: 'WebSocket', value: 'Connected' },
+              { label: 'ML Models', value: '4/4 Loaded' },
+              { label: 'Data Feed', value: 'Live' },
             ].map((item, i) => (
-              <div key={i} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
-                <span className="text-sm text-gray-400">{item.label}</span>
+              <div key={i} className="flex items-center justify-between py-2 border-b border-secondary/30 last:border-0">
+                <span className="text-sm text-secondary">{item.label}</span>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-white">{item.value}</span>
-                  <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                  <div className="w-2 h-2 rounded-full bg-success" />
                 </div>
               </div>
             ))}
           </div>
-        </GlassCard>
+        </Card>
       </div>
     </div>
   );

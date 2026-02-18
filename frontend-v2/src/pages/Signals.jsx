@@ -1,10 +1,12 @@
 // SIGNALS PAGE - Embodier.ai Glass House Intelligence System
 // Signal scanner with filters, composite scoring, and signal cards
 import { useState } from 'react';
-import {
-  Zap, Filter, ArrowUpRight, ArrowDownRight, TrendingUp,
-  Clock, Target, Brain, ChevronDown, Search
-} from 'lucide-react';
+import { Zap, Clock, Target, Brain, Search } from 'lucide-react';
+import Card from '../components/ui/Card';
+import TextField from '../components/ui/TextField';
+import Select from '../components/ui/Select';
+import Button from '../components/ui/Button';
+import Badge from '../components/ui/Badge';
 
 const MOCK_SIGNALS = [
   { id: 1, ticker: 'AAPL', type: 'Bullish Breakout', direction: 'long', score: 92, mlConfidence: 88, price: 192.30, target: 198.50, stop: 188.00, timeframe: '1D', time: '2m ago', source: 'Pattern AI' },
@@ -21,10 +23,10 @@ function ScoreRing({ score, size = 48 }) {
   const r = (size - 8) / 2;
   const circ = 2 * Math.PI * r;
   const offset = circ - (score / 100) * circ;
-  const color = score >= 80 ? '#10b981' : score >= 60 ? '#f59e0b' : '#ef4444';
+  const color = score >= 80 ? '#22c55e' : score >= 60 ? '#eab308' : '#ef4444';
   return (
     <svg width={size} height={size} className="-rotate-90">
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#1e293b" strokeWidth={3} />
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(30,41,59,0.8)" strokeWidth={3} />
       <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={3}
         strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round" className="transition-all duration-700" />
       <text x={size/2} y={size/2} textAnchor="middle" dominantBaseline="central" className="rotate-90 origin-center"
@@ -52,72 +54,65 @@ export default function Signals() {
           <p className="text-sm text-secondary mt-1">{filtered.length} active signals detected</p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-sm text-emerald-400">Live Scanning</span>
+          <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
+          <span className="text-sm text-success">Live Scanning</span>
         </div>
       </div>
 
-      {/* Filters bar */}
-      <div className="flex flex-wrap items-center gap-4 p-4 bg-slate-800/30 border border-white/10 rounded-2xl">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-          <input
-            type="text" placeholder="Search ticker..."
-            value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-slate-800/60 border border-white/10 rounded-xl text-sm text-white placeholder-gray-500 outline-none focus:border-blue-500/50"
+      <Card noPadding className="p-4">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-secondary pointer-events-none z-10" />
+            <TextField
+              placeholder="Search ticker..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="[&_input]:pl-10"
+            />
+          </div>
+          <div className="flex gap-2">
+            {['all', 'long', 'short'].map(f => (
+              <Button
+                key={f}
+                variant={filter === f ? 'primary' : 'secondary'}
+                size="sm"
+                onClick={() => setFilter(f)}
+              >
+                {f === 'all' ? 'All' : f === 'long' ? 'Long' : 'Short'}
+              </Button>
+            ))}
+          </div>
+          <Select
+            value={sortBy}
+            onChange={e => setSortBy(e.target.value)}
+            options={[{ value: 'score', label: 'Sort by Score' }, { value: 'time', label: 'Sort by Time' }]}
+            className="min-w-[10rem]"
           />
         </div>
-        <div className="flex gap-2">
-          {['all', 'long', 'short'].map(f => (
-            <button key={f} onClick={() => setFilter(f)}
-              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                filter === f ? 'bg-primary/20 text-primary border border-primary/30' : 'text-secondary hover:text-white bg-secondary/10 border border-secondary/30'
-              }`}>
-              {f === 'all' ? 'All' : f === 'long' ? 'Long' : 'Short'}
-            </button>
-          ))}
-        </div>
-        <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-          className="px-4 py-2 bg-slate-800/60 border border-white/10 rounded-xl text-sm text-white outline-none">
-          <option value="score">Sort by Score</option>
-          <option value="time">Sort by Time</option>
-        </select>
-      </div>
+      </Card>
 
-      {/* Signal cards grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {filtered.map(signal => (
-          <div key={signal.id} className="bg-slate-800/30 border border-white/10 rounded-2xl p-5 hover:border-white/20 transition-all">
+          <Card key={signal.id} className="p-5 hover:border-primary/30 transition-all">
             <div className="flex items-start gap-4">
-              {/* Score ring */}
               <ScoreRing score={signal.score} />
-
-              {/* Signal details */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-lg font-bold text-white">{signal.ticker}</span>
-                  <span className={`px-2 py-0.5 rounded-lg text-xs font-medium ${
-                    signal.direction === 'long' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'
-                  }`}>
-                    {signal.direction === 'long' ? 'LONG' : 'SHORT'}
-                  </span>
-                  <span className="text-xs text-gray-500">{signal.timeframe}</span>
+                  <Badge variant={signal.direction === 'long' ? 'success' : 'danger'}>{signal.direction === 'long' ? 'LONG' : 'SHORT'}</Badge>
+                  <span className="text-xs text-secondary">{signal.timeframe}</span>
                 </div>
                 <div className="text-sm text-secondary mb-2">{signal.type}</div>
-                <div className="flex items-center gap-4 text-xs text-gray-500">
+                <div className="flex items-center gap-4 text-xs text-secondary">
                   <span className="flex items-center gap-1"><Target className="w-3 h-3" /> T: ${signal.target}</span>
-                  <span className="flex items-center gap-1 text-red-400">S: ${signal.stop}</span>
+                  <span className="flex items-center gap-1 text-danger">S: ${signal.stop}</span>
                   <span className="flex items-center gap-1"><Brain className="w-3 h-3" /> ML: {signal.mlConfidence}%</span>
                   <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {signal.time}</span>
                 </div>
               </div>
-
-              {/* Action button */}
-              <button className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-sm font-medium text-white transition-colors">
-                Trade
-              </button>
+              <Button variant="primary" size="sm">Trade</Button>
             </div>
-          </div>
+          </Card>
         ))}
       </div>
     </div>

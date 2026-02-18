@@ -1,4 +1,8 @@
 import React, { useState } from 'react';
+import Card from '../components/ui/Card';
+import TextField from '../components/ui/TextField';
+import Button from '../components/ui/Button';
+import Badge from '../components/ui/Badge';
 
 // Mock: transcript / extracted ideas from YouTube financial content
 const MOCK_VIDEOS = [
@@ -28,45 +32,40 @@ const YouTubeKnowledge = () => {
       </div>
 
       {/* Add Video (shell) */}
-      <div className="bg-secondary/10 rounded-lg p-6 mb-6">
-        <h2 className="text-xl font-bold mb-4">Add Video</h2>
+      <Card title="Add Video" className="mb-6">
         <form onSubmit={handleAddVideo} className="flex gap-3">
-          <input
+          <TextField
             type="url"
             value={videoUrl}
             onChange={(e) => setVideoUrl(e.target.value)}
             placeholder="Paste YouTube URL..."
-            className="flex-1 bg-dark border border-secondary/50 rounded px-4 py-2 focus:outline-none focus:ring-1 focus:ring-primary"
+            className="flex-1"
           />
-          <button type="submit" className="bg-cyan-600 hover:bg-cyan-700 px-4 py-2 rounded font-medium">
-            Add Video
-          </button>
+          <Button type="submit" variant="primary">Add Video</Button>
         </form>
         <p className="text-xs text-secondary mt-2">POST /api/v1/youtube-knowledge when wired.</p>
-      </div>
+      </Card>
 
       {/* Ingested Videos (mock list) */}
-      <div className="bg-secondary/10 rounded-lg p-6 mb-6">
-        <h2 className="text-xl font-bold mb-4">Ingested Videos</h2>
+      <Card title="Ingested Videos" className="mb-6">
         <div className="space-y-4">
           {MOCK_VIDEOS.map((video) => (
-            <div key={video.id} className="border border-secondary/50 rounded p-4">
-              <h3 className="font-semibold">{video.title}</h3>
+            <div key={video.id} className="border border-secondary/50 rounded-xl p-4">
+              <h3 className="font-semibold text-white">{video.title}</h3>
               <p className="text-sm text-secondary">{video.channel} · {video.addedAt}</p>
               <div className="flex flex-wrap gap-2 mt-2">
                 {video.concepts.map((c) => (
-                  <span key={c} className="text-xs bg-secondary/50 px-2 py-0.5 rounded">{c}</span>
+                  <Badge key={c} variant="secondary">{c}</Badge>
                 ))}
-                <span className="text-xs text-cyan-400">{video.ideasCount} ideas</span>
+                <span className="text-xs text-primary">{video.ideasCount} ideas</span>
               </div>
             </div>
           ))}
         </div>
-      </div>
+      </Card>
 
       {/* New ML Features from YouTube (mock) */}
-      <div className="bg-secondary/10 rounded-lg p-6">
-        <h2 className="text-xl font-bold mb-4">New ML Features from YouTube</h2>
+      <Card title="New ML Features from YouTube">
         <div className="space-y-3">
           {MOCK_FEATURES.map((f) => (
             <div key={f.id} className="flex items-center justify-between py-2 border-b border-secondary/50 last:border-0">
@@ -76,7 +75,7 @@ const YouTubeKnowledge = () => {
           ))}
         </div>
         <p className="text-xs text-secondary mt-4">Connect GET /api/v1/youtube-knowledge for live data.</p>
-      </div>
+      </Card>
     </div>
   );
 };

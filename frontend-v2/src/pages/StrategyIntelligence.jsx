@@ -1,4 +1,8 @@
 import React, { useState } from 'react';
+import Card from '../components/ui/Card';
+import Toggle from '../components/ui/Toggle';
+import Button from '../components/ui/Button';
+import Badge from '../components/ui/Badge';
 
 const StrategyIntelligence = () => {
   const [masterSwitch, setMasterSwitch] = useState(true);
@@ -44,130 +48,75 @@ const StrategyIntelligence = () => {
     }
   ];
 
-  const getStatusColor = (status) => {
-    switch(status) {
-      case 'Active': return 'text-green-500';
-      case 'Paused': return 'text-yellow-500';
-      case 'Error': return 'text-red-500';
-      default: return 'text-secondary';
+  const getStatusVariant = (status) => {
+    switch (status) {
+      case 'Active': return 'success';
+      case 'Paused': return 'warning';
+      case 'Error': return 'danger';
+      default: return 'secondary';
     }
   };
 
-  const getStatusBg = (status) => {
-    switch(status) {
-      case 'Active': return 'bg-green-900/20 border-green-700';
-      case 'Paused': return 'bg-yellow-900/20 border-yellow-700';
-      case 'Error': return 'bg-red-900/20 border-red-700';
-      default: return 'bg-secondary/20 border-secondary/50';
+  const getStatusBorder = (status) => {
+    switch (status) {
+      case 'Active': return 'border-success/50';
+      case 'Paused': return 'border-warning/50';
+      case 'Error': return 'border-danger/50';
+      default: return 'border-secondary/50';
     }
   };
 
   return (
     <div className="min-h-screen bg-dark text-white p-6">
-      {/* Emergency Controls */}
-      <div className="bg-black border border-secondary/50 rounded-lg p-6 mb-6">
-        <h2 className="text-xl font-bold mb-2">Emergency Controls</h2>
-        <p className="text-sm text-gray-400 mb-6">Global settings to manage all active strategies and positions.</p>
-        
+      <Card title="Emergency Controls" subtitle="Global settings to manage all active strategies and positions." className="mb-6">
         <div className="space-y-4">
-          {/* Master Switch */}
-          <div className="flex items-center justify-between">
-            <span className="font-medium">Master Switch (ON/OFF)</span>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input 
-                type="checkbox" 
-                checked={masterSwitch}
-                onChange={() => setMasterSwitch(!masterSwitch)}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-secondary/50 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-secondary after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-            </label>
-          </div>
-
-          {/* Pause All Strategies */}
-          <div className="flex items-center justify-between">
-            <span className="font-medium">Pause All Strategies</span>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input 
-                type="checkbox" 
-                checked={pauseAll}
-                onChange={() => setPauseAll(!pauseAll)}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-secondary/50 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-secondary after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-secondary"></div>
-            </label>
-          </div>
-
-          {/* Close All Positions */}
-          <div className="flex items-center justify-between">
-            <span className="font-medium text-red-400">Close All Positions</span>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input 
-                type="checkbox" 
-                checked={closeAllPositions}
-                onChange={() => setCloseAllPositions(!closeAllPositions)}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-secondary/50 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-secondary after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-secondary"></div>
-            </label>
-          </div>
+          <Toggle label="Master Switch (ON/OFF)" checked={masterSwitch} onChange={() => setMasterSwitch(!masterSwitch)} />
+          <Toggle label="Pause All Strategies" checked={pauseAll} onChange={() => setPauseAll(!pauseAll)} />
+          <Toggle label="Close All Positions" description="Danger: closes all open positions" checked={closeAllPositions} onChange={() => setCloseAllPositions(!closeAllPositions)} />
         </div>
-      </div>
+      </Card>
 
-      {/* My Trading Strategies */}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold">My Trading Strategies</h2>
-        <button className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded flex items-center gap-2">
-          <span>+</span> Add New Strategy
-        </button>
+        <Button variant="primary">+ Add New Strategy</Button>
       </div>
 
-      {/* Strategy Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {strategies.map((strategy) => (
-          <div 
-            key={strategy.id}
-            className={`bg-secondary/10 rounded-lg p-6 border-2 ${getStatusBg(strategy.status)}`}
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h3 className="text-xl font-bold mb-1">{strategy.name}</h3>
-                <div className="flex items-center gap-2">
-                  <span className={`text-sm font-semibold ${getStatusColor(strategy.status)}`}>
-                    ▶ {strategy.status}
-                  </span>
+          <Card key={strategy.id} className={`border-2 ${getStatusBorder(strategy.status)}`} noPadding>
+            <div className="p-6">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h3 className="text-xl font-bold mb-1 text-white">{strategy.name}</h3>
+                  <Badge variant={getStatusVariant(strategy.status)}>▶ {strategy.status}</Badge>
                 </div>
               </div>
-            </div>
 
-            <p className="text-sm text-gray-400 mb-4">{strategy.description}</p>
+              <p className="text-sm text-secondary mb-4">{strategy.description}</p>
 
-            <div className="grid grid-cols-3 gap-4 mb-4">
-              <div>
-                <p className="text-xs text-gray-400 mb-1">Daily P&L</p>
-                <p className={`text-lg font-bold ${strategy.dailyPL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  {strategy.dailyPL >= 0 ? '+' : ''}{strategy.dailyPL}%
-                </p>
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div>
+                  <p className="text-xs text-secondary mb-1">Daily P&L</p>
+                  <p className={`text-lg font-bold ${strategy.dailyPL >= 0 ? 'text-success' : 'text-danger'}`}>
+                    {strategy.dailyPL >= 0 ? '+' : ''}{strategy.dailyPL}%
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-secondary mb-1">Win Rate</p>
+                  <p className="text-lg font-bold text-white">{strategy.winRate}%</p>
+                </div>
+                <div>
+                  <p className="text-xs text-secondary mb-1">Max Drawdown</p>
+                  <p className="text-lg font-bold text-danger">{strategy.maxDrawdown}%</p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-gray-400 mb-1">Win Rate</p>
-                <p className="text-lg font-bold">{strategy.winRate}%</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-400 mb-1">Max Drawdown</p>
-                <p className="text-lg font-bold text-red-500">{strategy.maxDrawdown}%</p>
+
+              <div className="flex gap-3">
+                <Button variant="secondary" className="flex-1">View Details</Button>
+                <Button variant="secondary" className="flex-1">Edit</Button>
               </div>
             </div>
-
-            <div className="flex gap-3">
-              <button className="flex-1 bg-secondary/50 hover:bg-secondary/80 py-2 rounded flex items-center justify-center gap-2">
-                <span>ὄ1</span> View Details
-              </button>
-              <button className="flex-1 bg-secondary/50 hover:bg-secondary/80 py-2 rounded flex items-center justify-center gap-2">
-                <span>✏</span> Edit
-              </button>
-            </div>
-          </div>
+          </Card>
         ))}
       </div>
     </div>

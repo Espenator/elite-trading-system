@@ -1,4 +1,6 @@
 import React from 'react';
+import Card from '../components/ui/Card';
+import Badge from '../components/ui/Badge';
 
 // Mock: 10 data feeds per V2-EMBODIER-AI-README (Finviz, UW, Alpaca, FRED, SEC EDGAR, Stockgeist, News API, Discord, X, YouTube)
 const MOCK_SOURCES = [
@@ -15,59 +17,64 @@ const MOCK_SOURCES = [
 ];
 
 const DataSourcesMonitor = () => {
-  const getStatusStyle = (status) => {
+  const getStatusVariant = (status) => {
     switch (status) {
-      case 'healthy': return 'text-green-500 bg-green-900/20 border-green-700';
-      case 'degraded': return 'text-yellow-500 bg-yellow-900/20 border-yellow-700';
-      case 'error': return 'text-red-500 bg-red-900/20 border-red-700';
-      default: return 'text-secondary bg-secondary/20 border-secondary/50';
+      case 'healthy': return 'success';
+      case 'degraded': return 'warning';
+      case 'error': return 'danger';
+      default: return 'secondary';
+    }
+  };
+
+  const getCardBorder = (status) => {
+    switch (status) {
+      case 'healthy': return 'border-success/50';
+      case 'degraded': return 'border-warning/50';
+      case 'error': return 'border-danger/50';
+      default: return 'border-secondary/50';
     }
   };
 
   return (
     <div className="min-h-screen bg-dark text-white p-6">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold">Data Sources Monitor</h1>
+        <h1 className="text-3xl font-bold text-white">Data Sources Monitor</h1>
         <p className="text-secondary mt-1">Health of all 10 feeds with latency and record counts.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {MOCK_SOURCES.map((source) => (
-          <div
-            key={source.id}
-            className={`rounded-lg p-5 border ${getStatusStyle(source.status)}`}
-          >
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <h3 className="text-lg font-bold">{source.name}</h3>
-                <span className="text-xs text-secondary">{source.type}</span>
+          <Card key={source.id} className={`p-5 border-2 ${getCardBorder(source.status)}`} noPadding>
+            <div className="p-5">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <h3 className="text-lg font-bold text-white">{source.name}</h3>
+                  <span className="text-xs text-secondary">{source.type}</span>
+                </div>
+                <Badge variant={getStatusVariant(source.status)}>{source.status}</Badge>
               </div>
-              <span className={`text-sm font-semibold capitalize px-2 py-1 rounded ${getStatusStyle(source.status)}`}>
-                {source.status}
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <span className="text-secondary">Latency</span>
-                <p className="font-mono">{source.latencyMs != null ? `${source.latencyMs} ms` : '—'}</p>
-              </div>
-              <div>
-                <span className="text-secondary">Last sync</span>
-                <p>{source.lastSync}</p>
-              </div>
-              <div>
-                <span className="text-secondary">Records</span>
-                <p className="font-mono">{source.recordCount.toLocaleString()}</p>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <span className="text-secondary">Latency</span>
+                  <p className="font-mono text-white">{source.latencyMs != null ? `${source.latencyMs} ms` : '—'}</p>
+                </div>
+                <div>
+                  <span className="text-secondary">Last sync</span>
+                  <p className="text-white">{source.lastSync}</p>
+                </div>
+                <div>
+                  <span className="text-secondary">Records</span>
+                  <p className="font-mono text-white">{source.recordCount.toLocaleString()}</p>
+                </div>
               </div>
             </div>
-          </div>
+          </Card>
         ))}
       </div>
 
-      <div className="mt-8 bg-secondary/10 rounded-lg p-6">
-        <h2 className="text-xl font-bold mb-4">FRED Macro / SEC Placeholders</h2>
+      <Card title="FRED Macro / SEC Placeholders" className="mt-8">
         <p className="text-secondary text-sm">Connect to GET /api/v1/data-sources, /data-sources/fred/regime, /data-sources/edgar/filings for live data.</p>
-      </div>
+      </Card>
     </div>
   );
 };
