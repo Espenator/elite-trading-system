@@ -36,7 +36,7 @@ export default function Header({ onMenuToggle }) {
   ];
 
   const getStatusColor = (status) => {
-    switch(status) {
+    switch (status) {
       case 'active': return 'bg-success';
       case 'learning': return 'bg-warning';
       case 'idle': return 'bg-secondary';
@@ -46,14 +46,14 @@ export default function Header({ onMenuToggle }) {
   };
 
   return (
-    <header className="sticky top-0 z-50 border-b border-secondary/30">
-              {/* Gradient background */}
+    <header className="sticky top-0 z-10 border-b border-secondary/30">
+      {/* Gradient background */}
       <div className="absolute inset-0 bg-gradient-to-r from-dark via-dark to-dark opacity-95" />
       <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent" />
-      
+
       <div className="relative px-6 py-4">
         <div className="flex items-center justify-between gap-6">
-          
+
           {/* Left section: Menu toggle + Search */}
           <div className="flex items-center gap-4 flex-1 max-w-2xl">
             {/* Mobile menu toggle */}
@@ -68,8 +68,8 @@ export default function Header({ onMenuToggle }) {
             <div className="relative flex-1">
               <div className={`
                 relative rounded-xl border transition-all duration-300
-                ${searchFocused 
-                  ? 'border-primary/50 bg-secondary/20 shadow-lg shadow-primary/10' 
+                ${searchFocused
+                  ? 'border-primary/50 bg-secondary/20 shadow-lg shadow-primary/10'
                   : 'border-secondary/30 bg-secondary/10 hover:border-secondary/50'
                 }
               `}>
@@ -90,7 +90,7 @@ export default function Header({ onMenuToggle }) {
 
           {/* Right section: Agent status + Notifications + User menu */}
           <div className="flex items-center gap-4">
-            
+
             {/* Agent status indicators */}
             <div className="hidden xl:flex items-center gap-3 px-4 py-2 rounded-xl bg-secondary/10 border border-secondary/30">
               <Activity className="w-4 h-4 text-success" />
@@ -177,7 +177,7 @@ export default function Header({ onMenuToggle }) {
                   <User className="w-4 h-4 text-white" />
                 </div>
                 <div className="hidden md:block text-left">
-                            <div className="text-sm font-medium text-white">Embodier Trader</div>
+                  <div className="text-sm font-medium text-white">Embodier Trader</div>
                   <div className="text-xs text-secondary">Pro Account</div>
                 </div>
                 <ChevronDown className="w-4 h-4 text-secondary" />
@@ -187,8 +187,8 @@ export default function Header({ onMenuToggle }) {
               {showUserMenu && (
                 <div className="absolute right-0 mt-2 w-56 rounded-xl bg-dark backdrop-blur-xl border border-secondary/30 shadow-2xl shadow-black/50 overflow-hidden">
                   <div className="px-4 py-3 border-b border-secondary/30">
-                                  <div className="font-medium text-white">espen@embodier.ai</div>
-                                  <div className="text-xs text-secondary mt-0.5">Account ID: EMB-2025-001</div>
+                    <div className="font-medium text-white">espen@embodier.ai</div>
+                    <div className="text-xs text-secondary mt-0.5">Account ID: EMB-2025-001</div>
                   </div>
                   <div className="py-2">
                     <a href="#" className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 transition-colors">
