@@ -32,10 +32,10 @@ export default function Toggle({
           disabled && 'opacity-50 cursor-not-allowed'
         )}
       >
-        <span
+        <span 
           className={clsx(
-            'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow ring-0 transition translate-x-0.5 mt-0.5',
-            checked && 'translate-x-5'
+            'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow ring-0 transition translate-x-0.5 mt-[1px]',
+            checked && 'translate-x-[21px]'
           )}
         />
       </button>

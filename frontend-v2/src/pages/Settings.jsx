@@ -1,182 +1,375 @@
 // SETTINGS PAGE - Embodier.ai Glass House Intelligence System
 // Tabbed settings: General, Trading, Risk, API Keys, Notifications, ML/AI, Agents
-import { useState } from 'react';
+import { useState } from "react";
 import {
-  Settings as SettingsIcon, Shield, Key, Bell, Brain, Bot,
-  TrendingUp, Save, RotateCcw, ChevronRight
-} from 'lucide-react';
-import Button from '../components/ui/Button';
-import TextField from '../components/ui/TextField';
-import Select from '../components/ui/Select';
-import Toggle from '../components/ui/Toggle';
-import Card from '../components/ui/Card';
+  Settings as SettingsIcon,
+  Shield,
+  Key,
+  Bell,
+  Brain,
+  Bot,
+  TrendingUp,
+  Save,
+  RotateCcw,
+  ChevronRight,
+} from "lucide-react";
+import Button from "../components/ui/Button";
+import TextField from "../components/ui/TextField";
+import Select from "../components/ui/Select";
+import Toggle from "../components/ui/Toggle";
+import Card from "../components/ui/Card";
 
-const TABS = [
-  { id: 'general', label: 'General', icon: SettingsIcon },
-  { id: 'trading', label: 'Trading', icon: TrendingUp },
-  { id: 'risk', label: 'Risk Management', icon: Shield },
-  { id: 'api', label: 'API Keys', icon: Key },
-  { id: 'notifications', label: 'Notifications', icon: Bell },
-  { id: 'ml', label: 'ML / AI', icon: Brain },
-  { id: 'agents', label: 'Agents', icon: Bot },
+const tabs = [
+  { id: "general", label: "General", icon: SettingsIcon },
+  { id: "trading", label: "Trading", icon: TrendingUp },
+  { id: "risk", label: "Risk Management", icon: Shield },
+  { id: "api", label: "API Keys", icon: Key },
+  { id: "notifications", label: "Notifications", icon: Bell },
+  { id: "ml", label: "ML / AI", icon: Brain },
+  { id: "agents", label: "Agents", icon: Bot },
 ];
 
 function SectionCard({ title, children }) {
   return (
     <Card title={title} className="mb-6">
-      <div className="divide-y divide-secondary/30">{children}</div>
+      {children}
     </Card>
   );
 }
 
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState('general');
+  const [activeTab, setActiveTab] = useState("general");
   const [settings, setSettings] = useState({
-    theme: 'dark', timezone: 'EST', currency: 'USD',
-    defaultTimeframe: '1D', maxPositions: 15, positionSize: 2.0,
-    riskPerTrade: 2.0, maxDailyLoss: 5.0, circuitBreaker: true, stopLossDefault: 2.0,
-    alpacaKey: '****', alpacaSecret: '****', finhubKey: '****', unusualWhalesKey: '****',
-    telegramEnabled: true, emailEnabled: true, signalAlerts: true, tradeAlerts: true,
-    minCompositeScore: 60, minMLConfidence: 40, autoRetrain: true, retrainDay: 'Sunday',
-    marketScanner: true, patternAI: true, riskAgent: true, youtubeAgent: true,
+    theme: "dark",
+    timezone: "EST",
+    currency: "USD",
+    defaultTimeframe: "1D",
+    maxPositions: 15,
+    positionSize: 2.0,
+    riskPerTrade: 2.0,
+    maxDailyLoss: 5.0,
+    circuitBreaker: true,
+    stopLossDefault: 2.0,
+    alpacaKey: "****",
+    alpacaSecret: "****",
+    finhubKey: "****",
+    unusualWhalesKey: "****",
+    telegramEnabled: true,
+    emailEnabled: true,
+    signalAlerts: true,
+    tradeAlerts: true,
+    minCompositeScore: 60,
+    minMLConfidence: 40,
+    autoRetrain: true,
+    retrainDay: "Sunday",
+    marketScanner: true,
+    patternAI: true,
+    riskAgent: true,
+    youtubeAgent: true,
   });
 
-  const update = (key, val) => setSettings(p => ({ ...p, [key]: val }));
+  const update = (key, val) => setSettings((p) => ({ ...p, [key]: val }));
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'general':
+      case "general":
         return (
           <>
             <SectionCard title="Appearance">
               <div className="py-3">
-                <Select label="Theme" value={settings.theme} onChange={e => update('theme', e.target.value)}
-                  options={[{ value: 'dark', label: 'Dark (Glass House)' }, { value: 'light', label: 'Light' }, { value: 'midnight', label: 'Midnight Blue' }]} />
+                <Select
+                  label="Theme"
+                  value={settings.theme}
+                  onChange={(e) => update("theme", e.target.value)}
+                  options={[
+                    { value: "dark", label: "Dark (Glass House)" },
+                    { value: "light", label: "Light" },
+                    { value: "midnight", label: "Midnight Blue" },
+                  ]}
+                />
               </div>
               <div className="py-3">
-                <Select label="Timezone" value={settings.timezone} onChange={e => update('timezone', e.target.value)}
-                  options={[{ value: 'EST', label: 'Eastern (EST)' }, { value: 'CST', label: 'Central (CST)' }, { value: 'PST', label: 'Pacific (PST)' }, { value: 'UTC', label: 'UTC' }]} />
+                <Select
+                  label="Timezone"
+                  value={settings.timezone}
+                  onChange={(e) => update("timezone", e.target.value)}
+                  options={[
+                    { value: "EST", label: "Eastern (EST)" },
+                    { value: "CST", label: "Central (CST)" },
+                    { value: "PST", label: "Pacific (PST)" },
+                    { value: "UTC", label: "UTC" },
+                  ]}
+                />
               </div>
               <div className="py-3">
-                <Select label="Currency" value={settings.currency} onChange={e => update('currency', e.target.value)}
-                  options={[{ value: 'USD', label: 'USD ($)' }, { value: 'EUR', label: 'EUR' }, { value: 'GBP', label: 'GBP' }]} />
+                <Select
+                  label="Currency"
+                  value={settings.currency}
+                  onChange={(e) => update("currency", e.target.value)}
+                  options={[
+                    { value: "USD", label: "USD ($)" },
+                    { value: "EUR", label: "EUR" },
+                    { value: "GBP", label: "GBP" },
+                  ]}
+                />
               </div>
             </SectionCard>
           </>
         );
-      case 'trading':
+      case "trading":
         return (
           <>
             <SectionCard title="Position Settings">
               <div className="py-3">
-                <TextField label="Max Concurrent Positions" value={settings.maxPositions} onChange={e => update('maxPositions', e.target.value)} type="number" />
+                <TextField
+                  label="Max Concurrent Positions"
+                  value={settings.maxPositions}
+                  onChange={(e) => update("maxPositions", e.target.value)}
+                  type="number"
+                />
               </div>
               <div className="py-3">
-                <TextField label="Default Position Size" value={settings.positionSize} onChange={e => update('positionSize', e.target.value)} type="number" suffix="%" />
+                <TextField
+                  label="Default Position Size"
+                  value={settings.positionSize}
+                  onChange={(e) => update("positionSize", e.target.value)}
+                  type="number"
+                  suffix="%"
+                />
               </div>
               <div className="py-3">
-                <Select label="Default Timeframe" value={settings.defaultTimeframe} onChange={e => update('defaultTimeframe', e.target.value)}
-                  options={[{ value: '1m', label: '1 Minute' }, { value: '5m', label: '5 Minutes' }, { value: '15m', label: '15 Minutes' }, { value: '1H', label: '1 Hour' }, { value: '1D', label: '1 Day' }]} />
+                <Select
+                  label="Default Timeframe"
+                  value={settings.defaultTimeframe}
+                  onChange={(e) => update("defaultTimeframe", e.target.value)}
+                  options={[
+                    { value: "1m", label: "1 Minute" },
+                    { value: "5m", label: "5 Minutes" },
+                    { value: "15m", label: "15 Minutes" },
+                    { value: "1H", label: "1 Hour" },
+                    { value: "1D", label: "1 Day" },
+                  ]}
+                />
               </div>
             </SectionCard>
           </>
         );
-      case 'risk':
+      case "risk":
         return (
           <>
             <SectionCard title="Risk Controls">
               <div className="py-3">
-                <TextField label="Risk Per Trade" value={settings.riskPerTrade} onChange={e => update('riskPerTrade', e.target.value)} type="number" suffix="%" />
+                <TextField
+                  label="Risk Per Trade"
+                  value={settings.riskPerTrade}
+                  onChange={(e) => update("riskPerTrade", e.target.value)}
+                  type="number"
+                  suffix="%"
+                />
               </div>
               <div className="py-3">
-                <TextField label="Max Daily Loss" value={settings.maxDailyLoss} onChange={e => update('maxDailyLoss', e.target.value)} type="number" suffix="%" />
+                <TextField
+                  label="Max Daily Loss"
+                  value={settings.maxDailyLoss}
+                  onChange={(e) => update("maxDailyLoss", e.target.value)}
+                  type="number"
+                  suffix="%"
+                />
               </div>
               <div className="py-3">
-                <TextField label="Default Stop Loss" value={settings.stopLossDefault} onChange={e => update('stopLossDefault', e.target.value)} type="number" suffix="%" />
+                <TextField
+                  label="Default Stop Loss"
+                  value={settings.stopLossDefault}
+                  onChange={(e) => update("stopLossDefault", e.target.value)}
+                  type="number"
+                  suffix="%"
+                />
               </div>
               <div className="py-3">
-                <Toggle label="Circuit Breaker" description="Auto-halt trading when daily loss limit hit" checked={settings.circuitBreaker} onChange={() => update('circuitBreaker', !settings.circuitBreaker)} />
+                <Toggle
+                  label="Circuit Breaker"
+                  description="Auto-halt trading when daily loss limit hit"
+                  checked={settings.circuitBreaker}
+                  onChange={() =>
+                    update("circuitBreaker", !settings.circuitBreaker)
+                  }
+                />
               </div>
             </SectionCard>
           </>
         );
-      case 'api':
+      case "api":
         return (
           <>
             <SectionCard title="Broker API">
               <div className="py-3">
-                <TextField label="Alpaca API Key" value={settings.alpacaKey} onChange={e => update('alpacaKey', e.target.value)} type="password" />
+                <TextField
+                  label="Alpaca API Key"
+                  value={settings.alpacaKey}
+                  onChange={(e) => update("alpacaKey", e.target.value)}
+                  type="password"
+                />
               </div>
               <div className="py-3">
-                <TextField label="Alpaca Secret Key" value={settings.alpacaSecret} onChange={e => update('alpacaSecret', e.target.value)} type="password" />
+                <TextField
+                  label="Alpaca Secret Key"
+                  value={settings.alpacaSecret}
+                  onChange={(e) => update("alpacaSecret", e.target.value)}
+                  type="password"
+                />
               </div>
             </SectionCard>
             <SectionCard title="Data Providers">
               <div className="py-3">
-                <TextField label="Finnhub API Key" value={settings.finhubKey} onChange={e => update('finhubKey', e.target.value)} type="password" />
+                <TextField
+                  label="Finnhub API Key"
+                  value={settings.finhubKey}
+                  onChange={(e) => update("finhubKey", e.target.value)}
+                  type="password"
+                />
               </div>
               <div className="py-3">
-                <TextField label="Unusual Whales Key" value={settings.unusualWhalesKey} onChange={e => update('unusualWhalesKey', e.target.value)} type="password" />
+                <TextField
+                  label="Unusual Whales Key"
+                  value={settings.unusualWhalesKey}
+                  onChange={(e) => update("unusualWhalesKey", e.target.value)}
+                  type="password"
+                />
               </div>
             </SectionCard>
           </>
         );
-      case 'notifications':
+      case "notifications":
         return (
           <>
             <SectionCard title="Notification Channels">
               <div className="py-3">
-                <Toggle label="Telegram Notifications" description="Send alerts to Telegram bot" checked={settings.telegramEnabled} onChange={() => update('telegramEnabled', !settings.telegramEnabled)} />
+                <Toggle
+                  label="Telegram Notifications"
+                  description="Send alerts to Telegram bot"
+                  checked={settings.telegramEnabled}
+                  onChange={() =>
+                    update("telegramEnabled", !settings.telegramEnabled)
+                  }
+                />
               </div>
               <div className="py-3">
-                <Toggle label="Email Notifications" description="Send daily summaries via email" checked={settings.emailEnabled} onChange={() => update('emailEnabled', !settings.emailEnabled)} />
+                <Toggle
+                  label="Email Notifications"
+                  description="Send daily summaries via email"
+                  checked={settings.emailEnabled}
+                  onChange={() =>
+                    update("emailEnabled", !settings.emailEnabled)
+                  }
+                />
               </div>
             </SectionCard>
             <SectionCard title="Alert Types">
               <div className="py-3">
-                <Toggle label="Signal Alerts" description="New trade signals detected" checked={settings.signalAlerts} onChange={() => update('signalAlerts', !settings.signalAlerts)} />
+                <Toggle
+                  label="Signal Alerts"
+                  description="New trade signals detected"
+                  checked={settings.signalAlerts}
+                  onChange={() =>
+                    update("signalAlerts", !settings.signalAlerts)
+                  }
+                />
               </div>
               <div className="py-3">
-                <Toggle label="Trade Execution Alerts" description="Order fills and position changes" checked={settings.tradeAlerts} onChange={() => update('tradeAlerts', !settings.tradeAlerts)} />
+                <Toggle
+                  label="Trade Execution Alerts"
+                  description="Order fills and position changes"
+                  checked={settings.tradeAlerts}
+                  onChange={() => update("tradeAlerts", !settings.tradeAlerts)}
+                />
               </div>
             </SectionCard>
           </>
         );
-      case 'ml':
+      case "ml":
         return (
           <>
             <SectionCard title="ML Model Settings">
               <div className="py-3">
-                <TextField label="Min Composite Score" value={settings.minCompositeScore} onChange={e => update('minCompositeScore', e.target.value)} type="number" suffix="/ 100" />
+                <TextField
+                  label="Min Composite Score"
+                  value={settings.minCompositeScore}
+                  onChange={(e) => update("minCompositeScore", e.target.value)}
+                  type="number"
+                  suffix="/ 100"
+                />
               </div>
               <div className="py-3">
-                <TextField label="Min ML Confidence" value={settings.minMLConfidence} onChange={e => update('minMLConfidence', e.target.value)} type="number" suffix="%" />
+                <TextField
+                  label="Min ML Confidence"
+                  value={settings.minMLConfidence}
+                  onChange={(e) => update("minMLConfidence", e.target.value)}
+                  type="number"
+                  suffix="%"
+                />
               </div>
               <div className="py-3">
-                <Toggle label="Auto Retrain Models" description="Automatically retrain on new data" checked={settings.autoRetrain} onChange={() => update('autoRetrain', !settings.autoRetrain)} />
+                <Toggle
+                  label="Auto Retrain Models"
+                  description="Automatically retrain on new data"
+                  checked={settings.autoRetrain}
+                  onChange={() => update("autoRetrain", !settings.autoRetrain)}
+                />
               </div>
               <div className="py-3">
-                <Select label="Retrain Schedule" value={settings.retrainDay} onChange={e => update('retrainDay', e.target.value)}
-                  options={[{ value: 'Daily', label: 'Daily' }, { value: 'Sunday', label: 'Weekly (Sunday)' }, { value: 'Monthly', label: 'Monthly' }]} />
+                <Select
+                  label="Retrain Schedule"
+                  value={settings.retrainDay}
+                  onChange={(e) => update("retrainDay", e.target.value)}
+                  options={[
+                    { value: "Daily", label: "Daily" },
+                    { value: "Sunday", label: "Weekly (Sunday)" },
+                    { value: "Monthly", label: "Monthly" },
+                  ]}
+                />
               </div>
             </SectionCard>
           </>
         );
-      case 'agents':
+      case "agents":
         return (
           <>
             <SectionCard title="Agent Controls">
               <div className="py-3">
-                <Toggle label="Market Scanner Agent" description="24/7 scanning for opportunities" checked={settings.marketScanner} onChange={() => update('marketScanner', !settings.marketScanner)} />
+                <Toggle
+                  label="Market Scanner Agent"
+                  description="24/7 scanning for opportunities"
+                  checked={settings.marketScanner}
+                  onChange={() =>
+                    update("marketScanner", !settings.marketScanner)
+                  }
+                />
               </div>
               <div className="py-3">
-                <Toggle label="Pattern AI Agent" description="Real-time pattern recognition" checked={settings.patternAI} onChange={() => update('patternAI', !settings.patternAI)} />
+                <Toggle
+                  label="Pattern AI Agent"
+                  description="Real-time pattern recognition"
+                  checked={settings.patternAI}
+                  onChange={() => update("patternAI", !settings.patternAI)}
+                />
               </div>
               <div className="py-3">
-                <Toggle label="Risk Manager Agent" description="Portfolio risk monitoring" checked={settings.riskAgent} onChange={() => update('riskAgent', !settings.riskAgent)} />
+                <Toggle
+                  label="Risk Manager Agent"
+                  description="Portfolio risk monitoring"
+                  checked={settings.riskAgent}
+                  onChange={() => update("riskAgent", !settings.riskAgent)}
+                />
               </div>
               <div className="py-3">
-                <Toggle label="YouTube Ingestion Agent" description="Process financial video transcripts" checked={settings.youtubeAgent} onChange={() => update('youtubeAgent', !settings.youtubeAgent)} />
+                <Toggle
+                  label="YouTube Ingestion Agent"
+                  description="Process financial video transcripts"
+                  checked={settings.youtubeAgent}
+                  onChange={() =>
+                    update("youtubeAgent", !settings.youtubeAgent)
+                  }
+                />
               </div>
             </SectionCard>
           </>
@@ -191,39 +384,45 @@ export default function Settings() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Settings</h1>
-          <p className="text-sm text-secondary mt-1">Configure your trading system</p>
+          <p className="text-sm text-secondary mt-1">
+            Configure your trading system
+          </p>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" leftIcon={RotateCcw}>Reset</Button>
-          <Button variant="primary" leftIcon={Save}>Save Changes</Button>
+          <Button variant="outline" leftIcon={RotateCcw}>
+            Reset
+          </Button>
+          <Button variant="primary" leftIcon={Save}>
+            Save Changes
+          </Button>
         </div>
       </div>
 
       <div className="flex gap-8">
         <div className="w-56 flex-shrink-0">
           <nav className="space-y-1">
-            {TABS.map(tab => {
+            {tabs.map((tab) => {
               const Icon = tab.icon;
               return (
                 <Button
                   key={tab.id}
-                  variant={activeTab === tab.id ? 'secondary' : 'ghost'}
+                  variant={activeTab === tab.id ? "secondary" : "ghost"}
                   size="md"
                   onClick={() => setActiveTab(tab.id)}
-                  className={`w-full justify-start ${activeTab === tab.id ? 'border-primary/30' : ''}`}
+                  className={`w-full !justify-start ${activeTab === tab.id ? "border-primary/30" : ""}`}
                 >
                   <Icon className="w-4 h-4 shrink-0" />
                   {tab.label}
-                  {activeTab === tab.id && <ChevronRight className="w-4 h-4 ml-auto" />}
+                  {activeTab === tab.id && (
+                    <ChevronRight className="w-4 h-4 ml-auto" />
+                  )}
                 </Button>
               );
             })}
           </nav>
         </div>
 
-        <div className="flex-1 min-w-0">
-          {renderContent()}
-        </div>
+        <div className="flex-1 min-w-0">{renderContent()}</div>
       </div>
     </div>
   );
