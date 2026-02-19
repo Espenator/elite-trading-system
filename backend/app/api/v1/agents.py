@@ -266,13 +266,27 @@ async def _run_signal_generation_tick():
     """Run one Signal Generation Agent tick: symbol_universe + momentum/pattern → composite scores 0-100."""
     from app.services.signal_engine import run_tick
 
-    agent_name = _agent_by_id(2)["name"]  # match template so last_actions filter works
+    agent_name = _agent_by_id(2)["name"]
     try:
         entries = await run_tick()
         for msg, level in entries:
             _append_log(agent_name, msg, level)
     except Exception as e:
         logger.exception("Signal generation tick failed")
+        _append_log(agent_name, f"Tick failed: {str(e)[:80]}", "warning")
+
+
+async def _run_ml_learning_tick():
+    """Run one ML Learning Agent tick: Sunday retrain (XGBoost/LightGBM GPU) or idle + flywheel stats."""
+    from app.modules.ml_engine import run_tick as ml_run_tick
+
+    agent_name = _agent_by_id(3)["name"]
+    try:
+        entries = await ml_run_tick()
+        for msg, level in entries:
+            _append_log(agent_name, msg, level)
+    except Exception as e:
+        logger.exception("ML Learning tick failed")
         _append_log(agent_name, f"Tick failed: {str(e)[:80]}", "warning")
 
 
@@ -289,6 +303,8 @@ async def start_agent(agent_id: int):
         await _run_market_data_tick()
     elif agent_id == 2:
         await _run_signal_generation_tick()
+    elif agent_id == 3:
+        await _run_ml_learning_tick()
     await broadcast_ws(
         "agents", {"type": "status_changed", "agent_id": agent_id, "status": "running"}
     )
@@ -317,6 +333,9 @@ async def run_agent_tick(agent_id: int):
         )
     elif agent_id == 2:
         await _run_signal_generation_tick()
+        await broadcast_ws("agents", {"type": "tick_completed", "agent_id": agent_id})
+    elif agent_id == 3:
+        await _run_ml_learning_tick()
         await broadcast_ws("agents", {"type": "tick_completed", "agent_id": agent_id})
     return {"ok": True, "agent_id": agent_id}
 
