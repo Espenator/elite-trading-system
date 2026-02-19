@@ -69,7 +69,7 @@ const YouTubeKnowledge = () => {
         <div className="space-y-3">
           {MOCK_FEATURES.map((f) => (
             <div key={f.id} className="flex items-center justify-between py-2 border-b border-secondary/50 last:border-0">
-              <span className="font-mono text-sm">{f.name}</span>
+              <span className="text-sm">{f.name}</span>
               <span className="text-xs text-secondary">from {f.source} · {f.addedAt}</span>
             </div>
           ))}

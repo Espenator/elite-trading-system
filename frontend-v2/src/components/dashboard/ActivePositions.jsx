@@ -18,7 +18,7 @@ export default function ActivePositions() {
           </span>
         </div>
         <div className={clsx(
-          'text-sm font-mono font-bold',
+          'text-sm font-bold',
           totalPnl >= 0 ? 'text-bullish' : 'text-bearish'
         )}>
           ${totalPnl.toLocaleString()}
@@ -46,7 +46,7 @@ export default function ActivePositions() {
                 <span className="text-xs text-secondary">{pos.shares} shares</span>
               </div>
               <div className={clsx(
-                'font-mono font-bold',
+                'font-bold',
                 pos.pnlDollars >= 0 ? 'text-bullish' : 'text-bearish'
               )}>
                 {pos.pnlDollars >= 0 ? '+' : ''}${pos.pnlDollars.toLocaleString()}
@@ -58,12 +58,12 @@ export default function ActivePositions() {
               <div className="flex items-center gap-4">
                 <div>
                   <span className="text-secondary">Entry </span>
-                  <span className="font-mono">${pos.entryPrice.toFixed(2)}</span>
+                  <span className="">${pos.entryPrice.toFixed(2)}</span>
                 </div>
                 <div>
                   <span className="text-secondary">Current </span>
                   <span className={clsx(
-                    'font-mono',
+                    '',
                     pos.currentPrice >= pos.entryPrice ? 'text-bullish' : 'text-bearish'
                   )}>
                     ${pos.currentPrice.toFixed(2)}
@@ -71,7 +71,7 @@ export default function ActivePositions() {
                 </div>
                 <div>
                   <span className="text-secondary">Stop </span>
-                  <span className="font-mono text-bearish">${pos.stopPrice.toFixed(2)}</span>
+                  <span className="text-bearish">${pos.stopPrice.toFixed(2)}</span>
                 </div>
               </div>
               <div className="flex items-center gap-1 text-secondary">
@@ -85,7 +85,7 @@ export default function ActivePositions() {
               <div className="flex justify-between text-xs mb-1">
                 <span className="text-secondary">R-Multiple</span>
                 <span className={clsx(
-                  'font-mono',
+                  '',
                   pos.rMultiple >= 0 ? 'text-bullish' : 'text-bearish'
                 )}>
                   {pos.rMultiple >= 0 ? '+' : ''}{pos.rMultiple.toFixed(2)}R

@@ -27,7 +27,7 @@ function MetricBar({ label, value, max = 100 }) {
       <div className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
         <div className={`h-full ${color} rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-xs font-mono text-white w-12 text-right">{value}%</span>
+      <span className="text-xs text-white w-12 text-right">{value}%</span>
     </div>
   );
 }

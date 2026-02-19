@@ -14,14 +14,14 @@ export default function EquityCurveChart() {
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-success" />
               <span className="text-sm">Portfolio: </span>
-              <span className="font-mono font-bold text-success">
+              <span className="font-bold text-success">
                 ${payload[0]?.value?.toLocaleString()}
               </span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-secondary" />
               <span className="text-sm">Benchmark: </span>
-              <span className="font-mono text-secondary">
+              <span className="text-secondary">
                 ${payload[1]?.value?.toLocaleString()}
               </span>
             </div>
@@ -47,7 +47,7 @@ export default function EquityCurveChart() {
         <div className="flex items-center gap-4">
           <div className="text-right">
             <span className="text-xs text-secondary">30-Day Return</span>
-            <p className="font-mono font-bold text-success">+{totalReturn}%</p>
+            <p className="font-bold text-success">+{totalReturn}%</p>
           </div>
           <select className="bg-dark text-sm px-2 py-1 rounded border border-secondary/50">
             <option>30 Days</option>

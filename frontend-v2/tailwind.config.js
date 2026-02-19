@@ -9,7 +9,6 @@ export default {
     extend: {
       fontFamily: {
         sans: ['Sarala', 'system-ui', 'sans-serif'],
-        mono: ['JetBrains Mono', 'monospace'],
       },
       colors: {
         primary: '#06b6d4',

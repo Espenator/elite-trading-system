@@ -73,7 +73,7 @@ export default function QuickStats() {
             )} />
           </div>
           <div className={clsx(
-            'text-xl font-bold font-mono',
+            'text-xl font-bold',
             stat.isPositive ? 'text-bullish' : 'text-bearish'
           )}>
             {stat.value}

@@ -76,7 +76,7 @@ export default function MarketRegimeCard() {
           <span className="text-sm text-secondary">VIX Level</span>
           <div className="flex items-center gap-2">
             <span className={clsx(
-              'font-mono font-bold',
+              'font-bold',
               regime.vixLevel < 20 ? 'text-bullish' :
               regime.vixLevel < 30 ? 'text-warning' : 'text-danger'
             )}>
@@ -90,7 +90,7 @@ export default function MarketRegimeCard() {
         <div className="flex items-center justify-between">
           <span className="text-sm text-secondary">Market Breadth</span>
           <span className={clsx(
-            'font-mono font-bold',
+            'font-bold',
             regime.breadth > 1 ? 'text-bullish' : 'text-danger'
           )}>
             {regime.breadth.toFixed(2)}
@@ -102,14 +102,14 @@ export default function MarketRegimeCard() {
           <span className="text-sm text-secondary">SPY / QQQ</span>
           <div className="flex items-center gap-2">
             <span className={clsx(
-              'font-mono text-sm',
+              'text-sm',
               regime.spyChange >= 0 ? 'text-bullish' : 'text-danger'
             )}>
               {regime.spyChange >= 0 ? '+' : ''}{regime.spyChange.toFixed(2)}%
             </span>
             <span className="text-secondary">/</span>
             <span className={clsx(
-              'font-mono text-sm',
+              'text-sm',
               regime.qqqChange >= 0 ? 'text-bullish' : 'text-danger'
             )}>
               {regime.qqqChange >= 0 ? '+' : ''}{regime.qqqChange.toFixed(2)}%
@@ -123,12 +123,12 @@ export default function MarketRegimeCard() {
           
           <div className="flex items-center justify-between">
             <span className="text-sm text-secondary">Risk Per Trade</span>
-            <span className="font-mono font-bold text-white">{regime.riskPerTrade}%</span>
+            <span className="font-bold text-white">{regime.riskPerTrade}%</span>
           </div>
           
           <div className="flex items-center justify-between mt-2">
             <span className="text-sm text-secondary">Max Positions</span>
-            <span className="font-mono font-bold text-white">{regime.maxPositions}</span>
+            <span className="font-bold text-white">{regime.maxPositions}</span>
           </div>
         </div>
       </div>

@@ -30,7 +30,7 @@ export default function MLStatusCard() {
             <Cpu className="w-4 h-4 text-secondary" />
             <span className="text-sm text-secondary">Version</span>
           </div>
-          <span className="font-mono text-sm">{ml.modelVersion}</span>
+          <span className="text-sm">{ml.modelVersion}</span>
         </div>
 
         <div className="flex items-center justify-between">
@@ -52,7 +52,7 @@ export default function MLStatusCard() {
             <div className="flex items-center justify-between mb-1">
               <span className="text-sm text-secondary">Accuracy</span>
               <span className={clsx(
-                'font-mono font-bold',
+                'font-bold',
                 ml.accuracy >= 65 ? 'text-bullish' :
                 ml.accuracy >= 55 ? 'text-warning' : 'text-danger'
               )}>
@@ -75,7 +75,7 @@ export default function MLStatusCard() {
           <div className="mb-3">
             <div className="flex items-center justify-between mb-1">
               <span className="text-sm text-secondary">AUC Score</span>
-              <span className="font-mono font-bold">{ml.auc.toFixed(1)}%</span>
+              <span className="font-bold">{ml.auc.toFixed(1)}%</span>
             </div>
             <div className="h-2 bg-dark-bg rounded-full overflow-hidden">
               <div
@@ -89,7 +89,7 @@ export default function MLStatusCard() {
           <div className="flex items-center justify-between">
             <span className="text-sm text-secondary">Sharpe Ratio</span>
             <span className={clsx(
-              'font-mono font-bold',
+              'font-bold',
               ml.sharpeRatio >= 1.5 ? 'text-bullish' : 'text-secondary'
             )}>
               {ml.sharpeRatio.toFixed(2)}
@@ -117,7 +117,7 @@ export default function MLStatusCard() {
                     style={{ width: `${feature.importance * 100}%` }}
                   />
                 </div>
-                <span className="text-xs font-mono text-secondary w-8">
+                <span className="text-xs text-secondary w-8">
                   {(feature.importance * 100).toFixed(0)}%
                 </span>
               </div>

@@ -155,7 +155,7 @@ export default function OperatorConsole() {
             <div key={log.id} className="p-3 hover:bg-gray-800/30 transition-colors">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <span className="text-xs text-gray-500 font-mono w-16">{log.timestamp}</span>
+                  <span className="text-xs text-gray-500 w-16">{log.timestamp}</span>
                   <span className={`text-xs px-2 py-0.5 rounded ${getLogTypeColor(log.type)}`}>
                     {log.agent}
                   </span>

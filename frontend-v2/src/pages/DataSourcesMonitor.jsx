@@ -56,7 +56,7 @@ const DataSourcesMonitor = () => {
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <span className="text-secondary">Latency</span>
-                  <p className="font-mono text-white">{source.latencyMs != null ? `${source.latencyMs} ms` : '—'}</p>
+                  <p className="text-white">{source.latencyMs != null ? `${source.latencyMs} ms` : '—'}</p>
                 </div>
                 <div>
                   <span className="text-secondary">Last sync</span>
@@ -64,7 +64,7 @@ const DataSourcesMonitor = () => {
                 </div>
                 <div>
                   <span className="text-secondary">Records</span>
-                  <p className="font-mono text-white">{source.recordCount.toLocaleString()}</p>
+                  <p className="text-white">{source.recordCount.toLocaleString()}</p>
                 </div>
               </div>
             </div>

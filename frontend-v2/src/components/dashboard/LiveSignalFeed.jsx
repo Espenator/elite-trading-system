@@ -63,7 +63,7 @@ export default function LiveSignalFeed() {
               <div className="flex items-center gap-2">
                 <span className="text-xs text-secondary">Score</span>
                 <span className={clsx(
-                  'font-bold font-mono',
+                  'font-bold',
                   signal.compositeScore >= 80 ? 'text-bullish' :
                   signal.compositeScore >= 70 ? 'text-regime-yellow' : 'text-secondary'
                 )}>

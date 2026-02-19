@@ -24,25 +24,25 @@ export default function PerformanceCard() {
       {/* Stats grid */}
       <div className="p-4 grid grid-cols-4 gap-4 border-b border-secondary/50">
         <div className="text-center">
-          <div className="text-2xl font-bold font-mono text-bullish">
+          <div className="text-2xl font-bold text-bullish">
             ${perf.monthPnl.toLocaleString()}
           </div>
           <div className="text-xs text-secondary">Month P&L</div>
         </div>
         <div className="text-center">
-          <div className="text-2xl font-bold font-mono">
+          <div className="text-2xl font-bold">
             {perf.winRate.toFixed(1)}%
           </div>
           <div className="text-xs text-secondary">Win Rate</div>
         </div>
         <div className="text-center">
-          <div className="text-2xl font-bold font-mono">
+          <div className="text-2xl font-bold">
             {perf.avgRMultiple.toFixed(2)}R
           </div>
           <div className="text-xs text-secondary">Avg R</div>
         </div>
         <div className="text-center">
-          <div className="text-2xl font-bold font-mono">
+          <div className="text-2xl font-bold">
             {perf.sharpeRatio.toFixed(2)}
           </div>
           <div className="text-xs text-secondary">Sharpe</div>
@@ -79,13 +79,13 @@ export default function PerformanceCard() {
               </div>
               <div className="text-right">
                 <div className={clsx(
-                  'font-mono font-medium',
+                  'font-medium',
                   trade.pnlDollars >= 0 ? 'text-bullish' : 'text-bearish'
                 )}>
                   {trade.pnlDollars >= 0 ? '+' : ''}${trade.pnlDollars.toLocaleString()}
                 </div>
                 <div className={clsx(
-                  'text-xs font-mono',
+                  'text-xs',
                   trade.rMultiple >= 0 ? 'text-bullish' : 'text-bearish'
                 )}>
                   {trade.rMultiple >= 0 ? '+' : ''}{trade.rMultiple.toFixed(1)}R
@@ -103,7 +103,7 @@ export default function PerformanceCard() {
             <Award className="w-3 h-3 text-bullish" />
             Best Trade
           </div>
-          <div className="text-lg font-bold font-mono text-bullish">
+          <div className="text-lg font-bold text-bullish">
             +${perf.largestWin.toLocaleString()}
           </div>
         </div>
@@ -112,7 +112,7 @@ export default function PerformanceCard() {
             <TrendingDown className="w-3 h-3 text-bearish" />
             Worst Trade
           </div>
-          <div className="text-lg font-bold font-mono text-bearish">
+          <div className="text-lg font-bold text-bearish">
             ${perf.largestLoss.toLocaleString()}
           </div>
         </div>

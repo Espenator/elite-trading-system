@@ -131,7 +131,7 @@ export default function AgentCommandCenter() {
         <div className="divide-y divide-secondary/30 max-h-80 overflow-y-auto">
           {LOGS.map((log, i) => (
             <div key={i} className="flex items-start gap-3 px-4 py-3 hover:bg-secondary/5 transition-colors">
-              <span className="text-xs font-mono text-secondary shrink-0 mt-0.5">{log.time}</span>
+              <span className="text-xs text-secondary shrink-0 mt-0.5">{log.time}</span>
               <span className={`shrink-0 mt-0.5 ${getLevelColor(log.level)}`}>
                 {log.level === 'success' ? <CheckCircle className="w-3.5 h-3.5 inline" /> : log.level === 'warning' ? <AlertCircle className="w-3.5 h-3.5 inline" /> : <Activity className="w-3.5 h-3.5 inline" />}
               </span>
