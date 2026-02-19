@@ -12,6 +12,7 @@ import {
   Save,
   RotateCcw,
   ChevronRight,
+  AlertTriangle,
 } from "lucide-react";
 import Button from "../components/ui/Button";
 import TextField from "../components/ui/TextField";
@@ -21,6 +22,7 @@ import Card from "../components/ui/Card";
 import PageHeader from "../components/ui/PageHeader";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl } from "../config/api";
+import { useToast } from "../context/ToastContext";
 
 const tabs = [
   { id: "general", label: "General", icon: SettingsIcon },
@@ -28,6 +30,7 @@ const tabs = [
   { id: "risk", label: "Risk Management", icon: Shield },
   { id: "api", label: "API Keys", icon: Key },
   { id: "notifications", label: "Notifications", icon: Bell },
+  { id: "alerts", label: "Alerts", icon: AlertTriangle },
   { id: "ml", label: "ML / AI", icon: Brain },
   { id: "agents", label: "Agents", icon: Bot },
 ];
@@ -75,6 +78,9 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState(null);
   const { data: apiSettings, loading, refetch } = useApi("settings");
+  const { data: alertsData, refetch: refetchAlerts } = useApi("alerts");
+  const alertRules = Array.isArray(alertsData?.rules) ? alertsData.rules : [];
+  const toast = useToast();
 
   useEffect(() => {
     if (
@@ -100,15 +106,36 @@ export default function Settings() {
       if (!res.ok) throw new Error("Save failed");
       await refetch();
       setSaveMessage("Saved");
+      toast.success("Settings saved");
       setTimeout(() => setSaveMessage(null), 2000);
     } catch (err) {
       setSaveMessage(err.message || "Failed to save");
+      toast.error(err.message || "Failed to save settings");
     } finally {
       setSaving(false);
     }
   };
 
   const handleReset = () => setSettings(DEFAULT_SETTINGS);
+
+  const setAlertEnabled = async (ruleId, enabled) => {
+    try {
+      const res = await fetch(`${getApiUrl("alerts")}/${ruleId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
+      });
+      if (res.ok) {
+        await refetchAlerts();
+        toast.success(enabled ? "Alert enabled" : "Alert disabled");
+      } else {
+        toast.error("Failed to update alert");
+      }
+    } catch (err) {
+      console.error("Failed to update alert", err);
+      toast.error("Failed to update alert");
+    }
+  };
 
   const renderContent = () => {
     switch (activeTab) {
@@ -367,6 +394,42 @@ export default function Settings() {
                     { value: "Monthly", label: "Monthly" },
                   ]}
                 />
+              </div>
+            </SectionCard>
+          </>
+        );
+      case "alerts":
+        return (
+          <>
+            <SectionCard
+              title="Alert Rules"
+              subtitle="Enable or disable notification rules. Changes apply immediately."
+            >
+              {alertRules.length === 0 && (
+                <p className="text-secondary text-sm py-4">
+                  No alert rules configured.
+                </p>
+              )}
+              <div className="space-y-3">
+                {alertRules.map((rule) => (
+                  <div
+                    key={rule.id}
+                    className="flex items-center justify-between py-3 border-b border-secondary/30 last:border-0"
+                  >
+                    <div>
+                      <div className="text-sm font-medium text-white">
+                        {rule.name}
+                      </div>
+                      <div className="text-xs text-secondary">
+                        {rule.condition}
+                      </div>
+                    </div>
+                    <Toggle
+                      checked={!!rule.enabled}
+                      onChange={() => setAlertEnabled(rule.id, !rule.enabled)}
+                    />
+                  </div>
+                ))}
               </div>
             </SectionCard>
           </>

@@ -6,6 +6,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/layout/Layout';
 import ErrorBoundary from './components/ErrorBoundary';
+import { ToastProvider } from './context/ToastContext';
 
 // ----------- PAGE IMPORTS -----------
 // COMMAND section (3 pages)
@@ -49,8 +50,9 @@ function PageLoader() {
 function App() {
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <ErrorBoundary>
-        <Routes>
+      <ToastProvider>
+        <ErrorBoundary>
+          <Routes>
         <Route path="/" element={<Layout />}>
           {/* Default redirect */}
           <Route index element={<Navigate to="/dashboard" replace />} />
@@ -85,7 +87,8 @@ function App() {
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
         </Routes>
-      </ErrorBoundary>
+        </ErrorBoundary>
+      </ToastProvider>
     </BrowserRouter>
   );
 }

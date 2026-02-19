@@ -10,6 +10,7 @@ import {
   LineChart,
   X,
   Send,
+  RefreshCw,
 } from "lucide-react";
 import Card from "../components/ui/Card";
 import DataTable from "../components/ui/DataTable";
@@ -20,6 +21,7 @@ import TextField from "../components/ui/TextField";
 import Select from "../components/ui/Select";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl } from "../config/api";
+import { useToast } from "../context/ToastContext";
 
 export default function Trades() {
   const location = useLocation();
@@ -40,6 +42,7 @@ export default function Trades() {
   });
 
   const [tab, setTab] = useState("active");
+  const toast = useToast();
   const { data, loading, error, refetch } = useApi("portfolio", {
     pollIntervalMs: 30000,
   });
@@ -58,18 +61,37 @@ export default function Trades() {
             : "Manage positions and review history"
         }
       >
-        {error && (
-          <span className="text-xs text-danger font-medium">
-            Failed to load
-          </span>
-        )}
-        <Badge
-          variant={totalPnl >= 0 ? "success" : "danger"}
-          size="lg"
-          className="px-4 py-2"
-        >
-          Today: {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(0)}
-        </Badge>
+        <div className="flex items-center gap-3">
+          {error && (
+            <span className="text-xs font-medium text-danger">
+              Failed to load
+            </span>
+          )}
+          <button
+            onClick={() => refetch()}
+            disabled={loading}
+            className="flex items-center gap-2 rounded-lg border border-secondary/40 bg-secondary/10 px-3 py-2 text-xs font-medium text-secondary transition-colors hover:bg-secondary/20 hover:text-white disabled:opacity-50"
+            title="Refresh portfolio"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+          <div className="flex items-center gap-2 rounded-lg border border-success/30 bg-success/10 px-3 py-2">
+            <div
+              className={`h-2 w-2 rounded-full ${loading ? "bg-amber-400 animate-pulse" : "bg-emerald-400 animate-pulse"}`}
+            />
+            <span className="text-xs font-medium text-success">
+              {loading ? "Updating…" : "Live"}
+            </span>
+          </div>
+          <Badge
+            variant={totalPnl >= 0 ? "success" : "danger"}
+            size="lg"
+            className="px-4 py-2"
+          >
+            Today: {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(0)}
+          </Badge>
+        </div>
       </PageHeader>
 
       {fromSignal && !dismissFromSignal && (
@@ -232,19 +254,23 @@ export default function Trades() {
                     });
                     const data = await res.json().catch(() => ({}));
                     if (!res.ok) {
-                      setOrderError(
-                        data.detail || data.message || `HTTP ${res.status}`,
-                      );
+                      const errMsg =
+                        data.detail || data.message || `HTTP ${res.status}`;
+                      setOrderError(errMsg);
+                      toast.error(errMsg);
                       return;
                     }
                     setOrderSuccess(true);
+                    toast.success("Order placed successfully");
                     refetch();
                     setTimeout(() => {
                       setOrderModalOpen(false);
                       setOrderSuccess(false);
                     }, 1500);
                   } catch (err) {
-                    setOrderError(err.message || "Request failed");
+                    const errMsg = err.message || "Request failed";
+                    setOrderError(errMsg);
+                    toast.error(errMsg);
                   } finally {
                     setOrderSubmitting(false);
                   }
@@ -267,10 +293,13 @@ export default function Trades() {
       {loading && positions.length === 0 && !error && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
-            <Card key={i} className="p-4 animate-pulse">
-              <div className="h-4 bg-secondary/20 rounded w-2/3 mb-2" />
+            <div
+              key={i}
+              className="rounded-xl border border-secondary/40 bg-gradient-to-br from-secondary/10 to-transparent p-4 animate-pulse"
+            >
+              <div className="h-3 bg-secondary/20 rounded w-2/3 mb-2" />
               <div className="h-6 bg-secondary/20 rounded w-1/2" />
-            </Card>
+            </div>
           ))}
         </div>
       )}

@@ -1,6 +1,7 @@
 // PATTERNS PAGE - Embodier.ai Glass House Intelligence System
 // GET /api/v1/patterns - pattern recognition grid with confidence meters
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { Search, Eye, Brain, Clock } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import { useApi } from "../hooks/useApi";
@@ -41,6 +42,7 @@ function ConfidenceBar({ value }) {
 }
 
 export default function Patterns() {
+  const navigate = useNavigate();
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const { patterns, loading, error, refetch } = usePatterns();
@@ -203,7 +205,18 @@ export default function Patterns() {
                 <span className="flex items-center gap-1 text-xs text-gray-500">
                   <Clock className="w-3 h-3" /> {p.detected}
                 </span>
-                <button className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-medium text-white transition-colors">
+                <button
+                  onClick={() =>
+                    navigate("/trades", {
+                      state: {
+                        symbol: p.ticker,
+                        side: p.direction === "bullish" ? "Buy" : "Sell",
+                        fromSignal: true,
+                      },
+                    })
+                  }
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-medium text-white transition-colors"
+                >
                   Trade
                 </button>
               </div>

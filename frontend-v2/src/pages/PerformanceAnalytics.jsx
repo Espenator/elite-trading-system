@@ -60,16 +60,19 @@ export default function PerformanceAnalytics() {
   const summary = Array.isArray(data?.summary) ? data.summary : [];
   const monthlyReturns = data?.monthlyReturns ?? {};
   const factors = Array.isArray(data?.factors) ? data.factors : [];
+  const portfolioValue = data?.portfolioValue ?? null;
+  const dailyPnL = data?.dailyPnL ?? null;
+  const dailyPnLPct = data?.dailyPnLPct ?? null;
 
   return (
     <div className="space-y-6">
       <PageHeader
         icon={TrendingUp}
         title="Performance Analytics"
-        description={error ? "Failed to load" : "Last updated 1 minute ago"}
+        description={error ? "Failed to load" : "Portfolio and market performance"}
       >
         {error && (
-          <span className="text-xs text-danger font-medium">
+          <span className="text-xs font-medium text-danger">
             Failed to load
           </span>
         )}
@@ -83,7 +86,7 @@ export default function PerformanceAnalytics() {
           {[1, 2, 3, 4].map((i) => (
             <div
               key={i}
-              className="bg-secondary/10 border border-secondary/50 rounded-xl p-4 animate-pulse"
+              className="rounded-xl border border-secondary/40 bg-gradient-to-br from-secondary/10 to-transparent p-4 animate-pulse"
             >
               <div className="h-3 bg-secondary/20 rounded w-2/3 mb-2" />
               <div className="h-6 bg-secondary/20 rounded w-1/2" />
@@ -100,6 +103,31 @@ export default function PerformanceAnalytics() {
             Retry
           </Button>
         </Card>
+      )}
+      {!loading && !error && (portfolioValue != null || dailyPnL != null) && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {portfolioValue != null && (
+            <div className="rounded-xl border border-secondary/40 bg-gradient-to-br from-secondary/10 to-transparent p-4">
+              <div className="text-xs font-medium uppercase tracking-wider text-secondary">Portfolio Value</div>
+              <div className="mt-1 text-xl font-bold text-white">
+                ${Number(portfolioValue).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </div>
+            </div>
+          )}
+          {dailyPnL != null && (
+            <div className="rounded-xl border border-secondary/40 bg-gradient-to-br from-secondary/10 to-transparent p-4">
+              <div className="text-xs font-medium uppercase tracking-wider text-secondary">Daily P&L</div>
+              <div className={`mt-1 text-xl font-bold ${dailyPnL >= 0 ? "text-success" : "text-danger"}`}>
+                {dailyPnL >= 0 ? "+" : ""}${Number(dailyPnL).toFixed(2)}
+              </div>
+              {dailyPnLPct != null && (
+                <div className={`text-xs mt-0.5 ${dailyPnLPct >= 0 ? "text-success" : "text-danger"}`}>
+                  {dailyPnLPct >= 0 ? "+" : ""}{Number(dailyPnLPct).toFixed(2)}%
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       )}
       {!loading && marketStats.length > 0 && (
         <>

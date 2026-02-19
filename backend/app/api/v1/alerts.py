@@ -1,12 +1,29 @@
 """
 Alerts API — alert rules and notifications (stub until alerting is wired).
-GET /api/v1/alerts returns configured rules; POST to create/update (stub).
+GET /api/v1/alerts returns configured rules; PATCH /api/v1/alerts/{id} toggles enabled.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 router = APIRouter()
+
+# In-memory store so toggles persist for the session
+_rules = [
+    {"id": 1, "name": "Drawdown > 5%", "condition": "drawdown_gt_5", "enabled": True},
+    {
+        "id": 2,
+        "name": "Signal score > 85",
+        "condition": "signal_score_gt_85",
+        "enabled": True,
+    },
+    {
+        "id": 3,
+        "name": "Daily loss limit",
+        "condition": "daily_loss_limit",
+        "enabled": False,
+    },
+]
 
 
 class AlertRule(BaseModel):
@@ -15,28 +32,22 @@ class AlertRule(BaseModel):
     enabled: bool = True
 
 
+class AlertRuleUpdate(BaseModel):
+    enabled: bool | None = None
+
+
 @router.get("")
 async def get_alerts():
-    """Return configured alert rules. Stub for now."""
-    return {
-        "rules": [
-            {
-                "id": 1,
-                "name": "Drawdown > 5%",
-                "condition": "drawdown_gt_5",
-                "enabled": True,
-            },
-            {
-                "id": 2,
-                "name": "Signal score > 85",
-                "condition": "signal_score_gt_85",
-                "enabled": True,
-            },
-        ],
-    }
+    """Return configured alert rules."""
+    return {"rules": _rules}
 
 
-@router.post("")
-async def create_alert(rule: AlertRule):
-    """Create or update an alert rule. Stub for now."""
-    return {"ok": True, "rule": rule.model_dump()}
+@router.patch("/{rule_id}")
+async def update_alert(rule_id: int, body: AlertRuleUpdate):
+    """Toggle or update a rule (e.g. enabled)."""
+    rule = next((r for r in _rules if r["id"] == rule_id), None)
+    if not rule:
+        raise HTTPException(status_code=404, detail="Rule not found")
+    if body.enabled is not None:
+        rule["enabled"] = body.enabled
+    return {"ok": True, "rule": rule}
