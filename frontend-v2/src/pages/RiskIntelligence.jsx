@@ -1,22 +1,28 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Shield } from "lucide-react";
 import Card from "../components/ui/Card";
 import TextField from "../components/ui/TextField";
 import Button from "../components/ui/Button";
 import PageHeader from "../components/ui/PageHeader";
 import { useApi } from "../hooks/useApi";
+import { getApiUrl } from "../config/api";
 
 const RiskIntelligence = () => {
-  const { data, loading, error, refetch } = useApi("risk", { pollIntervalMs: 30000 });
+  const { data, loading, error, refetch } = useApi("risk", {
+    pollIntervalMs: 30000,
+  });
   const [maxDrawdown, setMaxDrawdown] = useState(data?.maxDailyDrawdown ?? 10);
-  const [positionSizeLimit, setPositionSizeLimit] = useState(data?.positionSizeLimit ?? 5);
+  const [positionSizeLimit, setPositionSizeLimit] = useState(
+    data?.positionSizeLimit ?? 5,
+  );
   const [maxDailyLoss, setMaxDailyLoss] = useState(data?.maxDailyLossPct ?? 2);
   const [varLimit, setVarLimit] = useState(data?.varLimit ?? 1.5);
   const [equityDrop, setEquityDrop] = useState(20);
   const [volatilityIncrease, setVolatilityIncrease] = useState(30);
-  
+  const [saving, setSaving] = useState(false);
+
   // Sync state when API data loads
-  React.useEffect(() => {
+  useEffect(() => {
     if (data) {
       setMaxDrawdown(data.maxDailyDrawdown ?? 10);
       setPositionSizeLimit(data.positionSizeLimit ?? 5);
@@ -24,6 +30,43 @@ const RiskIntelligence = () => {
       setVarLimit(data.varLimit ?? 1.5);
     }
   }, [data]);
+
+  // Debounced save function
+  const saveRiskConfig = useCallback(async () => {
+    setSaving(true);
+    try {
+      const response = await fetch(getApiUrl("risk"), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          maxDailyDrawdown: maxDrawdown,
+          positionSizeLimit: positionSizeLimit,
+          maxDailyLossPct: maxDailyLoss,
+          varLimit: varLimit,
+        }),
+      });
+      if (!response.ok) throw new Error("Failed to save");
+      await refetch();
+    } catch (err) {
+      console.error("Failed to save risk config:", err);
+    } finally {
+      setSaving(false);
+    }
+  }, [maxDrawdown, positionSizeLimit, maxDailyLoss, varLimit, refetch]);
+
+  // Debounce saves (save 1 second after user stops changing)
+  useEffect(() => {
+    if (!data) return; // Don't save on initial load
+    const timer = setTimeout(saveRiskConfig, 1000);
+    return () => clearTimeout(timer);
+  }, [
+    maxDrawdown,
+    positionSizeLimit,
+    maxDailyLoss,
+    varLimit,
+    data,
+    saveRiskConfig,
+  ]);
 
   const handleRunSimulation = () => {
     console.log("Running risk simulation with:", {
@@ -37,9 +80,22 @@ const RiskIntelligence = () => {
       <PageHeader
         icon={Shield}
         title="Risk Intelligence"
-        description={error ? "Failed to load risk data" : "Configure risk limits, VaR, and drawdown parameters"}
+        description={
+          error
+            ? "Failed to load risk data"
+            : saving
+              ? "Saving..."
+              : "Configure risk limits, VaR, and drawdown parameters"
+        }
       >
-        {error && <span className="text-xs text-danger font-medium">Failed to load</span>}
+        {error && (
+          <span className="text-xs text-danger font-medium">
+            Failed to load
+          </span>
+        )}
+        {saving && (
+          <span className="text-xs text-primary font-medium">Saving...</span>
+        )}
       </PageHeader>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -249,15 +305,21 @@ const RiskIntelligence = () => {
                 </div>
                 <span className="text-success">↑</span>
               </div>
-              <div className={`mt-6 p-4 border rounded-xl ${
-                data?.allWithinLimits !== false 
-                  ? "bg-success/20 border-success/50" 
-                  : "bg-danger/20 border-danger/50"
-              }`}>
-                <p className={`text-sm ${
-                  data?.allWithinLimits !== false ? "text-success" : "text-danger"
-                }`}>
-                  {data?.allWithinLimits !== false 
+              <div
+                className={`mt-6 p-4 border rounded-xl ${
+                  data?.allWithinLimits !== false
+                    ? "bg-success/20 border-success/50"
+                    : "bg-danger/20 border-danger/50"
+                }`}
+              >
+                <p
+                  className={`text-sm ${
+                    data?.allWithinLimits !== false
+                      ? "text-success"
+                      : "text-danger"
+                  }`}
+                >
+                  {data?.allWithinLimits !== false
                     ? "✓ All risk parameters are within acceptable limits"
                     : "⚠ Some risk parameters exceed limits"}
                 </p>

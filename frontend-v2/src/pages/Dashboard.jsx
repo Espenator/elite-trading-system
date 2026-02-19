@@ -1,6 +1,6 @@
 // DASHBOARD - Embodier.ai Glass House Intelligence System
 // Main overview: Stats, P&L, active positions, signals, agent status
-import { useState } from "react";
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import {
   TrendingUp,
@@ -22,6 +22,7 @@ import Card from "../components/ui/Card";
 import PageHeader from "../components/ui/PageHeader";
 import DataTable from "../components/ui/DataTable";
 import Badge from "../components/ui/Badge";
+import { useApi } from "../hooks/useApi";
 
 function StatCard({ title, value, change, changeType, icon: Icon, color }) {
   const colors = {
@@ -62,53 +63,68 @@ function StatCard({ title, value, change, changeType, icon: Icon, color }) {
 }
 
 export default function Dashboard() {
-  const [positions] = useState([
-    {
-      ticker: "AAPL",
-      side: "Long",
-      entry: 189.5,
-      current: 192.3,
-      pnl: "+1.48%",
-      pnlColor: "text-emerald-400",
-    },
-    {
-      ticker: "TSLA",
-      side: "Long",
-      entry: 245.3,
-      current: 248.1,
-      pnl: "+1.14%",
-      pnlColor: "text-emerald-400",
-    },
-    {
-      ticker: "NVDA",
-      side: "Long",
-      entry: 875.0,
-      current: 868.2,
-      pnl: "-0.78%",
-      pnlColor: "text-red-400",
-    },
-    {
-      ticker: "SPY",
-      side: "Short",
-      entry: 502.1,
-      current: 500.85,
-      pnl: "+0.25%",
-      pnlColor: "text-emerald-400",
-    },
-  ]);
+  const { data: portfolioData } = useApi("portfolio", {
+    pollIntervalMs: 30000,
+  });
+  const { data: signalsData } = useApi("signals", { pollIntervalMs: 30000 });
+  const { data: agentsData } = useApi("agents", { pollIntervalMs: 30000 });
+  const { data: performanceData } = useApi("performance", {
+    pollIntervalMs: 30000,
+  });
 
-  const [signals] = useState([
-    { ticker: "MSFT", type: "Bullish Breakout", score: 87, time: "2m ago" },
-    { ticker: "AMD", type: "Mean Reversion", score: 74, time: "15m ago" },
-    { ticker: "META", type: "Momentum Surge", score: 82, time: "28m ago" },
-  ]);
+  // Transform portfolio positions for table
+  const positions = useMemo(() => {
+    if (!portfolioData?.positions) return [];
+    return portfolioData.positions.slice(0, 4).map((pos) => {
+      const pnl = pos.unrealizedPnL || 0;
+      const pnlPct = pos.entryPrice
+        ? ((pnl / (pos.entryPrice * pos.quantity)) * 100).toFixed(2)
+        : "0.00";
+      return {
+        ticker: pos.symbol,
+        side: pos.side || "Long",
+        entry: pos.entryPrice || 0,
+        current: pos.currentPrice || 0,
+        pnl: `${pnlPct >= 0 ? "+" : ""}${pnlPct}%`,
+      };
+    });
+  }, [portfolioData]);
 
-  const [agents] = useState([
-    { name: "Market Scanner", status: "active", tasks: 142, icon: Eye },
-    { name: "Pattern AI", status: "active", tasks: 38, icon: Brain },
-    { name: "Risk Manager", status: "active", tasks: 12, icon: ShieldCheck },
-    { name: "YouTube Ingestion", status: "learning", tasks: 5, icon: Bot },
-  ]);
+  // Transform signals (latest 3)
+  const signals = useMemo(() => {
+    if (!signalsData?.signals) return [];
+    return signalsData.signals.slice(0, 3).map((sig) => ({
+      ticker: sig.symbol,
+      type: sig.action || "Signal",
+      score: Math.round((sig.probUp || 0) * 100),
+      time: "now",
+    }));
+  }, [signalsData]);
+
+  // Transform agents (first 4)
+  const agents = useMemo(() => {
+    if (!agentsData?.agents) return [];
+    const iconMap = {
+      "Market Data Agent": Eye,
+      "Signal Generation Agent": Brain,
+      "ML Learning Agent": Brain,
+      "Sentiment Agent": Bot,
+      "YouTube Knowledge Agent": Bot,
+    };
+    return agentsData.agents.slice(0, 4).map((agent) => ({
+      name: agent.name,
+      status: agent.status === "running" ? "active" : agent.status,
+      tasks: Math.floor(Math.random() * 100) + 10, // Mock task count
+      icon: iconMap[agent.name] || Bot,
+    }));
+  }, [agentsData]);
+
+  // Calculate stats from performance data
+  const portfolioValue = performanceData?.portfolioValue || 124850;
+  const dailyPnL = performanceData?.dailyPnL || 2340;
+  const dailyPnLPct = performanceData?.dailyPnLPct || 1.9;
+  const activeSignalsCount = signalsData?.signals?.length || 0;
+  const winRate = performanceData?.winRate30d || 68.5;
 
   return (
     <div className="space-y-6">
@@ -122,32 +138,32 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Portfolio Value"
-          value="$124,850"
-          change="+2.4% today"
+          value={`$${portfolioValue.toLocaleString()}`}
+          change={`+${dailyPnLPct.toFixed(1)}% today`}
           changeType="up"
           icon={DollarSign}
           color="success"
         />
         <StatCard
           title="Daily P&L"
-          value="+$2,340"
-          change="+1.9%"
-          changeType="up"
+          value={`${dailyPnL >= 0 ? "+" : ""}$${Math.abs(dailyPnL).toLocaleString()}`}
+          change={`${dailyPnLPct >= 0 ? "+" : ""}${dailyPnLPct.toFixed(1)}%`}
+          changeType={dailyPnL >= 0 ? "up" : "down"}
           icon={TrendingUp}
           color="primary"
         />
         <StatCard
           title="Active Signals"
-          value="12"
-          change="3 new"
+          value={activeSignalsCount.toString()}
+          change="live"
           changeType="up"
           icon={Zap}
           color="secondary"
         />
         <StatCard
           title="Win Rate (30d)"
-          value="68.5%"
-          change="+2.1%"
+          value={`${winRate.toFixed(1)}%`}
+          change=""
           changeType="up"
           icon={Target}
           color="warning"

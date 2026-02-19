@@ -1,17 +1,34 @@
 """
 Strategy Intelligence API - active strategies and config (stub until strategy engine is wired).
 GET /api/v1/strategy returns strategies for Strategy Intelligence page.
+POST /api/v1/strategy/controls updates emergency controls (master switch, pause all, etc.).
 """
 
 from fastapi import APIRouter
+from pydantic import BaseModel
+from app.websocket_manager import broadcast_ws
 
 router = APIRouter()
+
+# In-memory storage (replace with database in production)
+_controls = {
+    "masterSwitch": True,
+    "pauseAll": False,
+    "closeAllPositions": False,
+}
+
+
+class StrategyControls(BaseModel):
+    masterSwitch: bool | None = None
+    pauseAll: bool | None = None
+    closeAllPositions: bool | None = None
 
 
 @router.get("")
 async def get_strategies():
     """Return active strategies and status. Used by Strategy Intelligence page."""
     return {
+        "controls": _controls,
         "strategies": [
             {
                 "id": 1,
@@ -51,3 +68,17 @@ async def get_strategies():
             },
         ],
     }
+
+
+@router.post("/controls")
+async def update_controls(controls: StrategyControls):
+    """Update emergency controls (master switch, pause all, close all positions). Broadcasts change via WebSocket."""
+    if controls.masterSwitch is not None:
+        _controls["masterSwitch"] = controls.masterSwitch
+    if controls.pauseAll is not None:
+        _controls["pauseAll"] = controls.pauseAll
+    if controls.closeAllPositions is not None:
+        _controls["closeAllPositions"] = controls.closeAllPositions
+
+    await broadcast_ws("strategy", {"type": "controls_updated", "controls": _controls})
+    return {"ok": True, "controls": _controls}

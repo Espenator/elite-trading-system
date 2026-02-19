@@ -1,12 +1,19 @@
 """Portfolio API - positions and history stub. GET /api/v1/portfolio."""
 
 from fastapi import APIRouter
+from app.websocket_manager import broadcast_ws
 
 router = APIRouter()
 
 
 @router.get("")
 async def get_portfolio():
+    """
+    Return current positions and trade history.
+    Note: When a trade executes or position changes, call:
+        await broadcast_ws("trades", {"type": "trade_executed", "symbol": "AAPL", "side": "BUY", "quantity": 100})
+        await broadcast_ws("trades", {"type": "position_updated", "positions": [...]})
+    """
     return {
         "positions": [
             {

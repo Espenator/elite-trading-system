@@ -4,7 +4,7 @@
 // BACKEND: /api/v1/signals/heatmap - returns composite-scored symbols from active pipeline
 // NO HARDCODED SYMBOLS - only displays what the system generates
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 import {
   Map,
   Target,
@@ -13,82 +13,92 @@ import {
   RefreshCw,
   AlertCircle,
   Brain,
-  Zap
-} from 'lucide-react';
-import PageHeader from '../components/ui/PageHeader';
+  Zap,
+} from "lucide-react";
+import PageHeader from "../components/ui/PageHeader";
+import { useApi } from "../hooks/useApi";
 
 export default function SignalHeatmap() {
-  const [signals, setSignals] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data, loading, error, refetch } = useApi("signals", {
+    pollIntervalMs: 30000,
+    endpoint: "/heatmap", // Override endpoint for heatmap
+  });
   const [lastUpdate, setLastUpdate] = useState(new Date());
-  const [selectedSector, setSelectedSector] = useState('all');
-  const [sortBy, setSortBy] = useState('compositeScore');
+  const [selectedSector, setSelectedSector] = useState("all");
+  const [sortBy, setSortBy] = useState("compositeScore");
 
-  // Fetch composite scores from backend
+  const signals = Array.isArray(data) ? data : [];
+
+  // Update lastUpdate when data changes
   useEffect(() => {
-    fetchCompositeScores();
-    const interval = setInterval(fetchCompositeScores, 30000); // Refresh every 30s
-    return () => clearInterval(interval);
-  }, []);
-
-  const fetchCompositeScores = async () => {
-    try {
-      // TODO: Connect to real backend endpoint
-      // const response = await fetch('/api/v1/signals/heatmap');
-      // const data = await response.json();
-      
-      // Mock data structure showing what backend will return
-      const mockData = [
-        {
-          ticker: 'NVDA',
-          sector: 'Technology',
-          compositeScore: 87.5, // FINAL AI score (0-100)
-          aiAnalysis: 'Strong bullish pattern + positive sentiment + ML confidence',
-          components: {
-            technical: 85,
-            ml: 92,
-            sentiment: 88,
-            volume: 82,
-            aiReasoning: 90 // Claude/Perplexity synthesis
-          },
-          expectedMove: 4.2,
-          confidence: 0.89,
-          profitPotential: 'HIGH',
-          timeframe: '1-3 days'
-        },
-        // More signals will come from backend
-      ];
-      
-      setSignals(mockData);
+    if (data && !loading) {
       setLastUpdate(new Date());
-      setLoading(false);
-    } catch (error) {
-      console.error('Failed to fetch composite scores:', error);
-      setLoading(false);
     }
-  };
+  }, [data, loading]);
+
+  // Show loading/error states
+  if (loading && signals.length === 0) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          icon={Map}
+          title="Signal Heatmap"
+          description="Loading composite scores..."
+        />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="h-32 bg-secondary/10 rounded-xl animate-pulse"
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error && signals.length === 0) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          icon={Map}
+          title="Signal Heatmap"
+          description="Failed to load signals"
+        />
+        <div className="p-6 bg-danger/10 border border-danger/30 rounded-xl text-center">
+          <p className="text-danger mb-2">Could not load heatmap data</p>
+          <button
+            onClick={refetch}
+            className="text-primary hover:text-primary/80 text-sm"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const getHeatColor = (score) => {
-    if (score >= 80) return 'bg-emerald-500';
-    if (score >= 70) return 'bg-emerald-600/80';
-    if (score >= 60) return 'bg-cyan-600/70';
-    if (score >= 50) return 'bg-gray-600/50';
-    if (score >= 40) return 'bg-orange-600/70';
-    if (score >= 30) return 'bg-red-600/80';
-    return 'bg-red-500';
+    if (score >= 80) return "bg-emerald-500";
+    if (score >= 70) return "bg-emerald-600/80";
+    if (score >= 60) return "bg-cyan-600/70";
+    if (score >= 50) return "bg-gray-600/50";
+    if (score >= 40) return "bg-orange-600/70";
+    if (score >= 30) return "bg-red-600/80";
+    return "bg-red-500";
   };
 
   const getProfitLevel = (score) => {
-    if (score >= 80) return { label: 'EXTREME', color: 'text-emerald-400' };
-    if (score >= 70) return { label: 'HIGH', color: 'text-cyan-400' };
-    if (score >= 60) return { label: 'MODERATE', color: 'text-blue-400' };
-    if (score >= 50) return { label: 'LOW', color: 'text-secondary' };
-    return { label: 'AVOID', color: 'text-red-400' };
+    if (score >= 80) return { label: "EXTREME", color: "text-emerald-400" };
+    if (score >= 70) return { label: "HIGH", color: "text-cyan-400" };
+    if (score >= 60) return { label: "MODERATE", color: "text-blue-400" };
+    if (score >= 50) return { label: "LOW", color: "text-secondary" };
+    return { label: "AVOID", color: "text-red-400" };
   };
 
   // Group signals by sector (dynamically from backend data)
-  const sectors = [...new Set(signals.map(s => s.sector))];
-  
+  const sectors = [...new Set(signals.map((s) => s.sector))];
+
   const topOpportunities = signals
     .sort((a, b) => b.compositeScore - a.compositeScore)
     .slice(0, 5);
@@ -116,10 +126,13 @@ export default function SignalHeatmap() {
             Last update: {lastUpdate.toLocaleTimeString()}
           </div>
           <button
-            onClick={fetchCompositeScores}
+            onClick={refetch}
             className="p-2 bg-cyan-500/10 hover:bg-cyan-500/20 rounded-lg transition-colors"
+            disabled={loading}
           >
-            <RefreshCw className="w-4 h-4 text-cyan-400" />
+            <RefreshCw
+              className={`w-4 h-4 text-cyan-400 ${loading ? "animate-spin" : ""}`}
+            />
           </button>
         </div>
       </PageHeader>
@@ -128,7 +141,9 @@ export default function SignalHeatmap() {
       <div className="bg-gradient-to-r from-purple-500/10 to-cyan-500/10 rounded-xl p-4 border border-purple-500/20">
         <div className="flex items-center gap-3 mb-2">
           <Brain className="w-5 h-5 text-purple-400" />
-          <h2 className="text-sm font-semibold text-purple-400">AI COMPOSITE SCORING PIPELINE</h2>
+          <h2 className="text-sm font-semibold text-purple-400">
+            AI COMPOSITE SCORING PIPELINE
+          </h2>
         </div>
         <div className="grid grid-cols-5 gap-3 text-xs">
           <div>
@@ -149,7 +164,9 @@ export default function SignalHeatmap() {
           </div>
           <div>
             <div className="text-secondary">AI Reasoning</div>
-            <div className="text-emerald-400 font-medium">✓ Claude + Perplexity</div>
+            <div className="text-emerald-400 font-medium">
+              ✓ Claude + Perplexity
+            </div>
           </div>
         </div>
       </div>
@@ -170,15 +187,21 @@ export default function SignalHeatmap() {
                   className="bg-secondary/10 rounded-lg p-3 border border-success/30 hover:border-success/50 transition-all cursor-pointer"
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <span className="font-bold text-white text-lg">{signal.ticker}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded ${profit.color} bg-current/10`}>
+                    <span className="font-bold text-white text-lg">
+                      {signal.ticker}
+                    </span>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded ${profit.color} bg-current/10`}
+                    >
                       {profit.label}
                     </span>
                   </div>
                   <div className="text-2xl font-bold text-emerald-400 mb-1">
                     {signal.compositeScore.toFixed(1)}
                   </div>
-                  <div className="text-xs text-secondary mb-2">Composite Score</div>
+                  <div className="text-xs text-secondary mb-2">
+                    Composite Score
+                  </div>
                   <div className="text-sm text-white mb-1">
                     Expected: +{signal.expectedMove}%
                   </div>
@@ -196,14 +219,22 @@ export default function SignalHeatmap() {
       {signals.length === 0 ? (
         <div className="bg-secondary/10 rounded-xl p-12 text-center border border-secondary/50">
           <AlertCircle className="w-12 h-12 text-secondary mx-auto mb-4" />
-          <p className="text-secondary">No signals generated yet. System is processing...</p>
-          <p className="text-xs text-secondary mt-2">Signals appear when AI confidence threshold is met</p>
+          <p className="text-secondary">
+            No signals generated yet. System is processing...
+          </p>
+          <p className="text-xs text-secondary mt-2">
+            Signals appear when AI confidence threshold is met
+          </p>
         </div>
       ) : (
         <div className="bg-secondary/10 rounded-xl border border-secondary/50">
           <div className="p-4 border-b border-secondary/50">
-            <h2 className="text-lg font-semibold text-white">All Composite Signals</h2>
-            <p className="text-xs text-secondary mt-1">{signals.length} active signals</p>
+            <h2 className="text-lg font-semibold text-white">
+              All Composite Signals
+            </h2>
+            <p className="text-xs text-secondary mt-1">
+              {signals.length} active signals
+            </p>
           </div>
           <div className="p-4">
             <div className="grid grid-cols-6 gap-2">
@@ -214,38 +245,52 @@ export default function SignalHeatmap() {
                     key={signal.ticker}
                     className={`${getHeatColor(signal.compositeScore)} rounded-lg p-3 cursor-pointer hover:ring-2 hover:ring-cyan-400/50 transition-all group relative`}
                   >
-                    <div className="text-sm font-bold text-white text-center">{signal.ticker}</div>
+                    <div className="text-sm font-bold text-white text-center">
+                      {signal.ticker}
+                    </div>
                     <div className="text-xs text-white/90 text-center font-medium">
                       {signal.compositeScore.toFixed(0)}
                     </div>
                     <div className="text-[10px] text-white/70 text-center">
                       +{signal.expectedMove}%
                     </div>
-                    
+
                     {/* Hover Tooltip */}
                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
                       <div className="bg-dark rounded-lg p-3 text-xs whitespace-nowrap border border-secondary/50 min-w-64">
-                        <div className="font-bold text-white mb-2">{signal.ticker} - {signal.sector}</div>
+                        <div className="font-bold text-white mb-2">
+                          {signal.ticker} - {signal.sector}
+                        </div>
                         <div className="space-y-1 text-secondary">
                           <div className="flex justify-between">
                             <span>Composite Score:</span>
-                            <span className="text-white font-bold">{signal.compositeScore.toFixed(1)}</span>
+                            <span className="text-white font-bold">
+                              {signal.compositeScore.toFixed(1)}
+                            </span>
                           </div>
                           <div className="flex justify-between">
                             <span>Technical:</span>
-                            <span className="text-cyan-400">{signal.components.technical}</span>
+                            <span className="text-cyan-400">
+                              {signal.components.technical}
+                            </span>
                           </div>
                           <div className="flex justify-between">
                             <span>ML Confidence:</span>
-                            <span className="text-purple-400">{signal.components.ml}</span>
+                            <span className="text-purple-400">
+                              {signal.components.ml}
+                            </span>
                           </div>
                           <div className="flex justify-between">
                             <span>Sentiment:</span>
-                            <span className="text-emerald-400">{signal.components.sentiment}</span>
+                            <span className="text-emerald-400">
+                              {signal.components.sentiment}
+                            </span>
                           </div>
                           <div className="flex justify-between">
                             <span>AI Reasoning:</span>
-                            <span className="text-yellow-400">{signal.components.aiReasoning}</span>
+                            <span className="text-yellow-400">
+                              {signal.components.aiReasoning}
+                            </span>
                           </div>
                         </div>
                         <div className="mt-2 pt-2 border-t border-secondary/50 text-secondary text-[10px]">

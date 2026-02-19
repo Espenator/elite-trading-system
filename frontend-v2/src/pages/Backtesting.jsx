@@ -10,6 +10,7 @@ import Badge from "../components/ui/Badge";
 import DataTable from "../components/ui/DataTable";
 import PageHeader from "../components/ui/PageHeader";
 import { useApi } from "../hooks/useApi";
+import { getApiUrl } from "../config/api";
 
 const STRATEGIES = [
   "Mean Reversion V2",
@@ -89,11 +90,43 @@ export default function Backtesting() {
   const [paramBMax, setParamBMax] = useState("100");
   const [runMode, setRunMode] = useState("single");
   const [isRunning, setIsRunning] = useState(false);
+  const [runningBacktest, setRunningBacktest] = useState(false);
   const { data, loading, error, refetch } = useApi("backtestRuns", {
     pollIntervalMs: 60000,
   });
   const parallelRuns = Array.isArray(data?.runs) ? data.runs : [];
   const runHistory = Array.isArray(data?.runHistory) ? data.runHistory : [];
+
+  const handleRunBacktest = async () => {
+    setRunningBacktest(true);
+    setIsRunning(true);
+    try {
+      const response = await fetch(getApiUrl("backtest"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          strategy,
+          startDate,
+          endDate,
+          assets,
+          capital: parseFloat(capital) || 100000,
+          paramA,
+          paramBMin: parseFloat(paramBMin) || 10,
+          paramBMax: parseFloat(paramBMax) || 100,
+          runMode,
+        }),
+      });
+      if (!response.ok) throw new Error("Failed to run backtest");
+      const result = await response.json();
+      console.log("Backtest result:", result);
+      await refetch(); // Refresh run history
+    } catch (err) {
+      console.error("Failed to run backtest:", err);
+    } finally {
+      setRunningBacktest(false);
+      setIsRunning(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -200,9 +233,10 @@ export default function Backtesting() {
               <Button
                 variant="primary"
                 leftIcon={Play}
-                onClick={() => setIsRunning(true)}
+                onClick={handleRunBacktest}
+                disabled={runningBacktest}
               >
-                Run Backtest
+                {runningBacktest ? "Running..." : "Run Backtest"}
               </Button>
               <Button
                 variant="secondary"

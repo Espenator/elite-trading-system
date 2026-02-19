@@ -1,6 +1,7 @@
 """Backtest API: run top-N strategy and return equity curve + metrics (research doc)."""
 
 from datetime import date
+from pydantic import BaseModel
 
 from fastapi import APIRouter
 from app.strategy.backtest import (
@@ -9,8 +10,21 @@ from app.strategy.backtest import (
     load_spy_returns,
     evaluate_backtest,
 )
+from app.websocket_manager import broadcast_ws
 
 router = APIRouter()
+
+
+class BacktestRequest(BaseModel):
+    strategy: str
+    startDate: str
+    endDate: str
+    assets: str | None = None
+    capital: float | None = None
+    paramA: float | None = None
+    paramBMin: float | None = None
+    paramBMax: float | None = None
+    runMode: str = "single"
 
 
 @router.get("/runs")
@@ -91,3 +105,76 @@ def run_backtest(
         "equity_curve": equity_curve,
         "metrics": metrics,
     }
+
+
+@router.post("/")
+async def run_backtest_post(request: BacktestRequest):
+    """
+    Run a backtest with configuration from request body.
+    Broadcasts status updates via WebSocket.
+    """
+    try:
+        start = date.fromisoformat(request.startDate)
+        end = date.fromisoformat(request.endDate)
+
+        # Broadcast start
+        await broadcast_ws(
+            "backtest",
+            {
+                "type": "backtest_started",
+                "strategy": request.strategy,
+                "startDate": request.startDate,
+                "endDate": request.endDate,
+            },
+        )
+
+        # Run backtest (simplified - use GET endpoint logic)
+        model_id = "lstm_daily_latest"  # Default model
+        n_stocks = 20
+        df = load_features_and_predictions(start, end, model_id=model_id)
+
+        if df.empty:
+            result = {
+                "ok": True,
+                "runId": f"R{len(df) if df is not None else 0:03d}",
+                "strategy": request.strategy,
+                "status": "completed",
+                "message": "No data available for date range",
+            }
+        else:
+            curve = backtest_top_n(df, n_stocks=n_stocks)
+            spy_curve = load_spy_returns(start, end)
+            metrics = evaluate_backtest(curve, spy_curve)
+
+            result = {
+                "ok": True,
+                "runId": f"R{hash(request.strategy + request.startDate) % 1000:03d}",
+                "strategy": request.strategy,
+                "status": "completed",
+                "metrics": metrics,
+            }
+
+        # Broadcast completion
+        await broadcast_ws(
+            "backtest",
+            {
+                "type": "backtest_completed",
+                "runId": result["runId"],
+                "strategy": request.strategy,
+            },
+        )
+
+        return result
+    except Exception as e:
+        await broadcast_ws(
+            "backtest",
+            {
+                "type": "backtest_failed",
+                "strategy": request.strategy,
+                "error": str(e),
+            },
+        )
+        return {
+            "ok": False,
+            "error": str(e),
+        }

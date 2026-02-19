@@ -4,12 +4,18 @@ GET /api/v1/performance returns data for Performance Analytics page.
 """
 
 from fastapi import APIRouter
+from app.websocket_manager import broadcast_ws
 
 router = APIRouter()
 
 
 @router.get("")
 async def get_performance():
+    """
+    Return market stats, performance summary, and optional equity curve.
+    Note: When performance metrics update (e.g., end of day), call:
+        await broadcast_ws("performance", {"type": "metrics_updated", "dailyPnL": 2340, "portfolioValue": 124850})
+    """
     """Return market stats, performance summary, and optional equity curve. Used by Performance Analytics page."""
     return {
         "marketStats": [

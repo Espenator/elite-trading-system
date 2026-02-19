@@ -3,22 +3,31 @@
  * Uses config/api.js getApiUrl(endpoint).
  * Optional polling when pollIntervalMs > 0.
  */
-import { useState, useEffect, useCallback } from 'react';
-import { getApiUrl } from '../config/api';
+import { useState, useEffect, useCallback } from "react";
+import { getApiUrl } from "../config/api";
 
 /**
  * @param {string} endpoint - Key from api.js endpoints (e.g. 'agents', 'dataSources')
- * @param {{ pollIntervalMs?: number, enabled?: boolean }} options - Poll interval in ms; if enabled is false, no fetch
+ * @param {{ pollIntervalMs?: number, enabled?: boolean, endpoint?: string }} options - Poll interval in ms; if enabled is false, no fetch; endpoint override for custom paths
  * @returns {{ data: T | null, loading: boolean, error: Error | null, refetch: () => Promise<void> }}
  */
 export function useApi(endpoint, options = {}) {
-  const { pollIntervalMs = 0, enabled = true } = options;
+  const {
+    pollIntervalMs = 0,
+    enabled = true,
+    endpoint: endpointOverride,
+  } = options;
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState(null);
 
   const fetchData = useCallback(async () => {
-    const url = getApiUrl(endpoint);
+    let url = getApiUrl(endpoint);
+    if (endpointOverride) {
+      // Override endpoint path (e.g., '/heatmap' appended to signals endpoint)
+      const baseUrl = getApiUrl(endpoint);
+      url = baseUrl + endpointOverride;
+    }
     if (!url) {
       setError(new Error(`Unknown endpoint: ${endpoint}`));
       setLoading(false);
@@ -36,7 +45,7 @@ export function useApi(endpoint, options = {}) {
     } finally {
       setLoading(false);
     }
-  }, [endpoint]);
+  }, [endpoint, endpointOverride]);
 
   useEffect(() => {
     if (!enabled) {
