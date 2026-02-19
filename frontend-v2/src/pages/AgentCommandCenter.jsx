@@ -1,7 +1,7 @@
 // AGENT COMMAND CENTER - Embodier.ai Glass House Intelligence System
 // Pattern: Dashboard.jsx — stats row + grid of cards. Real-time from GET /api/v1/agents.
 // Start/Stop/Pause POST to /api/v1/agents/:id/start|stop|pause. WebSocket 'agents' for live updates.
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { toast } from "react-toastify";
 import {
   Activity,
@@ -51,22 +51,78 @@ function StatCard({ title, value, sub, icon: Icon, colorClass }) {
   );
 }
 
+const TICK_INTERVAL_MS = 60 * 1000;
+
 export default function AgentCommandCenter() {
   const [actionLoading, setActionLoading] = useState(null);
+  const [nextTickSecondsLeft, setNextTickSecondsLeft] = useState(null);
+  const nextTickAtRef = useRef(null);
   const { data, loading, error, refetch } = useApi("agents", {
     pollIntervalMs: 15000,
   });
 
+  const marketDataAgent = useMemo(
+    () => (data?.agents || []).find((a) => a.id === 1),
+    [data?.agents],
+  );
+  const isMarketDataRunning = marketDataAgent?.status === "running";
+
   useEffect(() => {
-    const unsub = ws.on("agents", () => refetch());
+    const unsub = ws.on("agents", (payload) => {
+      if (
+        payload?.type === "tick_completed" &&
+        payload?.agent_id === 1 &&
+        payload?.last_tick_at
+      ) {
+        nextTickAtRef.current =
+          new Date(payload.last_tick_at).getTime() + TICK_INTERVAL_MS;
+      }
+      refetch();
+    });
     return unsub;
   }, [refetch]);
+
+  // Sync next-tick time from API (agent 1 last_tick_at). Only use server last_tick_at so reload shows correct countdown.
+  useEffect(() => {
+    if (!isMarketDataRunning) {
+      nextTickAtRef.current = null;
+      setNextTickSecondsLeft(null);
+      return;
+    }
+    const lastTickAt = marketDataAgent?.last_tick_at;
+    if (!lastTickAt) {
+      nextTickAtRef.current = null;
+      setNextTickSecondsLeft(null);
+      return;
+    }
+    const nextAt = new Date(lastTickAt).getTime() + TICK_INTERVAL_MS;
+    if (Number.isNaN(nextAt)) return;
+    nextTickAtRef.current = nextAt;
+    const initial = Math.max(0, Math.ceil((nextAt - Date.now()) / 1000));
+    setNextTickSecondsLeft(initial);
+  }, [isMarketDataRunning, marketDataAgent?.last_tick_at]);
+
+  // Update "next in Xs" every second when we have a known next-tick time
+  useEffect(() => {
+    if (!isMarketDataRunning || nextTickAtRef.current == null) return;
+    const id = setInterval(() => {
+      const at = nextTickAtRef.current;
+      if (at == null) return;
+      const sec = Math.max(0, Math.ceil((at - Date.now()) / 1000));
+      setNextTickSecondsLeft(sec);
+    }, 1000);
+    return () => clearInterval(id);
+  }, [isMarketDataRunning]);
 
   const sendAction = async (agentId, action) => {
     setActionLoading(agentId);
     try {
       const res = await fetch(`${getApiUrl("agents")}/${agentId}/${action}`, {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -235,10 +291,25 @@ export default function AgentCommandCenter() {
                   </span>
                   <span>{agent.uptime || "—"}</span>
                 </div>
-                {agent.currentTask && (
-                  <div className="mt-2 text-xs text-cyan-400/90 px-2.5 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
-                    {agent.currentTask}
+                {agent.status === "paused" || agent.status === "stopped" ? (
+                  <div className="mt-2 text-xs text-amber-400/90 px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                    {agent.status === "paused"
+                      ? "Paused — no new data collection"
+                      : "Stopped — start to resume"}
                   </div>
+                ) : agent.id === 1 && agent.status === "running" ? (
+                  <div className="mt-2 text-xs text-cyan-400/90 px-2.5 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
+                    Scanning Finviz Elite + Alpaca bars
+                    {nextTickSecondsLeft != null
+                      ? ` (next in ${nextTickSecondsLeft}s)`
+                      : " (next in ~60s)"}
+                  </div>
+                ) : (
+                  agent.currentTask && (
+                    <div className="mt-2 text-xs text-cyan-400/90 px-2.5 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
+                      {agent.currentTask}
+                    </div>
+                  )
                 )}
               </div>
 

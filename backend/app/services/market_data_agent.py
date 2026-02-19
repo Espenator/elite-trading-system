@@ -157,13 +157,22 @@ async def _fetch_edgar() -> List[Tuple[str, str]]:
         return [(f"SEC EDGAR AAPL recent: {filings}", "success")]
     except Exception as e:
         logger.exception("SEC EDGAR fetch failed")
-        return [(f"SEC EDGAR: {str(e)[:80]}", "warning")]
+        msg = (str(e) or type(e).__name__ or "error")[:80]
+        return [(f"SEC EDGAR: {msg}", "warning")]
 
 
 async def _fetch_unusual_whales() -> List[Tuple[str, str]]:
-    """Unusual Whales options flow. Requires UNUSUAL_WHALES_API_KEY (and optional base URL)."""
+    """Unusual Whales options flow. Requires UNUSUAL_WHALES_API_KEY. Set UNUSUAL_WHALES_FLOW_PATH from api.unusualwhales.com/docs if default 404s."""
     api_key = getattr(settings, "UNUSUAL_WHALES_API_KEY", None) or ""
-    base_url = (getattr(settings, "UNUSUAL_WHALES_BASE_URL", None) or "").rstrip("/")
+    base_url = (
+        getattr(settings, "UNUSUAL_WHALES_BASE_URL", None)
+        or "https://api.unusualwhales.com"
+    ).rstrip("/")
+    flow_path = (
+        getattr(settings, "UNUSUAL_WHALES_FLOW_PATH", None) or ""
+    ).strip() or "/api/option-trades/flow-alerts"
+    if not flow_path.startswith("/"):
+        flow_path = "/" + flow_path
     if not api_key or not api_key.strip():
         return [
             (
@@ -172,12 +181,7 @@ async def _fetch_unusual_whales() -> List[Tuple[str, str]]:
             )
         ]
     try:
-        # Common pattern: auth via header or query; adjust if your provider differs
-        url = (
-            f"{base_url}/api/flow"
-            if base_url
-            else "https://api.unusualwhales.com/api/flow"
-        )
+        url = f"{base_url}{flow_path}"
         async with httpx.AsyncClient(timeout=15.0) as client:
             r = await client.get(
                 url,
@@ -196,6 +200,13 @@ async def _fetch_unusual_whales() -> List[Tuple[str, str]]:
             return [(f"Unusual Whales: {count} flow entries", "success")]
         if r.status_code == 401:
             return [("Unusual Whales: invalid API key", "warning")]
+        if r.status_code == 404:
+            return [
+                (
+                    "Unusual Whales: endpoint not found — set UNUSUAL_WHALES_FLOW_PATH from api.unusualwhales.com/docs",
+                    "info",
+                )
+            ]
         return [(f"Unusual Whales: HTTP {r.status_code}", "warning")]
     except httpx.ConnectError:
         return [("Unusual Whales: connection failed (check base URL)", "warning")]

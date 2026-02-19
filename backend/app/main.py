@@ -1,5 +1,6 @@
 """FastAPI application entry point."""
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket
@@ -38,16 +39,47 @@ logging.basicConfig(
 )
 
 
+async def _market_data_tick_loop():
+    """Run Market Data Agent tick every 60s when status is 'running'. First tick runs after 2s so last_tick_at is set quickly."""
+    await asyncio.sleep(2)  # brief delay so app is ready
+    try:
+        from app.api.v1 import agents
+
+        await agents.run_market_data_tick_if_running()
+    except asyncio.CancelledError:
+        return
+    except Exception:
+        logging.exception("Market data tick loop error")
+    while True:
+        await asyncio.sleep(60)
+        try:
+            from app.api.v1 import agents
+
+            await agents.run_market_data_tick_if_running()
+        except asyncio.CancelledError:
+            break
+        except Exception:
+            logging.exception("Market data tick loop error")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize data schema on startup."""
+    """Initialize data schema on startup; start 60s Market Data Agent tick loop."""
     try:
         from app.data.storage import init_schema
 
         init_schema()
     except Exception:
         pass
-    yield
+    task = asyncio.create_task(_market_data_tick_loop())
+    try:
+        yield
+    finally:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
 
 # Create FastAPI app

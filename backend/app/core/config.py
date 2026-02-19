@@ -35,11 +35,12 @@ class Settings(BaseSettings):
     )
 
     # FRED (Federal Reserve Economic Data) — free key at https://fred.stlouisfed.org/docs/api/api_key.html
-    FRED_API_KEY: str = ""
+    FRED_API_KEY: str = "efc9fe2858156b124be8b1d8fd212194"
 
     # Unusual Whales (options flow) — optional; set base URL and key if you have access
     UNUSUAL_WHALES_API_KEY: str = "d1cb154c-7988-41c6-ac00-09379ae7395c"
     UNUSUAL_WHALES_BASE_URL: str = "https://api.unusualwhales.com"
+    UNUSUAL_WHALES_FLOW_PATH: str = ""  # Default /api/option-trades/flow-alerts; override if needed
 
     # SEC EDGAR — no key; User-Agent required (set in code)
 
