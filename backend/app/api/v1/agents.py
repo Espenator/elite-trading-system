@@ -3,12 +3,15 @@ Agent Command Center API — status and control of the 5 AI agents.
 GET returns agents + logs; POST start/stop/pause/restart update persisted status and append to activity log.
 """
 
-from fastapi import APIRouter, HTTPException
+import logging
 from datetime import datetime, timezone
+
+from fastapi import APIRouter, HTTPException
 
 from app.websocket_manager import broadcast_ws
 from app.services.database import db_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -205,6 +208,20 @@ async def _run_market_data_tick():
         _append_log(AGENT_NAME, msg, level)
 
 
+async def _run_signal_generation_tick():
+    """Run one Signal Generation Agent tick: symbol_universe + momentum/pattern → composite scores 0-100."""
+    from app.services.signal_engine import run_tick
+
+    agent_name = _agent_by_id(2)["name"]  # match template so last_actions filter works
+    try:
+        entries = await run_tick()
+        for msg, level in entries:
+            _append_log(agent_name, msg, level)
+    except Exception as e:
+        logger.exception("Signal generation tick failed")
+        _append_log(agent_name, f"Tick failed: {str(e)[:80]}", "warning")
+
+
 @router.post("/{agent_id}/start")
 async def start_agent(agent_id: int):
     """Start an agent; persist status and append to activity log.
@@ -216,6 +233,8 @@ async def start_agent(agent_id: int):
     _append_log(agent["name"], "Agent started", "success")
     if agent_id == 1:
         await _run_market_data_tick()
+    elif agent_id == 2:
+        await _run_signal_generation_tick()
     await broadcast_ws(
         "agents", {"type": "status_changed", "agent_id": agent_id, "status": "running"}
     )
@@ -234,6 +253,9 @@ async def run_agent_tick(agent_id: int):
         return {"ok": True, "skipped": True, "reason": "agent_not_running"}
     if agent_id == 1:
         await _run_market_data_tick()
+        await broadcast_ws("agents", {"type": "tick_completed", "agent_id": agent_id})
+    elif agent_id == 2:
+        await _run_signal_generation_tick()
         await broadcast_ws("agents", {"type": "tick_completed", "agent_id": agent_id})
     return {"ok": True, "agent_id": agent_id}
 
