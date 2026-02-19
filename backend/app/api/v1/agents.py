@@ -290,6 +290,20 @@ async def _run_ml_learning_tick():
         _append_log(agent_name, f"Tick failed: {str(e)[:80]}", "warning")
 
 
+async def _run_sentiment_tick():
+    """Run one Sentiment Agent tick: aggregate Stockgeist/News/Discord/X, NLP score per ticker, spike detection."""
+    from app.modules.social_news_engine import run_tick as sentiment_run_tick
+
+    agent_name = _agent_by_id(4)["name"]
+    try:
+        entries = sentiment_run_tick()
+        for msg, level in entries:
+            _append_log(agent_name, msg, level)
+    except Exception as e:
+        logger.exception("Sentiment tick failed")
+        _append_log(agent_name, f"Tick failed: {str(e)[:80]}", "warning")
+
+
 @router.post("/{agent_id}/start")
 async def start_agent(agent_id: int):
     """Start an agent; persist status and append to activity log.
@@ -305,6 +319,8 @@ async def start_agent(agent_id: int):
         await _run_signal_generation_tick()
     elif agent_id == 3:
         await _run_ml_learning_tick()
+    elif agent_id == 4:
+        await _run_sentiment_tick()
     await broadcast_ws(
         "agents", {"type": "status_changed", "agent_id": agent_id, "status": "running"}
     )
@@ -336,6 +352,9 @@ async def run_agent_tick(agent_id: int):
         await broadcast_ws("agents", {"type": "tick_completed", "agent_id": agent_id})
     elif agent_id == 3:
         await _run_ml_learning_tick()
+        await broadcast_ws("agents", {"type": "tick_completed", "agent_id": agent_id})
+    elif agent_id == 4:
+        await _run_sentiment_tick()
         await broadcast_ws("agents", {"type": "tick_completed", "agent_id": agent_id})
     return {"ok": True, "agent_id": agent_id}
 

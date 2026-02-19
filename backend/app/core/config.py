@@ -40,9 +40,30 @@ class Settings(BaseSettings):
     # Unusual Whales (options flow) — optional; set base URL and key if you have access
     UNUSUAL_WHALES_API_KEY: str = "d1cb154c-7988-41c6-ac00-09379ae7395c"
     UNUSUAL_WHALES_BASE_URL: str = "https://api.unusualwhales.com"
-    UNUSUAL_WHALES_FLOW_PATH: str = ""  # Default /api/option-trades/flow-alerts; override if needed
+    UNUSUAL_WHALES_FLOW_PATH: str = (
+        ""  # Default /api/option-trades/flow-alerts; override if needed
+    )
 
     # SEC EDGAR — no key; User-Agent required (set in code)
+
+    # Sentiment Agent / Social News Engine — optional; leave empty to use mock data
+    NEWS_API_KEY: str = "9cb9b9e539434885bfd023ce5c60d90b"
+    STOCKGEIST_API_KEY: str = "vbtig3q2xPB0EJyLerT5yx7ZgDh8agEG"
+    STOCKGEIST_BASE_URL: str = "https://api.stockgeist.ai"
+    DISCORD_BOT_TOKEN: str = (
+        "MTE1Mzc1ODM2OTg1NzkzMzM4Mg.Gtkvds.ZO4Wfy3SnZSWpeDmVnMWr42O0YlyUmmecevy7E"
+    )
+    DISCORD_API_BASE: str = "https://discord.com/api/v10"
+    # Discord channel IDs to monitor (comma-separated). Names: UW Free/Live Options Flow, FOM Trade Ideas, FOM Daily Expected Moves, FOM Zones, FOM Daily IVOL Alerts, Maverick Live Market Trading
+    DISCORD_CHANNEL_IDS: str = (
+        "1186354600622694400,1187484002844680354,850211054549860352,1097299537758003201,998705356882595840,1430213250645102602,1051968098506379265"
+    )
+    # X (Twitter) API — use Bearer Token for app-only read, or API Key + Secret + OAuth for user context
+    TWITTER_BEARER_TOKEN: str = ""
+    X_API_KEY: str = "xqJifauJmwyqJGmC1EV2fx3fF"
+    X_API_KEY_SECRET: str = "kGuRa9RvBS98bT1AReIh0r8poq81XPLfID3Thi98ssYSFyngAT"
+    X_OAUTH2_CLIENT_ID: str = "X3hzWHh1YkVocGZ1YUMzTVBzcnM6MTpjaQ"
+    X_OAUTH2_CLIENT_SECRET: str = "8W6omW9jlhwHwipTO5f1FicHec_aWH--wwYXvQZcrVaK9-eByS"
 
     class Config:
         env_file = ".env"
