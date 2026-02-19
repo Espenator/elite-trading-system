@@ -255,21 +255,15 @@ def fetch_discord(
 
 
 def _x_credentials_configured() -> bool:
-    """True if Bearer Token is set or OAuth 2.0 Client ID + Secret for app-only token."""
+    """True if OAuth 2.0 Client ID + Secret are set for app-only token."""
     return bool(
-        (settings.TWITTER_BEARER_TOKEN or "").strip()
-        or (
-            (settings.X_OAUTH2_CLIENT_ID or "").strip()
-            and (settings.X_OAUTH2_CLIENT_SECRET or "").strip()
-        )
+        (settings.X_OAUTH2_CLIENT_ID or "").strip()
+        and (settings.X_OAUTH2_CLIENT_SECRET or "").strip()
     )
 
 
 def _get_twitter_bearer_token() -> Optional[str]:
-    """Return Bearer token: from TWITTER_BEARER_TOKEN or via OAuth 2.0 client credentials."""
-    bearer = (settings.TWITTER_BEARER_TOKEN or "").strip()
-    if bearer:
-        return bearer
+    """Return Bearer token via OAuth 2.0 client credentials (client_credentials grant)."""
     client_id = (settings.X_OAUTH2_CLIENT_ID or "").strip()
     client_secret = (settings.X_OAUTH2_CLIENT_SECRET or "").strip()
     if not client_id or not client_secret:
@@ -305,7 +299,7 @@ def _get_twitter_bearer_token() -> Optional[str]:
 def fetch_twitter_x(
     symbols: List[str], limit_per_symbol: int = 5
 ) -> List[Dict[str, Any]]:
-    """X (Twitter): search recent tweets by ticker via API v2. Uses Bearer Token or OAuth 2.0 client credentials."""
+    """X (Twitter): search recent tweets by ticker via API v2. Uses OAuth 2.0 client credentials."""
     if not _x_credentials_configured():
         return []
     bearer = _get_twitter_bearer_token()

@@ -58,12 +58,17 @@ class Settings(BaseSettings):
     DISCORD_CHANNEL_IDS: str = (
         "1186354600622694400,1187484002844680354,850211054549860352,1097299537758003201,998705356882595840,1430213250645102602,1051968098506379265"
     )
-    # X (Twitter) API — use Bearer Token for app-only read, or API Key + Secret + OAuth for user context
-    TWITTER_BEARER_TOKEN: str = ""
+    # X (Twitter) API — OAuth 2.0 client credentials for app-only read (client ID + secret)
     X_API_KEY: str = "xqJifauJmwyqJGmC1EV2fx3fF"
     X_API_KEY_SECRET: str = "kGuRa9RvBS98bT1AReIh0r8poq81XPLfID3Thi98ssYSFyngAT"
     X_OAUTH2_CLIENT_ID: str = "X3hzWHh1YkVocGZ1YUMzTVBzcnM6MTpjaQ"
     X_OAUTH2_CLIENT_SECRET: str = "8W6omW9jlhwHwipTO5f1FicHec_aWH--wwYXvQZcrVaK9-eByS"
+
+    # YouTube Knowledge Agent — only YOUTUBE_API_KEY required; search discovers videos if no channels/IDs set
+    YOUTUBE_API_KEY: str = "AIzaSyCn1B6rIYvhyoXsomXl4ZcyQIV7VbTbEkk"
+    YOUTUBE_SEARCH_QUERY: str = (
+        "stock market trading technical analysis"  # Used when only API key is set
+    )
 
     class Config:
         env_file = ".env"

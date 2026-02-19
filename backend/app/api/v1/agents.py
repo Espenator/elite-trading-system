@@ -304,6 +304,20 @@ async def _run_sentiment_tick():
         _append_log(agent_name, f"Tick failed: {str(e)[:80]}", "warning")
 
 
+async def _run_youtube_knowledge_tick():
+    """Run one YouTube Knowledge Agent tick: fetch transcripts, extract ideas/concepts, feed ML."""
+    from app.modules.youtube_agent import run_tick as youtube_run_tick
+
+    agent_name = _agent_by_id(5)["name"]
+    try:
+        entries = youtube_run_tick()
+        for msg, level in entries:
+            _append_log(agent_name, msg, level)
+    except Exception as e:
+        logger.exception("YouTube Knowledge tick failed")
+        _append_log(agent_name, f"Tick failed: {str(e)[:80]}", "warning")
+
+
 @router.post("/{agent_id}/start")
 async def start_agent(agent_id: int):
     """Start an agent; persist status and append to activity log.
@@ -321,6 +335,8 @@ async def start_agent(agent_id: int):
         await _run_ml_learning_tick()
     elif agent_id == 4:
         await _run_sentiment_tick()
+    elif agent_id == 5:
+        await _run_youtube_knowledge_tick()
     await broadcast_ws(
         "agents", {"type": "status_changed", "agent_id": agent_id, "status": "running"}
     )
@@ -355,6 +371,9 @@ async def run_agent_tick(agent_id: int):
         await broadcast_ws("agents", {"type": "tick_completed", "agent_id": agent_id})
     elif agent_id == 4:
         await _run_sentiment_tick()
+        await broadcast_ws("agents", {"type": "tick_completed", "agent_id": agent_id})
+    elif agent_id == 5:
+        await _run_youtube_knowledge_tick()
         await broadcast_ws("agents", {"type": "tick_completed", "agent_id": agent_id})
     return {"ok": True, "agent_id": agent_id}
 
