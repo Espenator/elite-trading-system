@@ -1,64 +1,26 @@
 // ML INSIGHTS PAGE - Embodier.ai Glass House Intelligence System
 // ML model performance, predictions, training status, flywheel metrics
-import { useState } from "react";
-import {
-  Brain,
-  TrendingUp,
-  BarChart3,
-  RefreshCw,
-  Zap,
-  Target,
-  Activity,
-  Clock,
-} from "lucide-react";
+// BACKEND: GET /api/v1/flywheel, GET /api/v1/training/models/compare
+import { useState, useMemo } from "react";
+import { Brain, RefreshCw, Zap, Target, Clock } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
+import { useApi } from "../hooks/useApi";
 
-const MODELS = [
-  {
-    id: 1,
-    name: "Pattern Classifier",
-    accuracy: 87.3,
-    precision: 84.1,
-    recall: 89.2,
-    f1: 86.6,
-    lastTrained: "2h ago",
+/** Normalize training models/compare to MODELS shape */
+function normalizeModels(backend) {
+  if (!Array.isArray(backend)) return [];
+  return backend.map((m, i) => ({
+    id: i + 1,
+    name: m.model || `Model ${i + 1}`,
+    accuracy: m.accuracy ?? 0,
+    precision: m.precision ?? 0,
+    recall: m.recall ?? 0,
+    f1: m.f1Score ?? 0,
+    lastTrained: m.trainingTime ? `${m.trainingTime} run` : "—",
     status: "active",
-    predictions: 1420,
-  },
-  {
-    id: 2,
-    name: "Price Predictor",
-    accuracy: 72.8,
-    precision: 70.5,
-    recall: 74.1,
-    f1: 72.3,
-    lastTrained: "4h ago",
-    status: "active",
-    predictions: 890,
-  },
-  {
-    id: 3,
-    name: "Sentiment Analyzer",
-    accuracy: 81.5,
-    precision: 79.8,
-    recall: 82.4,
-    f1: 81.1,
-    lastTrained: "1d ago",
-    status: "active",
-    predictions: 2100,
-  },
-  {
-    id: 4,
-    name: "Risk Scorer",
-    accuracy: 90.1,
-    precision: 88.7,
-    recall: 91.3,
-    f1: 90.0,
-    lastTrained: "6h ago",
-    status: "active",
-    predictions: 560,
-  },
-];
+    predictions: 0,
+  }));
+}
 
 const PREDICTIONS = [
   {
@@ -127,6 +89,28 @@ function MetricBar({ label, value, max = 100 }) {
 
 export default function MLInsights() {
   const [tab, setTab] = useState("models");
+  const { data: flywheelData } = useApi("flywheel", { pollIntervalMs: 30000 });
+  const {
+    data: modelsData,
+    loading: modelsLoading,
+    error: modelsError,
+  } = useApi("training", {
+    endpoint: "/models/compare",
+    pollIntervalMs: 60000,
+  });
+
+  const models = useMemo(() => normalizeModels(modelsData), [modelsData]);
+  const flywheel = flywheelData || {};
+  const activeModels = models.length;
+  const avgAccuracy = models.length
+    ? (models.reduce((s, m) => s + m.accuracy, 0) / models.length).toFixed(1)
+    : flywheel.accuracy30d != null
+      ? (flywheel.accuracy30d * 100).toFixed(1)
+      : "—";
+  const totalPredictions = flywheel.resolvedSignals ?? 0;
+  const flywheelCycles = Array.isArray(flywheel.history)
+    ? flywheel.history.length
+    : 0;
 
   return (
     <div className="space-y-6">
@@ -145,25 +129,28 @@ export default function MLInsights() {
         {[
           {
             label: "Active Models",
-            value: "4",
+            value: String(activeModels),
             icon: Brain,
             color: "text-purple-400",
           },
           {
             label: "Avg Accuracy",
-            value: "82.9%",
+            value:
+              typeof avgAccuracy === "string" && avgAccuracy !== "—"
+                ? `${avgAccuracy}%`
+                : avgAccuracy,
             icon: Target,
             color: "text-emerald-400",
           },
           {
             label: "Total Predictions",
-            value: "4,970",
+            value: totalPredictions.toLocaleString(),
             icon: Zap,
             color: "text-blue-400",
           },
           {
             label: "Flywheel Cycles",
-            value: "142",
+            value: String(flywheelCycles),
             icon: RefreshCw,
             color: "text-amber-400",
           },
@@ -201,7 +188,17 @@ export default function MLInsights() {
       {/* Models tab */}
       {tab === "models" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {MODELS.map((m) => (
+          {modelsLoading && models.length === 0 && (
+            <div className="col-span-full p-8 text-center text-gray-500">
+              Loading models...
+            </div>
+          )}
+          {!modelsLoading && modelsError && models.length === 0 && (
+            <div className="col-span-full p-8 text-center text-amber-400">
+              Failed to load models. Check GET /api/v1/training/models/compare.
+            </div>
+          )}
+          {models.map((m) => (
             <div
               key={m.id}
               className="bg-slate-800/30 border border-white/10 rounded-2xl p-5"
@@ -228,9 +225,13 @@ export default function MLInsights() {
               </div>
               <div className="flex items-center justify-between text-xs text-gray-500 pt-3 border-t border-white/5">
                 <span className="flex items-center gap-1">
-                  <Clock className="w-3 h-3" /> Trained {m.lastTrained}
+                  <Clock className="w-3 h-3" /> {m.lastTrained}
                 </span>
-                <span>{m.predictions.toLocaleString()} predictions</span>
+                <span>
+                  {m.predictions > 0
+                    ? `${m.predictions.toLocaleString()} predictions`
+                    : "—"}
+                </span>
               </div>
             </div>
           ))}

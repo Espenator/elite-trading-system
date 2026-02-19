@@ -1,5 +1,5 @@
 // TRADES PAGE - Embodier.ai Glass House Intelligence System
-// GET /api/v1/portfolio - positions and trade history
+// GET /api/v1/portfolio - positions and trade history. POST /api/v1/orders - place order.
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -9,19 +9,35 @@ import {
   ArrowUpRight,
   LineChart,
   X,
+  Send,
 } from "lucide-react";
 import Card from "../components/ui/Card";
 import DataTable from "../components/ui/DataTable";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
 import PageHeader from "../components/ui/PageHeader";
+import TextField from "../components/ui/TextField";
+import Select from "../components/ui/Select";
 import { useApi } from "../hooks/useApi";
+import { getApiUrl } from "../config/api";
 
 export default function Trades() {
   const location = useLocation();
   const navigate = useNavigate();
   const fromSignal = location.state?.fromSignal && location.state?.symbol;
   const [dismissFromSignal, setDismissFromSignal] = useState(false);
+  const [orderModalOpen, setOrderModalOpen] = useState(false);
+  const [orderSubmitting, setOrderSubmitting] = useState(false);
+  const [orderError, setOrderError] = useState(null);
+  const [orderSuccess, setOrderSuccess] = useState(false);
+  const [orderForm, setOrderForm] = useState({
+    symbol: location.state?.symbol || "",
+    side:
+      (location.state?.side || "Buy").toLowerCase() === "sell" ? "sell" : "buy",
+    order_type: "Market",
+    quantity: 10,
+    price: 0,
+  });
 
   const [tab, setTab] = useState("active");
   const { data, loading, error, refetch } = useApi("portfolio", {
@@ -58,7 +74,7 @@ export default function Trades() {
 
       {fromSignal && !dismissFromSignal && (
         <Card className="border-primary/40 bg-primary/10 p-4">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
             <p className="text-sm text-white">
               <span className="font-medium">From Signal:</span> Place order for{" "}
               <span className="font-bold text-primary">
@@ -70,19 +86,182 @@ export default function Trades() {
                 </span>
               )}
             </p>
-            <button
-              type="button"
-              onClick={() => {
-                setDismissFromSignal(true);
-                navigate("/trades", { replace: true, state: {} });
-              }}
-              className="shrink-0 rounded p-1 text-secondary hover:bg-secondary/20 hover:text-white"
-              aria-label="Dismiss"
-            >
-              <X className="h-4 w-4" />
-            </button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  setOrderForm((f) => ({
+                    ...f,
+                    symbol: location.state.symbol,
+                    side:
+                      (location.state.side || "Buy").toLowerCase() === "sell"
+                        ? "sell"
+                        : "buy",
+                  }));
+                  setOrderModalOpen(true);
+                  setOrderError(null);
+                  setOrderSuccess(false);
+                }}
+              >
+                <Send className="w-4 h-4 mr-1" />
+                Place order
+              </Button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDismissFromSignal(true);
+                  navigate("/trades", { replace: true, state: {} });
+                }}
+                className="shrink-0 rounded p-1 text-secondary hover:bg-secondary/20 hover:text-white"
+                aria-label="Dismiss"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </Card>
+      )}
+
+      {orderModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"
+          onClick={() => !orderSubmitting && setOrderModalOpen(false)}
+        >
+          <Card
+            className="w-full max-w-md p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white">Place order</h3>
+              <button
+                type="button"
+                onClick={() => !orderSubmitting && setOrderModalOpen(false)}
+                className="p-1 text-secondary hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            {orderSuccess && (
+              <p className="mb-4 text-sm text-success">
+                Order submitted successfully.
+              </p>
+            )}
+            {orderError && (
+              <p className="mb-4 text-sm text-danger">{orderError}</p>
+            )}
+            <div className="space-y-4">
+              <TextField
+                label="Symbol"
+                value={orderForm.symbol}
+                readOnly
+                className="opacity-80"
+              />
+              <Select
+                label="Side"
+                value={orderForm.side}
+                onChange={(e) =>
+                  setOrderForm((f) => ({ ...f, side: e.target.value }))
+                }
+                options={[
+                  { value: "buy", label: "Buy" },
+                  { value: "sell", label: "Sell" },
+                ]}
+              />
+              <Select
+                label="Order type"
+                value={orderForm.order_type}
+                onChange={(e) =>
+                  setOrderForm((f) => ({ ...f, order_type: e.target.value }))
+                }
+                options={[
+                  { value: "Market", label: "Market" },
+                  { value: "Limit", label: "Limit" },
+                ]}
+              />
+              <TextField
+                label="Quantity"
+                type="number"
+                min={1}
+                value={orderForm.quantity}
+                onChange={(e) =>
+                  setOrderForm((f) => ({
+                    ...f,
+                    quantity: parseInt(e.target.value, 10) || 1,
+                  }))
+                }
+              />
+              {orderForm.order_type === "Limit" && (
+                <TextField
+                  label="Limit price"
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={orderForm.price || ""}
+                  onChange={(e) =>
+                    setOrderForm((f) => ({
+                      ...f,
+                      price: parseFloat(e.target.value) || 0,
+                    }))
+                  }
+                />
+              )}
+            </div>
+            <div className="flex gap-2 mt-6">
+              <Button
+                variant="primary"
+                className="flex-1"
+                disabled={orderSubmitting}
+                onClick={async () => {
+                  setOrderSubmitting(true);
+                  setOrderError(null);
+                  try {
+                    const res = await fetch(getApiUrl("orders"), {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        symbol: orderForm.symbol,
+                        order_type: orderForm.order_type,
+                        side: orderForm.side,
+                        quantity: orderForm.quantity,
+                        price:
+                          orderForm.order_type === "Market"
+                            ? 0
+                            : orderForm.price || 0,
+                      }),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                      setOrderError(
+                        data.detail || data.message || `HTTP ${res.status}`,
+                      );
+                      return;
+                    }
+                    setOrderSuccess(true);
+                    refetch();
+                    setTimeout(() => {
+                      setOrderModalOpen(false);
+                      setOrderSuccess(false);
+                    }, 1500);
+                  } catch (err) {
+                    setOrderError(err.message || "Request failed");
+                  } finally {
+                    setOrderSubmitting(false);
+                  }
+                }}
+              >
+                {orderSubmitting ? "Submitting…" : "Submit order"}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => !orderSubmitting && setOrderModalOpen(false)}
+                disabled={orderSubmitting}
+              >
+                Cancel
+              </Button>
+            </div>
+          </Card>
+        </div>
       )}
 
       {loading && positions.length === 0 && !error && (

@@ -72,20 +72,26 @@ export default function Dashboard() {
     pollIntervalMs: 30000,
   });
 
-  // Transform portfolio positions for table
+  // Transform portfolio positions for table (support both API shapes: symbol/entryPrice/... and ticker/entry/...)
   const positions = useMemo(() => {
     if (!portfolioData?.positions) return [];
     return portfolioData.positions.slice(0, 4).map((pos) => {
-      const pnl = pos.unrealizedPnL || 0;
-      const pnlPct = pos.entryPrice
-        ? ((pnl / (pos.entryPrice * pos.quantity)) * 100).toFixed(2)
-        : "0.00";
+      const ticker = pos.symbol ?? pos.ticker ?? "—";
+      const entry = pos.entryPrice ?? pos.entry ?? 0;
+      const current = pos.currentPrice ?? pos.current ?? 0;
+      const qty = pos.quantity ?? pos.qty ?? 0;
+      const pnlDollars = pos.unrealizedPnL ?? pos.pnl ?? 0;
+      let pnlPct = pos.pnlPct;
+      if (pnlPct == null && entry && qty) {
+        pnlPct = (pnlDollars / (entry * qty)) * 100;
+      }
+      const pnlStr = pnlPct != null ? `${Number(pnlPct) >= 0 ? "+" : ""}${Number(pnlPct).toFixed(2)}%` : "—";
       return {
-        ticker: pos.symbol,
+        ticker,
         side: pos.side || "Long",
-        entry: pos.entryPrice || 0,
-        current: pos.currentPrice || 0,
-        pnl: `${pnlPct >= 0 ? "+" : ""}${pnlPct}%`,
+        entry,
+        current,
+        pnl: pnlStr,
       };
     });
   }, [portfolioData]);
@@ -117,7 +123,7 @@ export default function Dashboard() {
     return agentsData.agents.slice(0, 4).map((agent) => ({
       name: agent.name,
       status: agent.status === "running" ? "active" : agent.status,
-      tasks: Math.floor(Math.random() * 100) + 10, // Mock task count
+      tasks: "—", // Task count not provided by API
       icon: iconMap[agent.name] || Bot,
     }));
   }, [agentsData]);
@@ -296,7 +302,7 @@ export default function Dashboard() {
                     </span>
                     <span className="text-xs text-secondary">|</span>
                     <span className="text-xs text-secondary">
-                      {a.tasks} tasks
+                      {a.tasks === "—" ? "—" : `${a.tasks} tasks`}
                     </span>
                   </div>
                 </div>
