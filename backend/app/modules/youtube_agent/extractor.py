@@ -28,9 +28,31 @@ def extract_ideas_and_concepts(text: str) -> dict:
     }
 
 
+# Common English words that are also tickers; skip word-boundary match to avoid false positives
+_SYMBOL_BLOCKLIST = frozenset(
+    {
+        "I",
+        "A",
+        "S",
+        "IT",
+        "WE",
+        "SO",
+        "NOW",
+        "YOU",
+        "LOW",
+        "HIGH",
+        "GO",
+        "BE",
+        "OR",
+        "ALL",
+    }
+)
+
+
 def extract_symbols_from_text(text: str, allowed_symbols: List[str]) -> List[str]:
     """
-    Find mentioned ticker symbols in text (word boundary or $SYMBOL).
+    Find mentioned ticker symbols in text: $SYMBOL (cashtag) always; word-boundary only
+    for symbols not in blocklist (to avoid matching 'now', 'you', 'low', etc.).
     Returns list of symbols that appear in text, from allowed_symbols.
     """
     if not text or not allowed_symbols:
@@ -40,13 +62,17 @@ def extract_symbols_from_text(text: str, allowed_symbols: List[str]) -> List[str
         return []
     found = []
     seen = set()
+    # $SYMBOL (cashtag) — always count
     for m in re.finditer(r"\$([A-Z]{1,5})\b", text, re.IGNORECASE):
         sym = m.group(1).upper()
         if sym in allowed_set and sym not in seen:
             found.append(sym)
             seen.add(sym)
+    # Word-boundary: skip 1–2 letter symbols and blocklisted common words
     for sym in allowed_set:
         if sym in seen:
+            continue
+        if sym in _SYMBOL_BLOCKLIST or len(sym) <= 2:
             continue
         if re.search(
             r"(?<![A-Z0-9])" + re.escape(sym) + r"(?![A-Z0-9])", text, re.IGNORECASE

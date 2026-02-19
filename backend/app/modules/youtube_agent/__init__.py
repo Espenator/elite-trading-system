@@ -62,12 +62,7 @@ def run_tick(
     processed = get_processed_ids()
     to_process = get_video_ids_to_process(processed)[:max_videos_per_tick]
     if not to_process:
-        entries.append(
-            (
-                "No new videos to process (set YOUTUBE_API_KEY; optional: YOUTUBE_CHANNEL_IDS or YOUTUBE_VIDEO_IDS)",
-                "info",
-            )
-        )
+        entries.append(("No new videos to process (set YOUTUBE_API_KEY)", "info"))
         set_status(last_run=datetime.now(timezone.utc).isoformat())
         return entries
 
@@ -76,7 +71,7 @@ def run_tick(
         try:
             text = fetch_transcript(video_id, languages=TRANSCRIPT_LANGUAGES)
             if not text:
-                entries.append((f"No transcript for video {video_id}", "warning"))
+                entries.append((f"Skipped (no captions): {video_id}", "info"))
                 mark_processed(video_id)
                 continue
             extracted = extract_ideas_and_concepts(text)
