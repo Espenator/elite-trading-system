@@ -159,15 +159,33 @@ _DEFAULT_LOGS = [
 
 @router.get("")
 async def get_agents():
-    """Return all 5 agents with status from DB override, and activity log (DB + defaults)."""
+    """Return all 5 agents with status, last_actions per agent, and global logs."""
     status_overrides = _get_agent_status()
-    agents = []
-    for a in _AGENTS_TEMPLATE:
-        agents.append({**a, "status": status_overrides.get(str(a["id"]), a["status"])})
     stored_logs = db_service.get_config("agent_activity_log")
     logs = (
         stored_logs if isinstance(stored_logs, list) and stored_logs else []
     ) or _DEFAULT_LOGS.copy()
+
+    agents = []
+    for a in _AGENTS_TEMPLATE:
+        status = status_overrides.get(str(a["id"]), a["status"])
+        # Per-agent last_actions: last 20 log entries for this agent
+        last_actions = [
+            {
+                "time": log["time"],
+                "message": log["message"],
+                "level": log.get("level", "info"),
+            }
+            for log in logs
+            if log.get("agent") == a["name"]
+        ][:20]
+        agents.append(
+            {
+                **a,
+                "status": status,
+                "last_actions": last_actions,
+            }
+        )
     return {"agents": agents, "logs": logs}
 
 
@@ -178,16 +196,46 @@ def _agent_by_id(agent_id: int):
     return a
 
 
+async def _run_market_data_tick():
+    """Run one Market Data Agent tick (Finviz, Alpaca, FRED/EDGAR/UW) and append logs."""
+    from app.services.market_data_agent import run_tick, AGENT_NAME
+
+    entries = await run_tick()
+    for msg, level in entries:
+        _append_log(AGENT_NAME, msg, level)
+
+
 @router.post("/{agent_id}/start")
 async def start_agent(agent_id: int):
-    """Start an agent; persist status and append to activity log."""
+    """Start an agent; persist status and append to activity log.
+    Market Data Agent (id=1): runs one tick (Finviz Elite, Alpaca, FRED/EDGAR/UW).
+    Call POST /agents/1/tick every 60s (cron/scheduler) when running for periodic scan.
+    """
     agent = _agent_by_id(agent_id)
     _set_agent_status(agent_id, "running")
     _append_log(agent["name"], "Agent started", "success")
+    if agent_id == 1:
+        await _run_market_data_tick()
     await broadcast_ws(
         "agents", {"type": "status_changed", "agent_id": agent_id, "status": "running"}
     )
     return {"ok": True, "agent_id": agent_id, "status": "running"}
+
+
+@router.post("/{agent_id}/tick")
+async def run_agent_tick(agent_id: int):
+    """Run one data-collection tick for an agent. For Market Data Agent (id=1): runs
+    Finviz, Alpaca, FRED/EDGAR/UW. Call every 60s (configurable) when agent is running.
+    Only runs if agent status is 'running' (no-op otherwise).
+    """
+    agent = _agent_by_id(agent_id)
+    status = _get_agent_status().get(str(agent_id), agent["status"])
+    if status != "running":
+        return {"ok": True, "skipped": True, "reason": "agent_not_running"}
+    if agent_id == 1:
+        await _run_market_data_tick()
+        await broadcast_ws("agents", {"type": "tick_completed", "agent_id": agent_id})
+    return {"ok": True, "agent_id": agent_id}
 
 
 @router.post("/{agent_id}/stop")

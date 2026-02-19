@@ -1,5 +1,6 @@
 // AGENT COMMAND CENTER - Embodier.ai Glass House Intelligence System
-// GET /api/v1/agents - agent status and activity log; POST .../start, stop, pause, restart
+// Pattern: Dashboard.jsx — stats row + grid of cards. Real-time from GET /api/v1/agents.
+// Start/Stop/Pause POST to /api/v1/agents/:id/start|stop|pause. WebSocket 'agents' for live updates.
 import { useState, useMemo, useEffect } from "react";
 import { toast } from "react-toastify";
 import {
@@ -17,17 +18,16 @@ import {
   Bot,
   Cpu,
   HardDrive,
+  Radio,
 } from "lucide-react";
 import Card from "../components/ui/Card";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
-import Toggle from "../components/ui/Toggle";
 import PageHeader from "../components/ui/PageHeader";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl } from "../config/api";
 import ws from "../services/websocket";
 
-// The 5 AI agents (README): Market Data, Signal Generation, ML Learning, Sentiment, YouTube Knowledge
 const AGENT_ICONS = {
   "Market Data Agent": Activity,
   "Signal Generation Agent": Zap,
@@ -36,11 +36,25 @@ const AGENT_ICONS = {
   "YouTube Knowledge Agent": Youtube,
 };
 
+function StatCard({ title, value, sub, icon: Icon, colorClass }) {
+  return (
+    <div
+      className={`bg-gradient-to-br border rounded-2xl p-5 backdrop-blur-sm ${colorClass}`}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm text-secondary">{title}</span>
+        {Icon && <Icon className="w-5 h-5 text-cyan-400/80" />}
+      </div>
+      <div className="text-2xl font-bold text-white">{value}</div>
+      {sub && <div className="text-xs text-cyan-400/80 mt-0.5">{sub}</div>}
+    </div>
+  );
+}
+
 export default function AgentCommandCenter() {
-  const [selectedAgent, setSelectedAgent] = useState(null);
-  const [actionLoading, setActionLoading] = useState(null); // agent id being acted on
+  const [actionLoading, setActionLoading] = useState(null);
   const { data, loading, error, refetch } = useApi("agents", {
-    pollIntervalMs: 30000,
+    pollIntervalMs: 15000,
   });
 
   useEffect(() => {
@@ -86,26 +100,13 @@ export default function AgentCommandCenter() {
       case "learning":
         return "warning";
       case "paused":
-        return "secondary";
+        return "warning";
       case "stopped":
         return "secondary";
       case "error":
         return "danger";
       default:
         return "secondary";
-    }
-  };
-
-  const getLevelColor = (level) => {
-    switch (level) {
-      case "success":
-        return "text-success";
-      case "warning":
-        return "text-warning";
-      case "error":
-        return "text-danger";
-      default:
-        return "text-primary";
     }
   };
 
@@ -124,163 +125,171 @@ export default function AgentCommandCenter() {
       <PageHeader
         icon={Bot}
         title="Agent Command Center"
-        description="Monitor and control your AI agents"
+        description="Monitor and control your AI agents. Real-time status via WebSocket."
       >
-        {agents.length > 0 && (
-          <div className="flex items-center gap-2 text-xs">
-            {agentStats.running > 0 && (
-              <span className="flex items-center gap-1.5 text-success">
-                <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
-                {agentStats.running} running
-              </span>
-            )}
-            {agentStats.paused > 0 && (
-              <span className="flex items-center gap-1.5 text-warning">
-                <span className="w-2 h-2 rounded-full bg-warning" />
-                {agentStats.paused} paused
-              </span>
-            )}
-            {agentStats.stopped > 0 && (
-              <span className="flex items-center gap-1.5 text-secondary">
-                <span className="w-2 h-2 rounded-full bg-secondary" />
-                {agentStats.stopped} stopped
-              </span>
-            )}
-            {agentStats.error > 0 && (
-              <span className="flex items-center gap-1.5 text-danger">
-                <span className="w-2 h-2 rounded-full bg-danger" />
-                {agentStats.error} error
-              </span>
-            )}
-          </div>
-        )}
         {error && (
-          <span className="text-xs text-danger font-medium">
+          <span className="text-xs font-medium text-danger">
             Failed to load
           </span>
         )}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={refetch}
-          disabled={loading}
-          leftIcon={RefreshCw}
-        >
-          {loading ? "Refreshing…" : "Refresh"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-1.5">
+            <Radio className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+            <span className="text-xs font-medium text-cyan-400">Live</span>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={refetch}
+            disabled={loading}
+            leftIcon={RefreshCw}
+            className="border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/10"
+          >
+            {loading ? "Refreshing…" : "Refresh"}
+          </Button>
+        </div>
       </PageHeader>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* Stats row — Dashboard pattern */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          title="Running"
+          value={agentStats.running}
+          sub="active agents"
+          icon={Play}
+          colorClass="from-cyan-500/15 to-cyan-500/5 border-cyan-500/30"
+        />
+        <StatCard
+          title="Paused"
+          value={agentStats.paused}
+          sub="agents"
+          icon={Pause}
+          colorClass="from-amber-500/15 to-amber-500/5 border-amber-500/30"
+        />
+        <StatCard
+          title="Stopped"
+          value={agentStats.stopped}
+          sub="agents"
+          icon={Square}
+          colorClass="from-secondary/20 to-secondary/5 border-secondary/30"
+        />
+        <StatCard
+          title="Total"
+          value={agentStats.total}
+          sub="agents"
+          icon={Bot}
+          colorClass="from-cyan-500/15 to-cyan-500/5 border-cyan-500/30"
+        />
+      </div>
+
+      {/* 5 agent cards — glassmorphism, cyan accents */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {agents.length === 0 && !loading && (
-          <Card className="col-span-full py-12 text-center">
+          <div className="col-span-full rounded-2xl border border-secondary/50 bg-secondary/10 backdrop-blur-sm p-12 text-center">
             <p className="text-secondary">
               No agents. Start the backend or check GET /api/v1/agents.
             </p>
-          </Card>
+          </div>
         )}
         {agents.map((agent) => {
           const Icon = agent.icon;
+          const lastActions = Array.isArray(agent.last_actions)
+            ? agent.last_actions
+            : [];
           return (
-            <Card
+            <div
               key={agent.id}
-              noPadding
-              className={`p-5 transition-all cursor-pointer ${selectedAgent === agent.id ? "border-primary/50 ring-1 ring-primary/20" : "hover:border-primary/30"}`}
-              onClick={() =>
-                setSelectedAgent(selectedAgent === agent.id ? null : agent.id)
-              }
+              className="rounded-2xl border border-cyan-500/20 bg-secondary/10 backdrop-blur-sm overflow-hidden hover:border-cyan-500/40 transition-colors flex flex-col"
             >
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                    <Icon className="w-5 h-5 text-primary" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-lg font-semibold text-white truncate">
-                      {agent.name}
+              {/* Card header */}
+              <div className="p-5 border-b border-cyan-500/10">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-12 h-12 rounded-xl bg-cyan-500/20 flex items-center justify-center shrink-0 border border-cyan-500/30">
+                      <Icon className="w-6 h-6 text-cyan-400" />
                     </div>
-                    <div className="text-xs text-secondary line-clamp-2">
-                      {agent.description}
+                    <div className="min-w-0">
+                      <div className="text-base font-semibold text-white truncate">
+                        {agent.name}
+                      </div>
+                      <div className="text-xs text-secondary line-clamp-2 mt-0.5">
+                        {agent.description}
+                      </div>
                     </div>
                   </div>
+                  <Badge
+                    variant={getStatusVariant(agent.status)}
+                    className="shrink-0 capitalize"
+                  >
+                    {agent.status}
+                  </Badge>
                 </div>
-                <Badge
-                  variant={getStatusVariant(agent.status)}
-                  className="shrink-0 capitalize"
-                >
-                  {agent.status}
-                </Badge>
-              </div>
-              {/* CPU / Memory */}
-              <div className="flex items-center gap-4 mb-3 text-xs">
-                <span className="flex items-center gap-1.5 text-secondary">
-                  <Cpu className="w-3.5 h-3.5" />
-                  CPU {agent.cpuPercent != null ? `${agent.cpuPercent}%` : "—"}
-                </span>
-                <span className="flex items-center gap-1.5 text-secondary">
-                  <HardDrive className="w-3.5 h-3.5" />
-                  {agent.memoryMb != null ? `${agent.memoryMb} MB` : "—"}
-                </span>
-                <span className="text-secondary">
-                  Uptime {agent.uptime || "—"}
-                </span>
-              </div>
-              {/* Current task */}
-              {agent.currentTask && (
-                <div className="text-xs text-primary/90 mb-2 px-2 py-1.5 rounded-lg bg-primary/10">
-                  Task: {agent.currentTask}
+                <div className="flex items-center gap-4 text-xs text-secondary">
+                  <span className="flex items-center gap-1.5">
+                    <Cpu className="w-3.5 h-3.5 text-cyan-400/70" />
+                    {agent.cpuPercent != null ? `${agent.cpuPercent}%` : "—"}
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <HardDrive className="w-3.5 h-3.5 text-cyan-400/70" />
+                    {agent.memoryMb != null ? `${agent.memoryMb} MB` : "—"}
+                  </span>
+                  <span>{agent.uptime || "—"}</span>
                 </div>
-              )}
-              {/* Last action timestamp + action */}
-              <div className="text-xs text-secondary mb-3">
-                <span className="text-white">Last: </span>
-                {agent.lastAction}
+                {agent.currentTask && (
+                  <div className="mt-2 text-xs text-cyan-400/90 px-2.5 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
+                    {agent.currentTask}
+                  </div>
+                )}
               </div>
-              {/* Config toggles/sliders (key vars only) */}
-              {agent.config && Object.keys(agent.config).length > 0 && (
-                <div className="mb-3 pt-2 border-t border-secondary/30 space-y-2">
-                  {typeof agent.config.marketHoursOnly === "boolean" && (
-                    <Toggle
-                      label="Market hours only"
-                      checked={agent.config.marketHoursOnly}
-                      onChange={() => {}}
-                      className="py-1"
-                    />
-                  )}
-                  {typeof agent.config.autoAlert === "boolean" && (
-                    <Toggle
-                      label="Auto alert"
-                      checked={agent.config.autoAlert}
-                      onChange={() => {}}
-                      className="py-1"
-                    />
-                  )}
-                  {typeof agent.config.autoProcess === "boolean" && (
-                    <Toggle
-                      label="Auto process"
-                      checked={agent.config.autoProcess}
-                      onChange={() => {}}
-                      className="py-1"
-                    />
-                  )}
-                  {typeof agent.config.gpuEnabled === "boolean" && (
-                    <Toggle
-                      label="GPU enabled"
-                      checked={agent.config.gpuEnabled}
-                      onChange={() => {}}
-                      className="py-1"
-                    />
-                  )}
+
+              {/* Live activity feed — scrollable */}
+              <div className="flex-1 min-h-0 flex flex-col border-b border-cyan-500/10">
+                <div className="px-4 py-2 border-b border-secondary/30 flex items-center justify-between">
+                  <span className="text-xs font-medium text-cyan-400">
+                    Live activity
+                  </span>
+                  <span className="text-xs text-secondary">
+                    {lastActions.length} entries
+                  </span>
                 </div>
-              )}
-              <div className="flex items-center gap-2 pt-3 border-t border-secondary/30">
+                <div className="flex-1 min-h-[140px] max-h-44 overflow-y-auto overflow-x-hidden divide-y divide-secondary/20 custom-scrollbar">
+                  {lastActions.length === 0 && (
+                    <div className="px-4 py-6 text-center text-xs text-secondary">
+                      No activity yet
+                    </div>
+                  )}
+                  {lastActions.map((entry, i) => (
+                    <div
+                      key={i}
+                      className="flex items-start gap-2 px-4 py-2 hover:bg-cyan-500/5 transition-colors"
+                    >
+                      <span className="text-xs text-cyan-400/80 shrink-0">
+                        {entry.time}
+                      </span>
+                      <span className="shrink-0 mt-0.5">
+                        {entry.level === "success" ? (
+                          <CheckCircle className="w-3.5 h-3.5 text-success" />
+                        ) : entry.level === "warning" ? (
+                          <AlertCircle className="w-3.5 h-3.5 text-warning" />
+                        ) : (
+                          <Activity className="w-3.5 h-3.5 text-cyan-400/70" />
+                        )}
+                      </span>
+                      <span className="text-xs text-secondary flex-1 min-w-0 line-clamp-2">
+                        {entry.message}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="p-4 flex flex-wrap gap-2 bg-secondary/5">
                 <Button
                   variant="success"
                   size="sm"
                   leftIcon={Play}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    sendAction(agent.id, "start");
-                  }}
+                  onClick={() => sendAction(agent.id, "start")}
                   disabled={actionLoading != null}
                 >
                   {actionLoading === agent.id ? "…" : "Start"}
@@ -289,10 +298,7 @@ export default function AgentCommandCenter() {
                   variant="danger"
                   size="sm"
                   leftIcon={Square}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    sendAction(agent.id, "stop");
-                  }}
+                  onClick={() => sendAction(agent.id, "stop")}
                   disabled={actionLoading != null}
                 >
                   Stop
@@ -301,10 +307,7 @@ export default function AgentCommandCenter() {
                   variant="warning"
                   size="sm"
                   leftIcon={Pause}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    sendAction(agent.id, "pause");
-                  }}
+                  onClick={() => sendAction(agent.id, "pause")}
                   disabled={actionLoading != null}
                 >
                   Pause
@@ -313,49 +316,51 @@ export default function AgentCommandCenter() {
                   variant="secondary"
                   size="sm"
                   leftIcon={RefreshCw}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    sendAction(agent.id, "restart");
-                  }}
+                  onClick={() => sendAction(agent.id, "restart")}
                   disabled={actionLoading != null}
                 >
                   Restart
                 </Button>
               </div>
-            </Card>
+            </div>
           );
         })}
       </div>
 
-      <Card title="Activity Log (last 100)" bodyClassName="p-0">
-        <div className="flex justify-end px-4 -mt-2 mb-2">
-          <span className="text-xs text-secondary">Real-time</span>
+      {/* Global activity log — scrollable */}
+      <Card
+        title="Activity log (all agents)"
+        className="border-cyan-500/20 bg-secondary/10 backdrop-blur-sm"
+        bodyClassName="p-0"
+      >
+        <div className="flex justify-end px-4 py-2 border-b border-secondary/30">
+          <span className="text-xs text-cyan-400">Real-time via WebSocket</span>
         </div>
-        <div className="divide-y divide-secondary/30 max-h-80 overflow-y-auto overflow-x-hidden">
+        <div className="divide-y divide-secondary/20 max-h-72 overflow-y-auto custom-scrollbar">
           {logs.length === 0 && !loading && (
             <div className="px-4 py-8 text-center text-secondary text-sm">
-              No activity log yet.
+              No activity yet.
             </div>
           )}
           {logs.map((log, i) => (
             <div
               key={i}
-              className="flex items-start gap-3 px-4 py-3 hover:bg-secondary/5 transition-colors"
+              className="flex items-start gap-3 px-4 py-3 hover:bg-cyan-500/5 transition-colors"
             >
-              <span className="text-xs text-secondary shrink-0 mt-0.5">
+              <span className="text-xs text-cyan-400/80 shrink-0">
                 {log.time}
               </span>
-              <span className={`shrink-0 mt-0.5 ${getLevelColor(log.level)}`}>
+              <span className="shrink-0 mt-0.5">
                 {log.level === "success" ? (
-                  <CheckCircle className="w-3.5 h-3.5 inline" />
+                  <CheckCircle className="w-3.5 h-3.5 text-success" />
                 ) : log.level === "warning" ? (
-                  <AlertCircle className="w-3.5 h-3.5 inline" />
+                  <AlertCircle className="w-3.5 h-3.5 text-warning" />
                 ) : (
-                  <Activity className="w-3.5 h-3.5 inline" />
+                  <Activity className="w-3.5 h-3.5 text-cyan-400/70" />
                 )}
               </span>
               <div className="flex-1 min-w-0">
-                <span className="text-xs font-medium text-primary">
+                <span className="text-xs font-medium text-cyan-400">
                   [{log.agent}]
                 </span>
                 <span className="text-xs text-secondary ml-2">
