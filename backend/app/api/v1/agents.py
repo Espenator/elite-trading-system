@@ -4,6 +4,7 @@ GET returns agents + logs; POST start/stop/pause/restart update persisted status
 """
 
 import logging
+import os
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
@@ -13,6 +14,41 @@ from app.services.database import db_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _get_process_metrics():
+    try:
+        import psutil
+
+        p = psutil.Process(os.getpid())
+        cpu = p.cpu_percent(interval=0.1)
+        mem_mb = round(p.memory_info().rss / (1024 * 1024))
+        now_ts = datetime.now(timezone.utc).timestamp()
+        uptime_sec = max(0, int(now_ts - p.create_time()))
+        d, r = divmod(uptime_sec, 86400)
+        h, r = divmod(r, 3600)
+        m, _ = divmod(r, 60)
+        parts = [f"{d}d"] if d else []
+        if h or parts:
+            parts.append(f"{h}h")
+        parts.append(f"{m}m")
+        return {
+            "cpuPercent": round(cpu, 1),
+            "memoryMb": mem_mb,
+            "uptime": " ".join(parts),
+        }
+    except Exception:
+        return None
+
+
+def _get_last_tick_at(agent_id: int):
+    return db_service.get_config(f"agent_{agent_id}_last_tick_at")
+
+
+def _set_last_tick_at(agent_id: int):
+    db_service.set_config(
+        f"agent_{agent_id}_last_tick_at", datetime.now(timezone.utc).isoformat()
+    )
 
 
 # Persisted agent status (keyed by agent id); GET merges this over template
@@ -169,10 +205,10 @@ async def get_agents():
         stored_logs if isinstance(stored_logs, list) and stored_logs else []
     ) or _DEFAULT_LOGS.copy()
 
+    real_metrics = _get_process_metrics()
     agents = []
     for a in _AGENTS_TEMPLATE:
         status = status_overrides.get(str(a["id"]), a["status"])
-        # Per-agent last_actions: last 20 log entries for this agent
         last_actions = [
             {
                 "time": log["time"],
@@ -182,13 +218,14 @@ async def get_agents():
             for log in logs
             if log.get("agent") == a["name"]
         ][:20]
-        agents.append(
-            {
-                **a,
-                "status": status,
-                "last_actions": last_actions,
-            }
-        )
+        payload = {**a, "status": status, "last_actions": last_actions}
+        if real_metrics:
+            payload["cpuPercent"] = real_metrics["cpuPercent"]
+            payload["memoryMb"] = real_metrics["memoryMb"]
+            payload["uptime"] = real_metrics["uptime"]
+        if a["id"] == 1:
+            payload["last_tick_at"] = _get_last_tick_at(1)
+        agents.append(payload)
     return {"agents": agents, "logs": logs}
 
 
@@ -206,6 +243,23 @@ async def _run_market_data_tick():
     entries = await run_tick()
     for msg, level in entries:
         _append_log(AGENT_NAME, msg, level)
+    _set_last_tick_at(1)
+
+
+def _effective_status(agent_id: int) -> str:
+    a = next((x for x in _AGENTS_TEMPLATE if x["id"] == agent_id), None)
+    default = a["status"] if a else "stopped"
+    return _get_agent_status().get(str(agent_id), default)
+
+
+async def run_market_data_tick_if_running():
+    if _effective_status(1) != "running":
+        return
+    await _run_market_data_tick()
+    await broadcast_ws(
+        "agents",
+        {"type": "tick_completed", "agent_id": 1, "last_tick_at": _get_last_tick_at(1)},
+    )
 
 
 async def _run_signal_generation_tick():
@@ -253,7 +307,14 @@ async def run_agent_tick(agent_id: int):
         return {"ok": True, "skipped": True, "reason": "agent_not_running"}
     if agent_id == 1:
         await _run_market_data_tick()
-        await broadcast_ws("agents", {"type": "tick_completed", "agent_id": agent_id})
+        await broadcast_ws(
+            "agents",
+            {
+                "type": "tick_completed",
+                "agent_id": agent_id,
+                "last_tick_at": _get_last_tick_at(1),
+            },
+        )
     elif agent_id == 2:
         await _run_signal_generation_tick()
         await broadcast_ws("agents", {"type": "tick_completed", "agent_id": agent_id})
