@@ -19,9 +19,9 @@ import Button from "../components/ui/Button";
 import PageHeader from "../components/ui/PageHeader";
 import TextField from "../components/ui/TextField";
 import Select from "../components/ui/Select";
+import { toast } from "react-toastify";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl } from "../config/api";
-import { useToast } from "../context/ToastContext";
 
 export default function Trades() {
   const location = useLocation();
@@ -42,7 +42,6 @@ export default function Trades() {
   });
 
   const [tab, setTab] = useState("active");
-  const toast = useToast();
   const { data, loading, error, refetch } = useApi("portfolio", {
     pollIntervalMs: 30000,
   });

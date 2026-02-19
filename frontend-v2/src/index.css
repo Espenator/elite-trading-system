@@ -83,3 +83,11 @@ input[type="number"] {
   -moz-appearance: textfield;
   appearance: textfield;
 }
+
+
+/* Toast font family */
+.Toastify__toast,
+.Toastify__toast-body,
+.Toastify__toast-container {
+  font-family: "Sarala", sans-serif !important;
+}

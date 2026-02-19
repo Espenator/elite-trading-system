@@ -20,9 +20,9 @@ import Select from "../components/ui/Select";
 import Toggle from "../components/ui/Toggle";
 import Card from "../components/ui/Card";
 import PageHeader from "../components/ui/PageHeader";
+import { toast } from "react-toastify";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl } from "../config/api";
-import { useToast } from "../context/ToastContext";
 
 const tabs = [
   { id: "general", label: "General", icon: SettingsIcon },
@@ -80,7 +80,6 @@ export default function Settings() {
   const { data: apiSettings, loading, refetch } = useApi("settings");
   const { data: alertsData, refetch: refetchAlerts } = useApi("alerts");
   const alertRules = Array.isArray(alertsData?.rules) ? alertsData.rules : [];
-  const toast = useToast();
 
   useEffect(() => {
     if (
