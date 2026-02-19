@@ -1,6 +1,7 @@
 // AGENT COMMAND CENTER - Embodier.ai Glass House Intelligence System
-// GET /api/v1/agents - agent status and activity log
+// GET /api/v1/agents - agent status and activity log; POST .../start, stop, pause, restart
 import { useState, useMemo, useEffect } from "react";
+import { toast } from "react-toastify";
 import {
   Activity,
   Zap,
@@ -23,6 +24,7 @@ import Button from "../components/ui/Button";
 import Toggle from "../components/ui/Toggle";
 import PageHeader from "../components/ui/PageHeader";
 import { useApi } from "../hooks/useApi";
+import { getApiUrl } from "../config/api";
 import ws from "../services/websocket";
 
 // The 5 AI agents (README): Market Data, Signal Generation, ML Learning, Sentiment, YouTube Knowledge
@@ -36,6 +38,7 @@ const AGENT_ICONS = {
 
 export default function AgentCommandCenter() {
   const [selectedAgent, setSelectedAgent] = useState(null);
+  const [actionLoading, setActionLoading] = useState(null); // agent id being acted on
   const { data, loading, error, refetch } = useApi("agents", {
     pollIntervalMs: 30000,
   });
@@ -44,6 +47,26 @@ export default function AgentCommandCenter() {
     const unsub = ws.on("agents", () => refetch());
     return unsub;
   }, [refetch]);
+
+  const sendAction = async (agentId, action) => {
+    setActionLoading(agentId);
+    try {
+      const res = await fetch(`${getApiUrl("agents")}/${agentId}/${action}`, {
+        method: "POST",
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(json.detail || `Failed to ${action} agent`);
+        return;
+      }
+      toast.success(`Agent ${action} requested`);
+      await refetch();
+    } catch (err) {
+      toast.error(err.message || `Failed to ${action} agent`);
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   const agents = useMemo(() => {
     const list = Array.isArray(data?.agents) ? data.agents : [];
@@ -254,15 +277,23 @@ export default function AgentCommandCenter() {
                   variant="success"
                   size="sm"
                   leftIcon={Play}
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    sendAction(agent.id, "start");
+                  }}
+                  disabled={actionLoading != null}
                 >
-                  Start
+                  {actionLoading === agent.id ? "…" : "Start"}
                 </Button>
                 <Button
                   variant="danger"
                   size="sm"
                   leftIcon={Square}
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    sendAction(agent.id, "stop");
+                  }}
+                  disabled={actionLoading != null}
                 >
                   Stop
                 </Button>
@@ -270,7 +301,11 @@ export default function AgentCommandCenter() {
                   variant="warning"
                   size="sm"
                   leftIcon={Pause}
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    sendAction(agent.id, "pause");
+                  }}
+                  disabled={actionLoading != null}
                 >
                   Pause
                 </Button>
@@ -278,7 +313,11 @@ export default function AgentCommandCenter() {
                   variant="secondary"
                   size="sm"
                   leftIcon={RefreshCw}
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    sendAction(agent.id, "restart");
+                  }}
+                  disabled={actionLoading != null}
                 >
                   Restart
                 </Button>
