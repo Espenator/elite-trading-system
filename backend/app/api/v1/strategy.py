@@ -1,17 +1,17 @@
 """
-Strategy Intelligence API - active strategies and config (stub until strategy engine is wired).
-GET /api/v1/strategy returns strategies for Strategy Intelligence page.
-POST /api/v1/strategy/controls updates emergency controls (master switch, pause all, etc.).
+Strategy Intelligence API — controls persisted in SQLite.
+GET /api/v1/strategy returns strategies and controls. POST /api/v1/strategy/controls updates controls.
 """
 
 from fastapi import APIRouter
 from pydantic import BaseModel
+
 from app.websocket_manager import broadcast_ws
+from app.services.database import db_service
 
 router = APIRouter()
 
-# In-memory storage (replace with database in production)
-_controls = {
+DEFAULT_CONTROLS = {
     "masterSwitch": True,
     "pauseAll": False,
     "closeAllPositions": False,
@@ -24,11 +24,19 @@ class StrategyControls(BaseModel):
     closeAllPositions: bool | None = None
 
 
+def _get_controls():
+    stored = db_service.get_config("strategy_controls")
+    if not stored or not isinstance(stored, dict):
+        return {**DEFAULT_CONTROLS}
+    return {**DEFAULT_CONTROLS, **stored}
+
+
 @router.get("")
 async def get_strategies():
-    """Return active strategies and status. Used by Strategy Intelligence page."""
+    """Return active strategies and controls from DB."""
+    controls = _get_controls()
     return {
-        "controls": _controls,
+        "controls": controls,
         "strategies": [
             {
                 "id": 1,
@@ -72,13 +80,14 @@ async def get_strategies():
 
 @router.post("/controls")
 async def update_controls(controls: StrategyControls):
-    """Update emergency controls (master switch, pause all, close all positions). Broadcasts change via WebSocket."""
+    """Update emergency controls in DB. Broadcasts change via WebSocket."""
+    ctrl = _get_controls()
     if controls.masterSwitch is not None:
-        _controls["masterSwitch"] = controls.masterSwitch
+        ctrl["masterSwitch"] = controls.masterSwitch
     if controls.pauseAll is not None:
-        _controls["pauseAll"] = controls.pauseAll
+        ctrl["pauseAll"] = controls.pauseAll
     if controls.closeAllPositions is not None:
-        _controls["closeAllPositions"] = controls.closeAllPositions
-
-    await broadcast_ws("strategy", {"type": "controls_updated", "controls": _controls})
-    return {"ok": True, "controls": _controls}
+        ctrl["closeAllPositions"] = controls.closeAllPositions
+    db_service.set_config("strategy_controls", ctrl)
+    await broadcast_ws("strategy", {"type": "controls_updated", "controls": ctrl})
+    return {"ok": True, "controls": ctrl}

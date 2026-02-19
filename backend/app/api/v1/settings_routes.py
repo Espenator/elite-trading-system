@@ -1,16 +1,16 @@
 """
-Settings API — load/save user settings (in-memory stub; use DB in production).
+Settings API — load/save user settings (persisted in SQLite).
 GET /api/v1/settings returns current settings. PUT /api/v1/settings updates and returns them.
 """
 
 from fastapi import APIRouter
-from pydantic import BaseModel
 from typing import Any
+
+from app.services.database import db_service
 
 router = APIRouter()
 
-# In-memory store (replace with DB in production)
-_SETTINGS: dict[str, Any] = {
+DEFAULT_SETTINGS: dict[str, Any] = {
     "theme": "dark",
     "timezone": "EST",
     "currency": "USD",
@@ -40,18 +40,33 @@ _SETTINGS: dict[str, Any] = {
 }
 
 
-@router.get("")
-async def get_settings():
-    """Return current settings. Used by Settings page."""
-    return _SETTINGS.copy()
+def _get_settings():
+    """Return current settings from DB, merged with defaults."""
+    stored = db_service.get_config("settings")
+    if not stored or not isinstance(stored, dict):
+        return DEFAULT_SETTINGS.copy()
+    return {**DEFAULT_SETTINGS, **stored}
 
 
-@router.put("")
-async def update_settings(settings: dict[str, Any]):
-    """Update settings (merge with existing). Returns full settings."""
+def _update_settings(settings: dict[str, Any]):
+    """Merge and persist settings. Returns full settings."""
+    current = db_service.get_config("settings")
+    if not current or not isinstance(current, dict):
+        current = DEFAULT_SETTINGS.copy()
     for k, v in settings.items():
-        if k in _SETTINGS:
-            _SETTINGS[k] = v
-        else:
-            _SETTINGS[k] = v
-    return _SETTINGS.copy()
+        current[k] = v
+    db_service.set_config("settings", current)
+    return current
+
+
+@router.get("", summary="Get settings")
+@router.get("/", summary="Get settings (trailing slash)")
+async def get_settings():
+    return _get_settings()
+
+
+@router.put("", summary="Update settings")
+@router.put("/", summary="Update settings (trailing slash)")
+async def update_settings(settings: dict[str, Any]):
+    """Update settings (merge with existing). Persist to DB. Returns full settings."""
+    return _update_settings(settings)

@@ -1,17 +1,17 @@
 """
-Risk Intelligence API — risk config and metrics (stub until risk engine is wired).
-GET /api/v1/risk returns limits and real-time risk snapshot for Risk Intelligence page.
-PUT /api/v1/risk updates risk parameters.
+Risk Intelligence API — risk config persisted in SQLite.
+GET /api/v1/risk returns limits and real-time risk snapshot. PUT /api/v1/risk updates risk parameters.
 """
 
 from fastapi import APIRouter
 from pydantic import BaseModel
+
 from app.websocket_manager import broadcast_ws
+from app.services.database import db_service
 
 router = APIRouter()
 
-# In-memory storage (replace with database in production)
-_risk_config = {
+DEFAULT_RISK = {
     "maxDailyDrawdown": 10,
     "positionSizeLimit": 5,
     "maxDailyLossPct": 2,
@@ -26,11 +26,19 @@ class RiskUpdate(BaseModel):
     varLimit: float | None = None
 
 
+def _get_risk_config():
+    stored = db_service.get_config("risk")
+    if not stored or not isinstance(stored, dict):
+        return {**DEFAULT_RISK}
+    return {**DEFAULT_RISK, **stored}
+
+
 @router.get("")
 async def get_risk():
-    """Return risk parameters and current exposure. Used by Risk Intelligence page."""
+    """Return risk parameters and current exposure from DB."""
+    config = _get_risk_config()
     return {
-        **{k: v for k, v in _risk_config.items()},
+        **config,
         "estimatedMaxDrawdown": 10.0,
         "potentialDailyLoss": 1.5,
         "currentExposure": 12500,
@@ -42,15 +50,16 @@ async def get_risk():
 
 @router.put("")
 async def update_risk(update: RiskUpdate):
-    """Update risk parameters. Broadcasts change via WebSocket."""
+    """Update risk parameters in DB. Broadcasts change via WebSocket."""
+    config = _get_risk_config()
     if update.maxDailyDrawdown is not None:
-        _risk_config["maxDailyDrawdown"] = update.maxDailyDrawdown
+        config["maxDailyDrawdown"] = update.maxDailyDrawdown
     if update.positionSizeLimit is not None:
-        _risk_config["positionSizeLimit"] = update.positionSizeLimit
+        config["positionSizeLimit"] = update.positionSizeLimit
     if update.maxDailyLossPct is not None:
-        _risk_config["maxDailyLossPct"] = update.maxDailyLossPct
+        config["maxDailyLossPct"] = update.maxDailyLossPct
     if update.varLimit is not None:
-        _risk_config["varLimit"] = update.varLimit
-
-    await broadcast_ws("risk", {"type": "config_updated", "config": _risk_config})
-    return {"ok": True, "config": _risk_config}
+        config["varLimit"] = update.varLimit
+    db_service.set_config("risk", config)
+    await broadcast_ws("risk", {"type": "config_updated", "config": config})
+    return {"ok": True, "config": config}
