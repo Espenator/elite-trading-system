@@ -1,12 +1,14 @@
 // TRADES PAGE - Embodier.ai Glass House Intelligence System
 // GET /api/v1/portfolio - positions and trade history
 import { useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   TrendingUp,
   Clock,
   DollarSign,
   ArrowUpRight,
   LineChart,
+  X,
 } from "lucide-react";
 import Card from "../components/ui/Card";
 import DataTable from "../components/ui/DataTable";
@@ -16,6 +18,11 @@ import PageHeader from "../components/ui/PageHeader";
 import { useApi } from "../hooks/useApi";
 
 export default function Trades() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const fromSignal = location.state?.fromSignal && location.state?.symbol;
+  const [dismissFromSignal, setDismissFromSignal] = useState(false);
+
   const [tab, setTab] = useState("active");
   const { data, loading, error, refetch } = useApi("portfolio", {
     pollIntervalMs: 30000,
@@ -48,6 +55,35 @@ export default function Trades() {
           Today: {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(0)}
         </Badge>
       </PageHeader>
+
+      {fromSignal && !dismissFromSignal && (
+        <Card className="border-primary/40 bg-primary/10 p-4">
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-sm text-white">
+              <span className="font-medium">From Signal:</span> Place order for{" "}
+              <span className="font-bold text-primary">
+                {location.state.symbol}
+              </span>
+              {location.state.side && (
+                <span className="ml-1 text-secondary">
+                  ({location.state.side})
+                </span>
+              )}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setDismissFromSignal(true);
+                navigate("/trades", { replace: true, state: {} });
+              }}
+              className="shrink-0 rounded p-1 text-secondary hover:bg-secondary/20 hover:text-white"
+              aria-label="Dismiss"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </Card>
+      )}
 
       {loading && positions.length === 0 && !error && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

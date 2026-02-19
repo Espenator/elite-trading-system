@@ -1,6 +1,7 @@
 // SIGNALS PAGE - Embodier.ai Glass House Intelligence System
 // GET /api/v1/signals - live signals (backend returns as_of + signals[] with symbol, prob_up, action)
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Zap,
   Clock,
@@ -46,14 +47,16 @@ function ScoreRing({ score, size = 56, showGlow = false }) {
   const offset = circ - (score / 100) * circ;
   const isHigh = score >= 75;
   const isMid = score >= 55 && score < 75;
-  const stroke =
-    isHigh ? "#22c55e" : isMid ? "#eab308" : "#ef4444";
+  const stroke = isHigh ? "#22c55e" : isMid ? "#eab308" : "#ef4444";
   return (
     <div className="relative inline-flex items-center justify-center">
       {showGlow && isHigh && (
         <div
           className="absolute inset-0 rounded-full opacity-40 blur-md"
-          style={{ background: "radial-gradient(circle, #22c55e40 0%, transparent 70%)" }}
+          style={{
+            background:
+              "radial-gradient(circle, #22c55e40 0%, transparent 70%)",
+          }}
         />
       )}
       <svg width={size} height={size} className="-rotate-90 shrink-0">
@@ -107,6 +110,7 @@ function ScoreBar({ score }) {
 }
 
 export default function Signals() {
+  const navigate = useNavigate();
   const [filter, setFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("score");
@@ -121,10 +125,10 @@ export default function Signals() {
         .filter(
           (s) =>
             !searchQuery ||
-            s.ticker.toLowerCase().includes(searchQuery.toLowerCase())
+            s.ticker.toLowerCase().includes(searchQuery.toLowerCase()),
         )
         .sort((a, b) => (sortBy === "score" ? b.score - a.score : 0)),
-    [signals, filter, searchQuery, sortBy]
+    [signals, filter, searchQuery, sortBy],
   );
 
   const stats = useMemo(() => {
@@ -132,9 +136,7 @@ export default function Signals() {
     const short = signals.filter((s) => s.direction === "short").length;
     const avg =
       signals.length > 0
-        ? Math.round(
-            signals.reduce((a, s) => a + s.score, 0) / signals.length
-          )
+        ? Math.round(signals.reduce((a, s) => a + s.score, 0) / signals.length)
         : 0;
     return {
       total: signals.length,
@@ -157,7 +159,9 @@ export default function Signals() {
       >
         <div className="flex items-center gap-3">
           {error && (
-            <span className="text-xs font-medium text-danger">Failed to load</span>
+            <span className="text-xs font-medium text-danger">
+              Failed to load
+            </span>
           )}
           <button
             onClick={refetch}
@@ -165,9 +169,7 @@ export default function Signals() {
             className="flex items-center gap-2 rounded-lg border border-secondary/40 bg-secondary/10 px-3 py-2 text-xs font-medium text-secondary transition-colors hover:bg-secondary/20 hover:text-white disabled:opacity-50"
             title="Refresh signals"
           >
-            <RefreshCw
-              className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
-            />
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </button>
           <div className="flex items-center gap-2 rounded-lg border border-success/30 bg-success/10 px-3 py-2">
@@ -204,7 +206,9 @@ export default function Signals() {
             </div>
             <div className="mt-1 text-2xl font-bold text-white">
               {stats.avg}
-              <span className="ml-0.5 text-sm font-normal text-secondary">/100</span>
+              <span className="ml-0.5 text-sm font-normal text-secondary">
+                /100
+              </span>
             </div>
           </div>
           <div className="rounded-xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 to-transparent p-4">
@@ -304,7 +308,8 @@ export default function Signals() {
           </div>
           <p className="mb-1 text-white font-medium">Could not load signals</p>
           <p className="mb-4 text-sm text-secondary">
-            Check that the backend is running and GET /api/v1/signals is available.
+            Check that the backend is running and GET /api/v1/signals is
+            available.
           </p>
           <Button variant="outline" size="sm" onClick={refetch}>
             Retry
@@ -391,6 +396,15 @@ export default function Signals() {
                       variant="primary"
                       size="sm"
                       className="group gap-1.5"
+                      onClick={() =>
+                        navigate("/trades", {
+                          state: {
+                            symbol: signal.ticker,
+                            side: signal.direction === "long" ? "Buy" : "Sell",
+                            fromSignal: true,
+                          },
+                        })
+                      }
                     >
                       Trade
                       <ArrowUpRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />

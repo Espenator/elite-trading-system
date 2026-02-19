@@ -90,15 +90,18 @@ export default function Dashboard() {
     });
   }, [portfolioData]);
 
-  // Transform signals (latest 3)
+  // Transform signals (latest 3); backend sends prob_up (snake_case)
   const signals = useMemo(() => {
     if (!signalsData?.signals) return [];
-    return signalsData.signals.slice(0, 3).map((sig) => ({
-      ticker: sig.symbol,
-      type: sig.action || "Signal",
-      score: Math.round((sig.probUp || 0) * 100),
-      time: "now",
-    }));
+    return signalsData.signals.slice(0, 3).map((sig) => {
+      const prob = sig.prob_up ?? sig.probUp ?? 0.5;
+      return {
+        ticker: sig.symbol,
+        type: sig.action || "Signal",
+        score: Math.round(prob * 100),
+        time: "now",
+      };
+    });
   }, [signalsData]);
 
   // Transform agents (first 4)

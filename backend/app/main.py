@@ -23,6 +23,9 @@ from app.api.v1 import (
     risk,
     strategy,
     performance,
+    flywheel,
+    logs,
+    alerts,
 )
 
 # Configure logging
@@ -131,6 +134,21 @@ app.include_router(
     performance.router,
     prefix=f"{settings.API_V1_PREFIX}/performance",
     tags=["performance"],
+)
+app.include_router(
+    flywheel.router,
+    prefix=f"{settings.API_V1_PREFIX}/flywheel",
+    tags=["flywheel"],
+)
+app.include_router(
+    logs.router,
+    prefix=f"{settings.API_V1_PREFIX}/logs",
+    tags=["logs"],
+)
+app.include_router(
+    alerts.router,
+    prefix=f"{settings.API_V1_PREFIX}/alerts",
+    tags=["alerts"],
 )
 
 

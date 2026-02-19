@@ -14,15 +14,21 @@ async def get_portfolio():
         await broadcast_ws("trades", {"type": "trade_executed", "symbol": "AAPL", "side": "BUY", "quantity": 100})
         await broadcast_ws("trades", {"type": "position_updated", "positions": [...]})
     """
+    # Positions: include both Dashboard shape (symbol, entryPrice, currentPrice, quantity, unrealizedPnL) and Trades shape (ticker, entry, current, qty, pnl)
     return {
         "positions": [
             {
                 "id": 1,
+                "symbol": "AAPL",
                 "ticker": "AAPL",
                 "side": "Long",
+                "quantity": 50,
                 "qty": 50,
+                "entryPrice": 189.5,
                 "entry": 189.5,
+                "currentPrice": 192.3,
                 "current": 192.3,
+                "unrealizedPnL": 140,
                 "pnl": 140,
                 "pnlPct": 1.48,
                 "stop": 185.0,
@@ -32,11 +38,16 @@ async def get_portfolio():
             },
             {
                 "id": 2,
+                "symbol": "TSLA",
                 "ticker": "TSLA",
                 "side": "Long",
+                "quantity": 30,
                 "qty": 30,
+                "entryPrice": 245.3,
                 "entry": 245.3,
+                "currentPrice": 248.1,
                 "current": 248.1,
+                "unrealizedPnL": 84,
                 "pnl": 84,
                 "pnlPct": 1.14,
                 "stop": 240.0,
@@ -46,11 +57,16 @@ async def get_portfolio():
             },
             {
                 "id": 3,
+                "symbol": "NVDA",
                 "ticker": "NVDA",
                 "side": "Long",
+                "quantity": 10,
                 "qty": 10,
+                "entryPrice": 875.0,
                 "entry": 875.0,
+                "currentPrice": 868.2,
                 "current": 868.2,
+                "unrealizedPnL": -68,
                 "pnl": -68,
                 "pnlPct": -0.78,
                 "stop": 850.0,

@@ -16,8 +16,14 @@ async def get_performance():
     Note: When performance metrics update (e.g., end of day), call:
         await broadcast_ws("performance", {"type": "metrics_updated", "dailyPnL": 2340, "portfolioValue": 124850})
     """
-    """Return market stats, performance summary, and optional equity curve. Used by Performance Analytics page."""
+    """Return market stats, performance summary, and optional equity curve. Used by Performance Analytics page and Dashboard."""
     return {
+        # Dashboard stats (used by Intelligence Dashboard)
+        "portfolioValue": 124850,
+        "dailyPnL": 2340,
+        "dailyPnLPct": 1.9,
+        "winRate30d": 68.5,
+        # Performance Analytics page
         "marketStats": [
             {
                 "label": "SPY (S&P 500 ETF)",
