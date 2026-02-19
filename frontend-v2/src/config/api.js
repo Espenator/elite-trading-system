@@ -30,6 +30,7 @@ const API_CONFIG = {
     training: "/training", // ML model training
     signals: "/signals", // Generated trading signals
     backtest: "/backtest", // Backtesting engine
+    backtestRuns: "/backtest/runs", // Recent backtest runs (for Backtesting page)
     status: "/status", // System health check
 
     // ---- NEW (Oleh needs to create these routers) ----

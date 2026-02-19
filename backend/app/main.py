@@ -1,4 +1,6 @@
 """FastAPI application entry point."""
+
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket
@@ -17,20 +19,26 @@ from app.api.v1 import (
     data_sources,
     sentiment,
     youtube_knowledge,
+    portfolio,
+    risk,
+    strategy,
+    performance,
 )
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize data schema on startup."""
     try:
         from app.data.storage import init_schema
+
         init_schema()
     except Exception:
         pass
@@ -57,53 +65,37 @@ app.add_middleware(
 
 # Include routers
 app.include_router(
-    stocks.router,
-    prefix=f"{settings.API_V1_PREFIX}/stocks",
-    tags=["stocks"]
+    stocks.router, prefix=f"{settings.API_V1_PREFIX}/stocks", tags=["stocks"]
 )
 
 app.include_router(
-    quotes.router,
-    prefix=f"{settings.API_V1_PREFIX}/quotes",
-    tags=["quotes"]
+    quotes.router, prefix=f"{settings.API_V1_PREFIX}/quotes", tags=["quotes"]
 )
 
 app.include_router(
-    orders.router,
-    prefix=f"{settings.API_V1_PREFIX}/orders",
-    tags=["orders"]
+    orders.router, prefix=f"{settings.API_V1_PREFIX}/orders", tags=["orders"]
 )
 
 app.include_router(
-    system.router,
-    prefix=f"{settings.API_V1_PREFIX}/system",
-    tags=["system"]
+    system.router, prefix=f"{settings.API_V1_PREFIX}/system", tags=["system"]
 )
 
 app.include_router(
-    training.router,
-    prefix=f"{settings.API_V1_PREFIX}/training",
-    tags=["training"]
+    training.router, prefix=f"{settings.API_V1_PREFIX}/training", tags=["training"]
 )
 app.include_router(
-    signals.router,
-    prefix=f"{settings.API_V1_PREFIX}/signals",
-    tags=["signals"]
+    signals.router, prefix=f"{settings.API_V1_PREFIX}/signals", tags=["signals"]
 )
 app.include_router(
     backtest_routes.router,
     prefix=f"{settings.API_V1_PREFIX}/backtest",
-    tags=["backtest"]
+    tags=["backtest"],
 )
 app.include_router(
-    status.router,
-    prefix=f"{settings.API_V1_PREFIX}/status",
-    tags=["status"]
+    status.router, prefix=f"{settings.API_V1_PREFIX}/status", tags=["status"]
 )
 app.include_router(
-    agents.router,
-    prefix=f"{settings.API_V1_PREFIX}/agents",
-    tags=["agents"]
+    agents.router, prefix=f"{settings.API_V1_PREFIX}/agents", tags=["agents"]
 )
 app.include_router(
     data_sources.router,
@@ -120,16 +112,32 @@ app.include_router(
     prefix=f"{settings.API_V1_PREFIX}/youtube-knowledge",
     tags=["youtube-knowledge"],
 )
+app.include_router(
+    portfolio.router,
+    prefix=f"{settings.API_V1_PREFIX}/portfolio",
+    tags=["portfolio"],
+)
+app.include_router(
+    risk.router,
+    prefix=f"{settings.API_V1_PREFIX}/risk",
+    tags=["risk"],
+)
+app.include_router(
+    strategy.router,
+    prefix=f"{settings.API_V1_PREFIX}/strategy",
+    tags=["strategy"],
+)
+app.include_router(
+    performance.router,
+    prefix=f"{settings.API_V1_PREFIX}/performance",
+    tags=["performance"],
+)
 
 
 @app.get("/")
 async def root():
     """Root endpoint."""
-    return {
-        "message": "Elite Trading System API",
-        "version": "1.0.0",
-        "docs": "/docs"
-    }
+    return {"message": "Elite Trading System API", "version": "1.0.0", "docs": "/docs"}
 
 
 @app.get("/health")
@@ -138,18 +146,35 @@ async def health_check():
     return {"status": "healthy"}
 
 
+# WebSocket connection manager: broadcast(channel, data) to all connected clients
+_ws_connections: set[WebSocket] = set()
+
+
+async def broadcast_ws(channel: str, data: dict | list):
+    """Send JSON message to all connected WebSocket clients. Call from route handlers when data changes."""
+    msg = {"channel": channel, "data": data}
+    dead = set()
+    for ws in _ws_connections:
+        try:
+            await ws.send_json(msg)
+        except Exception:
+            dead.add(ws)
+    for ws in dead:
+        _ws_connections.discard(ws)
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """
     WebSocket at /ws for real-time updates.
-    Frontend connects here; channels (agents, datasources, signals, etc.) can be
-    implemented later with pub/sub. For now we accept and keep the connection open.
+    Frontend subscribes to channels (agents, datasources, etc.). Use broadcast_ws(channel, data) to push.
     """
     await websocket.accept()
+    _ws_connections.add(websocket)
     try:
         while True:
             _ = await websocket.receive_text()
-            # Optional: parse JSON and broadcast to channel subscribers
     except Exception:
         pass
-
+    finally:
+        _ws_connections.discard(websocket)

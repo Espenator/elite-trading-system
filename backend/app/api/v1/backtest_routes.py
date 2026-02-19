@@ -1,4 +1,5 @@
 """Backtest API: run top-N strategy and return equity curve + metrics (research doc)."""
+
 from datetime import date
 
 from fastapi import APIRouter
@@ -10,6 +11,26 @@ from app.strategy.backtest import (
 )
 
 router = APIRouter()
+
+
+@router.get("/runs")
+def get_backtest_runs():
+    """
+    Return list of recent backtest runs (stub). Used by Backtesting page for run history.
+    """
+    return {
+        "runs": [
+            {"id": "R001", "strategy": "MeanReversionV2", "status": "Running"},
+            {"id": "R002", "strategy": "ArbitrageAlpha", "status": "Completed"},
+            {"id": "R003", "strategy": "TrendFollowerV1", "status": "Failed"},
+            {"id": "R004", "strategy": "VolSurfaceBeta", "status": "Running"},
+        ],
+        "runHistory": [
+            {"date": "2023-11-28", "strategy": "MeanReversionV1", "pnl": 5200},
+            {"date": "2023-11-20", "strategy": "ArbitrageAlpha", "pnl": 3150},
+            {"date": "2023-11-15", "strategy": "TrendFollowerV1", "pnl": -1800},
+        ],
+    }
 
 
 @router.get("/")
@@ -50,13 +71,19 @@ def run_backtest(
     equity_curve = []
     for _, row in merged.iterrows():
         d = row["date"]
-        se = row["equity_strategy"] if "equity_strategy" in merged.columns else row["equity"]
+        se = (
+            row["equity_strategy"]
+            if "equity_strategy" in merged.columns
+            else row["equity"]
+        )
         pe = row.get("equity_spy", 1.0) if "equity_spy" in merged.columns else 1.0
-        equity_curve.append({
-            "date": d.date().isoformat() if hasattr(d, "date") else str(d)[:10],
-            "strategy_equity": float(se),
-            "spy_equity": float(pe),
-        })
+        equity_curve.append(
+            {
+                "date": d.date().isoformat() if hasattr(d, "date") else str(d)[:10],
+                "strategy_equity": float(se),
+                "spy_equity": float(pe),
+            }
+        )
     return {
         "model_id": model_id,
         "start": start.isoformat(),

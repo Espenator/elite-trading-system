@@ -39,17 +39,35 @@ def _get_raw_signals_and_feats(as_of: date | None = None):
     return raw_signals, feats
 
 
+# Stub signals when ML model / features are not available (for demo and UI development)
+_STUB_SIGNALS = [
+    ("AAPL", 0.72, "BUY"),
+    ("MSFT", 0.68, "BUY"),
+    ("NVDA", 0.55, "HOLD"),
+    ("TSLA", 0.78, "BUY"),
+    ("SPY", 0.62, "BUY"),
+    ("GOOGL", 0.58, "HOLD"),
+    ("META", 0.65, "BUY"),
+    ("AMD", 0.71, "BUY"),
+]
+
+
 @router.get("/", response_model=SignalsResponse)
 def get_signals(as_of: date | None = None):
     """
     Return daily signals (P(up), action) for all symbols with features.
-    Uses LSTM model if available; otherwise returns empty list.
+    Uses LSTM model if available; otherwise returns stub signals for demo.
     """
     if as_of is None:
         as_of = date.today()
     raw_signals, _ = _get_raw_signals_and_feats(as_of)
-    if raw_signals is None:
-        return SignalsResponse(as_of=as_of, signals=[])
+    if raw_signals is None or len(raw_signals) == 0:
+        # Fallback: stub signals so Signal Intelligence page shows cards
+        signals = [
+            Signal(symbol=sym, date=as_of, prob_up=prob, action=act)
+            for sym, prob, act in _STUB_SIGNALS
+        ]
+        return SignalsResponse(as_of=as_of, signals=signals)
     signals = []
     for s in raw_signals:
         action = "BUY" if s["prob_up"] > 0.6 else "HOLD"

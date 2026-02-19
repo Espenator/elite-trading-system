@@ -1,5 +1,5 @@
 // BACKTESTING LAB - Embodier.ai Glass House Intelligence System
-// Strategy backtesting, parameter sweeps, results visualization, trade simulator
+// GET /api/v1/backtest/runs - run history and parallel runs
 import { useState } from "react";
 import { Play, Square, Download, RotateCcw } from "lucide-react";
 import Card from "../components/ui/Card";
@@ -9,6 +9,7 @@ import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
 import DataTable from "../components/ui/DataTable";
 import PageHeader from "../components/ui/PageHeader";
+import { useApi } from "../hooks/useApi";
 
 const STRATEGIES = [
   "Mean Reversion V2",
@@ -16,13 +17,6 @@ const STRATEGIES = [
   "TrendFollowerV1",
   "VolSurfaceBeta",
   "MomentumShift",
-];
-
-const PARALLEL_RUNS = [
-  { id: "R001", strategy: "MeanReversionV2", status: "Running" },
-  { id: "R002", strategy: "ArbitrageAlpha", status: "Completed" },
-  { id: "R003", strategy: "TrendFollowerV1", status: "Failed" },
-  { id: "R004", strategy: "VolSurfaceBeta", status: "Running" },
 ];
 
 const SAMPLE_TRADES = [
@@ -68,14 +62,6 @@ const SAMPLE_TRADES = [
   },
 ];
 
-const RUN_HISTORY = [
-  { date: "2023-11-28", strategy: "MeanReversionV1", pnl: 5200 },
-  { date: "2023-11-20", strategy: "ArbitrageAlpha", pnl: 3150 },
-  { date: "2023-11-15", strategy: "TrendFollowerV1", pnl: -1800 },
-  { date: "2023-11-05", strategy: "VolSurfaceBeta", pnl: 7800 },
-  { date: "2023-10-30", strategy: "MomentumShift", pnl: 2900 },
-];
-
 function StatusBadge({ status }) {
   const v =
     { Running: "primary", Completed: "success", Failed: "danger" }[status] ||
@@ -103,6 +89,11 @@ export default function Backtesting() {
   const [paramBMax, setParamBMax] = useState("100");
   const [runMode, setRunMode] = useState("single");
   const [isRunning, setIsRunning] = useState(false);
+  const { data, loading, error, refetch } = useApi("backtestRuns", {
+    pollIntervalMs: 60000,
+  });
+  const parallelRuns = Array.isArray(data?.runs) ? data.runs : [];
+  const runHistory = Array.isArray(data?.runHistory) ? data.runHistory : [];
 
   return (
     <div className="space-y-6">
@@ -300,7 +291,7 @@ export default function Backtesting() {
                 render: (v) => <StatusBadge status={v} />,
               },
             ]}
-            data={PARALLEL_RUNS}
+            data={parallelRuns}
           />
         </Card>
       </div>
@@ -372,7 +363,7 @@ export default function Backtesting() {
                 ),
               },
             ]}
-            data={RUN_HISTORY}
+            data={runHistory}
           />
           <Button
             variant="secondary"
