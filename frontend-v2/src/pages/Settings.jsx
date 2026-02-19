@@ -1,6 +1,6 @@
 // SETTINGS PAGE - Embodier.ai Glass House Intelligence System
-// Tabbed settings: General, Trading, Risk, API Keys, Notifications, ML/AI, Agents
-import { useState } from "react";
+// GET/PUT /api/v1/settings - load and save user settings
+import { useState, useEffect } from "react";
 import {
   Settings as SettingsIcon,
   Shield,
@@ -19,6 +19,8 @@ import Select from "../components/ui/Select";
 import Toggle from "../components/ui/Toggle";
 import Card from "../components/ui/Card";
 import PageHeader from "../components/ui/PageHeader";
+import { useApi } from "../hooks/useApi";
+import { getApiUrl } from "../config/api";
 
 const tabs = [
   { id: "general", label: "General", icon: SettingsIcon },
@@ -38,38 +40,75 @@ function SectionCard({ title, children }) {
   );
 }
 
+const DEFAULT_SETTINGS = {
+  theme: "dark",
+  timezone: "EST",
+  currency: "USD",
+  defaultTimeframe: "1D",
+  maxPositions: 15,
+  positionSize: 2.0,
+  riskPerTrade: 2.0,
+  maxDailyLoss: 5.0,
+  circuitBreaker: true,
+  stopLossDefault: 2.0,
+  alpacaKey: "****",
+  alpacaSecret: "****",
+  finhubKey: "****",
+  unusualWhalesKey: "****",
+  telegramEnabled: true,
+  emailEnabled: true,
+  signalAlerts: true,
+  tradeAlerts: true,
+  minCompositeScore: 60,
+  minMLConfidence: 40,
+  autoRetrain: true,
+  retrainDay: "Sunday",
+  marketScanner: true,
+  patternAI: true,
+  riskAgent: true,
+  youtubeAgent: true,
+};
+
 export default function Settings() {
   const [activeTab, setActiveTab] = useState("general");
-  const [settings, setSettings] = useState({
-    theme: "dark",
-    timezone: "EST",
-    currency: "USD",
-    defaultTimeframe: "1D",
-    maxPositions: 15,
-    positionSize: 2.0,
-    riskPerTrade: 2.0,
-    maxDailyLoss: 5.0,
-    circuitBreaker: true,
-    stopLossDefault: 2.0,
-    alpacaKey: "****",
-    alpacaSecret: "****",
-    finhubKey: "****",
-    unusualWhalesKey: "****",
-    telegramEnabled: true,
-    emailEnabled: true,
-    signalAlerts: true,
-    tradeAlerts: true,
-    minCompositeScore: 60,
-    minMLConfidence: 40,
-    autoRetrain: true,
-    retrainDay: "Sunday",
-    marketScanner: true,
-    patternAI: true,
-    riskAgent: true,
-    youtubeAgent: true,
-  });
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState(null);
+  const { data: apiSettings, loading, refetch } = useApi("settings");
+
+  useEffect(() => {
+    if (
+      apiSettings &&
+      typeof apiSettings === "object" &&
+      Object.keys(apiSettings).length > 0
+    ) {
+      setSettings((prev) => ({ ...DEFAULT_SETTINGS, ...prev, ...apiSettings }));
+    }
+  }, [apiSettings]);
 
   const update = (key, val) => setSettings((p) => ({ ...p, [key]: val }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveMessage(null);
+    try {
+      const res = await fetch(getApiUrl("settings"), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(settings),
+      });
+      if (!res.ok) throw new Error("Save failed");
+      await refetch();
+      setSaveMessage("Saved");
+      setTimeout(() => setSaveMessage(null), 2000);
+    } catch (err) {
+      setSaveMessage(err.message || "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReset = () => setSettings(DEFAULT_SETTINGS);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -385,13 +424,32 @@ export default function Settings() {
       <PageHeader
         icon={SettingsIcon}
         title="Settings"
-        description="Configure your trading system"
+        description={
+          loading ? "Loading…" : saveMessage || "Configure your trading system"
+        }
       >
-        <Button variant="outline" leftIcon={RotateCcw}>
+        {saveMessage && (
+          <span
+            className={`text-xs font-medium ${saveMessage === "Saved" ? "text-success" : "text-danger"}`}
+          >
+            {saveMessage}
+          </span>
+        )}
+        <Button
+          variant="outline"
+          leftIcon={RotateCcw}
+          onClick={handleReset}
+          disabled={loading}
+        >
           Reset
         </Button>
-        <Button variant="primary" leftIcon={Save}>
-          Save Changes
+        <Button
+          variant="primary"
+          leftIcon={Save}
+          onClick={handleSave}
+          disabled={saving || loading}
+        >
+          {saving ? "Saving…" : "Save Changes"}
         </Button>
       </PageHeader>
 

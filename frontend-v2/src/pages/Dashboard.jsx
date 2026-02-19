@@ -120,7 +120,7 @@ export default function Dashboard() {
       "Sentiment Agent": Bot,
       "YouTube Knowledge Agent": Bot,
     };
-    return agentsData.agents.slice(0, 4).map((agent) => ({
+    return agentsData.agents.map((agent) => ({
       name: agent.name,
       status: agent.status === "running" ? "active" : agent.status,
       tasks: "—", // Task count not provided by API
@@ -280,7 +280,7 @@ export default function Dashboard() {
       </div>
 
       <Card title="Agent Status">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {agents.map((a, i) => {
             const Icon = a.icon;
             return (

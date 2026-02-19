@@ -45,6 +45,8 @@ const API_CONFIG = {
     performance: "/performance", // Historical performance analytics
     logs: "/logs", // System activity logs
     alerts: "/alerts", // Alert rules + notifications
+    patterns: "/patterns", // Chart pattern detections
+    settings: "/settings", // User settings load/save
   },
 };
 

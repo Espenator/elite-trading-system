@@ -26,6 +26,8 @@ from app.api.v1 import (
     flywheel,
     logs,
     alerts,
+    patterns,
+    settings_routes,
 )
 
 # Configure logging
@@ -149,6 +151,16 @@ app.include_router(
     alerts.router,
     prefix=f"{settings.API_V1_PREFIX}/alerts",
     tags=["alerts"],
+)
+app.include_router(
+    patterns.router,
+    prefix=f"{settings.API_V1_PREFIX}/patterns",
+    tags=["patterns"],
+)
+app.include_router(
+    settings_routes.router,
+    prefix=f"{settings.API_V1_PREFIX}/settings",
+    tags=["settings"],
 )
 
 
