@@ -1,9 +1,11 @@
 """
 Data Sources Monitor API — health of all 10 data feeds.
 GET /api/v1/data-sources returns source status (stub until all services are wired).
+When data source status changes (e.g. from background tasks), call broadcast_ws("datasources", {...}).
 """
 
 from fastapi import APIRouter
+from app.websocket_manager import broadcast_ws
 
 router = APIRouter()
 
@@ -108,3 +110,14 @@ async def get_data_sources():
             },
         ],
     }
+
+
+@router.put("/{source_id}/status")
+async def update_source_status(source_id: int, status: str):
+    """
+    Update a data source status (example endpoint for broadcasting).
+    When called, broadcasts to WebSocket clients so Data Sources Monitor updates in real time.
+    """
+    result = {"ok": True, "source_id": source_id, "status": status}
+    await broadcast_ws("datasources", {"type": "status_changed", "source_id": source_id, "status": status})
+    return result

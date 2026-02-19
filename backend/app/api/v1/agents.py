@@ -4,6 +4,7 @@ Each agent: status (running/paused/stopped/error), CPU/Memory, last action, curr
 """
 
 from fastapi import APIRouter
+from app.websocket_manager import broadcast_ws
 
 router = APIRouter()
 
@@ -147,19 +148,31 @@ async def get_agents():
 
 @router.post("/{agent_id}/start")
 async def start_agent(agent_id: int):
-    return {"ok": True, "agent_id": agent_id, "status": "running"}
+    """Start an agent and broadcast status change to WebSocket clients."""
+    result = {"ok": True, "agent_id": agent_id, "status": "running"}
+    await broadcast_ws("agents", {"type": "status_changed", "agent_id": agent_id, "status": "running"})
+    return result
 
 
 @router.post("/{agent_id}/stop")
 async def stop_agent(agent_id: int):
-    return {"ok": True, "agent_id": agent_id, "status": "stopped"}
+    """Stop an agent and broadcast status change to WebSocket clients."""
+    result = {"ok": True, "agent_id": agent_id, "status": "stopped"}
+    await broadcast_ws("agents", {"type": "status_changed", "agent_id": agent_id, "status": "stopped"})
+    return result
 
 
 @router.post("/{agent_id}/pause")
 async def pause_agent(agent_id: int):
-    return {"ok": True, "agent_id": agent_id, "status": "paused"}
+    """Pause an agent and broadcast status change to WebSocket clients."""
+    result = {"ok": True, "agent_id": agent_id, "status": "paused"}
+    await broadcast_ws("agents", {"type": "status_changed", "agent_id": agent_id, "status": "paused"})
+    return result
 
 
 @router.post("/{agent_id}/restart")
 async def restart_agent(agent_id: int):
-    return {"ok": True, "agent_id": agent_id, "status": "running"}
+    """Restart an agent and broadcast status change to WebSocket clients."""
+    result = {"ok": True, "agent_id": agent_id, "status": "running"}
+    await broadcast_ws("agents", {"type": "status_changed", "agent_id": agent_id, "status": "running"})
+    return result

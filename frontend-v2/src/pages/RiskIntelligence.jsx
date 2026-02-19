@@ -4,14 +4,26 @@ import Card from "../components/ui/Card";
 import TextField from "../components/ui/TextField";
 import Button from "../components/ui/Button";
 import PageHeader from "../components/ui/PageHeader";
+import { useApi } from "../hooks/useApi";
 
 const RiskIntelligence = () => {
-  const [maxDrawdown, setMaxDrawdown] = useState(10);
-  const [positionSizeLimit, setPositionSizeLimit] = useState(5);
-  const [maxDailyLoss, setMaxDailyLoss] = useState(2);
-  const [varLimit, setVarLimit] = useState(1.5);
+  const { data, loading, error, refetch } = useApi("risk", { pollIntervalMs: 30000 });
+  const [maxDrawdown, setMaxDrawdown] = useState(data?.maxDailyDrawdown ?? 10);
+  const [positionSizeLimit, setPositionSizeLimit] = useState(data?.positionSizeLimit ?? 5);
+  const [maxDailyLoss, setMaxDailyLoss] = useState(data?.maxDailyLossPct ?? 2);
+  const [varLimit, setVarLimit] = useState(data?.varLimit ?? 1.5);
   const [equityDrop, setEquityDrop] = useState(20);
   const [volatilityIncrease, setVolatilityIncrease] = useState(30);
+  
+  // Sync state when API data loads
+  React.useEffect(() => {
+    if (data) {
+      setMaxDrawdown(data.maxDailyDrawdown ?? 10);
+      setPositionSizeLimit(data.positionSizeLimit ?? 5);
+      setMaxDailyLoss(data.maxDailyLossPct ?? 2);
+      setVarLimit(data.varLimit ?? 1.5);
+    }
+  }, [data]);
 
   const handleRunSimulation = () => {
     console.log("Running risk simulation with:", {
@@ -25,8 +37,10 @@ const RiskIntelligence = () => {
       <PageHeader
         icon={Shield}
         title="Risk Intelligence"
-        description="Configure risk limits, VaR, and drawdown parameters"
-      />
+        description={error ? "Failed to load risk data" : "Configure risk limits, VaR, and drawdown parameters"}
+      >
+        {error && <span className="text-xs text-danger font-medium">Failed to load</span>}
+      </PageHeader>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
@@ -175,7 +189,7 @@ const RiskIntelligence = () => {
                     Estimated Max Drawdown:
                   </span>
                   <span className="text-sm font-semibold text-danger">
-                    10.0%
+                    {data?.estimatedMaxDrawdown ?? 10.0}%
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -183,7 +197,7 @@ const RiskIntelligence = () => {
                     Potential Daily Loss:
                   </span>
                   <span className="text-sm font-semibold text-danger">
-                    1.5%
+                    {data?.potentialDailyLoss ?? 1.5}%
                   </span>
                 </div>
               </div>
@@ -207,7 +221,9 @@ const RiskIntelligence = () => {
                   <span className="text-sm text-secondary">
                     $ Current Exposure
                   </span>
-                  <span className="text-2xl font-bold text-white">$12,500</span>
+                  <span className="text-2xl font-bold text-white">
+                    ${data?.currentExposure?.toLocaleString() ?? "12,500"}
+                  </span>
                 </div>
                 <span className="text-success">↑</span>
               </div>
@@ -216,7 +232,9 @@ const RiskIntelligence = () => {
                   <span className="text-sm text-secondary">
                     ○ VaR (95%, 1-day)
                   </span>
-                  <span className="text-xl font-bold text-white">$350</span>
+                  <span className="text-xl font-bold text-white">
+                    ${data?.var95?.toLocaleString() ?? "350"}
+                  </span>
                 </div>
                 <span className="text-danger">↓</span>
               </div>
@@ -225,13 +243,23 @@ const RiskIntelligence = () => {
                   <span className="text-sm text-secondary">
                     ○ Expected Shortfall
                   </span>
-                  <span className="text-xl font-bold text-white">$520</span>
+                  <span className="text-xl font-bold text-white">
+                    ${data?.expectedShortfall?.toLocaleString() ?? "520"}
+                  </span>
                 </div>
                 <span className="text-success">↑</span>
               </div>
-              <div className="mt-6 p-4 bg-success/20 border border-success/50 rounded-xl">
-                <p className="text-sm text-success">
-                  ✓ All risk parameters are within acceptable limits
+              <div className={`mt-6 p-4 border rounded-xl ${
+                data?.allWithinLimits !== false 
+                  ? "bg-success/20 border-success/50" 
+                  : "bg-danger/20 border-danger/50"
+              }`}>
+                <p className={`text-sm ${
+                  data?.allWithinLimits !== false ? "text-success" : "text-danger"
+                }`}>
+                  {data?.allWithinLimits !== false 
+                    ? "✓ All risk parameters are within acceptable limits"
+                    : "⚠ Some risk parameters exceed limits"}
                 </p>
               </div>
             </div>

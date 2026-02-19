@@ -5,50 +5,14 @@ import Toggle from '../components/ui/Toggle';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import PageHeader from '../components/ui/PageHeader';
+import { useApi } from '../hooks/useApi';
 
 const StrategyIntelligence = () => {
   const [masterSwitch, setMasterSwitch] = useState(true);
   const [pauseAll, setPauseAll] = useState(false);
   const [closeAllPositions, setCloseAllPositions] = useState(false);
-
-  const strategies = [
-    {
-      id: 1,
-      name: 'Momentum Scalper v2',
-      status: 'Active',
-      description: 'Aggressive short-term momentum strategy with tight stop-losses.',
-      dailyPL: 1.25,
-      winRate: 68,
-      maxDrawdown: -3.1
-    },
-    {
-      id: 2,
-      name: 'Trend Follower FX',
-      status: 'Paused',
-      description: 'Medium-term trend following strategy across major FX pairs.',
-      dailyPL: 0.10,
-      winRate: 55,
-      maxDrawdown: -5.8
-    },
-    {
-      id: 3,
-      name: 'Arbitrage Crypto',
-      status: 'Error',
-      description: 'Cross-exchange cryptocurrency arbitrage with automated execution.',
-      dailyPL: -0.50,
-      winRate: 72,
-      maxDrawdown: -1.2
-    },
-    {
-      id: 4,
-      name: 'Mean Reversion',
-      status: 'Active',
-      description: 'Statistical arbitrage on mean-reverting equity pairs.',
-      dailyPL: 0.85,
-      winRate: 61,
-      maxDrawdown: -2.4
-    }
-  ];
+  const { data, loading, error, refetch } = useApi('strategy', { pollIntervalMs: 30000 });
+  const strategies = Array.isArray(data?.strategies) ? data.strategies : [];
 
   const getStatusVariant = (status) => {
     switch (status) {
@@ -73,8 +37,10 @@ const StrategyIntelligence = () => {
       <PageHeader
         icon={Target}
         title="Strategy Intelligence"
-        description="Manage strategies and emergency controls"
-      />
+        description={error ? "Failed to load strategies" : "Manage strategies and emergency controls"}
+      >
+        {error && <span className="text-xs text-danger font-medium">Failed to load</span>}
+      </PageHeader>
       <Card title="Emergency Controls" subtitle="Global settings to manage all active strategies and positions." className="mb-6">
         <div className="space-y-4">
           <Toggle label="Master Switch (ON/OFF)" checked={masterSwitch} onChange={() => setMasterSwitch(!masterSwitch)} />
@@ -83,6 +49,30 @@ const StrategyIntelligence = () => {
         </div>
       </Card>
 
+      {loading && strategies.length === 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {[1, 2].map((i) => (
+            <Card key={i} className="p-6 animate-pulse">
+              <div className="h-6 bg-secondary/20 rounded w-2/3 mb-4" />
+              <div className="h-4 bg-secondary/20 rounded w-full mb-2" />
+              <div className="h-4 bg-secondary/20 rounded w-3/4" />
+            </Card>
+          ))}
+        </div>
+      )}
+      {error && strategies.length === 0 && (
+        <Card className="p-6 text-center">
+          <p className="text-secondary mb-2">Could not load strategies. Check GET /api/v1/strategy.</p>
+          <Button variant="outline" size="sm" onClick={refetch}>Retry</Button>
+        </Card>
+      )}
+      {!loading && strategies.length === 0 && !error && (
+        <Card className="p-6 text-center">
+          <p className="text-secondary">No strategies configured yet.</p>
+        </Card>
+      )}
+      {!loading && strategies.length > 0 && (
+      <>
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold">My Trading Strategies</h2>
         <Button variant="primary">+ Add New Strategy</Button>
@@ -126,6 +116,8 @@ const StrategyIntelligence = () => {
           </Card>
         ))}
       </div>
+      </>
+      )}
     </div>
   );
 };

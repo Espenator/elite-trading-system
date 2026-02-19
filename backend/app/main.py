@@ -1,10 +1,10 @@
 """FastAPI application entry point."""
 
-import asyncio
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from app.websocket_manager import add_connection, remove_connection
 from app.core.config import settings
 from app.api.v1 import (
     stocks,
@@ -146,35 +146,19 @@ async def health_check():
     return {"status": "healthy"}
 
 
-# WebSocket connection manager: broadcast(channel, data) to all connected clients
-_ws_connections: set[WebSocket] = set()
-
-
-async def broadcast_ws(channel: str, data: dict | list):
-    """Send JSON message to all connected WebSocket clients. Call from route handlers when data changes."""
-    msg = {"channel": channel, "data": data}
-    dead = set()
-    for ws in _ws_connections:
-        try:
-            await ws.send_json(msg)
-        except Exception:
-            dead.add(ws)
-    for ws in dead:
-        _ws_connections.discard(ws)
-
-
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """
     WebSocket at /ws for real-time updates.
-    Frontend subscribes to channels (agents, datasources, etc.). Use broadcast_ws(channel, data) to push.
+    Frontend subscribes to channels (agents, datasources, etc.).
+    Use app.websocket_manager.broadcast_ws(channel, data) from route handlers to push updates.
     """
     await websocket.accept()
-    _ws_connections.add(websocket)
+    add_connection(websocket)
     try:
         while True:
             _ = await websocket.receive_text()
     except Exception:
         pass
     finally:
-        _ws_connections.discard(websocket)
+        remove_connection(websocket)
