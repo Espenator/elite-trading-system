@@ -5,52 +5,13 @@ import TextField from "../components/ui/TextField";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
 import PageHeader from "../components/ui/PageHeader";
-
-// Mock: transcript / extracted ideas from YouTube financial content
-const MOCK_VIDEOS = [
-  {
-    id: 1,
-    title: "S&P 500 Sector Rotation Strategy",
-    channel: "Trading Alpha",
-    addedAt: "2h ago",
-    concepts: ["sector rotation", "momentum"],
-    ideasCount: 3,
-  },
-  {
-    id: 2,
-    title: "Options Greeks Explained",
-    channel: "Options Lab",
-    addedAt: "5h ago",
-    concepts: ["delta", "gamma", "IV"],
-    ideasCount: 5,
-  },
-  {
-    id: 3,
-    title: "Macro Monday: Fed and Rates",
-    channel: "Macro Edge",
-    addedAt: "1d ago",
-    concepts: ["Fed", "rates", "regime"],
-    ideasCount: 2,
-  },
-];
-
-const MOCK_FEATURES = [
-  {
-    id: 1,
-    name: "sector_rotation_score",
-    source: "S&P 500 Sector Rotation Strategy",
-    addedAt: "2h ago",
-  },
-  {
-    id: 2,
-    name: "iv_regime_filter",
-    source: "Options Greeks Explained",
-    addedAt: "5h ago",
-  },
-];
+import { useApi } from "../hooks/useApi";
 
 const YouTubeKnowledge = () => {
   const [videoUrl, setVideoUrl] = useState("");
+  const { data, loading, error, refetch } = useApi("youtubeKnowledge", { pollIntervalMs: 60000 });
+  const videos = Array.isArray(data?.videos) ? data.videos : [];
+  const features = Array.isArray(data?.features) ? data.features : [];
 
   const handleAddVideo = (e) => {
     e.preventDefault();
@@ -62,8 +23,12 @@ const YouTubeKnowledge = () => {
       <PageHeader
         icon={Youtube}
         title="YouTube Knowledge"
-        description="Transcript ingestion and algo ideas extraction from financial videos."
-      />
+        description={error ? "Failed to load" : "Transcript ingestion and algo ideas extraction from financial videos."}
+      >
+        {error && (
+          <span className="text-xs text-danger font-medium">Failed to load</span>
+        )}
+      </PageHeader>
 
       {/* Add Video (shell) */}
       <Card title="Add Video" className="mb-6">
@@ -84,10 +49,20 @@ const YouTubeKnowledge = () => {
         </p>
       </Card>
 
-      {/* Ingested Videos (mock list) */}
+      {/* Ingested Videos */}
       <Card title="Ingested Videos" className="mb-6">
+        {loading && videos.length === 0 ? (
+          <div className="py-8 text-center text-secondary">Loading...</div>
+        ) : error && videos.length === 0 ? (
+          <div className="py-8 text-center">
+            <p className="text-secondary mb-2">Could not load. Check GET /api/v1/youtube-knowledge.</p>
+            <Button variant="outline" size="sm" onClick={refetch}>Retry</Button>
+          </div>
+        ) : videos.length === 0 ? (
+          <div className="py-8 text-center text-secondary">No videos ingested yet.</div>
+        ) : (
         <div className="space-y-4">
-          {MOCK_VIDEOS.map((video) => (
+          {videos.map((video) => (
             <div
               key={video.id}
               className="border border-secondary/50 rounded-xl p-4"
@@ -97,24 +72,28 @@ const YouTubeKnowledge = () => {
                 {video.channel} · {video.addedAt}
               </p>
               <div className="flex flex-wrap gap-2 mt-2">
-                {video.concepts.map((c) => (
+                {(video.concepts || []).map((c) => (
                   <Badge key={c} variant="secondary">
                     {c}
                   </Badge>
                 ))}
                 <span className="text-xs text-primary">
-                  {video.ideasCount} ideas
+                  {video.ideasCount ?? 0} ideas
                 </span>
               </div>
             </div>
           ))}
         </div>
+        )}
       </Card>
 
-      {/* New ML Features from YouTube (mock) */}
+      {/* New ML Features from YouTube */}
       <Card title="New ML Features from YouTube">
+        {features.length === 0 && !loading ? (
+          <p className="text-secondary py-4">No extracted features yet.</p>
+        ) : (
         <div className="space-y-3">
-          {MOCK_FEATURES.map((f) => (
+          {features.map((f) => (
             <div
               key={f.id}
               className="flex items-center justify-between py-2 border-b border-secondary/50 last:border-0"
@@ -126,9 +105,7 @@ const YouTubeKnowledge = () => {
             </div>
           ))}
         </div>
-        <p className="text-xs text-secondary mt-4">
-          Connect GET /api/v1/youtube-knowledge for live data.
-        </p>
+        )}
       </Card>
     </div>
   );

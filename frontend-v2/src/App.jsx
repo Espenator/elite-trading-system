@@ -4,8 +4,8 @@
 // All 16 pages map 1:1 to backend modules per V2-EMBODIER-AI-README.md
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { Suspense, lazy } from 'react';
 import Layout from './components/layout/Layout';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // ----------- PAGE IMPORTS -----------
 // COMMAND section (3 pages)
@@ -48,8 +48,9 @@ function PageLoader() {
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <ErrorBoundary>
+        <Routes>
         <Route path="/" element={<Layout />}>
           {/* Default redirect */}
           <Route index element={<Navigate to="/dashboard" replace />} />
@@ -83,7 +84,8 @@ function App() {
           {/* 404 catch-all */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
-      </Routes>
+        </Routes>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }

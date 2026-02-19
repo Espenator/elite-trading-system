@@ -1,6 +1,6 @@
 // AGENT COMMAND CENTER - Embodier.ai Glass House Intelligence System
 // GET /api/v1/agents - agent status and activity log
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Activity,
   Zap,
@@ -23,6 +23,7 @@ import Button from "../components/ui/Button";
 import Toggle from "../components/ui/Toggle";
 import PageHeader from "../components/ui/PageHeader";
 import { useApi } from "../hooks/useApi";
+import ws from "../services/websocket";
 
 // The 5 AI agents (README): Market Data, Signal Generation, ML Learning, Sentiment, YouTube Knowledge
 const AGENT_ICONS = {
@@ -38,6 +39,11 @@ export default function AgentCommandCenter() {
   const { data, loading, error, refetch } = useApi("agents", {
     pollIntervalMs: 30000,
   });
+
+  useEffect(() => {
+    const unsub = ws.on("agents", () => refetch());
+    return unsub;
+  }, [refetch]);
 
   const agents = useMemo(() => {
     const list = Array.isArray(data?.agents) ? data.agents : [];

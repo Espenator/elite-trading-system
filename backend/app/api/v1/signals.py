@@ -1,4 +1,5 @@
 """Signals API: ML predictions for buy/sell timing (research doc)."""
+
 from datetime import date
 from pathlib import Path
 

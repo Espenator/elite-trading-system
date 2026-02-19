@@ -16,6 +16,7 @@ import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
 import PageHeader from "../components/ui/PageHeader";
 import { useApi } from "../hooks/useApi";
+import ws from "../services/websocket";
 
 const TYPE_ICONS = {
   Screener: TrendingUp,
@@ -55,6 +56,11 @@ const DataSourcesMonitor = () => {
     pollIntervalMs: 30000,
   });
   const sources = Array.isArray(data?.sources) ? data.sources : [];
+
+  React.useEffect(() => {
+    const unsub = ws.on("datasources", () => refetch());
+    return unsub;
+  }, [refetch]);
 
   const stats = React.useMemo(() => {
     const healthy = sources.filter((s) => s.status === "healthy").length;

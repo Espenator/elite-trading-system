@@ -16,7 +16,7 @@ import {
   Menu
 } from 'lucide-react';
 
-export default function Header({ onMenuToggle }) {
+export default function Header({ onMenuToggle, wsConnected = false }) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
@@ -93,6 +93,21 @@ export default function Header({ onMenuToggle }) {
           </div>
           <span className="text-xs font-medium text-secondary">
             4/4 Active
+          </span>
+        </div>
+
+        {/* WebSocket connection indicator */}
+        <div
+          className={`hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl border ${
+            wsConnected ? "bg-success/10 border-success/30" : "bg-secondary/10 border-secondary/30"
+          }`}
+          title={wsConnected ? "Real-time connected" : "Connecting…"}
+        >
+          <div
+            className={`w-2 h-2 rounded-full ${wsConnected ? "bg-success animate-pulse" : "bg-secondary"}`}
+          />
+          <span className={`text-xs font-medium ${wsConnected ? "text-success" : "text-secondary"}`}>
+            {wsConnected ? "Live" : "Offline"}
           </span>
         </div>
 

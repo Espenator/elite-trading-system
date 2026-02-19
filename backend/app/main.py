@@ -1,10 +1,23 @@
 """FastAPI application entry point."""
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api.v1 import stocks, quotes, orders, system, training, signals, backtest_routes, status, agents, data_sources
+from app.api.v1 import (
+    stocks,
+    quotes,
+    orders,
+    system,
+    training,
+    signals,
+    backtest_routes,
+    status,
+    agents,
+    data_sources,
+    sentiment,
+    youtube_knowledge,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -95,7 +108,17 @@ app.include_router(
 app.include_router(
     data_sources.router,
     prefix=f"{settings.API_V1_PREFIX}/data-sources",
-    tags=["data-sources"]
+    tags=["data-sources"],
+)
+app.include_router(
+    sentiment.router,
+    prefix=f"{settings.API_V1_PREFIX}/sentiment",
+    tags=["sentiment"],
+)
+app.include_router(
+    youtube_knowledge.router,
+    prefix=f"{settings.API_V1_PREFIX}/youtube-knowledge",
+    tags=["youtube-knowledge"],
 )
 
 
@@ -113,4 +136,20 @@ async def root():
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy"}
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """
+    WebSocket at /ws for real-time updates.
+    Frontend connects here; channels (agents, datasources, signals, etc.) can be
+    implemented later with pub/sub. For now we accept and keep the connection open.
+    """
+    await websocket.accept()
+    try:
+        while True:
+            _ = await websocket.receive_text()
+            # Optional: parse JSON and broadcast to channel subscribers
+    except Exception:
+        pass
 

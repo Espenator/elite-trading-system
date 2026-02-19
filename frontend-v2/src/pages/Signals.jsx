@@ -1,6 +1,6 @@
 // SIGNALS PAGE - Embodier.ai Glass House Intelligence System
-// Signal scanner with filters, composite scoring, and signal cards
-import { useState } from "react";
+// GET /api/v1/signals - live signals (backend returns as_of + signals[] with symbol, prob_up, action)
+import { useState, useMemo } from "react";
 import { Zap, Clock, Target, Brain, Search } from "lucide-react";
 import Card from "../components/ui/Card";
 import TextField from "../components/ui/TextField";
@@ -8,121 +8,26 @@ import Select from "../components/ui/Select";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
 import PageHeader from "../components/ui/PageHeader";
+import { useApi } from "../hooks/useApi";
 
-const MOCK_SIGNALS = [
-  {
-    id: 1,
-    ticker: "AAPL",
-    type: "Bullish Breakout",
-    direction: "long",
-    score: 92,
-    mlConfidence: 88,
-    price: 192.3,
-    target: 198.5,
-    stop: 188.0,
+/** Normalize backend signal { symbol, date, prob_up, action } to UI shape */
+function normalizeSignals(backend) {
+  if (!backend?.signals?.length) return [];
+  return backend.signals.map((s, i) => ({
+    id: i + 1,
+    ticker: s.symbol || s.ticker || "—",
+    type: "ML Signal",
+    direction: s.action === "BUY" ? "long" : "short",
+    score: Math.round((s.prob_up ?? 0.5) * 100),
+    mlConfidence: Math.round((s.prob_up ?? 0.5) * 100),
+    price: 0,
+    target: 0,
+    stop: 0,
     timeframe: "1D",
-    time: "2m ago",
-    source: "Pattern AI",
-  },
-  {
-    id: 2,
-    ticker: "MSFT",
-    type: "Momentum Surge",
-    direction: "long",
-    score: 87,
-    mlConfidence: 82,
-    price: 415.2,
-    target: 428.0,
-    stop: 408.0,
-    timeframe: "4H",
-    time: "8m ago",
-    source: "Market Scanner",
-  },
-  {
-    id: 3,
-    ticker: "TSLA",
-    type: "Mean Reversion",
-    direction: "long",
-    score: 74,
-    mlConfidence: 71,
-    price: 248.1,
-    target: 260.0,
-    stop: 240.0,
-    timeframe: "1D",
-    time: "15m ago",
+    time: "—",
     source: "ML Engine",
-  },
-  {
-    id: 4,
-    ticker: "AMD",
-    type: "Support Bounce",
-    direction: "long",
-    score: 81,
-    mlConfidence: 78,
-    price: 168.5,
-    target: 178.0,
-    stop: 163.0,
-    timeframe: "1H",
-    time: "22m ago",
-    source: "Pattern AI",
-  },
-  {
-    id: 5,
-    ticker: "NVDA",
-    type: "Bearish Divergence",
-    direction: "short",
-    score: 68,
-    mlConfidence: 64,
-    price: 868.2,
-    target: 840.0,
-    stop: 885.0,
-    timeframe: "1D",
-    time: "35m ago",
-    source: "ML Engine",
-  },
-  {
-    id: 6,
-    ticker: "META",
-    type: "Channel Breakout",
-    direction: "long",
-    score: 85,
-    mlConfidence: 80,
-    price: 582.4,
-    target: 600.0,
-    stop: 570.0,
-    timeframe: "4H",
-    time: "42m ago",
-    source: "Market Scanner",
-  },
-  {
-    id: 7,
-    ticker: "SPY",
-    type: "Bearish Engulfing",
-    direction: "short",
-    score: 72,
-    mlConfidence: 69,
-    price: 502.1,
-    target: 495.0,
-    stop: 506.0,
-    timeframe: "1D",
-    time: "1h ago",
-    source: "Pattern AI",
-  },
-  {
-    id: 8,
-    ticker: "GOOGL",
-    type: "Golden Cross",
-    direction: "long",
-    score: 79,
-    mlConfidence: 75,
-    price: 175.8,
-    target: 185.0,
-    stop: 170.0,
-    timeframe: "1D",
-    time: "1h ago",
-    source: "ML Engine",
-  },
-];
+  }));
+}
 
 function ScoreRing({ score, size = 48 }) {
   const r = (size - 8) / 2;
@@ -171,8 +76,9 @@ export default function Signals() {
   const [filter, setFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("score");
-
-  const filtered = MOCK_SIGNALS.filter(
+  const { data, loading, error, refetch } = useApi("signals", { pollIntervalMs: 30000 });
+  const signals = useMemo(() => normalizeSignals(data), [data]);
+  const filtered = signals.filter(
     (s) => filter === "all" || s.direction === filter,
   )
     .filter(
@@ -187,14 +93,46 @@ export default function Signals() {
       <PageHeader
         icon={Zap}
         title="Signal Intelligence"
-        description={`${filtered.length} active signals detected`}
+        description={error ? "Failed to load signals" : `${filtered.length} active signals detected`}
       >
+        {error && (
+          <span className="text-xs text-danger font-medium">Failed to load</span>
+        )}
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
-          <span className="text-sm text-success">Live Scanning</span>
+          <div className={`w-2 h-2 rounded-full ${loading ? "bg-secondary animate-pulse" : "bg-success animate-pulse"}`} />
+          <span className="text-sm text-success">{loading ? "Loading…" : "Live"}</span>
         </div>
       </PageHeader>
 
+      {loading && signals.length === 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i} className="p-5 animate-pulse">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-full bg-secondary/20" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-5 bg-secondary/20 rounded w-1/3" />
+                  <div className="h-3 bg-secondary/20 rounded w-2/3" />
+                  <div className="h-3 bg-secondary/20 rounded w-1/2" />
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+      {!loading && error && signals.length === 0 && (
+        <Card className="p-8 text-center">
+          <p className="text-secondary mb-2">Could not load signals. Check backend GET /api/v1/signals.</p>
+          <Button variant="outline" size="sm" onClick={refetch}>Retry</Button>
+        </Card>
+      )}
+      {!loading && !error && filtered.length === 0 && (
+        <Card className="p-8 text-center">
+          <p className="text-secondary">No signals yet. Backend may return an empty list until ML model runs.</p>
+        </Card>
+      )}
+      {!loading && filtered.length > 0 && (
+      <>
       <Card noPadding className="p-4">
         <div className="flex flex-wrap items-center gap-4">
           <div className="relative flex-1 min-w-[200px] max-w-sm">
@@ -275,6 +213,8 @@ export default function Signals() {
           </Card>
         ))}
       </div>
+      </>
+      )}
     </div>
   );
 }

@@ -1,9 +1,7 @@
 // SENTIMENT INTELLIGENCE - Multi-source sentiment fusion for trade conviction
-// PURPOSE: Aggregate sentiment from Stockgeist, News API, Discord, X (Twitter) to gauge market mood
-// PROFIT FOCUS: Strong sentiment shifts = early alpha, helps confirm or reject trade signals
-// BACKEND: /api/v1/sentiment - combined sentiment scores across all sources
+// GET /api/v1/sentiment - combined sentiment scores across all sources
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   TrendingUp,
   TrendingDown,
@@ -17,48 +15,12 @@ import {
   Minus
 } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader';
+import { useApi } from '../hooks/useApi';
 
 export default function SentimentIntelligence() {
-  const [sentimentData, setSentimentData] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('24h');
-
-  useEffect(() => {
-    fetchSentiment();
-    const interval = setInterval(fetchSentiment, 60000); // Refresh every 1min
-    return () => clearInterval(interval);
-  }, [timeRange]);
-
-  const fetchSentiment = async () => {
-    try {
-      // TODO: Connect to real backend
-      // const response = await fetch(`/api/v1/sentiment?timeRange=${timeRange}`);
-      // const data = await response.json();
-      
-      // Mock data showing expected backend structure
-      const mockData = [
-        {
-          ticker: 'NVDA',
-          overallScore: 82, // 0-100, weighted composite
-          trend: 'bullish',
-          sources: {
-            stockgeist: { score: 85, volume: 1250, change: +12 },
-            news: { score: 78, articles: 45, change: +8 },
-            discord: { score: 88, mentions: 320, change: +15 },
-            x: { score: 80, posts: 890, change: +5 }
-          },
-          momentum: 'accelerating',
-          profitSignal: 'STRONG BUY'
-        }
-      ];
-      
-      setSentimentData(mockData);
-      setLoading(false);
-    } catch (error) {
-      console.error('Failed to fetch sentiment:', error);
-      setLoading(false);
-    }
-  };
+  const { data, loading, error, refetch } = useApi('sentiment', { pollIntervalMs: 60000 });
+  const sentimentData = Array.isArray(data?.items) ? data.items : [];
 
   const getSentimentColor = (score) => {
     if (score >= 70) return 'text-emerald-400';
@@ -82,24 +44,16 @@ export default function SentimentIntelligence() {
     return <Minus className="w-5 h-5 text-gray-400" />;
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <Radio className="w-8 h-8 text-cyan-400 animate-pulse mx-auto mb-2" />
-          <p className="text-gray-400">Loading sentiment data...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <PageHeader
         icon={MessageCircle}
         title="Sentiment Intelligence"
-        description="Multi-source sentiment fusion: Stockgeist + News + Discord + X"
+        description={error ? "Failed to load sentiment" : "Multi-source sentiment fusion: Stockgeist + News + Discord + X"}
       >
+        {error && (
+          <span className="text-xs text-danger font-medium">Failed to load</span>
+        )}
         <div className="flex gap-2">
           {['1h', '24h', '7d'].map(range => (
             <button
@@ -117,6 +71,22 @@ export default function SentimentIntelligence() {
         </div>
       </PageHeader>
 
+      {loading && sentimentData.length === 0 && (
+        <div className="flex items-center justify-center py-16">
+          <div className="text-center">
+            <Radio className="w-8 h-8 text-cyan-400 animate-pulse mx-auto mb-2" />
+            <p className="text-gray-400">Loading sentiment data...</p>
+          </div>
+        </div>
+      )}
+      {error && sentimentData.length === 0 && (
+        <div className="bg-gray-800/30 rounded-xl p-8 text-center border border-gray-700/50">
+          <p className="text-secondary mb-2">Could not load sentiment. Check backend GET /api/v1/sentiment.</p>
+          <button onClick={refetch} className="text-sm text-primary hover:underline">Retry</button>
+        </div>
+      )}
+      {!loading && (!error || sentimentData.length > 0) && (
+      <>
       {/* Source Status */}
       <div className="grid grid-cols-4 gap-4">
         {[
@@ -168,7 +138,7 @@ export default function SentimentIntelligence() {
                   </div>
                   <div className="text-right">
                     <div className={`text-sm font-bold ${
-                      item.profitSignal.includes('BUY') ? 'text-emerald-400' : 'text-red-400'
+                      item.profitSignal?.includes('BUY') ? 'text-emerald-400' : 'text-red-400'
                     }`}>
                       {item.profitSignal}
                     </div>
@@ -238,6 +208,8 @@ export default function SentimentIntelligence() {
             ))}
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );
