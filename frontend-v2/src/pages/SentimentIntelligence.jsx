@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import {
   TrendingUp,
   TrendingDown,
+  MessageCircle,
   MessageSquare,
   Newspaper,
   Radio,
@@ -15,6 +16,7 @@ import {
   ThumbsDown,
   Minus
 } from 'lucide-react';
+import PageHeader from '../components/ui/PageHeader';
 
 export default function SentimentIntelligence() {
   const [sentimentData, setSentimentData] = useState([]);
@@ -93,17 +95,11 @@ export default function SentimentIntelligence() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-            <MessageSquare className="w-7 h-7 text-cyan-400" />
-            Sentiment Intelligence
-          </h1>
-          <p className="text-gray-400 text-sm mt-1">
-            Multi-source sentiment fusion: Stockgeist + News + Discord + X
-          </p>
-        </div>
+      <PageHeader
+        icon={MessageCircle}
+        title="Sentiment Intelligence"
+        description="Multi-source sentiment fusion: Stockgeist + News + Discord + X"
+      >
         <div className="flex gap-2">
           {['1h', '24h', '7d'].map(range => (
             <button
@@ -119,7 +115,7 @@ export default function SentimentIntelligence() {
             </button>
           ))}
         </div>
-      </div>
+      </PageHeader>
 
       {/* Source Status */}
       <div className="grid grid-cols-4 gap-4">

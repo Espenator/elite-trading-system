@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api.v1 import stocks, quotes, orders, system, training, signals, backtest_routes, status
+from app.api.v1 import stocks, quotes, orders, system, training, signals, backtest_routes, status, agents, data_sources
 
 # Configure logging
 logging.basicConfig(
@@ -86,6 +86,16 @@ app.include_router(
     status.router,
     prefix=f"{settings.API_V1_PREFIX}/status",
     tags=["status"]
+)
+app.include_router(
+    agents.router,
+    prefix=f"{settings.API_V1_PREFIX}/agents",
+    tags=["agents"]
+)
+app.include_router(
+    data_sources.router,
+    prefix=f"{settings.API_V1_PREFIX}/data-sources",
+    tags=["data-sources"]
 )
 
 

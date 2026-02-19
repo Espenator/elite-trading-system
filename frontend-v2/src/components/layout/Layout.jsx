@@ -19,7 +19,7 @@ export default function Layout() {
         <Header />
 
         {/* Page content - scrollable */}
-        <main className="flex-1 overflow-y-auto custom-scrollbar p-4 lg:p-6">
+        <main className="flex-1 overflow-y-auto custom-scrollbar p-6">
           <Outlet />
         </main>
       </div>

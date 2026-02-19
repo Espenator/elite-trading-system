@@ -15,6 +15,7 @@ import {
   Brain,
   Zap
 } from 'lucide-react';
+import PageHeader from '../components/ui/PageHeader';
 
 export default function SignalHeatmap() {
   const [signals, setSignals] = useState([]);
@@ -105,17 +106,11 @@ export default function SignalHeatmap() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-            <Map className="w-7 h-7 text-cyan-400" />
-            AI Signal Heatmap
-          </h1>
-          <p className="text-secondary text-sm mt-1">
-            Composite scores from all data sources + AI reasoning (Claude/Perplexity)
-          </p>
-        </div>
+      <PageHeader
+        icon={Map}
+        title="Signal Heatmap"
+        description="Composite scores from all data sources + AI reasoning (Claude/Perplexity)"
+      >
         <div className="flex items-center gap-4">
           <div className="text-xs text-secondary">
             Last update: {lastUpdate.toLocaleTimeString()}
@@ -127,7 +122,7 @@ export default function SignalHeatmap() {
             <RefreshCw className="w-4 h-4 text-cyan-400" />
           </button>
         </div>
-      </div>
+      </PageHeader>
 
       {/* System Status */}
       <div className="bg-gradient-to-r from-purple-500/10 to-cyan-500/10 rounded-xl p-4 border border-purple-500/20">

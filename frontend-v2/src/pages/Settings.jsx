@@ -18,6 +18,7 @@ import TextField from "../components/ui/TextField";
 import Select from "../components/ui/Select";
 import Toggle from "../components/ui/Toggle";
 import Card from "../components/ui/Card";
+import PageHeader from "../components/ui/PageHeader";
 
 const tabs = [
   { id: "general", label: "General", icon: SettingsIcon },
@@ -381,22 +382,18 @@ export default function Settings() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Settings</h1>
-          <p className="text-sm text-secondary mt-1">
-            Configure your trading system
-          </p>
-        </div>
-        <div className="flex gap-3">
-          <Button variant="outline" leftIcon={RotateCcw}>
-            Reset
-          </Button>
-          <Button variant="primary" leftIcon={Save}>
-            Save Changes
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        icon={SettingsIcon}
+        title="Settings"
+        description="Configure your trading system"
+      >
+        <Button variant="outline" leftIcon={RotateCcw}>
+          Reset
+        </Button>
+        <Button variant="primary" leftIcon={Save}>
+          Save Changes
+        </Button>
+      </PageHeader>
 
       <div className="flex gap-8">
         <div className="w-56 flex-shrink-0">

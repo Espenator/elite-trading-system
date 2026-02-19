@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { Target } from 'lucide-react';
 import Card from '../components/ui/Card';
 import Toggle from '../components/ui/Toggle';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
+import PageHeader from '../components/ui/PageHeader';
 
 const StrategyIntelligence = () => {
   const [masterSwitch, setMasterSwitch] = useState(true);
@@ -67,7 +69,12 @@ const StrategyIntelligence = () => {
   };
 
   return (
-    <div className="min-h-screen bg-dark text-white p-6">
+    <div className="min-h-full bg-dark text-white space-y-6">
+      <PageHeader
+        icon={Target}
+        title="Strategy Intelligence"
+        description="Manage strategies and emergency controls"
+      />
       <Card title="Emergency Controls" subtitle="Global settings to manage all active strategies and positions." className="mb-6">
         <div className="space-y-4">
           <Toggle label="Master Switch (ON/OFF)" checked={masterSwitch} onChange={() => setMasterSwitch(!masterSwitch)} />

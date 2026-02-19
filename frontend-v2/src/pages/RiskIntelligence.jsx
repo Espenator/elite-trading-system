@@ -1,7 +1,9 @@
 import React, { useState } from "react";
+import { Shield } from "lucide-react";
 import Card from "../components/ui/Card";
 import TextField from "../components/ui/TextField";
 import Button from "../components/ui/Button";
+import PageHeader from "../components/ui/PageHeader";
 
 const RiskIntelligence = () => {
   const [maxDrawdown, setMaxDrawdown] = useState(10);
@@ -19,11 +21,12 @@ const RiskIntelligence = () => {
   };
 
   return (
-    <div className="min-h-screen bg-dark text-white p-6">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Risk Configuration</h1>
-      </div>
+    <div className="min-h-full bg-dark text-white space-y-6">
+      <PageHeader
+        icon={Shield}
+        title="Risk Intelligence"
+        description="Configure risk limits, VaR, and drawdown parameters"
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
