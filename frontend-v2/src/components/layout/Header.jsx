@@ -75,49 +75,6 @@ export default function Header({ onMenuToggle, wsConnected = false }) {
 
       {/* Right section: Agent status + Notifications + User menu */}
       <div className="flex items-center gap-4">
-
-        {/* Agent status indicators */}
-        <div className="hidden xl:flex items-center gap-3 px-4 py-2 rounded-xl bg-secondary/10 border border-secondary/30">
-          <Activity className="w-4 h-4 text-success" />
-          <div className="flex items-center gap-2">
-            {agents.map((agent, idx) => (
-              <div key={idx} className="group relative">
-                <div className={`w-2 h-2 rounded-full ${getStatusColor(agent.status)} animate-pulse`} />
-                {/* Tooltip */}
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-dark border border-secondary/30 rounded-lg text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                  <div className="font-medium text-white">{agent.name}</div>
-                  <div className="text-secondary capitalize">{agent.status}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-          <span className="text-xs font-medium text-secondary">
-            4/4 Active
-          </span>
-        </div>
-
-        {/* WebSocket connection indicator */}
-        <div
-          className={`hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl border ${
-            wsConnected ? "bg-success/10 border-success/30" : "bg-secondary/10 border-secondary/30"
-          }`}
-          title={wsConnected ? "Real-time connected" : "Connecting…"}
-        >
-          <div
-            className={`w-2 h-2 rounded-full ${wsConnected ? "bg-success animate-pulse" : "bg-secondary"}`}
-          />
-          <span className={`text-xs font-medium ${wsConnected ? "text-success" : "text-secondary"}`}>
-            {wsConnected ? "Live" : "Offline"}
-          </span>
-        </div>
-
-        {/* Market status indicator */}
-        <div className="hidden lg:flex items-center gap-2 px-4 py-2 rounded-xl bg-success/10 border border-success/30">
-          <TrendingUp className="w-4 h-4 text-success" />
-          <span className="text-sm font-medium text-success">Market Open</span>
-          <div className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
-        </div>
-
         {/* Notifications */}
         <div className="relative">
           <button
@@ -126,7 +83,7 @@ export default function Header({ onMenuToggle, wsConnected = false }) {
           >
             <Bell className="w-5 h-5 text-secondary" />
             {/* Notification badge */}
-            <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-xs font-bold text-white flex items-center justify-center border-2 border-dark">
+            <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-xs font-bold text-white flex items-center justify-center">
               4
             </span>
           </button>

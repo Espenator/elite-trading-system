@@ -70,6 +70,13 @@ class Settings(BaseSettings):
         "stock market trading technical analysis"  # Used when only API key is set
     )
 
+    # Resend — transactional email for risk/alert notifications
+    RESEND_API_KEY: str = "re_UFqqo1oe_DfMEofzkEgAyPM9uXmQH1CVA"  # Set in .env (e.g. re_xxx); required to send emails
+    RESEND_FROM_EMAIL: str = "Espen@embodier.ai"  # Must be a verified domain in Resend
+    RESEND_ALERT_TO_EMAIL: str = (
+        "Espen@embodier.ai"  # Default recipient for test and risk alerts (e.g. you@company.com)
+    )
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
