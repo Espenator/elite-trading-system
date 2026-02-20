@@ -3,11 +3,96 @@ import httpx
 import csv
 import io
 import logging
+import re
 
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_market_cap_num(value: Any) -> Optional[float]:
+    """Parse Market Cap string to numeric (dollars). Handles '47224.21' (millions), '35.73B', '1.2M'."""
+    if value is None:
+        return None
+    s = str(value).strip().upper()
+    if not s or s in ("-", "—", "N/A"):
+        return None
+    # Strip non-numeric prefix/suffix but keep B/M/K
+    num_str = re.sub(r"[^0-9.-]", "", s)
+    try:
+        num = float(num_str)
+    except ValueError:
+        return None
+    if num <= 0:
+        return None
+    if "B" in s or s.endswith("B"):
+        return num * 1e9
+    if "M" in s or s.endswith("M"):
+        return num * 1e6
+    if "K" in s or s.endswith("K"):
+        return num * 1e3
+    # Raw number: assume millions (e.g. Finviz export "47224.21" = 47.2B)
+    return num * 1e6
+
+
+def _market_cap_category(cap_num: Optional[float]) -> Optional[str]:
+    """small < 2B, mid 2B–10B, large > 10B."""
+    if cap_num is None or cap_num <= 0:
+        return None
+    if cap_num < 2e9:
+        return "small"
+    if cap_num <= 10e9:
+        return "mid"
+    return "large"
+
+
+def _market_cap_display(cap_num: Optional[float]) -> Optional[str]:
+    """Format for display, e.g. 47.22B, 1.20M."""
+    if cap_num is None or cap_num <= 0:
+        return None
+    if cap_num >= 1e9:
+        return f"{cap_num / 1e9:.2f}B"
+    if cap_num >= 1e6:
+        return f"{cap_num / 1e6:.2f}M"
+    if cap_num >= 1e3:
+        return f"{cap_num / 1e3:.2f}K"
+    return f"{cap_num:.0f}"
+
+
+def _normalize_exchange(value: Any) -> Optional[str]:
+    """Map exchange string to frontend filter key: nasdaq, nyse, amex."""
+    if value is None:
+        return None
+    s = str(value).strip().upper()
+    if not s:
+        return None
+    if "NASDAQ" in s:
+        return "nasdaq"
+    if "NYSE" in s:
+        return "nyse"
+    if "AMEX" in s or "AMERICAN" in s:
+        return "amex"
+    return None
+
+
+def _enrich_stock_row(
+    row: Dict[str, str],
+    exchange_map: Optional[Dict[str, str]] = None,
+) -> Dict[str, Any]:
+    """Add market_cap_category, market_cap_display, and exchange for frontend filters."""
+    out = dict(row)
+    raw_cap = row.get("Market Cap") or row.get("market_cap") or row.get("Market Cap.")
+    cap_num = _parse_market_cap_num(raw_cap)
+    out["market_cap_category"] = _market_cap_category(cap_num)
+    out["market_cap_display"] = _market_cap_display(cap_num)
+    raw_exchange = row.get("Exchange") or row.get("exchange")
+    exchange = _normalize_exchange(raw_exchange)
+    if exchange is None and exchange_map is not None:
+        ticker = (row.get("Ticker") or row.get("ticker") or "").strip().upper()
+        exchange = exchange_map.get(ticker) if ticker else None
+    out["exchange"] = exchange
+    return out
 
 
 class FinvizService:
@@ -75,9 +160,16 @@ class FinvizService:
                 # Parse CSV response
                 csv_content = response.text
                 csv_reader = csv.DictReader(io.StringIO(csv_content))
-                
-                # Convert to list of dictionaries
-                stocks = [row for row in csv_reader]
+                rows = [dict(row) for row in csv_reader]
+                # Exchange: Finviz CSV often has no Exchange column; resolve from Alpaca when available
+                exchange_map: Dict[str, str] = {}
+                try:
+                    from app.services.alpaca_service import alpaca_service
+                    exchange_map = await alpaca_service.get_asset_exchange_map()
+                except Exception as e:
+                    logger.debug("Exchange lookup via Alpaca skipped: %s", e)
+                # Enrich each row (market cap category + exchange)
+                stocks = [_enrich_stock_row(r, exchange_map) for r in rows]
                 
                 return stocks
                 

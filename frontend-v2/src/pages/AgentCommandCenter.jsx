@@ -27,6 +27,7 @@ import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
 import PageHeader from "../components/ui/PageHeader";
 import Slider from "../components/ui/Slider";
+import Checkbox from "../components/ui/Checkbox";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl } from "../config/api";
 import ws from "../services/websocket";
@@ -61,7 +62,8 @@ export default function AgentCommandCenter() {
   const [nextTickSecondsLeft, setNextTickSecondsLeft] = useState(null);
   const [configOpen, setConfigOpen] = useState({});
   const nextTickAtRef = useRef(null);
-  const toggleConfig = (id) => setConfigOpen((prev) => ({ ...prev, [id]: !prev[id] }));
+  const toggleConfig = (id) =>
+    setConfigOpen((prev) => ({ ...prev, [id]: !prev[id] }));
   const { data, loading, error, refetch } = useApi("agents", {
     pollIntervalMs: 15000,
   });
@@ -343,10 +345,13 @@ export default function AgentCommandCenter() {
                             readOnly
                             suffix=" s"
                           />
-                          <label className="flex items-center gap-2 text-xs text-secondary">
-                            <input type="checkbox" checked={agent.config.marketHoursOnly !== false} readOnly className="rounded accent-cyan-500" />
-                            Market hours only
-                          </label>
+                          <Checkbox
+                            checked={agent.config.marketHoursOnly !== false}
+                            readOnly
+                            size="sm"
+                            label="Market hours only"
+                            className="text-xs text-secondary"
+                          />
                         </>
                       )}
                       {agent.id === 2 && (
@@ -358,10 +363,13 @@ export default function AgentCommandCenter() {
                             value={agent.config.minCompositeScore ?? 70}
                             readOnly
                           />
-                          <label className="flex items-center gap-2 text-xs text-secondary">
-                            <input type="checkbox" checked={agent.config.autoAlert !== false} readOnly className="rounded accent-cyan-500" />
-                            Auto alert
-                          </label>
+                          <Checkbox
+                            checked={agent.config.autoAlert !== false}
+                            readOnly
+                            size="sm"
+                            label="Auto alert"
+                            className="text-xs text-secondary"
+                          />
                         </>
                       )}
                       {agent.id === 3 && (
@@ -376,10 +384,13 @@ export default function AgentCommandCenter() {
                             formatValue={(v) => v.toFixed(0)}
                             suffix="%"
                           />
-                          <label className="flex items-center gap-2 text-xs text-secondary">
-                            <input type="checkbox" checked={agent.config.gpuEnabled !== false} readOnly className="rounded accent-cyan-500" />
-                            GPU enabled
-                          </label>
+                          <Checkbox
+                            checked={agent.config.gpuEnabled !== false}
+                            readOnly
+                            size="sm"
+                            label="GPU enabled"
+                            className="text-xs text-secondary"
+                          />
                         </>
                       )}
                       {agent.id === 4 && (
@@ -394,14 +405,20 @@ export default function AgentCommandCenter() {
                       )}
                       {agent.id === 5 && (
                         <>
-                          <label className="flex items-center gap-2 text-xs text-secondary">
-                            <input type="checkbox" checked={agent.config.autoProcess !== false} readOnly className="rounded accent-cyan-500" />
-                            Auto process
-                          </label>
-                          <label className="flex items-center gap-2 text-xs text-secondary">
-                            <input type="checkbox" checked={agent.config.extractAlgos !== false} readOnly className="rounded accent-cyan-500" />
-                            Extract algos
-                          </label>
+                          <Checkbox
+                            checked={agent.config.autoProcess !== false}
+                            readOnly
+                            size="sm"
+                            label="Auto process"
+                            className="text-xs text-secondary"
+                          />
+                          <Checkbox
+                            checked={agent.config.extractAlgos !== false}
+                            readOnly
+                            size="sm"
+                            label="Extract algos"
+                            className="text-xs text-secondary"
+                          />
                         </>
                       )}
                     </div>

@@ -7,13 +7,14 @@ const baseInput =
 const errorInput = 'border-danger focus:border-danger focus:ring-danger/30';
 
 const TextField = forwardRef(function TextField(
-  { label, error, multiline = false, rows = 3, suffix, className, inputClassName, id: idProp, type: typeProp = 'text', ...props },
+  { label, error, multiline = false, rows = 3, suffix, prefix, className, inputClassName, id: idProp, type: typeProp = 'text', ...props },
   ref
 ) {
   const id = idProp || `textfield-${Math.random().toString(36).slice(2, 9)}`;
   const isPassword = typeProp === 'password';
   const [visible, setVisible] = useState(false);
   const inputType = isPassword ? (visible ? 'text' : 'password') : typeProp;
+  const hasPrefix = prefix && !multiline;
 
   const inputEl = multiline ? (
     <textarea
@@ -28,7 +29,7 @@ const TextField = forwardRef(function TextField(
       ref={ref}
       id={id}
       type={inputType}
-      className={clsx(baseInput, error && errorInput, isPassword && 'pr-11', inputClassName)}
+      className={clsx(baseInput, error && errorInput, isPassword && 'pr-11', hasPrefix && 'pl-10', inputClassName)}
       {...props}
     />
   );
@@ -57,6 +58,11 @@ const TextField = forwardRef(function TextField(
         <div className="relative">
           {inputEl}
           <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-secondary pointer-events-none">{suffix}</span>
+        </div>
+      ) : hasPrefix ? (
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary pointer-events-none flex items-center">{prefix}</span>
+          {inputEl}
         </div>
       ) : (
         inputEl
