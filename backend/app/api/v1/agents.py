@@ -51,6 +51,15 @@ def _set_last_tick_at(agent_id: int):
     )
 
 
+def _get_current_task(agent_id: int):
+    return db_service.get_config(f"agent_{agent_id}_current_task")
+
+
+def _set_current_task(agent_id: int, task: str):
+    if task:
+        db_service.set_config(f"agent_{agent_id}_current_task", (task or "")[:200])
+
+
 # Persisted agent status (keyed by agent id); GET merges this over template
 def _get_agent_status():
     return db_service.get_config("agent_status") or {}
@@ -217,14 +226,16 @@ async def get_agents():
             }
             for log in logs
             if log.get("agent") == a["name"]
-        ][:20]
+        ][:100]
         payload = {**a, "status": status, "last_actions": last_actions}
         if real_metrics:
             payload["cpuPercent"] = real_metrics["cpuPercent"]
             payload["memoryMb"] = real_metrics["memoryMb"]
             payload["uptime"] = real_metrics["uptime"]
-        if a["id"] == 1:
-            payload["last_tick_at"] = _get_last_tick_at(1)
+        payload["last_tick_at"] = _get_last_tick_at(a["id"])
+        stored_task = _get_current_task(a["id"])
+        if stored_task:
+            payload["currentTask"] = stored_task
         agents.append(payload)
     return {"agents": agents, "logs": logs}
 
@@ -244,6 +255,9 @@ async def _run_market_data_tick():
     for msg, level in entries:
         _append_log(AGENT_NAME, msg, level)
     _set_last_tick_at(1)
+    _set_current_task(
+        1, entries[0][0][:200] if entries else "Scanning Finviz Elite + Alpaca bars"
+    )
 
 
 def _effective_status(agent_id: int) -> str:
@@ -271,9 +285,14 @@ async def _run_signal_generation_tick():
         entries = await run_tick()
         for msg, level in entries:
             _append_log(agent_name, msg, level)
+        _set_last_tick_at(2)
+        _set_current_task(
+            2, entries[0][0][:200] if entries else "Applying momentum algo to watchlist"
+        )
     except Exception as e:
         logger.exception("Signal generation tick failed")
         _append_log(agent_name, f"Tick failed: {str(e)[:80]}", "warning")
+        _set_current_task(2, f"Error: {str(e)[:80]}")
 
 
 async def _run_ml_learning_tick():
@@ -285,9 +304,14 @@ async def _run_ml_learning_tick():
         entries = await ml_run_tick()
         for msg, level in entries:
             _append_log(agent_name, msg, level)
+        _set_last_tick_at(3)
+        _set_current_task(
+            3, entries[0][0][:200] if entries else "Idle until next Sunday retrain"
+        )
     except Exception as e:
         logger.exception("ML Learning tick failed")
         _append_log(agent_name, f"Tick failed: {str(e)[:80]}", "warning")
+        _set_current_task(3, f"Error: {str(e)[:80]}")
 
 
 async def _run_sentiment_tick():
@@ -299,9 +323,15 @@ async def _run_sentiment_tick():
         entries = sentiment_run_tick()
         for msg, level in entries:
             _append_log(agent_name, msg, level)
+        _set_last_tick_at(4)
+        _set_current_task(
+            4,
+            entries[0][0][:200] if entries else "Polling Stockgeist, News, Discord, X",
+        )
     except Exception as e:
         logger.exception("Sentiment tick failed")
         _append_log(agent_name, f"Tick failed: {str(e)[:80]}", "warning")
+        _set_current_task(4, f"Error: {str(e)[:80]}")
 
 
 async def _run_youtube_knowledge_tick():
@@ -313,9 +343,14 @@ async def _run_youtube_knowledge_tick():
         entries = youtube_run_tick()
         for msg, level in entries:
             _append_log(agent_name, msg, level)
+        _set_last_tick_at(5)
+        _set_current_task(
+            5, entries[0][0][:200] if entries else "Processing YouTube transcripts"
+        )
     except Exception as e:
         logger.exception("YouTube Knowledge tick failed")
         _append_log(agent_name, f"Tick failed: {str(e)[:80]}", "warning")
+        _set_current_task(5, f"Error: {str(e)[:80]}")
 
 
 @router.post("/{agent_id}/start")
@@ -365,16 +400,44 @@ async def run_agent_tick(agent_id: int):
         )
     elif agent_id == 2:
         await _run_signal_generation_tick()
-        await broadcast_ws("agents", {"type": "tick_completed", "agent_id": agent_id})
+        await broadcast_ws(
+            "agents",
+            {
+                "type": "tick_completed",
+                "agent_id": agent_id,
+                "last_tick_at": _get_last_tick_at(2),
+            },
+        )
     elif agent_id == 3:
         await _run_ml_learning_tick()
-        await broadcast_ws("agents", {"type": "tick_completed", "agent_id": agent_id})
+        await broadcast_ws(
+            "agents",
+            {
+                "type": "tick_completed",
+                "agent_id": agent_id,
+                "last_tick_at": _get_last_tick_at(3),
+            },
+        )
     elif agent_id == 4:
         await _run_sentiment_tick()
-        await broadcast_ws("agents", {"type": "tick_completed", "agent_id": agent_id})
+        await broadcast_ws(
+            "agents",
+            {
+                "type": "tick_completed",
+                "agent_id": agent_id,
+                "last_tick_at": _get_last_tick_at(4),
+            },
+        )
     elif agent_id == 5:
         await _run_youtube_knowledge_tick()
-        await broadcast_ws("agents", {"type": "tick_completed", "agent_id": agent_id})
+        await broadcast_ws(
+            "agents",
+            {
+                "type": "tick_completed",
+                "agent_id": agent_id,
+                "last_tick_at": _get_last_tick_at(5),
+            },
+        )
     return {"ok": True, "agent_id": agent_id}
 
 

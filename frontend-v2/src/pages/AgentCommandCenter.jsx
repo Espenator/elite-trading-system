@@ -19,6 +19,8 @@ import {
   Cpu,
   HardDrive,
   Radio,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import Card from "../components/ui/Card";
 import Badge from "../components/ui/Badge";
@@ -56,7 +58,9 @@ const TICK_INTERVAL_MS = 60 * 1000;
 export default function AgentCommandCenter() {
   const [actionLoading, setActionLoading] = useState(null);
   const [nextTickSecondsLeft, setNextTickSecondsLeft] = useState(null);
+  const [configOpen, setConfigOpen] = useState({});
   const nextTickAtRef = useRef(null);
+  const toggleConfig = (id) => setConfigOpen((prev) => ({ ...prev, [id]: !prev[id] }));
   const { data, loading, error, refetch } = useApi("agents", {
     pollIntervalMs: 15000,
   });
@@ -69,13 +73,11 @@ export default function AgentCommandCenter() {
 
   useEffect(() => {
     const unsub = ws.on("agents", (payload) => {
-      if (
-        payload?.type === "tick_completed" &&
-        payload?.agent_id === 1 &&
-        payload?.last_tick_at
-      ) {
-        nextTickAtRef.current =
-          new Date(payload.last_tick_at).getTime() + TICK_INTERVAL_MS;
+      if (payload?.type === "tick_completed" && payload?.last_tick_at != null) {
+        if (payload.agent_id === 1) {
+          nextTickAtRef.current =
+            new Date(payload.last_tick_at).getTime() + TICK_INTERVAL_MS;
+        }
       }
       refetch();
     });
@@ -280,7 +282,7 @@ export default function AgentCommandCenter() {
                     {agent.status}
                   </Badge>
                 </div>
-                <div className="flex items-center gap-4 text-xs text-secondary">
+                <div className="flex items-center gap-4 text-xs text-secondary flex-wrap">
                   <span className="flex items-center gap-1.5">
                     <Cpu className="w-3.5 h-3.5 text-cyan-400/70" />
                     {agent.cpuPercent != null ? `${agent.cpuPercent}%` : "—"}
@@ -299,19 +301,106 @@ export default function AgentCommandCenter() {
                   </div>
                 ) : agent.id === 1 && agent.status === "running" ? (
                   <div className="mt-2 text-xs text-cyan-400/90 px-2.5 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
-                    Scanning Finviz Elite + Alpaca bars
+                    {agent.currentTask || "Scanning Finviz Elite + Alpaca bars"}
                     {nextTickSecondsLeft != null
                       ? ` (next in ${nextTickSecondsLeft}s)`
                       : " (next in ~60s)"}
                   </div>
                 ) : (
-                  agent.currentTask && (
+                  (agent.currentTask || agent.status === "running") && (
                     <div className="mt-2 text-xs text-cyan-400/90 px-2.5 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
-                      {agent.currentTask}
+                      {agent.currentTask || "Running…"}
                     </div>
                   )
                 )}
               </div>
+
+              {/* Config — sliders/toggles (read-only from API) */}
+              {agent.config && typeof agent.config === "object" && (
+                <div className="border-b border-cyan-500/10">
+                  <button
+                    type="button"
+                    onClick={() => toggleConfig(agent.id)}
+                    className="w-full px-4 py-2 flex items-center justify-between text-xs font-medium text-cyan-400 hover:bg-cyan-500/5 transition-colors"
+                  >
+                    Config
+                    {configOpen[agent.id] ? (
+                      <ChevronDown className="w-4 h-4 text-secondary" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-secondary" />
+                    )}
+                  </button>
+                  {configOpen[agent.id] && (
+                    <div className="px-4 pb-3 pt-0 space-y-3 bg-secondary/5">
+                      {agent.id === 1 && (
+                        <>
+                          <div>
+                            <label className="text-xs text-secondary block mb-1">Run interval (s)</label>
+                            <input
+                              type="range"
+                              min={30}
+                              max={120}
+                              value={agent.config.runIntervalSec ?? 60}
+                              readOnly
+                              className="w-full h-2 rounded accent-cyan-500"
+                            />
+                            <span className="text-xs text-cyan-400/80 ml-2">{agent.config.runIntervalSec ?? 60}</span>
+                          </div>
+                          <label className="flex items-center gap-2 text-xs text-secondary">
+                            <input type="checkbox" checked={agent.config.marketHoursOnly !== false} readOnly className="rounded accent-cyan-500" />
+                            Market hours only
+                          </label>
+                        </>
+                      )}
+                      {agent.id === 2 && (
+                        <>
+                          <div>
+                            <label className="text-xs text-secondary block mb-1">Min composite score</label>
+                            <input type="range" min={0} max={100} value={agent.config.minCompositeScore ?? 70} readOnly className="w-full h-2 rounded accent-cyan-500" />
+                            <span className="text-xs text-cyan-400/80 ml-2">{agent.config.minCompositeScore ?? 70}</span>
+                          </div>
+                          <label className="flex items-center gap-2 text-xs text-secondary">
+                            <input type="checkbox" checked={agent.config.autoAlert !== false} readOnly className="rounded accent-cyan-500" />
+                            Auto alert
+                          </label>
+                        </>
+                      )}
+                      {agent.id === 3 && (
+                        <>
+                          <div>
+                            <label className="text-xs text-secondary block mb-1">Min accuracy</label>
+                            <input type="range" min={0} max={100} step={5} value={((agent.config.minAccuracy ?? 0.65) * 100)} readOnly className="w-full h-2 rounded accent-cyan-500" />
+                            <span className="text-xs text-cyan-400/80 ml-2">{((agent.config.minAccuracy ?? 0.65) * 100).toFixed(0)}%</span>
+                          </div>
+                          <label className="flex items-center gap-2 text-xs text-secondary">
+                            <input type="checkbox" checked={agent.config.gpuEnabled !== false} readOnly className="rounded accent-cyan-500" />
+                            GPU enabled
+                          </label>
+                        </>
+                      )}
+                      {agent.id === 4 && (
+                        <div>
+                          <label className="text-xs text-secondary block mb-1">Spike threshold</label>
+                          <input type="range" min={0.5} max={3} step={0.1} value={agent.config.spikeThreshold ?? 1.5} readOnly className="w-full h-2 rounded accent-cyan-500" />
+                          <span className="text-xs text-cyan-400/80 ml-2">{agent.config.spikeThreshold ?? 1.5}</span>
+                        </div>
+                      )}
+                      {agent.id === 5 && (
+                        <>
+                          <label className="flex items-center gap-2 text-xs text-secondary">
+                            <input type="checkbox" checked={agent.config.autoProcess !== false} readOnly className="rounded accent-cyan-500" />
+                            Auto process
+                          </label>
+                          <label className="flex items-center gap-2 text-xs text-secondary">
+                            <input type="checkbox" checked={agent.config.extractAlgos !== false} readOnly className="rounded accent-cyan-500" />
+                            Extract algos
+                          </label>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Live activity feed — scrollable */}
               <div className="flex-1 min-h-0 flex flex-col border-b border-cyan-500/10">
@@ -320,10 +409,10 @@ export default function AgentCommandCenter() {
                     Live activity
                   </span>
                   <span className="text-xs text-secondary">
-                    {lastActions.length} entries
+                    {lastActions.length} entries (last 100)
                   </span>
                 </div>
-                <div className="flex-1 min-h-[140px] max-h-44 overflow-y-auto overflow-x-hidden divide-y divide-secondary/20 custom-scrollbar">
+                <div className="flex-1 min-h-[140px] max-h-52 overflow-y-auto overflow-x-hidden divide-y divide-secondary/20 custom-scrollbar">
                   {lastActions.length === 0 && (
                     <div className="px-4 py-6 text-center text-xs text-secondary">
                       No activity yet
