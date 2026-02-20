@@ -4,6 +4,7 @@ import Card from "../components/ui/Card";
 import TextField from "../components/ui/TextField";
 import Button from "../components/ui/Button";
 import PageHeader from "../components/ui/PageHeader";
+import Slider from "../components/ui/Slider";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl } from "../config/api";
 
@@ -107,13 +108,14 @@ const RiskIntelligence = () => {
                   Maximum Daily Drawdown
                 </label>
                 <div className="flex items-center gap-4">
-                  <input
-                    type="range"
-                    min="0"
-                    max="20"
+                  <Slider
+                    min={0}
+                    max={20}
                     value={maxDrawdown}
                     onChange={(e) => setMaxDrawdown(parseFloat(e.target.value))}
-                    className="flex-1 accent-primary"
+                    showValue={false}
+                    className="flex-1"
+                    inputClassName="accent-primary"
                   />
                   <TextField
                     type="number"
@@ -132,15 +134,16 @@ const RiskIntelligence = () => {
                   Individual Position Size Limit
                 </label>
                 <div className="flex items-center gap-4">
-                  <input
-                    type="range"
-                    min="0"
-                    max="10"
+                  <Slider
+                    min={0}
+                    max={10}
                     value={positionSizeLimit}
                     onChange={(e) =>
                       setPositionSizeLimit(parseFloat(e.target.value))
                     }
-                    className="flex-1 accent-primary"
+                    showValue={false}
+                    className="flex-1"
+                    inputClassName="accent-primary"
                   />
                   <TextField
                     type="number"
@@ -159,16 +162,17 @@ const RiskIntelligence = () => {
                   Maximum Daily Loss Limit (Account Equity)
                 </label>
                 <div className="flex items-center gap-4">
-                  <input
-                    type="range"
-                    min="0"
-                    max="5"
-                    step="0.5"
+                  <Slider
+                    min={0}
+                    max={5}
+                    step={0.5}
                     value={maxDailyLoss}
                     onChange={(e) =>
                       setMaxDailyLoss(parseFloat(e.target.value))
                     }
-                    className="flex-1 accent-primary"
+                    showValue={false}
+                    className="flex-1"
+                    inputClassName="accent-primary"
                   />
                   <TextField
                     type="number"
@@ -188,14 +192,15 @@ const RiskIntelligence = () => {
                   Value at Risk (VaR) Limit
                 </label>
                 <div className="flex items-center gap-4">
-                  <input
-                    type="range"
-                    min="0"
-                    max="3"
-                    step="0.1"
+                  <Slider
+                    min={0}
+                    max={3}
+                    step={0.1}
                     value={varLimit}
                     onChange={(e) => setVarLimit(parseFloat(e.target.value))}
-                    className="flex-1 accent-primary"
+                    showValue={false}
+                    className="flex-1"
+                    inputClassName="accent-primary"
                   />
                   <TextField
                     type="number"

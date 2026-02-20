@@ -9,6 +9,7 @@ import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
 import DataTable from "../components/ui/DataTable";
 import PageHeader from "../components/ui/PageHeader";
+import Slider from "../components/ui/Slider";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl } from "../config/api";
 
@@ -175,19 +176,14 @@ export default function Backtesting() {
 
         <Card title="Parameter Sweeps & Controls">
           <div className="space-y-5">
-            <div>
-              <label className="text-xs text-secondary mb-2 block">
-                Parameter A (Sensitivity): {paramA}
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={paramA}
-                onChange={(e) => setParamA(Number(e.target.value))}
-                className="w-full accent-primary"
-              />
-            </div>
+            <Slider
+              label={`Parameter A (Sensitivity): ${paramA}`}
+              min={0}
+              max={100}
+              value={paramA}
+              onChange={(e) => setParamA(Number(e.target.value))}
+              inputClassName="accent-primary"
+            />
             <div className="grid grid-cols-2 gap-4">
               <TextField
                 label="Parameter B Min"

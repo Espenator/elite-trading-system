@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Search } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
+import Slider from "../components/ui/Slider";
 
 const ScreenerResults = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -21,6 +22,7 @@ const ScreenerResults = () => {
     nyse: false,
     amex: false,
   });
+  const [priceRange, setPriceRange] = useState(1000);
 
   const stocks = [
     {
@@ -164,12 +166,14 @@ const ScreenerResults = () => {
 
             {/* Price Range */}
             <div className="mb-6">
-              <h3 className="text-sm font-semibold mb-3">Price Range</h3>
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-gray-400">$0</span>
-                <input type="range" min="0" max="2000" className="flex-1" />
-                <span className="text-sm text-gray-400">$2000+</span>
-              </div>
+              <Slider
+                label="Price Range ($0 – $2000+)"
+                min={0}
+                max={2000}
+                value={priceRange}
+                onChange={(e) => setPriceRange(Number(e.target.value))}
+                formatValue={(v) => `$${v}`}
+              />
             </div>
 
             {/* Market Cap */}

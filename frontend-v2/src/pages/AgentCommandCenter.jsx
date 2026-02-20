@@ -26,6 +26,7 @@ import Card from "../components/ui/Card";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
 import PageHeader from "../components/ui/PageHeader";
+import Slider from "../components/ui/Slider";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl } from "../config/api";
 import ws from "../services/websocket";
@@ -331,21 +332,17 @@ export default function AgentCommandCenter() {
                     )}
                   </button>
                   {configOpen[agent.id] && (
-                    <div className="px-4 pb-3 pt-0 space-y-3 bg-secondary/5">
+                    <div className="p-4 space-y-3 bg-secondary/5">
                       {agent.id === 1 && (
                         <>
-                          <div>
-                            <label className="text-xs text-secondary block mb-1">Run interval (s)</label>
-                            <input
-                              type="range"
-                              min={30}
-                              max={120}
-                              value={agent.config.runIntervalSec ?? 60}
-                              readOnly
-                              className="w-full h-2 rounded accent-cyan-500"
-                            />
-                            <span className="text-xs text-cyan-400/80 ml-2">{agent.config.runIntervalSec ?? 60}</span>
-                          </div>
+                          <Slider
+                            label="Run interval (s)"
+                            min={30}
+                            max={120}
+                            value={agent.config.runIntervalSec ?? 60}
+                            readOnly
+                            suffix=" s"
+                          />
                           <label className="flex items-center gap-2 text-xs text-secondary">
                             <input type="checkbox" checked={agent.config.marketHoursOnly !== false} readOnly className="rounded accent-cyan-500" />
                             Market hours only
@@ -354,11 +351,13 @@ export default function AgentCommandCenter() {
                       )}
                       {agent.id === 2 && (
                         <>
-                          <div>
-                            <label className="text-xs text-secondary block mb-1">Min composite score</label>
-                            <input type="range" min={0} max={100} value={agent.config.minCompositeScore ?? 70} readOnly className="w-full h-2 rounded accent-cyan-500" />
-                            <span className="text-xs text-cyan-400/80 ml-2">{agent.config.minCompositeScore ?? 70}</span>
-                          </div>
+                          <Slider
+                            label="Min composite score"
+                            min={0}
+                            max={100}
+                            value={agent.config.minCompositeScore ?? 70}
+                            readOnly
+                          />
                           <label className="flex items-center gap-2 text-xs text-secondary">
                             <input type="checkbox" checked={agent.config.autoAlert !== false} readOnly className="rounded accent-cyan-500" />
                             Auto alert
@@ -367,11 +366,16 @@ export default function AgentCommandCenter() {
                       )}
                       {agent.id === 3 && (
                         <>
-                          <div>
-                            <label className="text-xs text-secondary block mb-1">Min accuracy</label>
-                            <input type="range" min={0} max={100} step={5} value={((agent.config.minAccuracy ?? 0.65) * 100)} readOnly className="w-full h-2 rounded accent-cyan-500" />
-                            <span className="text-xs text-cyan-400/80 ml-2">{((agent.config.minAccuracy ?? 0.65) * 100).toFixed(0)}%</span>
-                          </div>
+                          <Slider
+                            label="Min accuracy"
+                            min={0}
+                            max={100}
+                            step={5}
+                            value={(agent.config.minAccuracy ?? 0.65) * 100}
+                            readOnly
+                            formatValue={(v) => v.toFixed(0)}
+                            suffix="%"
+                          />
                           <label className="flex items-center gap-2 text-xs text-secondary">
                             <input type="checkbox" checked={agent.config.gpuEnabled !== false} readOnly className="rounded accent-cyan-500" />
                             GPU enabled
@@ -379,11 +383,14 @@ export default function AgentCommandCenter() {
                         </>
                       )}
                       {agent.id === 4 && (
-                        <div>
-                          <label className="text-xs text-secondary block mb-1">Spike threshold</label>
-                          <input type="range" min={0.5} max={3} step={0.1} value={agent.config.spikeThreshold ?? 1.5} readOnly className="w-full h-2 rounded accent-cyan-500" />
-                          <span className="text-xs text-cyan-400/80 ml-2">{agent.config.spikeThreshold ?? 1.5}</span>
-                        </div>
+                        <Slider
+                          label="Spike threshold"
+                          min={0.5}
+                          max={3}
+                          step={0.1}
+                          value={agent.config.spikeThreshold ?? 1.5}
+                          readOnly
+                        />
                       )}
                       {agent.id === 5 && (
                         <>
@@ -491,11 +498,8 @@ export default function AgentCommandCenter() {
       <Card
         title="Activity log (all agents)"
         className="border-cyan-500/20 bg-secondary/10 backdrop-blur-sm"
-        bodyClassName="p-0"
+        bodyClassName="!p-0"
       >
-        <div className="flex justify-end px-4 py-2 border-b border-secondary/30">
-          <span className="text-xs text-cyan-400">Real-time via WebSocket</span>
-        </div>
         <div className="divide-y divide-secondary/20 max-h-72 overflow-y-auto custom-scrollbar">
           {logs.length === 0 && !loading && (
             <div className="px-4 py-8 text-center text-secondary text-sm">
