@@ -15,9 +15,6 @@ logger = logging.getLogger(__name__)
 
 AGENT_NAME = "Market Data Agent"
 
-# SEC requires a descriptive User-Agent (company name + contact)
-SEC_USER_AGENT = "EliteTradingSystem/1.0 (Market Data Agent; contact@example.com)"
-
 
 async def run_tick(
     *,
@@ -92,68 +89,30 @@ async def run_tick(
 
 
 async def _fetch_fred() -> List[Tuple[str, str]]:
-    """Pull latest FRED series (e.g. CPI). Requires FRED_API_KEY in .env."""
-    if not getattr(settings, "FRED_API_KEY", None) or not settings.FRED_API_KEY.strip():
-        return [
-            ("FRED: set FRED_API_KEY in .env (free at fred.stlouisfed.org)", "info")
-        ]
+    """Pull latest FRED series (e.g. CPI) via FredService."""
     try:
-        # CPI All Urban Consumers (CPIAUCSL) — one observation
-        url = "https://api.stlouisfed.org/fred/series/observations"
-        params = {
-            "series_id": "CPIAUCSL",
-            "api_key": settings.FRED_API_KEY.strip(),
-            "file_type": "json",
-            "sort_order": "desc",
-            "limit": 1,
-        }
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            r = await client.get(url, params=params)
-        if r.status_code != 200:
-            return [(f"FRED: HTTP {r.status_code}", "warning")]
-        data = r.json()
-        obs = (data.get("observations") or [])[:1]
-        if obs and obs[0].get("value") != ".":
-            val = obs[0].get("value")
-            date = obs[0].get("date", "")
-            return [(f"FRED CPI (CPIAUCSL): {val} ({date})", "success")]
+        from app.services.fred_service import FredService
+
+        svc = FredService()
+        result = await svc.get_latest_value("CPIAUCSL")
+        if result:
+            return [(f"FRED CPI (CPIAUCSL): {result['value']} ({result['date']})", "success")]
         return [("FRED: no recent observation", "info")]
+    except ValueError as e:
+        return [(f"FRED: {str(e)[:80]}", "info")]
     except Exception as e:
         logger.exception("FRED fetch failed")
         return [(f"FRED: {str(e)[:80]}", "warning")]
 
 
 async def _fetch_edgar() -> List[Tuple[str, str]]:
-    """Pull SEC EDGAR company filings (recent 8-K / 10-K for a sample ticker). No API key; User-Agent required."""
+    """Pull SEC EDGAR company filings via SecEdgarService."""
     try:
-        # Company tickers mapping (ticker -> CIK)
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            r = await client.get(
-                "https://www.sec.gov/files/company_tickers.json",
-                headers={"User-Agent": SEC_USER_AGENT},
-            )
-        if r.status_code != 200:
-            return [(f"SEC EDGAR: HTTP {r.status_code}", "warning")]
-        tickers_data = r.json()
-        # Find AAPL CIK (example)
-        cik_str = None
-        for _, info in tickers_data.items():
-            if isinstance(info, dict) and info.get("ticker") == "AAPL":
-                cik_str = str(info.get("cik_str", "")).zfill(10)
-                break
-        if not cik_str:
-            return [("SEC EDGAR: ticker lookup ok, no sample", "info")]
-        # Recent submissions for company
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            r2 = await client.get(
-                f"https://data.sec.gov/submissions/CIK{cik_str}.json",
-                headers={"User-Agent": SEC_USER_AGENT},
-            )
-        if r2.status_code != 200:
-            return [(f"SEC EDGAR submissions: HTTP {r2.status_code}", "warning")]
-        sub = r2.json()
-        recent = (sub.get("recent", {}) or {}).get("form", [])[:5]
-        filings = ", ".join(recent) if recent else "none"
+        from app.services.sec_edgar_service import SecEdgarService
+
+        svc = SecEdgarService()
+        forms = await svc.get_recent_forms("AAPL", limit=5)
+        filings = ", ".join(forms) if forms else "none"
         return [(f"SEC EDGAR AAPL recent: {filings}", "success")]
     except Exception as e:
         logger.exception("SEC EDGAR fetch failed")
@@ -162,52 +121,27 @@ async def _fetch_edgar() -> List[Tuple[str, str]]:
 
 
 async def _fetch_unusual_whales() -> List[Tuple[str, str]]:
-    """Unusual Whales options flow. Requires UNUSUAL_WHALES_API_KEY. Set UNUSUAL_WHALES_FLOW_PATH from api.unusualwhales.com/docs if default 404s."""
-    api_key = getattr(settings, "UNUSUAL_WHALES_API_KEY", None) or ""
-    base_url = (
-        getattr(settings, "UNUSUAL_WHALES_BASE_URL", None)
-        or "https://api.unusualwhales.com"
-    ).rstrip("/")
-    flow_path = (
-        getattr(settings, "UNUSUAL_WHALES_FLOW_PATH", None) or ""
-    ).strip() or "/api/option-trades/flow-alerts"
-    if not flow_path.startswith("/"):
-        flow_path = "/" + flow_path
-    if not api_key or not api_key.strip():
-        return [
-            (
-                "Unusual Whales: set UNUSUAL_WHALES_API_KEY in .env for options flow",
-                "info",
-            )
-        ]
+    """Unusual Whales options flow via UnusualWhalesService."""
     try:
-        url = f"{base_url}{flow_path}"
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            r = await client.get(
-                url,
-                headers={
-                    "Authorization": f"Bearer {api_key.strip()}",
-                    "Accept": "application/json",
-                },
-            )
-        if r.status_code == 200:
-            data = r.json() if r.content else {}
-            count = (
-                len(data)
-                if isinstance(data, list)
-                else (data.get("count") or data.get("total") or "ok")
-            )
-            return [(f"Unusual Whales: {count} flow entries", "success")]
-        if r.status_code == 401:
+        from app.services.unusual_whales_service import UnusualWhalesService
+
+        svc = UnusualWhalesService()
+        data = await svc.get_flow_alerts()
+        count = len(data) if isinstance(data, list) else (data.get("count") or data.get("total") or "ok")
+        return [(f"Unusual Whales: {count} flow entries", "success")]
+    except ValueError as e:
+        return [(f"Unusual Whales: {str(e)[:80]}", "info")]
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 401:
             return [("Unusual Whales: invalid API key", "warning")]
-        if r.status_code == 404:
+        if e.response.status_code == 404:
             return [
                 (
                     "Unusual Whales: endpoint not found — set UNUSUAL_WHALES_FLOW_PATH from api.unusualwhales.com/docs",
                     "info",
                 )
             ]
-        return [(f"Unusual Whales: HTTP {r.status_code}", "warning")]
+        return [(f"Unusual Whales: HTTP {e.response.status_code}", "warning")]
     except httpx.ConnectError:
         return [("Unusual Whales: connection failed (check base URL)", "warning")]
     except Exception as e:
