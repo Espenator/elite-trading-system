@@ -9,6 +9,9 @@ Endpoints:
     GET /api/v1/openclaw/whale-flow - Whale flow alerts from latest scan
     GET /api/v1/openclaw/fom        - FOM expected move levels
     GET /api/v1/openclaw/llm        - LLM analysis summary + candidate analysis
+        GET /api/v1/openclaw/sectors    - Sector rotation rankings
+    GET /api/v1/openclaw/memory     - Memory IQ, agent rankings, expectancy
+    GET /api/v1/openclaw/memory/recall - 3-stage recall pipeline for ticker
     POST /api/v1/openclaw/refresh   - Force cache refresh
 """
 
