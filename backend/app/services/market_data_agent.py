@@ -1,9 +1,9 @@
 """
 Market Data Agent — one tick of data collection.
-Scans: Finviz Elite, Alpaca, Unusual Whales. Pulls: FRED economic data, SEC EDGAR filings.
+Scans: Finviz Elite, Alpaca, Unusual Whales, OpenClaw Bridge.
+Pulls: FRED economic data, SEC EDGAR filings.
 Run every 60s during market hours when agent is started (configurable via agent config).
 """
-
 import logging
 from typing import List, Tuple
 
@@ -23,13 +23,14 @@ async def run_tick(
     run_fred: bool = True,
     run_edgar: bool = True,
     run_unusual_whales: bool = True,
+    run_openclaw: bool = True,
 ) -> List[Tuple[str, str]]:
     """
     Run one Market Data Agent tick. Returns list of (message, level) for activity log.
     """
     entries: List[Tuple[str, str]] = []
 
-    # --- Finviz Elite → symbol_universe (client link) ---
+    # --- Finviz Elite -> symbol_universe (client link) ---
     if run_finviz:
         try:
             from app.services.finviz_service import FinvizService
@@ -42,7 +43,7 @@ async def run_tick(
             stored = set_tracked_symbols_from_finviz(stocks or [])
             entries.append(
                 (
-                    f"Finviz Elite: {count} symbols → symbol_universe: {stored} tracked",
+                    f"Finviz Elite: {count} symbols -> symbol_universe: {stored} tracked",
                     "success",
                 )
             )
@@ -84,6 +85,10 @@ async def run_tick(
     # --- SEC EDGAR filings ---
     if run_edgar:
         entries.extend(await _fetch_edgar())
+
+    # --- OpenClaw Bridge (regime, candidates, whale flow from Gist) ---
+    if run_openclaw:
+        entries.extend(await _fetch_openclaw())
 
     return entries
 
@@ -137,7 +142,7 @@ async def _fetch_unusual_whales() -> List[Tuple[str, str]]:
         if e.response.status_code == 404:
             return [
                 (
-                    "Unusual Whales: endpoint not found — set UNUSUAL_WHALES_FLOW_PATH from api.unusualwhales.com/docs",
+                    "Unusual Whales: endpoint not found -- set UNUSUAL_WHALES_FLOW_PATH from api.unusualwhales.com/docs",
                     "info",
                 )
             ]
@@ -147,3 +152,41 @@ async def _fetch_unusual_whales() -> List[Tuple[str, str]]:
     except Exception as e:
         logger.exception("Unusual Whales fetch failed")
         return [(f"Unusual Whales: {str(e)[:80]}", "warning")]
+
+
+async def _fetch_openclaw() -> List[Tuple[str, str]]:
+    """OpenClaw Bridge: fetch regime, candidates, and whale flow from Gist."""
+    try:
+        from app.services.openclaw_bridge_service import openclaw_bridge
+
+        health = await openclaw_bridge.get_health()
+        if not health.get("connected"):
+            if not health.get("gist_id_configured"):
+                return [("OpenClaw: OPENCLAW_GIST_ID not set (skip)", "info")]
+            return [("OpenClaw: Gist fetch failed", "warning")]
+
+        # Pull regime + candidate count for the log
+        regime = await openclaw_bridge.get_regime()
+        candidates = await openclaw_bridge.get_top_candidates(n=5)
+        whale_flow = await openclaw_bridge.get_whale_flow()
+
+        regime_state = regime.get("state", "UNKNOWN")
+        candidate_count = len(candidates)
+        whale_count = len(whale_flow)
+        scan_date = regime.get("scan_date", "?")
+
+        top_ticker = candidates[0].get("ticker", "?") if candidates else "none"
+        top_score = candidates[0].get("composite_score", 0) if candidates else 0
+
+        entries = [
+            (
+                f"OpenClaw: regime={regime_state}, {candidate_count} candidates, "
+                f"top={top_ticker} ({top_score}), {whale_count} whale alerts, "
+                f"scan={scan_date}",
+                "success",
+            )
+        ]
+        return entries
+    except Exception as e:
+        logger.exception("OpenClaw Bridge fetch failed")
+        return [(f"OpenClaw: {str(e)[:80]}", "warning")]
