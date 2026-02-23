@@ -467,45 +467,52 @@ export default function AgentCommandCenter() {
                 </div>
               </div>
 
-              {/* Actions */}
-              <div className="p-4 flex flex-wrap gap-2 bg-secondary/5">
-                <Button
-                  variant="success"
-                  size="sm"
-                  leftIcon={Play}
-                  onClick={() => sendAction(agent.id, "start")}
-                  disabled={actionLoading != null}
-                >
-                  {actionLoading === agent.id ? "…" : "Start"}
-                </Button>
-                <Button
-                  variant="danger"
-                  size="sm"
-                  leftIcon={Square}
-                  onClick={() => sendAction(agent.id, "stop")}
-                  disabled={actionLoading != null}
-                >
-                  Stop
-                </Button>
-                <Button
-                  variant="warning"
-                  size="sm"
-                  leftIcon={Pause}
-                  onClick={() => sendAction(agent.id, "pause")}
-                  disabled={actionLoading != null}
-                >
-                  Pause
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  leftIcon={RefreshCw}
-                  onClick={() => sendAction(agent.id, "restart")}
-                  disabled={actionLoading != null}
-                >
-                  Restart
-                </Button>
-              </div>
+              {/* Actions: Start disabled when running; Stop/Pause disabled when not running */}
+              {(() => {
+                const s = (agent.status || "").toLowerCase();
+                const isRunning = s === "running" || s === "active";
+                const loading = actionLoading === agent.id;
+                return (
+                  <div className="p-4 flex flex-wrap gap-2 bg-secondary/5">
+                    <Button
+                      variant="success"
+                      size="sm"
+                      leftIcon={Play}
+                      onClick={() => sendAction(agent.id, "start")}
+                      disabled={loading || isRunning}
+                    >
+                      {loading ? "…" : "Start"}
+                    </Button>
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      leftIcon={Square}
+                      onClick={() => sendAction(agent.id, "stop")}
+                      disabled={loading || !isRunning}
+                    >
+                      Stop
+                    </Button>
+                    <Button
+                      variant="warning"
+                      size="sm"
+                      leftIcon={Pause}
+                      onClick={() => sendAction(agent.id, "pause")}
+                      disabled={loading || !isRunning}
+                    >
+                      Pause
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      leftIcon={RefreshCw}
+                      onClick={() => sendAction(agent.id, "restart")}
+                      disabled={loading || !isRunning}
+                    >
+                      Restart
+                    </Button>
+                  </div>
+                );
+              })()}
             </div>
           );
         })}
@@ -515,7 +522,7 @@ export default function AgentCommandCenter() {
       <Card
         title="Activity log (all agents)"
         className="border-cyan-500/20 bg-secondary/10 backdrop-blur-sm"
-        bodyClassName="!p-0"
+        noPadding
       >
         <div className="divide-y divide-secondary/20 max-h-72 overflow-y-auto custom-scrollbar">
           {logs.length === 0 && !loading && (

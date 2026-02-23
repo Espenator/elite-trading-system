@@ -1,6 +1,6 @@
 // SIGNALS PAGE - Embodier.ai Glass House Intelligence System
-// GET /api/v1/signals - live signals (backend returns as_of + signals[] with symbol, prob_up, action)
-import { useState, useMemo } from "react";
+// GET /api/v1/signals - live signals; OpenClaw composite score + tier from /api/v1/openclaw/scan
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Zap,
@@ -21,6 +21,27 @@ import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
 import PageHeader from "../components/ui/PageHeader";
 import { useApi } from "../hooks/useApi";
+import { getApiUrl } from "../config/api";
+
+/** Derive tier from composite score: SLAM 90+, HIGH 80+, TRADEABLE 70+, WATCH 50+ */
+function getTier(score) {
+  if (score == null || Number.isNaN(score)) return null;
+  const s = Number(score);
+  if (s >= 90) return { label: "SLAM", variant: "success" };
+  if (s >= 80) return { label: "HIGH", variant: "success" };
+  if (s >= 70) return { label: "TRADEABLE", variant: "primary" };
+  if (s >= 50) return { label: "WATCH", variant: "warning" };
+  return null;
+}
+
+function getTierVariantFromLabel(label) {
+  if (!label) return "secondary";
+  const L = String(label).toUpperCase();
+  if (L === "SLAM" || L === "HIGH") return "success";
+  if (L === "TRADEABLE") return "primary";
+  if (L === "WATCH") return "warning";
+  return "secondary";
+}
 
 /** Normalize backend signal { symbol, date, prob_up, action } to UI shape */
 function normalizeSignals(backend) {
@@ -114,10 +135,41 @@ export default function Signals() {
   const [filter, setFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("score");
+  const [openclawMap, setOpenclawMap] = useState({});
   const { data, loading, error, refetch } = useApi("signals", {
     pollIntervalMs: 30000,
   });
   const signals = useMemo(() => normalizeSignals(data), [data]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(getApiUrl("openclaw") + "/scan", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((scan) => {
+        if (cancelled || !scan?.top_candidates) return;
+        const map = {};
+        (scan.top_candidates || []).forEach((c) => {
+          const sym = (c.symbol ?? c.ticker ?? "").toUpperCase();
+          if (!sym) return;
+          const score =
+            c.composite_score != null ? Number(c.composite_score) : null;
+          map[sym] = {
+            composite_score: score,
+            tier:
+              c.tier ??
+              getTier(score)?.label ??
+              (score != null ? getTier(score) : null),
+          };
+        });
+        setOpenclawMap(map);
+      })
+      .catch(() => {
+        if (!cancelled) setOpenclawMap({});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const filtered = useMemo(
     () =>
       signals
@@ -374,7 +426,7 @@ export default function Signals() {
                       <p className="mt-0.5 text-sm text-secondary">
                         {signal.type} · {signal.source}
                       </p>
-                      <div className="mt-2 flex items-center gap-3 text-xs text-secondary">
+                      <div className="mt-2 flex items-center gap-3 text-xs text-secondary flex-wrap">
                         <span className="flex items-center gap-1">
                           <Brain className="h-3.5 w-3.5 text-primary" />
                           ML {signal.mlConfidence}%
@@ -386,8 +438,50 @@ export default function Signals() {
                           </span>
                         )}
                       </div>
-                      <div className="mt-2 w-full max-w-[140px]">
-                        <ScoreBar score={signal.score} />
+                      {openclawMap[signal.ticker?.toUpperCase()]
+                        ?.composite_score != null && (
+                        <div className="mt-2 flex items-center gap-2 flex-wrap">
+                          <span className="text-xs text-cyan-400 font-medium">
+                            OpenClaw{" "}
+                            {Number(
+                              openclawMap[signal.ticker.toUpperCase()]
+                                .composite_score,
+                            ).toFixed(1)}
+                          </span>
+                          {(openclawMap[signal.ticker.toUpperCase()].tier ||
+                            getTier(
+                              openclawMap[signal.ticker.toUpperCase()]
+                                .composite_score,
+                            )?.label) && (
+                            <Badge
+                              variant={
+                                getTier(
+                                  openclawMap[signal.ticker.toUpperCase()]
+                                    ?.composite_score,
+                                )?.variant ??
+                                getTierVariantFromLabel(
+                                  openclawMap[signal.ticker.toUpperCase()].tier,
+                                )
+                              }
+                              size="sm"
+                              className="font-semibold"
+                            >
+                              {openclawMap[
+                                signal.ticker.toUpperCase()
+                              ].tier?.replace(/_/g, " ") ??
+                                getTier(
+                                  openclawMap[signal.ticker.toUpperCase()]
+                                    .composite_score,
+                                )?.label ??
+                                "—"}
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                      <div className="mt-2 flex items-center gap-2 flex-wrap">
+                        <div className="w-full max-w-[140px]">
+                          <ScoreBar score={signal.score} />
+                        </div>
                       </div>
                     </div>
                   </div>

@@ -45,38 +45,66 @@ class OpenClawBridgeService:
         return (time.time() - _cache["fetched_at"]) < _CACHE_TTL_SECONDS
 
     async def _fetch_gist(self) -> Optional[Dict]:
-        """Fetch the Gist JSON from GitHub API."""
+        """Fetch the Gist JSON from GitHub API. Uses token if set; on 401 retries without auth for public gists."""
         if not self.gist_id:
             logger.warning("[OPENCLAW] OPENCLAW_GIST_ID not configured")
             return None
 
-        headers = {"Accept": "application/vnd.github.v3+json"}
-        if self.gist_token:
-            headers["Authorization"] = f"token {self.gist_token}"
-
         url = f"https://api.github.com/gists/{self.gist_id}"
-        try:
-            resp = await self._http.get(url, headers=headers)
+        accept = "application/vnd.github.v3+json"
+
+        async def do_get(auth_headers: dict):
+            resp = await self._http.get(url, headers={**auth_headers, "Accept": accept})
             resp.raise_for_status()
-            gist_json = resp.json()
+            return resp.json()
+
+        # First try with token if configured
+        headers = {}
+        if self.gist_token and self.gist_token.strip():
+            headers["Authorization"] = f"token {self.gist_token.strip()}"
+
+        try:
+            gist_json = await do_get(headers)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 401:
+                logger.warning(
+                    "[OPENCLAW] Gist 401 Unauthorized. "
+                    "OPENCLAW_GIST_TOKEN may be invalid, expired, or the Gist is private. "
+                    "Retrying without token for public Gist..."
+                )
+                try:
+                    gist_json = await do_get({})
+                    logger.info("[OPENCLAW] Fetched using public Gist (no token)")
+                except httpx.HTTPStatusError as retry_exc:
+                    logger.error(
+                        "[OPENCLAW] Gist HTTP %s. For a private Gist, use a valid GitHub token with 'gist' scope.",
+                        retry_exc.response.status_code,
+                    )
+                    return None
+            else:
+                logger.error("[OPENCLAW] Gist HTTP %s", exc.response.status_code)
+                return None
+        except Exception as exc:
+            logger.error("[OPENCLAW] Gist fetch error: %s", exc)
+            return None
+
+        try:
             file_data = gist_json.get("files", {}).get(self.gist_filename)
             if not file_data:
                 logger.error(
-                    f"[OPENCLAW] Gist file '{self.gist_filename}' not found"
+                    "[OPENCLAW] Gist file '%s' not found",
+                    self.gist_filename,
                 )
                 return None
             content = json.loads(file_data["content"])
             logger.info(
-                f"[OPENCLAW] Fetched scan: "
-                f"{len(content.get('top_candidates', []))} candidates, "
-                f"regime={content.get('regime', {}).get('state', '?')}"
+                "[OPENCLAW] Fetched scan: %s candidates, regime=%s",
+                len(content.get("top_candidates", [])),
+                content.get("regime", {}).get("state", "?"),
             )
             return content
-        except httpx.HTTPStatusError as exc:
-            logger.error(f"[OPENCLAW] Gist HTTP {exc.response.status_code}")
-            return None
         except Exception as exc:
-            logger.error(f"[OPENCLAW] Gist fetch error: {exc}")
+            logger.error("[OPENCLAW] Gist parse error: %s", exc)
             return None
 
     async def _get_data(self) -> Optional[Dict]:
@@ -100,15 +128,25 @@ class OpenClawBridgeService:
         """Return current regime status and details."""
         data = await self._get_data()
         if not data:
-            return {"state": "UNKNOWN", "details": None}
+            return {"state": "UNKNOWN", "details": None, "readme": None}
         regime = data.get("regime", {})
         macro = data.get("macro_context", {})
+        readme = (
+            regime.get("readme")
+            or regime.get("summary")
+            or regime.get("text")
+            or data.get("regime_readme")
+            or ""
+        )
+        if readme and not isinstance(readme, str):
+            readme = str(readme)
         return {
             "state": regime.get("state", "UNKNOWN"),
             "vix": regime.get("vix"),
             "hmm_confidence": regime.get("hmm_confidence"),
             "hurst": regime.get("hurst"),
             "macro_context": macro,
+            "readme": readme or None,
             "scan_date": data.get("scan_date"),
             "timestamp": data.get("timestamp"),
         }

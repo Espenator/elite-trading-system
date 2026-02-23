@@ -71,15 +71,21 @@ class Settings(BaseSettings):
     )
 
     # Resend — transactional email for risk/alert notifications
-    RESEND_API_KEY: str = "re_UFqqo1oe_DfMEofzkEgAyPM9uXmQH1CVA"  # Set in .env (e.g. re_xxx); required to send emails
+    RESEND_API_KEY: str = (
+        "re_UFqqo1oe_DfMEofzkEgAyPM9uXmQH1CVA"  # Set in .env (e.g. re_xxx); required to send emails
+    )
     RESEND_FROM_EMAIL: str = "Espen@embodier.ai"  # Must be a verified domain in Resend
     RESEND_ALERT_TO_EMAIL: str = (
         "Espen@embodier.ai"  # Default recipient for test and risk alerts (e.g. you@company.com)
     )
 
-        # OpenClaw Bridge — reads scan data from GitHub Gist produced by OpenClaw api_data_bridge.py
-    OPENCLAW_GIST_ID: str = ""  # GitHub Gist ID where OpenClaw pushes scan JSON
-    OPENCLAW_GIST_TOKEN: str = ""  # GitHub personal access token with gist scope (optional for public gists)
+    # OpenClaw Bridge — reads scan data from GitHub Gist produced by OpenClaw api_data_bridge.py
+    OPENCLAW_GIST_ID: str = (
+        "725e68ffca84638fa267db8361f4c14f"  # GitHub Gist ID where OpenClaw pushes scan JSON
+    )
+    OPENCLAW_GIST_TOKEN: str = (
+        "ghp_ppv6dafG7dmrcgkFhaBlkhxoHKgKkg2U5lI4"  # GitHub personal access token with gist scope (optional for public gists)
+    )
 
     class Config:
         env_file = ".env"

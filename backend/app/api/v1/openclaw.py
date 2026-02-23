@@ -55,6 +55,7 @@ async def get_top_candidates(n: int = Query(default=10, ge=1, le=50)):
     regime = await openclaw_bridge.get_regime()
     return {
         "regime": regime.get("state", "UNKNOWN"),
+        "regime_readme": regime.get("readme"),
         "count": len(candidates),
         "candidates": candidates,
     }

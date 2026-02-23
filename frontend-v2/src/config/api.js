@@ -47,6 +47,7 @@ const API_CONFIG = {
     alerts: "/alerts", // Alert rules + notifications
     patterns: "/patterns", // Chart pattern detections
     settings: "/settings", // User settings load/save
+    openclaw: "/openclaw", // OpenClaw bridge: regime, top candidates, health, scan
   },
 };
 

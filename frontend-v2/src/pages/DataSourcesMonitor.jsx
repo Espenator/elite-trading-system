@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Activity,
   Database,
@@ -10,12 +10,15 @@ import {
   TrendingUp,
   Video,
   Zap,
+  Server,
+  Gauge,
 } from "lucide-react";
 import Card from "../components/ui/Card";
 import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
 import PageHeader from "../components/ui/PageHeader";
 import { useApi } from "../hooks/useApi";
+import { getApiUrl } from "../config/api";
 import ws from "../services/websocket";
 
 const TYPE_ICONS = {
@@ -55,7 +58,21 @@ const DataSourcesMonitor = () => {
   const { data, loading, error, refetch } = useApi("dataSources", {
     pollIntervalMs: 30000,
   });
+  const [openclawHealth, setOpenclawHealth] = useState(null);
   const sources = Array.isArray(data?.sources) ? data.sources : [];
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(getApiUrl("openclaw") + "/health", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled) setOpenclawHealth(d);
+      })
+      .catch(() => {
+        if (!cancelled) setOpenclawHealth(null);
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   React.useEffect(() => {
     const unsub = ws.on("datasources", () => refetch());
@@ -111,6 +128,78 @@ const DataSourcesMonitor = () => {
           {loading ? "Refreshing…" : "Refresh"}
         </Button>
       </PageHeader>
+
+      {/* OpenClaw bridge health */}
+      {openclawHealth && (
+        <Card
+          noPadding
+          className={`
+            overflow-hidden border-l-4 mb-4
+            ${openclawHealth.connected ? "border-l-cyan-500/80" : "border-l-danger/80"}
+          `}
+        >
+          <div className="p-5">
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <div
+                  className={`
+                    w-10 h-10 rounded-xl flex items-center justify-center shrink-0
+                    ${openclawHealth.connected ? "bg-cyan-500/15 text-cyan-400" : "bg-danger/15 text-danger"}
+                  `}
+                >
+                  <Gauge className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-white">OpenClaw Bridge</h3>
+                  <p className="text-xs text-secondary mt-0.5">
+                    Gist sync · {openclawHealth.connected ? "Connected" : "Disconnected"}
+                  </p>
+                </div>
+              </div>
+              <Badge
+                variant={openclawHealth.connected ? "success" : "danger"}
+                size="sm"
+                className="shrink-0 capitalize"
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full mr-1.5 ${openclawHealth.connected ? "bg-success" : "bg-danger"}`}
+                />
+                {openclawHealth.connected ? "healthy" : "error"}
+              </Badge>
+            </div>
+            <div className="grid grid-cols-3 gap-3 pt-3 border-t border-secondary/30">
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-secondary mb-0.5">
+                  Last scan
+                </p>
+                <p className="text-sm font-medium text-white truncate">
+                  {openclawHealth.last_scan_timestamp
+                    ? new Date(openclawHealth.last_scan_timestamp).toLocaleString()
+                    : "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-secondary mb-0.5">
+                  Candidates
+                </p>
+                <p className="text-sm font-semibold text-white tabular-nums">
+                  {(openclawHealth.candidate_count ?? 0).toLocaleString()}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-secondary mb-0.5">
+                  Cache age
+                </p>
+                <p className="text-sm font-semibold text-white tabular-nums">
+                  {openclawHealth.cache_age_seconds != null
+                    ? `${openclawHealth.cache_age_seconds}s`
+                    : "—"}
+                </p>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* Source grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
