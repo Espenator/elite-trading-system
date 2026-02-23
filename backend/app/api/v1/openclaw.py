@@ -15,7 +15,7 @@ Endpoints:
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, HTTPException
 from app.services.openclaw_bridge_service import openclaw_bridge
 
 logger = logging.getLogger(__name__)
@@ -113,3 +113,41 @@ async def force_refresh():
     logger.info("[OPENCLAW] Manual refresh triggered")
     health = await openclaw_bridge.force_refresh()
     return {"message": "Cache refreshed", "health": health}
+    
+
+# ------------------------------------------------------------------ #
+# MEMORY INTELLIGENCE ENDPOINTS (NEW)
+# ------------------------------------------------------------------ #
+
+@router.get("/memory", summary="Get OpenClaw Memory Health & Quality Score")
+async def get_memory_health():
+    """Retrieves the persistent memory intelligence score (IQ), expectancy data,
+    agent rankings, and general health from the OpenClaw swarm via the bridge."""
+    try:
+        memory_data = await openclaw_bridge.get_memory_status()
+        if not memory_data:
+            raise HTTPException(status_code=404, detail="Memory data not available from bridge.")
+        return {"status": "success", "data": memory_data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch memory status: {str(e)}")
+
+
+@router.get("/memory/recall", summary="Get Contextual Intelligence for Ticker")
+async def get_memory_recall(
+    ticker: str = Query(..., description="Ticker symbol to recall memory for"),
+    score: float = Query(50.0, description="Signal score context"),
+    regime: str = Query("UNKNOWN", description="Market regime context")
+):
+    """Executes the 3-stage recall pipeline (deterministic preload, semantic search,
+    structured facts) for a specific ticker to feed the Agent Command Center UI."""
+    try:
+        recall_data = await openclaw_bridge.get_memory_recall(
+            ticker=ticker.upper(),
+            score=score,
+            regime=regime.upper()
+        )
+        if not recall_data:
+            raise HTTPException(status_code=404, detail=f"No recall data found for {ticker}.")
+        return {"status": "success", "data": recall_data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch memory recall: {str(e)}")
