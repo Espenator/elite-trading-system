@@ -77,6 +77,10 @@ class Settings(BaseSettings):
         "Espen@embodier.ai"  # Default recipient for test and risk alerts (e.g. you@company.com)
     )
 
+        # OpenClaw Bridge — reads scan data from GitHub Gist produced by OpenClaw api_data_bridge.py
+    OPENCLAW_GIST_ID: str = ""  # GitHub Gist ID where OpenClaw pushes scan JSON
+    OPENCLAW_GIST_TOKEN: str = ""  # GitHub personal access token with gist scope (optional for public gists)
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
