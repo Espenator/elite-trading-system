@@ -614,7 +614,9 @@ export default function SectorRotationCard() {
 | GET | `/api/v1/openclaw/whale-flow` | Whale flow alerts |
 | GET | `/api/v1/openclaw/fom` | FOM expected moves |
 | GET | `/api/v1/openclaw/llm` | LLM analysis summary |
-| GET | `/api/v1/openclaw/sectors` | Sector rankings | | GET | `/api/v1/openclaw/memory` | Memory IQ, agent rankings, expectancy | | GET | `/api/v1/openclaw/memory/recall?ticker=AAPL` | 3-stage recall for ticker |
+| GET | `/api/v1/openclaw/sectors` | Sector rankings |
+| GET | `/api/v1/openclaw/memory` | Memory IQ, agent rankings, expectancy |
+| GET | `/api/v1/openclaw/memory/recall?ticker=AAPL` | 3-stage recall for ticker |
 | POST | `/api/v1/openclaw/refresh` | Force cache refresh |
 
 ---
