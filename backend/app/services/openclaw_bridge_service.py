@@ -226,6 +226,62 @@ class OpenClawBridgeService:
         return data.get("sector_rankings", [])
 
 
+    # ------------------------------------------------------------------ #
+    # MEMORY INTELLIGENCE PARSERS (NEW)
+    # ------------------------------------------------------------------ #
+
+    async def get_memory_status(self) -> dict:
+        """Parses memory health, quality score (IQ), and agent rankings from the Gist bridge data.
+        Feeds the Agent Command Center UI with the swarm's current learning state."""
+        try:
+            gist_data = await self._get_data()
+            if not gist_data:
+                return {}
+            memory_section = gist_data.get("memory", {})
+            if not memory_section:
+                return {
+                    "memory_iq": 0,
+                    "status": "waiting_for_data",
+                    "message": "Memory stats not yet published to bridge."
+                }
+            return {
+                "memory_iq": memory_section.get("quality_score", {}).get("memory_iq", 0),
+                "quality_metrics": memory_section.get("quality_score", {}),
+                "expectancy_overview": memory_section.get("expectancy_summary", {}),
+                "top_agents": memory_section.get("agent_rankings", [])[:5],
+                "health": memory_section.get("health", {})
+            }
+        except Exception as e:
+            logger.error(f"[BridgeService] Error fetching memory status: {e}")
+            return {}
+
+    async def get_memory_recall(self, ticker: str, score: float = 50.0, regime: str = "UNKNOWN") -> dict:
+        """Parses the 3-stage recall pipeline data for a specific ticker from the Gist bridge."""
+        try:
+            gist_data = await self._get_data()
+            if not gist_data:
+                return {}
+            recalls_section = gist_data.get("recalls", {})
+            ticker_data = recalls_section.get(ticker.upper())
+            if ticker_data:
+                return ticker_data
+            return {
+                "ticker": ticker.upper(),
+                "recent_context": [],
+                "semantic_memory": [],
+                "structured_facts": {
+                    "signals": 0,
+                    "outcomes": 0,
+                    "total_pnl_pct": 0.0,
+                    "avg_score": 0.0
+                },
+                "learned_rules": [],
+                "note": "Awaiting direct recall sync from OpenClaw."
+            }
+        except Exception as e:
+            logger.error(f"[BridgeService] Error fetching memory recall for {ticker}: {e}")
+            return {}
+
 # ---------------------------------------------------------------------------
 # Global service instance
 # ---------------------------------------------------------------------------
