@@ -298,6 +298,92 @@ OpenClaw repo: github.com/Espenator/openclaw (247+ commits, 98% Python)
 
 ---
 
+---
+
+## 🔧 TOMORROW: .ENV SETUP (ESPENMAIN — NEW PC SETUP)
+
+**Context:** ESPENMAIN-setup.ps1 clones both repos and installs all tools but does NOT create .env files.
+The .env files contain all API keys and must be set up manually after cloning.
+
+### Step 1: Elite Trader Backend .env
+
+```powershell
+# Navigate to backend
+cd C:\Dev\elite-trading-system\backend
+
+# Copy the example env file
+copy .env.example .env
+
+# Open in VS Code to fill in keys
+code .env
+```
+
+**Keys to fill in (get from OneDrive/Trading-Sync/env-configs/ or existing machine):**
+- `ALPACA_API_KEY` — from alpaca.markets dashboard
+- `ALPACA_SECRET_KEY` — from alpaca.markets dashboard
+- `ALPACA_BASE_URL` — https://paper-api.alpaca.markets (paper) or https://api.alpaca.markets (live)
+- `FINVIZ_EMAIL` — your Finviz Elite login
+- `ANTHROPIC_API_KEY` — from console.anthropic.com
+- `PERPLEXITY_API_KEY` — from perplexity.ai settings
+- `UNUSUAL_WHALES_API_KEY` — from unusualwhales.com
+- `DISCORD_TOKEN` — from Discord developer portal
+- `DISCORD_CHANNEL_ID` — your signals channel ID
+- `SLACK_BOT_TOKEN` — from api.slack.com
+- `REDIS_URL` — redis://localhost:6379
+- `OLLAMA_BASE_URL` — http://localhost:11434
+- `SECRET_KEY` — generate with: python -c "import secrets; print(secrets.token_hex(32))"
+- `DATABASE_URL` — duckdb:///./trading.db
+
+### Step 2: OpenClaw .env
+
+```powershell
+# Navigate to openclaw
+cd C:\Dev\openclaw
+
+# Copy the example env file
+copy .env.example .env
+
+# Open in VS Code to fill in keys
+code .env
+```
+
+**Keys to fill in:**
+- `ALPACA_API_KEY` — same as Elite Trader
+- `ALPACA_SECRET_KEY` — same as Elite Trader
+- `ALPACA_BASE_URL` — same as Elite Trader
+- `ANTHROPIC_API_KEY` — same as Elite Trader
+- `PERPLEXITY_API_KEY` — same as Elite Trader
+- `OLLAMA_BASE_URL` — http://localhost:11434
+- `FINVIZ_EMAIL` — same as Elite Trader
+- `UNUSUAL_WHALES_API_KEY` — same as Elite Trader
+- `DISCORD_TOKEN` — same as Elite Trader
+- `DISCORD_CHANNEL_ID` — same as Elite Trader
+
+### Step 3: One-liner to open both .env files at once
+
+```powershell
+code C:\Dev\elite-trading-system\backend\.env; code C:\Dev\openclaw\.env
+```
+
+### Step 4: Verify .env is loaded correctly
+
+```powershell
+# Test Elite Trader backend starts
+cd C:\Dev\elite-trading-system\backend
+.\venv\Scripts\activate
+python -c "from app.core.config import settings; print('Config OK:', settings.ALPACA_API_KEY[:8])"
+
+# Test OpenClaw
+cd C:\Dev\openclaw
+.\venv\Scripts\activate
+python -c "import os; from dotenv import load_dotenv; load_dotenv(); print('ALPACA:', os.getenv('ALPACA_API_KEY', 'NOT SET')[:8])"
+```
+
+### Notes:
+- .env files are gitignored — they will NOT be in the repo, must be copied manually
+- Source of truth for keys: OneDrive > Trading-Sync > env-configs > (elite-trader.env / openclaw.env)
+- After filling .env, run ESPENMAIN-setup.ps1 again — it will skip already-done steps and just start services
+
 Last updated: February 23, 2026 at 8:00 AM EST by Espen
 Next handoff: Oleh picks up Monday February 23, 2026 morning
 Focus: Create openclaw_bridge_service.py, add /api/v1/openclaw route, update Dashboard.jsx + Signals.jsx to show OpenClaw data
