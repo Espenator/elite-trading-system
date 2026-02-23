@@ -643,16 +643,107 @@ OPENCLAW_GIST_TOKEN=ghp_xxxxx...   # GitHub PAT with gist scope
 
 ---
 
-## 🚀 WEEK 2 PREVIEW (Mar 2-7)
+## 🚀 WEEK 2 STATUS (Mar 2-7) — BACKEND COMPLETE
 
-1. Rename app to "Embodier Trader" across all files
-2. Wire RiskIntelligence.jsx to OpenClaw risk data
-3. Wire MLInsights.jsx to ensemble_scorer breakdown
-4. Wire PerformanceAnalytics.jsx to trade history
-5. Add WebSocket real-time signal feed
+| Task | Status | Notes |
+|------|--------|-------|
+| 1. Rename app to "Embodier Trader" across all files | ⚠️ PENDING | Frontend rename still needed |
+| 2. Wire RiskIntelligence.jsx to OpenClaw risk data | ✅ DONE | `/api/v1/openclaw/top` + `/regime` endpoints live |
+| 3. Wire MLInsights.jsx to ensemble_scorer breakdown | ✅ DONE | `/api/v1/openclaw/scan` exposes all pillar scores |
+| 4. Wire PerformanceAnalytics.jsx to trade history | ✅ DONE | `/api/v1/openclaw/memory` + `/memory/recall` live |
+| 5. Add WebSocket real-time signal feed | ⚠️ PENDING | Week 3 target |
+
+---
+
+## 🧠 MEMORY INTELLIGENCE — FULLY WIRED (Feb 23)
+
+### OpenClaw Side (Espenator/openclaw)
+
+| File | What it does |
+|------|--------------|
+| `memory_v3.py` | SQLite + ChromaDB episodic/semantic memory with 3-stage recall, compaction, IQ scoring |
+| `api_data_bridge.py` | v1.3: publishes `memory` + `recalls` + `sector_rankings` blocks to Gist JSON |
+| `sector_rotation.py` | 11 sector ETFs (XLK–XLC) via Alpaca IEX, HOT/COLD/NEUTRAL + rotation detection |
+
+### Elite v2 Side (Espenator/elite-trading-system)
+
+| File | What it does |
+|------|--------------|
+| `services/openclaw_bridge_service.py` | `get_memory_status()` + `get_memory_recall(ticker)` parse Gist bridge data |
+| `api/v1/openclaw.py` | `GET /memory` — Memory IQ, agent rankings, expectancy overview |
+| `api/v1/openclaw.py` | `GET /memory/recall?ticker=AAPL` — 3-stage recall pipeline per ticker |
+| `api/v1/openclaw.py` | `GET /sectors` — Sector rotation rankings from latest scan |
+
+### Gist JSON Schema (what OpenClaw publishes)
+
+```json
+{
+  "timestamp": "ISO8601",
+  "regime": { "state": "GREEN|YELLOW|RED", "vix": 0, "hmm_confidence": 0, "hurst": 0 },
+  "macro_context": { "fear_greed_value": 0, "fear_greed_label": "", ... },
+  "top_candidates": [ { "symbol": "AAPL", "composite_score": 85, "tier": "HIGH", ... } ],
+  "whale_flow_alerts": [ { "ticker": "NVDA", "sentiment": "BULLISH", "premium": 0 } ],
+  "fom_expected_moves": { "count": 0, "tv_string": "", "levels": {} },
+  "sector_rankings": [ { "sector": "Technology", "etf": "XLK", "pct_change": 1.5, "rank": 1, "status": "HOT" } ],
+  "memory": {
+    "quality_score": { "memory_iq": 72, "freshness": 80, "coverage": 67, "confidence": 70 },
+    "agent_rankings": [ { "source": "finviz", "win_rate": 0.67, "trades": 42 } ],
+    "expectancy_summary": { "decay_weighted_wr": 0.61, "expectancy": 0.18 },
+    "health": "ok"
+  },
+  "recalls": {
+    "AAPL": {
+      "recent_context": [],
+      "semantic_memory": [],
+      "structured_facts": { "signals": 12, "total_pnl_pct": 4.2 },
+      "learned_rules": []
+    }
+  },
+  "llm_summary": "optional Ollama/Perplexity text"
+}
+```
+
+---
+
+## 📱 WEEK 3 FRONTEND WIRING (Next Sprint)
+
+### Priority 1: Wire Agent Command Center Cards
+
+| Component | Endpoint to Wire | Key Fields |
+|-----------|-----------------|------------|
+| `MemoryIntelligence.jsx` | `GET /api/v1/openclaw/memory` | `memory_iq`, `top_agents`, `expectancy_overview` |
+| `SectorRotation.jsx` | `GET /api/v1/openclaw/sectors` | `sector`, `etf`, `pct_change`, `rank`, `status` |
+| `CandidateCard.jsx` | `GET /api/v1/openclaw/memory/recall?ticker=X` | `recent_context`, `learned_rules`, `structured_facts` |
+| `RegimeWidget.jsx` | `GET /api/v1/openclaw/regime` | `state`, `vix`, `hmm_confidence`, `readme` |
+| `WhaleFlow.jsx` | `GET /api/v1/openclaw/whale-flow` | `ticker`, `sentiment`, `premium` |
+| `TopCandidates.jsx` | `GET /api/v1/openclaw/top?n=10` | Full candidate list with scores |
+
+### Priority 2: Real-Time Updates
+
+```javascript
+// Polling pattern (until WebSocket is ready)
+const REFRESH_INTERVAL = 15 * 60 * 1000; // 15 min (matches backend cache TTL)
+const AUTO_REFRESH_FAST = 60 * 1000;      // 1 min for regime widget only
+```
+
+### Priority 3: App Rename
+
+1. Search/replace `app` → `"Embodier Trader"` in all `.jsx`, `.tsx`, `.html` files
+2. Update `package.json` `name` field
+3. Update window title in `index.html`
+
+---
+
+## 🔧 ENV SETUP
+
+```bash
+# Add to backend/.env
+OPENCLAW_GIST_ID=abc123def456...   # GitHub Gist ID
+OPENCLAW_GIST_TOKEN=ghp_xxxxx...  # GitHub PAT with gist scope
+```
 
 ---
 
 Questions? Slack Espen or email espen@embodier.ai
 
-Last updated: Feb 23, 2026 - Agent Command Center Full Wiring Instructions
+Last updated: Feb 23, 2026 - Memory Intelligence + Sector Rotation Fully Wired
