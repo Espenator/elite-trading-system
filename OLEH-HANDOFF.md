@@ -8,7 +8,7 @@
 
 ## 🎯 TL;DR: Build the Agent Command Center
 
-The OpenClaw backend bridge is **COMPLETE** (8 endpoints, Gist polling, 15min cache). Your mission this week: **transform the Embodier Trader frontend into an Agent Command Center** - a glass-box dashboard where Espen sees EVERYTHING the OpenClaw agents see in real-time.
+The OpenClaw backend bridge is **COMPLETE** (11 endpoints, Gist polling, 15min cache). Your mission this week: **transform the Embodier Trader frontend into an Agent Command Center** - a glass-box dashboard where Espen sees EVERYTHING the OpenClaw agents see in real-time.
 
 ---
 
@@ -19,7 +19,7 @@ The OpenClaw backend bridge is **COMPLETE** (8 endpoints, Gist polling, 15min ca
 | File | Status | Description |
 |------|--------|-------------|
 | `services/openclaw_bridge_service.py` | ✅ DONE | Gist polling, 15min cache, typed accessors |
-| `api/v1/openclaw.py` | ✅ DONE | 8 endpoints: /scan, /regime, /top, /health, /whale-flow, /fom, /llm, /sectors, /refresh |
+| `api/v1/openclaw.py` | ✅ DONE | 11 endpoints: /scan, /regime, /top, /health, /whale-flow, /fom, /llm, /sectors, /memory, /memory/recall, /refresh |
 | `core/config.py` | ✅ DONE | OPENCLAW_GIST_ID + OPENCLAW_GIST_TOKEN |
 | `main.py` | ✅ DONE | Router registered at /api/v1/openclaw |
 | `services/market_data_agent.py` | ✅ DONE | OpenClaw as 6th data source |
@@ -614,7 +614,7 @@ export default function SectorRotationCard() {
 | GET | `/api/v1/openclaw/whale-flow` | Whale flow alerts |
 | GET | `/api/v1/openclaw/fom` | FOM expected moves |
 | GET | `/api/v1/openclaw/llm` | LLM analysis summary |
-| GET | `/api/v1/openclaw/sectors` | Sector rankings |
+| GET | `/api/v1/openclaw/sectors` | Sector rankings | | GET | `/api/v1/openclaw/memory` | Memory IQ, agent rankings, expectancy | | GET | `/api/v1/openclaw/memory/recall?ticker=AAPL` | 3-stage recall for ticker |
 | POST | `/api/v1/openclaw/refresh` | Force cache refresh |
 
 ---
