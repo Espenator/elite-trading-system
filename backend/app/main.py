@@ -29,6 +29,7 @@ from app.api.v1 import (
     alerts,
     patterns,
     settings_routes,
+    openclaw,
 )
 
 # Configure logging
@@ -193,6 +194,11 @@ app.include_router(
     settings_routes.router,
     prefix=f"{settings.API_V1_PREFIX}/settings",
     tags=["settings"],
+)
+app.include_router(
+    openclaw.router,
+    prefix=f"{settings.API_V1_PREFIX}/openclaw",
+    tags=["openclaw"],
 )
 
 
