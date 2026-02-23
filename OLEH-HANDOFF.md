@@ -72,534 +72,181 @@ App.jsx
 
 ---
 
-## 📅 WEEK 1 TASKS: Daily Breakdown
+## 🤖 CLAUDE CODE 1-DAY BLITZ — Tuesday Feb 24
 
-### DAY 1 (Monday Feb 24) - Dashboard + Regime Banner
-**Time: 5-6 hours**
+> **Tools:** Claude Code (CLI) + Claude Opus 4.6 Thinking model
+> **Repo:** `elite-trading-system` on `v2` branch
+> **Method:** Each session = one Claude Code prompt. Paste it in, let Claude run autonomously, review + commit.
+> **Goal:** Entire ClawBot Control Panel designed, built, coded, and wired to live API by end of day.
 
-#### Task 1.1: RegimeBanner.jsx (Header - Always Visible)
-```jsx
-// frontend-v2/src/components/layout/RegimeBanner.jsx
-import { useEffect, useState } from 'react';
-import { api } from '../../services/api';
+---
 
-export default function RegimeBanner() {
-  const [regime, setRegime] = useState({ state: 'LOADING' });
-  
-  useEffect(() => {
-    const fetchRegime = async () => {
-      try {
-        const res = await api.get('/api/v1/openclaw/regime');
-        setRegime(res.data);
-      } catch (err) {
-        setRegime({ state: 'ERROR', error: err.message });
-      }
-    };
-    fetchRegime();
-    const interval = setInterval(fetchRegime, 60000); // 1 min refresh
-    return () => clearInterval(interval);
-  }, []);
+### SESSION 1 — Morning (9–11am): Dashboard Foundation + Regime Banner
 
-  const colors = {
-    GREEN: 'bg-green-500',
-    YELLOW: 'bg-yellow-500',
-    RED: 'bg-red-500',
-    LOADING: 'bg-gray-500',
-    ERROR: 'bg-gray-700'
-  };
+**Paste this into Claude Code:**
 
-  return (
-    <div className={`${colors[regime.state]} text-white px-4 py-2 flex items-center justify-between`}>
-      <div className="flex items-center gap-4">
-        <span className="font-bold text-lg">🦖 {regime.state}</span>
-        {regime.vix && <span>VIX: {regime.vix?.toFixed(1)}</span>}
-        {regime.hmm_confidence && <span>HMM: {(regime.hmm_confidence * 100).toFixed(0)}%</span>}
-        {regime.hurst && <span>Hurst: {regime.hurst?.toFixed(2)}</span>}
-      </div>
-      {regime.scan_date && (
-        <span className="text-sm opacity-75">Scan: {regime.scan_date}</span>
-      )}
-    </div>
-  );
-}
 ```
+You are working in the elite-trading-system repo on the v2 branch. The frontend lives in frontend-v2/ and uses React + Tailwind CSS. The backend is already running at localhost:8001 with 11 OpenClaw endpoints wired.
 
-**Wire into Header.jsx:**
-```jsx
-// Add to Header.jsx
-import RegimeBanner from './RegimeBanner';
-// ...
-return (
-  <>
-    <RegimeBanner />
-    <header className="...">...</header>
-  </>
-);
-```
+Do ALL of the following:
 
-#### Task 1.2: Dashboard OpenClaw Cards
+1. Create frontend-v2/src/components/layout/RegimeBanner.jsx
+   - Fetches GET /api/v1/openclaw/regime every 60s
+   - Colored banner: GREEN=bg-green-500, YELLOW=bg-yellow-500, RED=bg-red-500, fallback=bg-gray-700
+   - Shows: regime state label, VIX, HMM confidence %, Hurst exponent, scan date
+   - Graceful error/loading states
 
-**RegimeCard.jsx:**
-```jsx
-// frontend-v2/src/components/dashboard/RegimeCard.jsx
-export default function RegimeCard({ regime }) {
-  return (
-    <div className="bg-slate-800 rounded-lg p-4">
-      <h3 className="text-lg font-semibold mb-2">🌊 Market Regime</h3>
-      <div className="grid grid-cols-2 gap-2">
-        <div>State: <span className="font-bold">{regime?.state}</span></div>
-        <div>VIX: {regime?.vix?.toFixed(1)}</div>
-        <div>HMM Confidence: {(regime?.hmm_confidence * 100)?.toFixed(0)}%</div>
-        <div>Hurst: {regime?.hurst?.toFixed(2)}</div>
-      </div>
-      {regime?.readme && (
-        <p className="mt-2 text-sm text-gray-400">{regime.readme}</p>
-      )}
-    </div>
-  );
-}
-```
+2. Wire RegimeBanner into the existing Header component (Header.jsx or equivalent)
+   - Import and render <RegimeBanner /> at the top
 
-**TopCandidatesCard.jsx:**
-```jsx
-// frontend-v2/src/components/dashboard/TopCandidatesCard.jsx
-export default function TopCandidatesCard({ candidates }) {
-  const tierColors = {
-    SLAM: 'text-yellow-400',
-    HIGH: 'text-green-400',
-    TRADEABLE: 'text-blue-400',
-    WATCH: 'text-gray-400'
-  };
+3. Create frontend-v2/src/components/dashboard/RegimeCard.jsx
+   - Props: { regime } — shows state, VIX, hmm_confidence (as %), hurst, regime.readme
+   - bg-slate-800 card, grid layout
 
-  return (
-    <div className="bg-slate-800 rounded-lg p-4">
-      <h3 className="text-lg font-semibold mb-2">🦖 Top OpenClaw Candidates</h3>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-gray-400">
-            <th className="text-left">Symbol</th>
-            <th className="text-right">Score</th>
-            <th className="text-center">Tier</th>
-            <th className="text-right">Entry</th>
-          </tr>
-        </thead>
-        <tbody>
-          {candidates?.slice(0, 5).map(c => (
-            <tr key={c.symbol} className="border-t border-slate-700">
-              <td className="font-mono font-bold">{c.symbol}</td>
-              <td className="text-right">{c.composite_score?.toFixed(1)}</td>
-              <td className={`text-center ${tierColors[c.tier]}`}>{c.tier}</td>
-              <td className="text-right">${c.suggested_entry?.toFixed(2)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-```
+4. Create frontend-v2/src/components/dashboard/TopCandidatesCard.jsx
+   - Props: { candidates } — table of top 5: symbol, composite_score, tier (SLAM=yellow-400, HIGH=green-400, TRADEABLE=blue-400, WATCH=gray-400), suggested_entry price
 
-**Update Dashboard.jsx:**
-```jsx
-// Add to Dashboard.jsx
-import { useEffect, useState } from 'react';
-import { api } from '../services/api';
-import RegimeCard from '../components/dashboard/RegimeCard';
-import TopCandidatesCard from '../components/dashboard/TopCandidatesCard';
+5. Create frontend-v2/src/components/dashboard/SectorRotationCard.jsx
+   - Fetches GET /api/v1/openclaw/sectors on mount
+   - Ranked list of sectors: name, ETF, pct_change (green if positive, red if negative), status badge (HOT/COLD/NEUTRAL)
 
-export default function Dashboard() {
-  const [regime, setRegime] = useState(null);
-  const [topCandidates, setTopCandidates] = useState([]);
-  const [health, setHealth] = useState(null);
+6. Update Dashboard.jsx (or wherever the main dashboard lives)
+   - useEffect fetches /regime, /top?n=5, /health in parallel via Promise.all, refreshes every 60s
+   - Renders: RegimeCard, TopCandidatesCard, SectorRotationCard, and inline BridgeHealthCard (connected bool, candidate_count, cache_age, last_scan_timestamp)
+   - Page heading: "Agent Command Center"
 
-  useEffect(() => {
-    const fetchOpenClawData = async () => {
-      try {
-        const [regimeRes, topRes, healthRes] = await Promise.all([
-          api.get('/api/v1/openclaw/regime'),
-          api.get('/api/v1/openclaw/top?n=5'),
-          api.get('/api/v1/openclaw/health')
-        ]);
-        setRegime(regimeRes.data);
-        setTopCandidates(topRes.data.candidates || []);
-        setHealth(healthRes.data);
-      } catch (err) {
-        console.error('OpenClaw fetch failed:', err);
-      }
-    };
-    fetchOpenClawData();
-    const interval = setInterval(fetchOpenClawData, 60000);
-    return () => clearInterval(interval);
-  }, []);
-
-  return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold">Agent Command Center</h1>
-      
-      {/* OpenClaw Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <RegimeCard regime={regime} />
-        <TopCandidatesCard candidates={topCandidates} />
-        <div className="bg-slate-800 rounded-lg p-4">
-          <h3 className="text-lg font-semibold mb-2">📶 Bridge Health</h3>
-          <div className="space-y-1 text-sm">
-            <div>Connected: {health?.connected ? '✅' : '❌'}</div>
-            <div>Candidates: {health?.candidate_count}</div>
-            <div>Cache Age: {health?.cache_age_seconds?.toFixed(0)}s</div>
-            <div>Last Scan: {health?.last_scan_timestamp}</div>
-          </div>
-        </div>
-      </div>
-      
-      {/* Rest of existing dashboard */}
-    </div>
-  );
-}
+Use the existing api service import pattern from other components. Tailwind CSS. No TypeScript.
 ```
 
 ---
 
-### DAY 2 (Tuesday Feb 25) - ClawBotPanel.jsx (New Page)
-**Time: 5-6 hours**
+### SESSION 2 — Late Morning (11am–1pm): ClawBot Command Center Page
 
-#### Task 2.1: Create ClawBotPanel.jsx
+**Paste this into Claude Code:**
 
-```jsx
-// frontend-v2/src/pages/ClawBotPanel.jsx
-import { useEffect, useState } from 'react';
-import { api } from '../services/api';
-
-export default function ClawBotPanel() {
-  const [data, setData] = useState({
-    regime: null,
-    candidates: [],
-    whaleFlow: [],
-    llm: null,
-    fom: {}
-  });
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchAll = async () => {
-      try {
-        const [regimeRes, topRes, whaleRes, llmRes, fomRes] = await Promise.all([
-          api.get('/api/v1/openclaw/regime'),
-          api.get('/api/v1/openclaw/top?n=20'),
-          api.get('/api/v1/openclaw/whale-flow'),
-          api.get('/api/v1/openclaw/llm'),
-          api.get('/api/v1/openclaw/fom')
-        ]);
-        setData({
-          regime: regimeRes.data,
-          candidates: topRes.data.candidates || [],
-          whaleFlow: whaleRes.data.alerts || [],
-          llm: llmRes.data,
-          fom: fomRes.data
-        });
-      } catch (err) {
-        console.error('ClawBot fetch failed:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchAll();
-    const interval = setInterval(fetchAll, 60000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleRefresh = async () => {
-    setLoading(true);
-    await api.post('/api/v1/openclaw/refresh');
-    window.location.reload();
-  };
-
-  const tierBadge = (tier) => {
-    const styles = {
-      SLAM: 'bg-yellow-500 text-black',
-      HIGH: 'bg-green-500 text-white',
-      TRADEABLE: 'bg-blue-500 text-white',
-      WATCH: 'bg-gray-500 text-white',
-      NO_DATA: 'bg-gray-700 text-gray-400'
-    };
-    return (
-      <span className={`px-2 py-1 rounded text-xs font-bold ${styles[tier] || styles.NO_DATA}`}>
-        {tier}
-      </span>
-    );
-  };
-
-  if (loading) return <div className="p-6">Loading OpenClaw data...</div>;
-
-  return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">🦖 ClawBot Command Center</h1>
-        <button
-          onClick={handleRefresh}
-          className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded"
-        >
-          🔄 Force Refresh
-        </button>
-      </div>
-
-      {/* Regime Banner */}
-      <div className={`p-4 rounded-lg ${
-        data.regime?.state === 'GREEN' ? 'bg-green-900' :
-        data.regime?.state === 'YELLOW' ? 'bg-yellow-900' :
-        data.regime?.state === 'RED' ? 'bg-red-900' : 'bg-gray-800'
-      }`}>
-        <div className="flex justify-between items-center">
-          <div>
-            <span className="text-2xl font-bold">{data.regime?.state}</span>
-            <span className="ml-4">VIX: {data.regime?.vix?.toFixed(1)}</span>
-            <span className="ml-4">HMM: {(data.regime?.hmm_confidence * 100)?.toFixed(0)}%</span>
-          </div>
-          <div className="text-sm text-gray-400">
-            Scan: {data.regime?.scan_date}
-          </div>
-        </div>
-        {data.regime?.readme && (
-          <p className="mt-2 text-sm">{data.regime.readme}</p>
-        )}
-      </div>
-
-      {/* Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Candidates Table - 2 columns */}
-        <div className="lg:col-span-2 bg-slate-800 rounded-lg p-4">
-          <h2 className="text-lg font-semibold mb-4">🎯 Scored Candidates</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-gray-400 border-b border-slate-700">
-                  <th className="text-left p-2">Symbol</th>
-                  <th className="text-right p-2">Score</th>
-                  <th className="text-center p-2">Tier</th>
-                  <th className="text-right p-2">Entry</th>
-                  <th className="text-right p-2">Stop</th>
-                  <th className="text-center p-2">Whale</th>
-                  <th className="text-right p-2">T</th>
-                  <th className="text-right p-2">P</th>
-                  <th className="text-right p-2">M</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.candidates.map(c => (
-                  <tr key={c.symbol} className="border-b border-slate-700 hover:bg-slate-700">
-                    <td className="p-2 font-mono font-bold">{c.symbol}</td>
-                    <td className="p-2 text-right font-bold">{c.composite_score?.toFixed(1)}</td>
-                    <td className="p-2 text-center">{tierBadge(c.tier)}</td>
-                    <td className="p-2 text-right">${c.suggested_entry?.toFixed(2) || '-'}</td>
-                    <td className="p-2 text-right text-red-400">${c.suggested_stop?.toFixed(2) || '-'}</td>
-                    <td className="p-2 text-center">
-                      {c.whale_sentiment === 'BULLISH' && '🐂'}
-                      {c.whale_sentiment === 'BEARISH' && '🐻'}
-                      {!c.whale_sentiment && '-'}
-                    </td>
-                    <td className="p-2 text-right text-xs">{c.trend_score}</td>
-                    <td className="p-2 text-right text-xs">{c.pullback_score}</td>
-                    <td className="p-2 text-right text-xs">{c.momentum_score}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Right Column - Whale Flow + LLM */}
-        <div className="space-y-6">
-          {/* Whale Flow */}
-          <div className="bg-slate-800 rounded-lg p-4">
-            <h2 className="text-lg font-semibold mb-4">🐳 Whale Flow Alerts</h2>
-            <div className="space-y-2">
-              {data.whaleFlow.slice(0, 10).map((w, i) => (
-                <div key={i} className="flex justify-between items-center text-sm border-b border-slate-700 pb-2">
-                  <span className="font-mono font-bold">{w.ticker}</span>
-                  <span className={w.sentiment === 'BULLISH' ? 'text-green-400' : 'text-red-400'}>
-                    {w.sentiment}
-                  </span>
-                  <span>${(w.premium / 1000000).toFixed(1)}M</span>
-                </div>
-              ))}
-              {data.whaleFlow.length === 0 && (
-                <p className="text-gray-500">No whale alerts in latest scan</p>
-              )}
-            </div>
-          </div>
-
-          {/* LLM Summary */}
-          <div className="bg-slate-800 rounded-lg p-4">
-            <h2 className="text-lg font-semibold mb-4">🤖 AI Analysis</h2>
-            {data.llm?.summary_available ? (
-              <p className="text-sm text-gray-300">{data.llm.summary}</p>
-            ) : (
-              <p className="text-gray-500">No LLM analysis available</p>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 ```
+Continuing in elite-trading-system/frontend-v2 on v2 branch. Do ALL of the following:
 
-#### Task 2.2: Add Route to App.jsx
+1. Create frontend-v2/src/pages/ClawBotPanel.jsx — this is the MAIN command center page
+   - On mount + every 60s, fetch all 5 in parallel:
+     GET /api/v1/openclaw/regime
+     GET /api/v1/openclaw/top?n=20
+     GET /api/v1/openclaw/whale-flow
+     GET /api/v1/openclaw/llm
+     GET /api/v1/openclaw/fom
+   - "Force Refresh" button: POST /api/v1/openclaw/refresh then re-fetch all data
+   - Layout:
+     * Full-width regime banner at top (state, VIX, HMM%, Hurst, scan date, regime.readme)
+     * Below: 3-column grid (lg:grid-cols-3)
+     * LEFT (col-span-2): "Scored Candidates" table with columns:
+       Symbol | Score | Tier (badge) | Entry $ | Stop $ (red text) | Whale (bull/bear emoji) | Trend | Pullback | Momentum
+     * RIGHT (col-span-1): Whale Flow alerts (top 10: ticker, sentiment colored, premium in $M) + LLM AI Summary card
+   - tierBadge helper: SLAM=bg-yellow-500 text-black, HIGH=bg-green-500, TRADEABLE=bg-blue-500, WATCH=bg-gray-500
+   - Loading spinner while fetching, error state on failure
 
-```jsx
-// In App.jsx routes
-import ClawBotPanel from './pages/ClawBotPanel';
-// ...
-<Route path="/clawbot" element={<ClawBotPanel />} />
-```
+2. Create frontend-v2/src/pages/SectorRotationPage.jsx
+   - Fetches GET /api/v1/openclaw/sectors
+   - Full-page table: Rank, Sector, ETF, % Change (colored), Status badge (HOT=red, COLD=blue, NEUTRAL=gray), Volume Ratio
 
-#### Task 2.3: Add to Sidebar.jsx
+3. Add routes in App.jsx:
+   path="/clawbot" -> <ClawBotPanel />
+   path="/sectors" -> <SectorRotationPage />
 
-```jsx
-// In Sidebar.jsx navigation items
-{ path: '/clawbot', label: '🦖 ClawBot', icon: 'claw' },
+4. Add nav items to Sidebar.jsx (place near top, prominently):
+   { path: '/clawbot', label: '🦖 ClawBot', icon: 'claw' }
+   { path: '/sectors', label: '🏦 Sectors', icon: 'chart' }
 ```
 
 ---
 
-### DAY 3 (Wednesday Feb 26) - Signals.jsx Enhancement
-**Time: 4-5 hours**
+### SESSION 3 — Afternoon (1–3pm): Memory Intelligence + Agent Status
 
-#### Task 3.1: Add OpenClaw Columns to Signals Table
+**Paste this into Claude Code:**
 
-```jsx
-// Update Signals.jsx to fetch OpenClaw scan data
-const [openClawScores, setOpenClawScores] = useState({});
+```
+Continuing in elite-trading-system/frontend-v2 on v2 branch. Do ALL of the following:
 
-useEffect(() => {
-  const fetchOpenClawScores = async () => {
-    try {
-      const res = await api.get('/api/v1/openclaw/scan');
-      const candidates = res.data?.top_candidates || [];
-      const scoreMap = {};
-      candidates.forEach(c => {
-        scoreMap[c.symbol] = {
-          composite_score: c.composite_score,
-          tier: c.tier,
-          trend: c.trend_score,
-          pullback: c.pullback_score,
-          momentum: c.momentum_score
-        };
-      });
-      setOpenClawScores(scoreMap);
-    } catch (err) {
-      console.error('Failed to fetch OpenClaw scores:', err);
-    }
-  };
-  fetchOpenClawScores();
-}, []);
+1. Create frontend-v2/src/pages/MemoryIntelligencePage.jsx
+   - Fetches GET /api/v1/openclaw/memory on mount
+   - Top section: Memory IQ score (large number 0-100, colored: >70 green, 40-70 yellow, <40 red)
+   - Quality metrics: freshness, coverage, confidence as progress bars or colored values
+   - Agent Leaderboard: top 5 agents table (source, win_rate %, trade count)
+   - Expectancy Overview: decay_weighted_wr, expectancy value
+   - Ticker Recall Lookup: text input + "Recall" button
+     Calls GET /api/v1/openclaw/memory/recall?ticker={input}&score=50&regime=UNKNOWN
+     Shows: recent_context table (source, setup, score, regime, won, pnl_pct), learned_rules list, structured_facts (signals, total_pnl_pct, avg_score)
 
-// Add columns to table
-<th>Claw Score</th>
-<th>Tier</th>
-// ...
-<td>{openClawScores[signal.symbol]?.composite_score?.toFixed(1) || '-'}</td>
-<td>{tierBadge(openClawScores[signal.symbol]?.tier)}</td>
+2. Create frontend-v2/src/components/agents/AgentSwarmPanel.jsx
+   - Fetches GET /api/v1/openclaw/health every 30s
+   - Shows: Bridge connected (green/red dot + label), Gist configured (check/x), candidate count, cache age (Xs / TTLs), last scan timestamp
+   - Find the existing AgentCommandCenter page and import this component there
+
+3. Add route: path="/memory" -> <MemoryIntelligencePage />
+   Add sidebar nav: { path: '/memory', label: '🧠 Memory IQ', icon: 'brain' }
 ```
 
 ---
 
-### DAY 4 (Thursday Feb 27) - Agent Status + Sectors
-**Time: 5-6 hours**
+### SESSION 4 — Late Afternoon (3–5pm): Signals Enhancement + App Rename + Polish
 
-#### Task 4.1: AgentSwarmPanel.jsx (for AgentCommandCenter page)
+**Paste this into Claude Code:**
 
-```jsx
-// frontend-v2/src/components/agents/AgentSwarmPanel.jsx
-// Note: This uses /api/v1/openclaw/health for now
-// Full agent heartbeats require new endpoints Espen will add
-
-export default function AgentSwarmPanel() {
-  const [health, setHealth] = useState(null);
-
-  useEffect(() => {
-    const fetchHealth = async () => {
-      const res = await api.get('/api/v1/openclaw/health');
-      setHealth(res.data);
-    };
-    fetchHealth();
-    const interval = setInterval(fetchHealth, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  return (
-    <div className="bg-slate-800 rounded-lg p-4">
-      <h2 className="text-lg font-semibold mb-4">📡 Agent Swarm Status</h2>
-      <div className="space-y-2">
-        <div className="flex justify-between">
-          <span>Bridge Connected</span>
-          <span className={health?.connected ? 'text-green-400' : 'text-red-400'}>
-            {health?.connected ? '✅ Online' : '❌ Offline'}
-          </span>
-        </div>
-        <div className="flex justify-between">
-          <span>Gist Configured</span>
-          <span>{health?.gist_id_configured ? '✅' : '❌'}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Candidate Count</span>
-          <span>{health?.candidate_count}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Cache Age</span>
-          <span>{health?.cache_age_seconds?.toFixed(0)}s / {health?.cache_ttl_seconds}s</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Last Scan</span>
-          <span className="text-xs">{health?.last_scan_timestamp}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
 ```
+Continuing in elite-trading-system/frontend-v2 on v2 branch. Do ALL of the following:
 
-#### Task 4.2: SectorRotationCard.jsx
+1. SIGNALS ENHANCEMENT: Find the Signals page/component (Signals.jsx or similar)
+   - Add useEffect: fetch GET /api/v1/openclaw/scan on mount
+   - Build scoreMap: { [symbol]: { composite_score, tier, trend_score, pullback_score, momentum_score } }
+   - Add 2 new columns to signals table: "Claw Score" and "Tier"
+   - Look up each signal's symbol in scoreMap, use same tier badge colors
 
-```jsx
-// frontend-v2/src/components/dashboard/SectorRotationCard.jsx
-export default function SectorRotationCard() {
-  const [sectors, setSectors] = useState([]);
+2. APP RENAME to "Embodier Trader":
+   - Search all .jsx, .tsx, .html, .json files in frontend-v2/ for any old app name
+   - Replace with "Embodier Trader" everywhere: package.json name, index.html <title>, any headings
 
-  useEffect(() => {
-    const fetchSectors = async () => {
-      const res = await api.get('/api/v1/openclaw/sectors');
-      setSectors(res.data?.sectors || []);
-    };
-    fetchSectors();
-  }, []);
+3. CONNECTION STATUS INDICATOR:
+   - Add a green/red dot to Header or Sidebar showing OpenClaw bridge connection status
+   - Polls GET /api/v1/openclaw/health every 30s, shows dot based on .connected field
 
-  return (
-    <div className="bg-slate-800 rounded-lg p-4">
-      <h2 className="text-lg font-semibold mb-4">🏛️ Sector Rotation</h2>
-      <div className="space-y-2">
-        {sectors.map(s => (
-          <div key={s.sector} className="flex justify-between items-center">
-            <span>{s.sector}</span>
-            <span className={s.momentum === 'BULLISH' ? 'text-green-400' : s.momentum === 'BEARISH' ? 'text-red-400' : 'text-gray-400'}>
-              {s.score} - {s.momentum}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+4. FULL AUDIT of all new components:
+   - Missing imports (useEffect, useState, api service)
+   - Null/undefined guards (use optional chaining ?.)
+   - Loading states ("Loading..." while fetching)
+   - Error states (catch blocks that set error state)
+   - Fix anything broken
+
+5. CORS CHECK: In backend/app/main.py, confirm CORS middleware allows frontend origin (localhost:3000 or localhost:5173). Add if missing.
+
+6. Verify ALL routes exist in App.jsx:
+   / -> Dashboard (Agent Command Center)
+   /clawbot -> ClawBotPanel
+   /sectors -> SectorRotationPage
+   /memory -> MemoryIntelligencePage
+
+7. Search frontend-v2/src for any TODO or placeholder text in new components, replace with real wired values.
 ```
 
 ---
 
-### DAY 5 (Friday Feb 28) - Testing + Merge
-**Time: 3-4 hours**
+## ✅ END-OF-DAY CHECKLIST (Feb 24)
 
-1. **End-to-end test:** OpenClaw scan → Gist → bridge → Dashboard displays data
-2. **Fix any CORS / auth issues**
-3. **Clean up open PR, resolve conflicts**
-4. **Merge v2 into main branch**
+| # | Component | Session | What to verify |
+|---|-----------|---------|----------------|
+| 1 | `RegimeBanner.jsx` | S1 | GREEN/YELLOW/RED banner visible in header |
+| 2 | `RegimeCard.jsx` | S1 | Dashboard shows regime state + VIX + HMM |
+| 3 | `TopCandidatesCard.jsx` | S1 | Dashboard shows top 5 candidates |
+| 4 | `SectorRotationCard.jsx` | S1 | Dashboard shows sector rankings |
+| 5 | `Dashboard.jsx` wired | S1 | "Agent Command Center" heading, 3 cards |
+| 6 | `ClawBotPanel.jsx` | S2 | Full command center: candidates table + whale flow + LLM |
+| 7 | `SectorRotationPage.jsx` | S2 | Full-page sector table with status badges |
+| 8 | Sidebar nav (ClawBot, Sectors) | S2 | Links work, pages render |
+| 9 | `MemoryIntelligencePage.jsx` | S3 | Memory IQ score + ticker recall lookup works |
+| 10 | `AgentSwarmPanel.jsx` | S3 | Health/connection status on agent page |
+| 11 | Sidebar nav (Memory IQ) | S3 | Link works, page renders |
+| 12 | Signals.jsx + Claw Score cols | S4 | Two new columns show scores from OpenClaw |
+| 13 | App rename → "Embodier Trader" | S4 | Title, package.json, headings updated |
+| 14 | Connection status dot | S4 | Green/red dot in header or sidebar |
+| 15 | CORS + audit + polish | S4 | No console errors, all data loading |
 
 ---
 
@@ -624,113 +271,12 @@ export default function SectorRotationCard() {
 ## 📊 TIER COLOR CODING
 
 | Tier | Score | Color | Meaning |
-|------|-------|-------|--------|
+|------|-------|-------|---------|
 | SLAM | 90+ | 🟡 Gold | Highest conviction |
 | HIGH | 80-89 | 🟢 Green | Strong setup |
 | TRADEABLE | 70-79 | 🟦 Blue | Valid entry |
 | WATCH | 50-69 | ⚪ Gray | Monitor only |
 | NO_DATA | <50 | ⚫ Dark | Insufficient data |
-
----
-
-## 🛠️ ENV SETUP
-
-```bash
-# Add to backend/.env
-OPENCLAW_GIST_ID=abc123def456...   # GitHub Gist ID
-OPENCLAW_GIST_TOKEN=ghp_xxxxx...   # GitHub PAT with gist scope
-```
-
----
-
-## 🚀 WEEK 2 STATUS (Mar 2-7) — BACKEND COMPLETE
-
-| Task | Status | Notes |
-|------|--------|-------|
-| 1. Rename app to "Embodier Trader" across all files | ⚠️ PENDING | Frontend rename still needed |
-| 2. Wire RiskIntelligence.jsx to OpenClaw risk data | ✅ DONE | `/api/v1/openclaw/top` + `/regime` endpoints live |
-| 3. Wire MLInsights.jsx to ensemble_scorer breakdown | ✅ DONE | `/api/v1/openclaw/scan` exposes all pillar scores |
-| 4. Wire PerformanceAnalytics.jsx to trade history | ✅ DONE | `/api/v1/openclaw/memory` + `/memory/recall` live |
-| 5. Add WebSocket real-time signal feed | ⚠️ PENDING | Week 3 target |
-
----
-
-## 🧠 MEMORY INTELLIGENCE — FULLY WIRED (Feb 23)
-
-### OpenClaw Side (Espenator/openclaw)
-
-| File | What it does |
-|------|--------------|
-| `memory_v3.py` | SQLite + ChromaDB episodic/semantic memory with 3-stage recall, compaction, IQ scoring |
-| `api_data_bridge.py` | v1.3: publishes `memory` + `recalls` + `sector_rankings` blocks to Gist JSON |
-| `sector_rotation.py` | 11 sector ETFs (XLK–XLC) via Alpaca IEX, HOT/COLD/NEUTRAL + rotation detection |
-
-### Elite v2 Side (Espenator/elite-trading-system)
-
-| File | What it does |
-|------|--------------|
-| `services/openclaw_bridge_service.py` | `get_memory_status()` + `get_memory_recall(ticker)` parse Gist bridge data |
-| `api/v1/openclaw.py` | `GET /memory` — Memory IQ, agent rankings, expectancy overview |
-| `api/v1/openclaw.py` | `GET /memory/recall?ticker=AAPL` — 3-stage recall pipeline per ticker |
-| `api/v1/openclaw.py` | `GET /sectors` — Sector rotation rankings from latest scan |
-
-### Gist JSON Schema (what OpenClaw publishes)
-
-```json
-{
-  "timestamp": "ISO8601",
-  "regime": { "state": "GREEN|YELLOW|RED", "vix": 0, "hmm_confidence": 0, "hurst": 0 },
-  "macro_context": { "fear_greed_value": 0, "fear_greed_label": "", ... },
-  "top_candidates": [ { "symbol": "AAPL", "composite_score": 85, "tier": "HIGH", ... } ],
-  "whale_flow_alerts": [ { "ticker": "NVDA", "sentiment": "BULLISH", "premium": 0 } ],
-  "fom_expected_moves": { "count": 0, "tv_string": "", "levels": {} },
-  "sector_rankings": [ { "sector": "Technology", "etf": "XLK", "pct_change": 1.5, "rank": 1, "status": "HOT" } ],
-  "memory": {
-    "quality_score": { "memory_iq": 72, "freshness": 80, "coverage": 67, "confidence": 70 },
-    "agent_rankings": [ { "source": "finviz", "win_rate": 0.67, "trades": 42 } ],
-    "expectancy_summary": { "decay_weighted_wr": 0.61, "expectancy": 0.18 },
-    "health": "ok"
-  },
-  "recalls": {
-    "AAPL": {
-      "recent_context": [],
-      "semantic_memory": [],
-      "structured_facts": { "signals": 12, "total_pnl_pct": 4.2 },
-      "learned_rules": []
-    }
-  },
-  "llm_summary": "optional Ollama/Perplexity text"
-}
-```
-
----
-
-## 📱 WEEK 3 FRONTEND WIRING (Next Sprint)
-
-### Priority 1: Wire Agent Command Center Cards
-
-| Component | Endpoint to Wire | Key Fields |
-|-----------|-----------------|------------|
-| `MemoryIntelligence.jsx` | `GET /api/v1/openclaw/memory` | `memory_iq`, `top_agents`, `expectancy_overview` |
-| `SectorRotation.jsx` | `GET /api/v1/openclaw/sectors` | `sector`, `etf`, `pct_change`, `rank`, `status` |
-| `CandidateCard.jsx` | `GET /api/v1/openclaw/memory/recall?ticker=X` | `recent_context`, `learned_rules`, `structured_facts` |
-| `RegimeWidget.jsx` | `GET /api/v1/openclaw/regime` | `state`, `vix`, `hmm_confidence`, `readme` |
-| `WhaleFlow.jsx` | `GET /api/v1/openclaw/whale-flow` | `ticker`, `sentiment`, `premium` |
-| `TopCandidates.jsx` | `GET /api/v1/openclaw/top?n=10` | Full candidate list with scores |
-
-### Priority 2: Real-Time Updates
-
-```javascript
-// Polling pattern (until WebSocket is ready)
-const REFRESH_INTERVAL = 15 * 60 * 1000; // 15 min (matches backend cache TTL)
-const AUTO_REFRESH_FAST = 60 * 1000;      // 1 min for regime widget only
-```
-
-### Priority 3: App Rename
-
-1. Search/replace `app` → `"Embodier Trader"` in all `.jsx`, `.tsx`, `.html` files
-2. Update `package.json` `name` field
-3. Update window title in `index.html`
 
 ---
 
@@ -746,4 +292,4 @@ OPENCLAW_GIST_TOKEN=ghp_xxxxx...  # GitHub PAT with gist scope
 
 Questions? Slack Espen or email espen@embodier.ai
 
-Last updated: Feb 23, 2026 - Memory Intelligence + Sector Rotation Fully Wired
+Last updated: Feb 23, 2026 — 1-day Claude Code + Opus 4.6 Thinking sprint (all Feb 24)
