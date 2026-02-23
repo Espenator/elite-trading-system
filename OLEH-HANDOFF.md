@@ -293,3 +293,124 @@ OPENCLAW_GIST_TOKEN=ghp_xxxxx...  # GitHub PAT with gist scope
 Questions? Slack Espen or email espen@embodier.ai
 
 Last updated: Feb 23, 2026 — 1-day Claude Code + Opus 4.6 Thinking sprint (all Feb 24)
+
+---
+
+## OPENCLAW CODE AUDIT (Feb 23, 2026)
+
+**Audited by:** Perplexity AI Architecture Review
+**Repo:** `Espenator/openclaw` (main branch, 291 commits)
+**Total Python files:** 42+ files, 4 folders, 2 GitHub Actions workflows
+**Total LOC:** ~15,000+ lines of Python across all modules
+
+### REPOSITORY STRUCTURE
+
+```
+openclaw/
+  .github/workflows/          # CI/CD
+    daily-scanner.yml          # Scheduled daily scan pipeline
+    discord-monitor.yml        # Discord channel monitoring
+  clawbots/                    # NEW: Tier 5 Apex Predator agents
+    meta_agent_alchemist/      # ToT reasoning + DPO fine-tuning
+      SOUL.md                  # Agent soul/personality config
+      skills.py                # Alchemist skill definitions
+    __init__.py
+    agent_apex_orchestrator.py # Master swarm orchestrator
+    agent_relative_weakness.py # Hunter-Killer weakness scanner
+    agent_short_basket_compiler.py # Short basket execution formatter
+    meta_agent_architect.py    # Meta-agent architect
+    risk_governor.py           # Risk governance layer
+  pine/                        # Pine Script indicators
+    fom_expected_moves_indicator.pine
+  world_intel/                 # NEW: World Intelligence Sensorium
+    __init__.py
+    sensorium.py               # v1.0 world intelligence layer
+```
+
+### FILE-BY-FILE AUDIT
+
+| File | Version | Lines | Status | Notes |
+|------|---------|-------|--------|-------|
+| `config.py` | v6.0 | 501 | DONE | Apex Predator Swarm config, .env hierarchy, Issue #2 fixed |
+| `main.py` | v2.0 | 383 | DONE | Pipeline orchestrator, preflight checks, bridge integration |
+| `daily_scanner.py` | v3.1 | 723 | DONE | 21-step pipeline with LLM hybrid, Issue #7 fix committed |
+| `app.py` | v2.0 | - | DONE | Slack bot + Flask API + /oc commands |
+| `composite_scorer.py` | v5.0 | 855 | DONE | Tier 2 Blackboard scoring, 5-pillar + ML + FOM |
+| `ensemble_scorer.py` | v5.1 | 1104 | DONE | XGBoost Tier 2 agent, Issue #6 fixed (data leakage, drift) |
+| `streaming_engine.py` | v6.0 | 1587 | DONE | 4-Agent Options Flow Pipeline, Pub/Sub Blackboard |
+| `auto_executor.py` | v2.0 | 503 | DONE | Tier 3 Execution Agent, Issue #1 closed |
+| `memory.py` | - | - | DONE | Adaptive feedback loop, Issue #3 fixed (recency, sync) |
+| `memory_v3.py` | v3.0 | 1773 | DONE | SQLite+ChromaDB hybrid, causal graph, alpha decay |
+| `llm_client.py` | v1.1 | 649 | DONE | Ollama+Perplexity hybrid, Issue #5 fixed (rate limit, cache) |
+| `api_data_bridge.py` | v1.4 | 385 | DONE | Gist JSON bridge, memory+recalls+sectors to Gist |
+| `whale_flow.py` | v5.0 | - | DONE | Tier 1 Blackboard publisher |
+| `uw_agents.py` | v1.0 | 679 | DONE | 6-agent UW auto-spawning swarm |
+| `alpaca_client.py` | v2.1 | - | DONE | LLM pre-trade risk check |
+| `position_manager.py` | v2.0 | - | DONE | Regime-aware stops, partial exits, circuit breaker |
+| `position_sizer.py` | v2.0 | - | DONE | Real Alpaca equity, Kelly criterion, regime scaling |
+| `smart_entry.py` | v1.0 | - | DONE | VWAP limit orders, session timing, entry scoring |
+| `performance_tracker.py` | - | - | DONE | Issue #7 fixed (atomic writes, UUID IDs, memory sync) |
+| `technical_checker.py` | v2.2 | - | DONE | VWAP, RSI divergence, Issue #4 referenced |
+| `hmm_regime.py` | v2.0 | - | DONE | Joblib cache, multi-seed, regime smoothing |
+| `regime.py` | - | - | DONE | VIX+VELEZ regime detection |
+| `macro_context.py` | - | - | DONE | FRED API macro indicators |
+| `sector_rotation.py` | - | - | DONE | IEX feed for free tier Alpaca |
+| `mtf_alignment.py` | - | - | DONE | Weekly/Daily/4H/1H structure scoring |
+| `dynamic_weights.py` | - | - | DONE | Bayesian weight optimization (Optuna) |
+| `lora_trainer.py` | - | 68 | DONE | DPO fine-tuning, Llama-3-8B, 4-bit quant |
+| `lstm_bridge_service.py` | - | 412 | DONE | Elite LSTM -> OpenClaw Redis bridge |
+| `finviz_scanner.py` | - | - | DONE | PAS v8 Gate presets |
+| `fom_expected_moves.py` | - | - | DONE | FOM expected move levels + cache |
+| `discord_listener.py` | - | - | DONE | UW/FOM/Maverick Discord channels |
+| `amd_detector.py` | - | - | DONE | AMD pattern detection, IEX feed |
+| `pullback_detector.py` | - | - | DONE | Fibonacci retracement + volume |
+| `rebound_detector.py` | - | - | DONE | Capitulation volume + reversal |
+| `short_detector.py` | - | - | DONE | Bearish pattern detection |
+| `earnings_calendar.py` | - | - | DONE | Earnings date safety filter |
+| `session_monitor.py` | - | - | DONE | 1H intraday candle monitoring |
+| `signal_parser.py` | - | - | DONE | Multi-format trade signal parser |
+| `sheets_logger.py` | - | - | DONE | Google Sheets trade journal |
+| `tradingview_watchlist.py` | - | - | DONE | TV watchlist sync |
+
+### GITHUB ISSUES STATUS
+
+| Issue | Title | Status | Fix Committed |
+|-------|-------|--------|---------------|
+| #1 | auto_executor.py - Import Error & Missing Memory | CLOSED | Yes |
+| #2 | config.py - Type Safety, Validation & Missing Defaults | OPEN | Yes (2h ago) |
+| #3 | memory.py - Close Flywheel Loop & Recency Weighting | OPEN | Yes (2h ago) |
+| #4 | pullback_detector.py & technical_checker.py - Error Handling | OPEN | Partial |
+| #5 | llm_client.py - Rate Limiting, Response Caching | OPEN | Yes (1h ago) |
+| #6 | ensemble_scorer.py - Data Leakage, Feature Drift | OPEN | Yes (1h ago) |
+| #7 | daily_scanner.py & performance_tracker.py - Robustness | OPEN | Yes (1h ago) |
+| #8 | [APEX] Convergence Blueprint | OPEN | Architecture doc |
+
+### BRIDGE WIRING STATUS (Elite v2 <-> OpenClaw)
+
+| Component | Location | Status |
+|-----------|----------|--------|
+| `openclaw_bridge_service.py` | elite-trading-system/v2 | DONE (288 lines, 11 methods) |
+| `openclaw.py` API routes | elite-trading-system/v2 | DONE (156 lines, 11 endpoints) |
+| `api_data_bridge.py` | openclaw/main | DONE (v1.4, Gist JSON export) |
+| Memory Intelligence parsers | bridge_service | DONE (get_memory_status, get_memory_recall) |
+| Sector Rankings parser | bridge_service | DONE (get_sector_rankings) |
+| LLM Summary parser | bridge_service | DONE (get_llm_summary, get_llm_candidate_analysis) |
+
+### WHAT OLEH NEEDS TO BUILD (Feb 24 Sprint)
+
+All backend wiring is COMPLETE. The frontend Agent Command Center needs:
+
+1. **Regime Dashboard Widget** - reads `/api/v1/openclaw/regime`
+2. **Top Candidates Table** - reads `/api/v1/openclaw/top`
+3. **Whale Flow Panel** - reads `/api/v1/openclaw/whale-flow`
+4. **FOM Expected Moves** - reads `/api/v1/openclaw/fom`
+5. **LLM Analysis Card** - reads `/api/v1/openclaw/llm`
+6. **Sector Rotation Heatmap** - reads `/api/v1/openclaw/sectors`
+7. **Memory IQ Dashboard** - reads `/api/v1/openclaw/memory`
+8. **Ticker Recall Panel** - reads `/api/v1/openclaw/memory/recall?ticker=AAPL`
+9. **Health/Status Indicator** - reads `/api/v1/openclaw/health`
+10. **Manual Refresh Button** - POST `/api/v1/openclaw/refresh`
+
+### VERDICT
+
+OpenClaw is a production-grade multi-agent trading intelligence platform with 42+ Python modules, Pub/Sub Blackboard architecture, XGBoost ML scoring, hybrid LLM analysis, and comprehensive bridge wiring to Elite Trading System v2. All critical issues have fix commits. The codebase is ready for the Feb 24 frontend sprint.
