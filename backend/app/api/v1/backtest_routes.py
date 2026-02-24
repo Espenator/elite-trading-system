@@ -105,7 +105,6 @@ def run_backtest(
     }
 
 
-<<<<<<< HEAD
 # ── New POST endpoint (OpenClaw signal backtest) ─────────────────────────
 
 
@@ -163,76 +162,3 @@ async def run_signal_backtest_detail(req: SignalBacktestRequest):
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
     return result
-=======
-@router.post("/")
-async def run_backtest_post(request: BacktestRequest):
-    """
-    Run a backtest with configuration from request body.
-    Broadcasts status updates via WebSocket.
-    """
-    try:
-        start = date.fromisoformat(request.startDate)
-        end = date.fromisoformat(request.endDate)
-
-        # Broadcast start
-        await broadcast_ws(
-            "backtest",
-            {
-                "type": "backtest_started",
-                "strategy": request.strategy,
-                "startDate": request.startDate,
-                "endDate": request.endDate,
-            },
-        )
-
-        # Run backtest (simplified - use GET endpoint logic)
-        model_id = "lstm_daily_latest"  # Default model
-        n_stocks = 20
-        df = load_features_and_predictions(start, end, model_id=model_id)
-
-        if df.empty:
-            result = {
-                "ok": True,
-                "runId": f"R{len(df) if df is not None else 0:03d}",
-                "strategy": request.strategy,
-                "status": "completed",
-                "message": "No data available for date range",
-            }
-        else:
-            curve = backtest_top_n(df, n_stocks=n_stocks)
-            spy_curve = load_spy_returns(start, end)
-            metrics = evaluate_backtest(curve, spy_curve)
-
-            result = {
-                "ok": True,
-                "runId": f"R{hash(request.strategy + request.startDate) % 1000:03d}",
-                "strategy": request.strategy,
-                "status": "completed",
-                "metrics": metrics,
-            }
-
-        # Broadcast completion
-        await broadcast_ws(
-            "backtest",
-            {
-                "type": "backtest_completed",
-                "runId": result["runId"],
-                "strategy": request.strategy,
-            },
-        )
-
-        return result
-    except Exception as e:
-        await broadcast_ws(
-            "backtest",
-            {
-                "type": "backtest_failed",
-                "strategy": request.strategy,
-                "error": str(e),
-            },
-        )
-        return {
-            "ok": False,
-            "error": str(e),
-        }
->>>>>>> v2
