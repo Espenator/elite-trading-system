@@ -199,7 +199,7 @@ export default function ClawBotPanel() {
     <div className="space-y-6">
       <PageHeader
         icon={Bot}
-        title="ClawBot Panel"
+        title="Swarm Command Center"
         description="Swarm command center: teams, candidates, and LLM flow alerts."
       />
 
