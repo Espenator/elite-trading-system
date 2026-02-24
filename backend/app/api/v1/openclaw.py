@@ -336,3 +336,117 @@ async def get_memory_recall(
         return {"status": "success", "data": recall_data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch memory recall: {str(e)}")
+
+        
+# ------------------------------------------------------------------ #
+# CLAWBOT PANEL ENDPOINTS (Phase 2.1)
+# Macro Brain state, Swarm status, Bias override
+# Spec: CLAWBOT_PANEL_DESIGN.md in openclaw repo
+# ------------------------------------------------------------------ #
+
+
+@router.get("/macro", summary="Get Macro Brain State")
+async def get_macro_state():
+    """
+    Macro Brain state for the wave gauge + regime banner.
+    Returns oscillator, wave_state, bias, regime, vix, hy_spread, fear_greed_index.
+    Falls back to bridge regime data if direct PC1 proxy is unavailable.
+    """
+    try:
+        # Try the bridge service first (reads from Gist/cached data)
+        regime_data = await openclaw_bridge.get_regime()
+        scan_data = await openclaw_bridge.get_scan_results()
+
+        macro_context = scan_data.get("macro_context", {}) if scan_data else {}
+
+        return {
+            "oscillator": macro_context.get("oscillator", 0.0),
+            "wave_state": macro_context.get("wave_state", regime_data.get("state", "NEUTRAL")),
+            "bias": macro_context.get("bias_multiplier", 1.0),
+            "regime": regime_data.get("state", "YELLOW"),
+            "vix": regime_data.get("vix"),
+            "hy_spread": macro_context.get("hy_spread"),
+            "fear_greed_index": macro_context.get("fear_greed_index"),
+        }
+    except Exception as e:
+        # Fallback to DB-backed ingest regime if bridge is down
+        last = openclaw_db.get_latest_ingest()
+        if last:
+            regime_json = last.get("regime_json")
+            regime = json.loads(regime_json) if regime_json else {}
+            return {
+                "oscillator": regime.get("confidence", 0.0),
+                "wave_state": regime.get("source", "NEUTRAL"),
+                "bias": 1.0,
+                "regime": regime.get("state", "YELLOW"),
+                "vix": None,
+                "hy_spread": None,
+                "fear_greed_index": None,
+            }
+        return {
+            "oscillator": 0.0,
+            "wave_state": "NEUTRAL",
+            "bias": 1.0,
+            "regime": "YELLOW",
+            "vix": None,
+            "hy_spread": None,
+            "fear_greed_index": None,
+        }
+
+
+@router.get("/swarm-status", summary="Get Clawbot Swarm Status")
+async def get_swarm_status():
+    """
+    Active clawbot team count and states.
+    Returns active team count, total teams, and per-team details.
+    """
+    try:
+        memory_data = await openclaw_bridge.get_memory_status()
+        if memory_data and "teams" in memory_data:
+            teams = memory_data["teams"]
+            active = sum(1 for t in teams if t.get("status") == "active")
+            return {
+                "active": active,
+                "total": len(teams),
+                "teams": teams,
+            }
+    except Exception:
+        pass
+
+    # Fallback: empty swarm status so frontend still renders
+    return {
+        "active": 0,
+        "total": 0,
+        "teams": [],
+    }
+
+
+@router.post("/macro/override", summary="Override Macro Brain Bias")
+async def macro_override(
+    bias_multiplier: float = Query(..., ge=0.0, le=5.0, description="Bias multiplier (0.0-5.0)")
+):
+    """
+    Operator bias slider adjustment.
+    Temporarily overrides Macro Brain bias in composite scoring.
+    Multiplies long/short signal weights.
+    """
+    try:
+        # Forward override to OpenClaw bridge
+        result = await openclaw_bridge.set_bias_override(bias_multiplier)
+        if result:
+            return {
+                "success": True,
+                "bias_multiplier": bias_multiplier,
+                "message": f"Bias override set to {bias_multiplier}",
+            }
+    except Exception as e:
+        logger.warning(f"[OPENCLAW] Bias override failed: {e}")
+
+    raise HTTPException(
+        status_code=503,
+        detail=(
+            "OpenClaw PC1 is unreachable - cannot apply bias override. "
+            "Ensure OPENCLAW_API_URL is configured and PC1 is running."
+        ),
+    )
+
