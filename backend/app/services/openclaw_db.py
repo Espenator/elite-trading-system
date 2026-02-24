@@ -5,10 +5,12 @@ Tables: openclaw_ingests, openclaw_signals
 DB:     backend/data/trading_orders.db  (same file as orders)
 """
 
+from __future__ import annotations
+
 import json
 import sqlite3
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -20,7 +22,7 @@ class OpenClawDBService:
 
     def __init__(self):
         DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-        self._local = threading.local()      # one conn per thread
+        self._local = threading.local()  # one conn per thread
         self._init_tables()
 
     # -- connection (thread-safe) ---------------------------------------------
@@ -37,7 +39,8 @@ class OpenClawDBService:
 
     def _init_tables(self):
         conn = self._conn()
-        conn.executescript("""
+        conn.executescript(
+            """
             CREATE TABLE IF NOT EXISTS openclaw_ingests (
                 id                  INTEGER PRIMARY KEY AUTOINCREMENT,
                 run_id              TEXT    NOT NULL UNIQUE,
@@ -78,7 +81,8 @@ class OpenClawDBService:
                 ON openclaw_signals(received_at DESC);
             CREATE INDEX IF NOT EXISTS idx_oc_ingests_received
                 ON openclaw_ingests(received_at DESC);
-        """)
+            """
+        )
         conn.commit()
 
     # -- writes ---------------------------------------------------------------
@@ -117,9 +121,7 @@ class OpenClawDBService:
         conn.commit()
         return cur.lastrowid
 
-    def insert_signals(
-        self, ingest_id: int, run_id: str, signals: List[Dict[str, Any]]
-    ) -> int:
+    def insert_signals(self, ingest_id: int, run_id: str, signals: List[Dict[str, Any]]) -> int:
         """Bulk-insert signal rows for one ingest. Returns count."""
         now = datetime.utcnow().isoformat() + "Z"
         conn = self._conn()
@@ -156,9 +158,7 @@ class OpenClawDBService:
 
     def get_latest_ingest(self) -> Optional[Dict]:
         """Return the most recent ingest header, or None."""
-        row = self._conn().execute(
-            "SELECT * FROM openclaw_ingests ORDER BY id DESC LIMIT 1"
-        ).fetchone()
+        row = self._conn().execute("SELECT * FROM openclaw_ingests ORDER BY id DESC LIMIT 1").fetchone()
         return dict(row) if row else None
 
     def get_signals_for_ingest(self, ingest_id: int) -> List[Dict]:
@@ -216,10 +216,23 @@ class OpenClawDBService:
                 (since,),
             ).fetchone()
         else:
-            row = self._conn().execute(
-                "SELECT COUNT(*) FROM openclaw_signals"
-            ).fetchone()
+            row = self._conn().execute("SELECT COUNT(*) FROM openclaw_signals").fetchone()
         return row[0] if row else 0
+
+    def get_signals_for_training(self, window_days: int = 252) -> List[Dict]:
+        """
+        Signals within a training window, oldest->newest (stable for ML training).
+        This is real DB data only; no sampling or synthetic generation.
+        """
+        since = (datetime.utcnow() - timedelta(days=int(window_days))).isoformat()
+        rows = self._conn().execute(
+            """SELECT score, entry, stop, target, direction, received_at
+               FROM openclaw_signals
+               WHERE received_at >= ?
+               ORDER BY received_at ASC""",
+            (since,),
+        ).fetchall()
+        return [dict(r) for r in rows]
 
 
 # -- global instance (matches database.py pattern) ----------------------------
