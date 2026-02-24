@@ -293,7 +293,7 @@ export default function AgentCommandCenter() {
         try {
           const msg = JSON.parse(ev.data);
           setLlmAlerts((prev) =>
-            [{ ...msg, id: Date.now() + Math.random() }, ...prev].slice(0, LLM_ALERTS_MAX)
+            [{ ...msg, id: Date.now() + crypto.randomUUID() }, ...prev].slice(0, LLM_ALERTS_MAX)
           );
         } catch {
           setLlmAlerts((prev) => [
