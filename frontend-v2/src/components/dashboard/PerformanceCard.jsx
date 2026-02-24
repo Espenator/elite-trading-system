@@ -1,10 +1,11 @@
 import { BarChart3, TrendingUp, TrendingDown, Award } from 'lucide-react';
-import { mockPerformance, mockTrades } from '../../data/mockData';
+import { useApi } from '../../hooks/useApi';
 import clsx from 'clsx';
 
 export default function PerformanceCard() {
-  const perf = mockPerformance;
-  const recentTrades = mockTrades.slice(0, 5);
+  const { data: perfData, loading, error } = useApi('performance', { pollIntervalMs: 60000 });
+  const perf = perfData || { monthPnl: 0, avgRMultiple: 0, sharpeRatio: 0, largestWin: 0, largestLoss: 0 };
+  const recentTrades = (perfData?.recentTrades || []).slice(0, 5);
 
   return (
     <div className="bg-secondary/10 border border-secondary/50 rounded-xl">
@@ -25,25 +26,25 @@ export default function PerformanceCard() {
       <div className="p-4 grid grid-cols-4 gap-4 border-b border-secondary/50">
         <div className="text-center">
           <div className="text-2xl font-bold text-bullish">
-            ${perf.monthPnl.toLocaleString()}
+            ${(perf.monthPnl || 0).toLocaleString()}
           </div>
           <div className="text-xs text-secondary">Month P&L</div>
         </div>
         <div className="text-center">
           <div className="text-2xl font-bold">
-            {perf.winRate.toFixed(1)}%
+            {(perf.winRate || 0).toFixed(0)}%
           </div>
           <div className="text-xs text-secondary">Win Rate</div>
         </div>
         <div className="text-center">
           <div className="text-2xl font-bold">
-            {perf.avgRMultiple.toFixed(2)}R
+            {(perf.avgRMultiple || 0).toFixed(2)}R
           </div>
           <div className="text-xs text-secondary">Avg R</div>
         </div>
         <div className="text-center">
           <div className="text-2xl font-bold">
-            {perf.sharpeRatio.toFixed(2)}
+            {(perf.sharpeRatio || 0).toFixed(2)}
           </div>
           <div className="text-xs text-secondary">Sharpe</div>
         </div>
@@ -55,7 +56,7 @@ export default function PerformanceCard() {
         <div className="space-y-2">
           {recentTrades.map((trade) => (
             <div
-              key={trade.id}
+              key={trade.id || trade.ticker}
               className="flex items-center justify-between py-2 px-3 bg-dark rounded-lg"
             >
               <div className="flex items-center gap-3">
@@ -74,25 +75,30 @@ export default function PerformanceCard() {
                     <span className="font-medium text-sm">{trade.ticker}</span>
                     <span className="text-xs text-secondary">{trade.direction}</span>
                   </div>
-                  <span className="text-xs text-secondary">{trade.exitReason.replace(/_/g, ' ')}</span>
+                  <span className="text-xs text-secondary">{(trade.exitReason || '').replace(/_/g, ' ')}</span>
                 </div>
               </div>
               <div className="text-right">
                 <div className={clsx(
                   'font-medium',
-                  trade.pnlDollars >= 0 ? 'text-bullish' : 'text-bearish'
+                  (trade.pnlDollars || 0) >= 0 ? 'text-bullish' : 'text-bearish'
                 )}>
-                  {trade.pnlDollars >= 0 ? '+' : ''}${trade.pnlDollars.toLocaleString()}
+                  {(trade.pnlDollars || 0) >= 0 ? '+' : ''}${(trade.pnlDollars || 0).toLocaleString()}
                 </div>
                 <div className={clsx(
                   'text-xs',
-                  trade.rMultiple >= 0 ? 'text-bullish' : 'text-bearish'
+                  (trade.rMultiple || 0) >= 0 ? 'text-bullish' : 'text-bearish'
                 )}>
-                  {trade.rMultiple >= 0 ? '+' : ''}{trade.rMultiple.toFixed(1)}R
+                  {(trade.rMultiple || 0) >= 0 ? '+' : ''}{(trade.rMultiple || 0).toFixed(1)}R
                 </div>
               </div>
             </div>
           ))}
+          {recentTrades.length === 0 && (
+            <div className="text-center text-secondary text-sm py-4">
+              No recent trades
+            </div>
+          )}
         </div>
       </div>
 
@@ -104,7 +110,7 @@ export default function PerformanceCard() {
             Best Trade
           </div>
           <div className="text-lg font-bold text-bullish">
-            +${perf.largestWin.toLocaleString()}
+            +${(perf.largestWin || 0).toLocaleString()}
           </div>
         </div>
         <div className="bg-bearish/5 border border-bearish/20 rounded-lg p-3">
@@ -113,10 +119,17 @@ export default function PerformanceCard() {
             Worst Trade
           </div>
           <div className="text-lg font-bold text-bearish">
-            ${perf.largestLoss.toLocaleString()}
+            -${(perf.largestLoss || 0).toLocaleString()}
           </div>
         </div>
       </div>
+
+      {/* Error state */}
+      {error && (
+        <div className="px-4 py-2 text-xs text-bearish/70 text-center">
+          API unavailable — connect backend to see live performance
+        </div>
+      )}
     </div>
   );
 }
