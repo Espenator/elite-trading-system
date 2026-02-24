@@ -196,10 +196,6 @@ app.include_router(
     prefix=f"{settings.API_V1_PREFIX}/openclaw",
     tags=["openclaw"],
 )
-app.include_router(
-    openclaw.router, prefix=f"{settings.API_V1_PREFIX}/openclaw", tags=["openclaw"]
-)
-
 
 @app.get("/")
 async def root():
