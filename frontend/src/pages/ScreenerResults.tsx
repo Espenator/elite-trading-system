@@ -395,7 +395,7 @@ export default function ScreenerResults() {
                 </div>
 
                 {/* Miniature Price Chart */}
-                <div className="mb-6 h-32 bg-gray-50 dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div className="mb-6 h-32 bg-dark dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-700 overflow-hidden">
                   <MiniChart symbol={selectedStock.symbol} className="w-full h-full" />
                 </div>
 

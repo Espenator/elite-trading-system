@@ -1,0 +1,68 @@
+"""Unusual Whales API service for options flow alerts."""
+
+import logging
+from typing import Any, Dict, List
+
+import httpx
+
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
+
+class UnusualWhalesService:
+    """Service for Unusual Whales options flow API."""
+
+    def __init__(self):
+        self.base_url = (
+            getattr(settings, "UNUSUAL_WHALES_BASE_URL", None)
+            or "https://api.unusualwhales.com"
+        ).rstrip("/")
+        self.api_key = (getattr(settings, "UNUSUAL_WHALES_API_KEY", None) or "").strip()
+        flow_path = (getattr(settings, "UNUSUAL_WHALES_FLOW_PATH", None) or "").strip()
+        self.flow_path = flow_path or "/api/option-trades/flow-alerts"
+        if not self.flow_path.startswith("/"):
+            self.flow_path = "/" + self.flow_path
+
+    def _validate_api_key(self) -> None:
+        if not self.api_key:
+            raise ValueError(
+                "UNUSUAL_WHALES_API_KEY is not set. Set it in .env for options flow (see api.unusualwhales.com/docs)."
+            )
+
+    def _headers(self) -> Dict[str, str]:
+        return {
+            "Authorization": f"Bearer {self.api_key}",
+            "Accept": "application/json",
+        }
+
+    async def get_flow_alerts(self) -> Any:
+        """
+        Fetch flow alerts from the configured flow path.
+        Returns raw response JSON (list or dict with count/total/items).
+        """
+        self._validate_api_key()
+        url = f"{self.base_url}{self.flow_path}"
+        logger.debug("Unusual Whales get_flow_alerts: %s", url)
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            r = await client.get(url, headers=self._headers())
+        r.raise_for_status()
+        if not r.content:
+            return []
+        data = r.json()
+        return data
+
+    async def get_flow_count(self) -> int:
+        """
+        Get number of flow entries from the last response (for logging).
+        Returns 0 if response is not a list or has no count/total.
+        """
+        try:
+            data = await self.get_flow_alerts()
+            if isinstance(data, list):
+                return len(data)
+            if isinstance(data, dict):
+                return int(data.get("count") or data.get("total") or 0)
+            return 0
+        except Exception:
+            return 0

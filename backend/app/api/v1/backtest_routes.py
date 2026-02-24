@@ -1,13 +1,6 @@
-"""Backtest API: run top-N strategy and return equity curve + metrics (research doc).
+"""Backtest API: run top-N strategy and return equity curve + metrics (research doc)."""
 
-Includes:
-  GET  /           - existing top-N long-only backtest (strategy/backtest.py)
-  POST /run        - OpenClaw signal-based historical backtest (services/backtest_engine.py)
-"""
 from datetime import date
-from typing import Optional
-
-from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.strategy.backtest import (
@@ -16,12 +9,41 @@ from app.strategy.backtest import (
     load_spy_returns,
     evaluate_backtest,
 )
-from app.services.backtest_engine import backtest_engine
+from app.websocket_manager import broadcast_ws
 
 router = APIRouter()
 
 
-# ── Existing GET endpoint (top-N strategy backtest) ──────────────────────
+class BacktestRequest(BaseModel):
+    strategy: str
+    startDate: str
+    endDate: str
+    assets: str | None = None
+    capital: float | None = None
+    paramA: float | None = None
+    paramBMin: float | None = None
+    paramBMax: float | None = None
+    runMode: str = "single"
+
+
+@router.get("/runs")
+def get_backtest_runs():
+    """
+    Return list of recent backtest runs (stub). Used by Backtesting page for run history.
+    """
+    return {
+        "runs": [
+            {"id": "R001", "strategy": "MeanReversionV2", "status": "Running"},
+            {"id": "R002", "strategy": "ArbitrageAlpha", "status": "Completed"},
+            {"id": "R003", "strategy": "TrendFollowerV1", "status": "Failed"},
+            {"id": "R004", "strategy": "VolSurfaceBeta", "status": "Running"},
+        ],
+        "runHistory": [
+            {"date": "2023-11-28", "strategy": "MeanReversionV1", "pnl": 5200},
+            {"date": "2023-11-20", "strategy": "ArbitrageAlpha", "pnl": 3150},
+            {"date": "2023-11-15", "strategy": "TrendFollowerV1", "pnl": -1800},
+        ],
+    }
 
 
 @router.get("/")
@@ -61,13 +83,19 @@ def run_backtest(
     equity_curve = []
     for _, row in merged.iterrows():
         d = row["date"]
-        se = row["equity_strategy"] if "equity_strategy" in merged.columns else row["equity"]
+        se = (
+            row["equity_strategy"]
+            if "equity_strategy" in merged.columns
+            else row["equity"]
+        )
         pe = row.get("equity_spy", 1.0) if "equity_spy" in merged.columns else 1.0
-        equity_curve.append({
-            "date": d.date().isoformat() if hasattr(d, "date") else str(d)[:10],
-            "strategy_equity": float(se),
-            "spy_equity": float(pe),
-        })
+        equity_curve.append(
+            {
+                "date": d.date().isoformat() if hasattr(d, "date") else str(d)[:10],
+                "strategy_equity": float(se),
+                "spy_equity": float(pe),
+            }
+        )
     return {
         "model_id": model_id,
         "start": start.isoformat(),
@@ -77,6 +105,7 @@ def run_backtest(
     }
 
 
+<<<<<<< HEAD
 # ── New POST endpoint (OpenClaw signal backtest) ─────────────────────────
 
 
@@ -134,3 +163,76 @@ async def run_signal_backtest_detail(req: SignalBacktestRequest):
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
     return result
+=======
+@router.post("/")
+async def run_backtest_post(request: BacktestRequest):
+    """
+    Run a backtest with configuration from request body.
+    Broadcasts status updates via WebSocket.
+    """
+    try:
+        start = date.fromisoformat(request.startDate)
+        end = date.fromisoformat(request.endDate)
+
+        # Broadcast start
+        await broadcast_ws(
+            "backtest",
+            {
+                "type": "backtest_started",
+                "strategy": request.strategy,
+                "startDate": request.startDate,
+                "endDate": request.endDate,
+            },
+        )
+
+        # Run backtest (simplified - use GET endpoint logic)
+        model_id = "lstm_daily_latest"  # Default model
+        n_stocks = 20
+        df = load_features_and_predictions(start, end, model_id=model_id)
+
+        if df.empty:
+            result = {
+                "ok": True,
+                "runId": f"R{len(df) if df is not None else 0:03d}",
+                "strategy": request.strategy,
+                "status": "completed",
+                "message": "No data available for date range",
+            }
+        else:
+            curve = backtest_top_n(df, n_stocks=n_stocks)
+            spy_curve = load_spy_returns(start, end)
+            metrics = evaluate_backtest(curve, spy_curve)
+
+            result = {
+                "ok": True,
+                "runId": f"R{hash(request.strategy + request.startDate) % 1000:03d}",
+                "strategy": request.strategy,
+                "status": "completed",
+                "metrics": metrics,
+            }
+
+        # Broadcast completion
+        await broadcast_ws(
+            "backtest",
+            {
+                "type": "backtest_completed",
+                "runId": result["runId"],
+                "strategy": request.strategy,
+            },
+        )
+
+        return result
+    except Exception as e:
+        await broadcast_ws(
+            "backtest",
+            {
+                "type": "backtest_failed",
+                "strategy": request.strategy,
+                "error": str(e),
+            },
+        )
+        return {
+            "ok": False,
+            "error": str(e),
+        }
+>>>>>>> v2

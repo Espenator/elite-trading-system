@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family:
+    "Sarala",
+    system-ui,
+    -apple-system,
+    sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f1117;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #6b7280;
+  appearance: none;
+  margin: 0;
+  height: 0;
+  width: 0;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* Card hover effects */
+.card-hover {
+  @apply transition-all duration-200 hover:bg-secondary/20 hover:border-secondary;
+}
+
+/* Pulse animation for live indicators */
+.pulse-live {
+  animation: pulse-live 2s infinite;
+}
+
+@keyframes pulse-live {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Score bar gradient - danger, warning, success */
+.score-bar {
+  background: linear-gradient(90deg, #ef4444 0%, #eab308 50%, #22c55e 100%);
+}
+
+/* Table row hover */
+.table-row-hover {
+  @apply transition-colors hover:bg-secondary/20 cursor-pointer;
+}
+
+/* Hide number input spin buttons (Chrome, Safari, Edge, Firefox) */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+  height: 0;
+  width: 0;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+
+/* Toast font family */
+.Toastify__toast,
+.Toastify__toast-body,
+.Toastify__toast-container {
+  font-family: "Sarala", sans-serif !important;
+}
