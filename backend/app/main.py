@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api.v1 import stocks, quotes, orders, system, training, signals, backtest_routes, status
+from app.api.v1 import stocks, quotes, orders, system, training, signals, backtest_routes, status, openclaw
 
 # Configure logging
 logging.basicConfig(
@@ -48,25 +48,21 @@ app.include_router(
     prefix=f"{settings.API_V1_PREFIX}/stocks",
     tags=["stocks"]
 )
-
 app.include_router(
     quotes.router,
     prefix=f"{settings.API_V1_PREFIX}/quotes",
     tags=["quotes"]
 )
-
 app.include_router(
     orders.router,
     prefix=f"{settings.API_V1_PREFIX}/orders",
     tags=["orders"]
 )
-
 app.include_router(
     system.router,
     prefix=f"{settings.API_V1_PREFIX}/system",
     tags=["system"]
 )
-
 app.include_router(
     training.router,
     prefix=f"{settings.API_V1_PREFIX}/training",
@@ -87,6 +83,11 @@ app.include_router(
     prefix=f"{settings.API_V1_PREFIX}/status",
     tags=["status"]
 )
+app.include_router(
+    openclaw.router,
+    prefix=f"{settings.API_V1_PREFIX}/openclaw",
+    tags=["openclaw"]
+)
 
 
 @app.get("/")
@@ -103,4 +104,3 @@ async def root():
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy"}
-
