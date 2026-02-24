@@ -115,7 +115,7 @@ Do ALL of the following:
    - useEffect fetches /regime, /top?n=5, /health in parallel via Promise.all, refreshes every 60s
    - Renders: RegimeCard, TopCandidatesCard, SectorRotationCard, and inline BridgeHealthCard (connected bool, candidate_count, cache_age, last_scan_timestamp)
    - Page heading: "Agent Command Center"
-   - IMPORTANT: Remove all hardcoded mock data (Recent Trades AAPL +$320 etc, System Health 12ms etc)
+      - ~~IMPORTANT: Remove all hardcoded mock data~~ **DONE** (Feb 24, 2026) - All mockData.js imports replaced with live useApi() hooks
    - IMPORTANT: Replace fallback portfolioValue || 124850 with portfolioValue || 0 or "--" if no data
 
 Use the existing api service import pattern from other components. Tailwind CSS. No TypeScript.
