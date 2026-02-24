@@ -1,7 +1,7 @@
 // APP ROUTER - Embodier.ai Trading Intelligence System
 // OLEH: This is the main router. Every page listed in the sidebar has a route here.
 // If you add a new page, add: 1) import, 2) route, 3) sidebar entry in Sidebar.jsx
-// All 16 pages map 1:1 to backend modules per V2-EMBODIER-AI-README.md
+// All 15 pages map 1:1 to backend modules per V2-EMBODIER-AI-README.md
 
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
@@ -10,11 +10,10 @@ import Layout from "./components/layout/Layout";
 import ErrorBoundary from "./components/ErrorBoundary";
 
 // ----------- PAGE IMPORTS -----------
-// COMMAND section (4 pages)
+// COMMAND section (3 pages)
 import Dashboard from "./pages/Dashboard";
 import AgentCommandCenter from "./pages/AgentCommandCenter";
 import OperatorConsole from "./pages/OperatorConsole";
-import ClawBotPanel from "./pages/ClawBotPanel";
 
 // INTELLIGENCE section (5 pages)
 import Signals from "./pages/Signals";
@@ -64,11 +63,11 @@ function App() {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="agents" element={<AgentCommandCenter />} />
             <Route path="operator" element={<OperatorConsole />} />
-            <Route path="clawbot" element={<ClawBotPanel />} />
+          
 
             {/* INTELLIGENCE */}
             <Route path="signals" element={<Signals />} />
-            <Route path="signal-heatmap" element={<SignalHeatmap />} />
+          
             <Route path="sentiment" element={<SentimentIntelligence />} />
             <Route path="data-sources" element={<DataSourcesMonitor />} />
             <Route path="youtube" element={<YouTubeKnowledge />} />
