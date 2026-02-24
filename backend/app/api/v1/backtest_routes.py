@@ -9,6 +9,7 @@ from app.strategy.backtest import (
     load_spy_returns,
     evaluate_backtest,
 )
+from fastapi import APIRouter, HTTPException
 from app.websocket_manager import broadcast_ws
 
 router = APIRouter()
@@ -105,60 +106,74 @@ def run_backtest(
     }
 
 
-# ── New POST endpoint (OpenClaw signal backtest) ─────────────────────────
+@router.post("/")
+async def run_backtest_post(request: BacktestRequest):
+    """
+    Run a backtest with configuration from request body.
+    Broadcasts status updates via WebSocket.
+    """
+    try:
+        start = date.fromisoformat(request.startDate)
+        end = date.fromisoformat(request.endDate)
 
+        # Broadcast start
+        await broadcast_ws(
+            "backtest",
+            {
+                "type": "backtest_started",
+                "strategy": request.strategy,
+                "startDate": request.startDate,
+                "endDate": request.endDate,
+            },
+        )
 
-class SignalBacktestRequest(BaseModel):
-    symbol: Optional[str] = None
-    start_date: str
-    end_date: str
-    strategy: str = "composite"
-    initial_equity: float = 100_000.0
-    shares_per_trade: int = 100
+        # Run backtest (simplified - use GET endpoint logic)
+        model_id = "lstm_daily_latest"  # Default model
+        n_stocks = 20
+        df = load_features_and_predictions(start, end, model_id=model_id)
 
+        if df.empty:
+            result = {
+                "ok": True,
+                "runId": f"R{len(df) if df is not None else 0:03d}",
+                "strategy": request.strategy,
+                "status": "completed",
+                "message": "No data available for date range",
+            }
+        else:
+            curve = backtest_top_n(df, n_stocks=n_stocks)
+            spy_curve = load_spy_returns(start, end)
+            metrics = evaluate_backtest(curve, spy_curve)
 
-class SignalBacktestResponse(BaseModel):
-    symbol: str
-    strategy: str
-    period: str
-    trades: int
-    winrate: float
-    sharpe: float
-    maxdd: float
-    calmar: float
-    avg_r: float
-    total_pnl: float
-    initial_equity: float
-    final_equity: float
+            result = {
+                "ok": True,
+                "runId": f"R{hash(request.strategy + request.startDate) % 1000:03d}",
+                "strategy": request.strategy,
+                "status": "completed",
+                "metrics": metrics,
+            }
 
+        # Broadcast completion
+        await broadcast_ws(
+            "backtest",
+            {
+                "type": "backtest_completed",
+                "runId": result["runId"],
+                "strategy": request.strategy,
+            },
+        )
 
-@router.post("/run", response_model=SignalBacktestResponse)
-async def run_signal_backtest(req: SignalBacktestRequest):
-    """Run backtest on historical OpenClaw signals (entry/stop/target R-multiple sim)."""
-    result = backtest_engine.run_backtest(
-        symbol=req.symbol,
-        start_date=req.start_date,
-        end_date=req.end_date,
-        strategy=req.strategy,
-        initial_equity=req.initial_equity,
-        shares_per_trade=req.shares_per_trade,
-    )
-    if "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
-    return result
-
-
-@router.post("/run/detail")
-async def run_signal_backtest_detail(req: SignalBacktestRequest):
-    """Same as /run but includes full trades_detail list."""
-    result = backtest_engine.run_backtest(
-        symbol=req.symbol,
-        start_date=req.start_date,
-        end_date=req.end_date,
-        strategy=req.strategy,
-        initial_equity=req.initial_equity,
-        shares_per_trade=req.shares_per_trade,
-    )
-    if "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
-    return result
+        return result
+    except Exception as e:
+        await broadcast_ws(
+            "backtest",
+            {
+                "type": "backtest_failed",
+                "strategy": request.strategy,
+                "error": str(e),
+            },
+        )
+        return {
+            "ok": False,
+            "error": str(e),
+        }
