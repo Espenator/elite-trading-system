@@ -18,7 +18,7 @@ import ClawBotPanel from "./pages/ClawBotPanel";
 
 // INTELLIGENCE section (5 pages)
 import Signals from "./pages/Signals";
-import SignalHeatmap from "./pages/SignalHeatmap";
+  import SignalHeatmap from "./pages/SignalHeatmap";
 import SentimentIntelligence from "./pages/SentimentIntelligence";
 import DataSourcesMonitor from "./pages/DataSourcesMonitor";
 import YouTubeKnowledge from "./pages/YouTubeKnowledge";
