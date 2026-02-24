@@ -1,4 +1,4 @@
-// OLEH: This is the main navigation for all 16 pages
+// OLEH: This is the main navigation for all 15 pages
 // Organized by section: Command, Intelligence, ML & Analysis, Execution, System
 // Every page maps 1:1 to a backend module per the architecture doc
 
@@ -35,7 +35,7 @@ const navSections = [
       { to: '/dashboard', icon: LayoutDashboard, label: 'Intelligence Dashboard' },
       { to: '/agents', icon: Bot, label: 'Agent Command Center' },
       { to: '/operator', icon: Monitor, label: 'Operator Console' },
-      { to: '/clawbot', icon: Boxes, label: 'Swarm Command Center' },
+    
     ]
   },
   {
