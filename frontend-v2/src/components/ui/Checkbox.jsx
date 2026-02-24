@@ -33,7 +33,7 @@ function Checkbox({
   ...rest
 }) {
   const inputRef = useRef(null);
-  const id = idProp || `checkbox-${Math.random().toString(36).slice(2, 9)}`;
+    const id = idProp || `checkbox-${crypto.randomUUID()}`;
   const isInteractive =
     !disabled && !readOnly && typeof onChange === "function";
   const sizeClass = sizes[size] || sizes.md;
