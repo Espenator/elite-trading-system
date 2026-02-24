@@ -1,6 +1,6 @@
 // TRADES PAGE - Embodier.ai Glass House Intelligence System
 // GET /api/v1/portfolio - positions and trade history. POST /api/v1/orders - place order.
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   TrendingUp,
@@ -23,25 +23,67 @@ import { toast } from "react-toastify";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl } from "../config/api";
 
+function applyClawDetail(d, setOrderForm, setClawContext) {
+  if (!d?.symbol) return;
+  setOrderForm((f) => ({
+    ...f,
+    symbol: d.symbol,
+    price: Number(d.entry) || f.price,
+  }));
+  setClawContext({
+    entry: d.entry,
+    stop: d.stop,
+    target: d.target,
+    team: d.team,
+    score: d.score,
+  });
+}
+
 export default function Trades() {
   const location = useLocation();
   const navigate = useNavigate();
   const fromSignal = location.state?.fromSignal && location.state?.symbol;
+  const openTradeExecution = location.state?.openTradeExecution;
   const [dismissFromSignal, setDismissFromSignal] = useState(false);
+  const [clawContext, setClawContext] = useState(
+    openTradeExecution
+      ? {
+          entry: openTradeExecution.entry,
+          stop: openTradeExecution.stop,
+          target: openTradeExecution.target,
+          team: openTradeExecution.team,
+          score: openTradeExecution.score,
+        }
+      : null
+  );
   const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [orderSubmitting, setOrderSubmitting] = useState(false);
   const [orderError, setOrderError] = useState(null);
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [orderForm, setOrderForm] = useState({
-    symbol: location.state?.symbol || "",
+    symbol:
+      openTradeExecution?.symbol || location.state?.symbol || "",
     side:
       (location.state?.side || "Buy").toLowerCase() === "sell" ? "sell" : "buy",
     order_type: "Market",
     quantity: 10,
-    price: 0,
+    price: Number(openTradeExecution?.entry) || 0,
   });
 
   const [tab, setTab] = useState("active");
+
+  useEffect(() => {
+    const stateDetail = location.state?.openTradeExecution;
+    if (stateDetail) applyClawDetail(stateDetail, setOrderForm, setClawContext);
+  }, [location.state]);
+
+  useEffect(() => {
+    const handler = (e) =>
+      applyClawDetail(e.detail || {}, setOrderForm, setClawContext);
+    window.addEventListener("openTradeExecution", handler);
+    return () => window.removeEventListener("openTradeExecution", handler);
+  }, []);
+
   const { data, loading, error, refetch } = useApi("portfolio", {
     pollIntervalMs: 30000,
   });
@@ -92,6 +134,41 @@ export default function Trades() {
           </Badge>
         </div>
       </PageHeader>
+
+      {clawContext && (
+        <Card className="border-primary/40 bg-primary/10 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <p className="text-sm text-white">
+              <span className="font-medium">ClawBot context:</span>
+              {clawContext.team && (
+                <span className="ml-1">
+                  Team: {String(clawContext.team).replace(/_/g, " ")}
+                </span>
+              )}
+              {clawContext.entry != null && (
+                <span className="ml-1">Entry: {Number(clawContext.entry).toFixed(2)}</span>
+              )}
+              {clawContext.stop != null && (
+                <span className="ml-1">Stop: {Number(clawContext.stop).toFixed(2)}</span>
+              )}
+              {clawContext.target != null && (
+                <span className="ml-1">Target: {Number(clawContext.target).toFixed(2)}</span>
+              )}
+              {clawContext.score != null && (
+                <span className="ml-1">Score: {Number(clawContext.score).toFixed(1)}</span>
+              )}
+            </p>
+            <button
+              type="button"
+              onClick={() => setClawContext(null)}
+              className="shrink-0 rounded p-1 text-secondary hover:bg-secondary/20 hover:text-white"
+              aria-label="Dismiss"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </Card>
+      )}
 
       {fromSignal && !dismissFromSignal && (
         <Card className="border-primary/40 bg-primary/10 p-4">

@@ -10,10 +10,11 @@ import Layout from "./components/layout/Layout";
 import ErrorBoundary from "./components/ErrorBoundary";
 
 // ----------- PAGE IMPORTS -----------
-// COMMAND section (3 pages)
+// COMMAND section (4 pages)
 import Dashboard from "./pages/Dashboard";
 import AgentCommandCenter from "./pages/AgentCommandCenter";
 import OperatorConsole from "./pages/OperatorConsole";
+import ClawBotPanel from "./pages/ClawBotPanel";
 
 // INTELLIGENCE section (5 pages)
 import Signals from "./pages/Signals";
@@ -63,6 +64,7 @@ function App() {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="agents" element={<AgentCommandCenter />} />
             <Route path="operator" element={<OperatorConsole />} />
+            <Route path="clawbot" element={<ClawBotPanel />} />
 
             {/* INTELLIGENCE */}
             <Route path="signals" element={<Signals />} />

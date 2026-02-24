@@ -2,7 +2,7 @@
 // HEADER: Top navigation bar with search, notifications, agent status, user menu
 // Modern gradient aesthetic with futuristic controls
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Search,
   Bell,
@@ -15,11 +15,28 @@ import {
   Brain,
   Menu
 } from 'lucide-react';
+import * as openclaw from '../../services/openclawService';
+import RegimeBanner from '../RegimeBanner';
 
 export default function Header({ onMenuToggle, wsConnected = false }) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
+  const [macro, setMacro] = useState(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const data = await openclaw.getMacro();
+        setMacro(data);
+      } catch {
+        setMacro({ oscillator: 0, wave_state: 'NEUTRAL', bias: 1.0 });
+      }
+    };
+    load();
+    const interval = setInterval(load, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const agents = [
     { name: 'Market Scanner', status: 'active', color: 'emerald' },
@@ -47,10 +64,17 @@ export default function Header({ onMenuToggle, wsConnected = false }) {
 
   return (
     <header className="sticky top-0 z-10 border-b border-secondary/30 h-16 flex items-center justify-between gap-6 px-6">
-      {/* Left section: Menu toggle + Search */}
-      <div className="flex items-center gap-4 flex-1 max-w-2xl">
-        {/* Search bar */}
-        <div className="relative flex-1">
+      {/* Left section: Regime pill (fixed width) + Search (takes remaining space) */}
+      <div className="flex items-center gap-3 flex-1 min-w-0">
+        {macro != null && (
+          <RegimeBanner
+            oscillator={macro.oscillator}
+            wave={macro.wave_state}
+            bias={macro.bias}
+          />
+        )}
+        {/* Search bar - flex-1 with min-w-0 so it shrinks when needed */}
+        <div className="relative flex-1 min-w-0 max-w-xl">
           <div className={`
                 relative rounded-xl border transition-all duration-300
                 ${searchFocused
