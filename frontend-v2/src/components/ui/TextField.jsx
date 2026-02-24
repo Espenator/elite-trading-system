@@ -10,7 +10,7 @@ const TextField = forwardRef(function TextField(
   { label, error, multiline = false, rows = 3, suffix, prefix, className, inputClassName, id: idProp, type: typeProp = 'text', ...props },
   ref
 ) {
-  const id = idProp || `textfield-${Math.random().toString(36).slice(2, 9)}`;
+    const id = idProp || `textfield-${crypto.randomUUID()}`;
   const isPassword = typeProp === 'password';
   const [visible, setVisible] = useState(false);
   const inputType = isPassword ? (visible ? 'text' : 'password') : typeProp;
