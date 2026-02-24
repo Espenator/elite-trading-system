@@ -1,18 +1,25 @@
-"""Alpaca Markets API service for order execution."""
-
+"""Alpaca Markets API service — account, positions, orders, activities, portfolio history.
+Real data only. No mock data, no fabricated numbers.
+"""
 import httpx
 import logging
-from typing import Dict, Optional
+import time
+from typing import Any, Dict, List, Optional
+
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+_TIMEOUT = 30.0
+_CACHE_TTL_SHORT = 5      # seconds — positions / account (live but prevents hammering)
+_CACHE_TTL_MEDIUM = 60    # seconds — portfolio history, activities
+
 
 class AlpacaService:
-    """Service for interacting with Alpaca Markets API. Uses paper by default."""
+    """Service for interacting with Alpaca Markets API.
+    Uses paper by default. Every method returns real Alpaca data or None on failure."""
 
     def __init__(self):
-        """Initialize Alpaca service with API credentials and TRADING_MODE."""
         self.base_url = (
             settings.ALPACA_BASE_URL or "https://paper-api.alpaca.markets/v2"
         )
@@ -21,9 +28,14 @@ class AlpacaService:
         self.trading_mode = (getattr(settings, "TRADING_MODE", None) or "paper").lower()
         if self.trading_mode not in ("paper", "live"):
             self.trading_mode = "paper"
+        self._cache: Dict[str, Any] = {}  # key -> (timestamp, data)
+
+    # ── helpers ──────────────────────────────────────────────────────────
+
+    def _is_configured(self) -> bool:
+        return bool(self.api_key and self.secret_key)
 
     def _get_headers(self) -> Dict[str, str]:
-        """Get headers for Alpaca API requests."""
         return {
             "APCA-API-KEY-ID": self.api_key,
             "APCA-API-SECRET-KEY": self.secret_key,
@@ -31,16 +43,103 @@ class AlpacaService:
             "content-type": "application/json",
         }
 
-    def _map_order_type(self, order_type: str) -> str:
-        """Map our order type to Alpaca's order type."""
-        mapping = {
-            "Market": "market",
-            "Limit": "limit",
-            "Stop": "stop",
-            "Stop Limit": "stop_limit",
-            "Trailing Stop": "trailing_stop",
-        }
-        return mapping.get(order_type, "market")
+    def _cache_get(self, key: str, ttl: float) -> Any:
+        entry = self._cache.get(key)
+        if entry and (time.time() - entry[0]) < ttl:
+            return entry[1]
+        return None
+
+    def _cache_set(self, key: str, data: Any) -> None:
+        self._cache[key] = (time.time(), data)
+
+    async def _request(
+        self,
+        method: str,
+        path: str,
+        params: Optional[Dict] = None,
+        json_body: Optional[Dict] = None,
+        timeout: float = _TIMEOUT,
+    ) -> Optional[Any]:
+        """Centralised HTTP caller with error handling."""
+        if not self._is_configured():
+            logger.warning("Alpaca API keys not configured")
+            return None
+        url = f"{self.base_url}{path}"
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.request(
+                    method,
+                    url,
+                    headers=self._get_headers(),
+                    params=params,
+                    json=json_body,
+                    timeout=timeout,
+                )
+            if resp.status_code == 200:
+                return resp.json()
+            if resp.status_code == 204:
+                return True
+            if resp.status_code == 429:
+                logger.warning("Alpaca rate-limited on %s %s", method, path)
+                return None
+            detail = ""
+            try:
+                detail = resp.json().get("message", resp.text)
+            except Exception:
+                detail = resp.text
+            logger.error("Alpaca %s %s -> %s: %s", method, path, resp.status_code, detail)
+            if resp.status_code == 404:
+                return None
+            raise Exception(f"Alpaca API error {resp.status_code}: {detail}")
+        except httpx.TimeoutException:
+            logger.error("Alpaca timeout on %s %s", method, path)
+            return None
+        except httpx.RequestError as exc:
+            logger.error("Alpaca connection error on %s %s: %s", method, path, exc)
+            return None
+
+    # ── account ──────────────────────────────────────────────────────────
+
+    async def get_account(self) -> Optional[Dict]:
+        """GET /v2/account — real account equity, buying power, margins."""
+        cached = self._cache_get("account", _CACHE_TTL_SHORT)
+        if cached is not None:
+            return cached
+        data = await self._request("GET", "/account")
+        if data:
+            self._cache_set("account", data)
+        return data
+
+    # ── positions ────────────────────────────────────────────────────────
+
+    async def get_positions(self) -> Optional[List[Dict]]:
+        """GET /v2/positions — all open positions with cost basis, P&L, current price."""
+        cached = self._cache_get("positions", _CACHE_TTL_SHORT)
+        if cached is not None:
+            return cached
+        data = await self._request("GET", "/positions")
+        if data is not None:
+            self._cache_set("positions", data)
+        return data
+
+    async def get_position(self, symbol: str) -> Optional[Dict]:
+        """GET /v2/positions/{symbol} — single position detail."""
+        return await self._request("GET", f"/positions/{symbol.upper()}")
+
+    # ── orders ───────────────────────────────────────────────────────────
+
+    async def get_orders(
+        self,
+        status: str = "all",
+        limit: int = 50,
+        direction: str = "desc",
+    ) -> Optional[List[Dict]]:
+        """GET /v2/orders — open / closed / all orders."""
+        return await self._request(
+            "GET",
+            "/orders",
+            params={"status": status, "limit": limit, "direction": direction},
+        )
 
     async def create_order(
         self,
@@ -52,145 +151,129 @@ class AlpacaService:
         stop_price: Optional[float] = None,
         time_in_force: str = "day",
     ) -> Dict:
-        """
-        Create an order through Alpaca API.
-
-        Args:
-            symbol: Stock symbol
-            order_type: Order type (Market, Limit, Stop, Stop Limit)
-            side: Order side (buy, sell)
-            quantity: Number of shares
-            price: Limit price (required for limit orders)
-            stop_price: Stop price (required for stop orders)
-            time_in_force: Time in force (day, gtc, ioc, fok)
-
-        Returns:
-            Alpaca order response
-        """
-        alpaca_type = self._map_order_type(order_type)
-
-        # Build order payload
-        order_data = {
+        """POST /v2/orders — create a real order."""
+        mapping = {
+            "Market": "market", "Limit": "limit", "Stop": "stop",
+            "Stop Limit": "stop_limit", "Trailing Stop": "trailing_stop",
+        }
+        alpaca_type = mapping.get(order_type, "market")
+        order_data: Dict[str, Any] = {
             "symbol": symbol.upper(),
             "qty": str(quantity),
             "side": side.lower(),
             "type": alpaca_type,
             "time_in_force": time_in_force,
         }
-
-        # Add limit_price for limit and stop_limit orders
-        if alpaca_type in ["limit", "stop_limit"] and price:
+        if alpaca_type in ("limit", "stop_limit") and price:
             order_data["limit_price"] = str(price)
-
-        # Add stop_price for stop and stop_limit orders
-        if alpaca_type in ["stop", "stop_limit"] and stop_price:
+        if alpaca_type in ("stop", "stop_limit") and stop_price:
             order_data["stop_price"] = str(stop_price)
-        elif alpaca_type in ["stop", "stop_limit"] and price:
-            # Use price as stop_price if stop_price not provided
+        elif alpaca_type in ("stop", "stop_limit") and price:
             order_data["stop_price"] = str(price)
 
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    f"{self.base_url}/orders",
-                    headers=self._get_headers(),
-                    json=order_data,
-                    timeout=30.0,
-                )
+        result = await self._request("POST", "/orders", json_body=order_data)
+        if result is None:
+            raise Exception("Failed to create order — Alpaca returned no data")
+        return result
 
-                if response.status_code == 200:
-                    return response.json()
-                elif response.status_code == 403:
-                    error_detail = response.json() if response.content else {}
-                    raise Exception(
-                        f"Forbidden: {error_detail.get('message', 'Buying power or shares is not sufficient')}"
-                    )
-                elif response.status_code == 422:
-                    error_detail = response.json() if response.content else {}
-                    raise Exception(
-                        f"Unprocessable: {error_detail.get('message', 'Input parameters are not recognized')}"
-                    )
-                else:
-                    error_detail = response.json() if response.content else {}
-                    raise Exception(
-                        f"Alpaca API error: {response.status_code} - {error_detail.get('message', response.text)}"
-                    )
-        except httpx.TimeoutException:
-            raise Exception("Request to Alpaca API timed out")
-        except httpx.RequestError as e:
-            raise Exception(f"Failed to connect to Alpaca API: {str(e)}")
-
-    async def get_order(self, order_id: str) -> Dict:
-        """Get order details from Alpaca by order ID."""
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    f"{self.base_url}/orders/{order_id}",
-                    headers=self._get_headers(),
-                    timeout=30.0,
-                )
-
-                if response.status_code == 200:
-                    return response.json()
-                else:
-                    error_detail = response.json() if response.content else {}
-                    raise Exception(
-                        f"Failed to get order: {response.status_code} - {error_detail.get('message', response.text)}"
-                    )
-        except httpx.TimeoutException:
-            raise Exception("Request to Alpaca API timed out")
-        except httpx.RequestError as e:
-            raise Exception(f"Failed to connect to Alpaca API: {str(e)}")
+    async def get_order(self, order_id: str) -> Optional[Dict]:
+        """GET /v2/orders/{order_id}."""
+        return await self._request("GET", f"/orders/{order_id}")
 
     async def cancel_order(self, order_id: str) -> bool:
-        """Cancel an order through Alpaca API."""
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.delete(
-                    f"{self.base_url}/orders/{order_id}",
-                    headers=self._get_headers(),
-                    timeout=30.0,
-                )
+        """DELETE /v2/orders/{order_id}."""
+        result = await self._request("DELETE", f"/orders/{order_id}")
+        return result is True
 
-                return response.status_code == 204
-        except Exception as e:
-            raise Exception(f"Failed to cancel order: {str(e)}")
+    # ── activities (trade history) ───────────────────────────────────────
+
+    async def get_activities(
+        self,
+        activity_types: str = "FILL",
+        limit: int = 50,
+        after: Optional[str] = None,
+        until: Optional[str] = None,
+        direction: str = "desc",
+    ) -> Optional[List[Dict]]:
+        """GET /v2/account/activities — real trade fills for history."""
+        cache_key = f"activities:{activity_types}:{limit}"
+        cached = self._cache_get(cache_key, _CACHE_TTL_MEDIUM)
+        if cached is not None:
+            return cached
+        params: Dict[str, Any] = {
+            "activity_types": activity_types,
+            "page_size": limit,
+            "direction": direction,
+        }
+        if after:
+            params["after"] = after
+        if until:
+            params["until"] = until
+        data = await self._request("GET", "/account/activities", params=params)
+        if data is not None:
+            self._cache_set(cache_key, data)
+        return data
+
+    # ── portfolio history ────────────────────────────────────────────────
+
+    async def get_portfolio_history(
+        self,
+        period: str = "1M",
+        timeframe: str = "1D",
+        extended_hours: bool = False,
+    ) -> Optional[Dict]:
+        """GET /v2/account/portfolio/history — equity timeseries."""
+        cache_key = f"portfolio_history:{period}:{timeframe}"
+        cached = self._cache_get(cache_key, _CACHE_TTL_MEDIUM)
+        if cached is not None:
+            return cached
+        data = await self._request(
+            "GET",
+            "/account/portfolio/history",
+            params={
+                "period": period,
+                "timeframe": timeframe,
+                "extended_hours": str(extended_hours).lower(),
+            },
+        )
+        if data is not None:
+            self._cache_set(cache_key, data)
+        return data
+
+    # ── asset lookup ─────────────────────────────────────────────────────
 
     async def get_asset_exchange_map(self) -> Dict[str, str]:
-        """
-        Fetch all US equity assets from Alpaca and return symbol -> exchange (normalized).
-        Exchange is one of: nasdaq, nyse, amex. Used to enrich screener data when source has no exchange.
-        """
+        """Fetch all US equity assets from Alpaca → symbol:exchange map."""
         out: Dict[str, str] = {}
-        if not self.api_key or not self.secret_key:
+        if not self._is_configured():
             return out
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.get(
+                resp = await client.get(
                     f"{self.base_url}/assets",
                     params={"status": "active", "asset_class": "us_equity"},
                     headers=self._get_headers(),
                     timeout=60.0,
                 )
-                if response.status_code != 200:
-                    return out
-                for asset in response.json() or []:
-                    sym = (asset.get("symbol") or "").strip().upper()
-                    ex = (asset.get("exchange") or "").strip().upper()
-                    if not sym:
-                        continue
-                    if "NASDAQ" in ex:
-                        out[sym] = "nasdaq"
-                    elif "AMEX" in ex:
-                        out[sym] = "amex"
-                    elif "NYSE" in ex or "ARCA" in ex or "BATS" in ex:
-                        out[sym] = "nyse"
-                    else:
-                        out[sym] = "nyse"  # default so symbol is still filterable
-        except Exception as e:
-            logger.warning("Alpaca get_asset_exchange_map failed: %s", e)
+            if resp.status_code != 200:
+                return out
+            for asset in resp.json() or []:
+                sym = (asset.get("symbol") or "").strip().upper()
+                ex = (asset.get("exchange") or "").strip().upper()
+                if not sym:
+                    continue
+                if "NASDAQ" in ex:
+                    out[sym] = "nasdaq"
+                elif "AMEX" in ex:
+                    out[sym] = "amex"
+                elif "NYSE" in ex or "ARCA" in ex or "BATS" in ex:
+                    out[sym] = "nyse"
+                else:
+                    out[sym] = "nyse"
+        except Exception as exc:
+            logger.warning("Alpaca get_asset_exchange_map failed: %s", exc)
         return out
 
 
-# Global Alpaca service instance
+# ── singleton ────────────────────────────────────────────────────────────
 alpaca_service = AlpacaService()
