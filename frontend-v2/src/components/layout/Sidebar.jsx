@@ -35,7 +35,7 @@ const navSections = [
       { to: '/dashboard', icon: LayoutDashboard, label: 'Intelligence Dashboard' },
       { to: '/agents', icon: Bot, label: 'Agent Command Center' },
       { to: '/operator', icon: Monitor, label: 'Operator Console' },
-      { to: '/clawbot', icon: Boxes, label: 'ClawBot Panel' },
+      { to: '/clawbot', icon: Boxes, label: 'Swarm Command Center' },
     ]
   },
   {
