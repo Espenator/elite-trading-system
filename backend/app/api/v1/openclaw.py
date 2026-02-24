@@ -13,9 +13,20 @@ Endpoints:
     GET /api/v1/openclaw/memory     - Memory IQ, agent rankings, expectancy
     GET /api/v1/openclaw/memory/recall - 3-stage recall pipeline for ticker
     POST /api/v1/openclaw/refresh   - Force cache refresh
+    
+    Agent Command Center endpoints (Phase 2.1):
+    GET /api/v1/openclaw/macro        - Macro brain state (regime, oscillator, bias)
+    GET /api/v1/openclaw/swarm-status - Active agent teams and health
+    GET /api/v1/openclaw/candidates   - Ranked candidates with scores
+    POST /api/v1/openclaw/spawn-team  - Spawn or kill agent teams
+    POST /api/v1/openclaw/macro/override - Override bias multiplier
+    GET /api/v1/openclaw/llm-flow     - LLM alert stream (polling)
 """
 
 import logging
+import os
+import json
+import httpx
 from typing import Optional
 
 from fastapi import APIRouter, Query, HTTPException
@@ -24,6 +35,9 @@ from app.services.openclaw_bridge_service import openclaw_bridge
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# Direct OpenClaw API URL (PC1 Flask server)
+OPENCLAW_API_URL = os.getenv("OPENCLAW_API_URL", "http://localhost:5000")
 
 
 @router.get("/scan")
@@ -164,7 +178,7 @@ async def get_memory_recall(
 
 
 # ------------------------------------------------------------------ #
-# CLAWBOT PANEL ENDPOINTS (Phase 2.1)
+# AGENT COMMAND CENTER ENDPOINTS (Phase 2.1)
 # Macro Brain state, Swarm status, Bias override
 # Spec: CLAWBOT_PANEL_DESIGN.md in openclaw repo
 # ------------------------------------------------------------------ #
@@ -221,10 +235,10 @@ async def get_macro_state():
         }
 
 
-@router.get("/swarm-status", summary="Get Clawbot Swarm Status")
+@router.get("/swarm-status", summary="Get Agent Swarm Status")
 async def get_swarm_status():
     """
-    Active clawbot team count and states.
+    Active agent team count and states.
     Returns active team count, total teams, and per-team details.
     """
     try:
@@ -278,3 +292,111 @@ async def macro_override(
             "Ensure OPENCLAW_API_URL is configured and PC1 is running."
         ),
     )
+
+
+# ------------------------------------------------------------------ #
+# AGENT COMMAND CENTER - ADDITIONAL ENDPOINTS
+# Candidates, Spawn/Kill Teams, LLM Flow Stream
+# ------------------------------------------------------------------ #
+
+
+@router.get("/candidates", summary="Get Ranked Candidates for Agent Command Center")
+async def get_candidates(n: int = Query(default=20, ge=1, le=50)):
+    """
+    Ranked candidates with symbol, score, team_tag, entry/stop/target.
+    Proxies to OpenClaw Flask API, falls back to bridge scan data.
+    """
+    # Try direct OpenClaw API first
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(
+                f"{OPENCLAW_API_URL}/api/v1/openclaw/candidates",
+                params={"top": n}
+            )
+            if resp.status_code == 200:
+                return resp.json()
+    except Exception as e:
+        logger.debug(f"[OPENCLAW] Direct candidates proxy failed: {e}")
+
+    # Fallback to bridge top candidates
+    try:
+        candidates = await openclaw_bridge.get_top_candidates(n=n)
+        formatted = []
+        for c in candidates:
+            formatted.append({
+                "symbol": c.get("symbol", "?"),
+                "score": c.get("composite_score", 0),
+                "team_tag": c.get("source", "scanner"),
+                "entry": c.get("entry"),
+                "stop": c.get("stop"),
+                "target": c.get("target"),
+                "setup": c.get("setup", "unknown"),
+            })
+        return {
+            "candidates": formatted,
+            "count": len(formatted),
+            "_source": "bridge_fallback",
+        }
+    except Exception:
+        pass
+
+    return {"candidates": [], "count": 0, "_fallback": True}
+
+
+@router.post("/spawn-team", summary="Spawn or Kill Agent Team")
+async def spawn_team(
+    team_type: str = Query(default="momentum", description="Team type to spawn"),
+    action: str = Query(default="spawn", description="'spawn' or 'kill'"),
+    team_name: Optional[str] = Query(default=None, description="Team name (for kill)"),
+):
+    """
+    Spawn or kill an agent team.
+    Proxies to OpenClaw Flask API on PC1.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            payload = {"team_type": team_type, "action": action}
+            if team_name:
+                payload["team_name"] = team_name
+            resp = await client.post(
+                f"{OPENCLAW_API_URL}/api/v1/openclaw/spawn-team",
+                json=payload,
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            else:
+                raise HTTPException(
+                    status_code=resp.status_code,
+                    detail=resp.json().get("error", "Spawn team failed"),
+                )
+    except httpx.ConnectError:
+        raise HTTPException(
+            status_code=503,
+            detail="OpenClaw PC1 is unreachable. Cannot spawn/kill teams.",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/llm-flow", summary="Get LLM Alert Stream for Agent Command Center")
+async def get_llm_flow(limit: int = Query(default=5, ge=1, le=50)):
+    """
+    LLM alert stream (last N alerts) for the Agent Command Center.
+    Proxies to OpenClaw Flask API, returns empty on failure.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(
+                f"{OPENCLAW_API_URL}/api/v1/openclaw/llm-flow",
+                params={"limit": limit},
+            )
+            if resp.status_code == 200:
+                return resp.json()
+    except Exception as e:
+        logger.debug(f"[OPENCLAW] LLM flow proxy failed: {e}")
+
+    # Graceful fallback
+    return {"alerts": [], "total": 0, "_fallback": True}
+
