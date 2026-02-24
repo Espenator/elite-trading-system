@@ -357,7 +357,7 @@ def aggregate_all(
 ) -> List[Dict[str, Any]]:
     """
     Run all requested source aggregators; return combined list of {source, ticker, text}.
-    If no API keys, returns mock items so sentiment pipeline still runs (for demo).
+    Returns empty list if no API keys are configured.
     """
     out: List[Dict[str, Any]] = []
     source_fns = {
@@ -376,15 +376,8 @@ def aggregate_all(
         except Exception as e:
             logger.debug("Aggregator %s failed: %s", name, e)
 
-    # If no real data, add minimal mock so we still produce one aggregate score for first symbol
-    if not out and symbols:
-        for s in symbols[:5]:
-            out.append(
-                {
-                    "source": "mock",
-                    "ticker": s,
-                    "text": "Market update. Neutral tone.",
-                    "timestamp": _iso_now(),
-                }
-            )
-    return out
+        # Log warning if no real data returned from any source
+    if not out:
+        logger.warning("No sentiment data from any source for %s — check API keys in Settings", symbols)
+
+return out
