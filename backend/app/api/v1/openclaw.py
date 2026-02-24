@@ -1,49 +1,33 @@
-"""OpenClaw Bridge API: receive composite scores, regime state, and signals from OpenClaw (PC1).
-
-This is the ingest endpoint for the Apex Predator convergence architecture.
-OpenClaw pushes batch signals here after each scan cycle; Elite Trader persists
-them and exposes them through the existing /api/v1/signals UI flow.
-
-Ref: openclaw Issue #8 - Phase 1 Bridge API
 """
+OpenClaw Bridge API — Phase 2 (DB-backed)
+POST /signals    → ingest batch from OpenClaw PC1
+GET  /signals/latest → latest scored signals (DB query)
+GET  /health     → bridge health + DB stats
+"""
+
+import hashlib
 import json
-import logging
-import os
-from datetime import datetime
-from pathlib import Path
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 
-logger = logging.getLogger(__name__)
+from app.core.config import settings
+from app.services.openclaw_db import openclaw_db
 
-router = APIRouter()
-
-# ---------------------------------------------------------------------------
-# Persistence helpers
-# ---------------------------------------------------------------------------
-_DATA_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data"
-_OPENCLAW_DIR = _DATA_DIR / "openclaw"
+router = APIRouter(tags=["openclaw"])
 
 
-def _ensure_dirs():
-    _OPENCLAW_DIR.mkdir(parents=True, exist_ok=True)
-
-
-# ---------------------------------------------------------------------------
-# Pydantic v1 contract schemas
-# ---------------------------------------------------------------------------
+# -- request / response schemas -----------------------------------------------
 
 class RegimeIn(BaseModel):
-    """Market regime snapshot from OpenClaw HMM."""
     state: Literal["GREEN", "YELLOW", "RED"]
     confidence: Optional[float] = None
     source: Optional[str] = None
 
 
 class OpenClawSignalIn(BaseModel):
-    """Single scored signal from OpenClaw composite scorer."""
     symbol: str = Field(..., min_length=1)
     direction: Literal["LONG", "SHORT"]
     score: float
@@ -57,7 +41,6 @@ class OpenClawSignalIn(BaseModel):
 
 
 class OpenClawIngestIn(BaseModel):
-    """Batch ingest payload from an OpenClaw scan cycle."""
     run_id: str
     timestamp: datetime
     regime: Optional[RegimeIn] = None
@@ -68,110 +51,133 @@ class OpenClawIngestIn(BaseModel):
 class IngestOut(BaseModel):
     run_id: str
     accepted: int
+    ingest_id: int
+
+
+class SignalOut(BaseModel):
+    id: int
+    symbol: str
+    direction: str
+    score: float
+    subscores: Optional[Dict] = None
+    entry: Optional[float] = None
+    stop: Optional[float] = None
+    target: Optional[float] = None
+    timeframe: Optional[str] = None
+    reasons: Optional[List[str]] = None
+    regime_state: Optional[str] = None
+    regime_confidence: Optional[float] = None
+    received_at: str
+    run_id: str
 
 
 class HealthOut(BaseModel):
     status: str
-    regime: Optional[Dict[str, Any]] = None
-    last_run_id: Optional[str] = None
-    last_ingest: Optional[str] = None
-    total_signals_stored: int = 0
+    bridge_version: str = "2.0"
+    total_ingests: int
+    total_signals: int
+    last_ingest: Optional[Dict] = None
+    signals_last_24h: int
 
 
-# ---------------------------------------------------------------------------
-# Auth helper
-# ---------------------------------------------------------------------------
+# -- auth helper --------------------------------------------------------------
 
-def _auth(token: Optional[str], expected: Optional[str]):
-    """Validate bridge token if one is configured."""
-    if expected and token != expected:
-        raise HTTPException(status_code=401, detail="Invalid bridge token")
-
-
-# ---------------------------------------------------------------------------
-# Module state (latest ingest for /health)
-# ---------------------------------------------------------------------------
-_last_run_id: Optional[str] = None
-_last_ingest: Optional[str] = None
-_last_regime: Optional[Dict] = None
-_total_signals: int = 0
+def _check_token(token: Optional[str]):
+    expected = settings.OPENCLAW_BRIDGE_TOKEN
+    if expected and expected.strip():
+        if not token or token != expected:
+            raise HTTPException(status_code=401, detail="Invalid or missing X-OpenClaw-Token")
 
 
-# ---------------------------------------------------------------------------
-# Routes
-# ---------------------------------------------------------------------------
+# -- helpers ------------------------------------------------------------------
+
+def _payload_hash(payload: OpenClawIngestIn) -> str:
+    raw = json.dumps(payload.model_dump(), default=str, sort_keys=True)
+    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+
+def _row_to_signal(row: Dict) -> Dict:
+    """Normalise a DB row dict into the SignalOut shape."""
+    out = dict(row)
+    # deserialise JSON columns
+    for col, key in [("subscores_json", "subscores"),
+                     ("reasons_json", "reasons")]:
+        val = out.pop(col, None)
+        out[key] = json.loads(val) if val else None
+    # drop internal columns the client doesn't need
+    out.pop("raw_json", None)
+    out.pop("ingest_id", None)
+    return out
+
+
+# -- endpoints ----------------------------------------------------------------
 
 @router.post("/signals", response_model=IngestOut)
 async def ingest_openclaw_signals(
     payload: OpenClawIngestIn,
     x_openclaw_token: Optional[str] = Header(default=None),
 ):
-    """
-    Receive a batch of scored signals from OpenClaw.
+    """Receive a batch of scored signals from OpenClaw (PC1)."""
+    _check_token(x_openclaw_token)
 
-    OpenClaw calls this after each scan cycle with composite scores,
-    regime state, and trade recommendations.
-    """
-    global _last_run_id, _last_ingest, _last_regime, _total_signals
-
-    # Auth
-    expected = os.getenv("OPENCLAW_BRIDGE_TOKEN")
-    _auth(x_openclaw_token, expected)
-
-    # Persist to JSON (simple file store for Phase 1; migrate to SQLite in Phase 2)
-    _ensure_dirs()
-    ts_slug = payload.timestamp.strftime("%Y%m%d_%H%M%S")
-    out_path = _OPENCLAW_DIR / f"ingest_{ts_slug}_{payload.run_id[:32]}.json"
-
-    record = {
-        "run_id": payload.run_id,
-        "timestamp": payload.timestamp.isoformat(),
-        "regime": payload.regime.model_dump() if payload.regime else None,
-        "universe": payload.universe,
-        "signals": [s.model_dump() for s in payload.signals],
-    }
-
-    try:
-        out_path.write_text(json.dumps(record, indent=2, default=str))
-        logger.info(
-            "[OpenClaw] Ingested %d signals from run %s -> %s",
-            len(payload.signals), payload.run_id, out_path.name,
-        )
-    except Exception as exc:
-        logger.error("[OpenClaw] Failed to persist ingest: %s", exc)
-        raise HTTPException(status_code=500, detail="Persistence failed")
-
-    # Update module state
-    _last_run_id = payload.run_id
-    _last_ingest = payload.timestamp.isoformat()
-    _last_regime = payload.regime.model_dump() if payload.regime else None
-    _total_signals += len(payload.signals)
-
-    return IngestOut(run_id=payload.run_id, accepted=len(payload.signals))
-
-
-@router.get("/health", response_model=HealthOut)
-async def openclaw_health():
-    """Health/status endpoint for the OpenClaw bridge."""
-    return HealthOut(
-        status="ok",
-        regime=_last_regime,
-        last_run_id=_last_run_id,
-        last_ingest=_last_ingest,
-        total_signals_stored=_total_signals,
+    regime_dict = payload.regime.model_dump() if payload.regime else None
+    universe_dict = payload.universe
+    ingest_id = openclaw_db.insert_ingest(
+        run_id=payload.run_id,
+        timestamp=payload.timestamp.isoformat(),
+        regime=regime_dict,
+        universe=universe_dict,
+        signal_count=len(payload.signals),
+        payload_hash=_payload_hash(payload),
     )
+
+    signals_dicts = [s.model_dump() for s in payload.signals]
+    accepted = openclaw_db.insert_signals(ingest_id, payload.run_id, signals_dicts)
+
+    return IngestOut(run_id=payload.run_id, accepted=accepted, ingest_id=ingest_id)
 
 
 @router.get("/signals/latest")
-async def get_latest_openclaw_signals():
-    """Return the most recent OpenClaw ingest payload."""
-    _ensure_dirs()
-    files = sorted(_OPENCLAW_DIR.glob("ingest_*.json"), reverse=True)
-    if not files:
-        return {"signals": [], "message": "No OpenClaw ingests yet"}
-    try:
-        data = json.loads(files[0].read_text())
-        return data
-    except Exception as exc:
-        logger.error("[OpenClaw] Failed to read latest ingest: %s", exc)
-        raise HTTPException(status_code=500, detail="Read failed")
+async def get_latest_signals(
+    limit: int = 50,
+    symbol: Optional[str] = None,
+    x_openclaw_token: Optional[str] = Header(default=None),
+):
+    """Return the most recent OpenClaw signals from DB."""
+    _check_token(x_openclaw_token)
+
+    if symbol:
+        rows = openclaw_db.get_signals_by_symbol(symbol, limit=limit)
+    else:
+        rows = openclaw_db.get_latest_signals(limit=limit)
+
+    return [_row_to_signal(r) for r in rows]
+
+
+@router.get("/health", response_model=HealthOut)
+async def bridge_health():
+    """Bridge health check — no auth required."""
+    last = openclaw_db.get_latest_ingest()
+    since_24h = (datetime.utcnow() - timedelta(hours=24)).isoformat() + "Z"
+
+    history = openclaw_db.get_ingest_history(limit=1000)
+    total_ingests = len(history)  # cheap for now
+    total_signals = openclaw_db.count_signals()
+    signals_24h = openclaw_db.count_signals(since=since_24h)
+
+    status = "operational"
+    if last:
+        age_minutes = (
+            datetime.utcnow()
+            - datetime.fromisoformat(last["received_at"].replace("Z", ""))
+        ).total_seconds() / 60
+        if age_minutes > 60:
+            status = "stale"
+
+    return HealthOut(
+        status=status,
+        total_ingests=total_ingests,
+        total_signals=total_signals,
+        last_ingest=last,
+        signals_last_24h=signals_24h,
+    )
