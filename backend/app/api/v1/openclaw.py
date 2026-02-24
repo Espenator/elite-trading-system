@@ -1,36 +1,45 @@
 """
-OpenClaw API routes - Bridge between OpenClaw scanner and Embodier Trader frontend.
+OpenClaw API routes v2 - Bridge between OpenClaw scanner and Embodier Trader frontend.
 
 Endpoints:
-    GET /api/v1/openclaw/scan       - Full scan results (all scored candidates)
-    GET /api/v1/openclaw/regime     - Current regime status (GREEN/YELLOW/RED)
-    GET /api/v1/openclaw/top        - Top N candidates by composite score
-    GET /api/v1/openclaw/health     - Bridge connection status and diagnostics
-    GET /api/v1/openclaw/whale-flow - Whale flow alerts from latest scan
-    GET /api/v1/openclaw/fom        - FOM expected move levels
-    GET /api/v1/openclaw/llm        - LLM analysis summary + candidate analysis
-        GET /api/v1/openclaw/sectors    - Sector rotation rankings
-    GET /api/v1/openclaw/memory     - Memory IQ, agent rankings, expectancy
-    GET /api/v1/openclaw/memory/recall - 3-stage recall pipeline for ticker
-    POST /api/v1/openclaw/refresh   - Force cache refresh
-    
-    Agent Command Center endpoints (Phase 2.1):
-    GET /api/v1/openclaw/macro        - Macro brain state (regime, oscillator, bias)
-    GET /api/v1/openclaw/swarm-status - Active agent teams and health
-    GET /api/v1/openclaw/candidates   - Ranked candidates with scores
-    POST /api/v1/openclaw/spawn-team  - Spawn or kill agent teams
-    POST /api/v1/openclaw/macro/override - Override bias multiplier
-    GET /api/v1/openclaw/llm-flow     - LLM alert stream (polling)
-"""
+    GET  /api/v1/openclaw/scan          - Full scan results (all scored candidates)
+    GET  /api/v1/openclaw/regime        - Current regime status (GREEN/YELLOW/RED)
+    GET  /api/v1/openclaw/top           - Top N candidates by composite score
+    GET  /api/v1/openclaw/health        - Bridge connection status and diagnostics
+    GET  /api/v1/openclaw/whale-flow    - Whale flow alerts from latest scan
+    GET  /api/v1/openclaw/fom           - FOM expected move levels
+    GET  /api/v1/openclaw/llm           - LLM analysis summary + candidate analysis
+    GET  /api/v1/openclaw/sectors       - Sector rotation rankings
+    GET  /api/v1/openclaw/memory        - Memory IQ, agent rankings, expectancy
+    GET  /api/v1/openclaw/memory/recall - 3-stage recall pipeline for ticker
+    POST /api/v1/openclaw/refresh       - Force cache refresh
 
+    Real-time Bridge (v2 - 2026.2.22):
+    POST /api/v1/openclaw/signals       - Ingest real-time signals from bridge_sender.py
+    GET  /api/v1/openclaw/signals/realtime - Get recent real-time signals from ring buffer
+    GET  /api/v1/openclaw/signals/stats - Real-time bridge statistics
+
+    Agent Command Center endpoints (Phase 2.1):
+    GET  /api/v1/openclaw/macro         - Macro brain state (regime, oscillator, bias)
+    GET  /api/v1/openclaw/swarm-status  - Active agent teams and health
+    GET  /api/v1/openclaw/candidates    - Ranked candidates with scores
+    POST /api/v1/openclaw/spawn-team    - Spawn or kill agent teams
+    POST /api/v1/openclaw/macro/override - Override bias multiplier
+    GET  /api/v1/openclaw/llm-flow      - LLM alert stream (polling)
+"""
 import logging
 import os
 import json
 import httpx
-from typing import Optional
+from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Query, HTTPException
-from app.services.openclaw_bridge_service import openclaw_bridge
+from fastapi import APIRouter, Header, Query, HTTPException, Request
+from app.services.openclaw_bridge_service import (
+    openclaw_bridge,
+    validate_bridge_token,
+    verify_bridge_signature,
+)
+from app.services.openclaw_db import openclaw_db
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +48,88 @@ router = APIRouter()
 # Direct OpenClaw API URL (PC1 Flask server)
 OPENCLAW_API_URL = os.getenv("OPENCLAW_API_URL", "http://localhost:5000")
 
+# ===========================================================================
+# REAL-TIME SIGNAL INGESTION (v2 - 2026.2.22)
+# POST /api/v1/openclaw/signals - Hot path from bridge_sender.py
+# ===========================================================================
+@router.post("/signals", summary="Ingest Real-time Signals from OpenClaw Bridge")
+async def ingest_signals(
+    request: Request,
+    authorization: Optional[str] = Header(None),
+    x_bridge_signature: Optional[str] = Header(None, alias="X-Bridge-Signature"),
+):
+    """
+    Accepts scored signals POSTed by bridge_sender.py on PC1.
+    This is the real-time hot path (sub-second latency target).
 
+    Expected JSON body:
+    {
+        "signals": [{"symbol": "AAPL", "direction": "LONG", "score": 85.0, ...}],
+        "run_id": "openclaw_20260224_170000",
+        "regime": {"state": "GREEN", "confidence": 0.9},
+        "universe": {"name": "sp500", "count": 500},
+        "meta": {"openclaw_version": "2026.2.22"}
+    }
+    """
+    # Token authentication
+    if authorization:
+        token = authorization.replace("Bearer ", "").strip()
+        if not validate_bridge_token(token):
+            raise HTTPException(status_code=401, detail="Invalid bridge token")
+
+    # Read body
+    try:
+        body_bytes = await request.body()
+        payload = json.loads(body_bytes)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON: {e}")
+
+    # HMAC signature verification
+    if x_bridge_signature:
+        if not verify_bridge_signature(body_bytes, x_bridge_signature):
+            raise HTTPException(status_code=401, detail="Invalid bridge signature")
+
+    signals = payload.get("signals", [])
+    if not signals:
+        return {"run_id": None, "accepted": 0, "error": "No signals provided"}
+
+    # Ingest into bridge service
+    result = await openclaw_bridge.ingest_signals(
+        signals=signals,
+        run_id=payload.get("run_id"),
+        regime=payload.get("regime"),
+        universe=payload.get("universe"),
+        meta=payload.get("meta"),
+    )
+
+    logger.info(
+        "[OPENCLAW] POST /signals ingested %d signals (run=%s)",
+        result.get("accepted", 0),
+        result.get("run_id"),
+    )
+    return result
+
+
+@router.get("/signals/realtime", summary="Get Recent Real-time Signals")
+async def get_realtime_signals(limit: int = Query(default=50, ge=1, le=500)):
+    """Return the most recent real-time signals from the ring buffer."""
+    signals = openclaw_bridge.get_realtime_signals(limit=limit)
+    return {
+        "count": len(signals),
+        "signals": signals,
+        "stats": openclaw_bridge.get_realtime_stats(),
+    }
+
+
+@router.get("/signals/stats", summary="Real-time Bridge Statistics")
+async def get_signal_stats():
+    """Return real-time bridge statistics (latency, throughput, buffer status)."""
+    return openclaw_bridge.get_realtime_stats()
+
+
+# ===========================================================================
+# EXISTING SCAN / GIST ENDPOINTS (preserved from v1)
+# ===========================================================================
 @router.get("/scan")
 async def get_scan_results():
     """Return full OpenClaw scan payload (all candidates + metadata)."""
@@ -83,7 +173,7 @@ async def get_health():
     """
     Return bridge health and diagnostics.
     Response: {connected, gist_id_configured, last_scan_timestamp,
-               candidate_count, cache_age_seconds, cache_ttl_seconds}
+    candidate_count, cache_age_seconds, cache_ttl_seconds, realtime: {...}}
     """
     return await openclaw_bridge.get_health()
 
@@ -133,10 +223,8 @@ async def force_refresh():
 
 
 # ------------------------------------------------------------------ #
-# MEMORY INTELLIGENCE ENDPOINTS (NEW)
+# MEMORY INTELLIGENCE ENDPOINTS
 # ------------------------------------------------------------------ #
-
-
 @router.get("/memory", summary="Get OpenClaw Memory Health & Quality Score")
 async def get_memory_health():
     """Retrieves the persistent memory intelligence score (IQ), expectancy data,
@@ -148,6 +236,8 @@ async def get_memory_health():
                 status_code=404, detail="Memory data not available from bridge."
             )
         return {"status": "success", "data": memory_data}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to fetch memory status: {str(e)}"
@@ -171,6 +261,8 @@ async def get_memory_recall(
                 status_code=404, detail=f"No recall data found for {ticker}."
             )
         return {"status": "success", "data": recall_data}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to fetch memory recall: {str(e)}"
@@ -180,10 +272,7 @@ async def get_memory_recall(
 # ------------------------------------------------------------------ #
 # AGENT COMMAND CENTER ENDPOINTS (Phase 2.1)
 # Macro Brain state, Swarm status, Bias override
-# Spec: CLAWBOT_PANEL_DESIGN.md in openclaw repo
 # ------------------------------------------------------------------ #
-
-
 @router.get("/macro", summary="Get Macro Brain State")
 async def get_macro_state():
     """
@@ -192,10 +281,8 @@ async def get_macro_state():
     Falls back to bridge regime data if direct PC1 proxy is unavailable.
     """
     try:
-        # Try the bridge service first (reads from Gist/cached data)
         regime_data = await openclaw_bridge.get_regime()
         scan_data = await openclaw_bridge.get_scan_results()
-
         macro_context = scan_data.get("macro_context", {}) if scan_data else {}
 
         return {
@@ -210,20 +297,24 @@ async def get_macro_state():
             "fear_greed_index": macro_context.get("fear_greed_index"),
         }
     except Exception as e:
+        logger.warning(f"[OPENCLAW] Macro state error: {e}")
         # Fallback to DB-backed ingest regime if bridge is down
-        last = openclaw_db.get_latest_ingest()
-        if last:
-            regime_json = last.get("regime_json")
-            regime = json.loads(regime_json) if regime_json else {}
-            return {
-                "oscillator": regime.get("confidence", 0.0),
-                "wave_state": regime.get("source", "NEUTRAL"),
-                "bias": 1.0,
-                "regime": regime.get("state", "YELLOW"),
-                "vix": None,
-                "hy_spread": None,
-                "fear_greed_index": None,
-            }
+        try:
+            last = openclaw_db.get_latest_ingest()
+            if last:
+                regime_json = last.get("regime_json")
+                regime = json.loads(regime_json) if regime_json else {}
+                return {
+                    "oscillator": regime.get("confidence", 0.0),
+                    "wave_state": regime.get("source", "NEUTRAL"),
+                    "bias": 1.0,
+                    "regime": regime.get("state", "YELLOW"),
+                    "vix": None,
+                    "hy_spread": None,
+                    "fear_greed_index": None,
+                }
+        except Exception:
+            pass
         return {
             "oscillator": 0.0,
             "wave_state": "NEUTRAL",
@@ -253,8 +344,6 @@ async def get_swarm_status():
             }
     except Exception:
         pass
-
-    # Fallback: empty swarm status so frontend still renders
     return {
         "active": 0,
         "total": 0,
@@ -271,20 +360,17 @@ async def macro_override(
     """
     Operator bias slider adjustment.
     Temporarily overrides Macro Brain bias in composite scoring.
-    Multiplies long/short signal weights.
     """
     try:
-        # Forward override to OpenClaw bridge
-        result = await openclaw_bridge.set_bias_override(bias_multiplier)
-        if result:
-            return {
-                "success": True,
-                "bias_multiplier": bias_multiplier,
-                "message": f"Bias override set to {bias_multiplier}",
-            }
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                f"{OPENCLAW_API_URL}/api/v1/openclaw/macro/override",
+                params={"bias_multiplier": bias_multiplier},
+            )
+            if resp.status_code == 200:
+                return resp.json()
     except Exception as e:
         logger.warning(f"[OPENCLAW] Bias override failed: {e}")
-
     raise HTTPException(
         status_code=503,
         detail=(
@@ -298,8 +384,6 @@ async def macro_override(
 # AGENT COMMAND CENTER - ADDITIONAL ENDPOINTS
 # Candidates, Spawn/Kill Teams, LLM Flow Stream
 # ------------------------------------------------------------------ #
-
-
 @router.get("/candidates", summary="Get Ranked Candidates for Agent Command Center")
 async def get_candidates(n: int = Query(default=20, ge=1, le=50)):
     """
@@ -339,7 +423,6 @@ async def get_candidates(n: int = Query(default=20, ge=1, le=50)):
         }
     except Exception:
         pass
-
     return {"candidates": [], "count": 0, "_fallback": True}
 
 
@@ -399,4 +482,3 @@ async def get_llm_flow(limit: int = Query(default=5, ge=1, le=50)):
 
     # Graceful fallback
     return {"alerts": [], "total": 0, "_fallback": True}
-
