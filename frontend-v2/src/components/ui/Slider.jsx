@@ -38,7 +38,7 @@ function Slider({
   id: idProp,
   ...rest
 }) {
-  const id = idProp || `slider-${Math.random().toString(36).slice(2, 9)}`;
+    const id = idProp || `slider-${crypto.randomUUID()}`;
   const isInteractive =
     !disabled && !readOnly && typeof onChange === "function";
   const displayValue = formatValue ? formatValue(value) : value;
