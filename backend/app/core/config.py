@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     # OpenClaw Bridge (PC1 -> PC2)
     # -----------------------------------------------------------------------
     OPENCLAW_BRIDGE_TOKEN: str = ""  # Shared secret for X-OpenClaw-Token header
+        OPENCLAW_BRIDGE_SECRET: str = ""  # HMAC-SHA256 secret for bridge signature verification
     OPENCLAW_API_URL: str = (
         ""  # URL of OpenClaw API on PC1 (e.g., http://192.168.x.x:5000)
     )
