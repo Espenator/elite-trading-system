@@ -1,10 +1,20 @@
 import { Briefcase, Clock } from 'lucide-react';
-import { mockPositions } from '../../data/mockData';
+import { useApi } from '../../hooks/useApi';
 import clsx from 'clsx';
 
 export default function ActivePositions() {
-  const positions = mockPositions;
-  const totalPnl = positions.reduce((sum, p) => sum + p.pnlDollars, 0);
+  const { data, loading, error } = useApi('portfolio', { pollIntervalMs: 30000 });
+  const positions = data?.positions || [];
+  const totalPnl = positions.reduce((sum, p) => sum + (p.pnlDollars || 0), 0);
+
+  if (loading && positions.length === 0) {
+    return (
+      <div className="bg-secondary/10 border border-secondary/50 rounded-xl p-8 text-center text-secondary">
+        <Briefcase className="w-8 h-8 mx-auto mb-2 opacity-50 animate-pulse" />
+        <p>Loading positions...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-secondary/10 border border-secondary/50 rounded-xl">
@@ -29,7 +39,7 @@ export default function ActivePositions() {
       <div className="divide-y divide-secondary/50">
         {positions.map((pos) => (
           <div
-            key={pos.id}
+            key={pos.id || pos.ticker}
             className="px-4 py-3 table-row-hover"
           >
             <div className="flex items-center justify-between mb-2">
@@ -47,9 +57,9 @@ export default function ActivePositions() {
               </div>
               <div className={clsx(
                 'font-bold',
-                pos.pnlDollars >= 0 ? 'text-bullish' : 'text-bearish'
+                (pos.pnlDollars || 0) >= 0 ? 'text-bullish' : 'text-bearish'
               )}>
-                {pos.pnlDollars >= 0 ? '+' : ''}${pos.pnlDollars.toLocaleString()}
+                {(pos.pnlDollars || 0) >= 0 ? '+' : ''}${(pos.pnlDollars || 0).toLocaleString()}
               </div>
             </div>
 
@@ -58,25 +68,25 @@ export default function ActivePositions() {
               <div className="flex items-center gap-4">
                 <div>
                   <span className="text-secondary">Entry </span>
-                  <span className="">${pos.entryPrice.toFixed(2)}</span>
+                  <span>${(pos.entryPrice || 0).toFixed(2)}</span>
                 </div>
                 <div>
                   <span className="text-secondary">Current </span>
                   <span className={clsx(
                     '',
-                    pos.currentPrice >= pos.entryPrice ? 'text-bullish' : 'text-bearish'
+                    (pos.currentPrice || 0) >= (pos.entryPrice || 0) ? 'text-bullish' : 'text-bearish'
                   )}>
-                    ${pos.currentPrice.toFixed(2)}
+                    ${(pos.currentPrice || 0).toFixed(2)}
                   </span>
                 </div>
                 <div>
                   <span className="text-secondary">Stop </span>
-                  <span className="text-bearish">${pos.stopPrice.toFixed(2)}</span>
+                  <span className="text-bearish">${(pos.stopPrice || 0).toFixed(2)}</span>
                 </div>
               </div>
               <div className="flex items-center gap-1 text-secondary">
                 <Clock className="w-3 h-3" />
-                <span>{pos.holdingHours.toFixed(1)}h</span>
+                <span>{(pos.holdingHours || 0).toFixed(1)}h</span>
               </div>
             </div>
 
@@ -86,20 +96,20 @@ export default function ActivePositions() {
                 <span className="text-secondary">R-Multiple</span>
                 <span className={clsx(
                   '',
-                  pos.rMultiple >= 0 ? 'text-bullish' : 'text-bearish'
+                  (pos.rMultiple || 0) >= 0 ? 'text-bullish' : 'text-bearish'
                 )}>
-                  {pos.rMultiple >= 0 ? '+' : ''}{pos.rMultiple.toFixed(2)}R
+                  {(pos.rMultiple || 0) >= 0 ? '+' : ''}{(pos.rMultiple || 0).toFixed(2)}R
                 </span>
               </div>
               <div className="h-1.5 bg-dark-bg rounded-full overflow-hidden">
                 <div
                   className={clsx(
                     'h-full rounded-full transition-all',
-                    pos.rMultiple >= 0 ? 'bg-bullish' : 'bg-bearish'
+                    (pos.rMultiple || 0) >= 0 ? 'bg-bullish' : 'bg-bearish'
                   )}
-                  style={{ 
-                    width: `${Math.min(Math.abs(pos.rMultiple) * 33, 100)}%`,
-                    marginLeft: pos.rMultiple < 0 ? 'auto' : '0'
+                  style={{
+                    width: `${Math.min(Math.abs(pos.rMultiple || 0) * 33, 100)}%`,
+                    marginLeft: (pos.rMultiple || 0) < 0 ? 'auto' : '0'
                   }}
                 />
               </div>
@@ -113,6 +123,13 @@ export default function ActivePositions() {
         <div className="p-8 text-center text-secondary">
           <Briefcase className="w-8 h-8 mx-auto mb-2 opacity-50" />
           <p>No active positions</p>
+        </div>
+      )}
+
+      {/* Error state */}
+      {error && (
+        <div className="px-4 py-2 text-xs text-bearish/70 text-center">
+          API unavailable — connect backend to see live positions
         </div>
       )}
     </div>
