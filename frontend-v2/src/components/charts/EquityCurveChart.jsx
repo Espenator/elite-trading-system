@@ -1,9 +1,10 @@
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { TrendingUp } from 'lucide-react';
-import { mockEquityCurve } from '../../data/mockData';
+import { useApi } from '../../hooks/useApi';
 
 export default function EquityCurveChart() {
-  const data = mockEquityCurve;
+  const { data: apiData, loading, error } = useApi('portfolio', { pollIntervalMs: 60000 });
+  const data = apiData?.equityCurve || [];
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
@@ -32,9 +33,11 @@ export default function EquityCurveChart() {
     return null;
   };
 
-  const initialEquity = data[0]?.equity || 100000;
-  const currentEquity = data[data.length - 1]?.equity || 100000;
-  const totalReturn = ((currentEquity - initialEquity) / initialEquity * 100).toFixed(2);
+  const initialEquity = data[0]?.equity || 0;
+  const currentEquity = data[data.length - 1]?.equity || 0;
+  const totalReturn = initialEquity > 0
+    ? ((currentEquity - initialEquity) / initialEquity * 100).toFixed(2)
+    : '0.00';
 
   return (
     <div className="bg-secondary/10 border border-secondary/50 rounded-xl">
@@ -47,7 +50,9 @@ export default function EquityCurveChart() {
         <div className="flex items-center gap-4">
           <div className="text-right">
             <span className="text-xs text-secondary">30-Day Return</span>
-            <p className="font-bold text-success">+{totalReturn}%</p>
+            <p className={`font-bold ${Number(totalReturn) >= 0 ? 'text-success' : 'text-bearish'}`}>
+              {Number(totalReturn) >= 0 ? '+' : ''}{totalReturn}%
+            </p>
           </div>
           <select className="bg-dark text-sm px-2 py-1 rounded border border-secondary/50">
             <option>30 Days</option>
@@ -59,49 +64,62 @@ export default function EquityCurveChart() {
 
       {/* Chart */}
       <div className="p-4 h-64">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" />
-            <XAxis 
-              dataKey="date" 
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: '#6b7280', fontSize: 11 }}
-              tickMargin={8}
-            />
-            <YAxis
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: '#6b7280', fontSize: 11 }}
-              tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
-              domain={['dataMin - 2000', 'dataMax + 2000']}
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend 
-              wrapperStyle={{ paddingTop: '10px' }}
-              formatter={(value) => <span className="text-secondary text-xs">{value}</span>}
-            />
-            <Line
-              type="monotone"
-              dataKey="equity"
-              name="Portfolio"
-              stroke="#22c55e"
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 4, fill: '#22c55e' }}
-            />
-            <Line
-              type="monotone"
-              dataKey="benchmark"
-              name="S&P 500"
-              stroke="#6b7280"
-              strokeWidth={1}
-              strokeDasharray="5 5"
-              dot={false}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+        {data.length > 0 ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" />
+              <XAxis 
+                dataKey="date" 
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: '#6b7280', fontSize: 11 }}
+                tickMargin={8}
+              />
+              <YAxis
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: '#6b7280', fontSize: 11 }}
+                tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                domain={['dataMin - 2000', 'dataMax + 2000']}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend 
+                wrapperStyle={{ paddingTop: '10px' }}
+                formatter={(value) => <span className="text-secondary text-xs">{value}</span>}
+              />
+              <Line
+                type="monotone"
+                dataKey="equity"
+                name="Portfolio"
+                stroke="#22c55e"
+                strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 4, fill: '#22c55e' }}
+              />
+              <Line
+                type="monotone"
+                dataKey="benchmark"
+                name="S&P 500"
+                stroke="#6b7280"
+                strokeWidth={1}
+                strokeDasharray="5 5"
+                dot={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="flex items-center justify-center h-full text-secondary text-sm">
+            {loading ? 'Loading equity data...' : 'No equity data available'}
+          </div>
+        )}
       </div>
+
+      {/* Error state */}
+      {error && (
+        <div className="px-4 py-2 text-xs text-bearish/70 text-center">
+          API unavailable — connect backend to see equity curve
+        </div>
+      )}
     </div>
   );
 }
