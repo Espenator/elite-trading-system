@@ -22,8 +22,8 @@ import PageHeader from "../components/ui/PageHeader";
 import Slider from "../components/ui/Slider";
 import Checkbox from "../components/ui/Checkbox";
 import RiskHistoryChart from "../components/charts/RiskHistoryChart";
-// import RiskEquityLC from "../components/charts/RiskEquityLC";
-// import MonteCarloLC from "../components/charts/MonteCarloLC";
+import RiskEquityLC from "../components/charts/RiskEquityLC";
+import MonteCarloLC from "../components/charts/MonteCarloLC";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl } from "../config/api";
 
