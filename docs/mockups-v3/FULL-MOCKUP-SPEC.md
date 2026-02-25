@@ -1,3 +1,5 @@
+> **UPDATED Feb 25, 2026**: This spec has been consolidated from 17 pages down to **14 pages**. See `frontend-v2/src/V3-ARCHITECTURE.md` for the authoritative current architecture. 4 pages were merged: OperatorConsole->AgentCommandCenter, SignalHeatmap->Signals, YouTubeKnowledge->SentimentIntelligence, StrategyIntelligence->Backtesting. Current status: 10 V3 COMPLETE, 4 NEEDS V3 UPDATE.
+
 # Embodier Trader - Full Mockup Specification V3
 ## All 17 Pages - ALL V3 COMPLETE - Institutional Glass-Box Command Center
 
