@@ -53,8 +53,8 @@ The PNG mockup is the design reference for the `MLBrainFlywheel.jsx` component i
 | `ml_api.py` | `core/api/ml_api.py` | FastAPI backend endpoints |
 
 **Wiring checklist:**
-- [ ] Register ML router in `main.py`
-- [ ] Add `/ml-brain` route in `App.jsx`
-- [ ] Add sidebar nav link with brain icon
+- [x] Register ML router in `main.py` - **DONE** (committed to `backend/app/api/v1/ml_brain.py` + registered in `backend/app/main.py`)
+- [x] Add `/ml-brain` route in `App.jsx` - **DONE** (route added, imports `MLBrainFlywheel`)
+- [x] Add sidebar nav link with brain icon - **DONE** (Sidebar.jsx updated, points to `/ml-brain` with Brain icon)
 - [ ] Install Recharts: `npm install recharts`
 - [ ] Replace stub data with real TimescaleDB queries
