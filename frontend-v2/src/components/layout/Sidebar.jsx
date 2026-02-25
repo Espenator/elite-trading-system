@@ -1,29 +1,27 @@
-// OLEH: This is the main navigation for all 15 pages
+// OLEH: This is the main navigation for all 14 pages
 // Organized by section: Command, Intelligence, ML & Analysis, Execution, System
 // Every page maps 1:1 to a backend module per the architecture doc
+// V3 CONSOLIDATION: Reduced from 18 to 14 pages (see V3-ARCHITECTURE.md)
 
 import { NavLink, useLocation } from 'react-router-dom';
 import { useState } from 'react';
 import {
   LayoutDashboard,
   Bot,
-  Monitor,
   Zap,
-  Map,
   MessageCircle,
   Link2,
-  Youtube,
   Brain,
   Search,
   RotateCcw,
   TrendingUp,
   LineChart,
   Shield,
-  Target,
+  Crosshair,
   Settings,
   ChevronLeft,
   Sparkles,
-  Boxes,
+  BarChart3,
 } from 'lucide-react';
 
 // ----------- NAV SECTIONS -----------
@@ -34,18 +32,14 @@ const navSections = [
     items: [
       { to: '/dashboard', icon: LayoutDashboard, label: 'Intelligence Dashboard' },
       { to: '/agents', icon: Bot, label: 'Agent Command Center' },
-      { to: '/operator', icon: Monitor, label: 'Operator Console' },
-    
     ]
   },
   {
     label: 'INTELLIGENCE',
     items: [
       { to: '/signals', icon: Zap, label: 'Signal Intelligence' },
-      { to: '/signal-heatmap', icon: Map, label: 'Signal Heatmap' },
       { to: '/sentiment', icon: MessageCircle, label: 'Sentiment Intelligence' },
       { to: '/data-sources', icon: Link2, label: 'Data Sources Monitor' },
-      { to: '/youtube', icon: Youtube, label: 'YouTube Knowledge' },
     ]
   },
   {
@@ -55,14 +49,15 @@ const navSections = [
       { to: '/patterns', icon: Search, label: 'Screener & Patterns' },
       { to: '/backtest', icon: RotateCcw, label: 'Backtesting Lab' },
       { to: '/performance', icon: TrendingUp, label: 'Performance Analytics' },
+      { to: '/market-regime', icon: BarChart3, label: 'Market Regime' },
     ]
   },
   {
     label: 'EXECUTION',
     items: [
-      { to: '/trades', icon: LineChart, label: 'Trade Execution' },
+      { to: '/trades', icon: LineChart, label: 'Active Trades' },
       { to: '/risk', icon: Shield, label: 'Risk Intelligence' },
-      { to: '/strategy', icon: Target, label: 'Strategy Intelligence' },
+      { to: '/trade-execution', icon: Crosshair, label: 'Trade Execution' },
     ]
   },
   {
@@ -80,12 +75,12 @@ export default function Sidebar() {
   return (
     <aside
       className={`${collapsed ? 'w-16' : 'w-64'
-        } bg-dark border-r border-secondary/50 flex flex-col transition-all duration-300 shrink-0 relative z-50`}
+      } bg-dark border-r border-secondary/50 flex flex-col transition-all duration-300 shrink-0 relative z-50`}
     >
-      {/* Logo + Collapse — when collapsed: single centered strip */}
+      {/* Logo + Collapse */}
       <div
         className={`flex items-center h-16 border-b border-secondary/50 relative transition-all duration-300 ${collapsed ? 'justify-center gap-1 px-2 py-3' : 'justify-between px-4'
-          }`}
+        }`}
       >
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-success flex items-center justify-center shrink-0">
@@ -101,14 +96,14 @@ export default function Sidebar() {
         <button
           onClick={() => setCollapsed(!collapsed)}
           className={`rounded-md text-secondary hover:text-white transition-colors
-              ${collapsed ? 'p-0.5 absolute top-1/2 -translate-y-1/2 right-0 translate-x-1/2 border border-secondary/50 bg-dark' : 'p-1.5'}`}
+            ${collapsed ? 'p-0.5 absolute top-1/2 -translate-y-1/2 right-0 translate-x-1/2 border border-secondary/50 bg-dark' : 'p-1.5'}`}
           title="Expand sidebar"
         >
           <ChevronLeft className={`w-4 h-4 ${collapsed ? 'rotate-180' : ''}`} />
         </button>
       </div>
 
-      {/* Navigation — when collapsed: centered icons, left-accent active */}
+      {/* Navigation */}
       <nav className="flex-1 overflow-y-auto custom-scrollbar py-2 min-h-0">
         {navSections.map((section, sectionIndex) => (
           <div key={section.label} className={collapsed ? '' : 'mb-1'}>
@@ -161,7 +156,7 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Bottom: System Status — when collapsed: compact pulse + tooltip */}
+      {/* Bottom: System Status */}
       <div className={`border-t border-secondary/50 ${collapsed ? 'p-2' : 'p-3'}`}>
         {collapsed ? (
           <div
