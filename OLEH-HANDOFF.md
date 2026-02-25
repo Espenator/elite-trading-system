@@ -737,3 +737,57 @@ npm run dev
 
 Останнє оновлення: 23 лютого 2026
 
+---
+
+## ML BRAIN & FLYWHEEL PAGE - NEW (Feb 25, 2026)
+
+### Files Added
+
+| File | Path | Description |
+| --- | --- | --- |
+| `MLBrainFlywheel.jsx` | `frontend-v2/src/pages/MLBrainFlywheel.jsx` | Full React component for ML Brain & Flywheel dashboard |
+| `ml_api.py` | `core/api/ml_api.py` | FastAPI backend endpoints for ML data |
+| `Embodier_Trader_ML_Brain_Flywheel.png` | `frontend/assets/mockups/Embodier_Trader_ML_Brain_Flywheel.png` | UI mockup reference image |
+
+### What This Page Does
+
+The ML Brain & Flywheel page is the AI intelligence center of Embodier Trader. It shows:
+
+1. **252-Day Walk-Forward Accuracy Chart** - XGBoost vs Random Forest model performance over time
+2. **Stage-4 Inferences Table** - Top trading signals with win probability, compression days, Velez score, and volume ratio
+3. **Learning Flywheel Log** - Real-time event feed showing model retraining, pattern validation, and trade outcomes
+
+### API Endpoints to Wire
+
+```
+GET /api/v1/ml/performance      -> 252-day accuracy chart data
+GET /api/v1/ml/signals/stage4   -> Stage-4 inference table data  
+GET /api/v1/ml/flywheel-logs    -> Flywheel event log entries
+```
+
+### Wiring Instructions for Oleh
+
+1. **Register the router** in `main.py`:
+   ```python
+   from core.api.ml_api import router as ml_router
+   app.include_router(ml_router)
+   ```
+
+2. **Add route** in `frontend-v2/src/App.jsx`:
+   ```jsx
+   import MLBrainFlywheel from './pages/MLBrainFlywheel';
+   // Add to routes:
+   <Route path="/ml-brain" element={<MLBrainFlywheel />} />
+   ```
+
+3. **Add sidebar nav link** pointing to `/ml-brain` with brain icon
+
+4. **Replace stub data** in `ml_api.py` with real TimescaleDB queries when the `mlmodels`, `mlfeatures`, `scannersignals`, and `tradeoutcomes` tables are ready
+
+5. **Install Recharts** if not already: `npm install recharts`
+
+### Priority: MEDIUM
+This page can use stub data initially. Focus on getting the UI rendering correctly first, then wire real data.
+
+---
+
