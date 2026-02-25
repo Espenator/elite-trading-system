@@ -1,3 +1,7 @@
+> **UPDATED Feb 25, 2026**: The frontend has been consolidated from 18 pages down to **14 pages**. See `frontend-v2/src/V3-ARCHITECTURE.md` for the authoritative current architecture. 10 pages are V3 COMPLETE, 4 pages NEED V3 UPDATE. See `OLEH-CONTINUATION-GUIDE.md` for your current priorities. The backend wiring instructions below remain valid.
+
+---
+
 # OLEH HANDOFF - Agent Command Center + Full Wiring Instructions
 
 **From:** Espen (via AI architecture review)
