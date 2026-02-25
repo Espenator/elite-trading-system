@@ -1,7 +1,8 @@
 // APP ROUTER - Embodier.ai Trading Intelligence System
 // OLEH: This is the main router. Every page listed in the sidebar has a route here.
 // If you add a new page, add: 1) import, 2) route, 3) sidebar entry in Sidebar.jsx
-// All 15 pages map 1:1 to backend modules per V2-EMBODIER-AI-README.md
+// All 14 pages map 1:1 to backend modules per V2-EMBODIER-AI-README.md
+// V3 CONSOLIDATION: Reduced from 18 to 14 pages (see V3-ARCHITECTURE.md)
 
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
@@ -10,28 +11,25 @@ import Layout from "./components/layout/Layout";
 import ErrorBoundary from "./components/ErrorBoundary";
 
 // ----------- PAGE IMPORTS -----------
-// COMMAND section (3 pages)
+// COMMAND section (2 pages)
 import Dashboard from "./pages/Dashboard";
 import AgentCommandCenter from "./pages/AgentCommandCenter";
-import OperatorConsole from "./pages/OperatorConsole";
 
-// INTELLIGENCE section (5 pages)
+// INTELLIGENCE section (3 pages)
 import Signals from "./pages/Signals";
-  import SignalHeatmap from "./pages/SignalHeatmap";
 import SentimentIntelligence from "./pages/SentimentIntelligence";
 import DataSourcesMonitor from "./pages/DataSourcesMonitor";
-import YouTubeKnowledge from "./pages/YouTubeKnowledge";
 
-// ML & ANALYSIS section (4 pages)
+// ML & ANALYSIS section (5 pages)
 import MLInsights from "./pages/MLInsights";
 import Patterns from "./pages/Patterns";
 import Backtesting from "./pages/Backtesting";
 import PerformanceAnalytics from "./pages/PerformanceAnalytics";
+import MarketRegime from "./pages/MarketRegime";
 
 // EXECUTION section (3 pages)
 import Trades from "./pages/Trades";
 import RiskIntelligence from "./pages/RiskIntelligence";
-import StrategyIntelligence from "./pages/StrategyIntelligence";
 import TradeExecution from "./pages/TradeExecution";
 
 // SYSTEM section
@@ -63,31 +61,32 @@ function App() {
             {/* COMMAND */}
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="agents" element={<AgentCommandCenter />} />
-            <Route path="operator" element={<OperatorConsole />} />
-          
 
             {/* INTELLIGENCE */}
             <Route path="signals" element={<Signals />} />
-                          <Route path="signal-heatmap" element={<SignalHeatmap />} />
-          
             <Route path="sentiment" element={<SentimentIntelligence />} />
             <Route path="data-sources" element={<DataSourcesMonitor />} />
-            <Route path="youtube" element={<YouTubeKnowledge />} />
 
             {/* ML & ANALYSIS */}
             <Route path="ml-insights" element={<MLInsights />} />
             <Route path="patterns" element={<Patterns />} />
             <Route path="backtest" element={<Backtesting />} />
             <Route path="performance" element={<PerformanceAnalytics />} />
+            <Route path="market-regime" element={<MarketRegime />} />
 
             {/* EXECUTION */}
             <Route path="trades" element={<Trades />} />
             <Route path="risk" element={<RiskIntelligence />} />
-            <Route path="strategy" element={<StrategyIntelligence />} />
-                        <Route path="trade-execution" element={<TradeExecution />} />
+            <Route path="trade-execution" element={<TradeExecution />} />
 
             {/* SYSTEM */}
             <Route path="settings" element={<Settings />} />
+
+            {/* Legacy redirects for bookmarks */}
+            <Route path="operator" element={<Navigate to="/agents" replace />} />
+            <Route path="signal-heatmap" element={<Navigate to="/signals" replace />} />
+            <Route path="youtube" element={<Navigate to="/sentiment" replace />} />
+            <Route path="strategy" element={<Navigate to="/backtest" replace />} />
 
             {/* 404 catch-all */}
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
