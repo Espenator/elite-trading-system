@@ -1,3 +1,7 @@
+> **UPDATED Feb 25, 2026**: This document describes the V2 branch work (pre-consolidation). The frontend has since been consolidated from 18 pages to **14 pages** in V3. 4 pages were merged (OperatorConsole, SignalHeatmap, YouTubeKnowledge, StrategyIntelligence). See `V3-ARCHITECTURE.md` in this same directory for the current authoritative architecture.
+
+---
+
 # 🤖 V2-EMBODIER AI README
 ## Elite Trader v2 — Living Architecture Document
 **Purpose:** This document is the single source of truth for AI agents (Claude, Perplexity) and Oleh (developer) to understand the current state, file structure, and next steps for Elite Trader v2.
