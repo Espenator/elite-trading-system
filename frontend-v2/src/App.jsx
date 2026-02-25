@@ -32,6 +32,7 @@ import PerformanceAnalytics from "./pages/PerformanceAnalytics";
 import Trades from "./pages/Trades";
 import RiskIntelligence from "./pages/RiskIntelligence";
 import StrategyIntelligence from "./pages/StrategyIntelligence";
+import TradeExecution from "./pages/TradeExecution";
 
 // SYSTEM section
 import Settings from "./pages/Settings";
@@ -67,6 +68,7 @@ function App() {
 
             {/* INTELLIGENCE */}
             <Route path="signals" element={<Signals />} />
+                          <Route path="signal-heatmap" element={<SignalHeatmap />} />
           
             <Route path="sentiment" element={<SentimentIntelligence />} />
             <Route path="data-sources" element={<DataSourcesMonitor />} />
@@ -82,6 +84,7 @@ function App() {
             <Route path="trades" element={<Trades />} />
             <Route path="risk" element={<RiskIntelligence />} />
             <Route path="strategy" element={<StrategyIntelligence />} />
+                        <Route path="trade-execution" element={<TradeExecution />} />
 
             {/* SYSTEM */}
             <Route path="settings" element={<Settings />} />
