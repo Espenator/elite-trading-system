@@ -760,34 +760,36 @@ The ML Brain & Flywheel page is the AI intelligence center of Embodier Trader. I
 ### API Endpoints to Wire
 
 ```
-GET /api/v1/ml/performance      -> 252-day accuracy chart data
-GET /api/v1/ml/signals/stage4   -> Stage-4 inference table data  
-GET /api/v1/ml/flywheel-logs    -> Flywheel event log entries
+GET /api/v1/ml-brain/performance      -> 252-day accuracy chart data
+GET /api/v1/ml-brain/signals/stage4   -> Stage-4 inference table data  
+GET /api/v1/ml-brain/flywheel-logs    -> Flywheel event log entries
 ```
 
 ### Wiring Instructions for Oleh
 
-1. **Register the router** in `main.py`:
-   ```python
-   from core.api.ml_api import router as ml_router
-   app.include_router(ml_router)
-   ```
+1. ~~**Register the router** in `main.py`~~ - **DONE** (committed to `backend/app/api/v1/ml_brain.py` + registered in `backend/app/main.py` at `/api/v1/ml-brain`)
 
-2. **Add route** in `frontend-v2/src/App.jsx`:
-   ```jsx
-   import MLBrainFlywheel from './pages/MLBrainFlywheel';
-   // Add to routes:
-   <Route path="/ml-brain" element={<MLBrainFlywheel />} />
-   ```
+2. ~~**Add route** in `frontend-v2/src/App.jsx`~~ - **DONE** (route `/ml-brain` added, imports `MLBrainFlywheel`)
 
-3. **Add sidebar nav link** pointing to `/ml-brain` with brain icon
+3. ~~**Add sidebar nav link**~~ - **DONE** (Sidebar.jsx updated, points to `/ml-brain` with Brain icon)
 
-4. **Replace stub data** in `ml_api.py` with real TimescaleDB queries when the `mlmodels`, `mlfeatures`, `scannersignals`, and `tradeoutcomes` tables are ready
+4. **Replace stub data** in `ml_brain.py` with real TimescaleDB queries when the `mlmodels`, `mlfeatures`, `scannersignals`, and `tradeoutcomes` tables are ready
 
 5. **Install Recharts** if not already: `npm install recharts`
 
+### Files Changed (Wiring Commits)
+
+| File | Change | Status |
+| --- | --- | --- |
+| `backend/app/api/v1/ml_brain.py` | New ML Brain API router (performance, signals/staged, flywheel-logs, summary) | DONE |
+| `backend/app/main.py` | Added `ml_brain` import + `include_router` at `/api/v1/ml-brain` | DONE |
+| `frontend-v2/src/App.jsx` | Added `/ml-brain` route with `MLBrainFlywheel` component | DONE |
+| `frontend-v2/src/components/layout/Sidebar.jsx` | Updated ML Brain nav from `/ml-insights` to `/ml-brain` | DONE |
+| `core/api/ml_api.py` | Reference standalone ML API (stub data for initial testing) | EXISTS |
+| `frontend-v2/src/pages/MLBrainFlywheel.jsx` | Full React page component | EXISTS |
+
 ### Priority: MEDIUM
+
 This page can use stub data initially. Focus on getting the UI rendering correctly first, then wire real data.
 
 ---
-
