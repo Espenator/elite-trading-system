@@ -30,6 +30,7 @@ from app.api.v1 import (
     patterns,
     settings_routes,
     openclaw,
+    ml_brain,
 )
 
 # Configure logging
@@ -195,6 +196,11 @@ app.include_router(
     openclaw.router,
     prefix=f"{settings.API_V1_PREFIX}/openclaw",
     tags=["openclaw"],
+)
+app.include_router(
+    ml_brain.router,
+    prefix=f"{settings.API_V1_PREFIX}/ml-brain",
+    tags=["ml-brain"],
 )
 
 @app.get("/")
