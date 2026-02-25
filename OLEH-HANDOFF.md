@@ -793,3 +793,61 @@ GET /api/v1/ml-brain/flywheel-logs    -> Flywheel event log entries
 This page can use stub data initially. Focus on getting the UI rendering correctly first, then wire real data.
 
 ---
+
+
+## OPENCLAW MIGRATION STATUS (Feb 25, 2026)
+
+### Current State: PHASE 1 COMPLETE, PHASE 2 PENDING
+
+PR #7 merged - migration scaffolding and scripts are in `main`:
+- `backend/app/modules/openclaw/__init__.py` - Package namespace
+- `scripts/migrate_openclaw.ps1` - Windows migration script
+- `scripts/migrate_openclaw.sh` - Linux/Mac migration script
+
+### What Still Needs to Happen
+
+The actual 42+ OpenClaw files have NOT been copied yet. Run this:
+
+```powershell
+# From PowerShell - Run from elite-trading-system root
+cd $env:USERPROFILE\Documents\elite-trading-system
+git pull origin main
+
+# Clone openclaw as sibling directory
+git clone https://github.com/Espenator/openclaw.git ..\openclaw
+
+# Run the migration script
+.\scripts\migrate_openclaw.ps1
+
+# Commit and push
+git add backend/app/modules/openclaw/
+git commit -m "feat(openclaw): Phase 2 - copy all openclaw modules #6"
+git push origin main
+```
+
+### Migration Maps 42+ Files Into:
+
+| Sub-package | Files | Contents |
+| --- | --- | --- |
+| scanner/ | 14 | daily_scanner, finviz, whale_flow, short/pullback/rebound detectors |
+| scorer/ | 3 | composite_scorer, ensemble_scorer, dynamic_weights |
+| execution/ | 5 | auto_executor, risk_governor, position_sizer/manager, smart_entry |
+| streaming/ | 3 | streaming_engine, session_monitor, live_dashboard |
+| intelligence/ | 10 | regime, hmm, macro_context, memory, llm_client, lora_trainer |
+| integrations/ | 8 | alpaca_client, discord, signal_parser, sheets, bridges |
+| clawbots/ | recursive | Agent swarm (meta_agent_alchemist) |
+| world_intel/ | recursive | World intelligence sensorium |
+| pine/ | recursive | TradingView indicators |
+| docs/ | all .md | Strategy docs from openclaw |
+
+### After Migration - Import Refactoring
+
+Update imports from `from composite_scorer import X` to:
+`from app.modules.openclaw.scorer.composite_scorer import X`
+
+See Issue #6 for full refactoring map.
+
+### OpenClaw Branches to Review
+
+- `profittrader/prompt8-core` has 39 unique commits NOT in openclaw main
+- Consider merging that branch before migration for completeness
