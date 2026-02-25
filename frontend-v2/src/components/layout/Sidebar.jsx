@@ -1,7 +1,7 @@
-// OLEH: This is the main navigation for all 14 pages
+// OLEH: This is the main navigation for all 15 pages
 // Organized by section: Command, Intelligence, ML & Analysis, Execution, System
 // Every page maps 1:1 to a backend module per the architecture doc
-// V3 CONSOLIDATION: Reduced from 18 to 14 pages (see V3-ARCHITECTURE.md)
+// V3 CONSOLIDATION: 15 pages total (added ML Brain & Flywheel)
 
 import { NavLink, useLocation } from 'react-router-dom';
 import { useState } from 'react';
@@ -45,7 +45,7 @@ const navSections = [
   {
     label: 'ML & ANALYSIS',
     items: [
-      { to: '/ml-insights', icon: Brain, label: 'ML Brain & Flywheel' },
+      { to: '/ml-brain', icon: Brain, label: 'ML Brain & Flywheel' },
       { to: '/patterns', icon: Search, label: 'Screener & Patterns' },
       { to: '/backtest', icon: RotateCcw, label: 'Backtesting Lab' },
       { to: '/performance', icon: TrendingUp, label: 'Performance Analytics' },
