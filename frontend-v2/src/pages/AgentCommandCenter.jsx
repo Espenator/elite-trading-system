@@ -360,8 +360,8 @@ export default function AgentCommandCenter() {
 
   // --- Agent WS for live status ---
   useEffect(() => {
-    const unsub = ws.subscribe("agents", (msg) => {
-      if (msg.type === "agent_status") refetchAgents();
+    const unsub = ws.on("agents", (msg) => {
+      if (msg?.type === "agent_status") refetchAgents();
     });
     return unsub;
   }, [refetchAgents]);
