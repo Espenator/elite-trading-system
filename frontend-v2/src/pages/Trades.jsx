@@ -1,608 +1,317 @@
-// TRADES PAGE - Embodier.ai Glass House Intelligence System
-// GET /api/v1/portfolio - positions and trade history. POST /api/v1/orders - place order.
-import { useState, useEffect } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import {
-  TrendingUp,
-  Clock,
-  DollarSign,
-  ArrowUpRight,
-  LineChart,
-  X,
-  Send,
-  RefreshCw,
-} from "lucide-react";
-import Card from "../components/ui/Card";
-import DataTable from "../components/ui/DataTable";
-import Badge from "../components/ui/Badge";
-import Button from "../components/ui/Button";
-import PageHeader from "../components/ui/PageHeader";
-import TextField from "../components/ui/TextField";
-import Select from "../components/ui/Select";
-import { toast } from "react-toastify";
-import { useApi } from "../hooks/useApi";
-import { getApiUrl } from "../config/api";
+"use client";
 
-function applyClawDetail(d, setOrderForm, setClawContext) {
-  if (!d?.symbol) return;
-  setOrderForm((f) => ({
-    ...f,
-    symbol: d.symbol,
-    price: Number(d.entry) || f.price,
-  }));
-  setClawContext({
-    entry: d.entry,
-    stop: d.stop,
-    target: d.target,
-    team: d.team,
-    score: d.score,
-  });
-}
+import React, { useState } from 'react';
+import { 
+  Briefcase, 
+  Activity, 
+  TrendingUp, 
+  TrendingDown, 
+  AlertTriangle,
+  CheckCircle,
+  Crosshair,
+  Clock,
+  Shield,
+  XCircle
+} from 'lucide-react';
 
 export default function Trades() {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const fromSignal = location.state?.fromSignal && location.state?.symbol;
-  const openTradeExecution = location.state?.openTradeExecution;
-  const [dismissFromSignal, setDismissFromSignal] = useState(false);
-  const [clawContext, setClawContext] = useState(
-    openTradeExecution
-      ? {
-          entry: openTradeExecution.entry,
-          stop: openTradeExecution.stop,
-          target: openTradeExecution.target,
-          team: openTradeExecution.team,
-          score: openTradeExecution.score,
-        }
-      : null
-  );
-  const [orderModalOpen, setOrderModalOpen] = useState(false);
-  const [orderSubmitting, setOrderSubmitting] = useState(false);
-  const [orderError, setOrderError] = useState(null);
-  const [orderSuccess, setOrderSuccess] = useState(false);
-  const [orderForm, setOrderForm] = useState({
-    symbol:
-      openTradeExecution?.symbol || location.state?.symbol || "",
-    side:
-      (location.state?.side || "Buy").toLowerCase() === "sell" ? "sell" : "buy",
-    order_type: "Market",
-    quantity: 10,
-    price: Number(openTradeExecution?.entry) || 0,
-  });
+  const [activeTab, setActiveTab] = useState('OPEN'); // 'OPEN' or 'CLOSED'
+  const [totalRisk] = useState(2.8); // 2.8% of account currently at risk
 
-  const [tab, setTab] = useState("active");
+  // Simulated open positions based on Bible v6.0 rules
+  const [openPositions, setOpenPositions] = useState([
+    {
+      id: 'POS-01',
+      ticker: 'RBRK',
+      direction: 'LONG',
+      entryPrice: 75.50,
+      currentPrice: 83.20,
+      stopLoss: 75.50, // Moved to breakeven
+      target1: 89.00,
+      target2: 102.50,
+      shares: 1185,
+      rMultiple: 0.57, // (83.20 - 75.50) / 13.50 initial risk
+      unrealizedPnL: 9124.50,
+      structure4H: 'HOLDING', // HOLDING or BROKEN
+      volumeProfile: 'ACCUMULATION',
+      timeOpen: '1h 45m',
+      status: 'PROFIT_TRAIL' // Stop moved to BE
+    },
+    {
+      id: 'POS-02',
+      ticker: 'SNOW',
+      direction: 'SHORT',
+      entryPrice: 185.00,
+      currentPrice: 182.10,
+      stopLoss: 191.50,
+      target1: 172.00,
+      target2: 155.00,
+      shares: 400,
+      rMultiple: 0.44, // (185 - 182.10) / 6.50
+      unrealizedPnL: 1160.00,
+      structure4H: 'HOLDING',
+      volumeProfile: 'NEUTRAL',
+      timeOpen: '45m',
+      status: 'ACTIVE'
+    },
+    {
+      id: 'POS-03',
+      ticker: 'PLTR',
+      direction: 'LONG',
+      entryPrice: 24.10,
+      currentPrice: 23.50,
+      stopLoss: 22.80,
+      target1: 26.50,
+      target2: 30.00,
+      shares: 3500,
+      rMultiple: -0.46, // (23.50 - 24.10) / 1.30
+      unrealizedPnL: -2100.00,
+      structure4H: 'MARGINAL',
+      volumeProfile: 'DISTRIBUTION',
+      timeOpen: '3h 10m',
+      status: 'AT_RISK'
+    }
+  ]);
 
-  useEffect(() => {
-    const stateDetail = location.state?.openTradeExecution;
-    if (stateDetail) applyClawDetail(stateDetail, setOrderForm, setClawContext);
-  }, [location.state]);
+  const closedPositions = [
+    {
+      id: 'TRD-99',
+      ticker: 'CRWD',
+      direction: 'LONG',
+      entryPrice: 280.00,
+      exitPrice: 305.50,
+      shares: 500,
+      pnl: 12750.00,
+      rMultiple: 2.1,
+      exitReason: 'TARGET_2_HIT',
+      duration: '2 Days'
+    },
+    {
+      id: 'TRD-98',
+      ticker: 'TSLA',
+      direction: 'SHORT',
+      entryPrice: 190.00,
+      exitPrice: 195.00,
+      shares: 600,
+      pnl: -3000.00,
+      rMultiple: -1.0,
+      exitReason: 'STOP_HIT',
+      duration: '4 Hours'
+    }
+  ];
 
-  useEffect(() => {
-    const handler = (e) =>
-      applyClawDetail(e.detail || {}, setOrderForm, setClawContext);
-    window.addEventListener("openTradeExecution", handler);
-    return () => window.removeEventListener("openTradeExecution", handler);
-  }, []);
+  const getStatusColor = (status) => {
+    switch(status) {
+      case 'PROFIT_TRAIL': return 'text-green-400 bg-green-400/10 border-green-500/30';
+      case 'ACTIVE': return 'text-blue-400 bg-blue-400/10 border-blue-500/30';
+      case 'AT_RISK': return 'text-yellow-400 bg-yellow-400/10 border-yellow-500/30';
+      default: return 'text-slate-400 bg-slate-400/10 border-slate-500/30';
+    }
+  };
 
-  const { data, loading, error, refetch } = useApi("portfolio", {
-    pollIntervalMs: 30000,
-  });
-  const positions = Array.isArray(data?.positions) ? data.positions : [];
-  const history = Array.isArray(data?.history) ? data.history : [];
-  const totalPnl = positions.reduce((sum, p) => sum + (p.pnl ?? 0), 0);
+  const getStructureIcon = (structure) => {
+    switch(structure) {
+      case 'HOLDING': return <CheckCircle className="w-4 h-4 text-green-400" />;
+      case 'MARGINAL': return <AlertTriangle className="w-4 h-4 text-yellow-400" />;
+      case 'BROKEN': return <XCircle className="w-4 h-4 text-red-500" />;
+      default: return null;
+    }
+  };
+
+  const handleClosePosition = (id) => {
+    setOpenPositions(openPositions.filter(pos => pos.id !== id));
+    // In production, this fires API to execution/ordermanager.py
+  };
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        icon={LineChart}
-        title="Trade Execution"
-        description={
-          error
-            ? "Failed to load portfolio"
-            : "Manage positions and review history"
-        }
-      >
-        <div className="flex items-center gap-3">
-          {error && (
-            <span className="text-xs font-medium text-danger">
-              Failed to load
-            </span>
-          )}
-          <button
-            onClick={() => refetch()}
-            disabled={loading}
-            className="flex items-center gap-2 rounded-lg border border-secondary/40 bg-secondary/10 px-3 py-2 text-xs font-medium text-secondary transition-colors hover:bg-secondary/20 hover:text-white disabled:opacity-50"
-            title="Refresh portfolio"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            Refresh
-          </button>
-          <div className="flex items-center gap-2 rounded-lg border border-success/30 bg-success/10 px-3 py-2">
-            <div
-              className={`h-2 w-2 rounded-full ${loading ? "bg-amber-400 animate-pulse" : "bg-emerald-400 animate-pulse"}`}
-            />
-            <span className="text-xs font-medium text-success">
-              {loading ? "Updating…" : "Live"}
-            </span>
-          </div>
-          <Badge
-            variant={totalPnl >= 0 ? "success" : "danger"}
-            size="lg"
-            className="px-4 py-2"
-          >
-            Today: {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(0)}
-          </Badge>
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-200 p-6">
+      
+      {/* Header & Global Stats */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
+        <div>
+          <h1 className="text-4xl font-bold text-white mb-2 flex items-center gap-3">
+            <Briefcase className="w-10 h-10 text-blue-500" />
+            Position Management
+          </h1>
+          <p className="text-slate-400">Live Structural Tracking & Trailing Stops</p>
         </div>
-      </PageHeader>
-
-      {clawContext && (
-        <Card className="border-primary/40 bg-primary/10 p-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <p className="text-sm text-white">
-              <span className="font-medium">ClawBot context:</span>
-              {clawContext.team && (
-                <span className="ml-1">
-                  Team: {String(clawContext.team).replace(/_/g, " ")}
-                </span>
-              )}
-              {clawContext.entry != null && (
-                <span className="ml-1">Entry: {Number(clawContext.entry).toFixed(2)}</span>
-              )}
-              {clawContext.stop != null && (
-                <span className="ml-1">Stop: {Number(clawContext.stop).toFixed(2)}</span>
-              )}
-              {clawContext.target != null && (
-                <span className="ml-1">Target: {Number(clawContext.target).toFixed(2)}</span>
-              )}
-              {clawContext.score != null && (
-                <span className="ml-1">Score: {Number(clawContext.score).toFixed(1)}</span>
-              )}
-            </p>
-            <button
-              type="button"
-              onClick={() => setClawContext(null)}
-              className="shrink-0 rounded p-1 text-secondary hover:bg-secondary/20 hover:text-white"
-              aria-label="Dismiss"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </Card>
-      )}
-
-      {fromSignal && !dismissFromSignal && (
-        <Card className="border-primary/40 bg-primary/10 p-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <p className="text-sm text-white">
-              <span className="font-medium">From Signal:</span> Place order for{" "}
-              <span className="font-bold text-primary">
-                {location.state.symbol}
-              </span>
-              {location.state.side && (
-                <span className="ml-1 text-secondary">
-                  ({location.state.side})
-                </span>
-              )}
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => {
-                  setOrderForm((f) => ({
-                    ...f,
-                    symbol: location.state.symbol,
-                    side:
-                      (location.state.side || "Buy").toLowerCase() === "sell"
-                        ? "sell"
-                        : "buy",
-                  }));
-                  setOrderModalOpen(true);
-                  setOrderError(null);
-                  setOrderSuccess(false);
-                }}
-              >
-                <Send className="w-4 h-4 mr-1" />
-                Place order
-              </Button>
-              <button
-                type="button"
-                onClick={() => {
-                  setDismissFromSignal(true);
-                  navigate("/trades", { replace: true, state: {} });
-                }}
-                className="shrink-0 rounded p-1 text-secondary hover:bg-secondary/20 hover:text-white"
-                aria-label="Dismiss"
-              >
-                <X className="h-4 w-4" />
-              </button>
+        
+        <div className="flex gap-4">
+          <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-4 backdrop-blur-md min-w-[150px]">
+            <div className="text-xs text-slate-500 mb-1">Open Risk</div>
+            <div className={`text-2xl font-mono font-bold ${totalRisk > 5 ? 'text-red-400' : 'text-yellow-400'}`}>
+              {totalRisk}%
             </div>
           </div>
-        </Card>
-      )}
+          <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-4 backdrop-blur-md min-w-[150px]">
+            <div className="text-xs text-slate-500 mb-1">Unrealized PnL</div>
+            <div className="text-2xl font-mono font-bold text-green-400">
+              +${openPositions.reduce((sum, pos) => sum + pos.unrealizedPnL, 0).toLocaleString(undefined, {minimumFractionDigits: 2})}
+            </div>
+          </div>
+        </div>
+      </div>
 
-      {orderModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"
-          onClick={() => !orderSubmitting && setOrderModalOpen(false)}
+      {/* Tabs */}
+      <div className="flex gap-4 mb-6 border-b border-slate-800 pb-2">
+        <button 
+          onClick={() => setActiveTab('OPEN')}
+          className={`pb-2 px-4 font-bold text-sm tracking-wider transition-colors relative ${activeTab === 'OPEN' ? 'text-blue-400' : 'text-slate-500 hover:text-slate-300'}`}
         >
-          <Card
-            className="w-full max-w-md p-6 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white">Place order</h3>
-              <button
-                type="button"
-                onClick={() => !orderSubmitting && setOrderModalOpen(false)}
-                className="p-1 text-secondary hover:text-white"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            {orderSuccess && (
-              <p className="mb-4 text-sm text-success">
-                Order submitted successfully.
-              </p>
-            )}
-            {orderError && (
-              <p className="mb-4 text-sm text-danger">{orderError}</p>
-            )}
-            <div className="space-y-4">
-              <TextField
-                label="Symbol"
-                value={orderForm.symbol}
-                readOnly
-                className="opacity-80"
-              />
-              <Select
-                label="Side"
-                value={orderForm.side}
-                onChange={(e) =>
-                  setOrderForm((f) => ({ ...f, side: e.target.value }))
-                }
-                options={[
-                  { value: "buy", label: "Buy" },
-                  { value: "sell", label: "Sell" },
-                ]}
-              />
-              <Select
-                label="Order type"
-                value={orderForm.order_type}
-                onChange={(e) =>
-                  setOrderForm((f) => ({ ...f, order_type: e.target.value }))
-                }
-                options={[
-                  { value: "Market", label: "Market" },
-                  { value: "Limit", label: "Limit" },
-                ]}
-              />
-              <TextField
-                label="Quantity"
-                type="number"
-                min={1}
-                value={orderForm.quantity}
-                onChange={(e) =>
-                  setOrderForm((f) => ({
-                    ...f,
-                    quantity: parseInt(e.target.value, 10) || 1,
-                  }))
-                }
-              />
-              {orderForm.order_type === "Limit" && (
-                <TextField
-                  label="Limit price"
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  value={orderForm.price || ""}
-                  onChange={(e) =>
-                    setOrderForm((f) => ({
-                      ...f,
-                      price: parseFloat(e.target.value) || 0,
-                    }))
-                  }
-                />
-              )}
-            </div>
-            <div className="flex gap-2 mt-6">
-              <Button
-                variant="primary"
-                className="flex-1"
-                disabled={orderSubmitting}
-                onClick={async () => {
-                  setOrderSubmitting(true);
-                  setOrderError(null);
-                  try {
-                    const res = await fetch(getApiUrl("orders"), {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        symbol: orderForm.symbol,
-                        order_type: orderForm.order_type,
-                        side: orderForm.side,
-                        quantity: orderForm.quantity,
-                        price:
-                          orderForm.order_type === "Market"
-                            ? 0
-                            : orderForm.price || 0,
-                      }),
-                    });
-                    const data = await res.json().catch(() => ({}));
-                    if (!res.ok) {
-                      const errMsg =
-                        data.detail || data.message || `HTTP ${res.status}`;
-                      setOrderError(errMsg);
-                      toast.error(errMsg);
-                      return;
-                    }
-                    setOrderSuccess(true);
-                    toast.success("Order placed successfully");
-                    refetch();
-                    setTimeout(() => {
-                      setOrderModalOpen(false);
-                      setOrderSuccess(false);
-                    }, 1500);
-                  } catch (err) {
-                    const errMsg = err.message || "Request failed";
-                    setOrderError(errMsg);
-                    toast.error(errMsg);
-                  } finally {
-                    setOrderSubmitting(false);
-                  }
-                }}
-              >
-                {orderSubmitting ? "Submitting…" : "Submit order"}
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() => !orderSubmitting && setOrderModalOpen(false)}
-                disabled={orderSubmitting}
-              >
-                Cancel
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )}
+          OPEN POSITIONS ({openPositions.length})
+          {activeTab === 'OPEN' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]"></span>}
+        </button>
+        <button 
+          onClick={() => setActiveTab('CLOSED')}
+          className={`pb-2 px-4 font-bold text-sm tracking-wider transition-colors relative ${activeTab === 'CLOSED' ? 'text-blue-400' : 'text-slate-500 hover:text-slate-300'}`}
+        >
+          TODAY'S CLOSED
+          {activeTab === 'CLOSED' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]"></span>}
+        </button>
+      </div>
 
-      {loading && positions.length === 0 && !error && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
-            <div
-              key={i}
-              className="rounded-xl border border-secondary/40 bg-gradient-to-br from-secondary/10 to-transparent p-4 animate-pulse"
-            >
-              <div className="h-3 bg-secondary/20 rounded w-2/3 mb-2" />
-              <div className="h-6 bg-secondary/20 rounded w-1/2" />
+      {/* Open Positions View */}
+      {activeTab === 'OPEN' && (
+        <div className="space-y-4">
+          {openPositions.map((pos) => (
+            <div key={pos.id} className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-5 backdrop-blur-sm shadow-lg relative overflow-hidden group">
+              {/* Left Color Bar */}
+              <div className={`absolute top-0 left-0 w-1 h-full ${pos.direction === 'LONG' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+
+              <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
+                
+                {/* Ticker & Status */}
+                <div className="w-full lg:w-1/5">
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="text-3xl font-black text-white tracking-widest">{pos.ticker}</span>
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-black tracking-widest border ${pos.direction === 'LONG' ? 'bg-green-500/20 text-green-400 border-green-500/50' : 'bg-red-500/20 text-red-400 border-red-500/50'}`}>
+                      {pos.direction}
+                    </span>
+                  </div>
+                  <span className={`px-2 py-1 rounded text-xs font-bold border ${getStatusColor(pos.status)}`}>
+                    {pos.status.replace('_', ' ')}
+                  </span>
+                </div>
+
+                {/* Core Math */}
+                <div className="w-full lg:w-1/3 grid grid-cols-2 gap-4 bg-slate-900/50 p-3 rounded-lg border border-slate-700/30 font-mono">
+                  <div>
+                    <div className="text-xs text-slate-500">Entry</div>
+                    <div className="text-slate-300">${pos.entryPrice.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500">Current</div>
+                    <div className={`font-bold ${pos.direction === 'LONG' ? (pos.currentPrice > pos.entryPrice ? 'text-green-400' : 'text-red-400') : (pos.currentPrice < pos.entryPrice ? 'text-green-400' : 'text-red-400')}`}>
+                      ${pos.currentPrice.toFixed(2)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500 flex items-center gap-1"><Shield className="w-3 h-3 text-red-400"/> Stop Loss</div>
+                    <div className={`${pos.stopLoss === pos.entryPrice ? 'text-blue-400 font-bold' : 'text-red-400'}`}>
+                      ${pos.stopLoss.toFixed(2)} {pos.stopLoss === pos.entryPrice && '(BE)'}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500 flex items-center gap-1"><Crosshair className="w-3 h-3 text-green-400"/> T1 (1R)</div>
+                    <div className="text-green-400">${pos.target1.toFixed(2)}</div>
+                  </div>
+                </div>
+
+                {/* Systemic Analysis */}
+                <div className="w-full lg:w-1/4 space-y-2 text-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400">4H Structure</span>
+                    <span className="flex items-center gap-1 font-bold text-white">
+                      {pos.structure4H} {getStructureIcon(pos.structure4H)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400">Volume Profile</span>
+                    <span className={`font-bold ${pos.volumeProfile === 'ACCUMULATION' ? 'text-green-400' : pos.volumeProfile === 'DISTRIBUTION' ? 'text-red-400' : 'text-slate-300'}`}>
+                      {pos.volumeProfile}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400"><Clock className="inline w-3 h-3 mb-0.5"/> Time Open</span>
+                    <span className="text-slate-300">{pos.timeOpen}</span>
+                  </div>
+                </div>
+
+                {/* Performance & Actions */}
+                <div className="w-full lg:w-[15%] flex flex-col items-end gap-3">
+                  <div className="text-right">
+                    <div className={`text-2xl font-black font-mono ${pos.unrealizedPnL >= 0 ? 'text-green-400' : 'text-red-500'}`}>
+                      {pos.unrealizedPnL >= 0 ? '+' : ''}${pos.unrealizedPnL.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                    </div>
+                    <div className="text-sm font-bold text-slate-400">
+                      {pos.rMultiple.toFixed(2)}R
+                    </div>
+                  </div>
+                  
+                  <button 
+                    onClick={() => handleClosePosition(pos.id)}
+                    className="w-full py-2 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/30 hover:border-red-500 rounded font-bold transition-all text-xs tracking-wider"
+                  >
+                    CLOSE MARKET
+                  </button>
+                </div>
+
+              </div>
             </div>
           ))}
+          
+          {openPositions.length === 0 && (
+            <div className="text-center py-20 bg-slate-800/20 border border-slate-700/30 rounded-xl">
+              <Shield className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+              <h3 className="text-xl font-bold text-slate-400">FLAT MARKET</h3>
+              <p className="text-slate-500 mt-1">No active positions. Scanning for structure...</p>
+            </div>
+          )}
         </div>
       )}
-      {error && positions.length === 0 && (
-        <Card className="p-6 text-center">
-          <p className="text-secondary mb-2">
-            Could not load portfolio. Check GET /api/v1/portfolio.
-          </p>
-          <Button variant="outline" size="sm" onClick={refetch}>
-            Retry
-          </Button>
-        </Card>
-      )}
-      {!loading && !error && positions.length === 0 && history.length === 0 && (
-        <Card className="p-6 text-center">
-          <p className="text-secondary">No positions or trade history yet.</p>
-        </Card>
-      )}
-      {!loading && (positions.length > 0 || history.length > 0) && (
-        <>
-          {/* Stats row */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              {
-                label: "Active Positions",
-                value: positions.length,
-                icon: TrendingUp,
-                color: "text-primary",
-              },
-              {
-                label: "Unrealized P&L",
-                value: `$${totalPnl >= 0 ? "+" : ""}${totalPnl}`,
-                icon: DollarSign,
-                color: totalPnl >= 0 ? "text-success" : "text-danger",
-              },
-              {
-                label: "Win Rate (30d)",
-                value: "68.5%",
-                icon: ArrowUpRight,
-                color: "text-success",
-              },
-              {
-                label: "Avg Hold Time",
-                value: "1.4 days",
-                icon: Clock,
-                color: "text-warning",
-              },
-            ].map((stat, i) => (
-              <Card key={i} noPadding className="p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <stat.icon className={`w-4 h-4 ${stat.color}`} />
-                  <span className="text-xs text-secondary">{stat.label}</span>
-                </div>
-                <div className="text-xl font-bold text-white">{stat.value}</div>
-              </Card>
-            ))}
-          </div>
 
-          <div className="flex gap-2 border-b border-secondary/50 pb-0">
-            {["active", "history"].map((t) => (
-              <Button
-                key={t}
-                variant={tab === t ? "primary" : "ghost"}
-                size="sm"
-                onClick={() => setTab(t)}
-                className={
-                  tab === t
-                    ? "border-b-2 border-primary rounded-b-none"
-                    : "rounded-b-none"
-                }
-              >
-                {t === "active"
-                  ? `Active (${positions.length})`
-                  : `History (${history.length})`}
-              </Button>
-            ))}
-          </div>
-
-          {tab === "active" && (
-            <Card noPadding className="overflow-hidden">
-              <DataTable
-                columns={[
-                  {
-                    key: "ticker",
-                    label: "Ticker",
-                    render: (v) => (
-                      <span className="font-semibold text-white">{v}</span>
-                    ),
-                  },
-                  {
-                    key: "side",
-                    label: "Side",
-                    render: (v) => (
-                      <Badge variant={v === "Long" ? "success" : "danger"}>
-                        {v}
-                      </Badge>
-                    ),
-                  },
-                  { key: "qty", label: "Qty", cellClassName: "text-right" },
-                  {
-                    key: "entry",
-                    label: "Entry",
-                    cellClassName: "text-right",
-                    render: (v) => `$${Number(v).toFixed(2)}`,
-                  },
-                  {
-                    key: "current",
-                    label: "Current",
-                    cellClassName: "text-right",
-                    render: (v) => `$${Number(v).toFixed(2)}`,
-                  },
-                  {
-                    key: "pnl",
-                    label: "P&L",
-                    cellClassName: "text-right",
-                    render: (_, row) => (
-                      <span
-                        className={
-                          row.pnl >= 0 ? "text-success" : "text-danger"
-                        }
-                      >
-                        {row.pnl >= 0 ? "+" : ""}${row.pnl} (
-                        {row.pnlPct >= 0 ? "+" : ""}
-                        {row.pnlPct}%)
-                      </span>
-                    ),
-                  },
-                  {
-                    key: "stop",
-                    label: "Stop",
-                    cellClassName: "text-right text-danger",
-                    render: (v) => `$${Number(v).toFixed(2)}`,
-                  },
-                  {
-                    key: "target",
-                    label: "Target",
-                    cellClassName: "text-right text-success",
-                    render: (v) => `$${Number(v).toFixed(2)}`,
-                  },
-                  {
-                    key: "signal",
-                    label: "Signal",
-                    render: (v) => <span className="text-secondary">{v}</span>,
-                  },
-                  {
-                    key: "id",
-                    label: "Actions",
-                    cellClassName: "text-right",
-                    render: () => (
-                      <Button variant="danger" size="sm">
-                        Close
-                      </Button>
-                    ),
-                  },
-                ]}
-                data={positions}
-              />
-            </Card>
-          )}
-
-          {tab === "history" && (
-            <Card noPadding className="overflow-hidden">
-              <DataTable
-                columns={[
-                  {
-                    key: "date",
-                    label: "Date",
-                    render: (v) => <span className="text-secondary">{v}</span>,
-                  },
-                  {
-                    key: "ticker",
-                    label: "Ticker",
-                    render: (v) => (
-                      <span className="font-semibold text-white">{v}</span>
-                    ),
-                  },
-                  {
-                    key: "side",
-                    label: "Side",
-                    render: (v) => (
-                      <Badge variant={v === "Long" ? "success" : "danger"}>
-                        {v}
-                      </Badge>
-                    ),
-                  },
-                  { key: "qty", label: "Qty", cellClassName: "text-right" },
-                  {
-                    key: "entry",
-                    label: "Entry",
-                    cellClassName: "text-right",
-                    render: (v) => `$${Number(v).toFixed(2)}`,
-                  },
-                  {
-                    key: "exit",
-                    label: "Exit",
-                    cellClassName: "text-right",
-                    render: (v) => `$${Number(v).toFixed(2)}`,
-                  },
-                  {
-                    key: "pnl",
-                    label: "P&L",
-                    cellClassName: "text-right",
-                    render: (_, row) => (
-                      <span
-                        className={
-                          row.pnl >= 0 ? "text-success" : "text-danger"
-                        }
-                      >
-                        {row.pnl >= 0 ? "+" : ""}${row.pnl} (
-                        {row.pnlPct >= 0 ? "+" : ""}
-                        {row.pnlPct}%)
-                      </span>
-                    ),
-                  },
-                  {
-                    key: "duration",
-                    label: "Duration",
-                    cellClassName: "text-right",
-                    render: (v) => <span className="text-secondary">{v}</span>,
-                  },
-                ]}
-                data={history}
-              />
-            </Card>
-          )}
-        </>
+      {/* Closed Positions View */}
+      {activeTab === 'CLOSED' && (
+        <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl overflow-hidden backdrop-blur-md shadow-lg">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-900/60 border-b border-slate-700/50 text-xs uppercase tracking-wider text-slate-400">
+                <th className="p-4 font-semibold">Asset</th>
+                <th className="p-4 font-semibold">Direction</th>
+                <th className="p-4 font-semibold">Entry / Exit</th>
+                <th className="p-4 font-semibold">Duration</th>
+                <th className="p-4 font-semibold">Exit Reason</th>
+                <th className="p-4 font-semibold text-right">R-Multiple</th>
+                <th className="p-4 font-semibold text-right">Realized PnL</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-700/30">
+              {closedPositions.map((trade) => (
+                <tr key={trade.id} className="hover:bg-slate-800/40 transition-colors">
+                  <td className="p-4 font-bold text-white">{trade.ticker}</td>
+                  <td className="p-4">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-black tracking-widest ${trade.direction === 'LONG' ? 'text-green-400 bg-green-400/10' : 'text-red-400 bg-red-400/10'}`}>
+                      {trade.direction}
+                    </span>
+                  </td>
+                  <td className="p-4 font-mono text-sm text-slate-300">
+                    ${trade.entryPrice.toFixed(2)} → ${trade.exitPrice.toFixed(2)}
+                  </td>
+                  <td className="p-4 text-sm text-slate-400">{trade.duration}</td>
+                  <td className="p-4 text-sm font-semibold text-slate-300">{trade.exitReason.replace(/_/g, ' ')}</td>
+                  <td className={`p-4 font-mono text-sm text-right font-bold ${trade.rMultiple > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {trade.rMultiple > 0 ? '+' : ''}{trade.rMultiple.toFixed(2)}R
+                  </td>
+                  <td className={`p-4 font-mono font-bold text-right ${trade.pnl > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {trade.pnl > 0 ? '+' : ''}${trade.pnl.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
+
     </div>
   );
 }
