@@ -1,81 +1,125 @@
 # Oleh Continuation Guide - Elite Trading System Frontend-v2
 
-## Recent Changes (What Was Done)
+> **UPDATED Feb 25, 2026**: This guide has been completely rewritten to reflect the V3 14-page architecture. See `frontend-v2/src/V3-ARCHITECTURE.md` for the authoritative page list.
 
-### 1. Chart Component Stubs Created
-Two new stub components were added to `frontend-v2/src/components/charts/`:
+---
 
-- **RiskEquityLC.jsx** - Placeholder for lightweight-charts equity curve
-  - Accepts `data`, `height`, `showBenchmark`, `timeframe` props
-  - Currently renders mini bar-chart placeholder
-  - TODO: Wire up with `createChart()` from lightweight-charts library
+## Current V3 Status (Feb 25, 2026)
 
-- **MonteCarloLC.jsx** - Placeholder for Monte Carlo simulation chart
-  - Accepts `data`, `height`, `showPercentiles` props
-  - Shows percentile color legend (5th through 95th)
-  - TODO: Wire up with lightweight-charts AreaSeries for percentile bands
+**14 total pages** (consolidated from original 18):
+- **10 V3 COMPLETE** - Full widescreen layout, lightweight-charts, real API integration
+- **4 NEED V3 UPDATE** - Still using old layout, need conversion to V3 patterns
 
-### 2. RiskIntelligence.jsx Imports Fixed
-- Uncommented `import RiskEquityLC` (line 25)
-- Uncommented `import MonteCarloLC` (line 26)
-- Both imports now resolve to the stub files above
+### V3 Complete Pages (10) - NO CHANGES NEEDED
 
-### 3. JSX Usage Blocks Still Commented
-In `RiskIntelligence.jsx`, the JSX that renders these charts is still wrapped in `{/* ... */}` comments. To activate them:
+| Page | File | Route |
+|------|------|-------|
+| Intelligence Dashboard | `Dashboard.jsx` | `/dashboard` |
+| Agent Command Center | `AgentCommandCenter.jsx` | `/agents` |
+| Signal Intelligence | `Signals.jsx` | `/signals` |
+| ML Brain & Flywheel | `MLInsights.jsx` | `/ml-insights` |
+| Backtesting Lab | `Backtesting.jsx` | `/backtest` |
+| Performance Analytics | `PerformanceAnalytics.jsx` | `/performance` |
+| Market Regime | `MarketRegime.jsx` | `/market-regime` |
+| Active Trades | `Trades.jsx` | `/trades` |
+| Risk Intelligence | `RiskIntelligence.jsx` | `/risk` |
+| Trade Execution | `TradeExecution.jsx` | `/trade-execution` |
 
-**Portfolio Equity Chart (~line 160-165):**
-Find and uncomment the block that uses `<RiskEquityLC data={histData} height={220} />`
+### Pages Needing V3 Update (4) - YOUR PRIORITY
 
-**Monte Carlo Chart (~line 170-180):**
-Find and uncomment the block that uses `<MonteCarloLC data={mcData} height={220} />`
+| Page | File | Route | What's Needed |
+|------|------|-------|---------------|
+| Sentiment Intelligence | `SentimentIntelligence.jsx` | `/sentiment` | Widescreen layout + LW Charts + YouTube Knowledge tab |
+| Data Sources Monitor | `DataSourcesMonitor.jsx` | `/data-sources` | Widescreen layout + real health endpoints |
+| Screener & Patterns | `Patterns.jsx` | `/patterns` | Widescreen layout + Finviz/Alpaca wiring |
+| Settings | `Settings.jsx` | `/settings` | Widescreen layout + API key management |
 
-## What Needs To Be Done Next
+---
 
-### Priority 1: Wire Up Chart Components with lightweight-charts
-1. Install lightweight-charts: `npm install lightweight-charts`
-2. In `RiskEquityLC.jsx`: Replace placeholder with `createChart()` + LineSeries
-3. In `MonteCarloLC.jsx`: Replace placeholder with `createChart()` + multiple AreaSeries
-4. Uncomment the JSX blocks in `RiskIntelligence.jsx` that render these charts
+## V3 Consolidation (What Was Merged)
 
-### Priority 2: Verify All Page Imports Compile
-Pages to verify compile cleanly:
-- `Dashboard.jsx` - 717 lines, imports look clean
-- `Signals.jsx` - 683 lines, imports look clean
-- `RiskIntelligence.jsx` - 480 lines, imports now fixed
-- `EquityCurveChart.jsx` - Already using useApi with portfolio data
+4 pages were deleted and merged into existing pages:
 
-### Priority 3: API Integration
-All pages use `useApi()` hook to fetch from backend. Verify these endpoints:
-- `/api/v1/risk` - Risk metrics (Alpaca account data)
-- `/api/v1/portfolio` - Portfolio positions
-- `/api/v1/alerts` - Alert data
-- `/api/v1/performance` - Equity history + Monte Carlo data
-- `/api/v1/signals` - OpenClaw signal data
+| Deleted File | Merged Into | Reason |
+|---|---|---|
+| `OperatorConsole.jsx` | `AgentCommandCenter.jsx` | Redundant operator view |
+| `SignalHeatmap.jsx` | `Signals.jsx` | Heatmap added as tab |
+| `YouTubeKnowledge.jsx` | `SentimentIntelligence.jsx` | YouTube analysis merged as tab |
+| `StrategyIntelligence.jsx` | `Backtesting.jsx` | Strategy controls merged in |
+
+Legacy routes (`/operator`, `/signal-heatmap`, `/youtube`, `/strategy`) should redirect to new homes.
+
+---
+
+## Priority Tasks for Oleh
+
+### Priority 1: SentimentIntelligence.jsx (HIGH)
+- Convert to V3 widescreen layout (no max-width container)
+- Add lightweight-charts for sentiment trend visualization
+- Add YouTube Knowledge as a tab (was separate page)
+- Wire to real `/api/sentiment` endpoint
+- Add Unusual Whales options flow data tab
+
+### Priority 2: Patterns.jsx (HIGH)
+- Convert to V3 widescreen layout
+- Wire Finviz screener to real `/api/finviz/screener` endpoint
+- Wire Alpaca asset data to real `/api/alpaca/assets` endpoint
+- Add lightweight-charts for pattern visualization
+- Remove any mock/fake data
+
+### Priority 3: DataSourcesMonitor.jsx (MEDIUM)
+- Convert to V3 widescreen layout
+- Wire to real `/api/health` and `/api/data-sources/status` endpoints
+- Add real-time WebSocket status updates
+- Show OpenClaw integration status
+
+### Priority 4: Settings.jsx (LOW)
+- Convert to V3 widescreen layout
+- Wire react-toastify notifications
+- Add API key management
+- Add user preference persistence
+
+---
+
+## V3 Design Patterns (Follow These for All Updates)
+
+1. **No max-width container** - Full widescreen
+2. **Dark theme** - `bg-[#0a0a0f]` background, cyan/emerald accents
+3. **Lightweight Charts** - Use `lightweight-charts` for all chart visualizations
+4. **Real API calls** - Use `useApi()` hook from `../hooks/useApi`
+5. **Loading states** - Skeleton loaders while data fetches
+6. **Error boundaries** - Graceful error handling with retry
+7. **Tab-based layout** - Use tabs for related sub-views
+8. **PageHeader component** - Consistent header with title, description, action buttons
+
+---
 
 ## File Structure Reference
 
 ```
 frontend-v2/src/
+  pages/              # 14 page components
   components/
-    charts/
-      EquityCurveChart.jsx   (working - uses useApi)
-      MiniChart.jsx          (working)
-      RiskEquityLC.jsx       (STUB - needs lightweight-charts)
-      MonteCarloLC.jsx       (STUB - needs lightweight-charts)
-      RiskHistoryChart.jsx   (working)
-    ui/                      (Card, Button, TextField, etc.)
-  pages/
-    Dashboard.jsx            (clean)
-    RiskIntelligence.jsx     (imports fixed, JSX blocks to uncomment)
-    Signals.jsx              (clean)
-    ... other pages
-  hooks/
-    useApi.js                (centralized API fetching)
-  config/
-    api.js                   (getApiUrl helper)
+    layout/            # Layout.jsx, Sidebar.jsx, Header.jsx
+    charts/            # Shared chart components (LW Charts wrappers)
+    dashboard/         # Dashboard-specific components
+    ui/                # Reusable UI (Card, Button, Badge, etc.)
+  hooks/               # useApi, useWebSocket, custom hooks
+  config/              # API URLs, constants
+  data/                # Static data, enums
+  lib/                 # Utility functions
+  services/            # API service layer
 ```
 
+## Key Documentation Files
+
+- `frontend-v2/src/V3-ARCHITECTURE.md` - **AUTHORITATIVE** page architecture (14 pages)
+- `docs/mockups-v3/FULL-MOCKUP-SPEC.md` - Full mockup specifications for all pages
+- `OLEH-HANDOFF.md` - Original handoff with backend wiring details
+- `README.md` - Root project overview
+
 ## Quick Start
+
 ```bash
 cd frontend-v2
 npm install
