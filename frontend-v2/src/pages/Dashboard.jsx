@@ -91,10 +91,13 @@ function StatCard({ title, value, change, changeType, icon: Icon, color }) {
 function KpiMicroCard({ label, value, sub, color, icon: Icon, onClick }) {
   const borderMap = {
     cyan: "border-cyan-500/30 hover:border-cyan-500/60 shadow-[0_0_8px_rgba(6,182,212,0.08)]",
-    amber: "border-amber-500/30 hover:border-amber-500/60 shadow-[0_0_8px_rgba(245,158,11,0.08)]",
+    amber:
+      "border-amber-500/30 hover:border-amber-500/60 shadow-[0_0_8px_rgba(245,158,11,0.08)]",
     red: "border-red-500/30 hover:border-red-500/60 shadow-[0_0_8px_rgba(239,68,68,0.08)]",
-    green: "border-emerald-500/30 hover:border-emerald-500/60 shadow-[0_0_8px_rgba(16,185,129,0.08)]",
-    purple: "border-purple-500/30 hover:border-purple-500/60 shadow-[0_0_8px_rgba(168,85,247,0.08)]",
+    green:
+      "border-emerald-500/30 hover:border-emerald-500/60 shadow-[0_0_8px_rgba(16,185,129,0.08)]",
+    purple:
+      "border-purple-500/30 hover:border-purple-500/60 shadow-[0_0_8px_rgba(168,85,247,0.08)]",
   };
   const textMap = {
     cyan: "text-cyan-400",
@@ -109,11 +112,25 @@ function KpiMicroCard({ label, value, sub, color, icon: Icon, onClick }) {
       onClick={onClick || (() => toast.info(`Drilling into ${label}`))}
     >
       <div className="flex items-center justify-between mb-1">
-        <span className="text-[9px] text-secondary uppercase tracking-wider font-mono truncate">{label}</span>
-        {Icon && <Icon className={`w-3 h-3 ${textMap[color] || "text-cyan-400"} shrink-0`} />}
+        <span className="text-[9px] text-secondary uppercase tracking-wider font-mono truncate">
+          {label}
+        </span>
+        {Icon && (
+          <Icon
+            className={`w-3 h-3 ${textMap[color] || "text-cyan-400"} shrink-0`}
+          />
+        )}
       </div>
-      <div className={`text-sm font-bold font-mono ${textMap[color] || "text-white"} truncate`}>{value}</div>
-      {sub && <div className="text-[8px] text-secondary/70 font-mono truncate mt-0.5">{sub}</div>}
+      <div
+        className={`text-sm font-bold font-mono ${textMap[color] || "text-white"} truncate`}
+      >
+        {value}
+      </div>
+      {sub && (
+        <div className="text-[8px] text-secondary/70 font-mono truncate mt-0.5">
+          {sub}
+        </div>
+      )}
     </div>
   );
 }
@@ -133,12 +150,19 @@ function SectorCell({ name, value, momentum }) {
     >
       <div className="text-[10px] font-bold text-white/90 truncate">{name}</div>
       <div className="text-xs font-mono font-bold text-white mt-0.5">
-        {value >= 0 ? "+" : ""}{value.toFixed(1)}%
+        {value >= 0 ? "+" : ""}
+        {value.toFixed(1)}%
       </div>
       <div className="text-[9px] mt-0.5">
-        {momentum === "up" && <ArrowUp className="w-3 h-3 text-emerald-300 inline" />}
-        {momentum === "down" && <ArrowDown className="w-3 h-3 text-red-300 inline" />}
-        {momentum === "flat" && <ChevronRight className="w-3 h-3 text-gray-400 inline" />}
+        {momentum === "up" && (
+          <ArrowUp className="w-3 h-3 text-emerald-300 inline" />
+        )}
+        {momentum === "down" && (
+          <ArrowDown className="w-3 h-3 text-red-300 inline" />
+        )}
+        {momentum === "flat" && (
+          <ChevronRight className="w-3 h-3 text-gray-400 inline" />
+        )}
       </div>
     </div>
   );
@@ -216,8 +240,24 @@ export default function Dashboard() {
   // --- V3 ULTRA-DENSE: Mock data effects ---
   useEffect(() => {
     // P&L Ticker mock feed
-    const symbols = ["AAPL", "GOOGL", "TSLA", "NVDA", "MSFT", "AMZN", "META", "SPY", "QQQ", "BTC", "ETH", "SOL", "AMD", "NFLX", "CRM"];
-    const initial = symbols.map(s => ({
+    const symbols = [
+      "AAPL",
+      "GOOGL",
+      "TSLA",
+      "NVDA",
+      "MSFT",
+      "AMZN",
+      "META",
+      "SPY",
+      "QQQ",
+      "BTC",
+      "ETH",
+      "SOL",
+      "AMD",
+      "NFLX",
+      "CRM",
+    ];
+    const initial = symbols.map((s) => ({
       id: s,
       symbol: s,
       pnl: (Math.random() * 2000 - 500).toFixed(2),
@@ -226,23 +266,49 @@ export default function Dashboard() {
     setPnlTicker(initial);
 
     const pnlInterval = setInterval(() => {
-      setPnlTicker(prev => prev.map(item => ({
-        ...item,
-        pnl: (parseFloat(item.pnl) + (Math.random() * 40 - 15)).toFixed(2),
-        pct: (parseFloat(item.pct) + (Math.random() * 0.4 - 0.15)).toFixed(2),
-      })));
+      setPnlTicker((prev) =>
+        prev.map((item) => ({
+          ...item,
+          pnl: (parseFloat(item.pnl) + (Math.random() * 40 - 15)).toFixed(2),
+          pct: (parseFloat(item.pct) + (Math.random() * 0.4 - 0.15)).toFixed(2),
+        })),
+      );
     }, 3000);
 
     // News feed mock
     const headlines = [
-      { text: "Fed signals pause in rate hikes amid cooling inflation data", source: "Reuters" },
-      { text: "NVDA breaks out to new highs on AI datacenter demand surge", source: "Bloomberg" },
-      { text: "Crude oil inventories draw down more than expected", source: "EIA" },
-      { text: "China PMI rebounds above 50, signaling manufacturing expansion", source: "Caixin" },
-      { text: "Treasury yields fall as bond market prices in rate cuts", source: "CNBC" },
-      { text: "Bitcoin ETF inflows hit record $1.2B in single day", source: "CoinDesk" },
-      { text: "VIX drops below 14, hitting lowest level since January", source: "CBOE" },
-      { text: "Semiconductor sector rotation accelerates into Q1 earnings", source: "Barron's" },
+      {
+        text: "Fed signals pause in rate hikes amid cooling inflation data",
+        source: "Reuters",
+      },
+      {
+        text: "NVDA breaks out to new highs on AI datacenter demand surge",
+        source: "Bloomberg",
+      },
+      {
+        text: "Crude oil inventories draw down more than expected",
+        source: "EIA",
+      },
+      {
+        text: "China PMI rebounds above 50, signaling manufacturing expansion",
+        source: "Caixin",
+      },
+      {
+        text: "Treasury yields fall as bond market prices in rate cuts",
+        source: "CNBC",
+      },
+      {
+        text: "Bitcoin ETF inflows hit record $1.2B in single day",
+        source: "CoinDesk",
+      },
+      {
+        text: "VIX drops below 14, hitting lowest level since January",
+        source: "CBOE",
+      },
+      {
+        text: "Semiconductor sector rotation accelerates into Q1 earnings",
+        source: "Barron's",
+      },
     ];
     setNewsFeed(headlines);
 
@@ -311,5 +377,341 @@ export default function Dashboard() {
   }, [agentsData]);
 
   // Calculate stats from performance data
-  const portfolioValue = performanceData?.portfolioValue || 124850;
-  const dailyPnL = performanceData?.dailyPnL ||
+  const portfolioValue = performanceData?.portfolioValue ?? 124850;
+  const dailyPnL = performanceData?.dailyPnL ?? 0;
+  const regimeShort =
+    regime === "GREEN" ? "Bull" : regime === "RED" ? "Bear" : "Neutral";
+  const regimeMarkdown = typeof regimeReadme === "string" ? regimeReadme : "";
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        icon={LayoutDashboard}
+        title="Intelligence Dashboard"
+        description="Overview of portfolio, signals, OpenClaw regime, and agent status"
+      />
+
+      {/* Top stat cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          title="Portfolio Value"
+          value={`$${Number(portfolioValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+          change={
+            dailyPnL != null
+              ? `${dailyPnL >= 0 ? "+" : ""}$${Number(dailyPnL).toFixed(0)}`
+              : null
+          }
+          changeType={dailyPnL >= 0 ? "up" : "down"}
+          icon={DollarSign}
+          color="success"
+        />
+        <StatCard
+          title="OpenClaw Regime"
+          value={openclawLoading ? "…" : regimeShort}
+          icon={Gauge}
+          color="primary"
+        />
+        <StatCard
+          title="OpenClaw Candidates"
+          value={openclawLoading ? "…" : candidates.length}
+          icon={Target}
+          color="secondary"
+        />
+        <StatCard
+          title="Active Positions"
+          value={positions.length}
+          icon={BarChart3}
+          color="secondary"
+        />
+      </div>
+
+      {/* OpenClaw regime + readme */}
+      <Card
+        title="Market Regime"
+        subtitle={
+          lastScanTs
+            ? `Last scan: ${new Date(lastScanTs).toLocaleString()}`
+            : null
+        }
+      >
+        <div className="flex flex-wrap items-center gap-4 mb-4">
+          <Badge
+            variant={
+              regime === "GREEN"
+                ? "success"
+                : regime === "RED"
+                  ? "danger"
+                  : "warning"
+            }
+            size="lg"
+          >
+            {regime ?? "—"}
+          </Badge>
+          {openclawHealth && (
+            <span className="text-xs text-secondary">
+              Bridge: {openclawHealth.connected ? "Connected" : "Disconnected"}
+              {openclawHealth.candidate_count != null &&
+                ` · ${openclawHealth.candidate_count} candidates`}
+            </span>
+          )}
+        </div>
+        {regimeMarkdown && (
+          <div className="openclaw-regime prose prose-invert prose-sm max-w-none text-secondary">
+            <ReactMarkdown>{regimeMarkdown}</ReactMarkdown>
+          </div>
+        )}
+        {!regimeMarkdown && !openclawLoading && (
+          <p className="text-sm text-secondary">
+            No regime readme available. OpenClaw scan may not have run yet.
+          </p>
+        )}
+      </Card>
+
+      {/* Two-column: Candidates + Positions */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card
+          title="Top OpenClaw Candidates"
+          subtitle={`Sorted by composite score · ${candidates.length} shown`}
+          action={
+            <Link
+              to="/clawbot"
+              className="text-xs font-medium text-primary hover:text-primary/80 flex items-center gap-1"
+            >
+              ClawBot Panel <ArrowUpRight className="w-3 h-3" />
+            </Link>
+          }
+        >
+          {openclawLoading ? (
+            <p className="text-sm text-secondary py-4">Loading…</p>
+          ) : candidates.length === 0 ? (
+            <p className="text-sm text-secondary py-4">
+              No candidates. Check OpenClaw bridge.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {candidates.slice(0, 5).map((c, i) => (
+                <li
+                  key={c.symbol || c.ticker || i}
+                  className="flex items-center justify-between py-2 px-3 rounded-lg bg-secondary/10 hover:bg-secondary/20"
+                >
+                  <span className="font-medium text-white">
+                    {c.symbol || c.ticker}
+                  </span>
+                  <Badge variant="primary" size="sm">
+                    {c.composite_score != null
+                      ? Number(c.composite_score).toFixed(1)
+                      : "—"}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card
+          title="Active Positions"
+          subtitle="Latest from portfolio"
+          action={
+            <Link
+              to="/trades"
+              className="text-xs font-medium text-primary hover:text-primary/80 flex items-center gap-1"
+            >
+              Trade Execution <ArrowUpRight className="w-3 h-3" />
+            </Link>
+          }
+        >
+          <DataTable
+            columns={[
+              { key: "ticker", label: "Symbol" },
+              { key: "side", label: "Side" },
+              {
+                key: "entry",
+                label: "Entry",
+                render: (v) => (v != null ? Number(v).toFixed(2) : "—"),
+              },
+              {
+                key: "current",
+                label: "Current",
+                render: (v) => (v != null ? Number(v).toFixed(2) : "—"),
+              },
+              { key: "pnl", label: "P&L" },
+            ]}
+            data={positions}
+            emptyMessage="No positions"
+            onRowClick={() => {}}
+            rowKey={(row) => row.ticker}
+          />
+        </Card>
+      </div>
+
+      {/* Signals + Agents row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card
+          title="Latest Signals"
+          subtitle="ML signal feed"
+          action={
+            <Link
+              to="/signals"
+              className="text-xs font-medium text-primary hover:text-primary/80 flex items-center gap-1"
+            >
+              Signal Intelligence <ArrowUpRight className="w-3 h-3" />
+            </Link>
+          }
+        >
+          {signals.length === 0 ? (
+            <p className="text-sm text-secondary py-4">No signals yet.</p>
+          ) : (
+            <ul className="space-y-2">
+              {signals.map((s, i) => (
+                <li
+                  key={s.ticker || i}
+                  className="flex items-center justify-between py-2 px-3 rounded-lg bg-secondary/10"
+                >
+                  <span className="font-medium text-white">{s.ticker}</span>
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant={s.score >= 70 ? "success" : "warning"}
+                      size="sm"
+                    >
+                      {s.score}%
+                    </Badge>
+                    <span className="text-xs text-secondary">{s.time}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card
+          title="Agent Status"
+          subtitle="System agents"
+          action={
+            <Link
+              to="/agents"
+              className="text-xs font-medium text-primary hover:text-primary/80 flex items-center gap-1"
+            >
+              Agent Command Center <ArrowUpRight className="w-3 h-3" />
+            </Link>
+          }
+        >
+          {agents.length === 0 ? (
+            <p className="text-sm text-secondary py-4">No agent data.</p>
+          ) : (
+            <ul className="space-y-2">
+              {agents.map((a, i) => {
+                const Icon = a.icon;
+                return (
+                  <li
+                    key={a.name || i}
+                    className="flex items-center justify-between py-2 px-3 rounded-lg bg-secondary/10"
+                  >
+                    <div className="flex items-center gap-2">
+                      {Icon && <Icon className="w-4 h-4 text-primary" />}
+                      <span className="text-sm text-white">{a.name}</span>
+                    </div>
+                    <Badge
+                      variant={a.status === "active" ? "success" : "secondary"}
+                      size="sm"
+                    >
+                      {a.status}
+                    </Badge>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Card>
+      </div>
+
+      {/* P&L Ticker strip */}
+      {pnlTicker.length > 0 && (
+        <Card title="Live P&L Ticker" subtitle="Symbol-level P&L (mock)">
+          <div className="flex gap-4 overflow-x-auto pb-2 custom-scrollbar">
+            {pnlTicker.slice(0, 10).map((item) => (
+              <div
+                key={item.id}
+                className="shrink-0 px-3 py-2 rounded-lg bg-secondary/10 border border-secondary/30 min-w-[100px] text-center"
+              >
+                <div className="text-xs font-bold text-white">
+                  {item.symbol}
+                </div>
+                <div
+                  className={`text-xs font-mono ${parseFloat(item.pnl) >= 0 ? "text-success" : "text-danger"}`}
+                >
+                  {parseFloat(item.pnl) >= 0 ? "+" : ""}
+                  {item.pnl}
+                </div>
+                <div
+                  className={`text-[10px] ${parseFloat(item.pct) >= 0 ? "text-success" : "text-danger"}`}
+                >
+                  {parseFloat(item.pct) >= 0 ? "+" : ""}
+                  {item.pct}%
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* KPI Micro Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+        <KpiMicroCard
+          label="VIX"
+          value="18.2"
+          sub="Fear & Greed"
+          color="amber"
+          icon={Thermometer}
+        />
+        <KpiMicroCard
+          label="Regime"
+          value={regimeShort}
+          sub={regime ?? "—"}
+          color="cyan"
+          icon={Gauge}
+        />
+        <KpiMicroCard
+          label="Candidates"
+          value={String(candidates.length)}
+          sub="OpenClaw"
+          color="green"
+          icon={Target}
+        />
+        <KpiMicroCard
+          label="Signals"
+          value={String(signals.length)}
+          sub="Latest"
+          color="purple"
+          icon={Zap}
+        />
+        <KpiMicroCard
+          label="Agents"
+          value={String(agents.length)}
+          sub="Active"
+          color="cyan"
+          icon={Bot}
+        />
+      </div>
+
+      {/* News feed */}
+      {newsFeed.length > 0 && (
+        <Card title="Headlines" subtitle="Market news (mock)">
+          <ul className="space-y-2 max-h-48 overflow-y-auto">
+            {newsFeed.map((item, i) => (
+              <li
+                key={i}
+                className="flex items-start gap-2 py-2 border-b border-secondary/20 last:border-0"
+              >
+                <Newspaper className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm text-white">{item.text}</p>
+                  <p className="text-xs text-secondary mt-0.5">{item.source}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+    </div>
+  );
+}

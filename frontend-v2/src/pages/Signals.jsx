@@ -119,7 +119,7 @@ function ScoreRing({ score, size = 56, showGlow = false }) {
         />
       )}
       <svg width={size} height={size} className="-rotate-90 shrink-0">
-        ircle
+        <circle
           cx={size / 2}
           cy={size / 2}
           r={r}
@@ -127,7 +127,7 @@ function ScoreRing({ score, size = 56, showGlow = false }) {
           stroke="rgba(30,41,59,0.6)"
           strokeWidth={4}
         />
-        ircle
+        <circle
           cx={size / 2}
           cy={size / 2}
           r={r}
@@ -173,7 +173,10 @@ function ShapWaterfall({ features, onClick }) {
   if (!features || typeof features !== "object") return null;
   const entries = Array.isArray(features)
     ? features
-    : Object.entries(features).map(([k, v]) => ({ name: k, value: Number(v) || 0 }));
+    : Object.entries(features).map(([k, v]) => ({
+        name: k,
+        value: Number(v) || 0,
+      }));
   if (entries.length === 0) return null;
   const maxVal = Math.max(...entries.map((e) => Math.abs(e.value || 0)), 1);
   return (
@@ -212,8 +215,16 @@ function ShapWaterfall({ features, onClick }) {
 }
 
 // ─── V3: Mini SVG Line for decay/improvement curves ───
-function MiniSvgLine({ points, color, height = 40, width = 160, label, onClick }) {
-  const vals = Array.isArray(points) && points.length > 0 ? points.map(Number) : [];
+function MiniSvgLine({
+  points,
+  color,
+  height = 40,
+  width = 160,
+  label,
+  onClick,
+}) {
+  const vals =
+    Array.isArray(points) && points.length > 0 ? points.map(Number) : [];
   if (vals.length < 2) {
     return (
       <div
@@ -237,7 +248,7 @@ function MiniSvgLine({ points, color, height = 40, width = 160, label, onClick }
   const polyline = vals
     .map(
       (v, i) =>
-        `${(i / (vals.length - 1)) * width},${height - ((v - min) / range) * height}`
+        `${(i / (vals.length - 1)) * width},${height - ((v - min) / range) * height}`,
     )
     .join(" ");
   return (
@@ -262,7 +273,11 @@ function MiniSvgLine({ points, color, height = 40, width = 160, label, onClick }
           </span>
         </div>
       )}
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height }}>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="w-full"
+        style={{ height }}
+      >
         <polyline
           points={polyline}
           fill="none"
@@ -281,9 +296,13 @@ function CompositeBreakdown({ subScores, onClick }) {
   if (!subScores || typeof subScores !== "object") return null;
   const entries = Array.isArray(subScores)
     ? subScores
-    : Object.entries(subScores).map(([k, v]) => ({ name: k, value: Number(v) || 0 }));
+    : Object.entries(subScores).map(([k, v]) => ({
+        name: k,
+        value: Number(v) || 0,
+      }));
   if (entries.length === 0) return null;
-  const total = entries.reduce((sum, e) => sum + Math.abs(e.value || 0), 0) || 1;
+  const total =
+    entries.reduce((sum, e) => sum + Math.abs(e.value || 0), 0) || 1;
   const colors = [
     "bg-cyan-500",
     "bg-amber-500",
@@ -314,7 +333,10 @@ function CompositeBreakdown({ subScores, onClick }) {
       </div>
       <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
         {entries.slice(0, 4).map((e, i) => (
-          <span key={e.name || i} className="text-[8px] text-secondary/70 font-mono flex items-center gap-1">
+          <span
+            key={e.name || i}
+            className="text-[8px] text-secondary/70 font-mono flex items-center gap-1"
+          >
             <span
               className={`inline-block w-1.5 h-1.5 rounded-full ${colors[i % colors.length]}`}
             />
@@ -336,4 +358,326 @@ function FlowIndicators({ signal, onClick }) {
     <div className="mt-2 flex flex-wrap gap-2">
       {hasVolume && (
         <span
-          className="inline-flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 cursor-pointer hover:bg-cyan-500/
+          className="inline-flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 cursor-pointer hover:bg-cyan-500/20"
+          onClick={onClick}
+        >
+          Vol
+        </span>
+      )}
+      {hasOptions && (
+        <span
+          className="inline-flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-400 cursor-pointer hover:bg-amber-500/20"
+          onClick={onClick}
+        >
+          Options
+        </span>
+      )}
+      {hasDarkPool && (
+        <span
+          className="inline-flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded bg-purple-500/10 border border-purple-500/30 text-purple-400 cursor-pointer hover:bg-purple-500/20"
+          onClick={onClick}
+        >
+          Dark
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ─── Main page: live signals + OpenClaw overlay ───
+export default function Signals() {
+  const navigate = useNavigate();
+  const [signals, setSignals] = useState([]);
+  const [openclawMap, setOpenclawMap] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState("cards"); // "cards" | "table"
+  const [tierFilter, setTierFilter] = useState("all");
+  const [search, setSearch] = useState("");
+
+  const fetchSignals = useCallback(async () => {
+    try {
+      const res = await fetch(getApiUrl("signals"), { cache: "no-store" });
+      if (!res.ok) throw new Error(`Signals ${res.status}`);
+      const data = await res.json();
+      setSignals(normalizeSignals(data));
+    } catch (e) {
+      console.error("Signals fetch error:", e);
+      setSignals([]);
+    }
+  }, []);
+
+  const fetchOpenclaw = useCallback(async () => {
+    try {
+      const res = await fetch(getApiUrl("openclaw") + "/scan", {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const candidates = data?.top_candidates ?? data?.candidates ?? [];
+      const map = {};
+      candidates.forEach((c) => {
+        const ticker = (c.symbol || c.ticker || "").toUpperCase();
+        if (ticker) {
+          map[ticker] = {
+            composite_score: c.composite_score ?? c.score,
+            tier: c.tier,
+          };
+        }
+      });
+      setOpenclawMap(map);
+    } catch {
+      setOpenclawMap({});
+    }
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([fetchSignals(), fetchOpenclaw()]).finally(() =>
+      setLoading(false),
+    );
+  }, [fetchSignals, fetchOpenclaw]);
+
+  const filteredSignals = useMemo(() => {
+    let list = [...signals];
+    if (search.trim()) {
+      const q = search.trim().toUpperCase();
+      list = list.filter((s) => (s.ticker || "").toUpperCase().includes(q));
+    }
+    if (tierFilter !== "all") {
+      list = list.filter((s) => {
+        const oc = openclawMap[s.ticker?.toUpperCase()];
+        const tierLabel = oc?.tier ?? getTier(s.score)?.label;
+        return String(tierLabel || "").toUpperCase() === tierFilter;
+      });
+    }
+    return list.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  }, [signals, search, tierFilter, openclawMap]);
+
+  const handleRowClick = (signal) => {
+    navigate("/trades", {
+      state: {
+        fromSignal: true,
+        symbol: signal.ticker,
+        side: signal.direction === "short" ? "Sell" : "Buy",
+      },
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        icon={Zap}
+        title="Signal Intelligence"
+        description="Live ML signals with OpenClaw composite score and tier overlay"
+      >
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            onClick={() => {
+              setLoading(true);
+              Promise.all([fetchSignals(), fetchOpenclaw()]).finally(() =>
+                setLoading(false),
+              );
+            }}
+            disabled={loading}
+            className="flex items-center gap-2 rounded-lg border border-secondary/40 bg-secondary/10 px-3 py-2 text-xs font-medium text-secondary hover:bg-secondary/20 hover:text-white disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant={viewMode === "cards" ? "primary" : "secondary"}
+              size="sm"
+              onClick={() => setViewMode("cards")}
+            >
+              <Grid3X3 className="w-4 h-4 mr-1" />
+              Cards
+            </Button>
+            <Button
+              variant={viewMode === "table" ? "primary" : "secondary"}
+              size="sm"
+              onClick={() => setViewMode("table")}
+            >
+              <Table2 className="w-4 h-4 mr-1" />
+              Table
+            </Button>
+          </div>
+          <Select
+            value={tierFilter}
+            onChange={(e) => setTierFilter(e.target.value)}
+            options={[
+              { value: "all", label: "All tiers" },
+              { value: "SLAM", label: "SLAM" },
+              { value: "HIGH", label: "HIGH" },
+              { value: "TRADEABLE", label: "TRADEABLE" },
+              { value: "WATCH", label: "WATCH" },
+            ]}
+            className="min-w-[120px]"
+          />
+        </div>
+      </PageHeader>
+
+      <div className="flex items-center gap-2">
+        <Search className="w-4 h-4 text-secondary shrink-0" />
+        <TextField
+          placeholder="Search ticker..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="max-w-xs"
+        />
+      </div>
+
+      {loading && signals.length === 0 ? (
+        <Card className="p-8 text-center text-secondary">
+          <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2" />
+          Loading signals...
+        </Card>
+      ) : filteredSignals.length === 0 ? (
+        <Card className="p-8 text-center text-secondary">
+          No signals match your filters.
+        </Card>
+      ) : viewMode === "table" ? (
+        <Card>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-secondary/50">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-secondary uppercase">
+                    Ticker
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-secondary uppercase">
+                    Score
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-secondary uppercase">
+                    OpenClaw
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-secondary uppercase">
+                    Direction
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-secondary uppercase">
+                    Time
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-secondary uppercase"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-secondary/30">
+                {filteredSignals.map((s) => {
+                  const oc = openclawMap[s.ticker?.toUpperCase()];
+                  const tier = oc?.tier
+                    ? getTierVariantFromLabel(oc.tier)
+                    : getTier(s.score);
+                  const tierLabel = oc?.tier ?? tier?.label;
+                  const tierVariant =
+                    typeof tier === "object" ? tier?.variant : tier;
+                  return (
+                    <tr
+                      key={s.id ?? s.ticker}
+                      onClick={() => handleRowClick(s)}
+                      className="hover:bg-secondary/20 cursor-pointer"
+                    >
+                      <td className="px-4 py-3 font-medium text-white">
+                        {s.ticker}
+                      </td>
+                      <td className="px-4 py-3">
+                        <ScoreRing score={s.score ?? 0} size={40} />
+                      </td>
+                      <td className="px-4 py-3">
+                        {oc != null ? (
+                          <Badge variant={tierVariant || "secondary"} size="sm">
+                            {tierLabel ??
+                              (oc.composite_score != null
+                                ? oc.composite_score.toFixed(1)
+                                : "—")}
+                          </Badge>
+                        ) : (
+                          <span className="text-secondary">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={
+                            s.direction === "long"
+                              ? "text-success"
+                              : "text-danger"
+                          }
+                        >
+                          {s.direction === "long" ? "Long" : "Short"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-secondary">{s.time}</td>
+                      <td className="px-4 py-3">
+                        <ChevronRight className="w-4 h-4 text-secondary" />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredSignals.map((s) => {
+            const oc = openclawMap[s.ticker?.toUpperCase()];
+            const tier = oc?.tier
+              ? getTierVariantFromLabel(oc.tier)
+              : getTier(s.score);
+            const tierLabel = oc?.tier ?? tier?.label;
+            const tierVariant = typeof tier === "object" ? tier?.variant : tier;
+            return (
+              <Card
+                key={s.id ?? s.ticker}
+                className="cursor-pointer hover:border-primary/40 transition-colors"
+                onClick={() => handleRowClick(s)}
+              >
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div>
+                    <span className="font-bold text-white">{s.ticker}</span>
+                    {tierLabel && (
+                      <Badge
+                        variant={tierVariant || "secondary"}
+                        size="sm"
+                        className="ml-2"
+                      >
+                        {tierLabel}
+                      </Badge>
+                    )}
+                  </div>
+                  <ScoreRing score={s.score ?? 0} size={48} showGlow />
+                </div>
+                <ScoreBar score={s.score ?? 0} />
+                <div className="mt-2 flex items-center gap-2 text-xs text-secondary">
+                  <span
+                    className={
+                      s.direction === "long" ? "text-success" : "text-danger"
+                    }
+                  >
+                    {s.direction === "long" ? "Long" : "Short"}
+                  </span>
+                  <span>·</span>
+                  <span>{s.time}</span>
+                  {openclawMap[s.ticker?.toUpperCase()]?.composite_score !=
+                    null && (
+                    <>
+                      <span>·</span>
+                      <span className="text-primary">
+                        OC{" "}
+                        {openclawMap[
+                          s.ticker?.toUpperCase()
+                        ].composite_score.toFixed(1)}
+                      </span>
+                    </>
+                  )}
+                </div>
+                <ShapWaterfall features={s.features} />
+                <CompositeBreakdown subScores={s.sub_scores} />
+                <FlowIndicators signal={s} />
+                <MiniSvgLine points={s.decay} label="Decay" />
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}

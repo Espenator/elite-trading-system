@@ -22,8 +22,8 @@ import PageHeader from "../components/ui/PageHeader";
 import Slider from "../components/ui/Slider";
 import Checkbox from "../components/ui/Checkbox";
 import RiskHistoryChart from "../components/charts/RiskHistoryChart";
-import RiskEquityLC from "../components/charts/RiskEquityLC";
-import MonteCarloLC from "../components/charts/MonteCarloLC";
+// import RiskEquityLC from "../components/charts/RiskEquityLC";
+// import MonteCarloLC from "../components/charts/MonteCarloLC";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl } from "../config/api";
 
@@ -224,16 +224,16 @@ const RiskIntelligence = () => {
             <div className="absolute top-2 right-3 flex gap-1">
               {timeframes.map(tf => <button key={tf} onClick={() => setTimeframe(tf)} className={`px-2 py-0.5 text-[10px] rounded cursor-pointer transition-colors ${timeframe === tf ? "bg-primary text-white" : "bg-slate-800 text-slate-400 hover:bg-slate-700"}`}>{tf}</button>)}
             </div>
-            {histData.length > 0 ? (
+            {/* {histData.length > 0 ? (
               <RiskEquityLC data={histData} height={220} />
             ) : (
               <div className="h-[220px] flex items-center justify-center text-slate-500 text-sm">No equity history available</div>
-            )}
+            )} */}
           </Card>
         </div>
         <div className="col-span-1">
           <Card title="Monte Carlo Simulation">
-            {mcData.length > 0 ? (
+            {/* {mcData.length > 0 ? (
               <>
                 <MonteCarloLC data={mcData} height={220} />
                 <div className="flex justify-center gap-2 text-[8px] mt-1">
@@ -242,7 +242,7 @@ const RiskIntelligence = () => {
               </>
             ) : (
               <div className="h-[220px] flex items-center justify-center text-slate-500 text-sm">No simulation data</div>
-            )}
+            )} */}
           </Card>
         </div>
         <div className="col-span-2">
