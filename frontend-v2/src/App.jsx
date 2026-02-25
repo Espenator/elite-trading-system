@@ -1,8 +1,8 @@
 // APP ROUTER - Embodier.ai Trading Intelligence System
 // OLEH: This is the main router. Every page listed in the sidebar has a route here.
 // If you add a new page, add: 1) import, 2) route, 3) sidebar entry in Sidebar.jsx
-// All 14 pages map 1:1 to backend modules per V2-EMBODIER-AI-README.md
-// V3 CONSOLIDATION: Reduced from 18 to 14 pages (see V3-ARCHITECTURE.md)
+// All 15 pages map 1:1 to backend modules per V2-EMBODIER-AI-README.md
+// V3 CONSOLIDATION: Reduced from 18 to 14 pages, then added ML Brain & Flywheel (15 total)
 
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
@@ -20,8 +20,9 @@ import Signals from "./pages/Signals";
 import SentimentIntelligence from "./pages/SentimentIntelligence";
 import DataSourcesMonitor from "./pages/DataSourcesMonitor";
 
-// ML & ANALYSIS section (5 pages)
+// ML & ANALYSIS section (6 pages)
 import MLInsights from "./pages/MLInsights";
+import MLBrainFlywheel from "./pages/MLBrainFlywheel";
 import Patterns from "./pages/Patterns";
 import Backtesting from "./pages/Backtesting";
 import PerformanceAnalytics from "./pages/PerformanceAnalytics";
@@ -69,6 +70,7 @@ function App() {
 
             {/* ML & ANALYSIS */}
             <Route path="ml-insights" element={<MLInsights />} />
+            <Route path="ml-brain" element={<MLBrainFlywheel />} />
             <Route path="patterns" element={<Patterns />} />
             <Route path="backtest" element={<Backtesting />} />
             <Route path="performance" element={<PerformanceAnalytics />} />
