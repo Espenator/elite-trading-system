@@ -1,6 +1,6 @@
 // DASHBOARD - Embodier.ai Glass House Intelligence System
 // Main overview: Stats, P&L, OpenClaw regime + candidates, active positions, signals, agent status
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import {
   TrendingUp,
@@ -18,6 +18,27 @@ import {
   Clock,
   LayoutDashboard,
   Gauge,
+  TrendingDown,
+  Shield,
+  Percent,
+  Hash,
+  Flame,
+  RefreshCcw,
+  AlertTriangle,
+  Radio,
+  Newspaper,
+  Workflow,
+  Users,
+  ChevronUp,
+  ChevronDown,
+  ChevronRight,
+  BarChart2,
+  PieChart,
+  Layers,
+  Thermometer,
+  CircleDot,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import Card from "../components/ui/Card";
@@ -26,6 +47,7 @@ import DataTable from "../components/ui/DataTable";
 import Badge from "../components/ui/Badge";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl } from "../config/api";
+import { toast } from "react-toastify";
 
 function StatCard({ title, value, change, changeType, icon: Icon, color }) {
   const colors = {
@@ -61,6 +83,63 @@ function StatCard({ title, value, change, changeType, icon: Icon, color }) {
           {change}
         </div>
       )}
+    </div>
+  );
+}
+
+// --- V3 ULTRA-DENSE: KPI Micro Card ---
+function KpiMicroCard({ label, value, sub, color, icon: Icon, onClick }) {
+  const borderMap = {
+    cyan: "border-cyan-500/30 hover:border-cyan-500/60 shadow-[0_0_8px_rgba(6,182,212,0.08)]",
+    amber: "border-amber-500/30 hover:border-amber-500/60 shadow-[0_0_8px_rgba(245,158,11,0.08)]",
+    red: "border-red-500/30 hover:border-red-500/60 shadow-[0_0_8px_rgba(239,68,68,0.08)]",
+    green: "border-emerald-500/30 hover:border-emerald-500/60 shadow-[0_0_8px_rgba(16,185,129,0.08)]",
+    purple: "border-purple-500/30 hover:border-purple-500/60 shadow-[0_0_8px_rgba(168,85,247,0.08)]",
+  };
+  const textMap = {
+    cyan: "text-cyan-400",
+    amber: "text-amber-400",
+    red: "text-red-400",
+    green: "text-emerald-400",
+    purple: "text-purple-400",
+  };
+  return (
+    <div
+      className={`bg-[#0B0E14] border rounded-xl p-2.5 cursor-pointer transition-all hover:scale-[1.03] ${borderMap[color] || borderMap.cyan}`}
+      onClick={onClick || (() => toast.info(`Drilling into ${label}`))}
+    >
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[9px] text-secondary uppercase tracking-wider font-mono truncate">{label}</span>
+        {Icon && <Icon className={`w-3 h-3 ${textMap[color] || "text-cyan-400"} shrink-0`} />}
+      </div>
+      <div className={`text-sm font-bold font-mono ${textMap[color] || "text-white"} truncate`}>{value}</div>
+      {sub && <div className="text-[8px] text-secondary/70 font-mono truncate mt-0.5">{sub}</div>}
+    </div>
+  );
+}
+
+// --- V3 ULTRA-DENSE: Sector Heatmap Cell ---
+function SectorCell({ name, value, momentum }) {
+  const pct = Math.min(100, Math.max(0, Math.abs(value)));
+  const hue = value >= 0 ? 142 : 0;
+  const sat = 60 + (pct / 100) * 30;
+  const light = 20 + (pct / 100) * 15;
+  return (
+    <div
+      className="rounded-lg p-2.5 text-center cursor-pointer hover:scale-105 transition-all border border-white/5 hover:border-white/20 shadow-sm"
+      style={{ backgroundColor: `hsl(${hue}, ${sat}%, ${light}%)` }}
+      onClick={() => toast.info(`Sector deep-dive: ${name}`)}
+      title={`${name}: ${value >= 0 ? "+" : ""}${value.toFixed(1)}%`}
+    >
+      <div className="text-[10px] font-bold text-white/90 truncate">{name}</div>
+      <div className="text-xs font-mono font-bold text-white mt-0.5">
+        {value >= 0 ? "+" : ""}{value.toFixed(1)}%
+      </div>
+      <div className="text-[9px] mt-0.5">
+        {momentum === "up" && <ArrowUp className="w-3 h-3 text-emerald-300 inline" />}
+        {momentum === "down" && <ArrowDown className="w-3 h-3 text-red-300 inline" />}
+        {momentum === "flat" && <ChevronRight className="w-3 h-3 text-gray-400 inline" />}
+      </div>
     </div>
   );
 }
@@ -121,10 +200,56 @@ export default function Dashboard() {
   });
   const { data: openclawTop, loading: openclawLoading } = useOpenClawTop();
   const openclawHealth = useOpenClawHealth();
+
   const regime = openclawTop?.regime ?? openclawHealth?.regime ?? null;
   const regimeReadme = openclawTop?.regime_readme ?? "";
   const candidates = openclawTop?.candidates ?? [];
   const lastScanTs = openclawHealth?.last_scan_timestamp ?? null;
+
+  // --- V3 ULTRA-DENSE: Real-time P&L Ticker state ---
+  const [pnlTicker, setPnlTicker] = useState([]);
+  const tickerRef = useRef(null);
+
+  // --- V3 ULTRA-DENSE: News feed state ---
+  const [newsFeed, setNewsFeed] = useState([]);
+
+  // --- V3 ULTRA-DENSE: Mock data effects ---
+  useEffect(() => {
+    // P&L Ticker mock feed
+    const symbols = ["AAPL", "GOOGL", "TSLA", "NVDA", "MSFT", "AMZN", "META", "SPY", "QQQ", "BTC", "ETH", "SOL", "AMD", "NFLX", "CRM"];
+    const initial = symbols.map(s => ({
+      id: s,
+      symbol: s,
+      pnl: (Math.random() * 2000 - 500).toFixed(2),
+      pct: (Math.random() * 8 - 2).toFixed(2),
+    }));
+    setPnlTicker(initial);
+
+    const pnlInterval = setInterval(() => {
+      setPnlTicker(prev => prev.map(item => ({
+        ...item,
+        pnl: (parseFloat(item.pnl) + (Math.random() * 40 - 15)).toFixed(2),
+        pct: (parseFloat(item.pct) + (Math.random() * 0.4 - 0.15)).toFixed(2),
+      })));
+    }, 3000);
+
+    // News feed mock
+    const headlines = [
+      { text: "Fed signals pause in rate hikes amid cooling inflation data", source: "Reuters" },
+      { text: "NVDA breaks out to new highs on AI datacenter demand surge", source: "Bloomberg" },
+      { text: "Crude oil inventories draw down more than expected", source: "EIA" },
+      { text: "China PMI rebounds above 50, signaling manufacturing expansion", source: "Caixin" },
+      { text: "Treasury yields fall as bond market prices in rate cuts", source: "CNBC" },
+      { text: "Bitcoin ETF inflows hit record $1.2B in single day", source: "CoinDesk" },
+      { text: "VIX drops below 14, hitting lowest level since January", source: "CBOE" },
+      { text: "Semiconductor sector rotation accelerates into Q1 earnings", source: "Barron's" },
+    ];
+    setNewsFeed(headlines);
+
+    return () => {
+      clearInterval(pnlInterval);
+    };
+  }, []);
 
   // Transform portfolio positions for table (support both API shapes: symbol/entryPrice/... and ticker/entry/...)
   const positions = useMemo(() => {
@@ -187,430 +312,4 @@ export default function Dashboard() {
 
   // Calculate stats from performance data
   const portfolioValue = performanceData?.portfolioValue || 124850;
-  const dailyPnL = performanceData?.dailyPnL || 2340;
-  const dailyPnLPct = performanceData?.dailyPnLPct || 1.9;
-  const activeSignalsCount = signalsData?.signals?.length || 0;
-  const winRate = performanceData?.winRate30d || 68.5;
-
-  const regimeVariant = useMemo(() => {
-    const s = (regime || "").toUpperCase();
-    if (["GREEN", "BULLISH", "RISK_ON"].includes(s)) return "success";
-    if (["YELLOW", "NEUTRAL"].includes(s)) return "warning";
-    if (["RED", "BEARISH", "RISK_OFF", "CRISIS"].includes(s)) return "danger";
-    if (/\bRED\b/.test(s)) return "danger";
-    if (/\bGREEN\b/.test(s)) return "success";
-    if (/\bYELLOW\b/.test(s)) return "warning";
-    return "secondary";
-  }, [regime]);
-
-  const regimeShort = useMemo(() => {
-    if (!regime || typeof regime !== "string") return "—";
-    const m = regime.match(/\b(GREEN|YELLOW|RED)\b/i);
-    if (m) return m[1].toUpperCase();
-    const t = regime.replace(/\*\*/g, "").trim();
-    return t.length <= 14 ? t : "—";
-  }, [regime]);
-
-  // Markdown: single \n → line break (two trailing spaces in CommonMark)
-  const regimeMarkdown = useMemo(
-    () =>
-      regime && typeof regime === "string" ? regime.replace(/\n/g, "  \n") : "",
-    [regime],
-  );
-
-  const lastScanLabel = useMemo(() => {
-    if (!lastScanTs) return "—";
-    try {
-      const d = new Date(lastScanTs);
-      return Number.isNaN(d.getTime()) ? lastScanTs : d.toLocaleString();
-    } catch {
-      return lastScanTs;
-    }
-  }, [lastScanTs]);
-
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        icon={LayoutDashboard}
-        title="Intelligence Dashboard"
-        description="Glass House Intelligence Overview"
-      />
-
-      {/* OpenClaw: Status bar + Regime details + Top 5 */}
-      <Card
-        title="OpenClaw"
-        subtitle="Market regime and top candidates from OpenClaw scan"
-      >
-        {/* Status bar: Regime badge | Last scan | Count */}
-        <div className="flex flex-wrap items-center gap-4 gap-y-2 mb-4 pb-4 border-b border-white/10">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-secondary uppercase tracking-wider">
-              Regime
-            </span>
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-bold ${
-                regimeVariant === "success"
-                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
-                  : regimeVariant === "warning"
-                    ? "bg-amber-500/20 text-amber-400 border border-amber-500/40"
-                    : regimeVariant === "danger"
-                      ? "bg-red-500/20 text-red-400 border border-red-500/40"
-                      : "bg-secondary/20 text-secondary border border-secondary/30"
-              }`}
-            >
-              <Gauge className="w-4 h-4 shrink-0" />
-              {openclawLoading ? "…" : regimeShort}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 text-slate-300">
-            <Clock className="w-4 h-4 text-cyan-400/80 shrink-0" />
-            <span className="text-xs text-secondary">Last scan</span>
-            <span className="text-sm font-medium text-white">
-              {lastScanLabel}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 text-slate-300">
-            <Target className="w-4 h-4 text-primary/80 shrink-0" />
-            <span className="text-xs text-secondary">Candidates</span>
-            <span className="text-sm font-bold text-white">
-              {openclawLoading ? "…" : candidates.length}
-            </span>
-          </div>
-        </div>
-
-        {/* Regime details (markdown) - scrollable */}
-        {regimeMarkdown && !openclawLoading && (
-          <div className="mb-4">
-            <p className="text-xs text-secondary uppercase tracking-wider mb-2">
-              Regime details
-            </p>
-            <div
-              className={`rounded-xl border-2 p-4 ${
-                regimeVariant === "success"
-                  ? "bg-emerald-500/5 border-emerald-500/30"
-                  : regimeVariant === "warning"
-                    ? "bg-amber-500/5 border-amber-500/30"
-                    : regimeVariant === "danger"
-                      ? "bg-red-500/5 border-red-500/30"
-                      : "bg-secondary/10 border-secondary/30"
-              }`}
-            >
-              <div className="openclaw-regime prose prose-invert prose-sm max-w-none">
-                <ReactMarkdown
-                  components={{
-                    p: ({ children }) => (
-                      <p className="mb-2 last:mb-0 text-slate-200">
-                        {children}
-                      </p>
-                    ),
-                    strong: ({ children }) => (
-                      <strong className="font-semibold text-white">
-                        {children}
-                      </strong>
-                    ),
-                    ul: ({ children }) => (
-                      <ul className="list-disc list-inside mb-3 space-y-1 text-slate-200">
-                        {children}
-                      </ul>
-                    ),
-                    li: ({ children }) => (
-                      <li className="text-slate-200">{children}</li>
-                    ),
-                    h1: ({ children }) => (
-                      <h1 className="text-base font-bold text-white mt-3 mb-2 first:mt-0">
-                        {children}
-                      </h1>
-                    ),
-                    h2: ({ children }) => (
-                      <h2 className="text-sm font-bold text-white mt-3 mb-1.5">
-                        {children}
-                      </h2>
-                    ),
-                    h3: ({ children }) => (
-                      <h3 className="text-sm font-semibold text-slate-100 mt-2 mb-1">
-                        {children}
-                      </h3>
-                    ),
-                    code: ({ children }) => (
-                      <code className="px-1.5 py-0.5 rounded bg-black/30 text-cyan-300 font-mono text-xs">
-                        {children}
-                      </code>
-                    ),
-                  }}
-                >
-                  {regimeMarkdown}
-                </ReactMarkdown>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Top 5 by composite score */}
-        <div>
-          <p className="text-xs text-secondary uppercase tracking-wider mb-3">
-            Top 5 by composite score
-          </p>
-          {openclawLoading ? (
-            <span className="text-slate-300 text-sm">Loading…</span>
-          ) : candidates.length === 0 ? (
-            <p className="text-slate-200 text-sm">
-              No OpenClaw data — add{" "}
-              <code className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-xs font-mono">
-                OPENCLAW_GIST_ID
-              </code>{" "}
-              (and optionally{" "}
-              <code className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-xs font-mono">
-                OPENCLAW_GIST_TOKEN
-              </code>
-              ) to backend{" "}
-              <code className="px-1.5 py-0.5 rounded bg-secondary/30 text-slate-300 text-xs">
-                .env
-              </code>
-            </p>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
-              {candidates.slice(0, 10).map((c, i) => (
-                <div
-                  key={c.symbol ?? i}
-                  className="flex items-center justify-between rounded-lg bg-secondary/15 border border-cyan-500/20 px-3 py-2 hover:border-cyan-500/40 transition-colors"
-                >
-                  <span className="font-semibold text-white truncate">
-                    {c.symbol ?? c.ticker ?? "—"}
-                  </span>
-                  <span className="text-cyan-400 text-sm font-medium tabular-nums shrink-0 ml-2">
-                    {c.composite_score != null
-                      ? Number(c.composite_score).toFixed(1)
-                      : "—"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </Card>
-
-      {/* Stat cards row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          title="Portfolio Value"
-          value={`$${portfolioValue.toLocaleString()}`}
-          change={`+${dailyPnLPct.toFixed(1)}% today`}
-          changeType="up"
-          icon={DollarSign}
-          color="success"
-        />
-        <StatCard
-          title="Daily P&L"
-          value={`${dailyPnL >= 0 ? "+" : ""}$${Math.abs(dailyPnL).toLocaleString()}`}
-          change={`${dailyPnLPct >= 0 ? "+" : ""}${dailyPnLPct.toFixed(1)}%`}
-          changeType={dailyPnL >= 0 ? "up" : "down"}
-          icon={TrendingUp}
-          color="primary"
-        />
-        <StatCard
-          title="Active Signals"
-          value={activeSignalsCount.toString()}
-          change="live"
-          changeType="up"
-          icon={Zap}
-          color="secondary"
-        />
-        <StatCard
-          title="Win Rate (30d)"
-          value={`${winRate.toFixed(1)}%`}
-          change=""
-          changeType="up"
-          icon={Target}
-          color="warning"
-        />
-      </div>
-
-      {/* Main grid: Positions + Signals + Agents */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <Card
-            title="Active Positions"
-            action={
-              <Link
-                to="/trades"
-                className="text-xs text-primary hover:text-primary/80"
-              >
-                View All
-              </Link>
-            }
-            noPadding
-          >
-            <DataTable
-              columns={[
-                {
-                  key: "ticker",
-                  label: "Ticker",
-                  render: (v) => (
-                    <span className="font-semibold text-white">{v}</span>
-                  ),
-                },
-                { key: "side", label: "Side" },
-                {
-                  key: "entry",
-                  label: "Entry",
-                  cellClassName: "text-right",
-                  render: (v) => `$${Number(v).toFixed(2)}`,
-                },
-                {
-                  key: "current",
-                  label: "Current",
-                  cellClassName: "text-right",
-                  render: (v) => `$${Number(v).toFixed(2)}`,
-                },
-                {
-                  key: "pnl",
-                  label: "P&L",
-                  cellClassName: "text-right",
-                  render: (v) => (
-                    <span
-                      className={
-                        v.startsWith("+") ? "text-success" : "text-danger"
-                      }
-                    >
-                      {v}
-                    </span>
-                  ),
-                },
-              ]}
-              data={positions}
-              className="rounded-none border-none"
-            />
-          </Card>
-        </div>
-
-        <Card
-          title="Latest Signals"
-          action={
-            <Link
-              to="/signals"
-              className="text-xs text-primary hover:text-primary/80"
-            >
-              View All
-            </Link>
-          }
-          bodyClassName="flex flex-col"
-        >
-          <div className="space-y-3">
-            {signals.length === 0 ? (
-              <p className="py-6 text-center text-sm text-secondary">
-                No signals
-              </p>
-            ) : (
-              signals.map((s, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-3 p-3 rounded-xl bg-secondary/10 border border-secondary/30"
-                >
-                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <Zap className="w-5 h-5 text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-white">
-                        {s.ticker}
-                      </span>
-                      <span className="text-xs text-secondary">{s.time}</span>
-                    </div>
-                    <div className="text-xs text-secondary">{s.type}</div>
-                  </div>
-                  <div className="text-right">
-                    <div
-                      className={`text-sm font-bold ${s.score >= 80 ? "text-success" : "text-warning"}`}
-                    >
-                      {s.score}
-                    </div>
-                    <div className="text-xs text-secondary">score</div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </Card>
-      </div>
-
-      <Card title="Agent Status">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          {agents.map((a, i) => {
-            const Icon = a.icon;
-            return (
-              <div
-                key={i}
-                className="flex items-center gap-3 p-4 rounded-xl bg-secondary/10 border border-secondary/30"
-              >
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Icon className="w-5 h-5 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <div className="text-sm font-medium text-white">{a.name}</div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <div
-                      className={`w-1.5 h-1.5 rounded-full ${a.status === "active" ? "bg-success" : "bg-warning"} animate-pulse`}
-                    />
-                    <span className="text-xs text-secondary capitalize">
-                      {a.status}
-                    </span>
-                    <span className="text-xs text-secondary">|</span>
-                    <span className="text-xs text-secondary">
-                      {a.tasks === "—" ? "—" : `${a.tasks} tasks`}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </Card>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card title="Recent Trades">
-          <div className="space-y-2">
-            {[
-              "AAPL +$320 (Long)",
-              "GOOGL +$180 (Long)",
-              "TSLA -$95 (Short)",
-              "SPY +$450 (Short)",
-            ].map((t, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between py-2 border-b border-secondary/30 last:border-0"
-              >
-                <span className="text-sm text-white">{t.split(" ")[0]}</span>
-                <span
-                  className={`text-sm font-medium ${t.includes("+") ? "text-success" : "text-danger"}`}
-                >
-                  {t.split(" ").slice(1).join(" ")}
-                </span>
-              </div>
-            ))}
-          </div>
-        </Card>
-        <Card title="System Health">
-          <div className="space-y-3">
-            {[
-              { label: "API Latency", value: "12ms" },
-              { label: "WebSocket", value: "Connected" },
-              { label: "ML Models", value: "4/4 Loaded" },
-              { label: "Data Feed", value: "Live" },
-            ].map((item, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between py-2 border-b border-secondary/30 last:border-0"
-              >
-                <span className="text-sm text-secondary">{item.label}</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-white">{item.value}</span>
-                  <div className="w-2 h-2 rounded-full bg-success" />
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
-    </div>
-  );
-}
+  const dailyPnL = performanceData?.dailyPnL ||
