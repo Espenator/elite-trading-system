@@ -162,7 +162,7 @@ OPENCLAW_GIST_TOKEN=
 - `Signals.jsx` — add OpenClaw composite score column
 - `DataSourcesMonitor.jsx` — add OpenClaw bridge health/last sync row
 
-### Priority 2: Replace yfinance (CRITICAL — DO NOT USE yfinance)
+### ~~Priority 2: Replace yfinance~~ ✅ DONE — yfinance only exists in legacy `modules/openclaw/` (archived). Active code uses `alpaca_service.py`
 - Search codebase for any remaining `import yfinance` or `yf.download` calls
 - Replace ALL with `alpaca_service.py` — `get_bars(symbol, timeframe, limit)` already exists
 - `alpaca_service.py` already handles real-time data — use it everywhere
@@ -274,7 +274,7 @@ OpenClaw repo: github.com/Espenator/openclaw (247+ commits, 98% Python)
 - LLM hybrid analysis (local Ollama + Perplexity API)
 - Slack bot with /oc commands
 - Discord signal monitoring
-- Google Sheets trade journal
+- ~~Google Sheets trade journal~~ → Replaced by SQLite training_store in Elite Trader
 - TradingView watchlist sync
 - API data bridge to GitHub Gist JSON (for Elite Trader)
 
