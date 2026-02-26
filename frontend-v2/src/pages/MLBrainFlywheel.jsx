@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import {
   LineChart,
   Line,
@@ -12,63 +12,40 @@ import {
 import { Brain, RotateCw } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import Button from "../components/ui/Button";
+import { useApi } from "../hooks/useApi";
 
 /**
- * Embodier Trader - ML Brain & Flywheel Component
- * 100% Production Ready for Elite Trading System Integration
- * Connects directly to TimescaleDB via FastAPI backend.
- *
- * Path: frontend-v2/src/pages/MLBrainFlywheel.jsx
+ * ML Brain & Flywheel - Production Ready
+ * Uses useApi hook for all data fetching with polling.
+ * API endpoints: flywheel (performance, signals/staged, flywheel-logs)
  * Route: /ml-brain
- * API: core/api/ml_api.py
  */
-const MLBrainFlywheel = () => {
-  const [performanceData, setPerformanceData] = useState([]);
-  const [liveInferences, setLiveInferences] = useState([]);
-  const [flywheelLogs, setFlywheelLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+export default function MLBrainFlywheel() {
+  const { data: perfData, loading: perfLoading } = useApi("flywheel", {
+    endpoint: "/performance",
+    pollIntervalMs: 900000,
+  });
+  const { data: infData, loading: infLoading } = useApi("flywheel", {
+    endpoint: "/signals/staged",
+    pollIntervalMs: 60000,
+  });
+  const { data: logData, loading: logLoading } = useApi("flywheel", {
+    endpoint: "/logs",
+    pollIntervalMs: 60000,
+  });
+  const { data: kpiData } = useApi("flywheel", {
+    endpoint: "/kpis",
+    pollIntervalMs: 60000,
+  });
 
-  // Fetch data from local Python backend (which queries TimescaleDB)
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [perfRes, infRes, logRes] = await Promise.all([
-          fetch("/api/v1/ml-brain/performance"),
-          fetch("/api/v1/ml-brain/signals/staged"),
-          fetch("/api/v1/ml-brain/flywheel-logs"),
-        ]);
+  const performanceData = Array.isArray(perfData) ? perfData : [];
+  const liveInferences = Array.isArray(infData) ? infData : [];
+  const flywheelLogs = Array.isArray(logData) ? logData : [];
+  const kpis = kpiData || {};
 
-        if (!perfRes.ok || !infRes.ok || !logRes.ok) {
-          throw new Error("One or more API endpoints failed");
-        }
+  const loading = perfLoading && performanceData.length === 0;
 
-        const [perfData, infData, logData] = await Promise.all([
-          perfRes.json(),
-          infRes.json(),
-          logRes.json(),
-        ]);
-
-        setPerformanceData(perfData);
-        setLiveInferences(infData);
-        setFlywheelLogs(logData);
-        setError(null);
-      } catch (err) {
-        console.error("Database connection failed", err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-    // Set 15 minute refresh cycle as per docs
-    const interval = setInterval(fetchData, 15 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  if (loading && performanceData.length === 0) {
+  if (loading) {
     return (
       <div className="bg-[#0a0a0f] text-slate-50 min-h-screen flex items-center justify-center">
         <div className="text-cyan-500 text-xl animate-pulse">
@@ -77,6 +54,57 @@ const MLBrainFlywheel = () => {
       </div>
     );
   }
+
+  const kpiCards = [
+    {
+      title: "Stage 4 Active Models",
+      val: kpis.activeModels ?? "--",
+      icon: "\uD83D\uDCDA",
+      color: "text-purple-500",
+      bg: "bg-purple-500/15",
+      sub: kpis.modelType ?? "Loading...",
+    },
+    {
+      title: "Walk-Forward Accuracy",
+      val: kpis.walkForwardAccuracy ? `${kpis.walkForwardAccuracy}%` : "--",
+      icon: "\uD83C\uDFAF",
+      color: "text-emerald-500",
+      bg: "bg-emerald-500/15",
+      sub: kpis.walkForwardWindow ?? "Loading...",
+    },
+    {
+      title: "Live Signals Today",
+      val: kpis.liveSignalsToday ?? liveInferences.length ?? "--",
+      icon: "\u26A1",
+      color: "text-cyan-500",
+      bg: "bg-cyan-500/15",
+      sub: "Stage 3 Ignitions",
+    },
+    {
+      title: "Flywheel Validations",
+      val: kpis.flywheelValidations ?? flywheelLogs.length ?? "--",
+      icon: "\uD83D\uDD04",
+      color: "text-amber-500",
+      bg: "bg-amber-500/15",
+      sub: "Trade Outcomes Logged",
+    },
+    {
+      title: "System Health",
+      val: kpis.systemHealth ?? "--",
+      icon: "\u2705",
+      color: "text-emerald-500",
+      bg: "bg-emerald-500/15",
+      sub: kpis.healthDetail ?? "Checking...",
+    },
+    {
+      title: "Prediction Confidence",
+      val: kpis.predictionConfidence ? `>${kpis.predictionConfidence}%` : "--",
+      icon: "\uD83D\uDCC8",
+      color: "text-cyan-500",
+      bg: "bg-cyan-500/15",
+      sub: "Minimum Threshold",
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -95,64 +123,9 @@ const MLBrainFlywheel = () => {
         </Button>
       </PageHeader>
 
-      {error && (
-        <div className="bg-red-500/15 border border-red-500 text-red-400 p-4 rounded mb-6">
-          API Error: {error} — Using cached data if available
-        </div>
-      )}
-
       {/* KPI CARDS */}
       <div className="grid grid-cols-6 gap-6 mb-8">
-        {[
-          {
-            title: "Stage 4 Active Models",
-            val: "3",
-            icon: "\uD83D\uDCDA",
-            color: "text-purple-500",
-            bg: "bg-purple-500/15",
-            sub: "XGBoost + RF Ensemble",
-          },
-          {
-            title: "Walk-Forward Accuracy",
-            val: "91.4%",
-            icon: "\uD83C\uDFAF",
-            color: "text-emerald-500",
-            bg: "bg-emerald-500/15",
-            sub: "252-Day Window",
-          },
-          {
-            title: "Live Signals Today",
-            val: "24",
-            icon: "\u26A1",
-            color: "text-cyan-500",
-            bg: "bg-cyan-500/15",
-            sub: "Stage 3 Ignitions",
-          },
-          {
-            title: "Flywheel Validations",
-            val: "12",
-            icon: "\uD83D\uDD04",
-            color: "text-amber-500",
-            bg: "bg-amber-500/15",
-            sub: "Trade Outcomes Logged",
-          },
-          {
-            title: "System Health",
-            val: "OK",
-            icon: "\u2705",
-            color: "text-emerald-500",
-            bg: "bg-emerald-500/15",
-            sub: "All Agents Online",
-          },
-          {
-            title: "Prediction Confidence",
-            val: ">70%",
-            icon: "\uD83D\uDCC8",
-            color: "text-cyan-500",
-            bg: "bg-cyan-500/15",
-            sub: "Minimum Threshold",
-          },
-        ].map((kpi, idx) => (
+        {kpiCards.map((kpi, idx) => (
           <div
             key={idx}
             className="bg-[#13131a] border border-[#23232f] p-6 rounded-lg"
@@ -241,6 +214,13 @@ const MLBrainFlywheel = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#23232f]">
+              {liveInferences.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-slate-500">
+                    No staged inferences available
+                  </td>
+                </tr>
+              )}
               {liveInferences.map((row, i) => (
                 <tr key={i} className="text-sm">
                   <td className="py-4 font-bold text-lg">{row.symbol}</td>
@@ -284,6 +264,9 @@ const MLBrainFlywheel = () => {
           feature weights.
         </p>
         <div className="space-y-2 max-h-[300px] overflow-y-auto text-xs">
+          {flywheelLogs.length === 0 && (
+            <p className="text-slate-500 py-4">No flywheel logs yet</p>
+          )}
           {flywheelLogs.map((log, i) => (
             <div
               key={i}
@@ -296,6 +279,4 @@ const MLBrainFlywheel = () => {
       </div>
     </div>
   );
-};
-
-export default MLBrainFlywheel;
+}
