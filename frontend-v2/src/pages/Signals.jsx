@@ -206,7 +206,7 @@ export default function Signals() {
               <div className="flex-1 grid grid-cols-3 gap-4 bg-slate-900/50 rounded-lg p-3 border border-slate-700/30 w-full lg:w-auto">
                 <div className="flex flex-col">
                   <span className="text-xs text-slate-500 mb-1">Entry</span>
-                  <span className="font-mono text-lg text-white">
+                  <span className="text-lg text-white">
                     {signal.entry ? `$${signal.entry.toFixed(2)}` : "Wait"}
                   </span>
                 </div>
@@ -214,7 +214,7 @@ export default function Signals() {
                   <span className="text-xs text-slate-500 mb-1">
                     Target (1R)
                   </span>
-                  <span className="font-mono text-lg text-green-400">
+                  <span className="text-lg text-green-400">
                     {signal.target ? `$${signal.target.toFixed(2)}` : "--"}
                   </span>
                 </div>
@@ -222,7 +222,7 @@ export default function Signals() {
                   <span className="text-xs text-slate-500 mb-1">
                     Stop (2.5 ATR)
                   </span>
-                  <span className="font-mono text-lg text-red-400">
+                  <span className="text-lg text-red-400">
                     {signal.stop ? `$${signal.stop.toFixed(2)}` : "--"}
                   </span>
                 </div>

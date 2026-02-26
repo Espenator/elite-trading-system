@@ -128,10 +128,10 @@ const MonteCarloLC = ({ data }) => {
           Monte Carlo Distribution
         </h3>
         <div className="flex gap-2 px-2">
-          <span className="text-emerald-400 text-[10px] font-mono font-bold shadow-sm">
+          <span className="text-emerald-400 text-[10px] font-bold shadow-sm">
             ― Median Pathway
           </span>
-          <span className="text-sky-400/70 text-[10px] font-mono font-bold shadow-sm">
+          <span className="text-sky-400/70 text-[10px] font-bold shadow-sm">
             ≡ 100 Sims (N)
           </span>
         </div>

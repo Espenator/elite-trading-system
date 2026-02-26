@@ -143,14 +143,14 @@ export default function Trades() {
           <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-4 backdrop-blur-md min-w-[150px]">
             <div className="text-xs text-slate-500 mb-1">Open Risk</div>
             <div
-              className={`text-2xl font-mono font-bold ${totalRisk > 5 ? "text-red-400" : "text-yellow-400"}`}
+              className={`text-2xl font-bold ${totalRisk > 5 ? "text-red-400" : "text-yellow-400"}`}
             >
               {totalRisk}%
             </div>
           </div>
           <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-4 backdrop-blur-md min-w-[150px]">
             <div className="text-xs text-slate-500 mb-1">Unrealized PnL</div>
-            <div className="text-2xl font-mono font-bold text-green-400">
+            <div className="text-2xl font-bold text-green-400">
               +$
               {openPositions
                 .reduce((sum, pos) => sum + pos.unrealizedPnL, 0)
@@ -216,7 +216,7 @@ export default function Trades() {
                 </div>
 
                 {/* Core Math */}
-                <div className="w-full lg:w-1/3 grid grid-cols-2 gap-4 bg-slate-900/50 p-3 rounded-lg border border-slate-700/30 font-mono">
+                <div className="w-full lg:w-1/3 grid grid-cols-2 gap-4 bg-slate-900/50 p-3 rounded-lg border border-slate-700/30">
                   <div>
                     <div className="text-xs text-slate-500">Entry</div>
                     <div className="text-slate-300">
@@ -280,7 +280,7 @@ export default function Trades() {
                 <div className="w-full lg:w-[15%] flex flex-col items-end gap-3">
                   <div className="text-right">
                     <div
-                      className={`text-2xl font-black font-mono ${pos.unrealizedPnL >= 0 ? "text-green-400" : "text-red-500"}`}
+                      className={`text-2xl font-black ${pos.unrealizedPnL >= 0 ? "text-green-400" : "text-red-500"}`}
                     >
                       {pos.unrealizedPnL >= 0 ? "+" : ""}$
                       {pos.unrealizedPnL.toLocaleString(undefined, {
@@ -344,7 +344,7 @@ export default function Trades() {
                       {trade.direction}
                     </span>
                   </td>
-                  <td className="p-4 font-mono text-sm text-slate-300">
+                  <td className="p-4 text-sm text-slate-300">
                     ${trade.entryPrice.toFixed(2)} → $
                     {trade.exitPrice.toFixed(2)}
                   </td>
@@ -355,13 +355,13 @@ export default function Trades() {
                     {trade.exitReason.replace(/_/g, " ")}
                   </td>
                   <td
-                    className={`p-4 font-mono text-sm text-right font-bold ${trade.rMultiple > 0 ? "text-green-400" : "text-red-400"}`}
+                    className={`p-4 text-sm text-right font-bold ${trade.rMultiple > 0 ? "text-green-400" : "text-red-400"}`}
                   >
                     {trade.rMultiple > 0 ? "+" : ""}
                     {trade.rMultiple.toFixed(2)}R
                   </td>
                   <td
-                    className={`p-4 font-mono font-bold text-right ${trade.pnl > 0 ? "text-green-400" : "text-red-400"}`}
+                    className={`p-4 font-bold text-right ${trade.pnl > 0 ? "text-green-400" : "text-red-400"}`}
                   >
                     {trade.pnl > 0 ? "+" : ""}$
                     {trade.pnl.toLocaleString(undefined, {

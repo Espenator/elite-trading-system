@@ -29,7 +29,7 @@ const RiskIntelligence = () => {
             <button
               key={tf}
               onClick={() => setTimeframe(tf)}
-              className={`px-3 py-1.5 text-xs font-bold font-mono rounded transition-colors ${
+              className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${
                 timeframe === tf
                   ? "bg-red-500/20 text-red-400"
                   : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
@@ -52,10 +52,10 @@ const RiskIntelligence = () => {
             <TrendingDown className="w-4 h-4 text-red-400" />
           </div>
           <div className="flex items-end gap-2">
-            <span className="text-2xl font-bold font-mono text-white">
+            <span className="text-2xl font-bold text-white">
               -4.2%
             </span>
-            <span className="text-xs font-mono text-slate-500 mb-1">
+            <span className="text-xs text-slate-500 mb-1">
               vs Peak
             </span>
           </div>
@@ -70,10 +70,10 @@ const RiskIntelligence = () => {
             <Target className="w-4 h-4 text-emerald-400" />
           </div>
           <div className="flex items-end gap-2">
-            <span className="text-2xl font-bold font-mono text-white">
+            <span className="text-2xl font-bold text-white">
               68.4%
             </span>
-            <span className="text-xs font-mono text-emerald-500 mb-1">
+            <span className="text-xs text-emerald-500 mb-1">
               +2.1%
             </span>
           </div>
@@ -88,10 +88,10 @@ const RiskIntelligence = () => {
             <AlertTriangle className="w-4 h-4 text-yellow-400" />
           </div>
           <div className="flex items-end gap-2">
-            <span className="text-2xl font-bold font-mono text-white">
+            <span className="text-2xl font-bold text-white">
               $12,450
             </span>
-            <span className="text-xs font-mono text-slate-500 mb-1">
+            <span className="text-xs text-slate-500 mb-1">
               1.2% Cap
             </span>
           </div>
@@ -106,10 +106,10 @@ const RiskIntelligence = () => {
             <Activity className="w-4 h-4 text-cyan-400" />
           </div>
           <div className="flex items-end gap-2">
-            <span className="text-2xl font-bold font-mono text-white">
+            <span className="text-2xl font-bold text-white">
               2.41
             </span>
-            <span className="text-xs font-mono text-slate-500 mb-1">
+            <span className="text-xs text-slate-500 mb-1">
               Excellent
             </span>
           </div>
@@ -155,7 +155,7 @@ const RiskIntelligence = () => {
           </h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm font-mono">
+          <table className="w-full text-left text-sm">
             <thead className="bg-slate-900/80">
               <tr>
                 <th className="px-4 py-3 text-slate-400 text-xs font-bold uppercase tracking-wider border-b border-slate-700/50">

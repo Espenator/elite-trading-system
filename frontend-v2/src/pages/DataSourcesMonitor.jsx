@@ -398,7 +398,7 @@ export default function DataSourcesMonitor() {
               </div>
             </div>
             <div className="text-right">
-              <div className="text-2xl font-mono font-bold text-white">
+              <div className="text-2xl font-bold text-white">
                 {openClawStatus?.candidatesFound || 0}
               </div>
               <div className="text-[10px] text-slate-500 uppercase tracking-wider">
@@ -410,14 +410,14 @@ export default function DataSourcesMonitor() {
           <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-slate-700/50">
             <div>
               <div className="text-[10px] text-slate-500">Throughput</div>
-              <div className="text-sm font-mono font-bold text-blue-400 flex items-center gap-1">
+              <div className="text-sm font-bold text-blue-400 flex items-center gap-1">
                 {openClawStatus?.throughput || 0}{" "}
                 <span className="text-[9px] text-slate-600">rec/min</span>
               </div>
             </div>
             <div>
               <div className="text-[10px] text-slate-500">Last Scan</div>
-              <div className="text-sm font-mono font-bold text-slate-300">
+              <div className="text-sm font-bold text-slate-300">
                 {openClawStatus?.lastScan
                   ? new Date(openClawStatus.lastScan).toLocaleTimeString()
                   : "--:--"}
@@ -425,7 +425,7 @@ export default function DataSourcesMonitor() {
             </div>
             <div>
               <div className="text-[10px] text-slate-500">Cache Age</div>
-              <div className="text-sm font-mono font-bold text-green-400">
+              <div className="text-sm font-bold text-green-400">
                 {openClawStatus?.cacheAge || "0s"}
               </div>
             </div>
@@ -486,7 +486,7 @@ export default function DataSourcesMonitor() {
                     >
                       {source.status.toUpperCase()}
                     </Badge>
-                    <span className="text-[10px] text-slate-500 font-mono">
+                    <span className="text-[10px] text-slate-500">
                       ID: {source.id}
                     </span>
                   </div>
@@ -494,7 +494,7 @@ export default function DataSourcesMonitor() {
               </div>
               <div className="text-right">
                 <div className="text-xs font-bold text-slate-400">Uptime</div>
-                <div className="text-sm font-mono font-bold text-green-400">
+                <div className="text-sm font-bold text-green-400">
                   {source.uptime || 99.9}%
                 </div>
               </div>
@@ -508,7 +508,7 @@ export default function DataSourcesMonitor() {
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span
-                    className="text-xl font-mono font-bold text-white"
+                    className="text-xl font-bold text-white"
                     style={{ color: getLatencyColor(source.latency) }}
                   >
                     {source.latency}
@@ -518,7 +518,7 @@ export default function DataSourcesMonitor() {
               </div>
               <div>
                 <div className="text-[10px] text-slate-500 mb-1">Records</div>
-                <div className="text-xl font-mono font-bold text-white">
+                <div className="text-xl font-bold text-white">
                   {source.records || "0"}
                 </div>
               </div>
@@ -560,7 +560,7 @@ export default function DataSourcesMonitor() {
               </ResponsiveContainer>
 
               {/* Overlay Metrics */}
-              <div className="absolute bottom-2 right-4 text-xs font-mono font-bold text-slate-400 flex items-center gap-1 bg-slate-900/80 px-2 py-0.5 rounded border border-slate-700/50">
+              <div className="absolute bottom-2 right-4 text-xs font-bold text-slate-400 flex items-center gap-1 bg-slate-900/80 px-2 py-0.5 rounded border border-slate-700/50">
                 {source.throughput || 0} r/m
                 {source.trend === "up" ? (
                   <TrendingUp className="w-3 h-3 text-green-400" />

@@ -61,12 +61,12 @@ export default function SettingsPage() {
         </p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
-        <TextField label="Display Name" defaultValue="Espen Schiefloe" inputClassName="text-xs py-1.5 rounded-md font-mono" />
+        <TextField label="Display Name" defaultValue="Espen Schiefloe" inputClassName="text-xs py-1.5 rounded-md" />
         <TextField
           label="Email Address"
           type="email"
           defaultValue="espen@embodier.ai"
-          inputClassName="text-xs py-1.5 rounded-md font-mono"
+          inputClassName="text-xs py-1.5 rounded-md"
         />
         <Select
           label="Timezone"
@@ -74,7 +74,7 @@ export default function SettingsPage() {
           defaultValue="America/New_York (EST)"
           selectClassName="text-xs py-1.5 rounded-md"
         />
-        <TextField label="Base Currency" defaultValue="USD" inputClassName="text-xs py-1.5 rounded-md font-mono" />
+        <TextField label="Base Currency" defaultValue="USD" inputClassName="text-xs py-1.5 rounded-md" />
       </div>
     </div>
   );
@@ -142,7 +142,7 @@ export default function SettingsPage() {
                 <Badge
                   variant={p.status === "Connected" ? "success" : "warning"}
                   size="sm"
-                  className="flex items-center gap-1 font-mono uppercase"
+                  className="flex items-center gap-1 uppercase"
                 >
                   {p.status === "Connected" ? (
                     <CheckCircle2 className="w-3 h-3" />
@@ -158,14 +158,14 @@ export default function SettingsPage() {
                   type="password"
                   defaultValue={p.key}
                   readOnly
-                  inputClassName="text-xs py-1.5 font-mono bg-[#0a0a0f] border-gray-800/80"
+                  inputClassName="text-xs py-1.5 bg-[#0a0a0f] border-gray-800/80"
                 />
                 <TextField
                   label="API Secret"
                   type="password"
                   defaultValue={p.secret}
                   readOnly
-                  inputClassName="text-xs py-1.5 font-mono bg-[#0a0a0f] border-gray-800/80"
+                  inputClassName="text-xs py-1.5 bg-[#0a0a0f] border-gray-800/80"
                 />
                 <div className="pt-2 flex gap-2">
                   <Button
@@ -207,26 +207,26 @@ export default function SettingsPage() {
           <h4 className="text-xs font-bold text-[#06b6d4] uppercase tracking-wider mb-2 flex items-center gap-1">
             <Terminal className="w-3 h-3" /> Position Sizing
           </h4>
-          <TextField label="Base Position Size" defaultValue="25,000" suffix="USD" inputClassName="text-xs py-1.5 rounded-md font-mono" />
-          <TextField label="Max Position Size" defaultValue="100,000" suffix="USD" inputClassName="text-xs py-1.5 rounded-md font-mono" />
-          <TextField label="Max Concurrent Positions" type="number" defaultValue="5" suffix="POS" inputClassName="text-xs py-1.5 rounded-md font-mono" />
+          <TextField label="Base Position Size" defaultValue="25,000" suffix="USD" inputClassName="text-xs py-1.5 rounded-md" />
+          <TextField label="Max Position Size" defaultValue="100,000" suffix="USD" inputClassName="text-xs py-1.5 rounded-md" />
+          <TextField label="Max Concurrent Positions" type="number" defaultValue="5" suffix="POS" inputClassName="text-xs py-1.5 rounded-md" />
         </Card>
 
         <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-4 md:col-span-1">
           <h4 className="text-xs font-bold text-[#f59e0b] uppercase tracking-wider mb-2 flex items-center gap-1">
             <Sliders className="w-3 h-3" /> Trade Management
           </h4>
-          <TextField label="Default Stop Loss" defaultValue="1.0" suffix="ATR" inputClassName="text-xs py-1.5 rounded-md font-mono" />
-          <TextField label="Primary Target (TP1)" defaultValue="1.5" suffix="R" inputClassName="text-xs py-1.5 rounded-md font-mono" />
-          <TextField label="Secondary Target (TP2)" defaultValue="3.0" suffix="R" inputClassName="text-xs py-1.5 rounded-md font-mono" />
+          <TextField label="Default Stop Loss" defaultValue="1.0" suffix="ATR" inputClassName="text-xs py-1.5 rounded-md" />
+          <TextField label="Primary Target (TP1)" defaultValue="1.5" suffix="R" inputClassName="text-xs py-1.5 rounded-md" />
+          <TextField label="Secondary Target (TP2)" defaultValue="3.0" suffix="R" inputClassName="text-xs py-1.5 rounded-md" />
         </Card>
 
         <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-4 md:col-span-1">
           <h4 className="text-xs font-bold text-[#10b981] uppercase tracking-wider mb-2 flex items-center gap-1">
             <Activity className="w-3 h-3" /> Risk Profile
           </h4>
-          <TextField label="Max Daily Risk" defaultValue="2.0" suffix="%" inputClassName="text-xs py-1.5 rounded-md font-mono" />
-          <TextField label="Max Risk Per Trade" defaultValue="0.5" suffix="%" inputClassName="text-xs py-1.5 rounded-md font-mono" />
+          <TextField label="Max Daily Risk" defaultValue="2.0" suffix="%" inputClassName="text-xs py-1.5 rounded-md" />
+          <TextField label="Max Risk Per Trade" defaultValue="0.5" suffix="%" inputClassName="text-xs py-1.5 rounded-md" />
           <Toggle
             checked={true}
             onChange={() => {}}
@@ -289,7 +289,7 @@ export default function SettingsPage() {
             label="Max Correlation Limit"
             defaultValue="0.75"
             suffix="PEARSON"
-            inputClassName="text-xs py-1.5 rounded-md font-mono"
+            inputClassName="text-xs py-1.5 rounded-md"
           />
         </Card>
       </div>
@@ -455,14 +455,14 @@ export default function SettingsPage() {
             type="number"
             defaultValue="75"
             suffix="%"
-            inputClassName="text-xs py-1.5 rounded-md font-mono"
+            inputClassName="text-xs py-1.5 rounded-md"
           />
           <TextField
             label="Sentiment Analysis Lookback"
             type="number"
             defaultValue="24"
             suffix="HOURS"
-            inputClassName="text-xs py-1.5 rounded-md font-mono"
+            inputClassName="text-xs py-1.5 rounded-md"
           />
         </div>
 
@@ -514,21 +514,21 @@ export default function SettingsPage() {
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-[#131722] border-b border-gray-800">
-              <th className="p-2 text-[10px] uppercase font-mono text-gray-500 tracking-wider w-32">
+              <th className="p-2 text-[10px] uppercase text-gray-500 tracking-wider w-32">
                 Timestamp
               </th>
-              <th className="p-2 text-[10px] uppercase font-mono text-gray-500 tracking-wider w-24">
+              <th className="p-2 text-[10px] uppercase text-gray-500 tracking-wider w-24">
                 Category
               </th>
-              <th className="p-2 text-[10px] uppercase font-mono text-gray-500 tracking-wider w-32">
+              <th className="p-2 text-[10px] uppercase text-gray-500 tracking-wider w-32">
                 User/System
               </th>
-              <th className="p-2 text-[10px] uppercase font-mono text-gray-500 tracking-wider">
+              <th className="p-2 text-[10px] uppercase text-gray-500 tracking-wider">
                 Event Details
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-800/50 text-[11px] font-mono text-gray-300">
+          <tbody className="divide-y divide-gray-800/50 text-[11px] text-gray-300">
             <tr className="hover:bg-[#1A1D24]/50">
               <td className="p-2 text-gray-500">2026-02-25 10:42:11</td>
               <td className="p-2">

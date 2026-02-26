@@ -3,46 +3,19 @@
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import {
-  TrendingUp,
-  DollarSign,
-  Activity,
-  Zap,
   Brain,
-  BarChart3,
   ArrowUpRight,
   ArrowDownRight,
   Eye,
   Bot,
   Target,
-  ShieldCheck,
-  Clock,
   LayoutDashboard,
-  Gauge,
-  TrendingDown,
   Shield,
-  Percent,
-  Hash,
-  Flame,
-  RefreshCcw,
-  AlertTriangle,
-  Radio,
-  Newspaper,
-  Workflow,
-  Users,
-  ChevronUp,
-  ChevronDown,
   ChevronRight,
-  BarChart2,
-  PieChart as PieChartIcon,
-  Layers,
-  Thermometer,
-  CircleDot,
   ArrowUp,
   ArrowDown,
   Briefcase,
-  LineChart,
   Cpu,
-  Wifi,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import {
@@ -61,15 +34,14 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis,
   Radar,
-  Legend,
   AreaChart,
   Area,
-  ComposedChart,
-  Line,
 } from "recharts";
 import Card from "../components/ui/Card";
 import PageHeader from "../components/ui/PageHeader";
 import DataTable from "../components/ui/DataTable";
+import SymbolIcon from "../components/ui/SymbolIcon";
+import { DATA_SOURCE_ICON_SLUGS } from "../lib/dataSourceIcons";
 import Badge from "../components/ui/Badge";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl } from "../config/api";
@@ -79,21 +51,6 @@ import { createChart, ColorType } from "lightweight-charts";
 // === POLLING INTERVAL ===
 const POLL_MS = 30000;
 const OPENCLAW_POLL_MS = 30000;
-
-// Candidate source -> /data-sources icon slug (same as Data Sources Monitor)
-const DATA_SOURCE_ICON_SLUGS = {
-  finviz: "finviz",
-  whale_flow: "unusual_whales",
-  unusual_whales: "unusual_whales",
-  alpaca: "alpaca",
-  fred: "fred",
-  sec_edgar: "sec_edgar",
-  stockgeist: "stockgeist",
-  news_api: "news_api",
-  discord: "discord",
-  twitter: "twitter",
-  youtube: "youtube",
-};
 
 // === StatCard: Gradient stat card ===
 function StatCard({
@@ -175,7 +132,7 @@ function KpiMicroCard({
   const subInHeader = subPosition === "topRight" && sub;
   return (
     <div
-      className="w-full bg-surface border border-secondary/30 rounded-md p-2.5 cursor-pointer transition-all hover:scale-[1.03]"
+      className="w-full bg-surface border border-secondary/30 rounded-md p-2.5 cursor-pointer transition-all"
       onClick={onClick || (() => toast.info(`Drilling into ${label}`))}
     >
       <div className="flex items-center justify-between mb-1">
@@ -937,7 +894,10 @@ export default function Dashboard() {
                 {
                   key: "symbol",
                   label: "Symbol",
-                  render: (v) => v ?? "—",
+                  render: (v, row) => {
+                    const sym = v ?? row?.ticker;
+                    return sym ? <SymbolIcon symbol={sym} size="sm" /> : "—";
+                  },
                   cellClassName: "font-medium",
                 },
                 {
@@ -956,20 +916,28 @@ export default function Dashboard() {
                   label: "Source",
                   render: (v) => {
                     if (v == null || v === "") return "—";
-                    const slug = DATA_SOURCE_ICON_SLUGS[String(v).toLowerCase()];
+                    const slug =
+                      DATA_SOURCE_ICON_SLUGS[String(v).toLowerCase()];
                     if (slug) {
                       return (
-                        <span className="inline-flex items-center gap-1.5" title={v}>
+                        <span
+                          className="inline-flex items-center gap-1.5"
+                          title={v}
+                        >
                           <img
                             src={`/data-sources/${slug}.png`}
                             alt={v}
                             className="w-5 h-5 object-contain"
                           />
-                          <span className="text-secondary capitalize">{v.replace(/_/g, " ")}</span>
+                          <span className="text-secondary capitalize">
+                            {v.replace(/_/g, " ")}
+                          </span>
                         </span>
                       );
                     }
-                    return <span className="capitalize">{v.replace(/_/g, " ")}</span>;
+                    return (
+                      <span className="capitalize">{v.replace(/_/g, " ")}</span>
+                    );
                   },
                 },
                 {
@@ -1001,7 +969,7 @@ export default function Dashboard() {
               ]}
               data={candidates.slice(0, 6)}
               emptyMessage="No candidates"
-              rowKey={(row, i) => row.symbol || row.ticker || i}
+              rowKey={(row, i) => row.symbol || row.ticker || String(i)}
               className="rounded-none border-none"
             />
           )}
@@ -1254,7 +1222,16 @@ export default function Dashboard() {
         >
           <DataTable
             columns={[
-              { key: "ticker", label: "Symbol" },
+              {
+                key: "ticker",
+                label: "Symbol",
+                render: (v) =>
+                  v != null && v !== "" ? (
+                    <SymbolIcon symbol={v} size="sm" />
+                  ) : (
+                    "—"
+                  ),
+              },
               { key: "side", label: "Side" },
               {
                 key: "qty",

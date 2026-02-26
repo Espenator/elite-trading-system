@@ -120,7 +120,7 @@ const RiskEquityLC = ({ data }) => {
         <h3 className="text-white text-xs font-bold uppercase tracking-wider bg-slate-900/50 px-2 py-1 rounded">
           System Equity Curve
         </h3>
-        <p className="text-cyan-400 text-[10px] font-mono mt-1 px-2 font-bold shadow-sm">
+        <p className="text-cyan-400 text-[10px] mt-1 px-2 font-bold shadow-sm">
           ALGO: VELEZ V2.0 + UCS-REGIME
         </p>
       </div>

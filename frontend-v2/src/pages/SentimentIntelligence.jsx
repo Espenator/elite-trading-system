@@ -158,7 +158,7 @@ export default function SentimentIntelligence() {
             </ResponsiveContainer>
             {/* Gauge Value Overlay */}
             <div className="absolute inset-0 flex flex-col items-center justify-end pb-4 pointer-events-none">
-              <span className="text-4xl font-black font-mono text-white">{fearGreedValue}</span>
+              <span className="text-4xl font-black text-white">{fearGreedValue}</span>
               <span className="text-green-400 font-bold tracking-wider uppercase text-xs">Greed</span>
             </div>
           </div>
@@ -182,7 +182,7 @@ export default function SentimentIntelligence() {
               <div className="mt-4">
                 <div className="flex justify-between items-end mb-1">
                   <span className="text-xs text-slate-400">Current Bias</span>
-                  <span className={`text-lg font-black font-mono ${getSentimentColor(src.score)}`}>
+                  <span className={`text-lg font-black ${getSentimentColor(src.score)}`}>
                     {src.score > 0 ? '+' : ''}{src.score.toFixed(2)}
                   </span>
                 </div>
@@ -192,7 +192,7 @@ export default function SentimentIntelligence() {
                     style={{ width: `${Math.abs(src.score) * 100}%`, marginLeft: src.score > 0 ? '50%' : `${50 - (Math.abs(src.score) * 50)}%` }}
                   ></div>
                 </div>
-                <div className="flex justify-between items-center text-[10px] font-mono">
+                <div className="flex justify-between items-center text-[10px]">
                   <span className="text-green-400 flex items-center gap-1"><Server className="w-3 h-3"/> {src.status}</span>
                   <span className="text-slate-500">{src.latency}</span>
                 </div>
@@ -254,7 +254,7 @@ export default function SentimentIntelligence() {
                 style={{ opacity: 0.5 + (item.vol / 200) }} // Maps volume to opacity
               >
                 <span className="font-black text-white tracking-wider">{item.sym}</span>
-                <span className={`text-[10px] font-mono font-bold ${getSentimentColor(item.score)}`}>
+                <span className={`text-[10px] font-bold ${getSentimentColor(item.score)}`}>
                   {item.score > 0 ? '+' : ''}{item.score.toFixed(2)}
                 </span>
               </div>
@@ -302,10 +302,10 @@ export default function SentimentIntelligence() {
                         {sig.composite > 0 ? '+' : ''}{sig.composite.toFixed(2)}
                       </span>
                     </td>
-                    <td className={`p-4 text-center font-mono text-sm hidden md:table-cell ${getSentimentColor(sig.stockgeist)}`}>{sig.stockgeist.toFixed(2)}</td>
-                    <td className={`p-4 text-center font-mono text-sm hidden md:table-cell ${getSentimentColor(sig.news)}`}>{sig.news.toFixed(2)}</td>
-                    <td className={`p-4 text-center font-mono text-sm hidden sm:table-cell ${getSentimentColor(sig.discord)}`}>{sig.discord.toFixed(2)}</td>
-                    <td className={`p-4 text-center font-mono text-sm hidden sm:table-cell ${getSentimentColor(sig.x)}`}>{sig.x.toFixed(2)}</td>
+                    <td className={`p-4 text-center text-sm hidden md:table-cell ${getSentimentColor(sig.stockgeist)}`}>{sig.stockgeist.toFixed(2)}</td>
+                    <td className={`p-4 text-center text-sm hidden md:table-cell ${getSentimentColor(sig.news)}`}>{sig.news.toFixed(2)}</td>
+                    <td className={`p-4 text-center text-sm hidden sm:table-cell ${getSentimentColor(sig.discord)}`}>{sig.discord.toFixed(2)}</td>
+                    <td className={`p-4 text-center text-sm hidden sm:table-cell ${getSentimentColor(sig.x)}`}>{sig.x.toFixed(2)}</td>
                     <td className="p-4 text-right">
                       <span className={`text-xs font-bold ${sig.volume === 'Extreme' ? 'text-orange-400' : sig.volume === 'High' ? 'text-blue-400' : 'text-slate-400'}`}>
                         {sig.volume.toUpperCase()}
@@ -335,7 +335,7 @@ export default function SentimentIntelligence() {
                     <span className="font-black text-white">{alert.symbol}</span>
                     <span className="text-[10px] text-slate-500">{alert.time}</span>
                   </div>
-                  <p className="text-xs text-slate-300 mb-2 font-mono bg-slate-950/50 p-1.5 rounded">{alert.conflict}</p>
+                  <p className="text-xs text-slate-300 mb-2 bg-slate-950/50 p-1.5 rounded">{alert.conflict}</p>
                   <div className="text-[10px] font-bold text-yellow-400 uppercase tracking-wider flex items-center gap-1">
                     <Zap className="w-3 h-3" /> {alert.impact}
                   </div>

@@ -283,7 +283,7 @@ const MLBrainFlywheel = () => {
           Auto-recording positive trading outcomes, retraining and adjusting
           feature weights.
         </p>
-        <div className="space-y-2 max-h-[300px] overflow-y-auto font-mono text-xs">
+        <div className="space-y-2 max-h-[300px] overflow-y-auto text-xs">
           {flywheelLogs.map((log, i) => (
             <div
               key={i}

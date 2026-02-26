@@ -93,7 +93,7 @@ export default function TradeExecution() {
               </span>
             </div>
 
-            <div className="space-y-4 font-mono text-sm">
+            <div className="space-y-4 text-sm">
               <div className="flex justify-between p-3 bg-slate-900/50 rounded border border-slate-700/30">
                 <span className="text-slate-500">Entry Zone</span>
                 <span className="text-white font-bold">
@@ -123,19 +123,19 @@ export default function TradeExecution() {
             <div className="space-y-3 text-sm">
               <div className="flex justify-between">
                 <span className="text-slate-400">Account Size</span>
-                <span className="font-mono text-white">
+                <span className="text-white">
                   ${accountSize.toLocaleString()}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Regime Risk Cap</span>
-                <span className="font-mono text-yellow-400">
+                <span className="text-yellow-400">
                   {(regimeRisk * 100).toFixed(1)}%
                 </span>
               </div>
               <div className="flex justify-between border-t border-slate-700/50 pt-3">
                 <span className="text-slate-400">Capital at Risk (1R)</span>
-                <span className="font-mono text-red-400 font-bold">
+                <span className="text-red-400 font-bold">
                   -${riskAmount.toLocaleString()}
                 </span>
               </div>
@@ -224,14 +224,14 @@ export default function TradeExecution() {
             <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 mb-6">
               <div className="flex justify-between items-end mb-2">
                 <span className="text-slate-400 text-sm">Total Position</span>
-                <span className="text-2xl font-bold text-white font-mono">
+                <span className="text-2xl font-bold text-white">
                   {totalShares.toLocaleString()}{" "}
                   <span className="text-sm text-slate-500">shares</span>
                 </span>
               </div>
               <div className="flex justify-between items-end">
                 <span className="text-slate-400 text-sm">Capital Required</span>
-                <span className="text-lg text-slate-300 font-mono">
+                <span className="text-lg text-slate-300">
                   $
                   {totalCapitalRequired.toLocaleString(undefined, {
                     minimumFractionDigits: 2,
@@ -243,7 +243,7 @@ export default function TradeExecution() {
             <h4 className="text-sm font-bold text-slate-300 mb-3 uppercase tracking-wider">
               33-33-34 Scale-In Protocol
             </h4>
-            <div className="space-y-2 font-mono text-sm mb-8">
+            <div className="space-y-2 text-sm mb-8">
               <div className="grid grid-cols-12 gap-2 bg-slate-900/40 p-3 rounded border border-slate-700/30 items-center">
                 <div className="col-span-2 text-slate-500">33%</div>
                 <div className="col-span-3 text-blue-400 font-bold">

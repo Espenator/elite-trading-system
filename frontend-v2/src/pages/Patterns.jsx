@@ -744,7 +744,7 @@ export default function Patterns() {
                               {stock.sector}
                             </div>
                           </td>
-                          <td className="p-3 font-mono text-sm">
+                          <td className="p-3 text-sm">
                             <div className="text-white">
                               ${stock.price.toFixed(2)}
                             </div>
@@ -759,10 +759,10 @@ export default function Patterns() {
                               {Math.abs(stock.changePct).toFixed(2)}%
                             </div>
                           </td>
-                          <td className="p-3 font-mono text-xs text-slate-400 hidden lg:table-cell">
+                          <td className="p-3 text-xs text-slate-400 hidden lg:table-cell">
                             {(stock.volume / 1e6).toFixed(1)}M
                           </td>
-                          <td className="p-3 font-mono text-xs hidden md:table-cell">
+                          <td className="p-3 text-xs hidden md:table-cell">
                             <span
                               className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
                                 stock.rsi > 70
@@ -800,12 +800,12 @@ export default function Patterns() {
                           </td>
                           <td className="p-3 text-center">
                             <span
-                              className={`font-mono text-sm font-bold ${stock.pattern.winRate >= 70 ? "text-green-400" : "text-slate-300"}`}
+                              className={`text-sm font-bold ${stock.pattern.winRate >= 70 ? "text-green-400" : "text-slate-300"}`}
                             >
                               {stock.pattern.winRate}%
                             </span>
                           </td>
-                          <td className="p-3 text-center font-mono text-sm font-bold text-blue-400">
+                          <td className="p-3 text-center text-sm font-bold text-blue-400">
                             {stock.pattern.avgR}R
                           </td>
                           <td className="p-3">
@@ -884,7 +884,7 @@ export default function Patterns() {
                         </span>
                       </div>
                       <div
-                        className={`text-3xl font-black font-mono ${selectedStock.changePct >= 0 ? "text-green-400" : "text-red-400"}`}
+                        className={`text-3xl font-black ${selectedStock.changePct >= 0 ? "text-green-400" : "text-red-400"}`}
                       >
                         ${selectedStock.price.toFixed(2)}
                       </div>
@@ -955,7 +955,7 @@ export default function Patterns() {
                             <div className="text-[10px] text-slate-500">
                               {m.label}
                             </div>
-                            <div className="text-sm font-mono font-bold text-white">
+                            <div className="text-sm font-bold text-white">
                               {m.value}
                             </div>
                           </div>
@@ -1206,7 +1206,7 @@ export default function Patterns() {
                       <div className="grid grid-cols-2 gap-3 mb-4">
                         <div className="bg-slate-900/50 rounded-lg p-2.5 text-center">
                           <div
-                            className={`text-lg font-bold font-mono ${pt.winRate >= 70 ? "text-green-400" : "text-slate-200"}`}
+                            className={`text-lg font-bold ${pt.winRate >= 70 ? "text-green-400" : "text-slate-200"}`}
                           >
                             {pt.winRate}%
                           </div>
@@ -1215,7 +1215,7 @@ export default function Patterns() {
                           </div>
                         </div>
                         <div className="bg-slate-900/50 rounded-lg p-2.5 text-center">
-                          <div className="text-lg font-bold font-mono text-blue-400">
+                          <div className="text-lg font-bold text-blue-400">
                             {pt.avgR}R
                           </div>
                           <div className="text-[10px] text-slate-500">
@@ -1244,7 +1244,7 @@ export default function Patterns() {
                           {stat.stocks.slice(0, 6).map((sym) => (
                             <span
                               key={sym}
-                              className="text-[10px] bg-slate-900/50 border border-slate-700/50 rounded px-1.5 py-0.5 text-slate-400 font-mono"
+                              className="text-[10px] bg-slate-900/50 border border-slate-700/50 rounded px-1.5 py-0.5 text-slate-400"
                             >
                               {sym}
                             </span>
