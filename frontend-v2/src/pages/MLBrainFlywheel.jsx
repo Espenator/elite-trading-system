@@ -23,9 +23,9 @@ const MLBrainFlywheel = () => {
       try {
         setLoading(true);
         const [perfRes, infRes, logRes] = await Promise.all([
-          fetch('/api/v1/ml/performance'),
-          fetch('/api/v1/ml/signals/stage4'),
-          fetch('/api/v1/ml/flywheel-logs')
+          fetch('/api/v1/ml-brain/performance'),
+          fetch('/api/v1/ml-brain/signals/staged'),
+          fetch('/api/v1/ml-brain/flywheel-logs')
         ]);
 
         if (!perfRes.ok || !infRes.ok || !logRes.ok) {

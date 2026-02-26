@@ -1,11 +1,11 @@
 /**
  * WebSocket client for real-time updates.
- * Uses config API_CONFIG.WS_URL (e.g. ws://localhost:8001/ws).
+ * Uses getWsBaseUrl() so in dev it connects via current host (Vite proxy).
  * Channels: agents, datasources, signals, trades, logs.
  * Auto-reconnects after 3s on disconnect.
  */
 
-import API_CONFIG from "../config/api";
+import { getWsBaseUrl } from "../config/api";
 
 const RECONNECT_DELAY_MS = 3000;
 
@@ -20,7 +20,7 @@ class AppWebSocket {
   connect() {
     if (this.ws?.readyState === WebSocket.OPEN) return;
     this._intentionalClose = false;
-    const url = API_CONFIG.WS_URL;
+    const url = getWsBaseUrl();
     try {
       this.ws = new WebSocket(url);
       this.ws.onopen = () => {
