@@ -8,14 +8,56 @@ import {
   Zap,
   AlertTriangle,
   ArrowUpRight,
+  RefreshCw,
 } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
-// IMPORTED Lightweight Chart Components (Uncommented as requested)
+import { useApi } from "../hooks/useApi";
 import RiskEquityLC from "../components/charts/RiskEquityLC";
 import MonteCarloLC from "../components/charts/MonteCarloLC";
 
 const RiskIntelligence = () => {
   const [timeframe, setTimeframe] = useState("3M");
+
+  // Real API hooks
+  const { data: riskData, loading, error, refetch } = useApi("risk", { pollIntervalMs: 10000 });
+  const { data: perfData } = useApi("performance", { pollIntervalMs: 30000 });
+  const { data: portfolioData } = useApi("portfolio", { pollIntervalMs: 10000 });
+
+  const risk = riskData || {};
+  const perf = perfData || {};
+  const portfolio = portfolioData || {};
+
+  const metrics = [
+    {
+      title: "Current Drawdown",
+      value: risk.drawdown != null ? `${risk.drawdown.toFixed(1)}%` : "—",
+      icon: TrendingDown,
+      color: "text-red-400",
+    },
+    {
+      title: "Algo Win Rate",
+      value: perf.winRate != null ? `${perf.winRate.toFixed(1)}%` : "—",
+      icon: Target,
+      color: "text-emerald-400",
+      sub: perf.winRateDelta != null ? `${perf.winRateDelta > 0 ? "+" : ""}${perf.winRateDelta.toFixed(1)}%` : null,
+    },
+    {
+      title: "Daily VaR (95%)",
+      value: risk.var95 != null ? `$${risk.var95.toLocaleString()}` : "—",
+      icon: AlertTriangle,
+      color: "text-yellow-400",
+      sub: risk.varPct != null ? `${risk.varPct.toFixed(1)}% Cap` : null,
+    },
+    {
+      title: "Sharpe Ratio",
+      value: perf.sharpe != null ? perf.sharpe.toFixed(2) : "—",
+      icon: Activity,
+      color: "text-cyan-400",
+      sub: perf.sharpe >= 2 ? "Excellent" : perf.sharpe >= 1 ? "Good" : "Below avg",
+    },
+  ];
+
+  const limits = risk.limits || [];
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -24,187 +66,113 @@ const RiskIntelligence = () => {
         title="Risk Intelligence"
         description="System survivability and exposure monitoring"
       >
-        <div className="flex bg-slate-800/50 p-1 rounded-lg border border-slate-700/50">
-          {["1W", "1M", "3M", "YTD", "1Y"].map((tf) => (
-            <button
-              key={tf}
-              onClick={() => setTimeframe(tf)}
-              className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${
-                timeframe === tf
-                  ? "bg-red-500/20 text-red-400"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
-              }`}
-            >
-              {tf}
-            </button>
-          ))}
+        <div className="flex items-center gap-3">
+          <div className="flex bg-slate-800/50 p-1 rounded-lg border border-slate-700/50">
+            {["1W", "1M", "3M", "YTD", "1Y"].map((tf) => (
+              <button
+                key={tf}
+                onClick={() => setTimeframe(tf)}
+                className={`px-3 py-1.5 text-xs font-bold rounded transition-colors ${
+                  timeframe === tf
+                    ? "bg-red-500/20 text-red-400"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
+                }`}
+              >
+                {tf}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={refetch}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-500/15 border border-cyan-500/50 rounded text-cyan-400 text-xs font-bold hover:bg-cyan-500/25 transition-colors"
+          >
+            <RefreshCw className="w-3.5 h-3.5" /> Refresh
+          </button>
         </div>
       </PageHeader>
 
-      {/* ─── TOP METRICS GRID ─── */}
+      {/* Loading / Error */}
+      {loading && !riskData && (
+        <div className="text-center py-8 text-cyan-500 animate-pulse">Loading risk data...</div>
+      )}
+      {error && (
+        <div className="bg-red-500/15 border border-red-500/50 text-red-400 p-4 rounded-lg text-sm">
+          API Error: {error.message}
+        </div>
+      )}
+
+      {/* TOP METRICS GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Metric 1: System Drawdown */}
-        <div className="bg-slate-800/40 border border-slate-700/50 rounded-lg p-4">
-          <div className="flex justify-between items-start mb-2">
-            <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">
-              Current Drawdown
-            </span>
-            <TrendingDown className="w-4 h-4 text-red-400" />
+        {metrics.map((m, i) => (
+          <div key={i} className="bg-slate-800/40 border border-slate-700/50 rounded-lg p-4">
+            <div className="flex justify-between items-start mb-2">
+              <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">{m.title}</span>
+              <m.icon className={`w-4 h-4 ${m.color}`} />
+            </div>
+            <div className="flex items-end gap-2">
+              <span className="text-2xl font-bold text-white">{m.value}</span>
+              {m.sub && <span className={`text-xs ${m.color} mb-1`}>{m.sub}</span>}
+            </div>
           </div>
-          <div className="flex items-end gap-2">
-            <span className="text-2xl font-bold text-white">
-              -4.2%
-            </span>
-            <span className="text-xs text-slate-500 mb-1">
-              vs Peak
-            </span>
-          </div>
-        </div>
-
-        {/* Metric 2: Win Rate */}
-        <div className="bg-slate-800/40 border border-slate-700/50 rounded-lg p-4">
-          <div className="flex justify-between items-start mb-2">
-            <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">
-              Algo Win Rate
-            </span>
-            <Target className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div className="flex items-end gap-2">
-            <span className="text-2xl font-bold text-white">
-              68.4%
-            </span>
-            <span className="text-xs text-emerald-500 mb-1">
-              +2.1%
-            </span>
-          </div>
-        </div>
-
-        {/* Metric 3: Value At Risk (VaR) */}
-        <div className="bg-slate-800/40 border border-slate-700/50 rounded-lg p-4">
-          <div className="flex justify-between items-start mb-2">
-            <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">
-              Daily VaR (95%)
-            </span>
-            <AlertTriangle className="w-4 h-4 text-yellow-400" />
-          </div>
-          <div className="flex items-end gap-2">
-            <span className="text-2xl font-bold text-white">
-              $12,450
-            </span>
-            <span className="text-xs text-slate-500 mb-1">
-              1.2% Cap
-            </span>
-          </div>
-        </div>
-
-        {/* Metric 4: Sharpe Ratio */}
-        <div className="bg-slate-800/40 border border-slate-700/50 rounded-lg p-4">
-          <div className="flex justify-between items-start mb-2">
-            <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">
-              Sharpe Ratio
-            </span>
-            <Activity className="w-4 h-4 text-cyan-400" />
-          </div>
-          <div className="flex items-end gap-2">
-            <span className="text-2xl font-bold text-white">
-              2.41
-            </span>
-            <span className="text-xs text-slate-500 mb-1">
-              Excellent
-            </span>
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* ─── CHARTS SECTION ─── */}
+      {/* CHARTS SECTION */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left Chart: System Equity Curve */}
         <div className="bg-slate-800/40 border border-slate-700/50 rounded-lg flex flex-col h-[400px]">
           <div className="px-4 py-3 border-b border-slate-700/50 bg-slate-900/40 flex justify-between items-center">
             <h3 className="text-white text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-              <Zap className="w-4 h-4 text-cyan-400" />
-              Equity Curve vs Benchmark
+              <Zap className="w-4 h-4 text-cyan-400" /> Equity Curve vs Benchmark
             </h3>
           </div>
           <div className="flex-1 p-2">
-            {/* Wires up the Lightweight Chart for Equity */}
-            <RiskEquityLC data={[]} />
+            <RiskEquityLC data={perf.equityCurve || []} />
           </div>
         </div>
-
-        {/* Right Chart: Monte Carlo Simulation */}
         <div className="bg-slate-800/40 border border-slate-700/50 rounded-lg flex flex-col h-[400px]">
           <div className="px-4 py-3 border-b border-slate-700/50 bg-slate-900/40 flex justify-between items-center">
             <h3 className="text-white text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-              <ArrowUpRight className="w-4 h-4 text-emerald-400" />
-              Monte Carlo Distribution (N=100)
+              <ArrowUpRight className="w-4 h-4 text-emerald-400" /> Monte Carlo Distribution (N=100)
             </h3>
           </div>
           <div className="flex-1 p-2">
-            {/* Wires up the Lightweight Chart for Monte Carlo */}
-            <MonteCarloLC data={[]} />
+            <MonteCarloLC data={perf.monteCarlo || []} />
           </div>
         </div>
       </div>
 
-      {/* ─── BOTTOM SECTION: ACTIVE RISK LIMITS TABLE ─── */}
+      {/* ACTIVE RISK LIMITS TABLE */}
       <div className="bg-slate-800/40 border border-slate-700/50 rounded-lg min-h-[250px]">
         <div className="px-4 py-3 border-b border-slate-700/50 bg-slate-900/40">
-          <h3 className="text-white text-sm font-bold uppercase tracking-wider">
-            Active Risk Limits & Guardrails
-          </h3>
+          <h3 className="text-white text-sm font-bold uppercase tracking-wider">Active Risk Limits & Guardrails</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-900/80">
               <tr>
-                <th className="px-4 py-3 text-slate-400 text-xs font-bold uppercase tracking-wider border-b border-slate-700/50">
-                  Parameter
-                </th>
-                <th className="px-4 py-3 text-slate-400 text-xs font-bold uppercase tracking-wider border-b border-slate-700/50">
-                  Current Value
-                </th>
-                <th className="px-4 py-3 text-slate-400 text-xs font-bold uppercase tracking-wider border-b border-slate-700/50">
-                  Hard Limit
-                </th>
-                <th className="px-4 py-3 text-slate-400 text-xs font-bold uppercase tracking-wider border-b border-slate-700/50">
-                  Status
-                </th>
+                {["Parameter", "Current Value", "Hard Limit", "Status"].map((h) => (
+                  <th key={h} className="px-4 py-3 text-slate-400 text-xs font-bold uppercase tracking-wider border-b border-slate-700/50">{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/50">
-              <tr className="hover:bg-slate-700/30">
-                <td className="px-4 py-3 text-slate-300">Max Portfolio Heat</td>
-                <td className="px-4 py-3 text-white font-bold">14.5%</td>
-                <td className="px-4 py-3 text-slate-400">20.0%</td>
-                <td className="px-4 py-3">
-                  <span className="px-2 py-1 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400">
-                    NORMAL
-                  </span>
-                </td>
-              </tr>
-              <tr className="hover:bg-slate-700/30">
-                <td className="px-4 py-3 text-slate-300">
-                  Max Sector Exposure (Tech)
-                </td>
-                <td className="px-4 py-3 text-yellow-400 font-bold">28.4%</td>
-                <td className="px-4 py-3 text-slate-400">30.0%</td>
-                <td className="px-4 py-3">
-                  <span className="px-2 py-1 rounded text-[10px] font-bold bg-yellow-500/20 text-yellow-400">
-                    WARNING
-                  </span>
-                </td>
-              </tr>
-              <tr className="hover:bg-slate-700/30">
-                <td className="px-4 py-3 text-slate-300">Max Position Size</td>
-                <td className="px-4 py-3 text-white font-bold">4.2%</td>
-                <td className="px-4 py-3 text-slate-400">5.0%</td>
-                <td className="px-4 py-3">
-                  <span className="px-2 py-1 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400">
-                    NORMAL
-                  </span>
-                </td>
-              </tr>
+              {limits.map((lim, i) => (
+                <tr key={i} className="hover:bg-slate-700/30">
+                  <td className="px-4 py-3 text-slate-300">{lim.parameter}</td>
+                  <td className={`px-4 py-3 font-bold ${lim.status === "WARNING" ? "text-yellow-400" : lim.status === "BREACH" ? "text-red-400" : "text-white"}`}>{lim.currentValue}</td>
+                  <td className="px-4 py-3 text-slate-400">{lim.hardLimit}</td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 rounded text-[10px] font-bold ${
+                      lim.status === "NORMAL" ? "bg-emerald-500/20 text-emerald-400" :
+                      lim.status === "WARNING" ? "bg-yellow-500/20 text-yellow-400" :
+                      "bg-red-500/20 text-red-400"
+                    }`}>{lim.status}</span>
+                  </td>
+                </tr>
+              ))}
+              {limits.length === 0 && (
+                <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-500">No risk limits loaded. Waiting for API...</td></tr>
+              )}
             </tbody>
           </table>
         </div>
