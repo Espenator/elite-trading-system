@@ -1,49 +1,12 @@
 #!/usr/bin/env python3
 """
-Streaming Engine for OpenClaw v6.0 - Options Flow Agent Pipeline
-Real-time event-driven trading engine with Pub/Sub Blackboard + 4-Agent
-institutional options flow pipeline.
+Streaming Engine for OpenClaw v6.1 - Options Flow Agent Pipeline
+Real-time event-driven trading engine with Pub/Sub Blackboard + Multi-Agent
+sentiment pipeline.
 
-Upgraded from v5.0 to add dedicated options flow intelligence:
-- Pub/Sub Blackboard: Central message broker for inter-agent communication
-- Topic-based routing: agents publish/subscribe to typed topics
-- Alpaca WebSocket for real-time 1-minute bars (preserved from v4.0)
-- Continuous indicator re-computation on each bar
-- Signal trigger detection with immediate event emission
-- Watchlist management from daily scan results
-- State persistence for crash recovery
-- Slack alerts for high-score crossings
-
-v6.0 Options Flow Agent Pipeline (NEW):
-  Agent Name       | Input Source       | Function
-  -----------------+--------------------+-------------------------------------------
-  Flow Monitor     | WebSocket /flow    | Filter real-time aggressive institutional sweeps
-  Contextualizer   | REST API /greeks   | Check if flow aligns with MM hedging (GEX)
-  Sentiment Agent  | REST API /mkt-tide | Gauge overall market sentiment bull/bear
-  Risk Auditor     | Internal Logic     | Ensure trade size fits portfolio constraints
-
-Pipeline: Flow Monitor -> Contextualizer -> Sentiment Agent -> Risk Auditor -> Execution
-Each agent publishes verdict to Blackboard; next agent subscribes and enriches.
-
-Swarm Topics:
-    alpha_signals      - Tier 1 agents publish raw findings here
-    scored_signals     - Tier 2 synthesis publishes scored/ranked signals
-    execution_orders   - Tier 3 consumes high-conviction trades
-    trade_outcomes     - Execution results fed back for memory/learning
-    regime_updates     - Market regime changes broadcast to all agents
-    agent_heartbeats   - Health monitoring for all running agents
-    flow_raw           - Flow Monitor publishes raw institutional sweeps
-    flow_contextualized- Contextualizer enriches with GEX/greeks
-    flow_sentiment     - Sentiment Agent adds market-tide bias
-    flow_audited       - Risk Auditor gives final go/no-go
-
-Usage:
-    python streaming_engine.py --start       # daemon mode
-    python streaming_engine.py --watchlist   # show current subscriptions
-    python streaming_engine.py --scores      # print live scores table
-    python streaming_engine.py --blackboard  # show blackboard status
-    python streaming_engine.py --flow-status # show options flow pipeline status
-    python streaming_engine.py --flow-history# show recent flow pipeline signals
+Upgraded from v6.0 to add dynamic agent discovery for sentiment scanners:
+- Auto-loads prediction_agent, retail_agent, derivatives_agent, and whale_flow.
+- Registers dynamic topic enums.
 """
 
 import os
@@ -124,6 +87,12 @@ except ImportError:
     PositionSizer = None
     HAS_SIZER = False
 
+try:
+    # Import agent registry for auto-discovery
+    from scanner import AGENT_REGISTRY
+except ImportError:
+    AGENT_REGISTRY = {}
+
 logger = logging.getLogger(__name__)
 
 
@@ -144,6 +113,10 @@ class Topic(str, Enum):
     FLOW_CONTEXTUALIZED = "flow_contextualized"
     FLOW_SENTIMENT = "flow_sentiment"
     FLOW_AUDITED = "flow_audited"
+    # v6.1 Sentiment Agent topics
+    RETAIL_SIGNALS = "retail_signals"
+    PREDICTION_SIGNALS = "prediction_signals"
+    DERIVATIVES_SIGNALS = "derivatives_signals"
 
 
 @dataclass
@@ -188,7 +161,7 @@ class Blackboard:
             'processed': 0, 'passed': 0, 'rejected': 0,
             'avg_latency_ms': 0.0, 'last_active': None,
         })
-        logger.info("[Blackboard] Initialized pub/sub broker v6.0")
+        logger.info("[Blackboard] Initialized pub/sub broker v6.1")
 
     async def publish(self, message: BlackboardMessage) -> None:
         """Publish a message to a topic. All subscribers get a copy."""
@@ -1030,14 +1003,13 @@ class RollingIndicators:
         }
 
 
-# ========== STREAMING ENGINE v6.0 ==========
+# ========== STREAMING ENGINE v6.1 ==========
 
 class StreamingEngine:
     """
-    Real-time event-driven trading engine v6.0.
-    Hosts the Blackboard message broker + 4-agent options flow pipeline.
-    Manages WebSocket bar connections, scoring, triggers, and the
-    full Flow Monitor -> Contextualizer -> Sentiment -> Risk Auditor chain.
+    Real-time event-driven trading engine v6.1.
+    Hosts the Blackboard message broker + multi-agent sentiment/flow pipeline.
+    Manages WebSocket bar connections, scoring, triggers, and dynamic agent discovery.
     """
 
     def __init__(self, blackboard: Optional[Blackboard] = None):
@@ -1053,11 +1025,16 @@ class StreamingEngine:
         self._macro_data = {}
         self._scorer = None
         self.blackboard = blackboard or get_blackboard()
-        # v6.0 flow pipeline agents
+        
+        # Core flow pipeline agents
         self._flow_monitor = FlowMonitorAgent(self.blackboard)
         self._contextualizer = ContextualizerAgent(self.blackboard)
         self._sentiment_agent = SentimentAgent(self.blackboard)
         self._risk_auditor = RiskAuditorAgent(self.blackboard)
+        
+        # Dynamic Scanner Agents
+        self._scanner_tasks = []
+        
         self._flow_approved: Dict[str, Dict] = {}
         os.makedirs(DATA_DIR, exist_ok=True)
         os.makedirs(LOGS_DIR, exist_ok=True)
@@ -1348,10 +1325,25 @@ class StreamingEngine:
             except Exception as e:
                 logger.warning(f"Could not reload state: {e}")
 
+    def _launch_registered_agents(self, tickers: List[str]):
+        """Dynamically launch all agents found in the scanner registry."""
+        for name, agent_func in AGENT_REGISTRY.items():
+            logger.info(f"Auto-launching registered agent: {name}")
+            try:
+                # Prediction agent does not take tickers list
+                if "prediction" in name or "derivatives" in name:
+                    task = asyncio.create_task(agent_func(blackboard=self.blackboard))
+                else:
+                    task = asyncio.create_task(agent_func(symbols=tickers, blackboard=self.blackboard))
+                self._scanner_tasks.append(task)
+            except Exception as e:
+                logger.error(f"Failed to launch agent {name}: {e}")
+
     async def run(self):
         """
-        Main streaming engine loop v6.0.
-        Launches WebSocket + alpha consumer + heartbeat + 4-agent flow pipeline.
+        Main streaming engine loop v6.1.
+        Launches WebSocket + alpha consumer + heartbeat + 4-agent flow pipeline
+        + auto-discovered sentiment agents.
         """
         if not ALPACA_SDK_AVAILABLE:
             logger.error("alpaca-py SDK not installed")
@@ -1368,19 +1360,23 @@ class StreamingEngine:
         self._init_scorer()
         self._load_persisted_state()
         self.running = True
-        logger.info(f"Starting streaming engine v6.0 (flow pipeline) with {len(tickers)} tickers")
-        print("OpenClaw Streaming Engine v6.0 - Options Flow Agent Pipeline")
+        logger.info(f"Starting streaming engine v6.1 with {len(tickers)} tickers")
+        print("OpenClaw Streaming Engine v6.1 - Multi-Agent Sentiment Pipeline")
         print(f"Blackboard: {len(self.blackboard._subscribers)} topic subscriptions")
         print(f"Tickers: {len(tickers)}")
-        print(f"Flow Pipeline: FlowMonitor -> Contextualizer -> Sentiment -> RiskAuditor")
         print("=" * 60)
-        # Launch all concurrent tasks
+        
+        # Launch Core Pipeline Tasks
         alpha_task = asyncio.create_task(self._consume_alpha_signals())
         heartbeat_task = asyncio.create_task(self._heartbeat_loop())
         flow_monitor_task = asyncio.create_task(self._flow_monitor.run())
         contextualizer_task = asyncio.create_task(self._contextualizer.run())
         sentiment_task = asyncio.create_task(self._sentiment_agent.run())
         risk_auditor_task = asyncio.create_task(self._risk_auditor.run())
+        
+        # Launch Dynamic Scanner Agents (Retail, Prediction, Derivatives, Whale Flow)
+        self._launch_registered_agents(tickers)
+
         while self.running:
             try:
                 self.stream = StockDataStream(ALPACA_API_KEY, ALPACA_SECRET_KEY, feed='iex')
@@ -1395,13 +1391,14 @@ class StreamingEngine:
                 logger.error(f"WebSocket error: {e}")
                 if self.running:
                     await asyncio.sleep(RECONNECT_DELAY)
+                    
         # Cleanup
         for task in [alpha_task, heartbeat_task, flow_monitor_task,
-                     contextualizer_task, sentiment_task, risk_auditor_task]:
+                     contextualizer_task, sentiment_task, risk_auditor_task] + self._scanner_tasks:
             task.cancel()
         self._persist_state()
         await self.blackboard.shutdown()
-        logger.info("Streaming engine v6.0 shutdown complete")
+        logger.info("Streaming engine v6.1 shutdown complete")
 
     def show_watchlist(self):
         tickers = self.load_watchlist()
@@ -1449,7 +1446,7 @@ class StreamingEngine:
 
     def show_blackboard_status(self):
         stats = self.blackboard.get_stats()
-        print("\nBlackboard Status (v6.0):")
+        print("\nBlackboard Status (v6.1):")
         print("=" * 60)
         print("\nTopics & Subscribers:")
         for topic, count in stats.get('topics', {}).items():
@@ -1546,7 +1543,7 @@ def export_watchlist(watchlist: List[Dict]):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='OpenClaw Streaming Engine v6.0 - Options Flow Agent Pipeline'
+        description='OpenClaw Streaming Engine v6.1 - Multi-Agent Sentiment Pipeline'
     )
     parser.add_argument('--start', action='store_true', help='Start streaming daemon')
     parser.add_argument('--watchlist', action='store_true', help='Show current subscriptions')
@@ -1574,9 +1571,8 @@ def main():
     elif args.flow_history:
         engine.show_flow_history()
     elif args.start:
-        print("OpenClaw Streaming Engine v6.0 - Options Flow Agent Pipeline")
-        print("Real-time event-driven trading with 4-Agent Options Flow Pipeline")
-        print("Pipeline: Flow Monitor -> Contextualizer -> Sentiment -> Risk Auditor")
+        print("OpenClaw Streaming Engine v6.1 - Multi-Agent Sentiment Pipeline")
+        print("Real-time event-driven trading with Multi-Agent Swarm")
         print("=" * 60)
         asyncio.run(engine.run())
     else:
