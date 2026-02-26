@@ -80,16 +80,6 @@ import { createChart, ColorType } from "lightweight-charts";
 const POLL_MS = 30000;
 const OPENCLAW_POLL_MS = 30000;
 
-// === Mock market indices (replace with real feed when available) ===
-const MOCK_INDICES = [
-  { id: "SPX", label: "SPX", value: "5800.10", change: 0.45 },
-  { id: "NDAQ", label: "NDAQ", value: "17850.30", change: -0.12 },
-  { id: "DOW", label: "DOW", value: "39120.55", change: 0.33 },
-  { id: "BTC", label: "BTC", value: "$71500", change: 1.89 },
-  { id: "ETH", label: "ETH", value: "$3850", change: -0.05 },
-  { id: "OIL", label: "OIL", value: "$82.30", change: 0.67 },
-];
-
 // === StatCard: Gradient stat card ===
 function StatCard({
   title,
@@ -165,7 +155,7 @@ function KpiMicroCard({ label, value, sub, color, icon: Icon, onClick }) {
       onClick={onClick || (() => toast.info(`Drilling into ${label}`))}
     >
       <div className="flex items-center justify-between mb-1">
-        <span className="text-[9px] text-secondary uppercase tracking-wider font-mono truncate">
+        <span className="text-[9px] text-secondary uppercase tracking-wider truncate">
           {label}
         </span>
         {Icon && (
@@ -175,12 +165,12 @@ function KpiMicroCard({ label, value, sub, color, icon: Icon, onClick }) {
         )}
       </div>
       <div
-        className={`text-sm font-bold font-mono ${textMap[color] || "text-white"} truncate`}
+        className={`text-sm font-bold ${textMap[color] || "text-white"} truncate`}
       >
         {value}
       </div>
       {sub && (
-        <div className="text-[8px] text-secondary/70 font-mono truncate mt-0.5">
+        <div className="text-[8px] text-secondary/70 truncate mt-0.5">
           {sub}
         </div>
       )}
@@ -202,7 +192,7 @@ function SectorCell({ name, value, momentum }) {
       title={`${name}: ${value >= 0 ? "+" : ""}${value.toFixed(1)}%`}
     >
       <div className="text-[10px] font-bold text-white/90 truncate">{name}</div>
-      <div className="text-xs font-mono font-bold text-white mt-0.5">
+      <div className="text-xs font-bold text-white mt-0.5">
         {value >= 0 ? "+" : ""}
         {value.toFixed(1)}%
       </div>
@@ -335,6 +325,22 @@ export default function Dashboard() {
   const { data: statusData } = useApi("status", { pollIntervalMs: POLL_MS });
   const { data: openclawTop, loading: openclawLoading } = useOpenClawTop();
   const openclawHealth = useOpenClawHealth();
+  const { data: marketIndicesData } = useApi("marketIndices", {
+    pollIntervalMs: 60000,
+  });
+  const { data: performanceTradesData } = useApi("performanceTrades", {
+    pollIntervalMs: POLL_MS,
+  });
+
+  // --- Market indices (real from /market/indices) ---
+  const indices = useMemo(() => {
+    const list = marketIndicesData?.indices ?? [];
+    return list.map((i) => ({
+      id: i.id,
+      value: i.value ?? "—",
+      change: i.change != null ? i.change : null,
+    }));
+  }, [marketIndicesData]);
 
   // --- OpenClaw derived data ---
   const regime = openclawTop?.regime ?? openclawHealth?.regime ?? null;
@@ -421,8 +427,16 @@ export default function Dashboard() {
 
   // --- Computed stats ---
   const portfolioValue =
-    performanceData?.portfolioValue ?? portfolioData?.totalValue ?? 0;
-  const dailyPnL = performanceData?.dailyPnL ?? portfolioData?.dailyPnL ?? 0;
+    performanceData?.portfolioValue ??
+    portfolioData?.totalValue ??
+    riskData?.equity ??
+    0;
+  const dailyPnL =
+    performanceData?.dailyPnL ??
+    portfolioData?.dailyPnL ??
+    (riskData?.equity != null && riskData?.dailyPnlPct != null
+      ? riskData.equity * (riskData.dailyPnlPct / 100)
+      : null);
   const totalPnLPct = performanceData?.totalReturnPct ?? 0;
   const winRate = performanceData?.winRate ?? 0;
   const sharpe = riskData?.sharpeRatio ?? performanceData?.sharpeRatio ?? 0;
@@ -444,6 +458,115 @@ export default function Dashboard() {
     return [];
   }, [performanceData]);
 
+  // --- Drawdown from equity curve (peak-to-trough) ---
+  const drawdownData = useMemo(() => {
+    if (!equityCurveData?.length) return [];
+    let peak = -Infinity;
+    return equityCurveData.map((p) => {
+      const v = p.value ?? 0;
+      if (v > peak) peak = v;
+      const dd = peak > 0 && v < peak ? v - peak : 0; // negative when in drawdown
+      return { ...p, dd };
+    });
+  }, [equityCurveData]);
+
+  // --- Realized trades for P&L distribution and monthly win rate ---
+  const trades = useMemo(
+    () => performanceTradesData?.trades ?? [],
+    [performanceTradesData],
+  );
+  const pnlDistribution = useMemo(() => {
+    const buckets = [
+      { range: "-50K", min: -Infinity, max: -40000, count: 0 },
+      { range: "-40K", min: -40000, max: -30000, count: 0 },
+      { range: "-30K", min: -30000, max: -20000, count: 0 },
+      { range: "-20K", min: -20000, max: -10000, count: 0 },
+      { range: "-10K", min: -10000, max: -0.01, count: 0 },
+      { range: "0", min: 0, max: 0, count: 0 },
+      { range: "10K", min: 0.01, max: 10000, count: 0 },
+      { range: "20K", min: 10001, max: 20000, count: 0 },
+      { range: "30K", min: 20001, max: 40000, count: 0 },
+      { range: "50K+", min: 40001, max: Infinity, count: 0 },
+    ];
+    trades.forEach((t) => {
+      const pnl = Number(t.pnl);
+      if (Number.isNaN(pnl)) return;
+      const b = buckets.find((x) => pnl >= x.min && pnl <= x.max);
+      if (b) b.count += 1;
+    });
+    return buckets.map(({ range, count }) => ({ range, count }));
+  }, [trades]);
+  const monthlyWinRate = useMemo(() => {
+    const byMonth = {};
+    trades.forEach((t) => {
+      const closed = t.closed_at ?? t.closedAt;
+      if (!closed) return;
+      const date = String(closed).slice(0, 7);
+      if (!byMonth[date]) byMonth[date] = { wins: 0, total: 0 };
+      byMonth[date].total += 1;
+      if (Number(t.pnl) > 0) byMonth[date].wins += 1;
+    });
+    const months = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+    return months.map((m, i) => {
+      const key = Object.keys(byMonth).find(
+        (k) => new Date(k + "-01").getMonth() === i,
+      );
+      const cell = byMonth[key];
+      const rate = cell && cell.total ? (cell.wins / cell.total) * 100 : null;
+      return { month: m, rate: rate ?? 0 };
+    });
+  }, [trades]);
+
+  // --- Risk radar from risk API ---
+  const riskRadarData = useMemo(() => {
+    if (!riskData) return [];
+    const r = riskData;
+    return [
+      {
+        metric: "Exposure",
+        value: Math.min(
+          100,
+          (r.currentExposure / Math.max(1, r.equity || 1)) * 100,
+        ),
+        fullMark: 100,
+      },
+      {
+        metric: "VaR",
+        value: Math.min(100, (r.var95 / Math.max(1, r.equity || 1)) * 100),
+        fullMark: 100,
+      },
+      {
+        metric: "Daily Loss",
+        value: Math.min(100, Math.abs(r.potentialDailyLoss || 0) * 5),
+        fullMark: 100,
+      },
+      {
+        metric: "Drawdown",
+        value: Math.min(100, Math.abs(r.estimatedMaxDrawdown || 0) * 5),
+        fullMark: 100,
+      },
+      {
+        metric: "Concentration",
+        value: r.concentrationPct ?? 0,
+        fullMark: 100,
+      },
+      { metric: "Limits", value: r.allWithinLimits ? 100 : 40, fullMark: 100 },
+    ];
+  }, [riskData]);
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -455,107 +578,336 @@ export default function Dashboard() {
       {/* === TOP BAR: Market indices + KPIs (dense single row) === */}
       <div className="bg-[#0B0E14] border border-slate-800/60 rounded-xl px-4 py-2.5 flex flex-wrap items-center gap-x-6 gap-y-2 overflow-x-auto">
         <div className="flex items-center gap-x-5 shrink-0">
-          {MOCK_INDICES.map((idx) => (
-            <div key={idx.id} className="flex items-center gap-1.5">
-              <span className="text-[10px] font-bold text-slate-500 uppercase">{idx.id}</span>
-              <span className="text-xs font-mono text-white">{idx.value}</span>
-              <span className={`text-[10px] font-mono font-bold ${idx.change >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                {idx.change >= 0 ? "+" : ""}{idx.change}%
-              </span>
-            </div>
-          ))}
+          {indices.length > 0 ? (
+            indices.map((idx) => (
+              <div key={idx.id} className="flex items-center gap-1.5">
+                <span className="text-[10px] font-bold text-slate-500 uppercase">
+                  {idx.id}
+                </span>
+                <span className="text-xs text-white">{idx.value}</span>
+                {idx.change != null && (
+                  <span
+                    className={`text-[10px] font-bold ${idx.change >= 0 ? "text-emerald-400" : "text-red-400"}`}
+                  >
+                    {idx.change >= 0 ? "+" : ""}
+                    {idx.change}%
+                  </span>
+                )}
+              </div>
+            ))
+          ) : (
+            <span className="text-xs text-slate-500">Loading indices…</span>
+          )}
         </div>
         <div className="h-4 w-px bg-slate-700 shrink-0" />
         <div className="flex items-center gap-x-4 flex-wrap gap-y-1">
-          <KpiMicroCard label="Total Equity" value={portfolioValue ? `$${Number(portfolioValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "--"} color="green" icon={DollarSign} />
-          <KpiMicroCard label="Day P&L" value={dailyPnL != null ? `${dailyPnL >= 0 ? "+" : ""}$${Number(dailyPnL).toFixed(0)}` : "--"} color={dailyPnL >= 0 ? "green" : "red"} icon={TrendingUp} />
-          <KpiMicroCard label="Win Rate" value={winRate ? `${Number(winRate).toFixed(1)}%` : "--"} color="cyan" icon={Target} />
-          <KpiMicroCard label="Open Risk" value={positions.length ? `$${(15000).toLocaleString()}` : "--"} color="amber" icon={Shield} />
-          <KpiMicroCard label="Volatility" value="12.5%" color="purple" icon={Activity} />
-          <KpiMicroCard label="Beta" value={sharpe ? Number(sharpe).toFixed(2) : "1.12"} color="cyan" icon={BarChart3} />
-          <KpiMicroCard label="Alpha" value={totalPnLPct ? `${totalPnLPct >= 0 ? "+" : ""}${Number(totalPnLPct).toFixed(1)}%` : "+4.5%"} color="green" icon={TrendingUp} />
-          <KpiMicroCard label="Correl" value="0.78" color="cyan" icon={Layers} />
-          <KpiMicroCard label="Liquidity" value="$50M" color="green" icon={DollarSign} />
-          <KpiMicroCard label="Margin" value="25%" color="amber" icon={Percent} />
+          <KpiMicroCard
+            label="Total Equity"
+            value={
+              portfolioValue
+                ? `$${Number(portfolioValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                : "--"
+            }
+            color="green"
+            icon={DollarSign}
+          />
+          <KpiMicroCard
+            label="Day P&L"
+            value={
+              dailyPnL != null
+                ? `${dailyPnL >= 0 ? "+" : ""}$${Number(dailyPnL).toFixed(0)}`
+                : "--"
+            }
+            color={dailyPnL >= 0 ? "green" : "red"}
+            icon={TrendingUp}
+          />
+          <KpiMicroCard
+            label="Win Rate"
+            value={
+              winRate != null
+                ? `${(Number(winRate) <= 1 ? Number(winRate) * 100 : Number(winRate)).toFixed(1)}%`
+                : "—"
+            }
+            color="cyan"
+            icon={Target}
+          />
+          <KpiMicroCard
+            label="Open Risk"
+            value={
+              riskData?.currentExposure != null
+                ? `$${Number(riskData.currentExposure).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                : positions.length
+                  ? "—"
+                  : "—"
+            }
+            color="amber"
+            icon={Shield}
+          />
+          <KpiMicroCard
+            label="Volatility"
+            value={
+              riskData?.potentialDailyLoss != null
+                ? `${Number(Math.abs(riskData.potentialDailyLoss)).toFixed(1)}%`
+                : riskData?.estimatedMaxDrawdown != null
+                  ? `${Number(riskData.estimatedMaxDrawdown).toFixed(1)}%`
+                  : "—"
+            }
+            color="purple"
+            icon={Activity}
+          />
+          <KpiMicroCard
+            label="Beta"
+            value={
+              sharpe != null && sharpe !== ""
+                ? String(Number(sharpe).toFixed(2))
+                : "—"
+            }
+            color="cyan"
+            icon={BarChart3}
+          />
+          <KpiMicroCard
+            label="Alpha"
+            value={
+              totalPnLPct != null && totalPnLPct !== ""
+                ? `${totalPnLPct >= 0 ? "+" : ""}${Number(totalPnLPct).toFixed(1)}%`
+                : "—"
+            }
+            color="green"
+            icon={TrendingUp}
+          />
+          <KpiMicroCard label="Correl" value="—" color="cyan" icon={Layers} />
+          <KpiMicroCard
+            label="Liquidity"
+            value={
+              riskData?.buyingPower != null
+                ? `$${Number(riskData.buyingPower) / 1e6 >= 1 ? (Number(riskData.buyingPower) / 1e6).toFixed(1) + "M" : Number(riskData.buyingPower).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                : "—"
+            }
+            color="green"
+            icon={DollarSign}
+          />
+          <KpiMicroCard
+            label="Margin"
+            value={
+              riskData?.equity != null &&
+              riskData?.buyingPower != null &&
+              riskData.equity > 0
+                ? `${Math.round((1 - Number(riskData.buyingPower) / Number(riskData.equity)) * 100)}%`
+                : riskData?.concentrationPct != null
+                  ? `${Number(riskData.concentrationPct).toFixed(0)}%`
+                  : "—"
+            }
+            color="amber"
+            icon={Percent}
+          />
         </div>
       </div>
 
       {/* === ROW 2: Four performance charts === */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        <Card title="Equity Curve" subtitle="YTD +10.3% · SED -4.1%" className="flex flex-col">
+        <Card
+          title="Equity Curve"
+          subtitle={
+            totalPnLPct != null || maxDrawdown != null
+              ? `YTD ${totalPnLPct != null ? (totalPnLPct >= 0 ? "+" : "") + Number(totalPnLPct).toFixed(1) + "%" : "—"} · Max DD ${maxDrawdown != null ? `${Number(maxDrawdown).toFixed(1)}%` : "—"}`
+              : null
+          }
+          className="flex flex-col"
+        >
           <div className="flex-1 min-h-[220px] h-[220px]">
             <EquityCurveLW data={equityCurveData} />
           </div>
         </Card>
-        <Card title="Drawdown" subtitle="Max drawdown" className="flex flex-col">
+        <Card
+          title="Drawdown"
+          subtitle={
+            maxDrawdown != null
+              ? `Max ${Number(maxDrawdown).toFixed(1)}%`
+              : "From equity curve"
+          }
+          className="flex flex-col"
+        >
           <div className="h-[220px]">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={equityCurveData.length ? equityCurveData.map((p, i) => ({ ...p, dd: -Math.min(0, (p.value || 0) - 240) })) : [{ time: 0, value: 0, dd: -10 }]} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+              <AreaChart
+                data={
+                  drawdownData.length
+                    ? drawdownData
+                    : [{ time: 0, value: 0, dd: 0 }]
+                }
+                margin={{ top: 4, right: 4, left: -20, bottom: 0 }}
+              >
                 <defs>
                   <linearGradient id="ddFill" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.3} />
                     <stop offset="100%" stopColor="#06b6d4" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="#334155"
+                  vertical={false}
+                />
                 <XAxis dataKey="time" hide />
-                <YAxis domain={["auto", 0]} tickFormatter={(v) => `$${v}`} stroke="#64748b" fontSize={10} />
-                <Tooltip contentStyle={{ backgroundColor: "#0f172a", border: "1px solid #334155" }} />
-                <Area type="monotone" dataKey="dd" stroke="#06b6d4" fill="url(#ddFill)" strokeWidth={1} />
+                <YAxis
+                  domain={["auto", 0]}
+                  tickFormatter={(v) => `$${v}`}
+                  stroke="#64748b"
+                  fontSize={10}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#0f172a",
+                    border: "1px solid #334155",
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="dd"
+                  stroke="#06b6d4"
+                  fill="url(#ddFill)"
+                  strokeWidth={1}
+                />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </Card>
-        <Card title="Win Rate Over Time" subtitle="Monthly" className="flex flex-col">
+        <Card
+          title="Win Rate Over Time"
+          subtitle="Monthly (from realized trades)"
+          className="flex flex-col"
+        >
           <div className="h-[220px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].map((m, i) => ({ month: m, rate: 60 + Math.sin(i * 0.5) * 15 + Math.random() * 10 }))} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+              <BarChart
+                data={monthlyWinRate}
+                margin={{ top: 4, right: 4, left: -20, bottom: 0 }}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="#334155"
+                  vertical={false}
+                />
                 <XAxis dataKey="month" stroke="#64748b" fontSize={10} />
-                <YAxis domain={[0, 100]} stroke="#64748b" fontSize={10} tickFormatter={(v) => `${v}%`} />
-                <Tooltip contentStyle={{ backgroundColor: "#0f172a", border: "1px solid #334155" }} />
+                <YAxis
+                  domain={[0, 100]}
+                  stroke="#64748b"
+                  fontSize={10}
+                  tickFormatter={(v) => `${v}%`}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#0f172a",
+                    border: "1px solid #334155",
+                  }}
+                />
                 <Bar dataKey="rate" fill="#06b6d4" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </Card>
-        <Card title="Sector Performance" subtitle="By month" className="flex flex-col">
+        <Card
+          title="Sector Performance"
+          subtitle={sectors.length ? "From performance data" : "No sector data"}
+          className="flex flex-col"
+        >
           <div className="h-[220px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].map((m, i) => ({ month: m, pct: i === 10 ? -120 : 80 + Math.random() * 80 }))} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                <XAxis dataKey="month" stroke="#64748b" fontSize={10} />
-                <YAxis stroke="#64748b" fontSize={10} />
-                <Tooltip contentStyle={{ backgroundColor: "#0f172a", border: "1px solid #334155" }} />
-                <Bar dataKey="pct" fill="#06b6d4" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            {sectors.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={sectors.map((s) => ({
+                    name: s.name ?? s.sector ?? "—",
+                    pct: Number(s.change ?? s.value ?? 0),
+                  }))}
+                  margin={{ top: 4, right: 4, left: -20, bottom: 0 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="#334155"
+                    vertical={false}
+                  />
+                  <XAxis dataKey="name" stroke="#64748b" fontSize={10} />
+                  <YAxis
+                    stroke="#64748b"
+                    fontSize={10}
+                    tickFormatter={(v) => `${v}%`}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#0f172a",
+                      border: "1px solid #334155",
+                    }}
+                  />
+                  <Bar dataKey="pct" fill="#06b6d4" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-sm text-slate-500">
+                No sector data available
+              </div>
+            )}
           </div>
         </Card>
       </div>
 
       {/* === ROW 3: P&L Distribution (full width) === */}
-      <Card title="P&L Distribution" subtitle="Realized P&L histogram">
+      <Card title="P&L Distribution" subtitle="Realized P&L from trade history">
         <div className="h-[240px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={[-50,-32,-22,-16,-10,-5,0,5,10,11,12,15,20,30,50].map((v, i) => ({ range: v, count: Math.round(500 + Math.sin(i) * 800 + Math.random() * 400) }))} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-              <XAxis dataKey="range" stroke="#64748b" fontSize={10} tickFormatter={(v) => `${v}K`} />
-              <YAxis stroke="#64748b" fontSize={10} />
-              <Tooltip contentStyle={{ backgroundColor: "#0f172a", border: "1px solid #334155" }} />
-              <Bar dataKey="count" fill="#06b6d4" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {pnlDistribution.some((d) => d.count > 0) ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={pnlDistribution}
+                margin={{ top: 8, right: 8, left: 8, bottom: 8 }}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="#334155"
+                  vertical={false}
+                />
+                <XAxis dataKey="range" stroke="#64748b" fontSize={10} />
+                <YAxis stroke="#64748b" fontSize={10} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#0f172a",
+                    border: "1px solid #334155",
+                  }}
+                />
+                <Bar dataKey="count" fill="#06b6d4" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-full flex items-center justify-center text-sm text-slate-500">
+              No realized P&L data. Trades will appear here once recorded.
+            </div>
+          )}
         </div>
       </Card>
 
       {/* === ROW 4: OpenClaw Candidates | Portfolio Allocation | Risk Radar === */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card title="OpenClaw Candidates" subtitle={`${candidates.length} shown · YTD -16.2%`} className="lg:col-span-1" action={<Link to="/agents" className="text-xs font-medium text-primary hover:text-primary/80 flex items-center gap-1">View all <ArrowUpRight className="w-3 h-3" /></Link>}>
+        <Card
+          title="OpenClaw Candidates"
+          subtitle={
+            totalPnLPct != null
+              ? `${candidates.length} shown · YTD ${totalPnLPct >= 0 ? "+" : ""}${Number(totalPnLPct).toFixed(1)}%`
+              : `${candidates.length} shown`
+          }
+          className="lg:col-span-1"
+          action={
+            <Link
+              to="/agents"
+              className="text-xs font-medium text-primary hover:text-primary/80 flex items-center gap-1"
+            >
+              View all <ArrowUpRight className="w-3 h-3" />
+            </Link>
+          }
+        >
           {openclawLoading ? (
             <p className="text-sm text-secondary py-4">Loading...</p>
           ) : candidates.length === 0 ? (
-            <p className="text-sm text-secondary py-4">No candidates. Check OpenClaw bridge.</p>
+            <p className="text-sm text-secondary py-4">
+              No candidates. Check OpenClaw bridge.
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
@@ -572,11 +924,22 @@ export default function Dashboard() {
                 </thead>
                 <tbody className="text-slate-300">
                   {candidates.slice(0, 6).map((c, i) => (
-                    <tr key={c.symbol || c.ticker || i} className="border-b border-slate-800/50 hover:bg-slate-800/30">
+                    <tr
+                      key={c.symbol || c.ticker || i}
+                      className="border-b border-slate-800/50 hover:bg-slate-800/30"
+                    >
                       <td className="py-1.5 font-mono">{c.shares ?? "—"}</td>
                       <td className="py-1.5 font-mono">{c.equity ?? "—"}</td>
-                      <td className={`py-1.5 font-mono ${(c.pnl ?? 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>{c.pnl != null ? `$${Number(c.pnl).toFixed(0)}` : "—"}</td>
-                      <td className="py-1.5 font-mono">{c.alpha != null ? `${Number(c.alpha).toFixed(2)}%` : "—"}</td>
+                      <td
+                        className={`py-1.5 ${(c.pnl ?? 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}
+                      >
+                        {c.pnl != null ? `$${Number(c.pnl).toFixed(0)}` : "—"}
+                      </td>
+                      <td className="py-1.5 font-mono">
+                        {c.alpha != null
+                          ? `${Number(c.alpha).toFixed(2)}%`
+                          : "—"}
+                      </td>
                       <td className="py-1.5 font-mono">{c.vol ?? "—"}</td>
                       <td className="py-1.5 font-mono">{c.rex ?? "—"}</td>
                       <td className="py-1.5 font-mono">{c.margin ?? "—"}</td>
@@ -587,52 +950,133 @@ export default function Dashboard() {
             </div>
           )}
         </Card>
-        <Card title="Portfolio Allocation" subtitle="By position" className="lg:col-span-1">
+        <Card
+          title="Portfolio Allocation"
+          subtitle="By position"
+          className="lg:col-span-1"
+        >
           <div className="h-[260px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={positions.length ? positions.map((p, i) => ({ name: p.ticker, value: (p.current || p.entry) * (p.qty || 0) })) : [{ name: "Cash", value: 100 }]} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={2} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                  {positions.length ? positions.map((p, i) => <Cell key={p.ticker} fill={["#06b6d4","#10b981","#8b5cf6","#f59e0b","#ef4444"][i % 5]} />) : <Cell fill="#334155" />}
+                <Pie
+                  data={
+                    positions.length
+                      ? positions.map((p, i) => ({
+                          name: p.ticker,
+                          value: (p.current || p.entry) * (p.qty || 0),
+                        }))
+                      : [{ name: "Cash", value: 100 }]
+                  }
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={90}
+                  paddingAngle={2}
+                  dataKey="value"
+                  label={({ name, percent }) =>
+                    `${name} ${(percent * 100).toFixed(0)}%`
+                  }
+                >
+                  {positions.length ? (
+                    positions.map((p, i) => (
+                      <Cell
+                        key={p.ticker}
+                        fill={
+                          [
+                            "#06b6d4",
+                            "#10b981",
+                            "#8b5cf6",
+                            "#f59e0b",
+                            "#ef4444",
+                          ][i % 5]
+                        }
+                      />
+                    ))
+                  ) : (
+                    <Cell fill="#334155" />
+                  )}
                 </Pie>
-                <Tooltip contentStyle={{ backgroundColor: "#0f172a", border: "1px solid #334155" }} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#0f172a",
+                    border: "1px solid #334155",
+                  }}
+                />
               </PieChart>
             </ResponsiveContainer>
           </div>
         </Card>
-        <Card title="Risk Metrics" subtitle="Radar view" className="lg:col-span-1">
+        <Card
+          title="Risk Metrics"
+          subtitle="From risk API"
+          className="lg:col-span-1"
+        >
           <div className="h-[260px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={[{ metric: "Volatility", value: 72, fullMark: 100 }, { metric: "Bias", value: 85, fullMark: 100 }, { metric: "Risk", value: 45, fullMark: 100 }, { metric: "Back", value: 60, fullMark: 100 }, { metric: "Stealth", value: 90, fullMark: 100 }, { metric: "Firm", value: 78, fullMark: 100 }, { metric: "Hair", value: 55, fullMark: 100 }, { metric: "Bear", value: 40, fullMark: 100 }]}>
-                <PolarGrid stroke="#334155" />
-                <PolarAngleAxis dataKey="metric" tick={{ fill: "#94a3b8", fontSize: 10 }} />
-                <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: "#64748b", fontSize: 9 }} />
-                <Radar name="Level" dataKey="value" stroke="#06b6d4" fill="#06b6d4" fillOpacity={0.3} strokeWidth={2} />
-                <Tooltip contentStyle={{ backgroundColor: "#0f172a", border: "1px solid #334155" }} />
-              </RadarChart>
-            </ResponsiveContainer>
+            {riskRadarData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <RadarChart data={riskRadarData}>
+                  <PolarGrid stroke="#334155" />
+                  <PolarAngleAxis
+                    dataKey="metric"
+                    tick={{ fill: "#94a3b8", fontSize: 10 }}
+                  />
+                  <PolarRadiusAxis
+                    angle={30}
+                    domain={[0, 100]}
+                    tick={{ fill: "#64748b", fontSize: 9 }}
+                  />
+                  <Radar
+                    name="Level"
+                    dataKey="value"
+                    stroke="#06b6d4"
+                    fill="#06b6d4"
+                    fillOpacity={0.3}
+                    strokeWidth={2}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#0f172a",
+                      border: "1px solid #334155",
+                    }}
+                  />
+                </RadarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-sm text-slate-500">
+                No risk data. Connect Alpaca for live metrics.
+              </div>
+            )}
           </div>
         </Card>
       </div>
 
       {/* === ROW 5: Correlation Matrix | Agent Leaderboard | Signal Accuracy === */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card title="Correlation Matrix" subtitle="Asset correlation" className="lg:col-span-1">
+        <Card
+          title="Correlation Matrix"
+          subtitle="No data source configured"
+          className="lg:col-span-1"
+        >
           <div className="overflow-x-auto">
-            <div className="grid grid-cols-4 gap-1 text-[10px] font-mono min-w-[200px]">
-              {(() => {
-                const vals = [[1, 0.78, 0.65, 0.52], [0.78, 1, 0.72, 0.58], [0.65, 0.72, 1, 0.61], [0.52, 0.58, 0.61, 1]];
-                return ["NVDA","TSLA","AMD","MSFT"].map((row, i) =>
-                  ["NVDA","TSLA","AMD","MSFT"].map((col, j) => (
-                    <div key={`${row}-${col}`} className={`p-1.5 rounded text-center ${i === j ? "bg-slate-700/50 text-slate-400" : vals[i][j] > 0.7 ? "bg-emerald-500/20 text-emerald-400" : "bg-slate-800/50 text-slate-300"}`}>
-                      {i === j ? "1.0" : vals[i][j].toFixed(2)}
-                    </div>
-                  ))
-                );
-              })()}
+            <div className="p-2 text-sm text-slate-500">
+              No correlation data available. Add a risk/portfolio correlation
+              endpoint to display.
             </div>
           </div>
         </Card>
-        <Card title="Agent Performance Leaderboard" subtitle="Day P&L · Rank" className="lg:col-span-1" action={<Link to="/agents" className="text-xs font-medium text-primary hover:text-primary/80 flex items-center gap-1">Command Center <ArrowUpRight className="w-3 h-3" /></Link>}>
+        <Card
+          title="Agent Performance Leaderboard"
+          subtitle="Status from API"
+          className="lg:col-span-1"
+          action={
+            <Link
+              to="/agents"
+              className="text-xs font-medium text-primary hover:text-primary/80 flex items-center gap-1"
+            >
+              Command Center <ArrowUpRight className="w-3 h-3" />
+            </Link>
+          }
+        >
           {agents.length === 0 ? (
             <p className="text-sm text-secondary py-4">No agent data.</p>
           ) : (
@@ -640,14 +1084,32 @@ export default function Dashboard() {
               {agents.slice(0, 5).map((a, i) => {
                 const Icon = a.icon || Bot;
                 return (
-                  <li key={a.name || i} className="flex items-center justify-between py-2 px-2 rounded-lg bg-slate-800/40">
+                  <li
+                    key={a.name || i}
+                    className="flex items-center justify-between py-2 px-2 rounded-lg bg-slate-800/40"
+                  >
                     <div className="flex items-center gap-2">
                       {Icon && <Icon className="w-3.5 h-3.5 text-cyan-400" />}
-                      <span className="text-xs font-medium text-white truncate">{a.name}</span>
+                      <span className="text-xs font-medium text-white truncate">
+                        {a.name}
+                      </span>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[10px] text-slate-500">#{i + 1}</span>
-                      <span className={`text-[10px] font-mono ${i === 0 ? "text-emerald-400" : "text-slate-400"}`}>{(2.5 - i * 0.5).toFixed(2)}%</span>
+                      <span className="text-[10px] text-slate-500">
+                        #{i + 1}
+                      </span>
+                      <Badge
+                        variant={
+                          a.status === "active"
+                            ? "success"
+                            : a.status === "error"
+                              ? "danger"
+                              : "secondary"
+                        }
+                        size="sm"
+                      >
+                        {a.status}
+                      </Badge>
                     </div>
                   </li>
                 );
@@ -655,42 +1117,129 @@ export default function Dashboard() {
             </ul>
           )}
         </Card>
-        <Card title="Signal Accuracy Timeline" subtitle="Daily % correct" className="lg:col-span-1">
-          <div className="h-[180px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={Array.from({ length: 30 }, (_, i) => ({ day: i + 1, correct: 70 + Math.random() * 25, wrong: 30 - Math.random() * 25 }))} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} stackOffset="expand">
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                <XAxis dataKey="day" stroke="#64748b" fontSize={9} />
-                <YAxis domain={[0, 100]} stroke="#64748b" fontSize={9} tickFormatter={(v) => `${v}%`} />
-                <Tooltip contentStyle={{ backgroundColor: "#0f172a", border: "1px solid #334155" }} />
-                <Bar dataKey="correct" stackId="a" fill="#10b981" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="wrong" stackId="a" fill="#ef4444" radius={[0, 0, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+        <Card
+          title="Signal Accuracy Timeline"
+          subtitle="From ML/flywheel when available"
+          className="lg:col-span-1"
+        >
+          <div className="h-[180px] flex items-center justify-center text-sm text-slate-500">
+            No signal accuracy timeline data. Use ML Brain / flywheel APIs to
+            record daily accuracy.
           </div>
         </Card>
       </div>
 
       {/* === ROW 6: Equity + Regime (original content, condensed) === */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card title="Equity Curve (Detail)" subtitle="Portfolio performance" className="lg:col-span-2">
+        <Card
+          title="Equity Curve (Detail)"
+          subtitle="Portfolio performance"
+          className="lg:col-span-2"
+        >
           <EquityCurveLW data={equityCurveData} />
         </Card>
-        <Card title="Market Regime" subtitle={lastScanTs ? `Last scan: ${new Date(lastScanTs).toLocaleString()}` : null}>
+        <Card
+          title="Market Regime"
+          subtitle={
+            lastScanTs
+              ? `Last scan: ${new Date(lastScanTs).toLocaleString()}`
+              : null
+          }
+        >
           <div className="flex flex-wrap items-center gap-4 mb-4">
-            <Badge variant={regime === "GREEN" ? "success" : regime === "RED" ? "danger" : "warning"} size="lg">{regime ?? "--"}</Badge>
-            {openclawHealth && <span className="text-xs text-secondary">Bridge: {openclawHealth.connected ? "Connected" : "Disconnected"}{openclawHealth.candidate_count != null && ` | ${openclawHealth.candidate_count} candidates`}</span>}
+            <Badge
+              variant={
+                regime === "GREEN"
+                  ? "success"
+                  : regime === "RED"
+                    ? "danger"
+                    : "warning"
+              }
+              size="lg"
+            >
+              {regime ?? "--"}
+            </Badge>
+            {openclawHealth && (
+              <span className="text-xs text-secondary">
+                Bridge:{" "}
+                {openclawHealth.connected ? "Connected" : "Disconnected"}
+                {openclawHealth.candidate_count != null &&
+                  ` | ${openclawHealth.candidate_count} candidates`}
+              </span>
+            )}
           </div>
-          {regimeMarkdown && <div className="prose prose-invert prose-sm max-w-none text-secondary max-h-[200px] overflow-y-auto"><ReactMarkdown>{regimeMarkdown}</ReactMarkdown></div>}
-          {!regimeMarkdown && !openclawLoading && <p className="text-sm text-secondary">No regime readme available.</p>}
+          {regimeMarkdown && (
+            <div className="prose prose-invert prose-sm max-w-none text-secondary max-h-[200px] overflow-y-auto">
+              <ReactMarkdown>{regimeMarkdown}</ReactMarkdown>
+            </div>
+          )}
+          {!regimeMarkdown && !openclawLoading && (
+            <p className="text-sm text-secondary">
+              No regime readme available.
+            </p>
+          )}
         </Card>
       </div>
 
       {/* === ROW 7: Active Positions + Quick Links === */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card title="Active Positions" subtitle={`${positions.length} open`} action={<Link to="/trades" className="text-xs font-medium text-primary hover:text-primary/80 flex items-center gap-1">Trade Execution <ArrowUpRight className="w-3 h-3" /></Link>}>
+        <Card
+          title="Active Positions"
+          subtitle={`${positions.length} open`}
+          action={
+            <Link
+              to="/trades"
+              className="text-xs font-medium text-primary hover:text-primary/80 flex items-center gap-1"
+            >
+              Trade Execution <ArrowUpRight className="w-3 h-3" />
+            </Link>
+          }
+        >
           <DataTable
-            columns={[{ key: "ticker", label: "Symbol" }, { key: "side", label: "Side" }, { key: "qty", label: "Qty", render: (v) => (v != null ? Number(v).toLocaleString() : "--") }, { key: "entry", label: "Entry", render: (v) => (v != null ? `$${Number(v).toFixed(2)}` : "--") }, { key: "current", label: "Current", render: (v) => (v != null ? `$${Number(v).toFixed(2)}` : "--") }, { key: "pnl", label: "P&L", render: (v) => { const val = Number(v); return <span className={val >= 0 ? "text-success" : "text-danger"}>{val >= 0 ? "+" : ""}${val.toFixed(2)}</span>; } }, { key: "pnlPct", label: "%", render: (v) => { const val = Number(v); return <span className={val >= 0 ? "text-success" : "text-danger"}>{val >= 0 ? "+" : ""}{val.toFixed(2)}%</span>; } }]}
+            columns={[
+              { key: "ticker", label: "Symbol" },
+              { key: "side", label: "Side" },
+              {
+                key: "qty",
+                label: "Qty",
+                render: (v) => (v != null ? Number(v).toLocaleString() : "--"),
+              },
+              {
+                key: "entry",
+                label: "Entry",
+                render: (v) => (v != null ? `$${Number(v).toFixed(2)}` : "--"),
+              },
+              {
+                key: "current",
+                label: "Current",
+                render: (v) => (v != null ? `$${Number(v).toFixed(2)}` : "--"),
+              },
+              {
+                key: "pnl",
+                label: "P&L",
+                render: (v) => {
+                  const val = Number(v);
+                  return (
+                    <span className={val >= 0 ? "text-success" : "text-danger"}>
+                      {val >= 0 ? "+" : ""}${val.toFixed(2)}
+                    </span>
+                  );
+                },
+              },
+              {
+                key: "pnlPct",
+                label: "%",
+                render: (v) => {
+                  const val = Number(v);
+                  return (
+                    <span className={val >= 0 ? "text-success" : "text-danger"}>
+                      {val >= 0 ? "+" : ""}
+                      {val.toFixed(2)}%
+                    </span>
+                  );
+                },
+              },
+            ]}
             data={positions}
             emptyMessage="No positions"
             rowKey={(row) => row.ticker}
@@ -698,10 +1247,23 @@ export default function Dashboard() {
         </Card>
         <Card title="Quick Navigation">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {[{ to: "/signals", label: "Signals", icon: Zap }, { to: "/risk", label: "Risk Intel", icon: Shield }, { to: "/performance", label: "Performance", icon: BarChart3 }, { to: "/ml-insights", label: "ML Brain", icon: Brain }, { to: "/backtest", label: "Backtest", icon: LineChart }, { to: "/market-regime", label: "Market Regime", icon: Gauge }].map((link) => (
-              <Link key={link.to} to={link.to} className="flex items-center gap-2 p-2.5 bg-slate-800/40 border border-slate-700/50 rounded-lg hover:border-cyan-500/40 transition-all">
+            {[
+              { to: "/signals", label: "Signals", icon: Zap },
+              { to: "/risk", label: "Risk Intel", icon: Shield },
+              { to: "/performance", label: "Performance", icon: BarChart3 },
+              { to: "/ml-insights", label: "ML Brain", icon: Brain },
+              { to: "/backtest", label: "Backtest", icon: LineChart },
+              { to: "/market-regime", label: "Market Regime", icon: Gauge },
+            ].map((link) => (
+              <Link
+                key={link.to}
+                to={link.to}
+                className="flex items-center gap-2 p-2.5 bg-slate-800/40 border border-slate-700/50 rounded-lg hover:border-cyan-500/40 transition-all"
+              >
                 <link.icon className="w-4 h-4 text-cyan-400" />
-                <span className="text-xs font-medium text-white">{link.label}</span>
+                <span className="text-xs font-medium text-white">
+                  {link.label}
+                </span>
                 <ArrowUpRight className="w-3 h-3 text-slate-500 ml-auto" />
               </Link>
             ))}
@@ -712,7 +1274,17 @@ export default function Dashboard() {
       {sectors.length > 0 && (
         <Card title="Sector Heatmap" subtitle="Performance by sector">
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
-            {sectors.map((s, i) => <SectorCell key={s.name || i} name={s.name} value={s.change ?? s.value ?? 0} momentum={s.momentum || (s.change > 0 ? "up" : s.change < 0 ? "down" : "flat")} />)}
+            {sectors.map((s, i) => (
+              <SectorCell
+                key={s.name || i}
+                name={s.name}
+                value={s.change ?? s.value ?? 0}
+                momentum={
+                  s.momentum ||
+                  (s.change > 0 ? "up" : s.change < 0 ? "down" : "flat")
+                }
+              />
+            ))}
           </div>
         </Card>
       )}

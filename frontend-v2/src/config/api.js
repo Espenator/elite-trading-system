@@ -44,11 +44,14 @@ const API_CONFIG = {
     risk: "/risk", // Risk metrics + position sizing
     strategy: "/strategy", // Active strategies + A/B tests
     performance: "/performance", // Historical performance analytics
+    performanceTrades: "/performance/performance/trades", // Realized trades for P&L dist / monthly win rate
     logs: "/logs", // System activity logs
     alerts: "/alerts", // Alert rules + notifications
     patterns: "/patterns", // Chart pattern detections
     settings: "/settings", // User settings load/save
     openclaw: "/openclaw", // OpenClaw bridge: regime, top candidates, health, scan
+    market: "/market", // Market indices (SPY, QQQ, DIA) for Dashboard
+    marketIndices: "/market/indices", // GET indices snapshot for Dashboard top bar
   },
 };
 
@@ -64,7 +67,10 @@ export const getApiUrl = (endpoint) =>
  * Get WebSocket base URL. When WS_URL is "" (dev), uses current host so Vite proxy is used.
  */
 export const getWsBaseUrl = () =>
-  API_CONFIG.WS_URL || (typeof window !== "undefined" ? `ws://${window.location.host}/ws` : "ws://localhost:3000/ws");
+  API_CONFIG.WS_URL ||
+  (typeof window !== "undefined"
+    ? `ws://${window.location.host}/ws`
+    : "ws://localhost:3000/ws");
 
 /**
  * Get WebSocket URL for a channel
