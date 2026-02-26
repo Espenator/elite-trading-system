@@ -6,12 +6,18 @@ import {
   DollarSign,
   Percent
 } from 'lucide-react';
-import { mockPerformance, mockPositions } from '../../data/mockData';
 import clsx from 'clsx';
 
-export default function QuickStats() {
-  const perf = mockPerformance;
-  const openPnl = mockPositions.reduce((sum, p) => sum + p.pnlDollars, 0);
+// Default empty data (replaces mockData.js import per Issue #8 cleanup)
+const DEFAULT_PERFORMANCE = {
+  todayPnl: 0, weekPnl: 0, monthPnl: 0, totalPnl: 0,
+  winRate: 0, avgRMultiple: 0, maxDrawdown: 0,
+  totalTrades: 0, winners: 0, losers: 0
+};
+
+export default function QuickStats({ performance = null, positions = [] }) {
+  const perf = performance || DEFAULT_PERFORMANCE;
+  const openPnl = positions.reduce((sum, p) => sum + (p.pnlDollars || 0), 0);
 
   const stats = [
     {
@@ -24,7 +30,7 @@ export default function QuickStats() {
     {
       label: 'Open P&L',
       value: `$${openPnl.toLocaleString()}`,
-      change: `${mockPositions.length} positions`,
+      change: `${positions.length} positions`,
       isPositive: openPnl >= 0,
       icon: Activity,
     },
