@@ -1,6 +1,4 @@
-"use client";
-
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   ShieldAlert,
   Target,
@@ -9,311 +7,187 @@ import {
   Lock,
   Activity,
   Send,
+  RefreshCw,
 } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
+import { useApi } from "../hooks/useApi";
+import { getApiUrl } from "../config/api";
 
 export default function TradeExecution() {
-  const [accountSize] = useState(800000); // From Trader Profile memory
-  const [regimeRisk] = useState(0.02); // 2.0% Risk (GREEN Regime)
+  // Real API hooks
+  const { data: signalData, loading: sigLoading } = useApi("signals", { pollIntervalMs: 5000 });
+  const { data: portfolioData } = useApi("portfolio", { pollIntervalMs: 10000 });
+  const { data: riskData } = useApi("risk", { pollIntervalMs: 10000 });
+  const { data: settingsData } = useApi("settings", { pollIntervalMs: 60000 });
 
-  // Simulated selected signal from Signals.jsx
-  const [activeSignal] = useState({
-    ticker: "RBRK",
-    action: "LONG",
-    entry: 75.5,
-    stop: 62.0, // Structural Invalidation
-    target1: 89.0, // 1R (1:1)
-    target2: 102.5, // 2R (2:1)
-    confidence: 92,
-    factors: ["Velez Daily 88", "4H HHHL", "Whale Ask Flow 80%"],
-  });
+  const accountSize = portfolioData?.accountValue || settingsData?.accountSize || 0;
+  const regimeRisk = riskData?.regimeRisk || 0.02;
 
-  // 6-Question Zone Checklist State
+  // Derive active signal from API (the top staged signal)
+  const signals = Array.isArray(signalData) ? signalData : signalData?.signals || [];
+  const stagedSignals = signals.filter((s) => s.status === "Staged" || s.tier === "SLAM DUNK");
+  const [selectedIdx, setSelectedIdx] = useState(0);
+  const activeSignal = stagedSignals[selectedIdx] || null;
+
+  // Checklist state
   const [checklist, setChecklist] = useState({
-    edgeConfirmed: false,
-    riskPredefined: false,
-    riskAccepted: false,
-    noHesitation: false,
-    profitPlan: false,
-    journalReady: false,
+    confirmEntry: false,
+    confirmStop: false,
+    confirmSize: false,
+    confirmRegime: false,
+    confirmRisk: false,
+    confirmMental: false,
   });
 
-  const allChecksPassed = Object.values(checklist).every((val) => val === true);
+  const allChecked = Object.values(checklist).every(Boolean);
 
-  // Position Sizing Math (Van Tharp)
-  const riskAmount = accountSize * regimeRisk; // $16,000
-  const riskPerShare = activeSignal.entry - activeSignal.stop; // $13.50
-  const totalShares = Math.floor(riskAmount / riskPerShare); // ~1,185 shares
-  const totalCapitalRequired = totalShares * activeSignal.entry;
+  // Position sizing from API risk data
+  const dollarRisk = accountSize * regimeRisk;
+  const stopDist = activeSignal ? Math.abs((activeSignal.entry || 0) - (activeSignal.stop || 0)) : 0;
+  const shares = stopDist > 0 ? Math.floor(dollarRisk / stopDist) : 0;
+  const positionValue = shares * (activeSignal?.entry || 0);
+  const pctOfAccount = accountSize > 0 ? ((positionValue / accountSize) * 100).toFixed(1) : 0;
 
-  // 33-33-34 Scale-in Math
-  const entry1 = Math.floor(totalShares * 0.33);
-  const entry2 = Math.floor(totalShares * 0.33);
-  const entry3 = totalShares - entry1 - entry2;
-
-  const [orderStatus, setOrderStatus] = useState("IDLE");
-
-  const handleExecute = () => {
-    setOrderStatus("ROUTING");
-    setTimeout(() => setOrderStatus("FILLED"), 1500);
-  };
-
-  const toggleCheck = (key) => {
-    setChecklist((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
+  // Execute trade via API
+  const [executing, setExecuting] = useState(false);
+  const handleExecute = useCallback(async () => {
+    if (!activeSignal || !allChecked) return;
+    setExecuting(true);
+    try {
+      const url = getApiUrl("orders");
+      await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          symbol: activeSignal.ticker || activeSignal.symbol,
+          side: activeSignal.action || activeSignal.dir,
+          qty: shares,
+          type: "limit",
+          limit_price: activeSignal.entry,
+          stop_loss: activeSignal.stop,
+          take_profit: activeSignal.target || activeSignal.target1,
+        }),
+      });
+    } catch (err) {
+      console.error("Order execution failed:", err);
+    } finally {
+      setExecuting(false);
+    }
+  }, [activeSignal, allChecked, shares]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-500">
       <PageHeader
         icon={Send}
         title="Trade Execution"
-        description="6-Question Zone Checklist & position sizing"
+        description="Bible v6.0 compliant order execution with risk governor"
       />
 
-      <div className="flex flex-col xl:flex-row gap-6 flex-1">
-        {/* Left Column: Signal Data & Risk Parameters */}
-        <div className="w-full xl:w-1/4 space-y-6">
-          <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-6 backdrop-blur-md shadow-lg">
-            <div className="flex items-center justify-between mb-6 border-b border-slate-700/50 pb-4">
-              <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                <Target className="text-blue-500" /> ACTIVE SETUP
-              </h2>
-              <span className="px-3 py-1 bg-green-500/20 text-green-400 border border-green-500/50 rounded text-xs font-bold tracking-wider">
-                {activeSignal.action}
-              </span>
-            </div>
+      {/* Loading */}
+      {sigLoading && signals.length === 0 && (
+        <div className="text-center py-8 text-cyan-500 animate-pulse">Loading staged signals...</div>
+      )}
 
-            <div className="text-5xl font-black text-white mb-2 tracking-widest">
-              {activeSignal.ticker}
-            </div>
-            <div className="text-sm text-slate-400 mb-6">
-              Confidence Score:{" "}
-              <span className="text-green-400 font-bold">
-                {activeSignal.confidence}%
-              </span>
-            </div>
-
-            <div className="space-y-4 text-sm">
-              <div className="flex justify-between p-3 bg-slate-900/50 rounded border border-slate-700/30">
-                <span className="text-slate-500">Entry Zone</span>
-                <span className="text-white font-bold">
-                  ${activeSignal.entry.toFixed(2)}
-                </span>
-              </div>
-              <div className="flex justify-between p-3 bg-red-950/20 rounded border border-red-900/30">
-                <span className="text-red-400/70">Structural Stop</span>
-                <span className="text-red-400 font-bold">
-                  ${activeSignal.stop.toFixed(2)}
-                </span>
-              </div>
-              <div className="flex justify-between p-3 bg-green-950/20 rounded border border-green-900/30">
-                <span className="text-green-400/70">Target 1 (1R)</span>
-                <span className="text-green-400 font-bold">
-                  ${activeSignal.target1.toFixed(2)}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-6 backdrop-blur-md shadow-lg">
-            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-              <ShieldAlert className="w-5 h-5 text-yellow-500" /> Van Tharp
-              Sizing
-            </h3>
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-slate-400">Account Size</span>
-                <span className="text-white">
-                  ${accountSize.toLocaleString()}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Regime Risk Cap</span>
-                <span className="text-yellow-400">
-                  {(regimeRisk * 100).toFixed(1)}%
-                </span>
-              </div>
-              <div className="flex justify-between border-t border-slate-700/50 pt-3">
-                <span className="text-slate-400">Capital at Risk (1R)</span>
-                <span className="text-red-400 font-bold">
-                  -${riskAmount.toLocaleString()}
-                </span>
-              </div>
-            </div>
-          </div>
+      {/* Signal Selector */}
+      {stagedSignals.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-slate-500 mr-2">Staged signals:</span>
+          {stagedSignals.map((s, i) => (
+            <button
+              key={s.id || i}
+              onClick={() => setSelectedIdx(i)}
+              className={`px-3 py-1.5 rounded text-xs font-bold border transition-colors ${
+                selectedIdx === i
+                  ? "bg-cyan-500/20 border-cyan-500/50 text-cyan-400"
+                  : "bg-slate-800/40 border-slate-700/50 text-slate-400"
+              }`}
+            >
+              {s.ticker || s.symbol} ({s.confidence || s.score}%)
+            </button>
+          ))}
         </div>
+      )}
 
-        {/* Center Column: 6-Question Zone Checklist */}
-        <div className="w-full xl:w-2/5 bg-slate-800/40 border border-slate-700/50 rounded-xl p-6 backdrop-blur-md shadow-lg">
-          <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
-            <Lock className="text-purple-500" /> ZONE CHECKLIST
-          </h2>
-          <p className="text-slate-400 text-sm mb-6">
-            All 6 questions must be answered YES to unlock execution.
-          </p>
-
-          <div className="space-y-3">
-            {[
-              {
-                id: "edgeConfirmed",
-                title: "1. Edge Confirmed?",
-                desc: "Scanner score > 70? Weekly/Daily/4H aligned? Flow confirms?",
-              },
-              {
-                id: "riskPredefined",
-                title: "2. Risk Predefined?",
-                desc: "Stop placed below structural invalidation level?",
-              },
-              {
-                id: "riskAccepted",
-                title: "3. Risk Accepted?",
-                desc: `Accepting a total loss of $${riskAmount.toLocaleString()} if thesis fails?`,
-              },
-              {
-                id: "noHesitation",
-                title: "4. No Hesitation?",
-                desc: "Ready to execute mechanically without fear or greed?",
-              },
-              {
-                id: "profitPlan",
-                title: "5. Profit Plan?",
-                desc: "T1 set at 1R for 50% scale-out? Trailing stop ready?",
-              },
-              {
-                id: "journalReady",
-                title: "6. Journal Ready?",
-                desc: "Hypothesis documented in Google Sheets?",
-              },
-            ].map((item) => (
-              <div
-                key={item.id}
-                onClick={() => toggleCheck(item.id)}
-                className={`p-4 rounded-lg border cursor-pointer transition-all duration-300 flex gap-4 items-start ${
-                  checklist[item.id]
-                    ? "bg-blue-900/20 border-blue-500/50 shadow-[0_0_15px_rgba(37,99,235,0.15)]"
-                    : "bg-slate-900/50 border-slate-700/50 hover:bg-slate-800"
-                }`}
-              >
-                <div className="mt-0.5">
-                  {checklist[item.id] ? (
-                    <CheckCircle2 className="text-blue-500" />
-                  ) : (
-                    <XCircle className="text-slate-600" />
-                  )}
-                </div>
-                <div>
-                  <h4
-                    className={`font-bold ${checklist[item.id] ? "text-white" : "text-slate-300"}`}
-                  >
-                    {item.title}
-                  </h4>
-                  <p className="text-xs text-slate-500 mt-1">{item.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+      {!activeSignal && !sigLoading && (
+        <div className="bg-slate-800/40 border border-slate-700/50 rounded-lg p-8 text-center text-slate-500">
+          No staged signals available. Signals will appear when the agent swarm generates SLAM DUNK or Staged signals.
         </div>
+      )}
 
-        {/* Right Column: 33-33-34 Scale-In Execution Deck */}
-        <div className="w-full xl:w-[35%] bg-slate-800/40 border border-slate-700/50 rounded-xl p-6 backdrop-blur-md shadow-lg flex flex-col justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
-              <Activity className="text-green-500" /> EXECUTION DECK
+      {activeSignal && (
+        <div className="grid grid-cols-12 gap-6">
+          {/* Signal Details */}
+          <div className="col-span-5 bg-slate-800/40 border border-slate-700/50 rounded-lg p-6">
+            <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+              <Target className="w-5 h-5 text-cyan-400" />
+              {activeSignal.ticker || activeSignal.symbol} — {activeSignal.action || activeSignal.dir}
             </h2>
-
-            <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 mb-6">
-              <div className="flex justify-between items-end mb-2">
-                <span className="text-slate-400 text-sm">Total Position</span>
-                <span className="text-2xl font-bold text-white">
-                  {totalShares.toLocaleString()}{" "}
-                  <span className="text-sm text-slate-500">shares</span>
-                </span>
-              </div>
-              <div className="flex justify-between items-end">
-                <span className="text-slate-400 text-sm">Capital Required</span>
-                <span className="text-lg text-slate-300">
-                  $
-                  {totalCapitalRequired.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                  })}
-                </span>
-              </div>
-            </div>
-
-            <h4 className="text-sm font-bold text-slate-300 mb-3 uppercase tracking-wider">
-              33-33-34 Scale-In Protocol
-            </h4>
-            <div className="space-y-2 text-sm mb-8">
-              <div className="grid grid-cols-12 gap-2 bg-slate-900/40 p-3 rounded border border-slate-700/30 items-center">
-                <div className="col-span-2 text-slate-500">33%</div>
-                <div className="col-span-3 text-blue-400 font-bold">
-                  {entry1} sh
-                </div>
-                <div className="col-span-4 text-white">
-                  @ ${activeSignal.entry.toFixed(2)}
-                </div>
-                <div className="col-span-3 text-right text-xs text-slate-500">
-                  Market Open
-                </div>
-              </div>
-              <div className="grid grid-cols-12 gap-2 bg-slate-900/40 p-3 rounded border border-slate-700/30 items-center">
-                <div className="col-span-2 text-slate-500">33%</div>
-                <div className="col-span-3 text-blue-400 font-bold">
-                  {entry2} sh
-                </div>
-                <div className="col-span-4 text-white">@ Retest</div>
-                <div className="col-span-3 text-right text-xs text-slate-500">
-                  Limit Ord
-                </div>
-              </div>
-              <div className="grid grid-cols-12 gap-2 bg-slate-900/40 p-3 rounded border border-slate-700/30 items-center">
-                <div className="col-span-2 text-slate-500">34%</div>
-                <div className="col-span-3 text-blue-400 font-bold">
-                  {entry3} sh
-                </div>
-                <div className="col-span-4 text-white">@ Breakout</div>
-                <div className="col-span-3 text-right text-xs text-slate-500">
-                  Stop Lmt
-                </div>
-              </div>
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between"><span className="text-slate-400">Entry</span><span className="text-white font-bold">${activeSignal.entry?.toFixed(2) || "—"}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Stop Loss</span><span className="text-red-400 font-bold">${activeSignal.stop?.toFixed(2) || "—"}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Target 1</span><span className="text-emerald-400 font-bold">${(activeSignal.target || activeSignal.target1)?.toFixed(2) || "—"}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Confidence</span><span className="text-cyan-400 font-bold">{activeSignal.confidence || activeSignal.score}%</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Factors</span><span className="text-slate-300 text-xs">{Array.isArray(activeSignal.factors) ? activeSignal.factors.join(", ") : activeSignal.factors || "—"}</span></div>
             </div>
           </div>
 
-          {/* Big Confident Execute Button */}
-          <div>
-            {orderStatus === "IDLE" ? (
-              <button
-                disabled={!allChecksPassed}
-                onClick={handleExecute}
-                className={`w-full py-5 rounded-xl font-black text-xl tracking-widest transition-all duration-300 flex justify-center items-center gap-3 ${
-                  allChecksPassed
-                    ? "bg-blue-600 text-white hover:bg-blue-500 hover:shadow-[0_0_30px_rgba(37,99,235,0.6)] cursor-pointer"
-                    : "bg-slate-800 text-slate-600 border border-slate-700 cursor-not-allowed"
-                }`}
-              >
-                {allChecksPassed ? (
-                  <>
-                    <Send className="w-6 h-6" /> FIRE ENTRY 1
-                  </>
-                ) : (
-                  <>
-                    <Lock className="w-6 h-6" /> COMPLETE CHECKLIST
-                  </>
-                )}
-              </button>
-            ) : orderStatus === "ROUTING" ? (
-              <div className="w-full py-5 rounded-xl bg-yellow-600/20 border border-yellow-500/50 text-yellow-500 font-black text-xl tracking-widest flex justify-center items-center gap-3 animate-pulse">
-                <Activity className="w-6 h-6 animate-spin" /> ROUTING TO
-                BROKER...
-              </div>
-            ) : (
-              <div className="w-full py-5 rounded-xl bg-green-600/20 border border-green-500/50 text-green-400 font-black text-xl tracking-widest flex justify-center items-center gap-3 shadow-[0_0_30px_rgba(34,197,94,0.3)]">
-                <CheckCircle2 className="w-6 h-6" /> ENTRY 1 FILLED
-              </div>
-            )}
+          {/* Position Sizing */}
+          <div className="col-span-4 bg-slate-800/40 border border-slate-700/50 rounded-lg p-6">
+            <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+              <Activity className="w-5 h-5 text-purple-400" /> Position Sizing
+            </h2>
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between"><span className="text-slate-400">Account Size</span><span className="text-white font-bold">${accountSize.toLocaleString()}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Risk Per Trade</span><span className="text-amber-400 font-bold">{(regimeRisk * 100).toFixed(1)}%</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Dollar Risk</span><span className="text-white font-bold">${dollarRisk.toLocaleString()}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Stop Distance</span><span className="text-red-400 font-bold">${stopDist.toFixed(2)}</span></div>
+              <div className="flex justify-between border-t border-slate-700/50 pt-3"><span className="text-slate-400">Shares</span><span className="text-cyan-400 font-bold text-lg">{shares}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Position Value</span><span className="text-white font-bold">${positionValue.toLocaleString()}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">% of Account</span><span className="text-slate-300">{pctOfAccount}%</span></div>
+            </div>
+          </div>
+
+          {/* Checklist + Execute */}
+          <div className="col-span-3 bg-slate-800/40 border border-slate-700/50 rounded-lg p-6">
+            <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+              <ShieldAlert className="w-5 h-5 text-amber-400" /> Pre-Flight
+            </h2>
+            <div className="space-y-2">
+              {[
+                { key: "confirmEntry", label: "Entry level verified" },
+                { key: "confirmStop", label: "Stop placement valid" },
+                { key: "confirmSize", label: "Position size within limits" },
+                { key: "confirmRegime", label: "Regime alignment confirmed" },
+                { key: "confirmRisk", label: "Portfolio heat acceptable" },
+                { key: "confirmMental", label: "Mental state clear" },
+              ].map((item) => (
+                <label key={item.key} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={checklist[item.key]}
+                    onChange={() => setChecklist((p) => ({ ...p, [item.key]: !p[item.key] }))}
+                    className="accent-cyan-500"
+                  />
+                  <span className={`text-xs ${checklist[item.key] ? "text-emerald-400" : "text-slate-400"}`}>
+                    {item.label}
+                  </span>
+                </label>
+              ))}
+            </div>
+            <button
+              onClick={handleExecute}
+              disabled={!allChecked || executing}
+              className={`w-full mt-4 py-3 rounded-lg text-sm font-bold transition-all ${
+                allChecked
+                  ? "bg-emerald-500 text-white hover:bg-emerald-400 shadow-lg shadow-emerald-500/30"
+                  : "bg-slate-700 text-slate-500 cursor-not-allowed"
+              }`}
+            >
+              {executing ? "Executing..." : allChecked ? "EXECUTE ORDER" : "Complete checklist"}
+            </button>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
