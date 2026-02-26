@@ -10,25 +10,28 @@
     sans-serif;
 }
 
-/* Custom scrollbar */
+/* Custom scrollbar - use .custom-scrollbar on scrollable elements */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #6b7280 transparent;
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0f1117;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
   background: #6b7280;
-  appearance: none;
-  margin: 0;
-  height: 0;
-  width: 0;
-  opacity: 0;
-  pointer-events: none;
-  position: absolute;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #131E2B;
 }
 
 input[type="number"] {
@@ -83,7 +86,6 @@ input[type="number"] {
   -moz-appearance: textfield;
   appearance: textfield;
 }
-
 
 /* Toast font family */
 .Toastify__toast,

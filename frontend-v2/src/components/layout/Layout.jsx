@@ -30,7 +30,7 @@ export default function Layout() {
       <Sidebar />
 
       {/* Main content area */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-dark">
+      <div className="flex-1 flex flex-col overflow-hidden bg-dark ml-64 min-w-0">
         {/* Header bar */}
         <Header wsConnected={wsConnected} />
 

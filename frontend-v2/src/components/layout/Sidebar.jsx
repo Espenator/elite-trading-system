@@ -80,9 +80,9 @@ export default function Sidebar() {
 
   return (
     <aside
-      className={`${
+      className={`fixed left-0 top-0 h-screen ${
         collapsed ? "w-16" : "w-64"
-      } bg-surface border-r border-secondary/50 flex flex-col transition-all duration-300 shrink-0 relative z-50`}
+      } bg-surface border-r border-secondary/50 flex flex-col transition-all duration-300 z-50`}
     >
       {/* Logo + Collapse */}
       <div
