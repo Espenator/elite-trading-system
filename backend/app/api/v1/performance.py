@@ -98,6 +98,40 @@ def _safe_float(x: Any) -> Optional[float]:
         return None
 
 
+@router.get("")
+async def performance_root(limit_trades: int = 5000) -> Dict[str, Any]:
+    """
+    Dashboard-friendly combined performance: summary metrics + equity curve.
+    GET /api/v1/performance returns this. Frontend expects portfolioValue, winRate, equityCurve, etc.
+    """
+    summary = await performance_summary(limit_trades=limit_trades)
+    equity_res = await performance_equity(limit_trades=limit_trades)
+
+    metrics = summary.get("metrics") or {}
+    points = equity_res.get("points") or []
+    # Chart expects { time, value }; use date or index
+    equity_curve = [
+        {"time": p.get("date") or str(p.get("index", i)), "value": p.get("equity", 0)}
+        for i, p in enumerate(points)
+    ]
+    last_equity = points[-1]["equity"] if points else 0.0
+
+    return {
+        "hasData": summary.get("hasData", False),
+        "message": summary.get("message", ""),
+        "portfolioValue": last_equity,
+        "totalValue": last_equity,
+        "dailyPnL": None,
+        "totalReturnPct": (metrics.get("netPnl") or 0) / max(abs(last_equity), 1) * 100 if last_equity else 0,
+        "winRate": metrics.get("winRate"),
+        "sharpeRatio": None,
+        "maxDrawdown": metrics.get("maxDrawdown"),
+        "equityCurve": equity_curve,
+        "sectors": None,
+        "lastUpdated": summary.get("lastUpdated"),
+    }
+
+
 def _iso_date_only(s: Any) -> Optional[str]:
     if s is None:
         return None

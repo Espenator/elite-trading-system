@@ -1,147 +1,151 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { 
-  Zap, 
-  Activity, 
-  TrendingUp, 
-  TrendingDown, 
-  Target, 
-  Filter, 
-  Layers, 
-  BarChart2, 
-  ShieldAlert, 
-  Clock 
-} from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import {
+  Zap,
+  Activity,
+  TrendingUp,
+  TrendingDown,
+  Target,
+  Filter,
+  Layers,
+  BarChart2,
+  ShieldAlert,
+  Clock,
+} from "lucide-react";
+import PageHeader from "../components/ui/PageHeader";
 
 export default function Signals() {
-  const [activeFilter, setActiveFilter] = useState('ALL');
+  const [activeFilter, setActiveFilter] = useState("ALL");
   const [lastScan, setLastScan] = useState(new Date());
 
   // Simulated WebSocket feed of real-time signals from backendrunner.py
   const mockSignals = [
     {
-      id: 'SIG-001',
-      ticker: 'RBRK',
-      action: 'LONG',
-      type: 'MOMENTUM_BREAKOUT',
+      id: "SIG-001",
+      ticker: "RBRK",
+      action: "LONG",
+      type: "MOMENTUM_BREAKOUT",
       confidence: 92,
-      tier: 'SLAM DUNK',
-      entry: 75.50,
-      target: 81.20,
-      stop: 62.00,
+      tier: "SLAM DUNK",
+      entry: 75.5,
+      target: 81.2,
+      stop: 62.0,
       factors: {
         velez: 94,
         williamsR: -82,
-        volume: '300%',
-        flow: '2.5M Calls (Ask)',
+        volume: "300%",
+        flow: "2.5M Calls (Ask)",
       },
-      time: 'Just now',
+      time: "Just now",
     },
     {
-      id: 'SIG-002',
-      ticker: 'PLTR',
-      action: 'LONG',
-      type: 'COILING_BASE',
+      id: "SIG-002",
+      ticker: "PLTR",
+      action: "LONG",
+      type: "COILING_BASE",
       confidence: 88,
-      tier: 'SLAM DUNK',
-      entry: 24.10,
-      target: 26.50,
-      stop: 22.80,
+      tier: "SLAM DUNK",
+      entry: 24.1,
+      target: 26.5,
+      stop: 22.8,
       factors: {
         velez: 87,
         williamsR: -78,
-        volume: '180%',
-        flow: '800k Calls',
+        volume: "180%",
+        flow: "800k Calls",
       },
-      time: '2 mins ago',
+      time: "2 mins ago",
     },
     {
-      id: 'SIG-003',
-      ticker: 'SNOW',
-      action: 'SHORT',
-      type: 'MEAN_REVERSION',
+      id: "SIG-003",
+      ticker: "SNOW",
+      action: "SHORT",
+      type: "MEAN_REVERSION",
       confidence: 76,
-      tier: 'STRONG GO',
-      entry: 185.00,
-      target: 172.00,
-      stop: 191.50,
+      tier: "STRONG GO",
+      entry: 185.0,
+      target: 172.0,
+      stop: 191.5,
       factors: {
         velez: 72,
         williamsR: -15,
-        volume: '120%',
-        flow: '1.2M Puts',
+        volume: "120%",
+        flow: "1.2M Puts",
       },
-      time: '4 mins ago',
+      time: "4 mins ago",
     },
     {
-      id: 'SIG-004',
-      ticker: 'CRWD',
-      action: 'LONG',
-      type: 'FRACTAL_BOUNCE',
+      id: "SIG-004",
+      ticker: "CRWD",
+      action: "LONG",
+      type: "FRACTAL_BOUNCE",
       confidence: 65,
-      tier: 'WATCH',
+      tier: "WATCH",
       entry: null,
       target: null,
       stop: null,
       factors: {
         velez: 61,
         williamsR: -55,
-        volume: '90%',
-        flow: 'Mixed',
+        volume: "90%",
+        flow: "Mixed",
       },
-      time: '5 mins ago',
-    }
+      time: "5 mins ago",
+    },
   ];
 
   // Helper for Tier Colors
   const getTierColor = (tier) => {
-    switch(tier) {
-      case 'SLAM DUNK': return 'text-green-400 bg-green-400/10 border-green-500/50';
-      case 'STRONG GO': return 'text-blue-400 bg-blue-400/10 border-blue-500/50';
-      case 'WATCH': return 'text-yellow-400 bg-yellow-400/10 border-yellow-500/50';
-      default: return 'text-slate-400 bg-slate-400/10 border-slate-500/50';
+    switch (tier) {
+      case "SLAM DUNK":
+        return "text-green-400 bg-green-400/10 border-green-500/50";
+      case "STRONG GO":
+        return "text-blue-400 bg-blue-400/10 border-blue-500/50";
+      case "WATCH":
+        return "text-yellow-400 bg-yellow-400/10 border-yellow-500/50";
+      default:
+        return "text-slate-400 bg-slate-400/10 border-slate-500/50";
     }
   };
 
-  const filteredSignals = activeFilter === 'ALL' 
-    ? mockSignals 
-    : mockSignals.filter(s => s.action === activeFilter);
+  const filteredSignals =
+    activeFilter === "ALL"
+      ? mockSignals
+      : mockSignals.filter((s) => s.action === activeFilter);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-200 p-6">
-      
-      {/* Header */}
-      <div className="mb-8 flex justify-between items-end">
-        <div>
-          <h1 className="text-4xl font-bold text-white mb-2 flex items-center gap-3">
-            <Zap className="w-10 h-10 text-yellow-500" />
-            Live Signal Feed
-          </h1>
-          <p className="text-slate-400">Real-time Velez Momentum & Dark Pool Breakout Scanner</p>
-        </div>
+    <div className="space-y-6">
+      <PageHeader
+        icon={Zap}
+        title="Live Signal Feed"
+        description="Real-time Velez Momentum & Dark Pool Breakout Scanner"
+      >
         <div className="text-right flex flex-col items-end gap-2">
           <div className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg">
             <Activity className="w-4 h-4 text-blue-400 animate-pulse" />
-            <span className="text-sm font-semibold text-white">Scanner Active (5m Interval)</span>
+            <span className="text-sm font-semibold text-white">
+              Scanner Active (5m Interval)
+            </span>
           </div>
           <p className="text-xs text-slate-500 flex items-center gap-1">
-            <Clock className="w-3 h-3" /> Last Scan: {lastScan.toLocaleTimeString()}
+            <Clock className="w-3 h-3" /> Last Scan:{" "}
+            {lastScan.toLocaleTimeString()}
           </p>
         </div>
-      </div>
+      </PageHeader>
 
       {/* Control Panel */}
       <div className="flex flex-wrap items-center justify-between mb-6 p-4 bg-slate-800/40 border border-slate-700/50 rounded-xl backdrop-blur-md">
         <div className="flex gap-2">
-          {['ALL', 'LONG', 'SHORT'].map(filter => (
+          {["ALL", "LONG", "SHORT"].map((filter) => (
             <button
               key={filter}
               onClick={() => setActiveFilter(filter)}
               className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-                activeFilter === filter 
-                ? 'bg-blue-600 text-white shadow-[0_0_15px_rgba(37,99,235,0.5)]' 
-                : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                activeFilter === filter
+                  ? "bg-blue-600 text-white shadow-[0_0_15px_rgba(37,99,235,0.5)]"
+                  : "bg-slate-800 text-slate-400 hover:bg-slate-700"
               }`}
             >
               {filter}
@@ -161,26 +165,39 @@ export default function Signals() {
       {/* Signal Feed Array */}
       <div className="space-y-4">
         {filteredSignals.map((signal) => (
-          <div 
-            key={signal.id} 
+          <div
+            key={signal.id}
             className="group relative bg-slate-800/40 border border-slate-700/50 rounded-xl p-5 backdrop-blur-sm hover:border-blue-500/50 hover:bg-slate-800/60 transition-all duration-300 shadow-lg"
           >
             <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
-              
               {/* Left Column: Ticker & Main Action */}
               <div className="flex items-center gap-6 min-w-[250px]">
-                <div className={`p-4 rounded-xl flex items-center justify-center border ${
-                  signal.action === 'LONG' ? 'bg-green-900/20 border-green-500/30 text-green-400' : 'bg-red-900/20 border-red-500/30 text-red-400'
-                }`}>
-                  {signal.action === 'LONG' ? <TrendingUp className="w-8 h-8" /> : <TrendingDown className="w-8 h-8" />}
+                <div
+                  className={`p-4 rounded-xl flex items-center justify-center border ${
+                    signal.action === "LONG"
+                      ? "bg-green-900/20 border-green-500/30 text-green-400"
+                      : "bg-red-900/20 border-red-500/30 text-red-400"
+                  }`}
+                >
+                  {signal.action === "LONG" ? (
+                    <TrendingUp className="w-8 h-8" />
+                  ) : (
+                    <TrendingDown className="w-8 h-8" />
+                  )}
                 </div>
                 <div>
-                  <h2 className="text-3xl font-bold text-white tracking-wider">{signal.ticker}</h2>
+                  <h2 className="text-3xl font-bold text-white tracking-wider">
+                    {signal.ticker}
+                  </h2>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className={`px-2 py-0.5 text-xs font-bold rounded border ${getTierColor(signal.tier)}`}>
+                    <span
+                      className={`px-2 py-0.5 text-xs font-bold rounded border ${getTierColor(signal.tier)}`}
+                    >
                       {signal.tier}
                     </span>
-                    <span className="text-xs text-slate-400">{signal.time}</span>
+                    <span className="text-xs text-slate-400">
+                      {signal.time}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -189,15 +206,25 @@ export default function Signals() {
               <div className="flex-1 grid grid-cols-3 gap-4 bg-slate-900/50 rounded-lg p-3 border border-slate-700/30 w-full lg:w-auto">
                 <div className="flex flex-col">
                   <span className="text-xs text-slate-500 mb-1">Entry</span>
-                  <span className="font-mono text-lg text-white">{signal.entry ? `$${signal.entry.toFixed(2)}` : 'Wait'}</span>
+                  <span className="text-lg text-white">
+                    {signal.entry ? `$${signal.entry.toFixed(2)}` : "Wait"}
+                  </span>
                 </div>
                 <div className="flex flex-col border-l border-slate-700/50 pl-4">
-                  <span className="text-xs text-slate-500 mb-1">Target (1R)</span>
-                  <span className="font-mono text-lg text-green-400">{signal.target ? `$${signal.target.toFixed(2)}` : '--'}</span>
+                  <span className="text-xs text-slate-500 mb-1">
+                    Target (1R)
+                  </span>
+                  <span className="text-lg text-green-400">
+                    {signal.target ? `$${signal.target.toFixed(2)}` : "--"}
+                  </span>
                 </div>
                 <div className="flex flex-col border-l border-slate-700/50 pl-4">
-                  <span className="text-xs text-slate-500 mb-1">Stop (2.5 ATR)</span>
-                  <span className="font-mono text-lg text-red-400">{signal.stop ? `$${signal.stop.toFixed(2)}` : '--'}</span>
+                  <span className="text-xs text-slate-500 mb-1">
+                    Stop (2.5 ATR)
+                  </span>
+                  <span className="text-lg text-red-400">
+                    {signal.stop ? `$${signal.stop.toFixed(2)}` : "--"}
+                  </span>
                 </div>
               </div>
 
@@ -206,54 +233,89 @@ export default function Signals() {
                 <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm w-full">
                   <div className="flex justify-between items-center">
                     <span className="text-slate-500 text-xs">Velez v2.0</span>
-                    <span className={`font-bold ${signal.factors.velez >= 80 ? 'text-green-400' : 'text-yellow-400'}`}>{signal.factors.velez}/100</span>
+                    <span
+                      className={`font-bold ${signal.factors.velez >= 80 ? "text-green-400" : "text-yellow-400"}`}
+                    >
+                      {signal.factors.velez}/100
+                    </span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-slate-500 text-xs">Will %R</span>
-                    <span className="font-bold text-white">{signal.factors.williamsR}</span>
+                    <span className="font-bold text-white">
+                      {signal.factors.williamsR}
+                    </span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-slate-500 text-xs">Vol Surge</span>
-                    <span className="font-bold text-blue-400">{signal.factors.volume}</span>
+                    <span className="font-bold text-blue-400">
+                      {signal.factors.volume}
+                    </span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-slate-500 text-xs">Whale Flow</span>
-                    <span className="font-bold text-purple-400 truncate max-w-[80px]" title={signal.factors.flow}>{signal.factors.flow}</span>
+                    <span
+                      className="font-bold text-purple-400 truncate max-w-[80px]"
+                      title={signal.factors.flow}
+                    >
+                      {signal.factors.flow}
+                    </span>
                   </div>
                 </div>
 
                 {/* Circular Confidence Gauge */}
                 <div className="flex flex-col items-center justify-center relative w-16 h-16 shrink-0">
                   <svg className="w-16 h-16 transform -rotate-90">
-                    <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-slate-700" />
-                    <circle 
-                      cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="4" fill="transparent" 
-                      strokeDasharray="175.9" 
-                      strokeDashoffset={175.9 - (175.9 * signal.confidence) / 100}
-                      className={signal.confidence >= 80 ? 'text-green-500' : signal.confidence >= 60 ? 'text-yellow-500' : 'text-red-500'} 
+                    <circle
+                      cx="32"
+                      cy="32"
+                      r="28"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                      fill="transparent"
+                      className="text-slate-700"
+                    />
+                    <circle
+                      cx="32"
+                      cy="32"
+                      r="28"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                      fill="transparent"
+                      strokeDasharray="175.9"
+                      strokeDashoffset={
+                        175.9 - (175.9 * signal.confidence) / 100
+                      }
+                      className={
+                        signal.confidence >= 80
+                          ? "text-green-500"
+                          : signal.confidence >= 60
+                            ? "text-yellow-500"
+                            : "text-red-500"
+                      }
                     />
                   </svg>
                   <div className="absolute flex flex-col items-center justify-center">
-                    <span className="text-sm font-bold text-white">{signal.confidence}%</span>
+                    <span className="text-sm font-bold text-white">
+                      {signal.confidence}%
+                    </span>
                   </div>
                 </div>
               </div>
 
               {/* Action Button */}
               <div className="shrink-0">
-                <button 
-                  disabled={signal.tier === 'WATCH'}
+                <button
+                  disabled={signal.tier === "WATCH"}
                   className={`px-6 py-3 rounded-lg font-bold transition-all flex items-center gap-2 ${
-                    signal.tier === 'WATCH' 
-                    ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
-                    : 'bg-blue-600 text-white hover:bg-blue-500 hover:shadow-[0_0_20px_rgba(37,99,235,0.4)]'
+                    signal.tier === "WATCH"
+                      ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
+                      : "bg-blue-600 text-white hover:bg-blue-500 hover:shadow-[0_0_20px_rgba(37,99,235,0.4)]"
                   }`}
                 >
                   <Target className="w-4 h-4" />
                   EXECUTE
                 </button>
               </div>
-
             </div>
 
             {/* Hidden Expanding Factor Strip (Glass Box feature) */}

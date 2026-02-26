@@ -21,7 +21,6 @@ import SentimentIntelligence from "./pages/SentimentIntelligence";
 import DataSourcesMonitor from "./pages/DataSourcesMonitor";
 
 // ML & ANALYSIS section (6 pages)
-import MLInsights from "./pages/MLInsights";
 import MLBrainFlywheel from "./pages/MLBrainFlywheel";
 import Patterns from "./pages/Patterns";
 import Backtesting from "./pages/Backtesting";
@@ -69,7 +68,6 @@ function App() {
             <Route path="data-sources" element={<DataSourcesMonitor />} />
 
             {/* ML & ANALYSIS */}
-            <Route path="ml-insights" element={<MLInsights />} />
             <Route path="ml-brain" element={<MLBrainFlywheel />} />
             <Route path="patterns" element={<Patterns />} />
             <Route path="backtest" element={<Backtesting />} />
@@ -85,10 +83,22 @@ function App() {
             <Route path="settings" element={<Settings />} />
 
             {/* Legacy redirects for bookmarks */}
-            <Route path="operator" element={<Navigate to="/agents" replace />} />
-            <Route path="signal-heatmap" element={<Navigate to="/signals" replace />} />
-            <Route path="youtube" element={<Navigate to="/sentiment" replace />} />
-            <Route path="strategy" element={<Navigate to="/backtest" replace />} />
+            <Route
+              path="operator"
+              element={<Navigate to="/agents" replace />}
+            />
+            <Route
+              path="signal-heatmap"
+              element={<Navigate to="/signals" replace />}
+            />
+            <Route
+              path="youtube"
+              element={<Navigate to="/sentiment" replace />}
+            />
+            <Route
+              path="strategy"
+              element={<Navigate to="/backtest" replace />}
+            />
 
             {/* 404 catch-all */}
             <Route path="*" element={<Navigate to="/dashboard" replace />} />

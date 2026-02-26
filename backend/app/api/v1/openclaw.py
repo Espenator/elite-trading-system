@@ -27,6 +27,7 @@ Endpoints:
     POST /api/v1/openclaw/macro/override - Override bias multiplier
     GET  /api/v1/openclaw/llm-flow      - LLM alert stream (polling)
 """
+
 import logging
 import os
 import json
@@ -47,6 +48,7 @@ router = APIRouter()
 
 # Direct OpenClaw API URL (PC1 Flask server)
 OPENCLAW_API_URL = os.getenv("OPENCLAW_API_URL", "http://localhost:5000")
+
 
 # ===========================================================================
 # REAL-TIME SIGNAL INGESTION (v2 - 2026.2.22)
@@ -394,8 +396,7 @@ async def get_candidates(n: int = Query(default=20, ge=1, le=50)):
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get(
-                f"{OPENCLAW_API_URL}/api/v1/openclaw/candidates",
-                params={"top": n}
+                f"{OPENCLAW_API_URL}/api/v1/openclaw/candidates", params={"top": n}
             )
             if resp.status_code == 200:
                 return resp.json()
@@ -407,15 +408,17 @@ async def get_candidates(n: int = Query(default=20, ge=1, le=50)):
         candidates = await openclaw_bridge.get_top_candidates(n=n)
         formatted = []
         for c in candidates:
-            formatted.append({
-                "symbol": c.get("symbol", "?"),
-                "score": c.get("composite_score", 0),
-                "team_tag": c.get("source", "scanner"),
-                "entry": c.get("entry"),
-                "stop": c.get("stop"),
-                "target": c.get("target"),
-                "setup": c.get("setup", "unknown"),
-            })
+            formatted.append(
+                {
+                    "symbol": c.get("symbol", "?"),
+                    "score": c.get("composite_score", 0),
+                    "team_tag": c.get("source", "scanner"),
+                    "entry": c.get("suggested_entry") or c.get("entry"),
+                    "stop": c.get("suggested_stop") or c.get("stop"),
+                    "target": c.get("target"),
+                    "setup": c.get("setup", "unknown"),
+                }
+            )
         return {
             "candidates": formatted,
             "count": len(formatted),

@@ -18,15 +18,15 @@ export default function DataTable({
   return (
     <div
       className={clsx(
-        "overflow-x-auto rounded-xl border border-cyan-500/20 bg-secondary/10",
-        className
+        "overflow-x-auto rounded-xl border border-secondary/30 bg-surface",
+        className,
       )}
     >
       <table className="w-full text-sm text-left">
         <thead
           className={clsx(
-            "bg-secondary/20 border-b border-cyan-500/10",
-            headerClassName
+            "bg-surface border-b border-secondary/30",
+            headerClassName,
           )}
         >
           <tr>
@@ -35,7 +35,7 @@ export default function DataTable({
                 key={col.key}
                 className={clsx(
                   "px-4 py-3 text-left text-xs font-medium text-cyan-400 uppercase whitespace-nowrap",
-                  col.headerClassName ?? col.className
+                  col.headerClassName ?? col.className,
                 )}
               >
                 {col.label}
@@ -56,14 +56,18 @@ export default function DataTable({
           ) : (
             data.map((row, rowIndex) => (
               <tr
-                key={typeof rowKey === "function" ? rowKey(row, rowIndex) : row.key ?? rowIndex}
+                key={
+                  typeof rowKey === "function"
+                    ? rowKey(row, rowIndex)
+                    : (row.key ?? rowIndex)
+                }
                 onClick={() => onRowClick?.(row, rowIndex)}
                 className={clsx(
                   "transition-colors",
                   onRowClick && "cursor-pointer hover:bg-cyan-500/10",
                   typeof rowClassName === "function"
                     ? rowClassName(row, rowIndex)
-                    : rowClassName
+                    : rowClassName,
                 )}
               >
                 {columns.map((col) => (
@@ -71,7 +75,7 @@ export default function DataTable({
                     key={col.key}
                     className={clsx(
                       "px-4 py-3 text-sm",
-                      col.cellClassName ?? col.className ?? "text-secondary"
+                      col.cellClassName ?? col.className ?? "text-white/70",
                     )}
                   >
                     {typeof col.render === "function"

@@ -32,6 +32,7 @@ from app.api.v1 import (
     openclaw,
     ml_brain,
     risk_shield_api,
+    market,
 )
 
 # Configure logging
@@ -203,8 +204,14 @@ app.include_router(
     prefix=f"{settings.API_V1_PREFIX}/ml-brain",
     tags=["ml-brain"],
 
-    # risk_shield_api has its own prefix built into the router
+# risk_shield_api has its own prefix built into the router
 app.include_router(risk_shield_api.router, tags=["risk-shield"])
+)
+app.include_router(
+    market.router,
+    prefix=f"{settings.API_V1_PREFIX}/market",
+    tags=["market"],
+)
 
 @app.get("/")
 async def root():

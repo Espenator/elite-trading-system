@@ -17,6 +17,7 @@ import {
   Brain,
   BarChart3,
   AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import {
   BarChart,
@@ -51,8 +52,14 @@ function EquityCurveLC({ data, height = 220 }) {
         chart = createChart(containerRef.current, {
           width: containerRef.current.clientWidth,
           height,
-          layout: { background: { color: "transparent" }, textColor: "#94a3b8" },
-          grid: { vertLines: { color: "#1e293b" }, horzLines: { color: "#1e293b" } },
+          layout: {
+            background: { color: "transparent" },
+            textColor: "#94a3b8",
+          },
+          grid: {
+            vertLines: { color: "#1e293b" },
+            horzLines: { color: "#1e293b" },
+          },
           crosshair: { mode: 0 },
           timeScale: { borderColor: "#334155", timeVisible: true },
           rightPriceScale: { borderColor: "#334155" },
@@ -103,8 +110,14 @@ function DrawdownLC({ data, height = 60 }) {
         chart = createChart(containerRef.current, {
           width: containerRef.current.clientWidth,
           height,
-          layout: { background: { color: "transparent" }, textColor: "#94a3b8" },
-          grid: { vertLines: { visible: false }, horzLines: { color: "#1e293b" } },
+          layout: {
+            background: { color: "transparent" },
+            textColor: "#94a3b8",
+          },
+          grid: {
+            vertLines: { visible: false },
+            horzLines: { color: "#1e293b" },
+          },
           timeScale: { visible: false },
           rightPriceScale: { borderColor: "#334155" },
         });
@@ -229,35 +242,27 @@ export default function PerformanceAnalytics() {
     },
     {
       label: "Avg Win",
-      value:
-        metrics.avgWin != null
-          ? `$${metrics.avgWin.toFixed(2)}`
-          : null,
+      value: metrics.avgWin != null ? `$${metrics.avgWin.toFixed(2)}` : null,
       sub: hasData ? "Per winning trade" : "No data",
     },
     {
       label: "Avg Loss",
-      value:
-        metrics.avgLoss != null
-          ? `$${metrics.avgLoss.toFixed(2)}`
-          : null,
+      value: metrics.avgLoss != null ? `$${metrics.avgLoss.toFixed(2)}` : null,
       sub: hasData ? "Per losing trade" : "No data",
     },
     {
       label: "Profit Factor",
       value:
-        metrics.profitFactor != null
-          ? metrics.profitFactor.toFixed(2)
-          : null,
+        metrics.profitFactor != null ? metrics.profitFactor.toFixed(2) : null,
       sub:
         metrics.profitFactor != null
           ? metrics.profitFactor >= 2
             ? "Excellent"
             : metrics.profitFactor >= 1.5
-            ? "Good"
-            : metrics.profitFactor >= 1
-            ? "Marginal"
-            : "Negative"
+              ? "Good"
+              : metrics.profitFactor >= 1
+                ? "Marginal"
+                : "Negative"
           : "No data",
     },
     {
@@ -287,10 +292,7 @@ export default function PerformanceAnalytics() {
       max: min + (i + 1) * bucketSize,
     }));
     pnls.forEach((p) => {
-      const idx = Math.min(
-        Math.floor((p - min) / bucketSize),
-        bucketCount - 1
-      );
+      const idx = Math.min(Math.floor((p - min) / bucketSize), bucketCount - 1);
       buckets[idx].count++;
     });
     return buckets;
@@ -303,12 +305,18 @@ export default function PerformanceAnalytics() {
       <PageHeader
         icon={TrendingUp}
         title="Performance Analytics"
-        subtitle="Real-time portfolio performance from trade data"
+        description="Real-time portfolio performance from trade data"
       >
         {summaryError && (
           <span className="text-red-400 text-xs">Failed to load</span>
         )}
-        <Button onClick={refetch} className="text-xs">
+        <Button
+          onClick={refetch}
+          variant="outline"
+          size="sm"
+          leftIcon={RefreshCw}
+          className="text-xs"
+        >
           Refresh
         </Button>
       </PageHeader>
@@ -326,11 +334,16 @@ export default function PerformanceAnalytics() {
       {/* Error state */}
       {summaryError && !hasData && !isLoading && (
         <Card className="p-6 text-center">
-          <AlertCircle className="w-12 h-12 text-secondary mx-auto mb-4" />
-          <p className="text-secondary mb-2">
+          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+          <p className="text-gray-400 mb-4">
             Could not load performance data. Check backend API.
           </p>
-          <Button variant="outline" size="sm" onClick={refetch}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={refetch}
+            leftIcon={RefreshCw}
+          >
             Retry
           </Button>
         </Card>
@@ -384,7 +397,10 @@ export default function PerformanceAnalytics() {
                     )}
                   </>
                 ) : (
-                  <div className="flex items-center justify-center" style={{ height: 280 }}>
+                  <div
+                    className="flex items-center justify-center"
+                    style={{ height: 280 }}
+                  >
                     <p className="text-slate-500 text-sm">
                       No equity data available yet
                     </p>
@@ -424,9 +440,7 @@ export default function PerformanceAnalytics() {
                               <Cell
                                 key={i}
                                 fill={
-                                  CONSENSUS_COLORS[
-                                    i % CONSENSUS_COLORS.length
-                                  ]
+                                  CONSENSUS_COLORS[i % CONSENSUS_COLORS.length]
                                 }
                               />
                             ))}
@@ -460,9 +474,7 @@ export default function PerformanceAnalytics() {
                     className="flex items-center justify-center"
                     style={{ height: 200 }}
                   >
-                    <p className="text-slate-500 text-sm">
-                      No consensus data
-                    </p>
+                    <p className="text-slate-500 text-sm">No consensus data</p>
                   </div>
                 )}
 
@@ -490,9 +502,7 @@ export default function PerformanceAnalytics() {
                             fill="none"
                             stroke="#10b981"
                             strokeWidth="10"
-                            strokeDasharray={`${
-                              (mlAccuracy / 100) * 314
-                            } 314`}
+                            strokeDasharray={`${(mlAccuracy / 100) * 314} 314`}
                             strokeLinecap="round"
                             transform="rotate(-90 60 60)"
                           />
@@ -523,10 +533,7 @@ export default function PerformanceAnalytics() {
                 {tradeDist.length > 0 ? (
                   <ResponsiveContainer width="100%" height={240}>
                     <BarChart data={tradeDist}>
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        stroke="#1e293b"
-                      />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                       <XAxis
                         dataKey="range"
                         tick={{ fontSize: 7, fill: "#64748b" }}
@@ -545,9 +552,7 @@ export default function PerformanceAnalytics() {
                           <Cell
                             key={i}
                             fill={
-                              parseFloat(d.range) >= 0
-                                ? "#10b981"
-                                : "#f43f5e"
+                              parseFloat(d.range) >= 0 ? "#10b981" : "#f43f5e"
                             }
                           />
                         ))}
@@ -578,21 +583,15 @@ export default function PerformanceAnalytics() {
                           <th className="text-left text-slate-400 p-2">
                             Symbol
                           </th>
-                          <th className="text-left text-slate-400 p-2">
-                            Side
-                          </th>
-                          <th className="text-right text-slate-400 p-2">
-                            Qty
-                          </th>
+                          <th className="text-left text-slate-400 p-2">Side</th>
+                          <th className="text-right text-slate-400 p-2">Qty</th>
                           <th className="text-right text-slate-400 p-2">
                             Entry
                           </th>
                           <th className="text-right text-slate-400 p-2">
                             Exit
                           </th>
-                          <th className="text-right text-slate-400 p-2">
-                            P&L
-                          </th>
+                          <th className="text-right text-slate-400 p-2">P&L</th>
                           <th className="text-right text-slate-400 p-2">
                             Date
                           </th>
@@ -660,9 +659,7 @@ export default function PerformanceAnalytics() {
                     className="flex items-center justify-center"
                     style={{ height: 240 }}
                   >
-                    <p className="text-slate-500 text-sm">
-                      No recent trades
-                    </p>
+                    <p className="text-slate-500 text-sm">No recent trades</p>
                   </div>
                 )}
               </Card>

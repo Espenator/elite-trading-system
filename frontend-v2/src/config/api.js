@@ -14,10 +14,11 @@
  */
 
 const API_CONFIG = {
-  // OLEH: Change this to production URL when deploying
-  BASE_URL: import.meta.env.VITE_API_URL || "http://localhost:8001",
+  // Use empty string in dev so requests go to same origin → Vite proxy forwards to backend (port 8001).
+  // Set VITE_API_URL / VITE_WS_URL when deploying (e.g. https://api.example.com).
+  BASE_URL: import.meta.env.VITE_API_URL ?? "",
   API_PREFIX: "/api/v1",
-  WS_URL: import.meta.env.VITE_WS_URL || "ws://localhost:8001/ws",
+  WS_URL: import.meta.env.VITE_WS_URL ?? "",
 
   // Every endpoint maps to a backend FastAPI router
   // Format: frontend_key -> backend_route_path
@@ -43,27 +44,39 @@ const API_CONFIG = {
     risk: "/risk", // Risk metrics + position sizing
     strategy: "/strategy", // Active strategies + A/B tests
     performance: "/performance", // Historical performance analytics
+    performanceTrades: "/performance/performance/trades", // Realized trades for P&L dist / monthly win rate
     logs: "/logs", // System activity logs
     alerts: "/alerts", // Alert rules + notifications
     patterns: "/patterns", // Chart pattern detections
     settings: "/settings", // User settings load/save
     openclaw: "/openclaw", // OpenClaw bridge: regime, top candidates, health, scan
+    market: "/market", // Market indices (SPY, QQQ, DIA) for Dashboard
+    marketIndices: "/market/indices", // GET indices snapshot for Dashboard top bar
   },
 };
 
 /**
- * Get full API URL for an endpoint
- * Usage: getApiUrl('agents') => 'http://localhost:8001/api/v1/agents'
+ * Get full API URL for an endpoint.
+ * When BASE_URL is "" (dev), returns relative path so Vite proxy forwards to backend.
+ * Usage: getApiUrl('agents') => '/api/v1/agents' (dev) or 'https://api.example.com/api/v1/agents' (prod)
  */
 export const getApiUrl = (endpoint) =>
   `${API_CONFIG.BASE_URL}${API_CONFIG.API_PREFIX}${API_CONFIG.endpoints[endpoint] || endpoint}`;
 
 /**
- * Get WebSocket URL for a channel
- * Usage: getWsUrl('agents') => 'ws://localhost:8001/ws/agents'
- * OLEH: Backend needs WebSocket support via FastAPI WebSocket routes
+ * Get WebSocket base URL. When WS_URL is "" (dev), uses current host so Vite proxy is used.
  */
-export const getWsUrl = (channel) => `${API_CONFIG.WS_URL}/${channel}`;
+export const getWsBaseUrl = () =>
+  API_CONFIG.WS_URL ||
+  (typeof window !== "undefined"
+    ? `ws://${window.location.host}/ws`
+    : "ws://localhost:3000/ws");
+
+/**
+ * Get WebSocket URL for a channel
+ * Usage: getWsUrl('agents') => '/ws/agents' (via proxy in dev) or 'ws://host/ws/agents'
+ */
+export const getWsUrl = (channel) => `${getWsBaseUrl()}/${channel}`;
 
 /** WebSocket channel names for real-time updates (backend must expose these). */
 export const WS_CHANNELS = {

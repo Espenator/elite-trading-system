@@ -1,8 +1,30 @@
 """Data and model status API (research doc: dashboard monitoring)."""
+
 from fastapi import APIRouter
 from app.data.storage import get_conn, DB_PATH
 
 router = APIRouter()
+
+
+@router.get("")
+def get_status_root():
+    """
+    Dashboard health check. GET /api/v1/status returns status + latency.
+    Frontend expects { status: "ok", latency?: ms }.
+    """
+    import time
+
+    start = time.perf_counter()
+    data = get_data_status()
+    elapsed_ms = int((time.perf_counter() - start) * 1000)
+    return {
+        "status": "ok" if data.get("connected") else "degraded",
+        "connected": data.get("connected", False),
+        "latency": elapsed_ms,
+        "db_path": data.get("db_path"),
+        "daily_bars_last_date": data.get("daily_bars_last_date"),
+        "daily_features_last_date": data.get("daily_features_last_date"),
+    }
 
 
 @router.get("/data")
