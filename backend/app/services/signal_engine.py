@@ -2,12 +2,12 @@
 Signal Generation Agent -- technical analysis and composite scores (0-100).
 
 Takes raw data from Market Data Agent (symbol_universe). Optionally uses Finviz
-quote data for price. Merges OpenClaw regime + candidate scores when available.
+quote data for price. Merges OpenClaw regime + 5-pillar candidate scores when available.
 Applies momentum and simple pattern logic; outputs composite signal scores
 0-100 for logging and downstream (ML, alerts).
 """
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 
 from app.modules.symbol_universe import get_tracked_symbols
 
@@ -107,10 +107,10 @@ def _compute_composite_score(quotes: List[dict]) -> Tuple[float, str]:
     return round(composite, 1), label
 
 
-async def _get_openclaw_context() -> Tuple[str, Dict[str, float]]:
+async def _get_openclaw_context() -> Tuple[str, Dict[str, Dict[str, float]]]:
     """
-    Fetch OpenClaw regime + candidate scores (ticker -> composite_score).
-    Returns (regime_state, {ticker: openclaw_score}).
+    Fetch OpenClaw regime + 5-pillar candidate scores (ticker -> dict of pillars).
+    Returns (regime_state, {ticker: pillar_dict}).
     Gracefully returns defaults if bridge unavailable.
     """
     try:
@@ -124,12 +124,20 @@ async def _get_openclaw_context() -> Tuple[str, Dict[str, float]]:
         candidates = await openclaw_bridge.get_top_candidates(n=50)
 
         regime_state = regime.get("state", "UNKNOWN")
-        claw_scores: Dict[str, float] = {}
+        claw_scores: Dict[str, Dict[str, float]] = {}
         for c in candidates:
             ticker = c.get("ticker")
             score = c.get("composite_score")
+            pillars = c.get("pillars", {})
             if ticker and score is not None:
-                claw_scores[ticker] = float(score)
+                claw_scores[ticker] = {
+                    "score": float(score),
+                    "regime": float(pillars.get("regime", 50.0)),
+                    "trend": float(pillars.get("trend", 50.0)),
+                    "pullback": float(pillars.get("pullback", 50.0)),
+                    "momentum": float(pillars.get("momentum", 50.0)),
+                    "pattern": float(pillars.get("pattern", 50.0))
+                }
 
         return regime_state, claw_scores
     except Exception as e:
@@ -145,7 +153,7 @@ async def run_tick(
 ) -> List[Tuple[str, str]]:
     """
     Run one Signal Generation tick: take symbols from Market Data Agent (symbol_universe),
-    apply momentum/pattern logic, merge OpenClaw scores + regime, produce composite scores.
+    apply momentum/pattern logic, merge OpenClaw 5-pillar scores + regime, produce composite scores.
     Returns list of (message, level).
     """
     entries: List[Tuple[str, str]] = []
@@ -160,15 +168,15 @@ async def run_tick(
         )
         return entries
 
-    # Fetch OpenClaw regime + candidate overlay
+    # Fetch OpenClaw regime + 5-pillar candidate overlay
     regime_state = "UNKNOWN"
-    claw_scores: Dict[str, float] = {}
+    claw_scores: Dict[str, Dict[str, float]] = {}
     if use_openclaw:
         regime_state, claw_scores = await _get_openclaw_context()
         if claw_scores:
             entries.append(
                 (
-                    f"OpenClaw overlay: regime={regime_state}, {len(claw_scores)} candidate scores loaded",
+                    f"OpenClaw overlay: regime={regime_state}, {len(claw_scores)} 5-pillar candidate scores loaded",
                     "info",
                 )
             )
@@ -207,11 +215,18 @@ async def run_tick(
 
         ta_score, label = _compute_composite_score(quotes)
 
-        # Blend with OpenClaw candidate score if available (60/40 weight)
-        claw_score = claw_scores.get(symbol)
-        if claw_score is not None:
-            blended = (ta_score * 0.4) + (claw_score * 0.6)
-            label = f"{label}+Claw"
+        # Blend with OpenClaw 5-pillar candidate score if available
+        claw_data = claw_scores.get(symbol)
+        if claw_data is not None:
+            pillar_score = (
+                claw_data["regime"] * 0.2 +
+                claw_data["trend"] * 0.3 +
+                claw_data["pullback"] * 0.2 +
+                claw_data["momentum"] * 0.2 +
+                claw_data["pattern"] * 0.1
+            )
+            blended = (ta_score * 0.4) + (pillar_score * 0.6)
+            label = f"{label}+5Pillars"
         else:
             blended = ta_score
 
