@@ -2,7 +2,7 @@
 
 **Full-Stack AI Trading Platform -- UI/UX, Database, and GPU Training Pipeline**
 
-React + FastAPI full-stack trading application with 15-page V3 widescreen dashboard, SQLite database, Alpaca + Finviz integrations, LSTM model training, XGBoost GPU ensemble, and real-time order execution. Serves as the user-facing control center for the Embodier.ai trading ecosystem.
+React + FastAPI full-stack trading application with 14-page V3 widescreen dashboard, SQLite database, Alpaca + Finviz integrations, LSTM model training, XGBoost GPU ensemble, and real-time order execution. Serves as the user-facing control center for the Embodier.ai trading ecosystem.
 
 > **Part of the Embodier.ai Elite Trading ecosystem.** This is the unified full-stack trading platform. All 42+ [OpenClaw](https://github.com/Espenator/openclaw) Python agents and the Blackboard Swarm architecture are now integrated in `core/` and `backend/`. The openclaw repo is archived.
 
@@ -12,7 +12,7 @@ React + FastAPI full-stack trading application with 15-page V3 widescreen dashbo
 
 | Component | Status | Notes |
 |---|---|---|
-| React Frontend-v2 (15 pages) | 15/15 V3 Coded | 11 complete with LW Charts, 4 coded with Recharts (need LW Charts migration) |
+| React Frontend-v2 (14 pages) | 14/14 V3 Coded | 10 complete with LW Charts, 4 coded with Recharts (need LW Charts migration) |
 | FastAPI Backend | Complete | REST API with versioned endpoints (`/api/v1/`) |
 | SQLite Database | Complete | Orders, trades, signals, positions via `database.py` |
 | Alpaca Integration | Complete | `alpaca_service.py` -- live/paper trading + market data |
@@ -31,7 +31,7 @@ React + FastAPI full-stack trading application with 15-page V3 widescreen dashbo
 - [x] **Implement backtest strategy runner** -- `backtest_engine.py` with Sharpe/PnL/MaxDD + REST endpoints (DONE)
 - [x] **LSTM training pipeline backend** -- `ml_training.py` connected to GPU training with model versioning (DONE)
 - [x] **APEX Phase 2 GPU pipeline** -- Trainer AMP, XGBoost GPU, config, /gpu endpoint (DONE)
-- [x] **V3 UI code for all 15 pages** -- All pages now have V3 widescreen layout code (DONE)
+- [x] **V3 UI code for all 14 pages** -- All pages now have V3 widescreen layout code (DONE)
 - [ ] **Migrate 4 Recharts pages to LW Charts** -- SentimentIntelligence, DataSourcesMonitor, Patterns, Settings
 - [ ] **Wire real API data** -- Replace simulated/mock data with live backend endpoints
 - [ ] **Add WebSocket support** -- Push real-time signals, position updates, and streaming engine events to frontend
@@ -72,9 +72,9 @@ A 3-model AI council (GPT-5.2, Claude Opus 4.6, Gemini 3.1 Pro) reviewed the ful
 | P2 | Wire swarm tournament from apex_orchestrator | `backend/app/services/swarm_manager.py` | NOT STARTED |
 | P3 | Add schema migration tracking | `backend/app/services/database.py` | NOT STARTED |
 
-## V3 Frontend Architecture (15 Pages)
+## V3 Frontend Architecture (14 pages)
 
-Consolidated from 18 pages down to 15 for cleaner UX. See `frontend-v2/src/V3-ARCHITECTURE.md` for full details.
+Consolidated from 18 pages down to 14 for cleaner UX. See `frontend-v2/src/V3-ARCHITECTURE.md` for full details.
 
 ### COMMAND (2 pages)
 
@@ -158,7 +158,7 @@ frontend-v2/                # React + Vite V3 frontend
     data/                   # Static data, enums
     hooks/                  # useApi, useWebSocket, custom hooks
     lib/                    # Utility functions
-    pages/                  # 15 V3 page components
+    pages/                  # 14 V3 page components
     services/               # API service layer
     V3-ARCHITECTURE.md      # Authoritative architecture doc
 docs/
@@ -205,7 +205,7 @@ Elite Trading System (Unified)
 |                    |                         |
 | backend/           | frontend-v2/            |
 |   FastAPI Backend   |   React + Vite V3       |
-|   /api/v1/openclaw  |   15 Pages Widescreen   |
+|   /api/v1/openclaw  |   14 pages Widescreen   |
 |   /api/v1/signals   |   WebSocket Dashboard   |
 |   SQLite + ORM      |                         |
 |   LSTM Trainer(AMP) |                         |
@@ -273,7 +273,7 @@ See `backend/.env.example` for all available environment variables.
 
 | File | Description |
 |---|---|
-| `frontend-v2/src/V3-ARCHITECTURE.md` | **AUTHORITATIVE** V3 15-page architecture |
+| `frontend-v2/src/V3-ARCHITECTURE.md` | **AUTHORITATIVE** V3 14-page architecture |
 | `frontend-v2/public/assets/mockups/` | Approved mockup designs |
 | `OLEH-CONTINUATION-GUIDE.md` | Developer continuation guide with priorities |
 | `OLEH-HANDOFF.md` | Original handoff with backend wiring details |
