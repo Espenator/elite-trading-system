@@ -17,6 +17,7 @@ import {
   Brain,
   BarChart3,
   AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import {
   BarChart,
@@ -303,12 +304,12 @@ export default function PerformanceAnalytics() {
       <PageHeader
         icon={TrendingUp}
         title="Performance Analytics"
-        subtitle="Real-time portfolio performance from trade data"
+        description="Real-time portfolio performance from trade data"
       >
         {summaryError && (
           <span className="text-red-400 text-xs">Failed to load</span>
         )}
-        <Button onClick={refetch} className="text-xs">
+        <Button onClick={refetch} variant="outline" size="sm" leftIcon={RefreshCw} className="text-xs">
           Refresh
         </Button>
       </PageHeader>
@@ -326,11 +327,11 @@ export default function PerformanceAnalytics() {
       {/* Error state */}
       {summaryError && !hasData && !isLoading && (
         <Card className="p-6 text-center">
-          <AlertCircle className="w-12 h-12 text-secondary mx-auto mb-4" />
-          <p className="text-secondary mb-2">
+          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+          <p className="text-gray-400 mb-4">
             Could not load performance data. Check backend API.
           </p>
-          <Button variant="outline" size="sm" onClick={refetch}>
+          <Button variant="outline" size="sm" onClick={refetch} leftIcon={RefreshCw}>
             Retry
           </Button>
         </Card>

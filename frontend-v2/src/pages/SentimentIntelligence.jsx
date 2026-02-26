@@ -122,27 +122,12 @@ export default function SentimentIntelligence() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-200 p-6 font-sans">
-      
-      {/* HEADER */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 gap-4">
-        <PageHeader 
-          title="Sentiment Intelligence" 
-          subtitle="Multi-Source Fusion, Divergence Detection & Social Volume (v3.0)"
-          icon={<Radio className="w-8 h-8 text-blue-400" />}
-        />
-        <div className="flex items-center gap-4">
-          <div className="bg-slate-800/50 px-4 py-2 rounded-lg border border-slate-700/50 flex items-center gap-3">
-            <span className="relative flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-            </span>
-            <span className="text-xs font-mono text-slate-300">Live Sync</span>
-            <span className="text-xs font-mono text-slate-500 ml-2">{lastUpdated}</span>
-          </div>
-          <Button variant="primary" onClick={() => window.location.reload()}>Force Resync</Button>
-        </div>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        icon={Radio}
+        title="Sentiment Intelligence"
+        description="Multi-Source Fusion, Divergence Detection & Social Volume"
+      />
 
       {/* TOP ROW: Sources & Gauges */}
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 mb-6">
