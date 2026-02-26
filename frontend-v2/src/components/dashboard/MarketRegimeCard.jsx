@@ -1,9 +1,16 @@
 import { Shield, TrendingUp, TrendingDown, Activity, AlertTriangle } from 'lucide-react';
-import { mockRegime } from '../../data/mockData';
 import clsx from 'clsx';
 
-export default function MarketRegimeCard() {
-  const regime = mockRegime;
+// Default regime data (replaces mockData.js import per Issue #8 cleanup)
+const DEFAULT_REGIME = {
+  regime: 'unknown', current: 'unknown',
+  vixLevel: 0, vixRsi: 0, breadth: 0,
+  spyChange: 0, qqqChange: 0,
+  riskPerTrade: 0, maxPositions: 0
+};
+
+export default function MarketRegimeCard({ regime: regimeData = null }) {
+  const regime = regimeData || DEFAULT_REGIME;
 
   const regimeConfig = {
     GREEN: {
@@ -37,10 +44,18 @@ export default function MarketRegimeCard() {
       icon: Activity,
       description: 'Recovery phase, volatility unwinding',
       strategy: '40% momentum / 60% reversion'
+    },
+    unknown: {
+      color: 'bg-secondary',
+      textColor: 'text-secondary',
+      borderColor: 'border-secondary',
+      icon: Shield,
+      description: 'Awaiting regime data...',
+      strategy: 'No active strategy'
     }
   };
 
-  const config = regimeConfig[regime.regime];
+  const config = regimeConfig[regime.regime] || regimeConfig.unknown;
   const Icon = config.icon;
 
   return (
@@ -120,12 +135,12 @@ export default function MarketRegimeCard() {
         {/* Divider */}
         <div className="border-t border-secondary/50 pt-3">
           <h4 className="text-xs text-secondary mb-2">RISK PARAMETERS</h4>
-          
+
           <div className="flex items-center justify-between">
             <span className="text-sm text-secondary">Risk Per Trade</span>
             <span className="font-bold text-white">{regime.riskPerTrade}%</span>
           </div>
-          
+
           <div className="flex items-center justify-between mt-2">
             <span className="text-sm text-secondary">Max Positions</span>
             <span className="font-bold text-white">{regime.maxPositions}</span>
