@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Badge, Button, PageHeader } from '../components/ui/';
+import Card from '../components/ui/Card';
+import Button from '../components/ui/Button';
 import { useApi } from '../hooks/useApi';
 import { getApiUrl } from '../config/api';
 import { toast } from 'react-toastify';
@@ -223,14 +224,14 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between p-2 bg-[#0a0a0f] rounded border border-gray-800/80">
             <div>
               <p className="text-xs text-gray-200 font-bold">VIX Spike Halt</p>
-              <p className="text-[9px] text-gray-500 uppercase">Halt trading if VIX jumps > 15% intraday</p>
+              <p className="text-[9px] text-gray-500 uppercase">Halt trading if VIX jumps {'>'} 15% intraday</p>
             </div>
             <Toggle enabled={true} onChange={() => {}} />
           </div>
           <div className="flex items-center justify-between p-2 bg-[#0a0a0f] rounded border border-gray-800/80">
             <div>
               <p className="text-xs text-gray-200 font-bold">Flash Crash Protection</p>
-              <p className="text-[9px] text-gray-500 uppercase">Pause if SPY drops > 2% in 15 mins</p>
+              <p className="text-[9px] text-gray-500 uppercase">Pause if SPY drops {'>'} 2% in 15 mins</p>
             </div>
             <Toggle enabled={true} onChange={() => {}} />
           </div>
@@ -423,7 +424,7 @@ export default function SettingsPage() {
               <td className="p-2 text-gray-500">2026-02-24 15:05:10</td>
               <td className="p-2"><span className="text-red-500">RISK</span></td>
               <td className="p-2">Auto-Killswitch</td>
-              <td className="p-2">VIX Spike Detected (>15%). New positions temporarily halted.</td>
+              <td className="p-2">VIX Spike Detected ({'>'}15%). New positions temporarily halted.</td>
             </tr>
             <tr className="hover:bg-[#1A1D24]/50">
               <td className="p-2 text-gray-500">2026-02-23 11:20:05</td>

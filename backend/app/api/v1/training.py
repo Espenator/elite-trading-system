@@ -12,8 +12,8 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 from typing import Any, Dict, List, Optional
 
-from backend.app.services.ml_training import trainer
-from backend.app.services.training_store import TrainingRunCreate, training_store
+from app.services.ml_training import trainer
+from app.services.training_store import TrainingRunCreate, training_store
 
 logger = logging.getLogger(__name__)
 

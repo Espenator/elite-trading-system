@@ -24,6 +24,21 @@ try:
     from torch.utils.data import DataLoader, TensorDataset
 
     HAS_TORCH = True
+
+    class LSTMPredictor(nn.Module):
+        """2-layer LSTM for win probability prediction."""
+
+        def __init__(self, input_size=4, hidden_size=64, num_layers=2, output_size=1):
+            super().__init__()
+            self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, dropout=0.2)
+            self.fc = nn.Linear(hidden_size, output_size)
+
+        def forward(self, x):
+            _, (h_n, _) = self.lstm(x)
+            out = self.fc(h_n[-1])
+            return torch.sigmoid(out)
+
+
 except ImportError:
     HAS_TORCH = False
 
@@ -42,20 +57,6 @@ def get_device() -> str:
         name = torch.cuda.get_device_name(0)
         return f"cuda ({name})"
     return "cpu"
-
-
-class LSTMPredictor(nn.Module):
-    """2-layer LSTM for win probability prediction."""
-
-    def __init__(self, input_size=4, hidden_size=64, num_layers=2, output_size=1):
-        super().__init__()
-        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, dropout=0.2)
-        self.fc = nn.Linear(hidden_size, output_size)
-
-    def forward(self, x):
-        _, (h_n, _) = self.lstm(x)
-        out = self.fc(h_n[-1])
-        return torch.sigmoid(out)
 
 
 def _utc_now_iso() -> str:

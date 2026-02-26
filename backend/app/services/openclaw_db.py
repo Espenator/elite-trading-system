@@ -1,4 +1,3 @@
-Made with Perplexity
 """
 OpenClaw Bridge Database Service (ENHANCED - Memory Intelligence v2)
 Raw sqlite3 — matches DatabaseService pattern in database.py

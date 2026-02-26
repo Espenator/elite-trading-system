@@ -1,4 +1,3 @@
-Made with Perplexity
 """
 OpenClaw Bridge Service v2.1 — Real-time Signal Ingestion + Memory Intelligence
 

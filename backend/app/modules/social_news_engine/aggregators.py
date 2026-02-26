@@ -380,4 +380,4 @@ def aggregate_all(
     if not out:
         logger.warning("No sentiment data from any source for %s — check API keys in Settings", symbols)
 
-return out
+    return out
