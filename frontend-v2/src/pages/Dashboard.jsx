@@ -151,7 +151,7 @@ function KpiMicroCard({ label, value, sub, color, icon: Icon, onClick }) {
   };
   return (
     <div
-      className={`bg-[#0B0E14] border rounded-xl p-2.5 cursor-pointer transition-all hover:scale-[1.03] ${borderMap[color] || borderMap.cyan}`}
+      className={`min-w-3xs bg-[#0B0E14] border rounded-xl p-2.5 cursor-pointer transition-all hover:scale-[1.03] ${borderMap[color] || borderMap.cyan}`}
       onClick={onClick || (() => toast.info(`Drilling into ${label}`))}
     >
       <div className="flex items-center justify-between mb-1">
@@ -600,7 +600,7 @@ export default function Dashboard() {
           )}
         </div>
         <div className="h-4 w-px bg-slate-700 shrink-0" />
-        <div className="flex items-center gap-x-4 flex-wrap gap-y-1">
+        <div className="flex items-center gap-x-2 flex-wrap gap-y-1">
           <KpiMicroCard
             label="Total Equity"
             value={
@@ -609,7 +609,6 @@ export default function Dashboard() {
                 : "--"
             }
             color="green"
-            icon={DollarSign}
           />
           <KpiMicroCard
             label="Day P&L"
@@ -619,7 +618,6 @@ export default function Dashboard() {
                 : "--"
             }
             color={dailyPnL >= 0 ? "green" : "red"}
-            icon={TrendingUp}
           />
           <KpiMicroCard
             label="Win Rate"
@@ -629,7 +627,6 @@ export default function Dashboard() {
                 : "—"
             }
             color="cyan"
-            icon={Target}
           />
           <KpiMicroCard
             label="Open Risk"
@@ -641,7 +638,6 @@ export default function Dashboard() {
                   : "—"
             }
             color="amber"
-            icon={Shield}
           />
           <KpiMicroCard
             label="Volatility"
@@ -653,7 +649,6 @@ export default function Dashboard() {
                   : "—"
             }
             color="purple"
-            icon={Activity}
           />
           <KpiMicroCard
             label="Beta"
@@ -663,7 +658,6 @@ export default function Dashboard() {
                 : "—"
             }
             color="cyan"
-            icon={BarChart3}
           />
           <KpiMicroCard
             label="Alpha"
@@ -673,9 +667,8 @@ export default function Dashboard() {
                 : "—"
             }
             color="green"
-            icon={TrendingUp}
           />
-          <KpiMicroCard label="Correl" value="—" color="cyan" icon={Layers} />
+          <KpiMicroCard label="Correl" value="—" color="cyan" />
           <KpiMicroCard
             label="Liquidity"
             value={
@@ -684,7 +677,6 @@ export default function Dashboard() {
                 : "—"
             }
             color="green"
-            icon={DollarSign}
           />
           <KpiMicroCard
             label="Margin"
@@ -698,7 +690,6 @@ export default function Dashboard() {
                   : "—"
             }
             color="amber"
-            icon={Percent}
           />
         </div>
       </div>
