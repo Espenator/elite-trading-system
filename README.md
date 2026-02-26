@@ -59,7 +59,7 @@ A 3-model AI council (GPT-5.2, Claude Opus 4.6, Gemini 3.1 Pro) reviewed the ful
 | Priority | Task | File(s) | Status |
 |----------|------|---------|--------|
 | P0 | Add test suite | `backend/tests/` | NOT STARTED |
-| P0 | Fix database.py (WAL, pooling, indexes) | `backend/app/services/database.py` | NOT STARTED |
+| P0 | Fix database.py (WAL, pooling, indexes) | `backend/app/services/database.py` | DONE |
 | P0 | Delete mockData.js | `frontend-v2/src/data/mockData.js` | NOT STARTED |
 | P1 | Wire OpenClaw pillar scores into signal_engine | `backend/app/services/signal_engine.py` | NOT STARTED |
 | P1 | Fix LSTM architecture (input_size, normalization) | `backend/app/services/ml_training.py` | NOT STARTED |
