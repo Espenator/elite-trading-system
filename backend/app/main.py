@@ -31,6 +31,7 @@ from app.api.v1 import (
     settings_routes,
     openclaw,
     ml_brain,
+    risk_shield_api,
 )
 
 # Configure logging
@@ -96,7 +97,7 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+        allow_origins=["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -201,7 +202,9 @@ app.include_router(
     ml_brain.router,
     prefix=f"{settings.API_V1_PREFIX}/ml-brain",
     tags=["ml-brain"],
-)
+
+    # risk_shield_api has its own prefix built into the router
+app.include_router(risk_shield_api.router, tags=["risk-shield"])
 
 @app.get("/")
 async def root():
