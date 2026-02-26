@@ -57,6 +57,71 @@ const TYPE_ICONS = {
   KNOWLEDGE: <Brain className="w-5 h-5 text-cyan-400" />,
 };
 
+// Map API source id (1–10) or fallback id to /data-sources image filename (no extension)
+const DATA_SOURCE_IMAGE_SLUGS = {
+  1: "finviz",
+  2: "unusual_whales",
+  3: "alpaca",
+  4: "fred",
+  5: "sec_edgar",
+  6: "stockgeist",
+  7: "news_api",
+  8: "discord",
+  9: "twitter",
+  10: "youtube",
+  // Fallback when API returns string ids
+  alpaca: "alpaca",
+  finviz: "finviz",
+  fred: "fred",
+  sec: "sec_edgar",
+  sec_edgar: "sec_edgar",
+  stockgeist: "stockgeist",
+  newsapi: "news_api",
+  news_api: "news_api",
+  discord: "discord",
+  twitter: "twitter",
+  youtube: "youtube",
+  unusual_whales: "unusual_whales",
+  polygon: null, // no image
+};
+
+// Normalize API source name to slug for image lookup
+function sourceNameToSlug(name) {
+  if (!name) return null;
+  const s = name.replace(/\s*\([^)]*\)\s*/g, "").replace(/\s+/g, "_").toLowerCase();
+  const nameMap = {
+    finviz: "finviz",
+    unusual_whales: "unusual_whales",
+    alpaca: "alpaca",
+    fred: "fred",
+    sec_edgar: "sec_edgar",
+    stockgeist: "stockgeist",
+    news_api: "news_api",
+    discord: "discord",
+    x: "twitter",
+    x_twitter: "twitter",
+    twitter: "twitter",
+    youtube: "youtube",
+  };
+  return nameMap[s] || null;
+}
+
+function getDataSourceIcon(source) {
+  const slug =
+    DATA_SOURCE_IMAGE_SLUGS[source.id] ?? sourceNameToSlug(source.name);
+  if (slug) {
+    return (
+      <img
+        src={`/data-sources/${slug}.png`}
+        alt={source.name}
+        className="w-8 h-8 object-contain shrink-0"
+      />
+    );
+  }
+  const typeKey = (source.type ?? "").toUpperCase().replace(/\s+/g, "_");
+  return TYPE_ICONS[typeKey] || <Database className="w-5 h-5" />;
+}
+
 export default function DataSourcesMonitor() {
   const { data: sources, loading, error, refresh } = useApi("dataSources");
   const [openClawStatus, setOpenClawStatus] = useState(null);
@@ -407,8 +472,8 @@ export default function DataSourcesMonitor() {
             {/* Card Header */}
             <div className="p-4 border-b border-slate-700/50 flex justify-between items-start bg-slate-900/30">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-slate-800 rounded-lg border border-slate-700 text-slate-300 group-hover:text-white transition-colors">
-                  {TYPE_ICONS[source.type] || <Database className="w-5 h-5" />}
+                <div className="p-2 bg-slate-800 rounded-lg border border-slate-700 text-slate-300 group-hover:text-white transition-colors flex items-center justify-center">
+                  {getDataSourceIcon(source)}
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-200 text-sm">

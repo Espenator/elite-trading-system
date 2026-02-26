@@ -80,6 +80,21 @@ import { createChart, ColorType } from "lightweight-charts";
 const POLL_MS = 30000;
 const OPENCLAW_POLL_MS = 30000;
 
+// Candidate source -> /data-sources icon slug (same as Data Sources Monitor)
+const DATA_SOURCE_ICON_SLUGS = {
+  finviz: "finviz",
+  whale_flow: "unusual_whales",
+  unusual_whales: "unusual_whales",
+  alpaca: "alpaca",
+  fred: "fred",
+  sec_edgar: "sec_edgar",
+  stockgeist: "stockgeist",
+  news_api: "news_api",
+  discord: "discord",
+  twitter: "twitter",
+  youtube: "youtube",
+};
+
 // === StatCard: Gradient stat card ===
 function StatCard({
   title,
@@ -131,7 +146,15 @@ function StatCard({
 }
 
 // === KpiMicroCard: Ultra-dense micro KPI ===
-function KpiMicroCard({ label, value, sub, color, icon: Icon, onClick }) {
+function KpiMicroCard({
+  label,
+  value,
+  sub,
+  color,
+  icon: Icon,
+  onClick,
+  subPosition,
+}) {
   const borderMap = {
     cyan: "border-cyan-500/30 hover:border-cyan-500/60 shadow-[0_0_8px_rgba(6,182,212,0.08)]",
     amber:
@@ -149,27 +172,31 @@ function KpiMicroCard({ label, value, sub, color, icon: Icon, onClick }) {
     green: "text-emerald-400",
     purple: "text-purple-400",
   };
+  const subInHeader = subPosition === "topRight" && sub;
   return (
     <div
-      className={`min-w-3xs bg-[#0B0E14] border rounded-xl p-2.5 cursor-pointer transition-all hover:scale-[1.03] ${borderMap[color] || borderMap.cyan}`}
+      className="w-full bg-surface border border-secondary/30 rounded-md p-2.5 cursor-pointer transition-all hover:scale-[1.03]"
       onClick={onClick || (() => toast.info(`Drilling into ${label}`))}
     >
       <div className="flex items-center justify-between mb-1">
-        <span className="text-[9px] text-secondary uppercase tracking-wider truncate">
+        <span className="text-xs text-white/70 uppercase tracking-wider truncate">
           {label}
         </span>
-        {Icon && (
-          <Icon
-            className={`w-3 h-3 ${textMap[color] || "text-cyan-400"} shrink-0`}
-          />
-        )}
+        <span className="flex items-center gap-1 shrink-0">
+          {subInHeader && (
+            <span className="text-[8px] text-secondary/70">{sub}</span>
+          )}
+          {Icon && (
+            <Icon className={`w-3 h-3 ${textMap[color] || "text-cyan-400"}`} />
+          )}
+        </span>
       </div>
       <div
         className={`text-sm font-bold ${textMap[color] || "text-white"} truncate`}
       >
         {value}
       </div>
-      {sub && (
+      {sub && !subInHeader && (
         <div className="text-[8px] text-secondary/70 truncate mt-0.5">
           {sub}
         </div>
@@ -346,6 +373,7 @@ export default function Dashboard() {
   const regime = openclawTop?.regime ?? openclawHealth?.regime ?? null;
   const regimeReadme = openclawTop?.regime_readme ?? "";
   const candidates = openclawTop?.candidates ?? [];
+
   const lastScanTs = openclawHealth?.last_scan_timestamp ?? null;
 
   // --- Equity curve data for LW Charts ---
@@ -576,122 +604,121 @@ export default function Dashboard() {
       />
 
       {/* === TOP BAR: Market indices + KPIs (dense single row) === */}
-      <div className="bg-[#0B0E14] border border-slate-800/60 rounded-xl px-4 py-2.5 flex flex-wrap items-center gap-x-6 gap-y-2 overflow-x-auto">
-        <div className="flex items-center gap-x-5 shrink-0">
-          {indices.length > 0 ? (
-            indices.map((idx) => (
-              <div key={idx.id} className="flex items-center gap-1.5">
-                <span className="text-[10px] font-bold text-slate-500 uppercase">
-                  {idx.id}
-                </span>
-                <span className="text-xs text-white">{idx.value}</span>
-                {idx.change != null && (
-                  <span
-                    className={`text-[10px] font-bold ${idx.change >= 0 ? "text-emerald-400" : "text-red-400"}`}
-                  >
-                    {idx.change >= 0 ? "+" : ""}
-                    {idx.change}%
-                  </span>
-                )}
-              </div>
-            ))
-          ) : (
-            <span className="text-xs text-slate-500">Loading indices…</span>
-          )}
-        </div>
-        <div className="h-4 w-px bg-slate-700 shrink-0" />
-        <div className="flex items-center gap-x-2 flex-wrap gap-y-1">
-          <KpiMicroCard
-            label="Total Equity"
-            value={
-              portfolioValue
-                ? `$${Number(portfolioValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                : "--"
-            }
-            color="green"
-          />
-          <KpiMicroCard
-            label="Day P&L"
-            value={
-              dailyPnL != null
-                ? `${dailyPnL >= 0 ? "+" : ""}$${Number(dailyPnL).toFixed(0)}`
-                : "--"
-            }
-            color={dailyPnL >= 0 ? "green" : "red"}
-          />
-          <KpiMicroCard
-            label="Win Rate"
-            value={
-              winRate != null
-                ? `${(Number(winRate) <= 1 ? Number(winRate) * 100 : Number(winRate)).toFixed(1)}%`
+      <div className="flex items-center gap-2 overflow-x-auto">
+        {indices.length > 0 ? (
+          indices.map((idx) => (
+            <KpiMicroCard
+              key={idx.id}
+              label={idx.id}
+              value={idx.value}
+              sub={
+                idx.change != null
+                  ? `${idx.change >= 0 ? "+" : ""}${idx.change}%`
+                  : undefined
+              }
+              subPosition="topRight"
+              color={
+                idx.change != null
+                  ? idx.change >= 0
+                    ? "green"
+                    : "red"
+                  : "cyan"
+              }
+            />
+          ))
+        ) : (
+          <KpiMicroCard label="Indices" value="Loading…" color="cyan" />
+        )}
+        <KpiMicroCard
+          label="Total Equity"
+          value={
+            portfolioValue
+              ? `$${Number(portfolioValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+              : "--"
+          }
+          color="green"
+        />
+        <KpiMicroCard
+          label="Day P&L"
+          value={
+            dailyPnL != null
+              ? `${dailyPnL >= 0 ? "+" : ""}$${Number(dailyPnL).toFixed(0)}`
+              : "--"
+          }
+          color={dailyPnL >= 0 ? "green" : "red"}
+        />
+        <KpiMicroCard
+          label="Win Rate"
+          value={
+            winRate != null
+              ? `${(Number(winRate) <= 1 ? Number(winRate) * 100 : Number(winRate)).toFixed(1)}%`
+              : "—"
+          }
+          color="cyan"
+        />
+        <KpiMicroCard
+          label="Open Risk"
+          value={
+            riskData?.currentExposure != null
+              ? `$${Number(riskData.currentExposure).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+              : positions.length
+                ? "—"
                 : "—"
-            }
-            color="cyan"
-          />
-          <KpiMicroCard
-            label="Open Risk"
-            value={
-              riskData?.currentExposure != null
-                ? `$${Number(riskData.currentExposure).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                : positions.length
-                  ? "—"
-                  : "—"
-            }
-            color="amber"
-          />
-          <KpiMicroCard
-            label="Volatility"
-            value={
-              riskData?.potentialDailyLoss != null
-                ? `${Number(Math.abs(riskData.potentialDailyLoss)).toFixed(1)}%`
-                : riskData?.estimatedMaxDrawdown != null
-                  ? `${Number(riskData.estimatedMaxDrawdown).toFixed(1)}%`
-                  : "—"
-            }
-            color="purple"
-          />
-          <KpiMicroCard
-            label="Beta"
-            value={
-              sharpe != null && sharpe !== ""
-                ? String(Number(sharpe).toFixed(2))
+          }
+          color="amber"
+        />
+        <KpiMicroCard
+          label="Volatility"
+          value={
+            riskData?.potentialDailyLoss != null
+              ? `${Number(Math.abs(riskData.potentialDailyLoss)).toFixed(1)}%`
+              : riskData?.estimatedMaxDrawdown != null
+                ? `${Number(riskData.estimatedMaxDrawdown).toFixed(1)}%`
                 : "—"
-            }
-            color="cyan"
-          />
-          <KpiMicroCard
-            label="Alpha"
-            value={
-              totalPnLPct != null && totalPnLPct !== ""
-                ? `${totalPnLPct >= 0 ? "+" : ""}${Number(totalPnLPct).toFixed(1)}%`
+          }
+          color="purple"
+        />
+        <KpiMicroCard
+          label="Beta"
+          value={
+            sharpe != null && sharpe !== ""
+              ? String(Number(sharpe).toFixed(2))
+              : "—"
+          }
+          color="cyan"
+        />
+        <KpiMicroCard
+          label="Alpha"
+          value={
+            totalPnLPct != null && totalPnLPct !== ""
+              ? `${totalPnLPct >= 0 ? "+" : ""}${Number(totalPnLPct).toFixed(1)}%`
+              : "—"
+          }
+          color="green"
+        />
+        <KpiMicroCard label="Correl" value="—" color="cyan" />
+        <KpiMicroCard
+          label="Liquidity"
+          value={
+            riskData?.buyingPower != null
+              ? `$${Number(riskData.buyingPower) / 1e6 >= 1 ? (Number(riskData.buyingPower) / 1e6).toFixed(1) + "M" : Number(riskData.buyingPower).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+              : "—"
+          }
+          color="green"
+        />
+        <KpiMicroCard
+          label="Margin"
+          value={
+            riskData?.equity != null &&
+            riskData?.buyingPower != null &&
+            riskData.equity > 0
+              ? `${Math.round((1 - Number(riskData.buyingPower) / Number(riskData.equity)) * 100)}%`
+              : riskData?.concentrationPct != null
+                ? `${Number(riskData.concentrationPct).toFixed(0)}%`
                 : "—"
-            }
-            color="green"
-          />
-          <KpiMicroCard label="Correl" value="—" color="cyan" />
-          <KpiMicroCard
-            label="Liquidity"
-            value={
-              riskData?.buyingPower != null
-                ? `$${Number(riskData.buyingPower) / 1e6 >= 1 ? (Number(riskData.buyingPower) / 1e6).toFixed(1) + "M" : Number(riskData.buyingPower).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                : "—"
-            }
-            color="green"
-          />
-          <KpiMicroCard
-            label="Margin"
-            value={
-              riskData?.equity != null &&
-              riskData?.buyingPower != null &&
-              riskData.equity > 0
-                ? `${Math.round((1 - Number(riskData.buyingPower) / Number(riskData.equity)) * 100)}%`
-                : riskData?.concentrationPct != null
-                  ? `${Number(riskData.concentrationPct).toFixed(0)}%`
-                  : "—"
-            }
-            color="amber"
-          />
-        </div>
+          }
+          color="amber"
+        />
       </div>
 
       {/* === ROW 2: Four performance charts === */}
@@ -875,70 +902,108 @@ export default function Dashboard() {
       </Card>
 
       {/* === ROW 4: OpenClaw Candidates | Portfolio Allocation | Risk Radar === */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
         <Card
           title="OpenClaw Candidates"
-          subtitle={
-            totalPnLPct != null
-              ? `${candidates.length} shown · YTD ${totalPnLPct >= 0 ? "+" : ""}${Number(totalPnLPct).toFixed(1)}%`
-              : `${candidates.length} shown`
-          }
-          className="lg:col-span-1"
+          className="lg:col-span-2"
+          noPadding
           action={
-            <Link
-              to="/agents"
-              className="text-xs font-medium text-primary hover:text-primary/80 flex items-center gap-1"
-            >
-              View all <ArrowUpRight className="w-3 h-3" />
-            </Link>
+            <div className="flex items-center gap-3 shrink-0">
+              <span className="text-xs text-secondary">
+                {totalPnLPct != null
+                  ? `${candidates.length} shown · YTD ${totalPnLPct >= 0 ? "+" : ""}${Number(totalPnLPct).toFixed(1)}%`
+                  : `${candidates.length} shown`}
+              </span>
+              <Link
+                to="/agents"
+                className="text-xs font-medium text-primary hover:text-primary/80 flex items-center gap-1"
+              >
+                View all <ArrowUpRight className="w-3 h-3" />
+              </Link>
+            </div>
           }
         >
           {openclawLoading ? (
-            <p className="text-sm text-secondary py-4">Loading...</p>
+            <p className="text-sm text-secondary text-center py-4">
+              Loading...
+            </p>
           ) : candidates.length === 0 ? (
             <p className="text-sm text-secondary py-4">
               No candidates. Check OpenClaw bridge.
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="text-slate-500 border-b border-slate-700/50">
-                    <th className="py-2 pr-2">Shares</th>
-                    <th className="py-2 pr-2">Equity</th>
-                    <th className="py-2 pr-2">P&L</th>
-                    <th className="py-2 pr-2">Alpha</th>
-                    <th className="py-2 pr-2">Vol</th>
-                    <th className="py-2 pr-2">Rex</th>
-                    <th className="py-2 pr-2">Margin</th>
-                  </tr>
-                </thead>
-                <tbody className="text-slate-300">
-                  {candidates.slice(0, 6).map((c, i) => (
-                    <tr
-                      key={c.symbol || c.ticker || i}
-                      className="border-b border-slate-800/50 hover:bg-slate-800/30"
-                    >
-                      <td className="py-1.5 font-mono">{c.shares ?? "—"}</td>
-                      <td className="py-1.5 font-mono">{c.equity ?? "—"}</td>
-                      <td
-                        className={`py-1.5 ${(c.pnl ?? 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}
-                      >
-                        {c.pnl != null ? `$${Number(c.pnl).toFixed(0)}` : "—"}
-                      </td>
-                      <td className="py-1.5 font-mono">
-                        {c.alpha != null
-                          ? `${Number(c.alpha).toFixed(2)}%`
-                          : "—"}
-                      </td>
-                      <td className="py-1.5 font-mono">{c.vol ?? "—"}</td>
-                      <td className="py-1.5 font-mono">{c.rex ?? "—"}</td>
-                      <td className="py-1.5 font-mono">{c.margin ?? "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              columns={[
+                {
+                  key: "symbol",
+                  label: "Symbol",
+                  render: (v) => v ?? "—",
+                  cellClassName: "font-medium",
+                },
+                {
+                  key: "composite_score",
+                  label: "Score",
+                  render: (v) => (v != null ? Number(v).toFixed(1) : "—"),
+                },
+                {
+                  key: "tier",
+                  label: "Tier",
+                  render: (v) => v ?? "—",
+                  cellClassName: "text-xs",
+                },
+                {
+                  key: "source",
+                  label: "Source",
+                  render: (v) => {
+                    if (v == null || v === "") return "—";
+                    const slug = DATA_SOURCE_ICON_SLUGS[String(v).toLowerCase()];
+                    if (slug) {
+                      return (
+                        <span className="inline-flex items-center gap-1.5" title={v}>
+                          <img
+                            src={`/data-sources/${slug}.png`}
+                            alt={v}
+                            className="w-5 h-5 object-contain"
+                          />
+                          <span className="text-secondary capitalize">{v.replace(/_/g, " ")}</span>
+                        </span>
+                      );
+                    }
+                    return <span className="capitalize">{v.replace(/_/g, " ")}</span>;
+                  },
+                },
+                {
+                  key: "price",
+                  label: "Price",
+                  render: (v) => (v != null ? `$${Number(v).toFixed(2)}` : "—"),
+                },
+                {
+                  key: "regime_score",
+                  label: "Regime",
+                  render: (v) => (v != null ? String(v) : "—"),
+                },
+                {
+                  key: "trend_score",
+                  label: "Trend",
+                  render: (v) => (v != null ? Number(v).toFixed(1) : "—"),
+                },
+                {
+                  key: "momentum_score",
+                  label: "Mom",
+                  render: (v) => (v != null ? String(v) : "—"),
+                },
+                {
+                  key: "whale_sentiment",
+                  label: "Sentiment",
+                  render: (v) => v ?? "—",
+                  cellClassName: "capitalize",
+                },
+              ]}
+              data={candidates.slice(0, 6)}
+              emptyMessage="No candidates"
+              rowKey={(row, i) => row.symbol || row.ticker || i}
+              className="rounded-none border-none"
+            />
           )}
         </Card>
         <Card
@@ -1042,7 +1107,7 @@ export default function Dashboard() {
       </div>
 
       {/* === ROW 5: Correlation Matrix | Agent Leaderboard | Signal Accuracy === */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card
           title="Correlation Matrix"
           subtitle="No data source configured"
@@ -1121,7 +1186,7 @@ export default function Dashboard() {
       </div>
 
       {/* === ROW 6: Equity + Regime (original content, condensed) === */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card
           title="Equity Curve (Detail)"
           subtitle="Portfolio performance"
@@ -1173,7 +1238,7 @@ export default function Dashboard() {
       </div>
 
       {/* === ROW 7: Active Positions + Quick Links === */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-4">
         <Card
           title="Active Positions"
           subtitle={`${positions.length} open`}
@@ -1185,6 +1250,7 @@ export default function Dashboard() {
               Trade Execution <ArrowUpRight className="w-3 h-3" />
             </Link>
           }
+          noPadding
         >
           <DataTable
             columns={[
@@ -1234,37 +1300,14 @@ export default function Dashboard() {
             data={positions}
             emptyMessage="No positions"
             rowKey={(row) => row.ticker}
+            className="rounded-none border-none"
           />
-        </Card>
-        <Card title="Quick Navigation">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {[
-              { to: "/signals", label: "Signals", icon: Zap },
-              { to: "/risk", label: "Risk Intel", icon: Shield },
-              { to: "/performance", label: "Performance", icon: BarChart3 },
-              { to: "/ml-insights", label: "ML Brain", icon: Brain },
-              { to: "/backtest", label: "Backtest", icon: LineChart },
-              { to: "/market-regime", label: "Market Regime", icon: Gauge },
-            ].map((link) => (
-              <Link
-                key={link.to}
-                to={link.to}
-                className="flex items-center gap-2 p-2.5 bg-slate-800/40 border border-slate-700/50 rounded-lg hover:border-cyan-500/40 transition-all"
-              >
-                <link.icon className="w-4 h-4 text-cyan-400" />
-                <span className="text-xs font-medium text-white">
-                  {link.label}
-                </span>
-                <ArrowUpRight className="w-3 h-3 text-slate-500 ml-auto" />
-              </Link>
-            ))}
-          </div>
         </Card>
       </div>
 
       {sectors.length > 0 && (
         <Card title="Sector Heatmap" subtitle="Performance by sector">
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
             {sectors.map((s, i) => (
               <SectorCell
                 key={s.name || i}
