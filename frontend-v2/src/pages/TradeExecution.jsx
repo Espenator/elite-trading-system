@@ -131,7 +131,7 @@ export default function TradeExecution() {
             { id: 'riskAccepted', title: '3. Risk Accepted?', desc: `Accepting a total loss of $${riskAmount.toLocaleString()} if thesis fails?` },
             { id: 'noHesitation', title: '4. No Hesitation?', desc: 'Ready to execute mechanically without fear or greed?' },
             { id: 'profitPlan', title: '5. Profit Plan?', desc: 'T1 set at 1R for 50% scale-out? Trailing stop ready?' },
-            { id: 'journalReady', title: '6. Journal Ready?', desc: 'Hypothesis documented in Google Sheets?' }
+            { id: 'journalReady', title: '6. Journal Ready?', desc: 'Hypothesis documented in trade journal?' }
           ].map((item) => (
             <div 
               key={item.id}
