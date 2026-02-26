@@ -4,7 +4,7 @@
 
 React + FastAPI full-stack trading application with 15-page V3 widescreen dashboard, SQLite database, Alpaca + Finviz integrations, LSTM model training, XGBoost GPU ensemble, and real-time order execution. Serves as the user-facing control center for the Embodier.ai trading ecosystem.
 
-> **Part of the Embodier.ai Elite Trading ecosystem.** This repo (PC2) provides the full-stack UI/UX, database, and GPU training pipeline. [OpenClaw](https://github.com/Espenator/openclaw) (PC1) is the 42-agent intelligence engine with Blackboard Swarm architecture.
+> **Part of the Embodier.ai Elite Trading ecosystem.** This is the unified full-stack trading platform. All 42+ [OpenClaw](https://github.com/Espenator/openclaw) Python agents and the Blackboard Swarm architecture are now integrated in `core/` and `backend/`. The openclaw repo is archived.
 
 ---
 
@@ -119,7 +119,7 @@ Consolidated from 18 pages down to 15 for cleaner UX. See `frontend-v2/src/V3-AR
 ## Architecture Overview
 
 ```
-Elite Trading System (PC2)
+Elite Trading System
 backend/                    # FastAPI Python backend
   app/
     api/v1/                 # REST API endpoints
@@ -183,9 +183,9 @@ All backend routes are versioned under `/api/v1/`:
 | `backtest_routes.py` | POST `/api/v1/backtest` | Strategy backtesting |
 | `openclaw.py` | POST/GET `/api/v1/openclaw/*` | OpenClaw bridge (signals, ingests, backtest) |
 
-## Integration with OpenClaw
+## OpenClaw (Now Integrated)
 
-This repo (PC2) is the **full-stack UI/UX application**. [OpenClaw](https://github.com/Espenator/openclaw) (PC1) is the **intelligence engine** with:
+All 42+ OpenClaw Python agents and the Blackboard Swarm architecture now live in `core/` and `backend/`. The [openclaw repo](https://github.com/Espenator/openclaw) is archived. Key integrated components:
 
 - 42+ Python agents in a Blackboard Swarm architecture
 - Real-time streaming via Alpaca WebSocket
@@ -193,27 +193,30 @@ This repo (PC2) is the **full-stack UI/UX application**. [OpenClaw](https://gith
 - HMM regime detection (GREEN/YELLOW/RED)
 - Risk Governor with 8 safety checks
 
-### Bridge Architecture
+### Internal Architecture
 
 ```
-PC1 (OpenClaw)               PC2 (Elite Trading System)
-+------------------+         +----------------------------+
-| Blackboard Swarm |         |    FastAPI Backend          |
-| 42+ Python Agents|-- API ->| /api/v1/openclaw/signals   |
-| Streaming Engine |         | /api/v1/openclaw/ingests   |
-| Risk Governor    |         | /api/v1/openclaw/backtest  |
-|                  |         | SQLite (openclaw_db.py)    |
-| lstm_bridge      |-- GPU ->| LSTM Trainer (AMP)         |
-|   service.py     | models  | XGBoost Trainer (GPU)      |
-+------------------+         |                            |
-                             |    React Frontend-v2       |
-                             |    15 Pages V3 Widescreen  |
-                             +----------------------------+
+Elite Trading System (Unified)
++----------------------------------------------+
+| core/               (OpenClaw Agents)        |
+|   42+ Python Agents, Blackboard Swarm        |
+|   Streaming Engine, Risk Governor            |
+|   LSTM Bridge, HMM Regime Detection          |
++----------------------------------------------+
+|                    |                         |
+| backend/           | frontend-v2/            |
+|   FastAPI Backend   |   React + Vite V3       |
+|   /api/v1/openclaw  |   15 Pages Widescreen   |
+|   /api/v1/signals   |   WebSocket Dashboard   |
+|   SQLite + ORM      |                         |
+|   LSTM Trainer(AMP) |                         |
+|   XGBoost (GPU)     |                         |
++----------------------------------------------+
 ```
 
-## Migration Plan: Receiving OpenClaw Data
+## Data Migration Status (OpenClaw -> Elite Trader)
 
-OpenClaw currently logs to Google Sheets (deprecated) and Slack (optional). This system will replace both:
+OpenClaw data sources (Google Sheets, Slack) have been replaced by native integrations. Migration status:
 
 | OpenClaw Source | Elite Trader Destination | Status |
 |---|---|---|
