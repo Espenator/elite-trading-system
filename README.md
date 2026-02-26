@@ -46,7 +46,7 @@ A 3-model AI council (GPT-5.2, Claude Opus 4.6, Gemini 3.1 Pro) reviewed the ful
 **Where Council Was Correct:**
 - Zero test coverage -- no `tests/` directory, only 2 utility scripts in `backend/tools/`
 - SQLite write lock bottleneck -- `database.py` creates new connections per call, no WAL mode, no pooling
-- `mockData.js` still present in `frontend-v2/src/data/` despite Issue #8 cleanup
+- ~~`mockData.js` still present in `frontend-v2/src/data/`~~ -- FIXED: deleted via Issue #8 cleanup
 - `signal_engine.py` scoring too simplistic (bull/bear candle only vs. OpenClaw's 5-pillar system)
 - `ml_training.py` LSTM has input_size=4 but system generates 25+ features
 - `openclaw_bridge_service.py` is 976-line god module needing split
@@ -62,7 +62,7 @@ A 3-model AI council (GPT-5.2, Claude Opus 4.6, Gemini 3.1 Pro) reviewed the ful
 |---|---|---|---|
 | P0 | Add test suite | `backend/tests/` | NOT STARTED |
 | P0 | Fix database.py (WAL, pooling, indexes) | `backend/app/services/database.py` | DONE |
-| P0 | Delete mockData.js | `frontend-v2/src/data/mockData.js` | DONE |
+| P0 | Delete mockData.js | `frontend-v2/src/data/mockData.js` | DONE | | P0 | Remove Google Sheets reference from TradeExecution.jsx | `frontend-v2/src/pages/TradeExecution.jsx` | DONE | | P0 | Update V2 README - mark yfinance/Google Sheets as deprecated | `frontend-v2/src/V2-EMBODIER-AI-README.md` | DONE |
 | P1 | Wire OpenClaw pillar scores into signal_engine | `backend/app/services/signal_engine.py` | NOT STARTED |
 | P1 | Fix LSTM architecture (input_size, normalization) | `backend/app/services/ml_training.py` | NOT STARTED |
 | P1 | Split openclaw_bridge_service into modules | `backend/app/services/openclaw_bridge_*.py` | NOT STARTED |
