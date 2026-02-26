@@ -4,6 +4,46 @@
 
 ---
 
+## FIRST: Download & Install All 3 Libraries
+
+**You MUST run these commands** to download the charting code before anything will work. The libraries are declared in `package.json` but the actual code is NOT in the git repo -- it lives in `node_modules/` which is gitignored.
+
+```bash
+# Step 1: Pull latest code
+git pull origin main
+
+# Step 2: Navigate to the frontend directory
+cd frontend-v2
+
+# Step 3: Install ALL dependencies (downloads all 3 charting libraries + everything else)
+npm install
+
+# This downloads:
+#   lightweight-charts@^4.1.1  -- TradingView financial charts (PRODUCTION)
+#   recharts@^2.10.3           -- Legacy charts (being replaced)
+#   reactflow@^11.10.1         -- Node/flow diagrams (KEEP)
+#   + all other project dependencies
+
+# Step 4: Verify the 3 chart libraries are installed
+npm list lightweight-charts recharts reactflow
+
+# Expected output:
+# ai-trading-dashboard@1.0.0
+# +-- lightweight-charts@4.1.1
+# +-- recharts@2.10.3
+# +-- reactflow@11.10.1
+
+# Step 5: Start dev server to test
+npm run dev
+# Then visit http://localhost:5173
+```
+
+> **If you get errors**: Delete `node_modules/` and `package-lock.json`, then run `npm install` fresh.
+> ```bash
+> rm -rf node_modules package-lock.json
+> npm install
+> ```
+
 ## The 3 Charting Engines in This Project
 
 Our frontend uses **3 charting/visualization libraries**. Here is what each does, where to get it, and what to do with it:
