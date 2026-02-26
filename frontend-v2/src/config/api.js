@@ -85,6 +85,7 @@ export const WS_CHANNELS = {
   signals: "signals",
   trades: "trades",
   logs: "logs",
+  sentiment: "sentiment",
 };
 
 export default API_CONFIG;
