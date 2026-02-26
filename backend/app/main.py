@@ -203,10 +203,10 @@ app.include_router(
     ml_brain.router,
     prefix=f"{settings.API_V1_PREFIX}/ml-brain",
     tags=["ml-brain"],
+    )
 
 # risk_shield_api has its own prefix built into the router
 app.include_router(risk_shield_api.router, tags=["risk-shield"])
-)
 app.include_router(
     market.router,
     prefix=f"{settings.API_V1_PREFIX}/market",
