@@ -21,6 +21,8 @@
 | 3 | Signal Intelligence | `Signals.jsx` | `/signals` | V3 Code DONE |
 | 4 | Sentiment Intelligence | `SentimentIntelligence.jsx` | `/sentiment` | V3 Code DONE + Mockup |
 | 5 | Data Sources Monitor | `DataSourcesMonitor.jsx` | `/data-sources` | V3 Code DONE + Mockup |
+| 3b | Signal Intelligence V2 | `SignalIntelligenceV2.jsx` | `/signal-intelligence-v2` | V3 Code DONE (926 lines) |
+| 3c | Signal Intelligence V3 | `SignalIntelligenceV3.jsx` | `/signal-intelligence-v3` | V3 Code DONE (1107 lines, 10x density synthesis) |
 
 ### ML & ANALYSIS Section
 | # | Page | File | Route | Status |
