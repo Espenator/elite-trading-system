@@ -1,4 +1,4 @@
-> **UPDATED Feb 25, 2026**: This document describes the V2 branch work (pre-consolidation). The frontend has since been consolidated from 18 pages to **14 pages** in V3. 4 pages were merged (OperatorConsole, SignalHeatmap, YouTubeKnowledge, StrategyIntelligence). See `V3-ARCHITECTURE.md` in this same directory for the current authoritative architecture.
+> **UPDATED Feb 26, 2026**: This document describes the V2 branch work (pre-consolidation). The frontend has since been consolidated from 18 pages to **15 pages** in V3 (14 from consolidation + MLBrainFlywheel added). 4 pages were merged (OperatorConsole, SignalHeatmap, YouTubeKnowledge, StrategyIntelligence). All 15 pages now have V3 UI code. See `V3-ARCHITECTURE.md` in this same directory for the current authoritative architecture.
 
 ---
 
