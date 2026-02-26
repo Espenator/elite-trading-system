@@ -1,5 +1,3 @@
-"use client";
-
 import React, { useState, useEffect, useRef } from "react";
 import { createChart, ColorType } from "lightweight-charts";
 import {
@@ -10,8 +8,11 @@ import {
   BarChart2,
   CheckCircle,
   AlertOctagon,
+  RefreshCw,
 } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
+import { useApi } from "../hooks/useApi";
+import { getApiUrl } from "../config/api";
 
 // --- Lightweight Chart Component for VIX/RSI ---
 const VixRegimeChart = ({ data }) => {
@@ -30,47 +31,29 @@ const VixRegimeChart = ({ data }) => {
         textColor: "#94a3b8",
       },
       grid: {
-        vertLines: { color: "rgba(51, 65, 85, 0.3)" },
-        horzLines: { color: "rgba(51, 65, 85, 0.3)" },
+        vertLines: { color: "#1e293b", style: 3 },
+        horzLines: { color: "#1e293b", style: 3 },
       },
-      width: chartContainerRef.current.clientWidth,
-      height: 350,
-      timeScale: {
-        timeVisible: true,
-        secondsVisible: false,
-      },
+      rightPriceScale: { borderColor: "#334155" },
+      timeScale: { borderColor: "#334155", timeVisible: true },
     });
 
     const vixSeries = chart.addLineSeries({
       color: "#ef4444",
       lineWidth: 2,
-      title: "VIX Level",
+      title: "VIX",
     });
 
-    vixSeries.setData(data.vix);
+    if (data?.vix?.length) {
+      vixSeries.setData(
+        data.vix.map((d) => ({
+          time: Math.floor(new Date(d.time).getTime() / 1000),
+          value: d.value,
+        }))
+      );
+    }
 
-    // Add Regime Threshold Lines
-    vixSeries.createPriceLine({
-      price: 30,
-      color: "#ef4444",
-      lineWidth: 2,
-      lineStyle: 2,
-      axisLabelVisible: true,
-      title: "RED ZONE (>30)",
-    });
-
-    vixSeries.createPriceLine({
-      price: 20,
-      color: "#eab308",
-      lineWidth: 2,
-      lineStyle: 2,
-      axisLabelVisible: true,
-      title: "YELLOW ZONE (>20)",
-    });
-
-    chart.timeScale().fitContent();
     window.addEventListener("resize", handleResize);
-
     return () => {
       window.removeEventListener("resize", handleResize);
       chart.remove();
@@ -80,261 +63,155 @@ const VixRegimeChart = ({ data }) => {
   return <div ref={chartContainerRef} className="w-full h-full" />;
 };
 
-// --- Main Dashboard Component ---
+// --- Main Component ---
 export default function MarketRegime() {
-  const [lastUpdate, setLastUpdate] = useState(new Date());
-  const [regimeState, setRegimeState] = useState({
-    status: "YELLOW",
-    vix: 24.5,
-    vixRsi: 48,
-    breadth: 0.42,
-    hySpread: 450,
-  });
+  // Real API hooks
+  const { data: regimeData, loading, error, refetch } = useApi("openclaw", { pollIntervalMs: 10000 });
+  const { data: marketData } = useApi("market", { pollIntervalMs: 5000 });
 
-  // Mocked VIX data for the chart initialization
-  const mockVixData = {
-    vix: Array.from({ length: 100 }, (_, i) => ({
-      time: new Date(Date.now() - (100 - i) * 86400000)
-        .toISOString()
-        .split("T")[0],
-      value: 15 + Math.sin(i * 0.1) * 10 + Math.random() * 5,
-    })),
+  const regime = regimeData?.regime || {};
+  const regimeState = regime.state || "UNKNOWN";
+  const regimeConf = regime.conf || 0;
+
+  const stateColor = (state) => {
+    if (state?.includes("BULL")) return "emerald";
+    if (state?.includes("BEAR")) return "red";
+    return "amber";
   };
 
+  const color = stateColor(regimeState);
+
+  const metrics = [
+    {
+      title: "HMM Regime State",
+      value: regimeState,
+      icon: ShieldAlert,
+      color: `text-${color}-400`,
+      bg: `bg-${color}-500/15`,
+      sub: `Confidence: ${regimeConf}%`,
+    },
+    {
+      title: "VIX Level",
+      value: marketData?.vix?.toFixed(1) || "—",
+      icon: Activity,
+      color: "text-amber-400",
+      bg: "bg-amber-500/15",
+      sub: marketData?.vix > 20 ? "Elevated" : "Normal",
+    },
+    {
+      title: "Hurst Exponent",
+      value: regime.hurst?.toFixed(2) || "—",
+      icon: BarChart2,
+      color: "text-cyan-400",
+      bg: "bg-cyan-500/15",
+      sub: regime.hurst > 0.5 ? "Trending" : "Mean-reverting",
+    },
+    {
+      title: "HY Spread",
+      value: regime.hySpread ? `${regime.hySpread}bps` : "—",
+      icon: AlertTriangle,
+      color: "text-purple-400",
+      bg: "bg-purple-500/15",
+      sub: regime.hySpread > 400 ? "Stress" : "Normal",
+    },
+  ];
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-500">
       <PageHeader
-        icon={Activity}
-        title="Market Regime Intelligence"
-        description="Automated classification for System 1-5 allocation."
+        icon={ShieldAlert}
+        title="Market Regime"
+        description="Hidden Markov Model regime detection and macro context"
       >
-        <div className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg">
-          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-          <span className="text-sm font-semibold text-white">
-            LIVE: Monitoring Flow
-          </span>
-        </div>
+        <button
+          onClick={refetch}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-500/15 border border-cyan-500/50 rounded text-cyan-400 text-xs font-bold hover:bg-cyan-500/25 transition-colors"
+        >
+          <RefreshCw className="w-3.5 h-3.5" /> Refresh
+        </button>
       </PageHeader>
 
-      {/* KPI Metrics Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {/* Regime Status Card */}
-        <div
-          className={`p-6 rounded-xl border backdrop-blur-sm shadow-xl transition-all ${
-            regimeState.status === "GREEN"
-              ? "bg-green-900/20 border-green-500/50 shadow-green-500/10"
-              : regimeState.status === "YELLOW"
-                ? "bg-yellow-900/20 border-yellow-500/50 shadow-yellow-500/10"
-                : "bg-red-900/20 border-red-500/50 shadow-red-500/10"
-          }`}
-        >
-          <div className="flex justify-between items-start mb-4">
-            <p className="text-sm text-slate-400 font-semibold">
-              CURRENT REGIME
-            </p>
-            <ShieldAlert
-              className={`w-5 h-5 ${regimeState.status === "YELLOW" ? "text-yellow-500" : "text-slate-400"}`}
-            />
-          </div>
-          <h2
-            className={`text-3xl font-bold mb-2 ${
-              regimeState.status === "YELLOW" ? "text-yellow-500" : "text-white"
-            }`}
-          >
-            {regimeState.status}
-          </h2>
-          <p className="text-xs text-slate-400">40% Momentum / 60% Reversion</p>
+      {/* Regime Banner */}
+      <div className={`flex items-center justify-between px-6 py-4 bg-${color}-500/10 border border-${color}-500/30 rounded-lg`}>
+        <div className="flex items-center gap-4">
+          <span className={`w-3 h-3 rounded-full bg-${color}-500 shadow-[0_0_12px] shadow-${color}-500/50 animate-pulse`} />
+          <span className={`text-lg font-bold text-${color}-400 tracking-wider`}>
+            {regimeState} REGIME
+          </span>
         </div>
-
-        {/* VIX Level Card */}
-        <div className="bg-slate-800/50 border border-slate-700/50 p-6 rounded-xl backdrop-blur-sm hover:border-slate-600/50 transition-all">
-          <div className="flex justify-between items-start mb-4">
-            <p className="text-sm text-slate-400 font-semibold">CBOE VIX</p>
-            <TrendingUp className="w-5 h-5 text-slate-400" />
+        <div className="flex items-center gap-6">
+          <div className="text-right">
+            <div className="text-xs text-slate-500">HMM Confidence</div>
+            <div className={`text-xl font-bold text-${color}-400`}>{regimeConf}%</div>
           </div>
-          <h2 className="text-3xl font-bold text-white mb-2">
-            {regimeState.vix.toFixed(2)}
-          </h2>
-          <p className="text-xs text-yellow-400">Elevated Volatility</p>
-        </div>
-
-        {/* HY Spread Card */}
-        <div className="bg-slate-800/50 border border-slate-700/50 p-6 rounded-xl backdrop-blur-sm hover:border-slate-600/50 transition-all">
-          <div className="flex justify-between items-start mb-4">
-            <p className="text-sm text-slate-400 font-semibold">
-              HY SPREAD (HYG-IEF)
-            </p>
-            <AlertTriangle className="w-5 h-5 text-slate-400" />
-          </div>
-          <h2 className="text-3xl font-bold text-white mb-2">
-            {regimeState.hySpread} bps
-          </h2>
-          <p className="text-xs text-slate-400">Normal (Limit: 700 bps)</p>
-        </div>
-
-        {/* Market Breadth */}
-        <div className="bg-slate-800/50 border border-slate-700/50 p-6 rounded-xl backdrop-blur-sm hover:border-slate-600/50 transition-all">
-          <div className="flex justify-between items-start mb-4">
-            <p className="text-sm text-slate-400 font-semibold">
-              BREADTH (Adv/Dec)
-            </p>
-            <BarChart2 className="w-5 h-5 text-slate-400" />
-          </div>
-          <h2 className="text-3xl font-bold text-white mb-2">
-            {regimeState.breadth.toFixed(2)}
-          </h2>
-          <p className="text-xs text-slate-400">Weakness Detected</p>
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        {/* VIX Lightweight Chart */}
-        <div className="lg:col-span-2 bg-slate-800/50 border border-slate-700/50 rounded-xl p-6 backdrop-blur-sm">
-          <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-            <Activity className="w-5 h-5" />
-            VIX vs Regime Thresholds
-          </h3>
-          <div className="h-[350px] w-full">
-            <VixRegimeChart data={mockVixData} />
-          </div>
+      {/* Loading / Error */}
+      {loading && !regimeData && (
+        <div className="text-center py-8 text-cyan-500 animate-pulse">Loading regime data...</div>
+      )}
+      {error && (
+        <div className="bg-red-500/15 border border-red-500/50 text-red-400 p-4 rounded-lg text-sm">
+          API Error: {error.message}
         </div>
+      )}
 
-        {/* Action Plan & Crash Protocol */}
-        <div className="space-y-6">
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6 backdrop-blur-sm">
-            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-              <CheckCircle className="w-5 h-5 text-blue-400" />
-              Today's Action Plan
-            </h3>
-            <ul className="space-y-3">
-              <li className="flex justify-between items-center text-sm border-b border-slate-700/50 pb-2">
-                <span className="text-slate-400">Risk Per Trade</span>
-                <span className="font-bold text-white">1.5%</span>
-              </li>
-              <li className="flex justify-between items-center text-sm border-b border-slate-700/50 pb-2">
-                <span className="text-slate-400">Max Positions</span>
-                <span className="font-bold text-white">5</span>
-              </li>
-              <li className="flex justify-between items-center text-sm border-b border-slate-700/50 pb-2">
-                <span className="text-slate-400">Active Systems</span>
-                <span className="font-bold text-white">All 5 Systems</span>
-              </li>
-              <li className="flex justify-between items-center text-sm pt-1">
-                <span className="text-slate-400">Strategy Mix</span>
-                <span className="font-bold text-yellow-400">
-                  40% Mom / 60% Rev
-                </span>
-              </li>
-            </ul>
-          </div>
-
-          {/* Crash Protocol Widget */}
-          <div className="bg-red-950/30 border border-red-900/50 rounded-xl p-6 backdrop-blur-sm">
-            <h3 className="text-lg font-bold text-red-400 mb-4 flex items-center gap-2">
-              <AlertOctagon className="w-5 h-5" />
-              Crash Protocol Watch
-            </h3>
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-slate-400">
-                    HY Spread Limit (700bps)
-                  </span>
-                  <span className="text-white">450 / 700</span>
-                </div>
-                <div className="w-full bg-slate-900 rounded-full h-2">
-                  <div
-                    className="bg-green-500 h-2 rounded-full"
-                    style={{ width: "64%" }}
-                  ></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-slate-400">VIX Daily Limit (40.0)</span>
-                  <span className="text-white">24.5 / 40.0</span>
-                </div>
-                <div className="w-full bg-slate-900 rounded-full h-2">
-                  <div
-                    className="bg-yellow-500 h-2 rounded-full"
-                    style={{ width: "61%" }}
-                  ></div>
-                </div>
-              </div>
+      {/* Metrics Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {metrics.map((m, i) => (
+          <div key={i} className="bg-slate-800/40 border border-slate-700/50 rounded-lg p-4">
+            <div className="flex justify-between items-start mb-2">
+              <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">{m.title}</span>
+              <m.icon className={`w-4 h-4 ${m.color}`} />
             </div>
+            <div className="flex items-end gap-2">
+              <span className="text-2xl font-bold text-white">{m.value}</span>
+            </div>
+            <p className={`text-xs ${m.color} mt-1`}>{m.sub}</p>
           </div>
+        ))}
+      </div>
+
+      {/* VIX Chart */}
+      <div className="bg-slate-800/40 border border-slate-700/50 rounded-lg flex flex-col h-[400px]">
+        <div className="px-4 py-3 border-b border-slate-700/50 bg-slate-900/40">
+          <h3 className="text-white text-sm font-bold uppercase tracking-wider flex items-center gap-2">
+            <Activity className="w-4 h-4 text-red-400" /> VIX Regime Chart
+          </h3>
+        </div>
+        <div className="flex-1 p-2">
+          <VixRegimeChart data={marketData} />
         </div>
       </div>
 
-      {/* Rules Matrix Table */}
-      <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl overflow-hidden backdrop-blur-sm">
-        <div className="p-4 border-b border-slate-700/50 bg-slate-900/30">
-          <h3 className="text-lg font-bold text-white">
-            Regime Decision Matrix
-          </h3>
+      {/* Regime Transitions Table */}
+      <div className="bg-slate-800/40 border border-slate-700/50 rounded-lg">
+        <div className="px-4 py-3 border-b border-slate-700/50 bg-slate-900/40">
+          <h3 className="text-white text-sm font-bold uppercase tracking-wider">Regime Transition History</h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="text-xs text-slate-400 bg-slate-900/50 uppercase">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-slate-900/80">
               <tr>
-                <th className="px-6 py-4">Regime</th>
-                <th className="px-6 py-4">VIX Level</th>
-                <th className="px-6 py-4">Strategy Mix</th>
-                <th className="px-6 py-4">Risk / Trade</th>
-                <th className="px-6 py-4">Max Pos</th>
-                <th className="px-6 py-4">Active Systems</th>
+                {["Timestamp", "From", "To", "Confidence", "Trigger"].map((h) => (
+                  <th key={h} className="px-4 py-3 text-slate-400 text-xs font-bold uppercase tracking-wider border-b border-slate-700/50">{h}</th>
+                ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-700/50">
-              <tr className="hover:bg-slate-700/20 transition-colors">
-                <td className="px-6 py-4 font-bold text-green-400">GREEN</td>
-                <td className="px-6 py-4 text-slate-300">&lt; 20.0</td>
-                <td className="px-6 py-4 text-slate-300">
-                  70% Momentum / 30% Reversion
-                </td>
-                <td className="px-6 py-4 text-slate-300">2.0%</td>
-                <td className="px-6 py-4 text-slate-300">6</td>
-                <td className="px-6 py-4 text-slate-300">All 5 Systems</td>
-              </tr>
-              <tr className="bg-yellow-900/10 hover:bg-slate-700/20 transition-colors">
-                <td className="px-6 py-4 font-bold text-yellow-400">
-                  YELLOW (Active)
-                </td>
-                <td className="px-6 py-4 text-slate-300">20.0 - 30.0</td>
-                <td className="px-6 py-4 text-slate-300">
-                  40% Momentum / 60% Reversion
-                </td>
-                <td className="px-6 py-4 text-slate-300">1.5%</td>
-                <td className="px-6 py-4 text-slate-300">5</td>
-                <td className="px-6 py-4 text-slate-300">All 5 Systems</td>
-              </tr>
-              <tr className="hover:bg-slate-700/20 transition-colors">
-                <td className="px-6 py-4 font-bold text-red-500">RED</td>
-                <td className="px-6 py-4 text-slate-300">
-                  &gt; 30.0 (RSI &lt; 40)
-                </td>
-                <td className="px-6 py-4 text-slate-300">
-                  0% Momentum / 0% Reversion
-                </td>
-                <td className="px-6 py-4 text-slate-300">0.0%</td>
-                <td className="px-6 py-4 text-slate-300">0</td>
-                <td className="px-6 py-4 text-slate-300">CASH ONLY</td>
-              </tr>
-              <tr className="hover:bg-slate-700/20 transition-colors">
-                <td className="px-6 py-4 font-bold text-orange-400">
-                  RED RECOVERY
-                </td>
-                <td className="px-6 py-4 text-slate-300">
-                  &gt; 30.0 (RSI &gt; 40)
-                </td>
-                <td className="px-6 py-4 text-slate-300">
-                  0% Momentum / 100% Reversion
-                </td>
-                <td className="px-6 py-4 text-slate-300">1.0%</td>
-                <td className="px-6 py-4 text-slate-300">4</td>
-                <td className="px-6 py-4 text-slate-300">System 5 ONLY</td>
-              </tr>
+            <tbody className="divide-y divide-slate-800/50">
+              {(regime.transitions || []).map((t, i) => (
+                <tr key={i} className="hover:bg-slate-700/30">
+                  <td className="px-4 py-3 text-slate-500 text-xs">{t.timestamp ? new Date(t.timestamp).toLocaleString() : "—"}</td>
+                  <td className="px-4 py-3"><span className={`px-2 py-1 rounded text-xs font-bold bg-${stateColor(t.from)}-500/15 text-${stateColor(t.from)}-400`}>{t.from}</span></td>
+                  <td className="px-4 py-3"><span className={`px-2 py-1 rounded text-xs font-bold bg-${stateColor(t.to)}-500/15 text-${stateColor(t.to)}-400`}>{t.to}</span></td>
+                  <td className="px-4 py-3 text-white font-bold">{t.confidence}%</td>
+                  <td className="px-4 py-3 text-slate-400 text-xs">{t.trigger || "—"}</td>
+                </tr>
+              ))}
+              {(!regime.transitions || regime.transitions.length === 0) && (
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-500">No transitions recorded yet.</td></tr>
+              )}
             </tbody>
           </table>
         </div>
