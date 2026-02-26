@@ -161,7 +161,6 @@ frontend-v2/                # React + Vite V3 frontend
     pages/                  # 15 V3 page components
     services/               # API service layer
     V3-ARCHITECTURE.md      # Authoritative architecture doc
-frontend/                   # Legacy frontend (deprecated)
 docs/
   mockups-v3/               # V3 UI mockup specifications
     FULL-MOCKUP-SPEC.md
