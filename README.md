@@ -2,17 +2,17 @@
 
 **Full-Stack AI Trading Platform -- UI/UX, Database, and GPU Training Pipeline**
 
-React + FastAPI full-stack trading application with 14-page V3 widescreen dashboard, SQLite database, Alpaca + Finviz integrations, LSTM model training, XGBoost GPU ensemble, and real-time order execution. Serves as the user-facing control center for the Embodier.ai trading ecosystem.
+React + FastAPI full-stack trading application with 15-page V3 widescreen dashboard, SQLite database, Alpaca + Finviz integrations, LSTM model training, XGBoost GPU ensemble, and real-time order execution. Serves as the user-facing control center for the Embodier.ai trading ecosystem.
 
 > **Part of the Embodier.ai Elite Trading ecosystem.** This repo (PC2) provides the full-stack UI/UX, database, and GPU training pipeline. [OpenClaw](https://github.com/Espenator/openclaw) (PC1) is the 42-agent intelligence engine with Blackboard Swarm architecture.
 
 ---
 
-## Project Status (Audit: Feb 25, 2026)
+## Project Status (Audit: Feb 26, 2026)
 
 | Component | Status | Notes |
 |---|---|---|
-| React Frontend-v2 (14 pages) | 10/14 V3 Complete | V3 widescreen glass-box design, 4 pages need V3 update |
+| React Frontend-v2 (15 pages) | 15/15 V3 Coded | 11 complete with LW Charts, 4 coded with Recharts (need LW Charts migration) |
 | FastAPI Backend | Complete | REST API with versioned endpoints (`/api/v1/`) |
 | SQLite Database | Complete | Orders, trades, signals, positions via `database.py` |
 | Alpaca Integration | Complete | `alpaca_service.py` -- live/paper trading + market data |
@@ -31,7 +31,9 @@ React + FastAPI full-stack trading application with 14-page V3 widescreen dashbo
 - [x] **Implement backtest strategy runner** -- `backtest_engine.py` with Sharpe/PnL/MaxDD + REST endpoints (DONE)
 - [x] **LSTM training pipeline backend** -- `ml_training.py` connected to GPU training with model versioning (DONE)
 - [x] **APEX Phase 2 GPU pipeline** -- Trainer AMP, XGBoost GPU, config, /gpu endpoint (DONE)
-- [ ] **Complete 4 remaining V3 UI pages** -- SentimentIntelligence, DataSourcesMonitor, Patterns, Settings
+- [x] **V3 UI code for all 15 pages** -- All pages now have V3 widescreen layout code (DONE)
+- [ ] **Migrate 4 Recharts pages to LW Charts** -- SentimentIntelligence, DataSourcesMonitor, Patterns, Settings
+- [ ] **Wire real API data** -- Replace simulated/mock data with live backend endpoints
 - [ ] **Add WebSocket support** -- Push real-time signals, position updates, and streaming engine events to frontend
 - [ ] **Build notification service** -- In-app notification bell + toast alerts to replace Slack dependency
 - [ ] **Add trade journal tables** -- Migrate OpenClaw `sheets_logger.py` data to `database.py`
@@ -57,7 +59,7 @@ A 3-model AI council (GPT-5.2, Claude Opus 4.6, Gemini 3.1 Pro) reviewed the ful
 ### Code Improvement Roadmap (Feb 26, 2026)
 
 | Priority | Task | File(s) | Status |
-|----------|------|---------|--------|
+|---|---|---|---|
 | P0 | Add test suite | `backend/tests/` | NOT STARTED |
 | P0 | Fix database.py (WAL, pooling, indexes) | `backend/app/services/database.py` | DONE |
 | P0 | Delete mockData.js | `frontend-v2/src/data/mockData.js` | DONE |
@@ -70,11 +72,9 @@ A 3-model AI council (GPT-5.2, Claude Opus 4.6, Gemini 3.1 Pro) reviewed the ful
 | P2 | Wire swarm tournament from apex_orchestrator | `backend/app/services/swarm_manager.py` | NOT STARTED |
 | P3 | Add schema migration tracking | `backend/app/services/database.py` | NOT STARTED |
 
----
+## V3 Frontend Architecture (15 Pages)
 
-## V3 Frontend Architecture (14 Pages)
-
-Consolidated from 18 pages down to 14 for cleaner UX. See `frontend-v2/src/V3-ARCHITECTURE.md` for full details.
+Consolidated from 18 pages down to 15 for cleaner UX. See `frontend-v2/src/V3-ARCHITECTURE.md` for full details.
 
 ### COMMAND (2 pages)
 
@@ -88,15 +88,16 @@ Consolidated from 18 pages down to 14 for cleaner UX. See `frontend-v2/src/V3-AR
 | Page | File | Route | Status |
 |---|---|---|---|
 | Signal Intelligence | `Signals.jsx` | `/signals` | V3 COMPLETE |
-| Sentiment Intelligence | `SentimentIntelligence.jsx` | `/sentiment` | NEEDS V3 UPDATE |
-| Data Sources Monitor | `DataSourcesMonitor.jsx` | `/data-sources` | NEEDS V3 UPDATE |
+| Sentiment Intelligence | `SentimentIntelligence.jsx` | `/sentiment` | V3 CODED - NEEDS LW CHARTS |
+| Data Sources Monitor | `DataSourcesMonitor.jsx` | `/data-sources` | V3 CODED - NEEDS LW CHARTS |
 
-### ML & ANALYSIS (5 pages)
+### ML & ANALYSIS (6 pages)
 
 | Page | File | Route | Status |
 |---|---|---|---|
-| ML Brain & Flywheel | `MLInsights.jsx` | `/ml-insights` | V3 COMPLETE |
-| Screener & Patterns | `Patterns.jsx` | `/patterns` | NEEDS V3 UPDATE |
+| ML Insights | `MLInsights.jsx` | `/ml-insights` | V3 COMPLETE |
+| ML Brain & Flywheel | `MLBrainFlywheel.jsx` | `/ml-brain` | V3 COMPLETE |
+| Screener & Patterns | `Patterns.jsx` | `/patterns` | V3 CODED - NEEDS LW CHARTS |
 | Backtesting Lab | `Backtesting.jsx` | `/backtest` | V3 COMPLETE |
 | Performance Analytics | `PerformanceAnalytics.jsx` | `/performance` | V3 COMPLETE |
 | Market Regime | `MarketRegime.jsx` | `/market-regime` | V3 COMPLETE |
@@ -113,65 +114,58 @@ Consolidated from 18 pages down to 14 for cleaner UX. See `frontend-v2/src/V3-AR
 
 | Page | File | Route | Status |
 |---|---|---|---|
-| Settings | `Settings.jsx` | `/settings` | NEEDS V3 UPDATE |
-
----
+| Settings | `Settings.jsx` | `/settings` | V3 CODED - NEEDS LW CHARTS |
 
 ## Architecture Overview
 
 ```
 Elite Trading System (PC2)
-  backend/                    # FastAPI Python backend
-    app/
-      api/v1/                 # REST API endpoints
-        backtest_routes.py
-        openclaw.py           # OpenClaw bridge router
-        orders.py             # Alpaca order management
-        quotes.py             # Price/chart data
-        signals.py            # Trading signals CRUD
-        status.py             # System health
-        stocks.py             # Finviz screener
-        system.py             # System config + /gpu endpoint
-        training.py           # ML model training
-      core/                   # App config (GPU_DEVICE, AMP, XGBoost)
-      models/                 # SQLAlchemy ORM + LSTM trainer (AMP)
-        trainer.py            # APEX Phase 2: mixed-precision LSTM
-        inference.py
-      modules/
-        ml_engine/
-          xgboost_trainer.py  # APEX Phase 2: GPU XGBoost
-      schemas/                # Pydantic request/response schemas
-      services/               # External service integrations
-        alpaca_service.py
-        backtest_engine.py    # Historical signal backtester
-        database.py           # SQLite database layer
-        finviz_service.py
-        ml_training.py        # PyTorch GPU/CPU LSTM service
-        openclaw_db.py        # OpenClaw bridge SQLite service
-      strategy/               # Trading strategy logic
-      main.py                 # FastAPI app entry point
-    jobs/                     # Scheduled/background jobs
-    tools/                    # CLI utilities
-
-  frontend-v2/                # React + Vite V3 frontend
-    src/
-      components/             # Reusable UI components
-      config/                 # API URLs, constants
-      data/                   # Static data, enums
-      hooks/                  # useApi, useWebSocket, custom hooks
-      lib/                    # Utility functions
-      pages/                  # 14 V3 page components
-      services/               # API service layer
-      V3-ARCHITECTURE.md      # Authoritative architecture doc
-
-  frontend/                   # Legacy frontend (deprecated)
-
-  docs/
-    mockups-v3/               # V3 UI mockup specifications
-      FULL-MOCKUP-SPEC.md
+backend/                    # FastAPI Python backend
+  app/
+    api/v1/                 # REST API endpoints
+      backtest_routes.py
+      openclaw.py           # OpenClaw bridge router
+      orders.py             # Alpaca order management
+      quotes.py             # Price/chart data
+      signals.py            # Trading signals CRUD
+      status.py             # System health
+      stocks.py             # Finviz screener
+      system.py             # System config + /gpu endpoint
+      training.py           # ML model training
+    core/                   # App config (GPU_DEVICE, AMP, XGBoost)
+    models/                 # SQLAlchemy ORM + LSTM trainer (AMP)
+      trainer.py            # APEX Phase 2: mixed-precision LSTM
+      inference.py
+    modules/
+      ml_engine/
+        xgboost_trainer.py  # APEX Phase 2: GPU XGBoost
+    schemas/                # Pydantic request/response schemas
+    services/               # External service integrations
+      alpaca_service.py
+      backtest_engine.py    # Historical signal backtester
+      database.py           # SQLite database layer
+      finviz_service.py
+      ml_training.py        # PyTorch GPU/CPU LSTM service
+      openclaw_db.py        # OpenClaw bridge SQLite service
+    strategy/               # Trading strategy logic
+  main.py                   # FastAPI app entry point
+  jobs/                     # Scheduled/background jobs
+  tools/                    # CLI utilities
+frontend-v2/                # React + Vite V3 frontend
+  src/
+    components/             # Reusable UI components
+    config/                 # API URLs, constants
+    data/                   # Static data, enums
+    hooks/                  # useApi, useWebSocket, custom hooks
+    lib/                    # Utility functions
+    pages/                  # 15 V3 page components
+    services/               # API service layer
+    V3-ARCHITECTURE.md      # Authoritative architecture doc
+frontend/                   # Legacy frontend (deprecated)
+docs/
+  mockups-v3/               # V3 UI mockup specifications
+    FULL-MOCKUP-SPEC.md
 ```
-
----
 
 ## API Endpoints
 
@@ -189,8 +183,6 @@ All backend routes are versioned under `/api/v1/`:
 | `backtest_routes.py` | POST `/api/v1/backtest` | Strategy backtesting |
 | `openclaw.py` | POST/GET `/api/v1/openclaw/*` | OpenClaw bridge (signals, ingests, backtest) |
 
----
-
 ## Integration with OpenClaw
 
 This repo (PC2) is the **full-stack UI/UX application**. [OpenClaw](https://github.com/Espenator/openclaw) (PC1) is the **intelligence engine** with:
@@ -206,20 +198,18 @@ This repo (PC2) is the **full-stack UI/UX application**. [OpenClaw](https://gith
 ```
 PC1 (OpenClaw)               PC2 (Elite Trading System)
 +------------------+         +----------------------------+
-| Blackboard Swarm |         | FastAPI Backend            |
+| Blackboard Swarm |         |    FastAPI Backend          |
 | 42+ Python Agents|-- API ->| /api/v1/openclaw/signals   |
 | Streaming Engine |         | /api/v1/openclaw/ingests   |
 | Risk Governor    |         | /api/v1/openclaw/backtest  |
 |                  |         | SQLite (openclaw_db.py)    |
 | lstm_bridge      |-- GPU ->| LSTM Trainer (AMP)         |
-| service.py       | models  | XGBoost Trainer (GPU)      |
+|   service.py     | models  | XGBoost Trainer (GPU)      |
 +------------------+         |                            |
-                             | React Frontend-v2          |
-                             | 14 Pages V3 Widescreen     |
+                             |    React Frontend-v2       |
+                             |    15 Pages V3 Widescreen  |
                              +----------------------------+
 ```
-
----
 
 ## Migration Plan: Receiving OpenClaw Data
 
@@ -236,8 +226,6 @@ OpenClaw currently logs to Google Sheets (deprecated) and Slack (optional). This
 | Slack score alerts | `Signals.jsx` | Page Ready |
 | Slack trade notifications | `TradeExecution.jsx` | Page Ready |
 | Slack performance reports | `PerformanceAnalytics.jsx` | Page Ready |
-
----
 
 ## Quick Start
 
@@ -283,8 +271,8 @@ See `backend/.env.example` for all available environment variables.
 
 | File | Description |
 |---|---|
-| `frontend-v2/src/V3-ARCHITECTURE.md` | **AUTHORITATIVE** V3 14-page architecture |
-| `docs/mockups-v3/FULL-MOCKUP-SPEC.md` | Full mockup specifications for all pages |
+| `frontend-v2/src/V3-ARCHITECTURE.md` | **AUTHORITATIVE** V3 15-page architecture |
+| `frontend-v2/public/assets/mockups/` | Approved mockup designs |
 | `OLEH-CONTINUATION-GUIDE.md` | Developer continuation guide with priorities |
 | `OLEH-HANDOFF.md` | Original handoff with backend wiring details |
 
