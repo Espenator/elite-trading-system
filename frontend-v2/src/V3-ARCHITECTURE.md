@@ -1,12 +1,15 @@
 # V3 Architecture - Embodier.ai Trading Intelligence System
 
 ## Overview
-Consolidated from 18 pages down to **14 pages** for cleaner UX and maintainability.
+Consolidated from 18 pages down to **15 pages** for cleaner UX and maintainability.
 All pages use V3 widescreen layout with lightweight-charts and real API integration.
+
+> **Current Status**: All 15 pages have V3 UI code written. Pages use Recharts for charting.
+> **Next Step**: Migrate remaining Recharts pages to lightweight-charts (LW Charts) for production.
 
 ---
 
-## Final 14-Page Architecture
+## Final 15-Page Architecture
 
 ### COMMAND (2 pages)
 | Page | File | Route | Status | Notes |
@@ -18,14 +21,15 @@ All pages use V3 widescreen layout with lightweight-charts and real API integrat
 | Page | File | Route | Status | Notes |
 |------|------|-------|--------|-------|
 | Signal Intelligence | `Signals.jsx` | `/signals` | V3 COMPLETE | Velez SLAM DUNK scanner, momentum breakout, heatmap tab included |
-| Sentiment Intelligence | `SentimentIntelligence.jsx` | `/sentiment` | NEEDS V3 UPDATE | YouTube Knowledge merged as tab. Needs widescreen + LW charts |
-| Data Sources Monitor | `DataSourcesMonitor.jsx` | `/data-sources` | NEEDS V3 UPDATE | API health dashboard. Needs widescreen layout |
+| Sentiment Intelligence | `SentimentIntelligence.jsx` | `/sentiment` | V3 CODED - NEEDS LW CHARTS | YouTube Knowledge merged as tab. V3 layout done with Recharts, needs LW Charts migration |
+| Data Sources Monitor | `DataSourcesMonitor.jsx` | `/data-sources` | V3 CODED - NEEDS LW CHARTS | API health dashboard. V3 layout done with Recharts, needs LW Charts migration |
 
-### ML & ANALYSIS (5 pages)
+### ML & ANALYSIS (6 pages)
 | Page | File | Route | Status | Notes |
 |------|------|-------|--------|-------|
-| ML Brain & Flywheel | `MLInsights.jsx` | `/ml-insights` | V3 COMPLETE | ML model performance, flywheel metrics |
-| Screener & Patterns | `Patterns.jsx` | `/patterns` | NEEDS V3 UPDATE | Finviz/Alpaca screener. Needs widescreen layout |
+| ML Insights | `MLInsights.jsx` | `/ml-insights` | V3 COMPLETE | ML model performance, flywheel metrics |
+| ML Brain & Flywheel | `MLBrainFlywheel.jsx` | `/ml-brain` | V3 COMPLETE | Brain visualization, flywheel cycle metrics, added as 15th page |
+| Screener & Patterns | `Patterns.jsx` | `/patterns` | V3 CODED - NEEDS LW CHARTS | Finviz/Alpaca screener. V3 layout done with Recharts, needs LW Charts migration |
 | Backtesting Lab | `Backtesting.jsx` | `/backtest` | V3 COMPLETE | Full backtest with LW Charts, strategy controls merged in |
 | Performance Analytics | `PerformanceAnalytics.jsx` | `/performance` | V3 COMPLETE | Real API data, equity curves, trade analysis |
 | Market Regime | `MarketRegime.jsx` | `/market-regime` | V3 COMPLETE | VIX regime classification with LW Charts |
@@ -40,93 +44,29 @@ All pages use V3 widescreen layout with lightweight-charts and real API integrat
 ### SYSTEM (1 page)
 | Page | File | Route | Status | Notes |
 |------|------|-------|--------|-------|
-| Settings | `Settings.jsx` | `/settings` | NEEDS V3 UPDATE | User preferences, API keys, notifications |
+| Settings | `Settings.jsx` | `/settings` | V3 CODED - NEEDS LW CHARTS | User preferences, API keys, notifications. V3 layout done with Recharts |
 
 ---
 
 ## V3 Completion Status
-
-- **V3 COMPLETE: 10 pages** - Dashboard, AgentCommandCenter, Signals, MLInsights, Backtesting, PerformanceAnalytics, MarketRegime, Trades, RiskIntelligence, TradeExecution
-- **NEEDS V3 UPDATE: 4 pages** - SentimentIntelligence, DataSourcesMonitor, Patterns, Settings
-
----
-
-## Deleted Pages (V3 Consolidation)
-
-These pages were removed and their functionality merged into remaining pages:
-
-| Deleted File | Merged Into | Reason |
-|-------------|-------------|--------|
-| `OperatorConsole.jsx` | `AgentCommandCenter.jsx` | Redundant operator view - agent controls consolidated |
-| `SignalHeatmap.jsx` | `Signals.jsx` | Heatmap added as tab within Signal Intelligence |
-| `YouTubeKnowledge.jsx` | `SentimentIntelligence.jsx` | YouTube analysis merged as tab in Sentiment page |
-| `StrategyIntelligence.jsx` | `Backtesting.jsx` | Strategy controls merged into Backtesting Lab |
-
-Legacy routes (`/operator`, `/signal-heatmap`, `/youtube`, `/strategy`) redirect to their new homes.
+- **V3 COMPLETE (LW Charts): 11 pages** - Dashboard, AgentCommandCenter, Signals, MLInsights, MLBrainFlywheel, Backtesting, PerformanceAnalytics, MarketRegime, Trades, RiskIntelligence, TradeExecution
+- **V3 CODED (Recharts, needs LW Charts migration): 4 pages** - SentimentIntelligence, DataSourcesMonitor, Patterns, Settings
+- **TOTAL: 15/15 pages have V3 UI code**
 
 ---
 
-## OLEH: Remaining Work to Complete V3
-
-### Priority 1: SentimentIntelligence.jsx (HIGH)
-- Convert to V3 widescreen layout (no max-width container)
-- Add lightweight-charts for sentiment trend visualization
-- Add YouTube Knowledge as a tab (was separate page)
-- Wire to real `/api/sentiment` endpoint
-- Add Unusual Whales options flow data tab
-
-### Priority 2: Patterns.jsx (HIGH) 
-- Convert to V3 widescreen layout
-- Wire Finviz screener to real `/api/finviz/screener` endpoint
-- Wire Alpaca asset data to real `/api/alpaca/assets` endpoint
-- Add lightweight-charts for pattern visualization
-- Remove any mock/fake data
-
-### Priority 3: DataSourcesMonitor.jsx (MEDIUM)
-- Convert to V3 widescreen layout
-- Wire to real `/api/health` and `/api/data-sources/status` endpoints
-- Add real-time WebSocket status updates
-- Show OpenClaw integration status
-
-### Priority 4: Settings.jsx (LOW)
-- Convert to V3 widescreen layout
-- Wire react-toastify notifications
-- Add API key management
-- Add user preference persistence
+## Remaining Work to Production
+1. **LW Charts Migration (4 pages)**: Replace Recharts with lightweight-charts in SentimentIntelligence, DataSourcesMonitor, Patterns, Settings
+2. **Real API Wiring**: Connect simulated/mock data to live backend endpoints
+3. **Final UI Polish**: Apply approved mockup designs (see `/frontend-v2/public/assets/mockups/`)
+4. **WebSocket Integration**: Wire real-time data feeds where applicable
 
 ---
 
-## Key V3 Design Patterns
-
-All V3 pages follow these patterns:
-
-1. **No max-width container** - Full widescreen `<div className="p-6 space-y-6">`
-2. **Dark theme** - `bg-[#0a0a0f]` background, cyan/emerald accents
-3. **Lightweight Charts** - Use `lightweight-charts` for all chart visualizations
-4. **Real API calls** - Use `useApi()` hook from `../hooks/useApi`
-5. **Loading states** - Skeleton loaders while data fetches
-6. **Error boundaries** - Graceful error handling with retry
-7. **Tab-based layout** - Use tabs for related sub-views (e.g., Signals has Scanner/Heatmap/History tabs)
-8. **PageHeader component** - Consistent header with title, description, action buttons
-
----
-
-## File Structure
-```
-frontend-v2/src/
-  pages/           # 14 page components
-  components/
-    layout/        # Layout.jsx, Sidebar.jsx, Header.jsx
-    charts/        # Shared chart components (LW Charts wrappers)
-    dashboard/     # Dashboard-specific components
-    ui/            # Reusable UI components (Card, Button, Badge, etc.)
-  hooks/           # useApi, useWebSocket, custom hooks
-  config/          # API URLs, constants
-  data/            # Static data, enums
-  lib/             # Utility functions
-  services/        # API service layer
-```
-
----
-
-*Last updated: V3 consolidation commit series*
+## Key Design Standards
+- **Layout**: V3 widescreen (no cramped sidebar layouts)
+- **Charts**: lightweight-charts (LW Charts) for all financial data visualization
+- **Styling**: Tailwind CSS with dark theme, consistent color palette
+- **State**: React hooks + context, no Redux
+- **Routing**: React Router v6 via App.jsx (15 routes total)
+- **API**: Axios services in `/services/` directory
