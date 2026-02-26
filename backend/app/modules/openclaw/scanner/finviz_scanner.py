@@ -21,7 +21,7 @@ from config import FINVIZ_EXPORT_BASE_URL, FINVIZ_API_KEY
 
 logger = logging.getLogger(__name__)
 
-# Finviz -> yfinance symbol mapping (Finviz strips dots)
+# Finviz -> standard symbol mapping (Finviz strips dots from tickers like BRK.B)
 SYMBOL_MAP = {
     'BRKB': 'BRK-B',
     'BRKA': 'BRK-A',
