@@ -1,9 +1,8 @@
 import { ArrowUpRight, ArrowDownRight, Zap } from 'lucide-react';
-import { mockSignals } from '../../data/mockData';
 import clsx from 'clsx';
 
-export default function LiveSignalFeed() {
-  const signals = mockSignals.slice(0, 8);
+export default function LiveSignalFeed({ signals: rawSignals = [] }) {
+  const signals = rawSignals.slice(0, 8);
 
   return (
     <div className="bg-secondary/10 border border-secondary/50 rounded-xl">
@@ -30,8 +29,8 @@ export default function LiveSignalFeed() {
               {/* Direction indicator */}
               <div className={clsx(
                 'w-8 h-8 rounded-lg flex items-center justify-center',
-                signal.direction === 'LONG' 
-                  ? 'bg-bullish/10' 
+                signal.direction === 'LONG'
+                  ? 'bg-bullish/10'
                   : 'bg-bearish/10'
               )}>
                 {signal.direction === 'LONG' ? (
@@ -76,13 +75,6 @@ export default function LiveSignalFeed() {
             </div>
           </div>
         ))}
-      </div>
-
-      {/* Footer */}
-      <div className="px-4 py-2 border-t border-secondary/50">
-        <button className="text-xs text-bullish hover:text-bullish/80 transition-colors">
-          View all signals →
-        </button>
       </div>
     </div>
   );
