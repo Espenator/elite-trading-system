@@ -14,6 +14,8 @@ import {
   XCircle, Rocket, FileText, Download, Share2, Search, Crosshair, Lock, 
   Unlock, Save, Power, Wifi, HardDrive, Filter, Target, Maximize2
 } from 'lucide-react';
+import ReactFlow, { Background, Controls, MarkerType, Handle } from 'reactflow';
+import 'reactflow/dist/style.css';
 
 // ============================================================================
 // CONSTANTS & INITIAL DATA
