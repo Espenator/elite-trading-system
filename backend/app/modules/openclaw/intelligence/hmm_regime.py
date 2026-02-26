@@ -105,19 +105,75 @@ def _needs_retrain() -> bool:
 
 
 def _fetch_spy_data(days=HMM_LOOKBACK_DAYS):
-    """Fetch hourly SPY OHLCV data from Yahoo Finance."""
+    """Fetch daily SPY OHLCV data from Alpaca Markets Data API.
+
+    Uses httpx to call Alpaca data endpoint directly.
+    No yfinance dependency -- replaced Feb 2026 (Issue #11).
+    """
     try:
-        import yfinance as yf
-        ticker = yf.Ticker("SPY")
-        period = f"{min(days, 729)}d"
-        df = ticker.history(period=period, interval="1h")
-        if df.empty:
-            logger.warning("HMM: No SPY hourly data, trying daily")
-            df = ticker.history(period=period, interval="1d")
-        logger.info(f"HMM: Fetched {len(df)} SPY data points")
+        import httpx
+        from datetime import datetime, timedelta
+        import pandas as pd
+
+        from app.core.config import settings
+
+        api_key = settings.ALPACA_API_KEY
+        secret_key = settings.ALPACA_SECRET_KEY
+        if not api_key or not secret_key:
+            logger.warning("HMM: Alpaca API keys not configured")
+            return None
+
+        end = datetime.utcnow()
+        start = end - timedelta(days=min(days, 730))
+        url = "https://data.alpaca.markets/v2/stocks/SPY/bars"
+        params = {
+            "start": start.strftime("%Y-%m-%dT00:00:00Z"),
+            "end": end.strftime("%Y-%m-%dT00:00:00Z"),
+            "timeframe": "1Day",
+            "limit": 10000,
+            "adjustment": "split",
+        }
+        headers = {
+            "APCA-API-KEY-ID": api_key,
+            "APCA-API-SECRET-KEY": secret_key,
+            "accept": "application/json",
+        }
+
+        all_bars = []
+        next_token = None
+        with httpx.Client(timeout=30.0) as client:
+            while True:
+                if next_token:
+                    params["page_token"] = next_token
+                resp = client.get(url, params=params, headers=headers)
+                if resp.status_code != 200:
+                    logger.error("HMM: Alpaca bars API %s: %s", resp.status_code, resp.text[:200])
+                    break
+                body = resp.json()
+                bars = body.get("bars") or []
+                all_bars.extend(bars)
+                next_token = body.get("next_page_token")
+                if not next_token:
+                    break
+
+        if not all_bars:
+            logger.warning("HMM: No SPY bars returned from Alpaca")
+            return None
+
+        df = pd.DataFrame(all_bars)
+        rename = {"o": "Open", "h": "High", "l": "Low", "c": "Close", "v": "Volume", "t": "Timestamp"}
+        df.rename(columns=rename, inplace=True)
+        for col in ["Open", "High", "Low", "Close"]:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+        df["Volume"] = pd.to_numeric(df["Volume"], errors="coerce").fillna(0).astype(int)
+        df.sort_values("Timestamp", inplace=True)
+        df.reset_index(drop=True, inplace=True)
+
+        logger.info(f"HMM: Fetched {len(df)} SPY daily bars from Alpaca")
         return df
+
     except Exception as e:
-        logger.error(f"HMM: Failed to fetch SPY data: {e}")
+        logger.error(f"HMM: Failed to fetch SPY data from Alpaca: {e}")
         return None
 
 
