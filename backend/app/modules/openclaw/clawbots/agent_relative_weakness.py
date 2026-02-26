@@ -4,7 +4,7 @@ agent_relative_weakness.py - Hunter-Killer Swarm: Weakness Scanner
 OpenClaw Hierarchical Synthesis Architecture - Tier 3
 
 Triggered ONLY when the Apex Synthesizer declares a Short_Only or
-Distribution regime. Scans Finviz/Yahoo for stocks breaking below
+Distribution regime. Scans Finviz for stocks breaking below
 their 50 SMA on high volume in high-beta sectors.
 
 Publishes to: Topic.SCORED_SIGNALS
@@ -32,12 +32,6 @@ try:
     from daily_scanner import get_daily_candidates
 except ImportError:
     get_daily_candidates = None
-
-try:
-    import yfinance as yf
-    HAS_YF = True
-except ImportError:
-    HAS_YF = False
 
 logger = logging.getLogger(__name__)
 
@@ -80,25 +74,25 @@ class RelativeWeaknessAgent:
     # ----------------------------------------------------------
     # Regime Gate
     # ----------------------------------------------------------
+
     def _should_activate(self, regime: Dict) -> bool:
         """Only activate on bearish regime declarations."""
         mr = regime.get("Market_Regime", "")
         db = regime.get("Directional_Bias", "")
         cv = regime.get("Conviction", 0)
-
         is_short_regime = mr in SHORT_TRIGGER_REGIMES
         is_short_bias = db in SHORT_TRIGGER_BIASES
         has_conviction = cv >= 60
-
         return (is_short_regime or is_short_bias) and has_conviction
 
     # ----------------------------------------------------------
-    # Finviz / Yahoo Scanning
+    # Finviz Scanning
     # ----------------------------------------------------------
+
     async def _scan_for_weakness(self) -> List[Dict]:
         """
         Scan for stocks breaking below 50 SMA on high volume.
-        Uses finviz_scanner if available, falls back to yfinance.
+        Uses finviz_scanner as primary, daily_scanner as fallback.
         """
         candidates = []
 
@@ -160,7 +154,6 @@ class RelativeWeaknessAgent:
         scored = []
         for c in candidates:
             score = 0.0
-            ticker = c.get("ticker", "")
 
             # Factor 1: Price below 50 SMA (distance matters)
             price = c.get("price", 0)
@@ -205,11 +198,11 @@ class RelativeWeaknessAgent:
     # ----------------------------------------------------------
     # Publication
     # ----------------------------------------------------------
+
     async def _publish_weak_stocks(self, weak_stocks: List[Dict]) -> None:
         """Publish the top weakness candidates to the Blackboard."""
         top5 = weak_stocks[:5]
         self._weak_stocks = top5
-
         payload = {
             "signal_type": "relative_weakness_scan",
             "regime": self._active_regime,
@@ -235,6 +228,7 @@ class RelativeWeaknessAgent:
     # ----------------------------------------------------------
     # Main Event Loop
     # ----------------------------------------------------------
+
     async def run(self) -> None:
         """Listen for regime updates; scan when bearish regime declared."""
         regime_q = await self.bb.subscribe(
@@ -248,13 +242,11 @@ class RelativeWeaknessAgent:
         while True:
             try:
                 msg = await asyncio.wait_for(regime_q.get(), timeout=10.0)
-
                 if not isinstance(msg, BlackboardMessage) or msg.is_expired():
                     continue
 
                 regime = msg.payload
                 self._active_regime = regime
-
                 if not self._should_activate(regime):
                     continue
 
