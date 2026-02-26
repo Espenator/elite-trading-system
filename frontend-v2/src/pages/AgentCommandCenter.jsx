@@ -211,12 +211,9 @@ function AgentCard({ agent, onToggle }) {
   const health = agent.health || "unknown";
   const healthColor = health === "healthy" ? "text-success" : health === "degraded" ? "text-amber-400" : "text-secondary";
 
-  // MISSING V3 ULTRA-DENSE COMPONENT: SHAP Bars mock features
-  const shapFeatures = [
-    { name: "Price Action", val: 45, color: "bg-cyan-500" },
-    { name: "Vol Flow", val: 30, color: "bg-amber-500" },
-    { name: "Regime", val: 15, color: "bg-red-500" },
-    { name: "Sentiment", val: 10, color: "bg-purple-500" }
+    // SHAP feature importance from agent API (fallback to placeholder if not available)
+  const shapFeatures = agent.shap_features || [
+    { name: "No Data", val: 100, color: "bg-secondary" }
   ];
 
   return (
@@ -299,7 +296,7 @@ export default function AgentCommandCenter() {
   const [activeTab, setActiveTab] = useState("overview");
   const wsRef = useRef(null);
 
-  // --- V3 Mock Data States ---
+    // --- Blackboard, HITL, and Consensus States ---
   const [blackboardMsgs, setBlackboardMsgs] = useState([]);
   const [hitlBuffer, setHitlBuffer] = useState([]);
   const [consensusData, setConsensusData] = useState([]);
@@ -366,56 +363,31 @@ export default function AgentCommandCenter() {
     return unsub;
   }, [refetchAgents]);
 
-  // --- V3 Mock Effects ---
+    // --- Blackboard & HITL WebSocket Subscriptions ---
   useEffect(() => {
-    // Mock Blackboard pub/sub
-    const blackboardInterval = setInterval(() => {
-      const topics = ["SIG_GEN", "RISK_EVAL", "SENTIMENT", "EXECUTION"];
-      const contents = [
-        `Computed tensor weights for epoch ${Math.floor(Math.random() * 1000)} - Validation OK.`,
-        `Detected volatility flow anomaly in sector indices.`,
-        `Rebalancing portfolio edge weights against macro drift.`,
-        `Analyzing sentiment divergence across FinTwit targets.`,
-        `Consensus threshold crossed for entry execution.`
-      ];
-      const msg = {
-        id: Date.now(),
-        time: new Date().toLocaleTimeString('en-US', { hour12: false, hour: "numeric", minute: "numeric", second: "numeric", fractionalSecondDigits: 3 }),
-        topic: topics[Math.floor(Math.random() * topics.length)],
-        content: contents[Math.floor(Math.random() * contents.length)],
-        hash: "0x" + Math.random().toString(16).substring(2, 8).toUpperCase()
-      };
-      setBlackboardMsgs(prev => [msg, ...prev].slice(0, 100));
-    }, 2500);
-
-    // Mock HITL Ring buffer
-    const hitlInterval = setInterval(() => {
-      if(Math.random() > 0.6) {
-        const actions = ["BIAS_OVERRIDE", "FORCE_LIQUIDATE", "NODE_RESTART", "HALT_SIGNAL"];
-        const msg = {
-          id: Date.now(),
-          time: new Date().toLocaleTimeString('en-US', { hour12: false }),
-          action: actions[Math.floor(Math.random() * actions.length)],
-          user: "OP-1",
-          target: `Swarm-Alpha-${Math.floor(Math.random() * 9)}`,
-          status: "ACKNOWLEDGED"
-        };
-        setHitlBuffer(prev => [msg, ...prev].slice(0, 50));
-      }
-    }, 4500);
-
-    // Mock Consensus Data
-    setConsensusData([
-      { symbol: "BTC", agree: 88, agents: 5, action: "LONG", strength: "STRONG" },
-      { symbol: "ETH", agree: 65, agents: 4, action: "SHORT", strength: "WEAK" },
-      { symbol: "SOL", agree: 92, agents: 5, action: "LONG", strength: "STRONG" },
-    ]);
-
-    return () => {
-      clearInterval(blackboardInterval);
-      clearInterval(hitlInterval);
-    };
+    const unsubBlackboard = ws.on("blackboard", (msg) => {
+      setBlackboardMsgs(prev => [{ ...msg, id: Date.now() }, ...prev].slice(0, 100));
+    });
+    const unsubHitl = ws.on("hitl", (msg) => {
+      setHitlBuffer(prev => [msg, ...prev].slice(0, 50));
+    });
+    return () => { unsubBlackboard(); unsubHitl(); };
   }, []);
+
+  // --- Consensus Data from OpenClaw API ---
+  const loadConsensus = useCallback(async () => {
+    try {
+      const data = await openclaw.getConsensus();
+      setConsensusData(Array.isArray(data) ? data : []);
+    } catch {
+      setConsensusData([]);
+    }
+  }, []);
+  useEffect(() => {
+    loadConsensus();
+    const t = setInterval(loadConsensus, 30000);
+    return () => clearInterval(t);
+  }, [loadConsensus]);
 
   // --- Handlers ---
   const handleAgentToggle = async (agent) => {
@@ -766,7 +738,7 @@ export default function AgentCommandCenter() {
                       </td>
                       <td className="px-4 py-3 font-mono text-amber-400/80 text-xs cursor-text select-all">{1024 + i * 31}</td>
                       <td className="px-4 py-3 text-secondary text-xs font-mono">
-                        <span className={i%2===0 ? "text-success" : "text-amber-400"}>{((Math.random() * 10) + 1).toFixed(1)}%</span> / <span className="text-cyan-400/70">{(Math.random() * 500 + 100).toFixed(0)}MB</span>
+                                      <span className={agent.cpu_pct != null && agent.cpu_pct < 80 ? "text-success" : "text-amber-400"}>{agent.cpu_pct != null ? agent.cpu_pct.toFixed(1) : '--'}%</span> / <span className="text-cyan-400/70">{agent.mem_mb != null ? agent.mem_mb.toFixed(0) : '--'}MB</span>
                       </td>
                       <td className="px-4 py-3 text-right space-x-2">
                         <Button size="xs" variant="secondary" onClick={() => handleAgentToggle(agent)} className="hover:text-cyan-400 border-secondary/30 bg-[#0B0E14]">
@@ -985,7 +957,7 @@ export default function AgentCommandCenter() {
         <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
           <Card title="DAG Brain Map" subtitle="Neural topology and agent inter-dependencies">
             <div className="relative w-full h-[600px] bg-[#0B0E14] border border-cyan-500/30 rounded-xl overflow-hidden shadow-[0_0_40px_rgba(6,182,212,0.1)_inset]">
-              {/* Dense SVG Graph Mock */}
+                        {/* Brain Map SVG Template - TODO: Wire nodes dynamically from agents array */}
               <svg className="w-full h-full">
                 <defs>
                   <radialGradient id="glow-cyan" cx="50%" cy="50%" r="50%">
@@ -1069,12 +1041,12 @@ export default function AgentCommandCenter() {
                 </thead>
                 <tbody className="divide-y divide-cyan-500/10">
                   {agents.map((agent, i) => {
-                    // Deterministic mock quant data
-                    const winRate = 50 + (i * 7) % 35;
-                    const pnl = (1000 + (i * 2345) % 8000) * (i % 2 === 0 ? 1 : -0.2);
-                    const signals = 120 + (i * 45) % 300;
-                    const acc = winRate + (i % 5);
-                    const sharpe = (1.2 + (i * 0.3) % 2).toFixed(2);
+                                // Real agent performance data from API (fallback to '--' if not available)
+            const winRate = agent.win_rate_7d ?? 0;
+            const pnl = agent.pnl_30d ?? 0;
+            const signals = agent.signals_generated ?? 0;
+            const acc = agent.accuracy ?? 0;
+            const sharpe = agent.sharpe_ratio != null ? agent.sharpe_ratio.toFixed(2) : '--';
                     return (
                       <tr key={agent.id || agent.name} className="hover:bg-cyan-500/10 transition-colors group">
                         <td className="px-4 py-3 font-bold text-white flex items-center gap-2">
