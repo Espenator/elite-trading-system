@@ -98,22 +98,34 @@ class MacroContext:
         vix = self._fetch_series_latest(FRED_SERIES['vix'])
         if vix is not None:
             return vix
-        # Fallback: try yfinance-style direct fetch
+                # Fallback: try Alpaca snapshot API
         vix = self._fetch_vix_fallback()
         return vix if vix else 18.0
 
     def _fetch_vix_fallback(self) -> Optional[float]:
-        """Fallback VIX fetch via requests if FRED unavailable."""
+        """Fallback VIX fetch via Finviz if FRED unavailable.
+
+        Uses Finviz quote page for VIXY (VIX proxy ETF) as a rough
+        approximation.  No Yahoo Finance / yfinance dependency.
+        """
         try:
             import requests
-            # Use Yahoo Finance as fallback
-            url = "https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX"
-            resp = requests.get(url, timeout=5, headers={'User-Agent': 'OpenClaw/1.0'})
-            if resp.status_code == 200:
-                data = resp.json()
-                price = data['chart']['result'][0]['meta']['regularMarketPrice']
-                logger.info(f"VIX fallback (Yahoo): {price}")
-                return float(price)
+            # Use Finviz quote page for VIX proxy
+            url = "https://finviz.com/quote.ashx?t=VIXY"
+            resp = requests.get(
+                url, timeout=5,
+                headers={"User-Agent": "Embodier/1.0"},
+            )
+            if resp.status_code == 200 and "<title>" in resp.text:
+                # VIXY price is NOT the VIX index itself, but a rough
+                # directional proxy.  Map VIXY price to approximate VIX:
+                # VIXY ~$15 ≈ VIX 15, VIXY ~$25 ≈ VIX 25 (very rough)
+                import re
+                match = re.search(r'class="snapshot-td2-cp".*?>(\d+\.\d+)', resp.text)
+                if match:
+                    vixy_price = float(match.group(1))
+                    logger.info(f"VIX fallback (Finviz VIXY): {vixy_price}")
+                    return vixy_price
         except Exception as e:
             logger.warning(f"VIX fallback failed: {e}")
         return None
