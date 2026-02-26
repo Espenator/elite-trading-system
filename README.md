@@ -37,6 +37,39 @@ React + FastAPI full-stack trading application with 14-page V3 widescreen dashbo
 - [ ] **Add trade journal tables** -- Migrate OpenClaw `sheets_logger.py` data to `database.py`
 - [ ] **Add authentication** -- User login/session management for production deployment
 
+### Intelligence Council Audit (Feb 26, 2026)
+
+A 3-model AI council (GPT-5.2, Claude Opus 4.6, Gemini 3.1 Pro) reviewed the full codebase against the Agent Intelligence architecture document. Key findings:
+
+**Where Council Was Correct:**
+- Zero test coverage -- no `tests/` directory, only 2 utility scripts in `backend/tools/`
+- SQLite write lock bottleneck -- `database.py` creates new connections per call, no WAL mode, no pooling
+- `mockData.js` still present in `frontend-v2/src/data/` despite Issue #8 cleanup
+- `signal_engine.py` scoring too simplistic (bull/bear candle only vs. OpenClaw's 5-pillar system)
+- `ml_training.py` LSTM has input_size=4 but system generates 25+ features
+- `openclaw_bridge_service.py` is 976-line god module needing split
+
+**Where Council Was Wrong/Outdated:**
+- "Risk Engine missing" -- INCORRECT: `risk_shield_api.py` wires to OpenClaw `risk_governor.py` (474 lines, 9 safety checks)
+- "Only 2/5 systems complete" -- OUTDATED: Phase 2 copy brought full OpenClaw swarm (clawbots, execution, intelligence, scorer, streaming, world_intel)
+- "Backtester missing" -- INCORRECT: `backtest_engine.py` exists with Sharpe/MaxDD/Calmar metrics
+
+### Code Improvement Roadmap (Feb 26, 2026)
+
+| Priority | Task | File(s) | Status |
+|----------|------|---------|--------|
+| P0 | Add test suite | `backend/tests/` | NOT STARTED |
+| P0 | Fix database.py (WAL, pooling, indexes) | `backend/app/services/database.py` | NOT STARTED |
+| P0 | Delete mockData.js | `frontend-v2/src/data/mockData.js` | NOT STARTED |
+| P1 | Wire OpenClaw pillar scores into signal_engine | `backend/app/services/signal_engine.py` | NOT STARTED |
+| P1 | Fix LSTM architecture (input_size, normalization) | `backend/app/services/ml_training.py` | NOT STARTED |
+| P1 | Split openclaw_bridge_service into modules | `backend/app/services/openclaw_bridge_*.py` | NOT STARTED |
+| P1 | Wire risk_governor into execution path | `backend/app/services/alpaca_service.py` | NOT STARTED |
+| P2 | Add missing DB tables (trades journal, model_versions) | `backend/app/services/database.py` | NOT STARTED |
+| P2 | Build meta-learning orchestrator | `backend/app/services/meta_learner.py` | NOT STARTED |
+| P2 | Wire swarm tournament from apex_orchestrator | `backend/app/services/swarm_manager.py` | NOT STARTED |
+| P3 | Add schema migration tracking | `backend/app/services/database.py` | NOT STARTED |
+
 ---
 
 ## V3 Frontend Architecture (14 Pages)
