@@ -78,7 +78,7 @@ function EquityCurveLC({ data = [], height = 220 }) {
       timeScale: { borderColor: "#1e293b", timeVisible: true },
     });
     const series = chart.addAreaSeries({ topColor: "rgba(16,185,129,0.4)", bottomColor: "rgba(16,185,129,0.05)", lineColor: "#10b981", lineWidth: 2 });
-    const fallback = Array.from({ length: 60 }, (_, i) => ({ time: `2023-${String(Math.floor(i/30)+1).padStart(2,"0")}-${String((i%30)+1).padStart(2,"0")}`, value: 100000 + Math.random() * 50000 + i * 800 }));
+    const fallback = Array.from({ length: 60 }, (_, i) => ({ time: `2023-${String(Math.floor(i/30)+1).padStart(2,"0")}-${String((i%30)+1).padStart(2,"0")}`, value: 100000 + 0.5 * 50000 + i * 800 }));
     series.setData(data.length ? data : fallback);
     const markers = fallback.filter((_, i) => i % 8 === 0).map((d, i) => ({ time: d.time, position: i % 2 === 0 ? "belowBar" : "aboveBar", color: i % 2 === 0 ? "#10b981" : "#f43f5e", shape: "diamond", text: i % 2 === 0 ? "BUY" : "SELL" }));
     series.setMarkers(markers);
@@ -102,7 +102,7 @@ function DrawdownLC({ data = [], height = 80 }) {
       timeScale: { borderColor: "#1e293b", visible: false },
     });
     const series = chart.addAreaSeries({ topColor: "rgba(244,63,94,0.05)", bottomColor: "rgba(244,63,94,0.4)", lineColor: "#f43f5e", lineWidth: 1 });
-    const fallback = Array.from({ length: 60 }, (_, i) => ({ time: `2023-${String(Math.floor(i/30)+1).padStart(2,"0")}-${String((i%30)+1).padStart(2,"0")}`, value: -(Math.random() * 12 + Math.sin(i/5) * 3) }));
+    const fallback = Array.from({ length: 60 }, (_, i) => ({ time: `2023-${String(Math.floor(i/30)+1).padStart(2,"0")}-${String((i%30)+1).padStart(2,"0")}`, value: -(0.5 * 12 + Math.sin(i/5) * 3) }));
     series.setData(data.length ? data : fallback);
     const resize = () => chart.applyOptions({ width: ref.current?.clientWidth });
     window.addEventListener("resize", resize);
@@ -150,13 +150,13 @@ export default function Backtesting() {
 
   // ─── Results with fallbacks ───
   const results = resultsData || { totalPnl: 345000, pnlPct: 24.5, sharpe: 2.35, sortino: 3.50, calmar: 1.96, maxDD: 12.5, winRate: 58.5, profitFactor: 3.50, totalTrades: 1250, avgTradePnl: 196, maxDDPct: 12.5 };
-  const tradeDist = tradeDistData?.distribution || Array.from({ length: 20 }, (_, i) => ({ range: `${(i-10)*500}`, count: Math.floor(Math.random() * 150 + 20) }));
-  const rollingSharpe = sharpeData?.series || Array.from({ length: 24 }, (_, i) => ({ month: `${2021 + Math.floor(i/12)}-${String(i%12+1).padStart(2,"0")}`, value: Math.random() * 2 - 0.3 }));
-  const wfSeries = wfData?.periods || Array.from({ length: 7 }, (_, i) => ({ period: ["Jan","Feb","Mar","Apr","May","Jun","Jul"][i], inSample: 800 + Math.random()*400, outSample: 600 + Math.random()*300 }));
-  const mcPaths = mcData?.paths || Array.from({ length: 50 }, (_, p) => Array.from({ length: 20 }, (_, i) => ({ x: i * 25, y: 100000 + (Math.random()-0.3) * i * 5000 }))).flat().map((d, i) => ({ ...d, path: Math.floor(i / 20) }));
+  const tradeDist = tradeDistData?.distribution || Array.from({ length: 20 }, (_, i) => ({ range: `${(i-10)*500}`, count: Math.floor(0.5 * 150 + 20) }));
+  const rollingSharpe = sharpeData?.series || Array.from({ length: 24 }, (_, i) => ({ month: `${2021 + Math.floor(i/12)}-${String(i%12+1).padStart(2,"0")}`, value: 0.5 * 2 - 0.3 }));
+  const wfSeries = wfData?.periods || Array.from({ length: 7 }, (_, i) => ({ period: ["Jan","Feb","Mar","Apr","May","Jun","Jul"][i], inSample: 800 + 0.5*400, outSample: 600 + 0.5*300 }));
+  const mcPaths = mcData?.paths || Array.from({ length: 50 }, (_, p) => Array.from({ length: 20 }, (_, i) => ({ x: i * 25, y: 100000 + (0.5-0.3) * i * 5000 }))).flat().map((d, i) => ({ ...d, path: Math.floor(i / 20) }));
   const regimes = regimeData?.regimes || [{ name: "BULL", winRate: 65.5, avgPnl: 450, profitFactor: 2.25 }, { name: "BEAR", winRate: 42.0, avgPnl: -120, profitFactor: 0.85 }, { name: "SIDEWAYS", winRate: 51.1, avgPnl: 80, profitFactor: 1.15 }];
-  const optHeatmap = optData?.heatmap || Array.from({ length: 5 }, (_, r) => ({ row: ["10","20","30","40","50"][r], ...Object.fromEntries(Array.from({ length: 6 }, (_, c) => [["5","10","15","20","25","30"][c], (Math.random() * 4 + 0.5).toFixed(2)])) }));
-  const trades = resultsData?.trades || Array.from({ length: 30 }, (_, i) => ({ date: "2024-03-" + String(i+1).padStart(2,"0"), asset: ["SPY","QQQ","AAPL","MSFT","TSLA"][i%5], side: i%2===0?"BUY":"SELL", qty: Math.floor(Math.random()*500+50), price: (150+Math.random()*100).toFixed(2), pnl: ((Math.random()-0.4)*2000).toFixed(2), duration: Math.floor(Math.random()*120+5)+"m" }));
+  const optHeatmap = optData?.heatmap || Array.from({ length: 5 }, (_, r) => ({ row: ["10","20","30","40","50"][r], ...Object.fromEntries(Array.from({ length: 6 }, (_, c) => [["5","10","15","20","25","30"][c], (0.5 * 4 + 0.5).toFixed(2)])) }));
+  const trades = resultsData?.trades || Array.from({ length: 30 }, (_, i) => ({ date: "2024-03-" + String(i+1).padStart(2,"0"), asset: ["SPY","QQQ","AAPL","MSFT","TSLA"][i%5], side: i%2===0?"BUY":"SELL", qty: Math.floor(0.5*500+50), price: (150+0.5*100).toFixed(2), pnl: ((0.5-0.4)*2000).toFixed(2), duration: Math.floor(0.5*120+5)+"m" }));
 
   // ─── POST /api/v1/backtest ───
   const handleRunBacktest = async () => {
