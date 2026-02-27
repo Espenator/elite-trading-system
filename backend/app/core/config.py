@@ -136,6 +136,19 @@ class Settings(BaseSettings):
     SIGNAL_MIN_EDGE: float = 0.05  # Min Kelly edge to trade
     SIGNAL_MIN_VOLUME_SCORE: float = 0.5  # Min relative volume
 
+        # ----------------------------------------------------------------
+    # Risk Management & Drawdown Protection
+    # ----------------------------------------------------------------
+    ATR_STOP_MULTIPLIER: float = 2.0  # ATR multiplier for dynamic stop-loss
+    MAX_DAILY_DRAWDOWN_PCT: float = 5.0  # Max daily drawdown before pause
+    MAX_DAILY_LOSS_PCT: float = 2.0  # Max single-day loss percentage
+    AUTO_PAUSE_TRADING: bool = True  # Auto-pause on drawdown breach
+    VAR_LIMIT_PCT: float = 1.5  # Value-at-Risk daily limit
+    RISK_FREE_RATE: float = 0.05  # Risk-free rate for Sharpe/Sortino
+    MIN_RISK_SCORE: int = 40  # Minimum risk score to allow trading
+    TRAILING_STOP_PCT: float = 0.03  # 3% trailing stop default
+    MAX_POSITION_PCT: float = 0.10  # Max single position as % of portfolio
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
