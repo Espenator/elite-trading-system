@@ -19,6 +19,8 @@ class OrderCreate(BaseModel):
     estimated_cost: Optional[float] = Field(None, description="Estimated cost")
     required_margin: Optional[float] = Field(None, description="Required margin")
     potential_pnl: Optional[float] = Field(None, description="Potential profit/loss")
+        kelly_edge: Optional[float] = Field(None, description="Kelly edge for this trade")
+    signal_quality: Optional[float] = Field(None, description="Signal quality 0-1")
 
 
 @router.post("/", response_model=Dict)
@@ -32,6 +34,17 @@ async def create_order(order: OrderCreate):
     alpaca_status = None
     alpaca_response = None
     alpaca_error = None
+
+        # ----- Kelly Pre-Order Validation -----
+    kelly_warnings = []
+    from app.core.config import settings
+    if order.kelly_edge is not None and order.kelly_edge < settings.SIGNAL_MIN_EDGE:
+        kelly_warnings.append(f"Low edge: {order.kelly_edge:.4f} < min {settings.SIGNAL_MIN_EDGE}")
+    if order.signal_quality is not None and order.signal_quality < 0.3:
+        kelly_warnings.append(f"Low signal quality: {order.signal_quality:.3f}")
+    est_cost = (order.price or 0) * order.quantity
+    if est_cost > 100_000 * settings.KELLY_MAX_ALLOCATION:
+        kelly_warnings.append(f"Position ${est_cost:,.0f} exceeds Kelly max")
     
     # First, try to create order through Alpaca
     try:
@@ -78,6 +91,8 @@ async def create_order(order: OrderCreate):
             estimated_cost=order.estimated_cost,
             required_margin=order.required_margin,
             potential_pnl=order.potential_pnl,
+                        kelly_edge=order.kelly_edge,
+            signal_quality=order.signal_quality,
             alpaca_order_id=alpaca_order_id,
             alpaca_status=alpaca_status,
             alpaca_response=alpaca_response
@@ -91,7 +106,9 @@ async def create_order(order: OrderCreate):
                 detail=f"Order saved to database but Alpaca API error: {alpaca_error}"
             )
         
-        return created_order
+                if kelly_warnings:
+            created_order["kelly_warnings"] = kelly_warnings
+return created_order
     except HTTPException:
         raise
     except Exception as e:
