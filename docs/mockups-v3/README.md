@@ -2,7 +2,7 @@
 
 > **OLEH: All 14 final V3 page mockups are here.** Use these as visual reference for coding.
 > 
-> Generated mockup images (4 available so far, remaining 10 to be generated).
+> Generated mockup images (5 available so far, remaining 9 to be generated).
 > Code files are ALL committed in `frontend-v2/src/pages/`.
 
 ---
@@ -13,7 +13,7 @@
 | # | Page | File | Route | Status |
 |---|------|------|-------|--------|
 | 1 | Intelligence Dashboard | `Dashboard.jsx` | `/dashboard` | V3 Code DONE |
-| 2 | Agent Command Center | `AgentCommandCenter.jsx` | `/agents` | V3 Code DONE |
+| 2 | Agent Command Center | `AgentCommandCenter.jsx` | `/agents` | V3 Code DONE + Mockup  |
 
 ### INTELLIGENCE Section
 | # | Page | File | Route | Status |
@@ -83,21 +83,28 @@ System health gauge 94%, OpenClaw Bridge, 6 source cards with latency sparklines
 
 **Download**: [settings_mockup.png](https://ppl-ai-code-interpreter-files.s3.amazonaws.com/web/direct-files/e1ec84fbe320c5a50a076e46fa340018/ffe86514-6021-4a7e-a74b-a389b5e1c925/e3e055e6.png)
 
+
+### Mockup 5: Agent Command Center (Live Wiring Topology)
+
+5-layer network topology (External Sources 10, Agents 5, Processing 8, Storage 7, Frontend 15), connection health matrix, dynamic node discovery, WebSocket channels, API route map, flow anomaly detector, conference DAG.
+
+![Agent Command Center Mockup](https://user-gen-media-assets.s3.amazonaws.com/gemini_images/5042afa9-4988-47cf-b755-879ee8da856e.png)
+
+**Download**: [agent_command_center_mockup.png](https://user-gen-media-assets.s3.amazonaws.com/gemini_images/5042afa9-4988-47cf-b755-879ee8da856e.png)
 ---
 
-## Remaining 10 Mockups (To Be Generated)
+## Remaining 9 Mockups (To Be Generated)
 
 These pages have V3 code committed but need visual mockups:
 1. Dashboard (Intelligence Dashboard)
-2. Agent Command Center
-3. Signal Intelligence
-4. ML Brain & Flywheel
-5. Backtesting Lab
-6. Performance Analytics
-7. Market Regime
-8. Active Trades
-9. Risk Intelligence
-10. Trade Execution
+2. Signal Intelligence
+3. ML Brain & Flywheel
+4. Backtesting Lab
+5. Performance Analytics
+6. Market Regime
+7. Active Trades
+8. Risk Intelligence
+9. Trade Execution
 
 ---
 
