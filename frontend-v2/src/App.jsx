@@ -1,8 +1,8 @@
 // APP ROUTER - Embodier.ai Trading Intelligence System
-// OLEH: This is the main router. Every page listed in the sidebar has a route here.
+// This is the main router. Every page listed in the sidebar has a route here.
 // If you add a new page, add: 1) import, 2) route, 3) sidebar entry in Sidebar.jsx
-// All 15 pages map 1:1 to backend modules per V2-EMBODIER-AI-README.md
-// V3 CONSOLIDATION: Reduced from 18 to 14 pages, then added ML Brain & Flywheel (15 total)
+// Architecture doc: V3-ARCHITECTURE.md (14 sidebar pages + 1 hidden route)
+// V3 CONSOLIDATION: Reduced from 18 to 14 sidebar pages + SignalIntelligenceV3 hidden route
 
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
@@ -15,13 +15,13 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import Dashboard from "./pages/Dashboard";
 import AgentCommandCenter from "./pages/AgentCommandCenter";
 
-// INTELLIGENCE section (4 pages — V2 removed, V3 is production)
+// INTELLIGENCE section (3 sidebar pages + 1 hidden)
 import Signals from "./pages/Signals";
 import SentimentIntelligence from "./pages/SentimentIntelligence";
 import DataSourcesMonitor from "./pages/DataSourcesMonitor";
 import SignalIntelligenceV3 from "./pages/SignalIntelligenceV3";
 
-// ML & ANALYSIS section (6 pages)
+// ML & ANALYSIS section (5 pages)
 import MLBrainFlywheel from "./pages/MLBrainFlywheel";
 import Patterns from "./pages/Patterns";
 import Backtesting from "./pages/Backtesting";
