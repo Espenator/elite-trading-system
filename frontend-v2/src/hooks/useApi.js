@@ -93,3 +93,30 @@ export function useApi(endpoint, options = {}) {
 }
 
 export default useApi;
+
+
+// --- Specialized Risk & Kelly Hooks ---
+
+export function useRiskScore(pollMs = 30000) {
+  return useApi('riskScore', { pollIntervalMs: pollMs });
+}
+
+export function useDrawdownCheck(pollMs = 15000) {
+  return useApi('drawdownCheck', { pollIntervalMs: pollMs });
+}
+
+export function useKellyRanked(enabled = true) {
+  return useApi('kellyRanked', { enabled });
+}
+
+/** POST helper for dynamic stop-loss calculation */
+export async function fetchDynamicStopLoss(symbol, entryPrice, side = 'buy') {
+  const url = getApiUrl('dynamicStopLoss');
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ symbol, entry_price: entryPrice, side }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
