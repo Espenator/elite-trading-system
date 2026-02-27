@@ -826,6 +826,25 @@ class DailyScanner:
             if w.get('composite_score', 0) >= 80
         ]
 
+            def get_kelly_ranked_tickers(self):
+        """Return tickers ranked by Kelly edge * signal_quality (best first)."""
+        ranked = []
+        for w in self.scan_results.get('watchlist', []):
+            edge = w.get('kelly_edge', 0)
+            quality = w.get('signal_quality', 0)
+            if edge > 0 and quality > 0.3:
+                ranked.append({
+                    'ticker': w['ticker'],
+                    'kelly_edge': edge,
+                    'signal_quality': quality,
+                    'kelly_score': round(edge * quality, 4),
+                    'kelly_fraction': w.get('kelly_fraction', 0),
+                    'composite_score': w.get('composite_score', 0),
+                    'expected_value': w.get('expected_value', 0),
+                })
+        ranked.sort(key=lambda x: x['kelly_score'], reverse=True)
+        return ranked[:20]  # Top 20 Kelly-ranked opportunities
+
 
 # Module-level function for easy scheduling
 def run_daily_scan(slack_client=None):
