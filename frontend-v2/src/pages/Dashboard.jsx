@@ -1282,6 +1282,30 @@ export default function Dashboard() {
         </Card>
       </div>
 
+            {/* === Kelly Position Sizing Summary === */}
+      <Card title="Kelly Sizing" subtitle="Position sizing intelligence" className="lg:col-span-2">
+        <div className="grid grid-cols-3 gap-4 p-4">
+          <div className="text-center">
+            <div className="text-xs text-slate-500">Avg Kelly Edge</div>
+            <div className="text-lg font-bold text-emerald-400">
+              {portfolioData?.kelly_avg_edge ? `${(portfolioData.kelly_avg_edge * 100).toFixed(1)}%` : 'N/A'}
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-xs text-slate-500">Signal Quality</div>
+            <div className="text-lg font-bold text-cyan-400">
+              {portfolioData?.kelly_avg_quality ? `${(portfolioData.kelly_avg_quality * 100).toFixed(0)}%` : 'N/A'}
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-xs text-slate-500">Kelly Utilization</div>
+            <div className="text-lg font-bold text-amber-400">
+              {portfolioData?.kelly_utilization ? `${(portfolioData.kelly_utilization * 100).toFixed(0)}%` : 'N/A'}
+            </div>
+          </div>
+        </div>
+      </Card>
+
       {sectors.length > 0 && (
         <Card title="Sector Heatmap" subtitle="Performance by sector">
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
