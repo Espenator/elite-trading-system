@@ -161,3 +161,44 @@ Estimated total effort to working app: ~30 hours across 8 days.
 - ML: XGBoost, LSTM, scikit-learn, torch
 - WebSocket: FastAPI WebSocket + custom JS client
 - Deployment: Two-PC (ESPENMAIN dev + ProfitTrader prod)
+
+---
+
+## 1:00 PM UPDATE (Feb 27, 2026)
+
+### Completed Since 12:00 PM
+
+- [x] Complete V3-ARCHITECTURE.md rewrite with deep code audit (charting audit, component map, all 15 routes)
+- [x] Created UI-DESIGN-SYSTEM.md with exact colors/fonts/spacing from approved mockups
+- [x] Fixed CI: alpaca-py>=0.30.0, removed duplicate export in SignalIntelligenceV3.jsx
+- [x] Fixed design system: Inter + JetBrains Mono fonts, #0B0E14 background in tailwind/index.css/index.html
+- [x] Cataloged all 6 approved mockup images in docs/mockups-v3/images/
+- [x] Mapped Agent Command Center 8 internal tabs (overview, agents, swarm, candidates, alerts, brain-map, leaderboard, blackboard)
+- [x] Complete rewrite of root README.md with AI context section
+- [x] Complete rewrite of backend/README.md (was 2 months outdated, only mentioned Finviz)
+- [x] Removed references to non-existent OLEH docs
+
+### Current Focus: UI Mockup Generation
+
+Process: Generate 3 versions per page using model council (Gemini 3.1 Pro, etc.), user explicitly approves each.
+
+**Pages needing mockups (11):**
+1. Intelligence Dashboard
+2. Signal Intelligence (sidebar Signals.jsx)
+3. Data Sources Monitor
+4. ML Brain & Flywheel
+5. Screener & Patterns
+6. Backtesting Lab
+7. Performance Analytics
+8. Market Regime
+9. Active Trades
+10. Risk Intelligence
+11. Trade Execution + Settings
+
+### Critical Issue: Agent CC Tab Mismatch
+
+Approved mockup tabs: Swarm Overview, Agent Registry, Spawn & Scale, Live Wiring Map, Blackboard & Comms, Conference & Consensus, ML Ops, Logs & Telemetry
+
+Current code tabs: Overview, Agents, Swarm Control, Candidates, LLM Flow, Brain Map, Leaderboard, Blackboard
+
+Action needed: Align code tab IDs and labels to match approved mockup.
