@@ -171,5 +171,12 @@ async def get_portfolio():
             "longCount": long_count,
             "shortCount": short_count,
             "portfolioHeat": round(at_risk / max(len(positions), 1), 2),
+                        # Risk & drawdown integration
+            "kelly_avg_edge": round(sum(p.get("kellyEdge", 0) for p in positions) / max(1, len(positions)), 4),
+            "kelly_avg_quality": round(sum(p.get("signalQuality", 0) for p in positions) / max(1, len(positions)), 3),
+            "kelly_utilization": round(sum(1 for p in positions if p.get("kellyEdge", 0) > 0) / max(1, len(positions)), 3),
+            "max_position_pct": round(max((p.get("portfolioPct", 0) for p in positions), default=0), 2),
+            "concentration_risk": "HIGH" if any(p.get("portfolioPct", 0) > 30 for p in positions) else "NORMAL",
+            "daily_pnl_est": round(total_unrealized, 2),
         },
     }
