@@ -136,7 +136,7 @@ export default function DataSourcesMonitor() {
       time: i,
       latency: Math.max(
         10,
-        baseLatency + (Math.random() * 20 - 10) + (i === 15 ? 100 : 0),
+        baseLatency + (0.5 * 20 - 10) + (i === 15 ? 100 : 0),
       ),
     }));
 
@@ -443,7 +443,7 @@ export default function DataSourcesMonitor() {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={Array.from({ length: 10 }).map((_, i) => ({
-                  val: Math.random() * 100,
+                  val: 0.5 * 100,
                 }))}
               >
                 <Bar
