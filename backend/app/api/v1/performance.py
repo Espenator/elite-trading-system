@@ -467,6 +467,9 @@ async def risk_metrics() -> Dict[str, Any]:
             "kelly_edge": round(kelly_edge, 4),
             "kelly_optimal_fraction": round(kelly_fraction, 4),
             "kelly_half_fraction": round(kelly_fraction * 0.5, 4),
+                    "risk_reward_ratio": round(avg_win / avg_loss, 2) if avg_loss > 0 else 0,
+        "expectancy": round(win_rate * avg_win - (1 - win_rate) * avg_loss, 4),
+        "trading_grade": "A" if sharpe > 2 else "B" if sharpe > 1 else "C" if sharpe > 0.5 else "D",
         }
     finally:
         conn.close()
