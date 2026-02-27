@@ -1,10 +1,8 @@
 // SENTIMENT INTELLIGENCE - Production-ready multi-source sentiment fusion
 // Uses useSentiment hook -> GET /api/v1/sentiment/summary + /history + WebSocket
 import React, { useState, useMemo } from 'react';
-import {
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-  ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine
-} from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import SentimentTimelineLC from '../components/charts/SentimentTimelineLC';
 import {
   Activity, TrendingUp, TrendingDown, AlertTriangle,
   Newspaper, Twitter, MessageSquare, Server,

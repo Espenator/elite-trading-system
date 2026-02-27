@@ -1,21 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import {
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  ComposedChart,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-  ReferenceLine,
-  CartesianGrid,
-  Treemap,
-} from "recharts";
+import PatternFrequencyLC from '../components/charts/PatternFrequencyLC';
 import {
   Search,
   Filter,

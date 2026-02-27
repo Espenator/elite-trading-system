@@ -1,19 +1,6 @@
 import React, { useState, useEffect } from "react";
-import {
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-  PieChart,
-  Pie,
-} from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import DataSourceSparkLC from '../components/charts/DataSourceSparkLC';
 import {
   Activity,
   Database,
