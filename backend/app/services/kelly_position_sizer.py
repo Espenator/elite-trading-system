@@ -387,3 +387,93 @@ class KellyPositionSizer:
             "action": base.action if final_pct > 0 else "NO_TRADE",
             "risk_score": risk_score,
         }
+
+            def correlation_adjusted_size(
+        self,
+        symbol: str,
+        base_size_pct: float,
+        portfolio_positions: Dict[str, float],
+        correlation_matrix: Optional[Dict[str, Dict[str, float]]] = None,
+    ) -> Dict:
+        """Reduce position size when correlated assets already in portfolio.
+        High correlation = reduce size to avoid concentration risk."""
+        if not portfolio_positions or correlation_matrix is None:
+            return {"adjusted_pct": base_size_pct, "correlation_penalty": 0.0, "max_correlated": 0.0}
+
+        max_corr = 0.0
+        total_corr_exposure = 0.0
+        for held_sym, held_pct in portfolio_positions.items():
+            if held_sym == symbol:
+                continue
+            corr = abs(correlation_matrix.get(symbol, {}).get(held_sym, 0.0))
+            max_corr = max(max_corr, corr)
+            total_corr_exposure += corr * held_pct
+
+        # Penalty: high correlation with large existing positions = reduce size
+        # corr > 0.7 = significant penalty, corr > 0.9 = heavy penalty
+        if max_corr > 0.9:
+            corr_penalty = 0.5  # Cut size in half
+        elif max_corr > 0.7:
+            corr_penalty = 0.3
+        elif max_corr > 0.5:
+            corr_penalty = 0.15
+        else:
+            corr_penalty = 0.0
+
+        # Additional penalty for total correlated exposure
+        exposure_penalty = min(0.3, total_corr_exposure * 0.5)
+        total_penalty = min(0.7, corr_penalty + exposure_penalty)
+        adjusted = base_size_pct * (1.0 - total_penalty)
+
+        return {
+            "adjusted_pct": round(max(0.005, adjusted), 4),
+            "correlation_penalty": round(total_penalty, 4),
+            "max_correlated": round(max_corr, 4),
+            "total_corr_exposure": round(total_corr_exposure, 4),
+        }
+
+    def sector_exposure_check(
+        self,
+        symbol: str,
+        sector: str,
+        position_pct: float,
+        sector_allocations: Dict[str, float],
+        max_sector_pct: float = 0.25,
+    ) -> Dict:
+        """Check and limit sector concentration. Returns adjusted size."""
+        current_sector_pct = sector_allocations.get(sector, 0.0)
+        remaining = max(0.0, max_sector_pct - current_sector_pct)
+        if position_pct <= remaining:
+            return {
+                "allowed": True,
+                "adjusted_pct": position_pct,
+                "sector": sector,
+                "sector_current": round(current_sector_pct, 4),
+                "sector_remaining": round(remaining, 4),
+            }
+        return {
+            "allowed": remaining > 0.005,
+            "adjusted_pct": round(max(0.0, remaining), 4),
+            "sector": sector,
+            "sector_current": round(current_sector_pct, 4),
+            "sector_remaining": round(remaining, 4),
+            "reason": f"Sector {sector} at {current_sector_pct:.1%}, cap={max_sector_pct:.1%}",
+        }
+
+    def portfolio_heat_check(
+        self,
+        position_pct: float,
+        current_positions: Dict[str, float],
+        max_heat: float = 0.25,
+    ) -> Dict:
+        """Check total portfolio heat (sum of all position sizes)."""
+        current_heat = sum(current_positions.values())
+        remaining = max(0.0, max_heat - current_heat)
+        allowed_pct = min(position_pct, remaining)
+        return {
+            "allowed": allowed_pct > 0.005,
+            "adjusted_pct": round(allowed_pct, 4),
+            "current_heat": round(current_heat, 4),
+            "max_heat": max_heat,
+            "remaining_capacity": round(remaining, 4),
+        }
