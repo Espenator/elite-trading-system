@@ -224,3 +224,99 @@ async def update_risk(update: RiskUpdate):
     db_service.set_config("risk", config)
     await broadcast_ws("risk", {"type": "config_updated", "config": config})
     return {"ok": True, "config": config}
+
+
+# -----------------------------------------------------------------
+# Kelly Criterion Position Sizing Endpoints
+# -----------------------------------------------------------------
+
+from app.services.kelly_position_sizer import KellyPositionSizer
+from app.core.config import settings
+
+_kelly = KellyPositionSizer(max_allocation=settings.KELLY_MAX_ALLOCATION)
+
+
+class KellyRequest(BaseModel):
+    win_rate: float = settings.KELLY_DEFAULT_WIN_RATE
+    avg_win_pct: float = settings.KELLY_DEFAULT_AVG_WIN
+    avg_loss_pct: float = settings.KELLY_DEFAULT_AVG_LOSS
+    regime: str = "NEUTRAL"
+    trade_count: int = 0
+    current_volatility: float | None = None
+
+
+@router.get("/kelly-sizer")
+async def kelly_sizer_defaults():
+    """Return current Kelly config + default calculation."""
+    result = _kelly.calculate(
+        win_rate=settings.KELLY_DEFAULT_WIN_RATE,
+        avg_win_pct=settings.KELLY_DEFAULT_AVG_WIN,
+        avg_loss_pct=settings.KELLY_DEFAULT_AVG_LOSS,
+    )
+    return {
+        "config": {
+            "max_allocation": settings.KELLY_MAX_ALLOCATION,
+            "use_half_kelly": settings.KELLY_USE_HALF,
+            "max_portfolio_heat": settings.MAX_PORTFOLIO_HEAT,
+            "max_sector_concentration": settings.MAX_SECTOR_CONCENTRATION,
+        },
+        "default_sizing": {
+            "raw_kelly": result.raw_kelly,
+            "half_kelly": result.half_kelly,
+            "regime_adjusted": result.regime_adjusted,
+            "final_pct": result.final_pct,
+            "edge": result.edge,
+            "action": result.action,
+        },
+    }
+
+
+@router.post("/kelly-sizer")
+async def kelly_calculate(req: KellyRequest):
+    """Calculate Kelly position size for given parameters."""
+    if req.current_volatility is not None:
+        result = _kelly.calculate_volatility_adjusted(
+            win_rate=req.win_rate,
+            avg_win_pct=req.avg_win_pct,
+            avg_loss_pct=req.avg_loss_pct,
+            current_volatility=req.current_volatility,
+            baseline_volatility=settings.VOLATILITY_BASELINE,
+            regime=req.regime,
+            trade_count=req.trade_count,
+        )
+    else:
+        result = _kelly.calculate(
+            win_rate=req.win_rate,
+            avg_win_pct=req.avg_win_pct,
+            avg_loss_pct=req.avg_loss_pct,
+            regime=req.regime,
+            trade_count=req.trade_count,
+        )
+    return {
+        "raw_kelly": result.raw_kelly,
+        "half_kelly": result.half_kelly,
+        "regime_adjusted": result.regime_adjusted,
+        "final_pct": result.final_pct,
+        "edge": result.edge,
+        "action": result.action,
+        "regime": result.regime,
+    }
+
+
+@router.post("/position-sizing")
+async def portfolio_position_sizing(positions: List[dict]):
+    """Apply Kelly + sector correlation caps to a list of positions.
+
+    Each position dict should have: symbol, kelly_allocation_pct, sector
+    """
+    capped = KellyPositionSizer.portfolio_correlation_cap(
+        positions,
+        max_sector_pct=settings.MAX_SECTOR_CONCENTRATION,
+        max_correlated_pct=settings.MAX_PORTFOLIO_HEAT,
+    )
+    total_alloc = sum(p.get("kelly_allocation_pct", 0) for p in capped)
+    return {
+        "positions": capped,
+        "total_allocation_pct": round(total_alloc, 4),
+        "within_heat_limit": total_alloc <= settings.MAX_PORTFOLIO_HEAT,
+    }

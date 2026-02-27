@@ -35,6 +35,8 @@ class BacktestEngine:
         strategy: str = "composite",
         initial_equity: float = 100_000.0,
         shares_per_trade: int = 100,
+                use_kelly: bool = False,
+        kelly_fraction: float = 0.5,  # Half-Kelly default
     ) -> Dict[str, Any]:
         """Full backtest: fetch historical signals/prices, simulate trades."""
         conn = self._conn()
@@ -85,7 +87,20 @@ class BacktestEngine:
             else:
                 pnl_r = (entry_price - target_price) / risk
 
-            pnl_dollars = pnl_r * risk * shares_per_trade
+                        # Kelly-aware position sizing
+            if use_kelly:
+                score = float(sig.get("score", 50))
+                prob = min(0.95, max(0.3, 0.4 + (score / 100) * 0.5))
+                avg_w = risk * 2.0  # Assume 2R target
+                avg_l = risk
+                b = avg_w / max(avg_l, 0.001)
+                edge = prob * b - (1 - prob)
+                kelly_pct = max(0, (edge / b) * kelly_fraction)
+                position_value = equity * min(kelly_pct, 0.10)  # Cap 10%
+                shares = max(1, int(position_value / max(entry_price, 0.01)))
+            else:
+                shares = shares_per_trade
+            pnl_dollars = pnl_r * risk * shares
             equity += pnl_dollars
 
             trades.append(
@@ -100,6 +115,8 @@ class BacktestEngine:
                     "equity": round(float(equity), 2),
                     "score": float(sig.get("score", 0)),
                     "received_at": str(sig["received_at"]),
+                                        "shares": shares,
+                    "kelly_sized": use_kelly,
                 }
             )
 

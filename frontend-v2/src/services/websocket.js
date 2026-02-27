@@ -7,7 +7,10 @@
 
 import { getWsBaseUrl } from "../config/api";
 
-const RECONNECT_DELAY_MS = 3000;
+const RECONNECT_DELAY_MS = 2000;
+const MAX_RECONNECT_DELAY = 30000;
+const MAX_RECONNECT_ATTEMPTS = 20;
+const HEARTBEAT_INTERVAL = 25000;
 
 class AppWebSocket {
   constructor() {
@@ -15,6 +18,9 @@ class AppWebSocket {
     this.handlers = new Map(); // channel -> Set<fn>
     this.reconnectTimer = null;
     this._intentionalClose = false;
+        this._reconnectAttempts = 0;
+    this._heartbeatTimer = null;
+    this.state = "disconnected"; // disconnected | connecting | connected | reconnecting
   }
 
   connect() {
@@ -23,11 +29,18 @@ class AppWebSocket {
     const url = getWsBaseUrl();
     try {
       this.ws = new WebSocket(url);
-      this.ws.onopen = () => {
+            this.ws.onopen = () => {
+        this.state = "connected";
+        this._reconnectAttempts = 0;
+        // Start heartbeat pong responses
+        this._heartbeatTimer = setInterval(() => {
+          if (this.ws?.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({ type: "pong" }));
+          }
+        }, HEARTBEAT_INTERVAL);
         if (this.handlers.has("*"))
           this.handlers.get("*").forEach((fn) => fn({ type: "connected" }));
       };
-      this.ws.onmessage = (event) => {
         try {
           const msg =
             typeof event.data === "string"
@@ -44,15 +57,24 @@ class AppWebSocket {
             this.handlers.get("*").forEach((fn) => fn({ raw: event.data }));
         }
       };
-      this.ws.onclose = () => {
+            this.ws.onclose = () => {
+        clearInterval(this._heartbeatTimer);
+        this.state = "disconnected";
         if (this.handlers.has("*"))
           this.handlers.get("*").forEach((fn) => fn({ type: "disconnected" }));
-        if (!this._intentionalClose && RECONNECT_DELAY_MS > 0) {
+        if (!this._intentionalClose && this._reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+          this.state = "reconnecting";
+          const delay = Math.min(
+            RECONNECT_DELAY_MS * Math.pow(1.5, this._reconnectAttempts),
+            MAX_RECONNECT_DELAY
+          );
+          this._reconnectAttempts++;
           this.reconnectTimer = setTimeout(
             () => this.connect(),
-            RECONNECT_DELAY_MS,
+            delay,
           );
         }
+      };
       };
       this.ws.onerror = () => {};
     } catch (err) {
@@ -80,6 +102,9 @@ class AppWebSocket {
 
   disconnect() {
     this._intentionalClose = true;
+        clearInterval(this._heartbeatTimer);
+    this.state = "disconnected";
+    this._reconnectAttempts = 0;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
