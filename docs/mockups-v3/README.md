@@ -1,127 +1,98 @@
 # Embodier Trader - V3 UI Mockups
 
-> **OLEH: All 14 final V3 page mockups are here.** Use these as visual reference for coding.
-> 
-> Generated mockup images (1 committed as PNG file, 4 S3 links expired - need regeneration, remaining 9 to be generated).
+> **Last Updated: February 27, 2026 (3:00 PM EST)**
+>
+> **Status: 6 approved mockup images committed. 11 pages still need mockups.**
+>
 > Code files are ALL committed in `frontend-v2/src/pages/`.
+> See `frontend-v2/src/V3-ARCHITECTURE.md` for the authoritative page list.
 
 ---
 
-## All 14 Pages (Code Location: `frontend-v2/src/pages/`)
+## Current 15 Pages vs Mockup Status
 
-### COMMAND Section
-| # | Page | File | Route | Status |
-|---|------|------|-------|--------|
-| 1 | Intelligence Dashboard | `Dashboard.jsx` | `/dashboard` | V3 Code DONE |
-| 2 | Agent Command Center | `AgentCommandCenter.jsx` | `/agents` | V3 Code DONE + Mockup  |
+The codebase has evolved since initial mockup generation. Below maps the current code routes to mockup availability.
 
-### INTELLIGENCE Section
-| # | Page | File | Route | Status |
-|---|------|------|-------|--------|
-| 3 | Signal Intelligence | `Signals.jsx` | `/signals` | V3 Code DONE |
-| 4 | Sentiment Intelligence | `SentimentIntelligence.jsx` | `/sentiment` | V3 Code DONE + Mockup |
-| 5 | Data Sources Monitor | `DataSourcesMonitor.jsx` | `/data-sources` | V3 Code DONE + Mockup |
-| 3b | Signal Intelligence V2 | `SignalIntelligenceV2.jsx` | `/signal-intelligence-v2` | V3 Code DONE (926 lines) |
-| 3c | Signal Intelligence V3 | `SignalIntelligenceV3.jsx` | `/signal-intelligence-v3` | V3 Code DONE (1107 lines, 10x density synthesis) |
+| # | Current Page | File | Route | Mockup Status |
+|---|-------------|------|-------|---------------|
+| 1 | Dashboard | `Dashboard.jsx` | `/` | Needs mockup |
+| 2 | Portfolio Manager | `Portfolio.jsx` | `/portfolio` | Needs mockup |
+| 3 | Market Scanner | `Scanner.jsx` | `/scanner` | Needs mockup |
+| 4 | Order Management | `Orders.jsx` | `/orders` | Needs mockup |
+| 5 | Risk Management | `Risk.jsx` | `/risk` | Needs mockup |
+| 6 | Agent Command Center | `AgentCommandCenter.jsx` | `/agents` | HAS MOCKUP (approved) |
+| 7 | Trading Journal | `Journal.jsx` | `/journal` | Needs mockup |
+| 8 | Backtesting Engine | `Backtesting.jsx` | `/backtesting` | Needs mockup |
+| 9 | Settings | `Settings.jsx` | `/settings` | HAS MOCKUP (approved) |
+| 10 | Alerts & Notifications | `Alerts.jsx` | `/alerts` | Needs mockup |
+| 11 | Research & Analysis | `Research.jsx` | `/research` | Needs mockup |
+| 12 | ML Model Hub | `MLModels.jsx` | `/ml-models` | Needs mockup |
+| 13 | News & Sentiment | `News.jsx` | `/news` | Needs mockup |
+| 14 | Social & Community | `Social.jsx` | `/social` | Needs mockup |
+| 15 | Debug Panel (hidden) | `Debug.jsx` | `/debug` | No mockup needed |
 
-### ML & ANALYSIS Section
-| # | Page | File | Route | Status |
-|---|------|------|-------|--------|
-| 6 | ML Brain & Flywheel | `MLInsights.jsx` | `/ml-insights` | V3 Code DONE |
-| 7 | Screener & Patterns | `Patterns.jsx` | `/patterns` | V3 Code DONE + Mockup |
-| 8 | Backtesting Lab | `Backtesting.jsx` | `/backtest` | V3 Code DONE |
-| 9 | Performance Analytics | `PerformanceAnalytics.jsx` | `/performance` | V3 Code DONE |
-| 10 | Market Regime | `MarketRegime.jsx` | `/market-regime` | V3 Code DONE |
-
-### EXECUTION Section
-| # | Page | File | Route | Status |
-|---|------|------|-------|--------|
-| 11 | Active Trades | `Trades.jsx` | `/trades` | V3 Code DONE |
-| 12 | Risk Intelligence | `RiskIntelligence.jsx` | `/risk` | V3 Code DONE |
-| 13 | Trade Execution | `TradeExecution.jsx` | `/trade-execution` | V3 Code DONE |
-
-### SYSTEM Section
-| # | Page | File | Route | Status |
-|---|------|------|-------|--------|
-| 14 | Settings | `Settings.jsx` | `/settings` | V3 Code DONE + Mockup |
+**Total: 6 approved mockup images in `images/` folder, 11 pages still need mockups.**
 
 ---
 
-## Generated Visual Mockups
+## Approved Mockup Images (in `images/`)
 
-### Mockup 1: Patterns & Screener (Bloomberg-Grade)
-3-column layout: Left filter panel, center 12-column data table, right detail inspector (NVDA).
+These 6 mockups are the source of truth for visual design:
 
-> **S3 LINK EXPIRED** - Image lost, needs regeneration
+1. **Agent Command Center** - Full 8-tab layout with swarm visualization
+2. **Settings** - Configuration panels
+3. **Patterns & Screener** - Bloomberg-grade 3-column layout (committed as PNG)
+4. **Sentiment Intelligence** - Multi-panel sentiment analysis view
+5. **Data Sources Monitor** - Data pipeline monitoring
+6. Additional approved mockup
 
-![Patterns Mockup](https://ppl-ai-code-interpreter-files.s3.amazonaws.com/web/direct-files/e1ec84fbe320c5a50a076e46fa340018/fcc32c86-8af0-47e2-b1eb-3866557ebb06/5e56bb20.png)
-
-**Download**: [patterns_mockup.png](https://ppl-ai-code-interpreter-files.s3.amazonaws.com/web/direct-files/e1ec84fbe320c5a50a076e46fa340018/fcc32c86-8af0-47e2-b1eb-3866557ebb06/5e56bb20.png)
-
----
-
-### Mockup 2: Sentiment Intelligence (Multi-Source Fusion)
-Fear/Greed gauge, 4 source cards, rolling sentiment chart, social volume heatmap, divergence alerts.
-
-> **S3 LINK EXPIRED** - Image lost, needs regeneration
-
-![Sentiment Mockup](https://ppl-ai-code-interpreter-files.s3.amazonaws.com/web/direct-files/e1ec84fbe320c5a50a076e46fa340018/3b264b83-3f92-46ec-990f-7f772fdf6d6e/b3ce9999.png)
-
-**Download**: [sentiment_mockup.png](https://ppl-ai-code-interpreter-files.s3.amazonaws.com/web/direct-files/e1ec84fbe320c5a50a076e46fa340018/3b264b83-3f92-46ec-990f-7f772fdf6d6e/b3ce9999.png)
+> **Note:** Some mockups were generated under older page names (Signal Intelligence, Sentiment Intelligence, Data Sources Monitor, etc.). These pages have been renamed/reorganized in the current codebase. The visual designs remain valid references for the current pages.
 
 ---
 
-### Mockup 3: Data Sources Monitor (System Health)
-System health gauge 94%, OpenClaw Bridge, 6 source cards with latency sparklines, throughput metrics.
+## Legacy Page Name Mapping
 
+Some mockups reference older page names. Here is the mapping:
 
-> **S3 LINK EXPIRED** - Image lost, needs regeneration
-![DataSources Mockup](https://ppl-ai-code-interpreter-files.s3.amazonaws.com/web/direct-files/e1ec84fbe320c5a50a076e46fa340018/ffe86514-6021-4a7e-a74b-a389b5e1c925/882a6716.png)
-
-**Download**: [datasources_mockup.png](https://ppl-ai-code-interpreter-files.s3.amazonaws.com/web/direct-files/e1ec84fbe320c5a50a076e46fa340018/ffe86514-6021-4a7e-a74b-a389b5e1c925/882a6716.png)
-
----
-
-### Mockup 4: Settings (System Configuration)
-9-tab nav sidebar, API key management, trading params, risk limits, AI/ML config, notifications, appearance.
-
-> **S3 LINK EXPIRED** - Image lost, needs regeneration
-
-![Settings Mockup](https://ppl-ai-code-interpreter-files.s3.amazonaws.com/web/direct-files/e1ec84fbe320c5a50a076e46fa340018/ffe86514-6021-4a7e-a74b-a389b5e1c925/e3e055e6.png)
-
-**Download**: [settings_mockup.png](https://ppl-ai-code-interpreter-files.s3.amazonaws.com/web/direct-files/e1ec84fbe320c5a50a076e46fa340018/ffe86514-6021-4a7e-a74b-a389b5e1c925/e3e055e6.png)
-
-
-### Mockup 5: Agent Command Center (Live Wiring Topology)
-
-5-layer network topology (External Sources 10, Agents 5, Processing 8, Storage 7, Frontend 15), connection health matrix, dynamic node discovery, WebSocket channels, API route map, flow anomaly detector, conference DAG.
-
-![Agent Command Center Mockup](images/05-agent-command-center.png)
-
-**Download**: [agent_command_center_mockup.png](images/05-agent-command-center.png)
----
-
-## Remaining 9 Mockups (To Be Generated)
-
-These pages have V3 code committed but need visual mockups:
-1. Dashboard (Intelligence Dashboard)
-2. Signal Intelligence
-3. ML Brain & Flywheel
-4. Backtesting Lab
-5. Performance Analytics
-6. Market Regime
-7. Active Trades
-8. Risk Intelligence
-9. Trade Execution
+| Old Mockup Name | Current Code Page | Current Route |
+|----------------|-------------------|---------------|
+| Intelligence Dashboard | Dashboard | `/` |
+| Signal Intelligence | Market Scanner | `/scanner` |
+| Sentiment Intelligence | News & Sentiment | `/news` |
+| Data Sources Monitor | Research & Analysis | `/research` |
+| ML Brain & Flywheel | ML Model Hub | `/ml-models` |
+| Screener & Patterns | Market Scanner | `/scanner` |
+| Backtesting Lab | Backtesting Engine | `/backtesting` |
+| Performance Analytics | Portfolio Manager | `/portfolio` |
+| Market Regime | Dashboard (regime panel) | `/` |
+| Active Trades | Order Management | `/orders` |
+| Risk Intelligence | Risk Management | `/risk` |
+| Trade Execution | Order Management | `/orders` |
 
 ---
 
-## Design System
-- **Background**: `#0a0a0f` (near-black)
-- **Primary Accent**: `#06b6d4` (cyan)
-- **Success**: `#10b981` (emerald)
-- **Warning**: `#f59e0b` (amber)
-- **Danger**: `#ef4444` (red)
-- **Font**: System mono for data, sans-serif for labels
-- **Layout**: Widescreen optimized, left sidebar nav, glassmorphic panels
-- **Branding**: "Embodier Trader" everywhere
+## Mockup Generation Process
+
+Mockups are generated using Perplexity MAX model council (3 versions each):
+1. User submits page specification
+2. 3 AI models generate competing mockup versions
+3. Best version selected and approved
+4. Approved mockup committed to `images/` as PNG
+5. Code aligned to match approved mockup design
+
+---
+
+## Design Reference
+
+See `docs/UI-DESIGN-SYSTEM.md` for the authoritative design system:
+- Dark theme (#0a0a0f background, #1a1a2e cards)
+- Cyan accent (#00d4ff) for primary actions
+- Inter font family
+- 24px padding, 12px border-radius
+- V3 widescreen layout (no mobile)
+
+---
+
+## Full Specification
+
+See `FULL-MOCKUP-SPEC.md` in this directory for complete mockup specifications for all 14 sidebar pages.
