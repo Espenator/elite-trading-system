@@ -5,8 +5,8 @@
 Consolidated from 18 pages down to **14 sidebar pages** (+ 1 hidden route) for cleaner UX and maintainability.
 All pages use V3 widescreen layout with lightweight-charts and real API integration.
 
-> **Current Status (Feb 26, 2026)**: All 14 sidebar pages have V3 UI code written. 4 pages still use Recharts for charting.
-> **Next Step**: Migrate remaining Recharts pages to lightweight-charts (LW Charts) for production.
+> **Current Status (Feb 27, 2026)**: All 14 sidebar pages have V3 UI code. LW Charts migration COMPLETE for 3 remaining pages (SentimentIntelligence, DataSourcesMonitor, Patterns). PieChart kept only for non-financial SVG gauges.
+> **Next Step**: Wire real API endpoints, final UI polish, WebSocket integration.
 
 > **IMPORTANT**: This is the AUTHORITATIVE architecture doc. Sidebar.jsx defines the 14 visible pages.
 > App.jsx defines all routes including SignalIntelligenceV3 (hidden route, not in sidebar).
@@ -27,15 +27,15 @@ All pages use V3 widescreen layout with lightweight-charts and real API integrat
 | Page | File | Route | Status | Notes |
 |------|------|-------|--------|-------|
 | Signal Intelligence | `Signals.jsx` | `/signals` | V3 COMPLETE | Velez SLAM DUNK scanner, momentum breakout, heatmap tab included |
-| Sentiment Intelligence | `SentimentIntelligence.jsx` | `/sentiment` | V3 CODED - NEEDS LW CHARTS | useSentiment hook wired. V3 layout done with Recharts, needs LW Charts migration |
-| Data Sources Monitor | `DataSourcesMonitor.jsx` | `/data-sources` | V3 CODED - NEEDS LW CHARTS | API health dashboard. V3 layout done with Recharts, needs LW Charts migration |
+| Sentiment Intelligence | `SentimentIntelligence.jsx` | `/sentiment` | V3 COMPLETE | useSentiment hook wired. LW Charts migration complete |
+| Data Sources Monitor | `DataSourcesMonitor.jsx` | `/data-sources` | V3 COMPLETE | API health dashboard. LW Charts migration complete |
 
 ### ML & ANALYSIS (5 pages)
 
 | Page | File | Route | Status | Notes |
 |------|------|-------|--------|-------|
 | ML Brain & Flywheel | `MLBrainFlywheel.jsx` | `/ml-brain` | V3 COMPLETE | ML model performance, brain visualization, flywheel metrics |
-| Screener & Patterns | `Patterns.jsx` | `/patterns` | V3 CODED - NEEDS LW CHARTS | Finviz/Alpaca screener. V3 layout done with Recharts, needs LW Charts migration |
+| Screener & Patterns | `Patterns.jsx` | `/patterns` | V3 COMPLETE | Finviz/Alpaca screener. LW Charts migration complete |
 | Backtesting Lab | `Backtesting.jsx` | `/backtest` | V3 COMPLETE | Full backtest with LW Charts, strategy controls merged in |
 | Performance Analytics | `PerformanceAnalytics.jsx` | `/performance` | V3 COMPLETE | Real API data, equity curves, trade analysis |
 | Market Regime | `MarketRegime.jsx` | `/market-regime` | V3 COMPLETE | VIX regime classification with LW Charts |
@@ -45,52 +45,37 @@ All pages use V3 widescreen layout with lightweight-charts and real API integrat
 | Page | File | Route | Status | Notes |
 |------|------|-------|--------|-------|
 | Active Trades | `Trades.jsx` | `/trades` | V3 COMPLETE | Active position manager with R-Multiple tracking |
-| Risk Intelligence | `RiskIntelligence.jsx` | `/risk` | V3 COMPLETE | RiskEquityLC and MonteCarloLC wired up |
-| Trade Execution | `TradeExecution.jsx` | `/trade-execution` | V3 COMPLETE | 6-Question Zone Checklist, Van Tharp position sizing |
+| Trade Execution | `TradeExecution.jsx` | `/trade-execution` | V3 COMPLETE | Order entry with Alpaca integration |
+| Risk Intelligence | `RiskIntelligence.jsx` | `/risk` | V3 COMPLETE | Portfolio risk metrics, correlation matrix |
 
 ### SYSTEM (1 page)
 
 | Page | File | Route | Status | Notes |
 |------|------|-------|--------|-------|
-| Settings | `Settings.jsx` | `/settings` | V3 CODED - NEEDS LW CHARTS | User preferences, API keys, notifications. V3 layout done with Recharts |
+| Settings | `Settings.jsx` | `/settings` | V3 COMPLETE | API keys, preferences, system config |
 
----
+### HIDDEN ROUTE (not in sidebar)
 
-## Hidden Routes (not in sidebar, but in App.jsx)
-
-| File | Route | Notes |
-|------|-------|-------|
-| `SignalIntelligenceV3.jsx` | `/signal-intelligence-v3` | Advanced signal view, not in sidebar nav. Legacy `/signal-intelligence-v2` redirects here. |
-
----
-
-## Actual Files in pages/ Directory (16 files)
+| Page | File | Route | Status | Notes |
+|------|------|-------|--------|-------|
+| Signal Intelligence V3 | `SignalIntelligenceV3.jsx` | `/signal-intelligence-v3` | V3 COMPLETE | Advanced signal analysis, Kelly edge + quality columns |
 
 ```
-pages/
-  AgentCommandCenter.jsx   -> /agents
-  Backtesting.jsx          -> /backtest
-  Dashboard.jsx            -> /dashboard
-  DataSourcesMonitor.jsx   -> /data-sources
-  MLBrainFlywheel.jsx      -> /ml-brain
-  MarketRegime.jsx         -> /market-regime
-  Patterns.jsx             -> /patterns
-  PerformanceAnalytics.jsx -> /performance
-  RiskIntelligence.jsx     -> /risk
-  SentimentIntelligence.jsx -> /sentiment
-  Settings.jsx             -> /settings
-  SignalIntelligenceV3.jsx -> /signal-intelligence-v3 (hidden)
-  Signals.jsx              -> /signals
-  TradeExecution.jsx       -> /trade-execution
-  Trades.jsx               -> /trades
+Total: 15 routed pages (14 in sidebar + 1 hidden)
+Route definitions: App.jsx
+Sidebar navigation: Sidebar.jsx
+Shared layout: V3 widescreen with dark theme
+Chart library: lightweight-charts (LW Charts)
 ```
+
+---
 
 ## V3 Completion Status
 
-- **V3 COMPLETE (LW Charts): 10 pages** - Dashboard, AgentCommandCenter, Signals, MLBrainFlywheel, Backtesting, PerformanceAnalytics, MarketRegime, Trades, RiskIntelligence, TradeExecution
-- **V3 CODED (Recharts, needs LW Charts migration): 4 pages** - SentimentIntelligence, DataSourcesMonitor, Patterns, Settings
+- **V3 COMPLETE (LW Charts): 13 pages** - Dashboard, AgentCommandCenter, Signals, MLBrainFlywheel, Backtesting, PerformanceAnalytics, MarketRegime, Trades, RiskIntelligence, TradeExecution, SentimentIntelligence, DataSourcesMonitor, Patterns
+- **V3 COMPLETE (Settings): 1 page** - Settings
 - **Hidden route: 1** - SignalIntelligenceV3
-- **TOTAL: 15 routed pages (14 in sidebar + 1 hidden)
+- **TOTAL: 15 routed pages (14 in sidebar + 1 hidden)**
 
 ## Legacy Redirects (in App.jsx)
 
@@ -104,10 +89,9 @@ pages/
 
 ## Remaining Work to Production
 
-1. **LW Charts Migration (4 pages)**: Replace Recharts with lightweight-charts in SentimentIntelligence, DataSourcesMonitor, Patterns, Settings
-2. **Real API Wiring**: Connect simulated/mock data to live backend endpoints
-3. **Final UI Polish**: Apply approved mockup designs (see `/frontend-v2/public/assets/mockups/`)
-4. **WebSocket Integration**: Wire real-time data feeds where applicable
+1. **Real API Wiring**: Connect simulated/mock data to live backend endpoints
+2. **Final UI Polish**: Apply approved mockup designs (see `/frontend-v2/public/assets/mockups/`)
+3. **WebSocket Integration**: Wire real-time data feeds where applicable
 
 ## Key Design Standards
 
