@@ -120,3 +120,15 @@ export async function fetchDynamicStopLoss(symbol, entryPrice, side = 'buy') {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
+
+/** POST helper for pre-trade risk check */
+export async function fetchPreTradeCheck(symbol, side = 'buy') {
+  const url = getApiUrl('preTradeCheck');
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ symbol, side }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}

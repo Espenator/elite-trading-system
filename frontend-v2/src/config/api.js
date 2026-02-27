@@ -59,6 +59,7 @@ const API_CONFIG = {
   dynamicStopLoss: "/risk/dynamic-stop-loss", // ATR-based stop-loss calculator
   riskScore: "/risk/risk-score", // Composite risk score 0-100
   kellyRanked: "/signals/kelly-ranked", // Kelly-ranked ticker opportunities
+    preTradeCheck: "/strategy/pre-trade-check", // Pre-trade risk gate (6 checks)
   },
 };
 
