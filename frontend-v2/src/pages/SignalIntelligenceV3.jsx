@@ -793,4 +793,3 @@ export const RechartsDashboards = () => {
 };
 
 
-export default SignalIntelligenceV3;
