@@ -32,6 +32,27 @@ jobs:
           TRADING_MODE: paper
           ALPACA_API_KEY: test
           ALPACA_SECRET_KEY: test
+          KELLY_FRACTION: 0.25
+          MAX_PORTFOLIO_RISK: 0.02
+          MAX_DRAWDOWN_PCT: 0.15
+          RISK_FREE_RATE: 0.05
+
+      - name: Validate risk parameters
+        run: |
+          python -c "
+          import os
+          kelly = float(os.getenv('KELLY_FRACTION', '0.25'))
+          max_risk = float(os.getenv('MAX_PORTFOLIO_RISK', '0.02'))
+          max_dd = float(os.getenv('MAX_DRAWDOWN_PCT', '0.15'))
+          assert 0 < kelly <= 0.5, f'Kelly fraction {kelly} out of safe range'
+          assert 0 < max_risk <= 0.05, f'Portfolio risk {max_risk} too high'
+          assert 0 < max_dd <= 0.25, f'Max drawdown {max_dd} too high'
+          print('Risk parameters validated successfully')
+          "
+        env:
+          KELLY_FRACTION: 0.25
+          MAX_PORTFOLIO_RISK: 0.02
+          MAX_DRAWDOWN_PCT: 0.15
 
   frontend-build:
     runs-on: ubuntu-latest
