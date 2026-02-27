@@ -465,3 +465,87 @@ async def risk_score():
         "warnings": warnings,
         "trading_recommended": score >= 40,
     }
+
+
+    @router.get("/var-analysis")
+async def var_analysis():
+    """Calculate Value-at-Risk metrics for current portfolio."""
+    try:
+        account = await alpaca_service.get_account()
+        equity = float(account.get("equity", 0))
+        positions = await alpaca_service.get_positions()
+
+        if not positions:
+            return {"var_1d_95": 0, "var_1d_99": 0, "positions": 0, "equity": equity}
+
+        # Calculate portfolio VaR from position P&L
+        position_risks = []
+        total_exposure = 0
+        for p in positions:
+            mkt_val = abs(float(p.get("market_value", 0)))
+            unrealized_pct = float(p.get("unrealized_plpc", 0))
+            total_exposure += mkt_val
+            # Estimate daily volatility from unrealized P&L as proxy
+            daily_vol = max(0.01, abs(unrealized_pct) * 0.5)  # Conservative estimate
+            position_risks.append({
+                "symbol": p.get("symbol"),
+                "market_value": round(mkt_val, 2),
+                "weight": round(mkt_val / equity, 4) if equity > 0 else 0,
+                "daily_vol": round(daily_vol, 4),
+                "var_contribution": round(mkt_val * daily_vol * 1.645, 2),  # 95% VaR
+            })
+
+        # Portfolio VaR (assuming sqrt-sum for diversified portfolio)
+        import math
+        var_contributions = [r["var_contribution"] for r in position_risks]
+        portfolio_var_95 = math.sqrt(sum(v**2 for v in var_contributions)) if var_contributions else 0
+        portfolio_var_99 = portfolio_var_95 * 2.326 / 1.645  # Scale to 99%
+
+        return {
+            "equity": round(equity, 2),
+            "total_exposure": round(total_exposure, 2),
+            "exposure_pct": round(total_exposure / equity, 4) if equity > 0 else 0,
+            "var_1d_95": round(portfolio_var_95, 2),
+            "var_1d_95_pct": round(portfolio_var_95 / equity * 100, 2) if equity > 0 else 0,
+            "var_1d_99": round(portfolio_var_99, 2),
+            "var_1d_99_pct": round(portfolio_var_99 / equity * 100, 2) if equity > 0 else 0,
+            "positions_count": len(positions),
+            "position_risks": sorted(position_risks, key=lambda x: -x["var_contribution"]),
+            "var_limit_pct": _safe_float(config.get("varLimit"), 1.5),
+            "var_ok": portfolio_var_95 / equity * 100 < _safe_float(config.get("varLimit"), 1.5) if equity > 0 else True,
+        }
+    except Exception as e:
+        logger.error(f"VaR analysis error: {e}")
+        return {"error": str(e)}
+
+
+@router.get("/drawdown-check")
+async def drawdown_check():
+    """Check current drawdown status and whether trading should be paused."""
+    try:
+        account = await alpaca_service.get_account()
+        equity = float(account.get("equity", 0))
+        last_equity = float(account.get("last_equity", equity))
+        daily_pnl_pct = ((equity - last_equity) / last_equity * 100) if last_equity > 0 else 0
+
+        max_dd = _safe_float(config.get("maxDailyDrawdown"), 5.0)
+        max_loss = _safe_float(config.get("maxDailyLoss"), 2.0)
+
+        dd_breached = daily_pnl_pct < -max_dd
+        loss_breached = daily_pnl_pct < -max_loss
+
+        return {
+            "equity": round(equity, 2),
+            "last_equity": round(last_equity, 2),
+            "daily_pnl": round(equity - last_equity, 2),
+            "daily_pnl_pct": round(daily_pnl_pct, 2),
+            "max_daily_drawdown": max_dd,
+            "max_daily_loss": max_loss,
+            "drawdown_breached": dd_breached,
+            "loss_breached": loss_breached,
+            "trading_allowed": not dd_breached,
+            "status": "PAUSED" if dd_breached else "WARNING" if loss_breached else "OK",
+        }
+    except Exception as e:
+        logger.error(f"Drawdown check error: {e}")
+        return {"trading_allowed": True, "error": str(e)}
