@@ -1,7 +1,7 @@
-// OLEH: This is the main navigation for all 15 pages
+// This is the main navigation for all 14 sidebar pages
 // Organized by section: Command, Intelligence, ML & Analysis, Execution, System
 // Every page maps 1:1 to a backend module per the architecture doc
-// V3 CONSOLIDATION: 15 pages total (added ML Brain & Flywheel)
+// V3 CONSOLIDATION: 14 sidebar pages (see V3-ARCHITECTURE.md)
 
 import { NavLink } from "react-router-dom";
 import {
