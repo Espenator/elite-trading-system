@@ -58,6 +58,10 @@ class PredictionScanner:
                             "shift": shift,
                             "market_question": m["market"],
                             "timestamp": datetime.utcnow().isoformat()
+                                                    # Kelly-informed confidence from prediction odds
+                        "kelly_edge": round(abs(shift) * odds, 4),
+                        "confidence": round(min(1.0, odds * (1 + abs(shift))), 3),
+                        "prob_up": round(odds if shift > 0 else 1 - odds, 3),
                         }
                         
                         # Feed into trade memory for accuracy backtesting (mock or direct via topic)

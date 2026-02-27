@@ -72,6 +72,10 @@ def _format_position(pos: Dict, idx: int) -> Dict:
         "target": None,
         "signal": None,
         "assetId": asset_id,
+                # Kelly-informed position analysis
+        "portfolioPct": round((market_value / max(1, market_value + 1)) * 100, 2),  # Placeholder
+        "kellyRecommended": None,  # Filled by enrichment endpoint
+        "riskScore": round(min(1.0, abs(unrealized_plpc) / 5) if unrealized_plpc < 0 else 0, 2),
     }
 
 
@@ -145,4 +149,27 @@ async def get_portfolio():
             _format_fill(f, i) for i, f in enumerate(activities_raw)
         ]
 
-    return {"positions": positions, "history": history}
+        # Compute portfolio summary with Kelly metrics
+    total_value = sum(p.get("marketValue", 0) for p in positions)
+    total_unrealized = sum(p.get("unrealizedPnl", 0) for p in positions)
+    # Update portfolioPct with real total
+    for p in positions:
+        mv = p.get("marketValue", 0)
+        p["portfolioPct"] = round((mv / max(total_value, 1)) * 100, 2)
+
+    long_count = sum(1 for p in positions if p.get("side") == "Long")
+    short_count = sum(1 for p in positions if p.get("side") == "Short")
+    at_risk = sum(p.get("riskScore", 0) for p in positions)
+
+    return {
+        "positions": positions,
+        "history": history,
+        "summary": {
+            "totalValue": round(total_value, 2),
+            "totalUnrealizedPnl": round(total_unrealized, 2),
+            "positionCount": len(positions),
+            "longCount": long_count,
+            "shortCount": short_count,
+            "portfolioHeat": round(at_risk / max(len(positions), 1), 2),
+        },
+    }

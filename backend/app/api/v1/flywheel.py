@@ -34,6 +34,9 @@ class FlywheelRecord(BaseModel):
     resolvedSignals: Optional[int] = None
     pendingResolution: Optional[int] = None
     date: Optional[str] = None  # ISO date, defaults to today
+        kellyPerformance: Optional[float] = None  # Actual Kelly edge realized
+    profitFactor: Optional[float] = None  # Wins/losses ratio
+    avgEdgeRealized: Optional[float] = None  # Actual edge vs predicted
 
 
 def _get_flywheel_data() -> dict:
@@ -46,6 +49,10 @@ def _get_flywheel_data() -> dict:
             "resolvedSignals": 0,
             "pendingResolution": 0,
             "history": [],
+                        "kellyPerformance": 0.0,
+            "profitFactor": 0.0,
+            "avgEdgeRealized": 0.0,
+            "edgeCalibration": 1.0,  # Multiplier: predicted_edge * calibration = adjusted_edge
         }
     return stored
 
@@ -229,3 +236,61 @@ async def get_feature_pipeline_status():
         return {"status": "not_installed", "message": "feature_pipeline module not available"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+
+# -----------------------------------------------------------------
+# Kelly Learning Feedback: calibrate edge predictions from outcomes
+# -----------------------------------------------------------------
+
+@router.post("/flywheel/kelly-feedback")
+async def kelly_feedback(outcomes: List[Dict]):
+    """Update edge calibration from realized trade outcomes.
+
+    Each outcome: {predicted_edge, realized_pnl_pct, symbol, date}
+    Adjusts edgeCalibration multiplier so predicted edges better
+    match realized performance over time.
+    """
+    data = _get_flywheel_data()
+    if not outcomes:
+        return {"status": "no_outcomes"}
+
+    predicted_edges = [o.get("predicted_edge", 0) for o in outcomes]
+    realized_pcts = [o.get("realized_pnl_pct", 0) for o in outcomes]
+
+    avg_predicted = sum(predicted_edges) / max(len(predicted_edges), 1)
+    avg_realized = sum(realized_pcts) / max(len(realized_pcts), 1)
+
+    # Calibration: how much to scale predicted edges
+    if avg_predicted > 0:
+        new_calibration = min(2.0, max(0.1, avg_realized / avg_predicted))
+    else:
+        new_calibration = 1.0
+
+    # Exponential moving average with existing calibration
+    old_cal = data.get("edgeCalibration", 1.0)
+    alpha = 0.3  # Learning rate
+    data["edgeCalibration"] = round(old_cal * (1 - alpha) + new_calibration * alpha, 4)
+
+    # Update Kelly performance metrics
+    wins = [r for r in realized_pcts if r > 0]
+    losses = [r for r in realized_pcts if r < 0]
+    data["kellyPerformance"] = round(avg_realized, 4)
+    data["profitFactor"] = round(
+        sum(wins) / max(sum(abs(l) for l in losses), 0.001), 3
+    ) if losses else 999.0
+    data["avgEdgeRealized"] = round(avg_realized, 4)
+
+    _save_flywheel_data(data)
+    await broadcast_ws("flywheel", {"type": "kelly_calibration_updated", **data})
+
+    logger.info(
+        f"Kelly feedback: calibration {old_cal:.4f} -> {data['edgeCalibration']:.4f} "
+        f"from {len(outcomes)} outcomes"
+    )
+    return {
+        "status": "updated",
+        "edgeCalibration": data["edgeCalibration"],
+        "kellyPerformance": data["kellyPerformance"],
+        "profitFactor": data["profitFactor"],
+        "outcomes_processed": len(outcomes),
+    }
