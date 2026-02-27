@@ -149,3 +149,39 @@ def get_channel_info() -> dict:
         "total_connections": len(_ws_connections),
         "channels": {ch: len(subs) for ch, subs in _channel_subscriptions.items()}
     }
+
+
+# --- Risk & Drawdown Broadcast Helpers ---
+
+async def broadcast_risk_update(risk_data: dict):
+    """Broadcast risk score update to all subscribed clients."""
+    await broadcast_ws("risk", {
+        "type": "risk_score_update",
+        "risk_score": risk_data.get("risk_score", 100),
+        "grade": risk_data.get("grade", "A"),
+        "warnings": risk_data.get("warnings", []),
+        "trading_recommended": risk_data.get("trading_recommended", True),
+        "ts": time.time(),
+    })
+
+
+async def broadcast_drawdown_alert(dd_data: dict):
+    """Broadcast drawdown breach alert to all clients."""
+    await broadcast_ws("risk", {
+        "type": "drawdown_alert",
+        "trading_allowed": dd_data.get("trading_allowed", True),
+        "daily_pnl": dd_data.get("daily_pnl", 0),
+        "daily_pnl_pct": dd_data.get("daily_pnl_pct", 0),
+        "drawdown_breached": dd_data.get("drawdown_breached", False),
+        "severity": "critical" if dd_data.get("drawdown_breached") else "info",
+        "ts": time.time(),
+    })
+
+
+async def broadcast_kelly_update(kelly_data: dict):
+    """Broadcast Kelly position sizing update."""
+    await broadcast_ws("kelly", {
+        "type": "kelly_update",
+        **kelly_data,
+        "ts": time.time(),
+    })
