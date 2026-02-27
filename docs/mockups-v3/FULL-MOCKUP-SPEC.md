@@ -14,10 +14,10 @@
 | 4 | Agent CC - Live Wiring | `05-agent-command-center.png` | APPROVED |
 | 5 | Agent CC - Spawn & Scale | `05b-agent-command-center-spawn.png` | APPROVED |
 | 6 | Agent CC - Agent Registry | `agent-rgistery.png` | APPROVED |
-| 7 | Intelligence Dashboard | -- | NEEDS MOCKUP |
+| 7 | Intelligence Dashboard | `02-intelligence-dashboard.png` | APPROVED |
 | 8 | Signal Intelligence (sidebar) | -- | NEEDS MOCKUP |
 | 9 | Data Sources Monitor | -- | NEEDS MOCKUP |
-| 10 | ML Brain & Flywheel | -- | NEEDS MOCKUP |
+| 10 | ML Brain & Flywheel | `06-ml-brain-flywheel.png` | APPROVED |
 | 11 | Screener & Patterns | -- | NEEDS MOCKUP |
 | 12 | Backtesting Lab | -- | NEEDS MOCKUP |
 | 13 | Performance Analytics | -- | NEEDS MOCKUP |
