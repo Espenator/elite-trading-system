@@ -173,13 +173,23 @@ async def evaluate_alerts(signals: list[dict] = []):
                 fired = sig.get("portfolio_heat", 0) > 0.20
             elif cond == "signal_quality_gt_80":
                 fired = sig.get("signal_quality", 0) > 0.80
+                            elif cond == "risk_score_lt_40":
+                fired = sig.get("risk_score", 100) < 40
+            elif cond == "drawdown_breached":
+                fired = sig.get("drawdown_breached", False)
+            elif cond == "trading_paused":
+                fired = not sig.get("trading_allowed", True)
+            elif cond == "profit_factor_lt_1":
+                fired = sig.get("profit_factor", 999) < 1.0
+            elif cond == "kelly_advantage_negative":
+                fired = sig.get("kelly_advantage", 0) < 0
             if fired:
                 triggered.append({
                     "symbol": sig.get("symbol", "?"),
                     "rule": rule["name"],
                     "condition": cond,
                     "value": sig.get(cond.split("_gt_")[0].replace("_", "."), "N/A"),
-                    "severity": "high" if "loss" in cond or "drawdown" in cond else "info",
+                                    "severity": "high" if "loss" in cond or "drawdown" in cond or "paused" in cond or "risk_score" in cond else "info",
                 })
 
     return {
