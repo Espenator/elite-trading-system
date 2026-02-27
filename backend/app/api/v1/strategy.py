@@ -270,3 +270,93 @@ async def pre_trade_check(symbol: str = "", side: str = "buy"):
         "reasons": reasons,
         "recommendation": "PROCEED" if allowed else "BLOCK",
     }
+
+
+    # ── Adaptive Strategy Selection ──────────────────────────────────
+
+# Strategy configs keyed by regime - determines which approach maximizes profit
+STRATEGY_BY_REGIME = {
+    "BULLISH": {
+        "strategy": "momentum_breakout",
+        "description": "Ride strong trends with breakout entries",
+        "kelly_mult": 1.0,
+        "max_positions": 8,
+        "stop_type": "trailing",
+        "stop_pct": 0.05,
+        "min_score": 65,
+        "prefer_sectors": ["Technology", "Consumer Cyclical"],
+    },
+    "RISK_ON": {
+        "strategy": "momentum_pullback",
+        "description": "Buy pullbacks in uptrending stocks",
+        "kelly_mult": 0.9,
+        "max_positions": 6,
+        "stop_type": "trailing",
+        "stop_pct": 0.04,
+        "min_score": 70,
+        "prefer_sectors": ["Technology", "Healthcare"],
+    },
+    "NEUTRAL": {
+        "strategy": "mean_reversion",
+        "description": "Fade extremes, buy oversold, sell overbought",
+        "kelly_mult": 0.7,
+        "max_positions": 4,
+        "stop_type": "fixed",
+        "stop_pct": 0.03,
+        "min_score": 75,
+        "prefer_sectors": ["Utilities", "Consumer Defensive"],
+    },
+    "RISK_OFF": {
+        "strategy": "defensive_yield",
+        "description": "Defensive positions, dividends, low-beta",
+        "kelly_mult": 0.5,
+        "max_positions": 3,
+        "stop_type": "fixed",
+        "stop_pct": 0.02,
+        "min_score": 80,
+        "prefer_sectors": ["Utilities", "Consumer Defensive", "Healthcare"],
+    },
+    "BEARISH": {
+        "strategy": "cash_preservation",
+        "description": "Minimal exposure, only A+ setups",
+        "kelly_mult": 0.3,
+        "max_positions": 2,
+        "stop_type": "tight",
+        "stop_pct": 0.015,
+        "min_score": 85,
+        "prefer_sectors": ["Consumer Defensive"],
+    },
+    "CRISIS": {
+        "strategy": "full_cash",
+        "description": "No new positions, protect capital",
+        "kelly_mult": 0.0,
+        "max_positions": 0,
+        "stop_type": "none",
+        "stop_pct": 0.0,
+        "min_score": 100,
+        "prefer_sectors": [],
+    },
+}
+
+
+@router.get("/adaptive-strategy")
+async def get_adaptive_strategy():
+    """Return the current recommended strategy based on market regime."""
+    ctrl = _get_controls()
+    regime = ctrl.get("regimeOverride", "NEUTRAL")
+    strategy = STRATEGY_BY_REGIME.get(regime, STRATEGY_BY_REGIME["NEUTRAL"])
+    return {
+        "regime": regime,
+        **strategy,
+        "portfolio_heat_limit": strategy["max_positions"] * 0.05,
+        "suggested_scan_interval": "15m" if regime in ("BULLISH", "RISK_ON") else "1h",
+    }
+
+
+@router.get("/strategy-matrix")
+async def get_strategy_matrix():
+    """Return all regime-strategy mappings for dashboard display."""
+    return {
+        "strategies": STRATEGY_BY_REGIME,
+        "current_regime": _get_controls().get("regimeOverride", "NEUTRAL"),
+    }
