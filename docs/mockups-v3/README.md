@@ -2,7 +2,7 @@
 
 > **OLEH: All 14 final V3 page mockups are here.** Use these as visual reference for coding.
 > 
-> Generated mockup images (5 available so far, remaining 9 to be generated).
+> Generated mockup images (1 committed as PNG file, 4 S3 links expired - need regeneration, remaining 9 to be generated).
 > Code files are ALL committed in `frontend-v2/src/pages/`.
 
 ---
@@ -52,6 +52,8 @@
 ### Mockup 1: Patterns & Screener (Bloomberg-Grade)
 3-column layout: Left filter panel, center 12-column data table, right detail inspector (NVDA).
 
+> **S3 LINK EXPIRED** - Image lost, needs regeneration
+
 ![Patterns Mockup](https://ppl-ai-code-interpreter-files.s3.amazonaws.com/web/direct-files/e1ec84fbe320c5a50a076e46fa340018/fcc32c86-8af0-47e2-b1eb-3866557ebb06/5e56bb20.png)
 
 **Download**: [patterns_mockup.png](https://ppl-ai-code-interpreter-files.s3.amazonaws.com/web/direct-files/e1ec84fbe320c5a50a076e46fa340018/fcc32c86-8af0-47e2-b1eb-3866557ebb06/5e56bb20.png)
@@ -60,6 +62,8 @@
 
 ### Mockup 2: Sentiment Intelligence (Multi-Source Fusion)
 Fear/Greed gauge, 4 source cards, rolling sentiment chart, social volume heatmap, divergence alerts.
+
+> **S3 LINK EXPIRED** - Image lost, needs regeneration
 
 ![Sentiment Mockup](https://ppl-ai-code-interpreter-files.s3.amazonaws.com/web/direct-files/e1ec84fbe320c5a50a076e46fa340018/3b264b83-3f92-46ec-990f-7f772fdf6d6e/b3ce9999.png)
 
@@ -70,6 +74,8 @@ Fear/Greed gauge, 4 source cards, rolling sentiment chart, social volume heatmap
 ### Mockup 3: Data Sources Monitor (System Health)
 System health gauge 94%, OpenClaw Bridge, 6 source cards with latency sparklines, throughput metrics.
 
+
+> **S3 LINK EXPIRED** - Image lost, needs regeneration
 ![DataSources Mockup](https://ppl-ai-code-interpreter-files.s3.amazonaws.com/web/direct-files/e1ec84fbe320c5a50a076e46fa340018/ffe86514-6021-4a7e-a74b-a389b5e1c925/882a6716.png)
 
 **Download**: [datasources_mockup.png](https://ppl-ai-code-interpreter-files.s3.amazonaws.com/web/direct-files/e1ec84fbe320c5a50a076e46fa340018/ffe86514-6021-4a7e-a74b-a389b5e1c925/882a6716.png)
@@ -78,6 +84,8 @@ System health gauge 94%, OpenClaw Bridge, 6 source cards with latency sparklines
 
 ### Mockup 4: Settings (System Configuration)
 9-tab nav sidebar, API key management, trading params, risk limits, AI/ML config, notifications, appearance.
+
+> **S3 LINK EXPIRED** - Image lost, needs regeneration
 
 ![Settings Mockup](https://ppl-ai-code-interpreter-files.s3.amazonaws.com/web/direct-files/e1ec84fbe320c5a50a076e46fa340018/ffe86514-6021-4a7e-a74b-a389b5e1c925/e3e055e6.png)
 
@@ -88,9 +96,9 @@ System health gauge 94%, OpenClaw Bridge, 6 source cards with latency sparklines
 
 5-layer network topology (External Sources 10, Agents 5, Processing 8, Storage 7, Frontend 15), connection health matrix, dynamic node discovery, WebSocket channels, API route map, flow anomaly detector, conference DAG.
 
-![Agent Command Center Mockup](https://user-gen-media-assets.s3.amazonaws.com/gemini_images/5042afa9-4988-47cf-b755-879ee8da856e.png)
+![Agent Command Center Mockup](images/05-agent-command-center.png)
 
-**Download**: [agent_command_center_mockup.png](https://user-gen-media-assets.s3.amazonaws.com/gemini_images/5042afa9-4988-47cf-b755-879ee8da856e.png)
+**Download**: [agent_command_center_mockup.png](images/05-agent-command-center.png)
 ---
 
 ## Remaining 9 Mockups (To Be Generated)
