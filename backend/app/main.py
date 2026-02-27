@@ -168,6 +168,24 @@ async def lifespan(app: FastAPI):
         tick_task.cancel()
         drift_task.cancel()
                     heartbeat_task.cancel()
+                                risk_monitor_task.cancel()
+                            # Risk monitoring background task - polls every 30s
+        async def _risk_monitor_loop():
+            import time
+            while True:
+                try:
+                    from app.api.v1.risk import risk_score, drawdown_check
+                    from app.websocket_manager import broadcast_risk_update, broadcast_drawdown_alert
+                    risk_data = await risk_score()
+                    await broadcast_risk_update(risk_data)
+                    dd_data = await drawdown_check()
+                    if dd_data.get("drawdown_breached") or not dd_data.get("trading_allowed", True):
+                        await broadcast_drawdown_alert(dd_data)
+                    await asyncio.sleep(30)
+                except Exception as e:
+                    log.warning(f"Risk monitor error: {e}")
+                    await asyncio.sleep(60)
+        risk_monitor_task = asyncio.create_task(_risk_monitor_loop())
         try:
             await tick_task
         except asyncio.CancelledError:
