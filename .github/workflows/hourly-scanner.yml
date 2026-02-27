@@ -21,6 +21,19 @@ jobs:
       - name: Install dependencies
         run: |
           pip install alpaca-trade-api pandas-ta numpy pandas
+
+                - name: Check market hours
+        run: |
+          python -c "
+          from datetime import datetime, timezone, timedelta
+          now = datetime.now(timezone(timedelta(hours=-5)))  # EST
+          hour = now.hour
+          weekday = now.weekday()
+          if weekday >= 5 or hour < 4 or hour >= 20:
+              print('Market closed - skipping scan')
+              exit(0)
+          print(f'Market open - running scan at {now}')
+          "
           
       - name: Run scanner and email results
         env:
@@ -29,4 +42,5 @@ jobs:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_PASSWORD: ${{ secrets.GMAIL_PASSWORD }}
           RECIPIENT_EMAIL: espen@embodier.ai
+                    TRADING_MODE: paper  # paper or live
         run: python scanner/institutional_swing_scanner.py
