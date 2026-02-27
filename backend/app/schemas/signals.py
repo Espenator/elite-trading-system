@@ -43,3 +43,8 @@ class ActiveSignalResponse(BaseModel):
     max_loss_pct: float = 2.0  # Max loss per trade as % of portfolio
     trailing_stop_pct: float = 0.0  # Dynamic trailing stop
     sector: str = ""
+        signal_quality: float = 0.0  # Signal quality 0-1
+    risk_adjusted_score: float = 0.0  # Score adjusted for portfolio risk
+    position_recommendation: str = "HOLD"  # FULL / HALF / SKIP / HOLD
+    risk_score: int = 100  # Current portfolio risk score 0-100
+    trading_allowed: bool = True  # Whether trading is currently allowed
