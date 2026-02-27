@@ -3,8 +3,8 @@
 // Every page maps 1:1 to a backend module per the architecture doc
 // V3 CONSOLIDATION: 15 pages total (added ML Brain & Flywheel)
 
-import { NavLink, useLocation } from "react-router-dom";
-import { useState } from "react";
+import { NavLink } from "react-router-dom";
+import { useState, useEffect } from "react";
 import {
   LayoutDashboard,
   Bot,
@@ -74,9 +74,14 @@ const navSections = [
   },
 ];
 
-export default function Sidebar() {
+// BUG 1 FIX: Accept onCollapse callback so Layout.jsx can sync margin
+export default function Sidebar({ onCollapse }) {
   const [collapsed, setCollapsed] = useState(false);
-  const location = useLocation();
+
+  // BUG 1 FIX: Notify parent Layout whenever collapsed state changes
+  useEffect(() => {
+    if (onCollapse) onCollapse(collapsed);
+  }, [collapsed, onCollapse]);
 
   return (
     <aside
@@ -105,11 +110,16 @@ export default function Sidebar() {
             </div>
           )}
         </div>
+
+        {/* BUG 2 FIX: Dynamic title based on collapsed state */}
+        {/* BUG 5 FIX: Added aria-expanded and aria-label for accessibility */}
         <button
           onClick={() => setCollapsed(!collapsed)}
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           className={`rounded-md text-secondary hover:text-white transition-colors
             ${collapsed ? "p-0.5 absolute top-1/2 -translate-y-1/2 right-0 translate-x-1/2 border border-secondary/50 bg-surface" : "p-1.5"}`}
-          title="Expand sidebar"
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           <ChevronLeft className={`w-4 h-4 ${collapsed ? "rotate-180" : ""}`} />
         </button>
@@ -126,24 +136,27 @@ export default function Sidebar() {
                 </span>
               </div>
             )}
+
+            {/* BUG 4 FIX: Added explicit aria-hidden="true" value */}
             {collapsed && sectionIndex > 0 && (
               <div
                 className="mx-3 my-1.5 border-t border-secondary/40"
-                aria-hidden
+                aria-hidden="true"
               />
             )}
+
             <ul
               className={collapsed ? "space-y-0.5 px-1.5" : "space-y-0.5 px-2"}
             >
               {section.items.map((item) => {
-                const isActive = location.pathname === item.to;
                 const Icon = item.icon;
                 return (
                   <li key={item.to} className={`${collapsed ? "mx-0.5" : ""}`}>
+                    {/* BUG 3 FIX: Use React Router's isActive parameter instead of manual location check */}
                     <NavLink
                       to={item.to}
                       title={item.label}
-                      className={() =>
+                      className={({ isActive }) =>
                         `flex items-center transition-all duration-200 group outline-none ${
                           collapsed
                             ? `justify-center py-3 rounded-lg ${
@@ -159,20 +172,24 @@ export default function Sidebar() {
                         }`
                       }
                     >
-                      <span
-                        className={`flex-shrink-0 flex items-center justify-center ${isActive && !collapsed ? "drop-shadow-[0_0_6px_rgba(6,182,212,0.4)]" : ""}`}
-                      >
-                        <Icon
-                          className={collapsed ? "w-5 h-5" : "w-4 h-4"}
-                          strokeWidth={2}
-                        />
-                      </span>
-                      {!collapsed && (
-                        <span
-                          className={`text-sm font-medium truncate ${isActive ? "text-white" : ""}`}
-                        >
-                          {item.label}
-                        </span>
+                      {({ isActive }) => (
+                        <>
+                          <span
+                            className={`flex-shrink-0 flex items-center justify-center ${isActive && !collapsed ? "drop-shadow-[0_0_6px_rgba(6,182,212,0.4)]" : ""}`}
+                          >
+                            <Icon
+                              className={collapsed ? "w-5 h-5" : "w-4 h-4"}
+                              strokeWidth={2}
+                            />
+                          </span>
+                          {!collapsed && (
+                            <span
+                              className={`text-sm font-medium truncate ${isActive ? "text-white" : ""}`}
+                            >
+                              {item.label}
+                            </span>
+                          )}
+                        </>
                       )}
                     </NavLink>
                   </li>
@@ -184,6 +201,8 @@ export default function Sidebar() {
       </nav>
 
       {/* Bottom: System Status */}
+      {/* BUG 6 NOTE: System status is currently hardcoded. */}
+      {/* TODO: Wire to /api/v1/system or useApi('system') for real agent count and health */}
       <div
         className={`border-t border-secondary/50 ${collapsed ? "p-2" : "p-3"}`}
       >
