@@ -169,6 +169,29 @@ export default function MarketRegimeCard({ regime: regimeData = null }) {
             </div>
           </div>
       </div>
+
+            {/* Risk Score & Drawdown Monitor */}
+      <div className="border-t border-secondary/50 pt-2 mt-2">
+        <h4 className="text-xs text-red-400 mb-2 font-bold">RISK MONITOR</h4>
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-secondary">Risk Score</span>
+          <span className={`font-bold ${(regime?.riskScore || 100) >= 60 ? 'text-emerald-400' : (regime?.riskScore || 100) >= 40 ? 'text-amber-400' : 'text-red-400'}`}>
+            {regime?.riskScore || 'N/A'} {regime?.riskGrade ? `(${regime.riskGrade})` : ''}
+          </span>
+        </div>
+        <div className="flex items-center justify-between mt-1">
+          <span className="text-sm text-secondary">Daily P&L</span>
+          <span className={`font-bold ${(regime?.dailyPnlPct || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            {regime?.dailyPnlPct ? `${regime.dailyPnlPct.toFixed(2)}%` : 'N/A'}
+          </span>
+        </div>
+        <div className="flex items-center justify-between mt-1">
+          <span className="text-sm text-secondary">Trading Allowed</span>
+          <span className={`font-bold ${regime?.tradingAllowed !== false ? 'text-emerald-400' : 'text-red-400'}`}>
+            {regime?.tradingAllowed !== false ? 'YES' : 'PAUSED'}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }
