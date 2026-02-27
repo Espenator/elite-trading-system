@@ -60,6 +60,13 @@ import { getApiUrl } from "../config/api";
 import ws from "../services/websocket";
 import * as openclaw from "../services/openclawService";
 
+// --- V3 Decomposed Agent Components ---
+import SwarmTopology from '../components/agents/SwarmTopology';
+import ConferencePipeline from '../components/agents/ConferencePipeline';
+import DriftMonitor from '../components/agents/DriftMonitor';
+import SystemAlerts from '../components/agents/SystemAlerts';
+import AgentResourceMonitor from '../components/agents/AgentResourceMonitor';
+
 // --- Constants ---
 const AGENT_ICONS = {
   "Market Data Agent": Activity,
@@ -1092,6 +1099,22 @@ export default function AgentCommandCenter() {
                 )}
               </div>
             </Card>
+          </div>
+
+                    {/* === V3 Enhanced Panels === */}
+          <div className="space-y-4 mt-6">
+            {/* Swarm Topology + ELO Leaderboard */}
+            <SwarmTopology />
+
+            {/* Conference Pipeline + Last Conference */}
+            <ConferencePipeline />
+
+            {/* System Alerts + Drift Monitor + Resource Monitor */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <SystemAlerts />
+              <DriftMonitor />
+              <AgentResourceMonitor />
+            </div>
           </div>
         </div>
       )}

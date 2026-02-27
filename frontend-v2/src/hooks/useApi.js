@@ -132,3 +132,33 @@ export async function fetchPreTradeCheck(symbol, side = 'buy') {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
+
+// --- Agent Command Center Specialized Hooks ---
+
+export function useSwarmTopology(pollMs = 30000) {
+  return useApi('swarmTopology', { pollIntervalMs: pollMs });
+}
+
+export function useConferenceStatus(pollMs = 15000) {
+  return useApi('conference', { pollIntervalMs: pollMs });
+}
+
+export function useTeamStatus(pollMs = 30000) {
+  return useApi('teams', { pollIntervalMs: pollMs });
+}
+
+export function useDriftMetrics(pollMs = 60000) {
+  return useApi('drift', { pollIntervalMs: pollMs });
+}
+
+export function useSystemAlerts(pollMs = 10000) {
+  return useApi('systemAlerts', { pollIntervalMs: pollMs });
+}
+
+export function useAgentResources(pollMs = 15000) {
+  return useApi('agentResources', { pollIntervalMs: pollMs });
+}
+
+export function useBlackboardFeed(pollMs = 5000) {
+  return useApi('blackboard', { pollIntervalMs: pollMs });
+}

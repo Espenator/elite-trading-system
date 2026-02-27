@@ -60,6 +60,13 @@ const API_CONFIG = {
   riskScore: "/risk/risk-score", // Composite risk score 0-100
   kellyRanked: "/signals/kelly-ranked", // Kelly-ranked ticker opportunities
     preTradeCheck: "/strategy/pre-trade-check", // Pre-trade risk gate (6 checks)
+      swarmTopology: "/agents/swarm-topology", // Agent swarm topology + ELO leaderboard
+  conference: "/agents/conference", // Conference pipeline status
+  teams: "/agents/teams", // Agent team groupings
+  drift: "/agents/drift", // Model drift metrics
+  systemAlerts: "/agents/alerts", // System alerts for command center
+  agentResources: "/agents/resources", // Per-agent resource usage
+  blackboard: "/openclaw", // Blackboard pub/sub feed
   },
 };
 
