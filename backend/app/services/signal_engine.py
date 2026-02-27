@@ -46,6 +46,72 @@ def _numeric(val, default: float = 0.0) -> float:
     except ValueError:
         return default
 
+        def _compute_rsi(closes: List[float], period: int = 14) -> float:
+    """Compute RSI (0-100) from close prices. Returns 50 if insufficient data."""
+    if len(closes) < period + 1:
+        return 50.0
+    gains, losses = [], []
+    for i in range(1, len(closes)):
+        delta = closes[i] - closes[i - 1]
+        gains.append(max(0, delta))
+        losses.append(max(0, -delta))
+    if len(gains) < period:
+        return 50.0
+    avg_gain = sum(gains[-period:]) / period
+    avg_loss = sum(losses[-period:]) / period
+    if avg_loss == 0:
+        return 100.0
+    rs = avg_gain / avg_loss
+    return 100.0 - (100.0 / (1.0 + rs))
+
+
+def _compute_macd(closes: List[float]) -> Tuple[float, float, float]:
+    """Compute MACD line, signal line, histogram. Returns (0,0,0) if insufficient data."""
+    if len(closes) < 26:
+        return 0.0, 0.0, 0.0
+    def ema(data, period):
+        k = 2.0 / (period + 1)
+        result = [data[0]]
+        for i in range(1, len(data)):
+            result.append(data[i] * k + result[-1] * (1 - k))
+        return result
+    ema12 = ema(closes, 12)
+    ema26 = ema(closes, 26)
+    macd_line = [ema12[i] - ema26[i] for i in range(len(closes))]
+    signal = ema(macd_line, 9)
+    hist = macd_line[-1] - signal[-1]
+    return macd_line[-1], signal[-1], hist
+
+
+def _compute_volume_score(volumes: List[float]) -> float:
+    """Score volume relative to 20-period average. >1.5x = bullish confirmation."""
+    if not volumes or len(volumes) < 5:
+        return 0.0
+    avg_vol = sum(volumes[:-1]) / max(1, len(volumes) - 1)
+    if avg_vol == 0:
+        return 0.0
+    rel_vol = volumes[-1] / avg_vol
+    # Scale: 0.5x=-10, 1x=0, 1.5x=+10, 2x+=+15
+    return max(-10, min(15, (rel_vol - 1.0) * 20))
+
+
+def _detect_divergence(closes: List[float], rsi_values: List[float]) -> Tuple[float, str]:
+    """Detect bullish/bearish RSI divergence. Returns (score_adjustment, label)."""
+    if len(closes) < 10 or len(rsi_values) < 10:
+        return 0.0, ""
+    # Check last 10 bars for divergence
+    price_low1, price_low2 = min(closes[-10:-5]), min(closes[-5:])
+    rsi_low1, rsi_low2 = min(rsi_values[-10:-5]), min(rsi_values[-5:])
+    # Bullish divergence: price makes lower low, RSI makes higher low
+    if price_low2 < price_low1 and rsi_low2 > rsi_low1:
+        return 10.0, "BullDiv"
+    # Bearish divergence: price makes higher high, RSI makes lower high
+    price_hi1, price_hi2 = max(closes[-10:-5]), max(closes[-5:])
+    rsi_hi1, rsi_hi2 = max(rsi_values[-10:-5]), max(rsi_values[-5:])
+    if price_hi2 > price_hi1 and rsi_hi2 < rsi_hi1:
+        return -10.0, "BearDiv"
+    return 0.0, ""
+
 
 def _compute_composite_score(quotes: List[dict]) -> Tuple[float, str]:
     """
@@ -101,9 +167,39 @@ def _compute_composite_score(quotes: List[dict]) -> Tuple[float, str]:
     else:
         range_score = 0.0
 
-    composite = 50.0 + momentum_score + pattern_score + range_score
+        # Extract all closes and volumes for advanced indicators
+    closes = [_numeric(r.get("close")) for r in rows if _numeric(r.get("close")) > 0]
+    volumes = [_numeric(r.get("volume")) for r in rows]
+
+    # RSI scoring: oversold (<30) = bullish +10, overbought (>70) = bearish -10
+    rsi = _compute_rsi(closes) if len(closes) >= 15 else 50.0
+    rsi_score = 0.0
+    if rsi < 30:
+        rsi_score = 10.0  # Oversold = buying opportunity
+    elif rsi > 70:
+        rsi_score = -10.0  # Overbought = caution
+    elif rsi < 40:
+        rsi_score = 5.0
+    elif rsi > 60:
+        rsi_score = -5.0
+
+    # MACD scoring: histogram positive = bullish, crossover = strong signal
+    _, _, macd_hist = _compute_macd(closes)
+    macd_score = max(-10, min(10, macd_hist * 100))  # Scale histogram
+
+    # Volume confirmation
+    vol_score = _compute_volume_score(volumes)
+
+    # Divergence detection
+    rsi_series = []
+    if len(closes) >= 15:
+        for i in range(14, len(closes)):
+            rsi_series.append(_compute_rsi(closes[:i+1]))
+    div_score, div_label = _detect_divergence(closes, rsi_series)
+
+    composite = 50.0 + momentum_score + pattern_score + range_score + rsi_score + macd_score + vol_score + div_score
     composite = max(0.0, min(100.0, composite))
-    label = pattern_label + " candle" if pattern_label != "No data" else "Neutral"
+        label = pattern_label + (f"+{div_label}" if div_label else "") + " candle" if pattern_label != "No data" else "Neutral"
     return round(composite, 1), label
 
 
