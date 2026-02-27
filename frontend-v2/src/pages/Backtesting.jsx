@@ -247,6 +247,11 @@ export default function Backtesting() {
               <ResultStat label="Benchmark" value={benchmark} />
               <ResultStat label="Tx Cost" value={`$${txCost}`} />
               <ResultStat label="Status" value={isRunning ? "RUNNING" : "READY"} color={isRunning ? "text-amber-400" : "text-emerald-400"} />
+                            <ResultStat label="Expectancy" value={results.expectancy?.toFixed(4)} color="text-emerald-400" />
+              <ResultStat label="R:R Ratio" value={results.risk_reward_ratio?.toFixed(2)} color="text-cyan-400" />
+              <ResultStat label="Kelly Eff" value={`${((results.kelly_efficiency || 0) * 100).toFixed(0)}%`} color="text-amber-400" />
+              <ResultStat label="Kelly Adv" value={`$${results.kelly_advantage?.toFixed(2) || '0'}`} color={results.kelly_advantage > 0 ? "text-emerald-400" : "text-red-400"} />
+              <ResultStat label="Grade" value={results.trading_grade || 'N/A'} color="text-purple-400" />
             </div>
           </Card>
         </div>
