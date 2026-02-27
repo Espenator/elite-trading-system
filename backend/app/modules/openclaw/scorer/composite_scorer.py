@@ -189,6 +189,16 @@ class CompositeScorer:
                breakdown.bonus + breakdown.penalty)
         breakdown.total = max(0, min(100, raw))
 
+                # Risk score adjustment: dampen scores when portfolio risk is elevated
+        risk_dampener = 1.0
+        if hasattr(self, 'risk_score') and self.risk_score is not None:
+            if self.risk_score < 40:
+                risk_dampener = 0.5  # Halve scores when risk is critical
+            elif self.risk_score < 60:
+                risk_dampener = 0.75  # Reduce by 25% when risk is elevated
+        breakdown.total = max(0, min(100, raw * risk_dampener))
+        breakdown.risk_dampener = risk_dampener
+
         # Weighted confidence: each pillar's % of max, weighted by importance
         pillar_max = {"regime": 20, "trend": 25, "pullback": 25,
                       "momentum": 20, "pattern": 10}
