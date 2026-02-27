@@ -1323,6 +1323,96 @@ export default function Dashboard() {
           </div>
         </Card>
       )}
+
+            {/* === Adaptive Strategy Card === */}
+      <Card title="Active Strategy" subtitle="Regime-adaptive trading approach" className="lg:col-span-2">
+        <div className="p-4">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <div className="text-lg font-bold text-cyan-400">
+                {portfolioData?.regime || 'NEUTRAL'} Regime
+              </div>
+              <div className="text-sm text-slate-400">
+                Strategy auto-adjusts based on market conditions
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-xs text-slate-500">Kelly Multiplier</div>
+              <div className="text-lg font-bold text-emerald-400">
+                {portfolioData?.regime === 'BULLISH' ? '1.0x' :
+                 portfolioData?.regime === 'RISK_ON' ? '0.9x' :
+                 portfolioData?.regime === 'RISK_OFF' ? '0.5x' :
+                 portfolioData?.regime === 'BEARISH' ? '0.3x' :
+                 portfolioData?.regime === 'CRISIS' ? '0.0x' : '0.7x'}
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="text-center p-2 bg-slate-800 rounded">
+              <div className="text-xs text-slate-500">Max Positions</div>
+              <div className="text-sm font-bold">
+                {portfolioData?.regime === 'BULLISH' ? 8 :
+                 portfolioData?.regime === 'CRISIS' ? 0 : 4}
+              </div>
+            </div>
+            <div className="text-center p-2 bg-slate-800 rounded">
+              <div className="text-xs text-slate-500">Stop Type</div>
+              <div className="text-sm font-bold">
+                {['BULLISH', 'RISK_ON'].includes(portfolioData?.regime) ? 'Trailing' : 'Fixed'}
+              </div>
+            </div>
+            <div className="text-center p-2 bg-slate-800 rounded">
+              <div className="text-xs text-slate-500">Min Score</div>
+              <div className="text-sm font-bold">
+                {portfolioData?.regime === 'BULLISH' ? 65 :
+                 portfolioData?.regime === 'BEARISH' ? 85 : 75}
+              </div>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* === P&L Summary Card === */}
+      <Card title="P&L Summary" subtitle="Trading performance metrics">
+        <div className="grid grid-cols-2 gap-4 p-4">
+          <div className="text-center">
+            <div className="text-xs text-slate-500">Total P&L</div>
+            <div className={`text-xl font-bold ${(portfolioData?.total_pnl || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              ${(portfolioData?.total_pnl || 0).toLocaleString()}
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-xs text-slate-500">Win Rate</div>
+            <div className="text-xl font-bold text-cyan-400">
+              {portfolioData?.win_rate ? `${(portfolioData.win_rate * 100).toFixed(1)}%` : 'N/A'}
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-xs text-slate-500">Sharpe Ratio</div>
+            <div className="text-lg font-bold text-amber-400">
+              {portfolioData?.sharpe ? portfolioData.sharpe.toFixed(2) : 'N/A'}
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-xs text-slate-500">Max Drawdown</div>
+            <div className="text-lg font-bold text-red-400">
+              {portfolioData?.max_drawdown ? `${(portfolioData.max_drawdown * 100).toFixed(1)}%` : 'N/A'}
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-xs text-slate-500">Profit Factor</div>
+            <div className="text-lg font-bold text-emerald-400">
+              {portfolioData?.profit_factor ? portfolioData.profit_factor.toFixed(2) : 'N/A'}
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-xs text-slate-500">Sortino Ratio</div>
+            <div className="text-lg font-bold text-purple-400">
+              {portfolioData?.sortino ? portfolioData.sortino.toFixed(2) : 'N/A'}
+            </div>
+          </div>
+        </div>
+      </Card>
     </div>
   );
 }
