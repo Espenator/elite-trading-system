@@ -53,6 +53,8 @@ const API_CONFIG = {
     marketIndices: "/market/indices", // GET indices snapshot for Dashboard top bar
     mlBrain: "/ml-brain", // ML brain model status + predictions
     riskShield: "/risk-shield", // RiskShield emergency controls + safety checks
+        kellySizer: "/kelly-sizer", // Kelly criterion position sizing calculator
+    positionSizing: "/position-sizing", // Portfolio-level position sizing
   },
 };
 
@@ -87,6 +89,8 @@ export const WS_CHANNELS = {
   trades: "trades",
   logs: "logs",
   sentiment: "sentiment",
+    risk: "risk",
+  kelly: "kelly",
 };
 
 export default API_CONFIG;
