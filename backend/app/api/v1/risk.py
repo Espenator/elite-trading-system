@@ -320,3 +320,148 @@ async def portfolio_position_sizing(positions: List[dict]):
         "total_allocation_pct": round(total_alloc, 4),
         "within_heat_limit": total_alloc <= settings.MAX_PORTFOLIO_HEAT,
     }
+
+
+# ----- Drawdown Protection & Dynamic Stop-Loss -----
+
+@router.post("/drawdown-check")
+async def drawdown_check():
+    """Check current drawdown vs limits and return trading permission."""
+    config = _get_risk_config()
+    max_dd = _safe_float(config.get("maxDailyDrawdown"), 10.0)
+    max_loss_pct = _safe_float(config.get("maxDailyLossPct"), 2.0)
+    auto_pause = config.get("autoPauseTrading", True)
+
+    # Get today's P&L from Alpaca
+    try:
+        account = await alpaca_service.get_account()
+        equity = float(account.get("equity", 0))
+        last_equity = float(account.get("last_equity", equity))
+        daily_pnl = equity - last_equity
+        daily_pnl_pct = (daily_pnl / last_equity * 100) if last_equity > 0 else 0
+    except Exception:
+        daily_pnl = 0
+        daily_pnl_pct = 0
+        equity = 0
+
+    drawdown_breached = abs(daily_pnl_pct) >= max_dd if daily_pnl_pct < 0 else False
+    loss_limit_breached = abs(daily_pnl_pct) >= max_loss_pct if daily_pnl_pct < 0 else False
+    trading_allowed = not (auto_pause and (drawdown_breached or loss_limit_breached))
+
+    return {
+        "trading_allowed": trading_allowed,
+        "daily_pnl": round(daily_pnl, 2),
+        "daily_pnl_pct": round(daily_pnl_pct, 4),
+        "drawdown_breached": drawdown_breached,
+        "loss_limit_breached": loss_limit_breached,
+        "max_daily_drawdown": max_dd,
+        "max_daily_loss_pct": max_loss_pct,
+        "equity": equity,
+    }
+
+
+@router.post("/dynamic-stop-loss")
+async def dynamic_stop_loss(symbol: str, entry_price: float, side: str = "buy"):
+    """Calculate ATR-based dynamic stop-loss for a position."""
+    try:
+        from app.core.config import settings
+        atr_multiplier = getattr(settings, 'ATR_STOP_MULTIPLIER', 2.0)
+        # Get recent bars for ATR calculation
+        bars = await alpaca_service.get_bars(symbol, timeframe="1Day", limit=14)
+        if not bars or len(bars) < 2:
+            return {"error": "Insufficient data for ATR calculation"}
+
+        # Calculate ATR (14-period)
+        trs = []
+        for i in range(1, len(bars)):
+            high = float(bars[i].get("h", 0))
+            low = float(bars[i].get("l", 0))
+            prev_close = float(bars[i-1].get("c", 0))
+            tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
+            trs.append(tr)
+        atr = sum(trs) / len(trs) if trs else 0
+
+        if side.lower() == "buy":
+            stop_loss = entry_price - (atr * atr_multiplier)
+            take_profit = entry_price + (atr * atr_multiplier * 1.5)
+        else:
+            stop_loss = entry_price + (atr * atr_multiplier)
+            take_profit = entry_price - (atr * atr_multiplier * 1.5)
+
+        return {
+            "symbol": symbol,
+            "entry_price": entry_price,
+            "atr": round(atr, 4),
+            "atr_multiplier": atr_multiplier,
+            "stop_loss": round(stop_loss, 2),
+            "take_profit": round(take_profit, 2),
+            "risk_reward_ratio": 1.5,
+            "side": side,
+        }
+    except Exception as e:
+        logger.error(f"Dynamic stop-loss error: {e}")
+        return {"error": str(e)}
+
+
+@router.get("/risk-score")
+async def risk_score():
+    """Composite risk score 0-100 combining drawdown, VaR, exposure."""
+    config = _get_risk_config()
+    score = 100  # Start at 100 (safest)
+    warnings = []
+
+    try:
+        account = await alpaca_service.get_account()
+        equity = float(account.get("equity", 0))
+        last_equity = float(account.get("last_equity", equity))
+        daily_pnl_pct = ((equity - last_equity) / last_equity * 100) if last_equity > 0 else 0
+
+        # Drawdown penalty (up to -30 points)
+        max_dd = _safe_float(config.get("maxDailyDrawdown"), 10.0)
+        if daily_pnl_pct < 0:
+            dd_ratio = min(abs(daily_pnl_pct) / max_dd, 1.0)
+            score -= int(dd_ratio * 30)
+            if dd_ratio > 0.5:
+                warnings.append(f"Drawdown at {abs(daily_pnl_pct):.1f}% of {max_dd}% limit")
+
+        # Position concentration penalty (up to -20 points)
+        positions = await alpaca_service.get_positions()
+        if positions and len(positions) > 0:
+            values = [abs(float(p.get("market_value", 0))) for p in positions]
+            total_val = sum(values)
+            if total_val > 0:
+                max_concentration = max(values) / total_val
+                if max_concentration > 0.3:
+                    score -= int((max_concentration - 0.3) / 0.7 * 20)
+                    warnings.append(f"Top position is {max_concentration*100:.0f}% of portfolio")
+
+        # Exposure penalty (up to -25 points)
+        buying_power = float(account.get("buying_power", 0))
+        if equity > 0:
+            exposure = 1 - (buying_power / (equity * 2))  # Approximate
+            if exposure > 0.8:
+                score -= int((exposure - 0.8) / 0.2 * 25)
+                warnings.append(f"High exposure: {exposure*100:.0f}%")
+
+        # VaR penalty (up to -25 points)
+        var_limit = _safe_float(config.get("varLimit"), 1.5)
+        # Simplified VaR estimate from daily P&L
+        if daily_pnl_pct < -var_limit:
+            var_ratio = min(abs(daily_pnl_pct) / (var_limit * 2), 1.0)
+            score -= int(var_ratio * 25)
+            warnings.append(f"VaR breach: {daily_pnl_pct:.2f}% vs limit {var_limit}%")
+
+    except Exception as e:
+        logger.error(f"Risk score error: {e}")
+        score = 50
+        warnings.append(f"Error computing risk: {str(e)}")
+
+    score = max(0, min(100, score))
+    grade = "A" if score >= 80 else "B" if score >= 60 else "C" if score >= 40 else "D" if score >= 20 else "F"
+
+    return {
+        "risk_score": score,
+        "grade": grade,
+        "warnings": warnings,
+        "trading_recommended": score >= 40,
+    }
