@@ -55,6 +55,10 @@ const API_CONFIG = {
     riskShield: "/risk-shield", // RiskShield emergency controls + safety checks
         kellySizer: "/kelly-sizer", // Kelly criterion position sizing calculator
     positionSizing: "/position-sizing", // Portfolio-level position sizing
+      drawdownCheck: "/risk/drawdown-check", // Drawdown protection check
+  dynamicStopLoss: "/risk/dynamic-stop-loss", // ATR-based stop-loss calculator
+  riskScore: "/risk/risk-score", // Composite risk score 0-100
+  kellyRanked: "/signals/kelly-ranked", // Kelly-ranked ticker opportunities
   },
 };
 
