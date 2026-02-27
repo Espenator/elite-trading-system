@@ -91,11 +91,10 @@ Consolidated from 18 pages down to 14 for cleaner UX. See `frontend-v2/src/V3-AR
 | Sentiment Intelligence | `SentimentIntelligence.jsx` | `/sentiment` | V3 CODED - NEEDS LW CHARTS |
 | Data Sources Monitor | `DataSourcesMonitor.jsx` | `/data-sources` | V3 CODED - NEEDS LW CHARTS |
 
-### ML & ANALYSIS (6 pages)
+### ML & ANALYSIS (5 pages)
 
 | Page | File | Route | Status |
 |---|---|---|---|
-| ML Insights | `MLInsights.jsx` | `/ml-insights` | V3 COMPLETE |
 | ML Brain & Flywheel | `MLBrainFlywheel.jsx` | `/ml-brain` | V3 COMPLETE |
 | Screener & Patterns | `Patterns.jsx` | `/patterns` | V3 CODED - NEEDS LW CHARTS |
 | Backtesting Lab | `Backtesting.jsx` | `/backtest` | V3 COMPLETE |
