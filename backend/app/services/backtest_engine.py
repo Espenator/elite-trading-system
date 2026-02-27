@@ -187,6 +187,66 @@ class BacktestEngine:
         # TODO: implement Alpaca historical bar lookup
         return None
 
+            def monte_carlo_simulation(
+        self,
+        trades: list,
+        num_simulations: int = 1000,
+        initial_equity: float = 100000,
+    ) -> Dict:
+        """Run Monte Carlo simulation on trade results to estimate risk/reward distribution.
+        Shuffles trade order to see range of possible equity curves."""
+        import random
+        if not trades or len(trades) < 5:
+            return {"error": "Need at least 5 trades for Monte Carlo"}
+
+        pnl_list = [t.get("pnl_dollars", t.get("pnl_pct", 0)) for t in trades]
+        final_equities = []
+        max_drawdowns = []
+        sharpe_ratios = []
+
+        for _ in range(num_simulations):
+            shuffled = pnl_list.copy()
+            random.shuffle(shuffled)
+            equity = initial_equity
+            peak = equity
+            max_dd = 0.0
+            returns = []
+            for pnl in shuffled:
+                equity += pnl
+                if equity > peak:
+                    peak = equity
+                dd = (peak - equity) / peak if peak > 0 else 0
+                max_dd = max(max_dd, dd)
+                returns.append(pnl / max(1, equity - pnl))
+            final_equities.append(equity)
+            max_drawdowns.append(max_dd)
+            if returns:
+                avg_r = sum(returns) / len(returns)
+                std_r = (sum((r - avg_r)**2 for r in returns) / len(returns)) ** 0.5
+                sharpe_ratios.append(avg_r / std_r * (252**0.5) if std_r > 0 else 0)
+
+        final_equities.sort()
+        max_drawdowns.sort()
+        n = len(final_equities)
+
+        return {
+            "simulations": num_simulations,
+            "trades_count": len(trades),
+            "equity_median": round(final_equities[n // 2], 2),
+            "equity_p5": round(final_equities[int(n * 0.05)], 2),
+            "equity_p25": round(final_equities[int(n * 0.25)], 2),
+            "equity_p75": round(final_equities[int(n * 0.75)], 2),
+            "equity_p95": round(final_equities[int(n * 0.95)], 2),
+            "equity_worst": round(final_equities[0], 2),
+            "equity_best": round(final_equities[-1], 2),
+            "drawdown_median": round(max_drawdowns[n // 2], 4),
+            "drawdown_p95": round(max_drawdowns[int(n * 0.95)], 4),
+            "drawdown_worst": round(max_drawdowns[-1], 4),
+            "sharpe_median": round(sharpe_ratios[n // 2], 4) if sharpe_ratios else 0,
+            "risk_of_ruin": round(sum(1 for e in final_equities if e < initial_equity * 0.5) / n, 4),
+            "probability_profit": round(sum(1 for e in final_equities if e > initial_equity) / n, 4),
+        }
+
 
 # -- global instance (matches openclaw_db.py pattern) ----------------------
 backtest_engine = BacktestEngine()
