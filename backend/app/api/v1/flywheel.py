@@ -280,6 +280,30 @@ async def kelly_feedback(outcomes: List[Dict]):
     ) if losses else 999.0
     data["avgEdgeRealized"] = round(avg_realized, 4)
 
+        # Risk-gated feedback: only calibrate if risk is acceptable
+    risk_gated = True
+    try:
+        from app.api.v1.risk import risk_score as _rs
+        risk_data = await _rs()
+        risk_gated = risk_data.get("risk_score", 100) >= 30
+        data["lastRiskScore"] = risk_data.get("risk_score", 100)
+        data["lastRiskGrade"] = risk_data.get("grade", "N/A")
+    except Exception:
+        pass
+
+    if not risk_gated:
+        data["calibrationPaused"] = True
+        data["pauseReason"] = "Risk score too low for calibration"
+    else:
+        data["calibrationPaused"] = False
+
+    # Expectancy tracking
+    win_rate = len(wins) / max(len(outcomes), 1)
+    avg_win = sum(wins) / max(len(wins), 1) if wins else 0
+    avg_loss = abs(sum(losses) / max(len(losses), 1)) if losses else 0
+    data["expectancy"] = round(win_rate * avg_win - (1 - win_rate) * avg_loss, 4)
+    data["winRate"] = round(win_rate, 4)
+
     _save_flywheel_data(data)
     await broadcast_ws("flywheel", {"type": "kelly_calibration_updated", **data})
 
