@@ -62,6 +62,9 @@ class PredictionScanner:
                         "kelly_edge": round(abs(shift) * odds, 4),
                         "confidence": round(min(1.0, odds * (1 + abs(shift))), 3),
                         "prob_up": round(odds if shift > 0 else 1 - odds, 3),
+                                            "risk_adjusted_score": round(sentiment_score * min(1.0, odds), 3),
+                    "position_recommendation": "FULL" if odds > 0.7 and abs(shift) > 0.15 else "HALF" if odds > 0.55 else "SKIP",
+                    "expected_value": round(abs(shift) * odds - abs(shift) * (1 - odds), 4),
                         }
                         
                         # Feed into trade memory for accuracy backtesting (mock or direct via topic)
