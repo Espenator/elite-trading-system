@@ -8,6 +8,9 @@ from app.schemas.signals import Signal, SignalsResponse, ActiveSignalResponse
 from app.data.storage import get_conn
 from app.models.inference import load_model, make_signals_for_date
 from app.websocket_manager import broadcast_ws
+from app.services.kelly_position_sizer import KellyPositionSizer
+
+_kelly_sizer = KellyPositionSizer(max_allocation=0.10)
 
 router = APIRouter()
 
@@ -57,10 +60,25 @@ async def get_signals(as_of: date | None = None):
     signals = []
     for s in raw_signals:
         action = "BUY" if s["prob_up"] > 0.6 else "HOLD"
-        signals.append(
-            Signal(symbol=s["symbol"], date=as_of, prob_up=s["prob_up"], action=action)
-        )
-    return SignalsResponse(as_of=as_of, signals=signals)
+            prob = s["prob_up"]
+            # Compute Kelly edge and position size
+            kelly = _kelly_sizer.calculate(
+                win_rate=prob,
+                avg_win_pct=0.035,  # Default 3.5% avg win
+                avg_loss_pct=0.015,  # Default 1.5% avg loss
+            )
+            signals.append(
+                Signal(
+                    symbol=s["symbol"],
+                    date=as_of,
+                    prob_up=prob,
+                    action=action,
+                    edge=kelly.edge,
+                    kelly_fraction=kelly.raw_kelly,
+                    position_size_pct=kelly.final_pct,
+                    expected_value=kelly.edge * prob,
+                )
+            )
 
 
 @router.get("/active/{symbol}", response_model=ActiveSignalResponse)

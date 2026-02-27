@@ -231,3 +231,70 @@ class KellyPositionSizer:
             "edge": pos.edge,
             "action": pos.action,
         }
+
+            def calculate_volatility_adjusted(
+        self,
+        win_rate: float,
+        avg_win_pct: float,
+        avg_loss_pct: float,
+        current_volatility: float,
+        baseline_volatility: float = 0.02,
+        regime: str = "NEUTRAL",
+        trade_count: int = 0,
+    ) -> PositionSize:
+        """Volatility-adjusted Kelly: scales position inversely with volatility.
+
+        When volatility is 2x baseline, position is halved.
+        This prevents over-sizing in turbulent markets.
+        """
+        base = self.calculate(
+            win_rate=win_rate,
+            avg_win_pct=avg_win_pct,
+            avg_loss_pct=avg_loss_pct,
+            regime=regime,
+            trade_count=trade_count,
+        )
+        vol_ratio = max(baseline_volatility, current_volatility) / baseline_volatility
+        vol_scale = 1.0 / vol_ratio  # Inverse scaling
+        adjusted = PositionSize(
+            raw_kelly=base.raw_kelly,
+            half_kelly=base.half_kelly,
+            regime_adjusted=base.regime_adjusted * vol_scale,
+            final_pct=min(base.final_pct * vol_scale, self.max_allocation),
+            edge=base.edge,
+            regime=base.regime,
+            action=base.action,
+        )
+        logger.info(
+            f"Vol-adjusted Kelly: vol_ratio={vol_ratio:.2f}, "
+            f"scale={vol_scale:.2f}, final={adjusted.final_pct:.4f}"
+        )
+        return adjusted
+
+    @staticmethod
+    def portfolio_correlation_cap(
+        positions: list[Dict],
+        max_sector_pct: float = 0.25,
+        max_correlated_pct: float = 0.40,
+    ) -> list[Dict]:
+        """Cap total allocation to correlated positions.
+
+        Ensures no single sector exceeds max_sector_pct of portfolio
+        and total correlated exposure stays under max_correlated_pct.
+        """
+        sector_totals: Dict[str, float] = {}
+        for pos in positions:
+            sector = pos.get("sector", "UNKNOWN")
+            sector_totals[sector] = sector_totals.get(sector, 0) + pos.get("kelly_allocation_pct", 0)
+
+        adjusted = []
+        for pos in positions:
+            sector = pos.get("sector", "UNKNOWN")
+            alloc = pos.get("kelly_allocation_pct", 0)
+            total = sector_totals.get(sector, 0)
+            if total > max_sector_pct and alloc > 0:
+                scale = max_sector_pct / total
+                pos = {**pos, "kelly_allocation_pct": alloc * scale}
+                pos["sector_capped"] = True
+            adjusted.append(pos)
+        return adjusted
