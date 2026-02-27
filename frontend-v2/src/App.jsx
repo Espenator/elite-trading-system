@@ -15,11 +15,10 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import Dashboard from "./pages/Dashboard";
 import AgentCommandCenter from "./pages/AgentCommandCenter";
 
-// INTELLIGENCE section (5 pages)
+// INTELLIGENCE section (4 pages — V2 removed, V3 is production)
 import Signals from "./pages/Signals";
 import SentimentIntelligence from "./pages/SentimentIntelligence";
 import DataSourcesMonitor from "./pages/DataSourcesMonitor";
-import SignalIntelligenceV2 from "./pages/SignalIntelligenceV2";
 import SignalIntelligenceV3 from "./pages/SignalIntelligenceV3";
 
 // ML & ANALYSIS section (6 pages)
@@ -68,8 +67,7 @@ function App() {
             <Route path="signals" element={<Signals />} />
             <Route path="sentiment" element={<SentimentIntelligence />} />
             <Route path="data-sources" element={<DataSourcesMonitor />} />
-                          <Route path="signal-intelligence-v2" element={<SignalIntelligenceV2 />} />
-              <Route path="signal-intelligence-v3" element={<SignalIntelligenceV3 />} />
+            <Route path="signal-intelligence-v3" element={<SignalIntelligenceV3 />} />
 
             {/* ML & ANALYSIS */}
             <Route path="ml-brain" element={<MLBrainFlywheel />} />
@@ -102,6 +100,10 @@ function App() {
             <Route
               path="strategy"
               element={<Navigate to="/backtest" replace />}
+            />
+            <Route
+              path="signal-intelligence-v2"
+              element={<Navigate to="/signal-intelligence-v3" replace />}
             />
 
             {/* 404 catch-all */}
