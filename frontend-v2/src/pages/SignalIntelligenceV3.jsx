@@ -32,7 +32,7 @@ const CORE_AGENTS = [
 ];
 
 const EXTENDED_AGENTS = Array.from({ length: 93 }, (_, i) => ({
-  id: `agent_${i + 8}`, name: `Agent #${i + 8} (Swarm)`, type: 'Swarm', defaultWeight: Math.floor(Math.random() * 40 + 10)
+  id: `agent_${i + 8}`, name: `Agent #${i + 8} (Swarm)`, type: 'Swarm', defaultWeight: 25
 }));
 
 const ALL_AGENTS = [...CORE_AGENTS, ...EXTENDED_AGENTS];
@@ -260,16 +260,16 @@ export default function SignalIntelligenceV3() {
     const sma20 = chart.addLineSeries({ color: '#06b6d4', lineWidth: 1, title: 'SMA20' });
     const sma50 = chart.addLineSeries({ color: '#a855f7', lineWidth: 1, title: 'SMA50' });
     const vwap = chart.addLineSeries({ color: '#ffffff', lineWidth: 1, lineStyle: LineStyle.Dotted, title: 'VWAP' });
-    // Generate mock OHLCV data
+    // TODO: Replace with useApi('quotes') for real OHLCV data from backend
     const data = []; const volData = []; const s20 = []; const s50 = []; const vwapData = [];
     let base = 450; let time = Math.floor(Date.now() / 1000) - 86400 * 200;
     let cumVol = 0, cumVolPrice = 0;
     for (let i = 0; i < 200; i++) {
-      const open = base + (Math.random() - 0.5) * 5;
-      const close = open + (Math.random() - 0.5) * 8 + 0.2;
-      const high = Math.max(open, close) + Math.random() * 4;
-      const low = Math.min(open, close) - Math.random() * 4;
-      const vol = Math.floor(Math.random() * 10000 + 1000);
+      const open = base;
+      const close = open + (0.5 - 0.5) * 8 + 0.2;
+      const high = Math.max(open, close) + 2;
+      const low = Math.min(open, close) - 2;
+      const vol = 5000;
       const tp = (high + low + close) / 3;
       cumVol += vol; cumVolPrice += tp * vol;
       const ts = time + i * 86400;
@@ -713,7 +713,7 @@ export const AgentPipelineFlow = () => {
 
 // --- RECHARTS DASHBOARDS ROW ---
 export const RechartsDashboards = () => {
-  const accData = Array.from({length: 30}, (_, i) => ({ day: `D-${30-i}`, acc: 60 + Math.random()*30, pnl: (Math.random()-0.3)*5 }));
+  const accData = Array.from({length: 30}, (_, i) => ({ day: `D-${30-i}`, acc: 60 + 0.5*30, pnl: (0.5-0.3)*5 }));
   const radarData = [
     { factor: 'Velez', score: 85 }, { factor: 'Whale', score: 92 },
     { factor: 'RSI', score: 45 }, { factor: 'Volume', score: 78 },
@@ -724,7 +724,7 @@ export const RechartsDashboards = () => {
     { name: 'Apex', long: 85, short: 15 }, { name: 'RelWeak', long: 20, short: 80 },
     { name: 'MetaArch', long: 60, short: 40 }, { name: 'Whale', long: 95, short: 5 }
   ];
-  const corrData = Array.from({length: 50}, () => ({ x: Math.random()*100, y: Math.random()*100, z: Math.random()*400 }));
+  const corrData = Array.from({length: 50}, () => ({ x: 0.5*100, y: 0.5*100, z: 0.5*400 }));
   return (
     <div className="grid grid-cols-4 gap-2">
       <div className="bg-[#13131a] border border-[#1a1a2f] rounded-lg p-3">
