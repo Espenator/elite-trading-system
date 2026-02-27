@@ -61,11 +61,11 @@ export default function SettingsPage() {
         </p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
-        <TextField label="Display Name" defaultValue="Espen Schiefloe" inputClassName="text-xs py-1.5 rounded-md" />
+        <TextField label="Display Name" defaultValue="Embodier Admin" inputClassName="text-xs py-1.5 rounded-md" />
         <TextField
           label="Email Address"
           type="email"
-          defaultValue="espen@embodier.ai"
+          defaultValue="admin@embodier.ai"
           inputClassName="text-xs py-1.5 rounded-md"
         />
         <Select
@@ -534,7 +534,7 @@ export default function SettingsPage() {
               <td className="p-2">
                 <span className="text-amber-500">CONFIG</span>
               </td>
-              <td className="p-2">Espen Schiefloe</td>
+              <td className="p-2">Embodier Admin</td>
               <td className="p-2">
                 Updated Trading Parameter: Max Daily Risk to 2.0%
               </td>
@@ -554,7 +554,7 @@ export default function SettingsPage() {
               <td className="p-2">
                 <span className="text-emerald-500">SECURITY</span>
               </td>
-              <td className="p-2">Espen Schiefloe</td>
+              <td className="p-2">Embodier Admin</td>
               <td className="p-2">
                 Successful Login from 104.28.112.4 (Asheville, NC)
               </td>
@@ -574,7 +574,7 @@ export default function SettingsPage() {
               <td className="p-2">
                 <span className="text-amber-500">CONFIG</span>
               </td>
-              <td className="p-2">Espen Schiefloe</td>
+              <td className="p-2">Embodier Admin</td>
               <td className="p-2">Updated Alpaca API Keys</td>
             </tr>
           </tbody>
