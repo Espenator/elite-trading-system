@@ -140,6 +140,26 @@ class BacktestEngine:
         total_pnl = float(df_trades["pnl_dollars"].sum())
         calmar = float(abs(total_pnl / maxdd)) if maxdd != 0 else 0.0
 
+                # Enhanced metrics for profitability
+        neg_returns = returns[returns < 0]
+        sortino = (
+            float(returns.mean() / neg_returns.std() * np.sqrt(252))
+            if len(neg_returns) > 0 and neg_returns.std() > 0
+            else 0.0
+        )
+        profit_factor = (
+            float(returns[returns > 0].sum() / abs(returns[returns < 0].sum()))
+            if len(neg_returns) > 0 and abs(returns[returns < 0].sum()) > 0
+            else float('inf')
+        )
+        kelly_trades = [t for t in trades if t.get("kelly_sized")]
+        kelly_efficiency = len(kelly_trades) / len(trades) if trades else 0
+        avg_kelly_pnl = sum(t["pnl_dollars"] for t in kelly_trades) / len(kelly_trades) if kelly_trades else 0
+        avg_non_kelly_pnl = (
+            sum(t["pnl_dollars"] for t in trades if not t.get("kelly_sized")) /
+            max(1, len(trades) - len(kelly_trades))
+        ) if len(trades) > len(kelly_trades) else 0
+
         return {
             "symbol": symbol or "ALL",
             "strategy": strategy,
@@ -154,6 +174,12 @@ class BacktestEngine:
             "initial_equity": initial_equity,
             "final_equity": round(equity, 2),
             "trades_detail": trades,
+                        "sortino": round(sortino, 4),
+            "profit_factor": round(profit_factor, 4) if profit_factor != float('inf') else "inf",
+            "kelly_efficiency": round(kelly_efficiency, 4),
+            "avg_kelly_pnl": round(avg_kelly_pnl, 2),
+            "avg_non_kelly_pnl": round(avg_non_kelly_pnl, 2),
+            "kelly_advantage": round(avg_kelly_pnl - avg_non_kelly_pnl, 2),
         }
 
     def _get_price(self, symbol: str, timestamp: str) -> Optional[float]:
