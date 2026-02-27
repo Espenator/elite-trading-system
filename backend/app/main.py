@@ -11,7 +11,7 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from app.websocket_manager import add_connection, remove_connection
+from app.websocket_manager import add_connection, remove_connection, heartbeat_loop, accept_connection
 from app.core.config import settings
 from app.api.v1 import (
     stocks,
@@ -160,12 +160,14 @@ async def lifespan(app: FastAPI):
     # 3. Background tasks
     tick_task = asyncio.create_task(_market_data_tick_loop())
     drift_task = asyncio.create_task(_drift_check_loop())
+            heartbeat_task = asyncio.create_task(heartbeat_loop())
     
     try:
         yield
     finally:
         tick_task.cancel()
         drift_task.cancel()
+                    heartbeat_task.cancel()
         try:
             await tick_task
         except asyncio.CancelledError:
