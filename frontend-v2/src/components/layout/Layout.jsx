@@ -1,6 +1,7 @@
 // LAYOUT WRAPPER - Embodier.ai Glass House Intelligence System
 // OLEH: This wraps every page. Sidebar left, Header top, content below.
 // WebSocket: connect on mount, disconnect on unmount; Header shows connection status.
+// BUG 1 FIX: Sidebar collapsed state is owned here and passed down as props.
 
 import { useState, useEffect, useCallback } from 'react';
 import { Outlet } from 'react-router-dom';
@@ -10,11 +11,12 @@ import ws from '../../services/websocket';
 
 export default function Layout() {
   const [wsConnected, setWsConnected] = useState(false);
-  // BUG 1 FIX: Track sidebar collapsed state for dynamic margin
+
+  // BUG 1 FIX: Layout owns the sidebar collapsed state
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  const handleSidebarCollapse = useCallback((collapsed) => {
-    setSidebarCollapsed(collapsed);
+  const handleToggleSidebar = useCallback(() => {
+    setSidebarCollapsed(prev => !prev);
   }, []);
 
   useEffect(() => {
@@ -33,7 +35,7 @@ export default function Layout() {
   return (
     <div className="flex min-h-screen bg-dark text-white overflow-hidden">
       {/* Glass House Sidebar */}
-      <Sidebar onCollapse={handleSidebarCollapse} />
+      <Sidebar collapsed={sidebarCollapsed} onToggleCollapse={handleToggleSidebar} />
 
       {/* Main content area */}
       {/* BUG 1 FIX: Dynamic margin that responds to sidebar collapsed state */}
