@@ -475,6 +475,8 @@ export default function SignalIntelligenceV3() {
                     <th className="text-left py-1">Dir</th>
                     <th className="text-left py-1">Price</th>
                     <th className="text-left py-1">Agent</th>
+                                      <th className="text-left py-1 px-1">Kelly</th>
+                  <th className="text-left py-1 px-1">Quality</th>
                     <th className="text-left py-1">Actions</th>
                   </tr>
                 </thead>
@@ -489,6 +491,14 @@ export default function SignalIntelligenceV3() {
                       <td className={`py-1 font-bold ${sig.dir === 'LONG' ? 'text-emerald-400' : 'text-red-400'}`}>{sig.dir}</td>
                       <td className="py-1 text-gray-300">{typeof sig.price === 'number' ? sig.price.toFixed(2) : sig.price}</td>
                       <td className="py-1 text-gray-500">{sig.agent}</td>
+                                      <td className="py-1 text-cyan-400">{sig.kelly_edge ? `${(sig.kelly_edge * 100).toFixed(1)}%` : '-'}</td>
+                <td className="py-1">
+                  {sig.signal_quality ? (
+                    <span className={`px-1 rounded text-[8px] font-bold ${sig.signal_quality >= 0.7 ? 'bg-emerald-500/20 text-emerald-400' : sig.signal_quality >= 0.4 ? 'bg-amber-500/20 text-amber-400' : 'bg-red-500/20 text-red-400'}`}>
+                      {(sig.signal_quality * 100).toFixed(0)}%
+                    </span>
+                  ) : '-'}
+                </td>
                       <td className="py-1">
                         <button className="text-cyan-500 hover:text-cyan-300"><Eye className="w-2.5 h-2.5" /></button>
                       </td>
