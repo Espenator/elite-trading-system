@@ -159,3 +159,39 @@ async def get_signals_heatmap():
             }
         )
     return heatmap_data
+
+
+    @router.get("/kelly-ranked")
+async def get_kelly_ranked():
+    """
+    Return signals ranked by Kelly edge * signal quality.
+    Best money-making opportunities first.
+    """
+    raw_signals, _ = _get_raw_signals_and_feats()
+    if not raw_signals or len(raw_signals) == 0:
+        return []
+
+    ranked = []
+    for s in raw_signals:
+        prob = s.get("prob_up", 0.5)
+        kelly = _kelly_sizer.calculate(
+            win_rate=prob,
+            avg_win_pct=0.035,
+            avg_loss_pct=0.015,
+        )
+        edge = kelly.edge
+        quality = min(1.0, prob * 1.5)  # Signal quality proxy
+        if edge > 0 and quality > 0.3:
+            ranked.append({
+                "symbol": s["symbol"],
+                "kelly_edge": round(edge, 4),
+                "signal_quality": round(quality, 3),
+                "kelly_score": round(edge * quality, 4),
+                "kelly_fraction": round(kelly.raw_kelly, 4),
+                "position_size_pct": round(kelly.final_pct, 4),
+                "prob_up": round(prob, 3),
+                "action": "BUY" if prob > 0.6 else "HOLD",
+            })
+
+    ranked.sort(key=lambda x: x["kelly_score"], reverse=True)
+    return ranked[:20]
