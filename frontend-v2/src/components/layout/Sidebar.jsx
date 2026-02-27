@@ -4,7 +4,6 @@
 // V3 CONSOLIDATION: 15 pages total (added ML Brain & Flywheel)
 
 import { NavLink } from "react-router-dom";
-import { useState, useEffect } from "react";
 import {
   LayoutDashboard,
   Bot,
@@ -23,6 +22,7 @@ import {
   Sparkles,
   BarChart3,
 } from "lucide-react";
+import { useApi } from "../../hooks/useApi";
 
 // ----------- NAV SECTIONS -----------
 // Grouped logically so Espen can find anything in 2 clicks
@@ -74,14 +74,14 @@ const navSections = [
   },
 ];
 
-// BUG 1 FIX: Accept onCollapse callback so Layout.jsx can sync margin
-export default function Sidebar({ onCollapse }) {
-  const [collapsed, setCollapsed] = useState(false);
-
-  // BUG 1 FIX: Notify parent Layout whenever collapsed state changes
-  useEffect(() => {
-    if (onCollapse) onCollapse(collapsed);
-  }, [collapsed, onCollapse]);
+// BUG 1 FIX: Accept collapsed/onToggleCollapse props from Layout
+// BUG 3 FIX: Removed useLocation - now using React Router's NavLink isActive
+// BUG 6 FIX: Added useApi('system') for live system status
+export default function Sidebar({ collapsed, onToggleCollapse }) {
+  // BUG 6 FIX: Wire system status to real API instead of hardcoded values
+  const { data: systemData } = useApi('system', { pollIntervalMs: 30000 });
+  const agentCount = systemData?.activeAgents ?? '...';
+  const systemOk = systemData?.healthy ?? null;
 
   return (
     <aside
@@ -110,16 +110,15 @@ export default function Sidebar({ onCollapse }) {
             </div>
           )}
         </div>
-
         {/* BUG 2 FIX: Dynamic title based on collapsed state */}
         {/* BUG 5 FIX: Added aria-expanded and aria-label for accessibility */}
         <button
-          onClick={() => setCollapsed(!collapsed)}
-          aria-expanded={!collapsed}
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          onClick={onToggleCollapse}
           className={`rounded-md text-secondary hover:text-white transition-colors
             ${collapsed ? "p-0.5 absolute top-1/2 -translate-y-1/2 right-0 translate-x-1/2 border border-secondary/50 bg-surface" : "p-1.5"}`}
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           <ChevronLeft className={`w-4 h-4 ${collapsed ? "rotate-180" : ""}`} />
         </button>
@@ -136,23 +135,21 @@ export default function Sidebar({ onCollapse }) {
                 </span>
               </div>
             )}
-
-            {/* BUG 4 FIX: Added explicit aria-hidden="true" value */}
+            {/* BUG 4 FIX: aria-hidden now has explicit "true" value */}
             {collapsed && sectionIndex > 0 && (
               <div
                 className="mx-3 my-1.5 border-t border-secondary/40"
                 aria-hidden="true"
               />
             )}
-
             <ul
               className={collapsed ? "space-y-0.5 px-1.5" : "space-y-0.5 px-2"}
             >
+              {/* BUG 3 FIX: Using React Router's isActive from NavLink callback */}
               {section.items.map((item) => {
                 const Icon = item.icon;
                 return (
                   <li key={item.to} className={`${collapsed ? "mx-0.5" : ""}`}>
-                    {/* BUG 3 FIX: Use React Router's isActive parameter instead of manual location check */}
                     <NavLink
                       to={item.to}
                       title={item.label}
@@ -200,18 +197,20 @@ export default function Sidebar({ onCollapse }) {
         ))}
       </nav>
 
-      {/* Bottom: System Status */}
-      {/* BUG 6 NOTE: System status is currently hardcoded. */}
-      {/* TODO: Wire to /api/v1/system or useApi('system') for real agent count and health */}
+      {/* Bottom: System Status - BUG 6 FIX: wired to /api/v1/system */}
       <div
         className={`border-t border-secondary/50 ${collapsed ? "p-2" : "p-3"}`}
       >
         {collapsed ? (
           <div
             className="flex justify-center"
-            title="System status: 3 agents running, all healthy"
+            title={`System status: ${agentCount} agents running${systemOk === true ? ', all healthy' : systemOk === false ? ', issues detected' : ''}`}
           >
-            <div className="w-2.5 h-2.5 rounded-full bg-success animate-pulse ring-2 ring-success/30" />
+            <div className={`w-2.5 h-2.5 rounded-full ${
+              systemOk === true ? 'bg-success' : systemOk === false ? 'bg-danger' : 'bg-secondary'
+            } animate-pulse ring-2 ${
+              systemOk === true ? 'ring-success/30' : systemOk === false ? 'ring-danger/30' : 'ring-secondary/30'
+            }`} />
           </div>
         ) : (
           <div className="bg-secondary/10 rounded-lg p-2.5">
@@ -219,11 +218,17 @@ export default function Sidebar({ onCollapse }) {
               <span className="text-[10px] text-secondary font-medium uppercase tracking-wider">
                 System
               </span>
-              <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
+              <div className={`w-2 h-2 rounded-full ${
+                systemOk === true ? 'bg-success' : systemOk === false ? 'bg-danger' : 'bg-secondary'
+              } animate-pulse`} />
             </div>
             <div className="flex items-center justify-between text-[10px]">
-              <span className="text-secondary">3 Agents</span>
-              <span className="text-success font-medium">OK</span>
+              <span className="text-secondary">{agentCount} Agents</span>
+              <span className={`font-medium ${
+                systemOk === true ? 'text-success' : systemOk === false ? 'text-danger' : 'text-secondary'
+              }`}>
+                {systemOk === true ? 'OK' : systemOk === false ? 'ERR' : '...'}
+              </span>
             </div>
           </div>
         )}
