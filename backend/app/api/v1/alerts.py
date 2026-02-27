@@ -23,6 +23,10 @@ DEFAULT_RULES = [
     {"name": "Drawdown > 5%", "condition": "drawdown_gt_5", "enabled": True},
     {"name": "Signal score > 85", "condition": "signal_score_gt_85", "enabled": True},
     {"name": "Daily loss limit", "condition": "daily_loss_limit", "enabled": False},
+        {"name": "Kelly edge > 0.15", "condition": "kelly_edge_gt_15", "enabled": True},
+    {"name": "Position size > 8%", "condition": "kelly_pos_gt_8", "enabled": True},
+    {"name": "Portfolio heat > 20%", "condition": "portfolio_heat_gt_20", "enabled": True},
+    {"name": "Signal quality > 0.8", "condition": "signal_quality_gt_80", "enabled": False},
 ]
 
 
@@ -134,3 +138,52 @@ async def test_sms_alert():
     """Send a test SMS alert. Stub: returns success; wire to SMS provider when configured."""
     # TODO: Integrate with SMS provider (e.g. Twilio) when configured
     return {"ok": True, "message": "Test SMS alert sent"}
+
+
+# -----------------------------------------------------------------
+# Kelly Alert Evaluation: check signals against alert thresholds
+# -----------------------------------------------------------------
+
+@router.post("/evaluate")
+async def evaluate_alerts(signals: list[dict] = []):
+    """Evaluate a list of signals against enabled alert rules.
+
+    Returns triggered alerts for each signal that exceeds thresholds.
+    Used by the scanner to generate real-time notifications.
+    """
+    rules = _get_rules()
+    enabled_rules = [r for r in rules if r.get("enabled", False)]
+    triggered = []
+
+    for sig in signals:
+        for rule in enabled_rules:
+            cond = rule["condition"]
+            fired = False
+            if cond == "drawdown_gt_5":
+                fired = sig.get("drawdown_pct", 0) > 5
+            elif cond == "signal_score_gt_85":
+                fired = sig.get("composite_score", 0) > 85
+            elif cond == "daily_loss_limit":
+                fired = sig.get("daily_loss_pct", 0) > 2
+            elif cond == "kelly_edge_gt_15":
+                fired = sig.get("kelly_edge", 0) > 0.15
+            elif cond == "kelly_pos_gt_8":
+                fired = sig.get("kelly_fraction", 0) > 0.08
+            elif cond == "portfolio_heat_gt_20":
+                fired = sig.get("portfolio_heat", 0) > 0.20
+            elif cond == "signal_quality_gt_80":
+                fired = sig.get("signal_quality", 0) > 0.80
+            if fired:
+                triggered.append({
+                    "symbol": sig.get("symbol", "?"),
+                    "rule": rule["name"],
+                    "condition": cond,
+                    "value": sig.get(cond.split("_gt_")[0].replace("_", "."), "N/A"),
+                    "severity": "high" if "loss" in cond or "drawdown" in cond else "info",
+                })
+
+    return {
+        "total_signals": len(signals),
+        "total_triggered": len(triggered),
+        "alerts": triggered,
+    }

@@ -371,3 +371,102 @@ async def performance_trades(limit: int = 200) -> Dict[str, Any]:
         return {"hasData": True, "message": "OK", "trades": trades, "source": {"table": table}}
     finally:
         conn.close()
+
+
+# -----------------------------------------------------------------
+# Risk Metrics: computed from real trade data
+# -----------------------------------------------------------------
+import numpy as np
+
+
+@router.get("/performance/risk-metrics")
+async def risk_metrics() -> Dict[str, Any]:
+    """
+    Compute portfolio risk metrics from actual trade history:
+    - Sharpe ratio, Sortino ratio, Calmar ratio
+    - Max drawdown (% and duration)
+    - Win rate, profit factor, avg R-multiple
+    - Kelly optimal fraction from realized stats
+    """
+    conn = _conn()
+    try:
+        detected = _detect_trade_table(conn)
+        if not detected:
+            return {"hasData": False, "message": "No trade table found"}
+        table, colmap = detected
+
+        pnl_col = colmap.get("pnl")
+        if not pnl_col:
+            return {"hasData": False, "message": "No PnL column found"}
+
+        rows = conn.execute(
+            f"SELECT {pnl_col} AS pnl FROM {table} WHERE {pnl_col} IS NOT NULL"
+        ).fetchall()
+        if not rows:
+            return {"hasData": False, "message": "No trades with PnL"}
+
+        pnls = [_safe_float(r["pnl"]) for r in rows]
+        pnls = [p for p in pnls if p is not None]
+        if not pnls:
+            return {"hasData": False, "message": "No valid PnL values"}
+
+        arr = np.array(pnls)
+        wins = arr[arr > 0]
+        losses = arr[arr < 0]
+
+        win_rate = len(wins) / len(arr) if len(arr) > 0 else 0
+        avg_win = float(np.mean(wins)) if len(wins) > 0 else 0
+        avg_loss = float(np.mean(np.abs(losses))) if len(losses) > 0 else 0
+        profit_factor = (
+            float(np.sum(wins) / np.sum(np.abs(losses)))
+            if len(losses) > 0 and np.sum(np.abs(losses)) > 0
+            else float("inf") if len(wins) > 0
+            else 0
+        )
+
+        # Sharpe (annualized, assuming daily)
+        mean_r = float(np.mean(arr))
+        std_r = float(np.std(arr))
+        sharpe = (mean_r / std_r * np.sqrt(252)) if std_r > 0 else 0
+
+        # Sortino (downside deviation)
+        downside = arr[arr < 0]
+        down_std = float(np.std(downside)) if len(downside) > 0 else 0
+        sortino = (mean_r / down_std * np.sqrt(252)) if down_std > 0 else 0
+
+        # Max drawdown
+        cumulative = np.cumsum(arr)
+        peak = np.maximum.accumulate(cumulative)
+        drawdown = peak - cumulative
+        max_dd = float(np.max(drawdown)) if len(drawdown) > 0 else 0
+        max_dd_pct = (max_dd / float(np.max(peak))) * 100 if np.max(peak) > 0 else 0
+
+        # Calmar
+        total_return = float(np.sum(arr))
+        calmar = (total_return / max_dd) if max_dd > 0 else 0
+
+        # Kelly from realized stats
+        b = avg_win / avg_loss if avg_loss > 0 else 0
+        kelly_edge = win_rate * b - (1 - win_rate) if b > 0 else 0
+        kelly_fraction = kelly_edge / b if b > 0 and kelly_edge > 0 else 0
+
+        return {
+            "hasData": True,
+            "total_trades": len(arr),
+            "win_rate": round(win_rate, 4),
+            "avg_win": round(avg_win, 2),
+            "avg_loss": round(avg_loss, 2),
+            "profit_factor": round(profit_factor, 3),
+            "sharpe": round(float(sharpe), 3),
+            "sortino": round(float(sortino), 3),
+            "calmar": round(float(calmar), 3),
+            "max_drawdown": round(max_dd, 2),
+            "max_drawdown_pct": round(float(max_dd_pct), 2),
+            "total_pnl": round(total_return, 2),
+            "mean_pnl": round(mean_r, 2),
+            "kelly_edge": round(kelly_edge, 4),
+            "kelly_optimal_fraction": round(kelly_fraction, 4),
+            "kelly_half_fraction": round(kelly_fraction * 0.5, 4),
+        }
+    finally:
+        conn.close()

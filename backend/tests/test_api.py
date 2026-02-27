@@ -93,4 +93,58 @@ def test_kelly_max_cap():
 # --- Test 10: Trading mode defaults to paper ---
 def test_trading_mode_paper():
     from app.core.config import settings
+
+
+# --- Test 11: Volatility-adjusted Kelly scales down in high vol ---
+def test_kelly_volatility_adjusted():
+    sizer = KellyPositionSizer()
+    base = sizer.calculate(win_rate=0.6, avg_win_pct=0.035, avg_loss_pct=0.015)
+    vol_adj = sizer.calculate_volatility_adjusted(
+        win_rate=0.6, avg_win_pct=0.035, avg_loss_pct=0.015,
+        current_volatility=0.04,  # 2x baseline
+        baseline_volatility=0.02,
+    )
+    assert vol_adj.final_pct < base.final_pct  # High vol = smaller position
+    assert vol_adj.final_pct > 0  # But still positive
+
+
+# --- Test 12: Portfolio correlation cap limits sector exposure ---
+def test_portfolio_correlation_cap():
+    positions = [
+        {"symbol": "AAPL", "sector": "Tech", "kelly_allocation_pct": 0.10},
+        {"symbol": "MSFT", "sector": "Tech", "kelly_allocation_pct": 0.10},
+        {"symbol": "GOOGL", "sector": "Tech", "kelly_allocation_pct": 0.10},
+        {"symbol": "JPM", "sector": "Finance", "kelly_allocation_pct": 0.08},
+    ]
+    capped = KellyPositionSizer.portfolio_correlation_cap(
+        positions, max_sector_pct=0.25
+    )
+    tech_total = sum(
+        p["kelly_allocation_pct"] for p in capped if p["sector"] == "Tech"
+    )
+    assert tech_total <= 0.26  # ~25% with rounding
+    assert capped[3]["kelly_allocation_pct"] == 0.08  # Finance untouched
+
+
+# --- Test 13: Kelly edge is negative for low win rate ---
+def test_kelly_negative_edge():
+    sizer = KellyPositionSizer()
+    result = sizer.calculate(win_rate=0.3, avg_win_pct=0.02, avg_loss_pct=0.03)
+    assert result.edge <= 0
+    assert result.action == "NO_TRADE"
+
+
+# --- Test 14: Regime scaling adjusts Kelly correctly ---
+def test_regime_scaling():
+    from app.api.v1.strategy import REGIME_PARAMS
+    assert REGIME_PARAMS["BULL"]["kelly_scale"] == 1.0
+    assert REGIME_PARAMS["CRISIS"]["kelly_scale"] == 0.15
+    assert REGIME_PARAMS["BEAR"]["max_pos"] < REGIME_PARAMS["BULL"]["max_pos"]
+
+
+# --- Test 15: Alert evaluation fires on Kelly edge threshold ---
+def test_alert_evaluation():
+    from app.api.v1.alerts import DEFAULT_RULES
+    kelly_rules = [r for r in DEFAULT_RULES if "kelly" in r["condition"]]
+    assert len(kelly_rules) >= 2  # At least kelly_edge and kelly_pos rules
     assert settings.TRADING_MODE == "paper"

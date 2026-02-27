@@ -23,6 +23,10 @@ DEFAULT_CONTROLS = {
     "masterSwitch": True,
     "pauseAll": False,
     "closeAllPositions": False,
+        "regimeOverride": None,  # None = auto-detect, or BULL/BEAR/NEUTRAL/CRISIS
+    "kellyEnabled": True,
+    "maxPositionPct": 0.10,
+    "maxPortfolioHeat": 0.25,
 }
 
 
@@ -30,6 +34,10 @@ class StrategyControls(BaseModel):
     masterSwitch: bool | None = None
     pauseAll: bool | None = None
     closeAllPositions: bool | None = None
+        regimeOverride: Optional[str] = None
+    kellyEnabled: bool | None = None
+    maxPositionPct: Optional[float] = None
+    maxPortfolioHeat: Optional[float] = None
 
 
 class StrategyCreate(BaseModel):
@@ -150,7 +158,45 @@ async def update_controls(controls: StrategyControls):
         ctrl["pauseAll"] = controls.pauseAll
     if controls.closeAllPositions is not None:
         ctrl["closeAllPositions"] = controls.closeAllPositions
+            if controls.regimeOverride is not None:
+        ctrl["regimeOverride"] = controls.regimeOverride
+    if controls.kellyEnabled is not None:
+        ctrl["kellyEnabled"] = controls.kellyEnabled
+    if controls.maxPositionPct is not None:
+        ctrl["maxPositionPct"] = controls.maxPositionPct
+    if controls.maxPortfolioHeat is not None:
+        ctrl["maxPortfolioHeat"] = controls.maxPortfolioHeat
 
     db_service.set_config("strategy_controls", ctrl)
     await broadcast_ws("strategy", {"type": "controls_updated", "controls": ctrl})
     return {"ok": True, "controls": ctrl}
+
+
+# -----------------------------------------------------------------
+# Regime-Aware Strategy Recommendations
+# -----------------------------------------------------------------
+
+REGIME_PARAMS = {
+    "BULL": {"kelly_scale": 1.0, "max_pos": 0.10, "min_edge": 0.03, "desc": "Full Kelly, higher conviction"},
+    "NEUTRAL": {"kelly_scale": 0.7, "max_pos": 0.07, "min_edge": 0.05, "desc": "Reduced sizing, tighter filters"},
+    "BEAR": {"kelly_scale": 0.4, "max_pos": 0.05, "min_edge": 0.08, "desc": "Defensive, hedged positions"},
+    "CRISIS": {"kelly_scale": 0.15, "max_pos": 0.02, "min_edge": 0.12, "desc": "Cash-heavy, only slam dunks"},
+}
+
+
+@router.get("/regime-params")
+async def get_regime_params():
+    """Return current regime and Kelly scaling parameters."""
+    ctrl = _get_controls()
+    override = ctrl.get("regimeOverride")
+    regime = override if override else "NEUTRAL"  # Default when no market data
+    params = REGIME_PARAMS.get(regime, REGIME_PARAMS["NEUTRAL"])
+    return {
+        "regime": regime,
+        "is_override": override is not None,
+        "kelly_scale": params["kelly_scale"],
+        "max_position_pct": params["max_pos"],
+        "min_edge_threshold": params["min_edge"],
+        "description": params["desc"],
+        "kelly_enabled": ctrl.get("kellyEnabled", True),
+    }

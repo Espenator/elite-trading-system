@@ -25,6 +25,8 @@ class BacktestRequest(BaseModel):
     paramBMin: float | None = None
     paramBMax: float | None = None
     runMode: str = "single"
+        useKelly: bool = False
+    kellyFraction: float = 0.5  # Half-Kelly default
 
 
 @router.get("/runs")
@@ -177,3 +179,64 @@ async def run_backtest_post(request: BacktestRequest):
             "ok": False,
             "error": str(e),
         }
+
+
+# -----------------------------------------------------------------
+# Kelly A/B Comparison: run same backtest with and without Kelly sizing
+# -----------------------------------------------------------------
+from app.services.backtest_engine import BacktestEngine
+
+_bt_engine = BacktestEngine()
+
+
+@router.post("/compare-kelly")
+async def compare_kelly_sizing(request: BacktestRequest):
+    """
+    Run identical backtest twice: fixed sizing vs Kelly sizing.
+    Returns side-by-side metrics so user can see Kelly impact.
+    """
+    try:
+        start = request.startDate
+        end = request.endDate
+        capital = request.capital or 100_000.0
+
+        # Fixed sizing run
+        fixed_result = _bt_engine.run_backtest(
+            symbol=request.assets,
+            start_date=start,
+            end_date=end,
+            strategy=request.strategy,
+            initial_equity=capital,
+            shares_per_trade=100,
+            use_kelly=False,
+        )
+
+        # Kelly sizing run
+        kelly_result = _bt_engine.run_backtest(
+            symbol=request.assets,
+            start_date=start,
+            end_date=end,
+            strategy=request.strategy,
+            initial_equity=capital,
+            use_kelly=True,
+            kelly_fraction=request.kellyFraction,
+        )
+
+        return {
+            "ok": True,
+            "fixed_sizing": fixed_result,
+            "kelly_sizing": kelly_result,
+            "kelly_fraction": request.kellyFraction,
+            "improvement": {
+                "pnl_delta": (
+                    kelly_result.get("metrics", {}).get("total_pnl", 0)
+                    - fixed_result.get("metrics", {}).get("total_pnl", 0)
+                ),
+                "sharpe_delta": (
+                    kelly_result.get("metrics", {}).get("sharpe", 0)
+                    - fixed_result.get("metrics", {}).get("sharpe", 0)
+                ),
+            },
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}

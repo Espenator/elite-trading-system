@@ -129,6 +129,8 @@ export default function Backtesting() {
   const [slippage, setSlippage] = useState(0);
   const [benchmark, setBenchmark] = useState("SPY");
   const [txCost, setTxCost] = useState(0);
+    const [useKellySizing, setUseKellySizing] = useState(false);
+  const [kellyFraction, setKellyFraction] = useState(0.5);
   // React Flow state
   const [nodes, setNodes] = useState(INIT_NODES);
   const [edges, setEdges] = useState(INIT_EDGES);
@@ -208,6 +210,16 @@ export default function Backtesting() {
               <div className="flex items-center gap-2">
                 <label className="flex items-center gap-1.5 cursor-pointer"><input type="radio" name="runMode" value="single" checked={runMode==="single"} onChange={() => setRunMode("single")} className="accent-primary" /><span className="text-xs text-white">Single</span></label>
                 <label className="flex items-center gap-1.5 cursor-pointer"><input type="radio" name="runMode" value="sweep" checked={runMode==="sweep"} onChange={() => setRunMode("sweep")} className="accent-primary" /><span className="text-xs text-white">Sweep</span></label>
+              </div>
+                            {/* Kelly Criterion Sizing */}
+              <div className="flex items-center gap-2 mt-2 p-2 rounded bg-slate-800/50 border border-emerald-500/20">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input type="checkbox" checked={useKellySizing} onChange={() => setUseKellySizing(!useKellySizing)} className="accent-emerald-400" />
+                  <span className="text-xs text-emerald-400 font-bold">Kelly Sizing</span>
+                </label>
+                {useKellySizing && (
+                  <Slider label={`Kelly: ${kellyFraction}`} min={0.1} max={1} step={0.05} value={kellyFraction} onChange={(e) => setKellyFraction(Number(e.target.value))} inputClassName="accent-emerald-400 w-20" />
+                )}
               </div>
               <div className="flex gap-2">
                 <Button variant="primary" leftIcon={Play} onClick={handleRunBacktest} disabled={runningBacktest} className="flex-1 text-xs">{runningBacktest ? "Running..." : "Run Backtest"}</Button>
