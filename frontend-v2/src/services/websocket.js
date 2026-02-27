@@ -117,6 +117,19 @@ class AppWebSocket {
 
   isConnected() {
     return this.ws?.readyState === WebSocket.OPEN;
+
+      // --- Kelly channel subscriptions ---
+  subscribeKelly(callback) {
+    return this.on('kelly_update', callback);
+  }
+
+  subscribeKellyWarnings(callback) {
+    return this.on('kelly_warning', callback);
+  }
+
+  requestKellyRecalc(symbol) {
+    this.emit('kelly_recalc', { symbol });
+  }
   }
 }
 
