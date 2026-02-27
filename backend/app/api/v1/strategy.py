@@ -200,3 +200,73 @@ async def get_regime_params():
         "description": params["desc"],
         "kelly_enabled": ctrl.get("kellyEnabled", True),
     }
+
+
+
+# ----------------------------------------------------------------
+# Pre-Trade Risk Guard: checks drawdown + risk score before execution
+# ----------------------------------------------------------------
+
+@router.post("/pre-trade-check")
+async def pre_trade_check(symbol: str = "", side: str = "buy"):
+    """
+    Gate every trade through drawdown + risk score checks.
+    Returns go/no-go with reasons.
+    """
+    from app.core.config import settings
+    import httpx
+
+    ctrl = _get_controls()
+    reasons = []
+    allowed = True
+
+    # 1. Master switch
+    if not ctrl.get("masterSwitch", True):
+        allowed = False
+        reasons.append("Master switch is OFF")
+
+    # 2. Pause all
+    if ctrl.get("pauseAll", False):
+        allowed = False
+        reasons.append("Trading is paused")
+
+    # 3. Regime guard
+    regime = ctrl.get("regimeOverride", "NEUTRAL")
+    params = REGIME_PARAMS.get(regime, REGIME_PARAMS["NEUTRAL"])
+    if regime == "CRISIS":
+        reasons.append(f"CRISIS regime: only slam dunks allowed")
+
+    # 4. Kelly enabled check
+    kelly_enabled = ctrl.get("kellyEnabled", True)
+
+    # 5. Risk score gate (call internal risk endpoint)
+    try:
+        from app.api.v1.risk import risk_score as _risk_score_fn
+        risk_data = await _risk_score_fn()
+        score = risk_data.get("risk_score", 100)
+        if score < getattr(settings, 'MIN_RISK_SCORE', 40):
+            allowed = False
+            reasons.append(f"Risk score {score} < minimum {settings.MIN_RISK_SCORE}")
+    except Exception as e:
+        reasons.append(f"Risk score unavailable: {e}")
+
+    # 6. Drawdown check
+    try:
+        from app.api.v1.risk import drawdown_check as _dd_check
+        dd_data = await _dd_check()
+        if not dd_data.get("trading_allowed", True):
+            allowed = False
+            reasons.append(f"Drawdown breached: {dd_data.get('daily_pnl_pct', 0):.2f}%")
+    except Exception as e:
+        reasons.append(f"Drawdown check unavailable: {e}")
+
+    return {
+        "allowed": allowed,
+        "symbol": symbol,
+        "side": side,
+        "regime": regime,
+        "regime_params": params,
+        "kelly_enabled": kelly_enabled,
+        "reasons": reasons,
+        "recommendation": "PROCEED" if allowed else "BLOCK",
+    }
