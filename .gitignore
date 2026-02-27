@@ -1,10 +1,36 @@
 ﻿# Elite Trading System - Root
 
+# Environment
+.env
+.env.local
+.env.production
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
 # Database files
 *.db
 *.sqlite
 *.sqlite3
 finviz_stocks.db
+*.duckdb
+*.duckdb.wal
+
+# ML Model artifacts
+models/artifacts/
+*.pkl
+*.joblib
+*.h5
+*.pt
+*.pth
 
 # OS
 .DS_Store
@@ -21,5 +47,17 @@ Thumbs.db
 *.log
 logs/
 
-docs/
+# Node/Frontend
+node_modules/
+frontend-v2/dist/
+frontend-v2/.env
 
+# Coverage & Testing
+htmlcov/
+.coverage
+.pytest_cache/
+.tox/
+
+# Misc
+*.bak
+*.tmp
