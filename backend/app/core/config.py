@@ -116,6 +116,26 @@ class Settings(BaseSettings):
         ""  # GitHub personal access token with gist scope (optional for public gists)
     )
 
+        # -----------------------------------------------------------------
+    # Kelly Criterion & Position Sizing
+    # -----------------------------------------------------------------
+    KELLY_MAX_ALLOCATION: float = 0.10  # Max 10% per position
+    KELLY_DEFAULT_WIN_RATE: float = 0.55  # Baseline win rate
+    KELLY_DEFAULT_AVG_WIN: float = 0.035  # 3.5% avg win
+    KELLY_DEFAULT_AVG_LOSS: float = 0.015  # 1.5% avg loss
+    KELLY_USE_HALF: bool = True  # Use half-Kelly for safety
+    MAX_PORTFOLIO_HEAT: float = 0.25  # Max 25% total exposure
+    MAX_SECTOR_CONCENTRATION: float = 0.25  # Max 25% in one sector
+    VOLATILITY_BASELINE: float = 0.02  # 2% daily vol baseline
+
+    # -----------------------------------------------------------------
+    # Signal Thresholds
+    # -----------------------------------------------------------------
+    SIGNAL_BUY_THRESHOLD: float = 0.60  # Min prob_up for BUY
+    SIGNAL_STRONG_BUY_THRESHOLD: float = 0.75  # Strong BUY
+    SIGNAL_MIN_EDGE: float = 0.05  # Min Kelly edge to trade
+    SIGNAL_MIN_VOLUME_SCORE: float = 0.5  # Min relative volume
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
