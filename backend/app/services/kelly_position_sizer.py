@@ -298,3 +298,92 @@ class KellyPositionSizer:
                 pos["sector_capped"] = True
             adjusted.append(pos)
         return adjusted
+
+            @staticmethod
+    def calculate_trailing_stop(
+        entry_price: float,
+        atr: float,
+        side: str = "buy",
+        atr_multiplier: float = 2.0,
+        trailing_pct: float = 0.03,
+    ) -> Dict:
+        """Calculate ATR-based trailing stop + fixed % trailing.
+        
+        Uses the tighter of ATR-based or percentage-based stop.
+        This maximizes profit capture while limiting downside.
+        """
+        if side.lower() == "buy":
+            atr_stop = entry_price - (atr * atr_multiplier)
+            pct_stop = entry_price * (1 - trailing_pct)
+            stop = max(atr_stop, pct_stop)  # Tighter stop
+            take_profit = entry_price + (atr * atr_multiplier * 1.5)
+        else:
+            atr_stop = entry_price + (atr * atr_multiplier)
+            pct_stop = entry_price * (1 + trailing_pct)
+            stop = min(atr_stop, pct_stop)
+            take_profit = entry_price - (atr * atr_multiplier * 1.5)
+
+        risk_per_share = abs(entry_price - stop)
+        reward_per_share = abs(take_profit - entry_price)
+        rr_ratio = reward_per_share / risk_per_share if risk_per_share > 0 else 0
+
+        return {
+            "stop_loss": round(stop, 2),
+            "take_profit": round(take_profit, 2),
+            "risk_per_share": round(risk_per_share, 2),
+            "reward_per_share": round(reward_per_share, 2),
+            "risk_reward_ratio": round(rr_ratio, 2),
+            "method": "atr" if (side == "buy" and atr_stop > pct_stop) or (side != "buy" and atr_stop < pct_stop) else "trailing_pct",
+        }
+
+    def regime_aware_size(
+        self,
+        win_rate: float,
+        avg_win_pct: float = 0.035,
+        avg_loss_pct: float = 0.015,
+        regime: str = "NEUTRAL",
+        risk_score: int = 100,
+        volatility: float = 0.02,
+    ) -> Dict:
+        """Full regime + risk + volatility aware position sizing.
+        
+        Combines Kelly, regime scaling, risk score dampening,
+        and volatility adjustment into one call.
+        """
+        # 1. Base Kelly
+        base = self.calculate(
+            win_rate=win_rate,
+            avg_win_pct=avg_win_pct,
+            avg_loss_pct=avg_loss_pct,
+            regime=regime,
+        )
+
+        # 2. Volatility adjustment
+        vol_scale = 1.0 / max(volatility / self.volatility_baseline, 1.0)
+
+        # 3. Risk score dampener
+        if risk_score < 40:
+            risk_dampener = 0.5
+        elif risk_score < 60:
+            risk_dampener = 0.75
+        else:
+            risk_dampener = 1.0
+
+        # 4. Final combined size
+        final_pct = min(
+            base.final_pct * vol_scale * risk_dampener,
+            self.max_allocation,
+        )
+
+        return {
+            "raw_kelly": base.raw_kelly,
+            "half_kelly": base.half_kelly,
+            "regime": regime,
+            "regime_adjusted": base.regime_adjusted,
+            "vol_scale": round(vol_scale, 4),
+            "risk_dampener": risk_dampener,
+            "final_pct": round(final_pct, 4),
+            "edge": base.edge,
+            "action": base.action if final_pct > 0 else "NO_TRADE",
+            "risk_score": risk_score,
+        }
