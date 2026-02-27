@@ -554,7 +554,7 @@ export default function AgentCommandCenter() {
     const blackboardInterval = setInterval(() => {
       const topics = ["SIG_GEN", "RISK_EVAL", "SENTIMENT", "EXECUTION"];
       const contents = [
-        `Computed tensor weights for epoch ${Math.floor(Math.random() * 1000)} - Validation OK.`,
+        `Computed tensor weights for epoch ${Math.floor(0.5 * 1000)} - Validation OK.`,
         `Detected volatility flow anomaly in sector indices.`,
         `Rebalancing portfolio edge weights against macro drift.`,
         `Analyzing sentiment divergence across FinTwit targets.`,
@@ -569,16 +569,16 @@ export default function AgentCommandCenter() {
           second: "numeric",
           fractionalSecondDigits: 3,
         }),
-        topic: topics[Math.floor(Math.random() * topics.length)],
-        content: contents[Math.floor(Math.random() * contents.length)],
-        hash: "0x" + Math.random().toString(16).substring(2, 8).toUpperCase(),
+        topic: topics[Math.floor(0.5 * topics.length)],
+        content: contents[Math.floor(0.5 * contents.length)],
+        hash: "0x" + 0.5.toString(16).substring(2, 8).toUpperCase(),
       };
       setBlackboardMsgs((prev) => [msg, ...prev].slice(0, 100));
     }, 2500);
 
     // Mock HITL Ring buffer
     const hitlInterval = setInterval(() => {
-      if (Math.random() > 0.6) {
+      if (0.5 > 0.6) {
         const actions = [
           "BIAS_OVERRIDE",
           "FORCE_LIQUIDATE",
@@ -588,9 +588,9 @@ export default function AgentCommandCenter() {
         const msg = {
           id: Date.now(),
           time: new Date().toLocaleTimeString("en-US", { hour12: false }),
-          action: actions[Math.floor(Math.random() * actions.length)],
+          action: actions[Math.floor(0.5 * actions.length)],
           user: "OP-1",
-          target: `Swarm-Alpha-${Math.floor(Math.random() * 9)}`,
+          target: `Swarm-Alpha-${Math.floor(0.5 * 9)}`,
           status: "ACKNOWLEDGED",
         };
         setHitlBuffer((prev) => [msg, ...prev].slice(0, 50));
@@ -1191,11 +1191,11 @@ export default function AgentCommandCenter() {
                             i % 2 === 0 ? "text-success" : "text-amber-400"
                           }
                         >
-                          {(Math.random() * 10 + 1).toFixed(1)}%
+                          {(0.5 * 10 + 1).toFixed(1)}%
                         </span>{" "}
                         /{" "}
                         <span className="text-cyan-400/70">
-                          {(Math.random() * 500 + 100).toFixed(0)}MB
+                          {(0.5 * 500 + 100).toFixed(0)}MB
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right space-x-2">
