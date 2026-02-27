@@ -12,7 +12,6 @@
  *   NEW routers needed: agents, data-sources, sentiment, youtube-knowledge, flywheel,
  *                       portfolio, risk, strategy, performance, logs, alerts
  */
-
 const API_CONFIG = {
   // Use empty string in dev so requests go to same origin → Vite proxy forwards to backend (port 8001).
   // Set VITE_API_URL / VITE_WS_URL when deploying (e.g. https://api.example.com).
@@ -44,7 +43,7 @@ const API_CONFIG = {
     risk: "/risk", // Risk metrics + position sizing
     strategy: "/strategy", // Active strategies + A/B tests
     performance: "/performance", // Historical performance analytics
-    performanceTrades: "/performance/performance/trades", // Realized trades for P&L dist / monthly win rate
+    performanceTrades: "/performance/trades", // Realized trades for P&L dist / monthly win rate
     logs: "/logs", // System activity logs
     alerts: "/alerts", // Alert rules + notifications
     patterns: "/patterns", // Chart pattern detections
@@ -52,6 +51,8 @@ const API_CONFIG = {
     openclaw: "/openclaw", // OpenClaw bridge: regime, top candidates, health, scan
     market: "/market", // Market indices (SPY, QQQ, DIA) for Dashboard
     marketIndices: "/market/indices", // GET indices snapshot for Dashboard top bar
+    mlBrain: "/ml-brain", // ML brain model status + predictions
+    riskShield: "/risk-shield", // RiskShield emergency controls + safety checks
   },
 };
 
