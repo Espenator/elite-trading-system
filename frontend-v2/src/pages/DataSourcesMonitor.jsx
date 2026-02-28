@@ -204,7 +204,7 @@ function AIDetectModal({ onClose, onDetect }) {
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-[#1A1F2E] border border-[#2A3444] rounded-xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-lg font-bold text-white mb-4">\u{1F916} AI Detect Provider</h3>
+        <h3 className="text-lg font-bold text-white mb-4">{"\u{1F916}"} AI Detect Provider</h3>
         <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Paste API URL..."
           className="w-full px-3 py-2 bg-[#0A0E1A] border border-[#2A3444] rounded-lg text-white text-sm mb-4 focus:border-cyan-500 focus:outline-none" disabled={detecting} />
         <button onClick={handleDetect} disabled={detecting} className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium mb-4 disabled:opacity-50">
@@ -411,7 +411,7 @@ export default function DataSourcesMonitor() {
         </div>
         <div className="flex gap-2">
           <button onClick={() => setDetectModal(true)} className="px-3 py-2 bg-purple-600/20 text-purple-400 border border-purple-500/30 rounded-lg hover:bg-purple-600/30 text-sm">
-            \u{1F916} AI Detect
+            {"\u{1F916}"} AI Detect
           </button>
           <button onClick={() => setAddModal(true)} className="px-3 py-2 bg-cyan-600/20 text-cyan-400 border border-cyan-500/30 rounded-lg hover:bg-cyan-600/30 text-sm">
             \u2795 Add Source
