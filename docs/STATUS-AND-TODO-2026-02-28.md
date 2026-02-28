@@ -135,3 +135,55 @@ cd frontend-v2 && npm run build
 ```
 
 Do NOT push code that has not been tested locally. AI-assisted development sessions caused 100+ consecutive CI failures by pushing untested code.
+
+---
+
+## MOCKUP vs IMPLEMENTATION AUDIT (Feb 28, 2026 - 9:00 AM EST)
+
+### CI Blockers Found
+
+| # | Issue | File | Fix |
+|---|---|---|---|
+| CI-1 | Frontend build fails: invalid JS syntax at line 90:2 | `frontend-v2/src/services/websocket.js` | Fix brace/syntax parse error in connect() catch block |
+| CI-2 | Backend test fails: `yfinance==0.2.0` not found in pip | `backend/requirements.txt` | REMOVE yfinance entirely - we use Alpaca, Unusual Whales, Finviz as data sources |
+
+### Patterns.jsx - TWO Issues Found
+
+| # | Issue | Lines | Fix |
+|---|---|---|---|
+| P-1 | `PATTERN_TYPES` array has hardcoded static winRate/avgR. `assignPattern()` fakes pattern detection using symbol hash | ~80-145 | Wire to `GET /api/v1/patterns` which returns real detected patterns. Backend endpoint is CLEAN and READY. |
+| P-2 | `SECTOR_PATTERN_DATA` is entirely hardcoded static array (10 sectors with fake sizes/patterns/winRates) | ~155-170 | Compute from real API data - aggregate patterns by sector from `/api/v1/patterns` response |
+
+### Screener & Patterns (Patterns.jsx) vs Mockup 07 - ~25% Complete
+
+| Mockup Feature | Status |
+|---|---|
+| Two-panel layout (Screening Engine + Pattern Intelligence) | MISSING - has single screener |
+| Scan Agent Fleet with Scanner Agent Cards | MISSING |
+| Trading Metric Controls (Beta, Alpha, MFI, Short Interest, RS, Options Flow, Vol Regime, Volume Profile, Dark Pool, Institutional, Sector Momentum) | PARTIAL - only Price/RSI/Volume/MarketCap |
+| Pattern Agent Fleet with LLM Model + ML Architecture cards | MISSING |
+| ML Metric Controls (Validation Score, Sharpe, Profit Factor, Drawdown, Walk-Forward, OOS Accuracy, Monte Carlo CI) | MISSING |
+| Spawn/Clone/Kill Agent buttons | MISSING |
+| Consolidated Live Feed (timestamped detections) | MISSING |
+| Pattern Arsenal (chart pattern thumbnails) | MISSING |
+| Forming Detections (live chart visuals) | MISSING |
+| Status bar (Connections, Agents, Patterns, Scans, GPU%) | MISSING |
+
+### Data Sources Manager (DataSourcesMonitor.jsx) vs Mockup 09 - ~55% Complete
+
+| Mockup Feature | Status |
+|---|---|
+| Header with title | DONE |
+| Top metrics bar (Connected X/Y, System Health%, Ingestion rate, OpenClaw Bridge, WS status) | PARTIAL - has counts but missing health%, ingestion, bridge, WS |
+| AI-powered Add Source input with provider quick-buttons | PARTIAL - has AI Detect modal but not inline |
+| Source List with category tabs + search | DONE - category tabs present |
+| Source rows (icon, name, category, status, latency, sparkline, records, uptime%) | PARTIAL - card grid not row list, missing sparklines/records/uptime |
+| Split-view Credential Editor Panel (right side) | PARTIAL - modal not persistent panel |
+| Connection log footer with timestamps | MISSING |
+| System telemetry footer | MISSING |
+| LIVE PING indicator | MISSING |
+| API wiring to real backend | DONE - dataSourcesApi.js fully wired |
+
+### Data Sources: Alpaca, Unusual Whales, Finviz (PRIMARY)
+
+These are our three primary data providers. yfinance is NOT used anywhere and must be removed from requirements.txt.
