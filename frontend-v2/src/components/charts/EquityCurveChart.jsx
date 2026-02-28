@@ -1,37 +1,93 @@
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
+import { useEffect, useRef } from 'react';
+import { createChart } from 'lightweight-charts';
 import { TrendingUp } from 'lucide-react';
 import { useApi } from '../../hooks/useApi';
 
 export default function EquityCurveChart() {
   const { data: apiData, loading, error } = useApi('portfolio', { pollIntervalMs: 60000 });
   const data = apiData?.equityCurve || [];
+  const chartContainerRef = useRef(null);
+  const chartRef = useRef(null);
 
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-secondary/10 border border-secondary/50 rounded-lg p-3 shadow-lg">
-          <p className="text-xs text-secondary mb-2">{label}</p>
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-success" />
-              <span className="text-sm">Portfolio: </span>
-              <span className="font-bold text-success">
-                ${payload[0]?.value?.toLocaleString()}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-secondary" />
-              <span className="text-sm">Benchmark: </span>
-              <span className="text-secondary">
-                ${payload[1]?.value?.toLocaleString()}
-              </span>
-            </div>
-          </div>
-        </div>
-      );
+  useEffect(() => {
+    if (!chartContainerRef.current || data.length === 0) return;
+
+    // Dispose previous chart
+    if (chartRef.current) {
+      chartRef.current.remove();
+      chartRef.current = null;
     }
-    return null;
-  };
+
+    const chart = createChart(chartContainerRef.current, {
+      width: chartContainerRef.current.clientWidth,
+      height: 240,
+      layout: {
+        background: { type: 'solid', color: 'transparent' },
+        textColor: '#6b7280',
+        fontSize: 11,
+      },
+      grid: {
+        vertLines: { color: '#2d3748', style: 1 },
+        horzLines: { color: '#2d3748', style: 1 },
+      },
+      rightPriceScale: {
+        borderVisible: false,
+      },
+      timeScale: {
+        borderVisible: false,
+      },
+      crosshair: {
+        vertLine: { color: '#6b7280', width: 1, style: 2 },
+        horzLine: { color: '#6b7280', width: 1, style: 2 },
+      },
+    });
+
+    chartRef.current = chart;
+
+    // Portfolio line
+    const portfolioSeries = chart.addLineSeries({
+      color: '#22c55e',
+      lineWidth: 2,
+      crosshairMarkerRadius: 4,
+      title: 'Portfolio',
+    });
+
+    // Benchmark line (dashed via overlay)
+    const benchmarkSeries = chart.addLineSeries({
+      color: '#6b7280',
+      lineWidth: 1,
+      lineStyle: 2, // dashed
+      title: 'S&P 500',
+    });
+
+    // Map data to LW Charts format { time, value }
+    const portfolioData = data
+      .filter(d => d.date && d.equity != null)
+      .map(d => ({ time: d.date, value: d.equity }));
+
+    const benchmarkData = data
+      .filter(d => d.date && d.benchmark != null)
+      .map(d => ({ time: d.date, value: d.benchmark }));
+
+    if (portfolioData.length) portfolioSeries.setData(portfolioData);
+    if (benchmarkData.length) benchmarkSeries.setData(benchmarkData);
+
+    chart.timeScale().fitContent();
+
+    // Resize observer
+    const ro = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        chart.applyOptions({ width: entry.contentRect.width });
+      }
+    });
+    ro.observe(chartContainerRef.current);
+
+    return () => {
+      ro.disconnect();
+      chart.remove();
+      chartRef.current = null;
+    };
+  }, [data]);
 
   const initialEquity = data[0]?.equity || 0;
   const currentEquity = data[data.length - 1]?.equity || 0;
@@ -61,63 +117,20 @@ export default function EquityCurveChart() {
           </select>
         </div>
       </div>
-
       {/* Chart */}
-      <div className="p-4 h-64">
+      <div className="p-4">
         {data.length > 0 ? (
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" />
-              <XAxis 
-                dataKey="date" 
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: '#6b7280', fontSize: 11 }}
-                tickMargin={8}
-              />
-              <YAxis
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: '#6b7280', fontSize: 11 }}
-                tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
-                domain={['dataMin - 2000', 'dataMax + 2000']}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              <Legend 
-                wrapperStyle={{ paddingTop: '10px' }}
-                formatter={(value) => <span className="text-secondary text-xs">{value}</span>}
-              />
-              <Line
-                type="monotone"
-                dataKey="equity"
-                name="Portfolio"
-                stroke="#22c55e"
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 4, fill: '#22c55e' }}
-              />
-              <Line
-                type="monotone"
-                dataKey="benchmark"
-                name="S&P 500"
-                stroke="#6b7280"
-                strokeWidth={1}
-                strokeDasharray="5 5"
-                dot={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          <div ref={chartContainerRef} />
         ) : (
-          <div className="flex items-center justify-center h-full text-secondary text-sm">
+          <div className="flex items-center justify-center h-64 text-secondary text-sm">
             {loading ? 'Loading equity data...' : 'No equity data available'}
           </div>
         )}
       </div>
-
       {/* Error state */}
       {error && (
         <div className="px-4 py-2 text-xs text-bearish/70 text-center">
-          API unavailable — connect backend to see equity curve
+          API unavailable - connect backend to see equity curve
         </div>
       )}
     </div>
