@@ -31,6 +31,19 @@ const API_CONFIG = {
     signals: "/signals", // Generated trading signals
     backtest: "/backtest", // Backtesting engine
     backtestRuns: "/backtest/runs", // Recent backtest runs (for Backtesting page)
+        backtestResults: "/backtest/results", // Full backtest results + equity curve
+    backtestOptimization: "/backtest/optimization", // Parameter optimization heatmap
+    backtestWalkforward: "/backtest/walkforward", // Walk-forward validation periods
+    backtestMontecarlo: "/backtest/montecarlo", // Monte Carlo simulation paths
+    backtestRegime: "/backtest/regime", // Regime-based performance breakdown
+    backtestRollingSharpe: "/backtest/rolling-sharpe", // Rolling Sharpe ratio series
+    backtestTradeDistribution: "/backtest/trade-distribution", // P&L distribution histogram
+    backtestKellyComparison: "/backtest/kelly-comparison", // Kelly A/B sizing comparison
+    backtestCorrelation: "/backtest/correlation", // Asset correlation matrix
+    backtestSectorExposure: "/backtest/sector-exposure", // Sector allocation breakdown
+    backtestDrawdownAnalysis: "/backtest/drawdown-analysis", // Drawdown period analysis
+    openclawSwarmStatus: "/openclaw/swarm/status", // Swarm intelligence metrics
+    openclawAgents: "/openclaw/agents", // Individual agent status + tasks
     status: "/status", // System health check
 
     // ---- NEW (Oleh needs to create these routers) ----
