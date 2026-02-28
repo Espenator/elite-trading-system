@@ -2,11 +2,11 @@
 
 **Embodier.ai Full-Stack AI Trading Intelligence Platform**
 
-> **Last Updated: February 28, 2026 (8:00 AM EST)**
-> **CI Status: FAILING -- backend pytest blocked by Python IndentationErrors in signals.py (orders.py fixed). Frontend build passes.**
+> **Last Updated: February 28, 2026 (Comet AI Session)**
+> **CI Status: FAILING -- yfinance removed (de0a344), Patterns.jsx real API wired (b18a267), websocket.js fixed. Backend IndentationErrors in signals.py remain.**
 > **App Status: Backend has never been started or tested end-to-end. Frontend builds. All 15 pages audited and wired to real API hooks (useApi). No mock data remaining.**
-> **Next Step: Fix all backend IndentationErrors, then run `uvicorn app.main:app` and `npm run build` locally before every commit.**
-
+> **App Status: Backend never started. Frontend builds. Patterns/DataSources/all 15 pages wired to real API hooks. No mock data remaining. yfinance fully removed.**
+> **Next Steps: Fix IndentationErrors in signals.py + other backend files, run `uvicorn app.main:app`, verify all 25 API routes, then run `npm run build` locally.**
 React + FastAPI full-stack trading application with 15-route V3 widescreen dashboard (14 sidebar + 1 hidden), DuckDB database, Alpaca + Finviz integrations, OpenClaw Python agents, LSTM/XGBoost ML pipeline, and real-time order execution.
 
 > **Part of the Embodier.ai Elite Trading ecosystem.** OpenClaw Python agents and the Blackboard Swarm architecture are integrated in `core/` and `backend/`. The [openclaw repo](https://github.com/Espenator/openclaw) is archived.
@@ -213,3 +213,27 @@ npm run dev
 ## License
 
 Private repository -- Embodier.ai
+
+
+---
+
+## Recent Changes (Feb 28, 2026)
+
+| Commit | Change |
+|---|---|
+| b18a267 | fix(patterns): Removed fake `assignPattern()` + static `SECTOR_PATTERN_DATA`. Patterns.jsx now calls real `/api/v1/patterns` API. Sector heatmap computed from live data. |
+| de0a344 | fix(ci): Removed `yfinance>=0.2.31` from requirements.txt. Data sources confirmed: Alpaca Markets, Unusual Whales, Finviz. No yfinance anywhere in codebase. |
+| 1744561 | docs: Updated STATUS-AND-TODO-2026-02-28.md with full mockup gap analysis for Patterns (07) and Data Sources Manager (09), plus next priority items. |
+
+### Pages vs Mockup Completion Status
+
+| Page | Mockup | API Wired | Mockup Complete % | Key Missing Features |
+|---|---|---|---|---|
+| Patterns & Screener | 07-screener-and-patterns.png | YES | ~25% | Agent Fleet UI, Advanced Trading Metric sliders, Pattern Arsenal, Live Feed, Forming Detections |
+| Data Sources Manager | 09-data-sources-manager.png | YES | ~55% | Top metrics bar, Table layout (not cards), Persistent right-panel credential editor, Sparklines, System telemetry |
+
+### Primary Data Sources (NO yfinance)
+
+- **Alpaca Markets** (`alpaca-py`) — Market data + order execution
+- **Unusual Whales** — Options flow
+- **Finviz** (`finviz`) — Screener, fundamentals, VIX proxy
