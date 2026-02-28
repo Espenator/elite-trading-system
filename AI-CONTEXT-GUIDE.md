@@ -97,3 +97,67 @@ The codebase has clear boundaries. Stay within one domain per session:
 3. **Python indentation** - Use 4 spaces, never tabs. Run `scripts/fix_indentation.py` if issues
 4. **Emoji in JSX** - Use BMP unicode only (e.g. `\u21BB` not `\u{1F504}`)
 5. **WebSocket** - Keep catch blocks on single lines to avoid parse errors
+
+---
+
+## Advanced Strategies
+
+### 6. XML Tagging (Crucial for Claude)
+
+Claude models parse structured XML tags better than raw code dumps. Wrap context like this:
+
+```xml
+<project_goal>
+Refactor the legacy codebase to match the new UI mockups and integrate the OpenClaw agent swarm.
+</project_goal>
+
+<current_ui_code>
+[Paste bundled UI code here]
+</current_ui_code>
+
+<agent_logic_code>
+[Paste bundled Python agent code here]
+</agent_logic_code>
+
+<instructions>
+Compare the UI code to the agent logic and write the missing websocket connection between them.
+</instructions>
+```
+
+### 7. The "Skeleton & Muscle" Workflow
+
+Use the two helper scripts in sequence:
+
+1. **Skeleton**: Send `REPO-MAP.md` tree + explain your goal. Ask the AI: "Based on this tree, which specific files do you need to see?"
+2. **Muscle**: AI replies with 3-4 files. Run `python bundle_files.py` (edit the file list) to grab exactly those files. Feed them back.
+3. This ensures the AI holds **only** the exact context it needs.
+
+### 8. Watch for "Context Amnesia"
+
+Stop the conversation immediately if the AI:
+- Writes generic boilerplate code
+- Suggests libraries you don't use (e.g., yfinance)
+- Forgets your data sources (Alpaca/FinViz/UW)
+- Starts hallucinating variable names or endpoints
+
+**Recovery**: Copy any good code, save to repo, start a new chat with `project_state.md` to re-initialize.
+
+### 9. Divide & Conquer Sessions
+
+Never mix domains in the same prompt:
+
+| Session | Focus | Feed These Files |
+|---------|-------|------------------|
+| UI Build | Static React pages | Mockup image + page .jsx + components |
+| API Wiring | Connect frontend to backend | Finished UI + useApi.js + route .py |
+| Agent Swarm | OpenClaw recursive loops | openclaw/ module + API endpoints |
+| Hardware | Deploy to dual-PC RTX setup | OpenClaw config + Ollama settings |
+
+### 10. The project_state.md "Save Point"
+
+Maintain `project_state.md` in the repo root. Paste it at the start of **every new chat**:
+
+> "Read this project state document. Acknowledge you understand the architecture, and then I will give you your first task."
+
+See `project_state.md` for the current version.
+
