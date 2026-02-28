@@ -3,207 +3,188 @@
 **Embodier.ai Full-Stack AI Trading Intelligence Platform**
 
 > **Last Updated: February 28, 2026 (8:00 AM EST)**
-> **Status: Production audit in progress. All pages wired to real API hooks (useApi). Mock/hardcoded data being systematically removed.**
-> **Next Step: Complete production audit of all 15 pages, fix remaining mock data, test end-to-end.**
+> **CI Status: FAILING -- backend pytest blocked by Python IndentationErrors in signals.py (orders.py fixed). Frontend build passes.**
+> **App Status: Backend has never been started or tested end-to-end. Frontend builds but pages still contain mock/hardcoded data.**
+> **Next Step: Fix all backend IndentationErrors, then run `uvicorn app.main:app` and `npm run build` locally before every commit.**
 
-React + FastAPI full-stack trading application with 15-route V3 widescreen dashboard (14 sidebar + 1 hidden), SQLite database, Alpaca + Finviz integrations, 42+ OpenClaw Python agents in a Blackboard Swarm, LSTM/XGBoost ML pipeline, and real-time order execution.
+React + FastAPI full-stack trading application with 15-route V3 widescreen dashboard (14 sidebar + 1 hidden), DuckDB database, Alpaca + Finviz integrations, OpenClaw Python agents, LSTM/XGBoost ML pipeline, and real-time order execution.
 
-> **Part of the Embodier.ai Elite Trading ecosystem.** All 42+ [OpenClaw](https://github.com/Espenator/openclaw) Python agents and the Blackboard Swarm architecture are integrated in `core/` and `backend/`. The openclaw repo is archived.
+> **Part of the Embodier.ai Elite Trading ecosystem.** OpenClaw Python agents and the Blackboard Swarm architecture are integrated in `core/` and `backend/`. The [openclaw repo](https://github.com/Espenator/openclaw) is archived.
 
 ---
 
 ## AI CONTEXT: READ THIS FIRST
 
-If you are an AI assistant reading this repo, here is exactly where we are:
+If you are an AI assistant reading this repo, here is the **honest current state**:
 
-1. **All 15 frontend pages exist** with V3 UI code (14 sidebar + 1 hidden route)
-2. **All 27+ backend API routes exist** in `backend/app/api/v1/`
-3. **All 20+ backend services exist** in `backend/app/services/`
-4. **Frontend pages use `useApi` hook** for real-time polling -- no mock data should remain
-5. **6 approved UI mockup images** exist in `docs/mockups-v3/images/`
-6. **Design system is finalized** -- see `docs/UI-DESIGN-SYSTEM.md` for exact colors, fonts, spacing
-7. **Agent Command Center** has been audited and wired to real API data
-8. **Intelligence Dashboard** has been audited and wired to real API data
-9. **Sidebar navigation** is organized into 5 sections: COMMAND, INTELLIGENCE, ML & ANALYSIS, EXECUTION, SYSTEM
-10. **Backend has never been started** -- FastAPI server exists but has not been run or tested
-11. **No authentication system** -- no login, no user sessions
-12. **No WebSocket real-time data flowing** -- WebSocket code exists but is not connected
+1. **15 frontend page files exist** in `frontend-v2/src/pages/` (14 sidebar + 1 hidden route)
+2. **25 backend API route files exist** in `backend/app/api/v1/` (see actual list below)
+3. **15 backend service files exist** in `backend/app/services/` (see actual list below)
+4. **2 frontend hooks exist**: `useApi.js` and `useSentiment.js` -- most pages still have hardcoded mock data
+5. **Only 2 pages audited and wired**: Dashboard.jsx and AgentCommandCenter.jsx -- 13 pages pending
+6. **CI is FAILING**: Python IndentationErrors from AI-assisted Phase commits that were pushed without local testing
+7. **Backend has NEVER been started** -- `uvicorn app.main:app` has never been run successfully
+8. **No authentication system** -- no login, no user sessions
+9. **No WebSocket real-time data flowing** -- WebSocket code exists but is not connected
+10. **Database**: DuckDB (not SQLite as previously claimed in some docs)
+11. **Test suite**: 1 test file (`test_api.py`) + `conftest.py` -- minimal coverage
+12. **torch/PyTorch removed** from requirements.txt -- ML currently XGBoost + scikit-learn only
 
 ### Key Documentation Files
 
 | File | Purpose |
-|------|--------|
-| `frontend-v2/src/V3-ARCHITECTURE.md` | **AUTHORITATIVE** frontend architecture (15 routes, charting audit, component map) |
-| `docs/UI-DESIGN-SYSTEM.md` | **AUTHORITATIVE** design system (colors, fonts, spacing from approved mockups) |
+|---|---|
+| `frontend-v2/src/V3-ARCHITECTURE.md` | Frontend architecture (15 routes, charting audit, component map) |
+| `docs/UI-DESIGN-SYSTEM.md` | Design system (colors, fonts, spacing from approved mockups) |
 | `docs/mockups-v3/images/` | Approved mockup images (source of truth for visual design) |
-| `docs/mockups-v3/FULL-MOCKUP-SPEC.md` | Full mockup specification for all 14 pages |
+| `docs/STATUS-AND-TODO-2026-02-28.md` | Current project status and roadmap |
+| `docs/DEEP_RESEARCH_AUDIT_2026-02-27.md` | Deep audit -- overall score 4.2/10 |
+| `backend/README.md` | Backend-specific architecture and API route reference |
+
+### Critical Problem
+
+AI-assisted development sessions pushed code changes (Phases 5a-12d) without testing builds locally first, causing:
+- **IndentationErrors** across multiple backend `.py` files (tab/space mixing)
+- **CI has been red for 100+ consecutive runs**
+- Mock data removal was attempted but incomplete
+
+**Rule going forward**: Run `uvicorn app.main:app` and `npm run build` locally before every commit.
 
 ---
 
-## Frontend Pages & Sidebar Menu (V3 - CURRENT)
+## Frontend Pages & Sidebar Menu (V3)
 
-The sidebar is defined in `frontend-v2/src/components/layout/Sidebar.jsx`. Routes are in `frontend-v2/src/App.jsx`.
+Sidebar defined in `frontend-v2/src/components/layout/Sidebar.jsx`. Routes in `frontend-v2/src/App.jsx`.
 
-### COMMAND Section
+### COMMAND
+| # | Route | Sidebar Label | File | Status |
+|---|---|---|---|---|
+| 1 | `/dashboard` | Intelligence Dashboard | `Dashboard.jsx` | Audited -- wired to useApi |
+| 2 | `/agents` | Agent Command Center | `AgentCommandCenter.jsx` | Audited -- wired to useApi |
 
-| # | Route | Sidebar Label | File | Audit Status |
-|---|-------|--------------|------|-------------|
-| 1 | `/dashboard` | **Intelligence Dashboard** | `Dashboard.jsx` | DONE - wired to useApi |
-| 2 | `/agents` | **Agent Command Center** | `AgentCommandCenter.jsx` | DONE - wired to useApi |
+### INTELLIGENCE
+| # | Route | Sidebar Label | File | Status |
+|---|---|---|---|---|
+| 3 | `/signals` | Signal Intelligence | `Signals.jsx` | Has mock data -- pending audit |
+| 4 | `/sentiment` | Sentiment Intelligence | `SentimentIntelligence.jsx` | Has mock data -- pending audit |
+| 5 | `/data-sources` | Data Sources Manager | `DataSourcesMonitor.jsx` | Has mock data -- pending audit |
 
-### INTELLIGENCE Section
+### ML & ANALYSIS
+| # | Route | Sidebar Label | File | Status |
+|---|---|---|---|---|
+| 6 | `/ml-brain` | ML Brain & Flywheel | `MLBrainFlywheel.jsx` | Has mock data -- pending audit |
+| 7 | `/patterns` | Screener & Patterns | `Patterns.jsx` | Has mock data -- pending audit |
+| 8 | `/backtest` | Backtesting Lab | `Backtesting.jsx` | Has mock data -- pending audit |
+| 9 | `/performance` | Performance Analytics | `PerformanceAnalytics.jsx` | Has mock data -- pending audit |
+| 10 | `/market-regime` | Market Regime | `MarketRegime.jsx` | Has mock data -- pending audit |
 
-| # | Route | Sidebar Label | File | Audit Status |
-|---|-------|--------------|------|-------------|
-| 3 | `/signals` | **Signal Intelligence** | `Signals.jsx` | Pending audit |
-| 4 | `/sentiment` | **Sentiment Intelligence** | `SentimentIntelligence.jsx` | Pending audit |
-| 5 | `/data-sources` | **Data Sources Manager** | `DataSourcesMonitor.jsx` | Pending audit |
+### EXECUTION
+| # | Route | Sidebar Label | File | Status |
+|---|---|---|---|---|
+| 11 | `/trades` | Active Trades | `Trades.jsx` | Has mock data -- pending audit |
+| 12 | `/risk` | Risk Intelligence | `RiskIntelligence.jsx` | Has mock data -- pending audit |
+| 13 | `/trade-execution` | Trade Execution | `TradeExecution.jsx` | Has mock data -- pending audit |
 
-### ML & ANALYSIS Section
-
-| # | Route | Sidebar Label | File | Audit Status |
-|---|-------|--------------|------|-------------|
-| 6 | `/ml-brain` | **ML Brain & Flywheel** | `MLBrainFlywheel.jsx` | Pending audit |
-| 7 | `/patterns` | **Screener & Patterns** | `Patterns.jsx` | Pending audit |
-| 8 | `/backtest` | **Backtesting Lab** | `Backtesting.jsx` | Pending audit |
-| 9 | `/performance` | **Performance Analytics** | `PerformanceAnalytics.jsx` | Pending audit |
-| 10 | `/market-regime` | **Market Regime** | `MarketRegime.jsx` | Pending audit |
-
-### EXECUTION Section
-
-| # | Route | Sidebar Label | File | Audit Status |
-|---|-------|--------------|------|-------------|
-| 11 | `/trades` | **Active Trades** | `Trades.jsx` | Pending audit |
-| 12 | `/risk` | **Risk Intelligence** | `RiskIntelligence.jsx` | Pending audit |
-| 13 | `/trade-execution` | **Trade Execution** | `TradeExecution.jsx` | Pending audit |
-
-### SYSTEM Section
-
-| # | Route | Sidebar Label | File | Audit Status |
-|---|-------|--------------|------|-------------|
-| 14 | `/settings` | **Settings** | `Settings.jsx` | Pending audit |
+### SYSTEM
+| # | Route | Sidebar Label | File | Status |
+|---|---|---|---|---|
+| 14 | `/settings` | Settings | `Settings.jsx` | Has mock data -- pending audit |
 
 ### Hidden Route
-
 | # | Route | File | Notes |
-|---|-------|------|------|
+|---|---|---|---|
 | 15 | `/signal-v3` | `SignalIntelligenceV3.jsx` | Advanced signal view, not in sidebar |
 
 ---
-
-## Frontend Component Structure
-
-```
-frontend-v2/src/
-  components/
-    agents/          # Agent Command Center sub-components
-    charts/          # Chart wrappers (PatternFrequencyLC, MiniChart, etc.)
-    dashboard/       # Dashboard sub-components
-    layout/          # Sidebar.jsx, Layout.jsx, Header.jsx
-    ui/              # Shared UI (Button, TextField, Slider, Checkbox, DataTable, etc.)
-      ErrorBoundary.jsx
-      RegimeBanner.jsx
-  config/
-    api.js           # getApiUrl() helper
-  hooks/
-    useApi.js        # Central API hook with polling support
-  lib/
-    dataSourceIcons.js  # Data source icon mappings
-  pages/             # All 15 page files (see table above)
-  services/          # API service layer
-  App.jsx            # Router with all 15 routes
-  main.jsx           # Entry point
-```
 
 ## Backend Architecture
 
 ### FastAPI Server (`backend/app/main.py`)
 
-- Mounts all API v1 routers
-- CORS middleware configured
-- SQLite database initialization
-- WebSocket endpoint for real-time data
+- Mounts all 25 API v1 routers
+- CORS middleware configured for localhost:3000/5173/8080
+- DuckDB schema initialization on startup
+- WebSocket endpoint at `/ws`
+- Background tasks: market data tick (60s), drift check (1hr), risk monitor (30s), heartbeat
+- ML Flywheel singletons (model registry + drift monitor)
 
-### API Routes (`backend/app/api/v1/`)
+### API Routes (`backend/app/api/v1/`) -- 25 files
 
-| Router File | Endpoints | Purpose |
-|------------|-----------|--------|
-| `trading.py` | 5+ routes | Order execution, positions, trade history |
-| `market_data.py` | 4+ routes | Real-time quotes, historical data, screener |
-| `agents.py` | 6+ routes | Agent status, control, swarm management |
-| `portfolio.py` | 4+ routes | Holdings, performance, allocation |
-| `ml_models.py` | 4+ routes | Model predictions, training, status |
-| `risk.py` | 3+ routes | Risk metrics, limits, exposure |
-| `backtesting.py` | 3+ routes | Strategy backtests, results |
-| `alerts.py` | 3+ routes | Alert management, notifications |
+| File | Purpose |
+|---|---|
+| `agents.py` | Agent management, lifecycle, swarm control |
+| `alerts.py` | System alerts, drawdown alerts |
+| `backtest_routes.py` | Strategy backtesting |
+| `data_sources.py` | Data source health monitoring |
+| `flywheel.py` | ML flywheel metrics |
+| `logs.py` | System log retrieval |
+| `market.py` | Market data, regime state, indices |
+| `ml_brain.py` | ML model management, conference, registry |
+| `openclaw.py` | OpenClaw bridge router |
+| `orders.py` | Alpaca order creation and management |
+| `patterns.py` | Pattern/screener queries |
+| `performance.py` | Performance analytics, risk-reward |
+| `portfolio.py` | Portfolio positions, P&L, Kelly metrics |
+| `quotes.py` | Price and chart data |
+| `risk.py` | Risk metrics, exposure, drawdown |
+| `risk_shield_api.py` | RiskShield emergency controls |
+| `sentiment.py` | Sentiment aggregation |
+| `settings_routes.py` | App settings CRUD |
+| `signals.py` | Trading signals from LSTM model |
+| `status.py` | System health check |
+| `stocks.py` | Finviz screener queries |
+| `strategy.py` | Adaptive regime-based strategies |
+| `system.py` | System config, GPU status |
+| `training.py` | ML model training jobs |
+| `youtube_knowledge.py` | YouTube research data |
 
-### Services (`backend/app/services/`)
+### Services (`backend/app/services/`) -- 15 files
 
-20+ service files handling:
-- Alpaca broker integration (REST + WebSocket)
-- Finviz screening and data
-- OpenClaw agent orchestration
-- ML model inference (LSTM, XGBoost)
-- Risk calculation engine
-- HMM regime detection
-- Blackboard Swarm pub/sub
-- Conference consensus engine
-
-### Core Agents (`core/`)
-
-42+ Python agents in Blackboard Swarm architecture:
-- Streaming engine for real-time data
-- Risk Governor with 8 safety checks
-- LSTM bridge for time-series prediction
-- HMM regime detection (GREEN/YELLOW/RED)
-- 100-point composite scoring with ML ensemble
+| File | Purpose |
+|---|---|
+| `alpaca_service.py` | Alpaca broker REST integration |
+| `backtest_engine.py` | Historical signal backtester + Monte Carlo |
+| `database.py` | DuckDB database layer |
+| `finviz_service.py` | Finviz stock screening |
+| `fred_service.py` | FRED economic data |
+| `kelly_position_sizer.py` | Kelly criterion position sizing |
+| `market_data_agent.py` | Market data aggregation |
+| `ml_training.py` | LSTM/XGBoost training |
+| `openclaw_bridge_service.py` | OpenClaw bridge (large module) |
+| `openclaw_db.py` | OpenClaw SQLite persistence |
+| `sec_edgar_service.py` | SEC EDGAR filings |
+| `signal_engine.py` | Signal scoring engine |
+| `training_store.py` | ML model artifact storage |
+| `unusual_whales_service.py` | Options flow data |
+| `walk_forward_validator.py` | Walk-forward validation |
 
 ---
 
 ## Tech Stack
 
 | Layer | Technology |
-|-------|------------|
-| Frontend | React 18, Vite, TailwindCSS, Lightweight Charts, lucide-react icons |
-| Backend | Python 3.11+, FastAPI, SQLAlchemy, SQLite |
-| AI/ML | LSTM, XGBoost, HMM, OpenClaw agents |
-| Broker | Alpaca Markets (paper + live trading) |
-| Data | Finviz, Alpaca WebSocket, Yahoo Finance |
-| Architecture | Blackboard Swarm, pub/sub messaging |
+|---|---|
+| Frontend | React 18, Vite, TailwindCSS, Lightweight Charts, lucide-react |
+| Backend | Python 3.11+, FastAPI, DuckDB, pydantic-settings |
+| AI/ML | XGBoost, scikit-learn, HMM (hmmlearn), Kelly criterion |
+| Broker | Alpaca Markets (paper + live via alpaca-py) |
+| Data | Finviz, yFinance, Unusual Whales, FRED, SEC EDGAR |
+| CI/CD | GitHub Actions (pytest + npm build) |
+| Architecture | OpenClaw agents, Blackboard Swarm |
 
-## Repository Structure
+---
 
-```
-elite-trading-system/
-  frontend-v2/           # React frontend (V3 widescreen UI)
-    public/
-      data-sources/      # Data source icons/images
-    src/
-      components/        # Shared components
-      config/            # API configuration
-      hooks/             # Custom React hooks (useApi)
-      lib/               # Utility libraries
-      pages/             # 15 page components
-      services/          # API service layer
-      App.jsx            # Router with 15 routes
-      V3-ARCHITECTURE.md # Frontend architecture doc
-    package.json
-  backend/               # FastAPI backend
-    app/
-      api/v1/            # 27+ API route files
-      services/          # 20+ service implementations
-      models/            # SQLAlchemy models
-      main.py            # FastAPI app entry point
-    tests/               # Backend test suite
-    requirements.txt
-  core/                  # OpenClaw Python agents (42+)
-  docs/                  # Project documentation
-    mockups-v3/          # UI mockups and specs
-    UI-DESIGN-SYSTEM.md
-  scripts/               # Utility scripts
-  docker-compose.yml     # Docker setup
-  .env.example           # Environment variables template
-```
+## CI/CD
+
+Single workflow: `.github/workflows/ci.yml`
+
+- **backend-test**: Python 3.11, `pip install -r requirements.txt`, `pytest tests/ -v --cov=app`
+- **frontend-build**: Node 20, `npm ci`, `npm run build`
+- Triggers on push/PR to `main`
+
+**Current CI status**: Backend test FAILING (IndentationErrors). Frontend build PASSING.
+
+---
 
 ## Quick Start
 
@@ -224,6 +205,10 @@ cd frontend-v2
 npm install
 npm run dev
 ```
+
+**Note**: Backend will likely fail on startup due to unresolved IndentationErrors in api/v1/ files. Fix all Python syntax errors first.
+
+---
 
 ## License
 
