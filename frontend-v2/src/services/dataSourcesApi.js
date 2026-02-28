@@ -2,61 +2,70 @@
  * dataSourcesApi.js - Data Sources Manager API Service
  * frontend-v2/src/services/dataSourcesApi.js
  *
- * Standalone API client for the Data Sources Manager page.
- * All calls go through the backend at VITE_API_URL (default localhost:8000).
+ * Production-ready API client for the Data Sources Manager page.
+ * Uses getApiUrl from config/api.js for environment-aware URL resolution.
+ * In dev: Vite proxy forwards to backend. In prod: uses VITE_API_URL.
  */
 
 import { getApiUrl } from '../config/api';
 
-const API_BASE = getApiUrl('dataSources') || 'http://localhost:8000/api/v1/data-sources';
+// Resolves to '/api/v1/data-sources' (dev) or 'https://api.example.com/api/v1/data-sources' (prod)
+const BASE = getApiUrl('dataSources');
 
 async function request(method, path, body = null) {
-  const url = `http://localhost:8000${path}`;
+  const url = `${BASE}${path}`;
   const opts = {
     method,
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
   };
   if (body !== null) {
     opts.body = JSON.stringify(body);
   }
   const res = await fetch(url, opts);
   if (!res.ok) {
-    const errorBody = await res.text();
-    throw new Error(`API ${method} ${path} failed (${res.status}): ${errorBody}`);
+    let errorBody;
+    try {
+      errorBody = await res.json();
+    } catch {
+      errorBody = await res.text();
+    }
+    const msg = typeof errorBody === 'object' ? (errorBody.detail || JSON.stringify(errorBody)) : errorBody;
+    throw new Error(msg || `API ${method} ${path} failed (${res.status})`);
   }
   return res.json();
 }
 
 const dataSources = {
-  /** GET /api/v1/data-sources/ - list all sources with health */
-  list: () => request('GET', '/api/v1/data-sources/'),
+  /** GET /data-sources/ - list all sources with health */
+  list: () => request('GET', '/'),
 
-  /** GET /api/v1/data-sources/{id} - single source details */
-  get: (id) => request('GET', `/api/v1/data-sources/${id}`),
+  /** GET /data-sources/{id} - single source details */
+  get: (id) => request('GET', `/${id}`),
 
-  /** POST /api/v1/data-sources/ - add new source */
-  create: (source) => request('POST', '/api/v1/data-sources/', source),
+  /** POST /data-sources/ - add new source */
+  create: (source) => request('POST', '/', source),
 
-  /** PUT /api/v1/data-sources/{id} - update source config */
-  update: (id, updates) => request('PUT', `/api/v1/data-sources/${id}`, updates),
+  /** PUT /data-sources/{id} - update source config */
+  update: (id, updates) => request('PUT', `/${id}`, updates),
 
-  /** DELETE /api/v1/data-sources/{id} - remove source */
-  remove: (id) => request('DELETE', `/api/v1/data-sources/${id}`),
+  /** DELETE /data-sources/{id} - remove source */
+  remove: (id) => request('DELETE', `/${id}`),
 
-  /** PUT /api/v1/data-sources/{id}/credentials - encrypt & store keys */
+  /** PUT /data-sources/{id}/credentials - encrypt & store keys */
   setCredentials: (id, keys) =>
-    request('PUT', `/api/v1/data-sources/${id}/credentials`, { keys }),
+    request('PUT', `/${id}/credentials`, { keys }),
 
-  /** GET /api/v1/data-sources/{id}/credentials - get masked keys */
+  /** GET /data-sources/{id}/credentials - get masked keys */
   getCredentials: (id) =>
-    request('GET', `/api/v1/data-sources/${id}/credentials`),
+    request('GET', `/${id}/credentials`),
 
-  /** POST /api/v1/data-sources/{id}/test - live connection test */
-  test: (id) => request('POST', `/api/v1/data-sources/${id}/test`),
+  /** POST /data-sources/{id}/test - live connection test */
+  test: (id) => request('POST', `/${id}/test`),
 
-  /** POST /api/v1/data-sources/ai-detect - detect provider from URL */
+  /** POST /data-sources/ai-detect - detect provider from URL */
   aiDetect: (url) =>
-    request('POST', '/api/v1/data-sources/ai-detect', { url }),
+    request('POST', '/ai-detect', { url }),
 };
 
 export default dataSources;
