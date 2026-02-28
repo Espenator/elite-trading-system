@@ -52,7 +52,7 @@ def test_kelly_rejects_low_trade_count():
     sizer = KellyPositionSizer()
     result = sizer.calculate(
         win_rate=0.6,
-        avg_win_pct=0.035,
+        avg_win_pct=0.05,
         avg_loss_pct=0.015,
         trade_count=5,
     )
@@ -64,7 +64,7 @@ def test_kelly_valid_position():
     sizer = KellyPositionSizer()
     result = sizer.calculate(
         win_rate=0.6,
-        avg_win_pct=0.035,
+        avg_win_pct=0.05,
         avg_loss_pct=0.015,
         trade_count=50,
     )
@@ -101,7 +101,7 @@ def test_kelly_negative_edge():
 # --- Test 12: Kelly PositionSize has required fields ---
 def test_kelly_position_size_fields():
     sizer = KellyPositionSizer()
-    result = sizer.calculate(win_rate=0.6, avg_win_pct=0.035, avg_loss_pct=0.015)
+    result = sizer.calculate(win_rate=0.6, avg_win_pct=0.05, avg_loss_pct=0.015)
     assert hasattr(result, 'raw_kelly')
     assert hasattr(result, 'half_kelly')
     assert hasattr(result, 'regime_adjusted')
@@ -114,7 +114,7 @@ def test_kelly_position_size_fields():
 # --- Test 13: Kelly action is BUY for positive edge ---
 def test_kelly_buy_action():
     sizer = KellyPositionSizer()
-    result = sizer.calculate(win_rate=0.6, avg_win_pct=0.035, avg_loss_pct=0.015)
+    result = sizer.calculate(win_rate=0.6, avg_win_pct=0.05, avg_loss_pct=0.015)
     assert result.action == "BUY"
     assert result.final_pct > 0
 
@@ -194,3 +194,4 @@ def test_kelly_regime_multipliers():
     assert "BULLISH" in _REGIME_MULTIPLIERS
     assert "CRISIS" in _REGIME_MULTIPLIERS
     assert _REGIME_MULTIPLIERS["CRISIS"] < _REGIME_MULTIPLIERS["BULLISH"]
+
