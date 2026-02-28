@@ -49,8 +49,8 @@ const navSections = [
         label: "Sentiment Intelligence",
       },
       { to: "/data-sources", icon: Link2, label: "Data Sources Manager" },
+      { to: "/signal-intelligence-v3", icon: Radar, label: "Signal Intelligence V3" },
     ],
-          { to: "/signal-intelligence-v3", icon: Radar, label: "Signal Intelligence V3" },
   },
   {
     label: "ML & ANALYSIS",
