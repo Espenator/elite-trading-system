@@ -17,8 +17,8 @@ const FALLBACK_KPIS = {
 
 const FALLBACK_PERFORMANCE = Array.from({ length: 20 }, (_, i) => ({
   date: `T-${252 - (i * 12)}d`,
-  xgboost: 65 + (i * 1.3) + Math.random() * 2,
-  ensemble: 62 + (i * 1.5) + Math.random() * 3
+  xgboost: 65 + (i * 1.3) + (i % 3) * 0.7,
+  ensemble: 62 + (i * 1.5) + (i % 4) * 0.8
 }));
 
 const FALLBACK_SIGNALS = [
