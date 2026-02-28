@@ -1,6 +1,6 @@
 // APP ROUTER - Embodier.ai Trading Intelligence System
 // Enhanced with React.lazy() for code-splitting & performance
-// Architecture doc: V3-ARCHITECTURE.md (14 sidebar pages + 1 hidden route)
+// Architecture doc: V3-ARCHITECTURE.md (15 sidebar pages)
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
@@ -13,7 +13,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const AgentCommandCenter = lazy(() => import("./pages/AgentCommandCenter"));
 
-// INTELLIGENCE section (3 sidebar pages + 1 hidden)
+// INTELLIGENCE section (4 sidebar pages)
 const Signals = lazy(() => import("./pages/Signals"));
 const SentimentIntelligence = lazy(() => import("./pages/SentimentIntelligence"));
   const DataSourcesMonitor = lazy(() => import("./pages/DataSourcesMonitor"));
