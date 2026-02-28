@@ -20,6 +20,7 @@
     "react-markdown": "^10.1.0",
     "react-router-dom": "^6.23.0",
     "react-toastify": "^11.0.5",
+        "recharts": "^2.12.7",
     "reactflow": "^11.10.1"
   },
   "devDependencies": {

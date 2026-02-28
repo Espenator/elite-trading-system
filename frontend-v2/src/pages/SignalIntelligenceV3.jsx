@@ -620,7 +620,7 @@ export default function SignalIntelligenceV3() {
                 <option>KELLY CRITERION</option><option>FIXED 2%</option><option>DYNAMIC VOL</option>
               </select>
             </div>
-                      <Slider value={maxHeat} onChange={setMaxHeat} color="amber" label="Max Heat" />
+            <Slider value={maxHeat} onChange={setMaxHeat} color="amber" label="Max Heat" />
             <Slider value={lossLimit} onChange={setLossLimit} color="red" label="Loss Lmt" />
             <div className="text-[8px] text-gray-500 uppercase tracking-widest mt-2 mb-1">Active Rules (IF/THEN)</div>
             <div className="flex items-center gap-1 py-0.5">
