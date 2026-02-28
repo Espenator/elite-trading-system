@@ -173,7 +173,7 @@ async def evaluate_alerts(signals: list[dict] = []):
                 fired = sig.get("portfolio_heat", 0) > 0.20
             elif cond == "signal_quality_gt_80":
                 fired = sig.get("signal_quality", 0) > 0.80
-                            elif cond == "risk_score_lt_40":
+            elif cond == "risk_score_lt_40":
                 fired = sig.get("risk_score", 100) < 40
             elif cond == "drawdown_breached":
                 fired = sig.get("drawdown_breached", False)
