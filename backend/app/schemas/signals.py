@@ -48,3 +48,4 @@ class ActiveSignalResponse(BaseModel):
     position_recommendation: str = "HOLD"  # FULL / HALF / SKIP / HOLD
     risk_score: int = 100  # Current portfolio risk score 0-100
     trading_allowed: bool = True  # Whether trading is currently allowed
+
