@@ -25,7 +25,7 @@ class BacktestRequest(BaseModel):
     paramBMin: float | None = None
     paramBMax: float | None = None
     runMode: str = "single"
-        useKelly: bool = False
+    useKelly: bool = False
     kellyFraction: float = 0.5  # Half-Kelly default
 
 
