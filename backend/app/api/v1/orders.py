@@ -27,7 +27,7 @@ class OrderCreate(BaseModel):
 async def create_order(order: OrderCreate):
     """
     Create a new order through Alpaca API and save to database.
-    
+
     Returns the created order with ID and timestamp.
     """
     alpaca_order_id = None
@@ -35,7 +35,7 @@ async def create_order(order: OrderCreate):
     alpaca_response = None
     alpaca_error = None
 
-        # ----- Kelly Pre-Order Validation -----
+    # ----- Kelly Pre-Order Validation -----
     kelly_warnings = []
     from app.core.config import settings
     if order.kelly_edge is not None and order.kelly_edge < settings.SIGNAL_MIN_EDGE:
@@ -45,13 +45,13 @@ async def create_order(order: OrderCreate):
     est_cost = (order.price or 0) * order.quantity
     if est_cost > 100_000 * settings.KELLY_MAX_ALLOCATION:
         kelly_warnings.append(f"Position ${est_cost:,.0f} exceeds Kelly max")
-    
+
     # First, try to create order through Alpaca
     try:
         # Determine price and stop_price based on order type
         price_for_alpaca = None
         stop_price_for_alpaca = None
-        
+
         if order.order_type == "Market":
             # Market orders don't need price
             price_for_alpaca = None
@@ -62,7 +62,7 @@ async def create_order(order: OrderCreate):
         elif order.order_type == "Stop Limit":
             price_for_alpaca = order.price if order.price > 0 else None
             stop_price_for_alpaca = order.price if order.price > 0 else None
-        
+
         alpaca_result = await alpaca_service.create_order(
             symbol=order.symbol,
             order_type=order.order_type,
@@ -71,7 +71,6 @@ async def create_order(order: OrderCreate):
             price=price_for_alpaca,
             stop_price=stop_price_for_alpaca
         )
-        
         alpaca_order_id = alpaca_result.get("id")
         alpaca_status = alpaca_result.get("status")
         alpaca_response = json.dumps(alpaca_result)
@@ -79,7 +78,7 @@ async def create_order(order: OrderCreate):
         # Log error but still save to database
         alpaca_error = str(e)
         alpaca_response = json.dumps({"error": str(e)})
-    
+
     # Save order to database (whether Alpaca succeeded or failed)
     try:
         created_order = db_service.create_order(
@@ -91,13 +90,13 @@ async def create_order(order: OrderCreate):
             estimated_cost=order.estimated_cost,
             required_margin=order.required_margin,
             potential_pnl=order.potential_pnl,
-                        kelly_edge=order.kelly_edge,
+            kelly_edge=order.kelly_edge,
             signal_quality=order.signal_quality,
             alpaca_order_id=alpaca_order_id,
             alpaca_status=alpaca_status,
             alpaca_response=alpaca_response
         )
-        
+
         # If Alpaca failed, include error in response
         if alpaca_error:
             created_order["alpaca_error"] = alpaca_error
@@ -105,10 +104,10 @@ async def create_order(order: OrderCreate):
                 status_code=400,
                 detail=f"Order saved to database but Alpaca API error: {alpaca_error}"
             )
-        
-                if kelly_warnings:
+
+        if kelly_warnings:
             created_order["kelly_warnings"] = kelly_warnings
-return created_order
+        return created_order
     except HTTPException:
         raise
     except Exception as e:
@@ -119,7 +118,7 @@ return created_order
 async def get_recent_orders(limit: int = 10):
     """
     Get recent orders.
-    
+
     Returns the last N orders (default: 10).
     """
     try:
@@ -133,7 +132,7 @@ async def get_recent_orders(limit: int = 10):
 async def get_all_orders():
     """
     Get all orders.
-    
+
     Returns all orders in the database.
     """
     try:
@@ -147,7 +146,7 @@ async def get_all_orders():
 async def get_order(order_id: int):
     """
     Get order by ID.
-    
+
     Returns a specific order by its ID.
     """
     try:
@@ -159,4 +158,3 @@ async def get_order(order_id: int):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch order: {str(e)}")
-
