@@ -239,3 +239,40 @@ Private repository -- Embodier.ai
 - **Alpaca Markets** (`alpaca-py`) — Market data + order execution
 - **Unusual Whales** — Options flow
 - **Finviz** (`finviz`) — Screener, fundamentals, VIX proxy
+
+---
+
+## Repository Structure & AI Tools
+
+For AI assistants working with this codebase:
+
+| File | Purpose |
+|------|--------|
+| `REPO-MAP.md` | Full directory tree with file descriptions |
+| `AI-CONTEXT-GUIDE.md` | 5 strategies for managing AI context limits |
+| `map_repo.py` | Auto-generate repo tree (run locally) |
+| `bundle_files.py` | Bundle key files into single text for AI input |
+
+### Quick Repo Overview
+
+```
+elite-trading-system/
+|-- backend/           # FastAPI (Python 3.11) - 15 API routes, 15 services
+|   |-- app/api/v1/    # REST endpoints
+|   |-- app/services/  # Business logic (Alpaca, FinViz, UW APIs)
+|   |-- app/modules/   # ML engine, OpenClaw, chart patterns
+|   |-- tests/         # 22 tests (CI green)
+|
+|-- frontend-v2/       # React 18 (Vite) - 14 pages + sidebar
+|   |-- src/pages/     # Route pages (each self-contained)
+|   |-- src/hooks/     # useApi.js (central data hook)
+|   |-- src/services/  # API clients + WebSocket
+|   |-- src/components/ # UI components (agents, charts, dashboard, layout, ui)
+|
+|-- core/api/          # Standalone ML API module
+|-- docs/              # Mockups, status docs, design system
+|-- scripts/           # Utility scripts (indentation fixer, migrations)
+```
+
+See `REPO-MAP.md` for the complete file-by-file tree.
+
