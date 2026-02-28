@@ -34,7 +34,7 @@ class StrategyControls(BaseModel):
     masterSwitch: bool | None = None
     pauseAll: bool | None = None
     closeAllPositions: bool | None = None
-        regimeOverride: Optional[str] = None
+    regimeOverride: Optional[str] = None
     kellyEnabled: bool | None = None
     maxPositionPct: Optional[float] = None
     maxPortfolioHeat: Optional[float] = None
