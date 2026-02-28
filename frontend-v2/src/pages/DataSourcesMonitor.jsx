@@ -420,7 +420,7 @@ export default function DataSourcesMonitor() {
             {testingAll ? `\u23F3 ${testAllProgress.current}/${testAllProgress.total}` : '\u26A1 Test All'}
           </button>
           <button onClick={fetchSources} className="px-3 py-2 bg-gray-600/20 text-gray-400 border border-gray-500/30 rounded-lg hover:bg-gray-600/30 text-sm">
-            \u{1F504} Refresh
+            {"\u{1F504}"} Refresh
           </button>
         </div>
       </div>
