@@ -3,11 +3,6 @@ import { useApi } from '../hooks/useApi';
 import { getApiUrl, getWsUrl, WS_CHANNELS } from '../config/api';
 import { createChart, CrosshairMode, LineStyle } from 'lightweight-charts';
 import {
-  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  BarChart, Bar, Cell, RadarChart, PolarGrid, PolarAngleAxis,
-  PolarRadiusAxis, Radar, ScatterChart, Scatter, CartesianGrid
-} from 'recharts';
-import {
   Activity, AlertTriangle, Cpu, Network, Zap, TrendingUp, TrendingDown,
   Clock, Shield, Database, GitMerge, Radio, Server, Layers, BarChart2,
   Eye, Sliders, Globe, MessageSquare, Play, Square, RefreshCw, CheckCircle,
@@ -724,75 +719,25 @@ export const AgentPipelineFlow = () => {
   );
 };
 
-// --- RECHARTS DASHBOARDS ROW ---
-export const RechartsDashboards = () => {
-  const accData = Array.from({length: 30}, (_, i) => ({ day: `D-${30-i}`, acc: 60 + 0.5*30, pnl: (0.5-0.3)*5 }));
-  const radarData = [
-    { factor: 'Velez', score: 85 }, { factor: 'Whale', score: 92 },
-    { factor: 'RSI', score: 45 }, { factor: 'Volume', score: 78 },
-    { factor: 'Hurst', score: 65 }, { factor: 'Compress', score: 88 },
-    { factor: 'Sector', score: 72 }, { factor: 'Options', score: 95 }
-  ];
-  const agentConsensus = [
-    { name: 'Apex', long: 85, short: 15 }, { name: 'RelWeak', long: 20, short: 80 },
-    { name: 'MetaArch', long: 60, short: 40 }, { name: 'Whale', long: 95, short: 5 }
-  ];
-  const corrData = Array.from({length: 50}, () => ({ x: 0.5*100, y: 0.5*100, z: 0.5*400 }));
-  return (
-    <div className="grid grid-cols-4 gap-2">
-      <div className="bg-[#13131a] border border-[#1a1a2f] rounded-lg p-3">
-        <h3 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest mb-2">30-Day Signal Accuracy & PnL</h3>
-        <ResponsiveContainer width="100%" height={200}>
-          <AreaChart data={accData}>
-            <XAxis dataKey="day" tick={{fontSize:8}} stroke="#2a2a4a" />
-            <YAxis tick={{fontSize:8}} stroke="#2a2a4a" />
-            <Tooltip contentStyle={{background:'#13131a',border:'1px solid #2a2a4a',fontSize:10}} />
-            <Area type="monotone" dataKey="acc" stroke="#06b6d4" fill="#06b6d4" fillOpacity={0.1} />
-            <Area type="monotone" dataKey="pnl" stroke="#10b981" fill="#10b981" fillOpacity={0.1} />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-      <div className="bg-[#13131a] border border-[#1a1a2f] rounded-lg p-3">
-        <h3 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest mb-2">Multi-Factor Scoring Radar</h3>
-        <ResponsiveContainer width="100%" height={200}>
-          <RadarChart data={radarData}>
-            <PolarGrid stroke="#1a1a2f" />
-            <PolarAngleAxis dataKey="factor" tick={{fontSize:8,fill:'#9ca3af'}} />
-            <PolarRadiusAxis tick={{fontSize:7}} stroke="#2a2a4a" />
-            <Radar name="Score" dataKey="score" stroke="#06b6d4" fill="#06b6d4" fillOpacity={0.3} />
-          </RadarChart>
-        </ResponsiveContainer>
-      </div>
-      <div className="bg-[#13131a] border border-[#1a1a2f] rounded-lg p-3">
-        <h3 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest mb-2">Agent Swarm Consensus Matrix</h3>
-        <ResponsiveContainer width="100%" height={200}>
-          <BarChart data={agentConsensus}>
-            <XAxis dataKey="name" tick={{fontSize:8}} stroke="#2a2a4a" />
-            <YAxis tick={{fontSize:8}} stroke="#2a2a4a" />
-            <Tooltip contentStyle={{background:'#13131a',border:'1px solid #2a2a4a',fontSize:10}} />
-            <Bar dataKey="long" fill="#10b981" stackId="a" />
-            <Bar dataKey="short" fill="#ef4444" stackId="a" />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-      <div className="bg-[#13131a] border border-[#1a1a2f] rounded-lg p-3">
-        <h3 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest mb-2">Scanner Correlation</h3>
-        <ResponsiveContainer width="100%" height={200}>
-          <ScatterChart>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1a1a2f" />
-            <XAxis type="number" dataKey="x" tick={{fontSize:8}} stroke="#2a2a4a" />
-            <YAxis type="number" dataKey="y" tick={{fontSize:8}} stroke="#2a2a4a" />
-            <Tooltip contentStyle={{background:'#13131a',border:'1px solid #2a2a4a',fontSize:10}} />
-            <Scatter data={corrData} fill="#06b6d4">
-              {corrData.map((entry, index) => (
-                <Cell key={index} fill={entry.z > 200 ? '#06b6d4' : '#a855f7'} opacity={entry.z / 400 + 0.2} />
-              ))}
-            </Scatter>
-          </ScatterChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
-  );
+// --- ANALYTICS DASHBOARDS ROW (LW Charts - pending Step 7a) ---
+export const AnalyticsDashboards = () => {
+    const chartTitles = [
+        '30-Day Signal Accuracy & PnL',
+        'Multi-Factor Scoring Radar',
+        'Agent Swarm Consensus Matrix',
+        'Scanner Correlation'
+    ];
+    return (
+        <div className="grid grid-cols-4 gap-2">
+            {chartTitles.map((title, i) => (
+                <div key={i} className="bg-[#13131a] border border-[#1a1a2f] rounded-lg p-3">
+                    <h3 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest mb-2">{title}</h3>
+                    <div className="h-[200px] flex items-center justify-center text-gray-500 text-xs border border-dashed border-[#1e3a5f] rounded">
+                        <span>LW Charts pending</span>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
 };
-
 
