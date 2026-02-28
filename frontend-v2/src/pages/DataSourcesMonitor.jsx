@@ -170,7 +170,7 @@ function CredentialPanel({ source, onClose, onSave, onTest, saving, testing }) {
                 title="Show/Hide">{showKeys[keyName] ? '\u{1F441}' : '\u25CF'}</button>
               <button onClick={() => navigator.clipboard.writeText(keys[keyName] || '')}
                 className="w-7 h-7 flex items-center justify-center bg-[#0A0E1A] border border-[#2A3444] rounded text-gray-500 hover:text-white text-[10px]"
-                title="Copy">\u{1F4CB}</button>
+                title="Copy">{"\u{1F4CB}"}</button>
               <button className="w-7 h-7 flex items-center justify-center bg-[#0A0E1A] border border-[#2A3444] rounded text-gray-500 hover:text-white text-[10px]"
                 title="Rotate">\u21BB</button>
             </div>
