@@ -187,3 +187,52 @@ Do NOT push code that has not been tested locally. AI-assisted development sessi
 ### Data Sources: Alpaca, Unusual Whales, Finviz (PRIMARY)
 
 These are our three primary data providers. yfinance is NOT used anywhere and must be removed from requirements.txt.
+
+
+---
+
+## SESSION UPDATE — Feb 28, 2026 (Comet AI)
+
+### Fixes Applied This Session
+
+- [x] **Patterns.jsx P-1 FIXED** (commit b18a267): Removed `assignPattern()` hash-based fake pattern assignment. Removed static `PATTERN_TYPES` winRate/avgR. Now fetches real patterns from `/api/v1/patterns`. Sector heatmap (`sectorPatternData`) computed from real API data instead of hardcoded `SECTOR_PATTERN_DATA` array.
+- [x] **requirements.txt yfinance REMOVED** (commit de0a344): `yfinance>=0.2.31` deleted. Confirmed no Python files import yfinance. Data sources are Alpaca Markets, Unusual Whales, Finviz (PRIMARY).
+- [x] **websocket.js already fixed** (prior commit): CI parse error was resolved.
+- [x] **STATUS-AND-TODO-2026-02-28.md updated** (commit docs session): Added full mockup vs implementation audit tables.
+
+### Patterns.jsx — Remaining Gaps vs Mockup 07
+
+The page title is now "Patterns & Screener" and calls real APIs. The following mockup features are still missing:
+
+- [ ] **Scan Agent Fleet panel** — spawnable/killable Scanner Agent Cards with Name/Type/Timeframe config
+- [ ] **Advanced Trading Metric sliders**: Beta Threshold, Alpha Target, MFI 0-100, Short Interest, Relative Strength vs SPX, Options Flow Filter, Volatility Regime, Volume Profile, Dark Pool Activity, Institutional Accumulation, Sector Momentum
+- [ ] **Pattern Agent Fleet** — Pattern Agent Cards with LLM Model + ML Architecture selection
+- [ ] **ML Metric Controls** — Recursive Self-Improvement toggle, Academic Validation Score, Sharpe Ratio, Profit Factor, Max Drawdown, Walk-Forward Efficiency, OOS Accuracy, Monte Carlo CI, Pattern Complexity, Sub-Agent Swarm Size
+- [ ] **Spawn/Clone/Kill Agent buttons** for both fleets
+- [ ] **Consolidated Live Feed** — timestamped real-time detection stream
+- [ ] **Pattern Arsenal** — chart pattern thumbnail grid
+- [ ] **Forming Detections** — live chart visuals for patterns in progress
+- [ ] **Status bar** (Connections, Agents, Patterns, Scans, GPU%)
+
+### DataSourcesMonitor.jsx — Remaining Gaps vs Mockup 09
+
+Core API integration is complete. The following mockup features are still missing:
+
+- [ ] **Top metrics bar**: System Health%, Ingestion rate (rec/min), OpenClaw Bridge status, WS: CONNECTED indicator
+- [ ] **Inline AI-powered Add Source input** with quick-pick provider buttons (Polygon.io, Benzinga, Alpha Vantage, Quandl, IEX Cloud, CoinGecko) — currently only modal button
+- [ ] **Source rows as table** (not card grid): columns for name, category, status, latency, mini sparkline, records/day, uptime%
+- [ ] **Split-view Credential Editor Panel** (right-side persistent) with: Base URL, WebSocket URL, Rate Limit, Polling Interval, Account Type fields + Test Connection log with timestamps
+- [ ] **Connection log** with timestamped entries per source
+- [ ] **System telemetry footer** (WSI, API counts)
+- [ ] **LIVE PING indicator** per source row
+
+### Next Priority Items
+
+1. DataSourcesMonitor: Add top metrics bar (system health, ingestion rate, bridge/WS status)
+2. DataSourcesMonitor: Convert card grid to table layout with sparklines + uptime%
+3. DataSourcesMonitor: Make credential editor a persistent right panel (not modal)
+4. Patterns: Add Advanced Trading Metric sliders (Beta/Alpha/MFI/Dark Pool/Options Flow/Short Interest)
+5. Patterns: Add Consolidated Live Feed panel (real-time detection stream)
+6. Patterns: Add Pattern Arsenal + Forming Detections panels
+7. Backend: Fix all remaining IndentationErrors in signals.py and other files
+8. Backend: Start uvicorn, verify all 25 API routes return valid data end-to-end
