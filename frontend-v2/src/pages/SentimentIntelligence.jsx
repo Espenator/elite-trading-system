@@ -1,7 +1,6 @@
 // SENTIMENT INTELLIGENCE - Production-ready multi-source sentiment fusion
 // Uses useSentiment hook -> GET /api/v1/sentiment/summary + /history + WebSocket
 import React, { useState, useMemo } from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import SentimentTimelineLC from '../components/charts/SentimentTimelineLC';
 import {
   Activity, TrendingUp, TrendingDown, AlertTriangle,
@@ -119,13 +118,31 @@ export default function SentimentIntelligence() {
         <Card className="col-span-1 bg-slate-900/40 border-slate-700/50 backdrop-blur-md relative overflow-hidden flex flex-col items-center justify-center p-4">
           <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest absolute top-4 left-4">Market Mood</h3>
           <div className="h-48 w-full mt-4 relative">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={FEAR_GREED_SEGMENTS} cx="50%" cy="80%" startAngle={180} endAngle={0} innerRadius={60} outerRadius={80} paddingAngle={2} dataKey="value" stroke="none">
-                  {FEAR_GREED_SEGMENTS.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color} />))}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
+                            <svg viewBox="0 0 200 120" className="w-full h-full">
+                  {FEAR_GREED_SEGMENTS.map((seg, i) => {
+                    const startAngle = 180 - (i * 36);
+                    const endAngle = 180 - ((i + 1) * 36);
+                    const startRad = (startAngle * Math.PI) / 180;
+                    const endRad = (endAngle * Math.PI) / 180;
+                    return (
+                      <path
+                        key={`seg-${i}`}
+                        d={`M ${100 + 80 * Math.cos(startRad)} ${100 - 80 * Math.sin(startRad)} A 80 80 0 0 1 ${100 + 80 * Math.cos(endRad)} ${100 - 80 * Math.sin(endRad)}`}
+                        fill="none"
+                        stroke={seg.color}
+                        strokeWidth="16"
+                        strokeLinecap="round"
+                      />
+                    );
+                  })}
+                  {/* Needle */}
+                  {(() => {
+                    const angle = 180 - (moodValue / 100) * 180;
+                    const rad = (angle * Math.PI) / 180;
+                    return <line x1="100" y1="100" x2={100 + 55 * Math.cos(rad)} y2={100 - 55 * Math.sin(rad)} stroke="white" strokeWidth="2" />;
+                  })()}
+                  <circle cx="100" cy="100" r="4" fill="white" />
+                </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-end pb-4 pointer-events-none">
               <span className="text-4xl font-black text-white">{moodValue}</span>
               <span className={`font-bold tracking-wider uppercase text-xs ${moodValue >= 60 ? 'text-green-400' : moodValue <= 40 ? 'text-red-400' : 'text-yellow-400'}`}>{moodLabel}</span>
