@@ -395,6 +395,7 @@ export default function Backtesting() {
           </Card>
         </div>
         <div className="col-span-3">
+                    <Card title="Monte Carlo Simulation" noPadding>
 <ChartPlaceholder title="Monte Carlo Simulation" />
             <div className="grid grid-cols-3 gap-1 p-1">
               <KPI label="5th %ile" value={mcStats.equity_p5 != null ? `$${(mcStats.equity_p5/1000).toFixed(0)}K` : "--"} color="text-rose-400" />
