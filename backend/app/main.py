@@ -5,7 +5,6 @@ Enhanced with ML Flywheel Engine initialization:
 - Drift Monitor singleton for auto-retrain triggers
 - Integrated drift checks in market data tick loop
 """
-
 import asyncio
 import logging
 from contextlib import asynccontextmanager
@@ -47,21 +46,19 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
-
 log = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
 # ML Flywheel Engine Initialization
 # ---------------------------------------------------------------------------
-
 def _init_ml_singletons():
     """Initialize ML engine singletons (model registry + drift monitor).
-    
+
     Called once during app startup. Gracefully handles missing dependencies.
     """
     initialized = []
-    
+
     # Model Registry
     try:
         from app.modules.ml_engine.model_registry import get_registry
@@ -69,10 +66,10 @@ def _init_ml_singletons():
         initialized.append("ModelRegistry")
         log.info("ML Model Registry initialized: %s", registry.get_status() if hasattr(registry, 'get_status') else 'OK')
     except ImportError:
-        log.info("model_registry not available — skipping")
+        log.info("model_registry not available -- skipping")
     except Exception as e:
         log.warning("ModelRegistry init failed: %s", e)
-    
+
     # Drift Monitor
     try:
         from app.modules.ml_engine.drift_detector import get_drift_monitor
@@ -80,24 +77,20 @@ def _init_ml_singletons():
         initialized.append("DriftMonitor")
         log.info("ML Drift Monitor initialized: %s", monitor.get_status() if hasattr(monitor, 'get_status') else 'OK')
     except ImportError:
-        log.info("drift_detector not available — skipping")
+        log.info("drift_detector not available -- skipping")
     except Exception as e:
         log.warning("DriftMonitor init failed: %s", e)
-    
+
     if initialized:
         log.info("ML Flywheel singletons ready: %s", ', '.join(initialized))
-    
+
     return initialized
 
 
 async def _drift_check_loop():
-    """Periodic drift check loop — runs every 60 minutes.
-    
-    Checks feature distribution drift and model performance decay.
-    Triggers auto-retrain when thresholds are breached.
-    """
+    """Periodic drift check loop -- runs every 60 minutes."""
     await asyncio.sleep(300)  # Wait 5 min after startup
-    
+
     while True:
         try:
             from app.modules.ml_engine.drift_detector import get_drift_monitor
@@ -111,12 +104,12 @@ async def _drift_check_loop():
             pass  # drift_detector not installed
         except Exception:
             log.exception("Drift check loop error")
-        
+
         await asyncio.sleep(3600)  # Check every hour
 
 
 async def _market_data_tick_loop():
-    """Run Market Data Agent tick every 60s when status is 'running'. First tick runs after 2s so last_tick_at is set quickly."""
+    """Run Market Data Agent tick every 60s when status is 'running'."""
     await asyncio.sleep(2)  # brief delay so app is ready
     try:
         from app.api.v1 import agents
@@ -137,15 +130,35 @@ async def _market_data_tick_loop():
             logging.exception("Market data tick loop error")
 
 
+# FIX: _risk_monitor_loop moved ABOVE lifespan so it can be referenced
+async def _risk_monitor_loop():
+    """Risk monitoring background task - polls every 30s."""
+    import time
+    while True:
+        try:
+            from app.api.v1.risk import risk_score, drawdown_check
+            from app.websocket_manager import broadcast_risk_update, broadcast_drawdown_alert
+            risk_data = await risk_score()
+            await broadcast_risk_update(risk_data)
+            dd_data = await drawdown_check()
+            if dd_data.get("drawdown_breached") or not dd_data.get("trading_allowed", True):
+                await broadcast_drawdown_alert(dd_data)
+            await asyncio.sleep(30)
+        except Exception as e:
+            log.warning(f"Risk monitor error: {e}")
+            await asyncio.sleep(60)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize data schema on startup; start background loops.
-    
+
     Startup sequence:
     1. Initialize DuckDB schema
     2. Initialize ML Flywheel singletons (registry + drift monitor)
     3. Start market data tick loop (60s interval)
     4. Start drift check loop (1hr interval)
+    5. Start risk monitor loop (30s interval)
     """
     # 1. Data schema
     try:
@@ -153,45 +166,37 @@ async def lifespan(app: FastAPI):
         init_schema()
     except Exception:
         pass
-    
+
     # 2. ML Flywheel singletons
     _init_ml_singletons()
-    
-    # 3. Background tasks
+
+    # 3. Background tasks -- FIX: all tasks created before yield
     tick_task = asyncio.create_task(_market_data_tick_loop())
     drift_task = asyncio.create_task(_drift_check_loop())
-            heartbeat_task = asyncio.create_task(heartbeat_loop())
-    
+    heartbeat_task = asyncio.create_task(heartbeat_loop())
+    risk_monitor_task = asyncio.create_task(_risk_monitor_loop())
+
     try:
         yield
     finally:
         tick_task.cancel()
         drift_task.cancel()
-                    heartbeat_task.cancel()
-                                risk_monitor_task.cancel()
-                            # Risk monitoring background task - polls every 30s
-        async def _risk_monitor_loop():
-            import time
-            while True:
-                try:
-                    from app.api.v1.risk import risk_score, drawdown_check
-                    from app.websocket_manager import broadcast_risk_update, broadcast_drawdown_alert
-                    risk_data = await risk_score()
-                    await broadcast_risk_update(risk_data)
-                    dd_data = await drawdown_check()
-                    if dd_data.get("drawdown_breached") or not dd_data.get("trading_allowed", True):
-                        await broadcast_drawdown_alert(dd_data)
-                    await asyncio.sleep(30)
-                except Exception as e:
-                    log.warning(f"Risk monitor error: {e}")
-                    await asyncio.sleep(60)
-        risk_monitor_task = asyncio.create_task(_risk_monitor_loop())
+        heartbeat_task.cancel()
+        risk_monitor_task.cancel()
         try:
             await tick_task
         except asyncio.CancelledError:
             pass
         try:
             await drift_task
+        except asyncio.CancelledError:
+            pass
+        try:
+            await heartbeat_task
+        except asyncio.CancelledError:
+            pass
+        try:
+            await risk_monitor_task
         except asyncio.CancelledError:
             pass
         log.info("Application shutdown complete")
@@ -244,33 +249,34 @@ app.include_router(market.router, prefix="/api/v1", tags=["market"])
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for real-time updates."""
     await websocket.accept()
-    connection_id = add_connection(websocket)
+    add_connection(websocket)
     try:
         while True:
             data = await websocket.receive_text()
     except Exception:
         pass
     finally:
-        remove_connection(connection_id)
+        # FIX: remove_connection expects WebSocket, not a return value
+        remove_connection(websocket)
 
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint with ML engine status."""
     ml_status = {}
-    
+
     try:
         from app.modules.ml_engine.model_registry import get_registry
         ml_status["model_registry"] = get_registry().get_status() if hasattr(get_registry(), 'get_status') else "loaded"
     except Exception:
         ml_status["model_registry"] = "unavailable"
-    
+
     try:
         from app.modules.ml_engine.drift_detector import get_drift_monitor
         ml_status["drift_monitor"] = get_drift_monitor().get_status() if hasattr(get_drift_monitor(), 'get_status') else "loaded"
     except Exception:
         ml_status["drift_monitor"] = "unavailable"
-    
+
     return {
         "status": "healthy",
         "version": "3.0.0",
