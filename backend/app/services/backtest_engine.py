@@ -1,3 +1,4 @@
+"""
 
 Uses sqlite3 data (openclaw_signals historical), Alpaca for fills.
 Metrics: PnL, Sharpe, Winrate, MaxDD, Calmar.
