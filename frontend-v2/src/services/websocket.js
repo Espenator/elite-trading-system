@@ -78,9 +78,7 @@ class AppWebSocket {
       };
       this.ws.onerror = () => {};
     } catch (err) {
-      if (this.handlers.has("*"))
-          .get("*")
-          .forEach((fn) => fn({ type: "error", error: err }));
+      if (this.handlers.has("*")) this.handlers.get("*").forEach((fn) => fn({ type: "error", error: err }));
       this.reconnectTimer = setTimeout(
         () => this.connect(),
         RECONNECT_DELAY_MS,
