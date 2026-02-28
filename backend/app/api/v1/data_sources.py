@@ -1,4 +1,3 @@
-Made with Perplexity
 """
 Data Sources Manager - Elite Trading System
 backend/app/api/v1/data_sources.py
