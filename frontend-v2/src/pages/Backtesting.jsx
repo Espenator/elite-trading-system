@@ -1,10 +1,13 @@
-// BACKTESTING LAB - Embodier.ai Glass House Intelligence System
-// FINAL SYNTHESIZED V4 - Widescreen layout matching approved mockup
-// CHARTS: lightweight-charts (equity curve/drawdown), recharts (histograms/heatmap/sharpe), reactflow (strategy builder)
-// GET /api/v1/backtest/runs, POST /api/v1/backtest, GET /api/v1/backtest/results
+// BACKTESTING LAB -- Embodier.ai Glass House Intelligence System
+// FINAL SYNTHESIZED V5 -- Widescreen ultra-dense layout matching approved Nano Banana Pro mockup
+// CHARTS: lightweight-charts (equity curve/drawdown), recharts (histograms/heatmaps/monte-carlo/rolling-sharpe/walk-forward)
+// API: GET /api/v1/backtest/runs, POST /api/v1/backtest, GET /api/v1/backtest/results
 // GET /api/v1/backtest/optimization, GET /api/v1/backtest/walkforward, GET /api/v1/backtest/montecarlo
+// GET /api/v1/backtest/regime, GET /api/v1/backtest/rolling-sharpe, GET /api/v1/backtest/trade-distribution
+// GET /api/v1/backtest/kelly-comparison, GET /api/v1/backtest/correlation, GET /api/v1/backtest/sector-exposure
+// GET /api/v1/backtest/drawdown-analysis, GET /api/v1/openclaw/swarm/status, GET /api/v1/openclaw/agents
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { Play, Square, Download, RotateCcw, Settings, Plus, Minus, Copy, Trash2, TrendingUp, BarChart3, Activity, Target, Zap } from "lucide-react";
+import { Play, Square, Download, RotateCcw, Settings, Plus, Minus, Copy, Trash2, TrendingUp, TrendingDown, Activity, Zap, Shield, Brain, Users, GitBranch, Layers, BarChart3, Target, AlertTriangle, ChevronDown, ChevronRight, RefreshCw, Eye, EyeOff, Lock, Unlock, Cpu, Network } from "lucide-react";
 import Card from "../components/ui/Card";
 import TextField from "../components/ui/TextField";
 import Select from "../components/ui/Select";
@@ -18,127 +21,161 @@ import { getApiUrl } from "../config/api";
 // LIGHTWEIGHT-CHARTS: High performance equity curve + drawdown
 import { createChart, ColorType, CrosshairMode } from "lightweight-charts";
 // RECHARTS: Histograms, heatmaps, rolling sharpe, walk-forward, monte carlo
-import { BarChart, Bar, LineChart, Line, AreaChart, Area, ScatterChart, Scatter, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, Legend } from "recharts";
+import { BarChart, Bar, LineChart, Line, AreaChart, Area, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Legend, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Treemap, ComposedChart, ReferenceLine } from "recharts";
 // REACT FLOW: Visual strategy builder node editor
 import ReactFlow, { Background, Controls, applyNodeChanges, applyEdgeChanges } from "reactflow";
 import "reactflow/dist/style.css";
 
+// ===== STRATEGIES (expanded from backend audit) =====
 const STRATEGIES = [
-  "Mean Reversion V2",
-  "ArbitrageAlpha",
-  "TrendFollowerV1",
-  "VolSurfaceBeta",
-  "MomentumShift",
+  "Mean Reversion V2", "ArbitrageAlpha", "TrendFollowerV1", "VolSurfaceBeta",
+  "MomentumShift", "StatArbPairs", "GammaScalper", "DeltaNeutral",
+  "MicrostructureHFT", "RegimeAdaptive", "MLEnsemble", "OpenClawSwarm"
 ];
 
-// ReactFlow initial nodes for strategy builder
+// ===== TIMEFRAMES =====
+const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1D", "1W"];
+
+// ===== REGIME TYPES =====
+const REGIME_TYPES = ["BULL", "BEAR", "SIDEWAYS", "HIGH_VOL", "LOW_VOL", "CRASH"];
+
+// ===== OPENCLAW AGENT ROLES =====
+const AGENT_ROLES = ["Orchestrator", "Alpha Scout", "Risk Sentinel", "Execution Optimizer", "Data Curator", "Regime Detector", "Portfolio Balancer", "Sentiment Analyzer"];
+
+// ===== ReactFlow initial nodes for strategy builder =====
 const INIT_NODES = [
-  { id: "1", position: { x: 0, y: 0 }, data: { label: "Data Feed" }, style: { background: "#1e293b", color: "#10b981", border: "1px solid #10b981", borderRadius: 8, padding: 10, fontSize: 11 } },
-  { id: "2", position: { x: 180, y: -40 }, data: { label: "RSI Filter" }, style: { background: "#1e293b", color: "#3b82f6", border: "1px solid #3b82f6", borderRadius: 8, padding: 10, fontSize: 11 } },
-  { id: "3", position: { x: 180, y: 40 }, data: { label: "MACD Signal" }, style: { background: "#1e293b", color: "#8b5cf6", border: "1px solid #8b5cf6", borderRadius: 8, padding: 10, fontSize: 11 } },
-  { id: "4", position: { x: 360, y: 0 }, data: { label: "Entry Logic" }, style: { background: "#1e293b", color: "#f59e0b", border: "1px solid #f59e0b", borderRadius: 8, padding: 10, fontSize: 11 } },
-  { id: "5", position: { x: 540, y: 0 }, data: { label: "Risk Manager" }, style: { background: "#1e293b", color: "#ef4444", border: "1px solid #ef4444", borderRadius: 8, padding: 10, fontSize: 11 } },
-  { id: "6", position: { x: 720, y: 0 }, data: { label: "Execute" }, style: { background: "#1e293b", color: "#10b981", border: "1px solid #10b981", borderRadius: 8, padding: 10, fontSize: 11 } },
+  { id: "1", position: { x: 0, y: 0 }, data: { label: "Data Feed" }, style: { background: "#1e293b", color: "#e2e8f0", border: "1px solid #334155", borderRadius: 8, padding: 10, fontSize: 11 } },
+  { id: "2", position: { x: 180, y: -40 }, data: { label: "RSI Filter" }, style: { background: "#1e293b", color: "#e2e8f0", border: "1px solid #334155", borderRadius: 8, padding: 10, fontSize: 11 } },
+  { id: "3", position: { x: 180, y: 40 }, data: { label: "MACD Signal" }, style: { background: "#1e293b", color: "#e2e8f0", border: "1px solid #334155", borderRadius: 8, padding: 10, fontSize: 11 } },
+  { id: "4", position: { x: 360, y: 0 }, data: { label: "Entry Logic" }, style: { background: "#1e293b", color: "#10b981", border: "1px solid #10b981", borderRadius: 8, padding: 10, fontSize: 11 } },
+  { id: "5", position: { x: 540, y: 0 }, data: { label: "Risk Manager" }, style: { background: "#1e293b", color: "#f59e0b", border: "1px solid #f59e0b", borderRadius: 8, padding: 10, fontSize: 11 } },
+  { id: "6", position: { x: 720, y: 0 }, data: { label: "Execute" }, style: { background: "#1e293b", color: "#3b82f6", border: "1px solid #3b82f6", borderRadius: 8, padding: 10, fontSize: 11 } },
+  { id: "7", position: { x: 360, y: -80 }, data: { label: "Vol Filter" }, style: { background: "#1e293b", color: "#8b5cf6", border: "1px solid #8b5cf6", borderRadius: 8, padding: 10, fontSize: 11 } },
+  { id: "8", position: { x: 360, y: 80 }, data: { label: "Regime Gate" }, style: { background: "#1e293b", color: "#ec4899", border: "1px solid #ec4899", borderRadius: 8, padding: 10, fontSize: 11 } },
+  { id: "9", position: { x: 540, y: -80 }, data: { label: "Kelly Sizer" }, style: { background: "#1e293b", color: "#06b6d4", border: "1px solid #06b6d4", borderRadius: 8, padding: 10, fontSize: 11 } },
+  { id: "10", position: { x: 540, y: 80 }, data: { label: "Correlation Check" }, style: { background: "#1e293b", color: "#f97316", border: "1px solid #f97316", borderRadius: 8, padding: 10, fontSize: 11 } },
 ];
 const INIT_EDGES = [
-  { id: "e1-2", source: "1", target: "2", animated: true, style: { stroke: "#3b82f6" } },
-  { id: "e1-3", source: "1", target: "3", animated: true, style: { stroke: "#8b5cf6" } },
-  { id: "e2-4", source: "2", target: "4", style: { stroke: "#f59e0b" } },
-  { id: "e3-4", source: "3", target: "4", style: { stroke: "#f59e0b" } },
-  { id: "e4-5", source: "4", target: "5", style: { stroke: "#ef4444" } },
-  { id: "e5-6", source: "5", target: "6", animated: true, style: { stroke: "#10b981" } },
+  { id: "e1-2", source: "1", target: "2", animated: true, style: { stroke: "#334155" } },
+  { id: "e1-3", source: "1", target: "3", animated: true, style: { stroke: "#334155" } },
+  { id: "e2-4", source: "2", target: "4", style: { stroke: "#334155" } },
+  { id: "e3-4", source: "3", target: "4", style: { stroke: "#334155" } },
+  { id: "e4-5", source: "4", target: "5", style: { stroke: "#10b981" } },
+  { id: "e5-6", source: "5", target: "6", style: { stroke: "#f59e0b" } },
+  { id: "e7-5", source: "7", target: "5", style: { stroke: "#8b5cf6" } },
+  { id: "e8-4", source: "8", target: "4", style: { stroke: "#ec4899" } },
+  { id: "e9-6", source: "9", target: "6", style: { stroke: "#06b6d4" } },
+  { id: "e10-5", source: "10", target: "5", style: { stroke: "#f97316" } },
 ];
 
-function StatusBadge({ status }) {
-  const v = { Running: "primary", Completed: "success", Failed: "danger" }[status] || "secondary";
-  return <Badge variant={v}>{status}</Badge>;
-}
-
-function ResultStat({ label, value, color = "text-white", sub }) {
+// ===== HELPER: Inline KPI stat =====
+function ResultStat({ label, value, color = "text-slate-300", sub }) {
   return (
-    <div className="text-center cursor-pointer hover:bg-slate-800/50 rounded p-1 transition-colors">
-      <div className="text-[10px] text-slate-400 mb-0.5">{label}</div>
+    <div className="text-center">
+      <div className="text-[10px] text-slate-500 uppercase tracking-wide">{label}</div>
       <div className={`text-sm font-bold ${color}`}>{value}</div>
-      {sub && <div className="text-[9px] text-slate-500">{sub}</div>}
+      {sub && <div className="text-[9px] text-slate-600">{sub}</div>}
     </div>
   );
 }
 
-// ═══ LIGHTWEIGHT-CHARTS: Equity Curve ═══
+// ===== LIGHTWEIGHT-CHARTS: Equity Curve =====
 function EquityCurveLC({ data = [], height = 220 }) {
   const ref = useRef(null);
   useEffect(() => {
     if (!ref.current) return;
     const chart = createChart(ref.current, {
-      layout: { background: { type: ColorType.Solid, color: "#020617" }, textColor: "#94a3b8" },
+      layout: { background: { type: ColorType.Solid, color: "#020617" }, textColor: "#64748b" },
       grid: { vertLines: { color: "#1e293b" }, horzLines: { color: "#1e293b" } },
-      crosshair: { mode: CrosshairMode.Normal },
       width: ref.current.clientWidth, height,
       rightPriceScale: { borderColor: "#1e293b" },
-      timeScale: { borderColor: "#1e293b", timeVisible: true },
+      timeScale: { borderColor: "#1e293b", visible: false },
+      crosshair: { mode: CrosshairMode.Normal },
     });
-    const series = chart.addAreaSeries({ topColor: "rgba(16,185,129,0.4)", bottomColor: "rgba(16,185,129,0.05)", lineColor: "#10b981", lineWidth: 2 });
-    const fallback = Array.from({ length: 60 }, (_, i) => ({ time: `2023-${String(Math.floor(i/30)+1).padStart(2,"0")}-${String((i%30)+1).padStart(2,"0")}`, value: 100000 + 0.5 * 50000 + i * 800 }));
+    const series = chart.addAreaSeries({ topColor: "rgba(16,185,129,0.4)", bottomColor: "rgba(16,185,129,0.02)", lineColor: "#10b981", lineWidth: 2 });
+    const fallback = Array.from({ length: 90 }, (_, i) => ({ time: `2023-${String(Math.floor(i/30)+1).padStart(2,"0")}-${String(i%30+1).padStart(2,"0")}`, value: 100000 + Math.random() * 80000 + i * 500 }));
     series.setData(data.length ? data : fallback);
-    const markers = fallback.filter((_, i) => i % 8 === 0).map((d, i) => ({ time: d.time, position: i % 2 === 0 ? "belowBar" : "aboveBar", color: i % 2 === 0 ? "#10b981" : "#f43f5e", shape: "diamond", text: i % 2 === 0 ? "BUY" : "SELL" }));
+    const markers = fallback.filter((_, i) => i % 12 === 0).map((d, i) => ({ time: d.time, position: i % 2 === 0 ? "belowBar" : "aboveBar", color: i % 2 === 0 ? "#10b981" : "#ef4444", shape: i % 2 === 0 ? "arrowUp" : "arrowDown", text: i % 2 === 0 ? "BUY" : "SELL" }));
     series.setMarkers(markers);
     const resize = () => chart.applyOptions({ width: ref.current?.clientWidth });
     window.addEventListener("resize", resize);
     return () => { window.removeEventListener("resize", resize); chart.remove(); };
   }, [data, height]);
-  return <div ref={ref} className="w-full rounded-lg border border-slate-800 overflow-hidden" style={{ height }} />;
+  return <div ref={ref} className="w-full rounded-lg border border-slate-800 overflow-hidden" />;
 }
 
-// ═══ LIGHTWEIGHT-CHARTS: Drawdown Chart ═══
+// ===== LIGHTWEIGHT-CHARTS: Drawdown Chart =====
 function DrawdownLC({ data = [], height = 80 }) {
   const ref = useRef(null);
   useEffect(() => {
     if (!ref.current) return;
     const chart = createChart(ref.current, {
-      layout: { background: { type: ColorType.Solid, color: "#020617" }, textColor: "#94a3b8" },
+      layout: { background: { type: ColorType.Solid, color: "#020617" }, textColor: "#64748b" },
       grid: { vertLines: { color: "#1e293b" }, horzLines: { color: "#1e293b" } },
       width: ref.current.clientWidth, height,
       rightPriceScale: { borderColor: "#1e293b" },
       timeScale: { borderColor: "#1e293b", visible: false },
     });
-    const series = chart.addAreaSeries({ topColor: "rgba(244,63,94,0.05)", bottomColor: "rgba(244,63,94,0.4)", lineColor: "#f43f5e", lineWidth: 1 });
-    const fallback = Array.from({ length: 60 }, (_, i) => ({ time: `2023-${String(Math.floor(i/30)+1).padStart(2,"0")}-${String((i%30)+1).padStart(2,"0")}`, value: -(0.5 * 12 + Math.sin(i/5) * 3) }));
+    const series = chart.addAreaSeries({ topColor: "rgba(244,63,94,0.05)", bottomColor: "rgba(244,63,94,0.3)", lineColor: "#f43f5e", lineWidth: 1 });
+    const fallback = Array.from({ length: 90 }, (_, i) => ({ time: `2023-${String(Math.floor(i/30)+1).padStart(2,"0")}-${String(i%30+1).padStart(2,"0")}`, value: -(Math.random() * 15 + Math.sin(i/10) * 5) }));
     series.setData(data.length ? data : fallback);
     const resize = () => chart.applyOptions({ width: ref.current?.clientWidth });
     window.addEventListener("resize", resize);
     return () => { window.removeEventListener("resize", resize); chart.remove(); };
   }, [data, height]);
-  return <div ref={ref} className="w-full rounded-lg border border-slate-800 overflow-hidden" style={{ height }} />;
+  return <div ref={ref} className="w-full rounded-lg border border-slate-800 overflow-hidden" />;
 }
 
-// ═══ MAIN COMPONENT ═══
+// ===== MAIN COMPONENT =====
 export default function Backtesting() {
-  // ─── State (preserved from original) ───
+  // ===== State (preserved from original + 10x new controls) =====
   const [strategy, setStrategy] = useState("Mean Reversion V2");
   const [startDate, setStartDate] = useState("2023-01-01");
   const [endDate, setEndDate] = useState("2024-01-01");
   const [assets, setAssets] = useState("BTCUSDT, ETHUSDT, SPY, QQQ");
-  const [capital, setCapital] = useState("100000");
-  const [paramA, setParamA] = useState(50);
-  const [paramBMin, setParamBMin] = useState("10");
-  const [paramBMax, setParamBMax] = useState("100");
-  const [runMode, setRunMode] = useState("single");
-  const [isRunning, setIsRunning] = useState(false);
-  const [runningBacktest, setRunningBacktest] = useState(false);
-  const [posSize, setPosSize] = useState(100);
-  const [slippage, setSlippage] = useState(0);
+  const [timeframe, setTimeframe] = useState("1h");
+  const [capital, setCapital] = useState(100000);
   const [benchmark, setBenchmark] = useState("SPY");
   const [txCost, setTxCost] = useState(0);
-    const [useKellySizing, setUseKellySizing] = useState(false);
+  const [useKellySizing, setUseKellySizing] = useState(false);
   const [kellyFraction, setKellyFraction] = useState(0.5);
+  const [kellyMode, setKellyMode] = useState("half");
+  const [paramA, setParamA] = useState(50);
+  const [paramBMin, setParamBMin] = useState(5);
+  const [paramBMax, setParamBMax] = useState(30);
+  const [posSize, setPosSize] = useState(10);
+  const [slippage, setSlippage] = useState(5);
+  const [runningBacktest, setRunningBacktest] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
+  // NEW 10x controls from audit
+  const [maxDrawdownLimit, setMaxDrawdownLimit] = useState(25);
+  const [correlationThreshold, setCorrelationThreshold] = useState(0.7);
+  const [regimeFilter, setRegimeFilter] = useState("ALL");
+  const [walkForwardPeriods, setWalkForwardPeriods] = useState(7);
+  const [monteCarloSims, setMonteCarloSims] = useState(1000);
+  const [confidenceLevel, setConfidenceLevel] = useState(95);
+  const [maxConcurrentTrades, setMaxConcurrentTrades] = useState(5);
+  const [sectorExposureLimit, setSectorExposureLimit] = useState(30);
+  const [volatilityScaling, setVolatilityScaling] = useState(true);
+  const [regimeMultiplierBull, setRegimeMultiplierBull] = useState(1.2);
+  const [regimeMultiplierBear, setRegimeMultiplierBear] = useState(0.5);
+  const [regimeMultiplierSideways, setRegimeMultiplierSideways] = useState(0.8);
+  const [useSwarmOptimization, setUseSwarmOptimization] = useState(false);
+  const [swarmAgentCount, setSwarmAgentCount] = useState(8);
+  const [profitTarget, setProfitTarget] = useState(0);
+  const [stopLoss, setStopLoss] = useState(0);
+  const [trailingStop, setTrailingStop] = useState(0);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [activeTab, setActiveTab] = useState("results");
+  const [showSwarmPanel, setShowSwarmPanel] = useState(true);
   // React Flow state
   const [nodes, setNodes] = useState(INIT_NODES);
   const [edges, setEdges] = useState(INIT_EDGES);
   const onNodesChange = useCallback((c) => setNodes((n) => applyNodeChanges(c, n)), []);
   const onEdgesChange = useCallback((c) => setEdges((e) => applyEdgeChanges(c, e)), []);
 
-  // ─── API Hooks (useApi + getApiUrl for ALL data) ───
-  const { data, loading, error, refetch } = useApi("backtestRuns", { pollIntervalMs: 60000 });
+  // ===== API Hooks (useApi for ALL data - from backend audit) =====
+  const { data, loading, error, refetch } = useApi("backtestRuns", { pollIntervalMs: 30000 });
   const { data: resultsData } = useApi("backtestResults", { pollIntervalMs: 30000 });
   const { data: optData } = useApi("backtestOptimization");
   const { data: wfData } = useApi("backtestWalkforward");
@@ -146,149 +183,204 @@ export default function Backtesting() {
   const { data: regimeData } = useApi("backtestRegime");
   const { data: sharpeData } = useApi("backtestRollingSharpe");
   const { data: tradeDistData } = useApi("backtestTradeDistribution");
+  // NEW API hooks from audit
+  const { data: kellyCompData } = useApi("backtestKellyComparison");
+  const { data: corrData } = useApi("backtestCorrelation");
+  const { data: sectorData } = useApi("backtestSectorExposure");
+  const { data: ddAnalysis } = useApi("backtestDrawdownAnalysis");
+  const { data: swarmStatus } = useApi("openclawSwarmStatus", { pollIntervalMs: 5000 });
+  const { data: agentsData } = useApi("openclawAgents", { pollIntervalMs: 5000 });
 
   const parallelRuns = Array.isArray(data?.runs) ? data.runs : [];
   const runHistory = Array.isArray(data?.runHistory) ? data.runHistory : [];
 
-  // ─── Results with fallbacks ───
-  const results = resultsData || { totalPnl: 345000, pnlPct: 24.5, sharpe: 2.35, sortino: 3.50, calmar: 1.96, maxDD: 12.5, winRate: 58.5, profitFactor: 3.50, totalTrades: 1250, avgTradePnl: 196, maxDDPct: 12.5 };
-  const tradeDist = tradeDistData?.distribution || Array.from({ length: 20 }, (_, i) => ({ range: `${(i-10)*500}`, count: Math.floor(0.5 * 150 + 20) }));
-  const rollingSharpe = sharpeData?.series || Array.from({ length: 24 }, (_, i) => ({ month: `${2021 + Math.floor(i/12)}-${String(i%12+1).padStart(2,"0")}`, value: 0.5 * 2 - 0.3 }));
-  const wfSeries = wfData?.periods || Array.from({ length: 7 }, (_, i) => ({ period: ["Jan","Feb","Mar","Apr","May","Jun","Jul"][i], inSample: 800 + 0.5*400, outSample: 600 + 0.5*300 }));
-  const mcPaths = mcData?.paths || Array.from({ length: 50 }, (_, p) => Array.from({ length: 20 }, (_, i) => ({ x: i * 25, y: 100000 + (0.5-0.3) * i * 5000 }))).flat().map((d, i) => ({ ...d, path: Math.floor(i / 20) }));
-  const regimes = regimeData?.regimes || [{ name: "BULL", winRate: 65.5, avgPnl: 450, profitFactor: 2.25 }, { name: "BEAR", winRate: 42.0, avgPnl: -120, profitFactor: 0.85 }, { name: "SIDEWAYS", winRate: 51.1, avgPnl: 80, profitFactor: 1.15 }];
-  const optHeatmap = optData?.heatmap || Array.from({ length: 5 }, (_, r) => ({ row: ["10","20","30","40","50"][r], ...Object.fromEntries(Array.from({ length: 6 }, (_, c) => [["5","10","15","20","25","30"][c], (0.5 * 4 + 0.5).toFixed(2)])) }));
-  const trades = resultsData?.trades || Array.from({ length: 30 }, (_, i) => ({ date: "2024-03-" + String(i+1).padStart(2,"0"), asset: ["SPY","QQQ","AAPL","MSFT","TSLA"][i%5], side: i%2===0?"BUY":"SELL", qty: Math.floor(0.5*500+50), price: (150+0.5*100).toFixed(2), pnl: ((0.5-0.4)*2000).toFixed(2), duration: Math.floor(0.5*120+5)+"m" }));
+  // ===== Results with fallbacks =====
+  const results = resultsData || { totalPnl: 345000, pnlPct: 24.5, sharpe: 2.35, sortino: 3.1, calmar: 1.8, maxDD: -12.4, winRate: 68.2, profitFactor: 2.7, avgWin: 1250, avgLoss: -480, totalTrades: 1847, avgDuration: "4.2h", expectancy: 0.42, kelly: 0.31 };
+  const tradeDist = tradeDistData?.distribution || Array.from({ length: 20 }, (_, i) => ({ range: `${(i-10)*500}`, count: Math.floor(Math.random() * 80 + 10) }));
+  const rollingSharpe = sharpeData?.series || Array.from({ length: 24 }, (_, i) => ({ period: `W${i+1}`, value: 1.5 + Math.random() * 2 - 0.5 }));
+  const wfSeries = wfData?.periods || Array.from({ length: 7 }, (_, i) => ({ period: `P${i+1}`, inSample: 1.8 + Math.random(), outSample: 1.2 + Math.random() * 0.8, pnl: Math.floor(Math.random() * 50000), winRate: 55 + Math.random() * 20, trades: Math.floor(Math.random() * 300 + 100) }));
+  const mcPaths = mcData?.paths || Array.from({ length: 100 }, (_, p) => Array.from({ length: 50 }, (_, i) => ({ x: i, value: 100000 + (Math.random() - 0.45) * i * 3000 })));
+  const regimes = regimeData?.regimes || [{ name: "BULL", winRate: 72.5, avgPnl: 1850, trades: 420, sharpe: 2.8 }, { name: "BEAR", winRate: 58.3, avgPnl: -280, trades: 310, sharpe: 0.9 }, { name: "SIDEWAYS", winRate: 65.1, avgPnl: 620, trades: 580, sharpe: 1.6 }, { name: "HIGH_VOL", winRate: 55.0, avgPnl: 2100, trades: 180, sharpe: 1.2 }, { name: "CRASH", winRate: 45.0, avgPnl: -1500, trades: 50, sharpe: -0.5 }];
+  const optHeatmap = optData?.heatmap || Array.from({ length: 5 }, (_, r) => ({ row: r, cells: Array.from({ length: 6 }, (_, c) => ({ col: c, value: Math.random() * 3 - 0.5 })) }));
+  const trades = resultsData?.trades || Array.from({ length: 50 }, (_, i) => ({ date: `2023-${String(Math.floor(i/4)+1).padStart(2,"0")}-${String((i%28)+1).padStart(2,"0")}`, asset: ["BTCUSDT","ETHUSDT","SPY","QQQ"][i%4], side: i%3===0?"SHORT":"LONG", qty: (Math.random()*10).toFixed(2), price: (Math.random()*50000+1000).toFixed(2), pnl: (Math.random()*3000-1000).toFixed(0), duration: `${(Math.random()*12).toFixed(1)}h` }));
+  // NEW data from audit
+  const kellyComp = kellyCompData || { standard: { pnl: 285000, sharpe: 2.1, maxDD: -18.5 }, kelly: { pnl: 345000, sharpe: 2.35, maxDD: -12.4 }, halfKelly: { pnl: 310000, sharpe: 2.5, maxDD: -8.2 } };
+  const correlations = corrData?.matrix || Array.from({ length: 4 }, (_, i) => ({ asset: ["BTC","ETH","SPY","QQQ"][i], BTC: i===0?1:(0.3+Math.random()*0.5).toFixed(2), ETH: i===1?1:(0.4+Math.random()*0.4).toFixed(2), SPY: i===2?1:(0.1+Math.random()*0.3).toFixed(2), QQQ: i===3?1:(0.2+Math.random()*0.3).toFixed(2) }));
+  const sectorExposure = sectorData?.sectors || [{ name: "Crypto", pct: 45, pnl: 180000 }, { name: "Tech", pct: 25, pnl: 85000 }, { name: "Index", pct: 20, pnl: 55000 }, { name: "Commodities", pct: 10, pnl: 25000 }];
+  const drawdownPeriods = ddAnalysis?.periods || Array.from({ length: 8 }, (_, i) => ({ start: `2023-${String(i+1).padStart(2,"0")}-15`, end: `2023-${String(i+1).padStart(2,"0")}-${20+Math.floor(Math.random()*8)}`, depth: -(5+Math.random()*15).toFixed(1), recovery: `${(Math.random()*10+2).toFixed(1)}d`, cause: ["Fed announcement","Flash crash","Correlation spike","Vol expansion","Liquidity drain","Regime shift","Black swan","Earnings"][i] }));
+  const swarmAgents = agentsData?.agents || AGENT_ROLES.map((role, i) => ({ id: i+1, role, status: i < 6 ? "active" : "idle", cpu: (Math.random()*80+10).toFixed(0), tasks: Math.floor(Math.random()*50), lastAction: `${Math.floor(Math.random()*30)}s ago` }));
+  const swarmMetrics = swarmStatus || { totalAgents: 8, activeAgents: 6, tasksCompleted: 1247, consensusScore: 0.87, swarmPnl: 42500 };
 
-  // ─── POST /api/v1/backtest ───
+  // ===== POST /api/v1/backtest =====
   const handleRunBacktest = async () => {
     setRunningBacktest(true); setIsRunning(true);
     try {
       const response = await fetch(getApiUrl("backtest"), {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ strategy, startDate, endDate, assets, capital: parseFloat(capital) || 100000, paramA, paramBMin: parseFloat(paramBMin), paramBMax: parseFloat(paramBMax), runMode, positionSize: posSize, slippage, benchmark, txCost }),
+        body: JSON.stringify({ strategy, startDate, endDate, assets, capital: parseFloat(capital), benchmark, txCost: parseFloat(txCost), useKellySizing, kellyFraction: parseFloat(kellyFraction), kellyMode, paramA, paramBMin, paramBMax, posSize, slippage, timeframe, maxDrawdownLimit, correlationThreshold, regimeFilter, walkForwardPeriods, monteCarloSims, confidenceLevel, maxConcurrentTrades, sectorExposureLimit, volatilityScaling, regimeMultipliers: { bull: regimeMultiplierBull, bear: regimeMultiplierBear, sideways: regimeMultiplierSideways }, useSwarmOptimization, swarmAgentCount, profitTarget, stopLoss, trailingStop }),
       });
-      if (!response.ok) throw new Error("Failed");
-      await refetch();
-    } catch (err) { console.error("Backtest error:", err); }
+      if (!response.ok) throw new Error("Backtest failed");
+      refetch();
+    } catch (err) { console.error(err); }
     finally { setRunningBacktest(false); setIsRunning(false); }
   };
 
-  // ═══ JSX LAYOUT - Widescreen Ultra-Dense ═══
+  // ===== JSX RETURN =====
   return (
     <div className="space-y-3">
-      <PageHeader icon={RotateCcw} title="Backtesting Lab" description="Strategy backtests with parameter optimization • Lightweight Charts + Recharts + ReactFlow" />
+      <PageHeader title="Backtesting Lab" subtitle="V5 Ultra-Dense Widescreen — OpenClaw Swarm + Kelly A/B + Monte Carlo + Walk-Forward" badge={isRunning ? "RUNNING" : parallelRuns.length > 0 ? "COMPLETE" : "READY"} />
 
-      {/* ROW 1: Config + Controls + KPI Strip */}
+      {/* ROW 1: Config Panel + Equity Curve + KPI Stats (12-col grid) */}
       <div className="grid grid-cols-12 gap-3">
-        {/* Backtest Configuration */}
+        {/* Config & Controls - col-span-3 */}
         <div className="col-span-3">
-          <Card title="Backtest Configuration">
+          <Card title="Strategy & Config">
             <div className="space-y-3">
-              <Select label="Strategy" value={strategy} onChange={(e) => setStrategy(e.target.value)} options={STRATEGIES.map((s) => ({ value: s, label: s }))} />
+              <Select label="Strategy" value={strategy} onChange={(e) => setStrategy(e.target.value)} options={STRATEGIES.map(s => ({ value: s, label: s }))} />
               <div className="grid grid-cols-2 gap-2">
                 <TextField label="Start" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
                 <TextField label="End" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
               </div>
-              <TextField label="Assets (CSV)" value={assets} onChange={(e) => setAssets(e.target.value)} />
-              <TextField label="Capital" value={capital} onChange={(e) => setCapital(e.target.value)} />
+              <TextField label="Assets" value={assets} onChange={(e) => setAssets(e.target.value)} />
+              <div className="grid grid-cols-2 gap-2">
+                <Select label="Timeframe" value={timeframe} onChange={(e) => setTimeframe(e.target.value)} options={TIMEFRAMES.map(t => ({ value: t, label: t }))} />
+                <TextField label="Capital" value={capital} onChange={(e) => setCapital(e.target.value)} />
+              </div>
+              <TextField label="Benchmark" value={benchmark} onChange={(e) => setBenchmark(e.target.value)} />
+              <div className="grid grid-cols-2 gap-2">
+                <TextField label="Tx Cost" value={txCost} onChange={(e) => setTxCost(e.target.value)} />
+                <Slider label={`Slippage: ${slippage}bps`} min={0} max={50} value={slippage} onChange={(v) => setSlippage(v)} />
+              </div>
             </div>
           </Card>
-        </div>
 
-        {/* Parameter Sweeps */}
-        <div className="col-span-3">
-          <Card title="Parameter Sweeps & Controls">
+          <Card title="Parameter Sweeps & Controls" className="mt-3">
             <div className="space-y-3">
-              <Slider label={`Param A (Sensitivity): ${paramA}`} min={0} max={100} value={paramA} onChange={(e) => setParamA(Number(e.target.value))} inputClassName="accent-primary" />
+              <Slider label={`Param A (Sensitivity): ${paramA}`} min={0} max={100} value={paramA} onChange={(v) => setParamA(v)} />
               <div className="grid grid-cols-2 gap-2">
                 <TextField label="B Min" value={paramBMin} onChange={(e) => setParamBMin(e.target.value)} />
                 <TextField label="B Max" value={paramBMax} onChange={(e) => setParamBMax(e.target.value)} />
               </div>
-              <Slider label={`Position Size: ${posSize}%`} min={1} max={100} value={posSize} onChange={(e) => setPosSize(Number(e.target.value))} inputClassName="accent-primary" />
-              <Slider label={`Slippage: ${slippage}bps`} min={0} max={50} value={slippage} onChange={(e) => setSlippage(Number(e.target.value))} inputClassName="accent-primary" />
+              <Slider label={`Position Size: ${posSize}%`} min={1} max={100} value={posSize} onChange={(v) => setPosSize(v)} />
               <div className="flex items-center gap-2">
-                <label className="flex items-center gap-1.5 cursor-pointer"><input type="radio" name="runMode" value="single" checked={runMode==="single"} onChange={() => setRunMode("single")} className="accent-primary" /><span className="text-xs text-white">Single</span></label>
-                <label className="flex items-center gap-1.5 cursor-pointer"><input type="radio" name="runMode" value="sweep" checked={runMode==="sweep"} onChange={() => setRunMode("sweep")} className="accent-primary" /><span className="text-xs text-white">Sweep</span></label>
+                <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={useKellySizing} onChange={() => setUseKellySizing(!useKellySizing)} /><span className="text-xs text-emerald-400 font-bold">Kelly Sizing</span></label>
+                <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={volatilityScaling} onChange={() => setVolatilityScaling(!volatilityScaling)} /><span className="text-xs text-cyan-400 font-bold">Vol Scaling</span></label>
               </div>
-                            {/* Kelly Criterion Sizing */}
-              <div className="flex items-center gap-2 mt-2 p-2 rounded bg-slate-800/50 border border-emerald-500/20">
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="checkbox" checked={useKellySizing} onChange={() => setUseKellySizing(!useKellySizing)} className="accent-emerald-400" />
-                  <span className="text-xs text-emerald-400 font-bold">Kelly Sizing</span>
-                </label>
-                {useKellySizing && (
-                  <Slider label={`Kelly: ${kellyFraction}`} min={0.1} max={1} step={0.05} value={kellyFraction} onChange={(e) => setKellyFraction(Number(e.target.value))} inputClassName="accent-emerald-400 w-20" />
-                )}
-              </div>
-              <div className="flex gap-2">
-                <Button variant="primary" leftIcon={Play} onClick={handleRunBacktest} disabled={runningBacktest} className="flex-1 text-xs">{runningBacktest ? "Running..." : "Run Backtest"}</Button>
-                <Button variant="secondary" leftIcon={Square} onClick={() => setIsRunning(false)} className="text-xs">Stop</Button>
-                <Button variant="secondary" leftIcon={Download} className="text-xs">Export</Button>
-              </div>
+              {useKellySizing && (
+                <div className="space-y-2">
+                  <Slider label={`Kelly: ${kellyFraction}`} min={0.1} max={1} step={0.05} value={kellyFraction} onChange={(v) => setKellyFraction(v)} />
+                  <Select label="Kelly Mode" value={kellyMode} onChange={(e) => setKellyMode(e.target.value)} options={[{value:"full",label:"Full Kelly"},{value:"half",label:"Half Kelly"},{value:"quarter",label:"Quarter Kelly"}]} />
+                </div>
+              )}
             </div>
           </Card>
+
+          {/* Advanced Controls (collapsible) */}
+          <Card title={<button onClick={() => setShowAdvanced(!showAdvanced)} className="flex items-center gap-1 text-xs">{showAdvanced ? <ChevronDown size={12}/> : <ChevronRight size={12}/>} Advanced Risk Controls</button>} className="mt-3">
+            {showAdvanced && (
+              <div className="space-y-3">
+                <Slider label={`Max DD Limit: ${maxDrawdownLimit}%`} min={5} max={50} value={maxDrawdownLimit} onChange={(v) => setMaxDrawdownLimit(v)} />
+                <Slider label={`Correlation Thresh: ${correlationThreshold}`} min={0} max={1} step={0.05} value={correlationThreshold} onChange={(v) => setCorrelationThreshold(v)} />
+                <Select label="Regime Filter" value={regimeFilter} onChange={(e) => setRegimeFilter(e.target.value)} options={["ALL", ...REGIME_TYPES].map(r => ({ value: r, label: r }))} />
+                <div className="grid grid-cols-2 gap-2">
+                  <TextField label="WF Periods" value={walkForwardPeriods} onChange={(e) => setWalkForwardPeriods(e.target.value)} />
+                  <TextField label="MC Sims" value={monteCarloSims} onChange={(e) => setMonteCarloSims(e.target.value)} />
+                </div>
+                <Slider label={`Confidence: ${confidenceLevel}%`} min={80} max={99} value={confidenceLevel} onChange={(v) => setConfidenceLevel(v)} />
+                <div className="grid grid-cols-2 gap-2">
+                  <TextField label="Max Concurrent" value={maxConcurrentTrades} onChange={(e) => setMaxConcurrentTrades(e.target.value)} />
+                  <Slider label={`Sector Lim: ${sectorExposureLimit}%`} min={10} max={100} value={sectorExposureLimit} onChange={(v) => setSectorExposureLimit(v)} />
+                </div>
+                <div className="text-[10px] text-slate-500 font-bold uppercase mt-2">Regime Multipliers</div>
+                <div className="grid grid-cols-3 gap-2">
+                  <TextField label="Bull" value={regimeMultiplierBull} onChange={(e) => setRegimeMultiplierBull(e.target.value)} />
+                  <TextField label="Bear" value={regimeMultiplierBear} onChange={(e) => setRegimeMultiplierBear(e.target.value)} />
+                  <TextField label="Side" value={regimeMultiplierSideways} onChange={(e) => setRegimeMultiplierSideways(e.target.value)} />
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <TextField label="Profit Target" value={profitTarget} onChange={(e) => setProfitTarget(e.target.value)} />
+                  <TextField label="Stop Loss" value={stopLoss} onChange={(e) => setStopLoss(e.target.value)} />
+                  <TextField label="Trail Stop" value={trailingStop} onChange={(e) => setTrailingStop(e.target.value)} />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={useSwarmOptimization} onChange={() => setUseSwarmOptimization(!useSwarmOptimization)} /><span className="text-xs text-purple-400 font-bold">Swarm Opt</span></label>
+                  {useSwarmOptimization && <TextField label="Agents" value={swarmAgentCount} onChange={(e) => setSwarmAgentCount(e.target.value)} />}
+                </div>
+              </div>
+            )}
+          </Card>
+
+          {/* Run Buttons */}
+          <div className="flex gap-2 mt-3">
+            <Button onClick={handleRunBacktest} disabled={runningBacktest} leftIcon={runningBacktest ? Square : Play} className="flex-1">{runningBacktest ? "Running..." : "Run Backtest"}</Button>
+            <Button variant="secondary" leftIcon={RotateCcw} onClick={refetch}>Refresh</Button>
+          </div>
         </div>
 
-        {/* KPI Stats Grid */}
+        {/* Equity Curve + Drawdown + KPIs - col-span-6 */}
         <div className="col-span-6">
-          <Card title="Performance Summary">
-            <div className="grid grid-cols-6 gap-2 mb-3">
-              <ResultStat label="Net P&L" value={`+$${(results.totalPnl/1000).toFixed(0)}K`} color="text-emerald-400" sub={`${results.pnlPct}%`} />
-              <ResultStat label="Sharpe" value={results.sharpe?.toFixed(2)} color="text-blue-400" sub="Risk-Adj" />
-              <ResultStat label="Sortino" value={results.sortino?.toFixed(2)} color="text-purple-400" />
-              <ResultStat label="Calmar" value={results.calmar?.toFixed(2)} color="text-cyan-400" />
-              <ResultStat label="Max DD" value={`-${results.maxDD}%`} color="text-red-400" />
-              <ResultStat label="Win Rate" value={`${results.winRate}%`} color="text-amber-400" sub={`${results.totalTrades} trades`} />
-            </div>
-            <div className="grid grid-cols-5 gap-2">
-              <ResultStat label="Profit Factor" value={results.profitFactor?.toFixed(2)} />
-              <ResultStat label="Avg Trade" value={`$${results.avgTradePnl}`} />
-              <ResultStat label="Benchmark" value={benchmark} />
-              <ResultStat label="Tx Cost" value={`$${txCost}`} />
-              <ResultStat label="Status" value={isRunning ? "RUNNING" : "READY"} color={isRunning ? "text-amber-400" : "text-emerald-400"} />
-                            <ResultStat label="Expectancy" value={results.expectancy?.toFixed(4)} color="text-emerald-400" />
-              <ResultStat label="R:R Ratio" value={results.risk_reward_ratio?.toFixed(2)} color="text-cyan-400" />
-              <ResultStat label="Kelly Eff" value={`${((results.kelly_efficiency || 0) * 100).toFixed(0)}%`} color="text-amber-400" />
-              <ResultStat label="Kelly Adv" value={`$${results.kelly_advantage?.toFixed(2) || '0'}`} color={results.kelly_advantage > 0 ? "text-emerald-400" : "text-red-400"} />
-              <ResultStat label="Grade" value={results.trading_grade || 'N/A'} color="text-purple-400" />
-            </div>
-          </Card>
-        </div>
-      </div>
-
-      {/* ROW 2: Equity Curve (Lightweight Charts) + Drawdown + Parallel Runs */}
-      <div className="grid grid-cols-12 gap-3">
-        <div className="col-span-9">
-          <Card title="Equity Curve — Lightweight Charts" className="relative">
-            <div className="absolute top-2 right-3 flex gap-1">
-              {["1M","3M","6M","1Y","ALL"].map(t => <button key={t} className="px-2 py-0.5 text-[10px] rounded bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer">{t}</button>)}
-            </div>
+          <Card title="Equity Curve (Live Lightweight-Charts)">
             <EquityCurveLC data={resultsData?.equityCurve || []} height={220} />
-            <div className="mt-2">
-              <div className="text-[10px] text-slate-500 mb-1">Drawdown</div>
-              <DrawdownLC data={resultsData?.drawdownCurve || []} height={80} />
+            <DrawdownLC data={resultsData?.drawdown || []} height={80} />
+          </Card>
+
+          {/* KPI Stats Grid - 14 metrics */}
+          <div className="grid grid-cols-7 gap-2 mt-3 bg-slate-900/50 rounded-lg p-3 border border-slate-800">
+            <ResultStat label="Total P&L" value={`$${(results.totalPnl/1000).toFixed(0)}K`} color={results.totalPnl>=0?"text-emerald-400":"text-rose-400"} />
+            <ResultStat label="Sharpe" value={results.sharpe?.toFixed(2)} color={results.sharpe>=2?"text-emerald-400":results.sharpe>=1?"text-amber-400":"text-rose-400"} />
+            <ResultStat label="Sortino" value={results.sortino?.toFixed(2)} color="text-cyan-400" />
+            <ResultStat label="Calmar" value={results.calmar?.toFixed(2)} color="text-purple-400" />
+            <ResultStat label="Max DD" value={`${results.maxDD}%`} color="text-rose-400" />
+            <ResultStat label="Win Rate" value={`${results.winRate}%`} color={results.winRate>=60?"text-emerald-400":"text-amber-400"} />
+            <ResultStat label="Profit Factor" value={results.profitFactor?.toFixed(1)} color="text-blue-400" />
+            <ResultStat label="Avg Win" value={`$${results.avgWin}`} color="text-emerald-400" />
+            <ResultStat label="Avg Loss" value={`$${results.avgLoss}`} color="text-rose-400" />
+            <ResultStat label="Trades" value={results.totalTrades?.toLocaleString()} />
+            <ResultStat label="Avg Duration" value={results.avgDuration} />
+            <ResultStat label="Expectancy" value={results.expectancy?.toFixed(2)} color="text-cyan-400" />
+            <ResultStat label="Kelly" value={results.kelly?.toFixed(2)} color="text-purple-400" />
+            <ResultStat label="P&L %" value={`${results.pnlPct}%`} color={results.pnlPct>=0?"text-emerald-400":"text-rose-400"} />
+          </div>
+        </div>
+
+        {/* OpenClaw Swarm Panel - col-span-3 */}
+        <div className="col-span-3">
+          <Card title={<span className="flex items-center gap-1.5"><Network size={14} className="text-purple-400" /> OpenClaw Swarm Intelligence</span>}>
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              <ResultStat label="Agents" value={`${swarmMetrics.activeAgents}/${swarmMetrics.totalAgents}`} color="text-purple-400" />
+              <ResultStat label="Tasks" value={swarmMetrics.tasksCompleted} color="text-cyan-400" />
+              <ResultStat label="Consensus" value={`${(swarmMetrics.consensusScore*100).toFixed(0)}%`} color={swarmMetrics.consensusScore>0.8?"text-emerald-400":"text-amber-400"} />
+            </div>
+            <div className="space-y-1.5 max-h-[280px] overflow-y-auto">
+              {swarmAgents.map((agent) => (
+                <div key={agent.id} className="flex items-center justify-between p-1.5 bg-slate-900/50 rounded border border-slate-800 text-[10px]">
+                  <div className="flex items-center gap-1.5">
+                    <div className={`w-1.5 h-1.5 rounded-full ${agent.status==="active"?"bg-emerald-400 animate-pulse":"bg-slate-600"}`} />
+                    <span className="text-slate-300 font-medium">{agent.role}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={agent.status==="active"?"success":"default"} className="text-[8px]">{agent.status}</Badge>
+                    <span className="text-slate-500">CPU {agent.cpu}%</span>
+                    <span className="text-slate-500">{agent.tasks} tasks</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-2 p-2 bg-purple-500/10 border border-purple-500/20 rounded text-[10px] text-purple-300">
+              Swarm P&L Contribution: <span className="font-bold text-emerald-400">${swarmMetrics.swarmPnl?.toLocaleString()}</span>
             </div>
           </Card>
-        </div>
-        <div className="col-span-3">
-          <Card title="Parallel Run Manager" noPadding>
-            <DataTable columns={[
-              { key: "id", label: "Run", render: (v) => <span className="font-medium text-white text-xs">{v}</span> },
-              { key: "strategy", label: "Strategy", render: (v) => <span className="text-slate-400 text-xs">{v}</span> },
-              { key: "status", label: "Status", cellClassName: "text-right", render: (v) => <StatusBadge status={v} /> },
-            ]} data={parallelRuns} />
-          </Card>
-          <Card title="Market Regime Performance" className="mt-3">
+
+          {/* Kelly A/B Comparison */}
+          <Card title="Kelly A/B Sizing Comparison" className="mt-3">
             <div className="space-y-2">
-              {regimes.map((r, i) => (
-                <div key={i} className="flex items-center justify-between p-2 rounded bg-slate-800/50 cursor-pointer hover:bg-slate-800 transition-colors">
-                  <div>
-                    <Badge variant={r.name==="BULL"?"success":r.name==="BEAR"?"danger":"secondary"}>{r.name}</Badge>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs text-white">{r.winRate}% WR</div>
-                    <div className={`text-[10px] ${r.avgPnl >= 0 ? "text-emerald-400" : "text-red-400"}`}>${r.avgPnl} avg</div>
+              {[{label:"Standard",data:kellyComp.standard,color:"text-slate-400"},{label:"Full Kelly",data:kellyComp.kelly,color:"text-emerald-400"},{label:"Half Kelly",data:kellyComp.halfKelly,color:"text-cyan-400"}].map(({label,data,color}) => (
+                <div key={label} className="flex items-center justify-between p-2 bg-slate-900/50 rounded border border-slate-800">
+                  <span className={`text-xs font-bold ${color}`}>{label}</span>
+                  <div className="flex gap-3">
+                    <ResultStat label="P&L" value={`$${(data.pnl/1000).toFixed(0)}K`} color={color} />
+                    <ResultStat label="Sharpe" value={data.sharpe?.toFixed(2)} />
+                    <ResultStat label="Max DD" value={`${data.maxDD}%`} color="text-rose-400" />
                   </div>
                 </div>
               ))}
@@ -297,143 +389,185 @@ export default function Backtesting() {
         </div>
       </div>
 
-      {/* ROW 3: Trade Distribution + Rolling Sharpe + Walk-Forward (Recharts) */}
+      {/* ROW 2: Market Regime + Trade Distribution + Rolling Sharpe + Correlation */}
       <div className="grid grid-cols-12 gap-3">
-        {/* Trade P&L Distribution Histogram */}
-        <div className="col-span-4">
-          <Card title="Trade P&L Distribution">
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={tradeDist}>
+        <div className="col-span-3">
+          <Card title="Market Regime Performance">
+            <div className="space-y-1.5">
+              {regimes.map((r) => (
+                <div key={r.name} className="flex items-center justify-between p-1.5 bg-slate-900/50 rounded border border-slate-800 text-[10px]">
+                  <Badge variant={r.name==="BULL"?"success":r.name==="BEAR"?"danger":r.name==="CRASH"?"danger":"default"} className="text-[8px]">{r.name}</Badge>
+                  <span className={r.avgPnl>=0?"text-emerald-400":"text-rose-400"}>${r.avgPnl}</span>
+                  <span className="text-slate-500">{r.winRate}%</span>
+                  <span className="text-slate-500">S:{r.sharpe}</span>
+                  <span className="text-slate-600">{r.trades}t</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+
+        <div className="col-span-3">
+          <Card title="Trade P&L Distribution" noPadding>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={tradeDist} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="range" tick={{ fontSize: 9, fill: "#64748b" }} />
-                <YAxis tick={{ fontSize: 9, fill: "#64748b" }} />
-                <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 8, fontSize: 11 }} />
-                <Bar dataKey="count" radius={[2, 2, 0, 0]}>
-                  {tradeDist.map((d, i) => <Cell key={i} fill={parseInt(d.range) >= 0 ? "#10b981" : "#f43f5e"} />)}
+                <XAxis dataKey="range" tick={{ fill: "#64748b", fontSize: 9 }} />
+                <YAxis tick={{ fill: "#64748b", fontSize: 9 }} />
+                <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 8, fontSize: 10 }} />
+                <Bar dataKey="count">
+                  {tradeDist.map((d, i) => <Cell key={i} fill={Number(d.range) >= 0 ? "#10b981" : "#f43f5e"} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           </Card>
         </div>
 
-        {/* Rolling Sharpe Ratio */}
-        <div className="col-span-4">
-          <Card title="Rolling Sharpe Ratio (24M)">
-            <ResponsiveContainer width="100%" height={180}>
-              <AreaChart data={rollingSharpe}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="month" tick={{ fontSize: 9, fill: "#64748b" }} />
-                <YAxis tick={{ fontSize: 9, fill: "#64748b" }} />
-                <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 8, fontSize: 11 }} />
-                <defs>
-                  <linearGradient id="sharpeGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <Area type="monotone" dataKey="value" stroke="#3b82f6" fill="url(#sharpeGrad)" strokeWidth={2} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </Card>
-        </div>
-
-        {/* Walk-Forward Analysis */}
-        <div className="col-span-4">
-          <Card title="Walk-Forward Analysis">
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={wfSeries}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="period" tick={{ fontSize: 9, fill: "#64748b" }} />
-                <YAxis tick={{ fontSize: 9, fill: "#64748b" }} />
-                <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 8, fontSize: 11 }} />
-                <Legend wrapperStyle={{ fontSize: 10 }} />
-                <Bar dataKey="inSample" fill="#3b82f6" name="In-Sample" radius={[2, 2, 0, 0]} />
-                <Bar dataKey="outSample" fill="#10b981" name="Out-Sample" radius={[2, 2, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </Card>
-        </div>
-      </div>
-
-      {/* ROW 4: Monte Carlo + Optimization Heatmap + Strategy Builder */}
-      <div className="grid grid-cols-12 gap-3">
-        {/* Monte Carlo Simulation */}
-        <div className="col-span-4">
-          <Card title="Monte Carlo Simulation (50 paths)">
+        <div className="col-span-3">
+          <Card title="Rolling Sharpe (24W)" noPadding>
             <ResponsiveContainer width="100%" height={200}>
-              <ScatterChart>
+              <ComposedChart data={rollingSharpe} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="x" tick={{ fontSize: 9, fill: "#64748b" }} name="Day" />
-                <YAxis tick={{ fontSize: 9, fill: "#64748b" }} name="Value" />
-                <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 8, fontSize: 11 }} />
-                <Scatter data={mcPaths} fill="#8b5cf6" fillOpacity={0.15} r={1} />
-              </ScatterChart>
+                <XAxis dataKey="period" tick={{ fill: "#64748b", fontSize: 9 }} />
+                <YAxis tick={{ fill: "#64748b", fontSize: 9 }} />
+                <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 8, fontSize: 10 }} />
+                <ReferenceLine y={1} stroke="#f59e0b" strokeDasharray="3 3" />
+                <ReferenceLine y={2} stroke="#10b981" strokeDasharray="3 3" />
+                <Area type="monotone" dataKey="value" fill="rgba(59,130,246,0.2)" stroke="#3b82f6" strokeWidth={2} />
+              </ComposedChart>
             </ResponsiveContainer>
-            <div className="flex justify-between text-[10px] text-slate-500 mt-1 px-1">
-              <span>5th %ile: $85K</span><span>Median: $135K</span><span>95th %ile: $198K</span>
-            </div>
           </Card>
         </div>
 
-        {/* Optimization Heatmap */}
-        <div className="col-span-4">
-          <Card title="Parameter Optimization Heatmap">
-            <div className="overflow-auto">
+        <div className="col-span-3">
+          <Card title="Asset Correlation Matrix">
+            <div className="overflow-x-auto">
               <table className="w-full text-[10px]">
-                <thead>
-                  <tr>
-                    <th className="text-slate-500 p-1">A\B</th>
-                    {["5","10","15","20","25","30"].map(c => <th key={c} className="text-slate-400 p-1">{c}</th>)}
-                  </tr>
-                </thead>
+                <thead><tr><th className="text-left text-slate-500 p-1"></th>{["BTC","ETH","SPY","QQQ"].map(a => <th key={a} className="text-slate-400 p-1">{a}</th>)}</tr></thead>
                 <tbody>
-                  {optHeatmap.map((r, ri) => (
-                    <tr key={ri}>
-                      <td className="text-slate-400 p-1 font-medium">{r.row}</td>
-                      {["5","10","15","20","25","30"].map(c => {
-                        const val = parseFloat(r[c]) || 0;
-                        const bg = val > 3 ? "bg-emerald-500/40" : val > 2 ? "bg-emerald-500/25" : val > 1 ? "bg-blue-500/25" : "bg-red-500/25";
-                        return <td key={c} className={`p-1 text-center rounded cursor-pointer hover:ring-1 hover:ring-white/30 ${bg}`}><span className="text-white">{r[c]}</span></td>;
+                  {correlations.map((row) => (
+                    <tr key={row.asset}>
+                      <td className="text-slate-400 font-bold p-1">{row.asset}</td>
+                      {["BTC","ETH","SPY","QQQ"].map(col => {
+                        const v = parseFloat(row[col]);
+                        return <td key={col} className={`p-1 text-center ${v>=0.7?"text-rose-400 font-bold":v>=0.4?"text-amber-400":"text-emerald-400"}`}>{typeof row[col]==="number"?row[col].toFixed(2):row[col]}</td>;
                       })}
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <div className="flex items-center gap-2 mt-2 text-[9px] text-slate-500">
-              <span className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-red-500/40"/> {'<'}1</span>
-              <span className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-blue-500/40"/> 1-2</span>
-              <span className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-emerald-500/30"/> 2-3</span>
-              <span className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-emerald-500/50"/> {'>'}3</span>
+          </Card>
+        </div>
+      </div>
+
+      {/* ROW 3: Walk-Forward + Monte Carlo + Optimization Heatmap + Sector Exposure */}
+      <div className="grid grid-cols-12 gap-3">
+        <div className="col-span-4">
+          <Card title="Walk-Forward Validation" noPadding>
+            <DataTable columns={[
+              { key: "period", label: "Period" },
+              { key: "inSample", label: "IS Sharpe", cellClassName: "text-right", render: (v) => <span className="text-cyan-400">{v?.toFixed(2)}</span> },
+              { key: "outSample", label: "OOS Sharpe", cellClassName: "text-right", render: (v) => <span className={v>=1.5?"text-emerald-400":v>=1?"text-amber-400":"text-rose-400"}>{v?.toFixed(2)}</span> },
+              { key: "pnl", label: "P&L", cellClassName: "text-right", render: (v) => <span className={v>=0?"text-emerald-400":"text-rose-400"}>${v?.toLocaleString()}</span> },
+              { key: "winRate", label: "WR%", cellClassName: "text-right", render: (v) => `${v?.toFixed(1)}%` },
+              { key: "trades", label: "Trades", cellClassName: "text-right text-xs" },
+            ]} data={wfSeries} />
+          </Card>
+        </div>
+
+        <div className="col-span-4">
+          <Card title={`Monte Carlo Simulation (${monteCarloSims} paths)`} noPadding>
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <XAxis type="number" dataKey="x" tick={{ fill: "#64748b", fontSize: 9 }} />
+                <YAxis tick={{ fill: "#64748b", fontSize: 9 }} />
+                <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 8, fontSize: 10 }} />
+                {mcPaths.slice(0, 20).map((path, i) => (
+                  <Line key={i} data={path} type="monotone" dataKey="value" stroke={i === 0 ? "#10b981" : `rgba(59,130,246,${0.15})`} strokeWidth={i === 0 ? 2 : 0.5} dot={false} />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+            <div className="grid grid-cols-3 gap-2 p-2">
+              <ResultStat label="95% VaR" value="$-18,500" color="text-rose-400" />
+              <ResultStat label="Median" value="$325K" color="text-emerald-400" />
+              <ResultStat label="Worst" value="$-42K" color="text-rose-500" />
             </div>
           </Card>
         </div>
 
-        {/* Strategy Builder (ReactFlow) */}
         <div className="col-span-4">
-          <Card title="Strategy Builder — ReactFlow">
-            <div className="h-[240px] rounded-lg border border-slate-800 overflow-hidden">
-              <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} fitView className="bg-slate-950">
-                <Background color="#1e293b" gap={16} size={1} />
-                <Controls className="!bg-slate-800 !border-slate-700" />
+          <Card title="Sector Exposure & Drawdown Analysis">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <div className="text-[10px] text-slate-500 font-bold uppercase mb-2">Sector Allocation</div>
+                {sectorExposure.map((s) => (
+                  <div key={s.name} className="flex items-center justify-between text-[10px] mb-1">
+                    <span className="text-slate-400">{s.name}</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-20 bg-slate-800 rounded-full h-1.5"><div className="bg-blue-500 h-1.5 rounded-full" style={{width:`${s.pct}%`}} /></div>
+                      <span className="text-slate-300">{s.pct}%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <div className="text-[10px] text-slate-500 font-bold uppercase mb-2">Drawdown Periods</div>
+                <div className="space-y-1 max-h-[160px] overflow-y-auto">
+                  {drawdownPeriods.slice(0,5).map((dd, i) => (
+                    <div key={i} className="p-1 bg-slate-900/50 rounded border border-slate-800 text-[9px]">
+                      <div className="flex justify-between"><span className="text-rose-400 font-bold">{dd.depth}%</span><span className="text-slate-500">{dd.recovery}</span></div>
+                      <div className="text-slate-600">{dd.cause}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+      </div>
+
+      {/* ROW 4: Optimization Heatmap + Strategy Builder */}
+      <div className="grid grid-cols-12 gap-3">
+        <div className="col-span-5">
+          <Card title="Optimization Heatmap (Param A vs B)" noPadding>
+            <div className="p-2">
+              <div className="grid gap-0.5" style={{ gridTemplateColumns: `repeat(${optHeatmap[0]?.cells?.length || 6}, 1fr)` }}>
+                {optHeatmap.flatMap((row) => row.cells.map((cell) => (
+                  <div key={`${row.row}-${cell.col}`} className="aspect-square rounded-sm flex items-center justify-center text-[8px] font-bold" style={{ background: cell.value > 2 ? "#10b981" : cell.value > 1 ? "#22d3ee" : cell.value > 0 ? "#3b82f6" : cell.value > -0.5 ? "#f59e0b" : "#f43f5e", color: "#020617" }}>
+                    {cell.value?.toFixed(1)}
+                  </div>
+                )))}
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        <div className="col-span-7">
+          <Card title="Visual Strategy Builder (React Flow)" noPadding>
+            <div style={{ height: 280 }}>
+              <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} fitView>
+                <Background color="#1e293b" gap={16} />
+                <Controls />
               </ReactFlow>
             </div>
           </Card>
         </div>
       </div>
 
-      {/* ROW 5: Trade-by-Trade Log + Run History */}
+      {/* ROW 5: Trade-by-Trade Log + Run History & Export */}
       <div className="grid grid-cols-12 gap-3">
         <div className="col-span-8">
-          <Card title="Trade-by-Trade Log (30 Rows)" noPadding>
+          <Card title="Trade-by-Trade Log (50 Rows)" noPadding>
             <DataTable columns={[
               { key: "date", label: "Date", render: (v) => <span className="text-slate-400 text-xs">{v}</span> },
-              { key: "asset", label: "Asset", render: (v) => <span className="font-medium text-white text-xs">{v}</span> },
-              { key: "side", label: "Side", render: (v) => <Badge variant={v==="BUY"?"success":"danger"}>{v}</Badge> },
+              { key: "asset", label: "Asset", render: (v) => <span className="font-bold text-xs">{v}</span> },
+              { key: "side", label: "Side", render: (v) => <Badge variant={v==="LONG"?"success":"danger"} className="text-[8px]">{v}</Badge> },
               { key: "qty", label: "QTY", cellClassName: "text-right text-xs" },
               { key: "price", label: "Price", cellClassName: "text-right text-xs" },
-              { key: "pnl", label: "P&L", cellClassName: "text-right", render: (v) => <span className={parseFloat(v) >= 0 ? "text-emerald-400 text-xs" : "text-red-400 text-xs"}>{parseFloat(v) >= 0 ? "+" : ""}${v}</span> },
-              { key: "duration", label: "Duration", cellClassName: "text-right text-xs text-slate-400" },
+              { key: "pnl", label: "P&L", cellClassName: "text-right", render: (v) => <span className={Number(v)>=0?"text-emerald-400":"text-rose-400"}>${v}</span> },
+              { key: "duration", label: "Duration", cellClassName: "text-right text-xs" },
             ]} data={trades} />
           </Card>
         </div>
@@ -441,15 +575,16 @@ export default function Backtesting() {
           <Card title="Run History & Export" noPadding>
             <DataTable columns={[
               { key: "date", label: "Date", render: (v) => <span className="text-slate-400 text-xs">{v}</span> },
-              { key: "strategy", label: "Strategy", render: (v) => <span className="text-white text-xs">{v}</span> },
-              { key: "pnl", label: "PNL", cellClassName: "text-right", render: (v) => <span className={v >= 0 ? "text-emerald-400 text-xs" : "text-red-400 text-xs"}>{v >= 0 ? "+" : ""}${Math.abs(v).toLocaleString()}</span> },
+              { key: "strategy", label: "Strategy", render: (v) => <span className="text-xs">{v}</span> },
+              { key: "pnl", label: "PNL", cellClassName: "text-right", render: (v) => <span className={Number(v)>=0?"text-emerald-400":"text-rose-400"}>${v}</span> },
             ]} data={runHistory} />
             <div className="p-3">
-              <Button variant="secondary" fullWidth leftIcon={Download} className="text-xs">Export All Results</Button>
+              <Button variant="secondary" fullWidth leftIcon={Download} className="text-xs">Export All Results (CSV/JSON)</Button>
             </div>
           </Card>
         </div>
       </div>
+
     </div>
   );
 }
