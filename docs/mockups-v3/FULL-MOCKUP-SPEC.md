@@ -16,7 +16,7 @@
 | 6 | Agent CC - Agent Registry | `agent-rgistery.png` | APPROVED |
 | 7 | Intelligence Dashboard | `02-intelligence-dashboard.png` | APPROVED |
 | 8 | Signal Intelligence (sidebar) | -- | NEEDS MOCKUP |
-| 9 | Data Sources Monitor | -- | NEEDS MOCKUP |
+| 9 | Data Sources Manager | `09-data-sources-manager.png` | NEEDS APPROVAL |
 | 10 | ML Brain & Flywheel | `06-ml-brain-flywheel.png` | APPROVED |
 | 11 | Screener & Patterns | -- | NEEDS MOCKUP |
 | 12 | Backtesting Lab | -- | NEEDS MOCKUP |
@@ -97,7 +97,7 @@
 - Scanner status matrix, sector sentiment breakdown
 - Wires: sentiment.py
 
-#### 5. Data Sources Monitor (`DataSourcesMonitor.jsx`, `/data-sources`)
+#### 5. Data Sources Manager (`DataSourcesMonitor.jsx`, `/data-sources`)
 - API health dashboard with sparklines per source
 - Data freshness indicators, latency charts
 - Source configuration, rate limit tracking
