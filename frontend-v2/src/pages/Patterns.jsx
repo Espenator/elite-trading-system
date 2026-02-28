@@ -1055,49 +1055,7 @@ export default function Patterns() {
                 <h3 className="text-lg font-bold text-white mb-4">
                   Pattern Frequency Across Sectors
                 </h3>
-                <div className="h-64 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={SECTOR_PATTERN_DATA}
-                      layout="vertical"
-                      margin={{ top: 5, right: 20, left: 80, bottom: 5 }}
-                    >
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        stroke="#334155"
-                        horizontal={false}
-                      />
-                      <XAxis type="number" stroke="#64748b" fontSize={11} />
-                      <YAxis
-                        type="category"
-                        dataKey="name"
-                        stroke="#64748b"
-                        fontSize={11}
-                        width={80}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: "#0f172a",
-                          borderColor: "#334155",
-                          borderRadius: "8px",
-                        }}
-                      />
-                      <Bar
-                        dataKey="patterns"
-                        name="Active Patterns"
-                        radius={[0, 4, 4, 0]}
-                      >
-                        {SECTOR_PATTERN_DATA.map((entry, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={entry.color}
-                            fillOpacity={0.8}
-                          />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+                <PatternFrequencyLC data={SECTOR_PATTERN_DATA} height={256} />
               </div>
             </div>
           )}
