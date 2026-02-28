@@ -467,7 +467,7 @@ async def risk_score():
     }
 
 
-    @router.get("/var-analysis")
+@router.get("/var-analysis")
 async def var_analysis():
     """Calculate Value-at-Risk metrics for current portfolio."""
     try:
