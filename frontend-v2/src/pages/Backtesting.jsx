@@ -14,10 +14,21 @@ import Slider from "../components/ui/Slider";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl } from "../config/api";
 import { createChart, ColorType, CrosshairMode } from "lightweight-charts";
-import { BarChart, Bar, LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Legend, PieChart, Pie, ComposedChart, ReferenceLine } from "recharts";
 import ReactFlow, { Background, Controls, applyNodeChanges, applyEdgeChanges } from "reactflow";
 import "reactflow/dist/style.css";
 
+// Placeholder for charts migrating from Recharts to LW Charts
+const ChartPlaceholder = ({ title, height = 180 }) => (
+  <div className="flex items-center justify-center border border-dashed border-slate-700 rounded text-slate-500 text-xs" style={{ height }}>
+    {title} (LW Charts migration pending)
+  </div>
+);
+const ResultStat = ({ label, value, color = 'text-slate-300' }) => (
+  <div className="text-center">
+    <div className="text-[9px] text-slate-500 uppercase">{label}</div>
+    <div className={`text-sm font-bold ${color}`}>{value ?? '--'}</div>
+  </div>
+);
 const STRATEGIES = [
   "Mean Reversion V2", "ArbitrageAlpha", "TrendFollowerV1", "VolSurfaceBeta",
   "MomentumShift", "StatArbPairs", "GammaScalper", "DeltaNeutral",
@@ -353,45 +364,17 @@ export default function Backtesting() {
         </div>
         <div className="col-span-2">
           <Card title="Trade P&L Distribution" noPadding>
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={tradeDist} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="range" tick={{ fill: "#64748b", fontSize: 8 }} />
-                <YAxis tick={{ fill: "#64748b", fontSize: 8 }} />
-                <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid #334155", fontSize: 9 }} />
-                <Bar dataKey="count">{tradeDist.map((d, i) => <Cell key={i} fill={Number(d.range) >= 0 ? "#10b981" : "#f43f5e"} />)}</Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <ChartPlaceholder title="Trade P&L Distribution" />
           </Card>
         </div>
         <div className="col-span-2">
           <Card title="Rolling Sharpe Ratio (24M)" noPadding>
-            <ResponsiveContainer width="100%" height={180}>
-              <ComposedChart data={rollingSharpe} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="period" tick={{ fill: "#64748b", fontSize: 8 }} />
-                <YAxis tick={{ fill: "#64748b", fontSize: 8 }} />
-                <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid #334155", fontSize: 9 }} />
-                <ReferenceLine y={1} stroke="#f59e0b" strokeDasharray="3 3" />
-                <ReferenceLine y={2} stroke="#10b981" strokeDasharray="3 3" />
-                <Area type="monotone" dataKey="value" fill="rgba(59,130,246,0.2)" stroke="#3b82f6" strokeWidth={2} />
-              </ComposedChart>
-            </ResponsiveContainer>
+            <ChartPlaceholder title="Rolling Sharpe Ratio (24M)" />
           </Card>
         </div>
         <div className="col-span-2">
           <Card title="Walk-Forward Analysis" noPadding>
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={wfSeries} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="period" tick={{ fill: "#64748b", fontSize: 8 }} />
-                <YAxis tick={{ fill: "#64748b", fontSize: 8 }} />
-                <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid #334155", fontSize: 9 }} />
-                <Legend wrapperStyle={{ fontSize: 8 }} />
-                <Bar dataKey="inSample" fill="#3b82f6" name="In-Sample" />
-                <Bar dataKey="outSample" fill="#10b981" name="Out-Sample" />
-              </BarChart>
-            </ResponsiveContainer>
+            <ChartPlaceholder title="Walk-Forward Analysis" />
           </Card>
         </div>
       </div>
@@ -400,15 +383,7 @@ export default function Backtesting() {
       <div className="grid grid-cols-12 gap-2">
         <div className="col-span-2">
           <Card title="Market Regime Performance">
-            <ResponsiveContainer width="100%" height={140}>
-              <PieChart>
-                <Pie data={regimes.map(r => ({ name: r.name, value: r.winRate || r.trades }))} cx="50%" cy="50%" innerRadius={30} outerRadius={55} paddingAngle={2} dataKey="value">
-                  {regimes.map((r, i) => <Cell key={i} fill={REGIME_COLORS[r.name] || "#64748b"} />)}
-                </Pie>
-                <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid #334155", fontSize: 9 }} />
-                <Legend wrapperStyle={{ fontSize: 8 }} />
-              </PieChart>
-            </ResponsiveContainer>
+            <ChartPlaceholder title="Market Regime Performance" height={140} />
             <div className="space-y-0.5 mt-1">
               {regimes.map(r => (
                 <div key={r.name} className="flex justify-between text-[9px]">
@@ -420,18 +395,7 @@ export default function Backtesting() {
           </Card>
         </div>
         <div className="col-span-3">
-          <Card title={`Monte Carlo Simulation (${mcStats.simulations || monteCarloIter} paths)`} noPadding>
-            <ResponsiveContainer width="100%" height={180}>
-              <LineChart margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis type="number" dataKey="x" tick={{ fill: "#64748b", fontSize: 8 }} />
-                <YAxis tick={{ fill: "#64748b", fontSize: 8 }} />
-                <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid #334155", fontSize: 9 }} />
-                {mcPaths.slice(0, 50).map((path, i) => (
-                  <Line key={i} data={path} type="monotone" dataKey="value" stroke={i === 0 ? "#10b981" : `rgba(59,130,246,${0.12})`} strokeWidth={i === 0 ? 2 : 0.5} dot={false} />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
+<ChartPlaceholder title="Monte Carlo Simulation" />
             <div className="grid grid-cols-3 gap-1 p-1">
               <KPI label="5th %ile" value={mcStats.equity_p5 != null ? `$${(mcStats.equity_p5/1000).toFixed(0)}K` : "--"} color="text-rose-400" />
               <KPI label="Median" value={mcStats.equity_median != null ? `$${(mcStats.equity_median/1000).toFixed(0)}K` : "--"} color="text-emerald-400" />
@@ -520,7 +484,7 @@ export default function Backtesting() {
               {/* ROW 6: OpenClaw Swarm Agents + Strategy Builder */}
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-8">
-            <Card title={`OpenClaw Swarm (${swarmAgentCount} Agents)`}>
+            <Card title={`OpenClaw Swarm (${swarmAgents.length} Agents)`}>
               <div style={{ height: 320 }}>
                 <ReactFlow
                   nodes={swarmAgents.map((a, i) => ({
