@@ -162,3 +162,33 @@ export function useAgentResources(pollMs = 15000) {
 export function useBlackboardFeed(pollMs = 5000) {
   return useApi('blackboard', { pollIntervalMs: pollMs });
 }
+
+// ---- Backtesting Enhanced Hooks ----
+
+export function useBacktestResults(pollMs = 30000) {
+  return useApi('backtest/results', { pollIntervalMs: pollMs });
+}
+
+export function useBacktestOptimization(pollMs = 60000) {
+  return useApi('backtest/optimization', { pollIntervalMs: pollMs });
+}
+
+export function useBacktestWalkForward(pollMs = 60000) {
+  return useApi('backtest/walk-forward', { pollIntervalMs: pollMs });
+}
+
+export function useBacktestMonteCarlo(pollMs = 60000) {
+  return useApi('backtest/monte-carlo', { pollIntervalMs: pollMs });
+}
+
+export function useBacktestCorrelation(pollMs = 60000) {
+  return useApi('backtest/correlation', { pollIntervalMs: pollMs });
+}
+
+export function useBacktestSectorExposure(pollMs = 60000) {
+  return useApi('backtest/sector-exposure', { pollIntervalMs: pollMs });
+}
+
+export function useBacktestDrawdownAnalysis(pollMs = 60000) {
+  return useApi('backtest/drawdown-analysis', { pollIntervalMs: pollMs });
+}
