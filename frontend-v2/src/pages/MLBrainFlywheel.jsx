@@ -130,6 +130,8 @@ export default function MLBrainFlywheel() {
                             <div className="h-full min-h-[200px] flex items-center justify-center text-gray-500 text-sm border border-dashed border-[#1e3a5f] rounded">
                   <span>LW Charts - Model Performance (pending Step 7c enhancement)</span>
                 </div>
+                      </div>
+          </div>
 
         {/* RIGHT: ML Probability Ranking */}
         <div className="w-[55%] bg-[#111827] border border-[#1e3a5f] rounded flex flex-col overflow-hidden">
