@@ -47,7 +47,7 @@ const navSections = [
         icon: MessageCircle,
         label: "Sentiment Intelligence",
       },
-      { to: "/data-sources", icon: Link2, label: "Data Sources Monitor" },
+      { to: "/data-sources", icon: Link2, label: "Data Sources Manager" },
     ],
   },
   {
