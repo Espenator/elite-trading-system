@@ -188,6 +188,7 @@ _bt_engine = BacktestEngine()
 
 
 @router.post("/compare-kelly")
+async def compare_kelly_sizing(request: BacktestRequest):
     """
     Run identical backtest twice: fixed sizing vs Kelly sizing.
     Returns side-by-side metrics so user can see Kelly impact.
