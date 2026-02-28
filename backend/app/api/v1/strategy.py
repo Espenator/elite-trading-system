@@ -23,7 +23,7 @@ DEFAULT_CONTROLS = {
     "masterSwitch": True,
     "pauseAll": False,
     "closeAllPositions": False,
-        "regimeOverride": None,  # None = auto-detect, or BULL/BEAR/NEUTRAL/CRISIS
+            "regimeOverride": None,  # None = auto-detect, or BULL/BEAR/NEUTRAL/CRISIS
     "kellyEnabled": True,
     "maxPositionPct": 0.10,
     "maxPortfolioHeat": 0.25,
@@ -34,7 +34,7 @@ class StrategyControls(BaseModel):
     masterSwitch: bool | None = None
     pauseAll: bool | None = None
     closeAllPositions: bool | None = None
-    regimeOverride: Optional[str] = None
+        regimeOverride: Optional[str] = None
     kellyEnabled: bool | None = None
     maxPositionPct: Optional[float] = None
     maxPortfolioHeat: Optional[float] = None
