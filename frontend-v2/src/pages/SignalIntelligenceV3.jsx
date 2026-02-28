@@ -216,6 +216,8 @@ export default function SignalIntelligenceV3() {
   );
   const [regimeLock, setRegimeLock] = useState(false);
   const [autoExecute, setAutoExecute] = useState(false);
+    const [maxHeat, setMaxHeat] = useState(25);
+  const [lossLimit, setLossLimit] = useState(5);
   const [wsLatency, setWsLatency] = useState(42);
   const [signals, setSignals] = useState([]);
   const [selectedSymbol, setSelectedSymbol] = useState('AAPL');
@@ -260,37 +262,37 @@ export default function SignalIntelligenceV3() {
     const sma20 = chart.addLineSeries({ color: '#06b6d4', lineWidth: 1, title: 'SMA20' });
     const sma50 = chart.addLineSeries({ color: '#a855f7', lineWidth: 1, title: 'SMA50' });
     const vwap = chart.addLineSeries({ color: '#ffffff', lineWidth: 1, lineStyle: LineStyle.Dotted, title: 'VWAP' });
-    // TODO: Replace with useApi('quotes') for real OHLCV data from backend
-    const data = []; const volData = []; const s20 = []; const s50 = []; const vwapData = [];
-    let base = 450; let time = Math.floor(Date.now() / 1000) - 86400 * 200;
-    let cumVol = 0, cumVolPrice = 0;
-    for (let i = 0; i < 200; i++) {
-      const open = base;
-      const close = open + (0.5 - 0.5) * 8 + 0.2;
-      const high = Math.max(open, close) + 2;
-      const low = Math.min(open, close) - 2;
-      const vol = 5000;
-      const tp = (high + low + close) / 3;
-      cumVol += vol; cumVolPrice += tp * vol;
-      const ts = time + i * 86400;
-      data.push({ time: ts, open, high, low, close });
-      volData.push({ time: ts, value: vol, color: close >= open ? '#10b98144' : '#ef444444' });
-      vwapData.push({ time: ts, value: cumVolPrice / cumVol });
-      if (i >= 20) s20.push({ time: ts, value: data.slice(i - 20, i).reduce((a, b) => a + b.close, 0) / 20 });
-      if (i >= 50) s50.push({ time: ts, value: data.slice(i - 50, i).reduce((a, b) => a + b.close, 0) / 50 });
-      base = close;
-    }
-    candleSeries.setData(data); volSeries.setData(volData);
-    sma20.setData(s20); sma50.setData(s50); vwap.setData(vwapData);
-    const lastPrice = data[data.length - 1].close;
-    candleSeries.createPriceLine({ price: lastPrice, color: '#06b6d4', lineWidth: 2, lineStyle: LineStyle.Solid, title: 'ENTRY' });
-    candleSeries.createPriceLine({ price: lastPrice * 1.05, color: '#10b981', lineWidth: 2, lineStyle: LineStyle.Dashed, title: 'TARGET' });
-    candleSeries.createPriceLine({ price: lastPrice * 0.98, color: '#ef4444', lineWidth: 2, lineStyle: LineStyle.Dotted, title: 'STOP' });
-    candleSeries.setMarkers([
-      { time: data[50].time, position: 'aboveBar', color: '#ef4444', shape: 'arrowDown', text: 'H&S [94%]' },
-      { time: data[120].time, position: 'belowBar', color: '#10b981', shape: 'arrowUp', text: 'Cup&Handle [88%]' },
-      { time: data[180].time, position: 'belowBar', color: '#f59e0b', shape: 'circle', text: 'Bull Flag' }
-    ]);
+        // Fetch real OHLCV data from backend quotes API
+    const fetchChart = async () => {
+      try {
+        const url = getApiUrl ? getApiUrl('quotes') + `/${selectedSymbol}?timeframe=${chartTimeframe}` : `/api/v1/quotes/${selectedSymbol}?timeframe=${chartTimeframe}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Quote fetch failed');
+        const json = await res.json();
+        const bars = json.bars || json.data || json || [];
+        if (bars.length === 0) return;
+        const data = bars.map(b => ({ time: Math.floor(new Date(b.timestamp || b.t).getTime() / 1000), open: b.open || b.o, high: b.high || b.h, low: b.low || b.l, close: b.close || b.c }));
+        const volData = bars.map((b, i) => ({ time: data[i].time, value: b.volume || b.v || 0, color: data[i].close >= data[i].open ? '#10b98144' : '#ef444444' }));
+        // Compute SMA20, SMA50, VWAP from real data
+        const s20 = []; const s50 = []; const vwapData = [];
+        let cumVol = 0, cumVolPrice = 0;
+        data.forEach((d, i) => {
+          const vol = bars[i].volume || bars[i].v || 0;
+          const tp = (d.high + d.low + d.close) / 3;
+          cumVol += vol; cumVolPrice += tp * vol;
+          if (cumVol > 0) vwapData.push({ time: d.time, value: cumVolPrice / cumVol });
+          if (i >= 19) s20.push({ time: d.time, value: data.slice(i - 19, i + 1).reduce((a, b) => a + b.close, 0) / 20 });
+          if (i >= 49) s50.push({ time: d.time, value: data.slice(i - 49, i + 1).reduce((a, b) => a + b.close, 0) / 50 });
+        });
+        candleSeries.setData(data); volSeries.setData(volData);
+        sma20.setData(s20); sma50.setData(s50); vwap.setData(vwapData);
+        const lastPrice = data[data.length - 1].close;
+        candleSeries.createPriceLine({ price: lastPrice, color: '#06b6d4', lineWidth: 2, lineStyle: LineStyle.Solid, title: 'ENTRY' });
+        candleSeries.createPriceLine({ price: lastPrice * 1.05, color: '#10b981', lineWidth: 2, lineStyle: LineStyle.Dashed, title: 'TARGET' });
+        candleSeries.createPriceLine({ price: lastPrice * 0.98, color: '#ef4444', lineWidth: 2, lineStyle: LineStyle.Dotted, title: 'STOP' });
+      } catch (err) { console.error('Chart data fetch error:', err); }
+    };
+    fetchChart();
     chartRef.current = chart;
     const handleResize = () => { if (chartContainerRef.current) chart.applyOptions({ width: chartContainerRef.current.clientWidth }); };
     window.addEventListener('resize', handleResize);
@@ -623,8 +625,8 @@ export default function SignalIntelligenceV3() {
                 <option>KELLY CRITERION</option><option>FIXED 2%</option><option>DYNAMIC VOL</option>
               </select>
             </div>
-            <Slider value={25} onChange={() => {}} color="amber" label="Max Heat" />
-            <Slider value={5} onChange={() => {}} color="red" label="Loss Lmt" />
+            <Slider value={maxHeat} onChange={setMaxHeat} onChange={() => {}} color="amber" label="Max Heat" />
+            <Slider value={lossLimit} onChange={setLossLimit} color="red" label="Loss Lmt" />
             <div className="text-[8px] text-gray-500 uppercase tracking-widest mt-2 mb-1">Active Rules (IF/THEN)</div>
             <div className="flex items-center gap-1 py-0.5">
               <Toggle checked={true} onChange={() => {}} size="sm" />
@@ -639,9 +641,9 @@ export default function SignalIntelligenceV3() {
           <Panel title="API Health Matrix (28)" icon={Server}>
             <div className="grid grid-cols-7 gap-1">
               {API_ENDPOINTS.map((ep, i) => {
-                const isWarn = i === 12 || i === 16;
-                const isErr = i === 22;
-                const bg = isErr ? 'bg-red-500 shadow-[0_0_5px_rgba(239,68,68,0.8)]'
+                              const health = apiStatus?.endpoints?.[ep];
+              const isWarn = health?.status === 'degraded' || health?.latency > 500;
+              const isErr = health?.status === 'down' || health?.error;
                   : isWarn ? 'bg-amber-500 shadow-[0_0_5px_rgba(245,158,11,0.8)] animate-pulse'
                   : 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]';
                 return (
@@ -653,8 +655,8 @@ export default function SignalIntelligenceV3() {
               })}
             </div>
             <div className="flex items-center gap-3 mt-2 pt-1 border-t border-[#1a1a2f]">
-              <Badge color="emerald">DB: 4.2ms</Badge>
-              <Badge color="cyan">MEM: 64%</Badge>
+                            <Badge color="emerald">DB: {apiStatus?.db_latency_ms ?? '—'}ms</Badge>
+              <Badge color="cyan">MEM: {apiStatus?.memory_pct ?? '—'}%</Badge>
             </div>
           </Panel>
         </div>
