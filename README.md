@@ -7,6 +7,8 @@
 > **App Status: Backend has never been started or tested end-to-end. Frontend builds. All 15 pages audited and wired to real API hooks (useApi). No mock data remaining.**
 > **App Status: Backend never started. Frontend builds. Patterns/DataSources/all 15 pages wired to real API hooks. No mock data remaining. yfinance fully removed.**
 > **Next Steps: Fix IndentationErrors in signals.py + other backend files, run `uvicorn app.main:app`, verify all 25 API routes, then run `npm run build` locally.**
+>
+> > **CRITICAL FOR OLEH (Monday 3/2):** Backend has systemic IndentationErrors across 20+ Python files. Run `python scripts/fix_indentation.py --scan` to see all broken files, then `--fix --check` to auto-repair. Full guide: [`docs/INDENTATION-FIX-GUIDE.md`](docs/INDENTATION-FIX-GUIDE.md). This is the #1 blocker for CI.
 React + FastAPI full-stack trading application with 15-route V3 widescreen dashboard (14 sidebar + 1 hidden), DuckDB database, Alpaca + Finviz integrations, OpenClaw Python agents, LSTM/XGBoost ML pipeline, and real-time order execution.
 
 > **Part of the Embodier.ai Elite Trading ecosystem.** OpenClaw Python agents and the Blackboard Swarm architecture are integrated in `core/` and `backend/`. The [openclaw repo](https://github.com/Espenator/openclaw) is archived.
