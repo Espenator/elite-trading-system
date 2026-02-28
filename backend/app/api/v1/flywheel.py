@@ -34,7 +34,7 @@ class FlywheelRecord(BaseModel):
     resolvedSignals: Optional[int] = None
     pendingResolution: Optional[int] = None
     date: Optional[str] = None  # ISO date, defaults to today
-        kellyPerformance: Optional[float] = None  # Actual Kelly edge realized
+    kellyPerformance: Optional[float] = None  # Actual Kelly edge realized
     profitFactor: Optional[float] = None  # Wins/losses ratio
     avgEdgeRealized: Optional[float] = None  # Actual edge vs predicted
 
