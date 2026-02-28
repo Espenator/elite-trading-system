@@ -195,3 +195,4 @@ async def get_kelly_ranked():
 
     ranked.sort(key=lambda x: x["kelly_score"], reverse=True)
     return ranked[:20]
+
