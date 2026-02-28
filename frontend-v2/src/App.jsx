@@ -16,7 +16,7 @@ const AgentCommandCenter = lazy(() => import("./pages/AgentCommandCenter"));
 // INTELLIGENCE section (3 sidebar pages + 1 hidden)
 const Signals = lazy(() => import("./pages/Signals"));
 const SentimentIntelligence = lazy(() => import("./pages/SentimentIntelligence"));
-const DataSourcesMonitor = lazy(() => import("./pages/DataSourcesMonitor"));
+const DataSourcesManager = lazy(() => import("./pages/DataSourcesManager"));
 const SignalIntelligenceV3 = lazy(() => import("./pages/SignalIntelligenceV3"));
 
 // ML & ANALYSIS section (5 pages)
@@ -64,7 +64,7 @@ function App() {
             {/* INTELLIGENCE */}
             <Route path="signals" element={<Suspense fallback={<PageLoader />}><Signals /></Suspense>} />
             <Route path="sentiment" element={<Suspense fallback={<PageLoader />}><SentimentIntelligence /></Suspense>} />
-            <Route path="data-sources" element={<Suspense fallback={<PageLoader />}><DataSourcesMonitor /></Suspense>} />
+            <Route path="data-sources" element={<Suspense fallback={<PageLoader />}><DataSourcesManager /></Suspense>} />
             <Route path="signal-intelligence-v3" element={<Suspense fallback={<PageLoader />}><SignalIntelligenceV3 /></Suspense>} />
 
             {/* ML & ANALYSIS */}
