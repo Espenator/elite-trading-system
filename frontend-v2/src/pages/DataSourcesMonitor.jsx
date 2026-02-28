@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useApi } from '../hooks/useApi';
+import dataSources from '../services/dataSourcesApi';
 
 const STATUS_COLORS = {
   healthy:        { bg: 'bg-emerald-500/20', text: 'text-emerald-400', dot: 'bg-emerald-400' },
@@ -147,11 +147,10 @@ function AIDetectModal({ onClose, onDetect }) {
 }
 
 export default function DataSourcesMonitor() {
-  const { dataSources } = useApi();
-  const [sources, setSources] = useState([]);
+    const [sources, setSources] = useState([]);
   const [loading, setLoading] = useState(true);
   const [testing, setTesting] = useState(null);
-  const [credModal, setCredModal] = useState(null);
+
   const [addModal, setAddModal] = useState(false);
   const [detectModal, setDetectModal] = useState(false);
   const [filter, setFilter] = useState('all');
@@ -165,7 +164,7 @@ export default function DataSourcesMonitor() {
     } finally {
       setLoading(false);
     }
-  }, [dataSources]);
+  }, []);
 
   useEffect(() => {
     fetchSources();
