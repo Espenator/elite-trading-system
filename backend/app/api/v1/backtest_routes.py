@@ -185,8 +185,7 @@ async def run_backtest_post(request: BacktestRequest):
 # Kelly A/B Comparison: run same backtest with and without Kelly sizing
 # -----------------------------------------------------------------
 from app.services.backtest_engine import BacktestEngine
-
-_bt_engine = BacktestEngine()
+^        [a-zA-Z_]+: .+ = _bt_engine = BacktestEngine()
 
 
 @router.post("/compare-kelly")

@@ -187,7 +187,7 @@ class BacktestEngine:
         # TODO: implement Alpaca historical bar lookup
         return None
 
-            def monte_carlo_simulation(
+    def monte_carlo_simulation(
         self,
         trades: list,
         num_simulations: int = 1000,
