@@ -198,30 +198,13 @@ export default function SentimentIntelligence() {
             </h3>
           </div>
           <div className="h-64 w-full">
-            {timelineData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={timelineData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorSentiment" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.5} vertical={false} />
-                  <XAxis dataKey="time" stroke="#64748b" fontSize={11} tickMargin={10} />
-                  <YAxis yAxisId="left" stroke="#64748b" fontSize={11} domain={[-1, 1]} />
-                  <YAxis yAxisId="right" orientation="right" stroke="#64748b" fontSize={11} hide />
-                  <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#f8fafc', borderRadius: '8px' }} />
-                  <ReferenceLine y={0} yAxisId="left" stroke="#475569" strokeDasharray="3 3" />
-                  <Bar dataKey="volume" yAxisId="right" fill="#475569" opacity={0.3} radius={[4, 4, 0, 0]} name="Social Volume" />
-                  <Area type="monotone" dataKey="sentiment" yAxisId="left" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorSentiment)" name="Sentiment" />
-                </ComposedChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-slate-500 text-sm">
-                Timeline data will populate as sentiment updates arrive
-              </div>
-            )}
+                          {timelineData.length > 0 ? (
+                <SentimentTimelineLC data={timelineData} />
+              ) : (
+                <div className="h-full flex items-center justify-center text-slate-500 text-sm">
+                  Timeline data will populate as sentiment updates arrive
+                </div>
+              )}
           </div>
         </Card>
 
