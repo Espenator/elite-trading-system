@@ -280,11 +280,11 @@ export default function Dashboard() {
             <h3 className="text-[9px] text-[#00d4ff] font-bold uppercase tracking-wider">Composite Breakdown</h3>
             <div className="bg-[#0a0e17] border border-[#1e3a5f] rounded p-2 space-y-1 font-mono text-[8px]">
               {[
-                { label: 'Overall Score', val: '94/100', pct: 94 },
-                { label: 'Technical Rank', val: '88', pct: 88 },
-                { label: 'ML Probability', val: '96.2%', pct: 96 },
-                { label: 'Sentiment Pulse', val: '82', pct: 82 },
-                { label: 'Swarm Consensus', val: '97%', pct: 97 },
+                              { label: 'Overall Score', val: `${selectedSignal?.score || 0}/100`, pct: selectedSignal?.score || 0 },
+              { label: 'Technical Rank', val: `${selectedSignal?.scores?.technical || '—'}`, pct: selectedSignal?.scores?.technical || 0 },
+              { label: 'ML Probability', val: `${selectedSignal?.scores?.ml || '—'}%`, pct: selectedSignal?.scores?.ml || 0 },
+              { label: 'Sentiment Pulse', val: `${selectedSignal?.scores?.sentiment || '—'}`, pct: selectedSignal?.scores?.sentiment || 0 },
+              { label: 'Swarm Consensus', val: `${swarm.consensus || '—'}%`, pct: swarm.consensus || 0 },
               ].map(item => (
                 <div key={item.label} className="flex items-center justify-between">
                   <span className="text-gray-400 w-24">{item.label}</span>
@@ -317,17 +317,16 @@ export default function Dashboard() {
             <h3 className="text-[9px] text-[#00d4ff] font-bold uppercase tracking-wider">ML Engine & SHAP Drivers</h3>
             <div className="bg-[#0a0e17] border border-[#1e3a5f] rounded p-2 font-mono text-[8px]">
               <div className="flex justify-between mb-2 pb-2 border-b border-[#1e3a5f]/50">
-                <span className="text-gray-400">Probability LONG: <span className="text-green-400 font-bold">87.4%</span></span>
-                <span className="text-gray-400">Drift Score: <span className="text-green-400">0.03</span></span>
+                              <span className="text-gray-400">Probability LONG: <span className="text-green-400 font-bold">{selectedSignal?.scores?.ml || '—'}%</span></span>
+                              <span className="text-gray-400">Drift Score: <span className="text-green-400">{techs.driftScore || '—'}</span></span>
               </div>
               <div className="space-y-1">
                 <div className="flex justify-between text-gray-400 mb-1"><span>Feature</span><span>Impact</span></div>
                 {[
-                  { f: 'RSI_Divergence', val: '+0.12', color: 'bg-green-500', w: '60%' },
-                  { f: 'EMA_Cross_9_21', val: '+0.08', color: 'bg-green-500', w: '40%' },
-                  { f: 'Volume_Spike_1h', val: '+0.07', color: 'bg-green-500', w: '35%' },
-                  { f: 'Breadth_Ratio', val: '+0.05', color: 'bg-green-500', w: '25%' },
-                  { f: 'VIX_Correlation', val: '-0.02', color: 'bg-red-500', w: '10%' },
+                                ...(techs.shapFeatures || selectedSignal?.shapFeatures || []).slice(0, 5).map(s => ({
+                f: s.feature, val: s.impact > 0 ? `+${s.impact.toFixed(2)}` : s.impact.toFixed(2),
+                color: s.impact > 0 ? 'bg-green-500' : 'bg-red-500', w: `${Math.abs(s.impact) * 500}%`
+              })),
                 ].map(shap => (
                   <div key={shap.f} className="flex items-center justify-between">
                     <span className="text-white truncate w-24">{shap.f}</span>
@@ -353,17 +352,14 @@ export default function Dashboard() {
             <h3 className="text-[9px] text-[#00d4ff] font-bold uppercase tracking-wider">Swarm Consensus ({swarm.total || '—'} Agents)</h3>
             <div className="flex gap-2 bg-[#0a0e17] border border-[#1e3a5f] rounded p-2 font-mono text-[8px]">
               <div className="w-1/3 flex flex-col items-center justify-center border-r border-[#1e3a5f]">
-                <div className="text-xl font-bold text-green-400">95%</div>
-                <div className="text-gray-400">STRONG BUY</div>
-                <div className="text-[7px] text-gray-500 mt-1">40 Buy / 1 Sell / 1 Hold</div>
+                              <div className="text-xl font-bold text-green-400">{swarm.consensus || '—'}%</div>
+                              <div className="text-gray-400">{swarm.signal || '—'}</div>
+                              <div className="text-[7px] text-gray-500 mt-1">{swarm.buyCount || 0} Buy / {swarm.sellCount || 0} Sell / {swarm.holdCount || 0} Hold</div>
               </div>
               <div className="w-2/3 grid grid-cols-2 gap-x-2 gap-y-1">
-                <span className="text-gray-400">MomAlpha-v4: <span className="text-green-400">BUY 98%</span></span>
-                <span className="text-gray-400">TrendFol-v5: <span className="text-green-400">BUY 95%</span></span>
-                <span className="text-gray-400">VolHunter-v2: <span className="text-green-400">BUY 89%</span></span>
-                <span className="text-gray-400">RegimeDet-v3: <span className="text-green-400">BUY 90%</span></span>
-                <span className="text-gray-400">MeanRev-v3: <span className="text-red-400">SELL 45%</span></span>
-                <span className="text-gray-400">MacroSwing: <span className="text-gray-500">HOLD 52%</span></span>
+                                {(swarm.agents || []).slice(0, 6).map((agent, i) => (
+                  <span key={i} className="text-gray-400">{agent.name}: <span className={agent.vote === 'BUY' ? 'text-green-400' : agent.vote === 'SELL' ? 'text-red-400' : 'text-gray-500'}>{agent.vote} {agent.confidence}%</span></span>
+                ))}
               </div>
             </div>
           </div>
@@ -373,10 +369,10 @@ export default function Dashboard() {
             <h3 className="text-[9px] text-[#00d4ff] font-bold uppercase tracking-wider">Real-Time Data Feeds</h3>
             <div className="bg-[#0a0e17] border border-[#1e3a5f] rounded p-2 space-y-1 font-mono text-[8px]">
               <div className="flex justify-between"><span className="text-gray-400">Market Data:</span> <span className="text-white">Price ${sources.price || '—'} | Vol {sources.vol || '—'}</span></div>
-              <div className="flex justify-between"><span className="text-gray-400">NewsAPI:</span> <span className="text-green-400">3 Bullish / 1 Neutral (Earnings Beat)</span></div>
-              <div className="flex justify-between"><span className="text-gray-400">Social (Reddit/X):</span> <span className="text-green-400">89% Bull / 76% Bull</span></div>
-              <div className="flex justify-between"><span className="text-gray-400">Options Flow:</span> <span className="text-cyan-400">P/C 0.62 (Bullish Bias)</span></div>
-              <div className="flex justify-between"><span className="text-gray-400">Dark Pool:</span> <span className="text-white">68% Buy Side Executions</span></div>
+                          <div className="flex justify-between"><span className="text-gray-400">NewsAPI:</span> <span className="text-green-400">{sources.news?.summary || '—'}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-400">Social (Reddit/X):</span> <span className="text-green-400">{sources.social?.reddit || '—'}% / {sources.social?.twitter || '—'}%</span></div>
+                          <div className="flex justify-between"><span className="text-gray-400">Options Flow:</span> <span className="text-cyan-400">P/C {sources.options?.putCallRatio || '—'} ({sources.options?.bias || '—'})</span></div>
+                          <div className="flex justify-between"><span className="text-gray-400">Dark Pool:</span> <span className="text-white">{sources.darkPool?.buySidePct || '—'}% Buy Side Executions</span></div>
             </div>
           </div>
 
@@ -395,7 +391,7 @@ export default function Dashboard() {
               </div>
               
               {/* L2 Order Book Simulation */}
-              <div className="text-gray-400 mb-1">LIVE L2 ORDER BOOK (Spread: $0.04)</div>
+                          <div className="text-gray-400 mb-1">LIVE L2 ORDER BOOK (Spread: ${quotes.spread?.toFixed(2) || '—'})</div>
               <div className="flex flex-col gap-[1px]">
                 {/* Asks (Red) */}
                 {quotes.asks?.slice(0,3).reverse().map((ask, i) => (
@@ -404,13 +400,7 @@ export default function Dashboard() {
                     <span className="w-8 text-right mr-1">{ask.size}</span>
                     <div className="h-1.5 bg-red-500/30" style={{ width: `${(ask.size/1500)*100}%` }}></div>
                   </div>
-                )) || (
-                  <>
-                    <div className="flex items-center text-[7px]"><span className="w-10 text-red-400">142.84</span><span className="w-8 text-right mr-1">800</span><div className="h-1.5 bg-red-500/30 w-[40%]"></div></div>
-                    <div className="flex items-center text-[7px]"><span className="w-10 text-red-400">142.83</span><span className="w-8 text-right mr-1">1200</span><div className="h-1.5 bg-red-500/30 w-[60%]"></div></div>
-                    <div className="flex items-center text-[7px]"><span className="w-10 text-red-400">142.82</span><span className="w-8 text-right mr-1">400</span><div className="h-1.5 bg-red-500/30 w-[20%]"></div></div>
-                  </>
-                )}
+                              )) || <div className="text-gray-500 text-center py-1">Awaiting L2 data...</div>}
                 <div className="h-px bg-[#1e3a5f] my-0.5"></div>
                 {/* Bids (Green) */}
                 {quotes.bids?.slice(0,3).map((bid, i) => (
@@ -419,13 +409,7 @@ export default function Dashboard() {
                     <span className="w-8 text-right mr-1">{bid.size}</span>
                     <div className="h-1.5 bg-green-500/30" style={{ width: `${(bid.size/1500)*100}%` }}></div>
                   </div>
-                )) || (
-                  <>
-                    <div className="flex items-center text-[7px]"><span className="w-10 text-green-400">142.78</span><span className="w-8 text-right mr-1">950</span><div className="h-1.5 bg-green-500/30 w-[45%]"></div></div>
-                    <div className="flex items-center text-[7px]"><span className="w-10 text-green-400">142.77</span><span className="w-8 text-right mr-1">2100</span><div className="h-1.5 bg-green-500/30 w-[80%]"></div></div>
-                    <div className="flex items-center text-[7px]"><span className="w-10 text-green-400">142.75</span><span className="w-8 text-right mr-1">500</span><div className="h-1.5 bg-green-500/30 w-[25%]"></div></div>
-                  </>
-                )}
+                              )) || <div className="text-gray-500 text-center py-1">Awaiting L2 data...</div>}
               </div>
             </div>
           </div>
@@ -463,10 +447,10 @@ export default function Dashboard() {
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-green-500"></div> WS</span>
           <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-green-500"></div> API</span>
-          <span>42 Agents</span>
-          <span>CPU 45%</span>
-          <span>GPU 85%</span>
-          <span>Uptime 4d12h</span>
+                        <span>{swarm.total || '—'} Agents</span>
+                        <span>CPU {performance.cpu || '—'}%</span>
+                        <span>GPU {performance.gpu || '—'}%</span>
+                        <span>Uptime {performance.uptime || '—'}</span>
         </div>
       </footer>
 
