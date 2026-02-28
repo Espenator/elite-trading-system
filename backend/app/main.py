@@ -24,7 +24,6 @@ from app.api.v1 import (
     agents,
     data_sources,
     sentiment,
-    youtube_knowledge,
     portfolio,
     risk,
     strategy,
@@ -229,7 +228,6 @@ app.include_router(status.router, prefix="/api/v1", tags=["status"])
 app.include_router(agents.router, prefix="/api/v1", tags=["agents"])
 app.include_router(data_sources.router, prefix="/api/v1", tags=["data_sources"])
 app.include_router(sentiment.router, prefix="/api/v1", tags=["sentiment"])
-app.include_router(youtube_knowledge.router, prefix="/api/v1", tags=["youtube"])
 app.include_router(portfolio.router, prefix="/api/v1", tags=["portfolio"])
 app.include_router(risk.router, prefix="/api/v1", tags=["risk"])
 app.include_router(strategy.router, prefix="/api/v1", tags=["strategy"])
