@@ -61,24 +61,24 @@ async def get_signals(as_of: date | None = None):
     for s in raw_signals:
         action = "BUY" if s["prob_up"] > 0.6 else "HOLD"
         prob = s["prob_up"]
-            # Compute Kelly edge and position size
-            kelly = _kelly_sizer.calculate(
-                win_rate=prob,
-                avg_win_pct=0.035,  # Default 3.5% avg win
-                avg_loss_pct=0.015,  # Default 1.5% avg loss
+        # Compute Kelly edge and position size
+        kelly = _kelly_sizer.calculate(
+            win_rate=prob,
+            avg_win_pct=0.035,  # Default 3.5% avg win
+            avg_loss_pct=0.015,  # Default 1.5% avg loss
+        )
+        signals.append(
+            Signal(
+                symbol=s["symbol"],
+                date=as_of,
+                prob_up=prob,
+                action=action,
+                edge=kelly.edge,
+                kelly_fraction=kelly.raw_kelly,
+                position_size_pct=kelly.final_pct,
+                expected_value=kelly.edge * prob,
             )
-            signals.append(
-                Signal(
-                    symbol=s["symbol"],
-                    date=as_of,
-                    prob_up=prob,
-                    action=action,
-                    edge=kelly.edge,
-                    kelly_fraction=kelly.raw_kelly,
-                    position_size_pct=kelly.final_pct,
-                    expected_value=kelly.edge * prob,
-                )
-            )
+        )
 
 
 @router.get("/active/{symbol}", response_model=ActiveSignalResponse)
