@@ -1,6 +1,6 @@
 # Embodier Trader - Full Mockup Specification V3
 
-> **UPDATED Feb 27, 2026 (1:00 PM EST)**: Consolidated to **14 sidebar pages** (+ 1 hidden route = 15 total).
+> **UPDATED Feb 28, 2026 (12:00 PM EST)**: Consolidated to **14 sidebar pages** (+ 1 hidden route = 15 total). Mockups 07 (Screener), 08 (Backtesting), 09 (Data Sources) now APPROVED.
 > See `frontend-v2/src/V3-ARCHITECTURE.md` for authoritative architecture.
 > See `docs/UI-DESIGN-SYSTEM.md` for exact colors, fonts, spacing.
 
@@ -16,10 +16,10 @@
 | 6 | Agent CC - Agent Registry | `agent-rgistery.png` | APPROVED |
 | 7 | Intelligence Dashboard | `02-intelligence-dashboard.png` | APPROVED |
 | 8 | Signal Intelligence (sidebar) | -- | NEEDS MOCKUP |
-| 9 | Data Sources Manager | `09-data-sources-manager.png` | NEEDS APPROVAL |
+| 9 | Data Sources Manager | `09-data-sources-manager.png` | APPROVED |
 | 10 | ML Brain & Flywheel | `06-ml-brain-flywheel.png` | APPROVED |
-| 11 | Screener & Patterns | -- | NEEDS MOCKUP |
-| 12 | Backtesting Lab | -- | NEEDS MOCKUP |
+| 11 | Screener & Patterns | `07-screener-and-patterns.png` | APPROVED |
+| 12 | Backtesting Lab | `08-backtesting-lab.png` | APPROVED |
 | 13 | Performance Analytics | -- | NEEDS MOCKUP |
 | 14 | Market Regime | -- | NEEDS MOCKUP |
 | 15 | Active Trades | -- | NEEDS MOCKUP |
