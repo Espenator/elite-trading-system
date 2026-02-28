@@ -232,7 +232,7 @@ class KellyPositionSizer:
             "action": pos.action,
         }
 
-            def calculate_volatility_adjusted(
+    def calculate_volatility_adjusted(
         self,
         win_rate: float,
         avg_win_pct: float,
