@@ -1,4 +1,3 @@
-"""Backtest Engine - Simulate OpenClaw scoring on historical data.
 
 Uses sqlite3 data (openclaw_signals historical), Alpaca for fills.
 Metrics: PnL, Sharpe, Winrate, MaxDD, Calmar.
@@ -250,3 +249,4 @@ class BacktestEngine:
 
 # -- global instance (matches openclaw_db.py pattern) ----------------------
 backtest_engine = BacktestEngine()
+

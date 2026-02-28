@@ -1,4 +1,3 @@
-"""Backtest API: run top-N strategy and return equity curve + metrics (research doc)."""
 
 from datetime import date
 from pydantic import BaseModel
@@ -249,3 +248,4 @@ async def compare_kelly_sizing(request: BacktestRequest):
         }
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
