@@ -249,3 +249,153 @@ async def compare_kelly_sizing(request: BacktestRequest):
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
+
+
+# ----------------------------------------------------------------
+# NEW ENDPOINTS: Added to support enhanced Backtesting.jsx V5 frontend
+# These return stub data matching the frontend's useApi hook keys.
+# Replace with real service calls when backend services are ready.
+# ----------------------------------------------------------------
+
+
+@router.get("/results")
+def get_backtest_results():
+    """Full backtest results with equity curve, drawdown, trades, and all KPIs."""
+    return {
+        "totalPnl": 345000, "pnlPct": 24.5, "sharpe": 2.35, "sortino": 3.1,
+        "calmar": 1.8, "maxDD": -12.4, "winRate": 68.2, "profitFactor": 2.7,
+        "avgWin": 1250, "avgLoss": -480, "totalTrades": 1847,
+        "avgDuration": "4.2h", "expectancy": 0.42, "kelly": 0.31,
+        "equityCurve": [], "drawdown": [], "trades": []
+    }
+
+
+@router.get("/optimization")
+def get_backtest_optimization():
+    """Parameter optimization heatmap data (Param A vs B grid)."""
+    import random
+    return {
+        "heatmap": [
+            {"row": r, "cells": [{"col": c, "value": round(random.uniform(-0.5, 3.0), 2)} for c in range(6)]}
+            for r in range(5)
+        ]
+    }
+
+
+@router.get("/walkforward")
+def get_backtest_walkforward():
+    """Walk-forward validation periods with in-sample/out-of-sample Sharpe."""
+    import random
+    return {
+        "periods": [
+            {"period": f"P{i+1}", "inSample": round(1.8 + random.random(), 2),
+             "outSample": round(1.2 + random.random() * 0.8, 2),
+             "pnl": int(random.random() * 50000), "winRate": round(55 + random.random() * 20, 1),
+             "trades": int(random.random() * 300 + 100)}
+            for i in range(7)
+        ]
+    }
+
+
+@router.get("/montecarlo")
+def get_backtest_montecarlo():
+    """Monte Carlo simulation paths for portfolio equity."""
+    import random
+    return {
+        "paths": [
+            [{"x": i, "value": 100000 + (random.random() - 0.45) * i * 3000} for i in range(50)]
+            for _ in range(100)
+        ]
+    }
+
+
+@router.get("/regime")
+def get_backtest_regime():
+    """Performance breakdown by market regime (BULL, BEAR, SIDEWAYS, etc.)."""
+    return {
+        "regimes": [
+            {"name": "BULL", "winRate": 72.5, "avgPnl": 1850, "trades": 420, "sharpe": 2.8},
+            {"name": "BEAR", "winRate": 58.3, "avgPnl": -280, "trades": 310, "sharpe": 0.9},
+            {"name": "SIDEWAYS", "winRate": 65.1, "avgPnl": 620, "trades": 580, "sharpe": 1.6},
+            {"name": "HIGH_VOL", "winRate": 55.0, "avgPnl": 2100, "trades": 180, "sharpe": 1.2},
+            {"name": "CRASH", "winRate": 45.0, "avgPnl": -1500, "trades": 50, "sharpe": -0.5},
+        ]
+    }
+
+
+@router.get("/rolling-sharpe")
+def get_backtest_rolling_sharpe():
+    """Rolling Sharpe ratio time series (24 weekly periods)."""
+    import random
+    return {
+        "series": [
+            {"period": f"W{i+1}", "value": round(1.5 + random.random() * 2 - 0.5, 2)}
+            for i in range(24)
+        ]
+    }
+
+
+@router.get("/trade-distribution")
+def get_backtest_trade_distribution():
+    """P&L distribution histogram (20 buckets)."""
+    import random
+    return {
+        "distribution": [
+            {"range": str((i - 10) * 500), "count": int(random.random() * 80 + 10)}
+            for i in range(20)
+        ]
+    }
+
+
+@router.get("/kelly-comparison")
+def get_backtest_kelly_comparison():
+    """Kelly A/B sizing comparison: standard vs full vs half Kelly."""
+    return {
+        "standard": {"pnl": 285000, "sharpe": 2.1, "maxDD": -18.5},
+        "kelly": {"pnl": 345000, "sharpe": 2.35, "maxDD": -12.4},
+        "halfKelly": {"pnl": 310000, "sharpe": 2.5, "maxDD": -8.2}
+    }
+
+
+@router.get("/correlation")
+def get_backtest_correlation():
+    """Asset correlation matrix."""
+    import random
+    assets = ["BTC", "ETH", "SPY", "QQQ"]
+    return {
+        "matrix": [
+            {"asset": a, **{b: 1.0 if a == b else round(0.2 + random.random() * 0.5, 2) for b in assets}}
+            for a in assets
+        ]
+    }
+
+
+@router.get("/sector-exposure")
+def get_backtest_sector_exposure():
+    """Sector allocation breakdown with P&L per sector."""
+    return {
+        "sectors": [
+            {"name": "Crypto", "pct": 45, "pnl": 180000},
+            {"name": "Tech", "pct": 25, "pnl": 85000},
+            {"name": "Index", "pct": 20, "pnl": 55000},
+            {"name": "Commodities", "pct": 10, "pnl": 25000},
+        ]
+    }
+
+
+@router.get("/drawdown-analysis")
+def get_backtest_drawdown_analysis():
+    """Drawdown period analysis with depth, recovery time, and cause."""
+    import random
+    causes = ["Fed announcement", "Flash crash", "Correlation spike", "Vol expansion",
+              "Liquidity drain", "Regime shift", "Black swan", "Earnings"]
+    return {
+        "periods": [
+            {"start": f"2023-{str(i+1).zfill(2)}-15",
+             "end": f"2023-{str(i+1).zfill(2)}-{20 + int(random.random() * 8)}",
+             "depth": round(-(5 + random.random() * 15), 1),
+             "recovery": f"{round(random.random() * 10 + 2, 1)}d",
+             "cause": causes[i]}
+            for i in range(8)
+        ]
+    }
