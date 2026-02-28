@@ -9,20 +9,37 @@
 
 import { getApiUrl } from '../config/api';
 
-// Resolves to '/api/v1/data-sources' (dev) or 'https://api.example.com/api/v1/data-sources' (prod)
 const BASE = getApiUrl('dataSources');
+const REQUEST_TIMEOUT_MS = 15000;
 
 async function request(method, path, body = null) {
   const url = `${BASE}${path}`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
   const opts = {
     method,
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
+    signal: controller.signal,
   };
   if (body !== null) {
     opts.body = JSON.stringify(body);
   }
-  const res = await fetch(url, opts);
+
+  let res;
+  try {
+    res = await fetch(url, opts);
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      throw new Error(`Request timeout after ${REQUEST_TIMEOUT_MS / 1000}s: ${method} ${path}`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
   if (!res.ok) {
     let errorBody;
     try {
@@ -30,10 +47,14 @@ async function request(method, path, body = null) {
     } catch {
       errorBody = await res.text();
     }
-    const msg = typeof errorBody === 'object' ? (errorBody.detail || JSON.stringify(errorBody)) : errorBody;
+    const msg = typeof errorBody === 'object'
+      ? (errorBody.detail || JSON.stringify(errorBody))
+      : errorBody;
     throw new Error(msg || `API ${method} ${path} failed (${res.status})`);
   }
-  return res.json();
+
+  const text = await res.text();
+  return text ? JSON.parse(text) : {};
 }
 
 const dataSources = {
