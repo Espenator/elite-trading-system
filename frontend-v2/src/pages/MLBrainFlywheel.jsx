@@ -1,9 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useApi } from '../hooks/useApi';
 import { getApiUrl } from '../config/api';
-import { 
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend 
-} from 'recharts';
 
 // --- FALLBACK DATA (To match exact mockup state if API is loading/empty) ---
 const FALLBACK_KPIS = {
@@ -130,22 +127,9 @@ export default function MLBrainFlywheel() {
             <p className="text-[10px] text-gray-400 font-mono">252-Day Walk-Forward Accuracy</p>
           </div>
           <div className="flex-1 p-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={performanceData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e3a5f" vertical={false} />
-                <XAxis dataKey="date" stroke="#9ca3af" fontSize={9} tickLine={false} axisLine={false} />
-                <YAxis stroke="#9ca3af" fontSize={9} tickLine={false} axisLine={false} domain={['auto', 'auto']} tickFormatter={val => `${val}%`} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#0a0e17', borderColor: '#1e3a5f', fontSize: '10px', color: '#e5e7eb' }}
-                  itemStyle={{ fontSize: '10px' }}
-                />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
-                <Line type="monotone" dataKey="xgboost" name="XGBoost v3.2 (Prod)" stroke="#00d4ff" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="ensemble" name="RF Ensemble (Val)" stroke="#10b981" strokeWidth={2} dot={false} strokeDasharray="4 4" />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+                            <div className="h-full min-h-[200px] flex items-center justify-center text-gray-500 text-sm border border-dashed border-[#1e3a5f] rounded">
+                  <span>LW Charts - Model Performance (pending Step 7c enhancement)</span>
+                </div>
 
         {/* RIGHT: ML Probability Ranking */}
         <div className="w-[55%] bg-[#111827] border border-[#1e3a5f] rounded flex flex-col overflow-hidden">
