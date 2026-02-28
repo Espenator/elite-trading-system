@@ -604,6 +604,36 @@ export default function Patterns() {
                     </label>
                   ))}
                 </div>
+                                {/* ══ ADVANCED TRADING METRICS (Mockup 07) ══ */}
+                <div className="border-t border-slate-700/30 pt-4 mt-2">
+                  <label className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-2 block">Advanced Metrics</label>
+                  {[
+                    { key: 'betaThreshold', label: 'Beta Threshold', min: 0, max: 3, step: 0.1 },
+                    { key: 'alphaTarget', label: 'Alpha Target', min: -5, max: 10, step: 0.5 },
+                    { key: 'mfi', label: 'MFI (Money Flow)', min: 0, max: 100, step: 5 },
+                    { key: 'shortInterest', label: 'Short Interest %', min: 0, max: 50, step: 1 },
+                    { key: 'relStrengthSPX', label: 'RS vs SPX', min: -100, max: 100, step: 5 },
+                    { key: 'optionsFlow', label: 'Options Flow Score', min: 0, max: 100, step: 5 },
+                    { key: 'volatilityRegime', label: 'Volatility Regime', min: 0, max: 100, step: 5 },
+                    { key: 'darkPoolActivity', label: 'Dark Pool %', min: 0, max: 100, step: 5 },
+                    { key: 'instAccumulation', label: 'Inst. Accumulation', min: -100, max: 100, step: 5 },
+                    { key: 'sectorMomentum', label: 'Sector Momentum', min: -100, max: 100, step: 5 },
+                  ].map((metric) => (
+                    <div key={metric.key} className="mb-2">
+                      <div className="flex justify-between text-[10px] mb-0.5">
+                        <span className="text-slate-400">{metric.label}</span>
+                        <span className="text-blue-400 font-bold">
+                          {filters[metric.key] != null ? filters[metric.key] : metric.min}
+                        </span>
+                      </div>
+                      <Slider
+                        min={metric.min} max={metric.max} step={metric.step}
+                        value={filters[metric.key] != null ? filters[metric.key] : metric.min}
+                        onChange={(val) => setFilters((f) => ({ ...f, [metric.key]: val }))}
+                      />
+                    </div>
+                  ))}
+                </div>
                 {/* Only Active Patterns */}
                 <div>
                   <label className="flex items-center gap-2 cursor-pointer text-xs">
@@ -1010,6 +1040,88 @@ export default function Patterns() {
               )}
             </div>
           )}
+          
+          {/* ═══ CONSOLIDATED LIVE FEED (Mockup 07) ═══ */}
+          <div className="bg-slate-900/40 border border-slate-700/50 rounded-xl backdrop-blur-md p-5 mt-6">
+            <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+              <Activity className="w-4 h-4 text-cyan-400" /> Consolidated Live Feed
+              <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse ml-1" />
+            </h3>
+            <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+              {patterns.length > 0 ? patterns.slice(0, 20).map((p, i) => (
+                <div key={i} className="flex items-center gap-3 p-2 rounded-lg bg-slate-800/30 hover:bg-slate-800/50 transition-colors text-xs">
+                  <span className="text-[10px] text-slate-600 font-mono w-16 flex-shrink-0">
+                    {p.detected ? new Date(p.detected).toLocaleTimeString() : '--:--'}
+                  </span>
+                  <span className={`font-bold ${p.direction === 'bullish' ? 'text-green-400' : p.direction === 'bearish' ? 'text-red-400' : 'text-blue-400'}`}>
+                    {p.ticker}
+                  </span>
+                  <span className="text-slate-400">{p.pattern}</span>
+                  <span className="ml-auto text-slate-500">{p.confidence}%</span>
+                  <span className="text-blue-400 text-[10px]">{p.timeframe}</span>
+                </div>
+              )) : (
+                <div className="text-center py-8 text-slate-600">
+                  <Activity className="w-6 h-6 mx-auto mb-2 opacity-40" />
+                  <p className="text-xs">Awaiting pattern detections from agents...</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ═══ PATTERN ARSENAL (Mockup 07) ═══ */}
+          <div className="bg-slate-900/40 border border-slate-700/50 rounded-xl backdrop-blur-md p-5 mt-6">
+            <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+              <Star className="w-4 h-4 text-amber-400" /> Pattern Arsenal
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {PATTERN_DISPLAY.map((pat) => {
+                const count = enrichedStocks.filter(s => s.pattern?.key === pat.key).length;
+                return (
+                  <div key={pat.key}
+                    className={`bg-slate-800/40 border rounded-lg p-3 text-center cursor-pointer transition-all hover:scale-105 ${
+                      count > 0 ? 'border-slate-600/50' : 'border-slate-700/30 opacity-50'
+                    }`}
+                    onClick={() => {
+                      setFilters(f => ({ ...f, patternTypes: f.patternTypes.includes(pat.key)
+                        ? f.patternTypes.filter(k => k !== pat.key) : [...f.patternTypes, pat.key] }));
+                    }}>
+                    <div className="text-2xl mb-1">{pat.icon}</div>
+                    <div className="text-[10px] text-white font-bold">{pat.name}</div>
+                    <div className={`text-[10px] mt-1 font-bold ${pat.direction === 'bullish' ? 'text-green-400' : pat.direction === 'bearish' ? 'text-red-400' : 'text-blue-400'}`}>
+                      {count > 0 ? `${count} detected` : 'None'}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ═══ FORMING DETECTIONS (Mockup 07) ═══ */}
+          <div className="bg-slate-900/40 border border-slate-700/50 rounded-xl backdrop-blur-md p-5 mt-6">
+            <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-yellow-400" /> Forming Detections
+              <span className="text-[10px] text-slate-500 ml-2">Patterns in progress</span>
+            </h3>
+            {patterns.filter(p => (p.confidence || 0) < 70).length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {patterns.filter(p => (p.confidence || 0) < 70).slice(0, 6).map((p, i) => (
+                  <div key={i} className="bg-slate-800/30 border border-yellow-500/20 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-white font-bold text-sm">{p.ticker}</span>
+                      <span className="text-yellow-400 text-xs font-bold">{p.confidence}%</span>
+                    </div>
+                    <div className="text-xs text-slate-400">{p.pattern}</div>
+                    <div className="w-full bg-slate-900 rounded-full h-1.5 mt-2 overflow-hidden">
+                      <div className="h-1.5 rounded-full bg-yellow-500/60 transition-all" style={{ width: `${p.confidence || 0}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-slate-600 text-xs">No forming patterns below 70% confidence threshold.</div>
+            )}
+          </div>
         </div>
       </div>
     </div>
