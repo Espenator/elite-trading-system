@@ -161,7 +161,7 @@ async def get_signals_heatmap():
     return heatmap_data
 
 
-    @router.get("/kelly-ranked")
+@router.get("/kelly-ranked")
 async def get_kelly_ranked():
     """
     Return signals ranked by Kelly edge * signal quality.
