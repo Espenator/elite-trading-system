@@ -41,6 +41,7 @@ class AppWebSocket {
         if (this.handlers.has("*"))
           this.handlers.get("*").forEach((fn) => fn({ type: "connected" }));
       };
+            this.ws.onmessage = (event) => {
         try {
           const msg =
             typeof event.data === "string"
@@ -117,6 +118,7 @@ class AppWebSocket {
 
   isConnected() {
     return this.ws?.readyState === WebSocket.OPEN;
+      }
 
       // --- Kelly channel subscriptions ---
   subscribeKelly(callback) {
@@ -131,8 +133,6 @@ class AppWebSocket {
     this.emit('kelly_recalc', { symbol });
   }
   }
-}
-
 const ws = new AppWebSocket();
 
 export default ws;
