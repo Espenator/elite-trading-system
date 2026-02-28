@@ -204,7 +204,7 @@ function AIDetectModal({ onClose, onDetect }) {
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-[#1A1F2E] border border-[#2A3444] rounded-xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-lg font-bold text-white mb-4">{"\u{1F916}"} AI Detect Provider</h3>
+        <h3 className="text-lg font-bold text-white mb-4">{"\uD83E\uDD16"} AI Detect Provider</h3>
         <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Paste API URL..."
           className="w-full px-3 py-2 bg-[#0A0E1A] border border-[#2A3444] rounded-lg text-white text-sm mb-4 focus:border-cyan-500 focus:outline-none" disabled={detecting} />
         <button onClick={handleDetect} disabled={detecting} className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium mb-4 disabled:opacity-50">
@@ -228,7 +228,7 @@ function DeleteConfirmModal({ sourceId, onClose, onConfirm, deleting }) {
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-[#1A1F2E] border border-[#2A3444] rounded-xl p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-lg font-bold text-white mb-4">{"\u{1F5D1}"}\uFE0F Delete Source</h3>
+        <h3 className="text-lg font-bold text-white mb-4">{"\uD83D\uDDD1"}\uFE0F Delete Source</h3>
         <p className="text-gray-400 text-sm mb-4">Permanently delete <span className="text-white font-medium">"{sourceId}"</span>? This cannot be undone.</p>
         <div className="flex gap-2">
           <button onClick={onClose} className="flex-1 px-4 py-2 bg-gray-600/20 text-gray-400 rounded-lg hover:bg-gray-600/30 text-sm">Cancel</button>
@@ -411,7 +411,7 @@ export default function DataSourcesMonitor() {
         </div>
         <div className="flex gap-2">
           <button onClick={() => setDetectModal(true)} className="px-3 py-2 bg-purple-600/20 text-purple-400 border border-purple-500/30 rounded-lg hover:bg-purple-600/30 text-sm">
-            {"\u{1F916}"} AI Detect
+            {"\uD83E\uDD16"} AI Detect
           </button>
           <button onClick={() => setAddModal(true)} className="px-3 py-2 bg-cyan-600/20 text-cyan-400 border border-cyan-500/30 rounded-lg hover:bg-cyan-600/30 text-sm">
             \u2795 Add Source
@@ -420,7 +420,7 @@ export default function DataSourcesMonitor() {
             {testingAll ? `\u23F3 ${testAllProgress.current}/${testAllProgress.total}` : '\u26A1 Test All'}
           </button>
           <button onClick={fetchSources} className="px-3 py-2 bg-gray-600/20 text-gray-400 border border-gray-500/30 rounded-lg hover:bg-gray-600/30 text-sm">
-            {"{"\u{1F504}"}"} Refresh
+            {"{"\uD83D\uDD04"}"} Refresh
           </button>
         </div>
       </div>
@@ -489,7 +489,7 @@ export default function DataSourcesMonitor() {
                         </button>
                         <button onClick={() => setDeleteModal(source.id)}
                           className="px-2 py-1 bg-red-600/20 text-red-400 rounded text-[10px] font-bold hover:bg-red-600/30">
-                          {"\u{1F5D1}"}\uFE0F
+                          {"\uD83D\uDDD1"}\uFE0F
                         </button>
                       </div>
                     </td>
