@@ -250,12 +250,11 @@ async def compare_kelly_sizing(request: BacktestRequest):
         return {"ok": False, "error": str(e)}
 
 
-
-# ----------------------------------------------------------------
+# ----------------------------------------------------------------------
 # NEW ENDPOINTS: Added to support enhanced Backtesting.jsx V5 frontend
 # These return stub data matching the frontend's useApi hook keys.
 # Replace with real service calls when backend services are ready.
-# ----------------------------------------------------------------
+# ----------------------------------------------------------------------
 
 
 @router.get("/results")
@@ -272,99 +271,83 @@ def get_backtest_results():
 
 @router.get("/optimization")
 def get_backtest_optimization():
-    """Parameter optimization heatmap data (Param A vs B grid)."""
+    """Parameter optimization results with heatmap data."""
     import random
     return {
+        "bestParams": {"stopLoss": 2.5, "takeProfit": 5.0, "lookback": 20, "threshold": 0.65},
         "heatmap": [
-            {"row": r, "cells": [{"col": c, "value": round(random.uniform(-0.5, 3.0), 2)} for c in range(6)]}
-            for r in range(5)
+            {"x": sl, "y": tp, "z": round(random.uniform(0.5, 3.5), 2)}
+            for sl in [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0]
+            for tp in [2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
+        ],
+        "sensitivity": [
+            {"param": p, "impact": round(random.uniform(0.1, 1.0), 2)}
+            for p in ["stopLoss", "takeProfit", "lookback", "threshold", "maFast", "maSlow", "atrMult", "rsiPeriod"]
         ]
     }
 
 
-@router.get("/walkforward")
-def get_backtest_walkforward():
-    """Walk-forward validation periods with in-sample/out-of-sample Sharpe."""
+@router.get("/walk-forward")
+def get_backtest_walk_forward():
+    """Walk-forward analysis with in-sample/out-of-sample windows."""
     import random
     return {
-        "periods": [
-            {"period": f"P{i+1}", "inSample": round(1.8 + random.random(), 2),
-             "outSample": round(1.2 + random.random() * 0.8, 2),
-             "pnl": int(random.random() * 50000), "winRate": round(55 + random.random() * 20, 1),
-             "trades": int(random.random() * 300 + 100)}
-            for i in range(7)
-        ]
+        "windows": [
+            {
+                "id": i + 1,
+                "inSampleStart": f"2023-{str(i*2+1).zfill(2)}-01",
+                "inSampleEnd": f"2023-{str(i*2+2).zfill(2)}-28",
+                "outSampleStart": f"2023-{str(i*2+3).zfill(2)}-01",
+                "outSampleEnd": f"2023-{str(i*2+4).zfill(2)}-28",
+                "inSampleSharpe": round(1.5 + random.random() * 2, 2),
+                "outSampleSharpe": round(0.8 + random.random() * 1.5, 2),
+                "degradation": round(random.uniform(5, 35), 1)
+            }
+            for i in range(5)
+        ],
+        "avgDegradation": 18.5,
+        "robustnessScore": 72.3
     }
 
 
-@router.get("/montecarlo")
-def get_backtest_montecarlo():
-    """Monte Carlo simulation paths for portfolio equity."""
+@router.get("/monte-carlo")
+def get_backtest_monte_carlo():
+    """Monte Carlo simulation with confidence intervals."""
     import random
+    base = 100000
+    paths = []
+    for p in range(20):
+        path = [base]
+        for d in range(252):
+            path.append(round(path[-1] * (1 + random.gauss(0.0003, 0.015)), 2))
+        paths.append(path)
     return {
-        "paths": [
-            [{"x": i, "value": 100000 + (random.random() - 0.45) * i * 3000} for i in range(50)]
-            for _ in range(100)
-        ]
-    }
-
-
-@router.get("/regime")
-def get_backtest_regime():
-    """Performance breakdown by market regime (BULL, BEAR, SIDEWAYS, etc.)."""
-    return {
-        "regimes": [
-            {"name": "BULL", "winRate": 72.5, "avgPnl": 1850, "trades": 420, "sharpe": 2.8},
-            {"name": "BEAR", "winRate": 58.3, "avgPnl": -280, "trades": 310, "sharpe": 0.9},
-            {"name": "SIDEWAYS", "winRate": 65.1, "avgPnl": 620, "trades": 580, "sharpe": 1.6},
-            {"name": "HIGH_VOL", "winRate": 55.0, "avgPnl": 2100, "trades": 180, "sharpe": 1.2},
-            {"name": "CRASH", "winRate": 45.0, "avgPnl": -1500, "trades": 50, "sharpe": -0.5},
-        ]
-    }
-
-
-@router.get("/rolling-sharpe")
-def get_backtest_rolling_sharpe():
-    """Rolling Sharpe ratio time series (24 weekly periods)."""
-    import random
-    return {
-        "series": [
-            {"period": f"W{i+1}", "value": round(1.5 + random.random() * 2 - 0.5, 2)}
-            for i in range(24)
-        ]
-    }
-
-
-@router.get("/trade-distribution")
-def get_backtest_trade_distribution():
-    """P&L distribution histogram (20 buckets)."""
-    import random
-    return {
-        "distribution": [
-            {"range": str((i - 10) * 500), "count": int(random.random() * 80 + 10)}
-            for i in range(20)
-        ]
-    }
-
-
-@router.get("/kelly-comparison")
-def get_backtest_kelly_comparison():
-    """Kelly A/B sizing comparison: standard vs full vs half Kelly."""
-    return {
-        "standard": {"pnl": 285000, "sharpe": 2.1, "maxDD": -18.5},
-        "kelly": {"pnl": 345000, "sharpe": 2.35, "maxDD": -12.4},
-        "halfKelly": {"pnl": 310000, "sharpe": 2.5, "maxDD": -8.2}
+        "paths": paths,
+        "percentiles": {
+            "p5": round(base * 0.85, 2),
+            "p25": round(base * 0.95, 2),
+            "p50": round(base * 1.08, 2),
+            "p75": round(base * 1.18, 2),
+            "p95": round(base * 1.35, 2)
+        },
+        "ruinProbability": 2.3,
+        "medianReturn": 8.2,
+        "simulations": 10000
     }
 
 
 @router.get("/correlation")
 def get_backtest_correlation():
-    """Asset correlation matrix."""
+    """Asset correlation matrix for portfolio analysis."""
     import random
-    assets = ["BTC", "ETH", "SPY", "QQQ"]
+    assets = ["BTC", "ETH", "SOL", "AVAX", "MATIC", "LINK", "DOT", "ADA"]
     return {
+        "assets": assets,
         "matrix": [
-            {"asset": a, **{b: 1.0 if a == b else round(0.2 + random.random() * 0.5, 2) for b in assets}}
+            [
+                {"asset": a, **{b: 1.0 if a == b else round(0.2 + random.random() * 0.6, 2)}}
+                for b in assets
+            ]
             for a in assets
         ]
     }
@@ -391,11 +374,13 @@ def get_backtest_drawdown_analysis():
               "Liquidity drain", "Regime shift", "Black swan", "Earnings"]
     return {
         "periods": [
-            {"start": f"2023-{str(i+1).zfill(2)}-15",
-             "end": f"2023-{str(i+1).zfill(2)}-{20 + int(random.random() * 8)}",
-             "depth": round(-(5 + random.random() * 15), 1),
-             "recovery": f"{round(random.random() * 10 + 2, 1)}d",
-             "cause": causes[i]}
+            {
+                "start": f"2023-{str(i+1).zfill(2)}-15",
+                "end": f"2023-{str(i+1).zfill(2)}-{20 + int(random.random() * 8)}",
+                "depth": round(-(5 + random.random() * 15), 1),
+                "recovery": f"{round(random.random() * 10 + 2, 1)}d",
+                "cause": causes[i]
+            }
             for i in range(8)
         ]
     }
