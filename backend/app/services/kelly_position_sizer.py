@@ -299,7 +299,7 @@ class KellyPositionSizer:
             adjusted.append(pos)
         return adjusted
 
-            @staticmethod
+    @staticmethod
     def calculate_trailing_stop(
         entry_price: float,
         atr: float,
@@ -388,7 +388,7 @@ class KellyPositionSizer:
             "risk_score": risk_score,
         }
 
-            def correlation_adjusted_size(
+    def correlation_adjusted_size(
         self,
         symbol: str,
         base_size_pct: float,
