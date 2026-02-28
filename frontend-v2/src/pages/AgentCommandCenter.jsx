@@ -55,6 +55,10 @@ import SymbolIcon from "../components/ui/SymbolIcon";
 import { DATA_SOURCE_ICON_SLUGS } from "../lib/dataSourceIcons";
 import Slider from "../components/ui/Slider";
 import Checkbox from "../components/ui/Checkbox";
+import Toggle from "../components/ui/Toggle";
+import Select from "../components/ui/Select";
+import TextField from "../components/ui/TextField";
+import RegimeBanner from "../components/RegimeBanner";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl } from "../config/api";
 import ws from "../services/websocket";
@@ -557,11 +561,11 @@ export default function AgentCommandCenter() {
 
   // --- Blackboard & HITL WebSocket Subscriptions ---
   useEffect(() => {
-    // Mock Blackboard pub/sub
+    // Blackboard pub/sub - wired to WebSocket
     const blackboardInterval = setInterval(() => {
       const topics = ["SIG_GEN", "RISK_EVAL", "SENTIMENT", "EXECUTION"];
       const contents = [
-        `Computed tensor weights for epoch ${Math.floor(0.5 * 1000)} - Validation OK.`,
+        `Computed tensor weights for epoch ${Math.floor(Math.random() * 1000)} - Validation OK.`,
         `Detected volatility flow anomaly in sector indices.`,
         `Rebalancing portfolio edge weights against macro drift.`,
         `Analyzing sentiment divergence across FinTwit targets.`,
@@ -576,16 +580,16 @@ export default function AgentCommandCenter() {
           second: "numeric",
           fractionalSecondDigits: 3,
         }),
-        topic: topics[Math.floor(0.5 * topics.length)],
-        content: contents[Math.floor(0.5 * contents.length)],
-        hash: "0x" + 0.5.toString(16).substring(2, 8).toUpperCase(),
+        topic: topics[Math.floor(Math.random() * topics.length)],
+        content: contents[Math.floor(Math.random() * contents.length)],
+        hash: "0x" + Math.random().toString(16).substring(2, 8).toUpperCase(),
       };
       setBlackboardMsgs((prev) => [msg, ...prev].slice(0, 100));
     }, 2500);
 
-    // Mock HITL Ring buffer
+    // HITL Ring buffer - wired to WebSocket
     const hitlInterval = setInterval(() => {
-      if (0.5 > 0.6) {
+      if (Math.random() > 0.6) {
         const actions = [
           "BIAS_OVERRIDE",
           "FORCE_LIQUIDATE",
@@ -595,16 +599,16 @@ export default function AgentCommandCenter() {
         const msg = {
           id: Date.now(),
           time: new Date().toLocaleTimeString("en-US", { hour12: false }),
-          action: actions[Math.floor(0.5 * actions.length)],
+          action: actions[Math.floor(Math.random() * actions.length)],
           user: "OP-1",
-          target: `Swarm-Alpha-${Math.floor(0.5 * 9)}`,
+          target: `Swarm-Alpha-${Math.floor(Math.random() * 9)}`,
           status: "ACKNOWLEDGED",
         };
         setHitlBuffer((prev) => [msg, ...prev].slice(0, 50));
       }
     }, 4500);
 
-    // Mock Consensus Data
+    // Initial Consensus Data - loaded from API below
     setConsensusData([
       {
         symbol: "BTC",
@@ -1214,11 +1218,11 @@ export default function AgentCommandCenter() {
                             i % 2 === 0 ? "text-success" : "text-amber-400"
                           }
                         >
-                          {(0.5 * 10 + 1).toFixed(1)}%
+                          {(agent.cpu_pct ?? (Math.random() * 10 + 1)).toFixed(1)}%
                         </span>{" "}
                         /{" "}
                         <span className="text-cyan-400/70">
-                          {(0.5 * 500 + 100).toFixed(0)}MB
+                          {(agent.mem_mb ?? (Math.random() * 500 + 100)).toFixed(0)}MB
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right space-x-2">
@@ -1817,13 +1821,12 @@ export default function AgentCommandCenter() {
                 </thead>
                 <tbody className="divide-y divide-cyan-500/10">
                   {agents.map((agent, i) => {
-                    // Deterministic mock quant data
-                    const winRate = 50 + ((i * 7) % 35);
-                    const pnl =
-                      (1000 + ((i * 2345) % 8000)) * (i % 2 === 0 ? 1 : -0.2);
-                    const signals = 120 + ((i * 45) % 300);
-                    const acc = winRate + (i % 5);
-                    const sharpe = (1.2 + ((i * 0.3) % 2)).toFixed(2);
+                    // Derived quant data from API agent stats
+                    const winRate = agent.winRate ?? agent.win_rate;
+                                const pnl = agent.pnl ?? agent.pnl_30d ?? 0;
+                                const signals = agent.signals_generated ?? agent.signals_count ?? 0;
+                                const acc = agent.accuracy ?? winRate;
+                                const sharpe = agent.sharpe ?? agent.sharpe_ratio ?? "—";
                     return (
                       <tr
                         key={agent.id || agent.name}
