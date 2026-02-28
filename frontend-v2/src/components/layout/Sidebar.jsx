@@ -1,7 +1,7 @@
-// This is the main navigation for all 14 sidebar pages
+// This is the main navigation for all 15 sidebar pages
 // Organized by section: Command, Intelligence, ML & Analysis, Execution, System
 // Every page maps 1:1 to a backend module per the architecture doc
-// V3 CONSOLIDATION: 14 sidebar pages (see V3-ARCHITECTURE.md)
+// V3 CONSOLIDATION: 15 sidebar pages (see V3-ARCHITECTURE.md)
 
 import { NavLink } from "react-router-dom";
 import {
@@ -21,6 +21,7 @@ import {
   ChevronLeft,
   Sparkles,
   BarChart3,
+    Radar,
 } from "lucide-react";
 import { useApi } from "../../hooks/useApi";
 
@@ -49,6 +50,7 @@ const navSections = [
       },
       { to: "/data-sources", icon: Link2, label: "Data Sources Manager" },
     ],
+          { to: "/signal-intelligence-v3", icon: Radar, label: "Signal Intelligence V3" },
   },
   {
     label: "ML & ANALYSIS",

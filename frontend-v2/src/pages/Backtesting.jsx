@@ -517,6 +517,65 @@ export default function Backtesting() {
         </div>
       </div>
 
+              {/* ROW 6: OpenClaw Swarm Agents + Strategy Builder */}
+        <div className="grid grid-cols-12 gap-3">
+          <div className="col-span-8">
+            <Card title={`OpenClaw Swarm (${swarmAgentCount} Agents)`}>
+              <div style={{ height: 320 }}>
+                <ReactFlow
+                  nodes={swarmAgents.map((a, i) => ({
+                    id: String(a.id),
+                    position: { x: 80 + (i % 4) * 200, y: 40 + Math.floor(i / 4) * 120 },
+                    data: { label: `${a.role}\nTasks: ${a.tasksCompleted || 0}\nP&L: $${(a.pnl || 0).toLocaleString()}` },
+                    style: {
+                      background: a.status === 'active' ? '#064e3b' : '#1e293b',
+                      color: '#e2e8f0', border: '1px solid #334155',
+                      borderRadius: 8, padding: 10, fontSize: 11, whiteSpace: 'pre-line',
+                      width: 160
+                    }
+                  }))}
+                  edges={swarmAgents.slice(1).map((a, i) => ({
+                    id: `e${i}`, source: '1', target: String(a.id),
+                    animated: true, style: { stroke: '#10b981' }
+                  }))}
+                  fitView
+                >
+                  <Background color="#334155" gap={16} />
+                  <Controls />
+                </ReactFlow>
+              </div>
+              <div className="grid grid-cols-4 gap-2 mt-2">
+                <ResultStat label="Active" value={swarmMetrics.activeAgents} color="text-emerald-400" />
+                <ResultStat label="Tasks Done" value={swarmMetrics.tasksCompleted} />
+                <ResultStat label="Swarm P&L" value={`$${(swarmMetrics.totalPnl || 0).toLocaleString()}`} color="text-emerald-400" />
+                <ResultStat label="Consensus" value={`${swarmMetrics.consensusScore || 0}%`} />
+              </div>
+            </Card>
+          </div>
+
+                    <div className="col-span-4">
+            <Card title="Sub-Agent Details">
+              <div className="space-y-1 max-h-[360px] overflow-y-auto">
+                {swarmAgents.map((a) => (
+                  <div key={a.id} className="flex items-center justify-between p-2 rounded bg-slate-800/60 border border-slate-700">
+                    <div>
+                      <span className="text-slate-300 font-medium text-xs">{a.role}</span>
+                      <div className="text-[10px] text-slate-500">ID: {a.id} | Tasks: {a.tasksCompleted || 0}</div>
+                    </div>
+                    <div className="text-right">
+                      <Badge variant={a.status === 'active' ? 'success' : 'secondary'} className="text-[9px]">{a.status}</Badge>
+                      <div className={`text-xs font-mono ${(a.pnl || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        ${(a.pnl || 0).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+
+        </div>
+
       {/* BOTTOM BAR (mockup: 7 Agents OK, EXTENDED SWARM) */}
       <div className="flex items-center justify-between text-[8px] text-slate-600 px-2 py-1 bg-slate-900/30 rounded border border-slate-800">
         <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />{swarmAgents.filter(a => a.status === "active").length || "--"} Agents OK</span>

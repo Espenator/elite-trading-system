@@ -26,10 +26,11 @@ export function useApi(endpoint, options = {}) {
 
   const fetchData = useCallback(async () => {
     let url = getApiUrl(endpoint);
-    if (endpointOverride) {
-      // Override endpoint path (e.g., '/heatmap' appended to signals endpoint)
-      const baseUrl = getApiUrl(endpoint);
-      url = baseUrl + endpointOverride;
+        if (endpointOverride) {
+      // endpointOverride is an absolute path from API prefix (e.g., '/signals/AAPL/technicals')
+      // Use API_PREFIX + endpointOverride directly, NOT appended to the mapped endpoint
+      const base = import.meta.env.VITE_API_URL ?? '';
+      url = `${base}/api/v1${endpointOverride}`;
     }
     if (!url) {
       setError(new Error(`Unknown endpoint: ${endpoint}`));

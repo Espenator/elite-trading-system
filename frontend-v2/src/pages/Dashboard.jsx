@@ -34,8 +34,8 @@ export default function Dashboard() {
 
   // Right Panel specific APIs based on selectedSymbol
   const { data: techsData } = useApi('signals', { endpoint: `/signals/${selectedSymbol}/technicals`, enabled: !!selectedSymbol });
-  const { data: swarmData } = useApi('swarmTopology', { endpoint: `/swarmTopology/${selectedSymbol}`, enabled: !!selectedSymbol });
-  const { data: dataSourcesData } = useApi('dataSources', { endpoint: `/dataSources/${selectedSymbol}`, enabled: !!selectedSymbol });
+  const { data: swarmData } = useApi('swarmTopology', { endpoint: `/agents/swarm-topology/${selectedSymbol}`, enabled: !!selectedSymbol });
+  const { data: dataSourcesData } = useApi('dataSources', { endpoint: `/data-sources/${selectedSymbol}`, enabled: !!selectedSymbol });
   const { data: riskData } = useApi('risk', { endpoint: `/risk/proposal/${selectedSymbol}`, enabled: !!selectedSymbol });
   const { data: quotesData } = useApi('quotes', { endpoint: `/quotes/${selectedSymbol}/book`, pollIntervalMs: 1000, enabled: !!selectedSymbol });
 
