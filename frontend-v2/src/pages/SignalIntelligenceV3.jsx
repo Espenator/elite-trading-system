@@ -644,6 +644,7 @@ export default function SignalIntelligenceV3() {
                               const health = apiStatus?.endpoints?.[ep];
               const isWarn = health?.status === 'degraded' || health?.latency > 500;
               const isErr = health?.status === 'down' || health?.error;
+                            const bg = isErr ? 'bg-red-500 shadow-[0_0_5px_rgba(239,68,68,0.8)]'
                   : isWarn ? 'bg-amber-500 shadow-[0_0_5px_rgba(245,158,11,0.8)] animate-pulse'
                   : 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]';
                 return (
