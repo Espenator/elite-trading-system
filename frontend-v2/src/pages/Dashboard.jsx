@@ -31,6 +31,11 @@ export default function Dashboard() {
   const { data: indicesData } = useApi('marketIndices', { pollIntervalMs: 5000 });
   const { data: openclawData } = useApi('openclaw', { pollIntervalMs: 10000 });
   const { data: performanceData } = useApi('performance', { pollIntervalMs: 15000 });
+    const { data: agentsData } = useApi('agents', { pollIntervalMs: 10000 });
+  const { data: riskScoreData } = useApi('riskScore', { pollIntervalMs: 15000 });
+  const { data: alertsData } = useApi('systemAlerts', { pollIntervalMs: 10000 });
+  const { data: flywheelData } = useApi('flywheel', { pollIntervalMs: 30000 });
+  const { data: sentimentData } = useApi('sentiment', { pollIntervalMs: 15000 });
 
   // Right Panel specific APIs based on selectedSymbol
   const { data: techsData } = useApi('signals', { endpoint: `/signals/${selectedSymbol}/technicals`, enabled: !!selectedSymbol });
