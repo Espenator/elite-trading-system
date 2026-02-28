@@ -19,7 +19,7 @@ class OrderCreate(BaseModel):
     estimated_cost: Optional[float] = Field(None, description="Estimated cost")
     required_margin: Optional[float] = Field(None, description="Required margin")
     potential_pnl: Optional[float] = Field(None, description="Potential profit/loss")
-        kelly_edge: Optional[float] = Field(None, description="Kelly edge for this trade")
+            kelly_edge: Optional[float] = Field(None, description="Kelly edge for this trade")
     signal_quality: Optional[float] = Field(None, description="Signal quality 0-1")
 
 
