@@ -23,7 +23,7 @@ DEFAULT_CONTROLS = {
     "masterSwitch": True,
     "pauseAll": False,
     "closeAllPositions": False,
-            "regimeOverride": None,  # None = auto-detect, or BULL/BEAR/NEUTRAL/CRISIS
+    "regimeOverride": None,  # None = auto-detect, or BULL/BEAR/NEUTRAL/CRISIS
     "kellyEnabled": True,
     "maxPositionPct": 0.10,
     "maxPortfolioHeat": 0.25,
@@ -34,7 +34,7 @@ class StrategyControls(BaseModel):
     masterSwitch: bool | None = None
     pauseAll: bool | None = None
     closeAllPositions: bool | None = None
-        regimeOverride: Optional[str] = None
+    regimeOverride: Optional[str] = None
     kellyEnabled: bool | None = None
     maxPositionPct: Optional[float] = None
     maxPortfolioHeat: Optional[float] = None
@@ -108,7 +108,6 @@ async def create_strategy(data: StrategyCreate):
     }
     strategies.append(new_strategy)
     _save_strategies(strategies)
-
     await broadcast_ws("strategy", {"type": "strategy_created", "strategy": new_strategy})
     logger.info("Strategy registered: %s", data.name)
     return {"ok": True, "strategy": new_strategy}
@@ -158,7 +157,7 @@ async def update_controls(controls: StrategyControls):
         ctrl["pauseAll"] = controls.pauseAll
     if controls.closeAllPositions is not None:
         ctrl["closeAllPositions"] = controls.closeAllPositions
-            if controls.regimeOverride is not None:
+    if controls.regimeOverride is not None:
         ctrl["regimeOverride"] = controls.regimeOverride
     if controls.kellyEnabled is not None:
         ctrl["kellyEnabled"] = controls.kellyEnabled
@@ -166,7 +165,6 @@ async def update_controls(controls: StrategyControls):
         ctrl["maxPositionPct"] = controls.maxPositionPct
     if controls.maxPortfolioHeat is not None:
         ctrl["maxPortfolioHeat"] = controls.maxPortfolioHeat
-
     db_service.set_config("strategy_controls", ctrl)
     await broadcast_ws("strategy", {"type": "controls_updated", "controls": ctrl})
     return {"ok": True, "controls": ctrl}
@@ -175,7 +173,6 @@ async def update_controls(controls: StrategyControls):
 # -----------------------------------------------------------------
 # Regime-Aware Strategy Recommendations
 # -----------------------------------------------------------------
-
 REGIME_PARAMS = {
     "BULL": {"kelly_scale": 1.0, "max_pos": 0.10, "min_edge": 0.03, "desc": "Full Kelly, higher conviction"},
     "NEUTRAL": {"kelly_scale": 0.7, "max_pos": 0.07, "min_edge": 0.05, "desc": "Reduced sizing, tighter filters"},
@@ -189,7 +186,7 @@ async def get_regime_params():
     """Return current regime and Kelly scaling parameters."""
     ctrl = _get_controls()
     override = ctrl.get("regimeOverride")
-    regime = override if override else "NEUTRAL"  # Default when no market data
+    regime = override if override else "NEUTRAL"
     params = REGIME_PARAMS.get(regime, REGIME_PARAMS["NEUTRAL"])
     return {
         "regime": regime,
@@ -202,11 +199,9 @@ async def get_regime_params():
     }
 
 
-
 # ----------------------------------------------------------------
 # Pre-Trade Risk Guard: checks drawdown + risk score before execution
 # ----------------------------------------------------------------
-
 @router.post("/pre-trade-check")
 async def pre_trade_check(symbol: str = "", side: str = "buy"):
     """
@@ -272,8 +267,7 @@ async def pre_trade_check(symbol: str = "", side: str = "buy"):
     }
 
 
-    # ── Adaptive Strategy Selection ──────────────────────────────────
-
+# ── Adaptive Strategy Selection ──────────────────────────────────
 # Strategy configs keyed by regime - determines which approach maximizes profit
 STRATEGY_BY_REGIME = {
     "BULLISH": {
