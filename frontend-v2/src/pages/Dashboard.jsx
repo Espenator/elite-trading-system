@@ -119,12 +119,12 @@ export default function Dashboard() {
           
           {/* Regime Badges */}
           <div className={`px-2 py-0.5 rounded font-bold tracking-wider ${openclaw.regime === 'BEAR' ? 'bg-red-500/20 text-red-400 border border-red-500/50' : 'bg-green-500/20 text-green-400 border border-green-500/50 glow-green'}`}>
-            {openclaw.regime || 'BULL'}
+            {openclaw.regime || '—'}
           </div>
           <div className="flex items-center gap-1">
             <span className="text-gray-400">SCORE</span>
             <div className="w-6 h-6 rounded-full border-2 border-green-400 flex items-center justify-center text-[10px] font-mono text-green-400 glow-green">
-              {openclaw.compositeScore || 82}
+              {openclaw.compositeScore || '—'}
             </div>
           </div>
         </div>
@@ -132,17 +132,17 @@ export default function Dashboard() {
         {/* KPIs */}
         <div className="flex items-center gap-4 font-mono text-[10px]">
           <div className="flex gap-3 text-gray-300">
-            <span>SPX <span className="text-green-400">+{indices.SPX?.change || '0.45'}%</span></span>
-            <span>NDAQ <span className="text-red-400">{indices.NDAQ?.change || '-0.12'}%</span></span>
-            <span>BTC <span className="text-green-400">+{indices.BTC?.change || '1.89'}%</span></span>
+            <span>SPX <span className="text-green-400">+{indices.SPX?.change || '—'}%</span></span>
+            <span>NDAQ <span className="text-red-400">{indices.NDAQ?.change || '—'}%</span></span>
+            <span>BTC <span className="text-green-400">+{indices.BTC?.change || '—'}%</span></span>
           </div>
           <div className="w-px h-4 bg-[#1e3a5f]"></div>
           <div className="flex gap-4">
-            <span>Equity <span className="text-white">${portfolio.totalEquity?.toLocaleString() || '251,450'}</span></span>
-            <span>P&L <span className="text-green-400">+${portfolio.dayPnL?.toLocaleString() || '3,520'}</span></span>
-            <span>Deployed <span className="text-cyan-400">{portfolio.deployedPercent || 67}%</span></span>
-            <span>Sharpe <span className="text-cyan-400">{performance.sharpe || 2.14}</span></span>
-            <span>Alpha <span className="text-green-400">+{performance.alpha || '4.5'}%</span></span>
+            <span>Equity <span className="text-white">${portfolio.totalEquity?.toLocaleString() || '—'}</span></span>
+            <span>P&L <span className="text-green-400">+${portfolio.dayPnL?.toLocaleString() || '—'}</span></span>
+            <span>Deployed <span className="text-cyan-400">{portfolio.deployedPercent || '—'}%</span></span>
+            <span>Sharpe <span className="text-cyan-400">{performance.sharpe || '—'}</span></span>
+            <span>Alpha <span className="text-green-400">+{performance.alpha || '—'}%</span></span>
           </div>
         </div>
       </header>
@@ -232,24 +232,24 @@ export default function Dashboard() {
                           </div>
                         </div>
                       </td>
-                      <td className="p-1.5 text-gray-300">{sig.scores?.regime || 92}</td>
-                      <td className="p-1.5 text-gray-300">{sig.scores?.ml || 94}</td>
-                      <td className="p-1.5 text-gray-300">{sig.scores?.sentiment || 89}</td>
-                      <td className="p-1.5 text-gray-300">{sig.scores?.technical || 96}</td>
-                      <td className="p-1.5 text-cyan-400 truncate max-w-[80px]">{sig.leadAgent || 'MomAlpha-v4'}</td>
-                      <td className="p-1.5 text-gray-300">{sig.swarmVote || '40/42'}</td>
-                      <td className="p-1.5 text-gray-400 truncate max-w-[60px]">{sig.topShap || 'RSI_Div'}</td>
+                      <td className="p-1.5 text-gray-300">{sig.scores?.regime || '—'}</td>
+                      <td className="p-1.5 text-gray-300">{sig.scores?.ml || '—'}</td>
+                      <td className="p-1.5 text-gray-300">{sig.scores?.sentiment || '—'}</td>
+                      <td className="p-1.5 text-gray-300">{sig.scores?.technical || '—'}</td>
+                      <td className="p-1.5 text-cyan-400 truncate max-w-[80px]">{sig.leadAgent || '—'}</td>
+                      <td className="p-1.5 text-gray-300">{sig.swarmVote || '—'}</td>
+                      <td className="p-1.5 text-gray-400 truncate max-w-[60px]">{sig.topShap || '—'}</td>
                       <td className="p-1.5 text-cyan-400">{sig.kellyPercent}%</td>
                       <td className="p-1.5 text-gray-300">${sig.entry?.toFixed(2)}</td>
                       <td className="p-1.5 text-green-400">${sig.target?.toFixed(2)}</td>
                       <td className="p-1.5 text-red-400">${sig.stop?.toFixed(2)}</td>
                       <td className="p-1.5 text-white">{sig.rMultiple?.toFixed(1)}:1</td>
                       <td className="p-1.5 text-green-400">+${sig.expPnL?.toLocaleString()}</td>
-                      <td className="p-1.5 text-gray-400">{sig.sector?.substring(0,3) || 'Tec'}</td>
-                      <td className="p-1.5 text-green-400">+{sig.momentum || '8.2'}</td>
-                      <td className="p-1.5 text-cyan-400">{sig.volSpike || '2.3'}x</td>
-                      <td className="p-1.5 text-gray-400 truncate max-w-[50px]">{sig.newsImpact || 'A+'}</td>
-                      <td className="p-1.5 text-cyan-500 truncate max-w-[60px]">{sig.pattern || 'SLAM_DUNK'}</td>
+                      <td className="p-1.5 text-gray-400">{sig.sector?.substring(0,3) || '—'}</td>
+                      <td className="p-1.5 text-green-400">+{sig.momentum || '—'}</td>
+                      <td className="p-1.5 text-cyan-400">{sig.volSpike || '—'}x</td>
+                      <td className="p-1.5 text-gray-400 truncate max-w-[50px]">{sig.newsImpact || '—'}</td>
+                      <td className="p-1.5 text-cyan-500 truncate max-w-[60px]">{sig.pattern || '—'}</td>
                     </tr>
                   );
                 })}
@@ -271,7 +271,7 @@ export default function Dashboard() {
             </h2>
             <div className="flex flex-col items-end">
               <span className="text-[8px] text-gray-400 uppercase">Composite Score</span>
-              <span className="text-2xl font-mono font-bold text-[#00d4ff] glow-cyan">{selectedSignal?.score || 96}</span>
+              <span className="text-2xl font-mono font-bold text-[#00d4ff] glow-cyan">{selectedSignal?.score || '—'}</span>
             </div>
           </div>
 
@@ -301,14 +301,14 @@ export default function Dashboard() {
           <div className="space-y-1.5">
             <h3 className="text-[9px] text-[#00d4ff] font-bold uppercase tracking-wider">Technical Analysis</h3>
             <div className="grid grid-cols-2 gap-1.5 bg-[#0a0e17] border border-[#1e3a5f] rounded p-2 font-mono text-[8px]">
-              <div><span className="text-gray-400">RSI:</span> <span className="text-green-400">{techs.rsi || '68.2 (Bullish)'}</span></div>
-              <div><span className="text-gray-400">MACD:</span> <span className="text-green-400">{techs.macd || '+2.4 (Cross Up)'}</span></div>
-              <div><span className="text-gray-400">BB:</span> <span className="text-white">{techs.bb || 'Upper Band +1.2σ'}</span></div>
-              <div><span className="text-gray-400">VWAP:</span> <span className="text-cyan-400">{techs.vwap || '$142.30 (Above)'}</span></div>
-              <div><span className="text-gray-400">20 EMA:</span> <span className="text-white">{techs.ema20 || '$139.85 (Support)'}</span></div>
-              <div><span className="text-gray-400">50 SMA:</span> <span className="text-green-400">{techs.sma50 || '$135.20 (Trend Up)'}</span></div>
-              <div><span className="text-gray-400">ADX:</span> <span className="text-white">{techs.adx || '32 (Strong Trend)'}</span></div>
-              <div><span className="text-gray-400">Stoch:</span> <span className="text-green-400">{techs.stoch || '72/65 (Bullish)'}</span></div>
+              <div><span className="text-gray-400">RSI:</span> <span className="text-green-400">{techs.rsi || '—'}</span></div>
+              <div><span className="text-gray-400">MACD:</span> <span className="text-green-400">{techs.macd || '—'}</span></div>
+              <div><span className="text-gray-400">BB:</span> <span className="text-white">{techs.bb || '—'}</span></div>
+              <div><span className="text-gray-400">VWAP:</span> <span className="text-cyan-400">{techs.vwap || '—'}</span></div>
+              <div><span className="text-gray-400">20 EMA:</span> <span className="text-white">{techs.ema20 || '—'}</span></div>
+              <div><span className="text-gray-400">50 SMA:</span> <span className="text-green-400">{techs.sma50 || '—'}</span></div>
+              <div><span className="text-gray-400">ADX:</span> <span className="text-white">{techs.adx || '—'}</span></div>
+              <div><span className="text-gray-400">Stoch:</span> <span className="text-green-400">{techs.stoch || '—'}</span></div>
             </div>
           </div>
 
@@ -350,7 +350,7 @@ export default function Dashboard() {
 
           {/* 4. AGENT SWARM */}
           <div className="space-y-1.5">
-            <h3 className="text-[9px] text-[#00d4ff] font-bold uppercase tracking-wider">Swarm Consensus ({swarm.total || 42} Agents)</h3>
+            <h3 className="text-[9px] text-[#00d4ff] font-bold uppercase tracking-wider">Swarm Consensus ({swarm.total || '—'} Agents)</h3>
             <div className="flex gap-2 bg-[#0a0e17] border border-[#1e3a5f] rounded p-2 font-mono text-[8px]">
               <div className="w-1/3 flex flex-col items-center justify-center border-r border-[#1e3a5f]">
                 <div className="text-xl font-bold text-green-400">95%</div>
@@ -372,7 +372,7 @@ export default function Dashboard() {
           <div className="space-y-1.5">
             <h3 className="text-[9px] text-[#00d4ff] font-bold uppercase tracking-wider">Real-Time Data Feeds</h3>
             <div className="bg-[#0a0e17] border border-[#1e3a5f] rounded p-2 space-y-1 font-mono text-[8px]">
-              <div className="flex justify-between"><span className="text-gray-400">Market Data:</span> <span className="text-white">Price ${sources.price || '143.50'} | Vol {sources.vol || '28.5M (+42%)'}</span></div>
+              <div className="flex justify-between"><span className="text-gray-400">Market Data:</span> <span className="text-white">Price ${sources.price || '—'} | Vol {sources.vol || '—'}</span></div>
               <div className="flex justify-between"><span className="text-gray-400">NewsAPI:</span> <span className="text-green-400">3 Bullish / 1 Neutral (Earnings Beat)</span></div>
               <div className="flex justify-between"><span className="text-gray-400">Social (Reddit/X):</span> <span className="text-green-400">89% Bull / 76% Bull</span></div>
               <div className="flex justify-between"><span className="text-gray-400">Options Flow:</span> <span className="text-cyan-400">P/C 0.62 (Bullish Bias)</span></div>
@@ -386,11 +386,11 @@ export default function Dashboard() {
             <div className="bg-[#0a0e17] border border-[#1e3a5f] rounded p-2 font-mono text-[8px]">
               <div className="text-[#00d4ff] mb-1 font-bold">PROPOSED ENTRY</div>
               <div className="grid grid-cols-2 gap-1 mb-2 pb-2 border-b border-[#1e3a5f]/50">
-                <span className="text-gray-400">Action: <span className="text-white">Limit Buy {risk.limitPrice || '$142.80'}</span></span>
-                <span className="text-gray-400">Size: <span className="text-white">{risk.shares || 450} shs (${risk.notional || '64,260'})</span></span>
-                <span className="text-gray-400">Stop Loss: <span className="text-red-400">{risk.stopLoss || '$138.50 (-3.0%)'}</span></span>
-                <span className="text-gray-400">Target 1: <span className="text-green-400">{risk.target1 || '$152.00 (+6.4%)'}</span></span>
-                <span className="text-gray-400">R:R Ratio: <span className="text-cyan-400">{risk.rr || '2.1:1'}</span></span>
+                <span className="text-gray-400">Action: <span className="text-white">Limit Buy {risk.limitPrice || '—'}</span></span>
+                <span className="text-gray-400">Size: <span className="text-white">{risk.shares || '—'} shs (${risk.notional || '—'})</span></span>
+                <span className="text-gray-400">Stop Loss: <span className="text-red-400">{risk.stopLoss || '—'}</span></span>
+                <span className="text-gray-400">Target 1: <span className="text-green-400">{risk.target1 || '—'}</span></span>
+                <span className="text-gray-400">R:R Ratio: <span className="text-cyan-400">{risk.rr || '—'}</span></span>
                 <span className="text-gray-400">Sizing: <span className="text-white">Kelly {selectedSignal?.kellyPercent}%</span></span>
               </div>
               
