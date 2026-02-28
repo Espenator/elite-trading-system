@@ -60,7 +60,7 @@ async def get_signals(as_of: date | None = None):
     signals = []
     for s in raw_signals:
         action = "BUY" if s["prob_up"] > 0.6 else "HOLD"
-            prob = s["prob_up"]
+        prob = s["prob_up"]
             # Compute Kelly edge and position size
             kelly = _kelly_sizer.calculate(
                 win_rate=prob,
