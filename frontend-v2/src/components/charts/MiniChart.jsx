@@ -1,17 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  ResponsiveContainer,
-  Tooltip,
-} from "recharts";
+import { createChart, ColorType } from "lightweight-charts";
 import { getApiUrl } from "../../config/api";
 
 /**
  * Reusable mini price chart for a symbol. Fetches quote data from GET /api/v1/quotes/{symbol}
- * and renders a simple line chart (recharts). Dark/cyan theme.
+ * and renders a line chart using TradingView Lightweight Charts. Dark/cyan theme.
  *
  * @param {string|null} symbol - Ticker symbol (e.g. "AAPL")
  * @param {string} [className] - Wrapper class
@@ -30,6 +23,8 @@ export default function MiniChart({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const abortRef = useRef(null);
+  const chartContainerRef = useRef(null);
+  const chartRef = useRef(null);
 
   const fetchData = useCallback(async () => {
     if (!symbol?.trim()) {
@@ -52,18 +47,17 @@ export default function MiniChart({
       }
       let lastClose = null;
       const chartData = raw
-        .map((row, i) => {
+        .map((row) => {
           const close = parseFloat(row.Close ?? row.close ?? 0);
-          const open = parseFloat(row.Open ?? row.open ?? 0);
           const val = Number.isFinite(close) ? close : lastClose;
           if (Number.isFinite(val)) lastClose = val;
           const dateStr = row.Date ?? row.date ?? "";
-          return {
-            name: dateStr || `#${i + 1}`,
-            value: Number.isFinite(val) ? val : null,
-          };
+          // LW Charts needs time as unix timestamp (seconds)
+          const ts = dateStr ? Math.floor(new Date(dateStr).getTime() / 1000) : null;
+          return { time: ts, value: Number.isFinite(val) ? val : null };
         })
-        .filter((d) => d.value != null);
+        .filter((d) => d.value != null && d.time != null)
+        .sort((a, b) => a.time - b.time);
       setData(chartData);
     } catch (e) {
       if (e.name === "AbortError") return;
@@ -82,6 +76,60 @@ export default function MiniChart({
     };
   }, [fetchData]);
 
+  // Create/update LW chart when data changes
+  useEffect(() => {
+    if (!chartContainerRef.current || data.length === 0) return;
+    // Dispose previous chart
+    if (chartRef.current) {
+      chartRef.current.remove();
+      chartRef.current = null;
+    }
+    const chart = createChart(chartContainerRef.current, {
+      layout: {
+        background: { type: ColorType.Solid, color: "transparent" },
+        textColor: "#64748b",
+      },
+      grid: {
+        vertLines: { visible: false },
+        horzLines: { color: "#1e293b" },
+      },
+      width: chartContainerRef.current.clientWidth,
+      height,
+      rightPriceScale: {
+        borderVisible: false,
+        scaleMargins: { top: 0.1, bottom: 0.1 },
+      },
+      timeScale: { borderVisible: false, visible: false },
+      crosshair: {
+        vertLine: { labelVisible: false },
+        horzLine: { labelVisible: true },
+      },
+      handleScroll: false,
+      handleScale: false,
+    });
+    const series = chart.addAreaSeries({
+      topColor: "rgba(34, 211, 238, 0.3)",
+      bottomColor: "rgba(34, 211, 238, 0.02)",
+      lineColor: "#22d3ee",
+      lineWidth: 2,
+    });
+    series.setData(data);
+    chart.timeScale().fitContent();
+    chartRef.current = chart;
+
+    const handleResize = () => {
+      if (chartContainerRef.current) {
+        chart.applyOptions({ width: chartContainerRef.current.clientWidth });
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      chart.remove();
+      chartRef.current = null;
+    };
+  }, [data, height]);
+
   if (!symbol?.trim()) {
     return (
       <div
@@ -94,7 +142,6 @@ export default function MiniChart({
   }
 
   const hasData = data.length > 0;
-  const strokeColor = "#22d3ee"; // cyan-400
 
   return (
     <div
@@ -106,7 +153,7 @@ export default function MiniChart({
           className="absolute inset-0 flex items-center justify-center rounded-xl bg-dark z-10 text-cyan-400 text-xs"
           style={{ minHeight: height }}
         >
-          Loading…
+          Loading...
         </div>
       )}
       {error && !loading && (
@@ -117,53 +164,11 @@ export default function MiniChart({
           {error}
         </div>
       )}
-      {!loading && hasData && (
-        <ResponsiveContainer width="100%" height={height}>
-          <LineChart
-            data={data}
-            margin={{ top: 4, right: 4, left: 4, bottom: 4 }}
-          >
-            <XAxis
-              dataKey="name"
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: "#64748b", fontSize: 10 }}
-              tickFormatter={(v) => (v.startsWith("#") ? v : v.slice(0, 6))}
-            />
-            <YAxis
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: "#64748b", fontSize: 10 }}
-              tickFormatter={(v) =>
-                v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v
-              }
-              domain={["auto", "auto"]}
-              width={36}
-            />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: "rgba(15, 23, 42, 0.95)",
-                border: "1px solid rgba(34, 211, 238, 0.3)",
-                borderRadius: "8px",
-                fontSize: "12px",
-              }}
-              labelStyle={{ color: "#94a3b8" }}
-              formatter={(value) => [`$${Number(value).toFixed(2)}`, "Price"]}
-              labelFormatter={(label) =>
-                label.startsWith("#") ? label : label
-              }
-            />
-            <Line
-              type="monotone"
-              dataKey="value"
-              stroke={strokeColor}
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 3, fill: strokeColor }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      )}
+      <div
+        ref={chartContainerRef}
+        className="w-full"
+        style={{ height, visibility: hasData && !loading ? "visible" : "hidden" }}
+      />
       {!loading && !error && !hasData && (
         <div
           className="flex items-center justify-center text-secondary text-xs"
