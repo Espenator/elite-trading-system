@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Embodier.ai - Active Trades (Ultrawide)</title>
+    <style>
+        :root {
+            --bg-main: #131A22;
+            --bg-panel: #1A222C;
+            --bg-header: #212A35;
+            --bg-hover: #2A3644;
+            --text-main: #E2E8F0;
+            --text-muted: #94A3B8;
+            --accent-teal: #00D4AA;
+            --accent-teal-glow: rgba(0, 212, 170, 0.15);
+            --profit-green: #10B981;
+            --loss-red: #EF4444;
+            --border-color: #2D3748;
+            --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-mono: "JetBrains Mono", "SF Mono", "Consolas", monospace;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            font-family: var(--font-main);
+            font-size: 11px;
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* --- SIDEBAR --- */
+        .sidebar {
+            width: 220px;
+            background-color: var(--bg-main);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            z-index: 10;
+        }
+
+        .brand {
+            padding: 16px;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .brand-dot {
+            width: 8px; height: 8px;
+            background-color: var(--text-main);
+            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+        }
+
+        .nav-menu { flex: 1; overflow-y: auto; padding: 12px 0; }
+        .nav-category {
+            padding: 8px 16px 4px;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+        }
+        .nav-item {
+            padding: 6px 16px 6px 32px;
+            cursor: pointer;
+            color: var(--text-muted);
+            transition: all 0.2s;
+            position: relative;
+        }
+        .nav-item:hover { color: var(--text-main); }
+        .nav-item.active {
+            color: var(--accent-teal);
+            font-weight: 600;
+        }
+        .nav-item.active::before {
+            content: ''; position: absolute; left: 16px; top: 50%;
+            transform: translateY(-50%);
+            width: 8px; height: 8px;
+            background: none;
+            border-bottom: 2px solid var(--accent-teal);
+            border-left: 2px solid var(--accent-teal);
+            border-radius: 2px;
+            transform: translateY(-50%) rotate(-45deg);
+        }
+
+        /* --- MAIN CONTENT --- */
+        .main-container {
+            flex: 1; display: flex; flex-direction: column; min-width: 0;
+        }
+
+        /* --- TOP COMMAND STRIP --- */
+        .top-bar {
+            height: 60px;
+            background-color: var(--accent-teal);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 16px; flex-shrink: 0;
+            color: #000;
+        }
+        
+        .page-title {
+            display: flex; align-items: center; gap: 12px;
+            font-size: 16px; font-weight: 700; font-family: var(--font-mono);
+            letter-spacing: 1px;
+        }
+        
+        .status-pills { display: flex; gap: 8px; }
+        .pill {
+            background: rgba(0,0,0,0.1); border: 1px solid rgba(0,0,0,0.2);
+            padding: 4px 8px; border-radius: 4px; font-size: 9px; font-weight: bold;
+        }
+        .pill-green { background: var(--profit-green); color: white; border: none; }
+
+        .top-metrics {
+            display: flex; gap: 24px; align-items: center;
+        }
+        .metric-top { display: flex; align-items: baseline; gap: 6px; }
+        .metric-top label { font-size: 10px; opacity: 0.8; font-weight: 600; }
+        .metric-top span { font-size: 16px; font-weight: 700; font-family: var(--font-mono); }
+        .override-toggle {
+            display: flex; align-items: center; gap: 8px; font-weight: bold;
+        }
+
+        /* --- SPLIT LAYOUT --- */
+        .content-split {
+            flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 12px; gap: 12px;
+        }
+
+        .panel {
+            flex: 1; display: flex; flex-direction: column;
+            background-color: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 6px; overflow: hidden; min-height: 0;
+        }
+
+        .panel-header {
+            padding: 8px 12px; background-color: var(--bg-header);
+            border-bottom: 1px solid var(--border-color);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .panel-title { font-weight: 600; font-size: 12px; color: var(--text-main); }
+        
+        .panel-controls { display: flex; gap: 8px; }
+        .btn {
+            background: var(--bg-main); color: var(--text-main);
+            border: 1px solid var(--border-color);
+            padding: 4px 10px; border-radius: 4px; font-size: 10px; cursor: pointer;
+        }
+        .btn:hover { background: var(--bg-hover); }
+        .btn-teal { background: var(--accent-teal); color: #000; border: none; font-weight: bold;}
+        .btn-teal:hover { background: #00E6B8; }
+
+        /* --- TABLES --- */
+        .table-container { flex: 1; overflow: auto; }
+        table { width: 100%; border-collapse: collapse; text-align: right; white-space: nowrap; }
+        
+        th {
+            position: sticky; top: 0; background-color: var(--bg-header);
+            color: var(--text-muted); padding: 6px 8px; font-weight: 600; font-size: 9px;
+            text-transform: uppercase; border-bottom: 1px solid var(--border-color); z-index: 1;
+        }
+        td {
+            padding: 5px 8px; border-bottom: 1px solid var(--border-color);
+            font-family: var(--font-mono); font-size: 11px;
+        }
+        tr:hover td { background-color: var(--bg-hover); }
+        th:first-child, td:first-child { text-align: left; }
+        
+        .sym { font-weight: bold; color: #fff; }
+        .text-green { color: var(--profit-green); }
+        .text-red { color: var(--loss-red); }
+        .text-teal { color: var(--accent-teal); }
+        
+        .badge-buy { background: rgba(16,185,129,0.15); color: var(--profit-green); padding: 2px 6px; border-radius: 2px; font-size: 9px; font-weight: bold; }
+        .badge-sell { background: rgba(239,68,68,0.15); color: var(--loss-red); padding: 2px 6px; border-radius: 2px; font-size: 9px; font-weight: bold; }
+        
+        .progress-bar { width: 50px; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; display: inline-block; vertical-align: middle; margin-right: 6px; }
+        .progress-fill { height: 100%; background: var(--accent-teal); border-radius: 2px; }
+
+        /* --- BOTTOM INLINE ORDER BAR --- */
+        .inline-order-bar {
+            height: 48px; background-color: var(--bg-panel);
+            border-top: 1px solid var(--border-color);
+            display: flex; align-items: center; padding: 0 16px; gap: 12px; flex-shrink: 0;
+        }
+        .inline-input {
+            background: var(--bg-main); border: 1px solid var(--border-color); color: #fff;
+            padding: 6px 10px; border-radius: 4px; font-family: var(--font-mono); font-size: 12px; outline: none;
+        }
+        .inline-input:focus { border-color: var(--accent-teal); }
+        
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-main); }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+        <div class="brand">
+            <div class="brand-dot"></div>
+            Embodier.ai
+            <div style="font-size: 9px; color: var(--text-muted); font-weight: normal; margin-left:-4px; margin-top:14px; position:absolute;">Trading Intelligence</div>
+        </div>
+        <div class="nav-menu">
+            <div class="nav-category">Command</div>
+            <div class="nav-item">Intelligence Dashboard</div>
+            <div class="nav-item">Agent Command Center</div>
+            
+            <div class="nav-category" style="margin-top: 10px;">Intelligence</div>
+            <div class="nav-item">Signal Intelligence</div>
+            <div class="nav-item">Sentiment Intelligence</div>
+            <div class="nav-item">Data Sources Monitor</div>
+            
+            <div class="nav-category" style="margin-top: 10px;">ML & Analysis</div>
+            <div class="nav-item">ML Brain & Flywheel</div>
+            <div class="nav-item">Screener & Patterns</div>
+            <div class="nav-item">Backtesting Lab</div>
+            <div class="nav-item">Performance Analytics</div>
+            <div class="nav-item">Market Regime</div>
+            
+            <div class="nav-category" style="margin-top: 10px;">Execution</div>
+            <div class="nav-item active">Active Trades</div>
+            <div class="nav-item">Risk Intelligence</div>
+            <div class="nav-item">Trade Execution</div>
+            
+            <div class="nav-category" style="margin-top: 10px;">System</div>
+            <div class="nav-item">Settings</div>
+        </div>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="main-container">
+        <!-- TOP COMMAND STRIP (Teal) -->
+        <div class="top-bar">
+            <div class="page-title">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg>
+                ACTIVE_TRADES_V3
+                <div class="status-pills">
+                    <span class="pill">OC_CORE_v5.2.1</span>
+                    <span class="pill">WS_LATENCY: 42ms</span>
+                    <span class="pill">API_LIMIT: 95%</span>
+                </div>
+            </div>
+            
+            <div class="top-metrics">
+                <div class="metric-top"><label>EQUITY</label><span>$1,245,670.00</span></div>
+                <div class="metric-top"><label>DAY P&L</label><span>+$12,450.25</span></div>
+                <div class="metric-top"><label>BUYING POWER</label><span>$425,890.50</span></div>
+                <div class="metric-top"><label>EXPOSURE</label><span>24.5%</span></div>
+                
+                <div class="override-toggle">
+                    <span style="font-size: 10px;">TRADE MODE:</span>
+                    <span class="pill pill-green">LIVE</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-split">
+            <!-- TOP HALF: POSITIONS -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">OPEN POSITIONS (12)</div>
+                    <div class="panel-controls">
+                        <input type="text" class="inline-input" placeholder="Filter..." style="padding: 4px 8px; font-size: 10px;">
+                        <button class="btn">Close Losers</button>
+                        <button class="btn" style="color: var(--loss-red); border-color: rgba(239,68,68,0.3);">Flatten All</button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Symbol</th>
+                                <th>Side</th>
+                                <th>Qty</th>
+                                <th>Avail</th>
+                                <th>Avg Entry</th>
+                                <th>Current</th>
+                                <th>Mkt Value</th>
+                                <th>Unreal P&L</th>
+                                <th>P&L %</th>
+                                <th>Day P&L</th>
+                                <th>Day %</th>
+                                <th>Cost Basis</th>
+                                <th>Chg Today</th>
+                                <th>Asset Class</th>
+                                <th>Exchange</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pos-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- BOTTOM HALF: ORDERS -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">ACTIVE ORDERS (18)</div>
+                    <div class="panel-controls">
+                        <button class="btn">Filter: Working</button>
+                        <button class="btn" style="color: var(--loss-red); border-color: rgba(239,68,68,0.3);">Cancel All</button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Symbol</th>
+                                <th>Side</th>
+                                <th>Type</th>
+                                <th>Class</th>
+                                <th>Qty</th>
+                                <th>Filled</th>
+                                <th>Limit Px</th>
+                                <th>Stop Px</th>
+                                <th>Trail %</th>
+                                <th>TIF</th>
+                                <th>Status</th>
+                                <th>Submitted</th>
+                                <th>Filled At</th>
+                                <th>Avg Fill</th>
+                                <th>Ext Hrs</th>
+                                <th>Legs</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ord-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- BOTTOM INLINE ORDER ENTRY -->
+        <div class="inline-order-bar">
+            <span style="font-size: 10px; font-weight: bold; color: var(--accent-teal); margin-right: 8px;">QUICK EXECUTE</span>
+            <input type="text" class="inline-input" placeholder="SYM" style="width: 80px; text-transform: uppercase;">
+            <select class="inline-input" style="width: 80px;">
+                <option>BUY</option><option>SELL</option><option>SHORT</option>
+            </select>
+            <input type="number" class="inline-input" placeholder="QTY" style="width: 80px;">
+            <select class="inline-input" style="width: 100px;">
+                <option>Limit</option><option>Market</option><option>Stop</option>
+            </select>
+            <input type="number" class="inline-input" placeholder="LIMIT $" style="width: 100px;">
+            <select class="inline-input" style="width: 80px;">
+                <option>DAY</option><option>GTC</option><option>IOC</option>
+            </select>
+            <button class="btn-teal" style="padding: 6px 20px; border-radius: 4px; font-family: var(--font-mono); margin-left: auto;">SUBMIT (Ctrl+Enter)</button>
+        </div>
+    </div>
+
+    <script>
+        function fmtM(n) { return '$' + n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+        function fmtP(n) { return (n > 0 ? '+' : '') + n.toFixed(2) + '%'; }
+        function clr(n) { return n >= 0 ? 'text-green' : 'text-red'; }
+        
+        const syms = ['NVDA', 'AAPL', 'MSFT', 'AMD', 'TSLA', 'META', 'AMZN', 'GOOGL', 'PLTR', 'SMCI', 'COIN', 'MSTR'];
+        
+        let pHTML = '';
+        for(let i=0; i<12; i++) {
+            const sym = syms[i];
+            const qty = Math.floor(Math.random() * 500) + 10;
+            const ent = Math.random() * 500 + 50;
+            const cur = ent * (1 + (Math.random() * 0.1 - 0.04));
+            const isL = Math.random() > 0.2;
+            const mVal = qty * cur; const cBas = qty * ent;
+            const uPL = isL ? mVal - cBas : cBas - mVal;
+            const uPct = (uPL / cBas) * 100;
+            const dPL = uPL * (Math.random() * 0.5);
+            const chg = (cur / ent - 1) * 100 * (Math.random()*0.5);
+            
+            pHTML += `<tr>
+                <td class="sym">${sym}</td>
+                <td><span class="${isL ? 'badge-buy' : 'badge-sell'}">${isL ? 'LONG' : 'SHORT'}</span></td>
+                <td>${qty}</td><td>${qty}</td>
+                <td>${fmtM(ent)}</td><td style="font-weight:bold; color:#fff">${fmtM(cur)}</td>
+                <td>${fmtM(mVal)}</td><td class="${clr(uPL)} font-bold">${fmtM(uPL)}</td>
+                <td class="${clr(uPct)}">${fmtP(uPct)}</td><td class="${clr(dPL)}">${fmtM(dPL)}</td>
+                <td class="${clr(uPct*0.5)}">${fmtP(uPct*0.5)}</td><td>${fmtM(cBas)}</td>
+                <td class="${clr(chg)}">${fmtP(chg)}</td><td>us_equity</td><td>NASDAQ</td>
+                <td><button class="btn" style="font-size:9px; padding:2px 6px;">Cxl</button></td>
+            </tr>`;
+        }
+        document.getElementById('pos-body').innerHTML = pHTML;
+
+        let oHTML = '';
+        const typs = ['Limit', 'Market', 'Stop', 'Trailing Stop'];
+        for(let i=0; i<18; i++) {
+            const sym = syms[Math.floor(Math.random() * syms.length)];
+            const isB = Math.random() > 0.5;
+            const typ = typs[Math.floor(Math.random() * typs.length)];
+            const qty = Math.floor(Math.random() * 1000) + 50;
+            let fil = Math.floor(Math.random() > 0.7 ? qty * Math.random() : 0);
+            
+            oHTML += `<tr>
+                <td class="sym">${sym}</td>
+                <td><span class="${isB ? 'badge-buy' : 'badge-sell'}">${isB ? 'BUY' : 'SELL'}</span></td>
+                <td>${typ}</td><td>${Math.random() > 0.7 ? 'Bracket' : 'Simple'}</td>
+                <td>${qty}</td>
+                <td><div class="progress-bar"><div class="progress-fill" style="width:${(fil/qty)*100}%"></div></div>${fil}</td>
+                <td>${typ === 'Limit' ? fmtM(Math.random() * 400 + 20) : '-'}</td>
+                <td>${typ === 'Stop' ? fmtM(Math.random() * 400 + 20) : '-'}</td>
+                <td>-</td><td>DAY</td>
+                <td class="text-teal">WORKING</td>
+                <td>10:${10+i}:45 AM</td><td>-</td><td>-</td><td>Y</td><td>1</td>
+                <td><button class="btn" style="font-size:9px; padding:2px 6px;">Mod</button> <button class="btn" style="font-size:9px; padding:2px 6px; color:var(--loss-red);">Cxl</button></td>
+            </tr>`;
+        }
+        document.getElementById('ord-body').innerHTML = oHTML;
+    </script>
+</body>
+</html>
