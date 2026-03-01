@@ -1,18 +1,51 @@
 # Elite Trading System
 
 **Embodier.ai Full-Stack AI Trading Intelligence Platform**
-> **Last Updated: March 1, 2026 12:00 AM EST (Comet AI Session)**
+> **Last Updated: March 1, 2026 2:30 PM EST (Perplexity Session)**
 > **CI Status: PASSING -- yfinance removed, Patterns.jsx real API wired, DataSourcesMonitor.jsx 100% mockup 09 complete, Active Trades (Trades.jsx) 100% mockup 10 complete.**
 > **App Status: Backend has never been started or tested end-to-end. Frontend builds. All 15 pages audited and wired to real API hooks (useApi). No mock data remaining.**
 > **Data Sources Manager: DONE AND COMPLETE -- 636 lines, 100% pixel-perfect match to mockup 09, real API via dataSourcesApi.js (commit 083521a).**
 > > **Active Trades: DONE AND COMPLETE -- 415 lines, ultrawide command strip layout, real Alpaca API via useApi hooks, positions + orders + risk panels, NO mocks (commit 6b2e7ad).**
-> **Next Steps: Agent Command Center redesign (8 internal tabs - see Issue #15), then Performance Analytics page, then remaining pages. Full codebase cleanup in progress (see Issue #15).**
+> **Next Steps: Push 17 generated ACC files locally, then Performance Analytics page, then remaining pages. Full codebase cleanup in progress (see Issue #15).**
 >
 > > **CRITICAL FOR OLEH (Monday 3/2):** Backend has systemic IndentationErrors across 20+ Python files. Run `python scripts/fix_indentation.py --scan` to see all broken files, then `--fix --check` to auto-repair. Full guide: [`docs/INDENTATION-FIX-GUIDE.md`](docs/INDENTATION-FIX-GUIDE.md). This is the #1 blocker for CI.
 
 React + FastAPI full-stack trading application with 15-route V3 widescreen dashboard (14 sidebar + 1 hidden), DuckDB database, Alpaca + Finviz integrations, OpenClaw Python agents, LSTM/XGBoost ML pipeline, and real-time order execution.
 
 > **Part of the Embodier.ai Elite Trading ecosystem.** OpenClaw Python agents and the Blackboard Swarm architecture are integrated in `core/` and `backend/`. The [openclaw repo](https://github.com/Espenator/openclaw) is archived.
+
+---
+
+## 🚧 Agent Command Center Decomposition (Issue #15)
+*As of March 1, 2026*
+
+We are actively decomposing the massive 77KB `AgentCommandCenter.jsx` monolith into a thin shell with 8 independent tabs and 6 shared components.
+
+### ✅ What is DONE
+1. **Architectural Design**: 
+   - Defined the decomposition strategy: 8 main tabs and 6 reusable UI shared components.
+   - Replaced mock data architecture with real backend API hooks (`useApi` and `openclawService`).
+   - Planned the WebSocket integrations for `agents` and `llm-flow` channels.
+
+2. **Code Generation**: 
+   - All 17 files for the refactored Agent Command Center have been written and staged. This includes:
+     - `AgentCommandCenter.jsx` (Thin shell reduced to ~269 lines)
+     - **Tabs**: `TabOverview.jsx`, `TabAgents.jsx`, `TabSwarmControl.jsx`, `TabCandidates.jsx`, `TabLLMFlow.jsx`, `TabBrainMap.jsx`, `TabBlackboard.jsx`, `TabNodeControl.jsx`
+     - **Shared Components**: `AgentCard.jsx`, `AgentStatusPill.jsx`, `LlmAlert.jsx`, `RegimeGauge.jsx`, `StatCard.jsx`, `TeamBadge.jsx`
+   - The code matches all requested mockups (e.g., the 5-layer DAG in Brain Map, real-time feed in Blackboard).
+
+3. **Deployment Scripts Prepared**:
+   - PowerShell (`scripts/deploy-acc.ps1`) and Python (`scripts/deploy_acc.py`) deployment scripts generated.
+
+### 🛑 What is NOT DONE (Pending Local Push)
+The 17 generated component files have **not yet been committed to this repository**. They were generated in an AI session and need to be deployed locally.
+
+**Next Steps:**
+1. Execute deployment scripts locally on `C:\Users\Espen\elite-trading-system`
+2. Or manually create the files via GitHub web UI
+3. Test `npm run dev` in `frontend-v2` to verify tabbed routing (`/agents/:tab`)
+
+See [`docs/march-1st-status.md`](docs/march-1st-status.md) and [`docs/march1-acc-readme-update.md`](docs/march1-acc-readme-update.md) for full details.
 
 ---
 
@@ -32,6 +65,7 @@ If you are an AI assistant reading this repo, here is the **honest current state
 10. **Database**: DuckDB (not SQLite as previously claimed in some docs)
 11. **Test suite**: 22 tests passing in 1 test file (`test_api.py`) + `conftest.py` -- minimal coverage
 12. **torch/PyTorch removed** from requirements.txt -- ML currently XGBoost + scikit-learn only
+13. **Agent Command Center**: 17 new component files generated but NOT yet deployed (see status section above)
 
 ### Key Documentation Files
 
@@ -42,6 +76,8 @@ If you are an AI assistant reading this repo, here is the **honest current state
 | `docs/mockups-v3/images/` | Approved mockup images (source of truth for visual design) |
 | `docs/STATUS-AND-TODO-2026-02-28.md` | Current project status and roadmap |
 | `docs/DEEP_RESEARCH_AUDIT_2026-02-27.md` | Deep audit -- overall score 4.2/10 |
+| `docs/march-1st-status.md` | March 1 Agent Command Center status |
+| `docs/march1-acc-readme-update.md` | ACC decomposition file manifest |
 | `backend/README.md` | Backend-specific architecture and API route reference |
 
 ### Critical Problem
@@ -62,7 +98,7 @@ Sidebar defined in `frontend-v2/src/components/layout/Sidebar.jsx`. Routes in `f
 | # | Route | Sidebar Label | File | Status |
 |---|---|---|---|---|
 | 1 | `/dashboard` | Intelligence Dashboard | `Dashboard.jsx` | Audited -- wired to useApi |
-| 2 | `/agents` | Agent Command Center | `AgentCommandCenter.jsx` | **AUDIT IN PROGRESS** -- 8 internal tabs, redesign needed (Issue #15) |
+| 2 | `/agents` | Agent Command Center | `AgentCommandCenter.jsx` | **DECOMPOSITION IN PROGRESS** -- 17 files generated, pending local push (Issue #15) |
 
 ### INTELLIGENCE
 
@@ -85,6 +121,7 @@ Sidebar defined in `frontend-v2/src/components/layout/Sidebar.jsx`. Routes in `f
 ### EXECUTION
 
 | # | Route | Sidebar Label | File | Status |
+|---|---|---|---|---|
 | 11 | `/trades` | Active Trades | `Trades.jsx` | **DONE -- 415 lines, ultrawide command strip, real Alpaca API, NO mocks (6b2e7ad)** |
 | 12 | `/risk` | Risk Intelligence | `RiskIntelligence.jsx` | Audited -- wired to useApi |
 | 13 | `/trade-execution` | Trade Execution | `TradeExecution.jsx` | **DONE -- 745 lines, full Alpaca v2 API, bracket/OCO/OTO/trailing, NO mocks (77e01ce)** |
@@ -210,7 +247,17 @@ npm run dev
 
 Private repository -- Embodier.ai
 
-## Recent Changes (Feb 28, 2026)
+## Recent Changes
+
+### March 1, 2026
+
+| Change | Details |
+|---|---|
+| **Agent Command Center decomposition** | 17 component files generated (1 shell + 8 tabs + 6 shared + 2 deploy scripts). Pending local push. See Issue #15. |
+| **Status docs added** | `docs/march-1st-status.md` and `docs/march1-acc-readme-update.md` committed with full ACC progress tracking. |
+| **README updated** | Added 🚧 ACC decomposition section, updated AI context item #13, refreshed status timestamps. |
+
+### February 28, 2026
 
 | Commit | Change |
 |---|---|
@@ -222,6 +269,7 @@ Private repository -- Embodier.ai
 
 | Page | Mockup | API Wired | Mockup Complete % | Status |
 |---|---|---|---|---|
+| Agent Command Center | ACC-tabs mockup | YES | ~80% | **17 files generated, pending deploy** |
 | Data Sources Manager | 09-data-sources-manager.png | YES | **100%** | **DONE AND COMPLETE** |
 | Patterns & Screener | 07-screener-and-patterns.png | YES | ~70% | Real API wired, needs mockup polish |
 | Performance Analytics | TBD | YES | ~20% | **NEXT -- pending mockup alignment** |
