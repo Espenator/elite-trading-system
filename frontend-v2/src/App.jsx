@@ -60,6 +60,7 @@ function App() {
             {/* COMMAND */}
             <Route path="dashboard" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
             <Route path="agents" element={<Suspense fallback={<PageLoader />}><AgentCommandCenter /></Suspense>} />
+                          <Route path="agents/:tab" element={<Suspense fallback={<PageLoader />}><AgentCommandCenter /></Suspense>} />
 
             {/* INTELLIGENCE */}
             <Route path="signals" element={<Suspense fallback={<PageLoader />}><Signals /></Suspense>} />
