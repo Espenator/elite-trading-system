@@ -80,6 +80,13 @@ const API_CONFIG = {
   systemAlerts: "/agents/alerts", // System alerts for command center
   agentResources: "/agents/resources", // Per-agent resource usage
   blackboard: "/openclaw", // Blackboard pub/sub feed
+    
+    // ---- ALPACA PROXY (Trade Execution page) ----
+    "alpaca/account": "/alpaca/account", // Alpaca account details
+    "alpaca/positions": "/alpaca/positions", // Open positions
+    "alpaca/orders": "/alpaca/orders", // Orders list with status filter
+    "alpaca/activities": "/alpaca/activities", // Trade activities/fills
+    "orders/advanced": "/orders/advanced", // Advanced order creation (bracket/OCO/OTO)
   },
 };
 
