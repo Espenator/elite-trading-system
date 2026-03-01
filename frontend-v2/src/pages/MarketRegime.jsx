@@ -260,7 +260,7 @@ function RegimePerformanceMatrix({ backtestData }) {
 
 // --- Sector Rotation Heatmap ---
 function SectorHeatmap({ sectorsData }) {
-  const sectors = sectorsData?.rankings || [];
+  const sectors = sectorsData?.sectors || sectorsData?.rankings || [];
   return (
     <div className="bg-[#111827] rounded-lg border border-gray-700/30 p-4 h-full">
       <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Sector Rotation</div>
@@ -352,11 +352,11 @@ function CrashProtocolPanel({ riskGauges, macroData }) {
 
 // --- Agent Consensus Panel ---
 function AgentConsensusPanel({ memoryData }) {
-  const agents = memoryData?.agent_rankings || [];
+  const agents = memoryData?.data?.agent_rankings || memoryData?.agent_rankings || [];
   return (
     <div className="bg-[#111827] rounded-lg border border-gray-700/30 p-4 h-full">
       <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Agent Consensus</div>
-      {memoryData?.memory_iq && (
+      {(memoryData?.data?.memory_iq || memoryData?.memory_iq) && (
         <div className="mb-2 text-[10px] text-gray-500">Memory IQ: <span className="text-purple-400 font-mono">{memoryData.memory_iq}</span></div>
       )}
       <div className="space-y-1.5">
@@ -459,6 +459,7 @@ export default function MarketRegime() {
   const { data: healthData } = useApi('openclaw/health', { pollIntervalMs: 30000 });
   const { data: riskScore } = useApi('risk/risk-score', { pollIntervalMs: 15000 });
   const { data: whaleFlow } = useApi('openclaw/whale-flow', { pollIntervalMs: 20000 });
+    const { data: transitionData } = useApi('openclaw/regime/transitions', { pollIntervalMs: 30000 });
 
   // --- Local State ---
   const [timeframe, setTimeframe] = useState('1M');
@@ -582,12 +583,9 @@ export default function MarketRegime() {
 
           {/* PANEL 11: Transition History (12 cols) */}
           <div className="col-span-12">
-            <TransitionHistory regimeData={regimeData} />
-          </div>
-
-          {/* Bias Multiplier Slider (inline control) */}
-          <div className="col-span-12">
-            <div className="bg-[#111827] rounded-lg border border-gray-700/30 p-3 flex items-center gap-4">
+                          <TransitionHistory regimeData={transitionData || regimeData} />
+                        </div>
+                        me="bg-[#111827] rounded-lg border border-gray-700/30 p-3 flex items-center gap-4">
               <span className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">Bias Multiplier</span>
               <input type="range" min="0" max="5" step="0.1" value={biasMultiplier} onChange={(e) => handleBiasChange(parseFloat(e.target.value))} className="flex-1 h-1 accent-cyan-500" />
               <span className="text-sm font-mono text-cyan-400 w-10 text-right">{biasMultiplier.toFixed(1)}</span>
