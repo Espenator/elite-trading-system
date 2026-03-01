@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Embodier.ai - Settings</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+:root {
+--bg-base: #050a12;
+--bg-panel: #0a1020;
+--bg-panel-alt: #0c1426;
+--bg-input: #111b2e;
+--bg-header: #070d18;
+--bg-sidebar: #040818;
+--bg-sidebar-hover: #0c1628;
+--bg-sidebar-active: #0a1a30;
+--border: #1a2744;
+--border-light: #243352;
+--text-main: #c8d6e5;
+--text-muted: #5a6f8a;
+--text-dim: #3a4f6a;
+--text-bright: #e8f0fe;
+--teal: #00d4e8;
+--teal-dim: #007a8a;
+--teal-glow: rgba(0, 212, 232, 0.15);
+--cyan: #00b8d4;
+--green: #00e676;
+--green-dim: #00c853;
+--green-bg: rgba(0, 230, 118, 0.08);
+--red: #ff3860;
+--red-dim: #e0294e;
+--red-bg: rgba(255, 56, 96, 0.08);
+--amber: #ffab00;
+--amber-bg: rgba(255, 171, 0, 0.08);
+--magenta: #d946ef;
+--font-mono: 'Fira Code', monospace;
+--font-sans: 'Inter', sans-serif;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: var(--font-sans); background: var(--bg-base); color: var(--text-main); min-height:100vh; display:flex; font-size:12px; }
+
+/* ===== SIDEBAR ===== */
+.sidebar { width:220px; background:var(--bg-sidebar); border-right:1px solid var(--border); display:flex; flex-direction:column; position:fixed; top:0; left:0; height:100vh; z-index:50; }
+.sidebar-logo { padding:12px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+.sidebar-logo .icon { width:32px; height:32px; border-radius:8px; background:linear-gradient(135deg, var(--teal), var(--green)); display:flex; align-items:center; justify-content:center; font-size:16px; }
+.sidebar-logo .text h1 { font-size:13px; font-weight:700; color:white; }
+.sidebar-logo .text p { font-size:9px; color:var(--teal-dim); }
+.sidebar-nav { flex:1; overflow-y:auto; padding:8px 0; }
+.sidebar-section { margin-bottom:4px; }
+.sidebar-section-label { padding:6px 16px; font-size:9px; font-weight:700; color:var(--teal); text-transform:uppercase; letter-spacing:1.5px; }
+.sidebar-item { display:flex; align-items:center; gap:10px; padding:8px 16px; color:var(--text-main); text-decoration:none; font-size:12px; transition:all 0.2s; cursor:pointer; }
+.sidebar-item:hover { background:var(--bg-sidebar-hover); color:white; }
+.sidebar-item.active { background:rgba(0,212,232,0.12); color:var(--teal); }
+.sidebar-item svg { width:16px; height:16px; flex-shrink:0; }
+.sidebar-status { padding:10px 14px; border-top:1px solid var(--border); }
+.sidebar-status-inner { background:rgba(255,255,255,0.03); border-radius:8px; padding:8px 10px; }
+.sidebar-status-row { display:flex; justify-content:space-between; align-items:center; font-size:9px; }
+.sidebar-status-row .label { color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; }
+.sidebar-status-dot { width:7px; height:7px; border-radius:50%; background:var(--green); animation:pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.5;} }
+
+/* ===== MAIN ===== */
+.main { margin-left:220px; flex:1; min-height:100vh; display:flex; flex-direction:column; }
+.page-header { padding:12px 24px; background:var(--bg-header); border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+.page-header h2 { font-size:16px; font-weight:700; color:var(--text-bright); display:flex; align-items:center; gap:8px; }
+.page-header .actions { display:flex; gap:8px; }
+.btn { padding:6px 14px; border-radius:6px; font-size:11px; font-weight:600; border:none; cursor:pointer; display:flex; align-items:center; gap:5px; transition:all 0.2s; }
+.btn-primary { background:var(--teal); color:#000; }
+.btn-primary:hover { background:#00e8ff; }
+.btn-outline { background:transparent; border:1px solid var(--border); color:var(--text-main); }
+.btn-outline:hover { border-color:var(--teal); color:var(--teal); }
+.btn-danger { background:var(--red-bg); border:1px solid var(--red-dim); color:var(--red); }
+.btn-success { background:var(--green-bg); border:1px solid var(--green-dim); color:var(--green); }
+
+/* ===== SETTINGS GRID ===== */
+.settings-grid { padding:12px; display:grid; grid-template-columns:repeat(5, 1fr); gap:10px; flex:1; overflow-y:auto; }
+.settings-card { background:var(--bg-panel); border:1px solid var(--border); border-radius:8px; padding:10px; }
+.settings-card h3 { font-size:11px; font-weight:700; color:var(--teal); margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:6px; text-transform:uppercase; letter-spacing:0.5px; }
+.settings-card h3 svg { width:14px; height:14px; }
+.form-group { margin-bottom:6px; }
+.form-group label { display:block; font-size:10px; color:var(--text-muted); margin-bottom:3px; font-weight:500; }
+.form-group input, .form-group select { width:100%; padding:5px 8px; background:var(--bg-input); border:1px solid var(--border); border-radius:4px; color:var(--text-main); font-size:11px; font-family:var(--font-mono); outline:none; }
+.form-group input:focus, .form-group select:focus { border-color:var(--teal); box-shadow:0 0 0 1px var(--teal-glow); }
+.form-group input[type="password"] { letter-spacing:2px; }
+.form-row { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.form-row-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; }
+.toggle-row { display:flex; justify-content:space-between; align-items:center; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.03); }
+.toggle-row:last-child { border-bottom:none; }
+.toggle-row .label { font-size:10px; color:var(--text-main); }
+.toggle-row .sublabel { font-size:8px; color:var(--text-dim); }
+.toggle { width:32px; height:16px; border-radius:8px; background:var(--border); position:relative; cursor:pointer; transition:0.3s; }
+.toggle.on { background:var(--teal); }
+.toggle::after { content:''; position:absolute; width:12px; height:12px; border-radius:50%; background:white; top:2px; left:2px; transition:0.3s; }
+.toggle.on::after { left:18px; }
+.status-badge { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:10px; font-size:9px; font-weight:600; }
+.status-badge.connected { background:var(--green-bg); color:var(--green); border:1px solid rgba(0,230,118,0.2); }
+.status-badge.disconnected { background:var(--red-bg); color:var(--red); border:1px solid rgba(255,56,96,0.2); }
+.status-badge.pending { background:var(--amber-bg); color:var(--amber); border:1px solid rgba(255,171,0,0.2); }
+.status-dot { width:6px; height:6px; border-radius:50%; }
+.status-dot.green { background:var(--green); }
+.status-dot.red { background:var(--red); }
+.status-dot.amber { background:var(--amber); }
+.slider-row { display:flex; align-items:center; gap:8px; margin-bottom:4px; }
+.slider-row input[type="range"] { flex:1; -webkit-appearance:none; height:4px; background:var(--border); border-radius:2px; outline:none; }
+.slider-row input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:12px; height:12px; border-radius:50%; background:var(--teal); cursor:pointer; }
+.slider-row .val { font-size:10px; color:var(--teal); font-family:var(--font-mono); min-width:35px; text-align:right; }
+.api-key-row { display:flex; gap:4px; align-items:center; }
+.api-key-row input { flex:1; }
+.api-key-row .test-btn { padding:4px 8px; background:var(--bg-panel-alt); border:1px solid var(--border); border-radius:4px; color:var(--text-muted); font-size:9px; cursor:pointer; white-space:nowrap; }
+.api-key-row .test-btn:hover { border-color:var(--teal); color:var(--teal); }
+.agent-row { display:flex; align-items:center; justify-content:space-between; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.03); }
+.agent-row .name { font-size:10px; color:var(--text-main); display:flex; align-items:center; gap:5px; }
+.agent-row .meta { font-size:8px; color:var(--text-dim); }
+.model-tag { display:inline-block; padding:1px 6px; border-radius:3px; font-size:8px; font-weight:600; background:rgba(0,212,232,0.1); color:var(--teal); border:1px solid rgba(0,212,232,0.2); }
+.danger-zone { border-color:var(--red-dim); }
+.danger-zone h3 { color:var(--red); }
+.card-span-2 { grid-column: span 2; }
+.mini-table { width:100%; border-collapse:collapse; font-size:10px; }
+.mini-table th { text-align:left; padding:3px 6px; color:var(--text-muted); font-weight:600; font-size:9px; border-bottom:1px solid var(--border); }
+.mini-table td { padding:3px 6px; border-bottom:1px solid rgba(255,255,255,0.02); }
+.mini-table tr:hover { background:rgba(0,212,232,0.03); }
+.env-var { font-family:var(--font-mono); font-size:9px; color:var(--magenta); }
+.info-text { font-size:9px; color:var(--text-dim); margin-top:4px; }
+.section-divider { border:none; border-top:1px solid var(--border); margin:6px 0; }
+.chip { display:inline-block; padding:2px 6px; border-radius:4px; font-size:8px; margin:1px; background:var(--bg-input); border:1px solid var(--border); color:var(--text-muted); }
+.chip.active { background:var(--teal-glow); border-color:var(--teal-dim); color:var(--teal); }
+</style>
+</head>
+<body>
+
+<!-- ===== SIDEBAR ===== -->
+<aside class="sidebar">
+<div class="sidebar-logo"><div class="icon">&#10024;</div><div class="text"><h1>Embodier.ai</h1><p>Trading Intelligence</p></div></div>
+<nav class="sidebar-nav">
+<div class="sidebar-section"><div class="sidebar-section-label">Command</div>
+<a class="sidebar-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>Intelligence Dashboard</a>
+<a class="sidebar-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8V4H8"/><rect x="2" y="2" width="20" height="20" rx="2"/><path d="M8 10h8M8 14h4"/></svg>Agent Command Center</a>
+</div>
+<div class="sidebar-section"><div class="sidebar-section-label">Intelligence</div>
+<a class="sidebar-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Signal Intelligence</a>
+<a class="sidebar-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Sentiment Intelligence</a>
+<a class="sidebar-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Data Sources Manager</a>
+<a class="sidebar-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>Signal Intelligence V3</a>
+</div>
+<div class="sidebar-section"><div class="sidebar-section-label">ML & Analysis</div>
+<a class="sidebar-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a8 8 0 0 0-8 8c0 3.4 2.1 6.3 5 7.4V20h6v-2.6c2.9-1.1 5-4 5-7.4a8 8 0 0 0-8-8z"/></svg>ML Brain & Flywheel</a>
+<a class="sidebar-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Screener & Patterns</a>
+<a class="sidebar-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Backtesting Lab</a>
+<a class="sidebar-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>Performance Analytics</a>
+<a class="sidebar-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Market Regime</a>
+</div>
+<div class="sidebar-section"><div class="sidebar-section-label">Execution</div>
+<a class="sidebar-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="20" x2="12" y2="10"/><polyline points="18 14 12 8 6 14"/></svg>Active Trades</a>
+<a class="sidebar-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Risk Intelligence</a>
+<a class="sidebar-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>Trade Execution</a>
+</div>
+<div class="sidebar-section"><div class="sidebar-section-label">System</div>
+<a class="sidebar-item active" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</a>
+</div>
+</nav>
+<div class="sidebar-status"><div class="sidebar-status-inner">
+<div class="sidebar-status-row" style="margin-bottom:4px;"><span class="label">System</span><div class="sidebar-status-dot"></div></div>
+<div class="sidebar-status-row"><span style="color:var(--text-muted);">8 Agents</span><span style="color:var(--green);font-weight:600;">OK</span></div>
+</div></div>
+</aside>
+
+<!-- ===== MAIN ===== -->
+<main class="main">
+<!-- Page Header -->
+<div class="page-header">
+<h2><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> System Settings &mdash; Configuration & Control Center</h2>
+<div class="actions">
+<span style="font-size:9px;color:var(--text-muted);align-self:center;">API: <span style="color:var(--teal);font-family:var(--font-mono);">GET/PUT /api/v1/settings</span></span>
+<button class="btn btn-outline">&#8635; Reset Defaults</button>
+<button class="btn btn-success">&#10003; Test Connections</button>
+<button class="btn btn-primary">&#128190; Save All Settings</button>
+</div>
+</div>
+
+<!-- Settings Grid: 5 columns x multiple rows -->
+<div class="settings-grid">
+
+<!-- ===== CARD 1: ALPACA BROKERAGE ===== -->
+<div class="settings-card">
+<h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>Alpaca Brokerage</h3>
+<div class="form-group"><label>Trading Mode</label>
+<select><option selected>PAPER (paper-api.alpaca.markets)</option><option>LIVE (api.alpaca.markets)</option></select></div>
+<div class="toggle-row" style="margin-bottom:6px;"><div><div class="label">&#9888; Live Trading</div><div class="sublabel">TRADING_MODE=live</div></div><div class="toggle"></div></div>
+<div class="form-group"><label>API Key <span class="env-var">ALPACA_API_KEY</span></label>
+<div class="api-key-row"><input type="password" value="PK7ABCDEFGHIJ1234567" /><button class="test-btn">&#128065; Show</button></div></div>
+<div class="form-group"><label>Secret Key <span class="env-var">ALPACA_SECRET_KEY</span></label>
+<div class="api-key-row"><input type="password" value="abcdefghijklmnop1234567890ABCDEF" /><button class="test-btn">&#128065; Show</button></div></div>
+<div class="form-group"><label>Base URL <span class="env-var">ALPACA_BASE_URL</span></label>
+<input type="text" value="https://paper-api.alpaca.markets/v2" /></div>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+<span class="status-badge connected"><span class="status-dot green"></span>Connected</span>
+<button class="btn btn-outline" style="padding:3px 8px;font-size:9px;">&#9654; Test API</button></div>
+<div class="info-text">Endpoints: /api/v1/alpaca/{account,positions,orders,activities}</div>
+</div>
+
+<!-- ===== CARD 2: USER PROFILE ===== -->
+<div class="settings-card">
+<h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>User Profile</h3>
+<div class="form-group"><label>Display Name</label><input type="text" value="Espen Schiefloe" /></div>
+<div class="form-group"><label>Email</label><input type="email" value="espen@embodier.ai" /></div>
+<div class="form-group"><label>Timezone <span class="env-var">timezone</span></label>
+<select><option>EST (UTC-5)</option><option selected>EST (UTC-5)</option><option>PST (UTC-8)</option><option>UTC</option><option>CET (UTC+1)</option></select></div>
+<div class="form-group"><label>Currency <span class="env-var">currency</span></label>
+<select><option selected>USD ($)</option><option>EUR (€)</option><option>GBP (£)</option></select></div>
+<div class="form-group"><label>Default Timeframe <span class="env-var">defaultTimeframe</span></label>
+<select><option>1m</option><option>5m</option><option>15m</option><option>1H</option><option selected>1D</option><option>1W</option></select></div>
+<div class="form-group"><label>Theme</label>
+<select><option selected>Dark (Bloomberg)</option><option>Dark Blue</option><option>OLED Black</option></select></div>
+</div>
+
+<!-- ===== CARD 3: SECURITY & PASSWORD ===== -->
+<div class="settings-card">
+<h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Security & Auth</h3>
+<div class="form-group"><label>Current Password</label><input type="password" placeholder="Enter current password" /></div>
+<div class="form-group"><label>New Password</label><input type="password" placeholder="Min 12 chars, symbols required" /></div>
+<div class="form-group"><label>Confirm Password</label><input type="password" placeholder="Repeat new password" /></div>
+<hr class="section-divider" />
+<div class="toggle-row"><div><div class="label">Two-Factor Auth (TOTP)</div><div class="sublabel">Google Authenticator / Authy</div></div><div class="toggle on"></div></div>
+<div class="toggle-row"><div><div class="label">Session Timeout</div><div class="sublabel">Auto-lock after inactivity</div></div><div class="toggle on"></div></div>
+<div class="toggle-row"><div><div class="label">API Key Masking</div><div class="sublabel">Mask keys in UI</div></div><div class="toggle on"></div></div>
+<div class="form-group" style="margin-top:6px;"><label>Session Timeout (minutes)</label>
+<input type="number" value="30" /></div>
+<button class="btn btn-outline" style="width:100%;margin-top:4px;font-size:10px;">&#128274; Change Password</button>
+</div>
+
+<!-- ===== CARD 4: RISK MANAGEMENT ===== -->
+<div class="settings-card">
+<h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Risk Management</h3>
+<div class="form-group"><label>Max Positions <span class="env-var">maxPositions</span></label><input type="number" value="15" /></div>
+<div class="form-row">
+<div class="form-group"><label>Position Size % <span class="env-var">positionSize</span></label><input type="number" value="2.0" step="0.1" /></div>
+<div class="form-group"><label>Risk/Trade % <span class="env-var">riskPerTrade</span></label><input type="number" value="2.0" step="0.1" /></div>
+</div>
+<div class="form-group"><label>Max Daily Loss % <span class="env-var">MAX_DAILY_DRAWDOWN_PCT</span></label>
+<div class="slider-row"><input type="range" min="1" max="20" value="5" /><span class="val">5.0%</span></div></div>
+<div class="form-group"><label>Stop Loss Default % <span class="env-var">stopLossDefault</span></label>
+<div class="slider-row"><input type="range" min="0.5" max="10" value="2" step="0.5" /><span class="val">2.0%</span></div></div>
+<div class="form-group"><label>ATR Stop Multiplier <span class="env-var">ATR_STOP_MULTIPLIER</span></label><input type="number" value="2.0" step="0.1" /></div>
+<div class="form-group"><label>Trailing Stop % <span class="env-var">TRAILING_STOP_PCT</span></label><input type="number" value="3.0" step="0.5" /></div>
+<div class="toggle-row"><div><div class="label">Circuit Breaker</div><div class="sublabel">circuitBreaker</div></div><div class="toggle on"></div></div>
+<div class="toggle-row"><div><div class="label">Auto-Pause on Drawdown</div><div class="sublabel">AUTO_PAUSE_TRADING</div></div><div class="toggle on"></div></div>
+</div>
+
+<!-- ===== CARD 5: POSITION SIZING (KELLY) ===== -->
+<div class="settings-card">
+<h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Kelly Criterion</h3>
+<div class="form-group"><label>Max Allocation % <span class="env-var">KELLY_MAX_ALLOCATION</span></label><input type="number" value="10" step="1" /></div>
+<div class="form-row">
+<div class="form-group"><label>Win Rate <span class="env-var">KELLY_DEFAULT_WIN_RATE</span></label><input type="number" value="0.55" step="0.01" /></div>
+<div class="form-group"><label>Use Half-Kelly <span class="env-var">KELLY_USE_HALF</span></label>
+<select><option selected>Half (safer)</option><option>Full Kelly</option><option>Quarter</option></select></div>
+</div>
+<div class="form-row">
+<div class="form-group"><label>Avg Win %</label><input type="number" value="3.5" step="0.1" /></div>
+<div class="form-group"><label>Avg Loss %</label><input type="number" value="1.5" step="0.1" /></div>
+</div>
+<div class="form-group"><label>Max Portfolio Heat % <span class="env-var">MAX_PORTFOLIO_HEAT</span></label>
+<div class="slider-row"><input type="range" min="5" max="50" value="25" /><span class="val">25%</span></div></div>
+<div class="form-group"><label>Max Sector Concentration %</label>
+<div class="slider-row"><input type="range" min="5" max="50" value="25" /><span class="val">25%</span></div></div>
+<div class="form-group"><label>Volatility Baseline %</label><input type="number" value="2.0" step="0.1" /></div>
+<div class="form-group"><label>VaR Limit % <span class="env-var">VAR_LIMIT_PCT</span></label><input type="number" value="1.5" step="0.1" /></div>
+</div>
+
+<!-- ===== CARD 6: SIGNAL THRESHOLDS ===== -->
+<div class="settings-card">
+<h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Signal Thresholds</h3>
+<div class="form-group"><label>Min Composite Score <span class="env-var">minCompositeScore</span></label>
+<div class="slider-row"><input type="range" min="0" max="100" value="60" /><span class="val">60</span></div></div>
+<div class="form-group"><label>Min ML Confidence % <span class="env-var">minMLConfidence</span></label>
+<div class="slider-row"><input type="range" min="0" max="100" value="40" /><span class="val">40%</span></div></div>
+<div class="form-group"><label>BUY Signal Threshold <span class="env-var">SIGNAL_BUY_THRESHOLD</span></label><input type="number" value="0.60" step="0.01" /></div>
+<div class="form-group"><label>Strong BUY Threshold <span class="env-var">SIGNAL_STRONG_BUY_THRESHOLD</span></label><input type="number" value="0.75" step="0.01" /></div>
+<div class="form-group"><label>Min Kelly Edge <span class="env-var">SIGNAL_MIN_EDGE</span></label><input type="number" value="0.05" step="0.01" /></div>
+<div class="form-group"><label>Min Volume Score <span class="env-var">SIGNAL_MIN_VOLUME_SCORE</span></label><input type="number" value="0.5" step="0.05" /></div>
+<div class="form-group"><label>Min Risk Score <span class="env-var">MIN_RISK_SCORE</span></label><input type="number" value="40" /></div>
+<div class="form-group"><label>Risk-Free Rate <span class="env-var">RISK_FREE_RATE</span></label><input type="number" value="0.05" step="0.005" /></div>
+</div>
+
+<!-- ===== CARD 7: NOTIFICATIONS & ALERTS ===== -->
+<div class="settings-card">
+<h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Notifications</h3>
+<div class="toggle-row"><div><div class="label">Signal Alerts <span class="env-var">signalAlerts</span></div></div><div class="toggle on"></div></div>
+<div class="toggle-row"><div><div class="label">Trade Alerts <span class="env-var">tradeAlerts</span></div></div><div class="toggle on"></div></div>
+<div class="toggle-row"><div><div class="label">Email Enabled <span class="env-var">emailEnabled</span></div></div><div class="toggle on"></div></div>
+<div class="toggle-row"><div><div class="label">Telegram Enabled <span class="env-var">telegramEnabled</span></div></div><div class="toggle on"></div></div>
+<div class="toggle-row"><div><div class="label">Discord Webhook</div></div><div class="toggle"></div></div>
+<div class="toggle-row"><div><div class="label">Risk Alerts</div><div class="sublabel">Drawdown / circuit breaker</div></div><div class="toggle on"></div></div>
+<hr class="section-divider" />
+<div class="form-group"><label>Alert Email <span class="env-var">RESEND_ALERT_TO_EMAIL</span></label><input type="email" value="espen@embodier.ai" /></div>
+<div class="form-group"><label>From Email <span class="env-var">RESEND_FROM_EMAIL</span></label><input type="email" value="alerts@embodier.ai" /></div>
+<div class="form-group"><label>Resend API Key <span class="env-var">RESEND_API_KEY</span></label>
+<div class="api-key-row"><input type="password" value="re_abc123" /><button class="test-btn">Test</button></div></div>
+<div class="form-group"><label>Telegram Bot Token</label>
+<div class="api-key-row"><input type="password" value="123456789:ABC" /><button class="test-btn">Test</button></div></div>
+</div>
+
+<!-- ===== CARD 8: ML ENGINE & TRAINING ===== -->
+<div class="settings-card">
+<h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a8 8 0 0 0-8 8c0 3.4 2.1 6.3 5 7.4V20h6v-2.6c2.9-1.1 5-4 5-7.4a8 8 0 0 0-8-8z"/></svg>ML Engine</h3>
+<div class="toggle-row"><div><div class="label">Auto Retrain <span class="env-var">autoRetrain</span></div></div><div class="toggle on"></div></div>
+<div class="toggle-row"><div><div class="label">Market Scanner <span class="env-var">marketScanner</span></div></div><div class="toggle on"></div></div>
+<div class="toggle-row"><div><div class="label">Pattern AI <span class="env-var">patternAI</span></div></div><div class="toggle on"></div></div>
+<div class="form-group" style="margin-top:6px;"><label>Retrain Day <span class="env-var">retrainDay</span></label>
+<select><option>Monday</option><option>Saturday</option><option selected>Sunday</option></select></div>
+<div class="form-group"><label>Training Schedule (cron) <span class="env-var">TRAINING_SCHEDULE</span></label>
+<input type="text" value="0 2 * * 6" style="font-family:var(--font-mono);" /></div>
+<div class="form-group"><label>Model Artifacts Path <span class="env-var">MODEL_ARTIFACTS_PATH</span></label>
+<input type="text" value="models/artifacts" /></div>
+<div class="form-group"><label>GPU Device <span class="env-var">GPU_DEVICE</span></label>
+<select><option selected>auto</option><option>cuda:0</option><option>cuda:1</option><option>cpu</option></select></div>
+<div class="toggle-row"><div><div class="label">Torch Mixed Precision <span class="env-var">TORCH_MIXED_PRECISION</span></div><div class="sublabel">AMP FP16 when CUDA available</div></div><div class="toggle on"></div></div>
+<div class="form-group"><label>XGBoost GPU ID <span class="env-var">XGBOOST_GPU_ID</span></label><input type="number" value="0" /></div>
+<div class="form-group"><label>DuckDB Path <span class="env-var">DUCKDB_PATH</span></label><input type="text" value="elite_trading.duckdb" /></div>
+</div>
+
+<!-- ===== CARD 9: AGENT CONTROL ===== -->
+<div class="settings-card">
+<h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2"/><path d="M8 10h8M8 14h4"/></svg>Agent Control</h3>
+<div class="agent-row"><div class="name"><div class="toggle on"></div>Market Data Agent</div><span class="model-tag">60s</span></div>
+<div class="agent-row"><div class="name"><div class="toggle on"></div>Risk Agent <span class="env-var">riskAgent</span></div><span class="model-tag">30s</span></div>
+<div class="agent-row"><div class="name"><div class="toggle on"></div>Signal Engine</div><span class="model-tag">live</span></div>
+<div class="agent-row"><div class="name"><div class="toggle on"></div>Pattern AI</div><span class="model-tag">scan</span></div>
+<div class="agent-row"><div class="name"><div class="toggle on"></div>YouTube Agent <span class="env-var">youtubeAgent</span></div><span class="model-tag">1h</span></div>
+<div class="agent-row"><div class="name"><div class="toggle"></div>Drift Monitor</div><span class="model-tag">1h</span></div>
+<div class="agent-row"><div class="name"><div class="toggle on"></div>Flywheel Trainer</div><span class="model-tag">sched</span></div>
+<div class="agent-row"><div class="name"><div class="toggle"></div>OpenClaw Bridge</div><span class="model-tag">pc1</span></div>
+<hr class="section-divider" />
+<div class="form-group"><label>Market Data Poll Interval (s)</label><input type="number" value="60" /></div>
+<div class="form-group"><label>Risk Monitor Interval (s)</label><input type="number" value="30" /></div>
+<div style="display:flex;gap:4px;margin-top:4px;">
+<button class="btn btn-success" style="flex:1;font-size:9px;">&#9654; Start All</button>
+<button class="btn btn-danger" style="flex:1;font-size:9px;">&#9646;&#9646; Stop All</button>
+</div>
+</div>
+
+<!-- ===== CARD 10: DATA SOURCES ===== -->
+<div class="settings-card">
+<h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Data Sources API Keys</h3>
+<div class="form-group"><label>FinViz API Key <span class="env-var">FINVIZ_API_KEY</span></label>
+<div class="api-key-row"><input type="password" value="fv_abc123" /><button class="test-btn">Test</button></div></div>
+<div class="form-group"><label>FinViz Base URL</label><input type="text" value="https://elite.finviz.com" /></div>
+<div class="form-group"><label>FRED API Key <span class="env-var">FRED_API_KEY</span></label>
+<div class="api-key-row"><input type="password" value="abc12345678" /><button class="test-btn">Test</button></div></div>
+<div class="form-group"><label>Unusual Whales API Key <span class="env-var">UNUSUAL_WHALES_API_KEY</span></label>
+<div class="api-key-row"><input type="password" value="uw_abc123" /><button class="test-btn">Test</button></div></div>
+<div class="form-group"><label>News API Key <span class="env-var">NEWS_API_KEY</span></label>
+<div class="api-key-row"><input type="password" value="newsapi_123" /><button class="test-btn">Test</button></div></div>
+<div class="form-group"><label>StockGeist API Key <span class="env-var">STOCKGEIST_API_KEY</span></label>
+<div class="api-key-row"><input type="password" value="sg_abc123" /><button class="test-btn">Test</button></div></div>
+<div class="info-text">Endpoint: /api/v1/data-sources &bull; Status polling: 30s</div>
+</div>
+
+<!-- ===== CARD 11: SOCIAL & DISCORD ===== -->
+<div class="settings-card">
+<h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Social & Discord</h3>
+<div class="form-group"><label>Discord Bot Token <span class="env-var">DISCORD_BOT_TOKEN</span></label>
+<div class="api-key-row"><input type="password" value="discord_bot_token" /><button class="test-btn">Test</button></div></div>
+<div class="form-group"><label>Discord Channel IDs <span class="env-var">DISCORD_CHANNEL_IDS</span></label>
+<input type="text" value="1234567890,0987654321" placeholder="Comma-separated" /></div>
+<div class="form-group"><label>Discord API Base</label>
+<input type="text" value="https://discord.com/api/v10" /></div>
+<hr class="section-divider" />
+<div class="form-group"><label>X/Twitter API Key <span class="env-var">X_API_KEY</span></label>
+<div class="api-key-row"><input type="password" value="x_api_key_123" /><button class="test-btn">Test</button></div></div>
+<div class="form-group"><label>X API Key Secret <span class="env-var">X_API_KEY_SECRET</span></label>
+<input type="password" value="x_secret_123" /></div>
+<div class="form-group"><label>X OAuth2 Client ID <span class="env-var">X_OAUTH2_CLIENT_ID</span></label>
+<input type="text" value="x_client_id" /></div>
+<div class="form-group"><label>X OAuth2 Client Secret <span class="env-var">X_OAUTH2_CLIENT_SECRET</span></label>
+<input type="password" value="x_client_secret" /></div>
+<div class="toggle-row"><div><div class="label">Twitter Sentiment Feed</div></div><div class="toggle on"></div></div>
+</div>
+
+<!-- ===== CARD 12: OPENCLAW / BRIDGE ===== -->
+<div class="settings-card">
+<h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>OpenClaw Bridge (PC1)</h3>
+<div class="toggle-row" style="margin-bottom:6px;"><div><div class="label">OpenClaw Bridge Enabled</div><div class="sublabel">PC1 &rarr; PC2 scan relay</div></div><div class="toggle"></div></div>
+<div class="form-group"><label>OpenClaw API URL <span class="env-var">OPENCLAW_API_URL</span></label>
+<input type="text" value="http://192.168.x.x:5000" /></div>
+<div class="form-group"><label>Bridge Token <span class="env-var">OPENCLAW_BRIDGE_TOKEN</span></label>
+<div class="api-key-row"><input type="password" value="shared_secret_token" /><button class="test-btn">Test</button></div></div>
+<div class="form-group"><label>Bridge Secret (HMAC) <span class="env-var">OPENCLAW_BRIDGE_SECRET</span></label>
+<input type="password" value="hmac_secret_key" /></div>
+<hr class="section-divider" />
+<div class="form-group"><label>GitHub Gist ID <span class="env-var">OPENCLAW_GIST_ID</span></label>
+<input type="text" value="your-gist-id-here" /></div>
+<div class="form-group"><label>Gist PAT Token <span class="env-var">OPENCLAW_GIST_TOKEN</span></label>
+<div class="api-key-row"><input type="password" value="github_pat_token" /><button class="test-btn">Test</button></div></div>
+<div class="form-group"><label>YouTube API Key <span class="env-var">YOUTUBE_API_KEY</span></label>
+<div class="api-key-row"><input type="password" value="yt_api_key" /><button class="test-btn">Test</button></div></div>
+<div class="form-group"><label>YouTube Search Query</label>
+<input type="text" value="stock market trading technical analysis" /></div>
+<div class="info-text">Endpoints: /api/v1/openclaw/{status,scan,signals,analysis}</div>
+</div>
+
+<!-- ===== CARD 13: OLLAMA / LOCAL LLM ===== -->
+<div class="settings-card">
+<h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg>Ollama / Local LLMs</h3>
+<div class="toggle-row"><div><div class="label">Ollama Enabled</div><div class="sublabel">Local AI inference</div></div><div class="toggle on"></div></div>
+<div class="form-group"><label>Ollama API URL</label>
+<input type="text" value="http://localhost:11434" /></div>
+<div class="form-group"><label>Primary Model</label>
+<select><option selected>llama3.2:latest</option><option>llama3.1:8b</option><option>mistral:latest</option><option>codellama:latest</option><option>deepseek-r1:7b</option></select></div>
+<div class="form-group"><label>Analysis Model</label>
+<select><option selected>llama3.2:latest</option><option>mistral:latest</option><option>phi3:latest</option></select></div>
+<div class="form-group"><label>Max Tokens</label><input type="number" value="4096" /></div>
+<div class="form-row">
+<div class="form-group"><label>Temperature</label><input type="number" value="0.7" step="0.1" /></div>
+<div class="form-group"><label>Top-P</label><input type="number" value="0.9" step="0.05" /></div>
+</div>
+<div class="toggle-row"><div><div class="label">Use for Signal Analysis</div></div><div class="toggle on"></div></div>
+<div class="toggle-row"><div><div class="label">Use for Sentiment</div></div><div class="toggle on"></div></div>
+<div class="toggle-row"><div><div class="label">Use for Strategy Gen</div></div><div class="toggle"></div></div>
+<div style="margin-top:6px;">
+<div style="font-size:9px;color:var(--text-muted);margin-bottom:4px;">Active Models:</div>
+<span class="chip active">llama3.2</span><span class="chip active">mistral</span><span class="chip">deepseek</span>
+</div>
+</div>
+
+<!-- ===== CARD 14: FINVIZ SCREENER ===== -->
+<div class="settings-card">
+<h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>FinViz Screener</h3>
+<div class="form-group"><label>Screener Filters <span class="env-var">FINVIZ_SCREENER_FILTERS</span></label>
+<input type="text" value="cap_midover,sh_avgvol_o500,sh_price_o10" /></div>
+<div class="form-row">
+<div class="form-group"><label>Version <span class="env-var">FINVIZ_SCREENER_VERSION</span></label><input type="text" value="111" /></div>
+<div class="form-group"><label>Filter Type</label><input type="text" value="4" /></div>
+</div>
+<div class="form-group"><label>Quote Timeframe <span class="env-var">FINVIZ_QUOTE_TIMEFRAME</span></label>
+<select><option selected>d (daily)</option><option>w (weekly)</option><option>m (monthly)</option></select></div>
+<hr class="section-divider" />
+<div style="font-size:9px;color:var(--text-muted);margin-bottom:4px;">Active Filters:</div>
+<span class="chip active">cap_midover</span><span class="chip active">avgvol_o500</span><span class="chip active">price_o10</span><span class="chip">ta_sma20</span><span class="chip">rsi_os30</span>
+<div class="form-group" style="margin-top:6px;"><label>Custom Filter Preset</label>
+<select><option selected>Mid Cap Momentum</option><option>Large Cap Value</option><option>Small Cap Growth</option><option>Custom</option></select></div>
+<div class="form-group"><label>Max Scan Results</label><input type="number" value="200" /></div>
+<div class="form-group"><label>Scan Interval (min)</label><input type="number" value="5" /></div>
+</div>
+
+<!-- ===== CARD 15: STRATEGY CONFIG ===== -->
+<div class="settings-card">
+<h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Strategy Config</h3>
+<div class="form-group"><label>Default Order Type</label>
+<select><option selected>market</option><option>limit</option><option>stop</option><option>stop_limit</option></select></div>
+<div class="form-group"><label>Default Entry Method</label>
+<select><option selected>Signal-driven</option><option>Manual Only</option><option>Hybrid</option></select></div>
+<div class="toggle-row"><div><div class="label">Auto Execute Signals</div><div class="sublabel">HIGH confidence only</div></div><div class="toggle"></div></div>
+<div class="toggle-row"><div><div class="label">Paper Trade First</div><div class="sublabel">Shadow trades before live</div></div><div class="toggle on"></div></div>
+<hr class="section-divider" />
+<div class="form-group"><label>Backtest Start Date</label><input type="date" value="2023-01-01" /></div>
+<div class="form-group"><label>Walk-Forward Windows</label><input type="number" value="6" /></div>
+<div class="form-group"><label>Min Sharpe Threshold</label><input type="number" value="1.2" step="0.1" /></div>
+<div class="form-group"><label>Min Win Rate %</label><input type="number" value="52" /></div>
+<div class="form-group"><label>Max Drawdown Allowed %</label><input type="number" value="15" /></div>
+<div class="info-text">Endpoint: /api/v1/strategy &bull; /api/v1/backtest</div>
+</div>
+
+<!-- ===== CARD 16: NOTIFICATIONS ===== -->
+<div class="settings-card">
+  <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Notifications</h3>
+  <div class="form-group"><label>Discord Webhook URL <span class="env-var">DISCORD_WEBHOOK_URL</span></label><input type="text" value="https://discord.com/api/webhooks/..." /></div>
+  <div class="form-group"><label>Slack Webhook URL <span class="env-var">SLACK_WEBHOOK_URL</span></label><input type="text" value="https://hooks.slack.com/..." /></div>
+  <div class="form-group"><label>Telegram Bot Token <span class="env-var">TELEGRAM_BOT_TOKEN</span></label><input type="password" value="bot_token_123" /><button class="test-btn">Test</button></div>
+  <div class="form-group"><label>Telegram Chat ID <span class="env-var">TELEGRAM_CHAT_ID</span></label><input type="text" value="-100123456789" /></div>
+  <hr class="section-divider" />
+  <div class="toggle-row"><div><div class="label">Trade Alerts</div><div class="sublabel">On entry/exit</div></div><div class="toggle on"></div></div>
+  <div class="toggle-row"><div><div class="label">Risk Alerts</div><div class="sublabel">Drawdown warnings</div></div><div class="toggle on"></div></div>
+  <div class="toggle-row"><div><div class="label">Daily Summary</div><div class="sublabel">EOD report</div></div><div class="toggle on"></div></div>
+  <div class="toggle-row"><div><div class="label">Agent Status</div></div><div class="toggle"></div></div>
+  <div class="info-text">Endpoint: /api/v1/notifications &bull; Test: /api/v1/notifications/test</div>
+</div>
+
+<!-- ===== CARD 17: LOGGING & AUDIT ===== -->
+<div class="settings-card">
+  <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Logging &amp; Audit</h3>
+  <div class="form-group"><label>Log Level <span class="env-var">LOG_LEVEL</span></label>
+    <select><option>DEBUG</option><option selected>INFO</option><option>WARNING</option><option>ERROR</option></select>
+  </div>
+  <div class="form-group"><label>Log Retention (days)</label><input type="number" value="30" /></div>
+  <div class="form-group"><label>Audit Trail Retention (days)</label><input type="number" value="90" /></div>
+  <div class="toggle-row"><div><div class="label">Trade Audit Log</div></div><div class="toggle on"></div></div>
+  <div class="toggle-row"><div><div class="label">Performance Metrics Log</div></div><div class="toggle on"></div></div>
+  <div class="toggle-row"><div><div class="label">Agent Decision Log</div></div><div class="toggle on"></div></div>
+  <div class="toggle-row"><div><div class="label">API Request Log</div></div><div class="toggle"></div></div>
+  <button class="btn btn-outline" style="width:100%;margin-top:6px;font-size:9px;">&#9660; Export Audit Log (CSV)</button>
+  <div class="info-text">Endpoint: /api/v1/logs &bull; /api/v1/audit</div>
+</div>
+
+<!-- ===== CARD 18: SYSTEM / ADVANCED ===== -->
+<div class="settings-card">
+  <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>System &amp; Advanced</h3>
+  <div class="form-group"><label>Database URL <span class="env-var">DATABASE_URL</span></label><input type="text" value="postgresql://localhost/elite_trading" /></div>
+  <div class="form-group"><label>Redis URL <span class="env-var">REDIS_URL</span></label><input type="text" value="redis://localhost:6379" /></div>
+  <div class="form-group"><label>App Port <span class="env-var">PORT</span></label><input type="number" value="8000" /></div>
+  <div class="form-group"><label>Worker Threads</label><input type="number" value="4" /></div>
+  <div class="toggle-row"><div><div class="label">Debug Mode</div><div class="sublabel">Verbose output</div></div><div class="toggle"></div></div>
+  <div class="toggle-row"><div><div class="label">Paper Trading Mode</div><div class="sublabel">No real orders</div></div><div class="toggle on"></div></div>
+  <div class="toggle-row"><div><div class="label">Maintenance Mode</div></div><div class="toggle"></div></div>
+  <hr class="section-divider" />
+  <div style="display:flex;gap:4px;margin-top:4px;">
+    <button class="btn btn-outline" style="flex:1;font-size:9px;">&#9850; Restart Services</button>
+    <button class="btn btn-danger" style="flex:1;font-size:9px;">&#128465; Reset to Defaults</button>
+  </div>
+  <div class="info-text">Endpoint: /api/v1/system &bull; /api/v1/health</div>
+</div>
+
+</div><!-- end settings-grid -->
+
+<!-- SAVE BAR -->
+<div style="position:sticky;bottom:0;background:var(--card-bg);border-top:1px solid var(--border);padding:10px 16px;display:flex;justify-content:space-between;align-items:center;z-index:100;">
+  <div style="font-size:10px;color:var(--text-muted);">&#9888; Unsaved changes &bull; Last saved: 2 min ago</div>
+  <div style="display:flex;gap:8px;">
+    <button class="btn btn-outline" style="font-size:10px;">Reset Page</button>
+    <button class="btn btn-success" style="font-size:10px;">&#10003; Save All Settings</button>
+  </div>
+</div>
+
+</div><!-- end settings-container -->
+</div><!-- end app -->
+
+<script>
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', function() {
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+    this.classList.add('active');
+  });
+});
+document.querySelectorAll('.toggle').forEach(toggle => {
+  toggle.addEventListener('click', function() {
+    this.classList.toggle('on');
+  });
+});
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const parent = this.closest('.tab-group');
+    parent.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+  });
+});
+</script>
+</body>
+</html>
