@@ -6,686 +6,652 @@ import Toggle from "../components/ui/Toggle";
 import TextField from "../components/ui/TextField";
 import Select from "../components/ui/Select";
 import Badge from "../components/ui/Badge";
-import { useApi } from "../hooks/useApi";
+import { useSettings } from "../hooks/useSettings";
 import { toast } from "react-toastify";
 import {
-  User,
-  Key,
-  Activity,
-  Bell,
-  Layout,
-  Cpu,
-  Database,
-  ShieldAlert,
-  History,
-  Save,
-  RefreshCw,
-  CheckCircle2,
-  AlertTriangle,
-  Settings,
-  Terminal,
-  Sliders,
+  User, Key, Activity, Bell, Layout, Cpu, Database,
+  ShieldAlert, History, Save, RefreshCw, CheckCircle2,
+  AlertTriangle, Settings, Terminal, Sliders, Wifi,
+  WifiOff, Loader2, RotateCcw, Download, Upload,
+  Bot, TrendingUp, BarChart2, Globe, Zap,
 } from "lucide-react";
 
-export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState("api-keys");
+// ── Shared helpers ────────────────────────────────────────────
+const TOAST_CFG = { position: "bottom-right", theme: "dark" };
 
-  const handleSave = () => {
-    toast.success("Configuration saved successfully", {
-      position: "bottom-right",
-      theme: "dark",
-    });
-  };
+function StatusDot({ ok, testing }) {
+  if (testing) return <Loader2 className="w-3 h-3 animate-spin text-[#06b6d4]" />;
+  if (ok === true)  return <CheckCircle2 className="w-3 h-3 text-[#10b981]" />;
+  if (ok === false) return <AlertTriangle className="w-3 h-3 text-red-400" />;
+  return <div className="w-2 h-2 rounded-full bg-gray-600" />;
+}
 
-  const navItems = [
-    { id: "profile", label: "User Profile", icon: User },
-    { id: "api-keys", label: "API Keys", icon: Key },
-    { id: "trading-params", label: "Trading Params", icon: Activity },
-    { id: "risk-limits", label: "Risk Limits", icon: ShieldAlert },
-    { id: "ai-ml", label: "AI/ML Config", icon: Cpu },
-    { id: "data-sources", label: "Data Sources", icon: Database },
-    { id: "notifications", label: "Notifications", icon: Bell },
-    { id: "appearance", label: "Appearance", icon: Layout },
-    { id: "audit-log", label: "Audit Log", icon: History },
-  ];
-
-  // Tab Content Renderers
-  const renderProfile = () => (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      <div>
-        <h3 className="text-sm font-bold text-white mb-1 uppercase tracking-wide flex items-center gap-2">
-          <User className="w-4 h-4 text-[#06b6d4]" /> Identity & Localization
-        </h3>
-        <p className="text-xs text-gray-500 mb-4">
-          Manage your trader identity and locale preferences.
-        </p>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
-        <TextField label="Display Name" defaultValue="Espen Schiefloe" inputClassName="text-xs py-1.5 rounded-md" />
-        <TextField
-          label="Email Address"
-          type="email"
-          defaultValue="espen@embodier.ai"
-          inputClassName="text-xs py-1.5 rounded-md"
-        />
-        <Select
-          label="Timezone"
-          options={["America/New_York (EST)", "Europe/Oslo (CET)", "UTC"]}
-          defaultValue="America/New_York (EST)"
-          selectClassName="text-xs py-1.5 rounded-md"
-        />
-        <TextField label="Base Currency" defaultValue="USD" inputClassName="text-xs py-1.5 rounded-md" />
-      </div>
-    </div>
-  );
-
-  const renderApiKeys = () => {
-    const providers = [
-      {
-        id: "alpaca",
-        name: "Alpaca Trading API",
-        status: "Connected",
-        badge: "bg-[#10b981]/10 text-[#10b981] border-[#10b981]/20",
-        key: "PK8V2****************",
-        secret: "********************************",
-      },
-      {
-        id: "unusual_whales",
-        name: "Unusual Whales",
-        status: "Connected",
-        badge: "bg-[#10b981]/10 text-[#10b981] border-[#10b981]/20",
-        key: "UW_882****************",
-        secret: "********************************",
-      },
-      {
-        id: "polygon",
-        name: "Polygon.io",
-        status: "Degraded",
-        badge: "bg-[#f59e0b]/10 text-[#f59e0b] border-[#f59e0b]/20",
-        key: "POLY_****************",
-        secret: "********************************",
-      },
-      {
-        id: "openai",
-        name: "OpenAI (GPT-4)",
-        status: "Connected",
-        badge: "bg-[#10b981]/10 text-[#10b981] border-[#10b981]/20",
-        key: "sk-proj-**************",
-        secret: "********************************",
-      },
-    ];
-
-    return (
-      <div className="space-y-6 animate-in fade-in duration-300">
-        <div className="flex justify-between items-end">
-          <div>
-            <h3 className="text-sm font-bold text-white mb-1 uppercase tracking-wide flex items-center gap-2">
-              <Key className="w-4 h-4 text-[#06b6d4]" /> API Integrations
-            </h3>
-            <p className="text-xs text-gray-500">
-              Manage connections to external brokers and data feeds.
-            </p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {providers.map((p) => (
-            <Card
-              key={p.id}
-              className="bg-[#0B0E14] border-gray-800/60 p-4 relative overflow-hidden group"
-            >
-              <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-[#06b6d4]/50 to-transparent opacity-50"></div>
-              <div className="flex justify-between items-center mb-4">
-                <span className="text-sm font-bold text-gray-200">
-                  {p.name}
-                </span>
-                <Badge
-                  variant={p.status === "Connected" ? "success" : "warning"}
-                  size="sm"
-                  className="flex items-center gap-1 uppercase"
-                >
-                  {p.status === "Connected" ? (
-                    <CheckCircle2 className="w-3 h-3" />
-                  ) : (
-                    <AlertTriangle className="w-3 h-3" />
-                  )}
-                  {p.status}
-                </Badge>
-              </div>
-              <div className="space-y-3">
-                <TextField
-                  label="API Key"
-                  type="password"
-                  defaultValue={p.key}
-                  readOnly
-                  inputClassName="text-xs py-1.5 bg-[#0a0a0f] border-gray-800/80"
-                />
-                <TextField
-                  label="API Secret"
-                  type="password"
-                  defaultValue={p.secret}
-                  readOnly
-                  inputClassName="text-xs py-1.5 bg-[#0a0a0f] border-gray-800/80"
-                />
-                <div className="pt-2 flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="bg-[#06b6d4]/10 hover:bg-[#06b6d4]/20 text-[#06b6d4] border-[#06b6d4]/20 h-auto text-[10px] py-1 px-3"
-                  >
-                    Test Connection
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="bg-gray-800/50 hover:bg-gray-700 text-gray-300 border-gray-700 h-auto text-[10px] py-1 px-3"
-                  >
-                    Edit Keys
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  const renderTradingParams = () => (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      <div>
-        <h3 className="text-sm font-bold text-white mb-1 uppercase tracking-wide flex items-center gap-2">
-          <Activity className="w-4 h-4 text-[#06b6d4]" /> Execution Parameters
-        </h3>
-        <p className="text-xs text-gray-500">
-          Configure default sizing, targets, and operational limits.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-4 md:col-span-1">
-          <h4 className="text-xs font-bold text-[#06b6d4] uppercase tracking-wider mb-2 flex items-center gap-1">
-            <Terminal className="w-3 h-3" /> Position Sizing
-          </h4>
-          <TextField label="Base Position Size" defaultValue="25,000" suffix="USD" inputClassName="text-xs py-1.5 rounded-md" />
-          <TextField label="Max Position Size" defaultValue="100,000" suffix="USD" inputClassName="text-xs py-1.5 rounded-md" />
-          <TextField label="Max Concurrent Positions" type="number" defaultValue="5" suffix="POS" inputClassName="text-xs py-1.5 rounded-md" />
-        </Card>
-
-        <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-4 md:col-span-1">
-          <h4 className="text-xs font-bold text-[#f59e0b] uppercase tracking-wider mb-2 flex items-center gap-1">
-            <Sliders className="w-3 h-3" /> Trade Management
-          </h4>
-          <TextField label="Default Stop Loss" defaultValue="1.0" suffix="ATR" inputClassName="text-xs py-1.5 rounded-md" />
-          <TextField label="Primary Target (TP1)" defaultValue="1.5" suffix="R" inputClassName="text-xs py-1.5 rounded-md" />
-          <TextField label="Secondary Target (TP2)" defaultValue="3.0" suffix="R" inputClassName="text-xs py-1.5 rounded-md" />
-        </Card>
-
-        <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-4 md:col-span-1">
-          <h4 className="text-xs font-bold text-[#10b981] uppercase tracking-wider mb-2 flex items-center gap-1">
-            <Activity className="w-3 h-3" /> Risk Profile
-          </h4>
-          <TextField label="Max Daily Risk" defaultValue="2.0" suffix="%" inputClassName="text-xs py-1.5 rounded-md" />
-          <TextField label="Max Risk Per Trade" defaultValue="0.5" suffix="%" inputClassName="text-xs py-1.5 rounded-md" />
-          <Toggle
-            checked={true}
-            onChange={() => {}}
-            label="Auto-Scale Sizing"
-            className="pt-2"
-          />
-        </Card>
-      </div>
-    </div>
-  );
-
-  const renderRiskLimits = () => (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      <div>
-        <h3 className="text-sm font-bold text-white mb-1 uppercase tracking-wide flex items-center gap-2">
-          <ShieldAlert className="w-4 h-4 text-red-500" /> Circuit Breakers &
-          Risk Limits
-        </h3>
-        <p className="text-xs text-gray-500">
-          Hard halts and emergency killswitches for the automated systems.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="bg-red-950/10 border-red-900/30 p-4 space-y-4">
-          <h4 className="text-xs font-bold text-red-400 uppercase tracking-wider">
-            Market Conditions Halts
-          </h4>
-          <div className="p-2 bg-[#0a0a0f] rounded border border-gray-800/80">
-            <Toggle
-              checked={true}
-              onChange={() => {}}
-              label="VIX Spike Halt"
-              description="Halt trading if VIX jumps > 15% intraday"
-            />
-          </div>
-          <div className="p-2 bg-[#0a0a0f] rounded border border-gray-800/80">
-            <Toggle
-              checked={true}
-              onChange={() => {}}
-              label="Flash Crash Protection"
-              description="Pause if SPY drops > 2% in 15 mins"
-            />
-          </div>
-        </Card>
-
-        <Card className="bg-amber-950/10 border-amber-900/30 p-4 space-y-4">
-          <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider">
-            Account Drawdown Halts
-          </h4>
-          <div className="p-2 bg-[#0a0a0f] rounded border border-gray-800/80">
-            <Toggle
-              checked={true}
-              onChange={() => {}}
-              label="Daily Loss Limit Halt"
-              description="Killswitch at -$2,500 daily PnL"
-            />
-          </div>
-          <TextField
-            label="Max Correlation Limit"
-            defaultValue="0.75"
-            suffix="PEARSON"
-            inputClassName="text-xs py-1.5 rounded-md"
-          />
-        </Card>
-      </div>
-    </div>
-  );
-
-  const renderNotifications = () => {
-    const notifs = [
-      {
-        id: 1,
-        title: "Trade Executions",
-        desc: "Alerts for filled orders, partials, and rejections",
-        status: true,
-      },
-      {
-        id: 2,
-        title: "Pattern Scanner Alerts",
-        desc: "When new high-confidence patterns emerge",
-        status: true,
-      },
-      {
-        id: 3,
-        title: "Risk Threshold Warnings",
-        desc: "When daily drawdown approaches limits",
-        status: true,
-      },
-      {
-        id: 4,
-        title: "API Disconnects",
-        desc: "Critical alerts for feed loss or broker disconnects",
-        status: true,
-      },
-      {
-        id: 5,
-        title: "Options Flow Anomalies",
-        desc: "Large blocks or weird put/call ratios detected",
-        status: false,
-      },
-      {
-        id: 6,
-        title: "End of Day Summary",
-        desc: "Daily PnL and system performance report",
-        status: true,
-      },
-    ];
-
-    return (
-      <div className="space-y-6 animate-in fade-in duration-300">
-        <div>
-          <h3 className="text-sm font-bold text-white mb-1 uppercase tracking-wide flex items-center gap-2">
-            <Bell className="w-4 h-4 text-[#06b6d4]" /> Notification Routing
-          </h3>
-          <p className="text-xs text-gray-500">
-            Configure which events trigger alerts to your devices.
-          </p>
-        </div>
-        <div className="grid grid-cols-1 gap-2 max-w-3xl">
-          {notifs.map((n) => (
-            <div
-              key={n.id}
-              className="flex items-center justify-between p-3 bg-[#0B0E14] border border-gray-800/60 rounded-lg hover:border-gray-700 transition-colors"
-            >
-              <Toggle
-                checked={n.status}
-                onChange={() => {}}
-                label={n.title}
-                description={n.desc}
-                className="flex-1"
-              />
-              <span className="text-[9px] uppercase tracking-wider text-gray-600 font-bold shrink-0 ml-4">
-                Discord / SMS
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  const renderAppearance = () => (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      <div>
-        <h3 className="text-sm font-bold text-white mb-1 uppercase tracking-wide flex items-center gap-2">
-          <Layout className="w-4 h-4 text-[#06b6d4]" /> Interface & Appearance
-        </h3>
-        <p className="text-xs text-gray-500">
-          Customize the trading terminal aesthetic.
-        </p>
-      </div>
-
-      <div className="space-y-4 max-w-2xl">
-        <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
-          Terminal Theme
-        </label>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="bg-[#0a0a0f] border-2 border-[#06b6d4] rounded-lg p-4 cursor-pointer relative overflow-hidden">
-            <div className="absolute top-1 right-2">
-              <CheckCircle2 className="w-4 h-4 text-[#06b6d4]" />
-            </div>
-            <p className="text-xs font-bold text-white mb-2">
-              Midnight Bloomberg
-            </p>
-            <div className="w-full h-12 bg-[#0B0E14] border border-gray-800 rounded flex gap-1 p-1">
-              <div className="w-1/3 h-full bg-[#1A1D24] rounded-sm"></div>
-              <div className="w-2/3 h-full bg-[#1A1D24] rounded-sm flex flex-col gap-1 p-1">
-                <div className="h-1 bg-[#06b6d4]/50 w-full rounded-full"></div>
-                <div className="h-1 bg-[#10b981]/50 w-3/4 rounded-full"></div>
-              </div>
-            </div>
-          </div>
-          <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 cursor-pointer opacity-60 hover:opacity-100 transition-opacity">
-            <p className="text-xs font-bold text-white mb-2">Classic Dark</p>
-            <div className="w-full h-12 bg-gray-800 border border-gray-700 rounded p-1"></div>
-          </div>
-          <div className="bg-black border border-gray-900 rounded-lg p-4 cursor-pointer opacity-60 hover:opacity-100 transition-opacity">
-            <p className="text-xs font-bold text-white mb-2">OLED Pure Black</p>
-            <div className="w-full h-12 bg-[#050505] border border-gray-900 rounded p-1"></div>
-          </div>
-        </div>
-
-        <div className="pt-4">
-          <Select
-            label="Data Density"
-            options={[
-              "Ultra Dense (Bloomberg Style)",
-              "Comfortable (Web Style)",
-              "Compact",
-            ]}
-            defaultValue="Ultra Dense (Bloomberg Style)"
-            className="max-w-md"
-            selectClassName="text-xs py-1.5"
-          />
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderAiMlConfig = () => (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      <div>
-        <h3 className="text-sm font-bold text-white mb-1 uppercase tracking-wide flex items-center gap-2">
-          <Cpu className="w-4 h-4 text-[#06b6d4]" /> Intelligence & Models
-        </h3>
-        <p className="text-xs text-gray-500">
-          Tune the machine learning components and logic thresholds.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl">
-        <div className="space-y-4">
-          <Select
-            label="Primary Inference Model"
-            options={[
-              "GPT-4o (Default)",
-              "Claude 3.5 Sonnet",
-              "Local LLaMA-3-70B",
-            ]}
-            defaultValue="GPT-4o (Default)"
-            selectClassName="text-xs py-1.5"
-          />
-          <TextField
-            label="Min. Pattern Confidence Score"
-            type="number"
-            defaultValue="75"
-            suffix="%"
-            inputClassName="text-xs py-1.5 rounded-md"
-          />
-          <TextField
-            label="Sentiment Analysis Lookback"
-            type="number"
-            defaultValue="24"
-            suffix="HOURS"
-            inputClassName="text-xs py-1.5 rounded-md"
-          />
-        </div>
-
-        <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-4">
-          <div className="flex items-center justify-between">
-            <Toggle
-              checked={true}
-              onChange={() => {}}
-              label="Flywheel Learning Loop"
-              description="Feed trade outcomes back to the model"
-            />
-          </div>
-          <div className="w-full h-[1px] bg-gray-800/60 my-2"></div>
-          <div className="flex items-center justify-between">
-            <Toggle
-              checked={true}
-              onChange={() => {}}
-              label="Automated Regime Detection"
-              description="Adapt strategies based on macro regime"
-            />
-          </div>
-        </Card>
-      </div>
-    </div>
-  );
-
-  const renderAuditLog = () => (
-    <div className="space-y-4 animate-in fade-in duration-300">
-      <div className="flex justify-between items-center mb-2">
-        <div>
-          <h3 className="text-sm font-bold text-white mb-1 uppercase tracking-wide flex items-center gap-2">
-            <History className="w-4 h-4 text-[#06b6d4]" /> System Audit Trail
-          </h3>
-          <p className="text-xs text-gray-500">
-            Immutable log of system changes and critical events.
-          </p>
-        </div>
-        <Button
-          variant="secondary"
-          size="sm"
-          leftIcon={RefreshCw}
-          className="bg-[#0B0E14] text-xs text-gray-300 border border-gray-800 hover:bg-gray-800 h-auto py-1 px-3"
-        >
-          Refresh
-        </Button>
-      </div>
-
-      <div className="bg-[#0B0E14] border border-gray-800/80 rounded-lg overflow-hidden">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-[#131722] border-b border-gray-800">
-              <th className="p-2 text-[10px] uppercase text-gray-500 tracking-wider w-32">
-                Timestamp
-              </th>
-              <th className="p-2 text-[10px] uppercase text-gray-500 tracking-wider w-24">
-                Category
-              </th>
-              <th className="p-2 text-[10px] uppercase text-gray-500 tracking-wider w-32">
-                User/System
-              </th>
-              <th className="p-2 text-[10px] uppercase text-gray-500 tracking-wider">
-                Event Details
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-800/50 text-[11px] text-gray-300">
-            <tr className="hover:bg-[#1A1D24]/50">
-              <td className="p-2 text-gray-500">2026-02-25 10:42:11</td>
-              <td className="p-2">
-                <span className="text-amber-500">CONFIG</span>
-              </td>
-              <td className="p-2">Espen Schiefloe</td>
-              <td className="p-2">
-                Updated Trading Parameter: Max Daily Risk to 2.0%
-              </td>
-            </tr>
-            <tr className="hover:bg-[#1A1D24]/50">
-              <td className="p-2 text-gray-500">2026-02-25 09:15:00</td>
-              <td className="p-2">
-                <span className="text-[#06b6d4]">SYSTEM</span>
-              </td>
-              <td className="p-2">OpenClaw Bridge</td>
-              <td className="p-2">
-                WebSocket Reconnection Successful (Latency: 42ms)
-              </td>
-            </tr>
-            <tr className="hover:bg-[#1A1D24]/50">
-              <td className="p-2 text-gray-500">2026-02-24 18:30:22</td>
-              <td className="p-2">
-                <span className="text-emerald-500">SECURITY</span>
-              </td>
-              <td className="p-2">Espen Schiefloe</td>
-              <td className="p-2">
-                Successful Login from 104.28.112.4 (Asheville, NC)
-              </td>
-            </tr>
-            <tr className="hover:bg-[#1A1D24]/50">
-              <td className="p-2 text-gray-500">2026-02-24 15:05:10</td>
-              <td className="p-2">
-                <span className="text-red-500">RISK</span>
-              </td>
-              <td className="p-2">Auto-Killswitch</td>
-              <td className="p-2">
-                VIX Spike Detected ({">"}15%). New positions temporarily halted.
-              </td>
-            </tr>
-            <tr className="hover:bg-[#1A1D24]/50">
-              <td className="p-2 text-gray-500">2026-02-23 11:20:05</td>
-              <td className="p-2">
-                <span className="text-amber-500">CONFIG</span>
-              </td>
-              <td className="p-2">Espen Schiefloe</td>
-              <td className="p-2">Updated Alpaca API Keys</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-
-  const renderDataSources = () => (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      <div>
-        <h3 className="text-sm font-bold text-white mb-1 uppercase tracking-wide flex items-center gap-2">
-          <Database className="w-4 h-4 text-[#06b6d4]" /> Data & Feed Management
-        </h3>
-        <p className="text-xs text-gray-500">
-          Manage priority and failovers for market data streams.
-        </p>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
-        <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-3">
-          <h4 className="text-xs font-bold text-gray-200 uppercase tracking-wider">
-            Primary Pricing Feed
-          </h4>
-          <Select
-            options={[
-              "Polygon.io (Real-time SIP)",
-              "Alpaca Data V2",
-              "Interactive Brokers",
-            ]}
-            defaultValue="Polygon.io (Real-time SIP)"
-            selectClassName="text-xs py-1.5"
-          />
-        </Card>
-        <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-3">
-          <h4 className="text-xs font-bold text-gray-200 uppercase tracking-wider">
-            Options Flow Source
-          </h4>
-          <Select
-            options={["Unusual Whales API", "CBOE LiveVol"]}
-            defaultValue="Unusual Whales API"
-            selectClassName="text-xs py-1.5"
-          />
-        </Card>
-      </div>
-    </div>
-  );
-
+function SectionHeader({ icon: Icon, color = "#06b6d4", title, sub }) {
   return (
-    <div className="space-y-6">
-      <PageHeader
-        icon={Settings}
-        title="System Settings"
-        description="Configure global parameters, APIs, and risk rules."
-      >
-        <Button
-          variant="primary"
-          size="md"
-          leftIcon={Save}
-          onClick={handleSave}
-          className="bg-[#06b6d4] hover:bg-[#0891b2] text-black font-bold text-xs h-auto py-1.5 px-4 shadow-[0_0_10px_rgba(6,182,212,0.3)]"
-        >
-          Save Changes
-        </Button>
-      </PageHeader>
-
-      {/* Main Settings Layout Grid */}
-      <div className="flex flex-col lg:flex-row gap-6">
-        {/* Left Sidebar Navigation */}
-        <div className="w-full lg:w-64 shrink-0 space-y-1">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-            return (
-              <Button
-                key={item.id}
-                type="button"
-                variant="ghost"
-                onClick={() => setActiveTab(item.id)}
-                className={`w-full justify-start gap-3 px-4 py-2.5 rounded-lg text-xs font-semibold uppercase tracking-wider border-r-2 transition-all duration-200 ${
-                  isActive
-                    ? "bg-[#06b6d4]/10 text-[#06b6d4] border-[#06b6d4]"
-                    : "text-gray-500 hover:text-gray-300 hover:bg-gray-800/40 border-transparent"
-                }`}
-              >
-                <Icon
-                  className={`w-4 h-4 shrink-0 ${isActive ? "text-[#06b6d4]" : "text-gray-500"}`}
-                />
-                {item.label}
-              </Button>
-            );
-          })}
-        </div>
-
-        {/* Right Content Area */}
-        <div className="flex-1 bg-[#050608]/40 border border-gray-800/60 rounded-xl p-6 relative shadow-2xl overflow-hidden backdrop-blur-sm">
-          {/* Subtle glow effect behind content */}
-          <div className="absolute top-0 right-0 w-96 h-96 bg-[#06b6d4]/5 blur-[120px] rounded-full pointer-events-none"></div>
-
-          <div className="relative z-10">
-            {activeTab === "profile" && renderProfile()}
-            {activeTab === "api-keys" && renderApiKeys()}
-            {activeTab === "trading-params" && renderTradingParams()}
-            {activeTab === "risk-limits" && renderRiskLimits()}
-            {activeTab === "ai-ml" && renderAiMlConfig()}
-            {activeTab === "notifications" && renderNotifications()}
-            {activeTab === "appearance" && renderAppearance()}
-            {activeTab === "audit-log" && renderAuditLog()}
-            {activeTab === "data-sources" && renderDataSources()}
-          </div>
-        </div>
-      </div>
+    <div className="mb-4">
+      <h3 className="text-sm font-bold text-white uppercase tracking-wide flex items-center gap-2">
+        <Icon className="w-4 h-4" style={{ color }} />
+        {title}
+      </h3>
+      {sub && <p className="text-xs text-gray-500 mt-0.5">{sub}</p>}
     </div>
   );
 }
+
+function FieldRow({ label, children }) {
+  return (
+    <div className="flex items-center justify-between p-3 bg-[#0B0E14] border border-gray-800/60 rounded-lg">
+      <span className="text-xs text-gray-300 font-medium">{label}</span>
+      <div className="flex-shrink-0 ml-4">{children}</div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────
+export default function SettingsPage() {
+  const [activeTab, setActiveTab] = useState("api-keys");
+  const {
+    settings, loading, saving, dirty,
+    connectionResults, updateField,
+    saveCategory, saveAllSettings, resetCategory,
+    validateKey, testConnection,
+    exportSettings, importSettings, refetch,
+  } = useSettings();
+
+  const S = settings || {};
+
+  // Helper: get a value from a category, default to empty string if loading
+  const get = (cat, key, fallback = "") => S[cat]?.[key] ?? fallback;
+
+  const onSave = async (cat) => {
+    try {
+      await saveCategory(cat);
+      toast.success(`${cat} settings saved`, TOAST_CFG);
+    } catch {
+      toast.error(`Failed to save ${cat} settings`, TOAST_CFG);
+    }
+  };
+
+  const onReset = async (cat) => {
+    try {
+      await resetCategory(cat);
+      toast.success(`${cat} reset to defaults`, TOAST_CFG);
+    } catch {
+      toast.error(`Failed to reset ${cat}`, TOAST_CFG);
+    }
+  };
+
+  const onTestConn = async (source) => {
+    const r = await testConnection(source);
+    if (r.valid) toast.success(`${source}: ${r.message}`, TOAST_CFG);
+    else toast.error(`${source}: ${r.message}`, TOAST_CFG);
+  };
+
+  const onExport = async () => {
+    try {
+      const data = await exportSettings();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "elite-settings-export.json"; a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Settings exported", TOAST_CFG);
+    } catch {
+      toast.error("Export failed", TOAST_CFG);
+    }
+  };
+
+  const onImport = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      await importSettings(data);
+      toast.success("Settings imported successfully", TOAST_CFG);
+    } catch {
+      toast.error("Import failed - invalid JSON", TOAST_CFG);
+    }
+  };
+
+  const navItems = [
+    { id: "profile",        label: "User Profile",    icon: User },
+    { id: "api-keys",       label: "API Keys",         icon: Key },
+    { id: "trading-params", label: "Trading Params",   icon: Activity },
+    { id: "risk-limits",    label: "Risk Limits",      icon: ShieldAlert },
+    { id: "ai-ml",          label: "AI / ML Config",   icon: Cpu },
+    { id: "agents",         label: "Agents",           icon: Bot },
+    { id: "data-sources",   label: "Data Sources",     icon: Database },
+    { id: "notifications",  label: "Notifications",    icon: Bell },
+    { id: "appearance",     label: "Appearance",       icon: Layout },
+    { id: "audit-log",      label: "Audit Log",        icon: History },
+  ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-[#06b6d4]" />
+        <span className="ml-3 text-sm text-gray-400">Loading settings...</span>
+      </div>
+    );
+  }
+
+  // ── Tab: User Profile ──────────────────────────────────────────
+  const renderProfile = () => (
+    <div className="space-y-6 animate-in fade-in duration-300">
+      <SectionHeader icon={User} title="Identity & Localization" sub="Trader identity and locale preferences." />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
+        <TextField label="Display Name" value={get("user", "displayName")} onChange={(e) => updateField("user", "displayName", e.target.value)} inputClassName="text-xs py-1.5 rounded-md" />
+        <TextField label="Email" type="email" value={get("user", "email")} onChange={(e) => updateField("user", "email", e.target.value)} inputClassName="text-xs py-1.5 rounded-md" />
+        <Select label="Timezone" value={get("user", "timezone", "America/New_York")} options={["America/New_York", "America/Chicago", "America/Los_Angeles", "Europe/Oslo", "UTC"]} onChange={(v) => updateField("user", "timezone", v)} selectClassName="text-xs py-1.5 rounded-md" />
+        <Select label="Base Currency" value={get("user", "currency", "USD")} options={["USD", "EUR", "GBP", "NOK"]} onChange={(v) => updateField("user", "currency", v)} selectClassName="text-xs py-1.5 rounded-md" />
+        <TextField label="Session Timeout" type="number" value={get("user", "sessionTimeoutMinutes", 30)} onChange={(e) => updateField("user", "sessionTimeoutMinutes", Number(e.target.value))} suffix="min" inputClassName="text-xs py-1.5 rounded-md" />
+      </div>
+      <div className="max-w-2xl space-y-2">
+        <FieldRow label="Two-Factor Authentication">
+          <Toggle checked={!!get("user", "twoFactorEnabled", false)} onChange={(v) => updateField("user", "twoFactorEnabled", v)} />
+        </FieldRow>
+      </div>
+      <div className="flex gap-3 pt-2">
+        <Button variant="primary" size="sm" leftIcon={Save} onClick={() => onSave("user")} disabled={saving} className="bg-[#06b6d4] hover:bg-[#0891b2] text-black font-bold text-xs">{saving ? "Saving..." : "Save Profile"}</Button>
+        <Button variant="secondary" size="sm" leftIcon={RotateCcw} onClick={() => onReset("user")} className="text-xs border-gray-700 text-gray-400">Reset Defaults</Button>
+      </div>
+    </div>
+  );
+
+  // ── Tab: API Keys ──────────────────────────────────────────────
+  const renderApiKeys = () => {
+    const providers = [
+      { id: "alpaca",          label: "Alpaca Trading API",    keyField: "alpacaApiKey",        secretField: "alpacaSecretKey",    source: "alpaca" },
+      { id: "unusual_whales",  label: "Unusual Whales",        keyField: "unusualWhalesApiKey",  secretField: null,                source: "unusual_whales" },
+      { id: "finviz",          label: "FinViz Elite",          keyField: "finvizApiKey",         secretField: null,                source: "finviz" },
+      { id: "fred",            label: "FRED (St. Louis Fed)",  keyField: "fredApiKey",           secretField: null,                source: "fred" },
+      { id: "newsapi",         label: "NewsAPI",               keyField: "newsApiKey",           secretField: null,                source: null },
+    ];
+    return (
+      <div className="space-y-5 animate-in fade-in duration-300">
+        <div className="flex justify-between items-end">
+          <SectionHeader icon={Key} title="API Integrations" sub="Manage connections to brokers and data feeds." />
+          <div className="flex gap-2 mb-4">
+            <Button variant="outline" size="sm" leftIcon={Download} onClick={onExport} className="text-[10px] h-auto py-1 px-3 border-gray-700 text-gray-400">Export</Button>
+            <label className="cursor-pointer">
+              <input type="file" accept=".json" className="hidden" onChange={onImport} />
+              <span className="inline-flex items-center gap-1.5 text-[10px] py-1 px-3 border border-gray-700 text-gray-400 rounded-md hover:bg-gray-800 transition-colors"><Upload className="w-3 h-3" />Import</span>
+            </label>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {providers.map((p) => {
+            const cr = connectionResults[p.id] || {};
+            const isOk = cr.valid === true;
+            const isFail = cr.valid === false;
+            return (
+              <Card key={p.id} className="bg-[#0B0E14] border-gray-800/60 p-4 relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-[#06b6d4]/40 to-transparent" />
+                <div className="flex justify-between items-center mb-4">
+                  <span className="text-sm font-bold text-gray-200">{p.label}</span>
+                  <div className="flex items-center gap-2">
+                    <StatusDot ok={isOk ? true : isFail ? false : undefined} testing={cr.testing} />
+                    <Badge variant={isOk ? "success" : isFail ? "destructive" : "secondary"} size="sm" className="text-[10px] uppercase">
+                      {cr.testing ? "Testing" : isOk ? "Connected" : isFail ? "Failed" : "Unknown"}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <TextField label="API Key" type="password" value={get("dataSources", p.keyField)} onChange={(e) => updateField("dataSources", p.keyField, e.target.value)} inputClassName="text-xs py-1.5 bg-[#0a0a0f] border-gray-800/80" />
+                  {p.secretField && (
+                    <TextField label="API Secret" type="password" value={get("dataSources", p.secretField)} onChange={(e) => updateField("dataSources", p.secretField, e.target.value)} inputClassName="text-xs py-1.5 bg-[#0a0a0f] border-gray-800/80" />
+                  )}
+                  {cr.message && (
+                    <p className={`text-[10px] mt-1 ${isOk ? "text-[#10b981]" : "text-red-400"}`}>{cr.message}</p>
+                  )}
+                  <div className="pt-1 flex gap-2">
+                    {p.source && (
+                      <Button variant="outline" size="sm" onClick={() => onTestConn(p.source)} disabled={cr.testing} className="bg-[#06b6d4]/10 hover:bg-[#06b6d4]/20 text-[#06b6d4] border-[#06b6d4]/20 h-auto text-[10px] py-1 px-3">
+                        {cr.testing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wifi className="w-3 h-3" />} Test
+                      </Button>
+                    )}
+                    <Button variant="secondary" size="sm" onClick={() => onSave("dataSources")} className="bg-gray-800/50 hover:bg-gray-700 text-gray-300 border-gray-700 h-auto text-[10px] py-1 px-3"><Save className="w-3 h-3" /> Save</Button>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+        {/* Alpaca environment */}
+        <Card className="bg-[#0B0E14] border-gray-800/60 p-4">
+          <h4 className="text-xs font-bold text-[#06b6d4] uppercase tracking-wider mb-3">Alpaca Environment</h4>
+          <div className="flex gap-3">
+            {["paper", "live"].map((env) => (
+              <button key={env} onClick={() => updateField("dataSources", "alpacaBaseUrl", env)}
+                className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border transition-all ${
+                  get("dataSources", "alpacaBaseUrl", "paper") === env
+                    ? "bg-[#06b6d4]/20 border-[#06b6d4] text-[#06b6d4]"
+                    : "bg-gray-900 border-gray-700 text-gray-500 hover:border-gray-600"
+                }`}>{env}</button>
+            ))}
+          </div>
+          <p className="text-[10px] text-gray-600 mt-2">{get("dataSources", "alpacaBaseUrl") === "live" ? "LIVE trading active - real money" : "Paper trading - simulated orders only"}</p>
+        </Card>
+      </div>
+    );
+  };
+
+  // ── Tab: Trading Parameters ────────────────────────────────────
+  const renderTradingParams = () => (
+    <div className="space-y-6 animate-in fade-in duration-300">
+      <SectionHeader icon={Activity} title="Execution Parameters" sub="Default sizing, targets, and operational limits." />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-4">
+          <h4 className="text-xs font-bold text-[#06b6d4] uppercase tracking-wider flex items-center gap-1"><Terminal className="w-3 h-3" />Position Sizing</h4>
+          <TextField label="Max Position Size ($)" type="number" value={get("trading", "maxPositionSize", 10000)} onChange={(e) => updateField("trading", "maxPositionSize", Number(e.target.value))} inputClassName="text-xs py-1.5 rounded-md" />
+          <TextField label="Max Daily Trades" type="number" value={get("trading", "maxDailyTrades", 20)} onChange={(e) => updateField("trading", "maxDailyTrades", Number(e.target.value))} inputClassName="text-xs py-1.5 rounded-md" />
+        </Card>
+        <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-4">
+          <h4 className="text-xs font-bold text-[#f59e0b] uppercase tracking-wider flex items-center gap-1"><Sliders className="w-3 h-3" />Trade Management</h4>
+          <Select label="Default Order Type" value={get("trading", "defaultOrderType", "market")} options={["market", "limit", "stop", "stop_limit"]} onChange={(v) => updateField("trading", "defaultOrderType", v)} selectClassName="text-xs py-1.5" />
+          <Select label="Entry Method" value={get("trading", "entryMethod", "signal")} options={["signal", "manual", "hybrid"]} onChange={(v) => updateField("trading", "entryMethod", v)} selectClassName="text-xs py-1.5" />
+        </Card>
+        <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-4">
+          <h4 className="text-xs font-bold text-[#10b981] uppercase tracking-wider flex items-center gap-1"><Activity className="w-3 h-3" />Session Hours</h4>
+          <TextField label="Market Open" type="time" value={get("trading", "marketOpen", "09:30")} onChange={(e) => updateField("trading", "marketOpen", e.target.value)} inputClassName="text-xs py-1.5 rounded-md" />
+          <TextField label="Market Close" type="time" value={get("trading", "marketClose", "16:00")} onChange={(e) => updateField("trading", "marketClose", e.target.value)} inputClassName="text-xs py-1.5 rounded-md" />
+        </Card>
+      </div>
+      <div className="max-w-2xl space-y-2">
+        <FieldRow label="Auto Execute Trades">
+          <Toggle checked={!!get("trading", "autoExecute", false)} onChange={(v) => updateField("trading", "autoExecute", v)} />
+        </FieldRow>
+        <FieldRow label="Confirm Before Order">
+          <Toggle checked={!!get("trading", "confirmBeforeOrder", true)} onChange={(v) => updateField("trading", "confirmBeforeOrder", v)} />
+        </FieldRow>
+        <FieldRow label="Pre-Market Trading">
+          <Toggle checked={!!get("trading", "preMarketEnabled", false)} onChange={(v) => updateField("trading", "preMarketEnabled", v)} />
+        </FieldRow>
+        <FieldRow label="After-Hours Trading">
+          <Toggle checked={!!get("trading", "afterHoursEnabled", false)} onChange={(v) => updateField("trading", "afterHoursEnabled", v)} />
+        </FieldRow>
+      </div>
+      <div className="flex gap-3">
+        <Button variant="primary" size="sm" leftIcon={Save} onClick={() => onSave("trading")} disabled={saving} className="bg-[#06b6d4] hover:bg-[#0891b2] text-black font-bold text-xs">{saving ? "Saving..." : "Save Trading Params"}</Button>
+        <Button variant="secondary" size="sm" leftIcon={RotateCcw} onClick={() => onReset("trading")} className="text-xs border-gray-700 text-gray-400">Reset</Button>
+      </div>
+    </div>
+  );
+
+  // ── Tab: Risk Limits ─────────────────────────────────────────────
+  const renderRiskLimits = () => (
+    <div className="space-y-6 animate-in fade-in duration-300">
+      <SectionHeader icon={ShieldAlert} color="#ef4444" title="Circuit Breakers & Risk Limits" sub="Hard halts and emergency killswitches for automated systems." />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="bg-red-950/10 border-red-900/30 p-4 space-y-4">
+          <h4 className="text-xs font-bold text-red-400 uppercase tracking-wider">Portfolio Risk Limits</h4>
+          <TextField label="Max Portfolio Risk" type="number" value={get("risk", "maxPortfolioRisk", 0.06)} onChange={(e) => updateField("risk", "maxPortfolioRisk", parseFloat(e.target.value))} suffix="(ratio)" inputClassName="text-xs py-1.5" />
+          <TextField label="Max Position Risk" type="number" value={get("risk", "maxPositionRisk", 0.02)} onChange={(e) => updateField("risk", "maxPositionRisk", parseFloat(e.target.value))} suffix="(ratio)" inputClassName="text-xs py-1.5" />
+          <TextField label="Max Drawdown Limit" type="number" value={get("risk", "maxDrawdownLimit", 0.10)} onChange={(e) => updateField("risk", "maxDrawdownLimit", parseFloat(e.target.value))} suffix="(ratio)" inputClassName="text-xs py-1.5" />
+          <TextField label="Max Daily Loss %" type="number" value={get("risk", "maxDailyLossPct", 5.0)} onChange={(e) => updateField("risk", "maxDailyLossPct", parseFloat(e.target.value))} suffix="%" inputClassName="text-xs py-1.5" />
+          <TextField label="Max Positions" type="number" value={get("risk", "maxPositions", 15)} onChange={(e) => updateField("risk", "maxPositions", Number(e.target.value))} inputClassName="text-xs py-1.5" />
+        </Card>
+        <Card className="bg-amber-950/10 border-amber-900/30 p-4 space-y-4">
+          <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider">Stop/Target Defaults</h4>
+          <TextField label="Default Stop Loss" type="number" value={get("risk", "stopLossDefault", 0.03)} onChange={(e) => updateField("risk", "stopLossDefault", parseFloat(e.target.value))} suffix="(ratio)" inputClassName="text-xs py-1.5" />
+          <TextField label="Default Take Profit" type="number" value={get("risk", "takeProfitDefault", 0.06)} onChange={(e) => updateField("risk", "takeProfitDefault", parseFloat(e.target.value))} suffix="(ratio)" inputClassName="text-xs py-1.5" />
+          <TextField label="ATR Stop Multiplier" type="number" value={get("risk", "atrStopMultiplier", 2.0)} onChange={(e) => updateField("risk", "atrStopMultiplier", parseFloat(e.target.value))} suffix="x ATR" inputClassName="text-xs py-1.5" />
+          <TextField label="Kelly Fraction" type="number" value={get("risk", "kellyFractionMultiplier", 0.5)} onChange={(e) => updateField("risk", "kellyFractionMultiplier", parseFloat(e.target.value))} suffix="multiplier" inputClassName="text-xs py-1.5" />
+        </Card>
+        <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-3 md:col-span-2">
+          <h4 className="text-xs font-bold text-gray-200 uppercase tracking-wider mb-2">Circuit Breakers</h4>
+          <FieldRow label="Circuit Breaker Enabled">
+            <Toggle checked={!!get("risk", "circuitBreakerEnabled", true)} onChange={(v) => updateField("risk", "circuitBreakerEnabled", v)} />
+          </FieldRow>
+        </Card>
+      </div>
+      <div className="flex gap-3">
+        <Button variant="primary" size="sm" leftIcon={Save} onClick={() => onSave("risk")} disabled={saving} className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs">{saving ? "Saving..." : "Save Risk Limits"}</Button>
+        <Button variant="secondary" size="sm" leftIcon={RotateCcw} onClick={() => onReset("risk")} className="text-xs border-gray-700 text-gray-400">Reset</Button>
+      </div>
+    </div>
+  );
+
+  // ── Tab: AI / ML Config ──────────────────────────────────────────
+  const renderAiMl = () => (
+    <div className="space-y-6 animate-in fade-in duration-300">
+      <SectionHeader icon={Cpu} title="Intelligence & Models" sub="Tune ML components, thresholds, and Ollama integration." />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-4">
+          <h4 className="text-xs font-bold text-[#06b6d4] uppercase tracking-wider">Model Config</h4>
+          <Select label="Model Type" value={get("ml", "modelType", "xgboost")} options={["xgboost", "random_forest", "lstm", "transformer"]} onChange={(v) => updateField("ml", "modelType", v)} selectClassName="text-xs py-1.5" />
+          <Select label="Retrain Frequency" value={get("ml", "retrainFrequency", "weekly")} options={["daily", "weekly", "monthly", "manual"]} onChange={(v) => updateField("ml", "retrainFrequency", v)} selectClassName="text-xs py-1.5" />
+          <TextField label="Confidence Threshold" type="number" value={get("ml", "confidenceThreshold", 0.65)} onChange={(e) => updateField("ml", "confidenceThreshold", parseFloat(e.target.value))} suffix="ratio" inputClassName="text-xs py-1.5" />
+          <TextField label="Min Composite Score" type="number" value={get("ml", "minCompositeScore", 60)} onChange={(e) => updateField("ml", "minCompositeScore", Number(e.target.value))} suffix="pts" inputClassName="text-xs py-1.5" />
+          <TextField label="Min ML Confidence" type="number" value={get("ml", "minMLConfidence", 40)} onChange={(e) => updateField("ml", "minMLConfidence", Number(e.target.value))} suffix="pts" inputClassName="text-xs py-1.5" />
+          <TextField label="Walk-Forward Window" type="number" value={get("ml", "walkForwardWindow", 60)} onChange={(e) => updateField("ml", "walkForwardWindow", Number(e.target.value))} suffix="days" inputClassName="text-xs py-1.5" />
+        </Card>
+        <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-4">
+          <h4 className="text-xs font-bold text-[#a78bfa] uppercase tracking-wider">Ollama (Local LLM)</h4>
+          <TextField label="Host URL" value={get("ollama", "ollamaHostUrl", "http://localhost:11434")} onChange={(e) => updateField("ollama", "ollamaHostUrl", e.target.value)} inputClassName="text-xs py-1.5" />
+          <TextField label="Default Model" value={get("ollama", "ollamaDefaultModel", "llama3.2")} onChange={(e) => updateField("ollama", "ollamaDefaultModel", e.target.value)} inputClassName="text-xs py-1.5" />
+          <TextField label="Context Length" type="number" value={get("ollama", "ollamaContextLength", 4096)} onChange={(e) => updateField("ollama", "ollamaContextLength", Number(e.target.value))} suffix="tokens" inputClassName="text-xs py-1.5" />
+          <FieldRow label="CUDA Enabled">
+            <Toggle checked={!!get("ollama", "ollamaCudaEnabled", true)} onChange={(v) => updateField("ollama", "ollamaCudaEnabled", v)} />
+          </FieldRow>
+          <div className="pt-2">
+            <Button variant="outline" size="sm" onClick={() => onTestConn("ollama")} className="bg-[#a78bfa]/10 hover:bg-[#a78bfa]/20 text-[#a78bfa] border-[#a78bfa]/20 h-auto text-[10px] py-1 px-3 w-full">
+              {connectionResults["ollama"]?.testing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wifi className="w-3 h-3" />} Test Ollama Connection
+            </Button>
+            {connectionResults["ollama"]?.message && (
+              <p className={`text-[10px] mt-1.5 ${connectionResults["ollama"]?.valid ? "text-[#10b981]" : "text-red-400"}`}>{connectionResults["ollama"].message}</p>
+            )}
+          </div>
+        </Card>
+        <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-3 md:col-span-2">
+          <h4 className="text-xs font-bold text-gray-200 uppercase tracking-wider mb-2">Drift Detection</h4>
+          <div className="grid grid-cols-2 gap-4">
+            <FieldRow label="Drift Detection Enabled">
+              <Toggle checked={!!get("ml", "driftDetectionEnabled", true)} onChange={(v) => updateField("ml", "driftDetectionEnabled", v)} />
+            </FieldRow>
+            <TextField label="Drift Threshold" type="number" value={get("ml", "driftThreshold", 0.15)} onChange={(e) => updateField("ml", "driftThreshold", parseFloat(e.target.value))} suffix="ratio" inputClassName="text-xs py-1.5" />
+          </div>
+        </Card>
+      </div>
+      <div className="flex gap-3">
+        <Button variant="primary" size="sm" leftIcon={Save} onClick={() => { onSave("ml"); onSave("ollama"); }} disabled={saving} className="bg-[#06b6d4] hover:bg-[#0891b2] text-black font-bold text-xs">{saving ? "Saving..." : "Save AI/ML Config"}</Button>
+        <Button variant="secondary" size="sm" leftIcon={RotateCcw} onClick={() => { onReset("ml"); onReset("ollama"); }} className="text-xs border-gray-700 text-gray-400">Reset</Button>
+      </div>
+    </div>
+  );
+
+  // ── Tab: Agents ──────────────────────────────────────────────────
+  const renderAgents = () => {
+    const agentToggles = [
+      { key: "marketDataAgent",  label: "Market Data Agent",    desc: "Live feed ingestion and normalization" },
+      { key: "riskAgent",        label: "Risk Agent",            desc: "Real-time position risk monitoring" },
+      { key: "signalEngine",     label: "Signal Engine",         desc: "ML-based signal generation" },
+      { key: "patternAI",        label: "Pattern AI",            desc: "Chart pattern detection (CNN)" },
+      { key: "youtubeAgent",     label: "YouTube Agent",         desc: "Transcript ingestion and knowledge base" },
+      { key: "driftMonitor",     label: "Drift Monitor",         desc: "Model performance drift detection" },
+      { key: "flywheelEngine",   label: "Flywheel Engine",       desc: "Feedback loop for ML self-improvement" },
+      { key: "openclawBridge",   label: "OpenClaw Bridge",       desc: "Multi-agent swarm orchestration" },
+    ];
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <SectionHeader icon={Bot} title="Agent Configuration" sub="Enable/disable individual agents and set operational limits." />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-3">
+            <h4 className="text-xs font-bold text-[#06b6d4] uppercase tracking-wider mb-2">Agent Switches</h4>
+            {agentToggles.map((a) => (
+              <FieldRow key={a.key} label={<div><div className="text-xs text-gray-200 font-medium">{a.label}</div><div className="text-[10px] text-gray-600">{a.desc}</div></div>}>
+                <Toggle checked={!!get("agents", a.key, true)} onChange={(v) => updateField("agents", a.key, v)} />
+              </FieldRow>
+            ))}
+          </Card>
+          <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-4">
+            <h4 className="text-xs font-bold text-[#10b981] uppercase tracking-wider">Operational Limits</h4>
+            <TextField label="Max Concurrent Agents" type="number" value={get("agents", "maxConcurrentAgents", 4)} onChange={(e) => updateField("agents", "maxConcurrentAgents", Number(e.target.value))} inputClassName="text-xs py-1.5" />
+            <TextField label="Agent Timeout" type="number" value={get("agents", "agentTimeout", 30)} onChange={(e) => updateField("agents", "agentTimeout", Number(e.target.value))} suffix="sec" inputClassName="text-xs py-1.5" />
+            <TextField label="Scanner Interval" type="number" value={get("agents", "scannerInterval", 300)} onChange={(e) => updateField("agents", "scannerInterval", Number(e.target.value))} suffix="sec" inputClassName="text-xs py-1.5" />
+            <FieldRow label="Auto-Restart Crashed Agents">
+              <Toggle checked={!!get("agents", "autoRestart", true)} onChange={(v) => updateField("agents", "autoRestart", v)} />
+            </FieldRow>
+            <div className="border-t border-gray-800 pt-3">
+              <h4 className="text-xs font-bold text-[#f59e0b] uppercase tracking-wider mb-3">OpenClaw Bridge</h4>
+              <TextField label="WS URL" value={get("openclaw", "openclawWsUrl")} onChange={(e) => updateField("openclaw", "openclawWsUrl", e.target.value)} inputClassName="text-xs py-1.5" />
+              <TextField label="API Key" type="password" value={get("openclaw", "openclawApiKey")} onChange={(e) => updateField("openclaw", "openclawApiKey", e.target.value)} inputClassName="text-xs py-1.5 mt-3" />
+              <TextField label="Reconnect Interval" type="number" value={get("openclaw", "openclawReconnectInterval", 5)} onChange={(e) => updateField("openclaw", "openclawReconnectInterval", Number(e.target.value))} suffix="sec" inputClassName="text-xs py-1.5 mt-3" />
+            </div>
+          </Card>
+        </div>
+        <div className="flex gap-3">
+          <Button variant="primary" size="sm" leftIcon={Save} onClick={() => { onSave("agents"); onSave("openclaw"); }} disabled={saving} className="bg-[#06b6d4] hover:bg-[#0891b2] text-black font-bold text-xs">{saving ? "Saving..." : "Save Agent Config"}</Button>
+          <Button variant="secondary" size="sm" leftIcon={RotateCcw} onClick={() => { onReset("agents"); onReset("openclaw"); }} className="text-xs border-gray-700 text-gray-400">Reset</Button>
+        </div>
+      </div>
+    );
+  };
+
+  // ── Tab: Data Sources ────────────────────────────────────────
+  const renderDataSources = () => (
+    <div className="space-y-6 animate-in fade-in duration-300">
+      <SectionHeader icon={Database} title="Data & Feed Management" sub="Configure data refresh intervals and external sources." />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl">
+        <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-4">
+          <h4 className="text-xs font-bold text-gray-200 uppercase tracking-wider">Refresh Settings</h4>
+          <TextField label="Data Refresh Interval" type="number" value={get("dataSources", "refreshIntervalSeconds", 300)} onChange={(e) => updateField("dataSources", "refreshIntervalSeconds", Number(e.target.value))} suffix="sec" inputClassName="text-xs py-1.5" />
+          <TextField label="StockGeist API Key" type="password" value={get("dataSources", "stockgeistApiKey")} onChange={(e) => updateField("dataSources", "stockgeistApiKey", e.target.value)} inputClassName="text-xs py-1.5" />
+        </Card>
+        <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-4">
+          <h4 className="text-xs font-bold text-gray-200 uppercase tracking-wider">FinViz Screener</h4>
+          <TextField label="Filters" value={get("finvizScreener", "finvizFilters", "")} onChange={(e) => updateField("finvizScreener", "finvizFilters", e.target.value)} inputClassName="text-xs py-1.5" />
+          <TextField label="Scan Interval" type="number" value={get("finvizScreener", "scanInterval", 300)} onChange={(e) => updateField("finvizScreener", "scanInterval", Number(e.target.value))} suffix="sec" inputClassName="text-xs py-1.5" />
+        </Card>
+        <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-4">
+          <h4 className="text-xs font-bold text-gray-200 uppercase tracking-wider">TradingView</h4>
+          <TextField label="Webhook Key" type="password" value={get("tradingview", "webhookKey")} onChange={(e) => updateField("tradingview", "webhookKey", e.target.value)} inputClassName="text-xs py-1.5" />
+          <Select label="Alert Format" value={get("tradingview", "alertFormat", "json")} options={["json", "text", "csv"]} onChange={(v) => updateField("tradingview", "alertFormat", v)} selectClassName="text-xs py-1.5" />
+        </Card>
+      </div>
+      <div className="flex gap-3">
+        <Button variant="primary" size="sm" leftIcon={Save} onClick={() => { onSave("dataSources"); onSave("finvizScreener"); onSave("tradingview"); }} disabled={saving} className="bg-[#06b6d4] hover:bg-[#0891b2] text-black font-bold text-xs">{saving ? "Saving..." : "Save Data Sources"}</Button>
+      </div>
+    </div>
+  );
+
+  // ── Tab: Notifications ──────────────────────────────────────
+  const renderNotifications = () => {
+    const alertToggles = [
+      { key: "tradeAlerts",        label: "Trade Executions",         desc: "Alerts for filled orders, partials, and rejections" },
+      { key: "signalAlerts",       label: "Signal Alerts",            desc: "When new high-confidence patterns emerge" },
+      { key: "riskAlerts",         label: "Risk Threshold Warnings",  desc: "When daily drawdown approaches limits" },
+      { key: "agentStatusAlerts",  label: "Agent Status Alerts",      desc: "Critical alerts for agent crashes or disconnects" },
+      { key: "dailySummary",       label: "End of Day Summary",       desc: "Daily PnL and system performance report" },
+    ];
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <SectionHeader icon={Bell} title="Notification Routing" sub="Configure which events trigger alerts." />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl">
+          <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-3">
+            <h4 className="text-xs font-bold text-[#06b6d4] uppercase tracking-wider mb-2">Alert Types</h4>
+            {alertToggles.map((n) => (
+              <FieldRow key={n.key} label={<div><div className="text-xs text-gray-200">{n.label}</div><div className="text-[10px] text-gray-600">{n.desc}</div></div>}>
+                <Toggle checked={!!get("notifications", n.key, false)} onChange={(v) => updateField("notifications", n.key, v)} />
+              </FieldRow>
+            ))}
+          </Card>
+          <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-4">
+            <h4 className="text-xs font-bold text-[#10b981] uppercase tracking-wider">Channels</h4>
+            <TextField label="Discord Webhook URL" type="password" value={get("notifications", "discordWebhookUrl")} onChange={(e) => updateField("notifications", "discordWebhookUrl", e.target.value)} inputClassName="text-xs py-1.5" />
+            <TextField label="Slack Webhook URL" type="password" value={get("notifications", "slackWebhookUrl")} onChange={(e) => updateField("notifications", "slackWebhookUrl", e.target.value)} inputClassName="text-xs py-1.5" />
+            <TextField label="Telegram Bot Token" type="password" value={get("notifications", "telegramBotToken")} onChange={(e) => updateField("notifications", "telegramBotToken", e.target.value)} inputClassName="text-xs py-1.5" />
+            <TextField label="Telegram Chat ID" value={get("notifications", "telegramChatId")} onChange={(e) => updateField("notifications", "telegramChatId", e.target.value)} inputClassName="text-xs py-1.5" />
+          </Card>
+        </div>
+        <div className="flex gap-3">
+          <Button variant="primary" size="sm" leftIcon={Save} onClick={() => onSave("notifications")} disabled={saving} className="bg-[#06b6d4] hover:bg-[#0891b2] text-black font-bold text-xs">{saving ? "Saving..." : "Save Notifications"}</Button>
+          <Button variant="secondary" size="sm" leftIcon={RotateCcw} onClick={() => onReset("notifications")} className="text-xs border-gray-700 text-gray-400">Reset</Button>
+        </div>
+      </div>
+    );
+  };
+
+
+
+  // --- Tab: Data Sources ------------------------------------------------
+  const renderDataSources = () => {
+    const sources = [
+      { key: "alpacaMarketData",  label: "Alpaca Market Data",  fields: ["apiUrl", "wsUrl"] },
+      { key: "polygon",           label: "Polygon.io",          fields: ["apiKey", "wsEnabled"] },
+      { key: "unusualWhales",     label: "Unusual Whales",      fields: ["apiKey", "pollInterval"] },
+      { key: "benzinga",          label: "Benzinga",            fields: ["apiKey", "newsEnabled"] },
+      { key: "tradingView",       label: "TradingView",         fields: ["webhookSecret"] },
+    ];
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <SectionHeader icon={Database} title="Data Source Configuration" sub="Manage market data feeds and external data providers." />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl">
+          {sources.map((s) => (
+            <Card key={s.key} className="bg-[#080E14] border-gray-800 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-[#06b6d4] uppercase tracking-wider">{s.label}</h4>
+                <Toggle checked={!!get("dataSources", `${s.key}.enabled`, false)} onChange={(v) => updateField("dataSources", `${s.key}.enabled`, v)} />
+              </div>
+              {s.fields.map((f) => (
+                <TextField key={f} label={f.replace(/([A-Z])/g, " $1").trim()} type={f.toLowerCase().includes("key") || f.toLowerCase().includes("secret") ? "password" : "text"} value={get("dataSources", `${s.key}.${f}`) || ""} onChange={(e) => updateField("dataSources", `${s.key}.${f}`, e.target.value)} inputClassName="text-xs" />
+              ))}
+              <Button variant="ghost" size="xs" leftIcon={Zap} onClick={() => testConnection("dataSources", s.key)} className="text-xs text-gray-400 hover:text-[#06b6d4]">Test</Button>
+            </Card>
+          ))}
+        </div>
+        <div className="flex gap-3">
+          <Button variant="primary" size="sm" leftIcon={Save} onClick={() => { onSave("dataSources"); }} disabled={saving} className="bg-[#06b6d4] hover:bg-[#0891b2] text-black font-bold">Save</Button>
+          <Button variant="secondary" size="sm" leftIcon={RotateCcw} onClick={() => onReset("dataSources")} className="text-xs border-gray-700 text-gray-400">Reset</Button>
+        </div>
+      </div>
+    );
+  };
+
+  // --- Tab: Appearance ---------------------------------------------------
+  const renderAppearance = () => {
+    const themes = ["dark", "midnight", "terminal", "light"];
+    const densities = ["compact", "comfortable", "spacious"];
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <SectionHeader icon={Palette} title="Appearance & Display" sub="Customize the look and feel of your trading dashboard." />
+        <Card className="bg-[#080E14] border-gray-800 p-4 space-y-4 max-w-xl">
+          <h4 className="text-xs font-bold text-[#06b6d4] uppercase tracking-wider mb-2">Theme & Layout</h4>
+          <FieldRow label="Theme">
+            <div className="flex gap-2">
+              {themes.map((t) => (
+                <button key={t} onClick={() => updateField("appearance", "theme", t)} className={`px-3 py-1 text-xs rounded border ${get("appearance", "theme", "dark") === t ? "bg-[#06b6d4] text-black border-[#06b6d4] font-bold" : "border-gray-700 text-gray-400 hover:border-gray-500"}`}>{t}</button>
+              ))}
+            </div>
+          </FieldRow>
+          <FieldRow label="Density">
+            <div className="flex gap-2">
+              {densities.map((d) => (
+                <button key={d} onClick={() => updateField("appearance", "density", d)} className={`px-3 py-1 text-xs rounded border ${get("appearance", "density", "compact") === d ? "bg-[#06b6d4] text-black border-[#06b6d4] font-bold" : "border-gray-700 text-gray-400 hover:border-gray-500"}`}>{d}</button>
+              ))}
+            </div>
+          </FieldRow>
+          <TextField label="Chart Default Timeframe" value={get("appearance", "chartTimeframe", "5m")} onChange={(e) => updateField("appearance", "chartTimeframe", e.target.value)} />
+          <FieldRow label="Show PnL in Header">
+            <Toggle checked={!!get("appearance", "showPnlHeader", true)} onChange={(v) => updateField("appearance", "showPnlHeader", v)} />
+          </FieldRow>
+          <FieldRow label="Enable Animations">
+            <Toggle checked={!!get("appearance", "animations", true)} onChange={(v) => updateField("appearance", "animations", v)} />
+          </FieldRow>
+          <FieldRow label="Sound Alerts">
+            <Toggle checked={!!get("appearance", "soundAlerts", false)} onChange={(v) => updateField("appearance", "soundAlerts", v)} />
+          </FieldRow>
+        </Card>
+        <div className="flex gap-3">
+          <Button variant="primary" size="sm" leftIcon={Save} onClick={() => onSave("appearance")} disabled={saving} className="bg-[#06b6d4] hover:bg-[#0891b2] text-black font-bold">Save</Button>
+          <Button variant="secondary" size="sm" leftIcon={RotateCcw} onClick={() => onReset("appearance")} className="text-xs border-gray-700 text-gray-400">Reset</Button>
+        </div>
+      </div>
+    );
+  };
+
+  // --- Tab: Audit Log ----------------------------------------------------
+  const renderAuditLog = () => {
+    const [logs, setLogs] = useState([]);
+    const [logLoading, setLogLoading] = useState(true);
+    useEffect(() => {
+      api.get("/api/v1/settings/audit-log").then((r) => { setLogs(r.data?.logs || []); setLogLoading(false); }).catch(() => setLogLoading(false));
+    }, []);
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <SectionHeader icon={FileText} title="Audit Log" sub="Track all settings changes and system events." />
+        <Card className="bg-[#080E14] border-gray-800 p-4">
+          {logLoading ? (
+            <div className="flex items-center gap-2 text-gray-500 text-xs"><Loader2 className="w-4 h-4 animate-spin" /> Loading audit log...</div>
+          ) : logs.length === 0 ? (
+            <p className="text-gray-500 text-xs">No audit entries found.</p>
+          ) : (
+            <div className="space-y-1 max-h-[500px] overflow-y-auto">
+              {logs.map((log, i) => (
+                <div key={i} className="flex items-center gap-3 py-1.5 px-2 text-xs border-b border-gray-800/50 hover:bg-gray-800/30">
+                  <span className="text-gray-500 font-mono w-36 shrink-0">{new Date(log.timestamp).toLocaleString()}</span>
+                  <span className={`w-16 shrink-0 font-bold uppercase ${log.action === "update" ? "text-yellow-500" : log.action === "reset" ? "text-red-400" : "text-[#06b6d4]"}`}>{log.action}</span>
+                  <span className="text-gray-300">{log.category}</span>
+                  <span className="text-gray-500 truncate">{log.detail || ""}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+        <div className="flex gap-3">
+          <Button variant="secondary" size="sm" leftIcon={Download} onClick={() => { const blob = new Blob([JSON.stringify(logs, null, 2)], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "audit-log.json"; a.click(); }} className="text-xs border-gray-700 text-gray-400">Export Log</Button>
+        </div>
+      </div>
+    );
+  };
+
+  // --- Tab definitions ---------------------------------------------------
+  const tabs = [
+    { key: "profile",        label: "Profile",          icon: User,         render: renderProfile },
+    { key: "apiKeys",        label: "API Keys",         icon: Key,          render: renderApiKeys },
+    { key: "trading",        label: "Trading",          icon: TrendingUp,   render: renderTradingParams },
+    { key: "risk",           label: "Risk",             icon: Shield,       render: renderRiskManagement },
+    { key: "aiml",           label: "AI / ML",          icon: Brain,        render: renderAiMl },
+    { key: "agents",         label: "Agents",           icon: Bot,          render: renderAgents },
+    { key: "dataSources",    label: "Data Sources",     icon: Database,     render: renderDataSources },
+    { key: "notifications",  label: "Notifications",    icon: Bell,         render: renderNotifications },
+    { key: "appearance",     label: "Appearance",       icon: Palette,      render: renderAppearance },
+    { key: "auditLog",       label: "Audit Log",        icon: FileText,     render: renderAuditLog },
+  ];
+
+  const activeTab = tabs.find((t) => t.key === tab) || tabs[0];
+
+  // --- Main layout -------------------------------------------------------
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-6 h-6 animate-spin text-[#06b6d4]" />
+        <span className="ml-2 text-gray-400 text-sm">Loading settings...</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#040810] text-gray-100 p-4 md:p-6">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-xl font-bold text-white flex items-center gap-2"><Settings2 className="w-5 h-5 text-[#06b6d4]" /> Settings</h1>
+          <p className="text-xs text-gray-500 mt-1">Configure your elite trading system</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="ghost" size="sm" leftIcon={Download} onClick={async () => { const r = await api.get("/api/v1/settings/export"); const blob = new Blob([JSON.stringify(r.data, null, 2)], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "settings-export.json"; a.click(); }} className="text-xs text-gray-400">Export</Button>
+          <Button variant="ghost" size="sm" leftIcon={Upload} onClick={() => { const input = document.createElement("input"); input.type = "file"; input.accept = ".json"; input.onchange = async (e) => { const file = e.target.files[0]; if (!file) return; const text = await file.text(); await api.post("/api/v1/settings/import", JSON.parse(text)); window.location.reload(); }; input.click(); }} className="text-xs text-gray-400">Import</Button>
+        </div>
+      </div>
+
+      {/* Status banner */}
+      {error && <div className="mb-4 p-3 bg-red-900/30 border border-red-800 rounded text-red-300 text-xs flex items-center gap-2"><AlertTriangle className="w-4 h-4" />{error}</div>}
+      {saveSuccess && <div className="mb-4 p-3 bg-emerald-900/30 border border-emerald-800 rounded text-emerald-300 text-xs flex items-center gap-2"><CheckCircle2 className="w-4 h-4" />Settings saved successfully</div>}
+
+      {/* Tab nav + content */}
+      <div className="flex gap-6">
+        {/* Sidebar tabs */}
+        <nav className="w-48 shrink-0 space-y-1">
+          {tabs.map((t) => {
+            const Icon = t.icon;
+            const isActive = t.key === tab;
+            return (
+              <button key={t.key} onClick={() => setTab(t.key)} className={`w-full flex items-center gap-2 px-3 py-2 rounded text-xs font-medium transition-colors ${isActive ? "bg-[#06b6d4]/10 text-[#06b6d4] border-l-2 border-[#06b6d4]" : "text-gray-400 hover:text-gray-200 hover:bg-gray-800/50"}`}>
+                <Icon className="w-4 h-4" />{t.label}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Content area */}
+        <div className="flex-1 min-w-0">
+          {activeTab.render()}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default SettingsPage;
