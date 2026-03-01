@@ -1,9 +1,10 @@
 """FastAPI application entry point.
 
-Enhanced with ML Flywheel Engine initialization:
-- Model Registry singleton for experiment tracking
-- Drift Monitor singleton for auto-retrain triggers
-- Integrated drift checks in market data tick loop
+Enhanced with:
+- ML Flywheel Engine initialization (model registry + drift monitor)
+- Event-driven MessageBus architecture for <1s signal latency
+- Alpaca WebSocket streaming for real-time market data
+- EventDrivenSignalEngine reacting to market_data.bar events
 """
 import asyncio
 import logging
@@ -111,7 +112,13 @@ async def _drift_check_loop():
 
 
 async def _market_data_tick_loop():
-    """Run Market Data Agent tick every 60s when status is 'running'."""
+    """Run Market Data Agent tick every 60s when status is 'running'.
+
+    NOTE: This is the legacy polling loop. The new event-driven path via
+    MessageBus + AlpacaStreamService provides <1s latency for symbols
+    covered by the WebSocket. This loop remains for symbols/data sources
+    not yet on the event bus (e.g. Finviz scraping, FRED data).
+    """
     await asyncio.sleep(2)  # brief delay so app is ready
     try:
         from app.api.v1 import agents as _agents_mod
@@ -152,6 +159,96 @@ async def _risk_monitor_loop():
             await asyncio.sleep(60)
 
 
+# ---------------------------------------------------------------------------
+# Event-Driven Architecture: MessageBus + Alpaca WebSocket + Signal Engine
+# ---------------------------------------------------------------------------
+_message_bus = None
+_alpaca_stream = None
+_event_signal_engine = None
+
+
+async def _start_event_driven_pipeline():
+    """Initialize and start the event-driven trading pipeline.
+
+    Components:
+    1. MessageBus — async pub/sub event routing
+    2. AlpacaStreamService — WebSocket bars → market_data.bar events
+    3. EventDrivenSignalEngine — market_data.bar → signal.generated events
+    4. WebSocket broadcaster — signal.generated → frontend real-time updates
+    """
+    global _message_bus, _alpaca_stream, _event_signal_engine
+
+    log.info("=" * 60)
+    log.info("\U0001f680 Starting Event-Driven Pipeline")
+    log.info("=" * 60)
+
+    # 1. MessageBus
+    from app.core.message_bus import get_message_bus
+    _message_bus = get_message_bus()
+    await _message_bus.start()
+    log.info("\u2705 MessageBus started")
+
+    # 2. EventDrivenSignalEngine (subscribes to market_data.bar)
+    from app.services.signal_engine import EventDrivenSignalEngine
+    _event_signal_engine = EventDrivenSignalEngine(_message_bus)
+    await _event_signal_engine.start()
+    log.info("\u2705 EventDrivenSignalEngine started")
+
+    # 3. Signal-to-WebSocket bridge (forward signals to frontend)
+    async def _bridge_signal_to_ws(signal_data):
+        """Forward signal.generated events to frontend via WebSocket."""
+        try:
+            from app.websocket_manager import broadcast_ws
+            await broadcast_ws("signal", {
+                "type": "new_signal",
+                "signal": signal_data,
+            })
+        except Exception as e:
+            log.debug("WS broadcast failed: %s", e)
+
+    await _message_bus.subscribe("signal.generated", _bridge_signal_to_ws)
+    log.info("\u2705 Signal→WebSocket bridge active")
+
+    # 4. AlpacaStreamService (publishes market_data.bar events)
+    from app.services.alpaca_stream_service import AlpacaStreamService
+
+    # Build symbol list from tracked symbols + defaults
+    try:
+        from app.modules.symbol_universe import get_tracked_symbols
+        tracked = get_tracked_symbols()
+    except Exception:
+        tracked = []
+
+    default_symbols = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META", "SPY", "QQQ", "IWM"]
+    symbols = list(set(tracked or default_symbols))
+
+    _alpaca_stream = AlpacaStreamService(_message_bus, symbols)
+    asyncio.create_task(_alpaca_stream.start())
+    log.info("\u2705 AlpacaStreamService launched for %d symbols", len(symbols))
+
+    log.info("=" * 60)
+    log.info("\u2705 Event-Driven Pipeline ONLINE — <1s signal latency")
+    log.info("=" * 60)
+
+
+async def _stop_event_driven_pipeline():
+    """Graceful shutdown of event-driven components."""
+    global _message_bus, _alpaca_stream, _event_signal_engine
+
+    log.info("Shutting down event-driven pipeline...")
+
+    if _alpaca_stream:
+        await _alpaca_stream.stop()
+
+    if _event_signal_engine:
+        await _event_signal_engine.stop()
+
+    if _message_bus:
+        await _message_bus.stop()
+
+    log.info("Event-driven pipeline shutdown complete")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize data schema on startup; start background loops.
@@ -159,9 +256,10 @@ async def lifespan(app: FastAPI):
     Startup sequence:
     1. Initialize DuckDB schema
     2. Initialize ML Flywheel singletons (registry + drift monitor)
-    3. Start market data tick loop (60s interval)
-    4. Start drift check loop (1hr interval)
-    5. Start risk monitor loop (30s interval)
+    3. Start event-driven pipeline (MessageBus + Alpaca + SignalEngine)
+    4. Start legacy market data tick loop (for Finviz/FRED polling)
+    5. Start drift check loop (1hr interval)
+    6. Start risk monitor loop (30s interval)
     """
     # 1. Data schema
     try:
@@ -173,7 +271,13 @@ async def lifespan(app: FastAPI):
     # 2. ML Flywheel singletons
     _init_ml_singletons()
 
-    # 3. Background tasks
+    # 3. Event-driven pipeline (new)
+    try:
+        await _start_event_driven_pipeline()
+    except Exception:
+        log.exception("Event-driven pipeline failed to start — falling back to polling only")
+
+    # 4-6. Background tasks (legacy + monitoring)
     tick_task = asyncio.create_task(_market_data_tick_loop())
     drift_task = asyncio.create_task(_drift_check_loop())
     heartbeat_task = asyncio.create_task(heartbeat_loop())
@@ -182,32 +286,25 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        # Shutdown event-driven pipeline
+        await _stop_event_driven_pipeline()
+
+        # Cancel legacy tasks
         tick_task.cancel()
         drift_task.cancel()
         heartbeat_task.cancel()
         risk_monitor_task.cancel()
-        try:
-            await tick_task
-        except asyncio.CancelledError:
-            pass
-        try:
-            await drift_task
-        except asyncio.CancelledError:
-            pass
-        try:
-            await heartbeat_task
-        except asyncio.CancelledError:
-            pass
-        try:
-            await risk_monitor_task
-        except asyncio.CancelledError:
-            pass
+        for task in [tick_task, drift_task, heartbeat_task, risk_monitor_task]:
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
         log.info("Application shutdown complete")
 
 
 app = FastAPI(
     title=settings.PROJECT_NAME if hasattr(settings, 'PROJECT_NAME') else "Elite Trading System",
-    version="3.0.0",
+    version="3.1.0",
     lifespan=lifespan,
 )
 
@@ -222,7 +319,6 @@ app.add_middleware(
 
 # --- API Routers ---
 # Pattern A routers: include sub-path in route decorators (e.g. @router.get("/stocks"))
-# These are correctly mounted with just prefix="/api/v1"
 app.include_router(stocks.router, prefix="/api/v1", tags=["stocks"])
 app.include_router(quotes.router, prefix="/api/v1", tags=["quotes"])
 app.include_router(orders.router, prefix="/api/v1", tags=["orders"])
@@ -251,8 +347,6 @@ app.include_router(settings_routes.router, prefix="/api/v1/settings", tags=["set
 app.include_router(alpaca.router, prefix="/api/v1/alpaca", tags=["alpaca"])
 
 # Bug #14 fix: risk_shield_api.py has its own prefix="/risk-shield" in the router
-# Previously included WITHOUT prefix="/api/v1", causing routes at /risk-shield/...
-# instead of /api/v1/risk-shield/... (frontend expects /api/v1/risk-shield)
 app.include_router(risk_shield_api.router, prefix="/api/v1", tags=["risk_shield"])
 
 
@@ -272,7 +366,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint with ML engine status."""
+    """Health check endpoint with ML engine + event pipeline status."""
     ml_status = {}
 
     try:
@@ -295,8 +389,18 @@ async def health_check():
     except Exception:
         ml_status["drift_monitor"] = "unavailable"
 
+    # Event pipeline status
+    event_pipeline = {}
+    if _message_bus:
+        event_pipeline["message_bus"] = _message_bus.get_metrics()
+    if _alpaca_stream:
+        event_pipeline["alpaca_stream"] = _alpaca_stream.get_status()
+    if _event_signal_engine:
+        event_pipeline["signal_engine"] = _event_signal_engine.get_status()
+
     return {
         "status": "healthy",
-        "version": "3.0.0",
+        "version": "3.1.0",
         "ml_engine": ml_status,
+        "event_pipeline": event_pipeline,
     }
