@@ -46,7 +46,8 @@ def _numeric(val, default: float = 0.0) -> float:
     except ValueError:
         return default
 
-        def _compute_rsi(closes: List[float], period: int = 14) -> float:
+
+def _compute_rsi(closes: List[float], period: int = 14) -> float:
     """Compute RSI (0-100) from close prices. Returns 50 if insufficient data."""
     if len(closes) < period + 1:
         return 50.0
@@ -69,12 +70,14 @@ def _compute_macd(closes: List[float]) -> Tuple[float, float, float]:
     """Compute MACD line, signal line, histogram. Returns (0,0,0) if insufficient data."""
     if len(closes) < 26:
         return 0.0, 0.0, 0.0
+
     def ema(data, period):
         k = 2.0 / (period + 1)
         result = [data[0]]
         for i in range(1, len(data)):
             result.append(data[i] * k + result[-1] * (1 - k))
         return result
+
     ema12 = ema(closes, 12)
     ema26 = ema(closes, 26)
     macd_line = [ema12[i] - ema26[i] for i in range(len(closes))]
@@ -167,7 +170,7 @@ def _compute_composite_score(quotes: List[dict]) -> Tuple[float, str]:
     else:
         range_score = 0.0
 
-        # Extract all closes and volumes for advanced indicators
+    # Extract all closes and volumes for advanced indicators
     closes = [_numeric(r.get("close")) for r in rows if _numeric(r.get("close")) > 0]
     volumes = [_numeric(r.get("volume")) for r in rows]
 
@@ -194,12 +197,18 @@ def _compute_composite_score(quotes: List[dict]) -> Tuple[float, str]:
     rsi_series = []
     if len(closes) >= 15:
         for i in range(14, len(closes)):
-            rsi_series.append(_compute_rsi(closes[:i+1]))
+            rsi_series.append(_compute_rsi(closes[:i + 1]))
     div_score, div_label = _detect_divergence(closes, rsi_series)
 
     composite = 50.0 + momentum_score + pattern_score + range_score + rsi_score + macd_score + vol_score + div_score
     composite = max(0.0, min(100.0, composite))
-        label = pattern_label + (f"+{div_label}" if div_label else "") + " candle" if pattern_label != "No data" else "Neutral"
+
+    # Build label (parentheses fix operator precedence for ternary)
+    if pattern_label != "No data":
+        label = pattern_label + (f"+{div_label}" if div_label else "") + " candle"
+    else:
+        label = "Neutral"
+
     return round(composite, 1), label
 
 
@@ -232,7 +241,7 @@ async def _get_openclaw_context() -> Tuple[str, Dict[str, Dict[str, float]]]:
                     "trend": float(pillars.get("trend", 50.0)),
                     "pullback": float(pillars.get("pullback", 50.0)),
                     "momentum": float(pillars.get("momentum", 50.0)),
-                    "pattern": float(pillars.get("pattern", 50.0))
+                    "pattern": float(pillars.get("pattern", 50.0)),
                 }
 
         return regime_state, claw_scores
@@ -315,11 +324,11 @@ async def run_tick(
         claw_data = claw_scores.get(symbol)
         if claw_data is not None:
             pillar_score = (
-                claw_data["regime"] * 0.2 +
-                claw_data["trend"] * 0.3 +
-                claw_data["pullback"] * 0.2 +
-                claw_data["momentum"] * 0.2 +
-                claw_data["pattern"] * 0.1
+                claw_data["regime"] * 0.2
+                + claw_data["trend"] * 0.3
+                + claw_data["pullback"] * 0.2
+                + claw_data["momentum"] * 0.2
+                + claw_data["pattern"] * 0.1
             )
             blended = (ta_score * 0.4) + (pillar_score * 0.6)
             label = f"{label}+5Pillars"
