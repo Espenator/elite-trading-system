@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Embodier.ai - Agent Command Center - Blackboard & Comms</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+:root {
+  --bg-base: #050a12;
+  --bg-panel: #0a1020;
+  --bg-panel-alt: #0c1426;
+  --bg-header: #070d18;
+  --bg-sidebar: #040818;
+  --border: #1a2744;
+  --border-light: #243352;
+  --text-main: #c8d6e5;
+  --text-muted: #5a6f8a;
+  --text-dim: #3a4f6a;
+  --text-bright: #e8f0fe;
+  --teal: #00d4e8;
+  --teal-dim: #007a8a;
+  --cyan: #00b8d4;
+  --green: #00e676;
+  --green-dim: #00c853;
+  --yellow: #ffd740;
+  --orange: #ff9100;
+  --red: #ff5252;
+  --purple: #b388ff;
+  --blue: #448aff;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Inter',sans-serif; background:var(--bg-base); color:var(--text-main); font-size:11px; overflow-x:hidden; }
+
+/* Header */
+.header { display:flex; align-items:center; justify-content:space-between; padding:6px 16px; background:var(--bg-header); border-bottom:1px solid var(--border); height:36px; }
+.header-left { display:flex; align-items:center; gap:12px; }
+.header-left .logo { color:var(--teal); font-weight:700; font-size:13px; letter-spacing:1px; }
+.header-left .page-title { color:var(--text-bright); font-weight:600; font-size:12px; }
+.status-pill { padding:2px 8px; border-radius:10px; font-size:9px; font-weight:600; }
+.status-green { background:rgba(0,230,118,0.15); color:var(--green); }
+.header-metrics { display:flex; gap:16px; font-family:'Fira Code',monospace; font-size:10px; color:var(--text-muted); }
+.header-metrics span { color:var(--teal); }
+.header-right { display:flex; align-items:center; gap:8px; }
+.kill-switch { background:var(--red); color:#fff; border:none; padding:3px 10px; border-radius:4px; font-size:9px; font-weight:700; cursor:pointer; letter-spacing:0.5px; }
+
+/* Sub-tabs */
+.subtabs { display:flex; gap:0; background:var(--bg-header); border-bottom:1px solid var(--border); padding:0 16px; }
+.subtab { padding:8px 14px; font-size:10px; color:var(--text-muted); cursor:pointer; border-bottom:2px solid transparent; transition:all 0.2s; }
+.subtab:hover { color:var(--text-main); }
+.subtab.active { color:var(--teal); border-bottom-color:var(--teal); font-weight:600; }
+
+/* Grid layout */
+.main-grid { display:grid; grid-template-columns:1fr 1fr 1fr; grid-template-rows:auto auto auto; gap:8px; padding:8px; height:calc(100vh - 100px); }
+
+/* Panel */
+.panel { background:var(--bg-panel); border:1px solid var(--border); border-radius:6px; padding:8px; overflow:hidden; }
+.panel-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid var(--border); }
+.panel-title { font-size:10px; font-weight:700; color:var(--teal); text-transform:uppercase; letter-spacing:1px; }
+.panel-badge { font-size:9px; padding:1px 6px; border-radius:8px; font-weight:600; }
+
+/* Table styles */
+table { width:100%; border-collapse:collapse; font-size:10px; }
+th { text-align:left; padding:3px 6px; color:var(--text-muted); font-weight:600; font-size:9px; text-transform:uppercase; border-bottom:1px solid var(--border); }
+td { padding:3px 6px; border-bottom:1px solid rgba(26,39,68,0.4); font-family:'Fira Code',monospace; font-size:10px; }
+tr:hover { background:rgba(0,212,232,0.03); }
+
+/* Channel indicator */
+.ch-dot { display:inline-block; width:6px; height:6px; border-radius:50%; margin-right:4px; }
+.ch-active { background:var(--green); box-shadow:0 0 4px var(--green); }
+.ch-idle { background:var(--yellow); }
+.ch-dead { background:var(--red); }
+
+/* Message feed */
+.msg-feed { max-height:100%; overflow-y:auto; font-family:'Fira Code',monospace; font-size:9px; }
+.msg-row { padding:3px 6px; border-bottom:1px solid rgba(26,39,68,0.3); display:flex; gap:8px; align-items:flex-start; }
+.msg-ts { color:var(--text-dim); min-width:70px; flex-shrink:0; }
+.msg-ch { color:var(--teal); min-width:70px; flex-shrink:0; font-weight:600; }
+.msg-agent { color:var(--purple); min-width:80px; flex-shrink:0; }
+.msg-data { color:var(--text-main); word-break:break-all; }
+.msg-type-risk { border-left:2px solid var(--red); }
+.msg-type-signal { border-left:2px solid var(--green); }
+.msg-type-kelly { border-left:2px solid var(--yellow); }
+.msg-type-sentiment { border-left:2px solid var(--purple); }
+.msg-type-execution { border-left:2px solid var(--blue); }
+
+/* Topology diagram */
+.topology { position:relative; height:100%; min-height:180px; }
+.agent-node { position:absolute; width:70px; height:70px; border-radius:50%; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:8px; font-weight:600; border:2px solid; cursor:pointer; }
+.agent-node .name { font-size:7px; margin-top:2px; }
+.agent-node .msgs { font-family:'Fira Code',monospace; font-size:8px; margin-top:1px; }
+
+/* Sparkline bars */
+.spark-bar { display:flex; gap:1px; align-items:flex-end; height:20px; }
+.spark-bar div { width:3px; background:var(--teal); border-radius:1px; opacity:0.7; }
+
+/* Metric box */
+.metric-box { background:var(--bg-panel-alt); border:1px solid var(--border); border-radius:4px; padding:6px 8px; text-align:center; }
+.metric-box .value { font-family:'Fira Code',monospace; font-size:16px; font-weight:700; }
+.metric-box .label { font-size:8px; color:var(--text-muted); text-transform:uppercase; margin-top:2px; }
+
+/* Footer */
+.footer { display:flex; justify-content:space-between; padding:4px 16px; background:var(--bg-header); border-top:1px solid var(--border); font-size:9px; color:var(--text-dim); font-family:'Fira Code',monospace; }
+.footer .connected { color:var(--green); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width:4px; }
+::-webkit-scrollbar-track { background:var(--bg-base); }
+::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+</style>
+</head>
+<body>
+<!-- HEADER -->
+<div class="header">
+  <div class="header-left">
+    <span class="logo">AGENT COMMAND CENTER</span>
+    <span class="status-pill status-green">GREEN</span>
+    <span style="color:var(--text-muted);font-size:10px;">Uptime: 47d 12h 33m</span>
+    <span style="color:var(--text-muted);font-size:10px;">42/42 ONLINE</span>
+  </div>
+  <div class="header-metrics">
+    CPU: <span>47%</span> | RAM: <span>31%</span> | GPU: <span>81%</span>
+  </div>
+  <div class="header-right">
+    <button class="kill-switch">KILL SWITCH</button>
+    <span style="color:var(--green);font-size:9px;">LIVE WIRING</span>
+  </div>
+</div>
+
+<!-- SUB-TABS -->
+<div class="subtabs">
+  <div class="subtab">Swarm Overview</div>
+  <div class="subtab">Agent Registry</div>
+  <div class="subtab">Spawn & Scale</div>
+  <div class="subtab">Live Wiring Map</div>
+  <div class="subtab active">Blackboard & Comms</div>
+  <div class="subtab">Conference & Consensus</div>
+  <div class="subtab">ML Ops</div>
+  <div class="subtab">Logs & Telemetry</div>
+</div>
+
+<!-- MAIN CONTENT GRID -->
+<div class="main-grid">
+
+  <!-- ROW 1, COL 1: WebSocket Channel Registry -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">WebSocket Channel Registry</span>
+      <span class="panel-badge" style="background:rgba(0,230,118,0.15);color:var(--green);">7 Active</span>
+    </div>
+    <table>
+      <thead><tr><th></th><th>Channel</th><th>Subs</th><th>Msg/s</th><th>Last Broadcast</th><th>Format</th></tr></thead>
+      <tbody>
+        <tr><td><span class="ch-dot ch-active"></span></td><td>risk</td><td>12</td><td>3.4</td><td>risk_score_update</td><td>{channel,data,ts}</td></tr>
+        <tr><td><span class="ch-dot ch-active"></span></td><td>kelly</td><td>8</td><td>1.2</td><td>kelly_update</td><td>{channel,data,ts}</td></tr>
+        <tr><td><span class="ch-dot ch-active"></span></td><td>signals</td><td>15</td><td>5.7</td><td>BUY signal NVDA</td><td>{channel,data,ts}</td></tr>
+        <tr><td><span class="ch-dot ch-active"></span></td><td>execution</td><td>6</td><td>0.3</td><td>Order status updated</td><td>{channel,data,ts}</td></tr>
+        <tr><td><span class="ch-dot ch-active"></span></td><td>sentiment</td><td>9</td><td>2.1</td><td>News stream parsed</td><td>{channel,data,ts}</td></tr>
+        <tr><td><span class="ch-dot ch-idle"></span></td><td>macro_brain</td><td>4</td><td>0.1</td><td>Macro data refresh</td><td>{channel,data,ts}</td></tr>
+        <tr><td><span class="ch-dot ch-active"></span></td><td>conference</td><td>5</td><td>0.8</td><td>Consensus #941</td><td>{channel,data,ts}</td></tr>
+      </tbody>
+    </table>
+    <div style="margin-top:6px;display:flex;gap:12px;font-size:9px;color:var(--text-muted);">
+      <span>Total Connections: <span style="color:var(--green);">42</span></span>
+      <span>Heartbeat: <span style="color:var(--teal);">30s</span></span>
+      <span>Timeout: <span style="color:var(--yellow);">60s</span></span>
+      <span>Auth: <span style="color:var(--green);">Token</span></span>
+    </div>
+  </div>
+
+  <!-- ROW 1, COL 2: Live Message Feed -->
+  <div class="panel" style="grid-column:span 2;">
+    <div class="panel-header">
+      <span class="panel-title">Live Blackboard Feed</span>
+      <div style="display:flex;gap:6px;">
+        <span class="panel-badge" style="background:rgba(0,212,232,0.15);color:var(--teal);">247 msg/min</span>
+        <span class="panel-badge" style="background:rgba(0,230,118,0.15);color:var(--green);">STREAMING</span>
+      </div>
+    </div>
+    <div class="msg-feed" style="height:180px;">
+      <div class="msg-row msg-type-risk"><span class="msg-ts">09:41:23</span><span class="msg-ch">risk</span><span class="msg-agent">RiskAgent</span><span class="msg-data">{type:risk_score_update, risk_score:87, grade:A, trading_recommended:true}</span></div>
+      <div class="msg-row msg-type-signal"><span class="msg-ts">09:41:22</span><span class="msg-ch">signals</span><span class="msg-agent">SignalAgent</span><span class="msg-data">{type:signal, ticker:NVDA, confidence:0.87, pnlImpact:+$2,450}</span></div>
+      <div class="msg-row msg-type-kelly"><span class="msg-ts">09:41:20</span><span class="msg-ch">kelly</span><span class="msg-agent">RiskAgent</span><span class="msg-data">{type:kelly_update, ticker:NVDA, kelly_fraction:0.034, position_size:$8,200}</span></div>
+      <div class="msg-row msg-type-risk"><span class="msg-ts">09:41:18</span><span class="msg-ch">risk</span><span class="msg-agent">RiskAgent</span><span class="msg-data">{type:drawdown_alert, trading_allowed:true, daily_pnl:-$340, drawdown_breached:false}</span></div>
+      <div class="msg-row msg-type-sentiment"><span class="msg-ts">09:41:15</span><span class="msg-ch">sentiment</span><span class="msg-agent">SentimentAgent</span><span class="msg-data">{type:sentiment, source:twitter, ticker:AAPL, score:0.72, volume:high}</span></div>
+      <div class="msg-row msg-type-execution"><span class="msg-ts">09:41:12</span><span class="msg-ch">execution</span><span class="msg-agent">ExecutionAgent</span><span class="msg-data">{type:order_status, ticker:NVDA, side:BUY, qty:45, status:FILLED, fill_price:$891.20}</span></div>
+      <div class="msg-row msg-type-signal"><span class="msg-ts">09:41:10</span><span class="msg-ch">signals</span><span class="msg-agent">SignalAgent</span><span class="msg-data">{type:signal, ticker:AAPL, confidence:0.65, action:HOLD}</span></div>
+      <div class="msg-row msg-type-risk"><span class="msg-ts">09:41:08</span><span class="msg-ch">risk</span><span class="msg-agent">RiskAgent</span><span class="msg-data">{type:risk_score_update, risk_score:89, grade:A, warnings:[]}</span></div>
+      <div class="msg-row msg-type-sentiment"><span class="msg-ts">09:40:55</span><span class="msg-ch">sentiment</span><span class="msg-agent">SentimentAgent</span><span class="msg-data">{type:news_parsed, source:SEC_EDGAR, filings:3, impact:neutral}</span></div>
+      <div class="msg-row msg-type-kelly"><span class="msg-ts">09:40:50</span><span class="msg-ch">kelly</span><span class="msg-agent">RiskAgent</span><span class="msg-data">{type:kelly_update, ticker:AAPL, kelly_fraction:0.021, position_size:$5,100}</span></div>
+    </div>
+  </div>
+
+  <!-- ROW 2, COL 1: Agent Communication Topology -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Agent Comm Topology</span>
+      <span class="panel-badge" style="background:rgba(179,136,255,0.15);color:var(--purple);">5 Nodes</span>
+    </div>
+    <div class="topology">
+      <div class="agent-node" style="top:10px;left:50%;transform:translateX(-50%);border-color:var(--green);background:rgba(0,230,118,0.08);color:var(--green);">
+        <span>Signal</span><span class="name">SignalAgent</span><span class="msgs">847/h</span>
+      </div>
+      <div class="agent-node" style="top:90px;left:10px;border-color:var(--red);background:rgba(255,82,82,0.08);color:var(--red);">
+        <span>Risk</span><span class="name">RiskAgent</span><span class="msgs">523/h</span>
+      </div>
+      <div class="agent-node" style="top:90px;right:10px;border-color:var(--blue);background:rgba(68,138,255,0.08);color:var(--blue);">
+        <span>Exec</span><span class="name">ExecutionAgent</span><span class="msgs">312/h</span>
+      </div>
+      <div class="agent-node" style="bottom:10px;left:25%;border-color:var(--purple);background:rgba(179,136,255,0.08);color:var(--purple);">
+        <span>Sent</span><span class="name">SentimentAgent</span><span class="msgs">445/h</span>
+      </div>
+      <div class="agent-node" style="bottom:10px;right:25%;border-color:var(--yellow);background:rgba(255,215,64,0.08);color:var(--yellow);">
+        <span>Port</span><span class="name">PortfolioAgent</span><span class="msgs">198/h</span>
+      </div>
+      <!-- Connection lines via SVG -->
+      <svg style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;opacity:0.3;">
+        <line x1="50%" y1="80" x2="25%" y2="125" stroke="var(--teal)" stroke-width="1" stroke-dasharray="4,2"/>
+        <line x1="50%" y1="80" x2="75%" y2="125" stroke="var(--teal)" stroke-width="1" stroke-dasharray="4,2"/>
+        <line x1="25%" y1="160" x2="35%" y2="200" stroke="var(--teal)" stroke-width="1" stroke-dasharray="4,2"/>
+        <line x1="75%" y1="160" x2="65%" y2="200" stroke="var(--teal)" stroke-width="1" stroke-dasharray="4,2"/>
+        <line x1="25%" y1="125" x2="75%" y2="125" stroke="var(--red)" stroke-width="1" stroke-dasharray="4,2"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ROW 2, COL 2: Blackboard Topic Summary -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Blackboard Topics</span>
+      <span class="panel-badge" style="background:rgba(0,212,232,0.15);color:var(--teal);">5 Topics</span>
+    </div>
+    <table>
+      <thead><tr><th>Topic</th><th>Subs</th><th>Msg/s</th><th>Last Message</th><th>Throughput</th></tr></thead>
+      <tbody>
+        <tr><td style="color:var(--green);">SIG_GEN</td><td>12</td><td>3.4</td><td>Signal generated for SPY</td><td><div class="spark-bar"><div style="height:12px"></div><div style="height:8px"></div><div style="height:15px"></div><div style="height:20px"></div><div style="height:14px"></div><div style="height:18px"></div><div style="height:10px"></div><div style="height:16px"></div></div></td></tr>
+        <tr><td style="color:var(--red);">RISK_EVAL</td><td>8</td><td>0.1</td><td>Risk assessment requested</td><td><div class="spark-bar"><div style="height:4px"></div><div style="height:2px"></div><div style="height:6px"></div><div style="height:3px"></div><div style="height:5px"></div><div style="height:2px"></div><div style="height:4px"></div><div style="height:3px"></div></div></td></tr>
+        <tr><td style="color:var(--purple);">SENTIMENT</td><td>6</td><td>5.7</td><td>News stream parsing complete</td><td><div class="spark-bar"><div style="height:18px"></div><div style="height:20px"></div><div style="height:15px"></div><div style="height:19px"></div><div style="height:17px"></div><div style="height:20px"></div><div style="height:16px"></div><div style="height:18px"></div></div></td></tr>
+        <tr><td style="color:var(--blue);">EXECUTION</td><td>4</td><td>0.3</td><td>Order status updated</td><td><div class="spark-bar"><div style="height:3px"></div><div style="height:6px"></div><div style="height:2px"></div><div style="height:8px"></div><div style="height:4px"></div><div style="height:3px"></div><div style="height:5px"></div><div style="height:2px"></div></div></td></tr>
+        <tr><td style="color:var(--yellow);">MACRO_BRAIN</td><td>13</td><td>4.2</td><td>Macro data refresh</td><td><div class="spark-bar"><div style="height:14px"></div><div style="height:12px"></div><div style="height:16px"></div><div style="height:10px"></div><div style="height:18px"></div><div style="height:13px"></div><div style="height:15px"></div><div style="height:11px"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ROW 2, COL 3: Connection Health -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Connection Health Monitor</span>
+      <span class="panel-badge" style="background:rgba(0,230,118,0.15);color:var(--green);">HEALTHY</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
+      <div class="metric-box"><div class="value" style="color:var(--green);">42</div><div class="label">Active WS</div></div>
+      <div class="metric-box"><div class="value" style="color:var(--teal);">0</div><div class="label">Dead Conns</div></div>
+      <div class="metric-box"><div class="value" style="color:var(--yellow);">23ms</div><div class="label">Avg Latency</div></div>
+      <div class="metric-box"><div class="value" style="color:var(--cyan);">99.8%</div><div class="label">Uptime</div></div>
+    </div>
+    <div style="font-size:9px;color:var(--text-muted);">
+      <div style="margin-bottom:3px;"><span style="color:var(--text-dim);">Auth Mode:</span> <span style="color:var(--green);">Shared Token (JWT Phase 1 pending)</span></div>
+      <div style="margin-bottom:3px;"><span style="color:var(--text-dim);">Heartbeat Interval:</span> <span style="color:var(--teal);">30s</span></div>
+      <div style="margin-bottom:3px;"><span style="color:var(--text-dim);">Timeout Threshold:</span> <span style="color:var(--yellow);">60s</span></div>
+      <div style="margin-bottom:3px;"><span style="color:var(--text-dim);">Last Cleanup:</span> <span style="color:var(--text-main);">09:38:15 (0 dead removed)</span></div>
+      <div><span style="color:var(--text-dim);">Reconnection:</span> <span style="color:var(--green);">Auto-reconnect enabled</span></div>
+    </div>
+  </div>
+
+  <!-- ROW 3, COL 1: Broadcast Helpers -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Broadcast Helpers (API)</span>
+      <span class="panel-badge" style="background:rgba(0,184,212,0.15);color:var(--cyan);">3 Functions</span>
+    </div>
+    <div style="font-family:'Fira Code',monospace;font-size:9px;">
+      <div style="padding:4px 6px;background:var(--bg-panel-alt);border-radius:3px;margin-bottom:4px;border-left:2px solid var(--red);">
+        <div style="color:var(--teal);margin-bottom:2px;">broadcast_risk_update(risk_data)</div>
+        <div style="color:var(--text-dim);">Ch: risk | Type: risk_score_update</div>
+        <div style="color:var(--text-muted);">Fields: risk_score, grade, warnings, trading_recommended</div>
+      </div>
+      <div style="padding:4px 6px;background:var(--bg-panel-alt);border-radius:3px;margin-bottom:4px;border-left:2px solid var(--orange);">
+        <div style="color:var(--teal);margin-bottom:2px;">broadcast_drawdown_alert(dd_data)</div>
+        <div style="color:var(--text-dim);">Ch: risk | Type: drawdown_alert</div>
+        <div style="color:var(--text-muted);">Fields: trading_allowed, daily_pnl, daily_pnl_pct, drawdown_breached, severity</div>
+      </div>
+      <div style="padding:4px 6px;background:var(--bg-panel-alt);border-radius:3px;border-left:2px solid var(--yellow);">
+        <div style="color:var(--teal);margin-bottom:2px;">broadcast_kelly_update(kelly_data)</div>
+        <div style="color:var(--text-dim);">Ch: kelly | Type: kelly_update</div>
+        <div style="color:var(--text-muted);">Fields: **kelly_data (spread), ts</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROW 3, COL 2: Agent Subscription Matrix -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Agent Subscription Matrix</span>
+    </div>
+    <table>
+      <thead><tr><th>Agent</th><th>risk</th><th>kelly</th><th>signals</th><th>execution</th><th>sentiment</th><th>conference</th></tr></thead>
+      <tbody>
+        <tr><td style="color:var(--green);">SignalAgent</td><td style="color:var(--green);">PUB</td><td>-</td><td style="color:var(--teal);">PUB</td><td>-</td><td style="color:var(--text-muted);">SUB</td><td style="color:var(--text-muted);">SUB</td></tr>
+        <tr><td style="color:var(--red);">RiskAgent</td><td style="color:var(--green);">PUB</td><td style="color:var(--green);">PUB</td><td style="color:var(--text-muted);">SUB</td><td style="color:var(--text-muted);">SUB</td><td>-</td><td style="color:var(--text-muted);">SUB</td></tr>
+        <tr><td style="color:var(--blue);">ExecutionAgent</td><td style="color:var(--text-muted);">SUB</td><td style="color:var(--text-muted);">SUB</td><td style="color:var(--text-muted);">SUB</td><td style="color:var(--green);">PUB</td><td>-</td><td style="color:var(--text-muted);">SUB</td></tr>
+        <tr><td style="color:var(--purple);">SentimentAgent</td><td>-</td><td>-</td><td style="color:var(--text-muted);">SUB</td><td>-</td><td style="color:var(--green);">PUB</td><td style="color:var(--text-muted);">SUB</td></tr>
+        <tr><td style="color:var(--yellow);">PortfolioAgent</td><td style="color:var(--text-muted);">SUB</td><td style="color:var(--text-muted);">SUB</td><td style="color:var(--text-muted);">SUB</td><td style="color:var(--text-muted);">SUB</td><td>-</td><td style="color:var(--green);">PUB</td></tr>
+      </tbody>
+    </table>
+    <div style="margin-top:6px;font-size:8px;color:var(--text-dim);display:flex;gap:12px;">
+      <span><span style="color:var(--green);">PUB</span> = Publisher</span>
+      <span><span style="color:var(--text-muted);">SUB</span> = Subscriber</span>
+      <span>- = No connection</span>
+    </div>
+  </div>
+
+  <!-- ROW 3, COL 3: broadcast_ws() Reference -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">broadcast_ws() Protocol</span>
+    </div>
+    <div style="font-family:'Fira Code',monospace;font-size:9px;background:var(--bg-panel-alt);border-radius:3px;padding:6px;border:1px solid var(--border);">
+      <div style="color:var(--text-dim);margin-bottom:4px;">// Message envelope format</div>
+      <div style="color:var(--teal);">msg = {</div>
+      <div style="padding-left:12px;color:var(--text-main);">&quot;channel&quot;: <span style="color:var(--green);">str</span>,</div>
+      <div style="padding-left:12px;color:var(--text-main);">&quot;data&quot;: <span style="color:var(--yellow);">dict|list</span>,</div>
+      <div style="padding-left:12px;color:var(--text-main);">&quot;ts&quot;: <span style="color:var(--orange);">float</span></div>
+      <div style="color:var(--teal);">}</div>
+    </div>
+    <div style="margin-top:6px;font-size:9px;">
+      <div style="color:var(--text-muted);margin-bottom:4px;">Routing Logic:</div>
+      <div style="color:var(--text-dim);padding-left:6px;">1. Check channel subscribers</div>
+      <div style="color:var(--text-dim);padding-left:6px;">2. If subscribers exist -> send to them only</div>
+      <div style="color:var(--text-dim);padding-left:6px;">3. If no subscribers -> broadcast to all</div>
+      <div style="color:var(--text-dim);padding-left:6px;">4. Dead connections auto-cleaned</div>
+    </div>
+    <div style="margin-top:6px;font-size:9px;color:var(--text-muted);">
+      <span style="color:var(--text-dim);">Source:</span> websocket_manager.py
+    </div>
+  </div>
+
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <span><span class="connected">WebSocket Connected</span> | API Healthy | <span style="color:var(--teal);">42 agents</span> | LLM Flow 847 | Conference 8/12</span>
+  <span>Last Refresh 09:41:23 | Load 2.4/4.0 | Uptime 47d 12h</span>
+</div>
+
+</body>
+</html>
