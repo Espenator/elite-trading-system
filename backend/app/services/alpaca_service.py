@@ -14,6 +14,20 @@ _TIMEOUT = 30.0
 _CACHE_TTL_SHORT = 5      # seconds — positions / account (live but prevents hammering)
 _CACHE_TTL_MEDIUM = 60    # seconds — portfolio history, activities
 
+# Map human-readable order types to Alpaca API values
+_ORDER_TYPE_MAP = {
+    "Market": "market",
+    "market": "market",
+    "Limit": "limit",
+    "limit": "limit",
+    "Stop": "stop",
+    "stop": "stop",
+    "Stop Limit": "stop_limit",
+    "stop_limit": "stop_limit",
+    "Trailing Stop": "trailing_stop",
+    "trailing_stop": "trailing_stop",
+}
+
 
 class AlpacaService:
     """Service for interacting with Alpaca Markets API.
@@ -30,7 +44,7 @@ class AlpacaService:
             self.trading_mode = "paper"
         self._cache: Dict[str, Any] = {}  # key -> (timestamp, data)
 
-    # ── helpers ──────────────────────────────────────────────────────────
+    # ── helpers ──────────────────────────────────────────────────────────────────
 
     def _is_configured(self) -> bool:
         return bool(self.api_key and self.secret_key)
@@ -98,7 +112,7 @@ class AlpacaService:
             logger.error("Alpaca connection error on %s %s: %s", method, path, exc)
             return None
 
-    # ── account ──────────────────────────────────────────────────────────
+    # ── account ──────────────────────────────────────────────────────────────────
 
     async def get_account(self) -> Optional[Dict]:
         """GET /v2/account — real account equity, buying power, margins."""
@@ -110,7 +124,7 @@ class AlpacaService:
             self._cache_set("account", data)
         return data
 
-    # ── positions ────────────────────────────────────────────────────────
+    # ── positions ────────────────────────────────────────────────────────────────
 
     async def get_positions(self) -> Optional[List[Dict]]:
         """GET /v2/positions — all open positions with cost basis, P&L, current price."""
@@ -126,52 +140,100 @@ class AlpacaService:
         """GET /v2/positions/{symbol} — single position detail."""
         return await self._request("GET", f"/positions/{symbol.upper()}")
 
-    # ── orders ───────────────────────────────────────────────────────────
+    # ── orders ───────────────────────────────────────────────────────────────────
 
     async def get_orders(
         self,
         status: str = "all",
         limit: int = 50,
         direction: str = "desc",
+        nested: bool = True,
     ) -> Optional[List[Dict]]:
-        """GET /v2/orders — open / closed / all orders."""
+        """GET /v2/orders — list orders with status, direction, and nested leg support.
+
+        Unified method (previously split into two with different signatures).
+        """
         return await self._request(
             "GET",
             "/orders",
-            params={"status": status, "limit": limit, "direction": direction},
+            params={
+                "status": status,
+                "limit": str(limit),
+                "direction": direction,
+                "nested": str(nested).lower(),
+            },
         )
 
     async def create_order(
         self,
         symbol: str,
-        order_type: str,
-        side: str,
-        quantity: int,
-        price: Optional[float] = None,
-        stop_price: Optional[float] = None,
+        qty: Optional[str] = None,
+        notional: Optional[str] = None,
+        side: str = "buy",
+        type: str = "market",
         time_in_force: str = "day",
-    ) -> Dict:
-        """POST /v2/orders — create a real order."""
-        mapping = {
-            "Market": "market", "Limit": "limit", "Stop": "stop",
-            "Stop Limit": "stop_limit", "Trailing Stop": "trailing_stop",
-        }
-        alpaca_type = mapping.get(order_type, "market")
-        order_data: Dict[str, Any] = {
+        limit_price: Optional[str] = None,
+        stop_price: Optional[str] = None,
+        trail_price: Optional[str] = None,
+        trail_percent: Optional[str] = None,
+        extended_hours: bool = False,
+        client_order_id: Optional[str] = None,
+        order_class: Optional[str] = None,
+        take_profit: Optional[Dict] = None,
+        stop_loss: Optional[Dict] = None,
+        # Legacy simple interface (database.py / older callers)
+        order_type: Optional[str] = None,
+        quantity: Optional[int] = None,
+        price: Optional[float] = None,
+    ) -> Optional[Dict]:
+        """POST /v2/orders — submit any order type.
+
+        Unified method supporting both:
+        - Simple: create_order('AAPL', order_type='Market', side='buy', quantity=10)
+        - Advanced: create_order('AAPL', qty='10', type='limit', limit_price='150.00',
+                                 order_class='bracket', take_profit={...}, stop_loss={...})
+        """
+        # Legacy compatibility: map order_type -> type, quantity -> qty
+        if order_type is not None:
+            type = _ORDER_TYPE_MAP.get(order_type, order_type.lower())
+        if quantity is not None and qty is None:
+            qty = str(quantity)
+        if price is not None:
+            if type in ("limit", "stop_limit") and limit_price is None:
+                limit_price = str(price)
+            elif type in ("stop", "stop_limit") and stop_price is None:
+                stop_price = str(price)
+
+        body: Dict[str, Any] = {
             "symbol": symbol.upper(),
-            "qty": str(quantity),
             "side": side.lower(),
-            "type": alpaca_type,
+            "type": type,
             "time_in_force": time_in_force,
         }
-        if alpaca_type in ("limit", "stop_limit") and price:
-            order_data["limit_price"] = str(price)
-        if alpaca_type in ("stop", "stop_limit") and stop_price:
-            order_data["stop_price"] = str(stop_price)
-        elif alpaca_type in ("stop", "stop_limit") and price:
-            order_data["stop_price"] = str(price)
+        if qty is not None:
+            body["qty"] = str(qty)
+        if notional is not None:
+            body["notional"] = str(notional)
+        if limit_price is not None:
+            body["limit_price"] = str(limit_price)
+        if stop_price is not None:
+            body["stop_price"] = str(stop_price)
+        if trail_price is not None:
+            body["trail_price"] = str(trail_price)
+        if trail_percent is not None:
+            body["trail_percent"] = str(trail_percent)
+        if extended_hours:
+            body["extended_hours"] = True
+        if client_order_id:
+            body["client_order_id"] = client_order_id
+        if order_class and order_class != "simple":
+            body["order_class"] = order_class
+        if take_profit:
+            body["take_profit"] = take_profit
+        if stop_loss:
+            body["stop_loss"] = stop_loss
 
-        result = await self._request("POST", "/orders", json_body=order_data)
+        result = await self._request("POST", "/orders", json_body=body)
         if result is None:
             raise Exception("Failed to create order — Alpaca returned no data")
         return result
@@ -180,12 +242,65 @@ class AlpacaService:
         """GET /v2/orders/{order_id}."""
         return await self._request("GET", f"/orders/{order_id}")
 
-    async def cancel_order(self, order_id: str) -> bool:
-        """DELETE /v2/orders/{order_id}."""
-        result = await self._request("DELETE", f"/orders/{order_id}")
-        return result is True
+    async def replace_order(
+        self,
+        order_id: str,
+        qty: Optional[str] = None,
+        limit_price: Optional[str] = None,
+        stop_price: Optional[str] = None,
+        trail: Optional[str] = None,
+        time_in_force: Optional[str] = None,
+        client_order_id: Optional[str] = None,
+    ) -> Optional[Dict]:
+        """PATCH /v2/orders/{order_id} — replace/amend an open order."""
+        body: Dict[str, Any] = {}
+        if qty is not None:
+            body["qty"] = str(qty)
+        if limit_price is not None:
+            body["limit_price"] = str(limit_price)
+        if stop_price is not None:
+            body["stop_price"] = str(stop_price)
+        if trail is not None:
+            body["trail"] = str(trail)
+        if time_in_force is not None:
+            body["time_in_force"] = time_in_force
+        if client_order_id:
+            body["client_order_id"] = client_order_id
+        if not body:
+            return None
+        return await self._request("PATCH", f"/orders/{order_id}", json_body=body)
 
-    # ── activities (trade history) ───────────────────────────────────────
+    async def cancel_order(self, order_id: str) -> Optional[Any]:
+        """DELETE /v2/orders/{order_id} — cancel a single order.
+
+        Returns True (204 No Content) on success, None on failure.
+        Callers that need bool can check: `result is not None`.
+        """
+        return await self._request("DELETE", f"/orders/{order_id}")
+
+    async def cancel_all_orders(self) -> Optional[List]:
+        """DELETE /v2/orders — cancel all open orders."""
+        return await self._request("DELETE", "/orders")
+
+    # ── positions management ───────────────────────────────────────────────────
+
+    async def close_position(
+        self, symbol: str, qty: Optional[str] = None, percentage: Optional[str] = None
+    ) -> Optional[Dict]:
+        """DELETE /v2/positions/{symbol} — close or reduce a position."""
+        params: Dict[str, str] = {}
+        if qty is not None:
+            params["qty"] = str(qty)
+        if percentage is not None:
+            params["percentage"] = str(percentage)
+        return await self._request("DELETE", f"/positions/{symbol.upper()}", params=params or None)
+
+    async def close_all_positions(self, cancel_orders: bool = True) -> Optional[List]:
+        """DELETE /v2/positions — liquidate all positions."""
+        params = {"cancel_orders": str(cancel_orders).lower()}
+        return await self._request("DELETE", "/positions", params=params)
+
+    # ── activities (trade history) ─────────────────────────────────────────────
 
     async def get_activities(
         self,
@@ -214,7 +329,7 @@ class AlpacaService:
             self._cache_set(cache_key, data)
         return data
 
-    # ── portfolio history ────────────────────────────────────────────────
+    # ── portfolio history ──────────────────────────────────────────────────────
 
     async def get_portfolio_history(
         self,
@@ -240,7 +355,7 @@ class AlpacaService:
             self._cache_set(cache_key, data)
         return data
 
-    # ── asset lookup ─────────────────────────────────────────────────────
+    # ── asset lookup ───────────────────────────────────────────────────────────
 
     async def get_asset_exchange_map(self) -> Dict[str, str]:
         """Fetch all US equity assets from Alpaca → symbol:exchange map."""
@@ -274,118 +389,6 @@ class AlpacaService:
             logger.warning("Alpaca get_asset_exchange_map failed: %s", exc)
         return out
 
-    # ── advanced orders (trade-execution) ───────────────────────────────
 
-    async def create_order(
-        self,
-        symbol: str,
-        qty: Optional[str] = None,
-        notional: Optional[str] = None,
-        side: str = "buy",
-        type: str = "market",
-        time_in_force: str = "day",
-        limit_price: Optional[str] = None,
-        stop_price: Optional[str] = None,
-        trail_price: Optional[str] = None,
-        trail_percent: Optional[str] = None,
-        extended_hours: bool = False,
-        client_order_id: Optional[str] = None,
-        order_class: Optional[str] = None,
-        take_profit: Optional[Dict] = None,
-        stop_loss: Optional[Dict] = None,
-    ) -> Optional[Dict]:
-        """POST /v2/orders — submit any order type including bracket/OCO/OTO."""
-        body: Dict[str, Any] = {
-            "symbol": symbol.upper(),
-            "side": side,
-            "type": type,
-            "time_in_force": time_in_force,
-        }
-        if qty is not None:
-            body["qty"] = str(qty)
-        if notional is not None:
-            body["notional"] = str(notional)
-        if limit_price is not None:
-            body["limit_price"] = str(limit_price)
-        if stop_price is not None:
-            body["stop_price"] = str(stop_price)
-        if trail_price is not None:
-            body["trail_price"] = str(trail_price)
-        if trail_percent is not None:
-            body["trail_percent"] = str(trail_percent)
-        if extended_hours:
-            body["extended_hours"] = True
-        if client_order_id:
-            body["client_order_id"] = client_order_id
-        if order_class and order_class != "simple":
-            body["order_class"] = order_class
-        if take_profit:
-            body["take_profit"] = take_profit
-        if stop_loss:
-            body["stop_loss"] = stop_loss
-        return await self._request("POST", "/orders", json_body=body)
-
-    async def replace_order(
-        self,
-        order_id: str,
-        qty: Optional[str] = None,
-        limit_price: Optional[str] = None,
-        stop_price: Optional[str] = None,
-        trail: Optional[str] = None,
-        time_in_force: Optional[str] = None,
-        client_order_id: Optional[str] = None,
-    ) -> Optional[Dict]:
-        """PATCH /v2/orders/{order_id} — replace/amend an open order."""
-        body: Dict[str, Any] = {}
-        if qty is not None:
-            body["qty"] = str(qty)
-        if limit_price is not None:
-            body["limit_price"] = str(limit_price)
-        if stop_price is not None:
-            body["stop_price"] = str(stop_price)
-        if trail is not None:
-            body["trail"] = str(trail)
-        if time_in_force is not None:
-            body["time_in_force"] = time_in_force
-        if client_order_id:
-            body["client_order_id"] = client_order_id
-        if not body:
-            return None
-        return await self._request("PATCH", f"/orders/{order_id}", json_body=body)
-
-    async def cancel_order(self, order_id: str) -> Optional[Dict]:
-        """DELETE /v2/orders/{order_id} — cancel a single order."""
-        return await self._request("DELETE", f"/orders/{order_id}")
-
-    async def cancel_all_orders(self) -> Optional[List]:
-        """DELETE /v2/orders — cancel all open orders."""
-        return await self._request("DELETE", "/orders")
-
-    async def close_position(
-        self, symbol: str, qty: Optional[str] = None, percentage: Optional[str] = None
-    ) -> Optional[Dict]:
-        """DELETE /v2/positions/{symbol} — close or reduce a position."""
-        params: Dict[str, str] = {}
-        if qty is not None:
-            params["qty"] = str(qty)
-        if percentage is not None:
-            params["percentage"] = str(percentage)
-        return await self._request("DELETE", f"/positions/{symbol.upper()}", params=params or None)
-
-    async def close_all_positions(self, cancel_orders: bool = True) -> Optional[List]:
-        """DELETE /v2/positions — liquidate all positions."""
-        params = {"cancel_orders": str(cancel_orders).lower()}
-        return await self._request("DELETE", "/positions", params=params)
-
-
-
-    async def get_orders(
-        self, status: str = "open", limit: int = 50, nested: bool = True
-    ) -> Optional[List]:
-        """GET /v2/orders — list orders with status filter."""
-        params = {"status": status, "limit": str(limit), "nested": str(nested).lower()}
-        return await self._request("GET", "/orders", params=params)
-
-
-# ── singleton ────────────────────────────────────────────────────────────
+# ── singleton ────────────────────────────────────────────────────────────────────
 alpaca_service = AlpacaService()
