@@ -274,6 +274,110 @@ class AlpacaService:
             logger.warning("Alpaca get_asset_exchange_map failed: %s", exc)
         return out
 
+    # ── advanced orders (trade-execution) ───────────────────────────────
+
+    async def create_order(
+        self,
+        symbol: str,
+        qty: Optional[str] = None,
+        notional: Optional[str] = None,
+        side: str = "buy",
+        type: str = "market",
+        time_in_force: str = "day",
+        limit_price: Optional[str] = None,
+        stop_price: Optional[str] = None,
+        trail_price: Optional[str] = None,
+        trail_percent: Optional[str] = None,
+        extended_hours: bool = False,
+        client_order_id: Optional[str] = None,
+        order_class: Optional[str] = None,
+        take_profit: Optional[Dict] = None,
+        stop_loss: Optional[Dict] = None,
+    ) -> Optional[Dict]:
+        """POST /v2/orders — submit any order type including bracket/OCO/OTO."""
+        body: Dict[str, Any] = {
+            "symbol": symbol.upper(),
+            "side": side,
+            "type": type,
+            "time_in_force": time_in_force,
+        }
+        if qty is not None:
+            body["qty"] = str(qty)
+        if notional is not None:
+            body["notional"] = str(notional)
+        if limit_price is not None:
+            body["limit_price"] = str(limit_price)
+        if stop_price is not None:
+            body["stop_price"] = str(stop_price)
+        if trail_price is not None:
+            body["trail_price"] = str(trail_price)
+        if trail_percent is not None:
+            body["trail_percent"] = str(trail_percent)
+        if extended_hours:
+            body["extended_hours"] = True
+        if client_order_id:
+            body["client_order_id"] = client_order_id
+        if order_class and order_class != "simple":
+            body["order_class"] = order_class
+        if take_profit:
+            body["take_profit"] = take_profit
+        if stop_loss:
+            body["stop_loss"] = stop_loss
+        return await self._request("POST", "/orders", json_body=body)
+
+    async def replace_order(
+        self,
+        order_id: str,
+        qty: Optional[str] = None,
+        limit_price: Optional[str] = None,
+        stop_price: Optional[str] = None,
+        trail: Optional[str] = None,
+        time_in_force: Optional[str] = None,
+        client_order_id: Optional[str] = None,
+    ) -> Optional[Dict]:
+        """PATCH /v2/orders/{order_id} — replace/amend an open order."""
+        body: Dict[str, Any] = {}
+        if qty is not None:
+            body["qty"] = str(qty)
+        if limit_price is not None:
+            body["limit_price"] = str(limit_price)
+        if stop_price is not None:
+            body["stop_price"] = str(stop_price)
+        if trail is not None:
+            body["trail"] = str(trail)
+        if time_in_force is not None:
+            body["time_in_force"] = time_in_force
+        if client_order_id:
+            body["client_order_id"] = client_order_id
+        if not body:
+            return None
+        return await self._request("PATCH", f"/orders/{order_id}", json_body=body)
+
+    async def cancel_order(self, order_id: str) -> Optional[Dict]:
+        """DELETE /v2/orders/{order_id} — cancel a single order."""
+        return await self._request("DELETE", f"/orders/{order_id}")
+
+    async def cancel_all_orders(self) -> Optional[List]:
+        """DELETE /v2/orders — cancel all open orders."""
+        return await self._request("DELETE", "/orders")
+
+    async def close_position(
+        self, symbol: str, qty: Optional[str] = None, percentage: Optional[str] = None
+    ) -> Optional[Dict]:
+        """DELETE /v2/positions/{symbol} — close or reduce a position."""
+        params: Dict[str, str] = {}
+        if qty is not None:
+            params["qty"] = str(qty)
+        if percentage is not None:
+            params["percentage"] = str(percentage)
+        return await self._request("DELETE", f"/positions/{symbol.upper()}", params=params or None)
+
+    async def close_all_positions(self, cancel_orders: bool = True) -> Optional[List]:
+        """DELETE /v2/positions — liquidate all positions."""
+        params = {"cancel_orders": str(cancel_orders).lower()}
+        return await self._request("DELETE", "/positions", params=params)
+
+
 
 # ── singleton ────────────────────────────────────────────────────────────
 alpaca_service = AlpacaService()
