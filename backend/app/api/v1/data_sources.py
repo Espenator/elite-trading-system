@@ -422,7 +422,7 @@ async def add_source(payload: DataSourceCreate):
     }
     sources[payload.id] = new_source
     _save_sources(sources)
-    await broadcast_ws({
+    await broadcast_ws("data_sources", {
         "type": "data_source_added",
         "source_id": payload.id,
         "data": new_source,
@@ -454,7 +454,7 @@ async def update_source(source_id: str, payload: DataSourceUpdate):
         src["required_keys"] = payload.required_keys
     sources[source_id] = src
     _save_sources(sources)
-    await broadcast_ws({
+    await broadcast_ws("data_sources", {
         "type": "data_source_updated",
         "source_id": source_id,
         "data": src,
@@ -473,7 +473,7 @@ async def delete_source(source_id: str):
     _save_sources(sources)
     creds_key = f"{DB_CREDS_PREFIX}{source_id}"
     db_service.set_config(creds_key, "")
-    await broadcast_ws({
+    await broadcast_ws("data_sources", {
         "type": "data_source_deleted",
         "source_id": source_id,
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -499,7 +499,7 @@ async def set_credentials(source_id: str, payload: CredentialsPayload):
     encrypted = _encrypt(payload.keys)
     creds_key = f"{DB_CREDS_PREFIX}{source_id}"
     db_service.set_config(creds_key, encrypted)
-    await broadcast_ws({
+    await broadcast_ws("data_sources", {
         "type": "credentials_updated",
         "source_id": source_id,
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -567,6 +567,13 @@ def _build_params(source_id: str, creds: Dict[str, str]) -> Dict[str, str]:
     return params
 
 
+def _test_result_to_dict(result: TestResult) -> dict:
+    """Convert TestResult to dict (Pydantic v1/v2 compatible)."""
+    if hasattr(result, "model_dump"):
+        return result.model_dump()
+    return result.dict()
+
+
 @router.post("/{source_id}/test", response_model=TestResult)
 async def test_source(source_id: str):
     """Live connection test. Alpaca uses alpaca_service.get_account()."""
@@ -596,7 +603,7 @@ async def test_source(source_id: str):
                 error=None,
                 tested_at=now_str,
             )
-            await broadcast_ws({"type": "source_tested", "source_id": "alpaca", "result": result.dict()})
+            await broadcast_ws("data_sources", {"type": "source_tested", "source_id": "alpaca", "result": _test_result_to_dict(result)})
             return result
         except Exception as e:
             latency = (datetime.now(timezone.utc) - start).total_seconds() * 1000
@@ -612,7 +619,7 @@ async def test_source(source_id: str):
                 error=str(e),
                 tested_at=now_str,
             )
-            await broadcast_ws({"type": "source_tested", "source_id": "alpaca", "result": result.dict()})
+            await broadcast_ws("data_sources", {"type": "source_tested", "source_id": "alpaca", "result": _test_result_to_dict(result)})
             return result
 
     # --- RSS: just check if base_url is set ---
@@ -628,7 +635,7 @@ async def test_source(source_id: str):
             message="RSS configured" if src.get("base_url") else "No feed URL set",
             tested_at=now_str,
         )
-        await broadcast_ws({"type": "source_tested", "source_id": "rss", "result": result.dict()})
+        await broadcast_ws("data_sources", {"type": "source_tested", "source_id": "rss", "result": _test_result_to_dict(result)})
         return result
 
     # --- OpenClaw Bridge: local service ---
@@ -653,7 +660,7 @@ async def test_source(source_id: str):
                 error=None if ok else f"HTTP {resp.status_code}",
                 tested_at=now_str,
             )
-            await broadcast_ws({"type": "source_tested", "source_id": "openclaw_bridge", "result": result.dict()})
+            await broadcast_ws("data_sources", {"type": "source_tested", "source_id": "openclaw_bridge", "result": _test_result_to_dict(result)})
             return result
         except Exception as e:
             latency = (datetime.now(timezone.utc) - start).total_seconds() * 1000
@@ -669,7 +676,7 @@ async def test_source(source_id: str):
                 error=str(e),
                 tested_at=now_str,
             )
-            await broadcast_ws({"type": "source_tested", "source_id": "openclaw_bridge", "result": result.dict()})
+            await broadcast_ws("data_sources", {"type": "source_tested", "source_id": "openclaw_bridge", "result": _test_result_to_dict(result)})
             return result
 
     # --- TradingView: no auth needed ---
@@ -694,7 +701,7 @@ async def test_source(source_id: str):
                 error=None if ok else f"HTTP {resp.status_code}",
                 tested_at=now_str,
             )
-            await broadcast_ws({"type": "source_tested", "source_id": "tradingview", "result": result.dict()})
+            await broadcast_ws("data_sources", {"type": "source_tested", "source_id": "tradingview", "result": _test_result_to_dict(result)})
             return result
         except Exception as e:
             latency = (datetime.now(timezone.utc) - start).total_seconds() * 1000
@@ -710,7 +717,7 @@ async def test_source(source_id: str):
                 error=str(e),
                 tested_at=now_str,
             )
-            await broadcast_ws({"type": "source_tested", "source_id": "tradingview", "result": result.dict()})
+            await broadcast_ws("data_sources", {"type": "source_tested", "source_id": "tradingview", "result": _test_result_to_dict(result)})
             return result
 
     # --- Generic authenticated test for remaining sources ---
@@ -730,7 +737,7 @@ async def test_source(source_id: str):
             error=f"No credentials stored. Required: {src['required_keys']}",
             tested_at=now_str,
         )
-        await broadcast_ws({"type": "source_tested", "source_id": source_id, "result": result.dict()})
+        await broadcast_ws("data_sources", {"type": "source_tested", "source_id": source_id, "result": _test_result_to_dict(result)})
         return result
 
     url = f"{src['base_url']}{src['test_endpoint']}"
@@ -757,7 +764,7 @@ async def test_source(source_id: str):
             error=None if ok else f"HTTP {resp.status_code}: {resp.text[:100]}",
             tested_at=now_str,
         )
-        await broadcast_ws({"type": "source_tested", "source_id": source_id, "result": result.dict()})
+        await broadcast_ws("data_sources", {"type": "source_tested", "source_id": source_id, "result": _test_result_to_dict(result)})
         return result
     except requests.exceptions.Timeout:
         latency = (datetime.now(timezone.utc) - start).total_seconds() * 1000
@@ -773,7 +780,7 @@ async def test_source(source_id: str):
             error="Connection timed out (10s)",
             tested_at=now_str,
         )
-        await broadcast_ws({"type": "source_tested", "source_id": source_id, "result": result.dict()})
+        await broadcast_ws("data_sources", {"type": "source_tested", "source_id": source_id, "result": _test_result_to_dict(result)})
         return result
     except Exception as e:
         latency = (datetime.now(timezone.utc) - start).total_seconds() * 1000
@@ -789,7 +796,7 @@ async def test_source(source_id: str):
             error=str(e),
             tested_at=now_str,
         )
-        await broadcast_ws({"type": "source_tested", "source_id": source_id, "result": result.dict()})
+        await broadcast_ws("data_sources", {"type": "source_tested", "source_id": source_id, "result": _test_result_to_dict(result)})
         return result
 
 
