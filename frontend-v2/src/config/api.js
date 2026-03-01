@@ -66,8 +66,8 @@ const API_CONFIG = {
     marketIndices: "/market/indices", // GET indices snapshot for Dashboard top bar
     mlBrain: "/ml-brain", // ML brain model status + predictions
     riskShield: "/risk-shield", // RiskShield emergency controls + safety checks
-        kellySizer: "/kelly-sizer", // Kelly criterion position sizing calculator
-    positionSizing: "/position-sizing", // Portfolio-level position sizing
+        kellySizer: "/risk/kelly-sizer", // Bug #19 fix: was /kelly-sizer, needs /risk prefix
+    positionSizing: "/risk/position-sizing", // Bug #19 fix: was /position-sizing, needs /risk prefix
       drawdownCheck: "/risk/drawdown-check", // Drawdown protection check
   dynamicStopLoss: "/risk/dynamic-stop-loss", // ATR-based stop-loss calculator
   riskScore: "/risk/risk-score", // Composite risk score 0-100
@@ -109,9 +109,19 @@ const API_CONFIG = {
  * Get full API URL for an endpoint.
  * When BASE_URL is "" (dev), returns relative path so Vite proxy forwards to backend.
  * Usage: getApiUrl('agents') => '/api/v1/agents' (dev) or 'https://api.example.com/api/v1/agents' (prod)
+ *
+ * Bug #25 fix: fallback now ensures leading slash for unmapped endpoints
+ * so 'backtest/results' becomes '/backtest/results' not 'backtest/results'.
  */
-export const getApiUrl = (endpoint) =>
-  `${API_CONFIG.BASE_URL}${API_CONFIG.API_PREFIX}${API_CONFIG.endpoints[endpoint] || endpoint}`;
+export const getApiUrl = (endpoint) => {
+  const mapped = API_CONFIG.endpoints[endpoint];
+  if (mapped) {
+    return `${API_CONFIG.BASE_URL}${API_CONFIG.API_PREFIX}${mapped}`;
+  }
+  // Fallback: treat endpoint as raw path, ensure leading slash
+  const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  return `${API_CONFIG.BASE_URL}${API_CONFIG.API_PREFIX}${path}`;
+};
 
 /**
  * Get WebSocket base URL. When WS_URL is "" (dev), uses current host so Vite proxy is used.
