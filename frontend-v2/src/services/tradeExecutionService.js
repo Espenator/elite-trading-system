@@ -1,45 +1,69 @@
-import api from './api';
-
-const API_BASE = '/api/trade-execution';
+/**
+ * Trade Execution Service — connects frontend to backend order/position APIs.
+ *
+ * Bug #21/#22/#23 fix: rewrote to use getApiUrl() from config/api.js
+ * instead of broken './api' import and non-existent '/api/trade-execution' base.
+ * WebSocket now uses getWsBaseUrl() instead of hardcoded port.
+ */
+import { getApiUrl, getWsBaseUrl } from '../config/api';
 
 // ─── Portfolio & Account ───────────────────────────────────
 export const getPortfolio = async () => {
-  const { data } = await api.get(`${API_BASE}/portfolio`);
-  return data;
+  const res = await fetch(`${getApiUrl('alpaca')}/account`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  return res.json();
 };
 
 // ─── Positions ─────────────────────────────────────────────
 export const getPositions = async () => {
-  const { data } = await api.get(`${API_BASE}/positions`);
-  return data;
+  const res = await fetch(`${getApiUrl('alpaca')}/positions`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  return res.json();
 };
 
 export const closePosition = async (symbol, side) => {
-  const { data } = await api.post(`${API_BASE}/positions/close`, { symbol, side });
-  return data;
+  const res = await fetch(`${getApiUrl('orders')}/close`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ symbol, side }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  return res.json();
 };
 
 export const adjustPosition = async (symbol, side, adjustment) => {
-  const { data } = await api.post(`${API_BASE}/positions/adjust`, { symbol, side, ...adjustment });
-  return data;
+  const res = await fetch(`${getApiUrl('orders')}/adjust`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ symbol, side, ...adjustment }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  return res.json();
 };
 
 // ─── Order Book ────────────────────────────────────────────
 export const getOrderBook = async (symbol = 'SPX') => {
-  const { data } = await api.get(`${API_BASE}/order-book`, { params: { symbol } });
-  return data;
+  const res = await fetch(`${getApiUrl('market')}/order-book?symbol=${encodeURIComponent(symbol)}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  return res.json();
 };
 
 // ─── Price Ladder ──────────────────────────────────────────
 export const getPriceLadder = async (symbol = 'SPX') => {
-  const { data } = await api.get(`${API_BASE}/price-ladder`, { params: { symbol } });
-  return data;
+  const res = await fetch(`${getApiUrl('market')}/price-ladder?symbol=${encodeURIComponent(symbol)}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  return res.json();
 };
 
 // ─── Order Execution ───────────────────────────────────────
 export const executeOrder = async (order) => {
-  const { data } = await api.post(`${API_BASE}/orders`, order);
-  return data;
+  const res = await fetch(getApiUrl('orders'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(order),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  return res.json();
 };
 
 export const marketBuy = async (symbol, quantity) => {
@@ -64,25 +88,32 @@ export const stopLoss = async (symbol, quantity, stopPrice) => {
 
 // ─── Advanced Order (Iron Condor, Spreads, etc.) ───────────
 export const executeAdvancedOrder = async (order) => {
-  const { data } = await api.post(`${API_BASE}/orders/advanced`, order);
-  return data;
+  const res = await fetch(`${getApiUrl('orders')}/advanced`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(order),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  return res.json();
 };
 
 // ─── News Feed ─────────────────────────────────────────────
 export const getNewsFeed = async (limit = 20) => {
-  const { data } = await api.get(`${API_BASE}/news-feed`, { params: { limit } });
-  return data;
+  const res = await fetch(`${getApiUrl('sentiment')}/news?limit=${limit}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  return res.json();
 };
 
 // ─── System Status ─────────────────────────────────────────
 export const getSystemStatus = async () => {
-  const { data } = await api.get(`${API_BASE}/system-status`);
-  return data;
+  const res = await fetch(getApiUrl('status'));
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  return res.json();
 };
 
 // ─── WebSocket ─────────────────────────────────────────────
 export const createTradeWebSocket = (onMessage, onError) => {
-  const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.hostname}:8000/ws/trade-execution`;
+  const wsUrl = getWsBaseUrl();
   const ws = new WebSocket(wsUrl);
 
   ws.onopen = () => console.log('[TradeExecution WS] Connected');

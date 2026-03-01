@@ -157,7 +157,9 @@ def _add_momentum_features(df: pd.DataFrame) -> List[str]:
         gain = delta.clip(lower=0).groupby(df["symbol"]).transform(lambda x: x.rolling(14).mean())
         loss = (-delta.clip(upper=0)).groupby(df["symbol"]).transform(lambda x: x.rolling(14).mean())
         rs = gain / (loss + 1e-10)
-        df["rsi_14"] = (100.0 / (1.0 + rs) - 50.0) / 50.0
+        # Bug #18 fix: was (100.0 / (1.0 + rs)) which is the complement of RSI
+        # Correct RSI = 100 - 100/(1+RS), then normalize to [-1, 1]
+        df["rsi_14"] = ((100.0 - 100.0 / (1.0 + rs)) - 50.0) / 50.0
         cols.append("rsi_14")
 
     return cols
