@@ -49,10 +49,10 @@ def _get_flywheel_data() -> dict:
             "resolvedSignals": 0,
             "pendingResolution": 0,
             "history": [],
-                        "kellyPerformance": 0.0,
+            "kellyPerformance": 0.0,
             "profitFactor": 0.0,
             "avgEdgeRealized": 0.0,
-            "edgeCalibration": 1.0,  # Multiplier: predicted_edge * calibration = adjusted_edge
+            "edgeCalibration": 1.0,
         }
     return stored
 
@@ -118,7 +118,7 @@ async def record_flywheel(record: FlywheelRecord):
     _save_flywheel_data(updated)
 
     try:
-        await broadcast_ws({"type": "flywheel_update", "data": updated})
+        await broadcast_ws("flywheel", {"type": "flywheel_update", "data": updated})
     except Exception:
         pass
 
@@ -280,7 +280,7 @@ async def kelly_feedback(outcomes: List[Dict]):
     ) if losses else 999.0
     data["avgEdgeRealized"] = round(avg_realized, 4)
 
-        # Risk-gated feedback: only calibrate if risk is acceptable
+    # Risk-gated feedback: only calibrate if risk is acceptable
     risk_gated = True
     try:
         from app.api.v1.risk import risk_score as _rs
