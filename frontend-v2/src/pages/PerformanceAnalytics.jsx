@@ -14,7 +14,7 @@ import {
 } from 'recharts';
 import { createChart } from 'lightweight-charts';
 import { useApi } from '../hooks/useApi';
-import { Card } from '../components/ui/Card';
+import Card from '../components/ui/Card';
 
 const PerformanceAnalytics = () => {
   // --- API DATA FETCHING (all real endpoints, zero fake data) ---
