@@ -193,3 +193,57 @@ export function useBacktestSectorExposure(pollMs = 60000) {
 export function useBacktestDrawdownAnalysis(pollMs = 60000) {
   return useApi('backtest/drawdown-analysis', { pollIntervalMs: pollMs });
 }
+
+// ---- Market Regime Page (10/15) Specialized Hooks ----
+
+export function useRegimeState(pollMs = 10000) {
+  return useApi('openclaw/regime', { pollIntervalMs: pollMs });
+}
+
+export function useMacroState(pollMs = 10000) {
+  return useApi('openclaw/macro', { pollIntervalMs: pollMs });
+}
+
+export function useRegimeParams(pollMs = 30000) {
+  return useApi('strategy/regime-params', { pollIntervalMs: pollMs });
+}
+
+export function useRegimePerformance(pollMs = 60000) {
+  return useApi('backtest/regime', { pollIntervalMs: pollMs });
+}
+
+export function useSectorRotation(pollMs = 30000) {
+  return useApi('openclaw/sectors', { pollIntervalMs: pollMs });
+}
+
+export function useRegimeTransitions(pollMs = 30000) {
+  return useApi('openclaw/regime/transitions', { pollIntervalMs: pollMs });
+}
+
+export function useMemoryIntelligence(pollMs = 30000) {
+  return useApi('openclaw/memory', { pollIntervalMs: pollMs });
+}
+
+export function useWhaleFlow(pollMs = 20000) {
+  return useApi('openclaw/whale-flow', { pollIntervalMs: pollMs });
+}
+
+export function useRiskGauges(pollMs = 15000) {
+  return useApi('risk/risk-gauges', { pollIntervalMs: pollMs });
+}
+
+export function useBridgeHealth(pollMs = 30000) {
+  return useApi('openclaw/health', { pollIntervalMs: pollMs });
+}
+
+/** POST helper for bias multiplier override */
+export async function postBiasOverride(biasMultiplier) {
+  const url = getApiUrl('openclaw/macro/override');
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bias_multiplier: biasMultiplier }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
