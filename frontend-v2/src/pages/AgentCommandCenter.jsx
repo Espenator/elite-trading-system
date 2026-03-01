@@ -58,7 +58,7 @@ import Checkbox from "../components/ui/Checkbox";
 import Toggle from "../components/ui/Toggle";
 import Select from "../components/ui/Select";
 import TextField from "../components/ui/TextField";
-// RegimeBanner removed (unused)
+// RegimeBanner removed (unused) const AGENT_MOCKS = import.meta.env.VITE_ENABLE_AGENT_MOCKS === "true";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl } from "../config/api";
 import ws from "../services/websocket";
@@ -561,8 +561,8 @@ export default function AgentCommandCenter() {
 
   // --- Blackboard & HITL WebSocket Subscriptions ---
   useEffect(() => {
-    // Blackboard pub/sub - wired to WebSocket
-    const blackboardInterval = setInterval(() => {
+    // Blackboard pub/sub - wired to WebSocket (mock when AGENT_MOCKS enabled)
+    const blackboardInterval = !AGENT_MOCKS ? null : setInterval(() => {
       const topics = ["SIG_GEN", "RISK_EVAL", "SENTIMENT", "EXECUTION"];
       const contents = [
         `Computed tensor weights for epoch ${Math.floor(Math.random() * 1000)} - Validation OK.`,
@@ -588,7 +588,7 @@ export default function AgentCommandCenter() {
     }, 2500);
 
     // HITL Ring buffer - wired to WebSocket
-    const hitlInterval = setInterval(() => {
+    const hitlInterval = !AGENT_MOCKS ? null : setInterval(() => {
       if (Math.random() > 0.6) {
         const actions = [
           "BIAS_OVERRIDE",
@@ -634,8 +634,8 @@ export default function AgentCommandCenter() {
     ]);
 
     return () => {
-      clearInterval(blackboardInterval);
-      clearInterval(hitlInterval);
+      if (blackboardInterval) clearInterval(blackboardInterval);
+      if (hitlInterval) clearInterval(hitlInterval);
     };
   }, []);
 
@@ -1218,7 +1218,7 @@ export default function AgentCommandCenter() {
                             i % 2 === 0 ? "text-success" : "text-amber-400"
                           }
                         >
-                          {(agent.cpu_pct ?? (Math.random() * 10 + 1)).toFixed(1)}%
+                          {(agent.cpu_pct ?? 0).toFixed(1)}%
                         </span>{" "}
                         /{" "}
                         <span className="text-cyan-400/70">
