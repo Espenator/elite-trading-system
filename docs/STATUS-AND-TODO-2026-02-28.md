@@ -40,6 +40,7 @@ All 15 frontend pages and 25 backend API routes exist as code files. Frontend UI
 |------|--------|--------|--------|
 | **Data Sources Manager** | 09-data-sources-manager.png | 083521a | **DONE AND COMPLETE** |
 | Patterns & Screener | 07-screener-and-patterns.png | b18a267 | Real API wired, ~70% mockup |
+| **Active Trades** | 10-active-trades.html / Active-Trades.png | 6b2e7ad | **DONE AND COMPLETE** |
 
 ### What Exists (Verified Feb 28)
 
