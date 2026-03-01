@@ -74,6 +74,7 @@
 | Data Sources Manager | 09-data-sources-manager.png | 083521a | **DONE AND COMPLETE** - 636 lines, split view, real API, NO mocks |
 | Patterns & Screener | 07-screener-and-patterns.png | b18a267 | Real API wired, ~70% mockup match |
 | Active Trades | 10-active-trades.html / Active-Trades.png | 6b2e7ad | **DONE AND COMPLETE** - 415 lines, ultrawide command strip, real Alpaca API, NO mocks |
+| Trade Execution | Trade-Execution mockup (Perplexity) | 77e01ce | **DONE AND COMPLETE** - 745 lines, full Alpaca v2 API (bracket/OCO/OTO/trailing), 12-col grid, NO mocks |
 
 ### Next Page to Build
 
