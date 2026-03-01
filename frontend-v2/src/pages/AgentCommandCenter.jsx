@@ -735,7 +735,7 @@ export default function AgentCommandCenter() {
       <PageHeader
         icon={Shield}
         title="Agent Command Center"
-        description="Unified intelligence hub: agent management, swarm control, macro regime, and LLM flow alerts."
+        description="Unified intelligence hub: agent management, swarm control, macro regime, and LLM flow alerts." topImageSrc="/page-headers/agent-command-center-top.svg" bottomImageSrc="/page-headers/agent-command-center-bottom.svg"
       />
 
       {/* Top Stats Row */}
