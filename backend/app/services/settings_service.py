@@ -328,3 +328,12 @@ def import_settings(data: Dict[str, Any]) -> Dict[str, Any]:
     """Import settings from JSON payload."""
     cleaned = {k: v for k, v in data.items() if k in DEFAULTS}
     return update_all_settings(cleaned)
+
+
+# ── Aliases for settings_routes.py compatibility ─────────────────────
+# Routes import update_category_settings; service uses update_settings_by_category
+update_category_settings = update_settings_by_category
+
+# CATEGORIES dict keyed by name for validation in routes
+CATEGORIES: dict = {k: list(v.keys()) for k, v in DEFAULTS.items()}
+
