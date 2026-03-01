@@ -72,7 +72,7 @@ def _format_position(pos: Dict, idx: int) -> Dict:
         "target": None,
         "signal": None,
         "assetId": asset_id,
-                # Kelly-informed position analysis
+        # Kelly-informed position analysis
         "portfolioPct": round((market_value / max(1, market_value + 1)) * 100, 2),  # Placeholder
         "kellyRecommended": None,  # Filled by enrichment endpoint
         "riskScore": round(min(1.0, abs(unrealized_plpc) / 5) if unrealized_plpc < 0 else 0, 2),
@@ -149,9 +149,11 @@ async def get_portfolio():
             _format_fill(f, i) for i, f in enumerate(activities_raw)
         ]
 
-        # Compute portfolio summary with Kelly metrics
+    # Compute portfolio summary with Kelly metrics
+    # NOTE: key is "unrealizedPnL" (capital L) — must match _format_position
     total_value = sum(p.get("marketValue", 0) for p in positions)
-    total_unrealized = sum(p.get("unrealizedPnl", 0) for p in positions)
+    total_unrealized = sum(p.get("unrealizedPnL", 0) for p in positions)
+
     # Update portfolioPct with real total
     for p in positions:
         mv = p.get("marketValue", 0)
@@ -166,12 +168,12 @@ async def get_portfolio():
         "history": history,
         "summary": {
             "totalValue": round(total_value, 2),
-            "totalUnrealizedPnl": round(total_unrealized, 2),
+            "totalUnrealizedPnL": round(total_unrealized, 2),
             "positionCount": len(positions),
             "longCount": long_count,
             "shortCount": short_count,
             "portfolioHeat": round(at_risk / max(len(positions), 1), 2),
-                        # Risk & drawdown integration
+            # Risk & drawdown integration (placeholders until enrichment)
             "kelly_avg_edge": round(sum(p.get("kellyEdge", 0) for p in positions) / max(1, len(positions)), 4),
             "kelly_avg_quality": round(sum(p.get("signalQuality", 0) for p in positions) / max(1, len(positions)), 3),
             "kelly_utilization": round(sum(1 for p in positions if p.get("kellyEdge", 0) > 0) / max(1, len(positions)), 3),
