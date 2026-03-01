@@ -72,6 +72,9 @@ class KellyPositionSizer:
     min_trades : int
         Minimum historical trade count to trust the statistics.
         If fewer trades, returns conservative default.
+    volatility_baseline : float
+        Baseline daily volatility for volatility-adjusted sizing.
+        Position sizes are scaled inversely when current vol exceeds this.
     """
 
     def __init__(
@@ -80,11 +83,13 @@ class KellyPositionSizer:
         use_half_kelly: bool = True,
         min_edge: float = 0.02,
         min_trades: int = 20,
+        volatility_baseline: float = 0.02,
     ):
         self.max_allocation = max_allocation
         self.use_half_kelly = use_half_kelly
         self.min_edge = min_edge
         self.min_trades = min_trades
+        self.volatility_baseline = volatility_baseline
 
     # ------------------------------------------------------------------
     def calculate(
@@ -266,8 +271,8 @@ class KellyPositionSizer:
             action=base.action,
         )
         logger.info(
-            f"Vol-adjusted Kelly: vol_ratio={vol_ratio:.2f}, "
-            f"scale={vol_scale:.2f}, final={adjusted.final_pct:.4f}"
+            "Vol-adjusted Kelly: vol_ratio=%.2f, scale=%.2f, final=%.4f",
+            vol_ratio, vol_scale, adjusted.final_pct,
         )
         return adjusted
 
@@ -308,7 +313,7 @@ class KellyPositionSizer:
         trailing_pct: float = 0.03,
     ) -> Dict:
         """Calculate ATR-based trailing stop + fixed % trailing.
-        
+
         Uses the tighter of ATR-based or percentage-based stop.
         This maximizes profit capture while limiting downside.
         """
@@ -333,7 +338,12 @@ class KellyPositionSizer:
             "risk_per_share": round(risk_per_share, 2),
             "reward_per_share": round(reward_per_share, 2),
             "risk_reward_ratio": round(rr_ratio, 2),
-            "method": "atr" if (side == "buy" and atr_stop > pct_stop) or (side != "buy" and atr_stop < pct_stop) else "trailing_pct",
+            "method": (
+                "atr"
+                if (side == "buy" and atr_stop > pct_stop)
+                or (side != "buy" and atr_stop < pct_stop)
+                else "trailing_pct"
+            ),
         }
 
     def regime_aware_size(
@@ -346,7 +356,7 @@ class KellyPositionSizer:
         volatility: float = 0.02,
     ) -> Dict:
         """Full regime + risk + volatility aware position sizing.
-        
+
         Combines Kelly, regime scaling, risk score dampening,
         and volatility adjustment into one call.
         """
@@ -358,7 +368,7 @@ class KellyPositionSizer:
             regime=regime,
         )
 
-        # 2. Volatility adjustment
+        # 2. Volatility adjustment (uses self.volatility_baseline from __init__)
         vol_scale = 1.0 / max(volatility / self.volatility_baseline, 1.0)
 
         # 3. Risk score dampener
@@ -410,9 +420,8 @@ class KellyPositionSizer:
             total_corr_exposure += corr * held_pct
 
         # Penalty: high correlation with large existing positions = reduce size
-        # corr > 0.7 = significant penalty, corr > 0.9 = heavy penalty
         if max_corr > 0.9:
-            corr_penalty = 0.5  # Cut size in half
+            corr_penalty = 0.5
         elif max_corr > 0.7:
             corr_penalty = 0.3
         elif max_corr > 0.5:
