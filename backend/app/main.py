@@ -38,6 +38,7 @@ from app.api.v1 import (
     risk_shield_api,
     market,
 )
+from routers.trade_execution import router as trade_execution_router
 
 # Configure logging
 logging.basicConfig(
@@ -241,6 +242,7 @@ app.include_router(openclaw.router, prefix="/api/v1", tags=["openclaw"])
 app.include_router(ml_brain.router, prefix="/api/v1", tags=["ml_brain"])
 app.include_router(risk_shield_api.router, prefix="/api/v1", tags=["risk_shield"])
 app.include_router(market.router, prefix="/api/v1", tags=["market"])
+app.include_router(trade_execution_router)
 
 
 @app.websocket("/ws")
