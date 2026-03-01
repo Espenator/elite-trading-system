@@ -134,8 +134,6 @@ async def _compute_live_risk(config: dict) -> dict:
         concentration_pct = (largest_position_value / portfolio_value) * 100
 
     # --- Parametric VaR (95%) estimate ---
-    # Uses daily P&L volatility proxy: abs(daily_pnl_pct) scaled by 1.65 (95th percentile)
-    # For a proper VaR you'd want historical returns, but this gives a real-time estimate
     daily_vol_pct = abs(daily_pnl_pct) if daily_pnl_pct != 0 else 1.0
     var95_pct = daily_vol_pct * 1.65
     var95_dollars = (var95_pct / 100) * portfolio_value if portfolio_value > 0 else 0
@@ -325,8 +323,8 @@ async def portfolio_position_sizing(positions: List[dict]):
 # ----- Drawdown Protection & Dynamic Stop-Loss -----
 
 @router.post("/drawdown-check")
-async def drawdown_check():
-    """Check current drawdown vs limits and return trading permission."""
+async def drawdown_check_post():
+    """Check current drawdown vs limits and return trading permission (POST)."""
     config = _get_risk_config()
     max_dd = _safe_float(config.get("maxDailyDrawdown"), 10.0)
     max_loss_pct = _safe_float(config.get("maxDailyLossPct"), 2.0)
@@ -364,8 +362,7 @@ async def drawdown_check():
 async def dynamic_stop_loss(symbol: str, entry_price: float, side: str = "buy"):
     """Calculate ATR-based dynamic stop-loss for a position."""
     try:
-        from app.core.config import settings
-        atr_multiplier = getattr(settings, 'ATR_STOP_MULTIPLIER', 2.0)
+        atr_multiplier = getattr(settings, "ATR_STOP_MULTIPLIER", 2.0)
         # Get recent bars for ATR calculation
         bars = await alpaca_service.get_bars(symbol, timeframe="1Day", limit=14)
         if not bars or len(bars) < 2:
@@ -376,7 +373,7 @@ async def dynamic_stop_loss(symbol: str, entry_price: float, side: str = "buy"):
         for i in range(1, len(bars)):
             high = float(bars[i].get("h", 0))
             low = float(bars[i].get("l", 0))
-            prev_close = float(bars[i-1].get("c", 0))
+            prev_close = float(bars[i - 1].get("c", 0))
             tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
             trs.append(tr)
         atr = sum(trs) / len(trs) if trs else 0
@@ -399,7 +396,7 @@ async def dynamic_stop_loss(symbol: str, entry_price: float, side: str = "buy"):
             "side": side,
         }
     except Exception as e:
-        logger.error(f"Dynamic stop-loss error: {e}")
+        logger.error("Dynamic stop-loss error: %s", e)
         return {"error": str(e)}
 
 
@@ -414,7 +411,9 @@ async def risk_score():
         account = await alpaca_service.get_account()
         equity = float(account.get("equity", 0))
         last_equity = float(account.get("last_equity", equity))
-        daily_pnl_pct = ((equity - last_equity) / last_equity * 100) if last_equity > 0 else 0
+        daily_pnl_pct = (
+            ((equity - last_equity) / last_equity * 100) if last_equity > 0 else 0
+        )
 
         # Drawdown penalty (up to -30 points)
         max_dd = _safe_float(config.get("maxDailyDrawdown"), 10.0)
@@ -422,7 +421,9 @@ async def risk_score():
             dd_ratio = min(abs(daily_pnl_pct) / max_dd, 1.0)
             score -= int(dd_ratio * 30)
             if dd_ratio > 0.5:
-                warnings.append(f"Drawdown at {abs(daily_pnl_pct):.1f}% of {max_dd}% limit")
+                warnings.append(
+                    f"Drawdown at {abs(daily_pnl_pct):.1f}% of {max_dd}% limit"
+                )
 
         # Position concentration penalty (up to -20 points)
         positions = await alpaca_service.get_positions()
@@ -433,7 +434,9 @@ async def risk_score():
                 max_concentration = max(values) / total_val
                 if max_concentration > 0.3:
                     score -= int((max_concentration - 0.3) / 0.7 * 20)
-                    warnings.append(f"Top position is {max_concentration*100:.0f}% of portfolio")
+                    warnings.append(
+                        f"Top position is {max_concentration * 100:.0f}% of portfolio"
+                    )
 
         # Exposure penalty (up to -25 points)
         buying_power = float(account.get("buying_power", 0))
@@ -441,23 +444,34 @@ async def risk_score():
             exposure = 1 - (buying_power / (equity * 2))  # Approximate
             if exposure > 0.8:
                 score -= int((exposure - 0.8) / 0.2 * 25)
-                warnings.append(f"High exposure: {exposure*100:.0f}%")
+                warnings.append(f"High exposure: {exposure * 100:.0f}%")
 
         # VaR penalty (up to -25 points)
         var_limit = _safe_float(config.get("varLimit"), 1.5)
-        # Simplified VaR estimate from daily P&L
         if daily_pnl_pct < -var_limit:
             var_ratio = min(abs(daily_pnl_pct) / (var_limit * 2), 1.0)
             score -= int(var_ratio * 25)
-            warnings.append(f"VaR breach: {daily_pnl_pct:.2f}% vs limit {var_limit}%")
+            warnings.append(
+                f"VaR breach: {daily_pnl_pct:.2f}% vs limit {var_limit}%"
+            )
 
     except Exception as e:
-        logger.error(f"Risk score error: {e}")
+        logger.error("Risk score error: %s", e)
         score = 50
         warnings.append(f"Error computing risk: {str(e)}")
 
     score = max(0, min(100, score))
-    grade = "A" if score >= 80 else "B" if score >= 60 else "C" if score >= 40 else "D" if score >= 20 else "F"
+    grade = (
+        "A"
+        if score >= 80
+        else "B"
+        if score >= 60
+        else "C"
+        if score >= 40
+        else "D"
+        if score >= 20
+        else "F"
+    )
 
     return {
         "risk_score": score,
@@ -470,6 +484,7 @@ async def risk_score():
 @router.get("/var-analysis")
 async def var_analysis():
     """Calculate Value-at-Risk metrics for current portfolio."""
+    config = _get_risk_config()  # FIX: was missing — caused NameError
     try:
         account = await alpaca_service.get_account()
         equity = float(account.get("equity", 0))
@@ -487,49 +502,74 @@ async def var_analysis():
             total_exposure += mkt_val
             # Estimate daily volatility from unrealized P&L as proxy
             daily_vol = max(0.01, abs(unrealized_pct) * 0.5)  # Conservative estimate
-            position_risks.append({
-                "symbol": p.get("symbol"),
-                "market_value": round(mkt_val, 2),
-                "weight": round(mkt_val / equity, 4) if equity > 0 else 0,
-                "daily_vol": round(daily_vol, 4),
-                "var_contribution": round(mkt_val * daily_vol * 1.645, 2),  # 95% VaR
-            })
+            position_risks.append(
+                {
+                    "symbol": p.get("symbol"),
+                    "market_value": round(mkt_val, 2),
+                    "weight": round(mkt_val / equity, 4) if equity > 0 else 0,
+                    "daily_vol": round(daily_vol, 4),
+                    "var_contribution": round(
+                        mkt_val * daily_vol * 1.645, 2
+                    ),  # 95% VaR
+                }
+            )
 
         # Portfolio VaR (assuming sqrt-sum for diversified portfolio)
-        import math
         var_contributions = [r["var_contribution"] for r in position_risks]
-        portfolio_var_95 = math.sqrt(sum(v**2 for v in var_contributions)) if var_contributions else 0
+        portfolio_var_95 = (
+            math.sqrt(sum(v**2 for v in var_contributions))
+            if var_contributions
+            else 0
+        )
         portfolio_var_99 = portfolio_var_95 * 2.326 / 1.645  # Scale to 99%
+
+        var_limit_pct = _safe_float(config.get("varLimit"), 1.5)
 
         return {
             "equity": round(equity, 2),
             "total_exposure": round(total_exposure, 2),
             "exposure_pct": round(total_exposure / equity, 4) if equity > 0 else 0,
             "var_1d_95": round(portfolio_var_95, 2),
-            "var_1d_95_pct": round(portfolio_var_95 / equity * 100, 2) if equity > 0 else 0,
+            "var_1d_95_pct": (
+                round(portfolio_var_95 / equity * 100, 2) if equity > 0 else 0
+            ),
             "var_1d_99": round(portfolio_var_99, 2),
-            "var_1d_99_pct": round(portfolio_var_99 / equity * 100, 2) if equity > 0 else 0,
+            "var_1d_99_pct": (
+                round(portfolio_var_99 / equity * 100, 2) if equity > 0 else 0
+            ),
             "positions_count": len(positions),
-            "position_risks": sorted(position_risks, key=lambda x: -x["var_contribution"]),
-            "var_limit_pct": _safe_float(config.get("varLimit"), 1.5),
-            "var_ok": portfolio_var_95 / equity * 100 < _safe_float(config.get("varLimit"), 1.5) if equity > 0 else True,
+            "position_risks": sorted(
+                position_risks, key=lambda x: -x["var_contribution"]
+            ),
+            "var_limit_pct": var_limit_pct,
+            "var_ok": (
+                portfolio_var_95 / equity * 100 < var_limit_pct
+                if equity > 0
+                else True
+            ),
         }
     except Exception as e:
-        logger.error(f"VaR analysis error: {e}")
+        logger.error("VaR analysis error: %s", e)
         return {"error": str(e)}
 
 
 @router.get("/drawdown-check")
-async def drawdown_check():
-    """Check current drawdown status and whether trading should be paused."""
+async def drawdown_check_status():
+    """Check current drawdown status and whether trading should be paused (GET).
+
+    NOTE: Renamed from `drawdown_check` to avoid shadowing the POST handler.
+    """
+    config = _get_risk_config()  # FIX: was missing — caused NameError
     try:
         account = await alpaca_service.get_account()
         equity = float(account.get("equity", 0))
         last_equity = float(account.get("last_equity", equity))
-        daily_pnl_pct = ((equity - last_equity) / last_equity * 100) if last_equity > 0 else 0
+        daily_pnl_pct = (
+            ((equity - last_equity) / last_equity * 100) if last_equity > 0 else 0
+        )
 
         max_dd = _safe_float(config.get("maxDailyDrawdown"), 5.0)
-        max_loss = _safe_float(config.get("maxDailyLoss"), 2.0)
+        max_loss = _safe_float(config.get("maxDailyLossPct"), 2.0)
 
         dd_breached = daily_pnl_pct < -max_dd
         loss_breached = daily_pnl_pct < -max_loss
@@ -544,14 +584,17 @@ async def drawdown_check():
             "drawdown_breached": dd_breached,
             "loss_breached": loss_breached,
             "trading_allowed": not dd_breached,
-            "status": "PAUSED" if dd_breached else "WARNING" if loss_breached else "OK",
+            "status": (
+                "PAUSED" if dd_breached else "WARNING" if loss_breached else "OK"
+            ),
         }
     except Exception as e:
-        logger.error(f"Drawdown check error: {e}")
+        logger.error("Drawdown check error: %s", e)
         return {"trading_allowed": True, "error": str(e)}
 
 
 # --- V3 Risk Intelligence Enhanced Endpoints ---
+
 
 @router.get("/risk-gauges")
 async def get_risk_gauges():
@@ -559,52 +602,155 @@ async def get_risk_gauges():
     try:
         account = await alpaca_service.get_account()
         equity = float(account.get("equity", 0))
-        positions = await alpaca_service.get_positions()
-        
-        total_exposure = sum(abs(float(p.get("market_value", 0))) for p in positions)
-        
+        positions = await alpaca_service.get_positions() or []
+
+        total_exposure = sum(
+            abs(float(p.get("market_value", 0))) for p in positions
+        )
+
         # Calculate basic Greeks approximation
-        delta_total = sum(float(p.get("qty", 0)) * float(p.get("current_price", 0)) for p in positions)
-        
+        delta_total = sum(
+            float(p.get("qty", 0)) * float(p.get("current_price", 0))
+            for p in positions
+        )
+
+        # Concentration: largest position as % of total exposure
+        concentration = 0.0
+        if positions and total_exposure > 0:
+            max_pos_val = max(
+                abs(float(p.get("market_value", 0))) for p in positions
+            )
+            concentration = round(max_pos_val / total_exposure * 100, 1)
+
         return {
             "gauges": [
-                {"name": "VaR 95%", "value": round(total_exposure * 0.02, 2), "max": equity * 0.05, "unit": "$"},
-                {"name": "CVaR 95%", "value": round(total_exposure * 0.032, 2), "max": equity * 0.08, "unit": "$"},
-                {"name": "Tail Risk", "value": round(total_exposure * 0.045, 2), "max": equity * 0.1, "unit": "$"},
-                {"name": "Portfolio Heat", "value": round(total_exposure / max(equity, 1) * 100, 1), "max": 100, "unit": "%"},
-                {"name": "Delta", "value": round(delta_total, 2), "max": equity, "unit": "$"},
+                {
+                    "name": "VaR 95%",
+                    "value": round(total_exposure * 0.02, 2),
+                    "max": equity * 0.05,
+                    "unit": "$",
+                },
+                {
+                    "name": "CVaR 95%",
+                    "value": round(total_exposure * 0.032, 2),
+                    "max": equity * 0.08,
+                    "unit": "$",
+                },
+                {
+                    "name": "Tail Risk",
+                    "value": round(total_exposure * 0.045, 2),
+                    "max": equity * 0.1,
+                    "unit": "$",
+                },
+                {
+                    "name": "Portfolio Heat",
+                    "value": round(
+                        total_exposure / max(equity, 1) * 100, 1
+                    ),
+                    "max": 100,
+                    "unit": "%",
+                },
+                {
+                    "name": "Delta",
+                    "value": round(delta_total, 2),
+                    "max": equity,
+                    "unit": "$",
+                },
                 {"name": "Gamma", "value": 0, "max": 1000, "unit": "$"},
                 {"name": "Vega", "value": 0, "max": 5000, "unit": "$"},
                 {"name": "Theta", "value": 0, "max": 500, "unit": "$/day"},
                 {"name": "Liquidity", "value": 85, "max": 100, "unit": "%"},
-                {"name": "Leverage", "value": round(total_exposure / max(equity, 1), 2), "max": 4, "unit": "x"},
+                {
+                    "name": "Leverage",
+                    "value": round(
+                        total_exposure / max(equity, 1), 2
+                    ),
+                    "max": 4,
+                    "unit": "x",
+                },
                 {"name": "Beta-Adj", "value": 1.0, "max": 2, "unit": ""},
-                {"name": "Concentration", "value": round(max(abs(float(p.get("market_value", 0))) for p in positions) / max(total_exposure, 1) * 100, 1) if positions else 0, "max": 100, "unit": "%"},
+                {
+                    "name": "Concentration",
+                    "value": concentration,
+                    "max": 100,
+                    "unit": "%",
+                },
             ]
         }
     except Exception as e:
-        logger.error(f"Risk gauges error: {e}")
+        logger.error("Risk gauges error: %s", e)
         return {"gauges": []}
 
 
 @router.get("/circuit-breakers")
 async def get_circuit_breakers():
     """Return circuit breaker configuration for Risk Intelligence."""
-    config = db_service.get_all_config()
-    
+    # FIX: was calling db_service.get_all_config() which doesn't exist
+    config = _get_risk_config()
+
     breakers = [
-        {"name": "Max Daily Drawdown", "enabled": True, "threshold": _safe_float(config.get("maxDailyDrawdown"), 5.0), "unit": "%"},
-        {"name": "Max Daily Loss", "enabled": True, "threshold": _safe_float(config.get("maxDailyLoss"), 2.0), "unit": "%"},
-        {"name": "Max Position Size", "enabled": True, "threshold": _safe_float(config.get("maxPositionSize"), 10.0), "unit": "%"},
-        {"name": "Max Leverage", "enabled": True, "threshold": _safe_float(config.get("maxLeverage"), 2.0), "unit": "x"},
-        {"name": "Max Concentration", "enabled": True, "threshold": 25.0, "unit": "%"},
-        {"name": "VaR Limit", "enabled": True, "threshold": _safe_float(config.get("varLimit"), 1.5), "unit": "%"},
-        {"name": "Correlation Limit", "enabled": False, "threshold": 0.8, "unit": ""},
-        {"name": "Sector Exposure", "enabled": False, "threshold": 40.0, "unit": "%"},
-        {"name": "Overnight Risk", "enabled": True, "threshold": 50.0, "unit": "%"},
-        {"name": "Volatility Regime", "enabled": True, "threshold": 30.0, "unit": "VIX"},
+        {
+            "name": "Max Daily Drawdown",
+            "enabled": True,
+            "threshold": _safe_float(config.get("maxDailyDrawdown"), 5.0),
+            "unit": "%",
+        },
+        {
+            "name": "Max Daily Loss",
+            "enabled": True,
+            "threshold": _safe_float(config.get("maxDailyLossPct"), 2.0),
+            "unit": "%",
+        },
+        {
+            "name": "Max Position Size",
+            "enabled": True,
+            "threshold": _safe_float(config.get("positionSizeLimit"), 10.0),
+            "unit": "%",
+        },
+        {
+            "name": "Max Leverage",
+            "enabled": True,
+            "threshold": 2.0,
+            "unit": "x",
+        },
+        {
+            "name": "Max Concentration",
+            "enabled": True,
+            "threshold": 25.0,
+            "unit": "%",
+        },
+        {
+            "name": "VaR Limit",
+            "enabled": True,
+            "threshold": _safe_float(config.get("varLimit"), 1.5),
+            "unit": "%",
+        },
+        {
+            "name": "Correlation Limit",
+            "enabled": False,
+            "threshold": 0.8,
+            "unit": "",
+        },
+        {
+            "name": "Sector Exposure",
+            "enabled": False,
+            "threshold": 40.0,
+            "unit": "%",
+        },
+        {
+            "name": "Overnight Risk",
+            "enabled": True,
+            "threshold": 50.0,
+            "unit": "%",
+        },
+        {
+            "name": "Volatility Regime",
+            "enabled": True,
+            "threshold": 30.0,
+            "unit": "VIX",
+        },
     ]
-    
+
     return {"breakers": breakers}
 
 
@@ -613,20 +759,23 @@ async def run_stress_test():
     """Run Monte Carlo stress test simulation."""
     try:
         import random
+
         positions = await alpaca_service.get_positions()
-        equity = float((await alpaca_service.get_account()).get("equity", 100000))
-        
-        # Simple Monte Carlo with 1000 paths
+        account = await alpaca_service.get_account()
+        equity = float(account.get("equity", 100000)) if account else 100000
+
+        # Simple Monte Carlo with 100 paths (reduced for API speed)
         scenarios = []
-        for _ in range(100):  # Reduced for API speed
+        for _ in range(100):
             daily_return = random.gauss(0.0002, 0.015)  # Mean 0.02%/day, std 1.5%
             scenario_pnl = equity * daily_return
             scenarios.append(round(scenario_pnl, 2))
-        
+
         scenarios.sort()
-        var_95 = scenarios[int(len(scenarios) * 0.05)] if scenarios else 0
-        cvar_95 = sum(scenarios[:int(len(scenarios) * 0.05)]) / max(int(len(scenarios) * 0.05), 1) if scenarios else 0
-        
+        n_tail = max(int(len(scenarios) * 0.05), 1)
+        var_95 = scenarios[n_tail] if len(scenarios) > n_tail else 0
+        cvar_95 = sum(scenarios[:n_tail]) / n_tail if scenarios else 0
+
         return {
             "scenarios": scenarios,
             "var_95": round(var_95, 2),
@@ -636,5 +785,5 @@ async def run_stress_test():
             "mean": round(sum(scenarios) / max(len(scenarios), 1), 2),
         }
     except Exception as e:
-        logger.error(f"Stress test error: {e}")
+        logger.error("Stress test error: %s", e)
         return {"error": str(e)}
