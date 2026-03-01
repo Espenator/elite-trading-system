@@ -37,15 +37,8 @@ from app.api.v1 import (
     ml_brain,
     risk_shield_api,
     market,
+    alpaca,
 )
-
-# Gracefully import trade_execution router (module may not exist yet)
-try:
-    from routers.trade_execution import router as trade_execution_router
-    _has_trade_execution = True
-except ImportError:
-    trade_execution_router = None
-    _has_trade_execution = False
 
 # Configure logging
 logging.basicConfig(
@@ -71,7 +64,8 @@ def _init_ml_singletons():
         from app.modules.ml_engine.model_registry import get_registry
         registry = get_registry()
         initialized.append("ModelRegistry")
-        log.info("ML Model Registry initialized: %s", registry.get_status() if hasattr(registry, 'get_status') else 'OK')
+        log.info("ML Model Registry initialized: %s",
+                 registry.get_status() if hasattr(registry, 'get_status') else 'OK')
     except ImportError:
         log.info("model_registry not available -- skipping")
     except Exception as e:
@@ -82,7 +76,8 @@ def _init_ml_singletons():
         from app.modules.ml_engine.drift_detector import get_drift_monitor
         monitor = get_drift_monitor()
         initialized.append("DriftMonitor")
-        log.info("ML Drift Monitor initialized: %s", monitor.get_status() if hasattr(monitor, 'get_status') else 'OK')
+        log.info("ML Drift Monitor initialized: %s",
+                 monitor.get_status() if hasattr(monitor, 'get_status') else 'OK')
     except ImportError:
         log.info("drift_detector not available -- skipping")
     except Exception as e:
@@ -102,11 +97,11 @@ async def _drift_check_loop():
         try:
             from app.modules.ml_engine.drift_detector import get_drift_monitor
             monitor = get_drift_monitor()
-            status = monitor.get_status()
-            if status.get("reference_set"):
+            drift_status = monitor.get_status()
+            if drift_status.get("reference_set"):
                 log.info("Drift check: data_drift=%s, perf_drift=%s",
-                         status.get("data_drift_detected"),
-                         status.get("performance_drift_detected"))
+                         drift_status.get("data_drift_detected"),
+                         drift_status.get("performance_drift_detected"))
         except ImportError:
             pass  # drift_detector not installed
         except Exception:
@@ -119,8 +114,8 @@ async def _market_data_tick_loop():
     """Run Market Data Agent tick every 60s when status is 'running'."""
     await asyncio.sleep(2)  # brief delay so app is ready
     try:
-        from app.api.v1 import agents
-        await agents.run_market_data_tick_if_running()
+        from app.api.v1 import agents as _agents_mod
+        await _agents_mod.run_market_data_tick_if_running()
     except asyncio.CancelledError:
         return
     except Exception:
@@ -129,8 +124,8 @@ async def _market_data_tick_loop():
     while True:
         await asyncio.sleep(60)
         try:
-            from app.api.v1 import agents
-            await agents.run_market_data_tick_if_running()
+            from app.api.v1 import agents as _agents_mod
+            await _agents_mod.run_market_data_tick_if_running()
         except asyncio.CancelledError:
             break
         except Exception:
@@ -141,16 +136,20 @@ async def _risk_monitor_loop():
     """Risk monitoring background task - polls every 30s."""
     while True:
         try:
-            from app.api.v1.risk import risk_score, drawdown_check
+            # FIX: drawdown_check was renamed to drawdown_check_status in Bug #4
+            from app.api.v1.risk import risk_score, drawdown_check_status
             from app.websocket_manager import broadcast_risk_update, broadcast_drawdown_alert
+
             risk_data = await risk_score()
             await broadcast_risk_update(risk_data)
-            dd_data = await drawdown_check()
+
+            dd_data = await drawdown_check_status()
             if dd_data.get("drawdown_breached") or not dd_data.get("trading_allowed", True):
                 await broadcast_drawdown_alert(dd_data)
+
             await asyncio.sleep(30)
         except Exception as e:
-            log.warning(f"Risk monitor error: {e}")
+            log.warning("Risk monitor error: %s", e)
             await asyncio.sleep(60)
 
 
@@ -247,8 +246,8 @@ app.include_router(openclaw.router, prefix="/api/v1", tags=["openclaw"])
 app.include_router(ml_brain.router, prefix="/api/v1", tags=["ml_brain"])
 app.include_router(risk_shield_api.router, prefix="/api/v1", tags=["risk_shield"])
 app.include_router(market.router, prefix="/api/v1", tags=["market"])
-if _has_trade_execution:
-    app.include_router(trade_execution_router)
+# FIX: alpaca.py was never registered — all proxy endpoints were unreachable
+app.include_router(alpaca.router, prefix="/api/v1/alpaca", tags=["alpaca"])
 
 
 @app.websocket("/ws")
@@ -272,13 +271,21 @@ async def health_check():
 
     try:
         from app.modules.ml_engine.model_registry import get_registry
-        ml_status["model_registry"] = get_registry().get_status() if hasattr(get_registry(), 'get_status') else "loaded"
+        ml_status["model_registry"] = (
+            get_registry().get_status()
+            if hasattr(get_registry(), 'get_status')
+            else "loaded"
+        )
     except Exception:
         ml_status["model_registry"] = "unavailable"
 
     try:
         from app.modules.ml_engine.drift_detector import get_drift_monitor
-        ml_status["drift_monitor"] = get_drift_monitor().get_status() if hasattr(get_drift_monitor(), 'get_status') else "loaded"
+        ml_status["drift_monitor"] = (
+            get_drift_monitor().get_status()
+            if hasattr(get_drift_monitor(), 'get_status')
+            else "loaded"
+        )
     except Exception:
         ml_status["drift_monitor"] = "unavailable"
 
