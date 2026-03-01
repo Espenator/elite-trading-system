@@ -81,6 +81,21 @@ const API_CONFIG = {
   agentResources: "/agents/resources", // Per-agent resource usage
   blackboard: "/openclaw", // Blackboard pub/sub feed
     
+    // ---- MARKET REGIME PAGE (Page 10/15) ----
+    "openclaw/regime": "/openclaw/regime", // HMM regime state + VIX + Hurst + confidence
+    "openclaw/macro": "/openclaw/macro", // Macro oscillator, wave, bias, VIX, HY spread, F&G
+    "strategy/regime-params": "/strategy/regime-params", // Regime trading params + Kelly scaling
+    "backtest/regime": "/backtest/regime", // Regime-based performance (GREEN/YELLOW/RED)
+    "openclaw/sectors": "/openclaw/sectors", // Sector rotation rankings
+    "openclaw/scan": "/openclaw/scan", // Full scan with regime embedded
+    "openclaw/memory": "/openclaw/memory", // Memory IQ, agent rankings, expectancy by regime
+    "risk/risk-gauges": "/risk/risk-gauges", // 12 risk gauges with regime-aware data
+    "openclaw/macro/override": "/openclaw/macro/override", // POST: bias multiplier override (0-5)
+    "openclaw/health": "/openclaw/health", // Bridge health + diagnostics
+    "risk/risk-score": "/risk/risk-score", // Composite risk score 0-100
+    "openclaw/whale-flow": "/openclaw/whale-flow", // Whale flow alerts
+    "openclaw/regime/transitions": "/openclaw/regime/transitions", // Last 30 regime changes
+    
     // ---- ALPACA PROXY (Trade Execution page) ----
     "alpaca/account": "/alpaca/account", // Alpaca account details
     "alpaca/positions": "/alpaca/positions", // Open positions
