@@ -5,6 +5,7 @@ Enhanced with:
 - Event-driven MessageBus architecture for <1s signal latency
 - Alpaca WebSocket streaming for real-time market data
 - EventDrivenSignalEngine reacting to market_data.bar events
+- OrderExecutor auto-executing trades from signal.generated events
 """
 import asyncio
 import logging
@@ -160,11 +161,12 @@ async def _risk_monitor_loop():
 
 
 # ---------------------------------------------------------------------------
-# Event-Driven Architecture: MessageBus + Alpaca WebSocket + Signal Engine
+# Event-Driven Architecture: MessageBus + Stream + Signal + OrderExecutor
 # ---------------------------------------------------------------------------
 _message_bus = None
 _alpaca_stream = None
 _event_signal_engine = None
+_order_executor = None
 
 
 async def _start_event_driven_pipeline():
@@ -174,9 +176,10 @@ async def _start_event_driven_pipeline():
     1. MessageBus — async pub/sub event routing
     2. AlpacaStreamService — WebSocket bars → market_data.bar events
     3. EventDrivenSignalEngine — market_data.bar → signal.generated events
-    4. WebSocket broadcaster — signal.generated → frontend real-time updates
+    4. OrderExecutor — signal.generated → order.submitted events
+    5. WebSocket bridges — forward events to frontend dashboard
     """
-    global _message_bus, _alpaca_stream, _event_signal_engine
+    global _message_bus, _alpaca_stream, _event_signal_engine, _order_executor
 
     log.info("=" * 60)
     log.info("\U0001f680 Starting Event-Driven Pipeline")
@@ -194,7 +197,25 @@ async def _start_event_driven_pipeline():
     await _event_signal_engine.start()
     log.info("\u2705 EventDrivenSignalEngine started")
 
-    # 3. Signal-to-WebSocket bridge (forward signals to frontend)
+    # 3. OrderExecutor (subscribes to signal.generated)
+    from app.services.order_executor import OrderExecutor
+    import os
+
+    auto_execute = os.getenv("AUTO_EXECUTE_TRADES", "false").lower() == "true"
+    _order_executor = OrderExecutor(
+        message_bus=_message_bus,
+        auto_execute=auto_execute,
+        min_score=float(os.getenv("ORDER_MIN_SCORE", "75")),
+        max_daily_trades=int(os.getenv("ORDER_MAX_DAILY", "10")),
+        cooldown_seconds=int(os.getenv("ORDER_COOLDOWN_SECS", "300")),
+        max_portfolio_heat=float(os.getenv("ORDER_MAX_HEAT", "0.25")),
+        max_single_position=float(os.getenv("ORDER_MAX_POSITION", "0.10")),
+        use_bracket_orders=os.getenv("ORDER_USE_BRACKETS", "true").lower() == "true",
+    )
+    await _order_executor.start()
+    log.info("\u2705 OrderExecutor started (%s mode)", "AUTO" if auto_execute else "SHADOW")
+
+    # 4. Signal-to-WebSocket bridge (forward signals to frontend)
     async def _bridge_signal_to_ws(signal_data):
         """Forward signal.generated events to frontend via WebSocket."""
         try:
@@ -207,12 +228,28 @@ async def _start_event_driven_pipeline():
             log.debug("WS broadcast failed: %s", e)
 
     await _message_bus.subscribe("signal.generated", _bridge_signal_to_ws)
-    log.info("\u2705 Signal→WebSocket bridge active")
+    log.info("\u2705 Signal\u2192WebSocket bridge active")
 
-    # 4. AlpacaStreamService (publishes market_data.bar events)
+    # 5. Order-to-WebSocket bridge (forward order events to frontend)
+    async def _bridge_order_to_ws(order_data):
+        """Forward order events to frontend via WebSocket."""
+        try:
+            from app.websocket_manager import broadcast_ws
+            await broadcast_ws("order", {
+                "type": "order_update",
+                "order": order_data,
+            })
+        except Exception as e:
+            log.debug("WS order broadcast failed: %s", e)
+
+    await _message_bus.subscribe("order.submitted", _bridge_order_to_ws)
+    await _message_bus.subscribe("order.filled", _bridge_order_to_ws)
+    await _message_bus.subscribe("order.cancelled", _bridge_order_to_ws)
+    log.info("\u2705 Order\u2192WebSocket bridges active")
+
+    # 6. AlpacaStreamService (publishes market_data.bar events)
     from app.services.alpaca_stream_service import AlpacaStreamService
 
-    # Build symbol list from tracked symbols + defaults
     try:
         from app.modules.symbol_universe import get_tracked_symbols
         tracked = get_tracked_symbols()
@@ -227,18 +264,23 @@ async def _start_event_driven_pipeline():
     log.info("\u2705 AlpacaStreamService launched for %d symbols", len(symbols))
 
     log.info("=" * 60)
-    log.info("\u2705 Event-Driven Pipeline ONLINE — <1s signal latency")
+    log.info("\u2705 Event-Driven Pipeline ONLINE")
+    log.info("   Stream \u2192 MessageBus \u2192 SignalEngine \u2192 OrderExecutor \u2192 Alpaca")
+    log.info("   Mode: %s | Latency: <1s end-to-end", "AUTO-EXECUTE" if auto_execute else "SHADOW")
     log.info("=" * 60)
 
 
 async def _stop_event_driven_pipeline():
-    """Graceful shutdown of event-driven components."""
-    global _message_bus, _alpaca_stream, _event_signal_engine
+    """Graceful shutdown of event-driven components (reverse order)."""
+    global _message_bus, _alpaca_stream, _event_signal_engine, _order_executor
 
     log.info("Shutting down event-driven pipeline...")
 
     if _alpaca_stream:
         await _alpaca_stream.stop()
+
+    if _order_executor:
+        await _order_executor.stop()
 
     if _event_signal_engine:
         await _event_signal_engine.stop()
@@ -256,7 +298,7 @@ async def lifespan(app: FastAPI):
     Startup sequence:
     1. Initialize DuckDB schema
     2. Initialize ML Flywheel singletons (registry + drift monitor)
-    3. Start event-driven pipeline (MessageBus + Alpaca + SignalEngine)
+    3. Start event-driven pipeline (MessageBus + Stream + Signal + OrderExecutor)
     4. Start legacy market data tick loop (for Finviz/FRED polling)
     5. Start drift check loop (1hr interval)
     6. Start risk monitor loop (30s interval)
@@ -397,6 +439,8 @@ async def health_check():
         event_pipeline["alpaca_stream"] = _alpaca_stream.get_status()
     if _event_signal_engine:
         event_pipeline["signal_engine"] = _event_signal_engine.get_status()
+    if _order_executor:
+        event_pipeline["order_executor"] = _order_executor.get_status()
 
     return {
         "status": "healthy",
