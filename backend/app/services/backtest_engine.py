@@ -35,7 +35,7 @@ class BacktestEngine:
         strategy: str = "composite",
         initial_equity: float = 100_000.0,
         shares_per_trade: int = 100,
-                use_kelly: bool = False,
+        use_kelly: bool = False,
         kelly_fraction: float = 0.5,  # Half-Kelly default
     ) -> Dict[str, Any]:
         """Full backtest: fetch historical signals/prices, simulate trades."""
@@ -87,7 +87,7 @@ class BacktestEngine:
             else:
                 pnl_r = (entry_price - target_price) / risk
 
-                        # Kelly-aware position sizing
+            # Kelly-aware position sizing
             if use_kelly:
                 score = float(sig.get("score", 50))
                 prob = min(0.95, max(0.3, 0.4 + (score / 100) * 0.5))
@@ -115,7 +115,7 @@ class BacktestEngine:
                     "equity": round(float(equity), 2),
                     "score": float(sig.get("score", 0)),
                     "received_at": str(sig["received_at"]),
-                                        "shares": shares,
+                    "shares": shares,
                     "kelly_sized": use_kelly,
                 }
             )
@@ -138,9 +138,11 @@ class BacktestEngine:
         )
         avg_r = float(returns.mean())
         total_pnl = float(df_trades["pnl_dollars"].sum())
-        calmar = float(abs(total_pnl / maxdd)) if maxdd != 0 else 0.0
+        # FIX Bug #17: Calmar = return / |maxDD|. abs() only on denominator
+        # so losing strategies correctly show negative Calmar.
+        calmar = float(total_pnl / abs(maxdd)) if maxdd != 0 else 0.0
 
-                # Enhanced metrics for profitability
+        # Enhanced metrics for profitability
         neg_returns = returns[returns < 0]
         sortino = (
             float(returns.mean() / neg_returns.std() * np.sqrt(252))
@@ -174,7 +176,7 @@ class BacktestEngine:
             "initial_equity": initial_equity,
             "final_equity": round(equity, 2),
             "trades_detail": trades,
-                        "sortino": round(sortino, 4),
+            "sortino": round(sortino, 4),
             "profit_factor": round(profit_factor, 4) if profit_factor != float('inf') else "inf",
             "kelly_efficiency": round(kelly_efficiency, 4),
             "avg_kelly_pnl": round(avg_kelly_pnl, 2),
@@ -250,4 +252,3 @@ class BacktestEngine:
 
 # -- global instance (matches openclaw_db.py pattern) ----------------------
 backtest_engine = BacktestEngine()
-
