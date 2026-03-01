@@ -136,16 +136,15 @@ async def _risk_monitor_loop():
     """Risk monitoring background task - polls every 30s."""
     while True:
         try:
-            # FIX: drawdown_check was renamed to drawdown_check_status in Bug #4
-            from app.api.v1.risk import risk_score, drawdown_check_status
-            from app.websocket_manager import broadcast_risk_update, broadcast_drawdown_alert
+            from app.api.v1.risk import risk_score, drawdown_check
+            from app.websocket_manager import broadcast_ws
 
             risk_data = await risk_score()
-            await broadcast_risk_update(risk_data)
+            await broadcast_ws("risk", {"type": "risk_update", "data": risk_data})
 
-            dd_data = await drawdown_check_status()
+            dd_data = await drawdown_check()
             if dd_data.get("drawdown_breached") or not dd_data.get("trading_allowed", True):
-                await broadcast_drawdown_alert(dd_data)
+                await broadcast_ws("risk", {"type": "drawdown_alert", "data": dd_data})
 
             await asyncio.sleep(30)
         except Exception as e:
@@ -222,6 +221,8 @@ app.add_middleware(
 )
 
 # --- API Routers ---
+# Pattern A routers: include sub-path in route decorators (e.g. @router.get("/stocks"))
+# These are correctly mounted with just prefix="/api/v1"
 app.include_router(stocks.router, prefix="/api/v1", tags=["stocks"])
 app.include_router(quotes.router, prefix="/api/v1", tags=["quotes"])
 app.include_router(orders.router, prefix="/api/v1", tags=["orders"])
@@ -230,24 +231,27 @@ app.include_router(training.router, prefix="/api/v1", tags=["training"])
 app.include_router(signals.router, prefix="/api/v1", tags=["signals"])
 app.include_router(backtest_routes.router, prefix="/api/v1", tags=["backtest"])
 app.include_router(status.router, prefix="/api/v1", tags=["status"])
-app.include_router(agents.router, prefix="/api/v1", tags=["agents"])
 app.include_router(data_sources.router, prefix="/api/v1", tags=["data_sources"])
-app.include_router(sentiment.router, prefix="/api/v1", tags=["sentiment"])
 app.include_router(portfolio.router, prefix="/api/v1", tags=["portfolio"])
 app.include_router(risk.router, prefix="/api/v1", tags=["risk"])
 app.include_router(strategy.router, prefix="/api/v1", tags=["strategy"])
 app.include_router(performance.router, prefix="/api/v1", tags=["performance"])
 app.include_router(flywheel.router, prefix="/api/v1", tags=["flywheel"])
 app.include_router(logs.router, prefix="/api/v1", tags=["logs"])
-app.include_router(alerts.router, prefix="/api/v1", tags=["alerts"])
 app.include_router(patterns.router, prefix="/api/v1", tags=["patterns"])
-app.include_router(settings_routes.router, prefix="/api/v1", tags=["settings"])
 app.include_router(openclaw.router, prefix="/api/v1", tags=["openclaw"])
 app.include_router(ml_brain.router, prefix="/api/v1", tags=["ml_brain"])
-app.include_router(risk_shield_api.router, prefix="/api/v1", tags=["risk_shield"])
 app.include_router(market.router, prefix="/api/v1", tags=["market"])
-# FIX: alpaca.py was never registered — all proxy endpoints were unreachable
+
+# Pattern B routers: use @router.get("") — need explicit sub-path in prefix
+app.include_router(agents.router, prefix="/api/v1/agents", tags=["agents"])
+app.include_router(sentiment.router, prefix="/api/v1/sentiment", tags=["sentiment"])
+app.include_router(alerts.router, prefix="/api/v1/alerts", tags=["alerts"])
+app.include_router(settings_routes.router, prefix="/api/v1/settings", tags=["settings"])
 app.include_router(alpaca.router, prefix="/api/v1/alpaca", tags=["alpaca"])
+
+# risk_shield_api.py has its own prefix="/risk-shield" in the router
+app.include_router(risk_shield_api.router, tags=["risk_shield"])
 
 
 @app.websocket("/ws")
