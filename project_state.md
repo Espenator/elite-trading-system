@@ -1,8 +1,7 @@
 # Project State - Elite Trading System (Embodier.ai)
 
-> Paste this file at the start of every new AI chat session.
-> Say: "Read this project state document. Acknowledge you understand the architecture, and then I will give you your first task."
-> Last updated: March 1, 2026 12:00 AM EST
+> Paste this file at the start of every new AI chat session. Say: "Read this project state document. Acknowledge you understand the architecture, and then I will give you your first task."
+> Last updated: March 1, 2026 2:00 AM EST
 
 ## Identity
 
@@ -14,7 +13,7 @@
 ## Tech Stack
 
 | Layer | Technology |
-|-------|------------|
+|-------|---------------|
 | Backend | Python 3.11, FastAPI, uvicorn |
 | Frontend | React 18 (Vite), Tailwind CSS, Lightweight Charts |
 | Database | DuckDB (WAL mode, connection pooling) |
@@ -42,8 +41,8 @@
 
 ```
 [React Frontend] --useApi()--> [FastAPI Backend] --services--> [External APIs]
-       |                              |                         Alpaca/UW/FinViz
-       WebSocket <-------------- websocket_manager.py
+       |                              |                    Alpaca/UW/FinViz
+  WebSocket <-------------- websocket_manager.py
        |                              |
 [OpenClaw Agents]    [ML Engine (XGBoost)]    [DuckDB Analytics]
 ```
@@ -57,7 +56,7 @@
 5. **API pattern**: Route handler -> Service layer -> External API
 6. **Mockups**: `docs/mockups-v3/images/` are the source of truth for UI design
 
-## Current State (Mar 1, 2026 12:00 AM EST)
+## Current State (Mar 1, 2026 2:00 AM EST)
 
 - CI: GREEN (22 tests, all passing)
 - Frontend: 15 pages built, all wired to real API hooks
@@ -75,10 +74,28 @@
 | Patterns & Screener | 07-screener-and-patterns.png | b18a267 | Real API wired, ~70% mockup match |
 | Active Trades | 10-active-trades.html / Active-Trades.png | 6b2e7ad | **DONE AND COMPLETE** - 415 lines, ultrawide command strip, real Alpaca API, NO mocks |
 | Trade Execution | Trade-Execution mockup (Perplexity) | 77e01ce | **DONE AND COMPLETE** - 745 lines, full Alpaca v2 API (bracket/OCO/OTO/trailing), 12-col grid, NO mocks |
+| Market Regime | 10-market-regime.png | (Comet session) | **DONE AND COMPLETE** - Real API wired, VIX regime classification, LW Charts only, NO mocks |
+
+### Agent Command Center - AUDIT IN PROGRESS (Mar 1, 2026)
+
+**Status**: Deep audit complete, redesign needed. AgentCommandCenter.jsx is 1,995 lines with 8 internal tabs.
+
+**Issues Found**:
+1. Duplicate mockup images (top/bottom saved as same file)
+2. 4-5 sub-tab mockups were never created
+3. Tab names in code don't match architecture doc
+4. Mock data still present in 3 placeholder tabs (Brain Map, Leaderboard, Blackboard)
+5. openclawService.js only has 6/16 needed functions
+6. Mockup filename typo: "agent rgistery.png" needs rename to "05c-agent-registry.png"
+
+**Current 8 Tabs in Code**: Overview, Agents, Swarm Control, Candidates, LLM Flow, Brain Map, Leaderboard, Blackboard
+
+**Plan**: 4-phase redesign - (1) Align tab names, (2) Generate missing mockups, (3) Rewrite code to match, (4) Wire all real APIs
 
 ### Next Page to Build
 
-- **Performance Analytics** (`PerformanceAnalytics.jsx`) - pending mockup alignment
+- **Agent Command Center** (`AgentCommandCenter.jsx`) - Full redesign of 8 internal tabs to match corrected mockups
+- Then: **Performance Analytics** (`PerformanceAnalytics.jsx`) - pending mockup alignment
 
 ## Known Issues
 
@@ -86,6 +103,7 @@
 2. Backend has never been started (`uvicorn app.main:app`)
 3. No authentication system yet
 4. WebSocket not flowing real-time data yet
+5. Agent Command Center has duplicate/missing mockups and mismatched tabs (audit Mar 1)
 
 ## File Reference
 
@@ -99,6 +117,7 @@
 | `backend/app/main.py` | FastAPI entry point |
 | `backend/app/services/` | All business logic (15 services) |
 | `docs/mockups-v3/images/` | Approved UI mockups |
+| `frontend-v2/src/V3-ARCHITECTURE.md` | AUTHORITATIVE frontend architecture doc |
 
 ## Rules for AI Assistants
 
