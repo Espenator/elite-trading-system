@@ -6,7 +6,7 @@
 > **App Status: Backend has never been started or tested end-to-end. Frontend builds. All 15 pages audited and wired to real API hooks (useApi). No mock data remaining.**
 > **Data Sources Manager: DONE AND COMPLETE -- 636 lines, 100% pixel-perfect match to mockup 09, real API via dataSourcesApi.js (commit 083521a).**
 > > **Active Trades: DONE AND COMPLETE -- 415 lines, ultrawide command strip layout, real Alpaca API via useApi hooks, positions + orders + risk panels, NO mocks (commit 6b2e7ad).**
-> **Next Steps: Performance Analytics page (mockup alignment), then remaining 11 pages.**
+> **Next Steps: Agent Command Center redesign (8 internal tabs - see Issue #15), then Performance Analytics page, then remaining pages. Full codebase cleanup in progress (see Issue #15).**
 >
 > > **CRITICAL FOR OLEH (Monday 3/2):** Backend has systemic IndentationErrors across 20+ Python files. Run `python scripts/fix_indentation.py --scan` to see all broken files, then `--fix --check` to auto-repair. Full guide: [`docs/INDENTATION-FIX-GUIDE.md`](docs/INDENTATION-FIX-GUIDE.md). This is the #1 blocker for CI.
 
@@ -62,7 +62,7 @@ Sidebar defined in `frontend-v2/src/components/layout/Sidebar.jsx`. Routes in `f
 | # | Route | Sidebar Label | File | Status |
 |---|---|---|---|---|
 | 1 | `/dashboard` | Intelligence Dashboard | `Dashboard.jsx` | Audited -- wired to useApi |
-| 2 | `/agents` | Agent Command Center | `AgentCommandCenter.jsx` | Audited -- wired to useApi |
+| 2 | `/agents` | Agent Command Center | `AgentCommandCenter.jsx` | **AUDIT IN PROGRESS** -- 8 internal tabs, redesign needed (Issue #15) |
 
 ### INTELLIGENCE
 
@@ -80,15 +80,14 @@ Sidebar defined in `frontend-v2/src/components/layout/Sidebar.jsx`. Routes in `f
 | 7 | `/patterns` | Screener & Patterns | `Patterns.jsx` | **DONE -- real API wired (b18a267)** |
 | 8 | `/backtest` | Backtesting Lab | `Backtesting.jsx` | Audited -- wired to useApi |
 | 9 | `/performance` | Performance Analytics | `PerformanceAnalytics.jsx` | Audited -- pending mockup alignment |
-| 10 | `/market-regime` | Market Regime | `MarketRegime.jsx` | Audited -- wired to useApi |
+| 10 | `/market-regime` | Market Regime | `MarketRegime.jsx` | **DONE -- 100% complete, real API, VIX regime, LW Charts, NO mocks** |
 
 ### EXECUTION
 
 | # | Route | Sidebar Label | File | Status |
-|---|---|---|---|---|
-| 11 | `/trades` | Active Trades | `Trades.jsx` | Audited -- wired to useApi |
+| 11 | `/trades` | Active Trades | `Trades.jsx` | **DONE -- 415 lines, ultrawide command strip, real Alpaca API, NO mocks (6b2e7ad)** |
 | 12 | `/risk` | Risk Intelligence | `RiskIntelligence.jsx` | Audited -- wired to useApi |
-| 13 | `/trade-execution` | Trade Execution | `TradeExecution.jsx` | Audited -- wired to useApi |
+| 13 | `/trade-execution` | Trade Execution | `TradeExecution.jsx` | **DONE -- 745 lines, full Alpaca v2 API, bracket/OCO/OTO/trailing, NO mocks (77e01ce)** |
 
 ### SYSTEM
 
@@ -226,6 +225,9 @@ Private repository -- Embodier.ai
 | Data Sources Manager | 09-data-sources-manager.png | YES | **100%** | **DONE AND COMPLETE** |
 | Patterns & Screener | 07-screener-and-patterns.png | YES | ~70% | Real API wired, needs mockup polish |
 | Performance Analytics | TBD | YES | ~20% | **NEXT -- pending mockup alignment** |
+| Active Trades | Active-Trades.png | YES | **100%** | **DONE AND COMPLETE** |
+| Trade Execution | Trade-Execution mockup | YES | **100%** | **DONE AND COMPLETE** |
+| Market Regime | 10-market-regime.png | YES | **100%** | **DONE AND COMPLETE** |
 
 ### Primary Data Sources (NO yfinance)
 
