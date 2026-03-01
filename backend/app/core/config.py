@@ -14,7 +14,12 @@ from typing import Optional
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
-        model_config = SettingsConfigDict(extra="ignore", env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        extra="ignore",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+    )
 
     # Application
     APP_NAME: str = "Embodier.ai Trading Intelligence"
@@ -42,33 +47,33 @@ class Settings(BaseSettings):
     # Quote/Chart settings
     FINVIZ_QUOTE_TIMEFRAME: str = "d"  # d=daily, w=weekly, m=monthly, etc.
 
-    # -----------------------------------------------------------------------
+    # -------------------------------------------------------------------
     # OpenClaw Bridge (PC1 -> PC2)
-    # -----------------------------------------------------------------------
+    # -------------------------------------------------------------------
     OPENCLAW_BRIDGE_TOKEN: str = ""  # Shared secret for X-OpenClaw-Token header
     OPENCLAW_BRIDGE_SECRET: str = ""  # HMAC-SHA256 secret for bridge signature verification
     OPENCLAW_API_URL: str = (
         ""  # URL of OpenClaw API on PC1 (e.g., http://192.168.x.x:5000)
     )
 
-    # -----------------------------------------------------------------------
+    # -------------------------------------------------------------------
     # GPU / CUDA (APEX Phase 2)
-    # -----------------------------------------------------------------------
+    # -------------------------------------------------------------------
     GPU_DEVICE: str = "auto"  # "auto" | "cuda:0" | "cuda:1" | "cpu"
     TORCH_MIXED_PRECISION: bool = True  # Enable AMP (FP16) when CUDA available
     XGBOOST_GPU_ID: int = 0  # GPU device ordinal for XGBoost gpu_hist
 
-    # -----------------------------------------------------------------------
+    # -------------------------------------------------------------------
     # Training schedule & artefacts (APEX Phase 2)
-    # -----------------------------------------------------------------------
+    # -------------------------------------------------------------------
     TRAINING_SCHEDULE: str = "0 2 * * 6"  # cron: every Saturday at 02:00 UTC
     MODEL_ARTIFACTS_PATH: str = (
         "models/artifacts"  # directory for checkpoints & metadata
     )
 
-    # -----------------------------------------------------------------------
+    # -------------------------------------------------------------------
     # DuckDB
-    # -----------------------------------------------------------------------
+    # -------------------------------------------------------------------
     DUCKDB_PATH: str = "elite_trading.duckdb"
 
     # Alpaca Markets API -- set in .env; paper by default
@@ -91,7 +96,7 @@ class Settings(BaseSettings):
 
     # SEC EDGAR -- no key; User-Agent required (set in code)
 
-    # Sentiment Agent / Social News Engine -- set in .env; returns empty list if not configured
+    # Sentiment Agent / Social News Engine -- set in .env
     NEWS_API_KEY: str = ""
     STOCKGEIST_API_KEY: str = ""
     STOCKGEIST_BASE_URL: str = "https://api.stockgeist.ai"
@@ -125,7 +130,7 @@ class Settings(BaseSettings):
         ""  # GitHub personal access token with gist scope (optional for public gists)
     )
 
-        # -----------------------------------------------------------------
+    # -----------------------------------------------------------------
     # Kelly Criterion & Position Sizing
     # -----------------------------------------------------------------
     KELLY_MAX_ALLOCATION: float = 0.10  # Max 10% per position
@@ -145,9 +150,9 @@ class Settings(BaseSettings):
     SIGNAL_MIN_EDGE: float = 0.05  # Min Kelly edge to trade
     SIGNAL_MIN_VOLUME_SCORE: float = 0.5  # Min relative volume
 
-        # ----------------------------------------------------------------
+    # -----------------------------------------------------------------
     # Risk Management & Drawdown Protection
-    # ----------------------------------------------------------------
+    # -----------------------------------------------------------------
     ATR_STOP_MULTIPLIER: float = 2.0  # ATR multiplier for dynamic stop-loss
     MAX_DAILY_DRAWDOWN_PCT: float = 5.0  # Max daily drawdown before pause
     MAX_DAILY_LOSS_PCT: float = 2.0  # Max single-day loss percentage
@@ -157,11 +162,6 @@ class Settings(BaseSettings):
     MIN_RISK_SCORE: int = 40  # Minimum risk score to allow trading
     TRAILING_STOP_PCT: float = 0.03  # 3% trailing stop default
     MAX_POSITION_PCT: float = 0.10  # Max single position as % of portfolio
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = True
 
 
 # Global settings instance
