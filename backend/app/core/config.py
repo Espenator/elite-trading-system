@@ -7,12 +7,14 @@ APEX Phase 2 additions:
 - MODEL_ARTIFACTS_PATH               (where trained models are saved)
 """
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
+
+        model_config = SettingsConfigDict(extra="ignore", env_file=".env", env_file_encoding="utf-8")
 
     # Application
     APP_NAME: str = "Embodier.ai Trading Intelligence"
@@ -20,6 +22,13 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/api/v1"
     PORT: int = 8001
     HOST: str = "0.0.0.0"
+
+    # CORS
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
+
+    # WebSocket
+    WS_HEARTBEAT_INTERVAL: int = 30
+    WS_MAX_CONNECTIONS: int = 100
 
     # Finviz API  -- set in .env
     FINVIZ_API_KEY: str = ""
