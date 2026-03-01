@@ -2,7 +2,7 @@
 
 > Paste this file at the start of every new AI chat session.
 > Say: "Read this project state document. Acknowledge you understand the architecture, and then I will give you your first task."
-> Last updated: February 28, 2026 5:00 PM EST
+> Last updated: March 1, 2026 12:00 AM EST
 
 ## Identity
 
@@ -57,7 +57,7 @@
 5. **API pattern**: Route handler -> Service layer -> External API
 6. **Mockups**: `docs/mockups-v3/images/` are the source of truth for UI design
 
-## Current State (Feb 28, 2026 5:00 PM EST)
+## Current State (Mar 1, 2026 12:00 AM EST)
 
 - CI: GREEN (22 tests, all passing)
 - Frontend: 15 pages built, all wired to real API hooks
@@ -73,6 +73,7 @@
 |------|--------|--------|--------|
 | Data Sources Manager | 09-data-sources-manager.png | 083521a | **DONE AND COMPLETE** - 636 lines, split view, real API, NO mocks |
 | Patterns & Screener | 07-screener-and-patterns.png | b18a267 | Real API wired, ~70% mockup match |
+| Active Trades | 10-active-trades.html / Active-Trades.png | 6b2e7ad | **DONE AND COMPLETE** - 415 lines, ultrawide command strip, real Alpaca API, NO mocks |
 
 ### Next Page to Build
 
