@@ -5,10 +5,9 @@
 Consolidated from 18 pages down to **14 sidebar pages** (+ 1 hidden route) for cleaner UX and maintainability.
 All pages use V3 widescreen layout with dark theme. Charting uses a mix of **lightweight-charts** (LW Charts) and **Recharts** -- migration to 100% LW Charts is in progress.
 
-> **Current Status (Feb 27, 2026 - Deep Code Audit):** All 15 routed pages have V3 UI code.
-> **7 pages still import Recharts** (see Charting Audit below). 5 pages use LW Charts. Some pages use both.
+> **Current Status (Mar 1, 2026 - Comet AI Session):** All 15 routed pages have V3 UI code. **5 pages completed to 100% mockup** (Data Sources, Active Trades, Trade Execution, Market Regime, Patterns). **7 pages still import Recharts** (see Charting Audit below). Agent Command Center (8 tabs) audit in progress -- see Issue #15.both.
 > AgentCommandCenter.jsx is the largest page (1,995 lines) with **8 internal tabs** and 5 decomposed agent components.
-> **Next Step**: Complete Recharts-to-LW-Charts migration, wire real API endpoints, final UI polish, WebSocket integration.
+> **Next Step**: Agent Command Center redesign (8 tabs, see Issue #15), then Recharts-to-LW-Charts migration, wire remaining real API endpoints, final UI polish, WebSocket integration.
 
 > **IMPORTANT**: This is the AUTHORITATIVE architecture doc. Sidebar.jsx defines the 14 visible pages.
 > App.jsx defines all routes including SignalIntelligenceV3 (hidden route, not in sidebar).
@@ -22,7 +21,7 @@ All pages use V3 widescreen layout with dark theme. Charting uses a mix of **lig
 | Page | File | Route | Charting | Status | Notes |
 |------|------|-------|----------|--------|-------|
 | Intelligence Dashboard | `Dashboard.jsx` | `/dashboard` | Recharts (Radar, AreaChart) + LW Charts | V3 CODED | Main overview with market cards, agent status, portfolio summary. Uses both Recharts and LW Charts |
-| Agent Command Center | `AgentCommandCenter.jsx` | `/agents` | None (SVG only) | V3 CODED | 1,995 lines, 8 internal tabs, 5 decomposed components. See Agent Command Center section below |
+| Agent Command Center | `AgentCommandCenter.jsx` | `/agents` | None (SVG only) | **AUDIT IN PROGRESS** | 1,995 lines, 8 internal tabs, 5 decomposed components. Redesign needed -- see Issue #15 |
 
 ### INTELLIGENCE (4 routes, 3 in sidebar)
 
@@ -30,7 +29,7 @@ All pages use V3 widescreen layout with dark theme. Charting uses a mix of **lig
 |------|------|-------|----------|--------|-------|
 | Signal Intelligence | `Signals.jsx` | `/signals` | None | V3 COMPLETE | Velez SLAM DUNK scanner, momentum breakout, heatmap tab |
 | Sentiment Intelligence | `SentimentIntelligence.jsx` | `/sentiment` | Recharts (PieChart) | V3 CODED - NEEDS LW CHARTS | useSentiment hook wired. PieChart from Recharts still in use |
-| Data Sources Monitor | `DataSourcesMonitor.jsx` | `/data-sources` | Recharts (PieChart) | V3 CODED - NEEDS LW CHARTS | API health dashboard. PieChart from Recharts still in use |
+| Data Sources Monitor | `DataSourcesMonitor.jsx` | `/data-sources` | Recharts (PieChart) | **100% DONE** | 636 lines, real API via dataSourcesApi.js, split view layout, NO mocks (commit 083521a) |
 | Signal Intelligence V3 | `SignalIntelligenceV3.jsx` | `/signal-intelligence-v3` | Recharts + LW Charts | V3 CODED | **Hidden route** (not in sidebar). 1,107 lines, Kelly edge + quality columns. Uses both libraries |
 
 ### ML & ANALYSIS (5 pages)
@@ -41,14 +40,14 @@ All pages use V3 widescreen layout with dark theme. Charting uses a mix of **lig
 | Screener & Patterns | `Patterns.jsx` | `/patterns` | None | V3 COMPLETE | Finviz/Alpaca screener, no charts needed |
 | Backtesting Lab | `Backtesting.jsx` | `/backtest` | Recharts + LW Charts | V3 CODED | Uses both: LW Charts for equity curve/drawdown, Recharts for histograms/heatmaps |
 | Performance Analytics | `PerformanceAnalytics.jsx` | `/performance` | Recharts + LW Charts (dynamic import) | V3 CODED | Dynamic LW Charts import with Recharts fallback |
-| Market Regime | `MarketRegime.jsx` | `/market-regime` | LW Charts only | V3 COMPLETE | VIX regime classification, fully on LW Charts |
+| Market Regime | `MarketRegime.jsx` | `/market-regime` | LW Charts only | **100% DONE** | VIX regime classification, fully on LW Charts, real API, NO mocks 
 
 ### EXECUTION (3 pages)
 
 | Page | File | Route | Charting | Status | Notes |
 |------|------|-------|----------|--------|-------|
-| Active Trades | `Trades.jsx` | `/trades` | None | V3 COMPLETE | Active position manager with R-Multiple tracking. 2 tabs: OPEN/CLOSED |
-| Trade Execution | `TradeExecution.jsx` | `/trade-execution` | None | V3 COMPLETE | Order entry with Alpaca integration |
+| Active Trades | `Trades.jsx` | `/trades` | None | **100% DONE** | 415 lines, ultrawide command strip, real Alpaca API, NO mocks (commit 6b2e7ad) |
+| Trade Execution | `TradeExecution.jsx` | `/trade-execution` | None | **100% DONE** | 745 lines, full Alpaca v2 API (bracket/OCO/OTO/trailing), 12-col grid, NO mocks (commit 77e01ce) |
 | Risk Intelligence | `RiskIntelligence.jsx` | `/risk` | None | V3 COMPLETE | Portfolio risk metrics, correlation matrix |
 
 ### SYSTEM (1 page)
