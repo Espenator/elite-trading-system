@@ -10,7 +10,7 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from app.websocket_manager import add_connection, remove_connection, heartbeat_loop, accept_connection
+from app.websocket_manager import add_connection, remove_connection, heartbeat_loop
 from app.core.config import settings
 from app.api.v1 import (
     stocks,
@@ -38,7 +38,14 @@ from app.api.v1 import (
     risk_shield_api,
     market,
 )
-from routers.trade_execution import router as trade_execution_router
+
+# Gracefully import trade_execution router (module may not exist yet)
+try:
+    from routers.trade_execution import router as trade_execution_router
+    _has_trade_execution = True
+except ImportError:
+    trade_execution_router = None
+    _has_trade_execution = False
 
 # Configure logging
 logging.basicConfig(
@@ -130,10 +137,8 @@ async def _market_data_tick_loop():
             logging.exception("Market data tick loop error")
 
 
-# FIX: _risk_monitor_loop moved ABOVE lifespan so it can be referenced
 async def _risk_monitor_loop():
     """Risk monitoring background task - polls every 30s."""
-    import time
     while True:
         try:
             from app.api.v1.risk import risk_score, drawdown_check
@@ -170,7 +175,7 @@ async def lifespan(app: FastAPI):
     # 2. ML Flywheel singletons
     _init_ml_singletons()
 
-    # 3. Background tasks -- FIX: all tasks created before yield
+    # 3. Background tasks
     tick_task = asyncio.create_task(_market_data_tick_loop())
     drift_task = asyncio.create_task(_drift_check_loop())
     heartbeat_task = asyncio.create_task(heartbeat_loop())
@@ -208,7 +213,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS
+# CORS - restricted to local dev origins only
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://localhost:5173", "http://localhost:8080"],
@@ -242,7 +247,8 @@ app.include_router(openclaw.router, prefix="/api/v1", tags=["openclaw"])
 app.include_router(ml_brain.router, prefix="/api/v1", tags=["ml_brain"])
 app.include_router(risk_shield_api.router, prefix="/api/v1", tags=["risk_shield"])
 app.include_router(market.router, prefix="/api/v1", tags=["market"])
-app.include_router(trade_execution_router)
+if _has_trade_execution:
+    app.include_router(trade_execution_router)
 
 
 @app.websocket("/ws")
@@ -256,7 +262,6 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception:
         pass
     finally:
-        # FIX: remove_connection expects WebSocket, not a return value
         remove_connection(websocket)
 
 

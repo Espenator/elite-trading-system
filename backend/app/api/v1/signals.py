@@ -79,6 +79,7 @@ async def get_signals(as_of: date | None = None):
                 expected_value=kelly.edge * prob,
             )
         )
+    return SignalsResponse(as_of=as_of, signals=signals)
 
 
 @router.get("/active/{symbol}", response_model=ActiveSignalResponse)
@@ -195,4 +196,3 @@ async def get_kelly_ranked():
 
     ranked.sort(key=lambda x: x["kelly_score"], reverse=True)
     return ranked[:20]
-
