@@ -205,6 +205,18 @@ _DEFAULT_LOGS = [
 ]
 
 
+def _get_all_agents():
+    """Return the full agent template list. Used by swarm/team/alert/resource endpoints."""
+    return _AGENTS_TEMPLATE
+
+
+def _effective_status(agent_id: int) -> str:
+    """Get persisted status for a single agent, falling back to template default."""
+    a = next((x for x in _AGENTS_TEMPLATE if x["id"] == agent_id), None)
+    default = a["status"] if a else "stopped"
+    return _get_agent_status().get(str(agent_id), default)
+
+
 @router.get("")
 async def get_agents():
     """Return all 5 agents with status, last_actions per agent, and global logs."""
@@ -258,12 +270,6 @@ async def _run_market_data_tick():
     _set_current_task(
         1, entries[0][0][:200] if entries else "Scanning Finviz Elite + Alpaca bars"
     )
-
-
-def _effective_status(agent_id: int) -> str:
-    a = next((x for x in _AGENTS_TEMPLATE if x["id"] == agent_id), None)
-    default = a["status"] if a else "stopped"
-    return _get_agent_status().get(str(agent_id), default)
 
 
 async def run_market_data_tick_if_running():
@@ -385,7 +391,7 @@ async def run_agent_tick(agent_id: int):
     Only runs if agent status is 'running' (no-op otherwise).
     """
     agent = _agent_by_id(agent_id)
-    status = _get_agent_status().get(str(agent_id), agent["status"])
+    status = _effective_status(agent_id)
     if status != "running":
         return {"ok": True, "skipped": True, "reason": "agent_not_running"}
     if agent_id == 1:
@@ -477,7 +483,6 @@ async def restart_agent(agent_id: int):
     return {"ok": True, "agent_id": agent_id, "status": "running"}
 
 
-
 # --- Swarm Topology & ELO Leaderboard ---
 @router.get("/swarm-topology")
 async def get_swarm_topology():
@@ -486,14 +491,14 @@ async def get_swarm_topology():
     topology_nodes = []
     edges = []
     leaderboard = []
-    
+
     for agent in agents:
-        status = _get_agent_status(agent["id"])
+        status = _effective_status(agent["id"])
         node = {
             "id": agent["id"],
             "name": agent["name"],
             "type": agent.get("type", "general"),
-            "status": status or "idle",
+            "status": status,
             "elo": agent.get("elo", 1500),
             "win_pct": agent.get("win_pct", 50),
         }
@@ -504,21 +509,21 @@ async def get_swarm_topology():
             "elo": agent.get("elo", 1500),
             "win_pct": agent.get("win_pct", 50),
         })
-    
+
     # Sort leaderboard by ELO descending
     leaderboard.sort(key=lambda x: x["elo"], reverse=True)
     for i, entry in enumerate(leaderboard):
         entry["rank"] = i + 1
-    
+
     # Generate edges based on agent communication patterns
     agent_ids = [a["id"] for a in agents]
     for i, aid in enumerate(agent_ids):
         for j in range(i + 1, len(agent_ids)):
             edges.append({"source": aid, "target": agent_ids[j], "weight": 1})
-    
+
     return {
         "nodes": topology_nodes,
-        "edges": edges[:20],  # Limit edges for visualization
+        "edges": edges[:20],
         "leaderboard": leaderboard[:10],
     }
 
@@ -529,7 +534,7 @@ async def get_conference_status():
     """Return current conference pipeline status and last conference result."""
     conference_data = db_service.get_config("last_conference")
     pipeline_stages = ["Researcher", "RiskOfficer", "Adversary", "Arbitrator"]
-    
+
     return {
         "pipeline": pipeline_stages,
         "current_stage": db_service.get_config("conference_current_stage") or "idle",
@@ -550,23 +555,23 @@ async def get_team_status():
     """Return agent team groupings and health metrics."""
     agents = _get_all_agents()
     teams = {}
-    
+
     for agent in agents:
         team = agent.get("team", "default")
         if team not in teams:
             teams[team] = {"name": team, "agents": 0, "active": 0, "health": 0}
         teams[team]["agents"] += 1
-        status = _get_agent_status(agent["id"])
+        status = _effective_status(agent["id"])
         if status == "running":
             teams[team]["active"] += 1
-    
+
     result = []
     for team_name, team_data in teams.items():
         health = round(team_data["active"] / max(team_data["agents"], 1) * 100)
         team_data["health"] = health
         team_data["status"] = "ACTIVE" if health >= 80 else "DEGRADED" if health >= 50 else "DOWN"
         result.append(team_data)
-    
+
     return {"teams": result}
 
 
@@ -581,7 +586,7 @@ async def get_drift_metrics():
             return monitor.get_metrics()
     except Exception:
         pass
-    
+
     # Return structure matching mockup even without real data
     return {
         "metrics": [
@@ -602,10 +607,9 @@ async def get_system_alerts():
     """Return active system alerts for the Agent Command Center."""
     alerts = []
     agents = _get_all_agents()
-    
+
     # Check for unresponsive agents
     for agent in agents:
-        status = _get_agent_status(agent["id"])
         last_tick = _get_last_tick_at(agent["id"])
         if last_tick:
             try:
@@ -625,16 +629,16 @@ async def get_system_alerts():
                     })
             except Exception:
                 pass
-    
+
     # Check process metrics
     metrics = _get_process_metrics()
     if metrics:
         if metrics.get("memoryMb", 0) > 3500:
             alerts.append({"level": "AMBER", "message": f"GPU memory at {metrics['memoryMb']}MB — approaching threshold"})
-    
+
     # Add info alerts
     alerts.append({"level": "INFO", "message": "Bridge latency normalized — 23ms avg"})
-    
+
     return {"alerts": alerts}
 
 
@@ -644,15 +648,15 @@ async def get_agent_resources():
     """Return per-agent resource usage for the Agent Resource Monitor panel."""
     agents = _get_all_agents()
     resources = []
-    
+
     for agent in agents:
-        status = _get_agent_status(agent["id"])
+        status = _effective_status(agent["id"])
         resources.append({
             "agent": agent["name"],
             "cpu_pct": agent.get("cpu_pct", round(5 + agent["id"] * 7.5, 1)),
             "mem_mb": agent.get("mem_mb", 180 + agent["id"] * 150),
             "tokens_hr": agent.get("tokens_hr", 1500 + agent["id"] * 1800),
-            "status": status or "idle",
+            "status": status,
         })
-    
+
     return {"resources": resources}
