@@ -122,9 +122,12 @@ export async function fetchDynamicStopLoss(symbol, entryPrice, side = 'buy') {
   return res.json();
 }
 
-/** POST helper for pre-trade risk check */
+/** POST helper for pre-trade risk check
+ *  Bug #24 fix: backend route is POST /api/v1/strategy/pre-trade-check/{ticker}
+ *  Symbol must be in the URL path, not just the JSON body.
+ */
 export async function fetchPreTradeCheck(symbol, side = 'buy') {
-  const url = getApiUrl('preTradeCheck');
+  const url = `${getApiUrl('preTradeCheck')}/${encodeURIComponent(symbol)}`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

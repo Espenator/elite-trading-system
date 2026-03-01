@@ -250,8 +250,10 @@ app.include_router(alerts.router, prefix="/api/v1/alerts", tags=["alerts"])
 app.include_router(settings_routes.router, prefix="/api/v1/settings", tags=["settings"])
 app.include_router(alpaca.router, prefix="/api/v1/alpaca", tags=["alpaca"])
 
-# risk_shield_api.py has its own prefix="/risk-shield" in the router
-app.include_router(risk_shield_api.router, tags=["risk_shield"])
+# Bug #14 fix: risk_shield_api.py has its own prefix="/risk-shield" in the router
+# Previously included WITHOUT prefix="/api/v1", causing routes at /risk-shield/...
+# instead of /api/v1/risk-shield/... (frontend expects /api/v1/risk-shield)
+app.include_router(risk_shield_api.router, prefix="/api/v1", tags=["risk_shield"])
 
 
 @app.websocket("/ws")
