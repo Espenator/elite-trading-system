@@ -4,7 +4,7 @@
 // Backend: GET /api/v1/agents, /api/v1/openclaw/*, WS 'agents' + 'llm-flow'
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { toast } from "react-toastify";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   Activity,
   Zap,
@@ -58,7 +58,7 @@ import Checkbox from "../components/ui/Checkbox";
 import Toggle from "../components/ui/Toggle";
 import Select from "../components/ui/Select";
 import TextField from "../components/ui/TextField";
-import RegimeBanner from "../components/RegimeBanner";
+// RegimeBanner removed (unused)
 import { useApi } from "../hooks/useApi";
 import { getApiUrl } from "../config/api";
 import ws from "../services/websocket";
@@ -434,7 +434,7 @@ function AgentCard({ agent, onToggle }) {
 // MAIN COMPONENT
 // =============================================
 export default function AgentCommandCenter() {
-  const navigate = useNavigate();
+  const navigate = useNavigate();   const { tab: urlTab } = useParams();
 
   // --- Agent state ---
   const {
@@ -454,10 +454,10 @@ export default function AgentCommandCenter() {
   const [llmAlerts, setLlmAlerts] = useState([]);
   const [bias, setBias] = useState(1.0);
   const [biasOverrideSent, setBiasOverrideSent] = useState(false);
-  const [spawnModalOpen, setSpawnModalOpen] = useState(false);
+  // spawnModalOpen removed (unused)
   const [spawnLoading, setSpawnLoading] = useState(false);
   const [spawnError, setSpawnError] = useState(null);
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState(urlTab || "overview");
   const wsRef = useRef(null);
 
   // --- Blackboard, HITL, and Consensus States ---
@@ -465,7 +465,7 @@ export default function AgentCommandCenter() {
   const [hitlBuffer, setHitlBuffer] = useState([]);
   const [consensusData, setConsensusData] = useState([]);
 
-  // --- Loaders ---
+  // --- URL sync ---   useEffect(() => { if (activeTab) navigate(`/agents/${activeTab}`, { replace: true }); }, [activeTab]);    // --- Loaders ---
   const loadMacro = useCallback(async () => {
     try {
       const data = await openclaw.getMacro();
@@ -1822,7 +1822,7 @@ export default function AgentCommandCenter() {
                 <tbody className="divide-y divide-cyan-500/10">
                   {agents.map((agent, i) => {
                     // Derived quant data from API agent stats
-                    const winRate = agent.winRate ?? agent.win_rate;
+                    const winRate = Number(agent.winRate ?? agent.win_rate ?? 0);
                                 const pnl = agent.pnl ?? agent.pnl_30d ?? 0;
                                 const signals = agent.signals_generated ?? agent.signals_count ?? 0;
                                 const acc = agent.accuracy ?? winRate;
