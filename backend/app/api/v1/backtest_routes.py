@@ -234,17 +234,17 @@ async def compare_kelly_sizing(request: BacktestRequest):
                     kelly_result.get("metrics", {}).get("sharpe", 0)
                     - fixed_result.get("metrics", {}).get("sharpe", 0)
                 ),
+                "profit_factor_delta": (
+                    kelly_result.get("metrics", {}).get("profit_factor", 0)
+                    - fixed_result.get("metrics", {}).get("profit_factor", 0)
+                ),
+                "expectancy_delta": (
+                    kelly_result.get("metrics", {}).get("expectancy", 0)
+                    - fixed_result.get("metrics", {}).get("expectancy", 0)
+                ),
+                "kelly_efficiency": kelly_result.get("metrics", {}).get("kelly_efficiency", 0),
+                "kelly_advantage": kelly_result.get("metrics", {}).get("kelly_advantage", 0),
             },
-                        "profit_factor_delta": (
-                kelly_result.get("metrics", {}).get("profit_factor", 0)
-                - fixed_result.get("metrics", {}).get("profit_factor", 0)
-            ),
-            "expectancy_delta": (
-                kelly_result.get("metrics", {}).get("expectancy", 0)
-                - fixed_result.get("metrics", {}).get("expectancy", 0)
-            ),
-            "kelly_efficiency": kelly_result.get("metrics", {}).get("kelly_efficiency", 0),
-            "kelly_advantage": kelly_result.get("metrics", {}).get("kelly_advantage", 0),
         }
     except Exception as e:
         return {"ok": False, "error": str(e)}
