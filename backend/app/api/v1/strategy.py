@@ -174,25 +174,56 @@ async def update_controls(controls: StrategyControls):
 # Regime-Aware Strategy Recommendations
 # -----------------------------------------------------------------
 REGIME_PARAMS = {
-    "BULL": {"kelly_scale": 1.0, "max_pos": 0.10, "min_edge": 0.03, "desc": "Full Kelly, higher conviction"},
-    "NEUTRAL": {"kelly_scale": 0.7, "max_pos": 0.07, "min_edge": 0.05, "desc": "Reduced sizing, tighter filters"},
-    "BEAR": {"kelly_scale": 0.4, "max_pos": 0.05, "min_edge": 0.08, "desc": "Defensive, hedged positions"},
-    "CRISIS": {"kelly_scale": 0.15, "max_pos": 0.02, "min_edge": 0.12, "desc": "Cash-heavy, only slam dunks"},
+    "GREEN": {"kelly_scale": 1.5, "max_pos": 6, "risk_pct": 2.0, "signal_mult": 1.10, "min_edge": 0.03, "desc": "Momentum - full Kelly, higher conviction"},
+    "YELLOW": {"kelly_scale": 1.0, "max_pos": 5, "risk_pct": 1.5, "signal_mult": 1.0, "min_edge": 0.05, "desc": "Cautious - reduced sizing, tighter filters"},
+    "RED": {"kelly_scale": 0.25, "max_pos": 0, "risk_pct": 0.0, "signal_mult": 0.85, "min_edge": 0.12, "desc": "Defensive - no new positions, protect capital"},
+    "RED_RECOVERY": {"kelly_scale": 0.75, "max_pos": 4, "risk_pct": 1.0, "signal_mult": 0.95, "min_edge": 0.08, "desc": "Re-entry - cautious scaling back in"},
+    # Legacy aliases for backward compatibility
+    "BULL": {"kelly_scale": 1.5, "max_pos": 6, "risk_pct": 2.0, "signal_mult": 1.10, "min_edge": 0.03, "desc": "Alias for GREEN"},
+    "NEUTRAL": {"kelly_scale": 1.0, "max_pos": 5, "risk_pct": 1.5, "signal_mult": 1.0, "min_edge": 0.05, "desc": "Alias for YELLOW"},
+    "BEAR": {"kelly_scale": 0.25, "max_pos": 0, "risk_pct": 0.0, "signal_mult": 0.85, "min_edge": 0.12, "desc": "Alias for RED"},
+    "CRISIS": {"kelly_scale": 0.0, "max_pos": 0, "risk_pct": 0.0, "signal_mult": 0.0, "min_edge": 1.0, "desc": "Full cash, zero exposure"},
 }
 
 
 @router.get("/regime-params")
 async def get_regime_params():
-    """Return current regime and Kelly scaling parameters."""
+    """
+    Return current regime and Kelly scaling parameters.
+    Aligned with Market Regime page GREEN/YELLOW/RED/RED_RECOVERY states.
+    Also sources live regime from OpenClaw bridge when available.
+    """
     ctrl = _get_controls()
     override = ctrl.get("regimeOverride")
-    regime = override if override else "NEUTRAL"
-    params = REGIME_PARAMS.get(regime, REGIME_PARAMS["NEUTRAL"])
+
+    # Try to get live regime from OpenClaw bridge
+    live_regime = None
+    try:
+        from app.services.openclaw_bridge_service import openclaw_bridge
+        regime_data = await openclaw_bridge.get_regime()
+        if regime_data and regime_data.get("state"):
+            live_regime = regime_data["state"]
+    except Exception:
+        pass
+
+    # Priority: manual override > live bridge > DB config > YELLOW default
+    if override:
+        regime = override
+    elif live_regime:
+        regime = live_regime
+    else:
+        regime = "YELLOW"
+
+    params = REGIME_PARAMS.get(regime, REGIME_PARAMS["YELLOW"])
     return {
         "regime": regime,
         "is_override": override is not None,
         "kelly_scale": params["kelly_scale"],
-        "max_position_pct": params["max_pos"],
+        "kelly_mult": params["kelly_scale"],
+        "max_position_pct": params["max_pos"] * 0.01 if isinstance(params["max_pos"], int) and params["max_pos"] > 1 else params["max_pos"],
+        "max_positions": params["max_pos"],
+        "risk_pct": params.get("risk_pct", 1.0),
+        "signal_mult": params.get("signal_mult", 1.0),
         "min_edge_threshold": params["min_edge"],
         "description": params["desc"],
         "kelly_enabled": ctrl.get("kellyEnabled", True),
