@@ -379,5 +379,13 @@ class AlpacaService:
 
 
 
+    async def get_orders(
+        self, status: str = "open", limit: int = 50, nested: bool = True
+    ) -> Optional[List]:
+        """GET /v2/orders — list orders with status filter."""
+        params = {"status": status, "limit": str(limit), "nested": str(nested).lower()}
+        return await self._request("GET", "/orders", params=params)
+
+
 # ── singleton ────────────────────────────────────────────────────────────
 alpaca_service = AlpacaService()
