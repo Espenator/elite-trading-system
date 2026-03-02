@@ -79,21 +79,21 @@ export default function MLBrainFlywheel() {
   };
 
   return (
-    <div className="flex flex-col h-screen w-full bg-[#0a0e17] text-[#e5e7eb] font-sans overflow-hidden selection:bg-[#00d4ff]/30 p-4 gap-4">
+    <div className="flex flex-col h-screen w-full bg-[#0B0E14] text-[#e5e7eb] font-sans overflow-hidden selection:bg-[#06b6d4]/30 p-4 gap-4">
       
       {/* HEADER */}
       <header className="flex justify-between items-end shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-white tracking-wide">ML Brain & Flywheel</h1>
-          <p className="text-[#00d4ff] text-xs font-mono mt-1">Autonomous Model Training & Inference Pipeline</p>
+          <p className="text-[#06b6d4] text-xs font-mono mt-1">Autonomous Model Training & Inference Pipeline</p>
         </div>
         <button 
           onClick={handleRetrain}
           disabled={isRetraining}
           className={`px-4 py-2 border rounded font-mono text-xs transition-all shadow-[0_0_10px_rgba(0,212,255,0.15)] ${
             isRetraining 
-              ? 'bg-[#1e3a5f] border-gray-500 text-gray-400 cursor-not-allowed' 
-              : 'bg-cyan-900/30 border-[#00d4ff]/50 text-[#00d4ff] hover:bg-[#00d4ff]/20'
+              ? 'bg-[#1e293b] border-gray-500 text-gray-400 cursor-not-allowed' 
+              : 'bg-cyan-900/30 border-[#06b6d4]/50 text-[#06b6d4] hover:bg-[#06b6d4]/20'
           }`}
         >
           {isRetraining ? 'RETRAINING...' : 'RETRAIN MODELS [F9]'}
@@ -110,7 +110,7 @@ export default function MLBrainFlywheel() {
           { label: 'Feature Store Sync', val: kpis.featureStore, sub: kpis.featureStoreSub, color: 'text-green-400' },
           { label: 'Win Rate Threshold', val: kpis.winRateThresh, sub: kpis.winRateSub, color: 'text-cyan-400' },
         ].map((kpi, i) => (
-          <div key={i} className="bg-[#111827] border border-[#1e3a5f] rounded p-3 flex flex-col justify-center">
+          <div key={i} className="bg-[#111827] border border-[#1e293b] rounded p-3 flex flex-col justify-center">
             <span className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">{kpi.label}</span>
             <span className={`text-xl font-mono font-bold ${kpi.color}`}>{kpi.val}</span>
             <span className="text-[9px] text-gray-500 mt-1">{kpi.sub}</span>
@@ -121,27 +121,27 @@ export default function MLBrainFlywheel() {
       {/* ROW 2: CHART & PROBABILITY RANKING */}
       <div className="flex gap-4 h-[35%] shrink-0">
         {/* LEFT: Chart Panel */}
-        <div className="w-[45%] bg-[#111827] border border-[#1e3a5f] rounded flex flex-col">
-          <div className="p-3 border-b border-[#1e3a5f]">
+        <div className="w-[45%] bg-[#111827] border border-[#1e293b] rounded flex flex-col">
+          <div className="p-3 border-b border-[#1e293b]">
             <h2 className="text-xs font-bold text-white uppercase tracking-wider">Model Performance Tracking</h2>
             <p className="text-[10px] text-gray-400 font-mono">252-Day Walk-Forward Accuracy</p>
           </div>
           <div className="flex-1 p-2">
-                            <div className="h-full min-h-[200px] flex items-center justify-center text-gray-500 text-sm border border-dashed border-[#1e3a5f] rounded">
+                            <div className="h-full min-h-[200px] flex items-center justify-center text-gray-500 text-sm border border-dashed border-[#1e293b] rounded">
                   <span>LW Charts - Model Performance (pending Step 7c enhancement)</span>
                 </div>
                       </div>
           </div>
 
         {/* RIGHT: ML Probability Ranking */}
-        <div className="w-[55%] bg-[#111827] border border-[#1e3a5f] rounded flex flex-col overflow-hidden">
-          <div className="p-3 border-b border-[#1e3a5f] flex justify-between items-center bg-[#111827] z-10">
+        <div className="w-[55%] bg-[#111827] border border-[#1e293b] rounded flex flex-col overflow-hidden">
+          <div className="p-3 border-b border-[#1e293b] flex justify-between items-center bg-[#111827] z-10">
             <h2 className="text-xs font-bold text-white uppercase tracking-wider">Stage 4: ML Probability Ranking</h2>
             <span className="text-[9px] font-mono text-cyan-400 px-2 py-0.5 border border-cyan-900 rounded bg-cyan-900/20">LIVE INFERENCE</span>
           </div>
           <div className="flex-1 overflow-y-auto custom-scrollbar">
             <table className="w-full text-left font-mono text-[10px]">
-              <thead className="sticky top-0 bg-[#0a0e17] text-gray-400 border-b border-[#1e3a5f]">
+              <thead className="sticky top-0 bg-[#0B0E14] text-gray-400 border-b border-[#1e293b]">
                 <tr>
                   <th className="p-2 font-normal">SYMBOL</th>
                   <th className="p-2 font-normal">DIR</th>
@@ -151,19 +151,19 @@ export default function MLBrainFlywheel() {
                   <th className="p-2 font-normal">VOL RATIO</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#1e3a5f]/50 bg-[#111827]">
+              <tbody className="divide-y divide-[#1e293b]/50 bg-[#111827]">
                 {signalsData.map((row, idx) => {
                   const isLong = row.dir === 'LONG';
                   const dirColor = isLong ? 'text-green-400' : 'text-red-400';
                   const barColor = isLong ? 'bg-green-500' : 'bg-red-500';
                   return (
-                    <tr key={idx} className="hover:bg-[#1e3a5f]/30 transition-colors">
+                    <tr key={idx} className="hover:bg-[#1e293b]/30 transition-colors">
                       <td className="p-2 text-white font-bold">{row.symbol}</td>
                       <td className={`p-2 ${dirColor}`}>{row.dir}</td>
                       <td className="p-2">
                         <div className="flex items-center gap-2">
                           <span className={isLong ? 'text-green-400' : 'text-red-400'}>{row.winProb}%</span>
-                          <div className="w-16 h-1.5 bg-[#1e3a5f] rounded-full overflow-hidden">
+                          <div className="w-16 h-1.5 bg-[#1e293b] rounded-full overflow-hidden">
                             <div className={`h-full ${barColor}`} style={{ width: `${row.winProb}%` }}></div>
                           </div>
                         </div>
@@ -184,8 +184,8 @@ export default function MLBrainFlywheel() {
       <div className="flex gap-4 flex-1 min-h-0">
         
         {/* LEFT: Deployed Inference Fleet */}
-        <div className="w-[60%] bg-[#111827] border border-[#1e3a5f] rounded flex flex-col">
-          <div className="p-3 border-b border-[#1e3a5f]">
+        <div className="w-[60%] bg-[#111827] border border-[#1e293b] rounded flex flex-col">
+          <div className="p-3 border-b border-[#1e293b]">
             <h2 className="text-xs font-bold text-white uppercase tracking-wider">Deployed Inference Fleet <span className="text-gray-500 normal-case ml-2">(TimescaleDB Connected)</span></h2>
           </div>
           <div className="flex-1 p-3 grid grid-cols-3 grid-rows-2 gap-3 overflow-y-auto custom-scrollbar">
@@ -196,7 +196,7 @@ export default function MLBrainFlywheel() {
                 : 'bg-amber-500/20 text-amber-400 border-amber-500/50';
               
               return (
-                <div key={idx} className="bg-[#0a0e17] border border-[#1e3a5f] rounded p-3 flex flex-col justify-between hover:border-[#00d4ff]/50 transition-colors">
+                <div key={idx} className="bg-[#0B0E14] border border-[#1e293b] rounded p-3 flex flex-col justify-between hover:border-[#06b6d4]/50 transition-colors">
                   <div className="flex justify-between items-start mb-2">
                     <span className="text-[11px] font-bold text-white w-2/3">{model.name}</span>
                     <span className={`text-[8px] font-mono border px-1.5 py-0.5 rounded ${badgeStyle}`}>
@@ -224,8 +224,8 @@ export default function MLBrainFlywheel() {
         </div>
 
         {/* RIGHT: Flywheel Learning Log */}
-        <div className="w-[40%] bg-[#0a0e17] border border-[#1e3a5f] rounded flex flex-col relative">
-          <div className="p-3 border-b border-[#1e3a5f] bg-[#111827]">
+        <div className="w-[40%] bg-[#0B0E14] border border-[#1e293b] rounded flex flex-col relative">
+          <div className="p-3 border-b border-[#1e293b] bg-[#111827]">
             <h2 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
               Flywheel Learning Log <span className="text-gray-500 normal-case ml-1">(Trade Outcomes)</span>
@@ -233,7 +233,7 @@ export default function MLBrainFlywheel() {
           </div>
           <div className="flex-1 p-3 overflow-y-auto custom-scrollbar font-mono text-[10px] space-y-1.5 text-green-400/90">
             {logsData.map((log, idx) => (
-              <div key={idx} className="flex gap-3 hover:bg-[#1e3a5f]/30 px-1 py-0.5 rounded">
+              <div key={idx} className="flex gap-3 hover:bg-[#1e293b]/30 px-1 py-0.5 rounded">
                 <span className="text-gray-500 shrink-0">[{log.ts}]</span>
                 <span className="break-words">{log.msg}</span>
               </div>
@@ -249,9 +249,9 @@ export default function MLBrainFlywheel() {
       </div>
 
       {/* BOTTOM LOCAL DATA LAKE STRIP */}
-      <div className="flex items-center gap-3 shrink-0 py-1 px-2 border border-[#1e3a5f] bg-[#111827] w-fit rounded">
+      <div className="flex items-center gap-3 shrink-0 py-1 px-2 border border-[#1e293b] bg-[#111827] w-fit rounded">
         <span className="text-[10px] font-bold text-gray-300 uppercase tracking-wider">Local Data Lake</span>
-        <div className="h-3 w-px bg-[#1e3a5f]"></div>
+        <div className="h-3 w-px bg-[#1e293b]"></div>
         <div className="flex items-center gap-1.5">
           <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_5px_#10b981]"></div>
           <span className="text-[9px] font-mono text-green-400">TimescaleDB Synced</span>
@@ -262,8 +262,8 @@ export default function MLBrainFlywheel() {
       <style dangerouslySetInnerHTML={{__html: `
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e3a5f; border-radius: 2px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #00d4ff; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 2px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #06b6d4; }
       `}} />
     </div>
   );
