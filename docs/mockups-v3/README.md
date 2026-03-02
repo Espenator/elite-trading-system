@@ -36,17 +36,38 @@
 
 ---
 
-## Agent Command Center Sub-Page Mockups (7 images)
+## Agent Command Center Sub-Pages (8 tabs — code-verified)
 
-| Sub-Page | Mockup Image |
-|----------|-------------|
-| Main Overview | `01-agent-command-center-final.png` |
-| Swarm Overview | `agent command center swarm overview.png` |
-| Brain Map | `agent command center brain map.png` |
-| Node Control | `agent command center node control.png` |
-| Spawn & Scale | `05b-agent-command-center-spawn.png` |
-| Agent Registry | `05c-agent-registry.png` |
-| Blackboard Comms | `05d-blackboard-comms.html` (HTML mockup) |
+| Tab | Description | Mockup Image | Status |
+|-----|-------------|-------------|--------|
+| Overview | Main dashboard + all 5 agent components | `01-agent-command-center-final.png` | COMPLETE |
+| Agents | Intelligence agent grid with start/stop toggle | `05-agent-command-center.png` | COMPLETE |
+| Swarm Control | Spawn agents, team scaling, resource allocation | `05b-agent-command-center-spawn.png`, `agent command center swarm overview.png` | COMPLETE |
+| Candidates | Trade candidate symbols with composite scores | `agent command center node control.png` | COMPLETE |
+| LLM Flow | Real-time LLM alert stream via WebSocket | No dedicated mockup | COMPLETE |
+| Brain Map | DAG neural topology SVG (TODO: dynamic wiring) | `agent command center brain map.png` | PLACEHOLDER |
+| Leaderboard | Agent performance ranking table | No dedicated mockup | COMPLETE |
+| Blackboard | Real-Time Blackboard Pub/Sub feed | `realtimeblackbard fead.png`, `05d-blackboard-comms.html` | PLACEHOLDER |
+
+## Settings Sub-Tabs (11 tabs — code-verified)
+
+| Tab | Description | Mockup |
+|-----|-------------|--------|
+| Profile | User profile, display name, email, timezone | `14-settings.png` |
+| API Keys | API key management (Alpaca, OpenClaw, providers) | `14-settings.png` |
+| Trading | Trading parameters, default order type, sizing | `14-settings.png` |
+| Risk | Risk settings, max drawdown, position limits | `14-settings.png` |
+| AI / ML | AI/ML model configuration, inference settings | `14-settings.png` |
+| Agents | Agent configuration, spawn defaults, teams | `14-settings.png` |
+| Data Sources | Data source connections, refresh intervals | `14-settings.png` |
+| Notifications | Alert preferences (Discord, Slack, email) | `14-settings.png` |
+| Appearance | Theme, font size, density, accent color | `14-settings.png` |
+| Audit Log | System audit trail, action history | `14-settings.png` |
+| Alignment | Constitutive alignment governance (embeds AlignmentEngine) | `14-settings.png` |
+
+## Pages With NO Sub-Pages (12 single-view pages)
+
+Dashboard, Sentiment Intelligence, Data Sources Monitor, Signal Intelligence, ML Brain & Flywheel, Screener & Patterns, Backtesting Lab, Performance Analytics, Market Regime, Active Trades, Risk Intelligence, Trade Execution
 
 ---
 
@@ -59,8 +80,8 @@
 | `03-signal-intelligence.png` | Signal Intelligence |
 | `04-sentiment-intelligence.png` | Sentiment Intelligence |
 | `05-agent-command-center.png` | Agent Command Center (alt) |
-| `05b-agent-command-center-spawn.png` | ACC: Spawn & Scale |
-| `05c-agent-registry.png` | ACC: Agent Registry |
+| `05b-agent-command-center-spawn.png` | ACC: Swarm Control |
+| `05c-agent-registry.png` | ACC: Agents |
 | `06-ml-brain-flywheel.png` | ML Brain & Flywheel |
 | `07-screener-and-patterns.png` | Screener & Patterns |
 | `08-backtesting-lab.png` | Backtesting Lab |
@@ -73,7 +94,7 @@
 | `14-settings.png` | Settings |
 | `Active-Trades.png` | Active Trades |
 | `agent command center brain map.png` | ACC: Brain Map |
-| `agent command center node control.png` | ACC: Node Control |
+| `agent command center node control.png` | ACC: Candidates |
 | `agent command center swarm overview.png` | ACC: Swarm Overview |
 | `realtimeblackbard fead.png` | ACC: Blackboard Feed |
 

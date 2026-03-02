@@ -25,17 +25,21 @@ All pages use V3 widescreen layout with dark theme. Charting uses a mix of **lig
 | 1 | Dashboard | `Dashboard.jsx` | `/` | `02-intelligence-dashboard.png` | Main overview with market cards, agent status, portfolio summary |
 | 2 | Agent Command Center | `AgentCommandCenter.jsx` | `/agents` | `01-agent-command-center-final.png` | 8 internal tabs, 5 decomposed agent components, swarm visualization |
 
-#### Agent Command Center Sub-Pages (8 tabs)
-| Tab | Description | Component Files |
-|-----|-------------|----------------|
-| Swarm Overview | Real-time swarm topology | `components/agents/SwarmTopology.jsx` |
-| Brain Map | Neural network visualization | Embedded in AgentCommandCenter.jsx |
-| Node Control | Individual agent management | `components/agents/AgentResourceMonitor.jsx` |
-| Spawn & Scale | Agent creation and scaling | Embedded in AgentCommandCenter.jsx |
-| Agent Registry | Registered agent catalog | Embedded in AgentCommandCenter.jsx |
-| Conference Pipeline | Multi-agent coordination | `components/agents/ConferencePipeline.jsx` |
-| Drift Monitor | Agent behavior drift tracking | `components/agents/DriftMonitor.jsx` |
-| System Alerts | Agent system notifications | `components/agents/SystemAlerts.jsx` |
+#### Agent Command Center Sub-Pages (8 tabs — verified from code lines 721-730)
+| Tab ID | Tab Label | Description | Component Files | Mockup Image | Status |
+|--------|-----------|-------------|----------------|-------------|--------|
+| `overview` | Overview | Main dashboard: RegimeGauge, Swarm Status, Active Teams, Wave State + all 5 decomposed agent components | `SwarmTopology.jsx`, `ConferencePipeline.jsx`, `SystemAlerts.jsx`, `DriftMonitor.jsx`, `AgentResourceMonitor.jsx` | `01-agent-command-center-final.png` | COMPLETE |
+| `agents` | Agents | Intelligence Agents grid with AgentCard toggle (start/stop) | Inline AgentCard component | `05-agent-command-center.png` | COMPLETE |
+| `swarm` | Swarm Control | Spawn new agents form, team scaling, resource allocation | Inline (spawn form, scaling controls) | `05b-agent-command-center-spawn.png`, `agent command center swarm overview.png` | COMPLETE |
+| `candidates` | Candidates | Trade candidate symbols with composite scores, click-to-execute | Inline (symbol grid with heatmap scoring) | `agent command center node control.png` | COMPLETE |
+| `alerts` | LLM Flow | Real-time LLM alert stream via WebSocket, dismissable alert cards | Inline LlmAlert component | No dedicated mockup | COMPLETE |
+| `brain-map` | Brain Map | DAG neural topology SVG — agent inter-dependencies visualization | Inline SVG (TODO: wire nodes dynamically) | `agent command center brain map.png` | PLACEHOLDER — needs dynamic wiring |
+| `leaderboard` | Leaderboard | Agent performance ranking table (win rate, P&L, Sharpe, trades) | Inline table | No dedicated mockup | COMPLETE |
+| `blackboard` | Blackboard | Real-Time Blackboard Pub/Sub feed for inter-agent memory bus | Inline (marked MISSING V3 in code) | `realtimeblackbard fead.png`, `05d-blackboard-comms.html` | PLACEHOLDER — needs V3 ultra-dense component |
+
+**Agent Component Usage:** All 5 decomposed agent components (`SwarmTopology`, `ConferencePipeline`, `DriftMonitor`, `SystemAlerts`, `AgentResourceMonitor`) render inside the **Overview** tab, not as separate tabs.
+
+**Mockup Coverage:** 7 mockup images cover ACC. Brain Map and Blackboard tabs are marked as placeholders in code.
 
 ### INTELLIGENCE (3 pages)
 
@@ -68,6 +72,21 @@ All pages use V3 widescreen layout with dark theme. Charting uses a mix of **lig
 | # | Page | File | Route | Mockup | Notes |
 |---|------|------|-------|--------|-------|
 | 14 | Settings | `Settings.jsx` | `/settings` | `14-settings.png` | 11 tabs: Profile, API Keys, Trading, Risk, AI/ML, Agents, Data Sources, Notifications, Appearance, Audit Log, Alignment (embeds AlignmentEngine component) |
+
+#### Settings Sub-Tabs (11 tabs — verified from code lines 641-653)
+| # | Tab Key | Tab Label | Description | Mockup |
+|---|---------|-----------|-------------|--------|
+| 1 | `profile` | Profile | User profile, display name, email, timezone | Part of `14-settings.png` |
+| 2 | `apiKeys` | API Keys | API key management (Alpaca, OpenClaw, data providers) | Part of `14-settings.png` |
+| 3 | `trading` | Trading | Trading parameters, default order type, position sizing | Part of `14-settings.png` |
+| 4 | `risk` | Risk | Risk management settings, max drawdown, position limits | Part of `14-settings.png` |
+| 5 | `aiml` | AI / ML | AI/ML model configuration, inference settings | Part of `14-settings.png` |
+| 6 | `agents` | Agents | Agent configuration, spawn defaults, team settings | Part of `14-settings.png` |
+| 7 | `dataSources` | Data Sources | Data source connection settings, refresh intervals | Part of `14-settings.png` |
+| 8 | `notifications` | Notifications | Alert preferences, channels (Discord, Slack, email) | Part of `14-settings.png` |
+| 9 | `appearance` | Appearance | Theme, font size, density, accent color | Part of `14-settings.png` |
+| 10 | `auditLog` | Audit Log | System audit trail, action history | Part of `14-settings.png` |
+| 11 | `alignment` | Alignment | Constitutive alignment governance (embeds AlignmentEngine.jsx) | Part of `14-settings.png` |
 
 ### NON-SIDEBAR FILES (shared components, no dedicated routes)
 

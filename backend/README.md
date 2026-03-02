@@ -317,6 +317,6 @@ Run: `cd backend && pytest tests/test_alignment_contract.py -v`
 | 13 | EXECUTION | Trade Execution | `/trade-execution` |
 | 14 | SYSTEM | Settings | `/settings` |
 
-**Agent Command Center Sub-Pages (8 tabs):** Swarm Overview, Brain Map, Node Control, Spawn & Scale, Agent Registry, Conference Pipeline, Drift Monitor, System Alerts
+**Agent Command Center Sub-Pages (8 tabs):** Overview, Agents, Swarm Control, Candidates, LLM Flow, Brain Map, Leaderboard, Blackboard
 
 **Settings Sub-Tabs (11):** Profile, API Keys, Trading, Risk, AI/ML, Agents, Data Sources, Notifications, Appearance, Audit Log, Alignment (embeds AlignmentEngine)
