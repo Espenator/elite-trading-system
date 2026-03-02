@@ -1,145 +1,178 @@
-"""Orders API endpoints."""
+"""Orders API endpoints — full Alpaca v2 order lifecycle.
+
+Endpoints:
+  POST   /orders/advanced   → create_order (bracket/OCO/OTO/trailing/notional)
+  PATCH  /orders/{id}       → replace_order (amend open order)
+  DELETE /orders/{id}       → cancel single order
+  DELETE /orders            → cancel ALL open orders
+  GET    /orders            → list open orders from Alpaca
+  GET    /orders/recent     → recent orders from local DB
+"""
 import json
-from fastapi import APIRouter, HTTPException
+import logging
+from fastapi import APIRouter, HTTPException, Body
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
+
 from app.services.database import db_service
 from app.services.alpaca_service import alpaca_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-class OrderCreate(BaseModel):
-    """Order creation request model."""
-    symbol: str = Field(..., description="Stock symbol")
-    order_type: str = Field(..., description="Order type (Limit, Market, Stop, Stop Limit)")
-    side: str = Field(..., description="Order side (buy, sell)")
-    quantity: int = Field(..., gt=0, description="Quantity of shares")
-    price: float = Field(..., ge=0, description="Price per share (optional for Market orders)")
-    estimated_cost: Optional[float] = Field(None, description="Estimated cost")
-    required_margin: Optional[float] = Field(None, description="Required margin")
-    potential_pnl: Optional[float] = Field(None, description="Potential profit/loss")
+# ── Pydantic models ─────────────────────────────────────────────────────
+class AdvancedOrderRequest(BaseModel):
+    """Full Alpaca v2 order request."""
+    symbol: str
+    side: str = "buy"
+    type: str = "market"
+    time_in_force: str = "day"
+    qty: Optional[str] = None
+    notional: Optional[str] = None
+    limit_price: Optional[str] = None
+    stop_price: Optional[str] = None
+    trail_price: Optional[str] = None
+    trail_percent: Optional[str] = None
+    extended_hours: bool = False
+    client_order_id: Optional[str] = None
+    order_class: Optional[str] = None
+    take_profit: Optional[Dict[str, Any]] = None
+    stop_loss: Optional[Dict[str, Any]] = None
 
 
-@router.post("/", response_model=Dict)
-async def create_order(order: OrderCreate):
-    """
-    Create a new order through Alpaca API and save to database.
-    
-    Returns the created order with ID and timestamp.
-    """
-    alpaca_order_id = None
-    alpaca_status = None
-    alpaca_response = None
-    alpaca_error = None
-    
-    # First, try to create order through Alpaca
-    try:
-        # Determine price and stop_price based on order type
-        price_for_alpaca = None
-        stop_price_for_alpaca = None
-        
-        if order.order_type == "Market":
-            # Market orders don't need price
-            price_for_alpaca = None
-        elif order.order_type == "Limit":
-            price_for_alpaca = order.price if order.price > 0 else None
-        elif order.order_type == "Stop":
-            stop_price_for_alpaca = order.price if order.price > 0 else None
-        elif order.order_type == "Stop Limit":
-            price_for_alpaca = order.price if order.price > 0 else None
-            stop_price_for_alpaca = order.price if order.price > 0 else None
-        
-        alpaca_result = await alpaca_service.create_order(
-            symbol=order.symbol,
-            order_type=order.order_type,
-            side=order.side,
-            quantity=order.quantity,
-            price=price_for_alpaca,
-            stop_price=stop_price_for_alpaca
+class ReplaceOrderRequest(BaseModel):
+    """PATCH fields for order replacement."""
+    qty: Optional[str] = None
+    limit_price: Optional[str] = None
+    stop_price: Optional[str] = None
+    trail: Optional[str] = None
+    time_in_force: Optional[str] = None
+    client_order_id: Optional[str] = None
+
+
+# ── Advanced order creation ─────────────────────────────────────────────
+@router.post("/advanced", response_model=Dict)
+async def create_advanced_order(req: AdvancedOrderRequest):
+    """Submit any Alpaca v2 order: simple, bracket, OCO, OTO, trailing."""
+        # ── Alignment Preflight Gate ─────────────────────────────────────
+    # Every order MUST pass alignment before reaching the broker.
+    # This gate cannot be bypassed by calling /orders/advanced directly.
+    from app.api.v1.alignment import run_preflight, PreflightRequest
+    preflight_req = PreflightRequest(
+        symbol=req.symbol,
+        side=req.side,
+        quantity=float(req.qty) if req.qty else 1.0,
+        strategy="advanced_order",
+    )
+    verdict = await run_preflight(preflight_req)
+    if not verdict.allowed:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "ALIGNMENT_BLOCKED",
+                "blockedBy": verdict.blockedBy,
+                "summary": verdict.summary,
+                "checks": [c.dict() for c in verdict.checks],
+            },
         )
-        
-        alpaca_order_id = alpaca_result.get("id")
-        alpaca_status = alpaca_result.get("status")
-        alpaca_response = json.dumps(alpaca_result)
-    except Exception as e:
-        # Log error but still save to database
-        alpaca_error = str(e)
-        alpaca_response = json.dumps({"error": str(e)})
-    
-    # Save order to database (whether Alpaca succeeded or failed)
+    logger.info("Alignment preflight PASSED for %s %s %s", req.side, req.qty, req.symbol)
+
     try:
-        created_order = db_service.create_order(
-            symbol=order.symbol,
-            order_type=order.order_type,
-            side=order.side,
-            quantity=order.quantity,
-            price=order.price,
-            estimated_cost=order.estimated_cost,
-            required_margin=order.required_margin,
-            potential_pnl=order.potential_pnl,
-            alpaca_order_id=alpaca_order_id,
-            alpaca_status=alpaca_status,
-            alpaca_response=alpaca_response
+        result = await alpaca_service.create_order(
+            symbol=req.symbol,
+            qty=req.qty,
+            notional=req.notional,
+            side=req.side,
+            type=req.type,
+            time_in_force=req.time_in_force,
+            limit_price=req.limit_price,
+            stop_price=req.stop_price,
+            trail_price=req.trail_price,
+            trail_percent=req.trail_percent,
+            extended_hours=req.extended_hours,
+            client_order_id=req.client_order_id,
+            order_class=req.order_class,
+            take_profit=req.take_profit,
+            stop_loss=req.stop_loss,
         )
-        
-        # If Alpaca failed, include error in response
-        if alpaca_error:
-            created_order["alpaca_error"] = alpaca_error
-            raise HTTPException(
-                status_code=400,
-                detail=f"Order saved to database but Alpaca API error: {alpaca_error}"
-            )
-        
-        return created_order
+        if result is None:
+            raise HTTPException(status_code=502, detail="Alpaca API returned no response")
+        return result
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save order to database: {str(e)}")
+        logger.error("create_advanced_order failed: %s", e)
+        raise HTTPException(status_code=400, detail=str(e))
 
 
+# ── Replace / amend order ───────────────────────────────────────────────
+@router.patch("/{order_id}", response_model=Dict)
+async def replace_order(order_id: str, req: ReplaceOrderRequest):
+    """PATCH /v2/orders/{id} — amend qty, price, trail, or TIF."""
+    try:
+        result = await alpaca_service.replace_order(
+            order_id=order_id,
+            qty=req.qty,
+            limit_price=req.limit_price,
+            stop_price=req.stop_price,
+            trail=req.trail,
+            time_in_force=req.time_in_force,
+            client_order_id=req.client_order_id,
+        )
+        if result is None:
+            raise HTTPException(status_code=400, detail="No fields to update or Alpaca returned nothing")
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("replace_order failed: %s", e)
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ── Cancel single order ────────────────────────────────────────────────
+@router.delete("/{order_id}")
+async def cancel_order(order_id: str):
+    """Cancel a single open order."""
+    try:
+        result = await alpaca_service.cancel_order(order_id)
+        return {"status": "cancelled", "order_id": order_id, "detail": result}
+    except Exception as e:
+        logger.error("cancel_order failed: %s", e)
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ── Cancel ALL open orders ──────────────────────────────────────────────
+@router.delete("/")
+async def cancel_all_orders():
+    """Cancel all open orders."""
+    try:
+        result = await alpaca_service.cancel_all_orders()
+        return {"status": "all_cancelled", "detail": result}
+    except Exception as e:
+        logger.error("cancel_all_orders failed: %s", e)
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ── List open orders from Alpaca ─────────────────────────────────────────
+@router.get("/")
+async def get_orders(status: str = "open", limit: int = 50):
+    """GET open/closed/all orders from Alpaca."""
+    try:
+        result = await alpaca_service.get_orders(status=status, limit=limit)
+        if result is None:
+            return []
+        return result
+    except Exception as e:
+        logger.error("get_orders failed: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Recent orders from local DB ─────────────────────────────────────────
 @router.get("/recent", response_model=List[Dict])
 async def get_recent_orders(limit: int = 10):
-    """
-    Get recent orders.
-    
-    Returns the last N orders (default: 10).
-    """
+    """Get recent orders from local database."""
     try:
-        orders = db_service.get_recent_orders(limit=limit)
-        return orders
+        return db_service.get_recent_orders(limit=limit)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch orders: {str(e)}")
-
-
-@router.get("/", response_model=List[Dict])
-async def get_all_orders():
-    """
-    Get all orders.
-    
-    Returns all orders in the database.
-    """
-    try:
-        orders = db_service.get_all_orders()
-        return orders
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch orders: {str(e)}")
-
-
-@router.get("/{order_id}", response_model=Dict)
-async def get_order(order_id: int):
-    """
-    Get order by ID.
-    
-    Returns a specific order by its ID.
-    """
-    try:
-        order = db_service.get_order_by_id(order_id)
-        if not order:
-            raise HTTPException(status_code=404, detail="Order not found")
-        return order
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch order: {str(e)}")
-
+        raise HTTPException(status_code=500, detail=str(e))

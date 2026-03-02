@@ -20,6 +20,7 @@ export default function MarketRegimeCard({ regime: regimeData = null }) {
       icon: TrendingUp,
       description: 'Bullish conditions, momentum favored',
       strategy: '70% momentum / 30% reversion'
+            kellyScale: 1.0, maxPosition: '10%', minEdge: '3%',
     },
     YELLOW: {
       color: 'bg-warning',
@@ -28,6 +29,7 @@ export default function MarketRegimeCard({ regime: regimeData = null }) {
       icon: AlertTriangle,
       description: 'Mixed conditions, selective trading',
       strategy: '50% momentum / 50% reversion'
+            kellyScale: 0.7, maxPosition: '7%', minEdge: '5%',
     },
     RED: {
       color: 'bg-danger',
@@ -35,6 +37,7 @@ export default function MarketRegimeCard({ regime: regimeData = null }) {
       borderColor: 'border-danger',
       icon: TrendingDown,
       description: 'Bearish/volatile, defensive mode',
+            kellyScale: 0.3, maxPosition: '4%', minEdge: '8%',
       strategy: '30% momentum / 70% reversion'
     },
     RED_RECOVERY: {
@@ -43,6 +46,7 @@ export default function MarketRegimeCard({ regime: regimeData = null }) {
       borderColor: 'border-warning',
       icon: Activity,
       description: 'Recovery phase, volatility unwinding',
+            kellyScale: 0.5, maxPosition: '5%', minEdge: '6%',
       strategy: '40% momentum / 60% reversion'
     },
     unknown: {
@@ -50,6 +54,7 @@ export default function MarketRegimeCard({ regime: regimeData = null }) {
       textColor: 'text-secondary',
       borderColor: 'border-secondary',
       icon: Shield,
+            kellyScale: 0.5, maxPosition: '5%', minEdge: '5%',
       description: 'Awaiting regime data...',
       strategy: 'No active strategy'
     }
@@ -145,6 +150,46 @@ export default function MarketRegimeCard({ regime: regimeData = null }) {
             <span className="text-sm text-secondary">Max Positions</span>
             <span className="font-bold text-white">{regime.maxPositions}</span>
           </div>
+        </div>
+
+          {/* Kelly Criterion Parameters */}
+          <div className="border-t border-secondary/50 pt-2 mt-2">
+            <h4 className="text-xs text-emerald-400 mb-2 font-bold">KELLY SIZING</h4>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-secondary">Kelly Scale</span>
+              <span className="font-bold text-emerald-400">{config.kellyScale}x</span>
+            </div>
+            <div className="flex items-center justify-between mt-1">
+              <span className="text-sm text-secondary">Max Position</span>
+              <span className="font-bold text-white">{config.maxPosition}</span>
+            </div>
+            <div className="flex items-center justify-between mt-1">
+              <span className="text-sm text-secondary">Min Edge</span>
+              <span className="font-bold text-white">{config.minEdge}</span>
+            </div>
+          </div>
+      </div>
+
+            {/* Risk Score & Drawdown Monitor */}
+      <div className="border-t border-secondary/50 pt-2 mt-2">
+        <h4 className="text-xs text-red-400 mb-2 font-bold">RISK MONITOR</h4>
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-secondary">Risk Score</span>
+          <span className={`font-bold ${(regime?.riskScore || 100) >= 60 ? 'text-emerald-400' : (regime?.riskScore || 100) >= 40 ? 'text-amber-400' : 'text-red-400'}`}>
+            {regime?.riskScore || 'N/A'} {regime?.riskGrade ? `(${regime.riskGrade})` : ''}
+          </span>
+        </div>
+        <div className="flex items-center justify-between mt-1">
+          <span className="text-sm text-secondary">Daily P&L</span>
+          <span className={`font-bold ${(regime?.dailyPnlPct || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            {regime?.dailyPnlPct ? `${regime.dailyPnlPct.toFixed(2)}%` : 'N/A'}
+          </span>
+        </div>
+        <div className="flex items-center justify-between mt-1">
+          <span className="text-sm text-secondary">Trading Allowed</span>
+          <span className={`font-bold ${regime?.tradingAllowed !== false ? 'text-emerald-400' : 'text-red-400'}`}>
+            {regime?.tradingAllowed !== false ? 'YES' : 'PAUSED'}
+          </span>
         </div>
       </div>
     </div>

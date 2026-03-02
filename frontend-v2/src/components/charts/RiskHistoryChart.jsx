@@ -1,59 +1,94 @@
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
-  Legend,
-} from "recharts";
+import React, { useEffect, useRef } from "react";
+import { createChart, ColorType } from "lightweight-charts";
 
 const MAX_DAILY_LOSS_COLOR = "#22d3ee"; // cyan-400
 const VAR_COLOR = "#ec4899"; // pink-500
 
 /**
  * Historical Risk Metrics: Max Daily Loss (%) and VaR ($) over time.
- * Expects data from API: { date, maxDailyLoss, var }[].
+ * Uses TradingView Lightweight Charts. Expects data from API: { date, maxDailyLoss, var }[].
  * Shows empty state when data is missing or empty.
  */
 export default function RiskHistoryChart({ data = [], className = "" }) {
   const hasData = Array.isArray(data) && data.length > 0;
+  const chartContainerRef = useRef(null);
+  const chartRef = useRef(null);
 
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-slate-800 border border-cyan-500/40 rounded-lg p-3 shadow-xl min-w-[140px]">
-          <p className="text-xs text-slate-300 mb-2 font-medium">{label}</p>
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <div
-                className="w-2 h-2 rounded-full shrink-0"
-                style={{ backgroundColor: MAX_DAILY_LOSS_COLOR }}
-              />
-              <span className="text-sm text-slate-200">Max Daily Loss:</span>
-              <span className="text-sm font-semibold text-cyan-300">
-                {payload[0]?.value != null ? `${payload[0].value}%` : "—"}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div
-                className="w-2 h-2 rounded-full shrink-0"
-                style={{ backgroundColor: VAR_COLOR }}
-              />
-              <span className="text-sm text-slate-200">VaR:</span>
-              <span className="text-sm font-semibold text-pink-300">
-                {payload[1]?.value != null
-                  ? `$${Number(payload[1].value).toLocaleString()}`
-                  : "—"}
-              </span>
-            </div>
-          </div>
-        </div>
-      );
+  useEffect(() => {
+    if (!chartContainerRef.current || !hasData) return;
+    if (chartRef.current) {
+      chartRef.current.remove();
+      chartRef.current = null;
     }
-    return null;
-  };
+    const chart = createChart(chartContainerRef.current, {
+      layout: {
+        background: { type: ColorType.Solid, color: "transparent" },
+        textColor: "#94a3b8",
+      },
+      grid: {
+        vertLines: { color: "#334155", style: 1 },
+        horzLines: { color: "#334155", style: 1 },
+      },
+      width: chartContainerRef.current.clientWidth,
+      height: 256,
+      rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.1, bottom: 0.1 } },
+      leftPriceScale: { visible: true, borderVisible: false, scaleMargins: { top: 0.1, bottom: 0.1 } },
+      timeScale: { borderVisible: false },
+      crosshair: {
+        vertLine: { labelVisible: true },
+        horzLine: { labelVisible: true },
+      },
+    });
+
+    // Max Daily Loss (%) on left price scale
+    const lossSeries = chart.addLineSeries({
+      color: MAX_DAILY_LOSS_COLOR,
+      lineWidth: 2,
+      priceScaleId: "left",
+      title: "Max Daily Loss (%)",
+    });
+    lossSeries.setData(
+      data
+        .map((d) => ({
+          time: d.date ? Math.floor(new Date(d.date).getTime() / 1000) : null,
+          value: d.maxDailyLoss != null ? Number(d.maxDailyLoss) : null,
+        }))
+        .filter((d) => d.time != null && d.value != null)
+        .sort((a, b) => a.time - b.time)
+    );
+
+    // VaR ($) on right price scale
+    const varSeries = chart.addLineSeries({
+      color: VAR_COLOR,
+      lineWidth: 2,
+      priceScaleId: "right",
+      title: "VaR ($)",
+    });
+    varSeries.setData(
+      data
+        .map((d) => ({
+          time: d.date ? Math.floor(new Date(d.date).getTime() / 1000) : null,
+          value: d.var != null ? Number(d.var) : null,
+        }))
+        .filter((d) => d.time != null && d.value != null)
+        .sort((a, b) => a.time - b.time)
+    );
+
+    chart.timeScale().fitContent();
+    chartRef.current = chart;
+
+    const handleResize = () => {
+      if (chartContainerRef.current) {
+        chart.applyOptions({ width: chartContainerRef.current.clientWidth });
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      chart.remove();
+      chartRef.current = null;
+    };
+  }, [data, hasData]);
 
   if (!hasData) {
     return (
@@ -71,72 +106,18 @@ export default function RiskHistoryChart({ data = [], className = "" }) {
 
   return (
     <div className={`overflow-hidden ${className}`}>
-      <div className="h-64">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart
-            data={data}
-            margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-            <XAxis
-              dataKey="date"
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: "#94a3b8", fontSize: 11 }}
-              tickMargin={8}
-            />
-            <YAxis
-              yAxisId="left"
-              orientation="left"
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: "#94a3b8", fontSize: 11 }}
-              tickFormatter={(v) => `${v}%`}
-              domain={["auto", "auto"]}
-              width={36}
-            />
-            <YAxis
-              yAxisId="right"
-              orientation="right"
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: "#94a3b8", fontSize: 11 }}
-              tickFormatter={(v) =>
-                `$${v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v}`
-              }
-              domain={["auto", "auto"]}
-              width={40}
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend
-              wrapperStyle={{ paddingTop: "8px" }}
-              formatter={(value) => (
-                <span className="text-secondary text-xs">{value}</span>
-              )}
-            />
-            <Line
-              yAxisId="left"
-              type="monotone"
-              dataKey="maxDailyLoss"
-              name="Max Daily Loss (%)"
-              stroke={MAX_DAILY_LOSS_COLOR}
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 4, fill: MAX_DAILY_LOSS_COLOR }}
-            />
-            <Line
-              yAxisId="right"
-              type="monotone"
-              dataKey="var"
-              name="VaR ($)"
-              stroke={VAR_COLOR}
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 4, fill: VAR_COLOR }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+      {/* Legend */}
+      <div className="flex items-center gap-4 mb-2 px-2">
+        <div className="flex items-center gap-1.5">
+          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: MAX_DAILY_LOSS_COLOR }} />
+          <span className="text-xs text-secondary">Max Daily Loss (%)</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: VAR_COLOR }} />
+          <span className="text-xs text-secondary">VaR ($)</span>
+        </div>
       </div>
+      <div ref={chartContainerRef} className="w-full" style={{ height: 256 }} />
     </div>
   );
 }

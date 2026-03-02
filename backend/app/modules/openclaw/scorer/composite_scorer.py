@@ -117,6 +117,9 @@ class ScoreBreakdown:
     tier: str = 'NO_TRADE'
     confidence: float = 0.0
     score_quality: float = 0.0
+        kelly_edge: float = 0.0
+    kelly_fraction: float = 0.0
+    expected_value: float = 0.0
     details: Dict = field(default_factory=dict)
 
     def to_dict(self) -> Dict:
@@ -186,6 +189,16 @@ class CompositeScorer:
                breakdown.bonus + breakdown.penalty)
         breakdown.total = max(0, min(100, raw))
 
+                # Risk score adjustment: dampen scores when portfolio risk is elevated
+        risk_dampener = 1.0
+        if hasattr(self, 'risk_score') and self.risk_score is not None:
+            if self.risk_score < 40:
+                risk_dampener = 0.5  # Halve scores when risk is critical
+            elif self.risk_score < 60:
+                risk_dampener = 0.75  # Reduce by 25% when risk is elevated
+        breakdown.total = max(0, min(100, raw * risk_dampener))
+        breakdown.risk_dampener = risk_dampener
+
         # Weighted confidence: each pillar's % of max, weighted by importance
         pillar_max = {"regime": 20, "trend": 25, "pullback": 25,
                       "momentum": 20, "pattern": 10}
@@ -209,6 +222,16 @@ class CompositeScorer:
         strong = sum(1 for n, m in pillar_max.items()
                      if pillar_vals[n] >= m * 0.5)
         breakdown.score_quality = strong / len(pillar_max)
+
+                # Kelly edge from composite score
+        prob_up = min(0.95, max(0.30, 0.40 + (breakdown.total / 100) * 0.50))
+        avg_win = 0.025 + (breakdown.total / 100) * 0.025
+        avg_loss = 0.02 - (breakdown.total / 100) * 0.005
+        b = avg_win / max(avg_loss, 0.001)
+        edge = prob_up * b - (1 - prob_up)
+        breakdown.kelly_edge = round(max(0, edge), 4)
+        breakdown.kelly_fraction = round(max(0, edge / max(b, 0.001)) * 0.5, 4)
+        breakdown.expected_value = round(edge * prob_up, 4) if edge > 0 else 0
 
         breakdown.tier = self._classify_tier(breakdown.total)
         breakdown.details = {
@@ -671,6 +694,9 @@ def _publish_execution_order(breakdown: ScoreBreakdown, blackboard=None,
         'tier': breakdown.tier,
         'confidence': breakdown.confidence,
         'score_quality': breakdown.score_quality,
+                        'kelly_edge': breakdown.kelly_edge,
+                'kelly_fraction': breakdown.kelly_fraction,
+                'expected_value': breakdown.expected_value,
         'trigger': f'composite_scorer_{breakdown.tier.lower()}',
         'regime': breakdown.details.get('regime_data', {}).get('regime', 'UNKNOWN'),
         'em_pct': breakdown.em_score,

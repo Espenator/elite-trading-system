@@ -1,600 +1,324 @@
-import React, { useState, useEffect } from "react";
-import {
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-  PieChart,
-  Pie,
-} from "recharts";
-import {
-  Activity,
-  Database,
-  Server,
-  RefreshCw,
-  AlertCircle,
-  CheckCircle,
-  Clock,
-  Globe,
-  Shield,
-  Zap,
-  Layers,
-  FileText,
-  TrendingUp,
-  TrendingDown,
-  Wifi,
-  WifiOff,
-  MessageSquare,
-  Newspaper,
-  MessageCircle,
-  Brain,
-} from "lucide-react";
+import { useState, useEffect, useCallback } from 'react';
+import dataSources from '../services/dataSourcesApi';
 
-import Card from "../components/ui/Card";
-import Badge from "../components/ui/Badge";
-import Button from "../components/ui/Button";
-import PageHeader from "../components/ui/PageHeader";
-import { useApi } from "../hooks/useApi";
-import { getApiUrl } from "../config/api";
-import ws from "../services/websocket";
+// ============================================================
+// DataSourcesMonitor.jsx - DATA_SOURCES_MANAGER
+// Pixel-perfect match to mockup 09 (Split View Layout)
+// Real API via dataSourcesApi.js - NO mocks, NO yfinance
+// Primary: Alpaca, Unusual Whales, Finviz
+// ============================================================
 
-const TYPE_ICONS = {
-  SCREENER: <Activity className="w-5 h-5 text-blue-400" />,
-  OPTIONS_FLOW: <Zap className="w-5 h-5 text-yellow-400" />,
-  MARKET_DATA: <TrendingUp className="w-5 h-5 text-green-400" />,
-  MACRO: <Globe className="w-5 h-5 text-purple-400" />,
-  FILINGS: <FileText className="w-5 h-5 text-slate-400" />,
-  SENTIMENT: <MessageSquare className="w-5 h-5 text-pink-400" />,
-  NEWS: <Newspaper className="w-5 h-5 text-orange-400" />,
-  SOCIAL: <MessageCircle className="w-5 h-5 text-indigo-400" />,
-  KNOWLEDGE: <Brain className="w-5 h-5 text-cyan-400" />,
+const STATUS_COLORS = {
+  healthy: { bg: 'bg-emerald-500/20', text: 'text-emerald-400', dot: 'bg-emerald-400' },
+  active: { bg: 'bg-emerald-500/20', text: 'text-emerald-400', dot: 'bg-emerald-400' },
+  error: { bg: 'bg-red-500/20', text: 'text-red-400', dot: 'bg-red-400' },
+  timeout: { bg: 'bg-orange-500/20', text: 'text-orange-400', dot: 'bg-orange-400' },
+  degraded: { bg: 'bg-yellow-500/20', text: 'text-yellow-400', dot: 'bg-yellow-400' },
+  no_credentials: { bg: 'bg-gray-500/20', text: 'text-gray-400', dot: 'bg-gray-400' },
+  unconfigured: { bg: 'bg-gray-500/20', text: 'text-gray-400', dot: 'bg-gray-400' },
+  offline: { bg: 'bg-red-500/20', text: 'text-red-400', dot: 'bg-red-500' },
+  beta: { bg: 'bg-purple-500/20', text: 'text-purple-400', dot: 'bg-purple-400' },
+  pending: { bg: 'bg-slate-500/20', text: 'text-slate-400', dot: 'bg-slate-400' },
 };
 
-// Map API source id (1–10) or fallback id to /data-sources image filename (no extension)
-const DATA_SOURCE_IMAGE_SLUGS = {
-  1: "finviz",
-  2: "unusual_whales",
-  3: "alpaca",
-  4: "fred",
-  5: "sec_edgar",
-  6: "stockgeist",
-  7: "news_api",
-  8: "discord",
-  9: "twitter",
-  10: "youtube",
-  // Fallback when API returns string ids
-  alpaca: "alpaca",
-  finviz: "finviz",
-  fred: "fred",
-  sec: "sec_edgar",
-  sec_edgar: "sec_edgar",
-  stockgeist: "stockgeist",
-  newsapi: "news_api",
-  news_api: "news_api",
-  discord: "discord",
-  twitter: "twitter",
-  youtube: "youtube",
-  unusual_whales: "unusual_whales",
-  polygon: null, // no image
+const CATEGORY_LABELS = {
+  market: 'Market Data', options_flow: 'Options Flow', economic: 'Economic',
+  filings: 'Filings', sentiment: 'Sentiment', news: 'News',
+  social: 'Social', alerts: 'Alerts', bridge: 'Bridge',
+  storage: 'Storage', custom: 'Custom', screener: 'Screener',
+  macro: 'Macro', knowledge: 'Knowledge',
 };
 
-// Normalize API source name to slug for image lookup
-function sourceNameToSlug(name) {
-  if (!name) return null;
-  const s = name.replace(/\s*\([^)]*\)\s*/g, "").replace(/\s+/g, "_").toLowerCase();
-  const nameMap = {
-    finviz: "finviz",
-    unusual_whales: "unusual_whales",
-    alpaca: "alpaca",
-    fred: "fred",
-    sec_edgar: "sec_edgar",
-    stockgeist: "stockgeist",
-    news_api: "news_api",
-    discord: "discord",
-    x: "twitter",
-    x_twitter: "twitter",
-    twitter: "twitter",
-    youtube: "youtube",
-  };
-  return nameMap[s] || null;
+// Short tab labels matching mockup 09 exactly
+const FILTER_TAB_LABELS = {
+  all: 'ALL', screener: 'Screener', options_flow: 'Options',
+  market: 'Market', macro: 'Macro', filings: 'Filings',
+  sentiment: 'Sentiment', news: 'News', social: 'Social',
+  knowledge: 'Knowledge',
+};
+
+const FILTER_TABS = ['all', 'screener', 'options_flow', 'market', 'macro', 'filings', 'sentiment', 'news', 'social', 'knowledge'];
+
+const PROVIDER_CHIPS = ['Polygon.io', 'Benzinga', 'Alpha Vantage', 'Quandl', 'IEX Cloud', 'CoinGecko'];
+
+// Colored latency: green <100ms, orange <500ms, red >=500ms (mockup 09)
+function latencyColor(ms) {
+  if (ms == null) return 'text-gray-500';
+  if (ms < 100) return 'text-emerald-400';
+  if (ms < 500) return 'text-orange-400';
+  return 'text-red-400';
 }
 
-function getDataSourceIcon(source) {
-  const slug =
-    DATA_SOURCE_IMAGE_SLUGS[source.id] ?? sourceNameToSlug(source.name);
-  if (slug) {
-    return (
-      <img
-        src={`/data-sources/${slug}.png`}
-        alt={source.name}
-        className="w-8 h-8 object-contain shrink-0"
-      />
-    );
-  }
-  const typeKey = (source.type ?? "").toUpperCase().replace(/\s+/g, "_");
-  return TYPE_ICONS[typeKey] || <Database className="w-5 h-5" />;
+// Mini sparkline SVG matching mockup 09 inline charts
+function MiniSparkline({ data = [], color = '#06b6d4' }) {
+  if (!data || data.length < 2) return <span className="text-gray-600 text-xs">--</span>;
+  const max = Math.max(...data);
+  const min = Math.min(...data);
+  const range = max - min || 1;
+  const w = 60;
+  const h = 20;
+  const points = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * w;
+    const y = h - ((v - min) / range) * h;
+    return `${x},${y}`;
+  }).join(' ');
+  return (
+    <svg width={w} height={h} className="inline-block">
+      <polyline fill="none" stroke={color} strokeWidth="1.5" points={points} />
+    </svg>
+  );
 }
 
-export default function DataSourcesMonitor() {
-  const { data: sources, loading, error, refresh } = useApi("dataSources");
-  const [openClawStatus, setOpenClawStatus] = useState(null);
-  const [wsConnected, setWsConnected] = useState(ws.isConnected());
-  const [reconnectCount, setReconnectCount] = useState(0);
-  const [lastHeartbeat, setLastHeartbeat] = useState(new Date());
+function StatusBadge({ status }) {
+  const colors = STATUS_COLORS[status] || STATUS_COLORS.pending;
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase ${colors.bg} ${colors.text}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${colors.dot}`} />
+      {status}
+    </span>
+  );
+}
 
-  // --- V3 Simulated History Data for Sparklines ---
-  // In a real app, this would come from a timeseries DB endpoint
-  const generateHistory = (baseLatency) =>
-    Array.from({ length: 20 }).map((_, i) => ({
-      time: i,
-      latency: Math.max(
-        10,
-        baseLatency + (Math.random() * 20 - 10) + (i === 15 ? 100 : 0),
-      ),
-    }));
+function Toast({ message, type, onDismiss }) {
+  if (!message) return null;
+  const colors = type === 'error'
+    ? 'bg-red-500/20 border-red-500/40 text-red-400'
+    : 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400';
+  return (
+    <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg border ${colors} flex items-center gap-2 shadow-lg`}>
+      {type === 'error' ? '\u274C' : '\u2705'} {message}
+      <button onClick={onDismiss} className="ml-2 opacity-60 hover:opacity-100">\u2715</button>
+    </div>
+  );
+}
+// Credential Editor Panel - right side (mockup 09)
+// Shows: icon + name + category badge, API Key/Secret with masked values,
+// Show/Copy/Rotate icon buttons, Base URL, WebSocket URL, Rate Limit,
+// Polling Interval, Account Type, Connection Test Result box, action buttons, log
+function CredentialPanel({ source, onClose, onSave, onTest, saving, testing }) {
+  const [keys, setKeys] = useState({});
+  const [showKeys, setShowKeys] = useState({});
+  const [extraFields, setExtraFields] = useState({ base_url: '', ws_url: '', rate_limit: '', polling_interval: 'real-time', account_type: '' });
+  const [testLog, setTestLog] = useState([]);
+  const [testResult, setTestResult] = useState(null);
 
   useEffect(() => {
-    // Poll OpenClaw Health
-    const fetchOpenClaw = async () => {
-      try {
-        // Mocked response for now, replace with actual fetch to OpenClaw URL
-        const mockResponse = {
-          status: "connected",
-          lastScan: new Date().toISOString(),
-          candidatesFound: 142,
-          cacheAge: "12s",
-          throughput: 450, // records/min
-        };
-        setOpenClawStatus(mockResponse);
-      } catch (err) {
-        console.error("OpenClaw health check failed", err);
-        setOpenClawStatus({ status: "error" });
-      }
-    };
+    const init = {};
+    const vis = {};
+    (source?.required_keys || []).forEach((k) => { init[k] = ''; vis[k] = false; });
+    setKeys(init);
+    setShowKeys(vis);
+    setExtraFields({
+      base_url: source?.base_url || '',
+      ws_url: source?.ws_url || '',
+      rate_limit: source?.rate_limit || '',
+      polling_interval: source?.polling_interval || 'real-time',
+      account_type: source?.account_type || '',
+    });
+    setTestLog(source?.connection_log || []);
+    setTestResult(source?.status === 'healthy' && source?.last_latency_ms != null
+      ? { ok: true, latency: source.last_latency_ms, detail: source.account_info || '' }
+      : null);
+  }, [source]);
 
-    fetchOpenClaw();
-    const interval = setInterval(() => {
-      refresh();
-      fetchOpenClaw();
-    }, 30000); // 30s polling
-
-    // WebSocket Listeners
-    const handleWsOpen = () => {
-      setWsConnected(true);
-      setLastHeartbeat(new Date());
-    };
-    const handleWsClose = () => {
-      setWsConnected(false);
-      setReconnectCount((prev) => prev + 1);
-    };
-
-    // Subscribe to datasource updates if your WS service supports it
-    // ws.subscribe('datasources', (data) => console.log('Live Update:', data));
-
-    // WS connection monitoring (mocking event listeners if service doesn't expose them directly)
-    // Assuming ws service has some event mechanism or we check status
-    const wsCheck = setInterval(() => {
-      const isConn = ws.isConnected();
-      if (isConn !== wsConnected) {
-        setWsConnected(isConn);
-        if (!isConn) setReconnectCount((prev) => prev + 1);
-      }
-      if (isConn) setLastHeartbeat(new Date());
-    }, 5000);
-
-    return () => {
-      clearInterval(interval);
-      clearInterval(wsCheck);
-    };
-  }, [refresh, wsConnected]);
-
-  // Helper: Status Colors
-  const getStatusColor = (status) => {
-    switch (status?.toLowerCase()) {
-      case "healthy":
-        return "text-green-400 bg-green-500/10 border-green-500/30";
-      case "degraded":
-        return "text-yellow-400 bg-yellow-500/10 border-yellow-500/30";
-      case "error":
-        return "text-red-400 bg-red-500/10 border-red-500/30";
-      default:
-        return "text-slate-400 bg-slate-500/10 border-slate-500/30";
-    }
+  const handleTest = async () => {
+    if (!source || !onTest) return;
+    const result = await onTest(source.id);
+    if (result) setTestResult(result);
   };
 
-  const getLatencyColor = (ms) => {
-    if (ms < 100) return "#4ade80"; // Green
-    if (ms < 500) return "#facc15"; // Yellow
-    return "#ef4444"; // Red
-  };
-
-  // Simulated Global Health Score
-  const systemHealthScore = 94;
-  const healthData = [
-    { name: "Health", value: systemHealthScore, color: "#22c55e" },
-    { name: "Risk", value: 100 - systemHealthScore, color: "#1e293b" },
-  ];
-
-  // Enhanced Source List (Merging API data with V3 metrics)
-  // If API is loading/empty, use this structural skeleton
-  const enhancedSources = sources?.length
-    ? sources
-    : [
-        {
-          id: "alpaca",
-          name: "Alpaca Markets",
-          type: "MARKET_DATA",
-          status: "healthy",
-          latency: 45,
-          uptime: 99.9,
-          records: "12.4M",
-          throughput: 850,
-          trend: "up",
-        },
-        {
-          id: "polygon",
-          name: "Polygon.io",
-          type: "OPTIONS_FLOW",
-          status: "healthy",
-          latency: 112,
-          uptime: 99.5,
-          records: "4.2M",
-          throughput: 1240,
-          trend: "stable",
-        },
-        {
-          id: "fred",
-          name: "FRED Macro",
-          type: "MACRO",
-          status: "healthy",
-          latency: 320,
-          uptime: 99.0,
-          records: "850K",
-          throughput: 12,
-          trend: "stable",
-        },
-        {
-          id: "sec",
-          name: "SEC EDGAR",
-          type: "FILINGS",
-          status: "degraded",
-          latency: 850,
-          uptime: 96.5,
-          records: "1.1M",
-          throughput: 45,
-          trend: "down",
-        },
-        {
-          id: "twitter",
-          name: "X / Twitter",
-          type: "SOCIAL",
-          status: "healthy",
-          latency: 180,
-          uptime: 98.2,
-          records: "25M",
-          throughput: 2100,
-          trend: "up",
-        },
-        {
-          id: "newsapi",
-          name: "News API",
-          type: "NEWS",
-          status: "healthy",
-          latency: 240,
-          uptime: 98.8,
-          records: "5.6M",
-          throughput: 150,
-          trend: "stable",
-        },
-      ];
+  if (!source) return (
+    <div className="bg-[#1A1F2E] border border-[#2A3444] rounded-xl p-8 text-center">
+      <p className="text-gray-500 text-sm">Select a source to edit credentials</p>
+    </div>
+  );
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
-        <PageHeader
-          icon={Server}
-          title="Data Sources Monitor"
-          description="Real-time Latency, Throughput & Health Status"
-        >
-          <div className="flex items-center gap-4">
-            <div className="bg-slate-900/50 px-4 py-2 rounded-lg border border-slate-700/50 flex items-center gap-3">
-              {wsConnected ? (
-                <Wifi className="w-4 h-4 text-green-400" />
-              ) : (
-                <WifiOff className="w-4 h-4 text-red-500" />
-              )}
-              <div className="flex flex-col">
-                <span
-                  className={`text-xs font-bold ${wsConnected ? "text-green-400" : "text-red-400"}`}
-                >
-                  WS {wsConnected ? "CONNECTED" : "DISCONNECTED"}
-                </span>
-                <span className="text-[10px] text-slate-500">
-                  {wsConnected
-                    ? `Ping: ${new Date().getSeconds()}ms`
-                    : `Retries: ${reconnectCount}`}
-                </span>
-              </div>
+    <div className="bg-[#1A1F2E] border border-[#2A3444] rounded-xl overflow-hidden sticky top-6">
+      {/* Panel Header - icon + name + category badge (mockup 09) */}
+      <div className="p-4 border-b border-[#2A3444] bg-[#0A0E1A]/50">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-[#0A0E1A] rounded-lg flex items-center justify-center text-xl">
+              {source.icon || CATEGORY_LABELS[source.category]?.[0] || '\u2699'}
             </div>
-            <Button
-              variant="outline"
-              onClick={refresh}
-              disabled={loading}
-              leftIcon={RefreshCw}
-              className={loading ? "[&>svg]:animate-spin" : ""}
-            >
-              Refresh
-            </Button>
+            <div>
+              <h3 className="text-white font-bold text-base">{source.name}</h3>
+              <span className="text-[10px] px-2 py-0.5 bg-cyan-600/20 text-cyan-400 rounded-full font-medium">
+                {CATEGORY_LABELS[source.category] || source.category}
+              </span>
+            </div>
           </div>
-        </PageHeader>
+          <button onClick={onClose} className="text-gray-500 hover:text-white text-sm">\u2715</button>
+        </div>
       </div>
 
-      {/* Top Metrics Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
-        {/* System Health Gauge */}
-        <Card className="bg-slate-900/40 border-slate-700/50 backdrop-blur-md p-4 flex items-center justify-between relative overflow-hidden">
-          <div>
-            <div className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">
-              System Health
-            </div>
-            <div className="text-3xl font-black text-white">
-              {systemHealthScore}%
-            </div>
-            <div className="text-xs text-green-400 mt-1 flex items-center gap-1">
-              <CheckCircle className="w-3 h-3" /> All Critical Systems
-            </div>
-          </div>
-          <div className="h-20 w-20 relative">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={healthData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={25}
-                  outerRadius={35}
-                  startAngle={90}
-                  endAngle={-270}
-                  dataKey="value"
-                  stroke="none"
-                >
-                  {healthData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-            <Activity className="w-5 h-5 text-green-400 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
-          </div>
-        </Card>
-
-        {/* OpenClaw Status */}
-        <Card className="lg:col-span-2 bg-slate-900/40 border-slate-700/50 backdrop-blur-md p-4 flex flex-col justify-between">
-          <div className="flex justify-between items-start">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-500/20 rounded-lg border border-blue-500/30">
-                <Database className="w-5 h-5 text-blue-400" />
-              </div>
-              <div>
-                <h3 className="font-bold text-white text-sm">
-                  OpenClaw Bridge
-                </h3>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span
-                    className={`w-2 h-2 rounded-full ${openClawStatus?.status === "connected" ? "bg-green-500 animate-pulse" : "bg-red-500"}`}
-                  ></span>
-                  <span className="text-xs text-slate-400 capitalize">
-                    {openClawStatus?.status || "Connecting..."}
-                  </span>
-                </div>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold text-white">
-                {openClawStatus?.candidatesFound || 0}
-              </div>
-              <div className="text-[10px] text-slate-500 uppercase tracking-wider">
-                Candidates
-              </div>
+      {/* Credential Fields */}
+      <div className="p-4 space-y-3 max-h-[calc(100vh-300px)] overflow-y-auto">
+        {(source.required_keys || []).map((keyName) => (
+          <div key={keyName}>
+            <label className="text-xs text-gray-400 mb-1 block">{keyName}</label>
+            <div className="flex items-center gap-1">
+              <input type={showKeys[keyName] ? 'text' : 'password'} value={keys[keyName] || ''}
+                onChange={(e) => setKeys({ ...keys, [keyName]: e.target.value })}
+                className="flex-1 px-3 py-2 bg-[#0A0E1A] border border-[#2A3444] rounded-lg text-white text-sm focus:border-cyan-500 focus:outline-none font-mono"
+                placeholder={source.has_credentials ? source[`masked_${keyName}`] || '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' : `Enter ${keyName}...`}
+                disabled={saving} />
+              {/* Show/Copy/Rotate icon buttons (mockup 09) */}
+              <button onClick={() => setShowKeys({ ...showKeys, [keyName]: !showKeys[keyName] })}
+                className="w-7 h-7 flex items-center justify-center bg-[#0A0E1A] border border-[#2A3444] rounded text-gray-500 hover:text-white text-[10px]"
+                title="Show/Hide">{showKeys[keyName] ? '\u{1F441}' : '\u25CF'}</button>
+              <button onClick={() => navigator.clipboard.writeText(keys[keyName] || '')}
+                className="w-7 h-7 flex items-center justify-center bg-[#0A0E1A] border border-[#2A3444] rounded text-gray-500 hover:text-white text-[10px]"
+                title="Copy">{"\u{1F4CB}"}</button>
+              <button className="w-7 h-7 flex items-center justify-center bg-[#0A0E1A] border border-[#2A3444] rounded text-gray-500 hover:text-white text-[10px]"
+                title="Rotate">\u21BB</button>
             </div>
           </div>
-
-          <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-slate-700/50">
-            <div>
-              <div className="text-[10px] text-slate-500">Throughput</div>
-              <div className="text-sm font-bold text-blue-400 flex items-center gap-1">
-                {openClawStatus?.throughput || 0}{" "}
-                <span className="text-[9px] text-slate-600">rec/min</span>
-              </div>
-            </div>
-            <div>
-              <div className="text-[10px] text-slate-500">Last Scan</div>
-              <div className="text-sm font-bold text-slate-300">
-                {openClawStatus?.lastScan
-                  ? new Date(openClawStatus.lastScan).toLocaleTimeString()
-                  : "--:--"}
-              </div>
-            </div>
-            <div>
-              <div className="text-[10px] text-slate-500">Cache Age</div>
-              <div className="text-sm font-bold text-green-400">
-                {openClawStatus?.cacheAge || "0s"}
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        {/* Global Throughput */}
-        <Card className="bg-slate-900/40 border-slate-700/50 backdrop-blur-md p-4 flex flex-col justify-center items-center">
-          <div className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">
-            Global Ingestion
-          </div>
-          <div className="text-4xl font-black text-white mb-1">4.2K</div>
-          <div className="text-xs text-slate-500 mb-4">Records / Minute</div>
-          <div className="w-full h-10">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={Array.from({ length: 10 }).map((_, i) => ({
-                  val: Math.random() * 100,
-                }))}
-              >
-                <Bar
-                  dataKey="val"
-                  fill="#3b82f6"
-                  radius={[2, 2, 0, 0]}
-                  opacity={0.6}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-      </div>
-
-      {/* Main Sources Grid */}
-      <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-        <Layers className="w-5 h-5 text-purple-500" /> Active Connections
-      </h2>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {enhancedSources.map((source) => (
-          <Card
-            key={source.id}
-            className="bg-slate-800/40 border-slate-700/50 backdrop-blur-sm p-0 overflow-hidden group hover:border-slate-600/50 transition-all"
-          >
-            {/* Card Header */}
-            <div className="p-4 border-b border-slate-700/50 flex justify-between items-start bg-slate-900/30">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-slate-800 rounded-lg border border-slate-700 text-slate-300 group-hover:text-white transition-colors flex items-center justify-center">
-                  {getDataSourceIcon(source)}
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-200 text-sm">
-                    {source.name}
-                  </h3>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <Badge
-                      variant="outline"
-                      className={`text-[10px] px-1.5 py-0 ${getStatusColor(source.status)}`}
-                    >
-                      {source.status.toUpperCase()}
-                    </Badge>
-                    <span className="text-[10px] text-slate-500">
-                      ID: {source.id}
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-xs font-bold text-slate-400">Uptime</div>
-                <div className="text-sm font-bold text-green-400">
-                  {source.uptime || 99.9}%
-                </div>
-              </div>
-            </div>
-
-            {/* Metrics Body */}
-            <div className="p-4 grid grid-cols-2 gap-4">
-              <div>
-                <div className="text-[10px] text-slate-500 mb-1">
-                  Latency (ms)
-                </div>
-                <div className="flex items-baseline gap-2">
-                  <span
-                    className="text-xl font-bold text-white"
-                    style={{ color: getLatencyColor(source.latency) }}
-                  >
-                    {source.latency}
-                  </span>
-                  <span className="text-[10px] text-slate-500">avg</span>
-                </div>
-              </div>
-              <div>
-                <div className="text-[10px] text-slate-500 mb-1">Records</div>
-                <div className="text-xl font-bold text-white">
-                  {source.records || "0"}
-                </div>
-              </div>
-            </div>
-
-            {/* Sparkline & Throughput Footer */}
-            <div className="h-16 w-full relative border-t border-slate-700/30 bg-slate-900/20">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={generateHistory(source.latency)}>
-                  <defs>
-                    <linearGradient
-                      id={`grad-${source.id}`}
-                      x1="0"
-                      y1="0"
-                      x2="0"
-                      y2="1"
-                    >
-                      <stop
-                        offset="5%"
-                        stopColor={getLatencyColor(source.latency)}
-                        stopOpacity={0.2}
-                      />
-                      <stop
-                        offset="95%"
-                        stopColor={getLatencyColor(source.latency)}
-                        stopOpacity={0}
-                      />
-                    </linearGradient>
-                  </defs>
-                  <Area
-                    type="monotone"
-                    dataKey="latency"
-                    stroke={getLatencyColor(source.latency)}
-                    strokeWidth={2}
-                    fill={`url(#grad-${source.id})`}
-                    isAnimationActive={false}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-
-              {/* Overlay Metrics */}
-              <div className="absolute bottom-2 right-4 text-xs font-bold text-slate-400 flex items-center gap-1 bg-slate-900/80 px-2 py-0.5 rounded border border-slate-700/50">
-                {source.throughput || 0} r/m
-                {source.trend === "up" ? (
-                  <TrendingUp className="w-3 h-3 text-green-400" />
-                ) : source.trend === "down" ? (
-                  <TrendingDown className="w-3 h-3 text-red-400" />
-                ) : (
-                  <Activity className="w-3 h-3 text-slate-500" />
-                )}
-              </div>
-            </div>
-          </Card>
         ))}
-      </div>
 
-      {/* Footer Info */}
-      <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="bg-slate-900/40 border-slate-700/50 p-4 flex items-center gap-4">
-          <Globe className="w-8 h-8 text-purple-500 opacity-50" />
+        <div>
+          <label className="text-xs text-gray-400 mb-1 block">Base URL</label>
+          <input value={extraFields.base_url} onChange={(e) => setExtraFields({ ...extraFields, base_url: e.target.value })}
+            className="w-full px-3 py-2 bg-[#0A0E1A] border border-[#2A3444] rounded-lg text-white text-sm focus:border-cyan-500 focus:outline-none font-mono" disabled={saving} />
+        </div>
+        <div>
+          <label className="text-xs text-gray-400 mb-1 block">WebSocket URL</label>
+          <input value={extraFields.ws_url} onChange={(e) => setExtraFields({ ...extraFields, ws_url: e.target.value })}
+            className="w-full px-3 py-2 bg-[#0A0E1A] border border-[#2A3444] rounded-lg text-white text-sm focus:border-cyan-500 focus:outline-none font-mono" disabled={saving} />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
           <div>
-            <h4 className="font-bold text-white text-sm">FRED Macro Data</h4>
-            <p className="text-xs text-slate-400">
-              Syncs daily at 08:00 EST. Tracks GDP, CPI, and Unemployment.
-            </p>
+            <label className="text-xs text-gray-400 mb-1 block">Rate Limit</label>
+            <input value={extraFields.rate_limit} onChange={(e) => setExtraFields({ ...extraFields, rate_limit: e.target.value })}
+              className="w-full px-3 py-2 bg-[#0A0E1A] border border-[#2A3444] rounded-lg text-white text-sm focus:border-cyan-500 focus:outline-none" disabled={saving} />
           </div>
-        </Card>
-        <Card className="bg-slate-900/40 border-slate-700/50 p-4 flex items-center gap-4">
-          <FileText className="w-8 h-8 text-slate-500 opacity-50" />
           <div>
-            <h4 className="font-bold text-white text-sm">SEC EDGAR Filings</h4>
-            <p className="text-xs text-slate-400">
-              Polling active. 13F, 8K, and Form 4 processed every 15m.
-            </p>
+            <label className="text-xs text-gray-400 mb-1 block">Polling Interval</label>
+            <select value={extraFields.polling_interval} onChange={(e) => setExtraFields({ ...extraFields, polling_interval: e.target.value })}
+              className="w-full px-3 py-2 bg-[#0A0E1A] border border-[#2A3444] rounded-lg text-white text-sm focus:border-cyan-500 focus:outline-none">
+              <option value="real-time">Real-time (WebSocket)</option>
+              <option value="1s">1 second</option><option value="5s">5 seconds</option>
+              <option value="30s">30 seconds</option><option value="1m">1 minute</option>
+              <option value="5m">5 minutes</option><option value="15m">15 minutes</option>
+            </select>
           </div>
-        </Card>
+        </div>
+        <div>
+          <label className="text-xs text-gray-400 mb-1 block">Account Type</label>
+          <select value={extraFields.account_type} onChange={(e) => setExtraFields({ ...extraFields, account_type: e.target.value })}
+            className="w-full px-3 py-2 bg-[#0A0E1A] border border-[#2A3444] rounded-lg text-white text-sm focus:border-cyan-500 focus:outline-none">
+            <option value="">Select...</option><option value="paper">Paper Trading</option>
+            <option value="live">Live Trading</option><option value="free">Free Tier</option>
+            <option value="pro">Pro / Paid</option>
+          </select>
+        </div>
+
+        {/* Connection Test Result box (mockup 09 green box) */}
+        {testResult && testResult.ok && (
+          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3">
+            <div className="text-emerald-400 text-xs font-bold">Connection Test Result</div>
+            <div className="text-emerald-400 text-xs mt-1">\u2705 Connected in {testResult.latency}ms{testResult.detail ? ` - ${testResult.detail}` : ''}</div>
+          </div>
+        )}
+
+        {/* Action buttons row (mockup 09: Test Connection, Save Changes, Cancel, Reset to Default) */}
+        <div className="flex gap-2 pt-2 flex-wrap">
+          <button onClick={handleTest} disabled={testing}
+            className="px-3 py-2 bg-cyan-600/20 text-cyan-400 border border-cyan-500/30 rounded-lg hover:bg-cyan-600/30 text-xs font-medium disabled:opacity-50">
+            {testing ? '\u23F3 Testing...' : 'Test Connection'}
+          </button>
+          <button onClick={() => onSave(keys)} disabled={saving}
+            className="px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-xs font-medium disabled:opacity-50">
+            {saving ? '\u23F3 Saving...' : 'Save Changes'}
+          </button>
+          <button onClick={onClose} className="px-3 py-2 bg-gray-600/20 text-gray-400 rounded-lg hover:bg-gray-600/30 text-xs">Cancel</button>
+          <button className="px-3 py-2 bg-gray-600/20 text-gray-400 rounded-lg hover:bg-gray-600/30 text-xs">Reset to Default</button>
+        </div>
+
+        {/* Connection Log (mockup 09 bottom of panel) */}
+        {testLog.length > 0 && (
+          <div className="mt-3">
+            <div className="bg-[#0A0E1A] border border-[#2A3444] rounded-lg p-2 max-h-32 overflow-y-auto font-mono text-[10px] text-gray-400 space-y-0.5">
+              {testLog.map((log, i) => <div key={i}>{log}</div>)}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AddSourceModal({ onClose, onAdd, saving }) {
+  const [form, setForm] = useState({ id: '', name: '', base_url: '', test_endpoint: '', type: 'rest', category: 'custom' });
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-[#1A1F2E] border border-[#2A3444] rounded-xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-lg font-bold text-white mb-4">Add Custom Source</h3>
+        {['id', 'name', 'base_url', 'test_endpoint'].map((field) => (
+          <div key={field} className="mb-3">
+            <label className="text-sm text-gray-400 mb-1 block">{field}</label>
+            <input value={form[field]} onChange={(e) => setForm({ ...form, [field]: e.target.value })}
+              className="w-full px-3 py-2 bg-[#0A0E1A] border border-[#2A3444] rounded-lg text-white text-sm focus:border-cyan-500 focus:outline-none" disabled={saving} />
+          </div>
+        ))}
+        <div className="flex gap-2 mt-4">
+          <button onClick={onClose} className="flex-1 px-4 py-2 bg-gray-600/20 text-gray-400 rounded-lg hover:bg-gray-600/30 text-sm">Cancel</button>
+          <button onClick={() => onAdd(form)} disabled={saving} className="flex-1 px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 text-sm font-medium disabled:opacity-50">
+            {saving ? 'Adding...' : 'Add Source'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AIDetectModal({ onClose, onDetect }) {
+  const [url, setUrl] = useState('');
+  const [result, setResult] = useState(null);
+  const [detecting, setDetecting] = useState(false);
+  const [error, setError] = useState(null);
+  const handleDetect = async () => {
+    setDetecting(true); setError(null);
+    try { const res = await onDetect(url); setResult(res); }
+    catch (err) { setError(err.message); setResult(null); }
+    finally { setDetecting(false); }
+  };
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-[#1A1F2E] border border-[#2A3444] rounded-xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-lg font-bold text-white mb-4">AI Detect Provider</h3>
+        <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Paste API URL..."
+          className="w-full px-3 py-2 bg-[#0A0E1A] border border-[#2A3444] rounded-lg text-white text-sm mb-4 focus:border-cyan-500 focus:outline-none" disabled={detecting} />
+        <button onClick={handleDetect} disabled={detecting} className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium mb-4 disabled:opacity-50">
+          {detecting ? 'Detecting...' : 'Detect'}
+        </button>
+        {error && <div className="p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-400 text-sm mb-4">{error}</div>}
+        {result && (
+          <div className="p-3 bg-[#0A0E1A] border border-[#2A3444] rounded-lg text-sm">
+            <div className="text-cyan-400 font-bold">{result.detected_provider || 'Unknown'}</div>
+            <div className="text-gray-400 mt-1">{result.suggestion}</div>
+            {result.confidence > 0 && <div className="text-emerald-400 mt-1">Confidence: {(result.confidence * 100).toFixed(0)}%</div>}
+          </div>
+        )}
+        <button onClick={onClose} className="w-full mt-4 px-4 py-2 bg-gray-600/20 text-gray-400 rounded-lg hover:bg-gray-600/30 text-sm">Close</button>
+      </div>
+    </div>
+  );
+}
+
+function DeleteConfirmModal({ sourceId, onClose, onConfirm, deleting }) {
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-[#1A1F2E] border border-[#2A3444] rounded-xl p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-lg font-bold text-white mb-4">Delete Source</h3>
+        <p className="text-gray-400 text-sm mb-4">Permanently delete <span className="text-white font-medium">"{sourceId}"</span>?</p>
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 px-4 py-2 bg-gray-600/20 text-gray-400 rounded-lg hover:bg-gray-600/30 text-sm">Cancel</button>
+          <button onClick={onConfirm} disabled={deleting} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium disabled:opacity-50">
+            {deleting ? 'Deleting...' : 'Delete'}
+          </button>
+        </div>
       </div>
     </div>
   );

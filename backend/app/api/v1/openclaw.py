@@ -13,6 +13,7 @@ Endpoints:
     GET  /api/v1/openclaw/memory        - Memory IQ, agent rankings, expectancy
     GET  /api/v1/openclaw/memory/recall - 3-stage recall pipeline for ticker
     POST /api/v1/openclaw/refresh       - Force cache refresh
+        GET  /api/v1/openclaw/regime/transitions - Last 30 regime state changes
 
     Real-time Bridge (v2 - 2026.2.22):
     POST /api/v1/openclaw/signals       - Ingest real-time signals from bridge_sender.py
@@ -485,3 +486,85 @@ async def get_llm_flow(limit: int = Query(default=5, ge=1, le=50)):
 
     # Graceful fallback
     return {"alerts": [], "total": 0, "_fallback": True}
+
+# ------------------------------------------------------------------
+# MARKET REGIME PAGE ENDPOINTS (Page 10/15)
+# Regime transitions history + enhanced macro data for VIX chart
+# ------------------------------------------------------------------
+
+@router.get("/regime/transitions", summary="Get Regime Transition History")
+async def get_regime_transitions(limit: int = Query(default=30, ge=1, le=100)):
+    """
+    Return last N regime transitions with timestamp, from/to state,
+    trigger reason, confidence, duration, and P&L impact.
+    Sources data from OpenClaw bridge scan history.
+    """
+    try:
+        scan_data = await openclaw_bridge.get_scan_results()
+        regime_data = await openclaw_bridge.get_regime()
+        memory_data = await openclaw_bridge.get_memory_status()
+
+        transitions = []
+
+        # Extract transitions from scan history if available
+        if scan_data and "regime_history" in scan_data:
+            for t in scan_data["regime_history"][-limit:]:
+                transitions.append({
+                    "timestamp": t.get("timestamp"),
+                    "from": t.get("from_state"),
+                    "to": t.get("to_state"),
+                    "trigger": t.get("trigger", "HMM state change"),
+                    "confidence": t.get("confidence"),
+                    "duration": t.get("duration"),
+                    "pnl_impact": t.get("pnl_impact"),
+                })
+
+        # If no history from scan, try memory data
+        if not transitions and memory_data:
+            mem_data = memory_data if isinstance(memory_data, dict) else {}
+            if "data" in mem_data:
+                mem_data = mem_data["data"]
+            regime_transitions = mem_data.get("regime_transitions", [])
+            for t in regime_transitions[-limit:]:
+                transitions.append({
+                    "timestamp": t.get("timestamp"),
+                    "from": t.get("from_state"),
+                    "to": t.get("to_state"),
+                    "trigger": t.get("trigger", "HMM state change"),
+                    "confidence": t.get("confidence"),
+                    "duration": t.get("duration"),
+                    "pnl_impact": t.get("pnl_impact"),
+                })
+
+        # If still no transitions, try DB ingest history
+        if not transitions:
+            try:
+                ingests = openclaw_db.get_recent_ingests(limit=limit)
+                prev_regime = None
+                for ingest in ingests:
+                    regime_json = ingest.get("regime_json")
+                    regime = json.loads(regime_json) if regime_json else {}
+                    current = regime.get("state")
+                    if prev_regime and current and current != prev_regime:
+                        transitions.append({
+                            "timestamp": ingest.get("timestamp"),
+                            "from": prev_regime,
+                            "to": current,
+                            "trigger": "HMM state change",
+                            "confidence": regime.get("confidence"),
+                            "duration": None,
+                            "pnl_impact": None,
+                        })
+                    prev_regime = current
+            except Exception:
+                pass
+
+        return {
+            "count": len(transitions),
+            "transitions": transitions[-limit:],
+            "current_state": regime_data.get("state", "YELLOW"),
+            "time_in_state": regime_data.get("time_in_state"),
+        }
+    except Exception as e:
+        logger.error(f"[OPENCLAW] Regime transitions error: {e}")
+        return {"count": 0, "transitions": [], "current_state": "YELLOW"}

@@ -28,7 +28,7 @@ try:
     class LSTMPredictor(nn.Module):
         """2-layer LSTM for win probability prediction."""
 
-        def __init__(self, input_size=4, hidden_size=64, num_layers=2, output_size=1):
+        def __init__(self, input_size=9, hidden_size=64, num_layers=2, output_size=1):
             super().__init__()
             self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, dropout=0.2)
             self.fc = nn.Linear(hidden_size, output_size)
@@ -145,9 +145,14 @@ class LSTMTrainer:
             end_date = datetime.utcnow().isoformat()
             start_date = (datetime.utcnow() - timedelta(days=window_days)).isoformat()
 
-            # Fetch signals with score data
+            # Fetch signals with score data, pulling the 5 pillars as requested
             df = pd.read_sql_query(
                 """SELECT score, entry, stop, target, direction,
+                          COALESCE(regime_score, 50) as regime,
+                          COALESCE(trend_score, 50) as trend,
+                          COALESCE(pullback_score, 50) as pullback,
+                          COALESCE(momentum_score, 50) as momentum,
+                          COALESCE(pattern_score, 50) as pattern,
                           CASE WHEN direction='LONG' THEN
                             CASE WHEN target > entry THEN 1 ELSE 0 END
                           ELSE
@@ -169,7 +174,8 @@ class LSTMTrainer:
             df["rr_ratio"] = (df["reward"] / df["risk"]).clip(0, 10).fillna(1.0)
             df["dir_encoded"] = (df["direction"] == "LONG").astype(float)
 
-            feature_cols = ["score", "rr_ratio", "risk", "dir_encoded"]
+            feature_cols = ["score", "rr_ratio", "risk", "dir_encoded", 
+                            "regime", "trend", "pullback", "momentum", "pattern"]
             features = df[feature_cols].fillna(0).values
             labels = df["label"].fillna(0).values.astype(int)
 

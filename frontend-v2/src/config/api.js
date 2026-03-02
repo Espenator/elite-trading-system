@@ -12,7 +12,6 @@
  *   NEW routers needed: agents, data-sources, sentiment, youtube-knowledge, flywheel,
  *                       portfolio, risk, strategy, performance, logs, alerts
  */
-
 const API_CONFIG = {
   // Use empty string in dev so requests go to same origin → Vite proxy forwards to backend (port 8001).
   // Set VITE_API_URL / VITE_WS_URL when deploying (e.g. https://api.example.com).
@@ -32,6 +31,19 @@ const API_CONFIG = {
     signals: "/signals", // Generated trading signals
     backtest: "/backtest", // Backtesting engine
     backtestRuns: "/backtest/runs", // Recent backtest runs (for Backtesting page)
+        backtestResults: "/backtest/results", // Full backtest results + equity curve
+    backtestOptimization: "/backtest/optimization", // Parameter optimization heatmap
+    backtestWalkforward: "/backtest/walkforward", // Walk-forward validation periods
+    backtestMontecarlo: "/backtest/montecarlo", // Monte Carlo simulation paths
+    backtestRegime: "/backtest/regime", // Regime-based performance breakdown
+    backtestRollingSharpe: "/backtest/rolling-sharpe", // Rolling Sharpe ratio series
+    backtestTradeDistribution: "/backtest/trade-distribution", // P&L distribution histogram
+    backtestKellyComparison: "/backtest/kelly-comparison", // Kelly A/B sizing comparison
+    backtestCorrelation: "/backtest/correlation", // Asset correlation matrix
+    backtestSectorExposure: "/backtest/sector-exposure", // Sector allocation breakdown
+    backtestDrawdownAnalysis: "/backtest/drawdown-analysis", // Drawdown period analysis
+    openclawSwarmStatus: "/openclaw/swarm/status", // Swarm intelligence metrics
+    openclawAgents: "/openclaw/agents", // Individual agent status + tasks
     status: "/status", // System health check
 
     // ---- NEW (Oleh needs to create these routers) ----
@@ -44,7 +56,7 @@ const API_CONFIG = {
     risk: "/risk", // Risk metrics + position sizing
     strategy: "/strategy", // Active strategies + A/B tests
     performance: "/performance", // Historical performance analytics
-    performanceTrades: "/performance/performance/trades", // Realized trades for P&L dist / monthly win rate
+    performanceTrades: "/performance/trades", // Realized trades for P&L dist / monthly win rate
     logs: "/logs", // System activity logs
     alerts: "/alerts", // Alert rules + notifications
     patterns: "/patterns", // Chart pattern detections
@@ -52,6 +64,54 @@ const API_CONFIG = {
     openclaw: "/openclaw", // OpenClaw bridge: regime, top candidates, health, scan
     market: "/market", // Market indices (SPY, QQQ, DIA) for Dashboard
     marketIndices: "/market/indices", // GET indices snapshot for Dashboard top bar
+    mlBrain: "/ml-brain", // ML brain model status + predictions
+    riskShield: "/risk-shield", // RiskShield emergency controls + safety checks
+        kellySizer: "/risk/kelly-sizer", // Bug #19 fix: was /kelly-sizer, needs /risk prefix
+    positionSizing: "/risk/position-sizing", // Bug #19 fix: was /position-sizing, needs /risk prefix
+      drawdownCheck: "/risk/drawdown-check", // Drawdown protection check
+  dynamicStopLoss: "/risk/dynamic-stop-loss", // ATR-based stop-loss calculator
+  riskScore: "/risk/risk-score", // Composite risk score 0-100
+  kellyRanked: "/signals/kelly-ranked", // Kelly-ranked ticker opportunities
+    preTradeCheck: "/strategy/pre-trade-check", // Pre-trade risk gate (6 checks)
+      swarmTopology: "/agents/swarm-topology", // Agent swarm topology + ELO leaderboard
+  conference: "/agents/conference", // Conference pipeline status
+  teams: "/agents/teams", // Agent team groupings
+  drift: "/agents/drift", // Model drift metrics
+  systemAlerts: "/agents/alerts", // System alerts for command center
+  agentResources: "/agents/resources", // Per-agent resource usage
+  blackboard: "/openclaw", // Blackboard pub/sub feed
+    
+    // ---- MARKET REGIME PAGE (Page 10/15) ----
+    "openclaw/regime": "/openclaw/regime", // HMM regime state + VIX + Hurst + confidence
+    "openclaw/macro": "/openclaw/macro", // Macro oscillator, wave, bias, VIX, HY spread, F&G
+    "strategy/regime-params": "/strategy/regime-params", // Regime trading params + Kelly scaling
+    "backtest/regime": "/backtest/regime", // Regime-based performance (GREEN/YELLOW/RED)
+    "openclaw/sectors": "/openclaw/sectors", // Sector rotation rankings
+    "openclaw/scan": "/openclaw/scan", // Full scan with regime embedded
+    "openclaw/memory": "/openclaw/memory", // Memory IQ, agent rankings, expectancy by regime
+    "risk/risk-gauges": "/risk/risk-gauges", // 12 risk gauges with regime-aware data
+    "openclaw/macro/override": "/openclaw/macro/override", // POST: bias multiplier override (0-5)
+    "openclaw/health": "/openclaw/health", // Bridge health + diagnostics
+    "risk/risk-score": "/risk/risk-score", // Composite risk score 0-100
+    "openclaw/whale-flow": "/openclaw/whale-flow", // Whale flow alerts
+    "openclaw/regime/transitions": "/openclaw/regime/transitions", // Last 30 regime changes
+    
+    // ---- ALPACA PROXY (Trade Execution page) ----
+    "alpaca/account": "/alpaca/account", // Alpaca account details
+    "alpaca/positions": "/alpaca/positions", // Open positions
+    "alpaca/orders": "/alpaca/orders", // Orders list with status filter
+    "alpaca/activities": "/alpaca/activities", // Trade activities/fills
+    "orders/advanced": "/orders/advanced", // Advanced order creation (bracket/OCO/OTO)
+
+        // ---- ALIGNMENT ENGINE (Constitutive Alignment - 6 patterns) ----
+    "alignment/settings": "/alignment/settings", // GET/PUT alignment mode + check toggles
+    "alignment/evaluate": "/alignment/evaluate", // POST preflight verdict for a trade intent
+    "alignment/verdicts": "/alignment/verdicts", // GET recent verdicts (history + filters)
+    "alignment/stats": "/alignment/stats", // GET aggregated alignment stats (blocks, approvals)
+    "alignment/bright-lines": "/alignment/bright-lines", // GET current bright line status
+    "alignment/constellation": "/alignment/constellation", // GET outcome constellation diagnostics
+    "alignment/metacognition": "/alignment/metacognition", // GET metacognition flags + trends
+    "alignment/critique": "/alignment/critique", // GET swarm critique role stats
   },
 };
 
@@ -59,9 +119,19 @@ const API_CONFIG = {
  * Get full API URL for an endpoint.
  * When BASE_URL is "" (dev), returns relative path so Vite proxy forwards to backend.
  * Usage: getApiUrl('agents') => '/api/v1/agents' (dev) or 'https://api.example.com/api/v1/agents' (prod)
+ *
+ * Bug #25 fix: fallback now ensures leading slash for unmapped endpoints
+ * so 'backtest/results' becomes '/backtest/results' not 'backtest/results'.
  */
-export const getApiUrl = (endpoint) =>
-  `${API_CONFIG.BASE_URL}${API_CONFIG.API_PREFIX}${API_CONFIG.endpoints[endpoint] || endpoint}`;
+export const getApiUrl = (endpoint) => {
+  const mapped = API_CONFIG.endpoints[endpoint];
+  if (mapped) {
+    return `${API_CONFIG.BASE_URL}${API_CONFIG.API_PREFIX}${mapped}`;
+  }
+  // Fallback: treat endpoint as raw path, ensure leading slash
+  const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  return `${API_CONFIG.BASE_URL}${API_CONFIG.API_PREFIX}${path}`;
+};
 
 /**
  * Get WebSocket base URL. When WS_URL is "" (dev), uses current host so Vite proxy is used.
@@ -85,6 +155,10 @@ export const WS_CHANNELS = {
   signals: "signals",
   trades: "trades",
   logs: "logs",
+  sentiment: "sentiment",
+    risk: "risk",
+  kelly: "kelly",
+      alignment: "alignment",
 };
 
 export default API_CONFIG;

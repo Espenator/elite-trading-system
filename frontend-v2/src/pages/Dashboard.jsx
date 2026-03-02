@@ -1,1304 +1,550 @@
-// DASHBOARD - Embodier.ai Intelligence Dashboard
-// Layout: Top bar (indices + KPIs) → 4 charts → P&L dist → Candidates | Donut | Radar → Correlation | Agents | Signal accuracy
-import { useMemo, useState, useEffect, useCallback, useRef } from "react";
-import { Link } from "react-router-dom";
-import {
-  Brain,
-  ArrowUpRight,
-  ArrowDownRight,
-  Eye,
-  Bot,
-  Target,
-  LayoutDashboard,
-  Shield,
-  ChevronRight,
-  ArrowUp,
-  ArrowDown,
-  Briefcase,
-  Cpu,
-} from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import {
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar,
-  AreaChart,
-  Area,
-} from "recharts";
-import Card from "../components/ui/Card";
-import PageHeader from "../components/ui/PageHeader";
-import DataTable from "../components/ui/DataTable";
-import SymbolIcon from "../components/ui/SymbolIcon";
-import { DATA_SOURCE_ICON_SLUGS } from "../lib/dataSourceIcons";
-import Badge from "../components/ui/Badge";
-import { useApi } from "../hooks/useApi";
-import { getApiUrl } from "../config/api";
-import { toast } from "react-toastify";
-import { createChart, ColorType } from "lightweight-charts";
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useApi } from '../hooks/useApi';
+import { getApiUrl } from '../config/api';
 
-// === POLLING INTERVAL ===
-const POLL_MS = 30000;
-const OPENCLAW_POLL_MS = 30000;
+// --- ICONS ---
+const HexagonLogo = () => (
+  <svg className="w-5 h-5 text-[#00d4ff]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+  </svg>
+);
 
-// === StatCard: Gradient stat card ===
-function StatCard({
-  title,
-  value,
-  change,
-  changeType,
-  icon: Icon,
-  color,
-  onClick,
-}) {
-  const colors = {
-    success: "from-success/20 to-success/5 border-success/30",
-    primary: "from-primary/20 to-primary/5 border-primary/30",
-    secondary: "from-secondary/20 to-secondary/5 border-secondary/30",
-    warning: "from-warning/20 to-warning/5 border-warning/30",
-    danger: "from-danger/20 to-danger/5 border-danger/30",
-  };
-  const iconColors = {
-    success: "text-success",
-    primary: "text-primary",
-    secondary: "text-secondary",
-    warning: "text-warning",
-    danger: "text-danger",
-  };
-  return (
-    <div
-      className={`bg-gradient-to-br ${colors[color]} border rounded-2xl p-5 cursor-pointer hover:scale-[1.02] transition-all`}
-      onClick={onClick}
-    >
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-sm text-secondary">{title}</span>
-        {Icon && <Icon className={`w-5 h-5 ${iconColors[color]}`} />}
-      </div>
-      <div className="text-2xl font-bold text-white mb-1">{value}</div>
-      {change && (
-        <div
-          className={`flex items-center gap-1 text-sm ${changeType === "up" ? "text-success" : "text-danger"}`}
-        >
-          {changeType === "up" ? (
-            <ArrowUpRight className="w-4 h-4" />
-          ) : (
-            <ArrowDownRight className="w-4 h-4" />
-          )}
-          {change}
-        </div>
-      )}
-    </div>
-  );
-}
+// --- CONSTANTS ---
+const SORT_PILLS = [
+  "Composite Score", "Swarm Leader", "Technical Rank", "Momentum", "Breakout",
+  "Rebound", "Mean Reversion", "Kelly Optimal", "SHAP Impact", "Risk-Reward",
+  "ML Probability", "Sentiment", "Volume Surge", "Sector Rotation", "Options Flow"
+];
 
-// === KpiMicroCard: Ultra-dense micro KPI ===
-function KpiMicroCard({
-  label,
-  value,
-  sub,
-  color,
-  icon: Icon,
-  onClick,
-  subPosition,
-}) {
-  const borderMap = {
-    cyan: "border-cyan-500/30 hover:border-cyan-500/60 shadow-[0_0_8px_rgba(6,182,212,0.08)]",
-    amber:
-      "border-amber-500/30 hover:border-amber-500/60 shadow-[0_0_8px_rgba(245,158,11,0.08)]",
-    red: "border-red-500/30 hover:border-red-500/60 shadow-[0_0_8px_rgba(239,68,68,0.08)]",
-    green:
-      "border-emerald-500/30 hover:border-emerald-500/60 shadow-[0_0_8px_rgba(16,185,129,0.08)]",
-    purple:
-      "border-purple-500/30 hover:border-purple-500/60 shadow-[0_0_8px_rgba(168,85,247,0.08)]",
-  };
-  const textMap = {
-    cyan: "text-cyan-400",
-    amber: "text-amber-400",
-    red: "text-red-400",
-    green: "text-emerald-400",
-    purple: "text-purple-400",
-  };
-  const subInHeader = subPosition === "topRight" && sub;
-  return (
-    <div
-      className="w-full bg-surface border border-secondary/30 rounded-md p-2.5 cursor-pointer transition-all"
-      onClick={onClick || (() => toast.info(`Drilling into ${label}`))}
-    >
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-xs text-white/70 uppercase tracking-wider truncate">
-          {label}
-        </span>
-        <span className="flex items-center gap-1 shrink-0">
-          {subInHeader && (
-            <span className="text-[8px] text-secondary/70">{sub}</span>
-          )}
-          {Icon && (
-            <Icon className={`w-3 h-3 ${textMap[color] || "text-cyan-400"}`} />
-          )}
-        </span>
-      </div>
-      <div
-        className={`text-sm font-bold ${textMap[color] || "text-white"} truncate`}
-      >
-        {value}
-      </div>
-      {sub && !subInHeader && (
-        <div className="text-[8px] text-secondary/70 truncate mt-0.5">
-          {sub}
-        </div>
-      )}
-    </div>
-  );
-}
+const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1D", "1W"];
 
-// === SectorCell: Heatmap cell with HSL-calculated bg ===
-function SectorCell({ name, value, momentum }) {
-  const pct = Math.min(100, Math.max(0, Math.abs(value)));
-  const hue = value >= 0 ? 142 : 0;
-  const sat = 60 + (pct / 100) * 30;
-  const light = 20 + (pct / 100) * 15;
-  return (
-    <div
-      className="rounded-lg p-2.5 text-center cursor-pointer hover:scale-105 transition-all border border-white/5 hover:border-white/20 shadow-sm"
-      style={{ backgroundColor: `hsl(${hue}, ${sat}%, ${light}%)` }}
-      onClick={() => toast.info(`Sector deep-dive: ${name}`)}
-      title={`${name}: ${value >= 0 ? "+" : ""}${value.toFixed(1)}%`}
-    >
-      <div className="text-[10px] font-bold text-white/90 truncate">{name}</div>
-      <div className="text-xs font-bold text-white mt-0.5">
-        {value >= 0 ? "+" : ""}
-        {value.toFixed(1)}%
-      </div>
-      <div className="text-[9px] mt-0.5">
-        {momentum === "up" && (
-          <ArrowUp className="w-3 h-3 text-emerald-300 inline" />
-        )}
-        {momentum === "down" && (
-          <ArrowDown className="w-3 h-3 text-red-300 inline" />
-        )}
-        {momentum === "flat" && (
-          <ChevronRight className="w-3 h-3 text-gray-400 inline" />
-        )}
-      </div>
-    </div>
-  );
-}
-
-// === EquityCurveLW: Lightweight Charts equity curve ===
-function EquityCurveLW({ data }) {
-  const chartContainerRef = useRef(null);
-  const chartRef = useRef(null);
-  useEffect(() => {
-    if (!chartContainerRef.current || !data || data.length === 0) return;
-    const chart = createChart(chartContainerRef.current, {
-      layout: {
-        background: { type: ColorType.Solid, color: "#0B0E14" },
-        textColor: "#9ca3af",
-      },
-      grid: {
-        vertLines: { color: "#1f2937" },
-        horzLines: { color: "#1f2937" },
-      },
-      width: chartContainerRef.current.clientWidth,
-      height: 280,
-      rightPriceScale: { borderColor: "#374151" },
-      timeScale: { borderColor: "#374151", timeVisible: true },
-      crosshair: { mode: 0 },
-    });
-    const areaSeries = chart.addAreaSeries({
-      topColor: "rgba(6, 182, 212, 0.4)",
-      bottomColor: "rgba(6, 182, 212, 0.0)",
-      lineColor: "#06b6d4",
-      lineWidth: 2,
-    });
-    areaSeries.setData(data);
-    chart.timeScale().fitContent();
-    chartRef.current = chart;
-    const handleResize = () => {
-      if (chartContainerRef.current)
-        chart.applyOptions({ width: chartContainerRef.current.clientWidth });
-    };
-    window.addEventListener("resize", handleResize);
-    return () => {
-      window.removeEventListener("resize", handleResize);
-      chart.remove();
-    };
-  }, [data]);
-  if (!data || data.length === 0) {
-    return (
-      <div className="h-[280px] flex items-center justify-center text-secondary text-sm">
-        No equity data available
-      </div>
-    );
-  }
-  return <div ref={chartContainerRef} className="w-full" />;
-}
-
-// === OpenClaw Hooks (real API) ===
-function useOpenClawTop(n = 5) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const fetchTop = useCallback(() => {
-    fetch(`${getApiUrl("openclaw")}/top?n=${n}`, { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then(setData)
-      .catch(() => setData(null))
-      .finally(() => setLoading(false));
-  }, [n]);
-  useEffect(() => {
-    setLoading(true);
-    fetchTop();
-    const id = setInterval(fetchTop, OPENCLAW_POLL_MS);
-    return () => clearInterval(id);
-  }, [fetchTop]);
-  return { data, loading };
-}
-
-function useOpenClawHealth() {
-  const [data, setData] = useState(null);
-  useEffect(() => {
-    let cancelled = false;
-    const fetchHealth = () => {
-      fetch(`${getApiUrl("openclaw")}/health`, { cache: "no-store" })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d) => {
-          if (!cancelled) setData(d);
-        })
-        .catch(() => {
-          if (!cancelled) setData(null);
-        });
-    };
-    fetchHealth();
-    const id = setInterval(fetchHealth, OPENCLAW_POLL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, []);
-  return data;
-}
-
-// === MAIN DASHBOARD COMPONENT ===
 export default function Dashboard() {
-  // --- Real API hooks ---
-  const { data: portfolioData, loading: portfolioLoading } = useApi(
-    "portfolio",
-    { pollIntervalMs: POLL_MS },
-  );
-  const { data: signalsData, loading: signalsLoading } = useApi("signals", {
-    pollIntervalMs: POLL_MS,
-  });
-  const { data: agentsData, loading: agentsLoading } = useApi("agents", {
-    pollIntervalMs: POLL_MS,
-  });
-  const { data: performanceData } = useApi("performance", {
-    pollIntervalMs: POLL_MS,
-  });
-  const { data: riskData } = useApi("risk", { pollIntervalMs: 60000 });
-  const { data: statusData } = useApi("status", { pollIntervalMs: POLL_MS });
-  const { data: openclawTop, loading: openclawLoading } = useOpenClawTop();
-  const openclawHealth = useOpenClawHealth();
-  const { data: marketIndicesData } = useApi("marketIndices", {
-    pollIntervalMs: 60000,
-  });
-  const { data: performanceTradesData } = useApi("performanceTrades", {
-    pollIntervalMs: POLL_MS,
-  });
+  // --- STATE ---
+  const [activeSortKey, setActiveSortKey] = useState('Composite Score');
+  const [selectedSymbol, setSelectedSymbol] = useState(null);
+  const [activeTimeframe, setActiveTimeframe] = useState("1h");
+  const [autoExec, setAutoExec] = useState(false);
 
-  // --- Market indices (real from /market/indices) ---
-  const indices = useMemo(() => {
-    const list = marketIndicesData?.indices ?? [];
-    return list.map((i) => ({
-      id: i.id,
-      value: i.value ?? "—",
-      change: i.change != null ? i.change : null,
-    }));
-  }, [marketIndicesData]);
+  // --- API HOOKS (Real-time polling) ---
+  const { data: signalsData, loading: sigLoading, error: sigErr } = useApi('signals', { pollIntervalMs: 3000 });
+  const { data: kellyData } = useApi('kellyRanked', { pollIntervalMs: 5000 });
+  const { data: portfolioData } = useApi('portfolio', { pollIntervalMs: 5000 });
+  const { data: indicesData } = useApi('marketIndices', { pollIntervalMs: 5000 });
+  const { data: openclawData } = useApi('openclaw', { pollIntervalMs: 10000 });
+  const { data: performanceData } = useApi('performance', { pollIntervalMs: 15000 });
+  const { data: agentsData } = useApi('agents', { pollIntervalMs: 10000 });
+  const { data: riskScoreData } = useApi('riskScore', { pollIntervalMs: 15000 });
+  const { data: alertsData } = useApi('systemAlerts', { pollIntervalMs: 10000 });
+  const { data: flywheelData } = useApi('flywheel', { pollIntervalMs: 30000 });
+  const { data: sentimentData } = useApi('sentiment', { pollIntervalMs: 15000 });
 
-  // --- OpenClaw derived data ---
-  const regime = openclawTop?.regime ?? openclawHealth?.regime ?? null;
-  const regimeReadme = openclawTop?.regime_readme ?? "";
-  const candidates = openclawTop?.candidates ?? [];
+  // Right Panel specific APIs based on selectedSymbol
+  const { data: techsData } = useApi('signals', { endpoint: `/signals/${selectedSymbol}/technicals`, enabled: !!selectedSymbol });
+  const { data: swarmData } = useApi('swarmTopology', { endpoint: `/agents/swarm-topology/${selectedSymbol}`, enabled: !!selectedSymbol });
+  const { data: dataSourcesData } = useApi('dataSources', { endpoint: `/data-sources/${selectedSymbol}`, enabled: !!selectedSymbol });
+  const { data: riskData } = useApi('risk', { endpoint: `/risk/proposal/${selectedSymbol}`, enabled: !!selectedSymbol });
+  const { data: quotesData } = useApi('quotes', { endpoint: `/quotes/${selectedSymbol}/book`, pollIntervalMs: 1000, enabled: !!selectedSymbol });
 
-  const lastScanTs = openclawHealth?.last_scan_timestamp ?? null;
+  // --- SORT MAP (all 15 pills) ---
+  const SORT_MAP = useMemo(() => ({
+    'Composite Score': (a, b) => (b.score || 0) - (a.score || 0),
+    'Swarm Leader': (a, b) => (b.swarmVote || '').localeCompare(a.swarmVote || ''),
+    'Technical Rank': (a, b) => (b.scores?.technical || 0) - (a.scores?.technical || 0),
+    'Momentum': (a, b) => (b.momentum || 0) - (a.momentum || 0),
+    'Breakout': (a, b) => (b.scores?.breakout || 0) - (a.scores?.breakout || 0),
+    'Rebound': (a, b) => (b.scores?.rebound || 0) - (a.scores?.rebound || 0),
+    'Mean Reversion': (a, b) => (b.scores?.meanReversion || 0) - (a.scores?.meanReversion || 0),
+    'Kelly Optimal': (a, b) => (b.kellyPercent || 0) - (a.kellyPercent || 0),
+    'SHAP Impact': (a, b) => Math.abs(b.shapFeatures?.[0]?.impact || 0) - Math.abs(a.shapFeatures?.[0]?.impact || 0),
+    'Risk-Reward': (a, b) => (b.rMultiple || 0) - (a.rMultiple || 0),
+    'ML Probability': (a, b) => (b.scores?.ml || 0) - (a.scores?.ml || 0),
+    'Sentiment': (a, b) => (b.scores?.sentiment || 0) - (a.scores?.sentiment || 0),
+    'Volume Surge': (a, b) => (b.volSpike || 0) - (a.volSpike || 0),
+    'Sector Rotation': (a, b) => (b.scores?.sectorRotation || 0) - (a.scores?.sectorRotation || 0),
+    'Options Flow': (a, b) => (b.scores?.optionsFlow || 0) - (a.scores?.optionsFlow || 0),
+  }), []);
 
-  // --- Equity curve data for LW Charts ---
-  const equityCurveData = useMemo(() => {
-    const curve =
-      portfolioData?.equityCurve || performanceData?.equityCurve || [];
-    return curve
-      .map((pt) => ({
-        time:
-          typeof pt.time === "string"
-            ? Math.floor(new Date(pt.time).getTime() / 1000)
-            : pt.time,
-        value: pt.equity ?? pt.value ?? pt.close ?? 0,
-      }))
-      .sort((a, b) => a.time - b.time);
-  }, [portfolioData, performanceData]);
+  // --- DATA PROCESSING ---
+  const processedSignals = useMemo(() => {
+    const signalsArray = signalsData?.signals || [];
+    const kellyArray = kellyData?.kellyRanked || kellyData?.kelly || [];
+    if (!signalsArray.length) return [];
 
-  // --- Transform positions ---
-  const positions = useMemo(() => {
-    if (!portfolioData?.positions) return [];
-    return portfolioData.positions.map((pos) => {
-      const ticker = pos.symbol ?? pos.ticker ?? "--";
-      const entry = pos.entryPrice ?? pos.entry ?? 0;
-      const current = pos.currentPrice ?? pos.current ?? 0;
-      const qty = pos.quantity ?? pos.qty ?? 0;
-      const pnlDollars = pos.unrealizedPnL ?? pos.pnl ?? 0;
-      let pnlPct = pos.pnlPct;
-      if (pnlPct == null && entry && qty)
-        pnlPct = (pnlDollars / (entry * qty)) * 100;
-      return {
-        ticker,
-        side: pos.side || "Long",
-        entry,
-        current,
-        qty,
-        pnl: pnlDollars,
-        pnlPct: pnlPct ?? 0,
-      };
+    let merged = signalsArray.map(sig => {
+      const kelly = kellyArray.find(k => k.symbol === sig.symbol);
+      return { ...sig, kellyPercent: kelly?.optimalFraction || sig.kellyPercent || 0 };
     });
-  }, [portfolioData]);
 
-  // --- Transform signals ---
-  const signals = useMemo(() => {
-    if (!signalsData?.signals) return [];
-    return signalsData.signals.slice(0, 6).map((sig) => {
-      const prob = sig.prob_up ?? sig.probUp ?? 0.5;
-      return {
-        ticker: sig.symbol,
-        type: sig.action || sig.type || "Signal",
-        score: Math.round(prob * 100),
-        time: sig.timestamp
-          ? new Date(sig.timestamp).toLocaleTimeString()
-          : "now",
-      };
-    });
-  }, [signalsData]);
+    const sortFn = SORT_MAP[activeSortKey] || SORT_MAP['Composite Score'];
+    return merged.sort(sortFn);
+  }, [signalsData, kellyData, activeSortKey, SORT_MAP]);
 
-  // --- Transform agents ---
-  const agents = useMemo(() => {
-    if (!agentsData?.agents) return [];
-    const iconMap = {
-      "Market Data Agent": Eye,
-      "Signal Generation Agent": Brain,
-      "ML Learning Agent": Cpu,
-      "Sentiment Agent": Bot,
-      "YouTube Knowledge Agent": Bot,
-      "Risk Agent": Shield,
-      "Execution Agent": Briefcase,
-      "OpenClaw Agent": Target,
+  // Auto-select first symbol on load
+  useEffect(() => {
+    if (processedSignals.length > 0 && !selectedSymbol) {
+      setSelectedSymbol(processedSignals[0].symbol);
+    }
+  }, [processedSignals, selectedSymbol]);
+
+  const selectedSignal = useMemo(() =>
+    processedSignals.find(s => s.symbol === selectedSymbol) || processedSignals[0],
+    [processedSignals, selectedSymbol]);
+
+  // --- EXECUTION HANDLER ---
+  const handleExecute = useCallback(async (action) => {
+    try {
+      const res = await fetch(getApiUrl('orders'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          symbol: selectedSymbol,
+          action,
+          size: riskData?.proposal?.proposedSize || 100,
+          limitPrice: riskData?.proposal?.limitPrice,
+          stopLoss: riskData?.proposal?.stopLoss
+        })
+      });
+      if (res.ok) alert(`Execution successful: ${action} ${selectedSymbol}`);
+    } catch (err) {
+      console.error("Execution failed:", err);
+    }
+  }, [selectedSymbol, riskData]);
+
+  // --- ACTION HANDLERS ---
+  const handleRunScan = useCallback(async () => {
+    try { await fetch(getApiUrl('signals'), { method: 'POST' }); } catch (e) { console.error(e); }
+  }, []);
+
+  const handleExecTop5 = useCallback(async () => {
+    const top5 = processedSignals.slice(0, 5);
+    for (const sig of top5) {
+      try {
+        await fetch(getApiUrl('orders'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol: sig.symbol, action: sig.direction === 'LONG' ? 'BUY' : 'SELL', size: 100 })
+        });
+      } catch (e) { console.error(e); }
+    }
+  }, [processedSignals]);
+
+  const handleFlatten = useCallback(async () => {
+    try { await fetch(getApiUrl('orders') + '/flatten-all', { method: 'POST' }); } catch (e) { console.error(e); }
+  }, []);
+
+  const handleEmergencyStop = useCallback(async () => {
+    try { await fetch(getApiUrl('orders') + '/emergency-stop', { method: 'POST' }); } catch (e) { console.error(e); }
+  }, []);
+
+  // --- KEYBOARD SHORTCUTS ---
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === 'F5') { e.preventDefault(); handleRunScan(); }
+      if (e.key === 'F7') { e.preventDefault(); /* export handled via browser */ }
+      if (e.key === 'n' && !e.ctrlKey && !e.metaKey && document.activeElement?.tagName !== 'INPUT') { /* spawn agent */ }
     };
-    return agentsData.agents.map((agent) => ({
-      name: agent.name,
-      status: agent.status === "running" ? "active" : agent.status,
-      tasks: agent.tasks_completed ?? "--",
-      icon: iconMap[agent.name] || Bot,
-      uptime: agent.uptime ?? null,
-    }));
-  }, [agentsData]);
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [handleRunScan]);
 
-  // --- Computed stats ---
-  const portfolioValue =
-    performanceData?.portfolioValue ??
-    portfolioData?.totalValue ??
-    riskData?.equity ??
-    0;
-  const dailyPnL =
-    performanceData?.dailyPnL ??
-    portfolioData?.dailyPnL ??
-    (riskData?.equity != null && riskData?.dailyPnlPct != null
-      ? riskData.equity * (riskData.dailyPnlPct / 100)
-      : null);
-  const totalPnLPct = performanceData?.totalReturnPct ?? 0;
-  const winRate = performanceData?.winRate ?? 0;
-  const sharpe = riskData?.sharpeRatio ?? performanceData?.sharpeRatio ?? 0;
-  const maxDrawdown =
-    riskData?.maxDrawdown ?? performanceData?.maxDrawdown ?? 0;
-  const regimeShort =
-    regime === "GREEN"
-      ? "Bull"
-      : regime === "RED"
-        ? "Bear"
-        : regime === "YELLOW"
-          ? "Caution"
-          : "--";
-  const regimeMarkdown = typeof regimeReadme === "string" ? regimeReadme : "";
+  // Safe data extraction
+  const portfolio = portfolioData?.portfolio || portfolioData || {};
+  const indices = indicesData?.marketIndices || indicesData || {};
+  const openclaw = openclawData?.openclaw || openclawData || {};
+  const performance = performanceData?.performance || performanceData || {};
+  const techs = techsData?.technicals || techsData || {};
+  const swarm = swarmData?.swarmTopology || swarmData || {};
+  const sources = dataSourcesData?.dataSources || dataSourcesData || {};
+  const risk = riskData?.proposal || riskData || {};
+  const quotes = quotesData?.book || quotesData || {};
+  const agents = agentsData?.agents || agentsData || {};
+  const riskScore = riskScoreData?.riskScore || riskScoreData || {};
+  const alerts = alertsData?.alerts || alertsData?.systemAlerts || [];
+  const flywheel = flywheelData?.flywheel || flywheelData || {};
+  const globalSentiment = sentimentData?.sentiment || sentimentData || {};
 
-  // --- Sector data from API ---
-  const sectors = useMemo(() => {
-    if (performanceData?.sectors) return performanceData.sectors;
-    return [];
-  }, [performanceData]);
-
-  // --- Drawdown from equity curve (peak-to-trough) ---
-  const drawdownData = useMemo(() => {
-    if (!equityCurveData?.length) return [];
-    let peak = -Infinity;
-    return equityCurveData.map((p) => {
-      const v = p.value ?? 0;
-      if (v > peak) peak = v;
-      const dd = peak > 0 && v < peak ? v - peak : 0; // negative when in drawdown
-      return { ...p, dd };
-    });
-  }, [equityCurveData]);
-
-  // --- Realized trades for P&L distribution and monthly win rate ---
-  const trades = useMemo(
-    () => performanceTradesData?.trades ?? [],
-    [performanceTradesData],
-  );
-  const pnlDistribution = useMemo(() => {
-    const buckets = [
-      { range: "-50K", min: -Infinity, max: -40000, count: 0 },
-      { range: "-40K", min: -40000, max: -30000, count: 0 },
-      { range: "-30K", min: -30000, max: -20000, count: 0 },
-      { range: "-20K", min: -20000, max: -10000, count: 0 },
-      { range: "-10K", min: -10000, max: -0.01, count: 0 },
-      { range: "0", min: 0, max: 0, count: 0 },
-      { range: "10K", min: 0.01, max: 10000, count: 0 },
-      { range: "20K", min: 10001, max: 20000, count: 0 },
-      { range: "30K", min: 20001, max: 40000, count: 0 },
-      { range: "50K+", min: 40001, max: Infinity, count: 0 },
-    ];
-    trades.forEach((t) => {
-      const pnl = Number(t.pnl);
-      if (Number.isNaN(pnl)) return;
-      const b = buckets.find((x) => pnl >= x.min && pnl <= x.max);
-      if (b) b.count += 1;
-    });
-    return buckets.map(({ range, count }) => ({ range, count }));
-  }, [trades]);
-  const monthlyWinRate = useMemo(() => {
-    const byMonth = {};
-    trades.forEach((t) => {
-      const closed = t.closed_at ?? t.closedAt;
-      if (!closed) return;
-      const date = String(closed).slice(0, 7);
-      if (!byMonth[date]) byMonth[date] = { wins: 0, total: 0 };
-      byMonth[date].total += 1;
-      if (Number(t.pnl) > 0) byMonth[date].wins += 1;
-    });
-    const months = [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "May",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep",
-      "Oct",
-      "Nov",
-      "Dec",
-    ];
-    return months.map((m, i) => {
-      const key = Object.keys(byMonth).find(
-        (k) => new Date(k + "-01").getMonth() === i,
-      );
-      const cell = byMonth[key];
-      const rate = cell && cell.total ? (cell.wins / cell.total) * 100 : null;
-      return { month: m, rate: rate ?? 0 };
-    });
-  }, [trades]);
-
-  // --- Risk radar from risk API ---
-  const riskRadarData = useMemo(() => {
-    if (!riskData) return [];
-    const r = riskData;
-    return [
-      {
-        metric: "Exposure",
-        value: Math.min(
-          100,
-          (r.currentExposure / Math.max(1, r.equity || 1)) * 100,
-        ),
-        fullMark: 100,
-      },
-      {
-        metric: "VaR",
-        value: Math.min(100, (r.var95 / Math.max(1, r.equity || 1)) * 100),
-        fullMark: 100,
-      },
-      {
-        metric: "Daily Loss",
-        value: Math.min(100, Math.abs(r.potentialDailyLoss || 0) * 5),
-        fullMark: 100,
-      },
-      {
-        metric: "Drawdown",
-        value: Math.min(100, Math.abs(r.estimatedMaxDrawdown || 0) * 5),
-        fullMark: 100,
-      },
-      {
-        metric: "Concentration",
-        value: r.concentrationPct ?? 0,
-        fullMark: 100,
-      },
-      { metric: "Limits", value: r.allWithinLimits ? 100 : 40, fullMark: 100 },
-    ];
-  }, [riskData]);
+  // --- LOADING / ERROR STATES ---
+  if (sigLoading && !signalsData?.signals) return <div className="h-screen w-full bg-[#0a0e17] flex items-center justify-center text-[#00d4ff] font-mono text-xs">INITIALIZING EMBODIER NEURAL NET...</div>;
+  if (sigErr) return <div className="h-screen w-full bg-[#0a0e17] text-red-500 p-4 font-mono text-xs">SYSTEM FAULT: {sigErr.message}</div>;
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        icon={LayoutDashboard}
-        title="Intelligence Dashboard"
-        description="Portfolio overview, market regime, agents status, and equity curve"
-      />
+    <div className="flex flex-col h-screen w-full bg-[#0a0e17] text-[#e5e7eb] font-sans text-[9px] leading-tight overflow-hidden selection:bg-[#00d4ff]/30">
 
-      {/* === TOP BAR: Market indices + KPIs (dense single row) === */}
-      <div className="flex items-center gap-2 overflow-x-auto">
-        {indices.length > 0 ? (
-          indices.map((idx) => (
-            <KpiMicroCard
-              key={idx.id}
-              label={idx.id}
-              value={idx.value}
-              sub={
-                idx.change != null
-                  ? `${idx.change >= 0 ? "+" : ""}${idx.change}%`
-                  : undefined
-              }
-              subPosition="topRight"
-              color={
-                idx.change != null
-                  ? idx.change >= 0
-                    ? "green"
-                    : "red"
-                  : "cyan"
-              }
-            />
-          ))
-        ) : (
-          <KpiMicroCard label="Indices" value="Loading…" color="cyan" />
-        )}
-        <KpiMicroCard
-          label="Total Equity"
-          value={
-            portfolioValue
-              ? `$${Number(portfolioValue).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-              : "--"
-          }
-          color="green"
-        />
-        <KpiMicroCard
-          label="Day P&L"
-          value={
-            dailyPnL != null
-              ? `${dailyPnL >= 0 ? "+" : ""}$${Number(dailyPnL).toFixed(0)}`
-              : "--"
-          }
-          color={dailyPnL >= 0 ? "green" : "red"}
-        />
-        <KpiMicroCard
-          label="Win Rate"
-          value={
-            winRate != null
-              ? `${(Number(winRate) <= 1 ? Number(winRate) * 100 : Number(winRate)).toFixed(1)}%`
-              : "—"
-          }
-          color="cyan"
-        />
-        <KpiMicroCard
-          label="Open Risk"
-          value={
-            riskData?.currentExposure != null
-              ? `$${Number(riskData.currentExposure).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-              : positions.length
-                ? "—"
-                : "—"
-          }
-          color="amber"
-        />
-        <KpiMicroCard
-          label="Volatility"
-          value={
-            riskData?.potentialDailyLoss != null
-              ? `${Number(Math.abs(riskData.potentialDailyLoss)).toFixed(1)}%`
-              : riskData?.estimatedMaxDrawdown != null
-                ? `${Number(riskData.estimatedMaxDrawdown).toFixed(1)}%`
-                : "—"
-          }
-          color="purple"
-        />
-        <KpiMicroCard
-          label="Beta"
-          value={
-            sharpe != null && sharpe !== ""
-              ? String(Number(sharpe).toFixed(2))
-              : "—"
-          }
-          color="cyan"
-        />
-        <KpiMicroCard
-          label="Alpha"
-          value={
-            totalPnLPct != null && totalPnLPct !== ""
-              ? `${totalPnLPct >= 0 ? "+" : ""}${Number(totalPnLPct).toFixed(1)}%`
-              : "—"
-          }
-          color="green"
-        />
-        <KpiMicroCard label="Correl" value="—" color="cyan" />
-        <KpiMicroCard
-          label="Liquidity"
-          value={
-            riskData?.buyingPower != null
-              ? `$${Number(riskData.buyingPower) / 1e6 >= 1 ? (Number(riskData.buyingPower) / 1e6).toFixed(1) + "M" : Number(riskData.buyingPower).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-              : "—"
-          }
-          color="green"
-        />
-        <KpiMicroCard
-          label="Margin"
-          value={
-            riskData?.equity != null &&
-            riskData?.buyingPower != null &&
-            riskData.equity > 0
-              ? `${Math.round((1 - Number(riskData.buyingPower) / Number(riskData.equity)) * 100)}%`
-              : riskData?.concentrationPct != null
-                ? `${Number(riskData.concentrationPct).toFixed(0)}%`
-                : "—"
-          }
-          color="amber"
-        />
-      </div>
+      {/* 1. TOP KPI BAR */}
+      <header className="flex items-center justify-between px-4 py-2 border-b border-[#1e3a5f] bg-[#111827] shrink-0">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 pr-4 border-r border-[#1e3a5f]">
+            <HexagonLogo />
+            <h1 className="text-xs font-bold text-white tracking-widest">EMBODIER TRADER</h1>
+          </div>
 
-      {/* === ROW 2: Four performance charts === */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        <Card
-          title="Equity Curve"
-          subtitle={
-            totalPnLPct != null || maxDrawdown != null
-              ? `YTD ${totalPnLPct != null ? (totalPnLPct >= 0 ? "+" : "") + Number(totalPnLPct).toFixed(1) + "%" : "—"} · Max DD ${maxDrawdown != null ? `${Number(maxDrawdown).toFixed(1)}%` : "—"}`
-              : null
-          }
-          className="flex flex-col"
-        >
-          <div className="flex-1 min-h-[220px] h-[220px]">
-            <EquityCurveLW data={equityCurveData} />
+          {/* Regime Badges */}
+          <div className={`px-2 py-0.5 rounded font-bold tracking-wider ${openclaw.regime === 'BEAR' ? 'bg-red-500/20 text-red-400 border border-red-500/50' : 'bg-green-500/20 text-green-400 border border-green-500/50 glow-green'}`}>
+            {openclaw.regime || '\u2014'}
           </div>
-        </Card>
-        <Card
-          title="Drawdown"
-          subtitle={
-            maxDrawdown != null
-              ? `Max ${Number(maxDrawdown).toFixed(1)}%`
-              : "From equity curve"
-          }
-          className="flex flex-col"
-        >
-          <div className="h-[220px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart
-                data={
-                  drawdownData.length
-                    ? drawdownData
-                    : [{ time: 0, value: 0, dd: 0 }]
-                }
-                margin={{ top: 4, right: 4, left: -20, bottom: 0 }}
-              >
-                <defs>
-                  <linearGradient id="ddFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#06b6d4" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="#334155"
-                  vertical={false}
-                />
-                <XAxis dataKey="time" hide />
-                <YAxis
-                  domain={["auto", 0]}
-                  tickFormatter={(v) => `$${v}`}
-                  stroke="#64748b"
-                  fontSize={10}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#0f172a",
-                    border: "1px solid #334155",
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="dd"
-                  stroke="#06b6d4"
-                  fill="url(#ddFill)"
-                  strokeWidth={1}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-        <Card
-          title="Win Rate Over Time"
-          subtitle="Monthly (from realized trades)"
-          className="flex flex-col"
-        >
-          <div className="h-[220px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={monthlyWinRate}
-                margin={{ top: 4, right: 4, left: -20, bottom: 0 }}
-              >
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="#334155"
-                  vertical={false}
-                />
-                <XAxis dataKey="month" stroke="#64748b" fontSize={10} />
-                <YAxis
-                  domain={[0, 100]}
-                  stroke="#64748b"
-                  fontSize={10}
-                  tickFormatter={(v) => `${v}%`}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#0f172a",
-                    border: "1px solid #334155",
-                  }}
-                />
-                <Bar dataKey="rate" fill="#06b6d4" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-        <Card
-          title="Sector Performance"
-          subtitle={sectors.length ? "From performance data" : "No sector data"}
-          className="flex flex-col"
-        >
-          <div className="h-[220px]">
-            {sectors.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={sectors.map((s) => ({
-                    name: s.name ?? s.sector ?? "—",
-                    pct: Number(s.change ?? s.value ?? 0),
-                  }))}
-                  margin={{ top: 4, right: 4, left: -20, bottom: 0 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="#334155"
-                    vertical={false}
-                  />
-                  <XAxis dataKey="name" stroke="#64748b" fontSize={10} />
-                  <YAxis
-                    stroke="#64748b"
-                    fontSize={10}
-                    tickFormatter={(v) => `${v}%`}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#0f172a",
-                      border: "1px solid #334155",
-                    }}
-                  />
-                  <Bar dataKey="pct" fill="#06b6d4" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-sm text-slate-500">
-                No sector data available
-              </div>
-            )}
-          </div>
-        </Card>
-      </div>
-
-      {/* === ROW 3: P&L Distribution (full width) === */}
-      <Card title="P&L Distribution" subtitle="Realized P&L from trade history">
-        <div className="h-[240px]">
-          {pnlDistribution.some((d) => d.count > 0) ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={pnlDistribution}
-                margin={{ top: 8, right: 8, left: 8, bottom: 8 }}
-              >
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="#334155"
-                  vertical={false}
-                />
-                <XAxis dataKey="range" stroke="#64748b" fontSize={10} />
-                <YAxis stroke="#64748b" fontSize={10} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#0f172a",
-                    border: "1px solid #334155",
-                  }}
-                />
-                <Bar dataKey="count" fill="#06b6d4" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-full flex items-center justify-center text-sm text-slate-500">
-              No realized P&L data. Trades will appear here once recorded.
+          <div className="flex items-center gap-1">
+            <span className="text-gray-400">SCORE</span>
+            <div className="w-6 h-6 rounded-full border-2 border-green-400 flex items-center justify-center text-[10px] font-mono text-green-400 glow-green">
+              {openclaw.compositeScore || '\u2014'}
             </div>
-          )}
+          </div>
+          {/* Risk Score Badge */}
+          <div className={`px-2 py-0.5 rounded font-bold ${(riskScore.score || 0) > 70 ? 'bg-red-500/20 text-red-400 border border-red-500/50' : (riskScore.score || 0) > 40 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/50' : 'bg-green-500/20 text-green-400 border border-green-500/50'}`}>
+            RISK {riskScore.score || '\u2014'}
+          </div>
+          {/* Sentiment Badge */}
+          <div className={`px-2 py-0.5 rounded font-bold ${(globalSentiment.score || 0) >= 60 ? 'bg-green-500/20 text-green-400' : (globalSentiment.score || 0) >= 40 ? 'bg-amber-500/20 text-amber-400' : 'bg-red-500/20 text-red-400'}`}>
+            SENT {globalSentiment.score || '\u2014'}
+          </div>
         </div>
-      </Card>
+        {/* KPIs */}
+        <div className="flex items-center gap-4 font-mono text-[10px]">
+          <div className="flex gap-3 text-gray-300">
+            <span>SPX <span className="text-green-400">+{indices.SPX?.change || '\u2014'}%</span></span>
+            <span>NDAQ <span className="text-red-400">{indices.NDAQ?.change || '\u2014'}%</span></span>
+            <span>BTC <span className="text-green-400">+{indices.BTC?.change || '\u2014'}%</span></span>
+          </div>
+          <div className="w-px h-4 bg-[#1e3a5f]"></div>
+          <div className="flex gap-4">
+            <span>Equity <span className="text-white">${portfolio.totalEquity?.toLocaleString() || '\u2014'}</span></span>
+            <span>P&L <span className="text-green-400">+${portfolio.dayPnL?.toLocaleString() || '\u2014'}</span></span>
+            <span>Deployed <span className="text-cyan-400">{portfolio.deployedPercent || '\u2014'}%</span></span>
+            <span>Sharpe <span className="text-cyan-400">{performance.sharpe || '\u2014'}</span></span>
+            <span>Alpha <span className="text-green-400">+{performance.alpha || '\u2014'}%</span></span>
+            <span>Win <span className="text-green-400">{performance.winRate || '\u2014'}%</span></span>
+            <span>MaxDD <span className="text-red-400">{performance.maxDrawdown || '\u2014'}%</span></span>
+          </div>
+        </div>
+      </header>
 
-      {/* === ROW 4: OpenClaw Candidates | Portfolio Allocation | Risk Radar === */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        <Card
-          title="OpenClaw Candidates"
-          className="lg:col-span-2"
-          noPadding
-          action={
-            <div className="flex items-center gap-3 shrink-0">
-              <span className="text-xs text-secondary">
-                {totalPnLPct != null
-                  ? `${candidates.length} shown · YTD ${totalPnLPct >= 0 ? "+" : ""}${Number(totalPnLPct).toFixed(1)}%`
-                  : `${candidates.length} shown`}
-              </span>
-              <Link
-                to="/agents"
-                className="text-xs font-medium text-primary hover:text-primary/80 flex items-center gap-1"
-              >
-                View all <ArrowUpRight className="w-3 h-3" />
-              </Link>
-            </div>
-          }
-        >
-          {openclawLoading ? (
-            <p className="text-sm text-secondary text-center py-4">
-              Loading...
-            </p>
-          ) : candidates.length === 0 ? (
-            <p className="text-sm text-secondary py-4">
-              No candidates. Check OpenClaw bridge.
-            </p>
-          ) : (
-            <DataTable
-              columns={[
-                {
-                  key: "symbol",
-                  label: "Symbol",
-                  render: (v, row) => {
-                    const sym = v ?? row?.ticker;
-                    return sym ? <SymbolIcon symbol={sym} size="sm" /> : "—";
-                  },
-                  cellClassName: "font-medium",
-                },
-                {
-                  key: "composite_score",
-                  label: "Score",
-                  render: (v) => (v != null ? Number(v).toFixed(1) : "—"),
-                },
-                {
-                  key: "tier",
-                  label: "Tier",
-                  render: (v) => v ?? "—",
-                  cellClassName: "text-xs",
-                },
-                {
-                  key: "source",
-                  label: "Source",
-                  render: (v) => {
-                    if (v == null || v === "") return "—";
-                    const slug =
-                      DATA_SOURCE_ICON_SLUGS[String(v).toLowerCase()];
-                    if (slug) {
-                      return (
-                        <span
-                          className="inline-flex items-center gap-1.5"
-                          title={v}
-                        >
-                          <img
-                            src={`/data-sources/${slug}.png`}
-                            alt={v}
-                            className="w-5 h-5 object-contain"
-                          />
-                          <span className="text-secondary capitalize">
-                            {v.replace(/_/g, " ")}
-                          </span>
-                        </span>
-                      );
-                    }
-                    return (
-                      <span className="capitalize">{v.replace(/_/g, " ")}</span>
-                    );
-                  },
-                },
-                {
-                  key: "price",
-                  label: "Price",
-                  render: (v) => (v != null ? `$${Number(v).toFixed(2)}` : "—"),
-                },
-                {
-                  key: "regime_score",
-                  label: "Regime",
-                  render: (v) => (v != null ? String(v) : "—"),
-                },
-                {
-                  key: "trend_score",
-                  label: "Trend",
-                  render: (v) => (v != null ? Number(v).toFixed(1) : "—"),
-                },
-                {
-                  key: "momentum_score",
-                  label: "Mom",
-                  render: (v) => (v != null ? String(v) : "—"),
-                },
-                {
-                  key: "whale_sentiment",
-                  label: "Sentiment",
-                  render: (v) => v ?? "—",
-                  cellClassName: "capitalize",
-                },
-              ]}
-              data={candidates.slice(0, 6)}
-              emptyMessage="No candidates"
-              rowKey={(row, i) => row.symbol || row.ticker || String(i)}
-              className="rounded-none border-none"
-            />
-          )}
-        </Card>
-        <Card
-          title="Portfolio Allocation"
-          subtitle="By position"
-          className="lg:col-span-1"
-        >
-          <div className="h-[260px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={
-                    positions.length
-                      ? positions.map((p, i) => ({
-                          name: p.ticker,
-                          value: (p.current || p.entry) * (p.qty || 0),
-                        }))
-                      : [{ name: "Cash", value: 100 }]
-                  }
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={90}
-                  paddingAngle={2}
-                  dataKey="value"
-                  label={({ name, percent }) =>
-                    `${name} ${(percent * 100).toFixed(0)}%`
-                  }
+      {/* MAIN CONTENT AREA */}
+      <main className="flex flex-1 overflow-hidden">
+
+        {/* CENTER COLUMN: SIGNAL TABLE (60%) */}
+        <section className="flex flex-col w-[60%] border-r border-[#1e3a5f] bg-[#0a0e17]">
+
+          {/* Filters & Sort Bar */}
+          <div className="flex flex-col border-b border-[#1e3a5f] bg-[#111827] p-2 gap-2 shrink-0">
+            {/* Row 1: Pills */}
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+              {SORT_PILLS.map(pill => (
+                <button
+                  key={pill}
+                  onClick={() => setActiveSortKey(pill)}
+                  className={`whitespace-nowrap px-2 py-1 rounded-sm border ${activeSortKey === pill ? 'bg-[#00d4ff]/20 text-[#00d4ff] border-[#00d4ff]/50' : 'bg-transparent text-gray-400 border-gray-700 hover:border-gray-500'} transition-colors`}
                 >
-                  {positions.length ? (
-                    positions.map((p, i) => (
-                      <Cell
-                        key={p.ticker}
-                        fill={
-                          [
-                            "#06b6d4",
-                            "#10b981",
-                            "#8b5cf6",
-                            "#f59e0b",
-                            "#ef4444",
-                          ][i % 5]
-                        }
-                      />
-                    ))
-                  ) : (
-                    <Cell fill="#334155" />
-                  )}
-                </Pie>
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#0f172a",
-                    border: "1px solid #334155",
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-        <Card
-          title="Risk Metrics"
-          subtitle="From risk API"
-          className="lg:col-span-1"
-        >
-          <div className="h-[260px]">
-            {riskRadarData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <RadarChart data={riskRadarData}>
-                  <PolarGrid stroke="#334155" />
-                  <PolarAngleAxis
-                    dataKey="metric"
-                    tick={{ fill: "#94a3b8", fontSize: 10 }}
-                  />
-                  <PolarRadiusAxis
-                    angle={30}
-                    domain={[0, 100]}
-                    tick={{ fill: "#64748b", fontSize: 9 }}
-                  />
-                  <Radar
-                    name="Level"
-                    dataKey="value"
-                    stroke="#06b6d4"
-                    fill="#06b6d4"
-                    fillOpacity={0.3}
-                    strokeWidth={2}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#0f172a",
-                      border: "1px solid #334155",
-                    }}
-                  />
-                </RadarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-sm text-slate-500">
-                No risk data. Connect Alpaca for live metrics.
+                  {pill}
+                </button>
+              ))}
+            </div>
+            {/* Row 2: Timeframes & Controls */}
+            <div className="flex items-center justify-between text-gray-400 font-mono">
+              <div className="flex items-center gap-1">
+                <span>TF:</span>
+                {TIMEFRAMES.map(tf => (
+                  <button key={tf} onClick={() => setActiveTimeframe(tf)} className={`px-1.5 py-0.5 rounded-sm ${activeTimeframe === tf ? 'bg-[#1e3a5f] text-white' : 'hover:bg-[#1e3a5f]/50'}`}>{tf}</button>
+                ))}
               </div>
-            )}
-          </div>
-        </Card>
-      </div>
-
-      {/* === ROW 5: Correlation Matrix | Agent Leaderboard | Signal Accuracy === */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card
-          title="Correlation Matrix"
-          subtitle="No data source configured"
-          className="lg:col-span-1"
-        >
-          <div className="overflow-x-auto">
-            <div className="p-2 text-sm text-slate-500">
-              No correlation data available. Add a risk/portfolio correlation
-              endpoint to display.
+              <div className="flex items-center gap-3">
+                <button onClick={() => setAutoExec(!autoExec)} className="flex items-center gap-1 cursor-pointer hover:text-white transition-colors">
+                  <div className={`w-1.5 h-1.5 rounded-full ${autoExec ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+                  Auto-Exec: {autoExec ? 'ON' : 'OFF'}
+                </button>
+                <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div> LIVE</span>
+                <span>Flywheel: {flywheel.accuracy || '\u2014'}%</span>
+              </div>
             </div>
           </div>
-        </Card>
-        <Card
-          title="Agent Performance Leaderboard"
-          subtitle="Status from API"
-          className="lg:col-span-1"
-          action={
-            <Link
-              to="/agents"
-              className="text-xs font-medium text-primary hover:text-primary/80 flex items-center gap-1"
-            >
-              Command Center <ArrowUpRight className="w-3 h-3" />
-            </Link>
-          }
-        >
-          {agents.length === 0 ? (
-            <p className="text-sm text-secondary py-4">No agent data.</p>
-          ) : (
-            <ul className="space-y-1.5">
-              {agents.slice(0, 5).map((a, i) => {
-                const Icon = a.icon || Bot;
-                return (
-                  <li
-                    key={a.name || i}
-                    className="flex items-center justify-between py-2 px-2 rounded-lg bg-slate-800/40"
-                  >
-                    <div className="flex items-center gap-2">
-                      {Icon && <Icon className="w-3.5 h-3.5 text-cyan-400" />}
-                      <span className="text-xs font-medium text-white truncate">
-                        {a.name}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[10px] text-slate-500">
-                        #{i + 1}
-                      </span>
-                      <Badge
-                        variant={
-                          a.status === "active"
-                            ? "success"
-                            : a.status === "error"
-                              ? "danger"
-                              : "secondary"
-                        }
-                        size="sm"
-                      >
-                        {a.status}
-                      </Badge>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </Card>
-        <Card
-          title="Signal Accuracy Timeline"
-          subtitle="From ML/flywheel when available"
-          className="lg:col-span-1"
-        >
-          <div className="h-[180px] flex items-center justify-center text-sm text-slate-500">
-            No signal accuracy timeline data. Use ML Brain / flywheel APIs to
-            record daily accuracy.
-          </div>
-        </Card>
-      </div>
 
-      {/* === ROW 6: Equity + Regime (original content, condensed) === */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card
-          title="Equity Curve (Detail)"
-          subtitle="Portfolio performance"
-          className="lg:col-span-2"
-        >
-          <EquityCurveLW data={equityCurveData} />
-        </Card>
-        <Card
-          title="Market Regime"
-          subtitle={
-            lastScanTs
-              ? `Last scan: ${new Date(lastScanTs).toLocaleString()}`
-              : null
-          }
-        >
-          <div className="flex flex-wrap items-center gap-4 mb-4">
-            <Badge
-              variant={
-                regime === "GREEN"
-                  ? "success"
-                  : regime === "RED"
-                    ? "danger"
-                    : "warning"
-              }
-              size="lg"
-            >
-              {regime ?? "--"}
-            </Badge>
-            {openclawHealth && (
-              <span className="text-xs text-secondary">
-                Bridge:{" "}
-                {openclawHealth.connected ? "Connected" : "Disconnected"}
-                {openclawHealth.candidate_count != null &&
-                  ` | ${openclawHealth.candidate_count} candidates`}
+          {/* Table Container */}
+          <div className="flex-1 overflow-auto bg-[#0a0e17]">
+            <table className="w-full text-left font-mono whitespace-nowrap">
+              <thead className="sticky top-0 bg-[#111827] text-gray-400 border-b border-[#1e3a5f] shadow-md z-10">
+                <tr>
+                  <th className="p-1.5 font-normal">Sym</th>
+                  <th className="p-1.5 font-normal">Dir</th>
+                  <th className="p-1.5 font-normal">Score</th>
+                  <th className="p-1.5 font-normal">Regime</th>
+                  <th className="p-1.5 font-normal">ML</th>
+                  <th className="p-1.5 font-normal">Sent</th>
+                  <th className="p-1.5 font-normal">Tech</th>
+                  <th className="p-1.5 font-normal">Agent</th>
+                  <th className="p-1.5 font-normal">Swarm</th>
+                  <th className="p-1.5 font-normal">SHAP</th>
+                  <th className="p-1.5 font-normal">Kelly</th>
+                  <th className="p-1.5 font-normal">Entry</th>
+                  <th className="p-1.5 font-normal">Tgt</th>
+                  <th className="p-1.5 font-normal">Stop</th>
+                  <th className="p-1.5 font-normal">R-Mult</th>
+                  <th className="p-1.5 font-normal">P&L</th>
+                  <th className="p-1.5 font-normal">Sec</th>
+                  <th className="p-1.5 font-normal">Mom</th>
+                  <th className="p-1.5 font-normal">Vol</th>
+                  <th className="p-1.5 font-normal">News</th>
+                  <th className="p-1.5 font-normal">Pat</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#1e3a5f]/50">
+                {processedSignals.map((sig, idx) => {
+                  const isSelected = selectedSymbol === sig.symbol;
+                  const isLong = sig.direction === 'LONG';
+                  const dirColor = isLong ? 'text-green-400' : 'text-red-400';
+
+                  return (
+                    <tr
+                      key={sig.symbol + idx}
+                      onClick={() => setSelectedSymbol(sig.symbol)}
+                      className={`cursor-pointer hover:bg-[#1e3a5f]/30 transition-colors ${isSelected ? 'bg-[#00d4ff]/10 border-l-2 border-[#00d4ff]' : 'border-l-2 border-transparent'}`}
+                    >
+                      <td className="p-1.5 text-white font-bold">{sig.symbol}</td>
+                      <td className={`p-1.5 ${dirColor}`}>{isLong ? 'L' : 'S'}</td>
+                      <td className="p-1.5">
+                        <div className="flex items-center gap-1">
+                          <span className={sig.score >= 90 ? 'text-green-400' : 'text-cyan-400'}>{sig.score}</span>
+                          <div className="w-12 h-1.5 bg-[#1e3a5f] rounded-full overflow-hidden">
+                            <div className="h-full bg-cyan-400" style={{ width: `${sig.score}%` }}></div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-1.5 text-gray-300">{sig.scores?.regime || '\u2014'}</td>
+                      <td className="p-1.5 text-gray-300">{sig.scores?.ml || '\u2014'}</td>
+                      <td className="p-1.5 text-gray-300">{sig.scores?.sentiment || '\u2014'}</td>
+                      <td className="p-1.5 text-gray-300">{sig.scores?.technical || '\u2014'}</td>
+                      <td className="p-1.5 text-cyan-400 truncate max-w-[80px]">{sig.leadAgent || '\u2014'}</td>
+                      <td className="p-1.5 text-gray-300">{sig.swarmVote || '\u2014'}</td>
+                      <td className="p-1.5 text-gray-400 truncate max-w-[60px]">{sig.topShap || '\u2014'}</td>
+                      <td className="p-1.5 text-cyan-400">{sig.kellyPercent}%</td>
+                      <td className="p-1.5 text-gray-300">${sig.entry?.toFixed(2)}</td>
+                      <td className="p-1.5 text-green-400">${sig.target?.toFixed(2)}</td>
+                      <td className="p-1.5 text-red-400">${sig.stop?.toFixed(2)}</td>
+                      <td className="p-1.5 text-white">{sig.rMultiple?.toFixed(1)}:1</td>
+                      <td className="p-1.5 text-green-400">+${sig.expPnL?.toLocaleString()}</td>
+                      <td className="p-1.5 text-gray-400">{sig.sector?.substring(0,3) || '\u2014'}</td>
+                      <td className="p-1.5 text-green-400">+{sig.momentum || '\u2014'}</td>
+                      <td className="p-1.5 text-cyan-400">{sig.volSpike || '\u2014'}x</td>
+                      <td className="p-1.5 text-gray-400 truncate max-w-[50px]">{sig.newsImpact || '\u2014'}</td>
+                      <td className="p-1.5 text-cyan-500 truncate max-w-[60px]">{sig.pattern || '\u2014'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Alerts Bar */}
+          {Array.isArray(alerts) && alerts.length > 0 && (
+            <div className="bg-amber-900/30 border-t border-amber-500/50 px-3 py-1 shrink-0 overflow-x-auto no-scrollbar">
+              <div className="flex items-center gap-4 text-[8px] font-mono text-amber-400">
+                <span className="font-bold">ALERTS:</span>
+                {alerts.slice(0, 5).map((a, i) => (
+                  <span key={i} className="whitespace-nowrap">{a.message || a.msg || a}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* RIGHT COLUMN: DETAIL DEEP DIVE (40%) */}
+        <section className="flex flex-col w-[40%] bg-[#111827] overflow-y-auto custom-scrollbar p-3 space-y-3">
+
+          {/* Header */}
+          <div className="flex justify-between items-center pb-2 border-b border-[#1e3a5f]">
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              {selectedSignal?.symbol}
+              <span className={selectedSignal?.direction === 'LONG' ? 'text-green-400' : 'text-red-400'}>
+                {selectedSignal?.direction || 'LONG'}
               </span>
-            )}
-          </div>
-          {regimeMarkdown && (
-            <div className="prose prose-invert prose-sm max-w-none text-secondary max-h-[200px] overflow-y-auto">
-              <ReactMarkdown>{regimeMarkdown}</ReactMarkdown>
+            </h2>
+            <div className="flex flex-col items-end">
+              <span className="text-[8px] text-gray-400 uppercase">Composite Score</span>
+              <span className="text-2xl font-mono font-bold text-[#00d4ff] glow-cyan">{selectedSignal?.score || '\u2014'}</span>
             </div>
-          )}
-          {!regimeMarkdown && !openclawLoading && (
-            <p className="text-sm text-secondary">
-              No regime readme available.
-            </p>
-          )}
-        </Card>
-      </div>
-
-      {/* === ROW 7: Active Positions + Quick Links === */}
-      <div className="grid grid-cols-1 gap-4">
-        <Card
-          title="Active Positions"
-          subtitle={`${positions.length} open`}
-          action={
-            <Link
-              to="/trades"
-              className="text-xs font-medium text-primary hover:text-primary/80 flex items-center gap-1"
-            >
-              Trade Execution <ArrowUpRight className="w-3 h-3" />
-            </Link>
-          }
-          noPadding
-        >
-          <DataTable
-            columns={[
-              {
-                key: "ticker",
-                label: "Symbol",
-                render: (v) =>
-                  v != null && v !== "" ? (
-                    <SymbolIcon symbol={v} size="sm" />
-                  ) : (
-                    "—"
-                  ),
-              },
-              { key: "side", label: "Side" },
-              {
-                key: "qty",
-                label: "Qty",
-                render: (v) => (v != null ? Number(v).toLocaleString() : "--"),
-              },
-              {
-                key: "entry",
-                label: "Entry",
-                render: (v) => (v != null ? `$${Number(v).toFixed(2)}` : "--"),
-              },
-              {
-                key: "current",
-                label: "Current",
-                render: (v) => (v != null ? `$${Number(v).toFixed(2)}` : "--"),
-              },
-              {
-                key: "pnl",
-                label: "P&L",
-                render: (v) => {
-                  const val = Number(v);
-                  return (
-                    <span className={val >= 0 ? "text-success" : "text-danger"}>
-                      {val >= 0 ? "+" : ""}${val.toFixed(2)}
-                    </span>
-                  );
-                },
-              },
-              {
-                key: "pnlPct",
-                label: "%",
-                render: (v) => {
-                  const val = Number(v);
-                  return (
-                    <span className={val >= 0 ? "text-success" : "text-danger"}>
-                      {val >= 0 ? "+" : ""}
-                      {val.toFixed(2)}%
-                    </span>
-                  );
-                },
-              },
-            ]}
-            data={positions}
-            emptyMessage="No positions"
-            rowKey={(row) => row.ticker}
-            className="rounded-none border-none"
-          />
-        </Card>
-      </div>
-
-      {sectors.length > 0 && (
-        <Card title="Sector Heatmap" subtitle="Performance by sector">
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-            {sectors.map((s, i) => (
-              <SectorCell
-                key={s.name || i}
-                name={s.name}
-                value={s.change ?? s.value ?? 0}
-                momentum={
-                  s.momentum ||
-                  (s.change > 0 ? "up" : s.change < 0 ? "down" : "flat")
-                }
-              />
-            ))}
           </div>
-        </Card>
-      )}
+
+          {/* 1. COMPOSITE BREAKDOWN */}
+          <div className="space-y-1.5">
+            <h3 className="text-[9px] text-[#00d4ff] font-bold uppercase tracking-wider">Composite Breakdown</h3>
+            <div className="bg-[#0a0e17] border border-[#1e3a5f] rounded p-2 space-y-1 font-mono text-[8px]">
+              {[
+                { label: 'Overall Score', val: `${selectedSignal?.score || 0}/100`, pct: selectedSignal?.score || 0 },
+                { label: 'Technical Rank', val: `${selectedSignal?.scores?.technical || '\u2014'}`, pct: selectedSignal?.scores?.technical || 0 },
+                { label: 'ML Probability', val: `${selectedSignal?.scores?.ml || '\u2014'}%`, pct: selectedSignal?.scores?.ml || 0 },
+                { label: 'Sentiment Pulse', val: `${selectedSignal?.scores?.sentiment || '\u2014'}`, pct: selectedSignal?.scores?.sentiment || 0 },
+                { label: 'Swarm Consensus', val: `${swarm.consensus || '\u2014'}%`, pct: swarm.consensus || 0 },
+              ].map(item => (
+                <div key={item.label} className="flex items-center justify-between">
+                  <span className="text-gray-400 w-24">{item.label}</span>
+                  <div className="flex-1 mx-2 h-1 bg-[#1e3a5f] rounded-full">
+                    <div className="h-full bg-[#00d4ff] rounded-full" style={{ width: `${item.pct}%` }}></div>
+                  </div>
+                  <span className="text-white w-10 text-right">{item.val}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 2. TECHNICAL ANALYSIS */}
+          <div className="space-y-1.5">
+            <h3 className="text-[9px] text-[#00d4ff] font-bold uppercase tracking-wider">Technical Analysis</h3>
+            <div className="grid grid-cols-2 gap-1.5 bg-[#0a0e17] border border-[#1e3a5f] rounded p-2 font-mono text-[8px]">
+              <div><span className="text-gray-400">RSI:</span> <span className="text-green-400">{techs.rsi || '\u2014'}</span></div>
+              <div><span className="text-gray-400">MACD:</span> <span className="text-green-400">{techs.macd || '\u2014'}</span></div>
+              <div><span className="text-gray-400">BB:</span> <span className="text-white">{techs.bb || '\u2014'}</span></div>
+              <div><span className="text-gray-400">VWAP:</span> <span className="text-cyan-400">{techs.vwap || '\u2014'}</span></div>
+              <div><span className="text-gray-400">20 EMA:</span> <span className="text-white">{techs.ema20 || '\u2014'}</span></div>
+              <div><span className="text-gray-400">50 SMA:</span> <span className="text-green-400">{techs.sma50 || '\u2014'}</span></div>
+              <div><span className="text-gray-400">ADX:</span> <span className="text-white">{techs.adx || '\u2014'}</span></div>
+              <div><span className="text-gray-400">Stoch:</span> <span className="text-green-400">{techs.stoch || '\u2014'}</span></div>
+            </div>
+          </div>
+
+          {/* 3. ML ENGINE & SHAP */}
+          <div className="space-y-1.5">
+            <h3 className="text-[9px] text-[#00d4ff] font-bold uppercase tracking-wider">ML Engine & SHAP Drivers</h3>
+            <div className="bg-[#0a0e17] border border-[#1e3a5f] rounded p-2 font-mono text-[8px]">
+              <div className="flex justify-between mb-2 pb-2 border-b border-[#1e3a5f]/50">
+                <span className="text-gray-400">Probability LONG: <span className="text-green-400 font-bold">{selectedSignal?.scores?.ml || '\u2014'}%</span></span>
+                <span className="text-gray-400">Drift Score: <span className="text-green-400">{techs.driftScore || '\u2014'}</span></span>
+              </div>
+              <div className="space-y-1">
+                <div className="flex justify-between text-gray-400 mb-1"><span>Feature</span><span>Impact</span></div>
+                {(techs.shapFeatures || selectedSignal?.shapFeatures || []).slice(0, 5).map(s => (
+                  <div key={s.feature} className="flex items-center justify-between">
+                    <span className="text-white truncate w-24">{s.feature}</span>
+                    <div className="flex-1 flex items-center mx-2">
+                      {s.impact < 0 ? (
+                        <div className="w-1/2 flex justify-end"><div className="h-1.5 bg-red-500" style={{ width: `${Math.abs(s.impact) * 500}%` }}></div></div>
+                      ) : (
+                        <div className="w-1/2"></div>
+                      )}
+                      {s.impact > 0 && (
+                        <div className="w-1/2"><div className="h-1.5 bg-green-500" style={{ width: `${Math.abs(s.impact) * 500}%` }}></div></div>
+                      )}
+                    </div>
+                    <span className={s.impact > 0 ? 'text-green-400 w-8 text-right' : 'text-red-400 w-8 text-right'}>
+                      {s.impact > 0 ? `+${s.impact.toFixed(2)}` : s.impact.toFixed(2)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* 4. AGENT SWARM */}
+          <div className="space-y-1.5">
+            <h3 className="text-[9px] text-[#00d4ff] font-bold uppercase tracking-wider">Swarm Consensus ({swarm.total || '\u2014'} Agents)</h3>
+            <div className="flex gap-2 bg-[#0a0e17] border border-[#1e3a5f] rounded p-2 font-mono text-[8px]">
+              <div className="w-1/3 flex flex-col items-center justify-center border-r border-[#1e3a5f]">
+                <div className="text-xl font-bold text-green-400">{swarm.consensus || '\u2014'}%</div>
+                <div className="text-gray-400">{swarm.signal || '\u2014'}</div>
+                <div className="text-[7px] text-gray-500 mt-1">{swarm.buyCount || 0} Buy / {swarm.sellCount || 0} Sell / {swarm.holdCount || 0} Hold</div>
+              </div>
+              <div className="w-2/3 grid grid-cols-2 gap-x-2 gap-y-1">
+                {(swarm.agents || []).slice(0, 6).map((agent, i) => (
+                  <span key={i} className="text-gray-400">{agent.name}: <span className={agent.vote === 'BUY' ? 'text-green-400' : agent.vote === 'SELL' ? 'text-red-400' : 'text-gray-500'}>{agent.vote} {agent.confidence}%</span></span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* 5. DATA SOURCES */}
+          <div className="space-y-1.5">
+            <h3 className="text-[9px] text-[#00d4ff] font-bold uppercase tracking-wider">Real-Time Data Feeds</h3>
+            <div className="bg-[#0a0e17] border border-[#1e3a5f] rounded p-2 space-y-1 font-mono text-[8px]">
+              <div className="flex justify-between"><span className="text-gray-400">Market Data:</span> <span className="text-white">Price ${sources.price || '\u2014'} | Vol {sources.vol || '\u2014'}</span></div>
+              <div className="flex justify-between"><span className="text-gray-400">NewsAPI:</span> <span className="text-green-400">{sources.news?.summary || '\u2014'}</span></div>
+              <div className="flex justify-between"><span className="text-gray-400">Social (Reddit/X):</span> <span className="text-green-400">{sources.social?.reddit || '\u2014'}% / {sources.social?.twitter || '\u2014'}%</span></div>
+              <div className="flex justify-between"><span className="text-gray-400">Options Flow:</span> <span className="text-cyan-400">P/C {sources.options?.putCallRatio || '\u2014'} ({sources.options?.bias || '\u2014'})</span></div>
+              <div className="flex justify-between"><span className="text-gray-400">Dark Pool:</span> <span className="text-white">{sources.darkPool?.buySidePct || '\u2014'}% Buy Side Executions</span></div>
+            </div>
+          </div>
+
+          {/* 6. RISK & ORDER PROPOSAL */}
+          <div className="space-y-1.5">
+            <h3 className="text-[9px] text-[#00d4ff] font-bold uppercase tracking-wider">Risk & Order Proposal</h3>
+            <div className="bg-[#0a0e17] border border-[#1e3a5f] rounded p-2 font-mono text-[8px]">
+              <div className="text-[#00d4ff] mb-1 font-bold">PROPOSED ENTRY</div>
+              <div className="grid grid-cols-2 gap-1 mb-2 pb-2 border-b border-[#1e3a5f]/50">
+                <span className="text-gray-400">Action: <span className="text-white">Limit Buy {risk.limitPrice || '\u2014'}</span></span>
+                <span className="text-gray-400">Size: <span className="text-white">{risk.shares || '\u2014'} shs (${risk.notional || '\u2014'})</span></span>
+                <span className="text-gray-400">Stop Loss: <span className="text-red-400">{risk.stopLoss || '\u2014'}</span></span>
+                <span className="text-gray-400">Target 1: <span className="text-green-400">{risk.target1 || '\u2014'}</span></span>
+                <span className="text-gray-400">R:R Ratio: <span className="text-cyan-400">{risk.rr || '\u2014'}</span></span>
+                <span className="text-gray-400">Sizing: <span className="text-white">Kelly {selectedSignal?.kellyPercent}%</span></span>
+              </div>
+
+              {/* L2 Order Book */}
+              <div className="text-gray-400 mb-1">LIVE L2 ORDER BOOK (Spread: ${quotes.spread?.toFixed(2) || '\u2014'})</div>
+              <div className="flex flex-col gap-[1px]">
+                {quotes.asks?.slice(0,3).reverse().map((ask, i) => (
+                  <div key={'ask'+i} className="flex items-center text-[7px]">
+                    <span className="w-10 text-red-400">{ask.price}</span>
+                    <span className="w-8 text-right mr-1">{ask.size}</span>
+                    <div className="h-1.5 bg-red-500/30" style={{ width: `${(ask.size/1500)*100}%` }}></div>
+                  </div>
+                )) || <div className="text-gray-500 text-center py-1">Awaiting L2 data...</div>}
+                <div className="h-px bg-[#1e3a5f] my-0.5"></div>
+                {quotes.bids?.slice(0,3).map((bid, i) => (
+                  <div key={'bid'+i} className="flex items-center text-[7px]">
+                    <span className="w-10 text-green-400">{bid.price}</span>
+                    <span className="w-8 text-right mr-1">{bid.size}</span>
+                    <div className="h-1.5 bg-green-500/30" style={{ width: `${(bid.size/1500)*100}%` }}></div>
+                  </div>
+                )) || <div className="text-gray-500 text-center py-1">Awaiting L2 data...</div>}
+              </div>
+            </div>
+          </div>
+
+          {/* 7. EXECUTION CONTROLS */}
+          <div className="pt-2">
+            <div className="grid grid-cols-2 gap-1.5 mb-1.5">
+              <button onClick={() => handleExecute('BUY')} className="bg-green-600 hover:bg-green-500 text-white font-bold py-1.5 rounded shadow-[0_0_8px_rgba(16,185,129,0.4)]">EXECUTE LONG</button>
+              <button onClick={() => handleExecute('SELL')} className="bg-red-600 hover:bg-red-500 text-white font-bold py-1.5 rounded shadow-[0_0_8px_rgba(239,68,68,0.4)]">EXECUTE SHORT</button>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5 mb-1.5">
+              <button className="bg-[#1e3a5f] hover:bg-cyan-900 text-cyan-400 py-1 rounded">Limit Order</button>
+              <button className="bg-[#1e3a5f] hover:bg-cyan-900 text-cyan-400 py-1 rounded">Stop Limit</button>
+              <button className="bg-[#1e3a5f] hover:bg-amber-900 text-amber-400 py-1 rounded">Modify Setup</button>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              <button className="bg-blue-900/50 hover:bg-blue-800 text-blue-300 py-1 rounded border border-blue-800">Paper Trade</button>
+              <button className="bg-gray-800 hover:bg-gray-700 text-gray-300 py-1 rounded">Cancel / Reject</button>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      {/* BOTTOM ACTION BAR */}
+      <footer className="flex items-center justify-between px-3 py-1.5 bg-[#0a0e17] border-t border-[#1e3a5f] shrink-0 font-mono text-[8px] text-gray-400">
+        <div className="flex gap-2">
+          <button onClick={handleRunScan} className="bg-[#1e3a5f] hover:bg-[#1e3a5f]/80 text-white px-2 py-0.5 rounded">Run Scan [F5]</button>
+          <button className="bg-[#1e3a5f] hover:bg-[#1e3a5f]/80 text-white px-2 py-0.5 rounded">Spawn [N]</button>
+          <button className="bg-[#1e3a5f] hover:bg-[#1e3a5f]/80 text-white px-2 py-0.5 rounded">Export [F7]</button>
+          <button onClick={handleExecTop5} className="bg-cyan-900 text-cyan-400 px-2 py-0.5 rounded">Exec Top 5</button>
+          <button onClick={handleFlatten} className="bg-amber-900 text-amber-400 px-2 py-0.5 rounded">Flatten</button>
+          <button onClick={handleEmergencyStop} className="bg-red-900 text-red-400 px-2 py-0.5 rounded font-bold">EMERGENCY STOP</button>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-green-500"></div> WS</span>
+          <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-green-500"></div> API</span>
+          <span>{agents.total || swarm.total || '\u2014'} Agents</span>
+          <span>CPU {performance.cpu || '\u2014'}%</span>
+          <span>GPU {performance.gpu || '\u2014'}%</span>
+          <span>Uptime {performance.uptime || '\u2014'}</span>
+        </div>
+      </footer>
+
+      {/* Global CSS */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #0a0e17; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e3a5f; border-radius: 2px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #00d4ff; }
+        .glow-green { box-shadow: 0 0 8px rgba(16,185,129,0.3); }
+        .glow-cyan { text-shadow: 0 0 8px rgba(0,212,255,0.6); }
+      `}} />
     </div>
   );
 }

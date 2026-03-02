@@ -1,39 +1,37 @@
 // APP ROUTER - Embodier.ai Trading Intelligence System
-// OLEH: This is the main router. Every page listed in the sidebar has a route here.
-// If you add a new page, add: 1) import, 2) route, 3) sidebar entry in Sidebar.jsx
-// All 15 pages map 1:1 to backend modules per V2-EMBODIER-AI-README.md
-// V3 CONSOLIDATION: Reduced from 18 to 14 pages, then added ML Brain & Flywheel (15 total)
-
+// Enhanced with React.lazy() for code-splitting & performance
+// Architecture doc: V3-ARCHITECTURE.md (14 sidebar pages)
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import Layout from "./components/layout/Layout";
 import ErrorBoundary from "./components/ErrorBoundary";
 
-// ----------- PAGE IMPORTS -----------
+// ----------- LAZY PAGE IMPORTS (code-split per route) -----------
 // COMMAND section (2 pages)
-import Dashboard from "./pages/Dashboard";
-import AgentCommandCenter from "./pages/AgentCommandCenter";
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const AgentCommandCenter = lazy(() => import("./pages/AgentCommandCenter"));
 
-// INTELLIGENCE section (3 pages)
-import Signals from "./pages/Signals";
-import SentimentIntelligence from "./pages/SentimentIntelligence";
-import DataSourcesMonitor from "./pages/DataSourcesMonitor";
+  // INTELLIGENCE section (3 sidebar pages)
+const SentimentIntelligence = lazy(() => import("./pages/SentimentIntelligence"));
+  const DataSourcesMonitor = lazy(() => import("./pages/DataSourcesMonitor"));
+const SignalIntelligenceV3 = lazy(() => import("./pages/SignalIntelligenceV3"));
 
-// ML & ANALYSIS section (6 pages)
-import MLBrainFlywheel from "./pages/MLBrainFlywheel";
-import Patterns from "./pages/Patterns";
-import Backtesting from "./pages/Backtesting";
-import PerformanceAnalytics from "./pages/PerformanceAnalytics";
-import MarketRegime from "./pages/MarketRegime";
+// ML & ANALYSIS section (5 pages)
+const MLBrainFlywheel = lazy(() => import("./pages/MLBrainFlywheel"));
+const Patterns = lazy(() => import("./pages/Patterns"));
+const Backtesting = lazy(() => import("./pages/Backtesting"));
+const PerformanceAnalytics = lazy(() => import("./pages/PerformanceAnalytics"));
+const MarketRegime = lazy(() => import("./pages/MarketRegime"));
 
 // EXECUTION section (3 pages)
-import Trades from "./pages/Trades";
-import RiskIntelligence from "./pages/RiskIntelligence";
-import TradeExecution from "./pages/TradeExecution";
+const Trades = lazy(() => import("./pages/Trades"));
+const RiskIntelligence = lazy(() => import("./pages/RiskIntelligence"));
+const TradeExecution = lazy(() => import("./pages/TradeExecution"));
 
 // SYSTEM section
-import Settings from "./pages/Settings";
+const Settings = lazy(() => import("./pages/Settings"));
 
 // ----------- LOADING FALLBACK -----------
 function PageLoader() {
@@ -59,53 +57,33 @@ function App() {
             <Route index element={<Navigate to="/dashboard" replace />} />
 
             {/* COMMAND */}
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="agents" element={<AgentCommandCenter />} />
+            <Route path="dashboard" element={<Suspense fallback={<PageLoader />}><Dashboard /></Suspense>} />
+            <Route path="agents" element={<Suspense fallback={<PageLoader />}><AgentCommandCenter /></Suspense>} />
+                          <Route path="agents/:tab" element={<Suspense fallback={<PageLoader />}><AgentCommandCenter /></Suspense>} />
 
             {/* INTELLIGENCE */}
-            <Route path="signals" element={<Signals />} />
-            <Route path="sentiment" element={<SentimentIntelligence />} />
-            <Route path="data-sources" element={<DataSourcesMonitor />} />
+            <Route path="sentiment" element={<Suspense fallback={<PageLoader />}><SentimentIntelligence /></Suspense>} />
+                          <Route path="data-sources" element={<Suspense fallback={<PageLoader />}><DataSourcesMonitor /></Suspense>} />
+            <Route path="signal-intelligence-v3" element={<Suspense fallback={<PageLoader />}><SignalIntelligenceV3 /></Suspense>} />
 
             {/* ML & ANALYSIS */}
-            <Route path="ml-brain" element={<MLBrainFlywheel />} />
-            <Route path="patterns" element={<Patterns />} />
-            <Route path="backtest" element={<Backtesting />} />
-            <Route path="performance" element={<PerformanceAnalytics />} />
-            <Route path="market-regime" element={<MarketRegime />} />
+            <Route path="ml-brain" element={<Suspense fallback={<PageLoader />}><MLBrainFlywheel /></Suspense>} />
+            <Route path="patterns" element={<Suspense fallback={<PageLoader />}><Patterns /></Suspense>} />
+            <Route path="backtest" element={<Suspense fallback={<PageLoader />}><Backtesting /></Suspense>} />
+            <Route path="performance" element={<Suspense fallback={<PageLoader />}><PerformanceAnalytics /></Suspense>} />
+            <Route path="market-regime" element={<Suspense fallback={<PageLoader />}><MarketRegime /></Suspense>} />
 
             {/* EXECUTION */}
-            <Route path="trades" element={<Trades />} />
-            <Route path="risk" element={<RiskIntelligence />} />
-            <Route path="trade-execution" element={<TradeExecution />} />
+            <Route path="trades" element={<Suspense fallback={<PageLoader />}><Trades /></Suspense>} />
+            <Route path="risk" element={<Suspense fallback={<PageLoader />}><RiskIntelligence /></Suspense>} />
+            <Route path="trade-execution" element={<Suspense fallback={<PageLoader />}><TradeExecution /></Suspense>} />
 
             {/* SYSTEM */}
-            <Route path="settings" element={<Settings />} />
-
-            {/* Legacy redirects for bookmarks */}
-            <Route
-              path="operator"
-              element={<Navigate to="/agents" replace />}
-            />
-            <Route
-              path="signal-heatmap"
-              element={<Navigate to="/signals" replace />}
-            />
-            <Route
-              path="youtube"
-              element={<Navigate to="/sentiment" replace />}
-            />
-            <Route
-              path="strategy"
-              element={<Navigate to="/backtest" replace />}
-            />
-
-            {/* 404 catch-all */}
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            <Route path="settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
           </Route>
         </Routes>
+        <ToastContainer position="bottom-right" theme="dark" />
       </ErrorBoundary>
-      <ToastContainer position="top-right" theme="dark" autoClose={4000} />
     </BrowserRouter>
   );
 }

@@ -8,6 +8,9 @@ from app.schemas.signals import Signal, SignalsResponse, ActiveSignalResponse
 from app.data.storage import get_conn
 from app.models.inference import load_model, make_signals_for_date
 from app.websocket_manager import broadcast_ws
+from app.services.kelly_position_sizer import KellyPositionSizer
+
+_kelly_sizer = KellyPositionSizer(max_allocation=0.10)
 
 router = APIRouter()
 
@@ -57,8 +60,24 @@ async def get_signals(as_of: date | None = None):
     signals = []
     for s in raw_signals:
         action = "BUY" if s["prob_up"] > 0.6 else "HOLD"
+        prob = s["prob_up"]
+        # Compute Kelly edge and position size
+        kelly = _kelly_sizer.calculate(
+            win_rate=prob,
+            avg_win_pct=0.035,  # Default 3.5% avg win
+            avg_loss_pct=0.015,  # Default 1.5% avg loss
+        )
         signals.append(
-            Signal(symbol=s["symbol"], date=as_of, prob_up=s["prob_up"], action=action)
+            Signal(
+                symbol=s["symbol"],
+                date=as_of,
+                prob_up=prob,
+                action=action,
+                edge=kelly.edge,
+                kelly_fraction=kelly.raw_kelly,
+                position_size_pct=kelly.final_pct,
+                expected_value=kelly.edge * prob,
+            )
         )
     return SignalsResponse(as_of=as_of, signals=signals)
 
@@ -141,3 +160,39 @@ async def get_signals_heatmap():
             }
         )
     return heatmap_data
+
+
+@router.get("/kelly-ranked")
+async def get_kelly_ranked():
+    """
+    Return signals ranked by Kelly edge * signal quality.
+    Best money-making opportunities first.
+    """
+    raw_signals, _ = _get_raw_signals_and_feats()
+    if not raw_signals or len(raw_signals) == 0:
+        return []
+
+    ranked = []
+    for s in raw_signals:
+        prob = s.get("prob_up", 0.5)
+        kelly = _kelly_sizer.calculate(
+            win_rate=prob,
+            avg_win_pct=0.035,
+            avg_loss_pct=0.015,
+        )
+        edge = kelly.edge
+        quality = min(1.0, prob * 1.5)  # Signal quality proxy
+        if edge > 0 and quality > 0.3:
+            ranked.append({
+                "symbol": s["symbol"],
+                "kelly_edge": round(edge, 4),
+                "signal_quality": round(quality, 3),
+                "kelly_score": round(edge * quality, 4),
+                "kelly_fraction": round(kelly.raw_kelly, 4),
+                "position_size_pct": round(kelly.final_pct, 4),
+                "prob_up": round(prob, 3),
+                "action": "BUY" if prob > 0.6 else "HOLD",
+            })
+
+    ranked.sort(key=lambda x: x["kelly_score"], reverse=True)
+    return ranked[:20]

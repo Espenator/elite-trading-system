@@ -1,4 +1,4 @@
-"""Backtest Engine - Simulate OpenClaw scoring on historical data.
+"""
 
 Uses sqlite3 data (openclaw_signals historical), Alpaca for fills.
 Metrics: PnL, Sharpe, Winrate, MaxDD, Calmar.
@@ -35,6 +35,8 @@ class BacktestEngine:
         strategy: str = "composite",
         initial_equity: float = 100_000.0,
         shares_per_trade: int = 100,
+        use_kelly: bool = False,
+        kelly_fraction: float = 0.5,  # Half-Kelly default
     ) -> Dict[str, Any]:
         """Full backtest: fetch historical signals/prices, simulate trades."""
         conn = self._conn()
@@ -85,7 +87,20 @@ class BacktestEngine:
             else:
                 pnl_r = (entry_price - target_price) / risk
 
-            pnl_dollars = pnl_r * risk * shares_per_trade
+            # Kelly-aware position sizing
+            if use_kelly:
+                score = float(sig.get("score", 50))
+                prob = min(0.95, max(0.3, 0.4 + (score / 100) * 0.5))
+                avg_w = risk * 2.0  # Assume 2R target
+                avg_l = risk
+                b = avg_w / max(avg_l, 0.001)
+                edge = prob * b - (1 - prob)
+                kelly_pct = max(0, (edge / b) * kelly_fraction)
+                position_value = equity * min(kelly_pct, 0.10)  # Cap 10%
+                shares = max(1, int(position_value / max(entry_price, 0.01)))
+            else:
+                shares = shares_per_trade
+            pnl_dollars = pnl_r * risk * shares
             equity += pnl_dollars
 
             trades.append(
@@ -100,6 +115,8 @@ class BacktestEngine:
                     "equity": round(float(equity), 2),
                     "score": float(sig.get("score", 0)),
                     "received_at": str(sig["received_at"]),
+                    "shares": shares,
+                    "kelly_sized": use_kelly,
                 }
             )
 
@@ -121,7 +138,29 @@ class BacktestEngine:
         )
         avg_r = float(returns.mean())
         total_pnl = float(df_trades["pnl_dollars"].sum())
-        calmar = float(abs(total_pnl / maxdd)) if maxdd != 0 else 0.0
+        # FIX Bug #17: Calmar = return / |maxDD|. abs() only on denominator
+        # so losing strategies correctly show negative Calmar.
+        calmar = float(total_pnl / abs(maxdd)) if maxdd != 0 else 0.0
+
+        # Enhanced metrics for profitability
+        neg_returns = returns[returns < 0]
+        sortino = (
+            float(returns.mean() / neg_returns.std() * np.sqrt(252))
+            if len(neg_returns) > 0 and neg_returns.std() > 0
+            else 0.0
+        )
+        profit_factor = (
+            float(returns[returns > 0].sum() / abs(returns[returns < 0].sum()))
+            if len(neg_returns) > 0 and abs(returns[returns < 0].sum()) > 0
+            else float('inf')
+        )
+        kelly_trades = [t for t in trades if t.get("kelly_sized")]
+        kelly_efficiency = len(kelly_trades) / len(trades) if trades else 0
+        avg_kelly_pnl = sum(t["pnl_dollars"] for t in kelly_trades) / len(kelly_trades) if kelly_trades else 0
+        avg_non_kelly_pnl = (
+            sum(t["pnl_dollars"] for t in trades if not t.get("kelly_sized")) /
+            max(1, len(trades) - len(kelly_trades))
+        ) if len(trades) > len(kelly_trades) else 0
 
         return {
             "symbol": symbol or "ALL",
@@ -137,12 +176,78 @@ class BacktestEngine:
             "initial_equity": initial_equity,
             "final_equity": round(equity, 2),
             "trades_detail": trades,
+            "sortino": round(sortino, 4),
+            "profit_factor": round(profit_factor, 4) if profit_factor != float('inf') else "inf",
+            "kelly_efficiency": round(kelly_efficiency, 4),
+            "avg_kelly_pnl": round(avg_kelly_pnl, 2),
+            "avg_non_kelly_pnl": round(avg_non_kelly_pnl, 2),
+            "kelly_advantage": round(avg_kelly_pnl - avg_non_kelly_pnl, 2),
         }
 
     def _get_price(self, symbol: str, timestamp: str) -> Optional[float]:
         """Stub: query pricedata table or Alpaca historical."""
         # TODO: implement Alpaca historical bar lookup
         return None
+
+    def monte_carlo_simulation(
+        self,
+        trades: list,
+        num_simulations: int = 1000,
+        initial_equity: float = 100000,
+    ) -> Dict:
+        """Run Monte Carlo simulation on trade results to estimate risk/reward distribution.
+        Shuffles trade order to see range of possible equity curves."""
+        import random
+        if not trades or len(trades) < 5:
+            return {"error": "Need at least 5 trades for Monte Carlo"}
+
+        pnl_list = [t.get("pnl_dollars", t.get("pnl_pct", 0)) for t in trades]
+        final_equities = []
+        max_drawdowns = []
+        sharpe_ratios = []
+
+        for _ in range(num_simulations):
+            shuffled = pnl_list.copy()
+            random.shuffle(shuffled)
+            equity = initial_equity
+            peak = equity
+            max_dd = 0.0
+            returns = []
+            for pnl in shuffled:
+                equity += pnl
+                if equity > peak:
+                    peak = equity
+                dd = (peak - equity) / peak if peak > 0 else 0
+                max_dd = max(max_dd, dd)
+                returns.append(pnl / max(1, equity - pnl))
+            final_equities.append(equity)
+            max_drawdowns.append(max_dd)
+            if returns:
+                avg_r = sum(returns) / len(returns)
+                std_r = (sum((r - avg_r)**2 for r in returns) / len(returns)) ** 0.5
+                sharpe_ratios.append(avg_r / std_r * (252**0.5) if std_r > 0 else 0)
+
+        final_equities.sort()
+        max_drawdowns.sort()
+        n = len(final_equities)
+
+        return {
+            "simulations": num_simulations,
+            "trades_count": len(trades),
+            "equity_median": round(final_equities[n // 2], 2),
+            "equity_p5": round(final_equities[int(n * 0.05)], 2),
+            "equity_p25": round(final_equities[int(n * 0.25)], 2),
+            "equity_p75": round(final_equities[int(n * 0.75)], 2),
+            "equity_p95": round(final_equities[int(n * 0.95)], 2),
+            "equity_worst": round(final_equities[0], 2),
+            "equity_best": round(final_equities[-1], 2),
+            "drawdown_median": round(max_drawdowns[n // 2], 4),
+            "drawdown_p95": round(max_drawdowns[int(n * 0.95)], 4),
+            "drawdown_worst": round(max_drawdowns[-1], 4),
+            "sharpe_median": round(sharpe_ratios[n // 2], 4) if sharpe_ratios else 0,
+            "risk_of_ruin": round(sum(1 for e in final_equities if e < initial_equity * 0.5) / n, 4),
+            "probability_profit": round(sum(1 for e in final_equities if e > initial_equity) / n, 4),
+        }
 
 
 # -- global instance (matches openclaw_db.py pattern) ----------------------

@@ -1,5 +1,4 @@
-"""
-Train XGBoost/LightGBM on daily_features (historical outcomes).
+"""Train XGBoost/LightGBM on daily_features (historical outcomes).
 Uses GPU (CUDA) when available (RTX 4080 etc.).
 """
 
@@ -201,10 +200,16 @@ def run_full_retrain(use_lightgbm: bool = False) -> Optional[dict]:
     df = load_feature_frame(start=start, end=end)
     if df.empty:
         return None
-    train_end_d = end - timedelta(days=int(len(df) * 0.2))
-    val_end = end
-    train_end = train_end_d.isoformat()
-    val_end_s = val_end.isoformat()
+    # Bug #20 fix: use unique dates for proper time-based split
+    # (previously used len(df) row count as day count, which could subtract thousands of years)
+    unique_dates = sorted(df["date"].unique())
+    split_idx = int(len(unique_dates) * 0.8)
+    train_end = (
+        pd.Timestamp(unique_dates[split_idx]).isoformat()[:10]
+        if split_idx < len(unique_dates)
+        else end.isoformat()
+    )
+    val_end_s = end.isoformat()
     if use_lightgbm:
         return train_lightgbm(df, train_end, val_end_s)
     return train_xgb(df, train_end, val_end_s)

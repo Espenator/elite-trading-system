@@ -4,7 +4,7 @@
 
 :root {
   font-family:
-    "Sarala",
+    "Inter",
     system-ui,
     -apple-system,
     sans-serif;
@@ -91,5 +91,5 @@ input[type="number"] {
 .Toastify__toast,
 .Toastify__toast-body,
 .Toastify__toast-container {
-  font-family: "Sarala", sans-serif !important;
+  font-family: "Inter", sans-serif !important;
 }

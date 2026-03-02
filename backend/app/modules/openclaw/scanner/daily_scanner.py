@@ -423,6 +423,38 @@ class DailyScanner:
         )
         self.scan_results['watchlist'] = watchlist
 
+                # Step 13.5: Kelly edge + signal quality scoring
+        try:
+            from position_sizer import calculate_position
+            for item in watchlist:
+                score = item.get('composite_score', 0)
+                # Convert composite score (0-100) to probability estimate
+                prob_up = min(0.95, max(0.30, 0.40 + (score / 100) * 0.50))
+                # Estimate win/loss from score tier
+                avg_win = 0.025 + (score / 100) * 0.025  # 2.5-5% wins
+                avg_loss = 0.02 - (score / 100) * 0.005  # 2.0-1.5% losses
+                # Kelly edge = p*b - q where b = avg_win/avg_loss
+                b = avg_win / max(avg_loss, 0.001)
+                edge = prob_up * b - (1 - prob_up)
+                kelly_raw = edge / max(b, 0.001) if edge > 0 else 0
+                kelly_half = kelly_raw * 0.5
+                item['kelly_edge'] = round(edge, 4)
+                item['kelly_fraction'] = round(kelly_half, 4)
+                item['prob_up'] = round(prob_up, 3)
+                item['expected_value'] = round(edge * prob_up, 4)
+                # Signal quality: composite of edge, score tier, volume
+                vol_score = min(1.0, item.get('volume_ratio', 1.0) / 2.0)
+                quality = (
+                    0.4 * min(1.0, edge / 0.20)  # Edge contribution
+                    + 0.3 * (score / 100)          # Composite score
+                    + 0.15 * vol_score              # Volume confirmation
+                    + 0.15 * (1 if item.get('mtf_aligned', False) else 0)
+                )
+                item['signal_quality'] = round(min(1.0, max(0, quality)), 3)
+            logger.info(f"Kelly edge scored for {len(watchlist)} items")
+        except Exception as e:
+            logger.warning(f"Kelly edge scoring skipped: {e}")
+
         # Step 14: Position sizing recommendations
         if calculate_position and scored_results:
             try:
@@ -793,6 +825,25 @@ class DailyScanner:
             for w in self.scan_results.get('watchlist', [])
             if w.get('composite_score', 0) >= 80
         ]
+
+            def get_kelly_ranked_tickers(self):
+        """Return tickers ranked by Kelly edge * signal_quality (best first)."""
+        ranked = []
+        for w in self.scan_results.get('watchlist', []):
+            edge = w.get('kelly_edge', 0)
+            quality = w.get('signal_quality', 0)
+            if edge > 0 and quality > 0.3:
+                ranked.append({
+                    'ticker': w['ticker'],
+                    'kelly_edge': edge,
+                    'signal_quality': quality,
+                    'kelly_score': round(edge * quality, 4),
+                    'kelly_fraction': w.get('kelly_fraction', 0),
+                    'composite_score': w.get('composite_score', 0),
+                    'expected_value': w.get('expected_value', 0),
+                })
+        ranked.sort(key=lambda x: x['kelly_score'], reverse=True)
+        return ranked[:20]  # Top 20 Kelly-ranked opportunities
 
 
 # Module-level function for easy scheduling

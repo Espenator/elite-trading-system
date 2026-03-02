@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Embodier.ai - Trade Execution</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+        :root {
+            --bg-base: #050a12;
+            --bg-panel: #0a1020;
+            --bg-panel-alt: #0c1426;
+            --bg-input: #111b2e;
+            --bg-header: #070d18;
+            --bg-sidebar: #040810;
+            --bg-sidebar-hover: #0c1628;
+            --bg-sidebar-active: #0a1a30;
+            --border: #1a2744;
+            --border-light: #243352;
+            --text-main: #c8d6e5;
+            --text-muted: #5a6f8a;
+            --text-dim: #3a4f6a;
+            --text-bright: #e8f0fe;
+            --teal: #00d4e8;
+            --teal-dim: #007a8a;
+            --teal-glow: rgba(0, 212, 232, 0.15);
+            --cyan: #00b8d4;
+            --green: #00e676;
+            --green-dim: #00c853;
+            --green-bg: rgba(0, 230, 118, 0.08);
+            --red: #ff3860;
+            --red-dim: #e0294e;
+            --red-bg: rgba(255, 56, 96, 0.08);
+            --amber: #ffab00;
+            --amber-bg: rgba(255, 171, 0, 0.08);
+            --magenta: #d946ef;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', 'Fira Code', sans-serif; background: var(--bg-base); color: var(--text-main); height: 100vh; display: flex; overflow: hidden; font-size: 11px; }
+
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: var(--bg-base); }
+        ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 2px; }
+
+        /* ═══════════════════════════════════════════
+           SIDEBAR
+           ═══════════════════════════════════════════ */
+        .sidebar {
+            width: 200px;
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            z-index: 200;
+            overflow-y: auto;
+        }
+        .sidebar-logo {
+            padding: 16px 16px 14px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .sidebar-logo-icon {
+            width: 26px; height: 26px;
+            border: 2px solid var(--teal);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 11px;
+            color: var(--teal);
+            box-shadow: 0 0 12px var(--teal-glow);
+            flex-shrink: 0;
+        }
+        .sidebar-logo-text {
+            font-family: 'Fira Code', monospace;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--teal);
+            letter-spacing: 0.5px;
+        }
+        .sidebar-section {
+            padding: 12px 0 4px;
+        }
+        .sidebar-section-label {
+            padding: 0 16px 6px;
+            font-family: 'Fira Code', monospace;
+            font-size: 8px;
+            font-weight: 600;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+        .sidebar-item {
+            padding: 7px 16px 7px 20px;
+            font-size: 10.5px;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-left: 2px solid transparent;
+            transition: all 0.12s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .sidebar-item:hover {
+            background: var(--bg-sidebar-hover);
+            color: var(--text-main);
+        }
+        .sidebar-item.active {
+            background: var(--bg-sidebar-active);
+            color: var(--teal);
+            border-left-color: var(--teal);
+            font-weight: 600;
+        }
+        .sidebar-item.active::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            width: 2px;
+            height: 100%;
+        }
+        .sidebar-icon {
+            font-size: 12px;
+            width: 16px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+        .sidebar-bottom {
+            margin-top: auto;
+            border-top: 1px solid var(--border);
+            padding: 8px 0;
+        }
+
+        /* ═══════════════════════════════════════════
+           RIGHT CONTENT AREA
+           ═══════════════════════════════════════════ */
+        .content-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-width: 0;
+        }
+
+        /* ═══════════════════════════════════════════
+           HEADER
+           ═══════════════════════════════════════════ */
+        .header {
+            height: 42px;
+            background: var(--bg-header);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 20px;
+            position: relative;
+            flex-shrink: 0;
+        }
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--teal), transparent);
+        }
+        .header-page-title {
+            font-family: 'Fira Code', monospace;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--teal);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .header-stats {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-left: auto;
+            font-family: 'Fira Code', monospace;
+            font-size: 10px;
+        }
+        .stat-label { color: var(--text-muted); margin-right: 5px; }
+        .stat-val { color: var(--text-bright); }
+        .stat-val.green { color: var(--green); }
+        .stat-val.teal { color: var(--teal); font-weight: 600; }
+        .stat-sep { color: var(--border-light); }
+        .header-controls { display: flex; gap: 8px; margin-left: 16px; }
+        .hdr-btn { background: none; border: 1px solid var(--border); color: var(--text-muted); width: 26px; height: 26px; border-radius: 3px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+        .hdr-btn:hover { border-color: var(--teal); color: var(--teal); }
+
+        /* ═══════════════════════════════════════════
+           QUICK EXECUTION BAR
+           ═══════════════════════════════════════════ */
+        .quick-bar {
+            height: 40px;
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        .quick-label {
+            font-family: 'Fira Code', monospace;
+            font-size: 9px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-right: 8px;
+        }
+        .qbtn {
+            padding: 5px 14px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-family: 'Fira Code', monospace;
+            font-size: 9px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: 0.15s;
+        }
+        .qbtn:hover { filter: brightness(1.2); transform: translateY(-1px); }
+        .qbtn-buy { background: var(--green); color: #000; }
+        .qbtn-sell { background: var(--red); color: #fff; }
+        .qbtn-lbuy { background: transparent; border: 1px solid var(--green); color: var(--green); }
+        .qbtn-lsell { background: transparent; border: 1px solid var(--red); color: var(--red); }
+        .qbtn-stop { background: transparent; border: 1px solid var(--amber); color: var(--amber); }
+        .hotkey-tag {
+            font-size: 7px;
+            background: rgba(0,0,0,0.3);
+            padding: 1px 3px;
+            border-radius: 2px;
+        }
+
+        /* ═══════════════════════════════════════════
+           MAIN 4-COLUMN GRID
+           ═══════════════════════════════════════════ */
+        .main-grid {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 240px 1fr 240px 300px;
+            grid-template-rows: 1fr 200px;
+            gap: 1px;
+            background: var(--border);
+            overflow: hidden;
+        }
+
+        /* ═══════════════════════════════════════════
+           PANEL BASE
+           ═══════════════════════════════════════════ */
+        .panel {
+            background: var(--bg-panel);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .panel-head {
+            padding: 7px 12px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-family: 'Fira Code', monospace;
+            font-size: 9px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: var(--bg-header);
+            flex-shrink: 0;
+        }
+        .panel-dots { display: flex; gap: 3px; }
+        .panel-dot { width: 3px; height: 3px; background: var(--text-muted); border-radius: 50%; }
+        .panel-body { flex: 1; overflow-y: auto; padding: 0; }
+
+        /* ═══════════════════════════════════════════
+           PRICE LADDER
+           ═══════════════════════════════════════════ */
+        .ladder-row {
+            display: grid;
+            grid-template-columns: 42px 1fr 56px 1fr 42px;
+            height: 20px;
+            align-items: center;
+            border-bottom: 1px solid rgba(26, 39, 68, 0.3);
+            font-family: 'Fira Code', monospace;
+            font-size: 9px;
+        }
+        .ladder-row:hover { background: rgba(0, 212, 232, 0.04); }
+        .ladder-bid-vol, .ladder-ask-vol { text-align: center; font-size: 8px; }
+        .ladder-bid-bar { display: flex; justify-content: flex-end; padding-right: 2px; }
+        .ladder-ask-bar { display: flex; justify-content: flex-start; padding-left: 2px; }
+        .bar-fill-bid { height: 12px; background: linear-gradient(270deg, rgba(0, 230, 118, 0.35), rgba(0, 230, 118, 0.05)); border-radius: 1px; }
+        .bar-fill-ask { height: 12px; background: linear-gradient(90deg, rgba(255, 56, 96, 0.35), rgba(255, 56, 96, 0.05)); border-radius: 1px; }
+        .ladder-price { text-align: center; font-weight: 600; font-size: 9px; }
+        .ladder-price.current { background: var(--teal); color: #000; border-radius: 2px; padding: 1px 0; }
+        .ladder-price.above { color: var(--green); }
+        .ladder-price.below { color: var(--red); }
+
+        /* ═══════════════════════════════════════════
+           ORDER BUILDER
+           ═══════════════════════════════════════════ */
+        .builder-body { padding: 14px; }
+        .builder-tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 14px;
+            border-bottom: 1px solid var(--border);
+        }
+        .builder-tab {
+            padding: 5px 14px;
+            cursor: pointer;
+            color: var(--text-muted);
+            font-size: 10px;
+            border-bottom: 2px solid transparent;
+            transition: 0.15s;
+        }
+        .builder-tab.active { color: var(--teal); border-bottom-color: var(--teal); }
+        .form-field { display: flex; align-items: center; margin-bottom: 10px; }
+        .form-label { width: 90px; font-size: 10px; color: var(--text-muted); flex-shrink: 0; }
+        .form-input, .form-select {
+            flex: 1;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            color: var(--text-bright);
+            padding: 6px 10px;
+            font-family: 'Fira Code', monospace;
+            font-size: 10px;
+            border-radius: 3px;
+            outline: none;
+        }
+        .form-input:focus, .form-select:focus { border-color: var(--teal); box-shadow: 0 0 8px var(--teal-glow); }
+        .form-select { appearance: none; cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%235a6f8a'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 28px; }
+        .strike-section { margin-bottom: 10px; }
+        .strike-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
+        .strike-label { color: var(--text-muted); font-size: 10px; }
+        .strike-link { color: var(--teal); font-size: 9px; cursor: pointer; }
+        .strike-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 5px; }
+        .strike-chip {
+            padding: 4px;
+            text-align: center;
+            font-family: 'Fira Code', monospace;
+            font-size: 9px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .strike-chip.active { background: var(--teal); color: #000; border-color: var(--teal); font-weight: 600; }
+        .advanced-toggle { color: var(--teal); font-size: 9px; cursor: pointer; margin-top: 6px; }
+        .exec-btn {
+            width: 100%;
+            padding: 12px;
+            margin-top: 14px;
+            background: linear-gradient(135deg, var(--teal-dim), var(--teal));
+            border: none;
+            border-radius: 4px;
+            color: #000;
+            font-family: 'Fira Code', monospace;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: 0.2s;
+            box-shadow: 0 4px 20px var(--teal-glow);
+        }
+        .exec-btn:hover { filter: brightness(1.15); transform: translateY(-1px); box-shadow: 0 6px 30px rgba(0, 212, 232, 0.3); }
+
+        /* ═══════════════════════════════════════════
+           ORDER BOOK TABLE
+           ═══════════════════════════════════════════ */
+        .ob-table { width: 100%; border-collapse: collapse; }
+        .ob-table th {
+            padding: 5px 6px;
+            font-family: 'Fira Code', monospace;
+            font-size: 8px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            text-align: right;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            background: var(--bg-header);
+            z-index: 2;
+        }
+        .ob-table th:first-child { text-align: left; }
+        .ob-table td {
+            padding: 3px 6px;
+            font-family: 'Fira Code', monospace;
+            font-size: 9px;
+            text-align: right;
+            border-bottom: 1px solid rgba(26, 39, 68, 0.3);
+        }
+        .ob-table td:first-child { text-align: left; }
+        .ob-table tr:hover td { background: rgba(0, 212, 232, 0.03); }
+        .bid-cell { color: var(--green); }
+        .ask-cell { color: var(--red); }
+
+        /* ═══════════════════════════════════════════
+           RIGHT COLUMN (Charts + News)
+           ═══════════════════════════════════════════ */
+        .right-col {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+            background: var(--border);
+        }
+        .chart-panel { flex: 1; background: var(--bg-panel); display: flex; flex-direction: column; }
+        .chart-info { padding: 5px 10px; font-family: 'Fira Code', monospace; font-size: 8px; color: var(--text-muted); display: flex; gap: 8px; border-bottom: 1px solid var(--border); }
+        .chart-area { flex: 1; position: relative; padding: 8px; }
+        .candle-row { display: flex; align-items: flex-end; gap: 3px; height: 100%; padding: 0 4px; }
+        .candle { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; }
+        .candle-wick { width: 1px; }
+        .candle-body { width: 5px; border-radius: 1px; }
+        .candle-green .candle-wick { background: var(--green); }
+        .candle-green .candle-body { background: var(--green); }
+        .candle-red .candle-wick { background: var(--red); }
+        .candle-red .candle-body { background: var(--red); }
+
+        .news-panel { flex: 1; background: var(--bg-panel); display: flex; flex-direction: column; }
+        .news-item { padding: 6px 10px; border-bottom: 1px solid rgba(26, 39, 68, 0.3); display: flex; gap: 6px; align-items: flex-start; }
+        .news-dot { width: 4px; height: 4px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+        .news-text { font-size: 9px; color: var(--text-muted); line-height: 1.4; }
+        .news-time { font-size: 7px; color: var(--text-muted); margin-top: 1px; opacity: 0.6; }
+
+        /* ═══════════════════════════════════════════
+           BOTTOM PANELS
+           ═══════════════════════════════════════════ */
+        .bottom-left { grid-column: 1 / 4; background: var(--bg-panel); }
+        .bottom-right { grid-column: 4 / 5; background: var(--bg-panel); }
+        .tab-row {
+            display: flex;
+            gap: 0;
+            background: var(--bg-header);
+            border-bottom: 1px solid var(--border);
+        }
+        .tab-item {
+            padding: 6px 14px;
+            font-family: 'Fira Code', monospace;
+            font-size: 9px;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+        .tab-item.active { color: var(--teal); border-bottom-color: var(--teal); }
+        .positions-table { width: 100%; border-collapse: collapse; }
+        .positions-table th {
+            padding: 5px 8px;
+            font-family: 'Fira Code', monospace;
+            font-size: 8px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            background: var(--bg-panel);
+        }
+        .positions-table td {
+            padding: 4px 8px;
+            font-family: 'Fira Code', monospace;
+            font-size: 9px;
+            border-bottom: 1px solid rgba(26, 39, 68, 0.3);
+        }
+        .positions-table tr:hover td { background: rgba(0, 212, 232, 0.03); }
+
+        .log-body { padding: 6px 10px; font-family: 'Fira Code', monospace; font-size: 8px; }
+        .log-line { margin-bottom: 1px; line-height: 1.6; }
+        .log-ts { color: var(--text-muted); }
+        .log-ok { color: var(--green); }
+        .log-warn { color: var(--amber); }
+        .log-info { color: var(--teal); }
+    </style>
+</head>
+<body>
+
+    <!-- ═══════════════════════════════════════════
+         LEFT SIDEBAR NAVIGATION
+         ═══════════════════════════════════════════ -->
+    <div class="sidebar">
+        <div class="sidebar-logo">
+            <div class="sidebar-logo-icon">⬡</div>
+            <div class="sidebar-logo-text">Embodier.ai</div>
+        </div>
+
+        <!-- COMMAND -->
+        <div class="sidebar-section">
+            <div class="sidebar-section-label">Command</div>
+            <div class="sidebar-item"><span class="sidebar-icon">◈</span> Intelligence Dashboard</div>
+            <div class="sidebar-item"><span class="sidebar-icon">⊛</span> Agent Command Center</div>
+        </div>
+
+        <!-- INTELLIGENCE -->
+        <div class="sidebar-section">
+            <div class="sidebar-section-label">Intelligence</div>
+            <div class="sidebar-item"><span class="sidebar-icon">◇</span> Signal Intelligence</div>
+            <div class="sidebar-item"><span class="sidebar-icon">◆</span> Sentiment Intelligence</div>
+            <div class="sidebar-item"><span class="sidebar-icon">⊞</span> Data Sources Manager</div>
+        </div>
+
+        <!-- ML AND ANALYSIS -->
+        <div class="sidebar-section">
+            <div class="sidebar-section-label">ML &amp; Analysis</div>
+            <div class="sidebar-item"><span class="sidebar-icon">⧫</span> ML Brain &amp; Flywheel</div>
+            <div class="sidebar-item"><span class="sidebar-icon">⊡</span> Screener &amp; Patterns</div>
+            <div class="sidebar-item"><span class="sidebar-icon">▷</span> Backtesting Lab</div>
+            <div class="sidebar-item"><span class="sidebar-icon">◫</span> Performance Analytics</div>
+            <div class="sidebar-item"><span class="sidebar-icon">◑</span> Market Regime</div>
+        </div>
+
+        <!-- EXECUTION -->
+        <div class="sidebar-section">
+            <div class="sidebar-section-label">Execution</div>
+            <div class="sidebar-item"><span class="sidebar-icon">⊕</span> Active Trades</div>
+            <div class="sidebar-item"><span class="sidebar-icon">⊘</span> Risk Intelligence</div>
+            <div class="sidebar-item active"><span class="sidebar-icon">⚡</span> Trade Execution</div>
+        </div>
+
+        <!-- SYSTEM (bottom) -->
+        <div class="sidebar-bottom">
+            <div class="sidebar-section-label" style="padding-top:8px;">System</div>
+            <div class="sidebar-item"><span class="sidebar-icon">⚙</span> Settings</div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════
+         RIGHT CONTENT AREA
+         ═══════════════════════════════════════════ -->
+    <div class="content-area">
+
+        <!-- ─── HEADER ─── -->
+        <div class="header">
+            <div class="header-page-title">Trade Execution</div>
+            <div class="header-stats">
+                <span><span class="stat-label">Portfolio:</span><span class="stat-val">$1,580,420.55</span></span>
+                <span class="stat-sep">|</span>
+                <span><span class="stat-label">Daily P/L:</span><span class="stat-val green">+$12,500.80</span></span>
+                <span class="stat-sep">|</span>
+                <span><span class="stat-label">Status:</span><span class="stat-val teal">ELITE</span></span>
+                <span class="stat-sep">|</span>
+                <span><span class="stat-label">Latency:</span><span class="stat-val">8ms</span></span>
+            </div>
+            <div class="header-controls">
+                <button class="hdr-btn">⚙</button>
+                <button class="hdr-btn">⊞</button>
+                <button class="hdr-btn">✕</button>
+            </div>
+        </div>
+
+        <!-- ─── QUICK EXECUTION BAR ─── -->
+        <div class="quick-bar">
+            <span class="quick-label">Quick Execution</span>
+            <button class="qbtn qbtn-buy">Market Buy <span class="hotkey-tag">⇧ B</span></button>
+            <button class="qbtn qbtn-sell">Market Sell <span class="hotkey-tag">⇧ L</span></button>
+            <button class="qbtn qbtn-lbuy">Limit Buy <span class="hotkey-tag">⇧ S</span></button>
+            <button class="qbtn qbtn-lsell">Limit Sell <span class="hotkey-tag">⇧⇧ S</span></button>
+            <button class="qbtn qbtn-stop">Stop Loss <span class="hotkey-tag">⇧ L</span></button>
+        </div>
+
+        <!-- ─── MAIN 4-COLUMN GRID ─── -->
+        <div class="main-grid">
+
+            <!-- ═══ COL 1: MULTI-PRICE LADDER ═══ -->
+            <div class="panel">
+                <div class="panel-head">Multi-Price Ladder <div class="panel-dots"><span class="panel-dot"></span><span class="panel-dot"></span><span class="panel-dot"></span></div></div>
+                <div class="panel-body">
+                    <div class="ladder-row"><div class="ladder-bid-vol"></div><div class="ladder-bid-bar"></div><div class="ladder-price above">2977.425</div><div class="ladder-ask-bar"><div class="bar-fill-ask" style="width:20%"></div></div><div class="ladder-ask-vol" style="color:var(--red);">+15</div></div>
+                    <div class="ladder-row"><div class="ladder-bid-vol"></div><div class="ladder-bid-bar"></div><div class="ladder-price above">2977.400</div><div class="ladder-ask-bar"><div class="bar-fill-ask" style="width:15%"></div></div><div class="ladder-ask-vol" style="color:var(--red);">+12</div></div>
+                    <div class="ladder-row"><div class="ladder-bid-vol"></div><div class="ladder-bid-bar"></div><div class="ladder-price above">2977.375</div><div class="ladder-ask-bar"><div class="bar-fill-ask" style="width:35%"></div></div><div class="ladder-ask-vol" style="color:var(--red);">+25</div></div>
+                    <div class="ladder-row"><div class="ladder-bid-vol"></div><div class="ladder-bid-bar"></div><div class="ladder-price above">2977.350</div><div class="ladder-ask-bar"><div class="bar-fill-ask" style="width:10%"></div></div><div class="ladder-ask-vol" style="color:var(--red);">+8</div></div>
+                    <div class="ladder-row"><div class="ladder-bid-vol"></div><div class="ladder-bid-bar"></div><div class="ladder-price above">2977.325</div><div class="ladder-ask-bar"><div class="bar-fill-ask" style="width:28%"></div></div><div class="ladder-ask-vol" style="color:var(--red);">+20</div></div>
+                    <div class="ladder-row"><div class="ladder-bid-vol"></div><div class="ladder-bid-bar"></div><div class="ladder-price above">2977.300</div><div class="ladder-ask-bar"><div class="bar-fill-ask" style="width:45%"></div></div><div class="ladder-ask-vol" style="color:var(--red);">+36</div></div>
+                    <div class="ladder-row"><div class="ladder-bid-vol"></div><div class="ladder-bid-bar"></div><div class="ladder-price above">2977.280</div><div class="ladder-ask-bar"><div class="bar-fill-ask" style="width:18%"></div></div><div class="ladder-ask-vol" style="color:var(--red);">+15</div></div>
+                    <div class="ladder-row" style="background:rgba(0,212,232,0.06);"><div class="ladder-bid-vol" style="color:var(--green);">3.1M</div><div class="ladder-bid-bar"></div><div class="ladder-price current">2977.250</div><div class="ladder-ask-bar"></div><div class="ladder-ask-vol" style="color:var(--red);">3.2M</div></div>
+                    <div class="ladder-row"><div class="ladder-bid-vol" style="color:var(--green);">+36</div><div class="ladder-bid-bar"><div class="bar-fill-bid" style="width:45%"></div></div><div class="ladder-price below">2977.225</div><div class="ladder-ask-bar"></div><div class="ladder-ask-vol"></div></div>
+                    <div class="ladder-row"><div class="ladder-bid-vol" style="color:var(--green);">+30</div><div class="ladder-bid-bar"><div class="bar-fill-bid" style="width:38%"></div></div><div class="ladder-price below">2977.200</div><div class="ladder-ask-bar"></div><div class="ladder-ask-vol"></div></div>
+                    <div class="ladder-row"><div class="ladder-bid-vol" style="color:var(--green);">+26</div><div class="ladder-bid-bar"><div class="bar-fill-bid" style="width:32%"></div></div><div class="ladder-price below">2977.175</div><div class="ladder-ask-bar"></div><div class="ladder-ask-vol"></div></div>
+                    <div class="ladder-row"><div class="ladder-bid-vol" style="color:var(--green);">+20</div><div class="ladder-bid-bar"><div class="bar-fill-bid" style="width:25%"></div></div><div class="ladder-price below">2977.150</div><div class="ladder-ask-bar"></div><div class="ladder-ask-vol"></div></div>
+                    <div class="ladder-row"><div class="ladder-bid-vol" style="color:var(--green);">+18</div><div class="ladder-bid-bar"><div class="bar-fill-bid" style="width:22%"></div></div><div class="ladder-price below">2977.125</div><div class="ladder-ask-bar"></div><div class="ladder-ask-vol"></div></div>
+                    <div class="ladder-row"><div class="ladder-bid-vol" style="color:var(--green);">+12</div><div class="ladder-bid-bar"><div class="bar-fill-bid" style="width:15%"></div></div><div class="ladder-price below">2972.350</div><div class="ladder-ask-bar"></div><div class="ladder-ask-vol"></div></div>
+                    <div class="ladder-row"><div class="ladder-bid-vol" style="color:var(--green);">+10</div><div class="ladder-bid-bar"><div class="bar-fill-bid" style="width:12%"></div></div><div class="ladder-price below">2772.300</div><div class="ladder-ask-bar"></div><div class="ladder-ask-vol"></div></div>
+                    <div class="ladder-row"><div class="ladder-bid-vol" style="color:var(--green);">+8</div><div class="ladder-bid-bar"><div class="bar-fill-bid" style="width:10%"></div></div><div class="ladder-price below">2772.275</div><div class="ladder-ask-bar"></div><div class="ladder-ask-vol"></div></div>
+                    <div class="ladder-row"><div class="ladder-bid-vol" style="color:var(--green);">+5</div><div class="ladder-bid-bar"><div class="bar-fill-bid" style="width:6%"></div></div><div class="ladder-price below">2772.250</div><div class="ladder-ask-bar"></div><div class="ladder-ask-vol"></div></div>
+                    <div class="ladder-row"><div class="ladder-bid-vol" style="color:var(--green);">+3</div><div class="ladder-bid-bar"><div class="bar-fill-bid" style="width:4%"></div></div><div class="ladder-price below">2772.225</div><div class="ladder-ask-bar"></div><div class="ladder-ask-vol"></div></div>
+                    <div class="ladder-row"><div class="ladder-bid-vol" style="color:var(--green);">5.6M</div><div class="ladder-bid-bar"><div class="bar-fill-bid" style="width:60%"></div></div><div class="ladder-price below">2772.215</div><div class="ladder-ask-bar"></div><div class="ladder-ask-vol"></div></div>
+                </div>
+            </div>
+
+            <!-- ═══ COL 2: ADVANCED ORDER BUILDER ═══ -->
+            <div class="panel">
+                <div class="panel-head">Advanced Order Builder <div class="panel-dots"><span class="panel-dot"></span><span class="panel-dot"></span><span class="panel-dot"></span></div></div>
+                <div class="panel-body builder-body">
+                    <div class="builder-tabs">
+                        <div class="builder-tab active">Advanced</div>
+                        <div class="builder-tab">Strategy</div>
+                        <div class="builder-tab">News</div>
+                    </div>
+                    <div class="form-field">
+                        <div class="form-label">Symbol:</div>
+                        <select class="form-select"><option selected>SPX</option><option>NVDA</option><option>AAPL</option><option>TSLA</option><option>MSFT</option></select>
+                    </div>
+                    <div class="form-field">
+                        <div class="form-label">Strategy:</div>
+                        <select class="form-select"><option selected>Iron Condor</option><option>Bull Call Spread</option><option>Bear Put Spread</option><option>Straddle</option><option>Strangle</option></select>
+                    </div>
+                    <div class="form-field">
+                        <div class="form-label">Legs:</div>
+                        <select class="form-select"><option>2</option><option selected>4</option></select>
+                    </div>
+                    <div class="form-field">
+                        <div class="form-label">Expiry:</div>
+                        <select class="form-select"><option selected>2024-06-21</option><option>2024-07-19</option><option>2024-08-16</option></select>
+                    </div>
+                    <div class="strike-section">
+                        <div class="strike-header">
+                            <span class="strike-label">Strike Prices:</span>
+                            <span class="strike-link">Strike Prices</span>
+                        </div>
+                        <div class="strike-grid">
+                            <div class="strike-chip">29:10</div>
+                            <div class="strike-chip active">28.00</div>
+                            <div class="strike-chip">23:55</div>
+                            <div class="strike-chip">22:00</div>
+                        </div>
+                        <div class="strike-grid">
+                            <div class="strike-chip">20</div>
+                            <div class="strike-chip">21</div>
+                            <div class="strike-chip">22</div>
+                            <div class="strike-chip">23</div>
+                        </div>
+                    </div>
+                    <div class="form-field">
+                        <div class="form-label">Quantity:</div>
+                        <input class="form-input" type="number" value="10">
+                    </div>
+                    <div class="form-field">
+                        <div class="form-label">Limit Price:</div>
+                        <input class="form-input" type="text" value="$0.00">
+                    </div>
+                    <div class="advanced-toggle">▸ Advanced (7)</div>
+                    <button class="exec-btn">Execute Order</button>
+                </div>
+            </div>
+
+            <!-- ═══ COL 3: LIVE ORDER BOOK ═══ -->
+            <div class="panel">
+                <div class="panel-head">Live Order Book <div class="panel-dots"><span class="panel-dot"></span><span class="panel-dot"></span><span class="panel-dot"></span></div></div>
+                <div class="panel-body">
+                    <table class="ob-table">
+                        <thead><tr><th style="text-align:left">Asset</th><th>Bid</th><th>Ask</th><th>Value</th></tr></thead>
+                        <tbody>
+                            <tr><td>-</td><td class="bid-cell">276.600</td><td class="ask-cell">279.380</td><td>1300</td></tr>
+                            <tr><td>-</td><td class="bid-cell">276.070</td><td class="ask-cell">277.450</td><td>1290</td></tr>
+                            <tr><td>-</td><td class="bid-cell">273.820</td><td class="ask-cell">279.330</td><td>1281</td></tr>
+                            <tr><td>-</td><td class="bid-cell">279.950</td><td class="ask-cell">284.400</td><td>1223</td></tr>
+                            <tr><td>-</td><td class="bid-cell">273.720</td><td class="ask-cell">279.380</td><td>335</td></tr>
+                            <tr><td>-</td><td class="bid-cell">276.600</td><td class="ask-cell">273.585</td><td>1330</td></tr>
+                            <tr><td>-</td><td class="bid-cell">275.600</td><td class="ask-cell">279.380</td><td>1130</td></tr>
+                            <tr><td>-</td><td class="bid-cell">278.660</td><td class="ask-cell">271.945</td><td>1006</td></tr>
+                            <tr><td>-</td><td class="bid-cell">276.500</td><td class="ask-cell">279.300</td><td>735</td></tr>
+                            <tr><td>-</td><td class="bid-cell">278.464</td><td class="ask-cell">286.223</td><td>1608</td></tr>
+                        </tbody>
+                    </table>
+                    <div style="border-top:1px solid var(--border); margin-top:2px;"></div>
+                    <table class="ob-table">
+                        <thead><tr><th style="text-align:left">Asset $</th><th>Bid</th><th>Ask</th><th>Volume</th></tr></thead>
+                        <tbody>
+                            <tr><td>5920</td><td class="bid-cell">278.600</td><td class="ask-cell">274.580</td><td>-</td></tr>
+                            <tr><td>551</td><td class="bid-cell">278.580</td><td class="ask-cell">271.800</td><td>-</td></tr>
+                            <tr><td>8613</td><td class="bid-cell">278.415</td><td class="ask-cell">271.580</td><td>-</td></tr>
+                            <tr><td>168</td><td class="bid-cell">278.458</td><td class="ask-cell">271.300</td><td>-</td></tr>
+                            <tr><td>182</td><td class="bid-cell">271.475</td><td class="ask-cell">273.200</td><td>-</td></tr>
+                            <tr><td>878</td><td class="bid-cell">276.475</td><td class="ask-cell">271.385</td><td>-</td></tr>
+                            <tr><td>2340</td><td class="bid-cell">278.475</td><td class="ask-cell">273.300</td><td>-</td></tr>
+                            <tr><td>288</td><td class="bid-cell">275.900</td><td class="ask-cell">273.400</td><td>-</td></tr>
+                            <tr><td>2333</td><td class="bid-cell">275.635</td><td class="ask-cell">273.670</td><td>-</td></tr>
+                            <tr><td>2360</td><td class="bid-cell">278.900</td><td class="ask-cell">273.573</td><td>-</td></tr>
+                            <tr><td>2335</td><td class="bid-cell">276.675</td><td class="ask-cell">273.673</td><td>-</td></tr>
+                            <tr><td>2600</td><td class="bid-cell">278.850</td><td class="ask-cell">273.690</td><td>-</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ═══ COL 4: CHARTS + NEWS ═══ -->
+            <div class="right-col">
+                <div class="chart-panel">
+                    <div class="panel-head">Price Charts <div class="panel-dots"><span class="panel-dot"></span><span class="panel-dot"></span><span class="panel-dot"></span></div></div>
+                    <div class="chart-info">
+                        <span>O:1715.00</span>
+                        <span>C:1215.00</span>
+                        <span style="color:var(--red);">5218.65 (-15.03%)</span>
+                    </div>
+                    <div class="chart-area">
+                        <div class="candle-row">
+                            <div class="candle candle-green"><div class="candle-wick" style="height:18px;"></div><div class="candle-body" style="height:25px;"></div></div>
+                            <div class="candle candle-green"><div class="candle-wick" style="height:12px;"></div><div class="candle-body" style="height:30px;"></div></div>
+                            <div class="candle candle-red"><div class="candle-wick" style="height:20px;"></div><div class="candle-body" style="height:18px;"></div></div>
+                            <div class="candle candle-red"><div class="candle-wick" style="height:15px;"></div><div class="candle-body" style="height:22px;"></div></div>
+                            <div class="candle candle-green"><div class="candle-wick" style="height:10px;"></div><div class="candle-body" style="height:35px;"></div></div>
+                            <div class="candle candle-green"><div class="candle-wick" style="height:8px;"></div><div class="candle-body" style="height:40px;"></div></div>
+                            <div class="candle candle-red"><div class="candle-wick" style="height:25px;"></div><div class="candle-body" style="height:15px;"></div></div>
+                            <div class="candle candle-green"><div class="candle-wick" style="height:5px;"></div><div class="candle-body" style="height:28px;"></div></div>
+                            <div class="candle candle-green"><div class="candle-wick" style="height:12px;"></div><div class="candle-body" style="height:32px;"></div></div>
+                            <div class="candle candle-red"><div class="candle-wick" style="height:18px;"></div><div class="candle-body" style="height:20px;"></div></div>
+                            <div class="candle candle-green"><div class="candle-wick" style="height:6px;"></div><div class="candle-body" style="height:38px;"></div></div>
+                            <div class="candle candle-red"><div class="candle-wick" style="height:22px;"></div><div class="candle-body" style="height:12px;"></div></div>
+                            <div class="candle candle-green"><div class="candle-wick" style="height:4px;"></div><div class="candle-body" style="height:45px;"></div></div>
+                            <div class="candle candle-green"><div class="candle-wick" style="height:15px;"></div><div class="candle-body" style="height:50px;"></div></div>
+                            <div class="candle candle-red"><div class="candle-wick" style="height:30px;"></div><div class="candle-body" style="height:35px;"></div></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="news-panel">
+                    <div class="panel-head">News Feed <div class="panel-dots"><span class="panel-dot"></span><span class="panel-dot"></span><span class="panel-dot"></span></div></div>
+                    <div class="panel-body">
+                        <div class="news-item"><div class="news-dot" style="background:var(--amber);"></div><div><div class="news-text">Evercore ISI: market volatility expected to rise amid trade policy uncertainty heading into Q3...</div><div class="news-time">2 min ago</div></div></div>
+                        <div class="news-item"><div class="news-dot" style="background:var(--green);"></div><div><div class="news-text">Nvidia reports record data center revenue, beating estimates by 12% on strong AI chip demand...</div><div class="news-time">7 min ago</div></div></div>
+                        <div class="news-item"><div class="news-dot" style="background:var(--red);"></div><div><div class="news-text">US Treasury yields spike as Fed signals fewer rate cuts, SPX futures down 0.8% in after-hours...</div><div class="news-time">15 min ago</div></div></div>
+                        <div class="news-item"><div class="news-dot" style="background:var(--teal);"></div><div><div class="news-text">Apple announces strategic AI partnership with OpenAI; shares up 2.1% on the news...</div><div class="news-time">32 min ago</div></div></div>
+                        <div class="news-item"><div class="news-dot" style="background:var(--magenta);"></div><div><div class="news-text">CrowdStrike downgraded by Morgan Stanley on valuation concerns after 60% YTD run-up...</div><div class="news-time">1 hour ago</div></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══ BOTTOM LEFT: POSITIONS / HISTORY ═══ -->
+            <div class="panel bottom-left">
+                <div class="tab-row">
+                    <div class="tab-item active">Live Positions</div>
+                    <div class="tab-item">Order History</div>
+                </div>
+                <div class="panel-body" style="overflow-y:auto;">
+                    <table class="positions-table">
+                        <thead><tr><th>Asset</th><th>Order Name</th><th>Order Type</th><th>Quantity</th><th>Limit</th><th>Order Log</th><th>Legs</th></tr></thead>
+                        <tbody>
+                            <tr><td style="color:var(--teal);">SPX</td><td>Iron Condor 06/21</td><td>Multi-Leg</td><td>10</td><td>$2.45</td><td style="color:var(--green);">FILLED</td><td>4</td></tr>
+                            <tr><td style="color:var(--teal);">NVDA</td><td>Bracket Buy 785.50</td><td>Bracket</td><td>150</td><td>$785.50</td><td style="color:var(--amber);">PENDING</td><td>3</td></tr>
+                            <tr><td style="color:var(--teal);">AAPL</td><td>Trail Stop -1.5%</td><td>Trailing</td><td>500</td><td>T-1.5%</td><td style="color:var(--green);">ACCEPTED</td><td>1</td></tr>
+                            <tr><td style="color:var(--teal);">TSLA</td><td>OCO Exit 195/180</td><td>OCO</td><td>200</td><td>$195.00</td><td style="color:var(--green);">ACCEPTED</td><td>2</td></tr>
+                            <tr><td style="color:var(--teal);">MSFT</td><td>OTO Entry + TP</td><td>OTO</td><td>100</td><td>$405.00</td><td style="color:var(--amber);">PARTIAL</td><td>2</td></tr>
+                            <tr><td style="color:var(--teal);">META</td><td>Limit Buy 480</td><td>Limit</td><td>300</td><td>$480.00</td><td style="color:var(--green);">FILLED</td><td>1</td></tr>
+                            <tr><td style="color:var(--teal);">PLTR</td><td>Bracket Short 25.50</td><td>Bracket</td><td>1000</td><td>$25.50</td><td style="color:var(--green);">ACCEPTED</td><td>3</td></tr>
+                            <tr><td style="color:var(--teal);">AMD</td><td>Trail Stop -$2.00</td><td>Trailing</td><td>250</td><td>T-$2.00</td><td style="color:var(--green);">ACCEPTED</td><td>1</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ═══ BOTTOM RIGHT: SYSTEM LOG ═══ -->
+            <div class="panel bottom-right">
+                <div class="panel-head">System Status Log <div class="panel-dots"><span class="panel-dot"></span><span class="panel-dot"></span><span class="panel-dot"></span></div></div>
+                <div class="panel-body log-body">
+                    <div class="log-line"><span class="log-ts">[16:55:28]</span> <span class="log-ok">Processed Brackets succeeded.</span></div>
+                    <div class="log-line"><span class="log-ts">[16:55:27]</span> <span class="log-ok">Processed Quotes succeeded.</span></div>
+                    <div class="log-line"><span class="log-ts">[16:55:25]</span> <span class="log-warn">Rescanned System Status log.</span></div>
+                    <div class="log-line"><span class="log-ts">[16:55:24]</span> <span class="log-info">Order:Vertation moved compose queue.</span></div>
+                    <div class="log-line"><span class="log-ts">[16:55:22]</span> <span class="log-ok">Processed Destinations exceeded.</span></div>
+                    <div class="log-line"><span class="log-ts">[16:55:21]</span> <span class="log-ok">Processed Quotes succeeded.</span></div>
+                    <div class="log-line"><span class="log-ts">[16:55:20]</span> <span class="log-warn">Rescanned System Status log.</span></div>
+                    <div class="log-line"><span class="log-ts">[16:55:18]</span> <span class="log-info">Kelly optimizer recalc: edge 4.2%, quality 0.88</span></div>
+                    <div class="log-line"><span class="log-ts">[16:55:15]</span> <span class="log-ok">Alpaca WS heartbeat OK. Latency: 8ms</span></div>
+                    <div class="log-line"><span class="log-ts">[16:55:12]</span> <span class="log-info">Risk gov: heat 68%, regime BULL_VOLATILE</span></div>
+                    <div class="log-line"><span class="log-ts">[16:55:10]</span> <span class="log-ok">Bracket NVDA queued: 785.50/820/770</span></div>
+                    <div class="log-line"><span class="log-ts">[16:55:08]</span> <span class="log-warn">Circuit breaker armed: max $15,000/day</span></div>
+                    <div class="log-line"><span class="log-ts">[16:55:05]</span> <span class="log-ok">Market data: 342 symbols active</span></div>
+                    <div class="log-line"><span class="log-ts">[16:55:01]</span> <span class="log-info">Session opened. Equity: $1,580,420.55</span></div>
+                </div>
+            </div>
+
+        </div><!-- /main-grid -->
+    </div><!-- /content-area -->
+
+</body>
+</html>
