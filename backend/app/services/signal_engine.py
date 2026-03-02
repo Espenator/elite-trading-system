@@ -5,9 +5,16 @@ Takes raw data from Market Data Agent (symbol_universe). Optionally uses Finviz
 quote data for price. Merges OpenClaw regime + 5-pillar candidate scores when available.
 Applies momentum and simple pattern logic; outputs composite signal scores
 0-100 for logging and downstream (ML, alerts).
+
+v2: Added EventDrivenSignalEngine class that subscribes to MessageBus events
+for <1s latency signal generation. Original run_tick() preserved for backward
+compatibility with the Agent Command Center polling loop.
 """
+import asyncio
 import logging
-from typing import Dict, List, Optional, Tuple, Any
+import time
+from collections import deque
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.modules.symbol_universe import get_tracked_symbols
 
@@ -94,7 +101,6 @@ def _compute_volume_score(volumes: List[float]) -> float:
     if avg_vol == 0:
         return 0.0
     rel_vol = volumes[-1] / avg_vol
-    # Scale: 0.5x=-10, 1x=0, 1.5x=+10, 2x+=+15
     return max(-10, min(15, (rel_vol - 1.0) * 20))
 
 
@@ -102,13 +108,10 @@ def _detect_divergence(closes: List[float], rsi_values: List[float]) -> Tuple[fl
     """Detect bullish/bearish RSI divergence. Returns (score_adjustment, label)."""
     if len(closes) < 10 or len(rsi_values) < 10:
         return 0.0, ""
-    # Check last 10 bars for divergence
     price_low1, price_low2 = min(closes[-10:-5]), min(closes[-5:])
     rsi_low1, rsi_low2 = min(rsi_values[-10:-5]), min(rsi_values[-5:])
-    # Bullish divergence: price makes lower low, RSI makes higher low
     if price_low2 < price_low1 and rsi_low2 > rsi_low1:
         return 10.0, "BullDiv"
-    # Bearish divergence: price makes higher high, RSI makes lower high
     price_hi1, price_hi2 = max(closes[-10:-5]), max(closes[-5:])
     rsi_hi1, rsi_hi2 = max(rsi_values[-10:-5]), max(rsi_values[-5:])
     if price_hi2 > price_hi1 and rsi_hi2 < rsi_hi1:
@@ -117,15 +120,10 @@ def _detect_divergence(closes: List[float], rsi_values: List[float]) -> Tuple[fl
 
 
 def _compute_composite_score(quotes: List[dict]) -> Tuple[float, str]:
-    """
-    Compute composite signal score 0-100 from quote rows.
-    Expects list of dicts with Open/Close/High/Low (case-flexible).
-    Returns (score, label) e.g. (87, "Bull Flag").
-    """
+    """Compute composite signal score 0-100 from quote rows."""
     if not quotes or not isinstance(quotes, list):
         return 50.0, "No data"
 
-    # Normalize keys (Finviz CSV may use different casing)
     rows = []
     for r in quotes:
         if not isinstance(r, dict):
@@ -138,21 +136,18 @@ def _compute_composite_score(quotes: List[dict]) -> Tuple[float, str]:
     if not rows:
         return 50.0, "No data"
 
-    # Prefer last row for current bar; use first/last for momentum
     last = rows[-1]
     open_val = _numeric(last.get("open"))
     close_val = _numeric(last.get("close"))
     high_val = _numeric(last.get("high"))
     low_val = _numeric(last.get("low"))
 
-    # Momentum: (close - open) / open * 50, capped to +/-25, then 50 + that
     if open_val and open_val > 0:
         momentum_pct = (close_val - open_val) / open_val * 100
         momentum_score = max(-25, min(25, momentum_pct * 0.5))
     else:
         momentum_score = 0.0
 
-    # Simple pattern: bull candle = close > open
     if close_val > open_val:
         pattern_score = 15
         pattern_label = "Bull"
@@ -163,37 +158,31 @@ def _compute_composite_score(quotes: List[dict]) -> Tuple[float, str]:
         pattern_score = 0
         pattern_label = "Doji"
 
-    # Range: high-low as volatility proxy (wider range = more volatility, small bonus/penalty)
     if low_val and low_val > 0 and high_val > low_val:
         range_pct = (high_val - low_val) / low_val * 100
         range_score = max(-5, min(5, (range_pct - 2) * 0.5))
     else:
         range_score = 0.0
 
-    # Extract all closes and volumes for advanced indicators
     closes = [_numeric(r.get("close")) for r in rows if _numeric(r.get("close")) > 0]
     volumes = [_numeric(r.get("volume")) for r in rows]
 
-    # RSI scoring: oversold (<30) = bullish +10, overbought (>70) = bearish -10
     rsi = _compute_rsi(closes) if len(closes) >= 15 else 50.0
     rsi_score = 0.0
     if rsi < 30:
-        rsi_score = 10.0  # Oversold = buying opportunity
+        rsi_score = 10.0
     elif rsi > 70:
-        rsi_score = -10.0  # Overbought = caution
+        rsi_score = -10.0
     elif rsi < 40:
         rsi_score = 5.0
     elif rsi > 60:
         rsi_score = -5.0
 
-    # MACD scoring: histogram positive = bullish, crossover = strong signal
     _, _, macd_hist = _compute_macd(closes)
-    macd_score = max(-10, min(10, macd_hist * 100))  # Scale histogram
+    macd_score = max(-10, min(10, macd_hist * 100))
 
-    # Volume confirmation
     vol_score = _compute_volume_score(volumes)
 
-    # Divergence detection
     rsi_series = []
     if len(closes) >= 15:
         for i in range(14, len(closes)):
@@ -203,7 +192,6 @@ def _compute_composite_score(quotes: List[dict]) -> Tuple[float, str]:
     composite = 50.0 + momentum_score + pattern_score + range_score + rsi_score + macd_score + vol_score + div_score
     composite = max(0.0, min(100.0, composite))
 
-    # Build label (parentheses fix operator precedence for ternary)
     if pattern_label != "No data":
         label = pattern_label + (f"+{div_label}" if div_label else "") + " candle"
     else:
@@ -213,11 +201,7 @@ def _compute_composite_score(quotes: List[dict]) -> Tuple[float, str]:
 
 
 async def _get_openclaw_context() -> Tuple[str, Dict[str, Dict[str, float]]]:
-    """
-    Fetch OpenClaw regime + 5-pillar candidate scores (ticker -> dict of pillars).
-    Returns (regime_state, {ticker: pillar_dict}).
-    Gracefully returns defaults if bridge unavailable.
-    """
+    """Fetch OpenClaw regime + 5-pillar candidate scores."""
     try:
         from app.services.openclaw_bridge_service import openclaw_bridge
 
@@ -250,17 +234,17 @@ async def _get_openclaw_context() -> Tuple[str, Dict[str, Dict[str, float]]]:
         return "UNKNOWN", {}
 
 
+# =========================================================================
+# ORIGINAL POLLING-BASED run_tick() — preserved for Agent Command Center
+# =========================================================================
+
 async def run_tick(
     *,
     max_symbols: int = DEFAULT_MAX_SYMBOLS,
     use_quote_data: bool = True,
     use_openclaw: bool = True,
 ) -> List[Tuple[str, str]]:
-    """
-    Run one Signal Generation tick: take symbols from Market Data Agent (symbol_universe),
-    apply momentum/pattern logic, merge OpenClaw 5-pillar scores + regime, produce composite scores.
-    Returns list of (message, level).
-    """
+    """Run one Signal Generation tick (polling mode — backward compatible)."""
     entries: List[Tuple[str, str]] = []
 
     symbols = get_tracked_symbols()
@@ -273,7 +257,6 @@ async def run_tick(
         )
         return entries
 
-    # Fetch OpenClaw regime + 5-pillar candidate overlay
     regime_state = "UNKNOWN"
     claw_scores: Dict[str, Dict[str, float]] = {}
     if use_openclaw:
@@ -294,7 +277,6 @@ async def run_tick(
     if use_quote_data:
         try:
             from app.services.finviz_service import FinvizService
-
             finviz_svc = FinvizService()
         except Exception as e:
             logger.warning("Finviz not available for signal engine: %s", e)
@@ -310,9 +292,7 @@ async def run_tick(
         if use_quote_data and finviz_svc:
             try:
                 quotes = await finviz_svc.get_quote_data(
-                    ticker=symbol,
-                    timeframe="d",
-                    duration="d5",
+                    ticker=symbol, timeframe="d", duration="d5",
                 )
             except Exception as e:
                 logger.debug("Quote fetch failed for %s: %s", symbol, e)
@@ -320,7 +300,6 @@ async def run_tick(
 
         ta_score, label = _compute_composite_score(quotes)
 
-        # Blend with OpenClaw 5-pillar candidate score if available
         claw_data = claw_scores.get(symbol)
         if claw_data is not None:
             pillar_score = (
@@ -335,11 +314,9 @@ async def run_tick(
         else:
             blended = ta_score
 
-        # Apply regime multiplier
         final_score = max(0.0, min(100.0, blended * regime_mult))
         scored.append((symbol, round(final_score, 1), label))
 
-    # Sort by score descending; build log messages
     scored.sort(key=lambda x: -x[1])
     above = [t for t in scored if t[1] >= MIN_SCORE_TO_REPORT]
 
@@ -361,3 +338,164 @@ async def run_tick(
         )
     )
     return entries
+
+
+# =========================================================================
+# EVENT-DRIVEN SIGNAL ENGINE — subscribes to MessageBus events
+# =========================================================================
+
+class EventDrivenSignalEngine:
+    """Real-time signal engine that reacts to market_data.bar events.
+
+    Maintains a rolling window of bars per symbol and generates signals
+    within <1s of receiving a new bar from the Alpaca WebSocket.
+
+    Publishes signals to 'signal.generated' topic when score >= threshold.
+    """
+
+    SIGNAL_THRESHOLD = 65  # Minimum score to publish a signal
+    MAX_BAR_HISTORY = 50   # Rolling window per symbol
+
+    def __init__(self, message_bus):
+        self.message_bus = message_bus
+        self._bar_history: Dict[str, deque] = {}  # symbol -> deque of bar dicts
+        self._running = False
+        self._signals_generated = 0
+        self._bars_processed = 0
+        self._start_time: Optional[float] = None
+        self._regime_state = "UNKNOWN"
+        self._regime_mult = 1.0
+        self._claw_scores: Dict[str, Dict[str, float]] = {}
+        self._last_regime_refresh: float = 0
+        self._regime_refresh_interval = 300  # Refresh OpenClaw every 5 min
+
+    async def start(self) -> None:
+        """Subscribe to MessageBus events and start processing."""
+        self._running = True
+        self._start_time = time.time()
+        await self.message_bus.subscribe("market_data.bar", self._on_new_bar)
+        logger.info(
+            "EventDrivenSignalEngine started — subscribed to market_data.bar "
+            "(threshold=%d, history=%d bars)",
+            self.SIGNAL_THRESHOLD,
+            self.MAX_BAR_HISTORY,
+        )
+
+    async def stop(self) -> None:
+        """Stop processing."""
+        self._running = False
+        await self.message_bus.unsubscribe("market_data.bar", self._on_new_bar)
+        logger.info(
+            "EventDrivenSignalEngine stopped — %d signals from %d bars",
+            self._signals_generated,
+            self._bars_processed,
+        )
+
+    async def _on_new_bar(self, data: Dict[str, Any]) -> None:
+        """Process a new bar event and generate signal if conditions met."""
+        if not self._running:
+            return
+
+        symbol = data.get("symbol", "")
+        if not symbol:
+            return
+
+        self._bars_processed += 1
+
+        # Maintain rolling bar history per symbol
+        if symbol not in self._bar_history:
+            self._bar_history[symbol] = deque(maxlen=self.MAX_BAR_HISTORY)
+        self._bar_history[symbol].append(data)
+
+        # Need at least 5 bars for meaningful analysis
+        history = self._bar_history[symbol]
+        if len(history) < 5:
+            return
+
+        # Periodically refresh OpenClaw regime (every 5 min, not per bar)
+        now = time.time()
+        if now - self._last_regime_refresh > self._regime_refresh_interval:
+            asyncio.create_task(self._refresh_regime())
+            self._last_regime_refresh = now
+
+        # Build quote rows from bar history (same format _compute_composite_score expects)
+        quote_rows = [
+            {
+                "open": bar.get("open", 0),
+                "high": bar.get("high", 0),
+                "low": bar.get("low", 0),
+                "close": bar.get("close", 0),
+                "volume": bar.get("volume", 0),
+            }
+            for bar in history
+        ]
+
+        ta_score, label = _compute_composite_score(quote_rows)
+
+        # Blend with OpenClaw 5-pillar score if available
+        claw_data = self._claw_scores.get(symbol)
+        if claw_data is not None:
+            pillar_score = (
+                claw_data["regime"] * 0.2
+                + claw_data["trend"] * 0.3
+                + claw_data["pullback"] * 0.2
+                + claw_data["momentum"] * 0.2
+                + claw_data["pattern"] * 0.1
+            )
+            blended = (ta_score * 0.4) + (pillar_score * 0.6)
+            label = f"{label}+5Pillars"
+        else:
+            blended = ta_score
+
+        final_score = max(0.0, min(100.0, blended * self._regime_mult))
+
+        # Only publish signals above threshold
+        if final_score >= self.SIGNAL_THRESHOLD:
+            self._signals_generated += 1
+            signal_data = {
+                "symbol": symbol,
+                "score": round(final_score, 1),
+                "label": label,
+                "price": data.get("close", 0),
+                "volume": data.get("volume", 0),
+                "regime": self._regime_state,
+                "regime_mult": self._regime_mult,
+                "bar_count": len(history),
+                "timestamp": data.get("timestamp", ""),
+                "source": "event_driven_signal_engine",
+            }
+            await self.message_bus.publish("signal.generated", signal_data)
+
+            if final_score >= 80:
+                logger.info(
+                    "\u26a1 HIGH signal: %s score=%.1f (%s) @ $%.2f [regime=%s]",
+                    symbol, final_score, label, data.get("close", 0), self._regime_state,
+                )
+
+    async def _refresh_regime(self) -> None:
+        """Background refresh of OpenClaw regime context."""
+        try:
+            self._regime_state, self._claw_scores = await _get_openclaw_context()
+            self._regime_mult = _REGIME_MULTIPLIERS.get(self._regime_state, 1.0)
+            if self._claw_scores:
+                logger.debug(
+                    "Regime refreshed: %s (mult=%.2f, %d candidates)",
+                    self._regime_state, self._regime_mult, len(self._claw_scores),
+                )
+        except Exception as e:
+            logger.debug("Regime refresh failed: %s", e)
+
+    def get_status(self) -> Dict[str, Any]:
+        """Return engine status for monitoring."""
+        uptime = time.time() - self._start_time if self._start_time else 0
+        return {
+            "running": self._running,
+            "uptime_seconds": round(uptime, 1),
+            "bars_processed": self._bars_processed,
+            "signals_generated": self._signals_generated,
+            "symbols_tracked": len(self._bar_history),
+            "signal_threshold": self.SIGNAL_THRESHOLD,
+            "regime": self._regime_state,
+            "regime_multiplier": self._regime_mult,
+            "openclaw_candidates": len(self._claw_scores),
+        }
