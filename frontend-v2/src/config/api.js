@@ -102,6 +102,16 @@ const API_CONFIG = {
     "alpaca/orders": "/alpaca/orders", // Orders list with status filter
     "alpaca/activities": "/alpaca/activities", // Trade activities/fills
     "orders/advanced": "/orders/advanced", // Advanced order creation (bracket/OCO/OTO)
+
+        // ---- ALIGNMENT ENGINE (Constitutive Alignment - 6 patterns) ----
+    "alignment/settings": "/alignment/settings", // GET/PUT alignment mode + check toggles
+    "alignment/evaluate": "/alignment/evaluate", // POST preflight verdict for a trade intent
+    "alignment/verdicts": "/alignment/verdicts", // GET recent verdicts (history + filters)
+    "alignment/stats": "/alignment/stats", // GET aggregated alignment stats (blocks, approvals)
+    "alignment/bright-lines": "/alignment/bright-lines", // GET current bright line status
+    "alignment/constellation": "/alignment/constellation", // GET outcome constellation diagnostics
+    "alignment/metacognition": "/alignment/metacognition", // GET metacognition flags + trends
+    "alignment/critique": "/alignment/critique", // GET swarm critique role stats
   },
 };
 
@@ -148,6 +158,7 @@ export const WS_CHANNELS = {
   sentiment: "sentiment",
     risk: "risk",
   kelly: "kelly",
+      alignment: "alignment",
 };
 
 export default API_CONFIG;
