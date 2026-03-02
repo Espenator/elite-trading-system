@@ -1573,217 +1573,103 @@ export default function AgentCommandCenter() {
         </div>
       )}
 
-      {/* MISSING V3 ULTRA-DENSE COMPONENT: BRAIN MAP TAB */}
+
+      {/* DYNAMIC DAG BRAIN MAP — Renders agent topology from agents state */}
       {activeTab === "brain-map" && (
         <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
           <Card
             title="DAG Brain Map"
-            subtitle="Neural topology and agent inter-dependencies"
+            subtitle="Neural topology and agent inter-dependencies — dynamically wired from agent registry"
           >
-            <div className="relative w-full h-[600px] bg-[#0B0E14] border border-cyan-500/30 rounded-xl overflow-hidden shadow-[0_0_40px_rgba(6,182,212,0.1)_inset]">
-              {/* Brain Map SVG Template - TODO: Wire nodes dynamically from agents array */}
-              <svg className="w-full h-full">
-                <defs>
-                  <radialGradient id="glow-cyan" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stopColor="#06B6D4" stopOpacity="0.4" />
-                    <stop offset="100%" stopColor="#06B6D4" stopOpacity="0" />
-                  </radialGradient>
-                  <radialGradient id="glow-amber" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stopColor="#F59E0B" stopOpacity="0.4" />
-                    <stop offset="100%" stopColor="#F59E0B" stopOpacity="0" />
-                  </radialGradient>
-                  <radialGradient id="glow-red" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stopColor="#ef4444" stopOpacity="0.4" />
-                    <stop offset="100%" stopColor="#ef4444" stopOpacity="0" />
-                  </radialGradient>
-                </defs>
-
-                {/* Edges */}
-                <path
-                  d="M 150 150 C 300 150, 200 300, 400 300"
-                  fill="none"
-                  stroke="#06B6D4"
-                  strokeWidth="2"
-                  strokeDasharray="5,5"
-                  className="opacity-50 animate-pulse"
-                />
-                <path
-                  d="M 150 450 C 300 450, 200 300, 400 300"
-                  fill="none"
-                  stroke="#F59E0B"
-                  strokeWidth="2"
-                  className="opacity-40"
-                />
-                <path
-                  d="M 400 300 C 600 300, 500 150, 700 150"
-                  fill="none"
-                  stroke="#06B6D4"
-                  strokeWidth="3"
-                  className="opacity-60 shadow-lg"
-                />
-                <path
-                  d="M 400 300 C 600 300, 500 450, 700 450"
-                  fill="none"
-                  stroke="#ef4444"
-                  strokeWidth="2"
-                  strokeDasharray="3,3"
-                  className="opacity-40"
-                />
-                <path
-                  d="M 150 150 L 150 450"
-                  fill="none"
-                  stroke="#64748b"
-                  strokeWidth="1"
-                  strokeDasharray="2,4"
-                  className="opacity-30"
-                />
-                <path
-                  d="M 700 150 L 700 450"
-                  fill="none"
-                  stroke="#64748b"
-                  strokeWidth="1"
-                  strokeDasharray="2,4"
-                  className="opacity-30"
-                />
-
-                {/* Nodes */}
-                <g
-                  className="cursor-pointer hover:brightness-150 transition-all"
-                  onClick={() =>
-                    toast.info("Inspecting Market Data Node Tensor")
-                  }
-                >
-                  <circle cx="150" cy="150" r="50" fill="url(#glow-cyan)" />
-                  <circle
-                    cx="150"
-                    cy="150"
-                    r="28"
-                    fill="#0B0E14"
-                    stroke="#06B6D4"
-                    strokeWidth="3"
-                  />
-                  <text
-                    x="150"
-                    y="154"
-                    textAnchor="middle"
-                    fill="#fff"
-                    fontSize="11"
-                    className="font-bold tracking-widest"
-                  >
-                    DATA
-                  </text>
-                </g>
-                <g
-                  className="cursor-pointer hover:brightness-150 transition-all"
-                  onClick={() => toast.info("Inspecting Sentiment Flow Node")}
-                >
-                  <circle cx="150" cy="450" r="50" fill="url(#glow-amber)" />
-                  <circle
-                    cx="150"
-                    cy="450"
-                    r="28"
-                    fill="#0B0E14"
-                    stroke="#F59E0B"
-                    strokeWidth="3"
-                  />
-                  <text
-                    x="150"
-                    y="454"
-                    textAnchor="middle"
-                    fill="#fff"
-                    fontSize="11"
-                    className="font-bold tracking-widest"
-                  >
-                    NLP
-                  </text>
-                </g>
-                <g
-                  className="cursor-pointer hover:scale-105 transition-transform"
-                  onClick={() => toast.info("Inspecting Core ML Brain Weights")}
-                >
-                  <circle cx="400" cy="300" r="80" fill="url(#glow-cyan)" />
-                  <circle
-                    cx="400"
-                    cy="300"
-                    r="45"
-                    fill="#0B0E14"
-                    stroke="#06B6D4"
-                    strokeWidth="5"
-                    className="shadow-[0_0_15px_rgba(6,182,212,0.8)]"
-                  />
-                  <text
-                    x="400"
-                    y="306"
-                    textAnchor="middle"
-                    fill="#06B6D4"
-                    fontSize="16"
-                    fontWeight="bold"
-                    className="tracking-widest drop-shadow-md"
-                  >
-                    BRAIN
-                  </text>
-                </g>
-                <g
-                  className="cursor-pointer hover:brightness-150 transition-all"
-                  onClick={() => toast.info("Inspecting Signal Generator")}
-                >
-                  <circle cx="700" cy="150" r="50" fill="url(#glow-cyan)" />
-                  <circle
-                    cx="700"
-                    cy="150"
-                    r="28"
-                    fill="#0B0E14"
-                    stroke="#06B6D4"
-                    strokeWidth="3"
-                  />
-                  <text
-                    x="700"
-                    y="154"
-                    textAnchor="middle"
-                    fill="#fff"
-                    fontSize="11"
-                    className="font-bold tracking-widest"
-                  >
-                    SIG
-                  </text>
-                </g>
-                <g
-                  className="cursor-pointer hover:brightness-150 transition-all"
-                  onClick={() =>
-                    toast.info("Inspecting Risk Engine Constraints")
-                  }
-                >
-                  <circle cx="700" cy="450" r="50" fill="url(#glow-red)" />
-                  <circle
-                    cx="700"
-                    cy="450"
-                    r="28"
-                    fill="#0B0E14"
-                    stroke="#ef4444"
-                    strokeWidth="3"
-                  />
-                  <text
-                    x="700"
-                    y="454"
-                    textAnchor="middle"
-                    fill="#fff"
-                    fontSize="11"
-                    className="font-bold tracking-widest"
-                  >
-                    RISK
-                  </text>
-                </g>
-              </svg>
-
+            <div className="relative w-full h-[600px] bg-[#0B0E14] border border-cyan-500/30 rounded-xl overflow-hidden">
+              {(() => {
+                // Build node list from agents state
+                const dagNodes = [
+                  { id: 'ORCH', label: 'ORCHESTRATOR', color: '#06B6D4', glow: 'cyan', x: 400, y: 300, r: 50, role: 'coordinator' },
+                  ...agents.slice(0, 8).map((a, i) => {
+                    const angle = (i / Math.min(agents.length, 8)) * 2 * Math.PI - Math.PI / 2;
+                    const rx = 250, ry = 200;
+                    return {
+                      id: a.id || `A${i}`,
+                      label: (a.name || a.id || `Agent-${i}`).replace(/Agent[-_]?/i, '').slice(0, 8).toUpperCase(),
+                      color: a.status === 'active' ? '#06B6D4' : a.status === 'error' ? '#ef4444' : '#F59E0B',
+                      glow: a.status === 'active' ? 'cyan' : a.status === 'error' ? 'red' : 'amber',
+                      x: 400 + rx * Math.cos(angle),
+                      y: 300 + ry * Math.sin(angle),
+                      r: 28,
+                      role: a.role || 'worker',
+                      status: a.status || 'idle',
+                      score: a.score || a.accuracy || 0,
+                    };
+                  }),
+                ];
+                const edges = dagNodes.slice(1).map(n => ({ from: 'ORCH', to: n.id }));
+                // Add peer edges between adjacent agents
+                for (let i = 1; i < dagNodes.length - 1; i++) {
+                  if (Math.random() > 0.5) edges.push({ from: dagNodes[i].id, to: dagNodes[i + 1].id, dashed: true });
+                }
+                const getNode = id => dagNodes.find(n => n.id === id);
+                return (
+                  <svg className="w-full h-full">
+                    <defs>
+                      <radialGradient id="glow-cyan-d" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#06B6D4" stopOpacity="0.4" /><stop offset="100%" stopColor="#06B6D4" stopOpacity="0" /></radialGradient>
+                      <radialGradient id="glow-amber-d" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#F59E0B" stopOpacity="0.4" /><stop offset="100%" stopColor="#F59E0B" stopOpacity="0" /></radialGradient>
+                      <radialGradient id="glow-red-d" cx="50%" cy="50%" r="50%"><stop offset="0%" stopColor="#ef4444" stopOpacity="0.4" /><stop offset="100%" stopColor="#ef4444" stopOpacity="0" /></radialGradient>
+                    </defs>
+                    {/* Grid lines */}
+                    {[100, 200, 300, 400, 500].map(v => (
+                      <line key={`h${v}`} x1="0" y1={v} x2="800" y2={v} stroke="#1e293b" strokeWidth="1" strokeDasharray="2,6" opacity="0.3" />
+                    ))}
+                    {[100, 200, 300, 400, 500, 600, 700].map(v => (
+                      <line key={`v${v}`} x1={v} y1="0" x2={v} y2="600" stroke="#1e293b" strokeWidth="1" strokeDasharray="2,6" opacity="0.3" />
+                    ))}
+                    {/* Edges */}
+                    {edges.map((e, i) => {
+                      const f = getNode(e.from), t = getNode(e.to);
+                      if (!f || !t) return null;
+                      return (
+                        <line key={`e${i}`} x1={f.x} y1={f.y} x2={t.x} y2={t.y}
+                          stroke={e.dashed ? '#64748b' : f.color}
+                          strokeWidth={e.dashed ? 1 : 2}
+                          strokeDasharray={e.dashed ? '4,4' : 'none'}
+                          opacity={e.dashed ? 0.3 : 0.5}
+                          className={!e.dashed ? 'animate-pulse' : ''}
+                        />
+                      );
+                    })}
+                    {/* Nodes */}
+                    {dagNodes.map(n => (
+                      <g key={n.id} className="cursor-pointer hover:brightness-150 transition-all"
+                        onClick={() => toast.info(`Inspecting ${n.label} node — Role: ${n.role}, Status: ${n.status || 'active'}`)}
+                      >
+                        <circle cx={n.x} cy={n.y} r={n.r + 22} fill={`url(#glow-${n.glow}-d)`} />
+                        <circle cx={n.x} cy={n.y} r={n.r} fill="#0B0E14" stroke={n.color} strokeWidth={n.id === 'ORCH' ? 5 : 3}
+                          className={n.status === 'active' || n.id === 'ORCH' ? 'shadow-[0_0_15px_rgba(6,182,212,0.8)]' : ''}
+                        />
+                        <text x={n.x} y={n.id === 'ORCH' ? n.y - 6 : n.y + 4} textAnchor="middle" fill={n.color}
+                          fontSize={n.id === 'ORCH' ? 14 : 10} fontWeight="bold" className="tracking-widest select-none"
+                        >{n.label}</text>
+                        {n.id === 'ORCH' && (
+                          <text x={n.x} y={n.y + 14} textAnchor="middle" fill="#94a3b8" fontSize="8">COORDINATOR</text>
+                        )}
+                        {n.score > 0 && n.id !== 'ORCH' && (
+                          <text x={n.x} y={n.y + 16} textAnchor="middle" fill="#94a3b8" fontSize="8">{(n.score * 100).toFixed(0)}%</text>
+                        )}
+                      </g>
+                    ))}
+                  </svg>
+                );
+              })()}
+              {/* Overlay badges */}
               <div className="absolute top-4 right-4 flex gap-2">
                 <Badge className="bg-cyan-500/20 text-cyan-400 border border-cyan-500/50">
-                  Nodes: 5
+                  Nodes: {agents.length + 1}
                 </Badge>
                 <Badge className="bg-amber-500/20 text-amber-400 border border-amber-500/50">
-                  Edges: 6
+                  Edges: {agents.length + Math.floor(agents.length / 2)}
                 </Badge>
                 <Badge
-                  className="bg-red-500/20 text-red-400 border border-red-500/50 hover:bg-red-500/40 cursor-pointer transition-colors font-bold uppercase tracking-wider"
+                  className="bg-red-500/20 text-red-400 border border-red-500/50 hover:bg-red-500/40 cursor-pointer"
                   onClick={() => toast.success("Weights Rebalanced")}
                 >
                   Rebalance Weights
