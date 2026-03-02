@@ -5,6 +5,7 @@
 // =============================================================================
 import React, { useState, useEffect, useCallback } from 'react';
 import { useApi } from "../hooks/useApi";
+import { getApiUrl } from "../config/api";
 
 // ─── COLOR PALETTE (institutional terminal) ──────────────────────────────────
 const C = {
@@ -153,20 +154,23 @@ export default function RiskIntelligence() {
   const [lastRefresh, setLastRefresh] = useState(new Date());
 
   // ─── API HOOKS (wired to real backend endpoints) ─────────────────────────
-  const { data: riskData,      loading: riskLoading }    = useApi('/api/v1/risk');
-  const { data: shieldData,    loading: shieldLoading }  = useApi('/api/v1/risk/shield');
-  const { data: gaugesData,    loading: gaugesLoading }  = useApi('/api/v1/risk/risk-gauges');
-  const { data: kellyData,     loading: kellyLoading }   = useApi('/api/v1/risk/kelly');
-  const { data: monteData,     loading: monteLoading }   = useApi('/api/v1/risk/monte-carlo');
-  const { data: breakersData,  loading: breakersLoading }= useApi('/api/v1/risk/circuit-breakers');
-  const { data: varData,       loading: varLoading }     = useApi('/api/v1/risk/position-var');
-  const { data: historyData,   loading: histLoading }    = useApi('/api/v1/risk/history');
-  const { data: portfolioData }                          = useApi('/api/v1/portfolio');
-    const { data: brightLines }      = useApi('/api/v1/alignment/bright-lines');
-  const { data: recentVerdicts }    = useApi('/api/v1/alignment/verdicts');
+  const { data: riskData, loading: riskLoading, refetch: refetchRisk } = useApi('risk');
+  const { data: shieldData, loading: shieldLoading, refetch: refetchShield } = useApi('risk', { endpoint: '/risk/shield' });
+  const { data: gaugesData, loading: gaugesLoading, refetch: refetchGauges } = useApi('risk', { endpoint: '/risk/risk-gauges' });
+  const { data: kellyData, loading: kellyLoading } = useApi('kellySizer');
+  const { data: monteData, loading: monteLoading } = useApi('risk', { endpoint: '/risk/monte-carlo' });
+  const { data: breakersData, loading: breakersLoading } = useApi('risk', { endpoint: '/risk/circuit-breakers' });
+  const { data: varData, loading: varLoading } = useApi('risk', { endpoint: '/risk/position-var' });
+  const { data: historyData, loading: histLoading } = useApi('risk', { endpoint: '/risk/history' });
+  const { data: portfolioData } = useApi('portfolio');
+  const { data: brightLines } = useApi('alignment/bright-lines');
+  const { data: recentVerdicts } = useApi('alignment/verdicts');
+  const { data: equityCurveData } = useApi('risk', { endpoint: `/risk/equity-curve?tf=${timeframe}`, pollIntervalMs: 30000 });
 
-  const handleRefresh = useCallback(() => setLastRefresh(new Date()), []);
-
+  const handleRefresh = useCallback(() => {
+    setLastRefresh(new Date());
+    refetchRisk(); refetchShield(); refetchGauges();
+  }, [refetchRisk, refetchShield, refetchGauges]);
   // ─── DERIVED VALUES ──────────────────────────────────────────────────────
   const riskScore    = riskData?.risk_score ?? 0;
   const grade        = gradeFromScore(riskScore);
@@ -245,8 +249,8 @@ export default function RiskIntelligence() {
       '🚨 KILL SWITCH: This will CLOSE ALL POSITIONS and HALT TRADING.\n\nAre you absolutely sure?'
     )) return;
     try {
-      await fetch(`/api/v1/risk/emergency/${action.toLowerCase()}`, { method: 'POST' });
-      handleRefresh();
+            await fetch(getApiUrl('risk') + `/emergency/${action.toLowerCase()}`, { method: 'POST' });
+handleRefresh();
     } catch (err) {
       console.error(`Emergency ${action} failed:`, err);
     }
@@ -417,17 +421,25 @@ export default function RiskIntelligence() {
             </h2>
             <span className="text-[10px] text-slate-500 font-mono">{timeframe}</span>
           </div>
-          <div className="h-48 rounded-lg bg-[#0B0E14] border border-[#1E293B] flex items-center justify-center">
-            {/* Placeholder for Recharts / Lightweight Charts equity curve */}
-            <div className="text-center text-slate-500">
-              <div className="text-4xl mb-2">📈</div>
-              <div className="text-xs font-mono">Equity + DD + VaR bands</div>
-              <div className="text-[10px] text-slate-600 mt-1">
-                Wire to: /api/v1/risk/equity-curve?tf={timeframe}
-              </div>
+            <div className="h-48 rounded-lg bg-[#0B0E14] border border-[#1E293B] flex items-end p-2 gap-px overflow-hidden">
+              {(equityCurveData?.points || []).length > 0 ? (
+                equityCurveData.points.map((pt, i) => {
+                  const maxEq = Math.max(...equityCurveData.points.map(p => p.equity || 0), 1);
+                  const h = ((pt.equity || 0) / maxEq) * 100;
+                  const dd = pt.drawdown || 0;
+                  const barColor = dd > 10 ? C.red : dd > 5 ? C.amber : C.green;
+                  return (
+                    <div key={i} className="flex-1 min-w-[2px] rounded-t" style={{ height: `${h}%`, backgroundColor: barColor + '80', minHeight: 2 }} title={`${pt.date}: $${pt.equity?.toLocaleString()} DD:${dd.toFixed(1)}%`} />
+                  );
+                })
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center text-slate-500">
+                  <div className="text-xs font-mono">Equity Curve — Awaiting data from API</div>
+                  <div className="text-[10px] text-slate-600 mt-1">Endpoint: /api/v1/risk/equity-curve?tf={timeframe}</div>
+                </div>
+              )}
             </div>
-          </div>
-        </section>
+section>
 
         {/* ─── ROW 2 LEFT: 12 MINI GAUGES — 4×3 grid (5 cols) ──────── */}
         <section className="col-span-5 bg-[#111827] rounded-lg border border-[#1E293B] p-4">
