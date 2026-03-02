@@ -68,6 +68,7 @@ const navSections = [
       { to: "/trades", icon: LineChart, label: "Active Trades" },
       { to: "/risk", icon: Shield, label: "Risk Intelligence" },
       { to: "/trade-execution", icon: Crosshair, label: "Trade Execution" },
+            { to: "/alignment-engine", icon: Sparkles, label: "Alignment Engine" },
     ],
   },
   {

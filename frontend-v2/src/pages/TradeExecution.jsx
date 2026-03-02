@@ -90,6 +90,28 @@ export default function TradeExecution() {
     adjustPosition,
   } = useTradeExecution();
 
+    // —— Alignment Preflight State ——————————————————————
+  const [preflightVerdict, setPreflightVerdict] = React.useState(null);
+
+  const runAlignmentPreflight = async () => {
+    try {
+      const res = await fetch('/api/alignment/preflight', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          symbol: orderForm?.symbol || 'SPY',
+          side: orderForm?.side || 'buy',
+          quantity: orderForm?.quantity || 1,
+          strategy: 'manual'
+        })
+      });
+      const data = await res.json();
+      setPreflightVerdict(data);
+    } catch (err) {
+      setPreflightVerdict({ allowed: false, blockedBy: 'NETWORK_ERROR', summary: err.message });
+    }
+  };
+
   // ─── Keyboard Shortcuts ──────────────────────────────────
   const handleKeyDown = useCallback((e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
@@ -482,6 +504,27 @@ export default function TradeExecution() {
             </table>
           </div>
         </Card>
+
+              {/* ── ALIGNMENT PREFLIGHT ── */}
+      <Card title="Alignment Preflight">
+        <div style={{ padding: '12px 16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: preflightVerdict?.allowed ? COLORS.green : preflightVerdict ? COLORS.red : COLORS.textDim }} />
+            <span style={{ fontSize: 11, fontWeight: 700, color: preflightVerdict?.allowed ? COLORS.green : preflightVerdict ? COLORS.red : COLORS.textDim }}>
+              {preflightVerdict ? (preflightVerdict.allowed ? 'ALIGNMENT: PASS' : 'ALIGNMENT: BLOCKED') : 'No preflight run yet'}
+            </span>
+            {preflightVerdict?.blockedBy && (
+              <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, backgroundColor: COLORS.redDim, color: COLORS.red }}>{preflightVerdict.blockedBy}</span>
+            )}
+          </div>
+          {preflightVerdict?.summary && <div style={{ fontSize: 10, color: COLORS.textDim }}>{preflightVerdict.summary}</div>}
+          {preflightVerdict?.adjustments && <div style={{ fontSize: 10, color: COLORS.yellow, marginTop: 4 }}>Adjustments: {JSON.stringify(preflightVerdict.adjustments)}</div>}
+          <button
+            onClick={() => runAlignmentPreflight()}
+            style={{ marginTop: 8, padding: '4px 12px', borderRadius: 4, border: 'none', fontSize: 11, fontWeight: 600, backgroundColor: COLORS.cyanDark, color: COLORS.cyan, cursor: 'pointer' }}
+          >Run Preflight Check</button>
+        </div>
+      </Card>
 
         {/* ── System Status Log ──────────────────────────── */}
         <Card title="System Status Log">

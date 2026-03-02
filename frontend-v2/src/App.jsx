@@ -30,6 +30,7 @@ const MarketRegime = lazy(() => import("./pages/MarketRegime"));
 const Trades = lazy(() => import("./pages/Trades"));
 const RiskIntelligence = lazy(() => import("./pages/RiskIntelligence"));
 const TradeExecution = lazy(() => import("./pages/TradeExecution"));
+const AlignmentEngine = lazy(() => import("./pages/AlignmentEngine"));
 
 // SYSTEM section
 const Settings = lazy(() => import("./pages/Settings"));
@@ -79,6 +80,7 @@ function App() {
             <Route path="trades" element={<Suspense fallback={<PageLoader />}><Trades /></Suspense>} />
             <Route path="risk" element={<Suspense fallback={<PageLoader />}><RiskIntelligence /></Suspense>} />
             <Route path="trade-execution" element={<Suspense fallback={<PageLoader />}><TradeExecution /></Suspense>} />
+                          <Route path="alignment-engine" element={<Suspense fallback={<PageLoader />}><AlignmentEngine /></Suspense>} />
 
             {/* SYSTEM */}
             <Route path="settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
