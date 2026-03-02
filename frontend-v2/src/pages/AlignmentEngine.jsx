@@ -4,14 +4,14 @@ import React, { useEffect, useState, useCallback } from 'react';
 // COLORS — shared dark theme palette
 // ———————————————————————————————————————————————————————————————————
 const COLORS = {
-  bg: '#0a0e17',
-  card: '#0d1320',
-  cardBorder: '#1a2335',
-  text: '#e2e8f0',
+  bg: '#0B0E14',
+  card: '#111827',
+  cardBorder: '#1e293b',
+  text: '#f8fafc',
   textDim: '#8892a4',
   textMuted: '#4a5568',
-  cyan: '#00d4aa',
-  cyanDark: '#00b894',
+  cyan: '#06b6d4',
+  cyanDark: '#0891b2',
   green: '#00e676',
   greenDim: 'rgba(0, 230, 118, 0.15)',
   red: '#ff5252',
@@ -20,7 +20,7 @@ const COLORS = {
   yellowDim: 'rgba(255, 214, 0, 0.15)',
   blue: '#448aff',
   orange: '#ff9100',
-  highlight: '#1a2a40',
+  highlight: '#1e293b',
 };
 
 // ———————————————————————————————————————————————————————————————————
