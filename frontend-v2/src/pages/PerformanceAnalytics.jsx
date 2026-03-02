@@ -39,7 +39,7 @@ const PerformanceAnalytics = () => {
     cyan: '#06b6d4', green: '#10b981', red: '#ef4444',
     amber: '#f59e0b', blue: '#3b82f6', purple: '#8b5cf6',
     slate: '#64748b', dark: '#0f172a', surface: '#111827',
-    bg: '#0a0e17', muted: '#9ca3af', border: 'rgba(100,116,139,0.3)'
+    bg: '#0B0E14', muted: '#9ca3af', border: 'rgba(100,116,139,0.3)'
   };
 
   // --- LIGHTWEIGHT CHARTS: Equity + Drawdown (FIX 1) ---
@@ -104,7 +104,7 @@ const PerformanceAnalytics = () => {
   }, [tradesData, tradeSearch]);
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#0a0e17] text-slate-200 font-sans p-4 space-y-4">
+    <div className="flex flex-col min-h-screen bg-[#0B0E14] text-slate-200 font-sans p-4 space-y-4">
 
       {/* HEADER */}
       <header className="flex justify-between items-center mb-2">
