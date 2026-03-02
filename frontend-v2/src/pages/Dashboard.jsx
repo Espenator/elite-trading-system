@@ -29,6 +29,42 @@ const RegimeDonut = ({ regime, score }) => {
   );
 };
 
+// --- TOP TRADES DONUT (from mockup 02) ---
+const TopTradesDonut = ({ buyCount, sellCount, holdCount }) => {
+  const total = (buyCount || 0) + (sellCount || 0) + (holdCount || 0) || 1;
+  const buyPct = ((buyCount || 0) / total) * 100;
+  const sellPct = ((sellCount || 0) / total) * 100;
+  const holdPct = ((holdCount || 0) / total) * 100;
+  const r = 36, cx = 45, cy = 45, sw = 8;
+  const circ = 2 * Math.PI * r;
+  const buyOff = 0;
+  const sellOff = (buyPct / 100) * circ;
+  const holdOff = sellOff + (sellPct / 100) * circ;
+  return (
+    <div className="flex items-center gap-4">
+      <svg width="90" height="90" viewBox="0 0 90 90">
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#1e293b" strokeWidth={sw} />
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#10b981" strokeWidth={sw}
+          strokeDasharray={`${(buyPct / 100) * circ} ${circ}`} strokeDashoffset={0}
+          transform="rotate(-90 45 45)" strokeLinecap="round" />
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#ef4444" strokeWidth={sw}
+          strokeDasharray={`${(sellPct / 100) * circ} ${circ}`} strokeDashoffset={-sellOff}
+          transform="rotate(-90 45 45)" strokeLinecap="round" />
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#f59e0b" strokeWidth={sw}
+          strokeDasharray={`${(holdPct / 100) * circ} ${circ}`} strokeDashoffset={-holdOff}
+          transform="rotate(-90 45 45)" strokeLinecap="round" />
+        <text x={cx} y="42" textAnchor="middle" fill="#f8fafc" fontSize="14" fontFamily="'JetBrains Mono', monospace" fontWeight="bold">{total}</text>
+        <text x={cx} y="55" textAnchor="middle" fill="#94a3b8" fontSize="8" fontFamily="'Inter', sans-serif">TRADES</text>
+      </svg>
+      <div className="text-[10px] space-y-1">
+        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-green-500" /><span className="text-slate-400">Buy</span><span className="text-white font-bold">{buyPct.toFixed(0)}%</span></div>
+        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-red-500" /><span className="text-slate-400">Sell</span><span className="text-white font-bold">{sellPct.toFixed(0)}%</span></div>
+        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-amber-500" /><span className="text-slate-400">Hold</span><span className="text-white font-bold">{holdPct.toFixed(0)}%</span></div>
+      </div>
+    </div>
+  );
+};
+
 // --- SIGNAL BAR CHART (Colored vertical bars per symbol) ---
 const SignalBarChart = ({ signals, selectedSymbol, onSelect }) => {
   if (!signals || !signals.length) return null;
@@ -397,6 +433,15 @@ export default function Dashboard() {
               <span className="text-[8px] text-[#94a3b8] uppercase tracking-wider mb-1">REGIME</span>
               <RegimeDonut regime={openclaw.regime} score={openclaw.compositeScore} />
             </div>
+                      {/* Top Trades Donut (from mockup 02) */}
+          <div className="bg-[#0B0E14] border border-[#1e293b] rounded p-2 flex flex-col items-center justify-center">
+            <span className="text-[8px] text-[#94a3b8] uppercase tracking-wider mb-1">TOP TRADES</span>
+            <TopTradesDonut
+              buyCount={swarm.buyCount || processedSignals.filter(s => s.direction === 'LONG').length}
+              sellCount={swarm.sellCount || processedSignals.filter(s => s.direction === 'SHORT').length}
+              holdCount={swarm.holdCount || Math.max(1, processedSignals.length - processedSignals.filter(s => s.direction === 'LONG').length - processedSignals.filter(s => s.direction === 'SHORT').length)}
+            />
+          </div>
             {/* Agent Consensus Card (always visible) */}
             <div className="flex-1 bg-[#0B0E14] border border-[#1e293b] rounded p-2">
               <h3 className="text-[9px] text-[#06b6d4] font-bold uppercase tracking-wider mb-2">Agent Consensus</h3>
