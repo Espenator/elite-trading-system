@@ -38,6 +38,7 @@ from app.api.v1 import (
     risk_shield_api,
     market,
     alpaca,
+        alignment,
 )
 
 # Configure logging
@@ -249,6 +250,7 @@ app.include_router(sentiment.router, prefix="/api/v1/sentiment", tags=["sentimen
 app.include_router(alerts.router, prefix="/api/v1/alerts", tags=["alerts"])
 app.include_router(settings_routes.router, prefix="/api/v1/settings", tags=["settings"])
 app.include_router(alpaca.router, prefix="/api/v1/alpaca", tags=["alpaca"])
+app.include_router(alignment.router, prefix="/api/v1/alignment", tags=["alignment"])
 
 # Bug #14 fix: risk_shield_api.py has its own prefix="/risk-shield" in the router
 # Previously included WITHOUT prefix="/api/v1", causing routes at /risk-shield/...

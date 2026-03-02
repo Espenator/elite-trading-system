@@ -95,8 +95,7 @@ export default function TradeExecution() {
 
   const runAlignmentPreflight = async () => {
     try {
-      const res = await fetch('/api/alignment/preflight', {
-        method: 'POST',
+            const res = await fetch('/api/v1/alignment/preflight', {  method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           symbol: orderForm?.symbol || 'SPY',

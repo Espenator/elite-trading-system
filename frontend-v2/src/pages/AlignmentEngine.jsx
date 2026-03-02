@@ -79,11 +79,11 @@ export default function AlignmentEngine() {
     setLoading(true);
     try {
       const [stateRes, patternsRes, auditRes, constitutionRes, driftRes] = await Promise.all([
-        fetch('/api/alignment/state'),
-        fetch('/api/alignment/patterns'),
-        fetch('/api/alignment/audit'),
-        fetch('/api/alignment/constitution'),
-        fetch('/api/alignment/drift-history'),
+        fetch('/api/v1/alignment/state'),
+        fetch('/api/v1/alignment/patterns'),
+        fetch('/api/v1/alignment/audit'),
+        fetch('/api/v1/alignment/constitution'),
+        fetch('/api/v1/alignment/drift-history'),
       ]);
       setAlignmentState(await stateRes.json());
       setPatterns(await patternsRes.json());
