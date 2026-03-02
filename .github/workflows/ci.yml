@@ -97,7 +97,7 @@ jobs:
         working-directory: ./frontend-v2
         run: |
           npm run dev &
-          npx wait-on http://localhost:5173 --timeout 30000
+          npx wait-on http://localhost:3000 --timeout 30000
           npx playwright test --reporter=github
         env:
           CI: true
