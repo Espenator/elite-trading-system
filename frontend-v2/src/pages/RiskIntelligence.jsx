@@ -162,6 +162,8 @@ export default function RiskIntelligence() {
   const { data: varData,       loading: varLoading }     = useApi('/api/v1/risk/position-var');
   const { data: historyData,   loading: histLoading }    = useApi('/api/v1/risk/history');
   const { data: portfolioData }                          = useApi('/api/v1/portfolio');
+    const { data: brightLines }      = useApi('/api/v1/alignment/bright-lines');
+  const { data: recentVerdicts }    = useApi('/api/v1/alignment/verdicts');
 
   const handleRefresh = useCallback(() => setLastRefresh(new Date()), []);
 
@@ -622,6 +624,53 @@ export default function RiskIntelligence() {
           </div>
         </section>
       </div>
+
+            {/* ── ROW 5: ALIGNMENT ENGINE — BRIGHT LINES + RECENT BLOCKS ── */}
+      <section className="col-span-12 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-[#1A1F2E] rounded-lg border border-[#1E293B] p-4">
+          <h3 className="text-sm font-bold uppercase tracking-wider mb-3" style={{color: C.amber}}>Bright Lines — Constitutional Limits</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-[#0A0E17] rounded-lg p-3">
+              <div className="text-[10px] uppercase" style={{color: C.dimText}}>Portfolio Heat</div>
+              <div className="text-lg font-bold" style={{color: C.text}}>{brightLines?.currentHeat ?? '—'}%</div>
+              <div className="w-full bg-gray-800 rounded-full h-1.5 mt-1"><div className="h-1.5 rounded-full" style={{backgroundColor: C.cyan, width: `${Math.min(100, ((brightLines?.currentHeat ?? 0) / 25) * 100)}%`}} /></div>
+              <div className="text-[9px] mt-0.5" style={{color: C.dimText}}>Cap: 25%</div>
+            </div>
+            <div className="bg-[#0A0E17] rounded-lg p-3">
+              <div className="text-[10px] uppercase" style={{color: C.dimText}}>Drawdown</div>
+              <div className="text-lg font-bold" style={{color: C.text}}>{brightLines?.currentDrawdown ?? '—'}%</div>
+              <div className="w-full bg-gray-800 rounded-full h-1.5 mt-1"><div className="h-1.5 rounded-full" style={{backgroundColor: (brightLines?.currentDrawdown ?? 0) > 12 ? C.red : C.green, width: `${Math.min(100, ((brightLines?.currentDrawdown ?? 0) / 15) * 100)}%`}} /></div>
+              <div className="text-[9px] mt-0.5" style={{color: C.dimText}}>Cap: 15%</div>
+            </div>
+            <div className="bg-[#0A0E17] rounded-lg p-3">
+              <div className="text-[10px] uppercase" style={{color: C.dimText}}>Daily Trades</div>
+              <div className="text-lg font-bold" style={{color: C.text}}>{brightLines?.todayTradeCount ?? '—'} / {brightLines?.dailyCap ?? 20}</div>
+            </div>
+            <div className="bg-[#0A0E17] rounded-lg p-3">
+              <div className="text-[10px] uppercase" style={{color: C.dimText}}>Circuit Breaker</div>
+              <div className="text-lg font-bold" style={{color: brightLines?.haltActive ? C.red : C.green}}>{brightLines?.haltActive ? 'HALTED' : 'CLEAR'}</div>
+            </div>
+          </div>
+        </div>
+        <div className="bg-[#1A1F2E] rounded-lg border border-[#1E293B] p-4">
+          <h3 className="text-sm font-bold uppercase tracking-wider mb-3" style={{color: C.red}}>Recent Alignment Blocks</h3>
+          <div className="space-y-1 max-h-48 overflow-y-auto">
+            {(recentVerdicts?.verdicts ?? []).filter(v => !v.allowed).slice(0, 8).map((v, i) => (
+              <div key={i} className="flex items-center gap-2 py-1.5 px-2 text-xs border-b border-[#1E293B]/50 hover:bg-[#1E293B]/30">
+                <span className="font-mono w-20 shrink-0" style={{color: C.dimText}}>{new Date(v.timestamp).toLocaleTimeString()}</span>
+                <span className="font-bold w-14" style={{color: C.text}}>{v.symbol}</span>
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold" style={{backgroundColor: C.red + '20', color: C.red}}>{v.blockedBy}</span>
+                <span className="truncate" style={{color: C.muted}}>{v.summary}</span>
+              </div>
+            ))}
+            {(recentVerdicts?.verdicts ?? []).filter(v => !v.allowed).length === 0 && (
+              <div className="text-xs" style={{color: C.dimText}}>No recent blocks</div>
+            )}
+          </div>
+        </div>
+      </section>
+
+
 
       {/* ═══ FOOTER ══════════════════════════════════════════════════════ */}
       <footer className="flex items-center justify-between bg-[#111827] rounded-lg px-4 py-2 border border-[#1E293B]
