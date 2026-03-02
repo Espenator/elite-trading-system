@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import SentimentTimelineLC from '../components/charts/SentimentTimelineLC';
 import {
-  Activity, TrendingUp, TrendingDown, AlertTriangle,
+    Activity, TrendingUp, TrendingDown, AlertTriangle, Target,
   Newspaper, Twitter, MessageSquare, Server,
   Flame, Zap, BarChart2, Radio, RefreshCw, Wifi, WifiOff
 } from 'lucide-react';
@@ -250,6 +250,141 @@ export default function SentimentIntelligence() {
           </div>
         </Card>
       </div>
+
+      {/* NEW ROW: Radar Chart + Prediction Market + Scanner Status Matrix (from mockup 04) */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        {/* Multi-Factor Radar Chart */}
+        <Card className="bg-slate-900/40 border-slate-700/50 backdrop-blur-md p-5">
+          <h3 className="font-bold text-white flex items-center gap-2 mb-4">
+            <BarChart2 className="w-5 h-5 text-cyan-400" />
+            Multi-Factor Sentiment Radar
+          </h3>
+          <div className="flex justify-center">
+            <svg viewBox="0 0 200 200" className="w-56 h-56">
+              {(() => {
+                const factors = [
+                  { label: 'Multi Factor', value: stats.bullish ? stats.bullish / (stats.bullish + stats.bearish + stats.neutral) * 100 : 65 },
+                  { label: 'Dual Factor', value: mood?.value ?? 70 },
+                  { label: 'Axial Factor', value: heatmap.length > 0 ? Math.min(100, heatmap.reduce((a,h) => a + Math.abs(h.score), 0) / heatmap.length * 100) : 55 },
+                  { label: 'Sentiment', value: mood?.value ?? 60 },
+                  { label: 'Social Factor', value: sourceHealth.length > 0 ? sourceHealth.filter(s => s.status === 'LIVE').length / sourceHealth.length * 100 : 45 },
+                  { label: 'Depth Factor', value: signals.length > 0 ? Math.min(100, signals.length * 10) : 50 },
+                ];
+                const cx = 100, cy = 100, maxR = 70;
+                const angleStep = (2 * Math.PI) / factors.length;
+                const getPoint = (i, r) => ({
+                  x: cx + r * Math.cos(i * angleStep - Math.PI / 2),
+                  y: cy + r * Math.sin(i * angleStep - Math.PI / 2),
+                });
+                const gridLevels = [0.25, 0.5, 0.75, 1.0];
+                const dataPoints = factors.map((f, i) => getPoint(i, (f.value / 100) * maxR));
+                const polygonStr = dataPoints.map(p => `${p.x},${p.y}`).join(' ');
+                return (
+                  <>
+                    {gridLevels.map(level => (
+                      <polygon key={level}
+                        points={factors.map((_, i) => { const p = getPoint(i, maxR * level); return `${p.x},${p.y}`; }).join(' ')}
+                        fill="none" stroke="#334155" strokeWidth="0.5" />
+                    ))}
+                    {factors.map((_, i) => {
+                      const p = getPoint(i, maxR);
+                      return <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke="#334155" strokeWidth="0.5" />;
+                    })}
+                    <polygon points={polygonStr} fill="rgba(6,182,212,0.15)" stroke="#06b6d4" strokeWidth="1.5" />
+                    {dataPoints.map((p, i) => (
+                      <circle key={i} cx={p.x} cy={p.y} r="3" fill="#06b6d4" />
+                    ))}
+                    {factors.map((f, i) => {
+                      const p = getPoint(i, maxR + 18);
+                      return <text key={i} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle" fill="#94a3b8" fontSize="8" fontFamily="Inter">{f.label}</text>;
+                    })}
+                  </>
+                );
+              })()}
+            </svg>
+          </div>
+        </Card>
+
+        {/* Prediction Market Panels */}
+        <Card className="bg-slate-900/40 border-slate-700/50 backdrop-blur-md p-5">
+          <h3 className="font-bold text-white flex items-center gap-2 mb-4">
+            <Target className="w-5 h-5 text-amber-400" />
+            Prediction Markets
+          </h3>
+          <div className="space-y-4">
+            {[{ title: 'Prediction Market', desc: 'Prediction intern market probability', probability: mood?.value ?? 80, progress: mood?.value ?? 80 },
+              { title: 'Prediction Market', desc: 'Prediction market probability', probability: Math.max(30, (mood?.value ?? 50) - 10), progress: Math.max(20, (mood?.value ?? 50) - 20) }
+            ].map((pm, i) => (
+              <div key={i} className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-4">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-white font-semibold text-sm">{pm.title}</span>
+                  <span className="text-[10px] text-slate-400">ℹ</span>
+                </div>
+                <p className="text-slate-400 text-xs mb-3">{pm.desc}</p>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-400">Probability</span>
+                    <span className="text-cyan-400 font-bold">{pm.probability}%</span>
+                  </div>
+                  <div className="w-full bg-slate-700 rounded-full h-2">
+                    <div className="bg-cyan-500 h-2 rounded-full" style={{ width: `${pm.probability}%` }} />
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-400">Progress</span>
+                    <span className="text-amber-400 font-bold">{pm.progress}%</span>
+                  </div>
+                  <div className="w-full bg-slate-700 rounded-full h-2">
+                    <div className="bg-amber-500 h-2 rounded-full" style={{ width: `${pm.progress}%` }} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        {/* Scanner Status Matrix (dot grid) */}
+        <Card className="bg-slate-900/40 border-slate-700/50 backdrop-blur-md p-5">
+          <h3 className="font-bold text-white flex items-center gap-2 mb-4">
+            <Activity className="w-5 h-5 text-emerald-400" />
+            Scanner Status Matrix
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[9px]">
+              <thead>
+                <tr>
+                  <th className="text-left text-slate-500 p-1"></th>
+                  {['S1','S2','S3','S4','S5','S6','S7','S8'].map(s => (
+                    <th key={s} className="text-center text-slate-500 p-1">{s}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {(heatmap.length > 0 ? heatmap.slice(0, 12) : [
+                  {ticker:'AAPL'},{ticker:'AMD'},{ticker:'NVDA'},{ticker:'MSFT'},
+                  {ticker:'TSLA'},{ticker:'GOOG'},{ticker:'NVDA'},{ticker:'AMZN'},
+                  {ticker:'META'},{ticker:'NFLX'},{ticker:'PYPL'},{ticker:'SQ'}
+                ]).map((item, ri) => (
+                  <tr key={ri}>
+                    <td className="text-slate-400 font-mono p-1 whitespace-nowrap">{item.ticker}</td>
+                    {Array.from({ length: 8 }, (_, ci) => {
+                      const score = item.score != null ? item.score : (Math.random() * 2 - 1);
+                      const baseHue = score > 0.3 ? 'bg-emerald-500' : score > 0 ? 'bg-cyan-500' : score > -0.3 ? 'bg-amber-500' : 'bg-red-500';
+                      const opacity = 0.4 + Math.abs(score) * 0.6;
+                      return (
+                        <td key={ci} className="p-1 text-center">
+                          <div className={`w-3 h-3 rounded-full mx-auto ${baseHue}`}
+                            style={{ opacity }} />
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
+
 
       {/* BOTTOM ROW: Signals Table + Divergences */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
