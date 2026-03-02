@@ -167,12 +167,7 @@ The Alignment Engine enforces 6 constitutive design patterns that govern all tra
 
 | File | Purpose |
 |------|--------|
-| `core/alignment/constitution.py` | Core constitution rules + drift detection |
-| `core/alignment/preflight.py` | Pre-trade alignment check (all 6 patterns) |
-| `core/alignment/audit_logger.py` | Immutable alignment audit trail |
-| `core/alignment/patterns.py` | Pattern registry + status tracking |
-| `app/api/v1/alignment_api.py` | REST endpoints for alignment engine |
-| `app/services/alignment_service.py` | Service layer wiring patterns together |
+| `backend/app/api/v1/alignment.py` | FastAPI router: state, patterns, audit, constitution, drift, preflight |
 
 ### Frontend Files
 
@@ -186,12 +181,13 @@ The Alignment Engine enforces 6 constitutive design patterns that govern all tra
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/alignment/state` | Current alignment state + drift score |
-| GET | `/api/alignment/patterns` | List all 6 design patterns + status |
-| GET | `/api/alignment/audit` | Audit log entries |
-| GET | `/api/alignment/constitution` | Current constitution text/rules |
-| GET | `/api/alignment/drift-history` | Historical drift scores |
-| POST | `/api/alignment/preflight` | Run preflight check for a trade |
+| GET | `/api/v1/alignment/state` | Current alignment state + drift score |
+| GET | `/api/v1/alignment/patterns` | List all 6 design patterns + status |
+| GET | `/api/v1/alignment/audit` | Audit log entries |
+| GET | `/api/v1/alignment/constitution` | Current constitution text/rules |
+| GET | `/api/v1/alignment/drift-history` | Historical drift scores |
+| POST | `/api/v1/alignment/preflight` | Run preflight check for a trade |
+| GET | `/api/v1/alignment/verdicts` | Recent preflight verdicts |
 
 ### The 6 Constitutive Design Patterns
 
@@ -201,3 +197,26 @@ The Alignment Engine enforces 6 constitutive design patterns that govern all tra
 4. **Audit Trail** — Immutable log of every alignment decision
 5. **Pattern Registry** — Central registry of all active patterns and their health
 6. **Graceful Degradation** — System reduces capability rather than violating alignment
+
+---
+
+## Frontend Pages & Routes
+
+| Sidebar Section | Page | Route | File |
+|----------------|------|-------|------|
+| COMMAND | Intelligence Dashboard | `/dashboard` | `Dashboard.jsx` |
+| COMMAND | Agent Command Center | `/agents` `/agents/:tab` | `AgentCommandCenter.jsx` |
+| INTELLIGENCE | Signal Intelligence | `/signals` | `Signals.jsx` |
+| INTELLIGENCE | Sentiment Intelligence | `/sentiment` | `SentimentIntelligence.jsx` |
+| INTELLIGENCE | Data Sources Manager | `/data-sources` | `DataSourcesMonitor.jsx` |
+| INTELLIGENCE | Signal Intelligence V3 | `/signal-intelligence-v3` | `SignalIntelligenceV3.jsx` |
+| ML & ANALYSIS | ML Brain & Flywheel | `/ml-brain` | `MLBrainFlywheel.jsx` |
+| ML & ANALYSIS | Screener & Patterns | `/patterns` | `Patterns.jsx` |
+| ML & ANALYSIS | Backtesting Lab | `/backtest` | `Backtesting.jsx` |
+| ML & ANALYSIS | Performance Analytics | `/performance` | `PerformanceAnalytics.jsx` |
+| ML & ANALYSIS | Market Regime | `/market-regime` | `MarketRegime.jsx` |
+| EXECUTION | Active Trades | `/trades` | `Trades.jsx` |
+| EXECUTION | Risk Intelligence | `/risk` | `RiskIntelligence.jsx` |
+| EXECUTION | Trade Execution | `/trade-execution` | `TradeExecution.jsx` |
+| EXECUTION | Alignment Engine | `/alignment-engine` | `AlignmentEngine.jsx` |
+| SYSTEM | Settings | `/settings` | `Settings.jsx` |
