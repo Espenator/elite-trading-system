@@ -2,201 +2,152 @@
 
 ## Overview
 
-Consolidated from 18 pages down to **14 sidebar pages** (+ 1 hidden route) for cleaner UX and maintainability.
+Consolidated to **14 sidebar pages** (+ 1 hidden debug route) for cleaner UX and maintainability.
 All pages use V3 widescreen layout with dark theme. Charting uses a mix of **lightweight-charts** (LW Charts) and **Recharts** -- migration to 100% LW Charts is in progress.
 
-> **Current Status (Mar 1, 2026 - Comet AI Session):** All 15 routed pages have V3 UI code. **5 pages completed to 100% mockup** (Data Sources, Active Trades, Trade Execution, Market Regime, Patterns). **7 pages still import Recharts** (see Charting Audit below). Agent Command Center (8 tabs) audit in progress -- see Issue #15.both.
-> AgentCommandCenter.jsx is the largest page (1,995 lines) with **8 internal tabs** and 5 decomposed agent components.
-> **Next Step**: Agent Command Center redesign (8 tabs, see Issue #15), then Recharts-to-LW-Charts migration, wire remaining real API endpoints, final UI polish, WebSocket integration.
+> **Current Status (Mar 2, 2026 - Comet AI Session):**
+> - Signals.jsx merged into SignalIntelligenceV3.jsx (now "Signal Intelligence" in sidebar)
+> - AlignmentEngine.jsx embedded into Settings.jsx (Alignment tab) and TradeExecution.jsx (governance card)
+> - AlignmentEngine.jsx no longer has its own route; it is a shared component used by Settings and TradeExecution
+> - Final sidebar count: 14 pages across 5 sections
 
 > **IMPORTANT**: This is the AUTHORITATIVE architecture doc. Sidebar.jsx defines the 14 visible pages.
-> App.jsx defines all routes including SignalIntelligenceV3 (hidden route, not in sidebar).
+> App.jsx defines all 14 sidebar routes + 1 hidden debug route = 15 total routes.
 
 ---
 
-## Final 15-Route Architecture (matches App.jsx)
+## Final 14-Page Sidebar Architecture (matches App.jsx + Sidebar.jsx)
 
 ### COMMAND (2 pages)
 
-| Page | File | Route | Charting | Status | Notes |
-|------|------|-------|----------|--------|-------|
-| Intelligence Dashboard | `Dashboard.jsx` | `/dashboard` | Recharts (Radar, AreaChart) + LW Charts | V3 CODED | Main overview with market cards, agent status, portfolio summary. Uses both Recharts and LW Charts |
-| Agent Command Center | `AgentCommandCenter.jsx` | `/agents` | None (SVG only) | **AUDIT IN PROGRESS** | 1,995 lines, 8 internal tabs, 5 decomposed components. Redesign needed -- see Issue #15 |
+| # | Page | File | Route | Mockup | Notes |
+|---|------|------|-------|--------|-------|
+| 1 | Dashboard | `Dashboard.jsx` | `/` | `02-intelligence-dashboard.png` | Main overview with market cards, agent status, portfolio summary |
+| 2 | Agent Command Center | `AgentCommandCenter.jsx` | `/agents` | `01-agent-command-center-final.png` | 8 internal tabs, 5 decomposed agent components, swarm visualization |
 
-### INTELLIGENCE (4 routes, 3 in sidebar)
+#### Agent Command Center Sub-Pages (8 tabs)
+| Tab | Description | Component Files |
+|-----|-------------|----------------|
+| Swarm Overview | Real-time swarm topology | `components/agents/SwarmTopology.jsx` |
+| Brain Map | Neural network visualization | Embedded in AgentCommandCenter.jsx |
+| Node Control | Individual agent management | `components/agents/AgentResourceMonitor.jsx` |
+| Spawn & Scale | Agent creation and scaling | Embedded in AgentCommandCenter.jsx |
+| Agent Registry | Registered agent catalog | Embedded in AgentCommandCenter.jsx |
+| Conference Pipeline | Multi-agent coordination | `components/agents/ConferencePipeline.jsx` |
+| Drift Monitor | Agent behavior drift tracking | `components/agents/DriftMonitor.jsx` |
+| System Alerts | Agent system notifications | `components/agents/SystemAlerts.jsx` |
 
-| Page | File | Route | Charting | Status | Notes |
-|------|------|-------|----------|--------|-------|
-| Signal Intelligence | `Signals.jsx` | `/signals` | None | V3 COMPLETE | Velez SLAM DUNK scanner, momentum breakout, heatmap tab |
-| Sentiment Intelligence | `SentimentIntelligence.jsx` | `/sentiment` | Recharts (PieChart) | V3 CODED - NEEDS LW CHARTS | useSentiment hook wired. PieChart from Recharts still in use |
-| Data Sources Monitor | `DataSourcesMonitor.jsx` | `/data-sources` | Recharts (PieChart) | **100% DONE** | 636 lines, real API via dataSourcesApi.js, split view layout, NO mocks (commit 083521a) |
-| Signal Intelligence V3 | `SignalIntelligenceV3.jsx` | `/signal-intelligence-v3` | Recharts + LW Charts | V3 CODED | **Hidden route** (not in sidebar). 1,107 lines, Kelly edge + quality columns. Uses both libraries |
+### INTELLIGENCE (3 pages)
+
+| # | Page | File | Route | Mockup | Notes |
+|---|------|------|-------|--------|-------|
+| 3 | Sentiment Intelligence | `SentimentIntelligence.jsx` | `/sentiment` | `04-sentiment-intelligence.png` | Multi-panel sentiment analysis |
+| 4 | Data Sources Monitor | `DataSourcesMonitor.jsx` | `/data-sources` | `09-data-sources-manager.png` | Data pipeline monitoring, 636 lines |
+| 5 | Signal Intelligence | `SignalIntelligenceV3.jsx` | `/signal-intelligence-v3` | `03-signal-intelligence.png` | 4-column panoramic grid + Live Signal Feed table (merged from Signals.jsx) |
 
 ### ML & ANALYSIS (5 pages)
 
-| Page | File | Route | Charting | Status | Notes |
-|------|------|-------|----------|--------|-------|
-| ML Brain & Flywheel | `MLBrainFlywheel.jsx` | `/ml-brain` | Recharts only | V3 CODED - NEEDS LW CHARTS | ML model performance, brain visualization. Still on Recharts |
-| Screener & Patterns | `Patterns.jsx` | `/patterns` | None | V3 COMPLETE | Finviz/Alpaca screener, no charts needed |
-| Backtesting Lab | `Backtesting.jsx` | `/backtest` | Recharts + LW Charts | V3 CODED | Uses both: LW Charts for equity curve/drawdown, Recharts for histograms/heatmaps |
-| Performance Analytics | `PerformanceAnalytics.jsx` | `/performance` | Recharts + LW Charts (dynamic import) | V3 CODED | Dynamic LW Charts import with Recharts fallback |
-| Market Regime | `MarketRegime.jsx` | `/market-regime` | LW Charts only | **100% DONE** | VIX regime classification, fully on LW Charts, real API, NO mocks 
+| # | Page | File | Route | Mockup | Notes |
+|---|------|------|-------|--------|-------|
+| 6 | ML Brain & Flywheel | `MLBrainFlywheel.jsx` | `/ml-brain` | `06-ml-brain-flywheel.png` | ML model management and flywheel visualization |
+| 7 | Screener & Patterns | `Patterns.jsx` | `/patterns` | `07-screener-and-patterns.png` | Bloomberg-grade 3-column layout |
+| 8 | Backtesting Lab | `Backtesting.jsx` | `/backtesting` | `08-backtesting-lab.png` | Strategy backtesting engine |
+| 9 | Performance Analytics | `PerformanceAnalytics.jsx` | `/performance` | `11-performance-analytics-fullpage.png` | Portfolio performance analysis |
+| 10 | Market Regime | `MarketRegime.jsx` | `/market-regime` | `10-market-regime-green.png`, `10-market-regime-red.png` | Regime detection with green/red states |
 
 ### EXECUTION (3 pages)
 
-| Page | File | Route | Charting | Status | Notes |
-|------|------|-------|----------|--------|-------|
-| Active Trades | `Trades.jsx` | `/trades` | None | **100% DONE** | 415 lines, ultrawide command strip, real Alpaca API, NO mocks (commit 6b2e7ad) |
-| Trade Execution | `TradeExecution.jsx` | `/trade-execution` | None | **100% DONE** | 745 lines, full Alpaca v2 API (bracket/OCO/OTO/trailing), 12-col grid, NO mocks (commit 77e01ce) |
-| Risk Intelligence | `RiskIntelligence.jsx` | `/risk` | None | V3 COMPLETE | Portfolio risk metrics, correlation matrix |
+| # | Page | File | Route | Mockup | Notes |
+|---|------|------|-------|--------|-------|
+| 11 | Active Trades | `Trades.jsx` | `/trades` | `Active-Trades.png` | Active trade management |
+| 12 | Risk Intelligence | `RiskIntelligence.jsx` | `/risk` | `13-risk-intelligence.png` | Risk monitoring and analysis |
+| 13 | Trade Execution | `TradeExecution.jsx` | `/trade-execution` | `12-trade-execution.png` | Order execution + Alignment Preflight + Alignment Engine governance card |
 
 ### SYSTEM (1 page)
 
-| Page | File | Route | Charting | Status | Notes |
-|------|------|-------|----------|--------|-------|
-| Settings | `Settings.jsx` | `/settings` | None | V3 COMPLETE | API keys, preferences, system config. Multiple internal settings tabs |
+| # | Page | File | Route | Mockup | Notes |
+|---|------|------|-------|--------|-------|
+| 14 | Settings | `Settings.jsx` | `/settings` | `14-settings.png` | 11 tabs: Profile, API Keys, Trading, Risk, AI/ML, Agents, Data Sources, Notifications, Appearance, Audit Log, Alignment (embeds AlignmentEngine component) |
+
+### NON-SIDEBAR FILES (shared components, no dedicated routes)
+
+| File | Purpose | Used By |
+|------|---------|--------|
+| `AlignmentEngine.jsx` | Constitutive alignment governance dashboard | Settings.jsx (Alignment tab), TradeExecution.jsx (governance card) |
+| `Signals.jsx` | **DEPRECATED** - Merged into SignalIntelligenceV3.jsx | None (can be deleted) |
 
 ---
 
-## Agent Command Center - Deep Architecture
+## Component Architecture
 
-The Agent Command Center (`AgentCommandCenter.jsx`) is the most complex page at **1,995 lines (76.3 KB)**.
-It contains **8 internal tab views** and imports **5 decomposed V3 agent components**.
+### agents/ (5 components)
+- `AgentResourceMonitor.jsx` - Individual agent monitoring
+- `ConferencePipeline.jsx` - Multi-agent conference coordination
+- `DriftMonitor.jsx` - Agent behavior drift detection
+- `SwarmTopology.jsx` - Swarm network visualization
+- `SystemAlerts.jsx` - Agent system alert management
 
-### 8 Internal Tabs
+### charts/ (8 components)
+- `DataSourceSparkLC.jsx` - Data source sparkline (LW Charts)
+- `EquityCurveChart.jsx` - Equity curve visualization
+- `MiniChart.jsx` - Compact inline charts
+- `MonteCarloLC.jsx` - Monte Carlo simulation (LW Charts)
+- `PatternFrequencyLC.jsx` - Pattern frequency (LW Charts)
+- `RiskEquityLC.jsx` - Risk equity overlay (LW Charts)
+- `RiskHistoryChart.jsx` - Risk history timeline
+- `SentimentTimelineLC.jsx` - Sentiment timeline (LW Charts)
 
-| Tab ID | Label | Icon | Status | Description |
-|--------|-------|------|--------|-------------|
-| `overview` | Overview | Eye | Built | Regime Gauge, Swarm Status, Alerts, Consensus Engine, Agent Grid, Candidates Heatmap + V3 enhanced panels |
-| `agents` | Agents | Bot | Built | Agent cards with SHAP bars + Node Control Panel table |
-| `swarm` | Swarm Control | Boxes | Built | Regime Gauge + Operator Overrides (spawn/kill teams, bias slider) + Team detail cards |
-| `candidates` | Candidates | Target | Built | Full ranked candidate table + symbol score heatmap |
-| `alerts` | LLM Flow | Radio | Built | WebSocket LLM alert stream (max 8 alerts) |
-| `brain-map` | Brain Map | Network | Placeholder | Static SVG DAG with 5 nodes (DATA, NLP, BRAIN, SIG, RISK). Needs dynamic wiring from agents array |
-| `leaderboard` | Leaderboard | Trophy | Placeholder | Table with deterministic mock data (win rate, P&L, Sharpe). Needs real agent metrics |
-| `blackboard` | Blackboard | ClipboardList | Placeholder | Real-Time Blackboard pub/sub feed + HITL Ring Buffer. Uses mock intervals, needs real WebSocket |
+### dashboard/ (6 components)
+- `ActivePositions.jsx` - Active position cards
+- `LiveSignalFeed.jsx` - Real-time signal feed
+- `MLStatusCard.jsx` - ML model status
+- `MarketRegimeCard.jsx` - Regime indicator
+- `PerformanceCard.jsx` - Performance metrics
+- `QuickStats.jsx` - Quick statistics overview
 
-### 5 Decomposed Agent Components (`components/agents/`)
+### layout/ (3 components)
+- `Header.jsx` - Top header bar
+- `Layout.jsx` - Page layout wrapper
+- `Sidebar.jsx` - 14-page navigation sidebar
 
-| Component | File | Used In |
-|-----------|------|---------|
-| Swarm Topology | `SwarmTopology.jsx` | Overview tab |
-| Conference Pipeline | `ConferencePipeline.jsx` | Overview tab |
-| Drift Monitor | `DriftMonitor.jsx` | Overview tab |
-| System Alerts | `SystemAlerts.jsx` | Overview tab |
-| Agent Resource Monitor | `AgentResourceMonitor.jsx` | Overview tab |
+### ui/ (12 components)
+- `AlignmentPreflight.jsx` - Pre-trade alignment check widget
+- `Badge.jsx`, `Button.jsx`, `Card.jsx`, `Checkbox.jsx`
+- `DataTable.jsx`, `PageHeader.jsx`, `Select.jsx`
+- `Slider.jsx`, `SymbolIcon.jsx`, `TextField.jsx`, `Toggle.jsx`
 
-### Backend Endpoints Used
-
-- `GET /api/v1/agents` - Agent list and status
-- `POST /api/v1/agents/:id/start|stop` - Agent lifecycle control
-- `GET /api/v1/openclaw/*` - Macro regime, swarm status, candidates, consensus
-- WebSocket channels: `agents` (agent status), `llm-flow` (LLM alerts)
-
----
-
-## Charting Audit (Feb 27, 2026)
-
-### Pages Using Recharts (7 pages - MIGRATION NEEDED)
-
-| Page | Recharts Components Used | Also Uses LW Charts? |
-|------|--------------------------|----------------------|
-| Dashboard.jsx | Radar, AreaChart, Area | Yes |
-| SignalIntelligenceV3.jsx | AreaChart, BarChart, RadarChart, ScatterChart | Yes |
-| Backtesting.jsx | Area, ScatterChart, Scatter, XAxis, YAxis, Tooltip, CartesianGrid, Legend | Yes |
-| PerformanceAnalytics.jsx | CartesianGrid, Tooltip, ResponsiveContainer | Yes (dynamic import) |
-| MLBrainFlywheel.jsx | Tooltip, Legend, ResponsiveContainer | No |
-| SentimentIntelligence.jsx | PieChart, Pie, Cell | No |
-| DataSourcesMonitor.jsx | PieChart, Pie, Cell | No |
-
-### Pages Using LW Charts (5 pages)
-
-| Page | LW Charts Usage |
-|------|-----------------|
-| MarketRegime.jsx | Direct import: createChart, ColorType |
-| Dashboard.jsx | Direct import: createChart, ColorType |
-| Backtesting.jsx | Direct import: createChart, ColorType, CrosshairMode |
-| SignalIntelligenceV3.jsx | Direct import: createChart, CrosshairMode, LineStyle |
-| PerformanceAnalytics.jsx | Dynamic import (try/catch fallback) |
-
-### LW Charts Wrapper Components (`components/charts/`)
-
-| Component | File | Purpose |
-|-----------|------|---------|
-| Data Source Sparkline | `DataSourceSparkLC.jsx` | Sparkline for data source health |
-| Equity Curve | `EquityCurveChart.jsx` | Portfolio equity curve |
-| Mini Chart | `MiniChart.jsx` | Small inline price charts |
-| Monte Carlo | `MonteCarloLC.jsx` | Monte Carlo simulation visualization |
-| Pattern Frequency | `PatternFrequencyLC.jsx` | Pattern frequency histogram |
-| Risk Equity | `RiskEquityLC.jsx` | Risk-adjusted equity chart |
-| Risk History | `RiskHistoryChart.jsx` | Historical risk metrics |
-| Sentiment Timeline | `SentimentTimelineLC.jsx` | Sentiment over time |
-
-### Pages With No Charts (7 pages)
-
-Signals.jsx, AgentCommandCenter.jsx (SVG only), Trades.jsx, RiskIntelligence.jsx, TradeExecution.jsx, Settings.jsx, Patterns.jsx
+### Root components
+- `ErrorBoundary.jsx` - Error boundary wrapper
+- `RegimeBanner.jsx` - Market regime banner
 
 ---
 
-## Pages With Internal Tabs
+## Services (4 files)
+- `dataSourcesApi.js` - Data sources API client
+- `openclawService.js` - OpenClaw trading service
+- `tradeExecutionService.js` - Trade execution API
+- `websocket.js` - WebSocket connection manager
 
-| Page | Tabs |
-|------|------|
-| AgentCommandCenter.jsx | 8 tabs: Overview, Agents, Swarm Control, Candidates, LLM Flow, Brain Map, Leaderboard, Blackboard |
-| Trades.jsx | 2 tabs: OPEN, CLOSED |
-| Settings.jsx | Multiple tabs: api-keys, trading, risk, notifications, appearance, etc. |
+## Hooks (4 files)
+- `useApi.js` - Generic API hook with polling
+- `useSentiment.js` - Sentiment data hook
+- `useSettings.js` - Settings state management
+- `useTradeExecution.js` - Trade execution logic
 
----
+## Config (1 file)
+- `api.js` - API base URL configuration
 
-## V3 Completion Summary
-
-- **V3 COMPLETE (no charts or LW Charts only):** 7 pages - Signals, MarketRegime, Trades, RiskIntelligence, TradeExecution, Settings, Patterns
-- **V3 CODED (uses Recharts, needs migration):** 4 pages - SentimentIntelligence, DataSourcesMonitor, MLBrainFlywheel (Recharts only)
-- **V3 CODED (hybrid Recharts + LW Charts):** 4 pages - Dashboard, Backtesting, PerformanceAnalytics, SignalIntelligenceV3
-- **V3 CODED (complex, no charts):** 1 page - AgentCommandCenter (8 tabs, 3 placeholder tabs need real data)
-- **TOTAL: 15 routed pages (14 in sidebar + 1 hidden)**
-
----
-
-## Remaining Work to Production
-
-1. **Recharts Migration**: Migrate 7 pages from Recharts to LW Charts (or keep Recharts PieChart for non-financial gauges)
-2. **Agent Command Center**: Wire Brain Map, Leaderboard, and Blackboard tabs to real data
-3. **Real API Wiring**: Connect simulated/mock data to live backend endpoints
-4. **Final UI Polish**: Apply approved mockup designs (see `/docs/mockups-v3/`)
-5. **WebSocket Integration**: Wire real-time data feeds where applicable
+## Lib (3 entries)
+- `types/` - TypeScript type definitions
+- `dataSourceIcons.js` - Data source icon mapping
+- `symbolIcons.js` - Ticker symbol icon mapping
 
 ---
 
-## Key Design Standards
-
-- **Layout**: V3 widescreen (no cramped sidebar layouts)
-- **Charts**: Migrating to lightweight-charts (LW Charts) for all financial data. Recharts still used in 7 pages
-- **Styling**: Tailwind CSS with dark theme (`#0a0a0f` background, `#06b6d4` cyan accent)
-- **State**: React hooks + context, no Redux
-- **Routing**: React Router v6 via App.jsx (15 routes)
-- **API**: useApi hook in `/hooks/`, services in `/services/`
-- **Code Splitting**: React.lazy() for all page imports in App.jsx
-- **Components**: Shared UI in `/components/ui/`, charts in `/components/charts/`, agents in `/components/agents/`
-
----
-
-## File Structure
-
-```
-frontend-v2/src/
-  components/
-    agents/          # 5 decomposed agent components (SwarmTopology, ConferencePipeline, etc.)
-    charts/          # 8 LW Charts wrapper components
-    dashboard/       # Dashboard-specific components
-    layout/          # Layout components (Sidebar, etc.)
-    ui/              # Shared UI (Card, Badge, Button, DataTable, PageHeader, Slider, etc.)
-  config/            # API URLs, constants
-  hooks/             # useApi, useWebSocket, custom hooks
-  lib/               # Utility functions
-  pages/             # 15 page components (14 sidebar + 1 hidden)
-  services/          # API service layer, websocket, openclawService
-  App.jsx            # Router with 15 routes + lazy loading
-  V3-ARCHITECTURE.md # This file - AUTHORITATIVE architecture doc
-  main.jsx           # App entry point
-```
+## Design System
+- Dark theme: `#0a0a0f` background, `#1a1a2e` cards
+- Cyan accent: `#00d4ff` for primary actions
+- Inter font family
+- 24px padding, 12px border-radius
+- V3 widescreen layout (no mobile)
+- See `docs/UI-DESIGN-SYSTEM.md` for full spec

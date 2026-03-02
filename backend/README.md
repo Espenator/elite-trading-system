@@ -173,9 +173,10 @@ The Alignment Engine enforces 6 constitutive design patterns that govern all tra
 
 | File | Purpose |
 |------|--------|
-| `frontend-v2/src/pages/AlignmentEngine.jsx` | Full dashboard: state, patterns, drift, constitution, audit |
+| `frontend-v2/src/pages/AlignmentEngine.jsx` | Full alignment dashboard (embedded in Settings.jsx Alignment tab + TradeExecution.jsx governance card, no own route) |
 | `frontend-v2/src/components/ui/AlignmentPreflight.jsx` | Reusable preflight card component |
 | `frontend-v2/src/pages/TradeExecution.jsx` | Preflight integrated into trade form |
+| `frontend-v2/src/pages/Settings.jsx` | Settings page with Alignment tab (embeds AlignmentEngine component) |
 
 ### API Endpoints
 
@@ -255,7 +256,7 @@ curl -s -X POST http://localhost:8000/api/v1/orders/advanced \
 # Expected: 403 {"detail":{"error":"ALIGNMENT_BLOCKED",...}}
 ```
 
-**UI Network Tab check:** Open DevTools > Network, navigate to `/alignment-engine`, verify all 5 fetches return 200.
+**UI Network Tab check:** Open DevTools > Network, navigate to `/settings` (Alignment tab) or `/trade-execution`, verify all 5 alignment API fetches return 200.
 
 ---
 
@@ -291,3 +292,31 @@ Run: `cd backend && pytest tests/test_alignment_contract.py -v`
 | `test_preflight_summary_contains_symbol` | UI gets context |
 | `test_preflight_six_checks` | All 6 design patterns run |
 | `test_alignment_get_endpoints_return_200` | All 6 GET endpoints alive |
+
+
+---
+
+## Frontend UI Architecture (14 Sidebar Pages)
+
+> See `frontend-v2/src/V3-ARCHITECTURE.md` for complete details.
+
+| # | Section | Page | Route |
+|---|---------|------|-------|
+| 1 | COMMAND | Dashboard | `/` |
+| 2 | COMMAND | Agent Command Center | `/agents` |
+| 3 | INTELLIGENCE | Sentiment Intelligence | `/sentiment` |
+| 4 | INTELLIGENCE | Data Sources Monitor | `/data-sources` |
+| 5 | INTELLIGENCE | Signal Intelligence | `/signal-intelligence-v3` |
+| 6 | ML & ANALYSIS | ML Brain & Flywheel | `/ml-brain` |
+| 7 | ML & ANALYSIS | Screener & Patterns | `/patterns` |
+| 8 | ML & ANALYSIS | Backtesting Lab | `/backtesting` |
+| 9 | ML & ANALYSIS | Performance Analytics | `/performance` |
+| 10 | ML & ANALYSIS | Market Regime | `/market-regime` |
+| 11 | EXECUTION | Active Trades | `/trades` |
+| 12 | EXECUTION | Risk Intelligence | `/risk` |
+| 13 | EXECUTION | Trade Execution | `/trade-execution` |
+| 14 | SYSTEM | Settings | `/settings` |
+
+**Agent Command Center Sub-Pages (8 tabs):** Swarm Overview, Brain Map, Node Control, Spawn & Scale, Agent Registry, Conference Pipeline, Drift Monitor, System Alerts
+
+**Settings Sub-Tabs (11):** Profile, API Keys, Trading, Risk, AI/ML, Agents, Data Sources, Notifications, Appearance, Audit Log, Alignment (embeds AlignmentEngine)

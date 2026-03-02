@@ -1,84 +1,81 @@
 # Embodier Trader - V3 UI Mockups
 
-> **Last Updated: February 27, 2026 (3:00 PM EST)**
+> **Last Updated: March 2, 2026 (9:00 AM EST)**
 >
-> **Status: 6 approved mockup images committed. 11 pages still need mockups.**
+> **Status: 22 mockup images in `images/` folder. 14 sidebar pages, all with mockups except Signals.jsx (deprecated/merged).**
 >
 > Code files are ALL committed in `frontend-v2/src/pages/`.
 > See `frontend-v2/src/V3-ARCHITECTURE.md` for the authoritative page list.
 
 ---
 
-## Current 15 Pages vs Mockup Status
+## Final 14 Sidebar Pages vs Mockup Status
 
-The codebase has evolved since initial mockup generation. Below maps the current code routes to mockup availability.
+| # | Section | Page | File | Route | Mockup Image(s) |
+|---|---------|------|------|-------|----------------|
+| 1 | COMMAND | Dashboard | `Dashboard.jsx` | `/` | `02-intelligence-dashboard.png` |
+| 2 | COMMAND | Agent Command Center | `AgentCommandCenter.jsx` | `/agents` | `01-agent-command-center-final.png` + 6 sub-page mockups |
+| 3 | INTELLIGENCE | Sentiment Intelligence | `SentimentIntelligence.jsx` | `/sentiment` | `04-sentiment-intelligence.png` |
+| 4 | INTELLIGENCE | Data Sources Monitor | `DataSourcesMonitor.jsx` | `/data-sources` | `09-data-sources-manager.png` |
+| 5 | INTELLIGENCE | Signal Intelligence | `SignalIntelligenceV3.jsx` | `/signal-intelligence-v3` | `03-signal-intelligence.png` |
+| 6 | ML & ANALYSIS | ML Brain & Flywheel | `MLBrainFlywheel.jsx` | `/ml-brain` | `06-ml-brain-flywheel.png` |
+| 7 | ML & ANALYSIS | Screener & Patterns | `Patterns.jsx` | `/patterns` | `07-screener-and-patterns.png` |
+| 8 | ML & ANALYSIS | Backtesting Lab | `Backtesting.jsx` | `/backtesting` | `08-backtesting-lab.png` |
+| 9 | ML & ANALYSIS | Performance Analytics | `PerformanceAnalytics.jsx` | `/performance` | `11-performance-analytics-fullpage.png` |
+| 10 | ML & ANALYSIS | Market Regime | `MarketRegime.jsx` | `/market-regime` | `10-market-regime-green.png`, `10-market-regime-red.png` |
+| 11 | EXECUTION | Active Trades | `Trades.jsx` | `/trades` | `Active-Trades.png` |
+| 12 | EXECUTION | Risk Intelligence | `RiskIntelligence.jsx` | `/risk` | `13-risk-intelligence.png` |
+| 13 | EXECUTION | Trade Execution | `TradeExecution.jsx` | `/trade-execution` | `12-trade-execution.png` |
+| 14 | SYSTEM | Settings | `Settings.jsx` | `/settings` | `14-settings.png` |
 
-| # | Current Page | File | Route | Mockup Status |
-|---|-------------|------|-------|---------------|
-| 1 | Dashboard | `Dashboard.jsx` | `/` | Needs mockup |
-| 2 | Portfolio Manager | `Portfolio.jsx` | `/portfolio` | Needs mockup |
-| 3 | Market Scanner | `Scanner.jsx` | `/scanner` | Needs mockup |
-| 4 | Order Management | `Orders.jsx` | `/orders` | Needs mockup |
-| 5 | Risk Management | `Risk.jsx` | `/risk` | Needs mockup |
-| 6 | Agent Command Center | `AgentCommandCenter.jsx` | `/agents` | HAS MOCKUP (approved) |
-| 7 | Trading Journal | `Journal.jsx` | `/journal` | Needs mockup |
-| 8 | Backtesting Engine | `Backtesting.jsx` | `/backtesting` | Needs mockup |
-| 9 | Settings | `Settings.jsx` | `/settings` | HAS MOCKUP (approved) |
-| 10 | Alerts & Notifications | `Alerts.jsx` | `/alerts` | Needs mockup |
-| 11 | Research & Analysis | `Research.jsx` | `/research` | Needs mockup |
-| 12 | ML Model Hub | `MLModels.jsx` | `/ml-models` | Needs mockup |
-| 13 | News & Sentiment | `News.jsx` | `/news` | Needs mockup |
-| 14 | Social & Community | `Social.jsx` | `/social` | Needs mockup |
-| 15 | Debug Panel (hidden) | `Debug.jsx` | `/debug` | No mockup needed |
-
-**Total: 6 approved mockup images in `images/` folder, 11 pages still need mockups.**
-
----
-
-## Approved Mockup Images (in `images/`)
-
-These 6 mockups are the source of truth for visual design:
-
-1. **Agent Command Center** - Full 8-tab layout with swarm visualization
-2. **Settings** - Configuration panels
-3. **Patterns & Screener** - Bloomberg-grade 3-column layout (committed as PNG)
-4. **Sentiment Intelligence** - Multi-panel sentiment analysis view
-5. **Data Sources Monitor** - Data pipeline monitoring
-6. Additional approved mockup
-
-> **Note:** Some mockups were generated under older page names (Signal Intelligence, Sentiment Intelligence, Data Sources Monitor, etc.). These pages have been renamed/reorganized in the current codebase. The visual designs remain valid references for the current pages.
+### Non-Sidebar Page Files
+| File | Status | Notes |
+|------|--------|-------|
+| `AlignmentEngine.jsx` | Shared component | Embedded in Settings (Alignment tab) and TradeExecution (governance card). No own route. |
+| `Signals.jsx` | DEPRECATED | Merged into SignalIntelligenceV3.jsx. Can be deleted. |
 
 ---
 
-## Legacy Page Name Mapping
+## Agent Command Center Sub-Page Mockups (7 images)
 
-Some mockups reference older page names. Here is the mapping:
-
-| Old Mockup Name | Current Code Page | Current Route |
-|----------------|-------------------|---------------|
-| Intelligence Dashboard | Dashboard | `/` |
-| Signal Intelligence | Market Scanner | `/scanner` |
-| Sentiment Intelligence | News & Sentiment | `/news` |
-| Data Sources Monitor | Research & Analysis | `/research` |
-| ML Brain & Flywheel | ML Model Hub | `/ml-models` |
-| Screener & Patterns | Market Scanner | `/scanner` |
-| Backtesting Lab | Backtesting Engine | `/backtesting` |
-| Performance Analytics | Portfolio Manager | `/portfolio` |
-| Market Regime | Dashboard (regime panel) | `/` |
-| Active Trades | Order Management | `/orders` |
-| Risk Intelligence | Risk Management | `/risk` |
-| Trade Execution | Order Management | `/orders` |
+| Sub-Page | Mockup Image |
+|----------|-------------|
+| Main Overview | `01-agent-command-center-final.png` |
+| Swarm Overview | `agent command center swarm overview.png` |
+| Brain Map | `agent command center brain map.png` |
+| Node Control | `agent command center node control.png` |
+| Spawn & Scale | `05b-agent-command-center-spawn.png` |
+| Agent Registry | `05c-agent-registry.png` |
+| Blackboard Comms | `05d-blackboard-comms.html` (HTML mockup) |
 
 ---
 
-## Mockup Generation Process
+## All Mockup Images in `images/` (22 total)
 
-Mockups are generated using Perplexity MAX model council (3 versions each):
-1. User submits page specification
-2. 3 AI models generate competing mockup versions
-3. Best version selected and approved
-4. Approved mockup committed to `images/` as PNG
-5. Code aligned to match approved mockup design
+| File | Maps To |
+|------|--------|
+| `01-agent-command-center-final.png` | Agent Command Center |
+| `02-intelligence-dashboard.png` | Dashboard |
+| `03-signal-intelligence.png` | Signal Intelligence |
+| `04-sentiment-intelligence.png` | Sentiment Intelligence |
+| `05-agent-command-center.png` | Agent Command Center (alt) |
+| `05b-agent-command-center-spawn.png` | ACC: Spawn & Scale |
+| `05c-agent-registry.png` | ACC: Agent Registry |
+| `06-ml-brain-flywheel.png` | ML Brain & Flywheel |
+| `07-screener-and-patterns.png` | Screener & Patterns |
+| `08-backtesting-lab.png` | Backtesting Lab |
+| `09-data-sources-manager.png` | Data Sources Monitor |
+| `10-market-regime-green.png` | Market Regime (GREEN) |
+| `10-market-regime-red.png` | Market Regime (RED) |
+| `11-performance-analytics-fullpage.png` | Performance Analytics |
+| `12-trade-execution.png` | Trade Execution |
+| `13-risk-intelligence.png` | Risk Intelligence |
+| `14-settings.png` | Settings |
+| `Active-Trades.png` | Active Trades |
+| `agent command center brain map.png` | ACC: Brain Map |
+| `agent command center node control.png` | ACC: Node Control |
+| `agent command center swarm overview.png` | ACC: Swarm Overview |
+| `realtimeblackbard fead.png` | ACC: Blackboard Feed |
 
 ---
 
@@ -90,9 +87,3 @@ See `docs/UI-DESIGN-SYSTEM.md` for the authoritative design system:
 - Inter font family
 - 24px padding, 12px border-radius
 - V3 widescreen layout (no mobile)
-
----
-
-## Full Specification
-
-See `FULL-MOCKUP-SPEC.md` in this directory for complete mockup specifications for all 14 sidebar pages.

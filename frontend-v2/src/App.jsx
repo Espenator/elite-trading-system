@@ -1,6 +1,6 @@
 // APP ROUTER - Embodier.ai Trading Intelligence System
 // Enhanced with React.lazy() for code-splitting & performance
-// Architecture doc: V3-ARCHITECTURE.md (15 sidebar pages)
+// Architecture doc: V3-ARCHITECTURE.md (14 sidebar pages)
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
@@ -13,8 +13,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const AgentCommandCenter = lazy(() => import("./pages/AgentCommandCenter"));
 
-// INTELLIGENCE section (4 sidebar pages)
-const Signals = lazy(() => import("./pages/Signals"));
+  // INTELLIGENCE section (3 sidebar pages)
 const SentimentIntelligence = lazy(() => import("./pages/SentimentIntelligence"));
   const DataSourcesMonitor = lazy(() => import("./pages/DataSourcesMonitor"));
 const SignalIntelligenceV3 = lazy(() => import("./pages/SignalIntelligenceV3"));
@@ -30,7 +29,6 @@ const MarketRegime = lazy(() => import("./pages/MarketRegime"));
 const Trades = lazy(() => import("./pages/Trades"));
 const RiskIntelligence = lazy(() => import("./pages/RiskIntelligence"));
 const TradeExecution = lazy(() => import("./pages/TradeExecution"));
-const AlignmentEngine = lazy(() => import("./pages/AlignmentEngine"));
 
 // SYSTEM section
 const Settings = lazy(() => import("./pages/Settings"));
@@ -64,7 +62,6 @@ function App() {
                           <Route path="agents/:tab" element={<Suspense fallback={<PageLoader />}><AgentCommandCenter /></Suspense>} />
 
             {/* INTELLIGENCE */}
-            <Route path="signals" element={<Suspense fallback={<PageLoader />}><Signals /></Suspense>} />
             <Route path="sentiment" element={<Suspense fallback={<PageLoader />}><SentimentIntelligence /></Suspense>} />
                           <Route path="data-sources" element={<Suspense fallback={<PageLoader />}><DataSourcesMonitor /></Suspense>} />
             <Route path="signal-intelligence-v3" element={<Suspense fallback={<PageLoader />}><SignalIntelligenceV3 /></Suspense>} />
@@ -80,7 +77,6 @@ function App() {
             <Route path="trades" element={<Suspense fallback={<PageLoader />}><Trades /></Suspense>} />
             <Route path="risk" element={<Suspense fallback={<PageLoader />}><RiskIntelligence /></Suspense>} />
             <Route path="trade-execution" element={<Suspense fallback={<PageLoader />}><TradeExecution /></Suspense>} />
-                          <Route path="alignment-engine" element={<Suspense fallback={<PageLoader />}><AlignmentEngine /></Suspense>} />
 
             {/* SYSTEM */}
             <Route path="settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
