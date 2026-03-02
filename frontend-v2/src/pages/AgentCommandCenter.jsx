@@ -58,7 +58,8 @@ import Slider from "../components/ui/Slider";
 
 
 
-// RegimeBanner removed (unused) const AGENT_MOCKS = import.meta.env.VITE_ENABLE_AGENT_MOCKS === "true";
+// RegimeBanner removed (unused)
+const AGENT_MOCKS = import.meta.env.VITE_ENABLE_AGENT_MOCKS === "true";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl } from "../config/api";
 import ws from "../services/websocket";
