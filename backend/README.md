@@ -220,3 +220,74 @@ The Alignment Engine enforces 6 constitutive design patterns that govern all tra
 | EXECUTION | Trade Execution | `/trade-execution` | `TradeExecution.jsx` |
 | EXECUTION | Alignment Engine | `/alignment-engine` | `AlignmentEngine.jsx` |
 | SYSTEM | Settings | `/settings` | `Settings.jsx` |
+
+---
+
+## Smoke Tests (Prove It's Real)
+
+Run these after `start.bat` or `uvicorn app.main:app`:
+
+```bash
+# 1. Swagger UI — verify alignment tag appears
+curl -s http://localhost:8000/openapi.json | python -m json.tool | findstr alignment
+
+# 2. Preflight — verify 200 + correct schema
+curl -s -X POST http://localhost:8000/api/v1/alignment/preflight \
+  -H "Content-Type: application/json" \
+  -d '{"symbol":"SPY","side":"buy","quantity":1,"strategy":"manual"}'
+# Expected: {"allowed":true,"blockedBy":null,"summary":"BUY 1.0 SPY...",...}
+
+# 3. Blocked trade — verify blocked response
+curl -s -X POST http://localhost:8000/api/v1/alignment/preflight \
+  -H "Content-Type: application/json" \
+  -d '{"symbol":"SPY","side":"buy","quantity":99999,"strategy":""}'
+# Expected: {"allowed":false,"blockedBy":"Position Size Limit",...}
+
+# 4. All GET endpoints return 200
+for ep in state patterns audit constitution drift-history verdicts; do
+  echo "$ep: $(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/api/v1/alignment/$ep)";
+done
+
+# 5. Execution gate — verify blocked order returns 403
+curl -s -X POST http://localhost:8000/api/v1/orders/advanced \
+  -H "Content-Type: application/json" \
+  -d '{"symbol":"SPY","side":"buy","qty":"99999"}'
+# Expected: 403 {"detail":{"error":"ALIGNMENT_BLOCKED",...}}
+```
+
+**UI Network Tab check:** Open DevTools > Network, navigate to `/alignment-engine`, verify all 5 fetches return 200.
+
+---
+
+## Execution-Path Enforcing Gate
+
+Every order submitted via `POST /api/v1/orders/advanced` now runs the alignment preflight **before** reaching the Alpaca broker. This gate:
+- Cannot be bypassed by calling the endpoint directly
+- Returns HTTP 403 with `ALIGNMENT_BLOCKED` error if preflight fails
+- Logs the verdict for audit trail
+- Lives in `backend/app/api/v1/orders.py` lines 58-79
+
+---
+
+## Verdict Persistence
+
+Verdicts and audit entries are persisted to `data/alignment/verdicts.jsonl` and `data/alignment/audit.jsonl` (JSONL format). Data survives server restarts. Override the directory with `ALIGNMENT_DATA_DIR` env var.
+
+---
+
+## Contract Tests
+
+Run: `cd backend && pytest tests/test_alignment_contract.py -v`
+
+| Test | What it locks |
+|------|---------------|
+| `test_preflight_returns_200` | Endpoint exists, not 404 |
+| `test_preflight_schema_has_required_top_keys` | {allowed, blockedBy, summary, checks, timestamp} |
+| `test_preflight_allowed_is_bool` | `allowed` is bool, not string |
+| `test_preflight_checks_is_list_of_dicts` | Each check has {name, passed} |
+| `test_preflight_timestamp_is_iso_string` | Parseable ISO 8601 |
+| `test_preflight_allowed_trade_passes` | Small trade = allowed |
+| `test_preflight_blocked_trade_returns_blocker` | Oversized = blocked + reason |
+| `test_preflight_summary_contains_symbol` | UI gets context |
+| `test_preflight_six_checks` | All 6 design patterns run |
+| `test_alignment_get_endpoints_return_200` | All 6 GET endpoints alive |

@@ -55,6 +55,29 @@ class ReplaceOrderRequest(BaseModel):
 @router.post("/advanced", response_model=Dict)
 async def create_advanced_order(req: AdvancedOrderRequest):
     """Submit any Alpaca v2 order: simple, bracket, OCO, OTO, trailing."""
+        # ── Alignment Preflight Gate ─────────────────────────────────────
+    # Every order MUST pass alignment before reaching the broker.
+    # This gate cannot be bypassed by calling /orders/advanced directly.
+    from app.api.v1.alignment import run_preflight, PreflightRequest
+    preflight_req = PreflightRequest(
+        symbol=req.symbol,
+        side=req.side,
+        quantity=float(req.qty) if req.qty else 1.0,
+        strategy="advanced_order",
+    )
+    verdict = await run_preflight(preflight_req)
+    if not verdict.allowed:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "ALIGNMENT_BLOCKED",
+                "blockedBy": verdict.blockedBy,
+                "summary": verdict.summary,
+                "checks": [c.dict() for c in verdict.checks],
+            },
+        )
+    logger.info("Alignment preflight PASSED for %s %s %s", req.side, req.qty, req.symbol)
+
     try:
         result = await alpaca_service.create_order(
             symbol=req.symbol,

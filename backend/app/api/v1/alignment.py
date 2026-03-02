@@ -15,9 +15,56 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List
+import json
+import os
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# ---------------------------------------------------------------------------
+# Verdict persistence — file-backed JSON for audit trail survival
+# ---------------------------------------------------------------------------
+_DATA_DIR = Path(os.environ.get("ALIGNMENT_DATA_DIR", "data/alignment"))
+_DATA_DIR.mkdir(parents=True, exist_ok=True)
+_VERDICTS_FILE = _DATA_DIR / "verdicts.jsonl"
+_AUDIT_FILE = _DATA_DIR / "audit.jsonl"
+
+def _persist_verdict(verdict_dict: dict):
+    """Append verdict to JSONL file. Survives restarts."""
+    try:
+        with open(_VERDICTS_FILE, "a") as f:
+            f.write(json.dumps(verdict_dict) + "\n")
+    except Exception as e:
+        logger.warning("Failed to persist verdict: %s", e)
+
+def _persist_audit(entry: dict):
+    """Append audit entry to JSONL file."""
+    try:
+        with open(_AUDIT_FILE, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+    except Exception as e:
+        logger.warning("Failed to persist audit: %s", e)
+
+def _load_verdicts(limit: int = 200) -> list:
+    """Load last N verdicts from JSONL file."""
+    if not _VERDICTS_FILE.exists():
+        return []
+    try:
+        lines = _VERDICTS_FILE.read_text().strip().split("\n")
+        return [json.loads(l) for l in lines[-limit:] if l.strip()]
+    except Exception:
+        return []
+
+def _load_audit(limit: int = 500) -> list:
+    """Load last N audit entries from JSONL file."""
+    if not _AUDIT_FILE.exists():
+        return []
+    try:
+        lines = _AUDIT_FILE.read_text().strip().split("\n")
+        return [json.loads(l) for l in lines[-limit:] if l.strip()]
+    except Exception:
+        return []
 
 # ---------------------------------------------------------------------------
 # In-memory state (replace with DB/service layer when ready)
@@ -54,6 +101,7 @@ def _log_audit(event_type: str, message: str):
         "message": message,
     }
     _audit_log.append(entry)
+        _persist_audit(entry)
     if len(_audit_log) > 500:
         _audit_log.pop(0)
 
@@ -108,8 +156,9 @@ async def get_patterns():
 
 @router.get("/audit")
 async def get_audit_log():
-    return _audit_log
-
+    persisted = _load_audit()
+    merged = persisted + [e for e in _audit_log if e not in persisted]
+    return merged[-500:]
 @router.get("/constitution")
 async def get_constitution():
     return _constitution
@@ -120,8 +169,9 @@ async def get_drift_history():
 
 @router.get("/verdicts")
 async def get_verdicts():
-    return _verdicts[-50:]
-
+    persisted = _load_verdicts()
+    merged = persisted + [v for v in _verdicts if v not in persisted]
+    return merged[-50:]
 @router.post("/preflight")
 async def run_preflight(req: PreflightRequest):
     checks = []
@@ -175,6 +225,7 @@ async def run_preflight(req: PreflightRequest):
         timestamp=datetime.now(timezone.utc).isoformat(),
     )
     _verdicts.append(verdict.dict())
+        _persist_verdict(verdict.dict())
     if len(_verdicts) > 200:
         _verdicts.pop(0)
 
