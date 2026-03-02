@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { getApiUrl } from '../config/api';
 
 // ———————————————————————————————————————————————————————————————————
 // COLORS — shared dark theme palette
@@ -79,11 +80,11 @@ export default function AlignmentEngine() {
     setLoading(true);
     try {
       const [stateRes, patternsRes, auditRes, constitutionRes, driftRes] = await Promise.all([
-        fetch('/api/v1/alignment/state'),
-        fetch('/api/v1/alignment/patterns'),
-        fetch('/api/v1/alignment/audit'),
-        fetch('/api/v1/alignment/constitution'),
-        fetch('/api/v1/alignment/drift-history'),
+                  fetch(`${getApiUrl('alignment')}/state`),
+          fetch(`${getApiUrl('alignment')}/patterns`),
+          fetch(`${getApiUrl('alignment')}/audit`),
+          fetch(`${getApiUrl('alignment')}/constitution`),
+          fetch(`${getApiUrl('alignment')}/drift-history`),
       ]);
       setAlignmentState(await stateRes.json());
       setPatterns(await patternsRes.json());
