@@ -8,16 +8,16 @@ import { useApi } from "../hooks/useApi";
 
 // ─── COLOR PALETTE (institutional terminal) ──────────────────────────────────
 const C = {
-  bg:        '#0A0E17',
+  bg:        '#0B0E14',
   surface:   '#111827',
   card:      '#1A1F2E',
   border:    '#1E293B',
-  cyan:      '#00D9FF',
+  cyan:      '#06b6d4',
   green:     '#10B981',
   red:       '#EF4444',
   amber:     '#F59E0B',
   purple:    '#A855F7',
-  text:      '#F1F5F9',
+  text:      '#f8fafc',
   muted:     '#64748B',
   dimText:   '#94A3B8',
 };
@@ -417,7 +417,7 @@ export default function RiskIntelligence() {
             </h2>
             <span className="text-[10px] text-slate-500 font-mono">{timeframe}</span>
           </div>
-          <div className="h-48 rounded-lg bg-[#0A0E17] border border-[#1E293B] flex items-center justify-center">
+          <div className="h-48 rounded-lg bg-[#0B0E14] border border-[#1E293B] flex items-center justify-center">
             {/* Placeholder for Recharts / Lightweight Charts equity curve */}
             <div className="text-center text-slate-500">
               <div className="text-4xl mb-2">📈</div>
@@ -602,7 +602,7 @@ export default function RiskIntelligence() {
           <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300 mb-3">
             90-Day Risk History
           </h2>
-          <div className="h-20 rounded bg-[#0A0E17] border border-[#1E293B] flex items-end px-1 gap-px overflow-hidden">
+          <div className="h-20 rounded bg-[#0B0E14] border border-[#1E293B] flex items-end px-1 gap-px overflow-hidden">
             {history.length > 0 ? history.slice(-90).map((day, i) => {
               const h = Math.max(2, (day.score / 100) * 64);
               const barColor = day.score <= 35 ? C.green
@@ -630,23 +630,23 @@ export default function RiskIntelligence() {
         <div className="bg-[#1A1F2E] rounded-lg border border-[#1E293B] p-4">
           <h3 className="text-sm font-bold uppercase tracking-wider mb-3" style={{color: C.amber}}>Bright Lines — Constitutional Limits</h3>
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-[#0A0E17] rounded-lg p-3">
+            <div className="bg-[#0B0E14] rounded-lg p-3">
               <div className="text-[10px] uppercase" style={{color: C.dimText}}>Portfolio Heat</div>
               <div className="text-lg font-bold" style={{color: C.text}}>{brightLines?.currentHeat ?? '—'}%</div>
               <div className="w-full bg-gray-800 rounded-full h-1.5 mt-1"><div className="h-1.5 rounded-full" style={{backgroundColor: C.cyan, width: `${Math.min(100, ((brightLines?.currentHeat ?? 0) / 25) * 100)}%`}} /></div>
               <div className="text-[9px] mt-0.5" style={{color: C.dimText}}>Cap: 25%</div>
             </div>
-            <div className="bg-[#0A0E17] rounded-lg p-3">
+            <div className="bg-[#0B0E14] rounded-lg p-3">
               <div className="text-[10px] uppercase" style={{color: C.dimText}}>Drawdown</div>
               <div className="text-lg font-bold" style={{color: C.text}}>{brightLines?.currentDrawdown ?? '—'}%</div>
               <div className="w-full bg-gray-800 rounded-full h-1.5 mt-1"><div className="h-1.5 rounded-full" style={{backgroundColor: (brightLines?.currentDrawdown ?? 0) > 12 ? C.red : C.green, width: `${Math.min(100, ((brightLines?.currentDrawdown ?? 0) / 15) * 100)}%`}} /></div>
               <div className="text-[9px] mt-0.5" style={{color: C.dimText}}>Cap: 15%</div>
             </div>
-            <div className="bg-[#0A0E17] rounded-lg p-3">
+            <div className="bg-[#0B0E14] rounded-lg p-3">
               <div className="text-[10px] uppercase" style={{color: C.dimText}}>Daily Trades</div>
               <div className="text-lg font-bold" style={{color: C.text}}>{brightLines?.todayTradeCount ?? '—'} / {brightLines?.dailyCap ?? 20}</div>
             </div>
-            <div className="bg-[#0A0E17] rounded-lg p-3">
+            <div className="bg-[#0B0E14] rounded-lg p-3">
               <div className="text-[10px] uppercase" style={{color: C.dimText}}>Circuit Breaker</div>
               <div className="text-lg font-bold" style={{color: brightLines?.haltActive ? C.red : C.green}}>{brightLines?.haltActive ? 'HALTED' : 'CLEAR'}</div>
             </div>
