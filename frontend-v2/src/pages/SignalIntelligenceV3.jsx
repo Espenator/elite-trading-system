@@ -95,15 +95,15 @@ const SHAP_FACTORS = [
 // ============================================================================
 
 const Panel = ({ title, icon: Icon, children, className = '', headerAction = null }) => (
-  <div className={`bg-[#13131a] border border-[#1a1a2f] rounded-lg overflow-hidden flex flex-col ${className}`}>
-    <div className="px-3 py-2 border-b border-[#1a1a2f] flex justify-between items-center bg-[#0d0d14] shrink-0">
+  <div className={`bg-[#111827] border border-[#1e293b] rounded-lg overflow-hidden flex flex-col ${className}`}>
+    <div className="px-3 py-2 border-b border-[#1e293b] flex justify-between items-center bg-[#111827] shrink-0">
       <div className="flex items-center gap-2">
         {Icon && <Icon className="w-3.5 h-3.5 text-cyan-500 shrink-0" />}
         <h3 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">{title}</h3>
       </div>
       {headerAction && <div className="flex items-center gap-1">{headerAction}</div>}
     </div>
-    <div className="p-2 flex-1 flex flex-col overflow-y-auto scrollbar-thin scrollbar-thumb-[#2a2a4a] scrollbar-track-transparent">
+    <div className="p-2 flex-1 flex flex-col overflow-y-auto scrollbar-thin scrollbar-thumb-[#374151] scrollbar-track-transparent">
       {children}
     </div>
   </div>
@@ -116,7 +116,7 @@ const Toggle = ({ checked, onChange, size = 'md' }) => {
   const translate = size === 'sm' ? 'translate-x-3' : 'translate-x-4';
   return (
     <button type="button" onClick={() => onChange(!checked)}
-      className={`${w} ${h} rounded-full relative transition-colors duration-200 focus:outline-none shrink-0 ${checked ? 'bg-cyan-500' : 'bg-[#2a2a4a]'}`}>
+      className={`${w} ${h} rounded-full relative transition-colors duration-200 focus:outline-none shrink-0 ${checked ? 'bg-cyan-500' : 'bg-[#374151]'}`}>
       <span className={`absolute top-0.5 left-0.5 bg-white rounded-full transition-transform duration-200 ${dot} ${checked ? translate : 'translate-x-0'}`} />
     </button>
   );
@@ -125,7 +125,7 @@ const Toggle = ({ checked, onChange, size = 'md' }) => {
 const Slider = ({ value, onChange, color = 'cyan', label = '' }) => (
   <div className="flex items-center gap-1.5 flex-1">
     {label && <span className="text-[8px] text-gray-500 w-10 shrink-0">{label}</span>}
-    <div className="relative flex-1 h-1 bg-[#1a1a2f] rounded-full">
+    <div className="relative flex-1 h-1 bg-[#1e293b] rounded-full">
       <div className="absolute left-0 top-0 h-1 rounded-full transition-all"
         style={{ width: `${value}%`, background: color === 'cyan' ? '#06b6d4' : color === 'emerald' ? '#10b981' : color === 'amber' ? '#f59e0b' : color === 'red' ? '#ef4444' : '#a855f7' }} />
       <input type="range" min="0" max="100" value={value}
@@ -144,7 +144,7 @@ const ControlRow = ({ title, isActive, onToggle, weight, onWeightChange, statusC
     gray: 'bg-gray-600'
   };
   return (
-    <div className="flex items-center gap-2 py-1 border-b border-[#1a1a2f]/50 last:border-0 hover:bg-[#1a1a2f]/40 px-0.5 rounded group">
+    <div className="flex items-center gap-2 py-1 border-b border-[#1e293b]/50 last:border-0 hover:bg-[#1e293b]/40 px-0.5 rounded group">
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isActive ? (colors[statusColor] || colors.gray) : colors.gray}`} />
       <span className="text-[9px] text-gray-300 truncate w-24 shrink-0" title={title}>{title}</span>
       <Toggle checked={isActive} onChange={onToggle} size="sm" />
@@ -241,10 +241,10 @@ export default function SignalIntelligenceV3() {
     if (!chartContainerRef.current || chartRef.current) return;
     const chart = createChart(chartContainerRef.current, {
       layout: { background: { color: 'transparent' }, textColor: '#9ca3af', fontFamily: 'JetBrains Mono' },
-      grid: { vertLines: { color: '#1a1a2f', style: LineStyle.SparseDotted }, horzLines: { color: '#1a1a2f', style: LineStyle.SparseDotted } },
+      grid: { vertLines: { color: '#1e293b', style: LineStyle.SparseDotted }, horzLines: { color: '#1e293b', style: LineStyle.SparseDotted } },
       crosshair: { mode: CrosshairMode.Normal },
-      timeScale: { borderColor: '#2a2a4a', timeVisible: true, secondsVisible: false },
-      rightPriceScale: { borderColor: '#2a2a4a' },
+      timeScale: { borderColor: '#374151', timeVisible: true, secondsVisible: false },
+      rightPriceScale: { borderColor: '#374151' },
     });
     const candleSeries = chart.addCandlestickSeries({
       upColor: '#10b981', downColor: '#ef4444', borderVisible: false,
@@ -363,9 +363,9 @@ export default function SignalIntelligenceV3() {
 
   // --- RENDER ---
   return (
-    <div className="min-h-screen bg-[#0a0a12] text-gray-200 font-mono">
+    <div className="min-h-screen bg-[#0B0E14] text-gray-200 font-mono">
       {/* TOP TOOLBAR */}
-      <div className="flex items-center justify-between px-4 py-2 bg-[#0d0d14] border-b border-[#1a1a2f] sticky top-0 z-50">
+      <div className="flex items-center justify-between px-4 py-2 bg-[#111827] border-b border-[#1e293b] sticky top-0 z-50">
         <div className="flex items-center gap-3">
           <Activity className="w-4 h-4 text-cyan-500" />
           <span className="text-sm font-bold text-cyan-400 tracking-wider">SIGNAL_INTELLIGENCE_V3</span>
@@ -407,7 +407,7 @@ export default function SignalIntelligenceV3() {
         <div className="flex flex-col gap-2 overflow-y-auto">
           <Panel title="Scanner Modules" icon={Search} className="max-h-[45%]">
             {SCANNERS.map(scan => (
-              <div key={scan.id} className="flex items-center gap-1.5 py-1 border-b border-[#1a1a2f]/50 last:border-0 hover:bg-[#1a1a2f]/40 px-0.5 rounded">
+              <div key={scan.id} className="flex items-center gap-1.5 py-1 border-b border-[#1e293b]/50 last:border-0 hover:bg-[#1e293b]/40 px-0.5 rounded">
                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                   scannerStates[scan.id].status === 'green' ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)]'
                   : scannerStates[scan.id].status === 'yellow' ? 'bg-amber-500 animate-pulse'
@@ -455,7 +455,7 @@ export default function SignalIntelligenceV3() {
               <div className="flex gap-1">
                 {timeframes.map(t => (
                   <button key={t} onClick={() => setChartTimeframe(t)}
-                    className={`px-1.5 py-0.5 rounded text-[9px] font-mono border ${chartTimeframe === t ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400' : 'bg-[#1a1a2f] border-[#2a2a4a] text-gray-500 hover:text-gray-300'}`}>{t}</button>
+                    className={`px-1.5 py-0.5 rounded text-[9px] font-mono border ${chartTimeframe === t ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400' : 'bg-[#1e293b] border-[#374151] text-gray-500 hover:text-gray-300'}`}>{t}</button>
                 ))}
               </div>
             }>
@@ -466,7 +466,7 @@ export default function SignalIntelligenceV3() {
             <div className="overflow-x-auto">
               <table className="w-full text-[9px]">
                 <thead>
-                  <tr className="text-gray-500 border-b border-[#1a1a2f]">
+                  <tr className="text-gray-500 border-b border-[#1e293b]">
                     <th className="text-left py-1 px-1">Symbol</th>
                     <th className="text-left py-1">Score</th>
                     <th className="text-left py-1">Dir</th>
@@ -479,7 +479,7 @@ export default function SignalIntelligenceV3() {
                 </thead>
                 <tbody>
                   {signals.map((sig, idx) => (
-                    <tr key={sig.id || idx} className="border-b border-[#1a1a2f]/30 hover:bg-[#1a1a2f]/40 cursor-pointer"
+                    <tr key={sig.id || idx} className="border-b border-[#1e293b]/30 hover:bg-[#1e293b]/40 cursor-pointer"
                       onClick={() => setSelectedSymbol(sig.symbol)}>
                       <td className={`py-1 px-1 font-bold ${sig.score > 80 ? 'text-cyan-400' : 'text-gray-300'}`}>{sig.symbol}</td>
                       <td className="py-1">
@@ -522,13 +522,13 @@ export default function SignalIntelligenceV3() {
               <span className="text-[9px] text-gray-500 w-28">Regime Multiplier</span>
               <input type="number" step="0.1" value={scoringFormula.regimeMultiplier}
                 onChange={(e) => setScoringFormula(p => ({...p, regimeMultiplier: parseFloat(e.target.value) || 1}))}
-                className="bg-[#1a1a2f] border border-[#2a2a4a] rounded px-2 py-0.5 text-[9px] text-cyan-400 font-bold w-16 outline-none" />
+                className="bg-[#1e293b] border border-[#374151] rounded px-2 py-0.5 text-[9px] text-cyan-400 font-bold w-16 outline-none" />
             </div>
             <div className="flex items-center gap-2 mt-1">
               <span className="text-[9px] text-gray-500 w-28">SLAM DUNK Tier</span>
               <input type="number" value={scoringFormula.tierSlamDunk}
                 onChange={(e) => setScoringFormula(p => ({...p, tierSlamDunk: parseInt(e.target.value) || 90}))}
-                className="bg-[#1a1a2f] border border-[#2a2a4a] rounded px-2 py-0.5 text-[9px] text-emerald-400 font-bold w-16 outline-none" />
+                className="bg-[#1e293b] border border-[#374151] rounded px-2 py-0.5 text-[9px] text-emerald-400 font-bold w-16 outline-none" />
             </div>
             <div className="mt-3 text-[8px] text-gray-500 uppercase tracking-widest mb-1">PER-FACTOR SHAP WEIGHTS</div>
             {SHAP_FACTORS.map(factor => (
@@ -551,7 +551,7 @@ export default function SignalIntelligenceV3() {
 
           <Panel title="ML/AI Models" icon={Cpu}>
             {ML_MODELS.map(model => (
-              <div key={model.id} className="py-1.5 border-b border-[#1a1a2f]/50 last:border-0">
+              <div key={model.id} className="py-1.5 border-b border-[#1e293b]/50 last:border-0">
                 <div className="flex items-center gap-2 mb-1">
                   <Toggle checked={mlStates[model.id].active}
                     onChange={() => setMlStates(p => ({...p, [model.id]: {...p[model.id], active: !p[model.id].active}}))} size="sm" />
@@ -565,7 +565,7 @@ export default function SignalIntelligenceV3() {
                   <span className="text-[8px] text-gray-600">Conf Thresh</span>
                   <input type="range" min="0" max="100" value={mlStates[model.id].confThreshold}
                     onChange={(e) => setMlStates(p => ({...p, [model.id]: {...p[model.id], confThreshold: parseInt(e.target.value)}}))}
-                    className="flex-1 h-1 bg-[#0d0d14] rounded-full appearance-none accent-purple-500" />
+                    className="flex-1 h-1 bg-[#111827] rounded-full appearance-none accent-purple-500" />
                   <span className="text-[8px] text-gray-400">{mlStates[model.id].confThreshold}%</span>
                   <button onClick={() => triggerRetrain(model.id)}
                     className="px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded text-[8px] hover:bg-purple-500 hover:text-white transition-colors">
@@ -581,20 +581,20 @@ export default function SignalIntelligenceV3() {
         <div className="flex flex-col gap-2 overflow-y-auto">
           <Panel title="Social & Data Feeds" icon={Globe}>
             {DATA_SOURCES.map(ds => (
-              <div key={ds.id} className="flex items-center gap-2 py-1 border-b border-[#1a1a2f]/50 last:border-0">
+              <div key={ds.id} className="flex items-center gap-2 py-1 border-b border-[#1e293b]/50 last:border-0">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
                 <span className="text-[9px] text-gray-300 flex-1">{ds.name}</span>
                 <Toggle checked={dataSourceStates[ds.id].active}
                   onChange={() => setDataSourceStates(p => ({...p, [ds.id]: {...p[ds.id], active: !p[ds.id].active}}))} size="sm" />
               </div>
             ))}
-            <div className="flex items-center gap-2 py-1 border-b border-[#1a1a2f]/50">
+            <div className="flex items-center gap-2 py-1 border-b border-[#1e293b]/50">
               <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0" />
               <span className="text-[9px] text-gray-300 flex-1">Discord Listener</span>
               <Badge color="emerald">Connected</Badge>
             </div>
             <input type="text" placeholder="Watch Channels (comma sep)"
-              className="w-full bg-[#1a1a2f] border border-[#2a2a4a] rounded p-1.5 text-[9px] text-gray-300 outline-none focus:border-purple-500 mt-1"
+              className="w-full bg-[#1e293b] border border-[#374151] rounded p-1.5 text-[9px] text-gray-300 outline-none focus:border-purple-500 mt-1"
               defaultValue="options-flow, alerts-pro" />
             <div className="flex items-center gap-2 py-1 mt-1">
               <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
@@ -610,13 +610,13 @@ export default function SignalIntelligenceV3() {
             </div>
             <div className="flex items-center gap-2 py-1">
               <span className="text-[9px] text-gray-500 w-24">Trading Mode</span>
-              <select className="bg-[#1a1a2f] border border-[#2a2a4a] rounded px-2 py-1 text-[9px] outline-none text-emerald-400 font-bold flex-1">
+              <select className="bg-[#1e293b] border border-[#374151] rounded px-2 py-1 text-[9px] outline-none text-emerald-400 font-bold flex-1">
                 <option>PAPER TRADING</option><option>LIVE (ALPACA)</option>
               </select>
             </div>
             <div className="flex items-center gap-2 py-1">
               <span className="text-[9px] text-gray-500 w-24">Position Sizer</span>
-              <select className="bg-[#1a1a2f] border border-[#2a2a4a] rounded px-2 py-1 text-[9px] outline-none text-cyan-400 flex-1">
+              <select className="bg-[#1e293b] border border-[#374151] rounded px-2 py-1 text-[9px] outline-none text-cyan-400 flex-1">
                 <option>KELLY CRITERION</option><option>FIXED 2%</option><option>DYNAMIC VOL</option>
               </select>
             </div>
@@ -650,7 +650,7 @@ export default function SignalIntelligenceV3() {
                 );
               })}
             </div>
-            <div className="flex items-center gap-3 mt-2 pt-1 border-t border-[#1a1a2f]">
+            <div className="flex items-center gap-3 mt-2 pt-1 border-t border-[#1e293b]">
                             <Badge color="emerald">DB: {apiStatus?.db_latency_ms ?? '—'}ms</Badge>
               <Badge color="cyan">MEM: {apiStatus?.memory_pct ?? '—'}%</Badge>
             </div>
@@ -660,8 +660,8 @@ export default function SignalIntelligenceV3() {
       </div>
 
             {/* LIVE SIGNAL FEED — merged from Signals.jsx */}
-      <div className="mt-4 border border-[#1a1a2f] rounded-lg overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 bg-[#0d0d14] border-b border-[#1a1a2f]">
+      <div className="mt-4 border border-[#1e293b] rounded-lg overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 bg-[#111827] border-b border-[#1e293b]">
           <div className="flex items-center gap-2">
             <Zap className="w-4 h-4 text-cyan-400" />
             <h3 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">Live Signal Feed</h3>
@@ -678,8 +678,8 @@ export default function SignalIntelligenceV3() {
         </div>
         <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
           <table className="w-full text-[9px]">
-            <thead className="sticky top-0 bg-[#0d0d14]">
-              <tr className="border-b border-[#1a1a2f]">
+            <thead className="sticky top-0 bg-[#111827]">
+              <tr className="border-b border-[#1e293b]">
                 <th className="px-3 py-2 text-left text-gray-500">Symbol</th>
                 <th className="px-3 py-2 text-left text-gray-500">Action</th>
                 <th className="px-3 py-2 text-left text-gray-500">Conf</th>
@@ -706,7 +706,7 @@ export default function SignalIntelligenceV3() {
                 };
                 const confColor = (c) => c >= 85 ? 'text-emerald-400' : c >= 60 ? 'text-cyan-400' : 'text-amber-400';
                 return sigs.map((sig, i) => (
-                  <tr key={i} className="border-b border-[#1a1a2f]/50 hover:bg-[#1a1a2f]/30">
+                  <tr key={i} className="border-b border-[#1e293b]/50 hover:bg-[#1e293b]/30">
                     <td className="px-3 py-2 font-bold text-gray-200">{sig.symbol || sig.ticker || '—'}</td>
                     <td className="px-3 py-2"><span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${sig.action === 'BUY' ? 'text-emerald-400 bg-emerald-500/15' : sig.action === 'SELL' ? 'text-red-400 bg-red-500/15' : 'text-amber-400 bg-amber-500/15'}`}>{sig.action || '—'}</span></td>
                     <td className={`px-3 py-2 font-bold ${confColor(sig.confidence)}`}>{sig.confidence ?? '—'}%</td>
@@ -772,12 +772,12 @@ export const AgentPipelineFlow = () => {
     { id: 'e7', source: 'score1', target: 'exec1', animated: true, style: { stroke: '#f59e0b' } }
   ];
   return (
-    <div className="bg-[#13131a] border border-[#1a1a2f] rounded-lg p-3">
+    <div className="bg-[#111827] border border-[#1e293b] rounded-lg p-3">
       <h3 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest mb-2">Agent Swarm Data Flow Pipeline</h3>
       <div style={{ height: 520 }}>
         <ReactFlow nodes={initialNodes} edges={initialEdges} nodeTypes={nodeTypes} fitView
           proOptions={{ hideAttribution: true }}>
-          <Background color="#1a1a2f" gap={16} />
+          <Background color="#1e293b" gap={16} />
           <Controls />
         </ReactFlow>
       </div>
@@ -796,9 +796,9 @@ export const AnalyticsDashboards = () => {
     return (
         <div className="grid grid-cols-4 gap-2">
             {chartTitles.map((title, i) => (
-                <div key={i} className="bg-[#13131a] border border-[#1a1a2f] rounded-lg p-3">
+                <div key={i} className="bg-[#111827] border border-[#1e293b] rounded-lg p-3">
                     <h3 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest mb-2">{title}</h3>
-                    <div className="h-[200px] flex items-center justify-center text-gray-500 text-xs border border-dashed border-[#1e3a5f] rounded">
+                    <div className="h-[200px] flex items-center justify-center text-gray-500 text-xs border border-dashed border-[#1e293b] rounded">
                         <span>LW Charts pending</span>
                     </div>
                 </div>
