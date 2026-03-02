@@ -27,6 +27,7 @@ pytest-asyncio==0.23.8
 pytest-cov==4.1.0
 
 # Auth
+cryptography>=41.0.0
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 
