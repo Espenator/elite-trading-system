@@ -125,6 +125,7 @@ export default function SettingsPage() {
     { id: "notifications",  label: "Notifications",    icon: Bell },
     { id: "appearance",     label: "Appearance",       icon: Layout },
     { id: "audit-log",      label: "Audit Log",        icon: History },
+        { id: "alignment",    label: "Alignment",    icon: ShieldAlert },
   ];
 
   if (loading) {
@@ -586,6 +587,49 @@ export default function SettingsPage() {
     );
   };
 
+
+    // --- Tab: Alignment Engine -----------------------------------------------
+  const renderAlignment = () => (
+    <div className="space-y-6 animate-in fade-in duration-300">
+      <SectionHeader icon={ShieldAlert} color="#f59e0b" title="Alignment Engine" sub="Constitutive alignment controls — 6 patterns from the Soul Document architecture." />
+      <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-4 max-w-3xl">
+        <h4 className="text-xs font-bold text-[#f59e0b] uppercase tracking-wider mb-2">Engine Mode</h4>
+        <FieldRow label="Alignment Enabled">
+          <Toggle checked={!!get("alignment", "enabled", true)} onChange={(v) => updateField("alignment", "enabled", v)} />
+        </FieldRow>
+        <Select label="Enforcement Mode" value={get("alignment", "mode", "SHADOW")} options={["OFF", "SHADOW", "PAPER_ENFORCE", "LIVE_ENFORCE"]} onChange={(v) => updateField("alignment", "mode", v)} selectClassName="text-xs py-1.5" />
+      </Card>
+      <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-3 max-w-3xl">
+        <h4 className="text-xs font-bold text-[#f59e0b] uppercase tracking-wider mb-2">Active Checks</h4>
+        <FieldRow label="Bright Lines (hard-coded constitutional limits)">
+          <Toggle checked={!!get("alignment", "checkBrightLines", true)} onChange={(v) => updateField("alignment", "checkBrightLines", v)} />
+        </FieldRow>
+        <FieldRow label="Trading Bible (identity-based filter)">
+          <Toggle checked={!!get("alignment", "checkBible", true)} onChange={(v) => updateField("alignment", "checkBible", v)} />
+        </FieldRow>
+        <FieldRow label="Metacognition (rationalization detection)">
+          <Toggle checked={!!get("alignment", "checkMetacognition", true)} onChange={(v) => updateField("alignment", "checkMetacognition", v)} />
+        </FieldRow>
+        <FieldRow label="Swarm Critique (adversarial role approval)">
+          <Toggle checked={!!get("alignment", "checkCritique", true)} onChange={(v) => updateField("alignment", "checkCritique", v)} />
+        </FieldRow>
+      </Card>
+      <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-3 max-w-3xl">
+        <h4 className="text-xs font-bold text-red-400 uppercase tracking-wider mb-2">Operating Limits</h4>
+        <TextField label="Max Position %" type="number" value={get("alignment", "maxPositionPct", 10)} onChange={(e) => updateField("alignment", "maxPositionPct", Math.min(10, Number(e.target.value)))} suffix="% (cap: 10%)" inputClassName="text-xs py-1.5" />
+        <TextField label="Max Heat %" type="number" value={get("alignment", "maxHeatPct", 25)} onChange={(e) => updateField("alignment", "maxHeatPct", Math.min(25, Number(e.target.value)))} suffix="% (cap: 25%)" inputClassName="text-xs py-1.5" />
+        <TextField label="Max Drawdown %" type="number" value={get("alignment", "maxDrawdownPct", 15)} onChange={(e) => updateField("alignment", "maxDrawdownPct", Math.min(15, Number(e.target.value)))} suffix="% (cap: 15%)" inputClassName="text-xs py-1.5" />
+        <TextField label="Daily Trade Cap" type="number" value={get("alignment", "dailyTradeCap", 20)} onChange={(e) => updateField("alignment", "dailyTradeCap", Number(e.target.value))} inputClassName="text-xs py-1.5" />
+        <TextField label="Rapid-Fire Window" type="number" value={get("alignment", "rapidFireWindowSec", 30)} onChange={(e) => updateField("alignment", "rapidFireWindowSec", Number(e.target.value))} suffix="sec" inputClassName="text-xs py-1.5" />
+        <TextField label="Critique Approval Threshold" type="number" value={get("alignment", "critiqueThreshold", 60)} onChange={(e) => updateField("alignment", "critiqueThreshold", Number(e.target.value))} suffix="%" inputClassName="text-xs py-1.5" />
+      </Card>
+      <div className="flex gap-3">
+        <Button variant="primary" size="sm" leftIcon={Save} onClick={() => onSave("alignment")} disabled={saving} className="bg-[#f59e0b] hover:bg-[#d97706] text-black font-bold text-xs">{saving ? "Saving..." : "Save Alignment"}</Button>
+        <Button variant="secondary" size="sm" leftIcon={RotateCcw} onClick={() => onReset("alignment")} className="text-xs border-gray-700 text-gray-400">Reset</Button>
+      </div>
+    </div>
+  );
+
   // --- Tab definitions ---------------------------------------------------
   const tabs = [
     { key: "profile",        label: "Profile",          icon: User,         render: renderProfile },
@@ -598,6 +642,7 @@ export default function SettingsPage() {
     { key: "notifications",  label: "Notifications",    icon: Bell,         render: renderNotifications },
     { key: "appearance",     label: "Appearance",       icon: Palette,      render: renderAppearance },
     { key: "auditLog",       label: "Audit Log",        icon: FileText,     render: renderAuditLog },
+        { key: "alignment",     label: "Alignment",      icon: ShieldAlert, render: renderAlignment },
   ];
 
   const activeTab = tabs.find((t) => t.key === tab) || tabs[0];
