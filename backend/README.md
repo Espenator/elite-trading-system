@@ -156,3 +156,48 @@ See `.env.example` for all available settings.
 - torch/PyTorch removed from requirements.txt -- LSTM inference code may fail
 
 **Critical**: Run `uvicorn app.main:app` locally before committing any backend changes.
+
+---
+
+## Alignment Engine (Constitutive Design Patterns)
+
+The Alignment Engine enforces 6 constitutive design patterns that govern all trading decisions. Every trade must pass a preflight alignment check before execution.
+
+### Backend Files
+
+| File | Purpose |
+|------|--------|
+| `core/alignment/constitution.py` | Core constitution rules + drift detection |
+| `core/alignment/preflight.py` | Pre-trade alignment check (all 6 patterns) |
+| `core/alignment/audit_logger.py` | Immutable alignment audit trail |
+| `core/alignment/patterns.py` | Pattern registry + status tracking |
+| `app/api/v1/alignment_api.py` | REST endpoints for alignment engine |
+| `app/services/alignment_service.py` | Service layer wiring patterns together |
+
+### Frontend Files
+
+| File | Purpose |
+|------|--------|
+| `frontend-v2/src/pages/AlignmentEngine.jsx` | Full dashboard: state, patterns, drift, constitution, audit |
+| `frontend-v2/src/components/ui/AlignmentPreflight.jsx` | Reusable preflight card component |
+| `frontend-v2/src/pages/TradeExecution.jsx` | Preflight integrated into trade form |
+
+### API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/alignment/state` | Current alignment state + drift score |
+| GET | `/api/alignment/patterns` | List all 6 design patterns + status |
+| GET | `/api/alignment/audit` | Audit log entries |
+| GET | `/api/alignment/constitution` | Current constitution text/rules |
+| GET | `/api/alignment/drift-history` | Historical drift scores |
+| POST | `/api/alignment/preflight` | Run preflight check for a trade |
+
+### The 6 Constitutive Design Patterns
+
+1. **Constitutional Constraint** — Hard limits defined in constitution (max position, drawdown, etc.)
+2. **Drift Detection** — Continuous monitoring of system behavior vs. intended alignment
+3. **Preflight Gate** — Every trade must pass all patterns before execution
+4. **Audit Trail** — Immutable log of every alignment decision
+5. **Pattern Registry** — Central registry of all active patterns and their health
+6. **Graceful Degradation** — System reduces capability rather than violating alignment
