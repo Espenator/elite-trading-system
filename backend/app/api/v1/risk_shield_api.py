@@ -10,12 +10,12 @@ import logging
 
 logger = logging.getLogger("elite.risk_shield")
 
-# Direct import from OpenClaw repo
+# Use in-repo OpenClaw risk governor (app.modules.openclaw.execution)
 try:
-    from openclaw.risk_governor import RiskGovernor
-    risk_gov = RiskGovernor()
-except ImportError:
-    logger.error("RiskGovernor module not found. Ensure openclaw is in the Python path.")
+    from app.modules.openclaw.execution.risk_governor import get_governor, OrderRequest
+    risk_gov = get_governor()
+except ImportError as e:
+    logger.warning("RiskGovernor module not found: %s. RiskShield endpoints will return 503.", e)
     risk_gov = None
 
 router = APIRouter(prefix="/api/v1/risk-shield", tags=["RiskShield"])
@@ -30,56 +30,60 @@ class EmergencyActionReq(BaseModel):
 async def get_risk_shield_status() -> Dict[str, Any]:
     """
     Returns the real-time RiskShield status mapped exactly from
-    openclaw/risk_governor.py
+    app.modules.openclaw.execution.risk_governor
     """
     if not risk_gov:
-        raise HTTPException(status_code=500, detail="RiskGovernor unavailable")
+        raise HTTPException(status_code=503, detail="RiskGovernor unavailable")
 
     try:
+        # Dummy order for checks that require an OrderRequest (status-only read)
+        dummy = OrderRequest(ticker="", side="sell", shares=0, price=0.0, stop_loss=0, sector="", regime="NEUTRAL")
         # Fetch overarching status from OpenClaw (equity, positions, exposure)
         status = risk_gov.get_status()
 
-        # Execute the 9 safety checks exactly as mapped to UI
-        # True means "pass" (safe) and False means "fail" (risk)
+        # Execute the 9 safety checks; in-repo returns (passed: bool, detail: str)
         checks = {
-            "daily_drawdown": risk_gov._check_circuit_breaker(),
-            "max_positions": risk_gov._check_max_exposure(),
-            "max_single_position": risk_gov._check_ticker_concentration(),
-            "sector_concentration": risk_gov._check_sector_concentration(),
-            "correlation_exposure": risk_gov._check_correlation(),
-            "vix_regime_gate": risk_gov._check_regime_gate(),
-            "weekly_drawdown": risk_gov._check_drawdown_velocity(),
-            "liquidity_check": risk_gov._check_daily_trade_count(),
-            "earnings_blackout": risk_gov._check_stop_enforcement()
+            "daily_drawdown": risk_gov._check_circuit_breaker()[0],
+            "max_positions": risk_gov._check_max_exposure(dummy)[0],
+            "max_single_position": risk_gov._check_ticker_concentration(dummy)[0],
+            "sector_concentration": risk_gov._check_sector_concentration(dummy)[0],
+            "correlation_exposure": risk_gov._check_correlation(dummy)[0],
+            "vix_regime_gate": risk_gov._check_regime_gate(dummy)[0],
+            "weekly_drawdown": risk_gov._check_drawdown_velocity()[0],
+            "liquidity_check": risk_gov._check_daily_trade_count()[0],
+            "earnings_blackout": risk_gov._check_stop_enforcement(dummy)[0],
         }
 
         # Calculate Risk Score (0-100 Gauge)
         failed_count = sum(1 for passed in checks.values() if not passed)
-        exposure_pct = status.get('exposure_pct', 0.0)
+        exposure_pct = status.get("exposure_pct", 0.0)
+        equity = status.get("equity", 0.0) or 1.0
 
         # Base penalty for failed checks + exposure penalty
-        risk_score = int((failed_count * 8) + (exposure_pct * 40))
+        risk_score = int((failed_count * 8) + (exposure_pct * 0.4))
         risk_score = max(0, min(100, risk_score))  # Clamp 0-100
 
-        # Construct Heatmap Array from positions
+        # Build heatmap from positions dict (ticker -> {value, sector, ...})
         heatmap_data = []
-        for pos in status.get('positions', []):
-            unrealized_pct = pos.get('unrealized_pct', 0.0)
+        for symbol, pos in (status.get("positions") or {}).items():
+            value = pos.get("value", 0.0)
+            weight = round((value / equity * 100), 2) if equity else 0.0
+            unrealized_pct = pos.get("unrealized_pct", 0.0)
             risk_level = "high" if unrealized_pct < -0.05 else ("low" if unrealized_pct > 0 else "medium")
             heatmap_data.append({
-                "symbol": pos.get('symbol', 'UNK'),
-                "sector": pos.get('sector', 'Unknown'),
-                "weight": pos.get('weight', 0.0),
+                "symbol": symbol,
+                "sector": pos.get("sector", "Unknown"),
+                "weight": weight,
                 "unrealized_pct": unrealized_pct,
-                "risk_level": risk_level
+                "risk_level": risk_level,
             })
 
         return {
             "checks": checks,
             "risk_score": risk_score,
-            "equity": status.get('equity', 0.0),
-            "daily_pnl_pct": status.get('daily_pnl_pct', 0.0),
-            "heatmap": heatmap_data
+            "equity": status.get("equity", 0.0),
+            "daily_pnl_pct": status.get("daily_pnl_pct", 0.0),
+            "heatmap": heatmap_data,
         }
 
     except Exception as e:

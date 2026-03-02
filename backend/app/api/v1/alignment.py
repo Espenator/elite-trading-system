@@ -101,7 +101,7 @@ def _log_audit(event_type: str, message: str):
         "message": message,
     }
     _audit_log.append(entry)
-        _persist_audit(entry)
+    _persist_audit(entry)
     if len(_audit_log) > 500:
         _audit_log.pop(0)
 
@@ -225,7 +225,7 @@ async def run_preflight(req: PreflightRequest):
         timestamp=datetime.now(timezone.utc).isoformat(),
     )
     _verdicts.append(verdict.dict())
-        _persist_verdict(verdict.dict())
+    _persist_verdict(verdict.dict())
     if len(_verdicts) > 200:
         _verdicts.pop(0)
 
