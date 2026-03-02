@@ -66,6 +66,33 @@ export async function setBiasOverride(biasMultiplier) {
   return res.json();
 }
 
+export async function getConsensus() {
+  const res = await fetch(`${BASE()}/consensus`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`OpenClaw consensus: ${res.status}`);
+  const data = await res.json();
+  return data?.consensus ?? [];
+}
+
+export async function nlpSpawn(prompt) {
+  const res = await fetch(`${BASE()}/nlp-spawn`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt }),
+  });
+  if (!res.ok) {
+    const err = new Error(`OpenClaw nlp-spawn: ${res.status}`);
+    try { err.body = await res.json(); } catch { err.body = null; }
+    throw err;
+  }
+  return res.json();
+}
+
+export async function getHealthMatrix() {
+  const res = await fetch(`${BASE()}/health-matrix`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`OpenClaw health-matrix: ${res.status}`);
+  return res.json();
+}
+
 export function getLlmFlowWsUrl() {
   return `${getWsBaseUrl()}/llm-flow`;
 }
@@ -77,4 +104,7 @@ export default {
   spawnTeam,
   setBiasOverride,
   getLlmFlowWsUrl,
+    getConsensus,
+  nlpSpawn,
+  getHealthMatrix,
 };
