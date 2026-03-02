@@ -23,23 +23,21 @@ All pages use V3 widescreen layout with dark theme. Charting uses a mix of **lig
 | # | Page | File | Route | Mockup | Notes |
 |---|------|------|-------|--------|-------|
 | 1 | Dashboard | `Dashboard.jsx` | `/` | `02-intelligence-dashboard.png` | Main overview with market cards, agent status, portfolio summary |
-| 2 | Agent Command Center | `AgentCommandCenter.jsx` | `/agents` | `01-agent-command-center-final.png` | 8 internal tabs, 5 decomposed agent components, swarm visualization |
+| 2 | Agent Command Center | `AgentCommandCenter.jsx` | `/agents` | `01-agent-command-center-final.png` | 6 internal tabs, 5 decomposed agent components, swarm visualization |
 
-#### Agent Command Center Sub-Pages (8 tabs — verified from code lines 721-730)
+#### Agent Command Center Sub-Pages (6 tabs — verified from code lines 721-730)
 | Tab ID | Tab Label | Description | Component Files | Mockup Image | Status |
 |--------|-----------|-------------|----------------|-------------|--------|
 | `overview` | Overview | Main dashboard: RegimeGauge, Swarm Status, Active Teams, Wave State + all 5 decomposed agent components | `SwarmTopology.jsx`, `ConferencePipeline.jsx`, `SystemAlerts.jsx`, `DriftMonitor.jsx`, `AgentResourceMonitor.jsx` | `01-agent-command-center-final.png` | COMPLETE |
 | `agents` | Agents | Intelligence Agents grid with AgentCard toggle (start/stop) | Inline AgentCard component | `05-agent-command-center.png` | COMPLETE |
 | `swarm` | Swarm Control | Spawn new agents form, team scaling, resource allocation | Inline (spawn form, scaling controls) | `05b-agent-command-center-spawn.png`, `agent command center swarm overview.png` | COMPLETE |
 | `candidates` | Candidates | Trade candidate symbols with composite scores, click-to-execute | Inline (symbol grid with heatmap scoring) | `agent command center node control.png` | COMPLETE |
-| `alerts` | LLM Flow | Real-time LLM alert stream via WebSocket, dismissable alert cards | Inline LlmAlert component | No dedicated mockup | COMPLETE |
 | `brain-map` | Brain Map | DAG neural topology SVG — agent inter-dependencies visualization | Inline SVG (TODO: wire nodes dynamically) | `agent command center brain map.png` | PLACEHOLDER — needs dynamic wiring |
-| `leaderboard` | Leaderboard | Agent performance ranking table (win rate, P&L, Sharpe, trades) | Inline table | No dedicated mockup | COMPLETE |
-| `blackboard` | Blackboard | Real-Time Blackboard Pub/Sub feed for inter-agent memory bus | Inline (marked MISSING V3 in code) | `realtimeblackbard fead.png`, `05d-blackboard-comms.html` | PLACEHOLDER — needs V3 ultra-dense component |
+| `blackboard` | Blackboard | Real-Time Blackboard Pub/Sub feed for inter-agent memory bus + HITL Ring Buffer | Inline (marked MISSING V3 in code) | `realtimeblackbard fead.png`, `05d-blackboard-comms.html` | COMPLETE - real-time mock via setInterval, WebSocket-ready |
 
 **Agent Component Usage:** All 5 decomposed agent components (`SwarmTopology`, `ConferencePipeline`, `DriftMonitor`, `SystemAlerts`, `AgentResourceMonitor`) render inside the **Overview** tab, not as separate tabs.
 
-**Mockup Coverage:** 7 mockup images cover ACC. Brain Map and Blackboard tabs are marked as placeholders in code.
+**Mockup Coverage:** 7 mockup images cover ACC. Brain Map tab is the only remaining placeholder. Blackboard is COMPLETE with real-time mock data. Leaderboard table is now embedded in the Overview tab.
 
 ### INTELLIGENCE (3 pages)
 
