@@ -8,6 +8,7 @@ import Select from "../components/ui/Select";
 import Badge from "../components/ui/Badge";
 import { useSettings } from "../hooks/useSettings";
 import { toast } from "react-toastify";
+import AlignmentEngine from "./AlignmentEngine";
 import {
   User, Key, Activity, Bell, Layout, Cpu, Database,
   ShieldAlert, History, Save, RefreshCw, CheckCircle2,
@@ -626,6 +627,12 @@ export default function SettingsPage() {
       <div className="flex gap-3">
         <Button variant="primary" size="sm" leftIcon={Save} onClick={() => onSave("alignment")} disabled={saving} className="bg-[#f59e0b] hover:bg-[#d97706] text-black font-bold text-xs">{saving ? "Saving..." : "Save Alignment"}</Button>
         <Button variant="secondary" size="sm" leftIcon={RotateCcw} onClick={() => onReset("alignment")} className="text-xs border-gray-700 text-gray-400">Reset</Button>
+      </div>
+
+            {/* Full Alignment Engine Dashboard — imported from AlignmentEngine.jsx */}
+      <div className="mt-6 border-t border-gray-800 pt-6">
+        <h4 className="text-xs font-bold text-[#f59e0b] uppercase tracking-wider mb-3">Alignment Engine Dashboard</h4>
+        <AlignmentEngine />
       </div>
     </div>
   );

@@ -658,6 +658,72 @@ export default function SignalIntelligenceV3() {
         </div>
 
       </div>
+
+            {/* LIVE SIGNAL FEED — merged from Signals.jsx */}
+      <div className="mt-4 border border-[#1a1a2f] rounded-lg overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 bg-[#0d0d14] border-b border-[#1a1a2f]">
+          <div className="flex items-center gap-2">
+            <Zap className="w-4 h-4 text-cyan-400" />
+            <h3 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">Live Signal Feed</h3>
+            <span className="text-[9px] text-gray-500">
+              {apiSignals ? (Array.isArray(apiSignals) ? apiSignals.length : apiSignals?.signals?.length ?? 0) : 0} signals
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] text-slate-500">Last scan: {new Date().toLocaleTimeString()}</span>
+            <button onClick={refetchSignals} className="flex items-center gap-1 px-2 py-1 bg-cyan-500/15 border border-cyan-500/50 rounded text-[8px] text-cyan-400 hover:bg-cyan-500/25">
+              <RefreshCw className="w-3 h-3" /> Refresh
+            </button>
+          </div>
+        </div>
+        <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
+          <table className="w-full text-[9px]">
+            <thead className="sticky top-0 bg-[#0d0d14]">
+              <tr className="border-b border-[#1a1a2f]">
+                <th className="px-3 py-2 text-left text-gray-500">Symbol</th>
+                <th className="px-3 py-2 text-left text-gray-500">Action</th>
+                <th className="px-3 py-2 text-left text-gray-500">Conf</th>
+                <th className="px-3 py-2 text-left text-gray-500">Tier</th>
+                <th className="px-3 py-2 text-left text-gray-500">Entry</th>
+                <th className="px-3 py-2 text-left text-gray-500">Target</th>
+                <th className="px-3 py-2 text-left text-gray-500">Stop</th>
+                <th className="px-3 py-2 text-left text-gray-500">R:R</th>
+                <th className="px-3 py-2 text-left text-gray-500">Factors</th>
+                <th className="px-3 py-2 text-left text-gray-500">Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(() => {
+                const sigs = Array.isArray(apiSignals) ? apiSignals : apiSignals?.signals ?? [];
+                if (!sigs.length) return (
+                  <tr><td colSpan={10} className="px-4 py-6 text-center text-slate-500">No signals available. Waiting for agent scan...</td></tr>
+                );
+                const tierColor = (tier) => {
+                  if (tier === 'SLAM DUNK') return 'text-emerald-400 bg-emerald-500/15';
+                  if (tier === 'STRONG GO') return 'text-cyan-400 bg-cyan-500/15';
+                  if (tier === 'WATCH') return 'text-amber-400 bg-amber-500/15';
+                  return 'text-slate-400 bg-slate-500/15';
+                };
+                const confColor = (c) => c >= 85 ? 'text-emerald-400' : c >= 60 ? 'text-cyan-400' : 'text-amber-400';
+                return sigs.map((sig, i) => (
+                  <tr key={i} className="border-b border-[#1a1a2f]/50 hover:bg-[#1a1a2f]/30">
+                    <td className="px-3 py-2 font-bold text-gray-200">{sig.symbol || sig.ticker || '—'}</td>
+                    <td className="px-3 py-2"><span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${sig.action === 'BUY' ? 'text-emerald-400 bg-emerald-500/15' : sig.action === 'SELL' ? 'text-red-400 bg-red-500/15' : 'text-amber-400 bg-amber-500/15'}`}>{sig.action || '—'}</span></td>
+                    <td className={`px-3 py-2 font-bold ${confColor(sig.confidence)}`}>{sig.confidence ?? '—'}%</td>
+                    <td className="px-3 py-2"><span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${tierColor(sig.tier)}`}>{sig.tier || '—'}</span></td>
+                    <td className="px-3 py-2 text-slate-300">{typeof sig.entry === 'number' ? sig.entry.toFixed(2) : sig.entry || '—'}</td>
+                    <td className="px-3 py-2 text-emerald-400">{typeof sig.target === 'number' ? sig.target.toFixed(2) : sig.target || '—'}</td>
+                    <td className="px-3 py-2 text-red-400">{typeof sig.stop === 'number' ? sig.stop.toFixed(2) : sig.stop || '—'}</td>
+                    <td className="px-3 py-2 text-cyan-400 font-bold">{sig.rr || (sig.entry && sig.target && sig.stop ? ((sig.target - sig.entry) / (sig.entry - sig.stop)).toFixed(1) : '—')}</td>
+                    <td className="px-3 py-2 text-slate-500 max-w-[150px] truncate">{Array.isArray(sig.factors) ? sig.factors.join(', ') : sig.factors || '—'}</td>
+                    <td className="px-3 py-2 text-slate-500">{sig.timestamp ? new Date(sig.timestamp).toLocaleTimeString() : sig.time || '—'}</td>
+                  </tr>
+                ));
+              })()}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

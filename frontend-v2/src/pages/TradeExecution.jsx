@@ -1,5 +1,6 @@
 import React, { useEffect, useCallback } from 'react';
 import useTradeExecution from '../hooks/useTradeExecution';
+import AlignmentEngine from "./AlignmentEngine";
 
 // ─── Shared Style Constants ────────────────────────────────
 const COLORS = {
@@ -544,6 +545,13 @@ export default function TradeExecution() {
                 </div>
               </div>
             ))}
+          </div>
+        </Card>
+
+                {/* Alignment Engine — Full governance dashboard */}
+        <Card title="Alignment Engine">
+          <div style={{ padding: '8px 12px', maxHeight: 400, overflowY: 'auto' }}>
+            <AlignmentEngine />
           </div>
         </Card>
       </div>

@@ -42,14 +42,13 @@ const navSections = [
   {
     label: "INTELLIGENCE",
     items: [
-      { to: "/signals", icon: Zap, label: "Signal Intelligence" },
       {
         to: "/sentiment",
         icon: MessageCircle,
         label: "Sentiment Intelligence",
       },
       { to: "/data-sources", icon: Link2, label: "Data Sources Manager" },
-      { to: "/signal-intelligence-v3", icon: Radar, label: "Signal Intelligence V3" },
+      { to: "/signal-intelligence-v3", icon: Radar, label: "Signal Intelligence" },
     ],
   },
   {
@@ -68,7 +67,6 @@ const navSections = [
       { to: "/trades", icon: LineChart, label: "Active Trades" },
       { to: "/risk", icon: Shield, label: "Risk Intelligence" },
       { to: "/trade-execution", icon: Crosshair, label: "Trade Execution" },
-            { to: "/alignment-engine", icon: Sparkles, label: "Alignment Engine" },
     ],
   },
   {
