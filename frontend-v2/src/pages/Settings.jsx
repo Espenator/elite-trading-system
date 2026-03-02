@@ -411,31 +411,31 @@ export default function SettingsPage() {
   };
 
   // ── Tab: Data Sources ────────────────────────────────────────
-  const renderDataSources = () => (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      <SectionHeader icon={Database} title="Data & Feed Management" sub="Configure data refresh intervals and external sources." />
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl">
-        <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-4">
-          <h4 className="text-xs font-bold text-gray-200 uppercase tracking-wider">Refresh Settings</h4>
-          <TextField label="Data Refresh Interval" type="number" value={get("dataSources", "refreshIntervalSeconds", 300)} onChange={(e) => updateField("dataSources", "refreshIntervalSeconds", Number(e.target.value))} suffix="sec" inputClassName="text-xs py-1.5" />
-          <TextField label="StockGeist API Key" type="password" value={get("dataSources", "stockgeistApiKey")} onChange={(e) => updateField("dataSources", "stockgeistApiKey", e.target.value)} inputClassName="text-xs py-1.5" />
-        </Card>
-        <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-4">
-          <h4 className="text-xs font-bold text-gray-200 uppercase tracking-wider">FinViz Screener</h4>
-          <TextField label="Filters" value={get("finvizScreener", "finvizFilters", "")} onChange={(e) => updateField("finvizScreener", "finvizFilters", e.target.value)} inputClassName="text-xs py-1.5" />
-          <TextField label="Scan Interval" type="number" value={get("finvizScreener", "scanInterval", 300)} onChange={(e) => updateField("finvizScreener", "scanInterval", Number(e.target.value))} suffix="sec" inputClassName="text-xs py-1.5" />
-        </Card>
-        <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-4">
-          <h4 className="text-xs font-bold text-gray-200 uppercase tracking-wider">TradingView</h4>
-          <TextField label="Webhook Key" type="password" value={get("tradingview", "webhookKey")} onChange={(e) => updateField("tradingview", "webhookKey", e.target.value)} inputClassName="text-xs py-1.5" />
-          <Select label="Alert Format" value={get("tradingview", "alertFormat", "json")} options={["json", "text", "csv"]} onChange={(v) => updateField("tradingview", "alertFormat", v)} selectClassName="text-xs py-1.5" />
-        </Card>
-      </div>
-      <div className="flex gap-3">
-        <Button variant="primary" size="sm" leftIcon={Save} onClick={() => { onSave("dataSources"); onSave("finvizScreener"); onSave("tradingview"); }} disabled={saving} className="bg-[#06b6d4] hover:bg-[#0891b2] text-black font-bold text-xs">{saving ? "Saving..." : "Save Data Sources"}</Button>
-      </div>
-    </div>
-  );
+  // const renderDataSources = () => (
+  //   <div className="space-y-6 animate-in fade-in duration-300">
+  //     <SectionHeader icon={Database} title="Data & Feed Management" sub="Configure data refresh intervals and external sources." />
+  //     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl">
+  //       <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-4">
+  //         <h4 className="text-xs font-bold text-gray-200 uppercase tracking-wider">Refresh Settings</h4>
+  //         <TextField label="Data Refresh Interval" type="number" value={get("dataSources", "refreshIntervalSeconds", 300)} onChange={(e) => updateField("dataSources", "refreshIntervalSeconds", Number(e.target.value))} suffix="sec" inputClassName="text-xs py-1.5" />
+  //         <TextField label="StockGeist API Key" type="password" value={get("dataSources", "stockgeistApiKey")} onChange={(e) => updateField("dataSources", "stockgeistApiKey", e.target.value)} inputClassName="text-xs py-1.5" />
+  //       </Card>
+  //       <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-4">
+  //         <h4 className="text-xs font-bold text-gray-200 uppercase tracking-wider">FinViz Screener</h4>
+  //         <TextField label="Filters" value={get("finvizScreener", "finvizFilters", "")} onChange={(e) => updateField("finvizScreener", "finvizFilters", e.target.value)} inputClassName="text-xs py-1.5" />
+  //         <TextField label="Scan Interval" type="number" value={get("finvizScreener", "scanInterval", 300)} onChange={(e) => updateField("finvizScreener", "scanInterval", Number(e.target.value))} suffix="sec" inputClassName="text-xs py-1.5" />
+  //       </Card>
+  //       <Card className="bg-[#0B0E14] border-gray-800 p-4 space-y-4">
+  //         <h4 className="text-xs font-bold text-gray-200 uppercase tracking-wider">TradingView</h4>
+  //         <TextField label="Webhook Key" type="password" value={get("tradingview", "webhookKey")} onChange={(e) => updateField("tradingview", "webhookKey", e.target.value)} inputClassName="text-xs py-1.5" />
+  //         <Select label="Alert Format" value={get("tradingview", "alertFormat", "json")} options={["json", "text", "csv"]} onChange={(v) => updateField("tradingview", "alertFormat", v)} selectClassName="text-xs py-1.5" />
+  //       </Card>
+  //     </div>
+  //     <div className="flex gap-3">
+  //       <Button variant="primary" size="sm" leftIcon={Save} onClick={() => { onSave("dataSources"); onSave("finvizScreener"); onSave("tradingview"); }} disabled={saving} className="bg-[#06b6d4] hover:bg-[#0891b2] text-black font-bold text-xs">{saving ? "Saving..." : "Save Data Sources"}</Button>
+  //     </div>
+  //   </div>
+  // );
 
   // ── Tab: Notifications ──────────────────────────────────────
   const renderNotifications = () => {
@@ -645,8 +645,6 @@ export default function SettingsPage() {
         { key: "alignment",     label: "Alignment",      icon: ShieldAlert, render: renderAlignment },
   ];
 
-  const activeTab = tabs.find((t) => t.key === tab) || tabs[0];
-
   // --- Main layout -------------------------------------------------------
   if (loading) {
     return (
@@ -698,5 +696,3 @@ export default function SettingsPage() {
     </div>
   );
 };
-
-export default SettingsPage;
