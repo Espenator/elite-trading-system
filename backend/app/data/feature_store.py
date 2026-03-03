@@ -119,7 +119,7 @@ class FeatureStore:
         now = datetime.now(timezone.utc)
         conn.execute("""
             INSERT OR REPLACE INTO model_evals
-            (eval_id, model_id, window, sharpe, profit_factor, win_rate, max_dd, passed, created_at)
+            (eval_id, model_id, "window", sharpe, profit_factor, win_rate, max_dd, passed, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, [
             eval_id, model_id, window,
@@ -136,7 +136,7 @@ class FeatureStore:
         """Retrieve all evaluations for a model."""
         conn = self._get_conn()
         rows = conn.execute("""
-            SELECT eval_id, model_id, window, sharpe, profit_factor,
+            SELECT eval_id, model_id, "window", sharpe, profit_factor,
                    win_rate, max_dd, passed, created_at
             FROM model_evals
             WHERE model_id = ?

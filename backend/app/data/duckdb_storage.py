@@ -175,7 +175,7 @@ class DuckDBStorage:
             CREATE TABLE IF NOT EXISTS model_evals (
                 eval_id VARCHAR PRIMARY KEY,
                 model_id VARCHAR NOT NULL,
-                window VARCHAR NOT NULL,
+                "window" VARCHAR NOT NULL,
                 sharpe DOUBLE,
                 profit_factor DOUBLE,
                 win_rate DOUBLE,
