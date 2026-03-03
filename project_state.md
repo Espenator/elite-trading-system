@@ -2,14 +2,14 @@
 
 > Paste this file at the start of every new AI chat session.
 > Say: "Read this project state document. Acknowledge you understand the architecture, and then I will give you your first task."
-> Last updated: March 1, 2026
+> Last updated: March 3, 2026
 
 ## Identity
 
 - **Project**: Elite Trading System by Embodier.ai
 - **Repo**: github.com/Espenator/elite-trading-system (private)
 - **Owner**: Espenator (Asheville, NC)
-- **Status**: Active development, CI GREEN
+- **Status**: Active development, CI GREEN (70 tests)
 
 ## Tech Stack
 
@@ -20,7 +20,7 @@
 | Database | DuckDB (WAL mode, connection pooling) |
 | ML | XGBoost, scikit-learn, LSTM (no PyTorch in prod) |
 | Agents | OpenClaw multi-agent system (8+ sub-modules) |
-| CI/CD | GitHub Actions (22 tests passing) |
+| CI/CD | GitHub Actions (70 tests passing) |
 | Infra | Docker, docker-compose.yml |
 | Local AI | Ollama (planned for agent inference) |
 
@@ -53,26 +53,29 @@ OpenClaw Agents, ML Engine (XGBoost), DuckDB Analytics
 5. API pattern: Route handler -> Service layer -> External API
 6. Mockups: docs/mockups-v3/images/ are the source of truth
 
-## Current State (Mar 1, 2026)
+## Current State (Mar 3, 2026)
 
-- CI: GREEN (22 tests, all passing)
+- CI: GREEN (70 tests, all passing)
 - Frontend: 15 pages built, all wired to real API hooks
 - Backend: 25 API routes defined, services layer implemented
-- Backend server: Ready to start (startup blockers fixed Mar 1)
+- Backend server: Ready to start (all startup blockers resolved)
 - ML: XGBoost trainer + feature pipeline operational
 - OpenClaw: Phase 2 complete (8 sub-modules integrated)
+- Agent Command Center: Fully decomposed and deployed (thin shell + 8 tabs + 6 shared components)
 - WebSocket: Code exists but not connected end-to-end
 - CORS: Restricted to localhost:3000, localhost:5173, localhost:8080
 
-## Fixed Issues (Mar 1, 2026)
+## Fixed Issues
 
 1. ~~Backend signals.py had missing return statement~~ FIXED
 2. ~~main.py had hard ImportError on routers.trade_execution~~ FIXED (now try/except)
 3. ~~main.py imported unused accept_connection~~ FIXED (removed)
+4. ~~IndentationErrors across 20+ Python files~~ FIXED (all resolved)
+5. ~~Agent Command Center 77KB monolith~~ FIXED (decomposed into tabs + shared components)
 
 ## Remaining Issues
 
-1. Backend has never been started locally (uvicorn app.main:app) -- blockers now removed
+1. Backend has never been started locally (uvicorn app.main:app) — ready to start, blockers removed
 2. No authentication system yet
 3. WebSocket not flowing real-time data yet
 4. routers/trade_execution module does not exist yet (skipped gracefully)
