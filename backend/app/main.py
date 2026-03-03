@@ -151,7 +151,7 @@ async def _risk_monitor_loop():
     await asyncio.sleep(10)  # Wait for app to stabilize
     while True:
         try:
-            from app.api.v1.risk import risk_score, drawdown_check
+            from app.api.v1.risk import risk_score, drawdown_check_status as drawdown_check
             from app.websocket_manager import broadcast_ws
 
             risk_data = await risk_score()

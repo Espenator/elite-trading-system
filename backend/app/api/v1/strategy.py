@@ -278,7 +278,7 @@ async def pre_trade_check(symbol: str = "", side: str = "buy"):
 
     # 6. Drawdown check
     try:
-        from app.api.v1.risk import drawdown_check as _dd_check
+        from app.api.v1.risk import drawdown_check_status as _dd_check
         dd_data = await _dd_check()
         if not dd_data.get("trading_allowed", True):
             allowed = False

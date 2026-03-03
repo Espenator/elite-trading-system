@@ -505,7 +505,7 @@ class OrderExecutor:
     async def _check_drawdown(self) -> bool:
         """Check if drawdown limits allow trading."""
         try:
-            from app.api.v1.risk import drawdown_check
+            from app.api.v1.risk import drawdown_check_status as drawdown_check
             dd_data = await drawdown_check()
             if dd_data.get("drawdown_breached") or not dd_data.get("trading_allowed", True):
                 logger.warning("Drawdown gate BLOCKED: %s", dd_data)
