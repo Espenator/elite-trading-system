@@ -10,6 +10,14 @@ Enhanced with:
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
+
+# Load .env into os.environ BEFORE any other imports, so os.getenv()
+# picks up keys everywhere (openclaw/config.py, sensorium.py, etc.)
+from dotenv import load_dotenv
+_env_path = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(_env_path, override=False)
+
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from app.websocket_manager import (

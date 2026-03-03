@@ -21,7 +21,7 @@ from app.services.alpaca_service import alpaca_service
 from app.services.database import db_service
 from app.websocket_manager import broadcast_ws
 
-router = APIRouter(prefix="/data-sources", tags=["data-sources"])
+router = APIRouter()
 
 # ---------------------------------------------------------------------------
 # Fernet encryption for API credentials

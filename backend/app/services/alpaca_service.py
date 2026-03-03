@@ -34,9 +34,9 @@ class AlpacaService:
     Uses paper by default. Every method returns real Alpaca data or None on failure."""
 
     def __init__(self):
-        self.base_url = (
-            settings.ALPACA_BASE_URL or "https://paper-api.alpaca.markets/v2"
-        )
+        raw_url = settings.ALPACA_BASE_URL or "https://paper-api.alpaca.markets"
+        # Ensure base URL includes /v2 for Alpaca API v2 endpoints
+        self.base_url = raw_url.rstrip("/") + "/v2" if "/v2" not in raw_url else raw_url
         self.api_key = settings.ALPACA_API_KEY
         self.secret_key = settings.ALPACA_SECRET_KEY
         self.trading_mode = (getattr(settings, "TRADING_MODE", None) or "paper").lower()
