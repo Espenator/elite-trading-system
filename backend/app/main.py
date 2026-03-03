@@ -448,10 +448,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS - restricted to local dev origins only
+# CORS - uses CORS_ORIGINS from .env / config.py (comma-separated)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173", "http://localhost:8080"],
+    allow_origins=[o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
