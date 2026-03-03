@@ -91,6 +91,125 @@ const SignalBarChart = ({ signals, selectedSymbol, onSelect }) => {
   );
 };
 
+// --- MINI EQUITY CURVE (SVG Sparkline) ---
+const MiniEquityCurve = ({ points }) => {
+  if (!points || points.length < 2) {
+    return <div className="text-[8px] text-[#64748b] text-center py-4 font-mono">No equity data yet</div>;
+  }
+  const w = 280, h = 80, pad = 4;
+  const values = points.map(p => p.value ?? p.equity ?? 0);
+  const minV = Math.min(...values);
+  const maxV = Math.max(...values);
+  const range = maxV - minV || 1;
+  const coords = values.map((v, i) => {
+    const x = pad + (i / (values.length - 1)) * (w - 2 * pad);
+    const y = pad + (1 - (v - minV) / range) * (h - 2 * pad);
+    return `${x},${y}`;
+  });
+  const last = values[values.length - 1];
+  const first = values[0];
+  const change = last - first;
+  const color = change >= 0 ? '#10b981' : '#ef4444';
+  return (
+    <div>
+      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="w-full">
+        <defs>
+          <linearGradient id="eqGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <polygon points={`${pad},${h - pad} ${coords.join(' ')} ${w - pad},${h - pad}`}
+          fill="url(#eqGrad)" />
+        <polyline points={coords.join(' ')} fill="none" stroke={color} strokeWidth="1.5"
+          strokeLinejoin="round" strokeLinecap="round" />
+      </svg>
+      <div className="flex justify-between text-[8px] font-mono px-1 mt-0.5">
+        <span className="text-[#94a3b8]">${first.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+        <span className={change >= 0 ? 'text-green-400 font-bold' : 'text-red-400 font-bold'}>
+          {change >= 0 ? '+' : ''}{change.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+        </span>
+        <span className="text-white">${last.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+      </div>
+    </div>
+  );
+};
+
+// --- AGENT CONSENSUS RING (Large Donut) ---
+const AgentConsensusRing = ({ buyPct, sellPct, holdPct, consensus }) => {
+  const r = 50, cx = 60, cy = 60, sw = 10;
+  const circ = 2 * Math.PI * r;
+  const total = (buyPct || 0) + (sellPct || 0) + (holdPct || 0) || 1;
+  const bFrac = (buyPct || 0) / total;
+  const sFrac = (sellPct || 0) / total;
+  const hFrac = (holdPct || 0) / total;
+  const buyLen = bFrac * circ;
+  const sellLen = sFrac * circ;
+  const holdLen = hFrac * circ;
+  return (
+    <div className="flex items-center gap-3">
+      <svg width="120" height="120" viewBox="0 0 120 120">
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#1e293b" strokeWidth={sw} />
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#10b981" strokeWidth={sw}
+          strokeDasharray={`${buyLen} ${circ - buyLen}`} strokeDashoffset={0}
+          transform="rotate(-90 60 60)" strokeLinecap="round" />
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#ef4444" strokeWidth={sw}
+          strokeDasharray={`${sellLen} ${circ - sellLen}`} strokeDashoffset={-buyLen}
+          transform="rotate(-90 60 60)" strokeLinecap="round" />
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#f59e0b" strokeWidth={sw}
+          strokeDasharray={`${holdLen} ${circ - holdLen}`} strokeDashoffset={-(buyLen + sellLen)}
+          transform="rotate(-90 60 60)" strokeLinecap="round" />
+        <text x={cx} y="56" textAnchor="middle" fill="#f8fafc" fontSize="18" fontWeight="bold" fontFamily="'JetBrains Mono', monospace">{consensus ?? '\u2014'}</text>
+        <text x={cx} y="70" textAnchor="middle" fill="#94a3b8" fontSize="8" fontFamily="'Inter', sans-serif">CONSENSUS</text>
+      </svg>
+      <div className="space-y-1 text-[9px] font-mono">
+        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-green-500" /><span className="text-slate-400">Buy</span><span className="text-white font-bold">{Math.round(bFrac * 100)}%</span></div>
+        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-red-500" /><span className="text-slate-400">Sell</span><span className="text-white font-bold">{Math.round(sFrac * 100)}%</span></div>
+        <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-amber-500" /><span className="text-slate-400">Hold</span><span className="text-white font-bold">{Math.round(hFrac * 100)}%</span></div>
+      </div>
+    </div>
+  );
+};
+
+// --- FLYWHEEL STATUS PIPELINE ---
+const FlywheelPipeline = ({ flywheel }) => {
+  const stages = [
+    { label: 'Collect', key: 'resolvedSignals', icon: '\u2b07', color: '#06b6d4' },
+    { label: 'Train', key: 'accuracy30d', icon: '\u2699', color: '#8b5cf6' },
+    { label: 'Predict', key: 'accuracy30d', icon: '\u26a1', color: '#f59e0b' },
+    { label: 'Evaluate', key: 'accuracy90d', icon: '\u2714', color: '#10b981' },
+  ];
+  const acc30 = flywheel?.accuracy30d ?? flywheel?.accuracy ?? 0;
+  const acc90 = flywheel?.accuracy90d ?? 0;
+  const resolved = flywheel?.resolvedSignals ?? 0;
+  const isActive = acc30 > 0 || resolved > 0;
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        {stages.map((s, i) => (
+          <div key={s.label} className="flex items-center">
+            <div className="flex flex-col items-center">
+              <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-sm ${isActive ? `border-[${s.color}] text-[${s.color}]` : 'border-[#374151] text-[#64748b]'}`}
+                style={{ borderColor: isActive ? s.color : '#374151', color: isActive ? s.color : '#64748b' }}>
+                {s.icon}
+              </div>
+              <span className="text-[7px] mt-0.5 text-[#94a3b8]">{s.label}</span>
+            </div>
+            {i < stages.length - 1 && (
+              <div className={`w-6 h-px mx-1 ${isActive ? 'bg-[#06b6d4]' : 'bg-[#374151]'}`} />
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-3 gap-1 text-center font-mono text-[8px]">
+        <div><span className="text-[#94a3b8]">30d Acc</span><br /><span className="text-[#06b6d4] font-bold">{acc30 ? `${(acc30 * 100).toFixed(1)}%` : '\u2014'}</span></div>
+        <div><span className="text-[#94a3b8]">90d Acc</span><br /><span className="text-[#06b6d4] font-bold">{acc90 ? `${(acc90 * 100).toFixed(1)}%` : '\u2014'}</span></div>
+        <div><span className="text-[#94a3b8]">Resolved</span><br /><span className="text-white font-bold">{resolved}</span></div>
+      </div>
+    </div>
+  );
+};
+
 // --- CONSENSUS HORIZONTAL BARS ---
 const ConsensusBar = ({ label, buyPct, sellPct }) => (
   <div className="flex items-center gap-2 text-[8px] font-mono">
@@ -442,12 +561,15 @@ export default function Dashboard() {
               holdCount={swarm.holdCount || Math.max(1, processedSignals.length - processedSignals.filter(s => s.direction === 'LONG').length - processedSignals.filter(s => s.direction === 'SHORT').length)}
             />
           </div>
-            {/* Agent Consensus Card (always visible) */}
+            {/* Agent Consensus Ring (Enhanced) */}
             <div className="flex-1 bg-[#0B0E14] border border-[#1e293b] rounded p-2">
-              <h3 className="text-[9px] text-[#06b6d4] font-bold uppercase tracking-wider mb-2">Agent Consensus</h3>
-              <div className="text-xl font-bold font-mono text-green-400 mb-1">{swarm.consensus || openclaw.compositeScore || '\u2014'}%</div>
-              <div className="text-[8px] text-[#94a3b8] font-mono">{swarm.signal || openclaw.regime || '\u2014'}</div>
-              <div className="text-[7px] text-[#64748b] mt-1">{swarm.buyCount || 0} Buy / {swarm.sellCount || 0} Sell / {swarm.holdCount || 0} Hold</div>
+              <h3 className="text-[9px] text-[#06b6d4] font-bold uppercase tracking-wider mb-1">Agent Consensus</h3>
+              <AgentConsensusRing
+                buyPct={swarm.buyCount || processedSignals.filter(s => s.direction === 'LONG').length}
+                sellPct={swarm.sellCount || processedSignals.filter(s => s.direction === 'SHORT').length}
+                holdPct={swarm.holdCount || Math.max(1, processedSignals.length - processedSignals.filter(s => s.direction === 'LONG').length - processedSignals.filter(s => s.direction === 'SHORT').length)}
+                consensus={swarm.consensus || openclaw.compositeScore || '\u2014'}
+              />
             </div>
           </div>
 
@@ -493,6 +615,18 @@ export default function Dashboard() {
               <button className="flex-1 bg-green-900/50 text-green-400 py-1 rounded text-[8px] font-bold border border-green-800">APPROVE RISK</button>
               <button className="flex-1 bg-red-900/50 text-red-400 py-1 rounded text-[8px] font-bold border border-red-800">HALT SYSTEM</button>
             </div>
+          </div>
+
+          {/* Equity Curve Chart */}
+          <div className="bg-[#0B0E14] border border-[#1e293b] rounded p-2">
+            <h3 className="text-[9px] text-[#06b6d4] font-bold uppercase tracking-wider mb-1">Equity Curve</h3>
+            <MiniEquityCurve points={performance.equityCurve} />
+          </div>
+
+          {/* Flywheel Status Pipeline */}
+          <div className="bg-[#0B0E14] border border-[#1e293b] rounded p-2">
+            <h3 className="text-[9px] text-[#06b6d4] font-bold uppercase tracking-wider mb-2">ML Flywheel</h3>
+            <FlywheelPipeline flywheel={flywheel} />
           </div>
 
           {/* SELECTED SYMBOL DETAIL (conditionally expanded) */}

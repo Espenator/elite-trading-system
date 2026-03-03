@@ -407,6 +407,9 @@ class OrderExecutor:
                         "timestamp": time.time(),
                         "source": "order_executor",
                     })
+
+                    # Wire fill → ML outcome resolver (flywheel)
+                    self._record_fill_outcome(record)
                     return
 
                 elif status in ("canceled", "cancelled", "expired", "rejected"):
@@ -561,6 +564,23 @@ class OrderExecutor:
             "\u26d4 Signal REJECTED: %s score=%.1f — %s",
             symbol, score, reason,
         )
+
+    def _record_fill_outcome(self, record: OrderRecord) -> None:
+        """Wire filled order → ML outcome_resolver for flywheel accuracy tracking."""
+        try:
+            from app.modules.ml_engine.outcome_resolver import record_outcome
+            outcome = 1 if record.side == "buy" else 0
+            prediction = 1 if record.signal_score >= 0.5 else 0
+            signal_date = datetime.fromtimestamp(record.timestamp, tz=timezone.utc).strftime("%Y-%m-%d")
+            record_outcome(
+                symbol=record.symbol,
+                signal_date=signal_date,
+                outcome=outcome,
+                prediction=prediction,
+            )
+            logger.info("Recorded fill outcome for %s → outcome_resolver", record.symbol)
+        except Exception as e:
+            logger.debug("outcome_resolver not available: %s", e)
 
     # ── Frontend Notifications ──────────────────────────────────────────────
 

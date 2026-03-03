@@ -98,24 +98,67 @@ def _init_ml_singletons():
 
 
 async def _drift_check_loop():
-    """Periodic drift check loop -- runs every 60 minutes."""
+    """Periodic drift check loop -- runs every 60 minutes.
+
+    Pulls recent features from DuckDB, gets accuracy from outcome_resolver,
+    and calls check_drift_and_retrain to close the ML flywheel loop.
+    """
     await asyncio.sleep(300)  # Wait 5 min after startup
 
     while True:
         try:
-            from app.modules.ml_engine.drift_detector import get_drift_monitor
+            from app.modules.ml_engine.drift_detector import (
+                get_drift_monitor,
+                check_drift_and_retrain,
+            )
+            from app.modules.ml_engine.outcome_resolver import get_flywheel_metrics
+
             monitor = get_drift_monitor()
             drift_status = monitor.get_status()
+
             if drift_status.get("reference_set"):
-                log.info("Drift check: data_drift=%s, perf_drift=%s",
-                         drift_status.get("data_drift_detected"),
-                         drift_status.get("performance_drift_detected"))
+                # Pull live features from DuckDB
+                live_df = _get_recent_features()
+                # Get current accuracy from outcome_resolver
+                metrics = get_flywheel_metrics()
+                accuracy = metrics.get("accuracy_30d")
+
+                if live_df is not None and not live_df.empty:
+                    result = await check_drift_and_retrain(
+                        monitor=monitor,
+                        live_df=live_df,
+                        current_accuracy=accuracy,
+                    )
+                    log.info(
+                        "Drift check: data_drift=%s, perf_drift=%s, retrain=%s",
+                        result.data_drift_detected,
+                        result.performance_drift_detected,
+                        result.needs_retrain,
+                    )
+                else:
+                    log.debug("Drift check skipped — no recent feature data")
         except ImportError:
             pass  # drift_detector not installed
         except Exception:
             log.exception("Drift check loop error")
 
         await asyncio.sleep(3600)  # Check every hour
+
+
+def _get_recent_features():
+    """Pull recent feature rows from DuckDB for drift detection."""
+    try:
+        import pandas as pd
+        from app.services.database import db_service
+        db = db_service._get_duckdb()
+        if db is None:
+            return None
+        df = db.execute(
+            "SELECT * FROM features ORDER BY timestamp DESC LIMIT 200"
+        ).fetchdf()
+        return df if not df.empty else None
+    except Exception:
+        return None
 
 
 async def _market_data_tick_loop():

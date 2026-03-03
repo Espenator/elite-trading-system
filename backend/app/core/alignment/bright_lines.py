@@ -173,16 +173,12 @@ class BrightLineEnforcer:
 
         # Build decision
         passed = len(violations) == 0
-        severity = Severity.CRITICAL if any(
-            v.violation_type in (ViolationType.CRISIS_HALT, ViolationType.DRAWDOWN_CIRCUIT)
-            for v in violations
-        ) else Severity.HIGH if violations else Severity.LOW
 
         decision = EnforcementDecision(
-            severity=severity,
+            allowed=passed,
+            final_size_pct=proposed_position_pct if passed else 0.0,
+            veto_reason=self._build_recommendation(violations) if violations else None,
             flags=[v.violation_type.value for v in violations],
-            action="BLOCK" if not passed else "PROCEED",
-            recommendation=self._build_recommendation(violations) if violations else "All bright-line checks passed.",
         )
 
         if not passed:
