@@ -3,7 +3,7 @@
  * Branch: v2-15-feb-espen-embodier-ai
  *
  * OLEH: This is the foundation file. Every hook and page imports from here.
- * OLEH: Update BASE_URL when deploying. Default is localhost:8001 (our FastAPI backend).
+ * OLEH: Update BASE_URL when deploying. Default is localhost:8000 (our FastAPI backend).
  * OLEH: Every endpoint listed here MUST have a corresponding FastAPI router in backend/app/api/v1/
  * OLEH: If an endpoint doesn't exist yet in backend, create the router file first.
  *
@@ -13,7 +13,7 @@
  *                       portfolio, risk, strategy, performance, logs, alerts
  */
 const API_CONFIG = {
-  // Use empty string in dev so requests go to same origin → Vite proxy forwards to backend (port 8001).
+  // Use empty string in dev so requests go to same origin → Vite proxy forwards to backend (port 8000).
   // Set VITE_API_URL / VITE_WS_URL when deploying (e.g. https://api.example.com).
   BASE_URL: import.meta.env.VITE_API_URL ?? "",
   API_PREFIX: "/api/v1",

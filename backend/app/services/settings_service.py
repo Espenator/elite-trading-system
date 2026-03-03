@@ -148,7 +148,7 @@ DEFAULTS: Dict[str, Dict[str, Any]] = {
         "timezone": "America/New_York",
         "databaseUrl": "postgresql://localhost/elite_trading",
         "redisUrl": "redis://localhost:6379",
-        "appPort": 8001,
+        "appPort": 8000,
         "workerThreads": 4,
         "debugMode": False,
         "paperTradingMode": True,

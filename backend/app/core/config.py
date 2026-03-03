@@ -24,7 +24,7 @@ class Settings(BaseSettings):
 
     # ── Server ──────────────────────────────────────────────
     HOST: str = "0.0.0.0"
-    BACKEND_PORT: int = 8001
+    BACKEND_PORT: int = 8000
     FRONTEND_PORT: int = 3000
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost:8501"
 
@@ -39,7 +39,7 @@ class Settings(BaseSettings):
 
     # ── FinViz ──────────────────────────────────────────────
     FINVIZ_API_KEY: str = ""
-    FINVIZ_BASE_URL: str = "https://elite.finviz.com/export.ashx"
+    FINVIZ_BASE_URL: str = "https://elite.finviz.com"
     FINVIZ_QUOTE_TIMEFRAME: str = "d"
     FINVIZ_SCREENER_FILTERS: str = "sh_avgvol_o500,sh_price_u500"
     FINVIZ_SCREENER_FILTER_TYPE: str = "all"

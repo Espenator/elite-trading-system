@@ -1,6 +1,7 @@
 import React, { useEffect, useCallback } from 'react';
 import useTradeExecution from '../hooks/useTradeExecution';
 import AlignmentEngine from "../components/settings/AlignmentEngine";
+import { getApiUrl } from '../config/api';
 
 // ========== UI-DESIGN-SYSTEM.md EXACT COLORS ==========
 const C = {
@@ -78,7 +79,7 @@ export default function TradeExecution() {
   const [preflightVerdict, setPreflightVerdict] = React.useState(null);
   const runAlignmentPreflight = async () => {
     try {
-      const res = await fetch('/api/v1/alignment/preflight', { method: 'POST',
+      const res = await fetch(getApiUrl('alignment/evaluate'), { method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ symbol: orderForm?.symbol || 'SPY', side: orderForm?.side || 'buy', quantity: orderForm?.quantity || 1, strategy: 'manual' })
       });

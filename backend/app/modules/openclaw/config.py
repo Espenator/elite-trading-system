@@ -279,7 +279,7 @@ WORLD_INTEL_CACHE_HOURS = int(os.getenv("WORLD_INTEL_CACHE_HOURS", "12"))
 #  Connects OpenClaw swarm to the Elite Trading System on PC2
 #  for GPU-accelerated model training and inference.
 # ============================================================
-ELITE_API_URL = os.getenv("ELITE_API_URL", "http://PC2_IP:8001")
+ELITE_API_URL = os.getenv("ELITE_API_URL", "http://PC2_IP:8000")
 ELITE_API_PREFIX = "/api/v1"
 GPU_DEVICE = os.getenv("GPU_DEVICE", "cuda:0")  # PC1 inference GPU
 MODEL_ARTIFACTS_PATH = os.getenv("MODEL_ARTIFACTS_PATH", "models/artifacts")

@@ -150,13 +150,10 @@ async def _drift_check_loop():
 def _get_recent_features():
     """Pull recent feature rows from DuckDB for drift detection."""
     try:
-        import pandas as pd
-        from app.services.database import db_service
-        db = db_service._get_duckdb()
-        if db is None:
-            return None
-        df = db.execute(
-            "SELECT * FROM features ORDER BY timestamp DESC LIMIT 200"
+        from app.data.duckdb_storage import duckdb_store
+        conn = duckdb_store._get_conn()
+        df = conn.execute(
+            "SELECT * FROM features ORDER BY ts DESC LIMIT 200"
         ).fetchdf()
         return df if not df.empty else None
     except Exception:

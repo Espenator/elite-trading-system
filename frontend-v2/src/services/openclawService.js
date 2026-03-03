@@ -10,7 +10,7 @@ function getWsBaseUrl() {
   const url = getApiUrl("openclaw");
   return url
     ? url.replace(/^http/, "ws")
-    : "ws://localhost:8001/api/v1/openclaw";
+    : "ws://localhost:8000/api/v1/openclaw";
 }
 
 export async function getMacro() {

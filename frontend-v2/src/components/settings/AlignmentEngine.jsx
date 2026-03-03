@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { getApiUrl } from '../config/api';
+import { getApiUrl } from '../../config/api';
 
 // ———————————————————————————————————————————————————————————————————
 // COLORS — shared dark theme palette

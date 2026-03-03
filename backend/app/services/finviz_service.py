@@ -147,10 +147,10 @@ class FinvizService:
         if columns:
             params["c"] = columns
         
-        # Log request parameters
+        # Log request parameters (redact API key)
         logger.info("Fetching stock list from Finviz screener")
-        logger.info(f"URL: {url}")
-        logger.info(f"Params: {params}")
+        logger.info("URL: %s", url)
+        logger.info("Params: v=%s, f=%s, ft=%s, auth=***REDACTED***", version, filters, filter_type)
         
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
@@ -212,10 +212,10 @@ class FinvizService:
         if duration:
             params["r"] = duration
 
-        # Log request parameters
-        logger.info(f"Fetching quote data for {ticker}")
-        logger.info(f"URL: {url}")
-        logger.info(f"Params: {params}")
+        # Log request parameters (redact API key)
+        logger.info("Fetching quote data for %s", ticker)
+        logger.info("URL: %s", url)
+        logger.info("Params: t=%s, p=%s, auth=***REDACTED***", ticker.upper(), timeframe)
         
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
