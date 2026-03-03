@@ -43,6 +43,15 @@ def _get_raw_signals_and_feats(as_of: date | None = None):
     return raw_signals, feats
 
 
+@router.post("/", response_model=SignalsResponse)
+async def trigger_signals(as_of: date | None = None):
+    """
+    Trigger a fresh signal scan. Same logic as GET but semantically used
+    by the Dashboard "Run Scan" button to force re-evaluation.
+    """
+    return await get_signals(as_of=as_of)
+
+
 @router.get("/", response_model=SignalsResponse)
 async def get_signals(as_of: date | None = None):
     """

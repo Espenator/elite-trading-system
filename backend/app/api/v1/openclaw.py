@@ -52,6 +52,38 @@ OPENCLAW_API_URL = os.getenv("OPENCLAW_API_URL", "http://localhost:5000")
 
 
 # ===========================================================================
+# ROOT ENDPOINT - Dashboard summary (GET /api/v1/openclaw)
+# ===========================================================================
+@router.get("/", summary="OpenClaw Bridge Summary")
+async def get_openclaw_summary():
+    """
+    Root endpoint returning a combined summary for Dashboard widgets.
+    Aggregates regime, top candidates, health, and bridge stats.
+    """
+    try:
+        regime = await openclaw_bridge.get_regime()
+        health = await openclaw_bridge.get_health()
+        candidates = await openclaw_bridge.get_top_candidates(n=5)
+        stats = openclaw_bridge.get_realtime_stats()
+        return {
+            "regime": regime,
+            "health": health,
+            "top_candidates": candidates,
+            "realtime_stats": stats,
+            "candidate_count": len(candidates),
+        }
+    except Exception as e:
+        logger.warning(f"[OPENCLAW] Summary error: {e}")
+        return {
+            "regime": {"state": "YELLOW", "confidence": 0},
+            "health": {"connected": False},
+            "top_candidates": [],
+            "realtime_stats": {},
+            "candidate_count": 0,
+        }
+
+
+# ===========================================================================
 # REAL-TIME SIGNAL INGESTION (v2 - 2026.2.22)
 # POST /api/v1/openclaw/signals - Hot path from bridge_sender.py
 # ===========================================================================
@@ -486,6 +518,92 @@ async def get_llm_flow(limit: int = Query(default=5, ge=1, le=50)):
 
     # Graceful fallback
     return {"alerts": [], "total": 0, "_fallback": True}
+
+
+# ------------------------------------------------------------------ #
+# ADDITIONAL ENDPOINTS (called by openclawService.js)
+# consensus, nlp-spawn, health-matrix
+# ------------------------------------------------------------------ #
+@router.get("/consensus", summary="Get Agent Swarm Consensus")
+async def get_consensus():
+    """
+    Return the current agent consensus view — aggregated opinions
+    from all active swarm agents on top candidates.
+    """
+    try:
+        candidates = await openclaw_bridge.get_top_candidates(n=10)
+        consensus = []
+        for c in candidates:
+            consensus.append({
+                "symbol": c.get("symbol"),
+                "score": c.get("composite_score", 0),
+                "direction": "LONG" if c.get("composite_score", 0) > 60 else "NEUTRAL",
+                "agent_count": c.get("agent_count", 1),
+                "agreement_pct": c.get("agreement_pct", 100),
+            })
+        return {"consensus": consensus, "count": len(consensus)}
+    except Exception as e:
+        logger.debug(f"[OPENCLAW] Consensus error: {e}")
+        return {"consensus": [], "count": 0}
+
+
+@router.post("/nlp-spawn", summary="Spawn Agent Team via NLP Prompt")
+async def nlp_spawn(request: Request):
+    """
+    Natural language prompt to spawn an agent team.
+    Proxies to OpenClaw Flask API on PC1.
+    """
+    try:
+        body = await request.json()
+        prompt = body.get("prompt", "")
+        if not prompt:
+            raise HTTPException(status_code=400, detail="Prompt is required")
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                f"{OPENCLAW_API_URL}/api/v1/openclaw/nlp-spawn",
+                json={"prompt": prompt},
+            )
+            if resp.status_code == 200:
+                return resp.json()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"[OPENCLAW] NLP spawn proxy failed: {e}")
+    raise HTTPException(
+        status_code=503,
+        detail="OpenClaw PC1 is unreachable. Cannot process NLP spawn.",
+    )
+
+
+@router.get("/health-matrix", summary="Get Agent Health Matrix")
+async def get_health_matrix():
+    """
+    Return health matrix for all agent subsystems.
+    Aggregates bridge health, memory, swarm, and regime status.
+    """
+    try:
+        health = await openclaw_bridge.get_health()
+        regime = await openclaw_bridge.get_regime()
+        stats = openclaw_bridge.get_realtime_stats()
+        return {
+            "bridge": health,
+            "regime": {"state": regime.get("state", "YELLOW")},
+            "realtime": stats,
+            "subsystems": {
+                "scanner": {"status": "ok" if health.get("connected") else "degraded"},
+                "memory": {"status": "ok"},
+                "signals": {"status": "ok" if stats.get("total_ingested", 0) > 0 else "idle"},
+            },
+        }
+    except Exception as e:
+        logger.debug(f"[OPENCLAW] Health matrix error: {e}")
+        return {
+            "bridge": {"connected": False},
+            "regime": {"state": "YELLOW"},
+            "realtime": {},
+            "subsystems": {},
+        }
+
 
 # ------------------------------------------------------------------
 # MARKET REGIME PAGE ENDPOINTS (Page 10/15)
