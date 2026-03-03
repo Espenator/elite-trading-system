@@ -100,25 +100,35 @@ class RiskGovernor:
 
         # ── Load limits from config (import-safe) ──
         try:
-            import config as cfg
-            self.max_position_pct = cfg.MAX_POSITION_PCT        # 0.05
-            self.max_deployed_pct = cfg.MAX_DEPLOYED_PCT         # 0.60
-            self.max_daily_loss_pct = cfg.MAX_DAILY_LOSS_PCT     # 2.0
-            self.max_portfolio_heat = cfg.MAX_PORTFOLIO_HEAT     # 0.06
-            self.max_daily_trades = cfg.MAX_DAILY_TRADES         # 10
-            self.max_positions_per_sector = cfg.MAX_POSITIONS_PER_SECTOR  # 3
-            self.correlation_threshold = cfg.CORRELATION_THRESHOLD  # 0.75
-            self.circuit_breaker_pct = cfg.CIRCUIT_BREAKER_THRESHOLD  # -0.03
+            from app.core.config import settings as app_settings
+            self.max_position_pct = getattr(app_settings, "MAX_SINGLE_POSITION", 0.05)
+            self.max_deployed_pct = getattr(app_settings, "MAX_DEPLOYED_PCT", 0.60)
+            self.max_daily_loss_pct = getattr(app_settings, "MAX_DAILY_LOSS_PCT", 2.0)
+            self.max_portfolio_heat = getattr(app_settings, "MAX_PORTFOLIO_HEAT", 0.06)
+            self.max_daily_trades = getattr(app_settings, "MAX_DAILY_TRADES", 10)
+            self.max_positions_per_sector = getattr(app_settings, "MAX_POSITIONS_PER_SECTOR", 3)
+            self.correlation_threshold = getattr(app_settings, "CORRELATION_THRESHOLD", 0.75)
+            self.circuit_breaker_pct = getattr(app_settings, "CIRCUIT_BREAKER_THRESHOLD", -0.03)
         except ImportError:
-            logger.warning("config.py not found — using hardcoded defaults")
-            self.max_position_pct = 0.05
-            self.max_deployed_pct = 0.60
-            self.max_daily_loss_pct = 2.0
-            self.max_portfolio_heat = 0.06
-            self.max_daily_trades = 10
-            self.max_positions_per_sector = 3
-            self.correlation_threshold = 0.75
-            self.circuit_breaker_pct = -0.03
+            try:
+                import config as cfg
+                self.max_position_pct = cfg.MAX_POSITION_PCT        # 0.05
+                self.max_deployed_pct = cfg.MAX_DEPLOYED_PCT         # 0.60
+                self.max_daily_loss_pct = cfg.MAX_DAILY_LOSS_PCT     # 2.0
+                self.max_portfolio_heat = cfg.MAX_PORTFOLIO_HEAT     # 0.06
+                self.max_daily_trades = cfg.MAX_DAILY_TRADES         # 10
+                self.max_positions_per_sector = cfg.MAX_POSITIONS_PER_SECTOR  # 3
+                self.correlation_threshold = cfg.CORRELATION_THRESHOLD  # 0.75
+                self.circuit_breaker_pct = cfg.CIRCUIT_BREAKER_THRESHOLD  # -0.03
+            except ImportError:
+                self.max_position_pct = 0.05
+                self.max_deployed_pct = 0.60
+                self.max_daily_loss_pct = 2.0
+                self.max_portfolio_heat = 0.06
+                self.max_daily_trades = 10
+                self.max_positions_per_sector = 3
+                self.correlation_threshold = 0.75
+                self.circuit_breaker_pct = -0.03
 
         # ── Runtime state ──
         self.daily_trade_count = 0
