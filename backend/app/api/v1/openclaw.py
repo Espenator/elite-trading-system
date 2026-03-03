@@ -52,21 +52,21 @@ OPENCLAW_API_URL = os.getenv("OPENCLAW_API_URL", "http://localhost:5000")
 
 
 # ===========================================================================
-# ROOT ENDPOINT - Dashboard summary (GET /api/v1/openclaw)
+# ROOT ENDPOINT - Dashboard summary (GET /api/v1/openclaw and /api/v1/openclaw/)
 # ===========================================================================
-@router.get("/", summary="OpenClaw Bridge Summary")
-async def get_openclaw_summary():
-    """
-    Root endpoint returning a combined summary for Dashboard widgets.
-    Aggregates regime, top candidates, health, and bridge stats.
-    """
+async def _openclaw_summary():
+    """Shared logic for root summary (used by both '' and '/' routes)."""
     try:
         regime = await openclaw_bridge.get_regime()
         health = await openclaw_bridge.get_health()
         candidates = await openclaw_bridge.get_top_candidates(n=5)
         stats = openclaw_bridge.get_realtime_stats()
+        regime_state = regime.get("state", "UNKNOWN") if isinstance(regime, dict) else str(regime)
+        composite_score = (candidates[0].get("composite_score") if candidates else None)
         return {
-            "regime": regime,
+            "regime": regime_state,
+            "compositeScore": composite_score,
+            "regime_full": regime,
             "health": health,
             "top_candidates": candidates,
             "realtime_stats": stats,
@@ -75,12 +75,26 @@ async def get_openclaw_summary():
     except Exception as e:
         logger.warning(f"[OPENCLAW] Summary error: {e}")
         return {
-            "regime": {"state": "YELLOW", "confidence": 0},
+            "regime": "YELLOW",
+            "compositeScore": None,
+            "regime_full": {"state": "YELLOW", "confidence": 0},
             "health": {"connected": False},
             "top_candidates": [],
             "realtime_stats": {},
             "candidate_count": 0,
         }
+
+
+@router.get("", summary="OpenClaw Bridge Summary (no trailing slash)")
+async def get_openclaw_summary_root():
+    """Root path for Dashboard: GET /api/v1/openclaw."""
+    return await _openclaw_summary()
+
+
+@router.get("/", summary="OpenClaw Bridge Summary (with trailing slash)")
+async def get_openclaw_summary():
+    """Root path with trailing slash: GET /api/v1/openclaw/."""
+    return await _openclaw_summary()
 
 
 # ===========================================================================

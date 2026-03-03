@@ -21,7 +21,46 @@ router = APIRouter()
 
 
 # ---------------------------------------------------------------------------
-# /status  (unchanged)
+# GET "" — summary for Sidebar / Dashboard (activeAgents, healthy)
+# Frontend calls GET /api/v1/system (no trailing path); without this, 404.
+# ---------------------------------------------------------------------------
+@router.get("")
+async def system_summary():
+    """Return short system summary for sidebar/UI. Use /status for full breakdown."""
+    return await _system_summary_impl()
+
+
+@router.get("/")
+async def system_summary_slash():
+    """Same as GET "" for clients that request /api/v1/system/."""
+    return await _system_summary_impl()
+
+
+async def _system_summary_impl():
+    try:
+        status = await system_status()
+        modules = status.get("modules") or {}
+        mod_list = list(modules.values()) if isinstance(modules, dict) else []
+        ready = 0
+        for m in mod_list:
+            if isinstance(m, dict) and m.get("status") == "ready":
+                ready += 1
+            elif not isinstance(m, dict):
+                ready += 1
+        total = len(mod_list)
+        healthy = total > 0 and ready >= total
+        return {
+            "activeAgents": ready,
+            "healthy": healthy,
+            "trading_mode": status.get("trading_mode", "paper"),
+        }
+    except Exception as e:
+        log.warning("system summary failed: %s", e)
+        return {"activeAgents": 0, "healthy": False, "trading_mode": "paper"}
+
+
+# ---------------------------------------------------------------------------
+# /status
 # ---------------------------------------------------------------------------
 @router.get("/status")
 async def system_status():

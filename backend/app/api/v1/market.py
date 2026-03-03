@@ -1,6 +1,6 @@
 """
 Market indices snapshot — real data from Finviz quote API.
-GET /api/v1/market/indices returns current level and % change for SPY, QQQ, DIA.
+GET /api/v1/market/indices returns current level and % change for indices and major tickers.
 Used by Dashboard top bar. No mock data.
 """
 import logging
@@ -14,11 +14,24 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 finviz = FinvizService()
 
-# Map display id -> ticker for quote fetch
+# Map display id -> ticker for quote fetch (matches Dashboard TickerStrip indexMap)
 INDEX_SYMBOLS = [
     {"id": "SPX", "ticker": "SPY"},
     {"id": "NDAQ", "ticker": "QQQ"},
     {"id": "DOW", "ticker": "DIA"},
+    {"id": "SPY", "ticker": "SPY"},
+    {"id": "QQQ", "ticker": "QQQ"},
+    {"id": "DIA", "ticker": "DIA"},
+    {"id": "AAPL", "ticker": "AAPL"},
+    {"id": "MSFT", "ticker": "MSFT"},
+    {"id": "TSLA", "ticker": "TSLA"},
+    {"id": "AMZN", "ticker": "AMZN"},
+    {"id": "NVDA", "ticker": "NVDA"},
+    {"id": "META", "ticker": "META"},
+    {"id": "GOOGL", "ticker": "GOOGL"},
+    {"id": "BTC", "ticker": "BTC"},
+    {"id": "ETH", "ticker": "ETH"},
+    {"id": "VIX", "ticker": "VIX"},
 ]
 
 
@@ -35,7 +48,8 @@ def _parse_float(val: Any, default: float = 0.0) -> float:
 async def get_indices() -> Dict[str, Any]:
     """
     Return current index levels and % change (from previous close).
-    Uses Finviz quote data for SPY, QQQ, DIA. Returns empty list on failure.
+    Uses Finviz quote data for INDEX_SYMBOLS (SPX/NDAQ/DOW, SPY/QQQ/DIA, megacaps, BTC/ETH, VIX).
+    Returns empty list on failure.
     """
     result: List[Dict[str, Any]] = []
     for item in INDEX_SYMBOLS:
