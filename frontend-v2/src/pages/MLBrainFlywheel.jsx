@@ -2,52 +2,23 @@ import { useState, useMemo } from 'react';
 import { useApi } from '../hooks/useApi';
 import { getApiUrl } from '../config/api';
 
-// --- FALLBACK DATA (To match exact mockup state if API is loading/empty) ---
+// --- FALLBACK DATA (N/A indicators when API unavailable) ---
 const FALLBACK_KPIS = {
-  activeModels: 3, activeModelsSub: "= RF Ensemble",
-  walkForwardAcc: 91.4, walkForwardSub: "T-252d Avg",
-  stage3Ignitions: 24, stage3Sub: "Past Backtests Today",
-  flywheelCycles: 12, flywheelSub: "Completed Trade Sync",
-  featureStore: "OK", featureStoreSub: "TimescaleDB Connected",
-  winRateThresh: ">70%", winRateSub: "Execution Gate"
+  activeModels: 0, activeModelsSub: "N/A",
+  walkForwardAcc: 0, walkForwardSub: "N/A",
+  stage3Ignitions: 0, stage3Sub: "N/A",
+  flywheelCycles: 0, flywheelSub: "N/A",
+  featureStore: "N/A", featureStoreSub: "Not Connected",
+  winRateThresh: "N/A", winRateSub: "N/A"
 };
 
-const FALLBACK_PERFORMANCE = Array.from({ length: 20 }, (_, i) => ({
-  date: `T-${252 - (i * 12)}d`,
-  xgboost: 65 + (i * 1.3) + (i % 3) * 0.7,
-  ensemble: 62 + (i * 1.5) + (i % 4) * 0.8
-}));
+const FALLBACK_PERFORMANCE = [];
 
-const FALLBACK_SIGNALS = [
-  { symbol: 'NVDA', dir: 'LONG', winProb: 94, compression: '3 Days', velezScore: '8% Daily(4h)', volRatio: '2.1x Avg' },
-  { symbol: 'MSTR', dir: 'LONG', winProb: 89, compression: '5 Days', velezScore: '7% Daily(4h)', volRatio: '1.8x Avg' },
-  { symbol: 'AAPL', dir: 'LONG', winProb: 82, compression: '7 Days', velezScore: '5% Daily(4h)', volRatio: '1.2x Avg' },
-  { symbol: 'TSLA', dir: 'LONG', winProb: 78, compression: '4 Days', velezScore: '6% Daily(4h)', volRatio: '1.5x Avg' },
-  { symbol: 'AMD',  dir: 'LONG', winProb: 76, compression: '7 Days', velezScore: '4% Daily(4h)', volRatio: '1.1x Avg' },
-  { symbol: 'SMCI', dir: 'SHORT', winProb: 68, compression: '4 Days', velezScore: '-5% Daily(4h)', volRatio: '2.5x Avg' },
-  { symbol: 'COIN', dir: 'LONG', winProb: 91, compression: '5 Days', velezScore: '9% Daily(4h)', volRatio: '1.9x Avg' },
-  { symbol: 'PLTR', dir: 'LONG', winProb: 85, compression: '8 Days', velezScore: '6% Daily(4h)', volRatio: '1.4x Avg' },
-  { symbol: 'META', dir: 'LONG', winProb: 72, compression: '5 Days', velezScore: '3% Daily(4h)', volRatio: '1.0x Avg' },
-  { symbol: 'CRWD', dir: 'LONG', winProb: 84, compression: '4 Days', velezScore: '5% Daily(4h)', volRatio: '1.6x Avg' }
-];
+const FALLBACK_SIGNALS = [];
 
-const FALLBACK_MODELS = [
-  { name: 'XGBoost Classifier', status: 'PRODUCTION', uptime: '7 Days', score1: 0.924, score2: 0.891, lookback: '252 Days' },
-  { name: 'RF Ensemble Model', status: 'VALIDATING', uptime: '63 Days', score1: 0.885, score2: 0.862, lookback: '252 Days' },
-  { name: 'Velez Engine v2.0', status: 'PRODUCTION', uptime: 'N/A', score1: 0.865, score2: 0.840, lookback: 'Rules' },
-  { name: 'Compression Detector', status: 'PRODUCTION', uptime: '14 Days', score1: 0.941, score2: 0.912, lookback: '60 Days' },
-  { name: 'Ignition Detector', status: 'PRODUCTION', uptime: '3 Days', score1: 0.880, score2: 0.860, lookback: '30 Days' },
-  { name: 'Regime Manager (VIX)', status: 'PRODUCTION', uptime: '60 Days', score1: 0.990, score2: 0.985, lookback: 'All Time' }
-];
+const FALLBACK_MODELS = [];
 
 const FALLBACK_LOGS = [
-  { ts: '15:14:02', msg: '[SYNC] TimescaleDB feature store synchronized.' },
-  { ts: '15:12:45', msg: '[INFERENCE] Stage 4 model generated new probabilities.' },
-  { ts: '15:05:12', msg: '[TRAIN] RF Ensemble complete. Walk-forward accuracy: 88.5%' },
-  { ts: '14:59:30', msg: '[DATA] Ingested 14,205 new options flow records.' },
-  { ts: '14:45:10', msg: '[IGNITION] Detected 24 past backtests matching current regime.' },
-  { ts: '14:30:00', msg: '[EVAL] XGBoost Classifier maintained 92.4% precision.' },
-  { ts: '14:15:22', msg: '[SYNC] Local Data Lake validation passed.' },
 ];
 
 export default function MLBrainFlywheel() {

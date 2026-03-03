@@ -73,3 +73,17 @@ async def get_indices() -> Dict[str, Any]:
             result.append({"id": item["id"], "value": None, "change": None})
 
     return {"indices": result}
+
+
+@router.get("/order-book")
+async def get_order_book(symbol: str = "SPY"):
+    """TODO: Implement real order book from market data provider.
+    Returns L2 order book for TradeExecution page."""
+    return {"symbol": symbol, "bids": [], "asks": [], "status": "stub"}
+
+
+@router.get("/price-ladder")
+async def get_price_ladder(symbol: str = "SPY"):
+    """TODO: Implement real price ladder from market data provider.
+    Returns price ladder for TradeExecution page."""
+    return {"symbol": symbol, "levels": [], "status": "stub"}

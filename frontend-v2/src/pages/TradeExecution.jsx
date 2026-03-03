@@ -1,6 +1,6 @@
 import React, { useEffect, useCallback } from 'react';
 import useTradeExecution from '../hooks/useTradeExecution';
-import AlignmentEngine from "./AlignmentEngine";
+import AlignmentEngine from "../components/settings/AlignmentEngine";
 
 // ========== UI-DESIGN-SYSTEM.md EXACT COLORS ==========
 const C = {

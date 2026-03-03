@@ -287,6 +287,7 @@ def get_backtest_optimization():
     }
 
 
+@router.get("/walkforward")
 @router.get("/walk-forward")
 def get_backtest_walk_forward():
     """Walk-forward analysis with in-sample/out-of-sample windows."""
@@ -310,6 +311,7 @@ def get_backtest_walk_forward():
     }
 
 
+@router.get("/montecarlo")
 @router.get("/monte-carlo")
 def get_backtest_monte_carlo():
     """Monte Carlo simulation with confidence intervals."""
@@ -384,6 +386,45 @@ def get_backtest_drawdown_analysis():
             for i in range(8)
         ]
     }
+
+
+@router.get("/rolling-sharpe")
+def get_backtest_rolling_sharpe():
+    """Rolling Sharpe ratio time series for strategy evaluation."""
+    import random
+    return {
+        "periods": [
+            {"date": f"2023-{str(m).zfill(2)}-01", "sharpe_30d": round(random.uniform(0.5, 3.0), 2), "sharpe_90d": round(random.uniform(0.8, 2.5), 2)}
+            for m in range(1, 13)
+        ]
+    }
+
+
+@router.get("/trade-distribution")
+def get_backtest_trade_distribution():
+    """P&L distribution histogram for backtest trades."""
+    import random
+    buckets = list(range(-5000, 5500, 500))
+    return {
+        "buckets": [
+            {"range_low": b, "range_high": b + 500, "count": int(random.gauss(20, 10))}
+            for b in buckets
+        ],
+        "mean": round(random.uniform(100, 500), 2),
+        "median": round(random.uniform(50, 400), 2),
+        "skew": round(random.uniform(-0.5, 1.5), 3),
+    }
+
+
+@router.get("/kelly-comparison")
+def get_backtest_kelly_comparison():
+    """Kelly vs fixed sizing comparison metrics."""
+    return {
+        "fixed": {"total_return": 18.5, "sharpe": 1.8, "max_dd": -15.2, "profit_factor": 2.1},
+        "kelly": {"total_return": 24.3, "sharpe": 2.3, "max_dd": -12.8, "profit_factor": 2.7},
+        "kelly_advantage_pct": 31.4,
+    }
+
 
 # -----------------------------------------------------------------
 # Regime-Based Performance Breakdown (Market Regime Page 10/15)

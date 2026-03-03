@@ -3,49 +3,13 @@ import tradeExecutionService from '../services/tradeExecutionService';
 
 const POLL_INTERVAL = 2000;
 
-// ─── Default State ─────────────────────────────────────────
-const defaultPortfolio = {
-  value: 1580420.55,
-  dailyPnl: 12500.80,
-  dailyPnlPct: 0.35,
-  status: 'ELITE',
-  latency: 8,
-};
-
-const defaultPriceLadder = Array.from({ length: 20 }, (_, i) => ({
-  row: i + 1,
-  price: (4450.00 + (Math.random() - 0.5) * 10).toFixed(2),
-  size: Math.floor(Math.random() * 30),
-  bidSize: Math.floor(Math.random() * 15),
-  askSize: Math.floor(Math.random() * 15),
-}));
-
-const defaultOrderBook = Array.from({ length: 20 }, (_, i) => ({
-  price: (4450.75 - i * 0.25).toFixed(2),
-  bid: (4450.50 - i * 0.25).toFixed(2),
-  size: Math.floor(Math.random() * 150) + 10,
-  total: Math.floor(Math.random() * 800) + 100,
-}));
-
-const defaultPositions = [
-  { symbol: 'SPX', side: 'Long', quantity: 50, avgPrice: 4435.00, currentPrice: 4450.25, pnl: 7625.00 },
-  { symbol: 'SPX', side: 'Short', quantity: 50, avgPrice: 4435.00, currentPrice: 4450.25, pnl: 7625.00 },
-];
-
-const defaultNewsFeed = [
-  { time: '09:30:05', text: 'FED official comments on interest rates cause market volatility.', type: 'warning' },
-  { time: '09:25:45', text: 'Strong economic data released, boosting sentiment.', type: 'positive' },
-  { time: '09:15:30', text: 'Breaking: Geopolitical tensions escalate, impacting oil prices.', type: 'negative' },
-  { time: '09:10:15', text: 'Earnings Alert: XYZ Inc. reports Q2 results, beats estimates.', type: 'positive' },
-];
-
-const defaultSystemStatus = [
-  { time: '09:30:12', text: 'Order #123456 executed successfully (SPX, Buy, 50 contracts).', type: 'success' },
-  { time: '09:30:08', text: 'Connected to market data feed: Latency 8ms.', type: 'info' },
-  { time: '09:30:02', text: 'Warning: High market volatility detected.', type: 'warning' },
-  { time: '09:30:00', text: 'System initialized. All services online.', type: 'success' },
-  { time: '09:29:55', text: 'User Logged In: ELITE status confirmed.', type: 'info' },
-];
+// ─── Default State (empty — real data loaded from API) ─────
+const defaultPortfolio = { value: 0, dailyPnl: 0, dailyPnlPct: 0, status: 'OFFLINE', latency: 0 };
+const defaultPriceLadder = [];
+const defaultOrderBook = [];
+const defaultPositions = [];
+const defaultNewsFeed = [];
+const defaultSystemStatus = [{ time: new Date().toLocaleTimeString(), text: 'Awaiting backend connection...', type: 'info' }];
 
 export default function useTradeExecution() {
   // ─── State ─────────────────────────────────────────────

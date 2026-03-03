@@ -9,7 +9,7 @@ import Badge from "../components/ui/Badge";
 import { useSettings } from "../hooks/useSettings";
 import { useApi } from "../hooks/useApi";
 import { toast } from "react-toastify";
-import AlignmentEngine from "./AlignmentEngine";
+import AlignmentEngine from "../components/settings/AlignmentEngine";
 import {
   User, Key, Activity, Bell, Layout, Cpu, Database,
   ShieldAlert, History, Save, RefreshCw, CheckCircle2,

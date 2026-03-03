@@ -176,3 +176,57 @@ async def get_recent_orders(limit: int = 10):
         return db_service.get_recent_orders(limit=limit)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Close position ────────────────────────────────────────────────────
+@router.post("/close")
+async def close_position(symbol: str = Body(...), side: str = Body("all")):
+    """Close a specific position via Alpaca."""
+    try:
+        result = await alpaca_service.close_position(symbol)
+        return result or {"status": "closed", "symbol": symbol}
+    except Exception as e:
+        logger.error("close_position failed: %s", e)
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ── Adjust position ───────────────────────────────────────────────────
+@router.post("/adjust")
+async def adjust_position(symbol: str = Body(...), qty: str = Body(None), side: str = Body("buy")):
+    """Adjust an existing position size."""
+    try:
+        result = await alpaca_service.create_order(
+            symbol=symbol, qty=qty, side=side, type="market", time_in_force="day"
+        )
+        return result or {"status": "adjusted", "symbol": symbol}
+    except Exception as e:
+        logger.error("adjust_position failed: %s", e)
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ── Flatten all positions ─────────────────────────────────────────────
+@router.post("/flatten-all")
+async def flatten_all():
+    """Liquidate all open positions."""
+    try:
+        result = await alpaca_service.close_all_positions()
+        return result or {"status": "all_flattened"}
+    except Exception as e:
+        logger.error("flatten_all failed: %s", e)
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ── Emergency stop ────────────────────────────────────────────────────
+@router.post("/emergency-stop")
+async def emergency_stop():
+    """Cancel all orders and close all positions immediately."""
+    errors = []
+    try:
+        await alpaca_service.cancel_all_orders()
+    except Exception as e:
+        errors.append(f"cancel_orders: {e}")
+    try:
+        await alpaca_service.close_all_positions()
+    except Exception as e:
+        errors.append(f"close_positions: {e}")
+    return {"status": "emergency_stop_executed", "errors": errors if errors else None}

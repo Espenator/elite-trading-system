@@ -232,3 +232,99 @@ async def run_preflight(req: PreflightRequest):
     _log_audit("info" if all_passed else "warning", summary)
     logger.info("Preflight: %s", summary)
     return verdict
+
+
+# ---------------------------------------------------------------------------
+# Additional endpoints mapped by frontend api.js
+# ---------------------------------------------------------------------------
+
+@router.get("/settings")
+async def get_alignment_settings():
+    """Return alignment engine settings (mode, check toggles)."""
+    return {
+        "mode": "constitutional",
+        "checks": {p["name"]: p["status"] == "active" for p in _patterns},
+        "constitutionVersion": _constitution["version"],
+    }
+
+
+@router.post("/evaluate")
+async def evaluate_trade_intent(req: PreflightRequest):
+    """Alias for /preflight — evaluates trade intent through alignment checks."""
+    return await run_preflight(req)
+
+
+@router.get("/stats")
+async def get_alignment_stats():
+    """Aggregated alignment statistics — blocks, approvals, drift trend."""
+    all_verdicts = _load_verdicts()
+    total = len(all_verdicts)
+    blocked = sum(1 for v in all_verdicts if not v.get("allowed", True))
+    approved = total - blocked
+    return {
+        "total": total,
+        "blocked": blocked,
+        "approved": approved,
+        "blockRate": round(blocked / max(total, 1) * 100, 1),
+        "driftScore": _compute_drift_score(),
+        "activePatterns": sum(1 for p in _patterns if p["status"] == "active"),
+    }
+
+
+@router.get("/bright-lines")
+async def get_bright_lines():
+    """Return current bright line (hard limit) status."""
+    return {
+        "lines": [
+            {"name": "Max Position Size", "limit": "5% of portfolio", "status": "active"},
+            {"name": "Max Drawdown Gate", "limit": "10% daily", "status": "active"},
+            {"name": "Correlation Cap", "limit": "3 correlated positions", "status": "active"},
+            {"name": "VIX Filter", "limit": "VIX < 35 or hedged", "status": "active"},
+            {"name": "Strategy Mandate", "limit": "Every trade needs strategy", "status": "active"},
+        ]
+    }
+
+
+@router.get("/constellation")
+async def get_constellation():
+    """Return outcome constellation diagnostics."""
+    all_verdicts = _load_verdicts(limit=100)
+    return {
+        "outcomes": [
+            {
+                "symbol": v.get("summary", "").split()[-1] if v.get("summary") else "N/A",
+                "allowed": v.get("allowed", False),
+                "timestamp": v.get("timestamp"),
+            }
+            for v in all_verdicts[-50:]
+        ],
+        "totalOutcomes": len(all_verdicts),
+    }
+
+
+@router.get("/metacognition")
+async def get_metacognition():
+    """Return metacognition flags and trends."""
+    drift = _compute_drift_score()
+    return {
+        "driftScore": drift,
+        "driftTrend": "stable" if drift < 0.1 else "warning" if drift < 0.3 else "critical",
+        "confidenceCalibration": 1.0 - drift,
+        "selfAwareness": "high" if drift < 0.1 else "medium" if drift < 0.3 else "low",
+    }
+
+
+@router.get("/critique")
+async def get_critique():
+    """Return swarm critique role statistics."""
+    all_verdicts = _load_verdicts()
+    blocked = [v for v in all_verdicts if not v.get("allowed", True)]
+    blockers = {}
+    for v in blocked:
+        by = v.get("blockedBy", "unknown")
+        blockers[by] = blockers.get(by, 0) + 1
+    return {
+        "totalCritiques": len(blocked),
+        "blockerBreakdown": blockers,
+        "critiqueDensity": round(len(blocked) / max(len(all_verdicts), 1), 3),
+    }

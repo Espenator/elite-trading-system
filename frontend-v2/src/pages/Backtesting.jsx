@@ -38,31 +38,9 @@ const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1D", "1W"];
 const REGIME_TYPES = ["ALL", "BULL", "BEAR", "SIDEWAYS", "HIGH_VOL", "LOW_VOL", "CRASH"];
 const REGIME_COLORS = { BULL: "#10b981", BEAR: "#ef4444", SIDEWAYS: "#3b82f6", HIGH_VOL: "#f59e0b", LOW_VOL: "#8b5cf6", CRASH: "#f43f5e" };
 
-// ReactFlow strategy builder nodes
-const INIT_NODES = [
-  { id: "1", position: { x: 0, y: 0 }, data: { label: "Data Feed" }, style: { background: "#1e293b", color: "#e2e8f0", border: "1px solid #334155", borderRadius: 8, padding: 10, fontSize: 11 } },
-  { id: "2", position: { x: 180, y: -40 }, data: { label: "RSI Filter" }, style: { background: "#1e293b", color: "#e2e8f0", border: "1px solid #334155", borderRadius: 8, padding: 10, fontSize: 11 } },
-  { id: "3", position: { x: 180, y: 40 }, data: { label: "MACD Signal" }, style: { background: "#1e293b", color: "#e2e8f0", border: "1px solid #334155", borderRadius: 8, padding: 10, fontSize: 11 } },
-  { id: "4", position: { x: 360, y: 0 }, data: { label: "Entry Logic" }, style: { background: "#1e293b", color: "#10b981", border: "1px solid #10b981", borderRadius: 8, padding: 10, fontSize: 11 } },
-  { id: "5", position: { x: 540, y: 0 }, data: { label: "Risk Manager" }, style: { background: "#1e293b", color: "#f59e0b", border: "1px solid #f59e0b", borderRadius: 8, padding: 10, fontSize: 11 } },
-  { id: "6", position: { x: 720, y: 0 }, data: { label: "Execute" }, style: { background: "#1e293b", color: "#3b82f6", border: "1px solid #3b82f6", borderRadius: 8, padding: 10, fontSize: 11 } },
-  { id: "7", position: { x: 360, y: -80 }, data: { label: "Vol Filter" }, style: { background: "#1e293b", color: "#8b5cf6", border: "1px solid #8b5cf6", borderRadius: 8, padding: 10, fontSize: 11 } },
-  { id: "8", position: { x: 360, y: 80 }, data: { label: "Regime Gate" }, style: { background: "#1e293b", color: "#ec4899", border: "1px solid #ec4899", borderRadius: 8, padding: 10, fontSize: 11 } },
-  { id: "9", position: { x: 540, y: -80 }, data: { label: "Kelly Sizer" }, style: { background: "#1e293b", color: "#06b6d4", border: "1px solid #06b6d4", borderRadius: 8, padding: 10, fontSize: 11 } },
-  { id: "10", position: { x: 540, y: 80 }, data: { label: "Correlation Check" }, style: { background: "#1e293b", color: "#f97316", border: "1px solid #f97316", borderRadius: 8, padding: 10, fontSize: 11 } },
-];
-const INIT_EDGES = [
-  { id: "e1-2", source: "1", target: "2", animated: true, style: { stroke: "#334155" } },
-  { id: "e1-3", source: "1", target: "3", animated: true, style: { stroke: "#334155" } },
-  { id: "e2-4", source: "2", target: "4", style: { stroke: "#334155" } },
-  { id: "e3-4", source: "3", target: "4", style: { stroke: "#334155" } },
-  { id: "e4-5", source: "4", target: "5", style: { stroke: "#10b981" } },
-  { id: "e5-6", source: "5", target: "6", style: { stroke: "#f59e0b" } },
-  { id: "e7-5", source: "7", target: "5", style: { stroke: "#8b5cf6" } },
-  { id: "e8-4", source: "8", target: "4", style: { stroke: "#ec4899" } },
-  { id: "e9-6", source: "9", target: "6", style: { stroke: "#06b6d4" } },
-  { id: "e10-5", source: "10", target: "5", style: { stroke: "#f97316" } },
-];
+// ReactFlow strategy builder nodes — loaded from /api/v1/backtest/strategy or user creates new
+const INIT_NODES = [];
+const INIT_EDGES = [];
 
 // KPI stat helper (matches mockup 2-row mega strip)
 function KPI({ label, value, color = "text-slate-300", sub }) {

@@ -787,3 +787,17 @@ async def run_stress_test():
     except Exception as e:
         logger.error("Stress test error: %s", e)
         return {"error": str(e)}
+
+
+@router.get("/monte-carlo")
+async def monte_carlo_risk():
+    """Monte Carlo risk simulation for current portfolio.
+    Uses the stress-test engine with more paths for risk analysis."""
+    return await run_stress_test()
+
+
+@router.get("/position-var")
+async def position_var():
+    """Per-position Value-at-Risk breakdown.
+    Wraps the var-analysis endpoint for frontend compatibility."""
+    return await var_analysis()
