@@ -8,5 +8,10 @@ build
 *.md
 .gitignore
 .vscode
+.idea
 coverage
 .eslintcache
+e2e
+playwright-report
+test-results
+playwright.config.js

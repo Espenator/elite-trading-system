@@ -12,6 +12,7 @@ import React, {
 import { createChart } from "lightweight-charts";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl } from "../config/api";
+import log from "@/utils/logger";
 
 // ============================================================
 // CONSTANTS
@@ -842,7 +843,7 @@ export default function MarketRegime() {
         body: JSON.stringify({ bias_multiplier: val }),
       });
     } catch (e) {
-      console.error("Failed to POST bias override:", e);
+      log.error("Failed to POST bias override:", e);
     }
   }, []);
 

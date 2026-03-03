@@ -405,12 +405,12 @@ async def main():
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
     bridge = get_lstm_bridge()
-    print("=" * 60)
-    print("OpenClaw LSTM Bridge Service")
-    print(f"Elite API: {ELITE_SIGNALS_ENDPOINT}")
-    print(f"Redis Channel: {REDIS_CHANNEL}")
-    print(f"Poll Interval: {POLL_INTERVAL_SECONDS}s")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("OpenClaw LSTM Bridge Service")
+    logger.info("Elite API: %s", ELITE_SIGNALS_ENDPOINT)
+    logger.info("Redis Channel: %s", REDIS_CHANNEL)
+    logger.info("Poll Interval: %ds", POLL_INTERVAL_SECONDS)
+    logger.info("=" * 60)
     await bridge.run()
 
 

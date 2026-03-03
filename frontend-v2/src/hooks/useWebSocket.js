@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getWsUrl, WS_CHANNELS } from '../config/api';
+import log from "@/utils/logger";
 
 /**
  * useWebSocket — reusable hook for real-time WebSocket streams.
@@ -70,7 +71,7 @@ export default function useWebSocket(channel, options = {}) {
         setConnected(true);
         setError(null);
         setReconnectCount(0);
-        console.log(`[WS:${channel}] Connected to ${wsUrl}`);
+        log.info(`[WS:${channel}] Connected to ${wsUrl}`);
 
         // Start heartbeat
         heartbeatRef.current = setInterval(() => {
@@ -106,14 +107,14 @@ export default function useWebSocket(channel, options = {}) {
         if (!mountedRef.current) return;
         setConnected(false);
         if (heartbeatRef.current) clearInterval(heartbeatRef.current);
-        console.log(`[WS:${channel}] Closed (code: ${event.code})`);
+        log.info(`[WS:${channel}] Closed (code: ${event.code})`);
         onClose?.(event);
 
         // Auto-reconnect with exponential backoff
         if (event.code !== 1000 && mountedRef.current) {
           setReconnectCount(prev => prev + 1);
           const delay = Math.min(1000 * Math.pow(2, reconnectCount), reconnectMaxDelay);
-          console.log(`[WS:${channel}] Reconnecting in ${delay}ms (attempt ${reconnectCount + 1})`);
+          log.info(`[WS:${channel}] Reconnecting in ${delay}ms (attempt ${reconnectCount + 1})`);
           reconnectRef.current = setTimeout(connect, delay);
         }
       };
@@ -121,7 +122,7 @@ export default function useWebSocket(channel, options = {}) {
       ws.onerror = (event) => {
         if (!mountedRef.current) return;
         setError(`WebSocket error on ${channel}`);
-        console.error(`[WS:${channel}] Error:`, event);
+        log.error(`[WS:${channel}] Error:`, event);
         onError?.(event);
       };
     } catch (err) {

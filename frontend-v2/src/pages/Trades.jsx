@@ -5,6 +5,7 @@
  * Endpoints: portfolio (positions+fills), orders (active orders), risk, dataSources
  */
 import React, { useState, useCallback, useEffect } from "react";
+import log from "@/utils/logger";
 import {
   TrendingUp,
   TrendingDown,
@@ -88,7 +89,7 @@ export default function Trades() {
       const base = import.meta.env.VITE_API_URL ?? "";
       await fetch(`${base}/api/v1/orders/cancel-all`, { method: "DELETE" });
       refetchOrders();
-    } catch (e) { console.error("Cancel all failed:", e); }
+    } catch (e) { log.error("Cancel all failed:", e); }
   };
 
   const handleClosePosition = async (symbol, pct = 100) => {
@@ -96,7 +97,7 @@ export default function Trades() {
       const base = import.meta.env.VITE_API_URL ?? "";
       await fetch(`${base}/api/v1/portfolio/close/${symbol}?percentage=${pct}`, { method: "DELETE" });
       refetchPortfolio();
-    } catch (e) { console.error("Close position failed:", e); }
+    } catch (e) { log.error("Close position failed:", e); }
   };
 
   const handleCloseLosers = async () => {
@@ -149,7 +150,7 @@ export default function Trades() {
       const base = import.meta.env.VITE_API_URL ?? "";
       await fetch(`${base}/api/v1/orders/${orderId}`, { method: "DELETE" });
       refetchOrders();
-    } catch (e) { console.error("Cancel order failed:", e); }
+    } catch (e) { log.error("Cancel order failed:", e); }
   };
 
   const handleExportCSV = (data, filename) => {

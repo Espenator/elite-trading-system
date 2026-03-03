@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { createChart } from 'lightweight-charts';
 import { useApi } from '../hooks/useApi';
 import { getApiUrl } from '../config/api';
+import log from "@/utils/logger";
 
 // --- FALLBACK DATA (N/A indicators when API unavailable) ---
 const FALLBACK_KPIS = {
@@ -311,7 +312,7 @@ export default function MLBrainFlywheel() {
       await fetch(getApiUrl('flywheel/retrain'), { method: 'POST' });
       // In a real app, this would trigger a toast or update logs
     } catch (e) {
-      console.error("Retrain failed", e);
+      log.error("Retrain failed", e);
     }
     setTimeout(() => setIsRetraining(false), 2000);
   };

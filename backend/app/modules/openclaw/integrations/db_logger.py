@@ -134,8 +134,7 @@ class DBLogger:
 
         except Exception as e:
             logger.error(f"Database connection failed: {e}")
-            print(f"Database connection failed: {e}")
-            print("Trades will still execute but won't be logged to DB.")
+            logger.warning("Trades will still execute but won't be logged to DB.")
 
     def _get_conn(self):
         """Get a new connection (sqlite3 connections are not thread-safe)."""

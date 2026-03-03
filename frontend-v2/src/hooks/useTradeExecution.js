@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import tradeExecutionService from '../services/tradeExecutionService';
+import log from "@/utils/logger";
 
 const POLL_INTERVAL = 2000;
 
@@ -59,7 +60,7 @@ export default function useTradeExecution() {
       if (statusRes.status === 'fulfilled') setSystemStatus(statusRes.value);
       setLastUpdate(new Date());
     } catch (err) {
-      console.warn('[useTradeExecution] Fetch error, using defaults:', err.message);
+      log.warn('[useTradeExecution] Fetch error, using defaults:', err.message);
     }
   }, [orderForm.symbol]);
 
@@ -100,7 +101,7 @@ export default function useTradeExecution() {
     try {
       wsRef.current = tradeExecutionService.createTradeWebSocket(handleWsMessage);
     } catch (e) {
-      console.warn('[useTradeExecution] WS unavailable, polling only');
+      log.warn('[useTradeExecution] WS unavailable, polling only');
     }
 
     pollRef.current = setInterval(fetchAll, POLL_INTERVAL);

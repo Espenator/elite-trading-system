@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import log from "@/utils/logger";
 import { useApi } from '../hooks/useApi';
 import { getApiUrl } from '../config/api';
 
@@ -235,7 +236,7 @@ const LWChartFallback = ({ symbol, quotesData, signalEntry, signalStop, signalTa
           chart.remove();
         };
       } catch (err) {
-        console.warn('LW Charts init failed:', err);
+        log.warn('LW Charts init failed:', err);
       }
     };
     initChart();
@@ -605,13 +606,13 @@ export default function Dashboard() {
       });
       if (res.ok) alert(`Execution successful: ${action} ${selectedSymbol}`);
     } catch (err) {
-      console.error("Execution failed:", err);
+      log.error("Execution failed:", err);
     }
   }, [selectedSymbol, riskData]);
 
   // --- ACTION HANDLERS ---
   const handleRunScan = useCallback(async () => {
-    try { await fetch(getApiUrl('signals'), { method: 'POST' }); } catch (e) { console.error(e); }
+    try { await fetch(getApiUrl('signals'), { method: 'POST' }); } catch (e) { log.error(e); }
   }, []);
   const handleExecTop5 = useCallback(async () => {
     const top5 = processedSignals.slice(0, 5);
@@ -622,14 +623,14 @@ export default function Dashboard() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ symbol: sig.symbol, action: sig.direction === 'LONG' ? 'BUY' : 'SELL', size: 100 })
         });
-      } catch (e) { console.error(e); }
+      } catch (e) { log.error(e); }
     }
   }, [processedSignals]);
   const handleFlatten = useCallback(async () => {
-    try { await fetch(getApiUrl('orders') + '/flatten-all', { method: 'POST' }); } catch (e) { console.error(e); }
+    try { await fetch(getApiUrl('orders') + '/flatten-all', { method: 'POST' }); } catch (e) { log.error(e); }
   }, []);
   const handleEmergencyStop = useCallback(async () => {
-    try { await fetch(getApiUrl('orders') + '/emergency-stop', { method: 'POST' }); } catch (e) { console.error(e); }
+    try { await fetch(getApiUrl('orders') + '/emergency-stop', { method: 'POST' }); } catch (e) { log.error(e); }
   }, []);
 
   // --- KEYBOARD SHORTCUTS ---

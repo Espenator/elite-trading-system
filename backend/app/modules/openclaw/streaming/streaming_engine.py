@@ -1361,10 +1361,10 @@ class StreamingEngine:
         self._load_persisted_state()
         self.running = True
         logger.info(f"Starting streaming engine v6.1 with {len(tickers)} tickers")
-        print("OpenClaw Streaming Engine v6.1 - Multi-Agent Sentiment Pipeline")
-        print(f"Blackboard: {len(self.blackboard._subscribers)} topic subscriptions")
-        print(f"Tickers: {len(tickers)}")
-        print("=" * 60)
+        logger.info("OpenClaw Streaming Engine v6.1 - Multi-Agent Sentiment Pipeline")
+        logger.info("Blackboard: %d topic subscriptions", len(self.blackboard._subscribers))
+        logger.info("Tickers: %d", len(tickers))
+        logger.info("=" * 60)
         
         # Launch Core Pipeline Tasks
         alpha_task = asyncio.create_task(self._consume_alpha_signals())
@@ -1403,16 +1403,16 @@ class StreamingEngine:
     def show_watchlist(self):
         tickers = self.load_watchlist()
         if not tickers:
-            print("No tickers in watchlist.")
+            logger.info("No tickers in watchlist.")
             return
-        print(f"\nStreaming Watchlist ({len(tickers)} tickers):")
-        print("=" * 50)
+        logger.info("Streaming Watchlist (%d tickers):", len(tickers))
+        logger.info("=" * 50)
         for i, ticker in enumerate(tickers, 1):
             meta = self.watchlist.get(ticker, {})
             source = meta.get('source', '?')
             score = meta.get('composite_score', 0)
             flow = 'FLOW' if ticker in self._flow_approved else ''
-            print(f"  {i:2d}. {ticker:<8s} | source: {source:<12s} | score: {score} {flow}")
+            logger.info("  %2d. %-8s | source: %-12s | score: %s %s", i, ticker, source, score, flow)
 
     def show_scores(self):
         if os.path.exists(LIVE_SCORES_FILE):
@@ -1424,100 +1424,103 @@ class StreamingEngine:
         else:
             scores = self.live_scores
         if not scores:
-            print("No live scores available.")
+            logger.info("No live scores available.")
             return
-        print(f"\nLive Scores ({len(scores)} tickers):")
-        print("=" * 85)
-        print(f"  {'Ticker':<8s} {'Score':>6s} {'Tier':<16s} {'R':>4s} {'T':>4s} {'P':>4s} {'M':>4s} {'Pat':>4s} {'Flow':>5s} {'Updated'}")
-        print("-" * 85)
+        logger.info("Live Scores (%d tickers):", len(scores))
+        logger.info("=" * 85)
+        logger.info("  %-8s %6s %-16s %4s %4s %4s %4s %4s %5s %s", 'Ticker', 'Score', 'Tier', 'R', 'T', 'P', 'M', 'Pat', 'Flow', 'Updated')
+        logger.info("-" * 85)
         for ticker, data in sorted(scores.items(), key=lambda x: x[1].get('score', 0), reverse=True):
             flow_tag = 'YES' if ticker in self._flow_approved else ''
-            print(
-                f"  {ticker:<8s} {data.get('score', 0):>6.1f} "
-                f"{data.get('tier', '?'):<16s} "
-                f"{data.get('regime_score', 0):>4.0f} "
-                f"{data.get('trend_score', 0):>4.0f} "
-                f"{data.get('pullback_score', 0):>4.0f} "
-                f"{data.get('momentum_score', 0):>4.0f} "
-                f"{data.get('pattern_score', 0):>4.0f} "
-                f"{flow_tag:>5s} "
-                f"{data.get('last_update', '?')[-8:]}"
+            logger.info(
+                "  %-8s %6.1f %-16s %4.0f %4.0f %4.0f %4.0f %4.0f %5s %s",
+                ticker, data.get('score', 0),
+                data.get('tier', '?'),
+                data.get('regime_score', 0),
+                data.get('trend_score', 0),
+                data.get('pullback_score', 0),
+                data.get('momentum_score', 0),
+                data.get('pattern_score', 0),
+                flow_tag,
+                data.get('last_update', '?')[-8:]
             )
 
     def show_blackboard_status(self):
         stats = self.blackboard.get_stats()
-        print("\nBlackboard Status (v6.1):")
-        print("=" * 60)
-        print("\nTopics & Subscribers:")
+        logger.info("Blackboard Status (v6.1):")
+        logger.info("=" * 60)
+        logger.info("Topics & Subscribers:")
         for topic, count in stats.get('topics', {}).items():
-            print(f"  {topic:<30s} {count} subscriber(s)")
-        print("\nMessage Counts:")
+            logger.info("  %-30s %s subscriber(s)", topic, count)
+        logger.info("Message Counts:")
         for key, count in sorted(stats.get('message_counts', {}).items()):
-            print(f"  {key:<35s} {count}")
-        print("\nAgent Heartbeats:")
+            logger.info("  %-35s %s", key, count)
+        logger.info("Agent Heartbeats:")
         for agent, ts in stats.get('agent_heartbeats', {}).items():
-            print(f"  {agent:<25s} last seen: {ts}")
+            logger.info("  %-25s last seen: %s", agent, ts)
         stale = self.blackboard.get_stale_agents()
         if stale:
-            print(f"\nSTALE AGENTS: {', '.join(stale)}")
+            logger.warning("STALE AGENTS: %s", ', '.join(stale))
 
     def show_flow_status(self):
         """Display options flow pipeline status and metrics."""
         stats = self.blackboard.get_stats()
         pm = stats.get('pipeline_metrics', {})
-        print("\nOptions Flow Agent Pipeline Status:")
-        print("=" * 70)
+        logger.info("Options Flow Agent Pipeline Status:")
+        logger.info("=" * 70)
         agents = [
             ('flow_monitor', 'Flow Monitor', 'WebSocket /flow'),
             ('contextualizer', 'Contextualizer', 'REST /greeks'),
             ('sentiment_agent', 'Sentiment Agent', 'REST /market-tide'),
             ('risk_auditor', 'Risk Auditor', 'Internal Logic'),
         ]
-        print(f"  {'Agent':<20s} {'Input':<20s} {'Processed':>10s} {'Passed':>8s} {'Rejected':>9s} {'Avg ms':>8s}")
-        print("-" * 70)
+        logger.info("  %-20s %-20s %10s %8s %9s %8s", 'Agent', 'Input', 'Processed', 'Passed', 'Rejected', 'Avg ms')
+        logger.info("-" * 70)
         for aid, name, inp in agents:
             m = pm.get(aid, {})
-            print(
-                f"  {name:<20s} {inp:<20s} "
-                f"{m.get('processed', 0):>10d} "
-                f"{m.get('passed', 0):>8d} "
-                f"{m.get('rejected', 0):>9d} "
-                f"{m.get('avg_latency_ms', 0):>8.1f}"
+            logger.info(
+                "  %-20s %-20s %10d %8d %9d %8.1f",
+                name, inp,
+                m.get('processed', 0),
+                m.get('passed', 0),
+                m.get('rejected', 0),
+                m.get('avg_latency_ms', 0)
             )
         total_in = pm.get('flow_monitor', {}).get('passed', 0)
         total_out = pm.get('risk_auditor', {}).get('passed', 0)
         pass_rate = (total_out / total_in * 100) if total_in > 0 else 0
-        print(f"\n  Pipeline pass-through: {total_out}/{total_in} ({pass_rate:.1f}%)")
+        logger.info("  Pipeline pass-through: %d/%d (%.1f%%)", total_out, total_in, pass_rate)
         if self._flow_approved:
-            print(f"  Active flow-approved tickers: {', '.join(self._flow_approved.keys())}")
+            logger.info("  Active flow-approved tickers: %s", ', '.join(self._flow_approved.keys()))
 
     def show_flow_history(self):
         """Display recent flow pipeline signals."""
         if not os.path.exists(FLOW_PIPELINE_FILE):
-            print("No flow pipeline history.")
+            logger.info("No flow pipeline history.")
             return
         try:
             with open(FLOW_PIPELINE_FILE, 'r') as f:
                 history = json.load(f)
         except Exception:
-            print("Could not read flow history.")
+            logger.error("Could not read flow history.")
             return
-        print(f"\nRecent Flow Pipeline Signals ({len(history)} total):")
-        print("=" * 90)
+        logger.info("Recent Flow Pipeline Signals (%d total):", len(history))
+        logger.info("=" * 90)
         for sig in history[-15:]:
             verdict = sig.get('risk_verdict', '?')
             icon = 'OK' if verdict in ('APPROVED', 'REDUCED') else 'NO'
             total_lat = sum(sig.get('stage_latencies_ms', {}).values())
-            print(
-                f"  [{icon}] {sig.get('ticker', '?'):<6s} "
-                f"{sig.get('option_type', '?').upper():<5s} "
-                f"${sig.get('strike', 0):<8} "
-                f"prem=${sig.get('premium', 0):>10,.0f} "
-                f"GEX={sig.get('gex_alignment', '?'):<8s} "
-                f"tide={sig.get('market_tide', '?'):<8s} "
-                f"verdict={verdict:<9s} "
-                f"size={sig.get('suggested_size_pct', 0)}% "
-                f"({total_lat:.0f}ms)"
+            logger.info(
+                "  [%s] %-6s %-5s $%-8s prem=$%10.0f GEX=%-8s tide=%-8s verdict=%-9s size=%s%% (%.0fms)",
+                icon, sig.get('ticker', '?'),
+                sig.get('option_type', '?').upper(),
+                sig.get('strike', 0),
+                sig.get('premium', 0),
+                sig.get('gex_alignment', '?'),
+                sig.get('market_tide', '?'),
+                verdict,
+                sig.get('suggested_size_pct', 0),
+                total_lat
             )
 
 

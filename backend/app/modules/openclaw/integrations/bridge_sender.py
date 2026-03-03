@@ -152,15 +152,15 @@ class EliteBridgeListener:
 # ============================================================
 async def _test_bridge():
     """CLI test: health check + send a test signal."""
-    print(f"Elite endpoint: {ELITE_INGEST_ENDPOINT}")
-    print(f"Token configured: {'YES' if OPENCLAW_BRIDGE_TOKEN else 'NO'}")
+    logger.info("Elite endpoint: %s", ELITE_INGEST_ENDPOINT)
+    logger.info("Token configured: %s", 'YES' if OPENCLAW_BRIDGE_TOKEN else 'NO')
 
     # Health check
     try:
         health = await check_elite_health()
-        print(f"Health check: {health.get('status', 'unknown')}")
+        logger.info("Health check: %s", health.get('status', 'unknown'))
     except Exception as e:
-        print(f"Health check FAILED: {e}")
+        logger.error("Health check FAILED: %s", e)
         return
 
     # Send test signal
@@ -180,11 +180,11 @@ async def _test_bridge():
             signals=test_signals,
             regime={"state": "GREEN", "confidence": 0.9},
         )
-        print(f"SUCCESS: {result}")
+        logger.info("SUCCESS: %s", result)
     except httpx.HTTPStatusError as e:
-        print(f"HTTP ERROR {e.response.status_code}: {e.response.text}")
+        logger.error("HTTP ERROR %s: %s", e.response.status_code, e.response.text)
     except Exception as e:
-        print(f"ERROR: {e}")
+        logger.error("ERROR: %s", e)
 
 
 if __name__ == "__main__":

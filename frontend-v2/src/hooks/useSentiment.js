@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { getApiUrl } from "../config/api";
 import ws from "../services/websocket";
+import log from "@/utils/logger";
 
 const POLL_MS = 30000;
 
@@ -41,7 +42,7 @@ export function useSentiment() {
       const data = await res.json();
       if (mountedRef.current) setHistory(data.points || []);
     } catch (err) {
-      console.error("Sentiment history error:", err);
+      log.error("Sentiment history error:", err);
     }
   }, []);
 

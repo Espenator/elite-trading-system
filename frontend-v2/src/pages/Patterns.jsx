@@ -33,6 +33,7 @@ import TextField from "../components/ui/TextField";
 import DataTable from "../components/ui/DataTable";
 import MiniChart from "../components/charts/MiniChart";
 import { getApiUrl } from "../config/api";
+import log from "@/utils/logger";
 
 // ═══════════════════════════════════════════════════
 // HELPERS
@@ -194,7 +195,7 @@ export default function Patterns() {
         setStocks(rows.map(mapRowToStockData));
         setError(null);
       } catch (err) {
-        console.error("Stocks fetch error:", err);
+        log.error("Stocks fetch error:", err);
         setError(err.message);
         toast.error(`Failed to load stock data: ${err.message}`);
       } finally {
@@ -215,7 +216,7 @@ export default function Patterns() {
         const json = await res.json();
         setPatterns(json.patterns || []);
       } catch (err) {
-        console.error("Patterns fetch error:", err);
+        log.error("Patterns fetch error:", err);
         // Non-fatal: page still works, stocks show without pattern overlay
       }
     };

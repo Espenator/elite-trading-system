@@ -4,6 +4,7 @@
 // Backend: GET /api/v1/agents, /api/v1/openclaw/*, WS 'agents' + 'llm-flow'
 // Mockups: 01-agent-command-center-final.png, 05-agent-command-center.png, 05b-agent-command-center-spawn.png, 05c-agent-registry.png
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import log from "@/utils/logger";
 import { toast } from "react-toastify";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -447,7 +448,7 @@ export default function AgentCommandCenter() {
     try { socket = new WebSocket(wsUrl); wsRef.current = socket;
       socket.onmessage = (ev) => { try { const msg = JSON.parse(ev.data); setLlmAlerts(prev => [{ ...msg, id: Date.now() + crypto.randomUUID() }, ...prev].slice(0, LLM_ALERTS_MAX)); } catch { setLlmAlerts(prev => [{ id: Date.now(), message: ev.data, severity: "info" }, ...prev.slice(0, LLM_ALERTS_MAX - 1)]); } };
       socket.onclose = () => { wsRef.current = null; };
-    } catch (e) { console.warn("LLM flow WebSocket failed:", e); }
+    } catch (e) { log.warn("LLM flow WebSocket failed:", e); }
     return () => { if (wsRef.current) { wsRef.current.close(); wsRef.current = null; } };
   }, []);
   useEffect(() => { const unsub = ws.on("agents", (msg) => { if (msg?.type === "agent_status") refetchAgents(); }); return unsub; }, [refetchAgents]);

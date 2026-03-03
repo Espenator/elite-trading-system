@@ -1,6 +1,9 @@
 import json
+import logging
 import subprocess
 import os
+
+logger = logging.getLogger(__name__)
 
 class NightlyAlchemist:
     def __init__(self, pnl_database, output_dir="./training_data"):
@@ -26,5 +29,5 @@ class NightlyAlchemist:
 
     def trigger_lora_training(self, dataset_path: str):
         """Spawns the OS-level PyTorch training job."""
-        print(f"Triggering RTX DPO Fine-Tuning on {dataset_path}...")
+        logger.info("Triggering RTX DPO Fine-Tuning on %s...", dataset_path)
         subprocess.run(["python", "lora_trainer.py", "--dataset", dataset_path], check=True)

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { getApiUrl } from '../../config/api';
+import log from "@/utils/logger";
 
 // ———————————————————————————————————————————————————————————————————
 // COLORS — shared dark theme palette
@@ -93,7 +94,7 @@ export default function AlignmentEngine() {
       setConstitutionText(cData.text || JSON.stringify(cData, null, 2));
       setDriftHistory(await driftRes.json());
     } catch (err) {
-      console.error('Alignment fetch error:', err);
+      log.error('Alignment fetch error:', err);
     }
     setLoading(false);
   }, []);

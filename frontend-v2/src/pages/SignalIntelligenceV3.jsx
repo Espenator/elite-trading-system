@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useApi } from '../hooks/useApi';
 import { getApiUrl, getWsUrl, WS_CHANNELS } from '../config/api';
+import log from "@/utils/logger";
 import { createChart, CrosshairMode, LineStyle } from 'lightweight-charts';
 import {
   Activity, AlertTriangle, Cpu, Network, Zap, TrendingUp, TrendingDown,
@@ -287,7 +288,7 @@ export default function SignalIntelligenceV3() {
         candleSeries.createPriceLine({ price: lastPrice, color: '#06b6d4', lineWidth: 2, lineStyle: LineStyle.Solid, title: 'ENTRY' });
         candleSeries.createPriceLine({ price: lastPrice * 1.05, color: '#10b981', lineWidth: 2, lineStyle: LineStyle.Dashed, title: 'TARGET' });
         candleSeries.createPriceLine({ price: lastPrice * 0.98, color: '#ef4444', lineWidth: 2, lineStyle: LineStyle.Dotted, title: 'STOP' });
-      } catch (err) { console.error('Chart data fetch error:', err); }
+      } catch (err) { log.error('Chart data fetch error:', err); }
     };
     fetchChart();
     chartRef.current = chart;
@@ -327,7 +328,7 @@ export default function SignalIntelligenceV3() {
     try {
       const url = getApiUrl ? getApiUrl(`/api/v1/${category}s/${id}/weight`) : `/api/v1/${category}s/${id}/weight`;
       await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ weight: value }) });
-    } catch (err) { console.error(`Failed to update ${category} weight:`, err); }
+    } catch (err) { log.error(`Failed to update ${category} weight:`, err); }
   }, []);
 
   const handleToggleState = useCallback(async (category, id, currentState) => {
@@ -338,7 +339,7 @@ export default function SignalIntelligenceV3() {
     try {
       const url = getApiUrl ? getApiUrl(`/api/v1/${category}s/${id}/toggle`) : `/api/v1/${category}s/${id}/toggle`;
       await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active: newState }) });
-    } catch (err) { console.error(`Failed to toggle ${category}:`, err); }
+    } catch (err) { log.error(`Failed to toggle ${category}:`, err); }
   }, []);
 
   const triggerScan = useCallback(async (id) => {
@@ -355,7 +356,7 @@ export default function SignalIntelligenceV3() {
       setMlStates(p => ({ ...p, [id]: { ...p[id], status: 'Training' } }));
       const url = getApiUrl ? getApiUrl('training') + '/retrain' : '/api/v1/training/retrain';
       await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modelId: id }) });
-    } catch (e) { console.error(e); }
+    } catch (e) { log.error(e); }
   }, []);
 
   // --- ML Controls State ---

@@ -610,7 +610,7 @@ def show_current_weights() -> str:
         lines.append(f'  Confidence: {conf:.0%} | Updated: {updated}')
 
     output = '\n'.join(lines)
-    print(output)
+    logger.info(output)
     return output
 
 
@@ -618,7 +618,7 @@ def show_weight_history(n: int = 10) -> str:
     """Show last N weight optimization events."""
     try:
         if not HISTORY_FILE.exists():
-            print('No weight history found.')
+            logger.info('No weight history found.')
             return 'No history'
         with open(HISTORY_FILE, 'r') as f:
             history = json.load(f)
@@ -639,7 +639,7 @@ def show_weight_history(n: int = 10) -> str:
             lines.append(f'{ts}: No changes')
 
     output = '\n'.join(lines)
-    print(output)
+    logger.info(output)
     return output
 
 

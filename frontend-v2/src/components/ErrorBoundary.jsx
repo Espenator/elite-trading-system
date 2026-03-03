@@ -1,5 +1,6 @@
 // Error boundary — catches render errors and shows a fallback so the app doesn’t blank.
 import { Component } from "react";
+import log from "@/utils/logger";
 
 export default class ErrorBoundary extends Component {
   state = { hasError: false, error: null };
@@ -9,7 +10,7 @@ export default class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error("ErrorBoundary caught:", error, errorInfo);
+    log.error("ErrorBoundary caught:", error, errorInfo);
   }
 
   render() {

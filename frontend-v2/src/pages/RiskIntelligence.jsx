@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useApi } from "../hooks/useApi";
 import { getApiUrl } from "../config/api";
+import log from "@/utils/logger";
 
 // ─── COLOR PALETTE (aurora design system) ──────────────────────────────────
 const C = {
@@ -903,7 +904,7 @@ export default function RiskIntelligence() {
             await fetch(getApiUrl('risk') + `/emergency/${action.toLowerCase()}`, { method: 'POST' });
 handleRefresh();
     } catch (err) {
-      console.error(`Emergency ${action} failed:`, err);
+      log.error(`Emergency ${action} failed:`, err);
     }
   };
 

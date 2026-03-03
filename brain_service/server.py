@@ -21,7 +21,7 @@ try:
     import grpc
     from proto import brain_pb2, brain_pb2_grpc
 except ImportError:
-    print("ERROR: gRPC stubs not found. Run: python compile_proto.py")
+    logging.error("gRPC stubs not found. Run: python compile_proto.py")
     sys.exit(1)
 
 from ollama_client import infer_candidate_context, critic_postmortem

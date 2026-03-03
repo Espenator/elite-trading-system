@@ -8,6 +8,7 @@ Slack routing:
  FOM channels -> SLACK_WEBHOOK_FOM (or fallback SLACK_WEBHOOK_URL) -> #oc-signals-raw
  Maverick     -> SLACK_WEBHOOK_MAV (or fallback SLACK_WEBHOOK_URL) -> #oc-signals-raw
 """
+import logging
 import os
 import sys
 import json
@@ -15,29 +16,28 @@ import asyncio
 import aiohttp
 from datetime import datetime, timezone, timedelta
 
+logger = logging.getLogger(__name__)
+
 # ── Configuration ───────────────────────────────────────────────────────────────────────────────
 DISCORD_USER_TOKEN = os.getenv('DISCORD_USER_TOKEN', '')
 
 if not DISCORD_USER_TOKEN:
-    print('=' * 60)
-    print('ERROR: DISCORD_USER_TOKEN secret is not set!')
-    print('=' * 60)
-    print()
-    print('HOW TO GET YOUR TOKEN:')
-    print('  1. Open Discord in your browser (discord.com)')
-    print('  2. Press F12 to open DevTools')
-    print('  3. Click the "Network" tab')
-    print('  4. Send any message in any channel')
-    print('  5. Find a request to discord.com/api/')
-    print('  6. In the request headers, find "Authorization"')
-    print('  7. Copy that value (starts with your token)')
-    print()
-    print('HOW TO ADD TO GITHUB:')
-    print('  1. Go to: github.com/Espenator/openclaw/settings/secrets/actions/new')
-    print('  2. Name: DISCORD_USER_TOKEN')
-    print('  3. Value: paste your token')
-    print('  4. Click "Add secret"')
-    print()
+    logger.error(
+        "DISCORD_USER_TOKEN secret is not set! "
+        "HOW TO GET YOUR TOKEN: "
+        "1. Open Discord in your browser (discord.com) "
+        "2. Press F12 to open DevTools "
+        "3. Click the 'Network' tab "
+        "4. Send any message in any channel "
+        "5. Find a request to discord.com/api/ "
+        "6. In the request headers, find 'Authorization' "
+        "7. Copy that value (starts with your token). "
+        "HOW TO ADD TO GITHUB: "
+        "1. Go to: github.com/Espenator/openclaw/settings/secrets/actions/new "
+        "2. Name: DISCORD_USER_TOKEN "
+        "3. Value: paste your token "
+        "4. Click 'Add secret'"
+    )
     sys.exit(1)
 
 # Slack webhooks - per source routing, fallback to generic
@@ -93,21 +93,21 @@ async def fetch_messages(session: aiohttp.ClientSession, channel_id: int, after_
             if resp.status == 200:
                 return await resp.json()
             elif resp.status == 401:
-                print(f'[ERROR] 401 Unauthorized on channel {channel_id} - token may be invalid or expired')
+                logger.error('401 Unauthorized on channel %s - token may be invalid or expired', channel_id)
                 return []
             elif resp.status == 403:
-                print(f'[SKIP] 403 Forbidden on channel {channel_id} - no access')
+                logger.warning('403 Forbidden on channel %s - no access', channel_id)
                 return []
             elif resp.status == 429:
                 retry_after = (await resp.json()).get('retry_after', 5)
-                print(f'[RATELIMIT] Waiting {retry_after}s...')
+                logger.warning('Rate limited, waiting %ss...', retry_after)
                 await asyncio.sleep(float(retry_after))
                 return []
             else:
-                print(f'[ERROR] HTTP {resp.status} on channel {channel_id}')
+                logger.error('HTTP %s on channel %s', resp.status, channel_id)
                 return []
     except Exception as e:
-        print(f'[ERROR] Fetching channel {channel_id}: {e}')
+        logger.error('Fetching channel %s: %s', channel_id, e)
         return []
 
 
@@ -115,7 +115,7 @@ async def send_to_slack(session: aiohttp.ClientSession, webhook_url: str, messag
                         channel_name: str, source_type: str) -> bool:
     """Forward a Discord message to a Slack webhook."""
     if not webhook_url:
-        print(f'[WARN] No Slack webhook configured for source type "{source_type}"')
+        logger.warning('No Slack webhook configured for source type "%s"', source_type)
         return False
 
     author = message.get('author', {})
@@ -150,13 +150,13 @@ async def send_to_slack(session: aiohttp.ClientSession, webhook_url: str, messag
     try:
         async with session.post(webhook_url, json=slack_payload) as resp:
             if resp.status == 200:
-                print(f'[SENT] {channel_name} | {username}: {full_text[:80]}...')
+                logger.info('[SENT] %s | %s: %s...', channel_name, username, full_text[:80])
                 return True
             else:
-                print(f'[ERROR] Slack webhook returned {resp.status}')
+                logger.error('Slack webhook returned %s', resp.status)
                 return False
     except Exception as e:
-        print(f'[ERROR] Sending to Slack: {e}')
+        logger.error('Sending to Slack: %s', e)
         return False
 
 
@@ -164,15 +164,15 @@ async def run_batch():
     """Batch mode: fetch all channels once and post new messages to Slack."""
     lookback = datetime.now(timezone.utc) - timedelta(minutes=BATCH_LOOKBACK_MINS)
     after_snowflake = snowflake_from_time(lookback)
-    print(f'[BATCH] Looking back {BATCH_LOOKBACK_MINS} minutes from {lookback.strftime("%H:%M UTC")}')
-    print(f'[BATCH] Monitoring {len(MONITORED_CHANNELS)} channels')
+    logger.info('[BATCH] Looking back %d minutes from %s', BATCH_LOOKBACK_MINS, lookback.strftime("%H:%M UTC"))
+    logger.info('[BATCH] Monitoring %d channels', len(MONITORED_CHANNELS))
 
     total_sent = 0
     async with aiohttp.ClientSession() as session:
         for channel_id, (channel_name, source_type) in MONITORED_CHANNELS.items():
             messages = await fetch_messages(session, channel_id, after_snowflake)
             if messages:
-                print(f'[{channel_name}] Found {len(messages)} new message(s)')
+                logger.info('[%s] Found %d new message(s)', channel_name, len(messages))
                 # Discord returns newest first - reverse for chronological order
                 for msg in reversed(messages):
                     webhook_url = WEBHOOK_MAP.get(source_type, '')
@@ -181,18 +181,18 @@ async def run_batch():
                         total_sent += 1
                     await asyncio.sleep(0.3)  # Rate limit protection
             else:
-                print(f'[{channel_name}] No new messages')
+                logger.info('[%s] No new messages', channel_name)
             await asyncio.sleep(0.5)  # Between channels
 
-    print(f'[DONE] Sent {total_sent} messages to Slack')
+    logger.info('[DONE] Sent %d messages to Slack', total_sent)
 
 
 async def run_continuous():
     """Continuous mode: poll every 30 seconds."""
-    print('[CONTINUOUS] Starting Discord monitor loop (30s interval)')
+    logger.info('[CONTINUOUS] Starting Discord monitor loop (30s interval)')
     while True:
         await run_batch()
-        print('[SLEEP] Waiting 30 seconds...')
+        logger.info('[SLEEP] Waiting 30 seconds...')
         await asyncio.sleep(30)
 
 

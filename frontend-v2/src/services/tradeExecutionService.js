@@ -6,6 +6,7 @@
  * WebSocket now uses getWsBaseUrl() instead of hardcoded port.
  */
 import { getApiUrl, getWsBaseUrl } from '../config/api';
+import log from "@/utils/logger";
 
 // ─── Portfolio & Account ───────────────────────────────────
 export const getPortfolio = async () => {
@@ -116,20 +117,20 @@ export const createTradeWebSocket = (onMessage, onError) => {
   const wsUrl = getWsBaseUrl();
   const ws = new WebSocket(wsUrl);
 
-  ws.onopen = () => console.log('[TradeExecution WS] Connected');
+  ws.onopen = () => log.info('[TradeExecution WS] Connected');
   ws.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data);
       onMessage(data);
     } catch (e) {
-      console.error('[TradeExecution WS] Parse error:', e);
+      log.error('[TradeExecution WS] Parse error:', e);
     }
   };
   ws.onerror = (error) => {
-    console.error('[TradeExecution WS] Error:', error);
+    log.error('[TradeExecution WS] Error:', error);
     if (onError) onError(error);
   };
-  ws.onclose = () => console.log('[TradeExecution WS] Disconnected');
+  ws.onclose = () => log.info('[TradeExecution WS] Disconnected');
 
   return ws;
 };
