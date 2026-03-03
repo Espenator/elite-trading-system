@@ -44,8 +44,9 @@ from app.api.v1 import (
     risk_shield_api,
     market,
     alpaca,
-        alignment,
+    alignment,
 )
+from app.api import ingestion
 
 # Configure logging
 logging.basicConfig(
@@ -147,6 +148,7 @@ async def _market_data_tick_loop():
 
 async def _risk_monitor_loop():
     """Risk monitoring background task - polls every 30s."""
+    await asyncio.sleep(10)  # Wait for app to stabilize
     while True:
         try:
             from app.api.v1.risk import risk_score, drawdown_check
@@ -179,9 +181,9 @@ async def _start_event_driven_pipeline():
 
     Components:
     1. MessageBus — async pub/sub event routing
-    2. AlpacaStreamService — WebSocket bars → market_data.bar events
-    3. EventDrivenSignalEngine — market_data.bar → signal.generated events
-    4. OrderExecutor — signal.generated → order.submitted events
+    2. AlpacaStreamService — WebSocket bars -> market_data.bar events
+    3. EventDrivenSignalEngine — market_data.bar -> signal.generated events
+    4. OrderExecutor — signal.generated -> order.submitted events
     5. WebSocket bridges — forward events to frontend dashboard
     """
     global _message_bus, _alpaca_stream, _event_signal_engine, _order_executor
@@ -233,7 +235,7 @@ async def _start_event_driven_pipeline():
             log.debug("WS broadcast failed: %s", e)
 
     await _message_bus.subscribe("signal.generated", _bridge_signal_to_ws)
-    log.info("\u2705 Signal\u2192WebSocket bridge active")
+    log.info("\u2705 Signal->WebSocket bridge active")
 
     # 5. Order-to-WebSocket bridge (forward order events to frontend)
     async def _bridge_order_to_ws(order_data):
@@ -250,7 +252,7 @@ async def _start_event_driven_pipeline():
     await _message_bus.subscribe("order.submitted", _bridge_order_to_ws)
     await _message_bus.subscribe("order.filled", _bridge_order_to_ws)
     await _message_bus.subscribe("order.cancelled", _bridge_order_to_ws)
-    log.info("\u2705 Order\u2192WebSocket bridges active")
+    log.info("\u2705 Order->WebSocket bridges active")
 
     # 6. AlpacaStreamService (publishes market_data.bar events)
     from app.services.alpaca_stream_service import AlpacaStreamService
@@ -270,7 +272,7 @@ async def _start_event_driven_pipeline():
 
     log.info("=" * 60)
     log.info("\u2705 Event-Driven Pipeline ONLINE")
-    log.info("   Stream \u2192 MessageBus \u2192 SignalEngine \u2192 OrderExecutor \u2192 Alpaca")
+    log.info("   Stream -> MessageBus -> SignalEngine -> OrderExecutor -> Alpaca")
     log.info("   Mode: %s | Latency: <1s end-to-end", "AUTO-EXECUTE" if auto_execute else "SHADOW")
     log.info("=" * 60)
 
@@ -312,23 +314,43 @@ async def lifespan(app: FastAPI):
     try:
         from app.data.storage import init_schema
         init_schema()
-    except Exception:
-        pass
+        log.info("SQLite schema initialized")
+    except Exception as e:
+        log.warning("SQLite schema init skipped: %s", e)
+
+    # 1b. DuckDB schema
+    try:
+        from app.data.duckdb_storage import duckdb_store
+        health = duckdb_store.health_check()
+        log.info("DuckDB ready: %d tables, %d rows",
+                 health.get("total_tables", 0), health.get("total_rows", 0))
+    except Exception as e:
+        log.warning("DuckDB init skipped: %s", e)
 
     # 2. ML Flywheel singletons
-    _init_ml_singletons()
+    try:
+        _init_ml_singletons()
+    except Exception as e:
+        log.warning("ML singletons init failed: %s", e)
 
     # 3. Event-driven pipeline (new)
     try:
         await _start_event_driven_pipeline()
     except Exception:
-        log.exception("Event-driven pipeline failed to start — falling back to polling only")
+        log.exception("Event-driven pipeline failed to start -- falling back to polling only")
 
     # 4-6. Background tasks (legacy + monitoring)
     tick_task = asyncio.create_task(_market_data_tick_loop())
     drift_task = asyncio.create_task(_drift_check_loop())
     heartbeat_task = asyncio.create_task(heartbeat_loop())
     risk_monitor_task = asyncio.create_task(_risk_monitor_loop())
+
+    log.info("="*60)
+    log.info("Elite Trading System v3.1.0 ONLINE")
+    log.info("  API: http://localhost:8000/docs")
+    log.info("  Health: http://localhost:8000/health")
+    log.info("  WS: ws://localhost:8000/ws")
+    log.info("="*60)
 
     try:
         yield
@@ -386,7 +408,7 @@ app.include_router(openclaw.router, prefix="/api/v1", tags=["openclaw"])
 app.include_router(ml_brain.router, prefix="/api/v1", tags=["ml_brain"])
 app.include_router(market.router, prefix="/api/v1", tags=["market"])
 
-# Pattern B routers: use @router.get("") — need explicit sub-path in prefix
+# Pattern B routers: use @router.get("") -- need explicit sub-path in prefix
 app.include_router(agents.router, prefix="/api/v1/agents", tags=["agents"])
 app.include_router(sentiment.router, prefix="/api/v1/sentiment", tags=["sentiment"])
 app.include_router(alerts.router, prefix="/api/v1/alerts", tags=["alerts"])
@@ -396,6 +418,9 @@ app.include_router(alignment.router, prefix="/api/v1/alignment", tags=["alignmen
 
 # Bug #14 fix: risk_shield_api.py has its own prefix="/risk-shield" in the router
 app.include_router(risk_shield_api.router, prefix="/api/v1", tags=["risk_shield"])
+
+# Data ingestion endpoints (backfill + DuckDB health)
+app.include_router(ingestion.router, tags=["ingestion"])
 
 
 @app.websocket("/ws")
@@ -431,7 +456,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 if ch:
                     unsubscribe(websocket, ch)
             elif msg.get("channel"):
-                # Client-emitted message — rebroadcast to channel subscribers
+                # Client-emitted message -- rebroadcast to channel subscribers
                 await broadcast_ws(msg["channel"], msg.get("data", {}))
     except Exception:
         pass
@@ -441,7 +466,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint with ML engine + event pipeline status."""
+    """Health check endpoint with ML engine + event pipeline + DuckDB status."""
     ml_status = {}
 
     try:
@@ -475,9 +500,18 @@ async def health_check():
     if _order_executor:
         event_pipeline["order_executor"] = _order_executor.get_status()
 
+    # DuckDB status
+    duckdb_status = {}
+    try:
+        from app.data.duckdb_storage import duckdb_store
+        duckdb_status = duckdb_store.health_check()
+    except Exception:
+        duckdb_status = {"status": "unavailable"}
+
     return {
         "status": "healthy",
         "version": "3.1.0",
         "ml_engine": ml_status,
         "event_pipeline": event_pipeline,
+        "duckdb": duckdb_status,
     }
