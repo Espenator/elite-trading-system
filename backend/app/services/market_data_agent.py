@@ -2,7 +2,11 @@
 Market Data Agent — one tick of data collection.
 Scans: Finviz Elite, Alpaca, Unusual Whales, OpenClaw Bridge.
 Pulls: FRED economic data, SEC EDGAR filings.
-Run every 60s during market hours when agent is started (configurable via agent config).
+
+v2.0: Now persists all data to DuckDB via data_ingestion service.
+Run every 60s during market hours when agent is started.
+
+Fixes Issue #25 Task 5.
 """
 import logging
 from typing import List, Tuple
@@ -24,11 +28,17 @@ async def run_tick(
     run_edgar: bool = True,
     run_unusual_whales: bool = True,
     run_openclaw: bool = True,
+    run_ingestion: bool = True,
 ) -> List[Tuple[str, str]]:
     """
     Run one Market Data Agent tick. Returns list of (message, level) for activity log.
+
+    v2.0: Added run_ingestion flag. When True, persists all fetched data
+    to DuckDB via data_ingestion service after collection.
     """
     entries: List[Tuple[str, str]] = []
+
+    tracked_symbols: list = []
 
     # --- Finviz Elite -> symbol_universe (client link) ---
     if run_finviz:
@@ -39,8 +49,15 @@ async def run_tick(
             svc = FinvizService()
             stocks = await svc.get_stock_list()
             count = len(stocks) if stocks else 0
-            # Push to symbol_universe so clients (ML, screeners, execution) get tracked symbols
             stored = set_tracked_symbols_from_finviz(stocks or [])
+            tracked_symbols = list(stocks or []) if isinstance(stocks, list) else []
+            # Extract just ticker strings if stocks are dicts
+            if tracked_symbols and isinstance(tracked_symbols[0], dict):
+                tracked_symbols = [
+                    s.get("ticker") or s.get("symbol") or s.get("Ticker", "")
+                    for s in tracked_symbols
+                ]
+                tracked_symbols = [t for t in tracked_symbols if t]
             entries.append(
                 (
                     f"Finviz Elite: {count} symbols -> symbol_universe: {stored} tracked",
@@ -57,7 +74,6 @@ async def run_tick(
             from app.services.alpaca_service import alpaca_service
             import httpx
 
-            # Alpaca clock to verify connection and get market state
             url = f"{alpaca_service.base_url.rstrip('/')}/clock"
             async with httpx.AsyncClient(timeout=10.0) as client:
                 r = await client.get(
@@ -90,7 +106,57 @@ async def run_tick(
     if run_openclaw:
         entries.extend(await _fetch_openclaw())
 
+    # --- DuckDB Ingestion (persist everything collected above) ---
+    if run_ingestion:
+        entries.extend(await _run_ingestion(tracked_symbols))
+
     return entries
+
+
+async def _run_ingestion(symbols: list) -> List[Tuple[str, str]]:
+    """Persist collected data to DuckDB via data_ingestion service.
+
+    Runs incremental ingestion (last 5 days) on each tick.
+    For full backfill, use data_ingestion.ingest_all(symbols, days=252).
+    """
+    if not symbols:
+        # Fallback: use tracked symbols from symbol_universe
+        try:
+            from app.modules.symbol_universe import get_tracked_symbols
+            symbols = get_tracked_symbols()[:20]
+        except Exception:
+            pass
+
+    if not symbols:
+        return [("DuckDB ingestion: no symbols to ingest", "info")]
+
+    try:
+        from app.services.data_ingestion import data_ingestion
+
+        # Incremental: last 5 days of bars + indicators + flow + macro
+        report = await data_ingestion.ingest_all(symbols[:20], days=5)
+
+        ohlcv_total = report.get("ohlcv", {}).get("total_rows", 0)
+        indicator_count = report.get("indicators", 0)
+        flow_count = report.get("options_flow", 0)
+        macro_count = report.get("macro", 0)
+        trade_count = report.get("trade_outcomes", 0)
+
+        health = report.get("duckdb_health", {})
+
+        msg = (
+            f"DuckDB ingestion: {ohlcv_total} OHLCV, {indicator_count} indicators, "
+            f"{flow_count} flow, {macro_count} macro, {trade_count} trades"
+        )
+
+        if health:
+            msg += f" | tables={health.get('total_tables', '?')}, rows={health.get('total_rows', '?')}"
+
+        return [(msg, "success")]
+
+    except Exception as e:
+        logger.exception("DuckDB ingestion failed")
+        return [(f"DuckDB ingestion: {str(e)[:80]}", "warning")]
 
 
 async def _fetch_fred() -> List[Tuple[str, str]]:
@@ -165,7 +231,6 @@ async def _fetch_openclaw() -> List[Tuple[str, str]]:
                 return [("OpenClaw: OPENCLAW_GIST_ID not set (skip)", "info")]
             return [("OpenClaw: Gist fetch failed", "warning")]
 
-        # Pull regime + candidate count for the log
         regime = await openclaw_bridge.get_regime()
         candidates = await openclaw_bridge.get_top_candidates(n=5)
         whale_flow = await openclaw_bridge.get_whale_flow()
