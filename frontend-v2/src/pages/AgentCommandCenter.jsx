@@ -201,7 +201,7 @@ function AgentCard({ agent, onToggle, onInspect }) {
     { name: "Sentiment", val: 10, color: "bg-purple-500" },
   ];
   return (
-    <Card className="hover:border-cyan-500/50 transition-all cursor-pointer" onClick={() => onInspect && onInspect(agent)}>
+    <Card className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] hover:border-cyan-500/50 hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-all cursor-pointer" onClick={() => onInspect && onInspect(agent)}>
       <div className="flex items-center gap-3 mb-2">
         <Icon className="w-5 h-5 text-cyan-400" />
         <span className="text-sm font-bold text-white flex-1" onClick={(e) => { e.stopPropagation(); toast.info(`Inspecting agent logic for ${agent.name}`); }}>{agent.name}</span>
@@ -276,7 +276,7 @@ function AgentInspectorPanel({ agent, onClose, onToggle }) {
   ];
   const [logFilter, setLogFilter] = useState("ALL");
   return (
-    <div className="w-[380px] shrink-0 border-l border-cyan-500/20 bg-[#0B0E14] overflow-y-auto max-h-full">
+    <div className="w-[380px] shrink-0 border-l border-[rgba(42,52,68,0.5)] bg-[#111827] rounded-[8px] overflow-y-auto max-h-full">
       <div className="p-4 border-b border-cyan-500/20">
         <div className="flex items-center justify-between mb-1">
           <h3 className="text-sm font-bold text-white">AGENT INSPECTOR</h3>
@@ -390,7 +390,7 @@ function AgentInspectorPanel({ agent, onClose, onToggle }) {
           <div className="relative w-16 h-16">
             <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
               <circle cx="50" cy="50" r="40" fill="none" stroke="#1e293b" strokeWidth="8" />
-              <circle cx="50" cy="50" r="40" fill="none" stroke="#06B6D4" strokeWidth="8"
+              <circle cx="50" cy="50" r="40" fill="none" stroke="#00D9FF" strokeWidth="8"
                 strokeDasharray="251" strokeDashoffset={251 - (0.98 * 251)} strokeLinecap="round" />
             </svg>
             <span className="absolute inset-0 flex items-center justify-center text-sm font-bold text-white">98%</span>
@@ -525,7 +525,7 @@ export default function AgentCommandCenter() {
       <div className="flex items-center gap-1 px-6 py-2 border-b border-cyan-500/20 overflow-x-auto scrollbar-thin">
         {tabs.map(tab => { const TabIcon = tab.icon; return (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center whitespace-nowrap gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab.id ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/50 shadow-[0_0_10px_rgba(6,182,212,0.2)_inset]" : "text-secondary hover:text-white hover:bg-cyan-500/10 border border-transparent"}`}>
+            className={`flex items-center whitespace-nowrap gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab.id ? "bg-[rgba(0,217,255,0.15)] text-[#00D9FF] border border-[rgba(0,217,255,0.3)] shadow-[0_0_10px_rgba(0,217,255,0.2)_inset]" : "text-secondary hover:text-white hover:bg-[rgba(0,217,255,0.08)] border border-transparent"}`}>
             <TabIcon className="w-4 h-4" />{tab.label}
           </button>
         ); })}
@@ -661,7 +661,7 @@ export default function AgentCommandCenter() {
             {spawnError && <div className="p-2 rounded bg-red-500/10 border border-red-500/30 text-red-400 text-xs">{spawnError}</div>}
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
               {SPAWN_TEMPLATES.map(t => { const TIcon = t.icon; return (
-                <Card key={t.name} className="hover:border-cyan-500/50 transition-all cursor-pointer"
+                <Card key={t.name} className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] hover:border-cyan-500/50 hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-all cursor-pointer"
                   onClick={() => { toast.success(`Spawning ${t.name}`); handleSpawnTeam(t.name.toLowerCase().replace(/\s/g, '_'), 'spawn'); }}>
                   <TIcon className={`w-6 h-6 ${t.color} mb-2`} />
                   <h4 className="text-sm font-bold text-white">{t.name}</h4>
@@ -788,12 +788,12 @@ export default function AgentCommandCenter() {
         {activeTab === "conference" && (
           <div className="grid grid-cols-3 gap-4">
             {consensusData.map((c, i) => (
-              <Card key={i} className="cursor-pointer hover:border-cyan-500/50" onClick={() => toast.info(`Consensus: ${c.symbol}`)}>
+              <Card key={i} className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] cursor-pointer hover:border-cyan-500/50 hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-all" onClick={() => toast.info(`Consensus: ${c.symbol}`)}>
                 <h3 className="text-2xl font-bold text-white text-center mb-3">{c.symbol}</h3>
                 <div className="relative w-24 h-24 mx-auto">
                   <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
                     <circle cx="50" cy="50" r="40" fill="none" stroke="#1e293b" strokeWidth="8" />
-                    <circle cx="50" cy="50" r="40" fill="none" stroke={c.agree > 80 ? '#06B6D4' : '#F59E0B'} strokeWidth="8"
+                    <circle cx="50" cy="50" r="40" fill="none" stroke={c.agree > 80 ? '#00D9FF' : '#F59E0B'} strokeWidth="8"
                       strokeDasharray="251" strokeDashoffset={251 - (c.agree / 100) * 251} strokeLinecap="round" />
                   </svg>
                   <span className="absolute inset-0 flex items-center justify-center text-lg font-bold text-white">{c.agree}%</span>
@@ -813,9 +813,9 @@ export default function AgentCommandCenter() {
             <Card title="Brain Map DAG">
               <svg viewBox="0 0 800 500" className="w-full h-[300px]">
                 {(() => {
-                  const dagNodes = [{ id: 'ORCH', label: 'ORCHESTRATOR', color: '#06B6D4', x: 400, y: 250, r: 45 },
+                  const dagNodes = [{ id: 'ORCH', label: 'ORCHESTRATOR', color: '#00D9FF', x: 400, y: 250, r: 45 },
                     ...agents.slice(0, 8).map((a, i) => ({ id: a.id || `A${i}`, label: (a.name || `Agent-${i}`).replace(/Agent[-_]?/i, '').slice(0, 8).toUpperCase(),
-                      color: a.status === 'running' ? '#06B6D4' : '#F59E0B', x: 400 + 220 * Math.cos((i / Math.min(agents.length, 8)) * 2 * Math.PI - Math.PI / 2),
+                      color: a.status === 'running' ? '#00D9FF' : '#F59E0B', x: 400 + 220 * Math.cos((i / Math.min(agents.length, 8)) * 2 * Math.PI - Math.PI / 2),
                       y: 250 + 180 * Math.sin((i / Math.min(agents.length, 8)) * 2 * Math.PI - Math.PI / 2), r: 25 }))];
                   return (<>
                     {dagNodes.slice(1).map((n, i) => <line key={i} x1="400" y1="250" x2={n.x} y2={n.y} stroke={n.color} strokeWidth="2" strokeOpacity="0.4" />)}

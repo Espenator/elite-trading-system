@@ -412,7 +412,7 @@ export default function Patterns() {
           description={`${filteredStocks.length} matches from ${stocks.length} universe · ${patterns.length} patterns detected`}
         >
           <div className="flex items-center gap-3 flex-wrap">
-            <div className="bg-slate-800/50 p-1 rounded-lg border border-slate-700/50 flex">
+            <div className="bg-[#111827] p-1 rounded-[8px] border border-[rgba(42,52,68,0.5)] flex">
               {[
                 { id: "TABLE",   icon: <Grid3X3 className="w-4 h-4" />, label: "Table" },
                 { id: "HEATMAP",icon: <BarChart2 className="w-4 h-4" />, label: "Heatmap" },
@@ -423,8 +423,8 @@ export default function Patterns() {
                   onClick={() => setActiveView(v.id)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
                     activeView === v.id
-                      ? "bg-blue-600 text-white shadow-lg"
-                      : "text-slate-400 hover:text-slate-200"
+                      ? "bg-[rgba(0,217,255,0.15)] text-[#00D9FF] shadow-[0_0_12px_rgba(0,217,255,0.15)]"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-[rgba(0,217,255,0.05)]"
                   }`}
                 >
                   {v.icon} {v.label}
@@ -444,13 +444,13 @@ export default function Patterns() {
         <div
           className={`transition-all duration-300 ${filtersCollapsed ? "w-12" : "w-72"} flex-shrink-0`}
         >
-          <div className="bg-slate-900/50 border border-slate-700/50 rounded-xl backdrop-blur-md sticky top-6 overflow-hidden">
+          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] backdrop-blur-md sticky top-6 overflow-hidden hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-shadow">
             <button
               onClick={() => setFiltersCollapsed(!filtersCollapsed)}
-              className="w-full flex items-center justify-between p-4 border-b border-slate-700/50 hover:bg-slate-800/30 transition-colors"
+              className="w-full flex items-center justify-between p-4 border-b border-[rgba(42,52,68,0.5)] hover:bg-[rgba(0,217,255,0.05)] transition-colors"
             >
               {!filtersCollapsed && (
-                <span className="text-sm font-bold text-white flex items-center gap-2">
+                <span className="text-sm font-bold text-[#00D9FF] flex items-center gap-2">
                   <Filter className="w-4 h-4" /> Filters
                 </span>
               )}
@@ -479,14 +479,14 @@ export default function Patterns() {
                       <button
                         key={dir}
                         onClick={() => setFilters((f) => ({ ...f, patternDirection: dir }))}
-                        className={`flex-1 py-1.5 text-xs font-bold rounded transition-all ${
+                        className={`flex-1 py-1.5 text-xs font-bold rounded-[6px] transition-all ${
                           filters.patternDirection === dir
                             ? dir === "bullish"
-                              ? "bg-green-600 text-white"
+                              ? "bg-green-600/20 text-green-400 border border-green-500/30"
                               : dir === "bearish"
-                              ? "bg-red-600 text-white"
-                              : "bg-blue-600 text-white"
-                            : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                              ? "bg-red-600/20 text-red-400 border border-red-500/30"
+                              : "bg-[rgba(0,217,255,0.15)] text-[#00D9FF] border border-[rgba(0,217,255,0.3)]"
+                            : "bg-[#111827] text-slate-400 border border-[rgba(42,52,68,0.5)] hover:bg-[rgba(0,217,255,0.05)]"
                         }`}
                       >
                         {dir === "ALL" ? "ALL" : dir === "bullish" ? "LONG" : "SHORT"}
@@ -521,7 +521,7 @@ export default function Patterns() {
                 <div>
                   <label className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-1 block">
                     Min Confidence:{" "}
-                    <span className="text-blue-400">{filters.minConfidence}%</span>
+                    <span className="text-[#00D9FF] font-mono">{filters.minConfidence}%</span>
                   </label>
                   <Slider
                     min={0}
@@ -605,7 +605,7 @@ export default function Patterns() {
                   ))}
                 </div>
                                 {/* ══ ADVANCED TRADING METRICS (Mockup 07) ══ */}
-                <div className="border-t border-slate-700/30 pt-4 mt-2">
+                <div className="border-t border-[rgba(42,52,68,0.5)] pt-4 mt-2">
                   <label className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-2 block">Advanced Metrics</label>
                   {[
                     { key: 'betaThreshold', label: 'Beta Threshold', min: 0, max: 3, step: 0.1 },
@@ -622,7 +622,7 @@ export default function Patterns() {
                     <div key={metric.key} className="mb-2">
                       <div className="flex justify-between text-[10px] mb-0.5">
                         <span className="text-slate-400">{metric.label}</span>
-                        <span className="text-blue-400 font-bold">
+                        <span className="text-[#00D9FF] font-bold font-mono">
                           {filters[metric.key] != null ? filters[metric.key] : metric.min}
                         </span>
                       </div>
@@ -664,10 +664,10 @@ export default function Patterns() {
             <div className="flex gap-6">
               {/* Table */}
               <div className="flex-1 min-w-0">
-                <div className="bg-slate-900/40 border border-slate-700/50 rounded-xl backdrop-blur-md overflow-hidden">
+                <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] backdrop-blur-md overflow-hidden hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-shadow">
                   <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-slate-800/60 border-b border-slate-700/50 text-[10px] uppercase tracking-wider text-slate-400">
+                    <thead className="sticky top-0 z-10">
+                      <tr className="bg-[#0B0E14] border-b border-[rgba(42,52,68,0.5)] text-[10px] uppercase tracking-wider text-slate-400">
                         <th className="p-3 font-semibold">Asset</th>
                         <th className="p-3 font-semibold">Price</th>
                         <th className="p-3 font-semibold hidden lg:table-cell">Vol</th>
@@ -678,15 +678,15 @@ export default function Patterns() {
                         <th className="p-3 font-semibold w-24">Spark</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-700/30">
+                    <tbody className="divide-y divide-[rgba(42,52,68,0.3)]">
                       {paginatedStocks.map((stock) => (
                         <tr
                           key={stock.symbol}
                           onClick={() => setSelectedStock(stock)}
-                          className={`cursor-pointer transition-colors ${
+                          className={`cursor-pointer transition-all ${
                             selectedStock?.symbol === stock.symbol
-                              ? "bg-blue-900/20"
-                              : "hover:bg-slate-800/40"
+                              ? "bg-[rgba(0,217,255,0.08)] shadow-[inset_2px_0_0_#00D9FF]"
+                              : "hover:bg-[rgba(0,217,255,0.04)]"
                           }`}
                         >
                           <td className="p-3">
@@ -694,17 +694,17 @@ export default function Patterns() {
                             <div className="text-[10px] text-slate-500 truncate max-w-[120px]">{stock.sector}</div>
                           </td>
                           <td className="p-3 text-sm">
-                            <div className="text-white">${stock.price.toFixed(2)}</div>
-                            <div className={`text-[10px] flex items-center gap-0.5 ${stock.changePct >= 0 ? "text-green-400" : "text-red-400"}`}>
+                            <div className="text-white font-mono">${stock.price.toFixed(2)}</div>
+                            <div className={`text-[10px] flex items-center gap-0.5 font-mono ${stock.changePct >= 0 ? "text-green-400" : "text-red-400"}`}>
                               {stock.changePct >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                              {Math.abs(stock.changePct).toFixed(2)}%
+                              {stock.changePct >= 0 ? "+" : ""}{Math.abs(stock.changePct).toFixed(2)}%
                             </div>
                           </td>
-                          <td className="p-3 text-xs text-slate-400 hidden lg:table-cell">
+                          <td className="p-3 text-xs text-slate-400 hidden lg:table-cell font-mono">
                             {(stock.volume / 1e6).toFixed(1)}M
                           </td>
                           <td className="p-3 text-xs hidden md:table-cell">
-                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold font-mono ${
                               stock.rsi > 70 ? "text-red-400 bg-red-500/10"
                                 : stock.rsi < 30 ? "text-green-400 bg-green-500/10"
                                 : "text-slate-300 bg-slate-700/30"
@@ -721,7 +721,7 @@ export default function Patterns() {
                                   <div className={`text-[10px] font-bold ${
                                     stock.pattern.direction === "bullish" ? "text-green-400"
                                       : stock.pattern.direction === "bearish" ? "text-red-400"
-                                      : "text-blue-400"
+                                      : "text-[#00D9FF]"
                                   }`}>
                                     {stock.pattern.direction?.toUpperCase()}
                                   </div>
@@ -733,14 +733,14 @@ export default function Patterns() {
                           </td>
                           <td className="p-3 text-center">
                             {stock.pattern?.confidence != null ? (
-                              <span className={`text-sm font-bold ${
+                              <span className={`text-sm font-bold font-mono ${
                                 stock.pattern.confidence >= 70 ? "text-green-400" : "text-slate-300"
                               }`}>
                                 {stock.pattern.confidence}%
                               </span>
-                            ) : <span className="text-slate-600">--</span>}
+                            ) : <span className="text-slate-600 font-mono">--</span>}
                           </td>
-                          <td className="p-3 text-center text-xs text-blue-400 font-bold">
+                          <td className="p-3 text-center text-xs text-[#00D9FF] font-bold font-mono">
                             {stock.pattern?.timeframe || "--"}
                           </td>
                           <td className="p-3">
@@ -774,8 +774,8 @@ export default function Patterns() {
               {/* RIGHT: Detail Panel */}
               <div className="w-80 flex-shrink-0 hidden xl:block">
                 {selectedStock ? (
-                  <div className="bg-slate-900/50 border border-slate-700/50 rounded-xl backdrop-blur-md sticky top-6 overflow-hidden">
-                    <div className="p-5 border-b border-slate-700/50 bg-slate-800/30">
+                  <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] backdrop-blur-md sticky top-6 overflow-hidden hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-shadow">
+                    <div className="p-5 border-b border-[rgba(42,52,68,0.5)] bg-[#0B0E14]">
                       <div className="flex justify-between items-start mb-3">
                         <div>
                           <h3 className="text-2xl font-black text-white tracking-widest">{selectedStock.symbol}</h3>
@@ -787,45 +787,50 @@ export default function Patterns() {
                               ? "bg-green-500/20 text-green-400 border-green-500/30"
                               : selectedStock.pattern.direction === "bearish"
                               ? "bg-red-500/20 text-red-400 border-red-500/30"
-                              : "bg-blue-500/20 text-blue-400 border-blue-500/30"
+                              : "bg-[rgba(0,217,255,0.15)] text-[#00D9FF] border-[rgba(0,217,255,0.3)]"
                           }`}>
                             {selectedStock.pattern.direction?.toUpperCase()}
                           </span>
                         )}
                       </div>
-                      <div className={`text-3xl font-black ${selectedStock.changePct >= 0 ? "text-green-400" : "text-red-400"}`}>
+                      <div className={`text-3xl font-black font-mono ${selectedStock.changePct >= 0 ? "text-green-400" : "text-red-400"}`}>
                         ${selectedStock.price.toFixed(2)}
                       </div>
                     </div>
                     {/* Pattern Card */}
                     {selectedStock.pattern ? (
-                      <div className="p-5 border-b border-slate-700/50">
-                        <h4 className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-3">Detected Pattern</h4>
-                        <div className="bg-slate-800/60 rounded-lg p-4 border border-slate-700/40 flex items-center gap-4">
+                      <div className="p-5 border-b border-[rgba(42,52,68,0.5)]">
+                        <h4 className="text-[10px] text-[#00D9FF] uppercase tracking-widest font-bold mb-3">Detected Pattern</h4>
+                        <div className="bg-[#0B0E14] rounded-[8px] p-4 border border-[rgba(42,52,68,0.5)] flex items-center gap-4 hover:shadow-[0_0_16px_rgba(0,217,255,0.08)] transition-shadow">
                           <span className="text-4xl">{selectedStock.pattern.icon}</span>
                           <div>
                             <div className="font-bold text-white">{selectedStock.pattern.name}</div>
-                            <div className="flex items-center gap-3 mt-1 text-xs">
-                              <span className="text-green-400 font-bold">{selectedStock.pattern.confidence}% Conf</span>
-                              <span className="text-blue-400 font-bold">{selectedStock.pattern.timeframe}</span>
+                            <div className="flex items-center gap-3 mt-1 text-xs font-mono">
+                              <span className="text-green-400 font-bold">{selectedStock.pattern.confidence ?? '--'}% Conf</span>
+                              <span className="text-[#00D9FF] font-bold">{selectedStock.pattern.timeframe || '--'}</span>
                             </div>
                             {selectedStock.pattern.priceTarget && (
                               <div className="text-xs text-slate-400 mt-1">
-                                Target: <span className="text-white font-bold">${selectedStock.pattern.priceTarget?.toFixed(2)}</span>
+                                Target: <span className="text-white font-bold font-mono">${selectedStock.pattern.priceTarget?.toFixed(2)}</span>
+                              </div>
+                            )}
+                            {selectedStock.pattern.detected && (
+                              <div className="text-[10px] text-slate-500 mt-1 font-mono">
+                                Last seen: {new Date(selectedStock.pattern.detected).toLocaleDateString()}
                               </div>
                             )}
                           </div>
                         </div>
                       </div>
                     ) : (
-                      <div className="p-5 border-b border-slate-700/50">
-                        <h4 className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-3">Detected Pattern</h4>
+                      <div className="p-5 border-b border-[rgba(42,52,68,0.5)]">
+                        <h4 className="text-[10px] text-[#00D9FF] uppercase tracking-widest font-bold mb-3">Detected Pattern</h4>
                         <p className="text-xs text-slate-500">No pattern detected by agents yet.</p>
                       </div>
                     )}
                     {/* Key Metrics */}
-                    <div className="p-5 border-b border-slate-700/50">
-                      <h4 className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-3">Key Metrics</h4>
+                    <div className="p-5 border-b border-[rgba(42,52,68,0.5)]">
+                      <h4 className="text-[10px] text-[#00D9FF] uppercase tracking-widest font-bold mb-3">Key Metrics</h4>
                       <div className="grid grid-cols-2 gap-3">
                         {[
                           { label: "Market Cap", value: selectedStock.marketCap || "--" },
@@ -835,19 +840,19 @@ export default function Patterns() {
                           { label: "SMA 20", value: selectedStock.sma20 ? `$${selectedStock.sma20.toFixed(2)}` : "--" },
                           { label: "SMA 200", value: selectedStock.sma200 ? `$${selectedStock.sma200.toFixed(2)}` : "--" },
                         ].map((m, i) => (
-                          <div key={i} className="bg-slate-900/50 rounded p-2">
+                          <div key={i} className="bg-[#0B0E14] rounded-[6px] p-2 border border-[rgba(42,52,68,0.3)]">
                             <div className="text-[10px] text-slate-500">{m.label}</div>
-                            <div className="text-sm font-bold text-white">{m.value}</div>
+                            <div className="text-sm font-bold text-white font-mono">{m.value}</div>
                           </div>
                         ))}
                       </div>
                     </div>
                     {/* ML Insight */}
                     <div className="p-5">
-                      <h4 className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-3 flex items-center gap-1">
+                      <h4 className="text-[10px] text-[#00D9FF] uppercase tracking-widest font-bold mb-3 flex items-center gap-1">
                         <Brain className="w-3 h-3" /> ML Insight
                       </h4>
-                      <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg p-3 text-xs text-slate-300 leading-relaxed">
+                      <div className="bg-[rgba(0,217,255,0.03)] border border-[rgba(0,217,255,0.15)] rounded-[8px] p-3 text-xs text-slate-300 leading-relaxed">
                         {selectedStock.pattern
                           ? `Agent detected ${selectedStock.pattern.name} on ${selectedStock.symbol} with ${selectedStock.pattern.confidence}% confidence via ${selectedStock.pattern.source || "ML agent"} on ${selectedStock.pattern.timeframe} timeframe.`
                           : `No pattern has been detected for ${selectedStock.symbol} yet. Agents scan continuously — check back shortly.`}
@@ -862,7 +867,7 @@ export default function Patterns() {
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-slate-900/30 border border-slate-700/30 rounded-xl p-12 text-center">
+                  <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-12 text-center">
                     <Eye className="w-10 h-10 text-slate-600 mx-auto mb-3" />
                     <p className="text-slate-500 text-sm">Select a row to inspect</p>
                   </div>
@@ -874,9 +879,9 @@ export default function Patterns() {
           {/* ═══ VIEW: SECTOR HEATMAP ═══ */}
           {activeView === "HEATMAP" && (
             <div className="space-y-6">
-              <div className="bg-slate-900/40 border border-slate-700/50 rounded-xl backdrop-blur-md p-6">
+              <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] backdrop-blur-md p-6 hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-shadow">
                 <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
-                  <Grid3X3 className="w-5 h-5 text-purple-400" /> Sector Pattern Heatmap
+                  <Grid3X3 className="w-5 h-5 text-[#00D9FF]" /> Sector Pattern Heatmap
                 </h3>
                 <p className="text-xs text-slate-400 mb-6">
                   Derived from real stock universe and detected patterns. Tile size = stock count. Color = pattern density.
@@ -893,7 +898,7 @@ export default function Patterns() {
                       return (
                         <div
                           key={sector.name}
-                          className="rounded-lg border border-slate-700/50 p-4 flex flex-col justify-between transition-all hover:scale-[1.03] cursor-pointer"
+                          className="rounded-[8px] border border-[rgba(42,52,68,0.5)] p-4 flex flex-col justify-between transition-all hover:scale-[1.03] hover:shadow-[0_0_16px_rgba(0,217,255,0.1)] cursor-pointer"
                           style={{
                             background: `linear-gradient(135deg, ${sector.color}15, ${sector.color}05)`,
                             borderColor: `${sector.color}40`,
@@ -929,7 +934,7 @@ export default function Patterns() {
                 )}
               </div>
               {/* Pattern Frequency Chart */}
-              <div className="bg-slate-900/40 border border-slate-700/50 rounded-xl backdrop-blur-md p-6">
+              <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] backdrop-blur-md p-6 hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-shadow">
                 <h3 className="text-lg font-bold text-white mb-4">Pattern Frequency Across Sectors</h3>
                 <PatternFrequencyLC data={sectorPatternData} height={256} />
               </div>
@@ -941,24 +946,24 @@ export default function Patterns() {
             <div className="space-y-6">
               {/* Top Stats Row */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-slate-900/40 border border-slate-700/50 rounded-xl p-4 backdrop-blur-md text-center">
-                  <div className="text-3xl font-black text-white">{patternStats.length}</div>
+                <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-4 backdrop-blur-md text-center hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-shadow">
+                  <div className="text-3xl font-black text-white font-mono">{patternStats.length}</div>
                   <div className="text-xs text-slate-400 mt-1">Active Pattern Types</div>
                 </div>
-                <div className="bg-slate-900/40 border border-slate-700/50 rounded-xl p-4 backdrop-blur-md text-center">
-                  <div className="text-3xl font-black text-green-400">
+                <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-4 backdrop-blur-md text-center hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-shadow">
+                  <div className="text-3xl font-black text-green-400 font-mono">
                     {patternStats.length > 0
                       ? Math.round(patternStats.reduce((a, p) => a + (p.avgConfidence || 0), 0) / patternStats.length)
                       : 0}%
                   </div>
                   <div className="text-xs text-slate-400 mt-1">Avg Confidence (Detected)</div>
                 </div>
-                <div className="bg-slate-900/40 border border-slate-700/50 rounded-xl p-4 backdrop-blur-md text-center">
-                  <div className="text-3xl font-black text-blue-400">{patterns.length}</div>
+                <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-4 backdrop-blur-md text-center hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-shadow">
+                  <div className="text-3xl font-black text-[#00D9FF] font-mono">{patterns.length}</div>
                   <div className="text-xs text-slate-400 mt-1">Total Patterns (API)</div>
                 </div>
-                <div className="bg-slate-900/40 border border-slate-700/50 rounded-xl p-4 backdrop-blur-md text-center">
-                  <div className="text-3xl font-black text-purple-400">
+                <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-4 backdrop-blur-md text-center hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-shadow">
+                  <div className="text-3xl font-black text-purple-400 font-mono">
                     {enrichedStocks.filter((s) => s.pattern).length}
                   </div>
                   <div className="text-xs text-slate-400 mt-1">Stocks w/ Patterns</div>
@@ -966,7 +971,7 @@ export default function Patterns() {
               </div>
               {/* Pattern Type Cards */}
               {patternStats.length === 0 ? (
-                <div className="bg-slate-900/40 border border-slate-700/50 rounded-xl p-12 text-center">
+                <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-12 text-center">
                   <Activity className="w-8 h-8 mx-auto mb-2 text-slate-600" />
                   <p className="text-slate-500">No patterns detected yet. Agents scan continuously.</p>
                 </div>
@@ -975,7 +980,7 @@ export default function Patterns() {
                   {patternStats.map((pt) => (
                     <div
                       key={pt.key || pt.name}
-                      className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-5 backdrop-blur-sm hover:border-slate-600/50 transition-all"
+                      className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-5 backdrop-blur-sm hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-all"
                     >
                       <div className="flex justify-between items-start mb-4">
                         <div className="flex items-center gap-3">
@@ -985,7 +990,7 @@ export default function Patterns() {
                             <span className={`text-[10px] font-bold tracking-widest ${
                               pt.direction === "bullish" ? "text-green-400"
                                 : pt.direction === "bearish" ? "text-red-400"
-                                : "text-blue-400"
+                                : "text-[#00D9FF]"
                             }`}>
                               {pt.direction?.toUpperCase()}
                             </span>
@@ -997,14 +1002,14 @@ export default function Patterns() {
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-3 mb-4">
-                        <div className="bg-slate-900/50 rounded-lg p-2.5 text-center">
-                          <div className={`text-lg font-bold ${pt.avgConfidence >= 70 ? "text-green-400" : "text-slate-200"}`}>
+                        <div className="bg-[#0B0E14] rounded-[6px] p-2.5 text-center border border-[rgba(42,52,68,0.3)]">
+                          <div className={`text-lg font-bold font-mono ${pt.avgConfidence >= 70 ? "text-green-400" : "text-slate-200"}`}>
                             {pt.avgConfidence}%
                           </div>
                           <div className="text-[10px] text-slate-500">Avg Confidence</div>
                         </div>
-                        <div className="bg-slate-900/50 rounded-lg p-2.5 text-center">
-                          <div className="text-lg font-bold text-blue-400">{pt.count}</div>
+                        <div className="bg-[#0B0E14] rounded-[6px] p-2.5 text-center border border-[rgba(42,52,68,0.3)]">
+                          <div className="text-lg font-bold text-[#00D9FF] font-mono">{pt.count}</div>
                           <div className="text-[10px] text-slate-500">Detections</div>
                         </div>
                       </div>
@@ -1024,7 +1029,7 @@ export default function Patterns() {
                           {pt.stocks.slice(0, 6).map((sym) => (
                             <span
                               key={sym}
-                              className="text-[10px] bg-slate-900/50 border border-slate-700/50 rounded px-1.5 py-0.5 text-slate-400"
+                              className="text-[10px] bg-[#0B0E14] border border-[rgba(42,52,68,0.5)] rounded px-1.5 py-0.5 text-slate-400 font-mono"
                             >
                               {sym}
                             </span>
@@ -1042,85 +1047,102 @@ export default function Patterns() {
           )}
           
           {/* ═══ CONSOLIDATED LIVE FEED (Mockup 07) ═══ */}
-          <div className="bg-slate-900/40 border border-slate-700/50 rounded-xl backdrop-blur-md p-5 mt-6">
-            <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
-              <Activity className="w-4 h-4 text-cyan-400" /> Consolidated Live Feed
+          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] backdrop-blur-md overflow-hidden mt-6 hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-shadow">
+            <div className="flex items-center gap-2 px-5 py-3 border-b border-[rgba(42,52,68,0.5)] bg-[#0B0E14]">
+              <Activity className="w-4 h-4 text-[#00D9FF]" />
+              <h3 className="text-sm font-bold text-[#00D9FF]">Live Feed</h3>
               <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse ml-1" />
-            </h3>
-            <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
-              {patterns.length > 0 ? patterns.slice(0, 20).map((p, i) => (
-                <div key={i} className="flex items-center gap-3 p-2 rounded-lg bg-slate-800/30 hover:bg-slate-800/50 transition-colors text-xs">
-                  <span className="text-[10px] text-slate-600 font-mono w-16 flex-shrink-0">
-                    {p.detected ? new Date(p.detected).toLocaleTimeString() : '--:--'}
-                  </span>
-                  <span className={`font-bold ${p.direction === 'bullish' ? 'text-green-400' : p.direction === 'bearish' ? 'text-red-400' : 'text-blue-400'}`}>
-                    {p.ticker}
-                  </span>
-                  <span className="text-slate-400">{p.pattern}</span>
-                  <span className="ml-auto text-slate-500">{p.confidence}%</span>
-                  <span className="text-blue-400 text-[10px]">{p.timeframe}</span>
-                </div>
-              )) : (
-                <div className="text-center py-8 text-slate-600">
-                  <Activity className="w-6 h-6 mx-auto mb-2 opacity-40" />
-                  <p className="text-xs">Awaiting pattern detections from agents...</p>
-                </div>
-              )}
+            </div>
+            <div className="p-5">
+              <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                {patterns.length > 0 ? patterns.slice(0, 20).map((p, i) => (
+                  <div key={i} className="flex items-center gap-3 p-2 rounded-[6px] bg-[#0B0E14] hover:bg-[rgba(0,217,255,0.04)] transition-colors text-xs border border-transparent hover:border-[rgba(42,52,68,0.5)]">
+                    <span className="text-[10px] text-slate-600 font-mono w-16 flex-shrink-0">
+                      {p.detected ? new Date(p.detected).toLocaleTimeString() : '--:--'}
+                    </span>
+                    <span className={`font-bold font-mono ${p.direction === 'bullish' ? 'text-green-400' : p.direction === 'bearish' ? 'text-red-400' : 'text-[#00D9FF]'}`}>
+                      {p.ticker || '--'}
+                    </span>
+                    <span className="text-slate-400">{p.pattern || '--'}</span>
+                    <span className="ml-auto text-slate-500 font-mono">{p.confidence != null ? `${p.confidence}%` : '--'}</span>
+                    <span className="text-[#00D9FF] text-[10px] font-mono">{p.timeframe || '--'}</span>
+                  </div>
+                )) : (
+                  <div className="text-center py-8 text-slate-600">
+                    <Activity className="w-6 h-6 mx-auto mb-2 opacity-40" />
+                    <p className="text-xs">Awaiting pattern detections from agents...</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
           {/* ═══ PATTERN ARSENAL (Mockup 07) ═══ */}
-          <div className="bg-slate-900/40 border border-slate-700/50 rounded-xl backdrop-blur-md p-5 mt-6">
-            <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
-              <Star className="w-4 h-4 text-amber-400" /> Pattern Arsenal
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              {PATTERN_DISPLAY.map((pat) => {
-                const count = enrichedStocks.filter(s => s.pattern?.key === pat.key).length;
-                return (
-                  <div key={pat.key}
-                    className={`bg-slate-800/40 border rounded-lg p-3 text-center cursor-pointer transition-all hover:scale-105 ${
-                      count > 0 ? 'border-slate-600/50' : 'border-slate-700/30 opacity-50'
-                    }`}
-                    onClick={() => {
-                      setFilters(f => ({ ...f, patternTypes: f.patternTypes.includes(pat.key)
-                        ? f.patternTypes.filter(k => k !== pat.key) : [...f.patternTypes, pat.key] }));
-                    }}>
-                    <div className="text-2xl mb-1">{pat.icon}</div>
-                    <div className="text-[10px] text-white font-bold">{pat.name}</div>
-                    <div className={`text-[10px] mt-1 font-bold ${pat.direction === 'bullish' ? 'text-green-400' : pat.direction === 'bearish' ? 'text-red-400' : 'text-blue-400'}`}>
-                      {count > 0 ? `${count} detected` : 'None'}
+          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] backdrop-blur-md overflow-hidden mt-6 hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-shadow">
+            <div className="flex items-center gap-2 px-5 py-3 border-b border-[rgba(42,52,68,0.5)] bg-[#0B0E14]">
+              <Star className="w-4 h-4 text-amber-400" />
+              <h3 className="text-sm font-bold text-[#00D9FF]">Pattern Arsenal</h3>
+            </div>
+            <div className="p-5">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                {PATTERN_DISPLAY.map((pat) => {
+                  const count = enrichedStocks.filter(s => s.pattern?.key === pat.key).length;
+                  const isActive = filters.patternTypes.includes(pat.key);
+                  return (
+                    <div key={pat.key}
+                      className={`rounded-[8px] p-3 text-center cursor-pointer transition-all hover:scale-105 hover:shadow-[0_0_16px_rgba(0,217,255,0.1)] border ${
+                        isActive
+                          ? 'bg-[rgba(0,217,255,0.1)] border-[rgba(0,217,255,0.3)]'
+                          : count > 0
+                            ? 'bg-[#0B0E14] border-[rgba(42,52,68,0.5)]'
+                            : 'bg-[#0B0E14] border-[rgba(42,52,68,0.3)] opacity-50'
+                      }`}
+                      onClick={() => {
+                        setFilters(f => ({ ...f, patternTypes: f.patternTypes.includes(pat.key)
+                          ? f.patternTypes.filter(k => k !== pat.key) : [...f.patternTypes, pat.key] }));
+                      }}>
+                      <div className="text-2xl mb-1">{pat.icon}</div>
+                      <div className="text-[10px] text-white font-bold">{pat.name}</div>
+                      <div className={`text-[10px] mt-1 font-bold font-mono ${pat.direction === 'bullish' ? 'text-green-400' : pat.direction === 'bearish' ? 'text-red-400' : 'text-[#00D9FF]'}`}>
+                        {count > 0 ? `${count} detected` : 'None'}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           </div>
 
           {/* ═══ FORMING DETECTIONS (Mockup 07) ═══ */}
-          <div className="bg-slate-900/40 border border-slate-700/50 rounded-xl backdrop-blur-md p-5 mt-6">
-            <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-yellow-400" /> Forming Detections
+          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] backdrop-blur-md overflow-hidden mt-6 hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-shadow">
+            <div className="flex items-center gap-2 px-5 py-3 border-b border-[rgba(42,52,68,0.5)] bg-[#0B0E14]">
+              <AlertTriangle className="w-4 h-4 text-yellow-400" />
+              <h3 className="text-sm font-bold text-[#00D9FF]">Forming Detections</h3>
               <span className="text-[10px] text-slate-500 ml-2">Patterns in progress</span>
-            </h3>
-            {patterns.filter(p => (p.confidence || 0) < 70).length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {patterns.filter(p => (p.confidence || 0) < 70).slice(0, 6).map((p, i) => (
-                  <div key={i} className="bg-slate-800/30 border border-yellow-500/20 rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-white font-bold text-sm">{p.ticker}</span>
-                      <span className="text-yellow-400 text-xs font-bold">{p.confidence}%</span>
+            </div>
+            <div className="p-5">
+              {patterns.filter(p => (p.confidence || 0) < 70).length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {patterns.filter(p => (p.confidence || 0) < 70).slice(0, 6).map((p, i) => (
+                    <div key={i} className="bg-[#0B0E14] border border-yellow-500/20 rounded-[8px] p-3 hover:shadow-[0_0_16px_rgba(234,179,8,0.08)] transition-shadow">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-white font-bold text-sm font-mono">{p.ticker || '--'}</span>
+                        <span className="text-yellow-400 text-xs font-bold font-mono">{p.confidence != null ? `${p.confidence}%` : '--'}</span>
+                      </div>
+                      <div className="text-xs text-slate-400">{p.pattern || '--'}</div>
+                      {p.timeframe && (
+                        <div className="text-[10px] text-slate-500 mt-1 font-mono">{p.timeframe}</div>
+                      )}
+                      <div className="w-full bg-slate-900 rounded-full h-1.5 mt-2 overflow-hidden">
+                        <div className="h-1.5 rounded-full bg-yellow-500/60 transition-all" style={{ width: `${p.confidence || 0}%` }} />
+                      </div>
                     </div>
-                    <div className="text-xs text-slate-400">{p.pattern}</div>
-                    <div className="w-full bg-slate-900 rounded-full h-1.5 mt-2 overflow-hidden">
-                      <div className="h-1.5 rounded-full bg-yellow-500/60 transition-all" style={{ width: `${p.confidence || 0}%` }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-6 text-slate-600 text-xs">No forming patterns below 70% confidence threshold.</div>
-            )}
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-6 text-slate-600 text-xs">No forming patterns below 70% confidence threshold.</div>
+              )}
+            </div>
           </div>
         </div>
       </div>

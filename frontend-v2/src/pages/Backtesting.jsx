@@ -17,12 +17,221 @@ import { createChart, ColorType, CrosshairMode } from "lightweight-charts";
 import ReactFlow, { Background, Controls, applyNodeChanges, applyEdgeChanges } from "reactflow";
 import "reactflow/dist/style.css";
 
-// Placeholder for charts migrating from Recharts to LW Charts
-const ChartPlaceholder = ({ title, height = 180 }) => (
-  <div className="flex items-center justify-center border border-dashed border-slate-700 rounded text-slate-500 text-xs" style={{ height }}>
-    {title} (LW Charts migration pending)
-  </div>
-);
+// Lightweight Charts: Trade P&L Distribution (histogram)
+function TradePnlDistLC({ data = [], height = 180 }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!ref.current) return;
+    const chart = createChart(ref.current, {
+      layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: "#9CA3AF" },
+      grid: { vertLines: { color: "rgba(42,52,68,0.3)" }, horzLines: { color: "rgba(42,52,68,0.3)" } },
+      width: ref.current.clientWidth, height,
+      rightPriceScale: { borderColor: "rgba(42,52,68,0.3)" },
+      timeScale: { borderColor: "rgba(42,52,68,0.3)" },
+      crosshair: { mode: CrosshairMode.Normal },
+    });
+    const series = chart.addHistogramSeries({
+      color: "#00D9FF",
+      priceFormat: { type: "volume" },
+    });
+    if (data.length) {
+      const mapped = data.map((d) => ({
+        time: d.time || d.bucket || d.bin || d.x,
+        value: d.value ?? d.count ?? d.frequency ?? d.y ?? 0,
+        color: (d.value ?? d.pnl ?? d.y ?? 0) >= 0 ? "#10B981" : "#EF4444",
+      }));
+      series.setData(mapped);
+    }
+    const ro = new ResizeObserver(() => { if (ref.current) chart.applyOptions({ width: ref.current.clientWidth }); });
+    ro.observe(ref.current);
+    return () => { ro.disconnect(); chart.remove(); };
+  }, [data, height]);
+  return <div ref={ref} className="w-full" style={{ height }} />;
+}
+
+// Lightweight Charts: Rolling Sharpe Ratio (line)
+function RollingSharpeLC({ data = [], height = 180 }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!ref.current) return;
+    const chart = createChart(ref.current, {
+      layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: "#9CA3AF" },
+      grid: { vertLines: { color: "rgba(42,52,68,0.3)" }, horzLines: { color: "rgba(42,52,68,0.3)" } },
+      width: ref.current.clientWidth, height,
+      rightPriceScale: { borderColor: "rgba(42,52,68,0.3)" },
+      timeScale: { borderColor: "rgba(42,52,68,0.3)" },
+      crosshair: { mode: CrosshairMode.Normal },
+    });
+    const series = chart.addLineSeries({
+      color: "#00D9FF",
+      lineWidth: 2,
+      priceFormat: { type: "price", precision: 2, minMove: 0.01 },
+    });
+    if (data.length) {
+      const mapped = data.map((d) => ({
+        time: d.time || d.date || d.x,
+        value: d.value ?? d.sharpe ?? d.y ?? 0,
+      }));
+      series.setData(mapped);
+    }
+    // reference line at sharpe = 1.0
+    const refLine = chart.addLineSeries({
+      color: "rgba(239,68,68,0.4)",
+      lineWidth: 1,
+      lineStyle: 2,
+      priceFormat: { type: "price", precision: 1, minMove: 0.1 },
+    });
+    if (data.length) {
+      const times = data.map((d) => d.time || d.date || d.x);
+      refLine.setData([
+        { time: times[0], value: 1 },
+        { time: times[times.length - 1], value: 1 },
+      ]);
+    }
+    const ro = new ResizeObserver(() => { if (ref.current) chart.applyOptions({ width: ref.current.clientWidth }); });
+    ro.observe(ref.current);
+    return () => { ro.disconnect(); chart.remove(); };
+  }, [data, height]);
+  return <div ref={ref} className="w-full" style={{ height }} />;
+}
+
+// Lightweight Charts: Walk-Forward Analysis (bar chart via histogram)
+function WalkForwardLC({ data = [], height = 180 }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!ref.current) return;
+    const chart = createChart(ref.current, {
+      layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: "#9CA3AF" },
+      grid: { vertLines: { color: "rgba(42,52,68,0.3)" }, horzLines: { color: "rgba(42,52,68,0.3)" } },
+      width: ref.current.clientWidth, height,
+      rightPriceScale: { borderColor: "rgba(42,52,68,0.3)" },
+      timeScale: { borderColor: "rgba(42,52,68,0.3)" },
+      crosshair: { mode: CrosshairMode.Normal },
+    });
+    // In-sample series (green bars)
+    const inSample = chart.addHistogramSeries({
+      color: "#10B981",
+      priceFormat: { type: "price", precision: 2, minMove: 0.01 },
+    });
+    // Out-of-sample series (cyan bars)
+    const outSample = chart.addHistogramSeries({
+      color: "#00D9FF",
+      priceFormat: { type: "price", precision: 2, minMove: 0.01 },
+    });
+    if (data.length) {
+      const inData = [];
+      const outData = [];
+      data.forEach((d) => {
+        const t = d.time || d.date || d.period || d.x;
+        if (d.inSample != null || d.in_sample != null) {
+          inData.push({ time: t, value: d.inSample ?? d.in_sample ?? 0 });
+        }
+        if (d.outOfSample != null || d.out_of_sample != null || d.oos != null) {
+          outData.push({ time: t, value: d.outOfSample ?? d.out_of_sample ?? d.oos ?? 0 });
+        }
+        // If data uses a flat value, show as in-sample bars
+        if (d.inSample == null && d.in_sample == null && d.outOfSample == null && d.out_of_sample == null && d.oos == null) {
+          inData.push({ time: t, value: d.value ?? d.sharpe ?? d.return ?? d.y ?? 0, color: (d.value ?? d.sharpe ?? d.return ?? d.y ?? 0) >= 0 ? "#10B981" : "#EF4444" });
+        }
+      });
+      if (inData.length) inSample.setData(inData);
+      if (outData.length) outSample.setData(outData);
+    }
+    const ro = new ResizeObserver(() => { if (ref.current) chart.applyOptions({ width: ref.current.clientWidth }); });
+    ro.observe(ref.current);
+    return () => { ro.disconnect(); chart.remove(); };
+  }, [data, height]);
+  return <div ref={ref} className="w-full" style={{ height }} />;
+}
+
+// Lightweight Charts: Market Regime Performance (colored bars)
+function RegimePerformanceLC({ data = [], height = 140 }) {
+  const ref = useRef(null);
+  const COLORS = { BULL: "#10B981", BEAR: "#EF4444", SIDEWAYS: "#3b82f6", HIGH_VOL: "#f59e0b", LOW_VOL: "#8b5cf6", CRASH: "#f43f5e" };
+  useEffect(() => {
+    if (!ref.current) return;
+    const chart = createChart(ref.current, {
+      layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: "#9CA3AF" },
+      grid: { vertLines: { color: "rgba(42,52,68,0.3)" }, horzLines: { color: "rgba(42,52,68,0.3)" } },
+      width: ref.current.clientWidth, height,
+      rightPriceScale: { borderColor: "rgba(42,52,68,0.3)" },
+      timeScale: { borderColor: "rgba(42,52,68,0.3)", fixLeftEdge: true, fixRightEdge: true },
+      crosshair: { mode: CrosshairMode.Normal },
+    });
+    const series = chart.addHistogramSeries({
+      priceFormat: { type: "price", precision: 2, minMove: 0.01 },
+    });
+    if (data.length) {
+      // Each regime gets an artificial time entry, colored by regime type
+      const baseDate = new Date("2020-01-01");
+      const mapped = data.map((d, i) => {
+        const date = new Date(baseDate);
+        date.setMonth(date.getMonth() + i);
+        const yyyy = date.getFullYear();
+        const mm = String(date.getMonth() + 1).padStart(2, "0");
+        const dd = "01";
+        return {
+          time: `${yyyy}-${mm}-${dd}`,
+          value: d.return ?? d.pnl ?? d.sharpe ?? d.value ?? d.winRate ?? 0,
+          color: COLORS[d.name] || COLORS[d.regime] || "#00D9FF",
+        };
+      });
+      series.setData(mapped);
+    }
+    const ro = new ResizeObserver(() => { if (ref.current) chart.applyOptions({ width: ref.current.clientWidth }); });
+    ro.observe(ref.current);
+    return () => { ro.disconnect(); chart.remove(); };
+  }, [data, height]);
+  return <div ref={ref} className="w-full" style={{ height }} />;
+}
+
+// Lightweight Charts: Monte Carlo Simulation (multi-line paths)
+function MonteCarloLC({ data = [], height = 180 }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!ref.current) return;
+    const chart = createChart(ref.current, {
+      layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: "#9CA3AF" },
+      grid: { vertLines: { color: "rgba(42,52,68,0.3)" }, horzLines: { color: "rgba(42,52,68,0.3)" } },
+      width: ref.current.clientWidth, height,
+      rightPriceScale: { borderColor: "rgba(42,52,68,0.3)" },
+      timeScale: { borderColor: "rgba(42,52,68,0.3)" },
+      crosshair: { mode: CrosshairMode.Normal },
+    });
+    const allSeries = [];
+    if (data.length) {
+      // Limit to max 50 paths for performance
+      const pathColors = ["#00D9FF", "#10B981", "#EF4444", "#f59e0b", "#8b5cf6", "#3b82f6", "#f43f5e", "#22d3ee", "#a78bfa", "#fbbf24"];
+      const maxPaths = Math.min(data.length, 50);
+      for (let i = 0; i < maxPaths; i++) {
+        const path = data[i];
+        const opacity = Math.max(0.15, 0.5 - (i / maxPaths) * 0.35);
+        const color = pathColors[i % pathColors.length];
+        const lineSeries = chart.addLineSeries({
+          color,
+          lineWidth: i < 3 ? 2 : 1,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          crosshairMarkerVisible: false,
+        });
+        // Path can be an array of points or an object with a points/data field
+        const points = Array.isArray(path) ? path : (path.points || path.data || path.values || []);
+        if (points.length) {
+          const mapped = points.map((p) => ({
+            time: p.time || p.date || p.x,
+            value: p.value ?? p.equity ?? p.y ?? 0,
+          }));
+          lineSeries.setData(mapped);
+        }
+        allSeries.push(lineSeries);
+      }
+    }
+    const ro = new ResizeObserver(() => { if (ref.current) chart.applyOptions({ width: ref.current.clientWidth }); });
+    ro.observe(ref.current);
+    return () => { ro.disconnect(); chart.remove(); };
+  }, [data, height]);
+  return <div ref={ref} className="w-full" style={{ height }} />;
+}
 const ResultStat = ({ label, value, color = 'text-slate-300' }) => (
   <div className="text-center">
     <div className="text-[9px] text-slate-500 uppercase">{label}</div>
@@ -342,17 +551,17 @@ export default function Backtesting() {
         </div>
         <div className="col-span-2">
           <Card title="Trade P&L Distribution" noPadding>
-            <ChartPlaceholder title="Trade P&L Distribution" />
+            <TradePnlDistLC data={tradeDist} />
           </Card>
         </div>
         <div className="col-span-2">
           <Card title="Rolling Sharpe Ratio (24M)" noPadding>
-            <ChartPlaceholder title="Rolling Sharpe Ratio (24M)" />
+            <RollingSharpeLC data={rollingSharpe} />
           </Card>
         </div>
         <div className="col-span-2">
           <Card title="Walk-Forward Analysis" noPadding>
-            <ChartPlaceholder title="Walk-Forward Analysis" />
+            <WalkForwardLC data={wfSeries} />
           </Card>
         </div>
       </div>
@@ -361,7 +570,7 @@ export default function Backtesting() {
       <div className="grid grid-cols-12 gap-2">
         <div className="col-span-2">
           <Card title="Market Regime Performance">
-            <ChartPlaceholder title="Market Regime Performance" height={140} />
+            <RegimePerformanceLC data={regimes} height={140} />
             <div className="space-y-0.5 mt-1">
               {regimes.map(r => (
                 <div key={r.name} className="flex justify-between text-[9px]">
@@ -374,7 +583,7 @@ export default function Backtesting() {
         </div>
         <div className="col-span-3">
                     <Card title="Monte Carlo Simulation" noPadding>
-<ChartPlaceholder title="Monte Carlo Simulation" />
+<MonteCarloLC data={mcPaths} />
             <div className="grid grid-cols-3 gap-1 p-1">
               <KPI label="5th %ile" value={mcStats.equity_p5 != null ? `$${(mcStats.equity_p5/1000).toFixed(0)}K` : "--"} color="text-rose-400" />
               <KPI label="Median" value={mcStats.equity_median != null ? `$${(mcStats.equity_median/1000).toFixed(0)}K` : "--"} color="text-emerald-400" />

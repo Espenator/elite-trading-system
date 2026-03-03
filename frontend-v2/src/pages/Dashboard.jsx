@@ -1,10 +1,85 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useApi } from '../hooks/useApi';
 import { getApiUrl } from '../config/api';
 
+// --- TOP TICKER STRIP (scrolling market tickers) ---
+const TickerStrip = ({ indices, signals }) => {
+  const scrollRef = useRef(null);
+  // Build ticker items from indices + top signal symbols
+  const tickers = useMemo(() => {
+    const items = [];
+    // Market indices
+    const indexMap = {
+      SPY: indices?.SPY, QQQ: indices?.QQQ, AAPL: indices?.AAPL,
+      MSFT: indices?.MSFT, TSLA: indices?.TSLA, AMZN: indices?.AMZN,
+      NVDA: indices?.NVDA, META: indices?.META, GOOGL: indices?.GOOGL,
+      SPX: indices?.SPX, NDAQ: indices?.NDAQ, DIA: indices?.DIA,
+      BTC: indices?.BTC, ETH: indices?.ETH, VIX: indices?.VIX,
+    };
+    Object.entries(indexMap).forEach(([sym, data]) => {
+      if (data) {
+        items.push({ symbol: sym, price: data.price ?? data.value ?? data.last, change: data.change ?? data.changePct ?? 0 });
+      }
+    });
+    // Add top signals as tickers if not already present
+    if (signals?.length) {
+      signals.slice(0, 12).forEach(sig => {
+        if (!items.find(t => t.symbol === sig.symbol)) {
+          items.push({ symbol: sig.symbol, price: sig.entry ?? sig.price ?? null, change: sig.momentum ?? sig.changePct ?? 0 });
+        }
+      });
+    }
+    // Fallback tickers if no data yet
+    if (items.length === 0) {
+      ['SPY','QQQ','AAPL','MSFT','TSLA','AMZN','NVDA','META','GOOGL','BTC'].forEach(s =>
+        items.push({ symbol: s, price: null, change: null })
+      );
+    }
+    return items;
+  }, [indices, signals]);
+
+  // Auto-scroll effect
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    let animId;
+    let scrollPos = 0;
+    const speed = 0.5;
+    const scroll = () => {
+      scrollPos += speed;
+      if (scrollPos >= el.scrollWidth / 2) scrollPos = 0;
+      el.scrollLeft = scrollPos;
+      animId = requestAnimationFrame(scroll);
+    };
+    animId = requestAnimationFrame(scroll);
+    return () => cancelAnimationFrame(animId);
+  }, [tickers]);
+
+  return (
+    <div className="bg-[#111827] border-b border-[rgba(42,52,68,0.5)] shrink-0 overflow-hidden">
+      <div ref={scrollRef} className="flex items-center gap-6 px-3 py-1 overflow-hidden no-scrollbar whitespace-nowrap" style={{ scrollBehavior: 'auto' }}>
+        {/* Double the items for seamless loop */}
+        {[...tickers, ...tickers].map((t, i) => {
+          const isPositive = (t.change ?? 0) >= 0;
+          const changeColor = t.change == null ? 'text-[#64748b]' : isPositive ? 'text-[#10b981]' : 'text-[#ef4444]';
+          return (
+            <span key={`${t.symbol}-${i}`} className="inline-flex items-center gap-1.5 text-[10px] font-mono">
+              <span className="text-[#94a3b8] font-bold">{t.symbol}</span>
+              <span className="text-white">{t.price != null ? (typeof t.price === 'number' ? t.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : t.price) : '\u2014'}</span>
+              <span className={changeColor}>
+                {t.change != null ? `${isPositive ? '+' : ''}${typeof t.change === 'number' ? t.change.toFixed(2) : t.change}%` : '\u2014'}
+              </span>
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 // --- ICONS ---
 const HexagonLogo = () => (
-  <svg className="w-5 h-5 text-[#06b6d4]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg className="w-5 h-5 text-[#00D9FF]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
   </svg>
 );
@@ -65,28 +140,151 @@ const TopTradesDonut = ({ buyCount, sellCount, holdCount }) => {
   );
 };
 
-// --- SIGNAL BAR CHART (Colored vertical bars per symbol) ---
+// --- SIGNAL BAR CHART (Colored vertical bars per symbol with Aurora design) ---
 const SignalBarChart = ({ signals, selectedSymbol, onSelect }) => {
   if (!signals || !signals.length) return null;
   const maxScore = Math.max(...signals.map(s => s.score || 0), 1);
   return (
-    <div className="flex items-end gap-[2px] h-[140px] px-2 py-2 bg-[#0B0E14] border border-[#1e293b] rounded overflow-x-auto no-scrollbar">
-      {signals.map((sig, i) => {
-        const h = ((sig.score || 0) / maxScore) * 100;
-        const isLong = sig.direction === 'LONG';
-        const isSelected = sig.symbol === selectedSymbol;
-        const barColor = sig.score >= 85 ? '#10b981' : sig.score >= 70 ? '#06b6d4' : sig.score >= 50 ? '#f59e0b' : '#ef4444';
-        return (
-          <div key={sig.symbol + i} className="flex flex-col items-center cursor-pointer group" onClick={() => onSelect(sig.symbol)}
-            style={{ minWidth: '28px' }}>
-            <div className={`w-5 rounded-t-sm transition-all ${isSelected ? 'ring-1 ring-[#06b6d4]' : ''}`}
-              style={{ height: `${h}%`, backgroundColor: barColor, opacity: isSelected ? 1 : 0.75, minHeight: '4px' }}
-              title={`${sig.symbol}: ${sig.score}`} />
-            <span className={`text-[7px] font-mono mt-0.5 ${isSelected ? 'text-[#06b6d4] font-bold' : 'text-[#94a3b8]'}`}>{sig.symbol}</span>
-            <span className={`text-[6px] font-mono ${isLong ? 'text-[#10b981]' : 'text-[#ef4444]'}`}>{isLong ? 'L' : 'S'}</span>
-          </div>
-        );
-      })}
+    <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] mx-2 my-1">
+      <div className="flex items-center justify-between px-3 py-1 border-b border-[rgba(42,52,68,0.5)]">
+        <span className="text-[8px] font-bold text-[#00D9FF] uppercase tracking-wider">Signal Strength</span>
+        <div className="flex items-center gap-2 text-[7px] font-mono text-[#64748b]">
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-[#10b981]" /> 85+</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-[#00D9FF]" /> 70+</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-[#f59e0b]" /> 50+</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-[#ef4444]" /> &lt;50</span>
+        </div>
+      </div>
+      <div className="flex items-end gap-[3px] h-[130px] px-3 py-2 overflow-x-auto no-scrollbar">
+        {signals.map((sig, i) => {
+          const h = ((sig.score || 0) / maxScore) * 100;
+          const isLong = sig.direction === 'LONG';
+          const isSelected = sig.symbol === selectedSymbol;
+          const barColor = sig.score >= 85 ? '#10b981' : sig.score >= 70 ? '#00D9FF' : sig.score >= 50 ? '#f59e0b' : '#ef4444';
+          return (
+            <div key={sig.symbol + i} className="flex flex-col items-center cursor-pointer group" onClick={() => onSelect(sig.symbol)}
+              style={{ minWidth: '30px' }}>
+              {/* Score label on hover */}
+              <span className="text-[7px] font-mono font-bold text-white opacity-0 group-hover:opacity-100 transition-opacity mb-0.5">{sig.score}</span>
+              <div className={`w-5 rounded-t-sm transition-all duration-200 ${isSelected ? 'ring-2 ring-[#00D9FF] shadow-[0_0_8px_rgba(0,217,255,0.4)]' : 'group-hover:opacity-100'}`}
+                style={{ height: `${h}%`, backgroundColor: barColor, opacity: isSelected ? 1 : 0.7, minHeight: '4px' }}
+                title={`${sig.symbol}: ${sig.score}`} />
+              <span className={`text-[7px] font-mono mt-0.5 ${isSelected ? 'text-[#00D9FF] font-bold' : 'text-[#94a3b8] group-hover:text-white'}`}>{sig.symbol}</span>
+              <span className={`text-[6px] font-mono font-bold ${isLong ? 'text-[#10b981]' : 'text-[#ef4444]'}`}>{isLong ? 'LONG' : 'SHORT'}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// --- LIGHTWEIGHT CHART (TradingView-style candlestick via dynamic import) ---
+const LWChartFallback = ({ symbol, quotesData, signalEntry, signalStop, signalTarget }) => {
+  const containerRef = useRef(null);
+  const chartInstanceRef = useRef(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const initChart = async () => {
+      if (!containerRef.current) return;
+      try {
+        const { createChart } = await import('lightweight-charts');
+        if (cancelled) return;
+        const chart = createChart(containerRef.current, {
+          width: containerRef.current.clientWidth,
+          height: 260,
+          layout: {
+            background: { color: '#0B0E14' },
+            textColor: '#94a3b8',
+            fontSize: 9,
+            fontFamily: "'JetBrains Mono', monospace",
+          },
+          grid: {
+            vertLines: { color: 'rgba(42,52,68,0.3)' },
+            horzLines: { color: 'rgba(42,52,68,0.3)' },
+          },
+          crosshair: {
+            mode: 0,
+            vertLine: { color: '#00D9FF', width: 1, style: 2, labelBackgroundColor: '#00D9FF' },
+            horzLine: { color: '#00D9FF', width: 1, style: 2, labelBackgroundColor: '#00D9FF' },
+          },
+          rightPriceScale: { borderColor: 'rgba(42,52,68,0.5)', scaleMargins: { top: 0.1, bottom: 0.2 } },
+          timeScale: { borderColor: 'rgba(42,52,68,0.5)', timeVisible: true, secondsVisible: false },
+        });
+
+        const candleSeries = chart.addCandlestickSeries({
+          upColor: '#10b981', downColor: '#ef4444',
+          borderUpColor: '#10b981', borderDownColor: '#ef4444',
+          wickUpColor: '#10b981', wickDownColor: '#ef4444',
+        });
+
+        const volumeSeries = chart.addHistogramSeries({
+          color: '#00D9FF', priceFormat: { type: 'volume' }, priceScaleId: '',
+        });
+        volumeSeries.priceScale().applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
+
+        chartInstanceRef.current = { chart, candleSeries, volumeSeries };
+
+        const handleResize = () => {
+          if (containerRef.current) chart.applyOptions({ width: containerRef.current.clientWidth });
+        };
+        window.addEventListener('resize', handleResize);
+        chartInstanceRef.current.cleanup = () => {
+          window.removeEventListener('resize', handleResize);
+          chart.remove();
+        };
+      } catch (err) {
+        console.warn('LW Charts init failed:', err);
+      }
+    };
+    initChart();
+    return () => {
+      cancelled = true;
+      if (chartInstanceRef.current?.cleanup) chartInstanceRef.current.cleanup();
+      chartInstanceRef.current = null;
+    };
+  }, []);
+
+  // Update data
+  useEffect(() => {
+    const inst = chartInstanceRef.current;
+    if (!inst?.candleSeries || !quotesData) return;
+    const candles = quotesData.candles || quotesData.bars || quotesData.ohlcv || [];
+    if (!candles.length) return;
+    const mapped = candles.map(c => ({
+      time: c.time || c.timestamp || c.t,
+      open: c.open ?? c.o, high: c.high ?? c.h,
+      low: c.low ?? c.l, close: c.close ?? c.c,
+    })).filter(c => c.time && c.open != null);
+    if (mapped.length) {
+      inst.candleSeries.setData(mapped);
+      const volData = candles.map(c => ({
+        time: c.time || c.timestamp || c.t,
+        value: c.volume ?? c.v ?? 0,
+        color: (c.close ?? c.c) >= (c.open ?? c.o) ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)',
+      })).filter(v => v.time);
+      if (volData.length) inst.volumeSeries.setData(volData);
+    }
+    // Price lines
+    try {
+      if (signalEntry) inst.candleSeries.createPriceLine({ price: signalEntry, color: '#00D9FF', lineWidth: 1, lineStyle: 2, title: 'Entry' });
+      if (signalStop) inst.candleSeries.createPriceLine({ price: signalStop, color: '#ef4444', lineWidth: 1, lineStyle: 2, title: 'Stop' });
+      if (signalTarget) inst.candleSeries.createPriceLine({ price: signalTarget, color: '#10b981', lineWidth: 1, lineStyle: 2, title: 'Target' });
+    } catch {}
+  }, [quotesData, signalEntry, signalStop, signalTarget]);
+
+  return (
+    <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] mx-2 my-1 overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-1 border-b border-[rgba(42,52,68,0.5)]">
+        <span className="text-[8px] font-bold text-[#00D9FF] uppercase tracking-wider">{symbol || 'CHART'} - Price Action</span>
+        <div className="flex items-center gap-2 text-[7px] font-mono">
+          <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#00D9FF]" /> Entry</span>
+          <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#10b981]" /> Target</span>
+          <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#ef4444]" /> Stop</span>
+        </div>
+      </div>
+      <div ref={containerRef} className="w-full" style={{ minHeight: 260 }} />
     </div>
   );
 };
@@ -174,7 +372,7 @@ const AgentConsensusRing = ({ buyPct, sellPct, holdPct, consensus }) => {
 // --- FLYWHEEL STATUS PIPELINE ---
 const FlywheelPipeline = ({ flywheel }) => {
   const stages = [
-    { label: 'Collect', key: 'resolvedSignals', icon: '\u2b07', color: '#06b6d4' },
+    { label: 'Collect', key: 'resolvedSignals', icon: '\u2b07', color: '#00D9FF' },
     { label: 'Train', key: 'accuracy30d', icon: '\u2699', color: '#8b5cf6' },
     { label: 'Predict', key: 'accuracy30d', icon: '\u26a1', color: '#f59e0b' },
     { label: 'Evaluate', key: 'accuracy90d', icon: '\u2714', color: '#10b981' },
@@ -196,14 +394,14 @@ const FlywheelPipeline = ({ flywheel }) => {
               <span className="text-[7px] mt-0.5 text-[#94a3b8]">{s.label}</span>
             </div>
             {i < stages.length - 1 && (
-              <div className={`w-6 h-px mx-1 ${isActive ? 'bg-[#06b6d4]' : 'bg-[#374151]'}`} />
+              <div className={`w-6 h-px mx-1 ${isActive ? 'bg-[#00D9FF]' : 'bg-[#374151]'}`} />
             )}
           </div>
         ))}
       </div>
       <div className="grid grid-cols-3 gap-1 text-center font-mono text-[8px]">
-        <div><span className="text-[#94a3b8]">30d Acc</span><br /><span className="text-[#06b6d4] font-bold">{acc30 ? `${(acc30 * 100).toFixed(1)}%` : '\u2014'}</span></div>
-        <div><span className="text-[#94a3b8]">90d Acc</span><br /><span className="text-[#06b6d4] font-bold">{acc90 ? `${(acc90 * 100).toFixed(1)}%` : '\u2014'}</span></div>
+        <div><span className="text-[#94a3b8]">30d Acc</span><br /><span className="text-[#00D9FF] font-bold">{acc30 ? `${(acc30 * 100).toFixed(1)}%` : '\u2014'}</span></div>
+        <div><span className="text-[#94a3b8]">90d Acc</span><br /><span className="text-[#00D9FF] font-bold">{acc90 ? `${(acc90 * 100).toFixed(1)}%` : '\u2014'}</span></div>
         <div><span className="text-[#94a3b8]">Resolved</span><br /><span className="text-white font-bold">{resolved}</span></div>
       </div>
     </div>
@@ -221,6 +419,96 @@ const ConsensusBar = ({ label, buyPct, sellPct }) => (
     <span className="text-[#10b981] w-6 text-right">{buyPct || 0}%</span>
   </div>
 );
+
+// --- BOTTOM HEATMAP GRID (sector/symbol performance heatmap) ---
+const HeatmapGrid = ({ signals }) => {
+  // Group signals by sector
+  const sectorMap = useMemo(() => {
+    if (!signals || !signals.length) return {};
+    const map = {};
+    signals.forEach(sig => {
+      const sector = sig.sector || 'Other';
+      if (!map[sector]) map[sector] = [];
+      map[sector].push(sig);
+    });
+    return map;
+  }, [signals]);
+
+  if (!signals || !signals.length) return null;
+
+  // Color interpolation: score 0-100 maps to red(0) -> yellow(50) -> green(100)
+  const getHeatColor = (score) => {
+    const s = Math.min(100, Math.max(0, score || 0));
+    if (s >= 70) {
+      // green range: interpolate from yellow to bright green
+      const t = (s - 70) / 30;
+      const r = Math.round(245 * (1 - t));
+      const g = Math.round(158 + (97 * t));
+      const b = Math.round(11 + (120 * t));
+      return `rgb(${r},${g},${b})`;
+    }
+    if (s >= 40) {
+      // yellow range
+      const t = (s - 40) / 30;
+      const r = Math.round(239 + (6 * t));
+      const g = Math.round(68 + (90 * t));
+      const b = Math.round(68 - (57 * t));
+      return `rgb(${r},${g},${b})`;
+    }
+    // red range
+    const t = s / 40;
+    const r = Math.round(127 + (112 * t));
+    const g = Math.round(29 + (39 * t));
+    const b = Math.round(29 + (39 * t));
+    return `rgb(${r},${g},${b})`;
+  };
+
+  const getHeatBg = (score) => {
+    const s = Math.min(100, Math.max(0, score || 0));
+    if (s >= 70) return 'rgba(16,185,129,0.15)';
+    if (s >= 40) return 'rgba(245,158,11,0.12)';
+    return 'rgba(239,68,68,0.12)';
+  };
+
+  return (
+    <div className="bg-[#111827] border-t border-[rgba(42,52,68,0.5)]">
+      <div className="flex items-center justify-between px-3 py-1 border-b border-[rgba(42,52,68,0.5)]">
+        <span className="text-[8px] font-bold text-[#00D9FF] uppercase tracking-wider">Sector Heatmap</span>
+        <div className="flex items-center gap-2 text-[7px] font-mono text-[#64748b]">
+          <span>Score:</span>
+          <div className="flex items-center h-2 w-20 rounded-sm overflow-hidden">
+            <div className="h-full flex-1" style={{ background: 'linear-gradient(to right, #7f1d1d, #ef4444, #f59e0b, #10b981)' }} />
+          </div>
+          <span>0 - 100</span>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-[2px] p-2 overflow-x-auto no-scrollbar" style={{ maxHeight: '120px' }}>
+        {Object.entries(sectorMap).map(([sector, sigs]) => (
+          <div key={sector} className="flex flex-col gap-[1px]">
+            <span className="text-[6px] font-mono text-[#64748b] uppercase px-0.5 truncate" style={{ maxWidth: '80px' }}>{sector}</span>
+            <div className="flex gap-[1px]">
+              {sigs.slice(0, 8).map((sig, i) => (
+                <div
+                  key={sig.symbol + i}
+                  className="flex flex-col items-center justify-center rounded-sm cursor-pointer transition-all hover:scale-110 hover:z-10"
+                  style={{
+                    width: '42px', height: '32px',
+                    backgroundColor: getHeatBg(sig.score),
+                    border: `1px solid ${getHeatColor(sig.score)}33`,
+                  }}
+                  title={`${sig.symbol}: Score ${sig.score}, ${sig.direction}`}
+                >
+                  <span className="text-[7px] font-mono font-bold text-white leading-none">{sig.symbol}</span>
+                  <span className="text-[7px] font-mono font-bold leading-none" style={{ color: getHeatColor(sig.score) }}>{sig.score}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 // --- CONSTANTS ---
 const SORT_PILLS = [
@@ -256,6 +544,7 @@ export default function Dashboard() {
   const { data: dataSourcesData } = useApi('dataSources', { endpoint: `/data-sources/${selectedSymbol}`, enabled: !!selectedSymbol });
   const { data: riskData } = useApi('risk', { endpoint: `/risk/proposal/${selectedSymbol}`, enabled: !!selectedSymbol });
   const { data: quotesData } = useApi('quotes', { endpoint: `/quotes/${selectedSymbol}/book`, pollIntervalMs: 1000, enabled: !!selectedSymbol });
+  const { data: candleData } = useApi('quotes', { endpoint: `/quotes/${selectedSymbol}/candles?timeframe=${activeTimeframe}`, pollIntervalMs: 10000, enabled: !!selectedSymbol });
 
   // --- SORT MAP (all 15 pills) ---
   const SORT_MAP = useMemo(() => ({
@@ -371,15 +660,18 @@ export default function Dashboard() {
   const globalSentiment = sentimentData?.sentiment || sentimentData || {};
 
   // --- LOADING / ERROR STATES ---
-  if (sigLoading && !signalsData?.signals) return <div className="h-screen w-full bg-[#0B0E14] flex items-center justify-center text-[#06b6d4] font-mono text-xs">INITIALIZING EMBODIER NEURAL NET...</div>;
+  if (sigLoading && !signalsData?.signals) return <div className="h-screen w-full bg-[#0B0E14] flex items-center justify-center text-[#00D9FF] font-mono text-xs">INITIALIZING EMBODIER NEURAL NET...</div>;
   if (sigErr) return <div className="h-screen w-full bg-[#0B0E14] text-red-500 p-4 font-mono text-xs">SYSTEM FAULT: {sigErr.message}</div>;
 
   return (
-    <div className="flex flex-col h-screen w-full bg-[#0B0E14] text-[#e5e7eb] font-sans text-[9px] leading-tight overflow-hidden selection:bg-[#06b6d4]/30">
-      {/* 1. TOP TICKER STRIP */}
-      <header className="flex items-center justify-between px-4 py-2 border-b border-[#1e293b] bg-[#111827] shrink-0">
+    <div className="flex flex-col h-screen w-full bg-[#0B0E14] text-[#e5e7eb] font-sans text-[9px] leading-tight overflow-hidden selection:bg-[#00D9FF]/30">
+      {/* 0. SCROLLING TICKER STRIP */}
+      <TickerStrip indices={indices} signals={processedSignals} />
+
+      {/* 1. TOP HEADER BAR */}
+      <header className="flex items-center justify-between px-4 py-2 border-b border-[rgba(42,52,68,0.5)] bg-[#111827] shrink-0">
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 pr-4 border-r border-[#1e293b]">
+          <div className="flex items-center gap-2 pr-4 border-r border-[rgba(42,52,68,0.5)]">
             <HexagonLogo />
             <h1 className="text-xs font-bold text-white tracking-widest">EMBODIER TRADER</h1>
           </div>
@@ -413,8 +705,8 @@ export default function Dashboard() {
           <div className="flex gap-4">
             <span>Equity <span className="text-white">${portfolio.totalEquity?.toLocaleString() || '\u2014'}</span></span>
             <span>P&L <span className="text-green-400">+${portfolio.dayPnL?.toLocaleString() || '\u2014'}</span></span>
-            <span>Deployed <span className="text-[#06b6d4]">{portfolio.deployedPercent || '\u2014'}%</span></span>
-            <span>Sharpe <span className="text-[#06b6d4]">{performance.sharpe || '\u2014'}</span></span>
+            <span>Deployed <span className="text-[#00D9FF]">{portfolio.deployedPercent || '\u2014'}%</span></span>
+            <span>Sharpe <span className="text-[#00D9FF]">{performance.sharpe || '\u2014'}</span></span>
             <span>Alpha <span className="text-green-400">+{performance.alpha || '\u2014'}%</span></span>
             <span>Win <span className="text-green-400">{performance.winRate || '\u2014'}%</span></span>
             <span>MaxDD <span className="text-red-400">{performance.maxDrawdown || '\u2014'}%</span></span>
@@ -425,13 +717,13 @@ export default function Dashboard() {
       {/* MAIN CONTENT AREA */}
       <main className="flex flex-1 overflow-hidden">
         {/* CENTER COLUMN: BAR CHART + TABLE (~65%) */}
-        <section className="flex flex-col w-[65%] border-r border-[#1e293b] bg-[#0B0E14]">
+        <section className="flex flex-col w-[65%] border-r border-[rgba(42,52,68,0.5)] bg-[#0B0E14]">
           {/* Filters & Sort Bar */}
-          <div className="flex flex-col border-b border-[#1e293b] bg-[#111827] p-2 gap-2 shrink-0">
+          <div className="flex flex-col border-b border-[rgba(42,52,68,0.5)] bg-[#111827] p-2 gap-2 shrink-0">
             <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
               {SORT_PILLS.map(pill => (
                 <button key={pill} onClick={() => setActiveSortKey(pill)}
-                  className={`whitespace-nowrap px-2 py-1 rounded-sm border ${activeSortKey === pill ? 'bg-[#06b6d4]/20 text-[#06b6d4] border-[#06b6d4]/50' : 'bg-transparent text-[#94a3b8] border-[#374151] hover:border-[#64748b]'} transition-colors`}>
+                  className={`whitespace-nowrap px-2 py-1 rounded-sm border ${activeSortKey === pill ? 'bg-[#00D9FF]/20 text-[#00D9FF] border-[#00D9FF]/50' : 'bg-transparent text-[#94a3b8] border-[#374151] hover:border-[#64748b]'} transition-colors`}>
                   {pill}
                 </button>
               ))}
@@ -455,14 +747,25 @@ export default function Dashboard() {
           </div>
 
           {/* SIGNAL BAR CHART (NEW - from mockup) */}
-          <div className="shrink-0 border-b border-[#1e293b]">
+          <div className="shrink-0 border-b border-[rgba(42,52,68,0.5)]">
             <SignalBarChart signals={processedSignals} selectedSymbol={selectedSymbol} onSelect={setSelectedSymbol} />
+          </div>
+
+          {/* MAIN LIGHTWEIGHT CHART */}
+          <div className="shrink-0 border-b border-[rgba(42,52,68,0.5)]">
+            <LWChartFallback
+              symbol={selectedSymbol}
+              quotesData={candleData}
+              signalEntry={selectedSignal?.entry}
+              signalStop={selectedSignal?.stop}
+              signalTarget={selectedSignal?.target}
+            />
           </div>
 
           {/* Table Container */}
           <div className="flex-1 overflow-auto bg-[#0B0E14]">
             <table className="w-full text-left font-mono whitespace-nowrap">
-              <thead className="sticky top-0 bg-[#111827] text-[#64748b] border-b border-[#1e293b] shadow-md z-10">
+              <thead className="sticky top-0 bg-[#111827] text-[#64748b] border-b border-[rgba(42,52,68,0.5)] shadow-md z-10">
                 <tr>
                   <th className="p-1.5 font-normal">Sym</th>
                   <th className="p-1.5 font-normal">Dir</th>
@@ -494,14 +797,14 @@ export default function Dashboard() {
                   const dirColor = isLong ? 'text-green-400' : 'text-red-400';
                   return (
                     <tr key={sig.symbol + idx} onClick={() => setSelectedSymbol(sig.symbol)}
-                      className={`cursor-pointer hover:bg-[#1e293b]/30 transition-colors ${isSelected ? 'bg-[#164e63]/30 border-l-2 border-[#06b6d4]' : 'border-l-2 border-transparent'}`}>
+                      className={`cursor-pointer hover:bg-[#1e293b]/30 transition-colors ${isSelected ? 'bg-[#164e63]/30 border-l-2 border-[#00D9FF]' : 'border-l-2 border-transparent'}`}>
                       <td className="p-1.5 text-white font-bold">{sig.symbol}</td>
                       <td className={`p-1.5 ${dirColor}`}>{isLong ? 'L' : 'S'}</td>
                       <td className="p-1.5">
                         <div className="flex items-center gap-1">
-                          <span className={sig.score >= 90 ? 'text-green-400' : 'text-[#06b6d4]'}>{sig.score}</span>
+                          <span className={sig.score >= 90 ? 'text-green-400' : 'text-[#00D9FF]'}>{sig.score}</span>
                           <div className="w-12 h-1.5 bg-[#1e293b] rounded-full overflow-hidden">
-                            <div className="h-full bg-[#06b6d4]" style={{ width: `${sig.score}%` }}></div>
+                            <div className="h-full bg-[#00D9FF]" style={{ width: `${sig.score}%` }}></div>
                           </div>
                         </div>
                       </td>
@@ -509,10 +812,10 @@ export default function Dashboard() {
                       <td className="p-1.5 text-[#94a3b8]">{sig.scores?.ml || '\u2014'}</td>
                       <td className="p-1.5 text-[#94a3b8]">{sig.scores?.sentiment || '\u2014'}</td>
                       <td className="p-1.5 text-[#94a3b8]">{sig.scores?.technical || '\u2014'}</td>
-                      <td className="p-1.5 text-[#06b6d4] truncate max-w-[80px]">{sig.leadAgent || '\u2014'}</td>
+                      <td className="p-1.5 text-[#00D9FF] truncate max-w-[80px]">{sig.leadAgent || '\u2014'}</td>
                       <td className="p-1.5 text-[#94a3b8]">{sig.swarmVote || '\u2014'}</td>
                       <td className="p-1.5 text-[#64748b] truncate max-w-[60px]">{sig.topShap || '\u2014'}</td>
-                      <td className="p-1.5 text-[#06b6d4]">{sig.kellyPercent}%</td>
+                      <td className="p-1.5 text-[#00D9FF]">{sig.kellyPercent}%</td>
                       <td className="p-1.5 text-[#94a3b8]">${sig.entry?.toFixed(2)}</td>
                       <td className="p-1.5 text-green-400">${sig.target?.toFixed(2)}</td>
                       <td className="p-1.5 text-red-400">${sig.stop?.toFixed(2)}</td>
@@ -520,9 +823,9 @@ export default function Dashboard() {
                       <td className="p-1.5 text-green-400">+${sig.expPnL?.toLocaleString()}</td>
                       <td className="p-1.5 text-[#64748b]">{sig.sector?.substring(0,3) || '\u2014'}</td>
                       <td className="p-1.5 text-green-400">+{sig.momentum || '\u2014'}</td>
-                      <td className="p-1.5 text-[#06b6d4]">{sig.volSpike || '\u2014'}x</td>
+                      <td className="p-1.5 text-[#00D9FF]">{sig.volSpike || '\u2014'}x</td>
                       <td className="p-1.5 text-[#64748b] truncate max-w-[50px]">{sig.newsImpact || '\u2014'}</td>
-                      <td className="p-1.5 text-[#06b6d4] truncate max-w-[60px]">{sig.pattern || '\u2014'}</td>
+                      <td className="p-1.5 text-[#00D9FF] truncate max-w-[60px]">{sig.pattern || '\u2014'}</td>
                     </tr>
                   );
                 })}
@@ -541,6 +844,11 @@ export default function Dashboard() {
               </div>
             </div>
           )}
+
+          {/* BOTTOM HEATMAP GRID */}
+          <div className="shrink-0">
+            <HeatmapGrid signals={processedSignals} />
+          </div>
         </section>
 
         {/* RIGHT COLUMN: ALWAYS-VISIBLE SUMMARY CARDS (~35%) */}
@@ -548,12 +856,12 @@ export default function Dashboard() {
           {/* TOP ROW: Regime Donut + Agent Consensus */}
           <div className="flex gap-3">
             {/* Regime Donut Ring (NEW) */}
-            <div className="bg-[#0B0E14] border border-[#1e293b] rounded p-2 flex flex-col items-center justify-center">
+            <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-2 flex flex-col items-center justify-center hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-shadow">
               <span className="text-[8px] text-[#94a3b8] uppercase tracking-wider mb-1">REGIME</span>
               <RegimeDonut regime={openclaw.regime} score={openclaw.compositeScore} />
             </div>
                       {/* Top Trades Donut (from mockup 02) */}
-          <div className="bg-[#0B0E14] border border-[#1e293b] rounded p-2 flex flex-col items-center justify-center">
+          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-2 flex flex-col items-center justify-center hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-shadow">
             <span className="text-[8px] text-[#94a3b8] uppercase tracking-wider mb-1">TOP TRADES</span>
             <TopTradesDonut
               buyCount={swarm.buyCount || processedSignals.filter(s => s.direction === 'LONG').length}
@@ -562,8 +870,8 @@ export default function Dashboard() {
             />
           </div>
             {/* Agent Consensus Ring (Enhanced) */}
-            <div className="flex-1 bg-[#0B0E14] border border-[#1e293b] rounded p-2">
-              <h3 className="text-[9px] text-[#06b6d4] font-bold uppercase tracking-wider mb-1">Agent Consensus</h3>
+            <div className="flex-1 bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-2 hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-shadow">
+              <h3 className="text-[9px] text-[#00D9FF] font-bold uppercase tracking-wider mb-1">Agent Consensus</h3>
               <AgentConsensusRing
                 buyPct={swarm.buyCount || processedSignals.filter(s => s.direction === 'LONG').length}
                 sellPct={swarm.sellCount || processedSignals.filter(s => s.direction === 'SHORT').length}
@@ -574,8 +882,8 @@ export default function Dashboard() {
           </div>
 
           {/* Swarm Consensus Horizontal Bars (NEW - from mockup) */}
-          <div className="bg-[#0B0E14] border border-[#1e293b] rounded p-2 space-y-1.5">
-            <h3 className="text-[9px] text-[#06b6d4] font-bold uppercase tracking-wider">Swarm Consensus</h3>
+          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-2 space-y-1.5 hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-shadow">
+            <h3 className="text-[9px] text-[#00D9FF] font-bold uppercase tracking-wider">Swarm Consensus</h3>
             {(swarm.agents || []).slice(0, 6).map((agent, i) => (
               <ConsensusBar key={i} label={agent.name || `Agent ${i+1}`}
                 buyPct={agent.vote === 'BUY' ? (agent.confidence || 50) : (100 - (agent.confidence || 50))}
@@ -592,23 +900,23 @@ export default function Dashboard() {
           </div>
 
           {/* Macro & Pattern Triggers Card (always visible) */}
-          <div className="bg-[#0B0E14] border border-[#1e293b] rounded p-2">
-            <h3 className="text-[9px] text-[#06b6d4] font-bold uppercase tracking-wider mb-2">Macro & Pattern Triggers</h3>
+          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-2 hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-shadow">
+            <h3 className="text-[9px] text-[#00D9FF] font-bold uppercase tracking-wider mb-2">Macro & Pattern Triggers</h3>
             <div className="grid grid-cols-2 gap-1 font-mono text-[8px]">
               <div><span className="text-[#94a3b8]">Market Breadth:</span> <span className="text-green-400">+{indices.SPX?.breadth || '\u2014'}%</span></div>
               <div><span className="text-[#94a3b8]">VIX Level:</span> <span className="text-[#f59e0b]">{indices.VIX?.value || '\u2014'}</span></div>
-              <div><span className="text-[#94a3b8]">Sector Lead:</span> <span className="text-[#06b6d4]">{indices.sectorLead || '\u2014'}</span></div>
+              <div><span className="text-[#94a3b8]">Sector Lead:</span> <span className="text-[#00D9FF]">{indices.sectorLead || '\u2014'}</span></div>
               <div><span className="text-[#94a3b8]">Pattern:</span> <span className="text-green-400">{selectedSignal?.pattern || '\u2014'}</span></div>
             </div>
           </div>
 
           {/* Risk Shield Status Card (always visible) */}
-          <div className="bg-[#0B0E14] border border-[#1e293b] rounded p-2">
-            <h3 className="text-[9px] text-[#06b6d4] font-bold uppercase tracking-wider mb-2">Risk Shield {riskScore.status || '(Active)'}</h3>
+          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-2 hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-shadow">
+            <h3 className="text-[9px] text-[#00D9FF] font-bold uppercase tracking-wider mb-2">Risk Shield {riskScore.status || '(Active)'}</h3>
             <div className="grid grid-cols-2 gap-1 font-mono text-[8px]">
               <div><span className="text-[#94a3b8]">Daily VaR:</span> <span className="text-red-400">{riskScore.dailyVaR || '\u2014'}%</span></div>
               <div><span className="text-[#94a3b8]">Max Drawdown:</span> <span className="text-red-400">{performance.maxDrawdown || '\u2014'}%</span></div>
-              <div><span className="text-[#94a3b8]">Correlation:</span> <span className="text-[#06b6d4]">{riskScore.correlation || '\u2014'}</span></div>
+              <div><span className="text-[#94a3b8]">Correlation:</span> <span className="text-[#00D9FF]">{riskScore.correlation || '\u2014'}</span></div>
               <div><span className="text-[#94a3b8]">Position Limit:</span> <span className="text-white">{riskScore.positionLimit || '\u2014'}</span></div>
             </div>
             <div className="flex gap-1.5 mt-2">
@@ -618,14 +926,14 @@ export default function Dashboard() {
           </div>
 
           {/* Equity Curve Chart */}
-          <div className="bg-[#0B0E14] border border-[#1e293b] rounded p-2">
-            <h3 className="text-[9px] text-[#06b6d4] font-bold uppercase tracking-wider mb-1">Equity Curve</h3>
+          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-2 hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-shadow">
+            <h3 className="text-[9px] text-[#00D9FF] font-bold uppercase tracking-wider mb-1">Equity Curve</h3>
             <MiniEquityCurve points={performance.equityCurve} />
           </div>
 
           {/* Flywheel Status Pipeline */}
-          <div className="bg-[#0B0E14] border border-[#1e293b] rounded p-2">
-            <h3 className="text-[9px] text-[#06b6d4] font-bold uppercase tracking-wider mb-2">ML Flywheel</h3>
+          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-2 hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-shadow">
+            <h3 className="text-[9px] text-[#00D9FF] font-bold uppercase tracking-wider mb-2">ML Flywheel</h3>
             <FlywheelPipeline flywheel={flywheel} />
           </div>
 
@@ -633,7 +941,7 @@ export default function Dashboard() {
           {selectedSignal && (
             <>
               {/* Header */}
-              <div className="flex justify-between items-center pb-2 border-b border-[#1e293b]">
+              <div className="flex justify-between items-center pb-2 border-b border-[rgba(42,52,68,0.5)]">
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
                   {selectedSignal.symbol}
                   <span className={selectedSignal.direction === 'LONG' ? 'text-green-400' : 'text-red-400'}>
@@ -642,14 +950,14 @@ export default function Dashboard() {
                 </h2>
                 <div className="flex flex-col items-end">
                   <span className="text-[8px] text-[#94a3b8] uppercase">Composite Score</span>
-                  <span className="text-2xl font-mono font-bold text-[#06b6d4]">{selectedSignal.score || '\u2014'}</span>
+                  <span className="text-2xl font-mono font-bold text-[#00D9FF]">{selectedSignal.score || '\u2014'}</span>
                 </div>
               </div>
 
               {/* Composite Breakdown */}
               <div className="space-y-1.5">
-                <h3 className="text-[9px] text-[#06b6d4] font-bold uppercase tracking-wider">Composite Breakdown</h3>
-                <div className="bg-[#0B0E14] border border-[#1e293b] rounded p-2 space-y-1 font-mono text-[8px]">
+                <h3 className="text-[9px] text-[#00D9FF] font-bold uppercase tracking-wider">Composite Breakdown</h3>
+                <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-2 space-y-1 font-mono text-[8px]">
                   {[
                     { label: 'Overall Score', val: `${selectedSignal.score || 0}/100`, pct: selectedSignal.score || 0 },
                     { label: 'Technical Rank', val: `${selectedSignal.scores?.technical || '\u2014'}`, pct: selectedSignal.scores?.technical || 0 },
@@ -660,7 +968,7 @@ export default function Dashboard() {
                     <div key={item.label} className="flex items-center justify-between">
                       <span className="text-[#94a3b8] w-24">{item.label}</span>
                       <div className="flex-1 mx-2 h-1 bg-[#1e293b] rounded-full">
-                        <div className="h-full bg-[#06b6d4] rounded-full" style={{ width: `${item.pct}%` }}></div>
+                        <div className="h-full bg-[#00D9FF] rounded-full" style={{ width: `${item.pct}%` }}></div>
                       </div>
                       <span className="text-white w-10 text-right">{item.val}</span>
                     </div>
@@ -670,12 +978,12 @@ export default function Dashboard() {
 
               {/* Technical Analysis */}
               <div className="space-y-1.5">
-                <h3 className="text-[9px] text-[#06b6d4] font-bold uppercase tracking-wider">Technical Analysis</h3>
-                <div className="grid grid-cols-2 gap-1.5 bg-[#0B0E14] border border-[#1e293b] rounded p-2 font-mono text-[8px]">
+                <h3 className="text-[9px] text-[#00D9FF] font-bold uppercase tracking-wider">Technical Analysis</h3>
+                <div className="grid grid-cols-2 gap-1.5 bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-2 font-mono text-[8px]">
                   <div><span className="text-[#94a3b8]">RSI:</span> <span className="text-green-400">{techs.rsi || '\u2014'}</span></div>
                   <div><span className="text-[#94a3b8]">MACD:</span> <span className="text-green-400">{techs.macd || '\u2014'}</span></div>
                   <div><span className="text-[#94a3b8]">BB:</span> <span className="text-white">{techs.bb || '\u2014'}</span></div>
-                  <div><span className="text-[#94a3b8]">VWAP:</span> <span className="text-[#06b6d4]">{techs.vwap || '\u2014'}</span></div>
+                  <div><span className="text-[#94a3b8]">VWAP:</span> <span className="text-[#00D9FF]">{techs.vwap || '\u2014'}</span></div>
                   <div><span className="text-[#94a3b8]">20 EMA:</span> <span className="text-white">{techs.ema20 || '\u2014'}</span></div>
                   <div><span className="text-[#94a3b8]">50 SMA:</span> <span className="text-green-400">{techs.sma50 || '\u2014'}</span></div>
                   <div><span className="text-[#94a3b8]">ADX:</span> <span className="text-white">{techs.adx || '\u2014'}</span></div>
@@ -685,9 +993,9 @@ export default function Dashboard() {
 
               {/* ML Engine & SHAP */}
               <div className="space-y-1.5">
-                <h3 className="text-[9px] text-[#06b6d4] font-bold uppercase tracking-wider">ML Engine & SHAP Drivers</h3>
-                <div className="bg-[#0B0E14] border border-[#1e293b] rounded p-2 font-mono text-[8px]">
-                  <div className="flex justify-between mb-2 pb-2 border-b border-[#1e293b]/50">
+                <h3 className="text-[9px] text-[#00D9FF] font-bold uppercase tracking-wider">ML Engine & SHAP Drivers</h3>
+                <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-2 font-mono text-[8px]">
+                  <div className="flex justify-between mb-2 pb-2 border-b border-[rgba(42,52,68,0.5)]">
                     <span className="text-[#94a3b8]">Probability LONG: <span className="text-green-400 font-bold">{selectedSignal.scores?.ml || '\u2014'}%</span></span>
                     <span className="text-[#94a3b8]">Drift Score: <span className="text-green-400">{techs.driftScore || '\u2014'}</span></span>
                   </div>
@@ -717,15 +1025,15 @@ export default function Dashboard() {
 
               {/* Risk & Order Proposal */}
               <div className="space-y-1.5">
-                <h3 className="text-[9px] text-[#06b6d4] font-bold uppercase tracking-wider">Risk & Order Proposal</h3>
-                <div className="bg-[#0B0E14] border border-[#1e293b] rounded p-2 font-mono text-[8px]">
-                  <div className="text-[#06b6d4] mb-1 font-bold">PROPOSED ENTRY</div>
-                  <div className="grid grid-cols-2 gap-1 mb-2 pb-2 border-b border-[#1e293b]/50">
+                <h3 className="text-[9px] text-[#00D9FF] font-bold uppercase tracking-wider">Risk & Order Proposal</h3>
+                <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-2 font-mono text-[8px]">
+                  <div className="text-[#00D9FF] mb-1 font-bold">PROPOSED ENTRY</div>
+                  <div className="grid grid-cols-2 gap-1 mb-2 pb-2 border-b border-[rgba(42,52,68,0.5)]/50">
                     <span className="text-[#94a3b8]">Action: <span className="text-white">Limit Buy {risk.limitPrice || '\u2014'}</span></span>
                     <span className="text-[#94a3b8]">Size: <span className="text-white">{risk.shares || '\u2014'} shs (${risk.notional || '\u2014'})</span></span>
                     <span className="text-[#94a3b8]">Stop Loss: <span className="text-red-400">{risk.stopLoss || '\u2014'}</span></span>
                     <span className="text-[#94a3b8]">Target 1: <span className="text-green-400">{risk.target1 || '\u2014'}</span></span>
-                    <span className="text-[#94a3b8]">R:R Ratio: <span className="text-[#06b6d4]">{risk.rr || '\u2014'}</span></span>
+                    <span className="text-[#94a3b8]">R:R Ratio: <span className="text-[#00D9FF]">{risk.rr || '\u2014'}</span></span>
                     <span className="text-[#94a3b8]">Sizing: <span className="text-white">Kelly {selectedSignal.kellyPercent}%</span></span>
                   </div>
                   {/* L2 Order Book */}
@@ -757,8 +1065,8 @@ export default function Dashboard() {
                   <button onClick={() => handleExecute('SELL')} className="bg-red-600 hover:bg-red-500 text-white font-bold py-1.5 rounded shadow-[0_0_8px_rgba(239,68,68,0.4)]">EXECUTE SHORT</button>
                 </div>
                 <div className="grid grid-cols-3 gap-1.5 mb-1.5">
-                  <button className="bg-[#1e293b] hover:bg-cyan-900 text-[#06b6d4] py-1 rounded">Limit Order</button>
-                  <button className="bg-[#1e293b] hover:bg-cyan-900 text-[#06b6d4] py-1 rounded">Stop Limit</button>
+                  <button className="bg-[#1e293b] hover:bg-cyan-900 text-[#00D9FF] py-1 rounded">Limit Order</button>
+                  <button className="bg-[#1e293b] hover:bg-cyan-900 text-[#00D9FF] py-1 rounded">Stop Limit</button>
                   <button className="bg-[#1e293b] hover:bg-amber-900 text-[#f59e0b] py-1 rounded">Modify Setup</button>
                 </div>
                 <div className="grid grid-cols-2 gap-1.5">
@@ -772,12 +1080,12 @@ export default function Dashboard() {
       </main>
 
       {/* BOTTOM ACTION BAR */}
-      <footer className="flex items-center justify-between px-3 py-1.5 bg-[#0B0E14] border-t border-[#1e293b] shrink-0 font-mono text-[8px] text-[#94a3b8]">
+      <footer className="flex items-center justify-between px-3 py-1.5 bg-[#0B0E14] border-t border-[rgba(42,52,68,0.5)] shrink-0 font-mono text-[8px] text-[#94a3b8]">
         <div className="flex gap-2">
           <button onClick={handleRunScan} className="bg-[#1e293b] hover:bg-[#1e293b]/80 text-white px-2 py-0.5 rounded">Run Scan [F5]</button>
           <button className="bg-[#1e293b] hover:bg-[#1e293b]/80 text-white px-2 py-0.5 rounded">Spawn [N]</button>
           <button className="bg-[#1e293b] hover:bg-[#1e293b]/80 text-white px-2 py-0.5 rounded">Export [F7]</button>
-          <button onClick={handleExecTop5} className="bg-cyan-900 text-[#06b6d4] px-2 py-0.5 rounded">Exec Top 5</button>
+          <button onClick={handleExecTop5} className="bg-cyan-900 text-[#00D9FF] px-2 py-0.5 rounded">Exec Top 5</button>
           <button onClick={handleFlatten} className="bg-amber-900 text-[#f59e0b] px-2 py-0.5 rounded">Flatten</button>
           <button onClick={handleEmergencyStop} className="bg-red-900 text-red-400 px-2 py-0.5 rounded font-bold">EMERGENCY STOP</button>
         </div>
@@ -798,7 +1106,9 @@ export default function Dashboard() {
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #0B0E14; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 2px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #06b6d4; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #00D9FF; }
+        @keyframes ticker-glow { 0%,100% { opacity: 0.7; } 50% { opacity: 1; } }
+        .ticker-glow { animation: ticker-glow 2s ease-in-out infinite; }
       `}} />
     </div>
   );

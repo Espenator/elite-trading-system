@@ -87,6 +87,24 @@ input[type="number"] {
   appearance: textfield;
 }
 
+/* Aurora Design System Utilities */
+:root {
+  --bg-primary: #0B0E1A;
+  --card-bg: linear-gradient(145deg, #111827, #1F2937);
+  --glow-hover: 0 0 20px rgba(0,217,255,0.5);
+}
+
+.aurora-card {
+  @apply bg-aurora-card border border-aurora-border rounded-aurora p-4 backdrop-blur-glass shadow-glass;
+  transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+}
+.aurora-card:hover { box-shadow: var(--glow-hover); }
+.aurora-kpi { @apply font-mono text-sm font-bold text-aurora-primary; }
+.aurora-label { @apply text-xs uppercase tracking-wider text-aurora-subtext font-semibold; }
+.aurora-badge {
+  @apply px-2 py-1 text-xs font-semibold rounded-full uppercase;
+}
+
 /* Toast font family */
 .Toastify__toast,
 .Toastify__toast-body,

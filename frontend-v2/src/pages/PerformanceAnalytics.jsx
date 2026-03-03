@@ -6,15 +6,91 @@ import {
   ChevronRight, Brain, Gauge, Info, ChevronDown,
   Grid, Maximize2, AlertCircle, RefreshCw
 } from 'lucide-react';
-import {
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-  RadialBarChart, RadialBar, LineChart, Line,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  Legend, ReferenceLine
-} from 'recharts';
 import { createChart } from 'lightweight-charts';
 import { useApi } from '../hooks/useApi';
 import Card from '../components/ui/Card';
+
+// --- Mini Lightweight Charts Components ---
+
+const MiniLineChart = ({ data, dataKey, dateKey, color, height = 80 }) => {
+  const containerRef = useRef(null);
+  useEffect(() => {
+    if (!containerRef.current || !data?.length) return;
+    const chart = createChart(containerRef.current, {
+      layout: { background: { color: 'transparent' }, textColor: '#9CA3AF' },
+      grid: { vertLines: { color: 'rgba(42,52,68,0.3)' }, horzLines: { color: 'rgba(42,52,68,0.3)' } },
+      width: containerRef.current.clientWidth,
+      height,
+      rightPriceScale: { visible: false },
+      timeScale: { visible: false, borderVisible: false },
+      crosshair: { mode: 0 },
+      handleScroll: false,
+      handleScale: false,
+    });
+    const series = chart.addLineSeries({
+      color: color || '#06b6d4',
+      lineWidth: 1.5,
+      crosshairMarkerVisible: false,
+      priceLineVisible: false,
+      lastValueVisible: false,
+    });
+    const seriesData = data
+      .filter(d => d[dateKey] && d[dataKey] != null)
+      .map(d => ({ time: d[dateKey], value: d[dataKey] }));
+    if (seriesData.length) {
+      series.setData(seriesData);
+      chart.timeScale().fitContent();
+    }
+    const handleResize = () => {
+      if (containerRef.current) chart.applyOptions({ width: containerRef.current.clientWidth });
+    };
+    window.addEventListener('resize', handleResize);
+    return () => { window.removeEventListener('resize', handleResize); chart.remove(); };
+  }, [data, dataKey, dateKey, color, height]);
+  if (!data?.length) return null;
+  return <div ref={containerRef} className="w-full" />;
+};
+
+const MiniAreaChart = ({ data, dataKey, dateKey, lineColor, topColor, height = 50 }) => {
+  const containerRef = useRef(null);
+  useEffect(() => {
+    if (!containerRef.current || !data?.length) return;
+    const chart = createChart(containerRef.current, {
+      layout: { background: { color: 'transparent' }, textColor: '#9CA3AF' },
+      grid: { vertLines: { color: 'rgba(42,52,68,0.3)' }, horzLines: { color: 'rgba(42,52,68,0.3)' } },
+      width: containerRef.current.clientWidth,
+      height,
+      rightPriceScale: { visible: false },
+      timeScale: { visible: false, borderVisible: false },
+      crosshair: { mode: 0 },
+      handleScroll: false,
+      handleScale: false,
+    });
+    const series = chart.addAreaSeries({
+      lineColor: lineColor || '#EF4444',
+      topColor: topColor || 'rgba(239,68,68,0.3)',
+      bottomColor: 'transparent',
+      lineWidth: 1.5,
+      crosshairMarkerVisible: false,
+      priceLineVisible: false,
+      lastValueVisible: false,
+    });
+    const seriesData = data
+      .filter(d => d[dateKey] && d[dataKey] != null)
+      .map(d => ({ time: d[dateKey], value: d[dataKey] }));
+    if (seriesData.length) {
+      series.setData(seriesData);
+      chart.timeScale().fitContent();
+    }
+    const handleResize = () => {
+      if (containerRef.current) chart.applyOptions({ width: containerRef.current.clientWidth });
+    };
+    window.addEventListener('resize', handleResize);
+    return () => { window.removeEventListener('resize', handleResize); chart.remove(); };
+  }, [data, dataKey, dateKey, lineColor, topColor, height]);
+  if (!data?.length) return null;
+  return <div ref={containerRef} className="w-full" />;
+};
 
 const PerformanceAnalytics = () => {
   // --- API DATA FETCHING (all real endpoints, zero fake data) ---
@@ -337,18 +413,11 @@ const PerformanceAnalytics = () => {
               <Zap className="w-3 h-3" /> ML & Flywheel Engine
             </h3>
 
-            {/* ML Model Accuracy Trend */}
+            {/* ML Model Accuracy Trend - Lightweight Charts */}
             <div className="mb-3">
               <div className="text-[9px] text-gray-500 mb-1">ML Model Accuracy Trend</div>
               {flywheel?.accuracyHistory ? (
-                <ResponsiveContainer width="100%" height={80}>
-                  <LineChart data={flywheel.accuracyHistory}>
-                    <Line type="monotone" dataKey="accuracy" stroke={C.cyan} strokeWidth={1.5} dot={false} />
-                    <XAxis dataKey="date" hide />
-                    <YAxis hide domain={[0, 1]} />
-                    <Tooltip contentStyle={{ background: '#1e293b', border: 'none', fontSize: '10px' }} />
-                  </LineChart>
-                </ResponsiveContainer>
+                <MiniLineChart data={flywheel.accuracyHistory} dataKey="accuracy" dateKey="date" color={C.cyan} height={80} />
               ) : <div className="text-[10px] text-gray-600 text-center py-4">Loading...</div>}
             </div>
 
@@ -415,18 +484,20 @@ const PerformanceAnalytics = () => {
                 <div className="text-gray-400">{Math.round((flywheel?.agentConfidence || 0.67) * 100)}% <span className="text-gray-600">Agent</span></div>
               </div>
             </div>
-            {/* Rolling Risk Sharpe bar chart */}
+            {/* Rolling Risk Sharpe - div-based bars */}
             <div className="mt-2">
               <div className="text-[9px] text-gray-500 mb-1">Rolling Risk Sharpe</div>
-              <ResponsiveContainer width="100%" height={50}>
-                <BarChart data={riskMetrics?.rollingRiskSharpe || []}>
-                  <Bar dataKey="value" radius={[2, 2, 0, 0]}>
-                    {(riskMetrics?.rollingRiskSharpe || []).map((e, i) => (
-                      <Cell key={i} fill={e.value > 0.6 ? C.green : e.value > 0.3 ? C.amber : C.red} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="flex items-end gap-[2px] h-[50px]">
+                {(riskMetrics?.rollingRiskSharpe || []).map((e, i) => {
+                  const maxVal = Math.max(...(riskMetrics?.rollingRiskSharpe || []).map(d => Math.abs(d.value || 0)), 0.01);
+                  const heightPct = (Math.abs(e.value || 0) / maxVal) * 100;
+                  const barColor = e.value > 0.6 ? '#10B981' : e.value > 0.3 ? '#F59E0B' : '#EF4444';
+                  return (
+                    <div key={i} className="flex-1 rounded-t-sm transition-all" title={`${e.label || ''}: ${(e.value || 0).toFixed(2)}`}
+                      style={{ height: `${Math.max(heightPct, 4)}%`, backgroundColor: barColor, minWidth: '3px' }} />
+                  );
+                })}
+              </div>
             </div>
           </Card>
 
@@ -520,22 +591,23 @@ const PerformanceAnalytics = () => {
               <div className="text-[9px] text-gray-500">Risk Shield Status</div>
               <div className="text-xs font-bold text-emerald-400">{riskStatus?.status || 'ACTIVE'}</div>
               {riskStatus?.shieldBreakdown ? (
-                <ResponsiveContainer width="100%" height={50}>
-                  <BarChart data={riskStatus.shieldBreakdown || []}>
-                    <Bar dataKey="value" fill={C.cyan} radius={[2, 2, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                <div className="flex items-end gap-[2px] h-[50px]">
+                  {(riskStatus.shieldBreakdown || []).map((e, i) => {
+                    const maxVal = Math.max(...(riskStatus.shieldBreakdown || []).map(d => Math.abs(d.value || 0)), 0.01);
+                    const heightPct = (Math.abs(e.value || 0) / maxVal) * 100;
+                    return (
+                      <div key={i} className="flex-1 rounded-t-sm transition-all" title={`${e.label || e.name || ''}: ${(e.value || 0).toFixed(2)}`}
+                        style={{ height: `${Math.max(heightPct, 4)}%`, backgroundColor: '#00D9FF', minWidth: '3px' }} />
+                    );
+                  })}
+                </div>
               ) : <div className="text-[10px] text-gray-600">No data</div>}
             </div>
-            {/* Risk History */}
+            {/* Risk History - Lightweight Charts */}
             <div className="mb-2">
               <div className="text-[9px] text-gray-500 mb-1">Risk History</div>
               {riskMetrics?.riskHistory ? (
-                <ResponsiveContainer width="100%" height={50}>
-                  <AreaChart data={riskMetrics.riskHistory}>
-                    <Area type="monotone" dataKey="value" stroke={C.red} fill={C.red + '22'} />
-                  </AreaChart>
-                </ResponsiveContainer>
+                <MiniAreaChart data={riskMetrics.riskHistory} dataKey="value" dateKey="date" lineColor="#EF4444" topColor="rgba(239,68,68,0.3)" height={50} />
               ) : <div className="text-[10px] text-gray-600">Loading...</div>}
             </div>
             {/* VaR Gauge - DATA-DRIVEN NEEDLE */}

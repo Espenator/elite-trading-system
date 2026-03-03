@@ -95,10 +95,10 @@ const SHAP_FACTORS = [
 // ============================================================================
 
 const Panel = ({ title, icon: Icon, children, className = '', headerAction = null }) => (
-  <div className={`bg-[#111827] border border-[#1e293b] rounded-lg overflow-hidden flex flex-col ${className}`}>
+  <div className={`bg-[#111827] border border-[#1e293b] rounded-aurora overflow-hidden flex flex-col ${className}`}>
     <div className="px-3 py-2 border-b border-[#1e293b] flex justify-between items-center bg-[#111827] shrink-0">
       <div className="flex items-center gap-2">
-        {Icon && <Icon className="w-3.5 h-3.5 text-cyan-500 shrink-0" />}
+        {Icon && <Icon className="w-3.5 h-3.5 text-[#00D9FF] shrink-0" />}
         <h3 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">{title}</h3>
       </div>
       {headerAction && <div className="flex items-center gap-1">{headerAction}</div>}
@@ -177,7 +177,7 @@ export default function SignalIntelligenceV3() {
   const { data: apiSentiment } = useApi('sentiment', { pollIntervalMs: 30000 });
   const { data: apiYoutube } = useApi('youtubeKnowledge', { pollIntervalMs: 60000 });
   const { data: apiTraining } = useApi('training', { pollIntervalMs: 30000 });
-  const { data: apiFlywheel } = useApi('flywheel', { pollIntervalMs: 30000 });
+  // flywheel hook moved to derived data section with 15s polling for ML Controls
   const { data: apiPatterns } = useApi('patterns', { pollIntervalMs: 10000 });
   const { data: apiRisk } = useApi('risk', { pollIntervalMs: 10000 });
   const { data: apiAlerts } = useApi('alerts', { pollIntervalMs: 10000 });
@@ -256,6 +256,7 @@ export default function SignalIntelligenceV3() {
     });
     const sma20 = chart.addLineSeries({ color: '#06b6d4', lineWidth: 1, title: 'SMA20' });
     const sma50 = chart.addLineSeries({ color: '#a855f7', lineWidth: 1, title: 'SMA50' });
+    const sma200 = chart.addLineSeries({ color: '#F97316', lineWidth: 1, lineStyle: LineStyle.Dashed, title: 'SMA200' });
     const vwap = chart.addLineSeries({ color: '#ffffff', lineWidth: 1, lineStyle: LineStyle.Dotted, title: 'VWAP' });
         // Fetch real OHLCV data from backend quotes API
     const fetchChart = async () => {
@@ -268,8 +269,8 @@ export default function SignalIntelligenceV3() {
         if (bars.length === 0) return;
         const data = bars.map(b => ({ time: Math.floor(new Date(b.timestamp || b.t).getTime() / 1000), open: b.open || b.o, high: b.high || b.h, low: b.low || b.l, close: b.close || b.c }));
         const volData = bars.map((b, i) => ({ time: data[i].time, value: b.volume || b.v || 0, color: data[i].close >= data[i].open ? '#10b98144' : '#ef444444' }));
-        // Compute SMA20, SMA50, VWAP from real data
-        const s20 = []; const s50 = []; const vwapData = [];
+        // Compute SMA20, SMA50, SMA200, VWAP from real data
+        const s20 = []; const s50 = []; const s200 = []; const vwapData = [];
         let cumVol = 0, cumVolPrice = 0;
         data.forEach((d, i) => {
           const vol = bars[i].volume || bars[i].v || 0;
@@ -278,9 +279,10 @@ export default function SignalIntelligenceV3() {
           if (cumVol > 0) vwapData.push({ time: d.time, value: cumVolPrice / cumVol });
           if (i >= 19) s20.push({ time: d.time, value: data.slice(i - 19, i + 1).reduce((a, b) => a + b.close, 0) / 20 });
           if (i >= 49) s50.push({ time: d.time, value: data.slice(i - 49, i + 1).reduce((a, b) => a + b.close, 0) / 50 });
+          if (i >= 199) s200.push({ time: d.time, value: data.slice(i - 199, i + 1).reduce((a, b) => a + b.close, 0) / 200 });
         });
         candleSeries.setData(data); volSeries.setData(volData);
-        sma20.setData(s20); sma50.setData(s50); vwap.setData(vwapData);
+        sma20.setData(s20); sma50.setData(s50); sma200.setData(s200); vwap.setData(vwapData);
         const lastPrice = data[data.length - 1].close;
         candleSeries.createPriceLine({ price: lastPrice, color: '#06b6d4', lineWidth: 2, lineStyle: LineStyle.Solid, title: 'ENTRY' });
         candleSeries.createPriceLine({ price: lastPrice * 1.05, color: '#10b981', lineWidth: 2, lineStyle: LineStyle.Dashed, title: 'TARGET' });
@@ -356,10 +358,54 @@ export default function SignalIntelligenceV3() {
     } catch (e) { console.error(e); }
   }, []);
 
+  // --- ML Controls State ---
+  const [mlConfidenceThreshold, setMlConfidenceThreshold] = useState(75);
+
   // --- DERIVED DATA ---
-  const regimeData = useMemo(() => apiOpenclaw?.regime || { state: 'BULL_TREND', conf: 87, color: 'emerald' }, [apiOpenclaw]);
+  const { data: regimeApiData } = useApi('openclawRegime', { pollIntervalMs: 10000 });
+  const { data: flywheelData } = useApi('flywheel', { pollIntervalMs: 15000 });
+  const regimeData = useMemo(() => regimeApiData || apiOpenclaw?.regime || { state: 'BULL_TREND', conf: 87, color: 'emerald', since: null }, [regimeApiData, apiOpenclaw]);
+
+  // Regime banner color mapping: BULL=green, BEAR=red, SIDEWAYS=yellow, HIGH_VOL=orange
+  const regimeBanner = useMemo(() => {
+    const state = regimeData.state || '';
+    if (state.includes('BULL')) return { color: '#10B981', bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.3)', text: '#10B981', label: 'BULL', icon: 'trending-up' };
+    if (state.includes('BEAR')) return { color: '#EF4444', bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.3)', text: '#EF4444', label: 'BEAR', icon: 'trending-down' };
+    if (state.includes('HIGH_VOL') || state.includes('VOLATILE')) return { color: '#F97316', bg: 'rgba(249,115,22,0.08)', border: 'rgba(249,115,22,0.3)', text: '#F97316', label: 'HIGH_VOL', icon: 'alert' };
+    if (state.includes('SIDE') || state.includes('RANGE') || state.includes('CHOP')) return { color: '#F59E0B', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.3)', text: '#F59E0B', label: 'SIDEWAYS', icon: 'minus' };
+    return { color: '#10B981', bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.3)', text: '#10B981', label: 'BULL', icon: 'trending-up' };
+  }, [regimeData]);
+
   const bannerColor = regimeData.state?.includes('BULL') ? 'emerald' : regimeData.state?.includes('BEAR') ? 'red' : 'amber';
   const timeframes = ['1m', '5m', '15m', '1H', '4H', '1D', '1W'];
+
+  // Scanner metrics derived from real state
+  const scannerMetrics = useMemo(() => {
+    const activeScanners = Object.values(scannerStates).filter(s => s.active).length;
+    const totalRuns = Object.values(scannerStates).reduce((sum, s) => sum + s.runs, 0);
+    const sigs = Array.isArray(apiSignals) ? apiSignals : apiSignals?.signals || signals;
+    const signalsToday = sigs.length;
+    const highConfSignals = sigs.filter(s => (s.score || s.confidence || 0) >= 80).length;
+    const hitRate = signalsToday > 0 ? Math.round((highConfSignals / signalsToday) * 100) : 0;
+    const topSignal = sigs.length > 0 ? (sigs.reduce((best, s) => (s.score || s.confidence || 0) > (best.score || best.confidence || 0) ? s : best, sigs[0])) : null;
+    return { activeScanners, totalRuns, signalsToday, hitRate, topSignal };
+  }, [scannerStates, apiSignals, signals]);
+
+  // ML Controls derived data (combines training + flywheel data)
+  const mlControlsData = useMemo(() => {
+    const activeModels = Object.values(mlStates).filter(m => m.active).length;
+    const lastRetrain = flywheelData?.last_retrain || flywheelData?.lastRetrain || apiTraining?.last_retrain || apiTraining?.lastRetrain || null;
+    const flywheelCycles = flywheelData?.cycles || flywheelData?.total_cycles || null;
+    const flywheelAccuracy = flywheelData?.accuracy || flywheelData?.model_accuracy || null;
+    const featureImportance = flywheelData?.feature_importance || flywheelData?.featureImportance || apiTraining?.feature_importance || apiTraining?.featureImportance || [
+      { name: 'UW Options Flow', importance: 0.23 },
+      { name: 'Velez Score', importance: 0.19 },
+      { name: 'Volume Surge', importance: 0.15 },
+      { name: 'RSI Divergence', importance: 0.12 },
+      { name: 'HTF Structure', importance: 0.09 },
+    ];
+    return { activeModels, lastRetrain, flywheelCycles, flywheelAccuracy, featureImportance: (Array.isArray(featureImportance) ? featureImportance : []).slice(0, 5) };
+  }, [mlStates, apiTraining, flywheelData]);
 
   // --- RENDER ---
   return (
@@ -367,30 +413,59 @@ export default function SignalIntelligenceV3() {
       {/* TOP TOOLBAR */}
       <div className="flex items-center justify-between px-4 py-2 bg-[#111827] border-b border-[#1e293b] sticky top-0 z-50">
         <div className="flex items-center gap-3">
-          <Activity className="w-4 h-4 text-cyan-500" />
-          <span className="text-sm font-bold text-cyan-400 tracking-wider">SIGNAL_INTELLIGENCE_V3</span>
+          <Activity className="w-4 h-4 text-[#00D9FF]" />
+          <span className="text-sm font-bold text-[#00D9FF] tracking-wider font-mono">SIGNAL_INTELLIGENCE_V3</span>
         </div>
         <div className="flex items-center gap-3 text-[9px] text-gray-500">
           <Badge color="cyan">OC_CORE_v5.2.1</Badge>
           <Badge color={wsLatency < 100 ? 'emerald' : 'amber'}>WS_LATENCY: {wsLatency}ms</Badge>
           <Badge color="purple">SWARM_SIZE: {ALL_AGENTS.length}</Badge>
-          <button className="flex items-center gap-1 px-2 py-1 bg-cyan-500/10 border border-cyan-500/30 rounded text-cyan-400 hover:bg-cyan-500/20 transition-colors">
+          <button className="flex items-center gap-1 px-2 py-1 bg-[#00D9FF]/10 border border-[#00D9FF]/30 rounded-aurora text-[#00D9FF] hover:bg-[#00D9FF]/20 hover:shadow-glow transition-all duration-200">
             <Save className="w-3 h-3" /> Save Profile
           </button>
         </div>
       </div>
 
-      {/* REGIME BANNER */}
-      <div className={`flex items-center justify-between px-4 py-1.5 bg-${bannerColor}-500/5 border-b border-${bannerColor}-500/20`}>
+      {/* ================================================================== */}
+      {/* REGIME BANNER - Full-width gradient color-coded market regime     */}
+      {/* ================================================================== */}
+      <div
+        className="flex items-center justify-between px-4 py-2.5 border-b"
+        style={{
+          background: `linear-gradient(90deg, ${regimeBanner.bg} 0%, rgba(11,14,20,0.95) 50%, ${regimeBanner.bg} 100%)`,
+          borderColor: regimeBanner.border
+        }}
+      >
         <div className="flex items-center gap-3">
-          <span className={`w-2 h-2 rounded-full bg-${bannerColor}-500 shadow-[0_0_8px] shadow-${bannerColor}-500/50 animate-pulse`} />
-          <span className={`text-xs font-bold text-${bannerColor}-400 tracking-wider`}>{regimeData.state} REGIME</span>
-          <span className="text-[9px] text-gray-600">Hidden Markov Model (Layer 3)</span>
+          <span
+            className="w-2.5 h-2.5 rounded-full animate-pulse"
+            style={{ backgroundColor: regimeBanner.color, boxShadow: `0 0 12px ${regimeBanner.color}` }}
+          />
+          {regimeBanner.label === 'BULL' && <TrendingUp className="w-4 h-4" style={{ color: regimeBanner.text }} />}
+          {regimeBanner.label === 'BEAR' && <TrendingDown className="w-4 h-4" style={{ color: regimeBanner.text }} />}
+          {regimeBanner.label === 'HIGH_VOL' && <AlertTriangle className="w-4 h-4" style={{ color: regimeBanner.text }} />}
+          {regimeBanner.label === 'SIDEWAYS' && <Activity className="w-4 h-4" style={{ color: regimeBanner.text }} />}
+          <span className="text-sm font-bold tracking-wider font-mono" style={{ color: regimeBanner.text }}>
+            REGIME: {regimeBanner.label}
+          </span>
+          <span className="text-sm text-gray-500 font-mono">|</span>
+          <span className="text-sm font-bold font-mono" style={{ color: regimeBanner.text }}>
+            Confidence: {regimeData.conf ?? '--'}%
+          </span>
+          <span className="text-sm text-gray-500 font-mono">|</span>
+          <span className="text-sm font-mono" style={{ color: regimeBanner.text }}>
+            Since: {regimeData.since ? new Date(regimeData.since).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : regimeData.since_date ? new Date(regimeData.since_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '--'}
+          </span>
+          <span className="text-[9px] text-gray-600 font-mono ml-2">HMM Layer 3</span>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-6">
           <div className="flex items-center gap-2">
-            <span className="text-[9px] text-gray-500">HMM Confidence</span>
-            <span className={`text-xs font-bold text-${bannerColor}-400`}>{regimeData.conf}%</span>
+            <div className="w-24 h-1.5 bg-[#1e293b] rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{ width: `${regimeData.conf ?? 0}%`, backgroundColor: regimeBanner.color }}
+              />
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-[9px] text-gray-500">Override</span>
@@ -400,8 +475,101 @@ export default function SignalIntelligenceV3() {
         </div>
       </div>
 
-      {/* 4-COLUMN PANORAMIC GRID */}
-      <div className="grid grid-cols-[20%_30%_25%_25%] gap-2 p-2 h-[calc(100vh-80px)]">
+      {/* ================================================================== */}
+      {/* SCANNER SUMMARY CARDS - 4 cards in a horizontal row              */}
+      {/* ================================================================== */}
+      <div className="grid grid-cols-4 gap-2 px-2 pt-2">
+        {/* Card 1: Active Scanners */}
+        <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-3 flex items-center gap-3 hover:shadow-glow transition-shadow duration-300">
+          <div className="w-10 h-10 rounded-[8px] bg-[#00D9FF]/10 flex items-center justify-center shrink-0">
+            <Radio className="w-5 h-5 text-[#00D9FF]" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[9px] text-gray-500 uppercase tracking-widest">Active Scanners</div>
+            <div className="text-2xl font-bold font-mono text-[#00D9FF]">{scannerMetrics.activeScanners}<span className="text-xs text-gray-600">/{SCANNERS.length}</span></div>
+          </div>
+          <div className="w-1.5 h-10 bg-[#1e293b] rounded-full overflow-hidden">
+            <div className="w-full bg-[#00D9FF] rounded-full transition-all" style={{ height: `${(scannerMetrics.activeScanners / SCANNERS.length) * 100}%` }} />
+          </div>
+        </div>
+
+        {/* Card 2: Signals Today */}
+        <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-3 flex items-center gap-3 hover:shadow-glow transition-shadow duration-300">
+          <div className="w-10 h-10 rounded-[8px] bg-emerald-500/10 flex items-center justify-center shrink-0">
+            <Zap className="w-5 h-5 text-emerald-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[9px] text-gray-500 uppercase tracking-widest">Signals Today</div>
+            <div className="text-2xl font-bold font-mono text-[#00D9FF]">{scannerMetrics.signalsToday}</div>
+          </div>
+          <div className="text-[9px] text-gray-600 font-mono">{scannerMetrics.totalRuns} runs</div>
+        </div>
+
+        {/* Card 3: Hit Rate */}
+        <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-3 flex items-center gap-3 hover:shadow-glow transition-shadow duration-300">
+          <div className="w-10 h-10 rounded-[8px] bg-amber-500/10 flex items-center justify-center shrink-0">
+            <Target className="w-5 h-5 text-amber-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[9px] text-gray-500 uppercase tracking-widest">Hit Rate</div>
+            <div className="text-2xl font-bold font-mono text-[#00D9FF]">{scannerMetrics.hitRate}%</div>
+          </div>
+          <div className="w-12 h-12 relative">
+            <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+              <circle cx="18" cy="18" r="15" fill="none" stroke="#1e293b" strokeWidth="3" />
+              <circle cx="18" cy="18" r="15" fill="none" stroke="#F59E0B" strokeWidth="3"
+                strokeDasharray={`${scannerMetrics.hitRate * 0.942} 94.2`} strokeLinecap="round" />
+            </svg>
+          </div>
+        </div>
+
+        {/* Card 4: Top Signal */}
+        <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-3 flex items-center gap-3 hover:shadow-glow transition-shadow duration-300">
+          <div className="w-10 h-10 rounded-[8px] bg-purple-500/10 flex items-center justify-center shrink-0">
+            <Rocket className="w-5 h-5 text-purple-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[9px] text-gray-500 uppercase tracking-widest">Top Signal</div>
+            {scannerMetrics.topSignal ? (
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-bold font-mono text-[#00D9FF]">{scannerMetrics.topSignal.symbol || scannerMetrics.topSignal.ticker || '--'}</span>
+                <Badge color={scannerMetrics.topSignal.dir === 'LONG' || scannerMetrics.topSignal.action === 'BUY' ? 'emerald' : 'red'}>
+                  {scannerMetrics.topSignal.dir || scannerMetrics.topSignal.action || '--'}
+                </Badge>
+              </div>
+            ) : (
+              <span className="text-sm font-mono text-gray-600">--</span>
+            )}
+          </div>
+          {scannerMetrics.topSignal && (
+            <span className="text-lg font-bold font-mono text-[#00D9FF]">{scannerMetrics.topSignal.score || scannerMetrics.topSignal.confidence || '--'}</span>
+          )}
+        </div>
+      </div>
+
+      {/* ================================================================== */}
+      {/* CHART ROW: Candlestick Chart (full width)                         */}
+      {/* ================================================================== */}
+      <div className="px-2 pt-2">
+        {/* Candlestick Chart with SMA overlays */}
+        <Panel title={`${selectedSymbol} ${chartTimeframe} PATTERNS: ON`} icon={Crosshair}
+          className="hover:shadow-glow transition-shadow duration-300"
+          headerAction={
+            <div className="flex gap-1">
+              {timeframes.map(t => (
+                <button key={t} onClick={() => setChartTimeframe(t)}
+                  className={`px-1.5 py-0.5 rounded-aurora text-[9px] font-mono border transition-all duration-200 ${chartTimeframe === t ? 'bg-[#00D9FF]/20 border-[#00D9FF]/50 text-[#00D9FF] shadow-glow' : 'bg-[#1e293b] border-[#374151] text-gray-500 hover:text-gray-300 hover:border-gray-500'}`}>{t}</button>
+              ))}
+            </div>
+          }>
+          <div ref={chartContainerRef} className="w-full min-h-[340px]" style={{ height: '340px' }} />
+        </Panel>
+      </div>
+
+      {/* ================================================================== */}
+      {/* MAIN CONTENT: Signal Table + ML Controls | 4-Column Controls      */}
+      {/* ================================================================== */}
+      <div className="grid grid-cols-[20%_30%_25%_25%] gap-2 p-2" style={{ height: 'calc(100vh - 500px)', minHeight: '400px' }}>
 
         {/* COL 1: AGENTS & SCANNERS (20%) */}
         <div className="flex flex-col gap-2 overflow-y-auto">
@@ -448,61 +616,150 @@ export default function SignalIntelligenceV3() {
           </Panel>
         </div>
 
-        {/* COL 2: CHART & SIGNALS (30%) */}
+        {/* COL 2: EXPANDED SIGNAL TABLE + ML CONTROLS (30%) */}
         <div className="flex flex-col gap-2 overflow-y-auto">
-          <Panel title={`${selectedSymbol} ${chartTimeframe} PATTERNS: ON`} icon={Crosshair} className="h-[55%]"
+          <Panel title="Signal Data Table" icon={FileText} className="flex-1 hover:shadow-glow transition-shadow duration-300"
             headerAction={
-              <div className="flex gap-1">
-                {timeframes.map(t => (
-                  <button key={t} onClick={() => setChartTimeframe(t)}
-                    className={`px-1.5 py-0.5 rounded text-[9px] font-mono border ${chartTimeframe === t ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400' : 'bg-[#1e293b] border-[#374151] text-gray-500 hover:text-gray-300'}`}>{t}</button>
-                ))}
+              <div className="flex items-center gap-2">
+                <span className="text-[8px] text-gray-600 font-mono">{signals.length} signals</span>
+                <button onClick={refetchSignals} className="text-gray-500 hover:text-[#00D9FF] transition-colors">
+                  <RefreshCw className="w-3 h-3" />
+                </button>
               </div>
             }>
-            <div ref={chartContainerRef} className="w-full h-full min-h-[300px]" />
-          </Panel>
-
-          <Panel title="Signal Data Table" icon={FileText} className="flex-1">
             <div className="overflow-x-auto">
               <table className="w-full text-[9px]">
                 <thead>
-                  <tr className="text-gray-500 border-b border-[#1e293b]">
-                    <th className="text-left py-1 px-1">Symbol</th>
-                    <th className="text-left py-1">Score</th>
-                    <th className="text-left py-1">Dir</th>
-                    <th className="text-left py-1">Price</th>
-                    <th className="text-left py-1">Agent</th>
-                                      <th className="text-left py-1 px-1">Kelly</th>
-                  <th className="text-left py-1 px-1">Quality</th>
-                    <th className="text-left py-1">Actions</th>
+                  <tr className="text-gray-500 border-b border-[#1e293b] uppercase tracking-wider">
+                    <th className="text-left py-1.5 px-1 sticky left-0 bg-[#111827]">Symbol</th>
+                    <th className="text-left py-1.5 px-1">Dir</th>
+                    <th className="text-left py-1.5 px-1">Prob</th>
+                    <th className="text-left py-1.5 px-1">Comp</th>
+                    <th className="text-left py-1.5 px-1">Velez</th>
+                    <th className="text-left py-1.5 px-1">Vol R</th>
+                    <th className="text-left py-1.5 px-1">Regime</th>
+                    <th className="text-left py-1.5 px-1">Scanner</th>
+                    <th className="text-left py-1.5 px-1">Agent</th>
+                    <th className="text-left py-1.5 px-1">Conf</th>
+                    <th className="text-left py-1.5 px-1">Kelly</th>
+                    <th className="text-left py-1.5 px-1">Time</th>
+                    <th className="text-left py-1.5 px-1">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {signals.map((sig, idx) => (
-                    <tr key={sig.id || idx} className="border-b border-[#1e293b]/30 hover:bg-[#1e293b]/40 cursor-pointer"
-                      onClick={() => setSelectedSymbol(sig.symbol)}>
-                      <td className={`py-1 px-1 font-bold ${sig.score > 80 ? 'text-cyan-400' : 'text-gray-300'}`}>{sig.symbol}</td>
-                      <td className="py-1">
-                        <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${sig.score >= 90 ? 'bg-emerald-500/20 text-emerald-400' : sig.score <= 40 ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'}`}>{sig.score}</span>
+                    <tr key={sig.id || idx} className="border-b border-[#1e293b]/30 hover:bg-[#00D9FF]/5 cursor-pointer transition-colors"
+                      onClick={() => setSelectedSymbol(sig.symbol || sig.ticker)}>
+                      <td className={`py-1 px-1 font-bold font-mono sticky left-0 bg-[#111827] ${(sig.score || sig.confidence || 0) > 80 ? 'text-[#00D9FF]' : 'text-gray-300'}`}>
+                        {sig.symbol || sig.ticker}
                       </td>
-                      <td className={`py-1 font-bold ${sig.dir === 'LONG' ? 'text-emerald-400' : 'text-red-400'}`}>{sig.dir}</td>
-                      <td className="py-1 text-gray-300">{typeof sig.price === 'number' ? sig.price.toFixed(2) : sig.price}</td>
-                      <td className="py-1 text-gray-500">{sig.agent}</td>
-                                      <td className="py-1 text-cyan-400">{sig.kelly_edge ? `${(sig.kelly_edge * 100).toFixed(1)}%` : '-'}</td>
-                <td className="py-1">
-                  {sig.signal_quality ? (
-                    <span className={`px-1 rounded text-[8px] font-bold ${sig.signal_quality >= 0.7 ? 'bg-emerald-500/20 text-emerald-400' : sig.signal_quality >= 0.4 ? 'bg-amber-500/20 text-amber-400' : 'bg-red-500/20 text-red-400'}`}>
-                      {(sig.signal_quality * 100).toFixed(0)}%
-                    </span>
-                  ) : '-'}
-                </td>
-                      <td className="py-1">
-                        <button className="text-cyan-500 hover:text-cyan-300"><Eye className="w-2.5 h-2.5" /></button>
+                      <td className="py-1 px-1">
+                        <span className={`px-1 py-0.5 rounded text-[8px] font-bold ${(sig.dir === 'LONG' || sig.action === 'BUY') ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>
+                          {sig.dir || sig.action || '--'}
+                        </span>
+                      </td>
+                      <td className="py-1 px-1 font-mono">
+                        <span className={`text-[8px] font-bold ${(sig.probability || sig.score || 0) >= 80 ? 'text-emerald-400' : (sig.probability || sig.score || 0) >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
+                          {sig.probability ? `${(sig.probability * 100).toFixed(0)}%` : sig.score ? `${sig.score}%` : '--'}
+                        </span>
+                      </td>
+                      <td className="py-1 px-1 font-mono text-gray-400">{sig.compression || sig.comp || '--'}</td>
+                      <td className="py-1 px-1 font-mono text-purple-400">{sig.velez_score || sig.velezScore || '--'}</td>
+                      <td className="py-1 px-1 font-mono text-[#00D9FF]">{sig.vol_ratio || sig.volRatio ? (sig.vol_ratio || sig.volRatio).toFixed(1) : '--'}</td>
+                      <td className="py-1 px-1">
+                        <span className={`text-[8px] ${regimeData.state?.includes('BULL') ? 'text-emerald-400' : regimeData.state?.includes('BEAR') ? 'text-red-400' : 'text-amber-400'}`}>
+                          {sig.regime || regimeBanner.label}
+                        </span>
+                      </td>
+                      <td className="py-1 px-1 text-gray-500 truncate max-w-[50px]">{sig.scanner || sig.source || '--'}</td>
+                      <td className="py-1 px-1 text-gray-500 truncate max-w-[50px]">{sig.agent || '--'}</td>
+                      <td className="py-1 px-1">
+                        <span className={`font-mono text-[8px] font-bold ${(sig.confidence || sig.score || 0) >= 85 ? 'text-emerald-400' : (sig.confidence || sig.score || 0) >= 60 ? 'text-[#00D9FF]' : 'text-amber-400'}`}>
+                          {sig.confidence || sig.score || '--'}
+                        </span>
+                      </td>
+                      <td className="py-1 px-1 text-[#00D9FF] font-mono">{sig.kelly_edge ? `${(sig.kelly_edge * 100).toFixed(1)}%` : '--'}</td>
+                      <td className="py-1 px-1 text-gray-600 font-mono">{sig.timestamp ? new Date(sig.timestamp).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : sig.time || '--'}</td>
+                      <td className="py-1 px-1">
+                        <button className="text-[#00D9FF] hover:text-white transition-colors"><Eye className="w-2.5 h-2.5" /></button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+          </Panel>
+
+          {/* ML Controls Panel — integrates flywheel + training data */}
+          <Panel title="ML Controls" icon={Sliders} className="hover:shadow-glow transition-shadow duration-300"
+            headerAction={
+              <Badge color={flywheelData ? 'emerald' : 'gray'}>{flywheelData ? 'FLYWHEEL LIVE' : 'FLYWHEEL --'}</Badge>
+            }>
+            {/* Confidence Threshold Slider */}
+            <div className="mb-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[9px] text-gray-500 uppercase tracking-widest">Model Confidence Threshold</span>
+                <span className="text-sm font-bold font-mono text-[#00D9FF]">{mlConfidenceThreshold}%</span>
+              </div>
+              <div className="relative w-full h-2 bg-[#1e293b] rounded-full">
+                <div className="absolute left-0 top-0 h-2 rounded-full bg-gradient-to-r from-red-500 via-amber-500 to-emerald-500 transition-all"
+                  style={{ width: `${mlConfidenceThreshold}%` }} />
+                <input type="range" min="0" max="100" value={mlConfidenceThreshold}
+                  onChange={(e) => setMlConfidenceThreshold(parseInt(e.target.value))}
+                  className="absolute inset-0 w-full opacity-0 cursor-pointer h-2" />
+              </div>
+            </div>
+
+            {/* Active Model Count */}
+            <div className="flex items-center justify-between py-1.5 border-b border-[#1e293b]/50">
+              <span className="text-[9px] text-gray-500">Active Models</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold font-mono text-emerald-400">{mlControlsData.activeModels}</span>
+                <span className="text-[8px] text-gray-600 font-mono">/ {ML_MODELS.length}</span>
+              </div>
+            </div>
+
+            {/* Last Retrain Timestamp */}
+            <div className="flex items-center justify-between py-1.5 border-b border-[#1e293b]/50">
+              <span className="text-[9px] text-gray-500">Last Retrain</span>
+              <span className="text-[9px] font-mono text-gray-400">
+                {mlControlsData.lastRetrain ? new Date(mlControlsData.lastRetrain).toLocaleString() : 'No retrain data'}
+              </span>
+            </div>
+
+            {/* Flywheel Cycles & Accuracy */}
+            <div className="flex items-center justify-between py-1.5 border-b border-[#1e293b]/50">
+              <span className="text-[9px] text-gray-500">Flywheel Cycles</span>
+              <span className="text-[9px] font-bold font-mono text-[#00D9FF]">
+                {mlControlsData.flywheelCycles ?? '--'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between py-1.5 border-b border-[#1e293b]/50">
+              <span className="text-[9px] text-gray-500">Model Accuracy</span>
+              <span className="text-[9px] font-bold font-mono text-emerald-400">
+                {mlControlsData.flywheelAccuracy != null ? `${(typeof mlControlsData.flywheelAccuracy === 'number' && mlControlsData.flywheelAccuracy <= 1 ? (mlControlsData.flywheelAccuracy * 100).toFixed(1) : mlControlsData.flywheelAccuracy)}%` : '--'}
+              </span>
+            </div>
+
+            {/* Feature Importance Top-5 */}
+            <div className="mt-2">
+              <span className="text-[8px] text-gray-500 uppercase tracking-widest">Feature Importance (Top 5)</span>
+              <div className="mt-1.5 space-y-1.5">
+                {mlControlsData.featureImportance.map((feat, i) => (
+                  <div key={feat.name || i} className="flex items-center gap-2">
+                    <span className="text-[8px] text-gray-400 w-3 shrink-0 font-mono">{i + 1}.</span>
+                    <span className="text-[9px] text-gray-300 w-28 truncate shrink-0">{feat.name || feat.feature}</span>
+                    <div className="flex-1 h-1.5 bg-[#1e293b] rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${(feat.importance || feat.value || 0) * 100}%`,
+                          backgroundColor: i === 0 ? '#00D9FF' : i === 1 ? '#10B981' : i === 2 ? '#A855F7' : i === 3 ? '#F59E0B' : '#EF4444'
+                        }} />
+                    </div>
+                    <span className="text-[8px] font-mono text-gray-500 w-8 text-right">{((feat.importance || feat.value || 0) * 100).toFixed(0)}%</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </Panel>
         </div>

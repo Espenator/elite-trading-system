@@ -17,6 +17,28 @@ export default {
         "surface-alt": "#1a1e2f",
         secondary: "#64748b",
         "card-border": "#1e293b",
+        aurora: {
+          bg: "#0B0E1A",
+          card: "#111827",
+          border: "rgba(42,52,68,0.5)",
+          primary: "#00D9FF",
+          success: "#10B981",
+          warning: "#F59E0B",
+          danger: "#EF4444",
+          text: "#F9FAFB",
+          subtext: "#9CA3AF",
+          muted: "#374151",
+        },
+      },
+      borderRadius: {
+        aurora: "8px",
+      },
+      boxShadow: {
+        glow: "0 0 20px rgba(0,217,255,0.3)",
+        glass: "0 8px 32px rgba(0,0,0,0.3)",
+      },
+      backdropBlur: {
+        glass: "16px",
       },
       animation: {
         "pulse-slow": "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",

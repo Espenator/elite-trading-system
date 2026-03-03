@@ -11,9 +11,9 @@ const C = {
   hover: '#1e293b',
   selected: '#164e63',
   border: '#1e293b',
-  borderAccent: '#06b6d4',
+  borderAccent: '#00D9FF',
   borderSubtle: '#374151',
-  cyan500: '#06b6d4',
+  cyan500: '#00D9FF',
   cyan400: '#22d3ee',
   cyan300: '#67e8f9',
   green: '#10b981',
@@ -32,7 +32,9 @@ const C = {
 
 // ========== Card Component ==========
 const Card = ({ title, subtitle, children, style = {} }) => (
-  <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden', ...style }}>
+  <div style={{ background: '#111827', border: '1px solid rgba(42,52,68,0.5)', borderRadius: 8, overflow: 'hidden', transition: 'box-shadow 0.2s, border-color 0.2s', ...style }}
+    onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 0 20px rgba(0,217,255,0.12)'; e.currentTarget.style.borderColor = 'rgba(0,217,255,0.3)'; }}
+    onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.borderColor = 'rgba(42,52,68,0.5)'; }}>
     {title && (
       <div style={{ padding: '10px 16px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ fontSize: 11, fontWeight: 700, color: C.text, letterSpacing: '0.5px', textTransform: 'uppercase' }}>{title}</span>
@@ -114,7 +116,7 @@ export default function TradeExecution() {
   return (
     <div style={{ background: C.bg, minHeight: '100vh', padding: 16, fontFamily: "'Inter', sans-serif" }}>
       {/* === HEADER BAR (from mockup 12) === */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, padding: '10px 16px', background: C.card, borderRadius: 8, border: `1px solid ${C.border}` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, padding: '10px 16px', background: '#111827', borderRadius: 8, border: '1px solid rgba(42,52,68,0.5)' }}>
         <h1 style={{ fontSize: 16, fontWeight: 700, color: C.cyan500, margin: 0, letterSpacing: 1 }}>TRADE EXECUTION</h1>
         <div style={{ display: 'flex', gap: 20, fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }}>
           <span style={{ color: C.textMuted }}>Portfolio: <b style={{ color: C.text }}>{fmtUsd(portfolio.value)}</b></span>
@@ -134,7 +136,9 @@ export default function TradeExecution() {
           { label: 'Stop Loss [T]', color: C.red, bg: 'transparent', border: C.red, action: executeStopLoss },
         ].map(btn => (
           <button key={btn.label} onClick={btn.action}
-            style={{ padding: '8px 18px', borderRadius: 6, border: btn.border ? `1px solid ${btn.border}` : 'none', fontSize: 12, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", background: btn.bg, color: btn.color, cursor: 'pointer', letterSpacing: 0.5, transition: 'all 0.15s' }}>
+            style={{ padding: '8px 18px', borderRadius: 6, border: btn.border ? `1px solid ${btn.border}` : 'none', fontSize: 12, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", background: btn.bg, color: btn.color, cursor: 'pointer', letterSpacing: 0.5, transition: 'all 0.2s' }}
+            onMouseEnter={e => { e.currentTarget.style.boxShadow = `0 0 16px ${btn.color}33`; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+            onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none'; }}>
             {btn.label}
           </button>
         ))}
@@ -160,7 +164,9 @@ export default function TradeExecution() {
                   const priceColor = row.size > 15 ? C.green : row.size > 5 ? C.amber : C.red;
                   return (
                     <tr key={i} onClick={() => setSelectedRow(i + 1)}
-                      style={{ cursor: 'pointer', background: isSelected ? C.selected : 'transparent', borderLeft: isSelected ? `3px solid ${C.cyan500}` : '3px solid transparent', transition: 'background 0.1s', position: 'relative' }}>
+                      style={{ cursor: 'pointer', background: isSelected ? C.selected : 'transparent', borderLeft: isSelected ? `3px solid #00D9FF` : '3px solid transparent', transition: 'all 0.15s', position: 'relative' }}
+                      onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'rgba(0,217,255,0.04)'; }}
+                      onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}>
                       <td style={{ padding: '3px 6px', color: C.textDim, fontSize: 10 }}>{row.row}</td>
                       <td style={{ padding: '3px 6px', color: isSelected ? C.cyan400 : C.text, fontWeight: isSelected ? 700 : 400 }}>{parseFloat(row.price).toFixed(2)}</td>
                       <td style={{ padding: '3px 6px', textAlign: 'right', color: priceColor, position: 'relative' }}>
@@ -180,11 +186,11 @@ export default function TradeExecution() {
           <div style={{ padding: '8px 12px', display: 'grid', gap: 8 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr', alignItems: 'center', gap: 6 }}>
               <span style={{ fontSize: 11, color: C.textMuted }}>Symbol</span>
-              <select value={orderForm.symbol} onChange={e => updateOrderForm({ symbol: e.target.value })} style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 6, padding: '8px 12px', color: C.text, fontSize: 13 }}>
+              <select value={orderForm.symbol} onChange={e => updateOrderForm({ symbol: e.target.value })} style={{ background: '#0B0E14', border: '1px solid rgba(42,52,68,0.5)', borderRadius: 8, padding: '8px 12px', color: C.text, fontSize: 13 }}>
                 {['SPX', 'SPY', 'QQQ', 'AAPL', 'TSLA', 'NVDA', 'AMD', 'AMZN', 'MSFT', 'META'].map(s => <option key={s} value={s}>{s}</option>)}
               </select>
               <span style={{ fontSize: 11, color: C.textMuted }}>Strategy</span>
-              <select value={orderForm.strategy} onChange={e => updateOrderForm({ strategy: e.target.value })} style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 6, padding: '8px 12px', color: C.text, fontSize: 13 }}>
+              <select value={orderForm.strategy} onChange={e => updateOrderForm({ strategy: e.target.value })} style={{ background: '#0B0E14', border: '1px solid rgba(42,52,68,0.5)', borderRadius: 8, padding: '8px 12px', color: C.text, fontSize: 13 }}>
                 {['Iron Condor', 'Bull Call Spread', 'Bear Put Spread', 'Straddle', 'Strangle', 'Butterfly', 'Calendar Spread', 'Single Option'].map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
@@ -224,19 +230,21 @@ export default function TradeExecution() {
             {/* Quantity + Limits */}
             <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr 1fr', gap: 6, alignItems: 'center' }}>
               <span style={{ fontSize: 11, color: C.textMuted }}>Quantity</span>
-              <input type="number" value={orderForm.quantity} onChange={e => updateOrderForm({ quantity: parseInt(e.target.value) || 0 })} style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 6, padding: '8px 12px', color: C.text, fontSize: 13, fontFamily: 'monospace' }} />
-              <select value={orderForm.quantityType} onChange={e => updateOrderForm({ quantityType: e.target.value })} style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 6, padding: '8px 12px', color: C.text, fontSize: 13 }}>
+              <input type="number" value={orderForm.quantity} onChange={e => updateOrderForm({ quantity: parseInt(e.target.value) || 0 })} style={{ background: '#0B0E14', border: '1px solid rgba(42,52,68,0.5)', borderRadius: 8, padding: '8px 12px', color: C.text, fontSize: 13, fontFamily: 'monospace' }} />
+              <select value={orderForm.quantityType} onChange={e => updateOrderForm({ quantityType: e.target.value })} style={{ background: '#0B0E14', border: '1px solid rgba(42,52,68,0.5)', borderRadius: 8, padding: '8px 12px', color: C.text, fontSize: 13 }}>
                 {['Contracts', 'Shares', 'Lots'].map(t => <option key={t} value={t}>{t}</option>)}
               </select>
               <span style={{ fontSize: 11, color: C.textMuted }}>Limit</span>
-              <input type="number" step="0.01" value={orderForm.limitPrice} onChange={e => updateOrderForm({ limitPrice: parseFloat(e.target.value) || 0 })} style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 6, padding: '8px 12px', color: C.text, fontSize: 13, fontFamily: 'monospace', gridColumn: 'span 2' }} />
+              <input type="number" step="0.01" value={orderForm.limitPrice} onChange={e => updateOrderForm({ limitPrice: parseFloat(e.target.value) || 0 })} style={{ background: '#0B0E14', border: '1px solid rgba(42,52,68,0.5)', borderRadius: 8, padding: '8px 12px', color: C.text, fontSize: 13, fontFamily: 'monospace', gridColumn: 'span 2' }} />
               <span style={{ fontSize: 11, color: C.textMuted }}>Stop</span>
-              <input type="number" step="0.01" value={orderForm.stopPrice} onChange={e => updateOrderForm({ stopPrice: parseFloat(e.target.value) || 0 })} style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 6, padding: '8px 12px', color: C.text, fontSize: 13, fontFamily: 'monospace', gridColumn: 'span 2' }} />
+              <input type="number" step="0.01" value={orderForm.stopPrice} onChange={e => updateOrderForm({ stopPrice: parseFloat(e.target.value) || 0 })} style={{ background: '#0B0E14', border: '1px solid rgba(42,52,68,0.5)', borderRadius: 8, padding: '8px 12px', color: C.text, fontSize: 13, fontFamily: 'monospace', gridColumn: 'span 2' }} />
             </div>
 
             {/* Execute Button */}
             <button onClick={executeAdvancedOrder} disabled={loading}
-              style={{ padding: '10px 16px', borderRadius: 6, border: 'none', fontSize: 13, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", background: `linear-gradient(135deg, ${C.cyan500}, ${C.blue})`, color: '#fff', cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.6 : 1, letterSpacing: 0.5, transition: 'all 0.2s' }}>
+              style={{ padding: '10px 16px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", background: `linear-gradient(135deg, #00D9FF, ${C.blue})`, color: '#fff', cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.6 : 1, letterSpacing: 0.5, transition: 'all 0.2s' }}
+              onMouseEnter={e => { if (!loading) { e.currentTarget.style.boxShadow = '0 0 20px rgba(0,217,255,0.25)'; e.currentTarget.style.transform = 'translateY(-1px)'; } }}
+              onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none'; }}>
               {loading ? 'Executing...' : 'Execute Order [E]'}
             </button>
           </div>
@@ -255,7 +263,9 @@ export default function TradeExecution() {
               </thead>
               <tbody>
                 {orderBook.map((row, i) => (
-                  <tr key={i} style={{ position: 'relative' }}>
+                  <tr key={i} style={{ position: 'relative', transition: 'background 0.15s', cursor: 'pointer' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,217,255,0.04)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
                     <td style={{ padding: '3px 6px', color: C.textDim, fontSize: 10, position: 'relative' }}>
                       <VolumeBar value={row.size} max={maxBookSize} color={row.bid >= 4450 ? C.green : C.red} side="left" />
                       <span style={{ position: 'relative', zIndex: 1 }}>{row.price}</span>
@@ -360,7 +370,9 @@ export default function TradeExecution() {
             {preflightVerdict?.summary && <div style={{ fontSize: 10, color: C.textMuted, marginTop: 4 }}>{preflightVerdict.summary}</div>}
             {preflightVerdict?.adjustments && <div style={{ fontSize: 10, color: C.amber, marginTop: 4 }}>Adjustments: {JSON.stringify(preflightVerdict.adjustments)}</div>}
             <button onClick={() => runAlignmentPreflight()}
-              style={{ marginTop: 8, padding: '4px 12px', borderRadius: 4, border: 'none', fontSize: 11, fontWeight: 600, backgroundColor: C.selected, color: C.cyan500, cursor: 'pointer' }}>Run Preflight Check</button>
+              style={{ marginTop: 8, padding: '4px 12px', borderRadius: 6, border: '1px solid rgba(0,217,255,0.3)', fontSize: 11, fontWeight: 600, backgroundColor: 'rgba(0,217,255,0.1)', color: '#00D9FF', cursor: 'pointer', transition: 'all 0.2s' }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(0,217,255,0.2)'; e.currentTarget.style.boxShadow = '0 0 12px rgba(0,217,255,0.15)'; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(0,217,255,0.1)'; e.currentTarget.style.boxShadow = 'none'; }}>Run Preflight Check</button>
           </div>
         </Card>
 
