@@ -227,6 +227,7 @@ def train_xgboost(
     num_boost_round: int = 300,
     early_stopping_rounds: int = 20,
     checkpoint_dir: Optional[str] = None,
+    use_risk_adjusted: bool = False,
 ) -> Optional[Dict[str, Any]]:
     """Train XGBoost with GPU grid-search, CV, feature importance.
 
@@ -297,6 +298,17 @@ def train_xgboost(
         len(X_train), len(X_val), len(_fcols),
     )
 
+    # --- Portfolio heat guardrails (anti-reward-hacking) -----------------
+    try:
+        from app.core.config import settings
+        max_heat = getattr(settings, "MAX_PORTFOLIO_HEAT", 0.06)
+        max_single = getattr(settings, "MAX_SINGLE_POSITION", 0.02)
+        # These guardrails are informational during training; they become
+        # hard limits during live execution via risk_agent + order_executor.
+        log.info("Risk guardrails: max_heat=%.2f max_single=%.2f", max_heat, max_single)
+    except Exception:
+        pass
+
     # --- GPU config -----------------------------------------------------
     use_gpu = _gpu_available()
     gpu_id = _detect_gpu_id()
@@ -307,6 +319,17 @@ def train_xgboost(
         "verbosity": 1,
         "seed": 42,
     }
+
+    # Risk-adjusted custom objective (anti-reward-hacking)
+    if use_risk_adjusted:
+        try:
+            from app.modules.ml_engine.risk_adjusted_objective import xgboost_risk_objective
+            base_params["objective"] = xgboost_risk_objective
+            base_params["disable_default_eval_metric"] = True
+            log.info("Using risk-adjusted custom objective")
+        except ImportError:
+            log.warning("risk_adjusted_objective not available, using default logistic")
+
     if use_gpu:
         base_params["gpu_id"] = gpu_id
     log.info("XGBoost GPU: %s  tree_method: %s", use_gpu, base_params["tree_method"])

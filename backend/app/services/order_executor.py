@@ -330,18 +330,43 @@ class OrderExecutor:
             logger.exception("Order execution error for %s: %s", record.symbol, e)
 
     async def _shadow_execute(self, record: OrderRecord, price: float) -> None:
-        """Log what WOULD be executed without placing an actual order."""
+        """Log what WOULD be executed without placing an actual order.
+
+        Applies execution simulator (slippage + partial fills) for realism.
+        """
+        # Apply execution simulator for realistic paper trading
+        sim_fill_price = price
+        sim_fill_ratio = 1.0
+        sim_slippage_bps = 0.0
+        try:
+            from app.services.execution_simulator import get_execution_simulator
+            sim = get_execution_simulator()
+            fill = sim.simulate_fill(
+                price=price,
+                side=record.side,
+                order_qty=record.qty,
+            )
+            sim_fill_price = fill.fill_price
+            sim_fill_ratio = fill.fill_ratio
+            sim_slippage_bps = fill.slippage_bps
+            # Adjust qty for partial fill
+            record.qty = max(1, int(record.qty * sim_fill_ratio))
+        except Exception as e:
+            logger.debug("Execution simulator not available: %s", e)
+
         record.status = "shadow"
         self._orders.append(record)
         self._daily_trade_count += 1
         self._signals_executed += 1
         self._symbol_last_trade[record.symbol] = time.time()
-        self._total_notional += record.qty * price
+        self._total_notional += record.qty * sim_fill_price
 
         logger.info(
             "\U0001f47b SHADOW ORDER: %s %d x %s @ ~$%.2f "
-            "(score=%.1f, kelly=%.2f%%, regime=%s, SL=$%.2f, TP=$%.2f)",
-            record.side.upper(), record.qty, record.symbol, price,
+            "(intended=$%.2f, slip=%.1fbps, fill=%.0f%%, "
+            "score=%.1f, kelly=%.2f%%, regime=%s, SL=$%.2f, TP=$%.2f)",
+            record.side.upper(), record.qty, record.symbol, sim_fill_price,
+            price, sim_slippage_bps, sim_fill_ratio * 100,
             record.signal_score, record.kelly_pct * 100, record.regime,
             record.stop_loss or 0, record.take_profit or 0,
         )
@@ -353,7 +378,10 @@ class OrderExecutor:
             "symbol": record.symbol,
             "side": record.side,
             "qty": record.qty,
-            "price": price,
+            "price": sim_fill_price,
+            "intended_price": price,
+            "slippage_bps": sim_slippage_bps,
+            "fill_ratio": sim_fill_ratio,
             "order_type": record.order_type,
             "signal_score": record.signal_score,
             "kelly_pct": record.kelly_pct,
@@ -364,7 +392,7 @@ class OrderExecutor:
             "source": "order_executor_shadow",
         })
 
-        await self._notify_frontend(record, price, "shadow")
+        await self._notify_frontend(record, sim_fill_price, "shadow")
 
     # ── Fill Polling ────────────────────────────────────────────────────────
 

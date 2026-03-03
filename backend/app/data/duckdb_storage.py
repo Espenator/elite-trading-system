@@ -159,12 +159,40 @@ class DuckDBStorage:
             )
         """)
 
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS features (
+                symbol VARCHAR NOT NULL,
+                ts TIMESTAMP NOT NULL,
+                timeframe VARCHAR NOT NULL DEFAULT '1d',
+                feature_json VARCHAR,
+                feature_hash VARCHAR,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (symbol, ts, timeframe)
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS model_evals (
+                eval_id VARCHAR PRIMARY KEY,
+                model_id VARCHAR NOT NULL,
+                window VARCHAR NOT NULL,
+                sharpe DOUBLE,
+                profit_factor DOUBLE,
+                win_rate DOUBLE,
+                max_dd DOUBLE,
+                passed BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         # Indexes for fast range scans
         conn.execute("CREATE INDEX IF NOT EXISTS idx_ohlcv_date ON daily_ohlcv (date)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_ohlcv_symbol ON daily_ohlcv (symbol)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_ti_date ON technical_indicators (date)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_flow_date ON options_flow (date)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_outcomes_symbol ON trade_outcomes (symbol, entry_date)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_features_symbol_ts ON features (symbol, ts)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_model_evals_model ON model_evals (model_id)")
 
         logger.info("DuckDB analytics schema initialized at %s", self._db_path)
 
@@ -397,6 +425,8 @@ class DuckDBStorage:
             "flow_rows": conn.execute("SELECT COUNT(*) FROM options_flow").fetchone()[0],
             "macro_rows": conn.execute("SELECT COUNT(*) FROM macro_data").fetchone()[0],
             "trade_outcomes": conn.execute("SELECT COUNT(*) FROM trade_outcomes").fetchone()[0],
+            "feature_rows": conn.execute("SELECT COUNT(*) FROM features").fetchone()[0],
+            "model_eval_rows": conn.execute("SELECT COUNT(*) FROM model_evals").fetchone()[0],
             "symbols": self.get_symbol_count(),
             "date_range": self.get_date_range(),
         }

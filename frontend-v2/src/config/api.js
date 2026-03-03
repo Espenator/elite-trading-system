@@ -112,6 +112,17 @@ const API_CONFIG = {
     "alignment/constellation": "/alignment/constellation", // GET outcome constellation diagnostics
     "alignment/metacognition": "/alignment/metacognition", // GET metacognition flags + trends
     "alignment/critique": "/alignment/critique", // GET swarm critique role stats
+
+    // ---- COUNCIL (8-Agent Debate Council) ----
+    councilEvaluate: "/council/evaluate", // POST: run 8-agent council evaluation
+    councilLatest: "/council/latest", // GET: latest council DecisionPacket
+
+    // ---- FEATURE STORE ----
+    featuresLatest: "/features/latest", // GET: latest feature vector for symbol
+    featuresCompute: "/features/compute", // POST: compute + persist feature vector
+
+    // ---- FLYWHEEL SCHEDULER ----
+    flywheelScheduler: "/flywheel/scheduler", // GET: scheduler status + next runs
   },
 };
 
@@ -159,6 +170,7 @@ export const WS_CHANNELS = {
     risk: "risk",
   kelly: "kelly",
       alignment: "alignment",
+  council: "council",
 };
 
 export default API_CONFIG;

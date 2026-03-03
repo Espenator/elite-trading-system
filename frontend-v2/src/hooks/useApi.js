@@ -239,6 +239,51 @@ export function useBridgeHealth(pollMs = 30000) {
   return useApi('openclaw/health', { pollIntervalMs: pollMs });
 }
 
+// ---- Council (8-Agent Debate) Hooks ----
+
+export function useCouncilLatest(pollMs = 15000) {
+  return useApi('councilLatest', { pollIntervalMs: pollMs });
+}
+
+/** POST helper to run a council evaluation */
+export async function fetchCouncilEvaluate(symbol, timeframe = '1d', context = '') {
+  const url = getApiUrl('councilEvaluate');
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ symbol, timeframe, context }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+// ---- Feature Store Hooks ----
+
+export function useFeaturesLatest(symbol, timeframe = '1d', enabled = true) {
+  return useApi('featuresLatest', {
+    enabled,
+    endpoint: `/features/latest?symbol=${encodeURIComponent(symbol)}&timeframe=${timeframe}`,
+  });
+}
+
+/** POST helper to compute + persist a feature vector */
+export async function fetchFeaturesCompute(symbol, timeframe = '1d') {
+  const url = getApiUrl('featuresCompute');
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ symbol, timeframe }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+// ---- Flywheel Scheduler Hook ----
+
+export function useSchedulerStatus(pollMs = 60000) {
+  return useApi('flywheelScheduler', { pollIntervalMs: pollMs });
+}
+
 /** POST helper for bias multiplier override */
 export async function postBiasOverride(biasMultiplier) {
   const url = getApiUrl('openclaw/macro/override');

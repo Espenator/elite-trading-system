@@ -41,6 +41,7 @@ class MessageBus:
         "model.updated",
         "risk.alert",
         "system.heartbeat",
+        "council.verdict",
     }
 
     def __init__(self, max_queue_size: int = 10_000):

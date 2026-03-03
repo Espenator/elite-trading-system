@@ -246,3 +246,56 @@ export interface PaginatedResponse<T> {
   pageSize: number;
   hasMore: boolean;
 }
+
+// ---- Council (8-Agent Debate) Types ----
+
+export type CouncilDirection = 'buy' | 'sell' | 'hold';
+
+export interface AgentVote {
+  agent_name: string;
+  direction: CouncilDirection;
+  confidence: number;
+  reasoning: string;
+  veto: boolean;
+  veto_reason: string;
+  weight: number;
+  metadata: Record<string, any>;
+}
+
+export interface DecisionPacket {
+  symbol: string;
+  timeframe: string;
+  timestamp: string;
+  votes: AgentVote[];
+  final_direction: CouncilDirection;
+  final_confidence: number;
+  vetoed: boolean;
+  veto_reasons: string[];
+  risk_limits: Record<string, any>;
+  execution_ready: boolean;
+  council_reasoning: string;
+}
+
+// ---- Feature Store Types ----
+
+export interface FeatureVector {
+  symbol: string;
+  timeframe: string;
+  timestamp: string;
+  features: Record<string, number>;
+  feature_hash: string;
+}
+
+// ---- Flywheel Scheduler Types ----
+
+export interface SchedulerJob {
+  id: string;
+  name: string;
+  next_run: string | null;
+}
+
+export interface SchedulerStatus {
+  enabled: boolean;
+  running: boolean;
+  jobs: SchedulerJob[];
+}

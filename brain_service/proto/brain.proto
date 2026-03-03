@@ -1,0 +1,47 @@
+syntax = "proto3";
+package brain;
+
+service BrainService {
+  rpc InferCandidateContext(InferRequest) returns (InferResponse);
+  rpc CriticPostmortem(CriticRequest) returns (CriticResponse);
+  rpc Embed(EmbedRequest) returns (EmbedResponse);
+}
+
+message InferRequest {
+  string symbol = 1;
+  string timeframe = 2;
+  string feature_json = 3;
+  string regime = 4;
+  string context = 5;
+}
+
+message InferResponse {
+  string summary = 1;
+  float confidence = 2;
+  repeated string risk_flags = 3;
+  repeated string reasoning_bullets = 4;
+  string error = 5;
+}
+
+message CriticRequest {
+  string trade_id = 1;
+  string symbol = 2;
+  string entry_context = 3;
+  string outcome_json = 4;
+}
+
+message CriticResponse {
+  string analysis = 1;
+  repeated string lessons = 2;
+  float performance_score = 3;
+  string error = 4;
+}
+
+message EmbedRequest {
+  string text = 1;
+}
+
+message EmbedResponse {
+  repeated float embedding = 1;
+  string error = 2;
+}

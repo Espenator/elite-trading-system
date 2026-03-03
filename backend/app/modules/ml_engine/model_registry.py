@@ -317,6 +317,60 @@ class ModelRegistry:
                 result[name] = run
         return result
 
+    def evaluate_and_promote_multi_window(
+        self,
+        model_name: str,
+        challenger_run_id: str,
+        predictions: "np.ndarray",
+        actuals: "np.ndarray",
+        prices: "Optional[np.ndarray]" = None,
+    ) -> Dict[str, Any]:
+        """Multi-window evaluation gate for champion/challenger promotion.
+
+        Uses the anti-reward-hacking multi-window evaluator:
+        ALL windows (30, 60, 90, 252d) must pass ALL thresholds.
+
+        Returns:
+            Dict with eval_results, promoted (bool), and arena_result.
+        """
+        from app.modules.ml_engine.multi_window_evaluator import (
+            evaluate_model_all_windows,
+            should_promote,
+        )
+
+        eval_results = evaluate_model_all_windows(predictions, actuals, prices)
+        promoted = should_promote(eval_results)
+
+        # Store eval results in DuckDB
+        try:
+            from app.data.feature_store import feature_store
+            for window, metrics in eval_results.get("windows", {}).items():
+                eval_id = f"{challenger_run_id}_w{window}"
+                feature_store.store_model_eval(
+                    eval_id=eval_id,
+                    model_id=challenger_run_id,
+                    window=str(window),
+                    metrics=metrics,
+                )
+        except Exception as e:
+            log.warning("Failed to store eval results: %s", e)
+
+        arena_result = None
+        if promoted:
+            arena_result = self.evaluate_and_promote(model_name, challenger_run_id)
+            log.info("Multi-window PASSED — promoted %s for %s", challenger_run_id, model_name)
+        else:
+            log.info(
+                "Multi-window FAILED for %s — failing windows: %s",
+                challenger_run_id, eval_results.get("failing_windows"),
+            )
+
+        return {
+            "eval_results": eval_results,
+            "promoted": promoted,
+            "arena_result": arena_result.to_dict() if arena_result else None,
+        }
+
     def get_status(self) -> Dict[str, Any]:
         """Get registry status for API/dashboard."""
         return {

@@ -318,3 +318,19 @@ async def kelly_feedback(outcomes: List[Dict]):
         "profitFactor": data["profitFactor"],
         "outcomes_processed": len(outcomes),
     }
+
+
+# ---------------------------------------------------------------------------
+# Flywheel Scheduler Status
+# ---------------------------------------------------------------------------
+
+@router.get("/scheduler")
+async def get_scheduler_status():
+    """Return flywheel scheduler status and upcoming job runs."""
+    try:
+        from app.jobs.scheduler import get_scheduler_status as _get_status
+        return _get_status()
+    except ImportError:
+        return {"enabled": False, "running": False, "jobs": [], "error": "scheduler not installed"}
+    except Exception as e:
+        return {"enabled": False, "running": False, "jobs": [], "error": str(e)}

@@ -45,6 +45,8 @@ from app.api.v1 import (
     market,
     alpaca,
     alignment,
+    features as features_routes,
+    council,
 )
 from app.api import ingestion
 
@@ -297,6 +299,21 @@ async def _start_event_driven_pipeline():
     await _message_bus.subscribe("order.cancelled", _bridge_order_to_ws)
     log.info("\u2705 Order->WebSocket bridges active")
 
+    # 7. Council verdict-to-WebSocket bridge (forward council decisions to frontend)
+    async def _bridge_council_to_ws(verdict_data):
+        """Forward council.verdict events to frontend via WebSocket."""
+        try:
+            from app.websocket_manager import broadcast_ws
+            await broadcast_ws("council", {
+                "type": "council_verdict",
+                "verdict": verdict_data,
+            })
+        except Exception as e:
+            log.debug("WS council broadcast failed: %s", e)
+
+    await _message_bus.subscribe("council.verdict", _bridge_council_to_ws)
+    log.info("\u2705 Council->WebSocket bridge active")
+
     # 6. AlpacaStreamService (publishes market_data.bar events)
     from app.services.alpaca_stream_service import AlpacaStreamService
 
@@ -382,6 +399,13 @@ async def lifespan(app: FastAPI):
     except Exception:
         log.exception("Event-driven pipeline failed to start -- falling back to polling only")
 
+    # 3b. Flywheel scheduler (optional)
+    try:
+        from app.jobs.scheduler import start_scheduler
+        start_scheduler()
+    except Exception as e:
+        log.debug("Flywheel scheduler not started: %s", e)
+
     # 4-6. Background tasks (legacy + monitoring)
     tick_task = asyncio.create_task(_market_data_tick_loop())
     drift_task = asyncio.create_task(_drift_check_loop())
@@ -398,6 +422,13 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        # Shutdown flywheel scheduler
+        try:
+            from app.jobs.scheduler import stop_scheduler
+            stop_scheduler()
+        except Exception:
+            pass
+
         # Shutdown event-driven pipeline
         await _stop_event_driven_pipeline()
 
@@ -458,6 +489,9 @@ app.include_router(settings_routes.router, prefix="/api/v1/settings",     tags=[
 app.include_router(alpaca.router,          prefix="/api/v1/alpaca",       tags=["alpaca"])
 app.include_router(alignment.router,       prefix="/api/v1/alignment",    tags=["alignment"])
 app.include_router(risk_shield_api.router, prefix="/api/v1/risk-shield",  tags=["risk_shield"])
+
+app.include_router(features_routes.router, prefix="/api/v1/features", tags=["features"])
+app.include_router(council.router, prefix="/api/v1/council", tags=["council"])
 
 # Data ingestion endpoints (backfill + DuckDB health)
 app.include_router(ingestion.router, tags=["ingestion"])

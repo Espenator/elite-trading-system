@@ -111,6 +111,26 @@ class Settings(BaseSettings):
     OPENCLAW_ENABLED: bool = False
     OLLAMA_BASE_URL: str = "http://localhost:11434"
 
+    # ── Brain Service (PC2) ───────────────────────────────
+    BRAIN_ENABLED: bool = False
+    BRAIN_HOST: str = "localhost"
+    BRAIN_PORT: int = 50051
+    OLLAMA_MODEL: str = "llama3.2"
+
+    # ── Council ────────────────────────────────────────────
+    COUNCIL_ENABLED: bool = True
+
+    # ── Execution Realism ──────────────────────────────────
+    SLIPPAGE_BPS: float = 5.0
+    PARTIAL_FILL_ENABLED: bool = True
+    FILL_SEED: int = 0  # 0 = random
+
+    # ── Scheduler ──────────────────────────────────────────
+    SCHEDULER_ENABLED: bool = False
+
+    # ── Risk Guardrails (additional) ───────────────────────
+    MAX_SINGLE_POSITION: float = 0.02
+
     # ── ML Engine ───────────────────────────────────────────
     ML_MODEL_DIR: str = "data/models"
     ML_RETRAIN_INTERVAL_HOURS: int = 168
