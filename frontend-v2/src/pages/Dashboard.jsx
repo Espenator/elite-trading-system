@@ -308,7 +308,7 @@ const SignalBarChart = ({ signals, selectedSymbol, onSelect }) => {
   if (!signals || !signals.length) return null;
   const maxScore = Math.max(...signals.map((s) => s.score || 0), 1);
   return (
-    <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] mx-2 my-1">
+    <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)]">
       <div className="flex items-center justify-between px-3 py-1 border-b border-[rgba(42,52,68,0.5)]">
         <span className="text-[8px] font-bold text-[#00D9FF] uppercase tracking-wider">
           Signal Strength
@@ -381,6 +381,28 @@ const SignalBarChart = ({ signals, selectedSymbol, onSelect }) => {
 };
 
 // --- LIGHTWEIGHT CHART (TradingView-style candlestick via dynamic import) ---
+/** Normalize time for lightweight-charts: expects yyyy-mm-dd or UTC seconds. */
+function normalizeChartTime(time) {
+  if (time == null) return null;
+  if (typeof time === "number") return time;
+  const s = String(time).trim();
+  if (!s) return null;
+  // Already yyyy-mm-dd
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  // mm/dd/yyyy or mm-dd-yyyy
+  const slash = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  const dash = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/);
+  if (slash) {
+    const [, m, d, y] = slash;
+    return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  }
+  if (dash) {
+    const [, m, d, y] = dash;
+    return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  }
+  return s.slice(0, 10);
+}
+
 const LWChartFallback = ({
   symbol,
   quotesData,
@@ -487,26 +509,42 @@ const LWChartFallback = ({
     if (!candles.length) return;
     const mapped = candles
       .map((c) => ({
-        time: c.time || c.timestamp || c.t,
+        time: normalizeChartTime(c.time || c.timestamp || c.t),
         open: c.open ?? c.o,
         high: c.high ?? c.h,
         low: c.low ?? c.l,
         close: c.close ?? c.c,
       }))
-      .filter((c) => c.time && c.open != null);
-    if (mapped.length) {
-      inst.candleSeries.setData(mapped);
+      .filter((c) => c.time != null && c.open != null)
+      .sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
+    // Dedupe by time (keep last) so lightweight-charts gets strictly ascending unique times
+    const seen = new Set();
+    const mappedUnique = mapped.filter((c) => {
+      const key = c.time;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    if (mappedUnique.length) {
+      inst.candleSeries.setData(mappedUnique);
       const volData = candles
         .map((c) => ({
-          time: c.time || c.timestamp || c.t,
+          time: normalizeChartTime(c.time || c.timestamp || c.t),
           value: c.volume ?? c.v ?? 0,
           color:
             (c.close ?? c.c) >= (c.open ?? c.o)
               ? "rgba(16,185,129,0.3)"
               : "rgba(239,68,68,0.3)",
         }))
-        .filter((v) => v.time);
-      if (volData.length) inst.volumeSeries.setData(volData);
+        .filter((v) => v.time != null)
+        .sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
+      const volSeen = new Set();
+      const volDataUnique = volData.filter((v) => {
+        if (volSeen.has(v.time)) return false;
+        volSeen.add(v.time);
+        return true;
+      });
+      if (volDataUnique.length) inst.volumeSeries.setData(volDataUnique);
     }
     // Price lines
     try {
@@ -538,8 +576,8 @@ const LWChartFallback = ({
   }, [quotesData, signalEntry, signalStop, signalTarget]);
 
   return (
-    <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] mx-2 my-1 overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-1 border-b border-[rgba(42,52,68,0.5)]">
+    <div className="bg-[#111827] border-l border-[rgba(42,52,68,0.5)] overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-1  border-[rgba(42,52,68,0.5)]">
         <span className="text-[8px] font-bold text-[#00D9FF] uppercase tracking-wider">
           {symbol || "CHART"} - Price Action
         </span>
@@ -555,6 +593,16 @@ const LWChartFallback = ({
           </span>
         </div>
       </div>
+      {!quotesData && symbol && (
+        <div className="flex items-center justify-center py-12 text-[10px] text-[#64748b] font-mono">
+          Loading candle data for {symbol}…
+        </div>
+      )}
+      {!symbol && (
+        <div className="flex items-center justify-center py-12 text-[10px] text-[#64748b] font-mono">
+          Select a symbol from the table or score bars
+        </div>
+      )}
       <div ref={containerRef} className="w-full" style={{ minHeight: 260 }} />
     </div>
   );
@@ -961,7 +1009,7 @@ const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1D", "1W"];
 export default function Dashboard() {
   // --- STATE ---
   const [activeSortKey, setActiveSortKey] = useState("Composite Score");
-  const [selectedSymbol, setSelectedSymbol] = useState(null);
+  const [selectedSymbol, setSelectedSymbol] = useState("SPY"); // default so Price Action chart loads
   const [activeTimeframe, setActiveTimeframe] = useState("1h");
   const [autoExec, setAutoExec] = useState(false);
 
@@ -1189,14 +1237,34 @@ export default function Dashboard() {
     return rawIndices;
   }, [rawIndices]);
   const openclaw = openclawData?.openclaw || openclawData || {};
-  const performance = performanceData?.performance || performanceData || {};
+  const performance = useMemo(() => {
+    const p = performanceData?.performance || performanceData || {};
+    return {
+      ...p,
+      sharpe: p.sharpe ?? p.sharpeRatio ?? 0,
+      alpha: p.alpha ?? 0,
+      winRate: p.winRate ?? p.win_rate ?? 0,
+      maxDrawdown: p.maxDrawdown ?? p.max_drawdown ?? 0,
+      equityCurve: p.equityCurve || [],
+    };
+  }, [performanceData]);
   const techs = techsData?.technicals || techsData || {};
   const swarm = swarmData?.swarmTopology || swarmData || {};
   const sources = dataSourcesData?.dataSources || dataSourcesData || {};
   const risk = riskData?.proposal || riskData || {};
   const quotes = quotesData?.book || quotesData || {};
   const agents = agentsData?.agents || agentsData || {};
-  const riskScore = riskScoreData?.riskScore || riskScoreData || {};
+  const riskScore = useMemo(() => {
+    const r = riskScoreData?.riskScore || riskScoreData || {};
+    return {
+      ...r,
+      score: r.score ?? r.risk_score,
+      dailyVaR: r.dailyVaR ?? r.riskScore?.dailyVaR,
+      correlation: r.correlation ?? r.riskScore?.correlation,
+      positionLimit: r.positionLimit ?? r.riskScore?.positionLimit,
+      status: r.status ?? r.riskScore?.status ?? "Active",
+    };
+  }, [riskScoreData]);
   const alerts = alertsData?.alerts || alertsData?.systemAlerts || [];
   const flywheel = flywheelData?.flywheel || flywheelData || {};
   const globalSentiment = sentimentData?.sentiment || sentimentData || {};
@@ -1238,20 +1306,20 @@ export default function Dashboard() {
           <div className="flex items-center gap-1">
             <span className="text-[#94a3b8]">SCORE</span>
             <div className="w-6 h-6 rounded-full border-2 border-green-400 flex items-center justify-center text-[10px] font-mono text-green-400">
-              {openclaw.compositeScore || "\u2014"}
+              {openclaw.compositeScore != null && openclaw.compositeScore !== "" ? openclaw.compositeScore : "\u2014"}
             </div>
           </div>
           {/* Risk Score Badge */}
           <div
-            className={`px-2 py-0.5 rounded font-bold ${(riskScore.score || 0) > 70 ? "bg-red-500/20 text-red-400 border border-red-500/50" : (riskScore.score || 0) > 40 ? "bg-amber-500/20 text-amber-400 border border-amber-500/50" : "bg-green-500/20 text-green-400 border border-green-500/50"}`}
+            className={`px-2 py-0.5 rounded font-bold ${(riskScore.score ?? riskScore.risk_score ?? 0) > 70 ? "bg-red-500/20 text-red-400 border border-red-500/50" : (riskScore.score ?? riskScore.risk_score ?? 0) > 40 ? "bg-amber-500/20 text-amber-400 border border-amber-500/50" : "bg-green-500/20 text-green-400 border border-green-500/50"}`}
           >
-            RISK {riskScore.score || "\u2014"}
+            RISK {riskScore.score ?? riskScore.risk_score ?? "\u2014"}
           </div>
           {/* Sentiment Badge */}
           <div
-            className={`px-2 py-0.5 rounded font-bold ${(globalSentiment.score || 0) >= 60 ? "bg-green-500/20 text-green-400" : (globalSentiment.score || 0) >= 40 ? "bg-amber-500/20 text-amber-400" : "bg-red-500/20 text-red-400"}`}
+            className={`px-2 py-0.5 rounded font-bold ${(globalSentiment.score ?? 0) >= 60 ? "bg-green-500/20 text-green-400" : (globalSentiment.score ?? 0) >= 40 ? "bg-amber-500/20 text-amber-400" : "bg-red-500/20 text-red-400"}`}
           >
-            SENT {globalSentiment.score || "\u2014"}
+            SENT {globalSentiment.score ?? globalSentiment.value ?? "\u2014"}
           </div>
         </div>
         {/* KPIs */}
@@ -1281,43 +1349,43 @@ export default function Dashboard() {
             <span>
               Equity{" "}
               <span className="text-white">
-                ${portfolio.totalEquity?.toLocaleString() || "\u2014"}
+                ${Number(portfolio.totalEquity ?? 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
               </span>
             </span>
             <span>
               P&L{" "}
-              <span className="text-green-400">
-                +${portfolio.dayPnL?.toLocaleString() || "\u2014"}
+              <span className={Number(portfolio.dayPnL ?? 0) >= 0 ? "text-green-400" : "text-red-400"}>
+                {Number(portfolio.dayPnL ?? 0) >= 0 ? "+" : ""}${Number(portfolio.dayPnL ?? 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
               </span>
             </span>
             <span>
               Deployed{" "}
               <span className="text-[#00D9FF]">
-                {portfolio.deployedPercent || "\u2014"}%
+                {Number(portfolio.deployedPercent ?? 0)}%
               </span>
             </span>
             <span>
               Sharpe{" "}
               <span className="text-[#00D9FF]">
-                {performance.sharpe || "\u2014"}
+                {performance.sharpe != null && performance.sharpe !== "" ? Number(performance.sharpe) : "0"}
               </span>
             </span>
             <span>
               Alpha{" "}
               <span className="text-green-400">
-                +{performance.alpha || "\u2014"}%
+                +{performance.alpha != null && performance.alpha !== "" ? Number(performance.alpha) : "0"}%
               </span>
             </span>
             <span>
               Win{" "}
               <span className="text-green-400">
-                {performance.winRate || "\u2014"}%
+                {performance.winRate != null && performance.winRate !== "" ? Number(performance.winRate) : "0"}%
               </span>
             </span>
             <span>
               MaxDD{" "}
               <span className="text-red-400">
-                {performance.maxDrawdown || "\u2014"}%
+                {performance.maxDrawdown != null && performance.maxDrawdown !== "" ? Number(performance.maxDrawdown) : "0"}%
               </span>
             </span>
           </div>
@@ -1368,7 +1436,7 @@ export default function Dashboard() {
                   <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>{" "}
                   LIVE
                 </span>
-                <span>Flywheel: {flywheel.accuracy || "\u2014"}%</span>
+                <span>Flywheel: {flywheel.accuracy ?? flywheel.accuracy30d != null ? Math.round(Number(flywheel.accuracy30d) * 100) : 0}%</span>
               </div>
             </div>
           </div>
@@ -1680,25 +1748,25 @@ export default function Dashboard() {
               <div>
                 <span className="text-[#94a3b8]">Daily VaR:</span>{" "}
                 <span className="text-red-400">
-                  {riskScore.dailyVaR || "\u2014"}%
+                  {riskScore.dailyVaR != null && riskScore.dailyVaR !== "" ? riskScore.dailyVaR : "0"}%
                 </span>
               </div>
               <div>
                 <span className="text-[#94a3b8]">Max Drawdown:</span>{" "}
                 <span className="text-red-400">
-                  {performance.maxDrawdown || "\u2014"}%
+                  {performance.maxDrawdown != null && performance.maxDrawdown !== "" ? performance.maxDrawdown : "0"}%
                 </span>
               </div>
               <div>
                 <span className="text-[#94a3b8]">Correlation:</span>{" "}
                 <span className="text-[#00D9FF]">
-                  {riskScore.correlation || "\u2014"}
+                  {riskScore.correlation != null && riskScore.correlation !== "" ? riskScore.correlation : "0"}
                 </span>
               </div>
               <div>
                 <span className="text-[#94a3b8]">Position Limit:</span>{" "}
                 <span className="text-white">
-                  {riskScore.positionLimit || "\u2014"}
+                  {riskScore.positionLimit != null && riskScore.positionLimit !== "" ? riskScore.positionLimit : "—"}
                 </span>
               </div>
             </div>

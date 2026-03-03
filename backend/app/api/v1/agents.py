@@ -528,6 +528,12 @@ async def get_swarm_topology():
     }
 
 
+@router.get("/swarm-topology/{symbol}")
+async def get_swarm_topology_for_symbol(symbol: str):
+    """Same as GET /swarm-topology; symbol is optional (Dashboard per-symbol panel)."""
+    return await get_swarm_topology()
+
+
 # --- Conference Pipeline ---
 @router.get("/conference")
 async def get_conference_status():

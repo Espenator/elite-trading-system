@@ -147,9 +147,15 @@ def _detect_divergences(items: list) -> list:
 
 @router.get("")
 async def get_sentiment(time_range: str = Query("24h", alias="timeRange")):
-    """Return sentiment items from DB."""
+    """Return sentiment items from DB and a global score for Dashboard header."""
     items = _get_sentiment_data()
-    return {"items": items, "timeRange": time_range, "count": len(items)}
+    mood = _compute_market_mood(items)
+    return {
+        "items": items,
+        "timeRange": time_range,
+        "count": len(items),
+        "sentiment": {"score": mood["value"]},
+    }
 
 
 @router.get("/summary")

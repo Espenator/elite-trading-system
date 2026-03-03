@@ -480,7 +480,7 @@ class DataIngestionService:
                 "symbol": symbol,
                 "date": (fill.get("transaction_time") or "")[:10],
                 "price": float(fill.get("price") or 0),
-                "qty": int(fill.get("qty") or 0),
+                "qty": float(fill.get("qty") or 0),  # fractional shares (e.g. crypto) supported
             }
             if side == "buy":
                 buys[symbol].append(entry)
@@ -506,7 +506,7 @@ class DataIngestionService:
                         "exit_date": sell["date"],
                         "entry_price": buy["price"],
                         "exit_price": sell["price"],
-                        "shares": buy["qty"],
+                        "shares": int(round(buy["qty"])),  # DB column is INTEGER; fractional rounded
                         "pnl": pnl,
                         "r_multiple": r_mult,
                         "outcome": "WIN" if pnl > 0 else "LOSS",

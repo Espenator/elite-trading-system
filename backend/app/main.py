@@ -222,6 +222,7 @@ async def _risk_monitor_loop():
 # ---------------------------------------------------------------------------
 _message_bus = None
 _alpaca_stream = None
+_alpaca_stream_task = None  # so we can cancel/await during shutdown
 _event_signal_engine = None
 _order_executor = None
 
@@ -237,6 +238,7 @@ async def _start_event_driven_pipeline():
     5. WebSocket bridges — forward events to frontend dashboard
     """
     global _message_bus, _alpaca_stream, _event_signal_engine, _order_executor
+    global _alpaca_stream_task
 
     log.info("=" * 60)
     log.info("\U0001f680 Starting Event-Driven Pipeline")
@@ -332,7 +334,7 @@ async def _start_event_driven_pipeline():
     symbols = list(set(tracked or default_symbols))
 
     _alpaca_stream = AlpacaStreamService(_message_bus, symbols)
-    asyncio.create_task(_alpaca_stream.start())
+    _alpaca_stream_task = asyncio.create_task(_alpaca_stream.start())
     log.info("\u2705 AlpacaStreamService launched for %d symbols", len(symbols))
 
     log.info("=" * 60)
@@ -344,12 +346,18 @@ async def _start_event_driven_pipeline():
 
 async def _stop_event_driven_pipeline():
     """Graceful shutdown of event-driven components (reverse order)."""
-    global _message_bus, _alpaca_stream, _event_signal_engine, _order_executor
+    global _message_bus, _alpaca_stream, _alpaca_stream_task, _event_signal_engine, _order_executor
 
     log.info("Shutting down event-driven pipeline...")
 
     if _alpaca_stream:
         await _alpaca_stream.stop()
+        if _alpaca_stream_task and not _alpaca_stream_task.done():
+            _alpaca_stream_task.cancel()
+            try:
+                await asyncio.wait_for(_alpaca_stream_task, timeout=3.0)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                pass
 
     if _order_executor:
         await _order_executor.stop()
@@ -360,6 +368,8 @@ async def _stop_event_driven_pipeline():
     if _message_bus:
         await _message_bus.stop()
 
+    # Brief yield so Windows asyncio can finish overlapped I/O cleanup (avoids RuntimeError on exit)
+    await asyncio.sleep(0.25)
     log.info("Event-driven pipeline shutdown complete")
 
 

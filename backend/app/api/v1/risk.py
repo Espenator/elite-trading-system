@@ -194,6 +194,32 @@ async def get_risk():
     return response
 
 
+@router.get("/proposal/{symbol}")
+async def get_risk_proposal(symbol: str):
+    """Per-symbol risk proposal for Dashboard (max size, allowed, reason). Stub when no live data."""
+    symbol = symbol.upper().strip() if symbol else ""
+    config = _get_risk_config()
+    position_limit = _safe_float(config.get("positionSizeLimit"), 5.0)
+    try:
+        account = await alpaca_service.get_account()
+        equity = float(account.get("equity", 0))
+        buying_power = float(account.get("buying_power", 0))
+    except Exception:
+        equity = 0
+        buying_power = 0
+    max_notional = buying_power * 0.25 if buying_power else 0
+    return {
+        "symbol": symbol or "?",
+        "allowed": True,
+        "maxShares": 0,
+        "maxNotional": round(max_notional, 2),
+        "positionSizeLimit": position_limit,
+        "reason": "OK",
+        "equity": round(equity, 2),
+        "buyingPower": round(buying_power, 2),
+    }
+
+
 @router.get("/history")
 async def get_risk_history():
     """Return historical risk metrics for chart."""
@@ -406,6 +432,9 @@ async def risk_score():
     config = _get_risk_config()
     score = 100  # Start at 100 (safest)
     warnings = []
+    equity = 0.0
+    daily_pnl_pct = 0.0
+    positions = []
 
     try:
         account = await alpaca_service.get_account()
@@ -426,7 +455,7 @@ async def risk_score():
                 )
 
         # Position concentration penalty (up to -20 points)
-        positions = await alpaca_service.get_positions()
+        positions = await alpaca_service.get_positions() or []
         if positions and len(positions) > 0:
             values = [abs(float(p.get("market_value", 0))) for p in positions]
             total_val = sum(values)
@@ -473,11 +502,27 @@ async def risk_score():
         else "F"
     )
 
+    # Dashboard Risk Shield card expects dailyVaR, correlation, positionLimit
+    position_limit = _safe_float(config.get("positionSizeLimit"), 5.0)
+    var_pct = min(abs(daily_pnl_pct), 10.0) if daily_pnl_pct < 0 else 0.0
+
     return {
         "risk_score": score,
+        "riskScore": {
+            "score": score,
+            "dailyVaR": round(var_pct, 2),
+            "correlation": 0,
+            "positionLimit": int(position_limit),
+            "status": "Active",
+        },
+        "score": score,
         "grade": grade,
         "warnings": warnings,
         "trading_recommended": score >= 40,
+        "dailyVaR": round(var_pct, 2),
+        "correlation": 0,
+        "positionLimit": int(position_limit),
+        "status": "Active",
     }
 
 

@@ -78,9 +78,12 @@ def _compute_accuracy(history: list, days: int) -> float:
 async def get_flywheel():
     """Return current flywheel accuracy metrics and history."""
     data = _get_flywheel_data()
+    acc30 = data.get("accuracy30d", 0.0)
+    acc90 = data.get("accuracy90d", 0.0)
     return {
-        "accuracy30d": data.get("accuracy30d", 0.0),
-        "accuracy90d": data.get("accuracy90d", 0.0),
+        "accuracy30d": acc30,
+        "accuracy90d": acc90,
+        "accuracy": round(acc30 * 100, 1),
         "resolvedSignals": data.get("resolvedSignals", 0),
         "pendingResolution": data.get("pendingResolution", 0),
         "history": data.get("history", [])[-90:],

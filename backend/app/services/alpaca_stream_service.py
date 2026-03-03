@@ -63,6 +63,29 @@ class AlpacaStreamService:
             except asyncio.CancelledError:
                 logger.info("AlpacaStreamService cancelled")
                 break
+            except TypeError as e:
+                if "extra_headers" in str(e) or "create_connection" in str(e):
+                    logger.warning(
+                        "Alpaca websocket failed (incompatible websockets library). "
+                        "Install: pip install \"websockets>=10.4,<14\" then restart. Using MOCK stream."
+                    )
+                    self._use_mock = True
+                    await self._run_mock_stream()
+                    return
+                raise
+            except ValueError as e:
+                err_msg = str(e).lower()
+                if "connection limit exceeded" in err_msg or "auth failed" in err_msg:
+                    logger.warning(
+                        "Alpaca data stream: %s. Only one websocket per account is allowed. "
+                        "Close other apps/tabs using the same API key, then retry. Backing off %ds.",
+                        e,
+                        self.MAX_RECONNECT_DELAY,
+                    )
+                    self._reconnect_delay = self.MAX_RECONNECT_DELAY
+                    await asyncio.sleep(self._reconnect_delay)
+                    continue
+                raise
             except Exception:
                 logger.exception(
                     "Alpaca stream disconnected — reconnecting in %ds",

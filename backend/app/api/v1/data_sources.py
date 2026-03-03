@@ -393,11 +393,28 @@ async def list_sources():
 
 @router.get("/{source_id}", response_model=DataSourceRead)
 async def get_source(source_id: str):
-    """Get single source details."""
+    """Get single source details. For ticker-like IDs (e.g. SPY), return a stub for Dashboard."""
     sources = _load_sources()
-    if source_id not in sources:
-        raise HTTPException(404, f"Source '{source_id}' not found")
-    return _source_to_read(sources[source_id])
+    if source_id in sources:
+        return _source_to_read(sources[source_id])
+    # Dashboard calls /data-sources/SPY for per-symbol panel; return stub when id looks like a ticker
+    if source_id and len(source_id) <= 5 and source_id.isupper() and source_id.isalpha():
+        return DataSourceRead(
+            id=source_id,
+            name=f"Market data ({source_id})",
+            type="rest",
+            category="market",
+            base_url="",
+            required_keys=[],
+            test_endpoint="",
+            status="healthy",
+            enabled=True,
+            last_test=None,
+            last_latency_ms=None,
+            last_error=None,
+            has_credentials=False,
+        )
+    raise HTTPException(404, f"Source '{source_id}' not found")
 
 
 @router.post("/", response_model=DataSourceRead, status_code=201)
