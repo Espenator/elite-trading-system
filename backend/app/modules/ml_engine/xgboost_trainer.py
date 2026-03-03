@@ -4,8 +4,10 @@ APEX Phase 2 – XGBoost companion model:
 - GPU-accelerated training via tree_method='gpu_hist' (falls back to 'hist' on CPU)
 - Grid search over key hyperparameters with cross-validation
 - Feature importance extraction and logging
-- Reads from DuckDB daily_features (same schema as LSTM trainer)
+- v2.0: Reads from FeaturePipeline (30+ features) via feature_service
 - Saves best model artefact to MODEL_ARTIFACTS_PATH
+
+Fixes Issue #25 Task 3 — Wire trainer to FeaturePipeline.
 """
 from __future__ import annotations
 
@@ -23,30 +25,78 @@ import pandas as pd
 log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Feature / target columns (shared with LSTM trainer)
+# Feature / target columns — dynamic from FeaturePipeline, legacy fallback
 # ---------------------------------------------------------------------------
-FEATURE_COLS: List[str] = [
-    "return_1d",
-    "ma_10_dist",
-    "ma_20_dist",
-    "vol_20",
-    "vol_rel",
-]
-TARGET_COL: str = "y_direction"
+def _get_feature_cols() -> List[str]:
+    """Load feature columns from pipeline manifest or config fallback."""
+    try:
+        from app.modules.ml_engine.config import get_feature_cols
+        return get_feature_cols()
+    except Exception:
+        return ["return_1d", "ma_10_dist", "ma_20_dist", "vol_20", "vol_rel"]
+
+
+def _get_target_col() -> str:
+    """Load target column from config."""
+    try:
+        from app.modules.ml_engine.config import get_target_col
+        return get_target_col()
+    except Exception:
+        return "y_direction"
+
+
+# Static references for backward compat (use functions for dynamic)
+FEATURE_COLS: List[str] = _get_feature_cols()
+TARGET_COL: str = _get_target_col()
 
 
 # ---------------------------------------------------------------------------
-# DuckDB data loader (mirrors trainer.py exactly)
+# DuckDB data loader (legacy path — prefer feature_service for new code)
 # ---------------------------------------------------------------------------
 def load_feature_frame(
     conn,
     start: Optional[date] = None,
     end: Optional[date] = None,
 ) -> pd.DataFrame:
-    """Load feature DataFrame from DuckDB daily_features."""
+    """Load feature DataFrame from DuckDB daily_features.
+
+    Legacy loader. For new code, use:
+        from app.services.feature_service import feature_service
+        train_df, val_df, manifest = feature_service.build_training_set(symbols)
+    """
+    feature_cols = _get_feature_cols()
+    target_col = _get_target_col()
+
+    # Try new DuckDB analytics path first
+    try:
+        from app.data.duckdb_storage import duckdb_store
+        from app.modules.ml_engine.feature_pipeline import FeaturePipeline
+
+        symbols_result = conn.execute(
+            "SELECT DISTINCT symbol FROM daily_ohlcv"
+        ).fetchdf()
+        if not symbols_result.empty:
+            symbols = symbols_result["symbol"].tolist()
+            start_str = start.isoformat() if start else "2020-01-01"
+            end_str = end.isoformat() if end else date.today().isoformat()
+
+            raw_df = duckdb_store.get_training_window(symbols, start_str, end_str)
+            if not raw_df.empty:
+                pipeline = FeaturePipeline()
+                df, manifest = pipeline.generate(raw_df, include_labels=True)
+                feature_cols = manifest.feature_cols
+                log.info(
+                    "Loaded %d rows with %d expanded features via FeaturePipeline",
+                    len(df), len(feature_cols)
+                )
+                return df
+    except Exception as exc:
+        log.debug("New data path unavailable, falling back to legacy: %s", exc)
+
+    # Legacy path: direct query from daily_features table
     query = (
         "SELECT symbol, date, close, "
-        + ", ".join(FEATURE_COLS + [TARGET_COL])
+        + ", ".join(feature_cols + [target_col])
         + " FROM daily_features"
     )
     params: list = []
@@ -120,6 +170,7 @@ def xgb_cross_validate(
     X: np.ndarray,
     y: np.ndarray,
     params: Dict[str, Any],
+    feature_names: List[str] = None,
     n_folds: int = 5,
     num_boost_round: int = 300,
     early_stopping_rounds: int = 20,
@@ -127,7 +178,7 @@ def xgb_cross_validate(
     """Run XGBoost CV and return mean metrics."""
     import xgboost as xgb
 
-    dtrain = xgb.DMatrix(X, label=y, feature_names=FEATURE_COLS)
+    dtrain = xgb.DMatrix(X, label=y, feature_names=feature_names)
     cv_results = xgb.cv(
         params,
         dtrain,
@@ -169,6 +220,8 @@ def train_xgboost(
     df: pd.DataFrame,
     train_end: str,
     val_end: str,
+    feature_cols: Optional[List[str]] = None,
+    target_col: Optional[str] = None,
     param_grid: Optional[Dict[str, List[Any]]] = None,
     n_folds: int = 5,
     num_boost_round: int = 300,
@@ -177,20 +230,25 @@ def train_xgboost(
 ) -> Optional[Dict[str, Any]]:
     """Train XGBoost with GPU grid-search, CV, feature importance.
 
+    v2.0 changes:
+    - feature_cols/target_col params override defaults (for FeaturePipeline integration)
+    - Falls back to dynamic config if not provided
+    - feature_names passed through to DMatrix and metadata
+
     Args:
         df: Full feature dataframe (all symbols, dates).
         train_end: Inclusive end date for training split (YYYY-MM-DD).
         val_end: Inclusive end date for validation split (YYYY-MM-DD).
+        feature_cols: Override feature columns (from manifest). If None, uses config.
+        target_col: Override target column. If None, uses config.
         param_grid: Hyperparameter grid; defaults to DEFAULT_PARAM_GRID.
         n_folds: CV fold count.
         num_boost_round: Max boosting rounds per CV run.
         early_stopping_rounds: Rounds without improvement before stopping.
-        checkpoint_dir: Where to save model; defaults to MODEL_ARTIFACTS_PATH
-            env var or 'models/artifacts'.
+        checkpoint_dir: Where to save model; defaults to ARTIFACTS_DIR.
 
     Returns:
-        Dict with best model, params, metrics, feature importance – or None
-        if training data is empty.
+        Dict with best model, params, metrics, feature importance – or None.
     """
     try:
         import xgboost as xgb
@@ -198,25 +256,45 @@ def train_xgboost(
         log.error("xgboost is not installed – pip install xgboost")
         return None
 
+    # Resolve feature/target columns dynamically
+    _fcols = feature_cols or _get_feature_cols()
+    _tcol = target_col or _get_target_col()
+
+    log.info(
+        "Training with %d features (expanded=%s), target=%s",
+        len(_fcols), len(_fcols) > 5, _tcol
+    )
+
     # --- data -----------------------------------------------------------
     df_train, df_val = split_by_time(df, train_end, val_end)
-    df_train = df_train.dropna(subset=FEATURE_COLS + [TARGET_COL])
-    df_val = df_val.dropna(subset=FEATURE_COLS + [TARGET_COL])
+
+    # Only require columns that exist in the DataFrame
+    available_fcols = [c for c in _fcols if c in df_train.columns]
+    if len(available_fcols) < len(_fcols):
+        missing = set(_fcols) - set(available_fcols)
+        log.warning("Missing %d feature cols (using %d available): %s",
+                    len(missing), len(available_fcols), missing)
+    if not available_fcols:
+        log.error("No feature columns found in DataFrame. Columns: %s", list(df_train.columns))
+        return None
+
+    _fcols = available_fcols
+
+    df_train = df_train.dropna(subset=_fcols + [_tcol])
+    df_val = df_val.dropna(subset=_fcols + [_tcol])
 
     if df_train.empty:
         log.warning("train_xgboost: empty training set, aborting.")
         return None
 
-    X_train = df_train[FEATURE_COLS].values.astype(np.float32)
-    y_train = df_train[TARGET_COL].values.astype(np.float32)
-    X_val = df_val[FEATURE_COLS].values.astype(np.float32)
-    y_val = df_val[TARGET_COL].values.astype(np.float32)
+    X_train = df_train[_fcols].values.astype(np.float32)
+    y_train = df_train[_tcol].values.astype(np.float32)
+    X_val = df_val[_fcols].values.astype(np.float32) if not df_val.empty else np.empty((0, len(_fcols)))
+    y_val = df_val[_tcol].values.astype(np.float32) if not df_val.empty else np.empty(0)
 
     log.info(
         "XGBoost data – train=%d  val=%d  features=%d",
-        len(X_train),
-        len(X_val),
-        len(FEATURE_COLS),
+        len(X_train), len(X_val), len(_fcols),
     )
 
     # --- GPU config -----------------------------------------------------
@@ -246,9 +324,8 @@ def train_xgboost(
         merged = {**base_params, **hp}
         try:
             cv_result = xgb_cross_validate(
-                X_train,
-                y_train,
-                merged,
+                X_train, y_train, merged,
+                feature_names=_fcols,
                 n_folds=n_folds,
                 num_boost_round=num_boost_round,
                 early_stopping_rounds=early_stopping_rounds,
@@ -263,11 +340,8 @@ def train_xgboost(
             best_cv = cv_result
             log.info(
                 "  [%d/%d] NEW BEST logloss=%.5f acc=%.4f params=%s",
-                i,
-                len(combos),
-                cv_result["cv_logloss"],
-                cv_result["cv_accuracy"],
-                hp,
+                i, len(combos), cv_result["cv_logloss"],
+                cv_result["cv_accuracy"], hp,
             )
 
     if not best_params:
@@ -275,33 +349,40 @@ def train_xgboost(
         return None
 
     # --- final model on full training set with val watchlist -----------
-    dtrain = xgb.DMatrix(X_train, label=y_train, feature_names=FEATURE_COLS)
-    dval = xgb.DMatrix(X_val, label=y_val, feature_names=FEATURE_COLS)
+    dtrain = xgb.DMatrix(X_train, label=y_train, feature_names=_fcols)
+
+    evals = [(dtrain, "train")]
+    if len(X_val) > 0:
+        dval = xgb.DMatrix(X_val, label=y_val, feature_names=_fcols)
+        evals.append((dval, "val"))
+    else:
+        dval = None
 
     final_model = xgb.train(
         best_params,
         dtrain,
         num_boost_round=best_cv.get("best_round", num_boost_round),
-        evals=[(dtrain, "train"), (dval, "val")],
+        evals=evals,
         early_stopping_rounds=early_stopping_rounds,
         verbose_eval=50,
     )
 
     # --- validation metrics -------------------------------------------
-    val_preds = final_model.predict(dval)
-    val_labels = (val_preds > 0.5).astype(np.float32)
-    val_accuracy = float(np.mean(val_labels == y_val))
+    val_accuracy = 0.0
+    if dval is not None and len(y_val) > 0:
+        val_preds = final_model.predict(dval)
+        val_labels = (val_preds > 0.5).astype(np.float32)
+        val_accuracy = float(np.mean(val_labels == y_val))
     log.info("Final model val_accuracy=%.4f", val_accuracy)
 
     # --- feature importance -------------------------------------------
     importance = extract_feature_importance(final_model, "gain")
-    log.info("Feature importance (gain): %s", importance)
+    log.info("Feature importance (gain, top 10): %s",
+             dict(list(importance.items())[:10]))
 
     # --- save artefacts -----------------------------------------------
-    ckpt_dir = Path(
-        checkpoint_dir
-        or os.getenv("MODEL_ARTIFACTS_PATH", "models/artifacts")
-    )
+    from app.modules.ml_engine.config import ARTIFACTS_DIR
+    ckpt_dir = Path(checkpoint_dir) if checkpoint_dir else ARTIFACTS_DIR
     ckpt_dir.mkdir(parents=True, exist_ok=True)
 
     model_path = ckpt_dir / "xgboost_best.json"
@@ -313,10 +394,13 @@ def train_xgboost(
         "best_cv": best_cv,
         "val_accuracy": val_accuracy,
         "feature_importance": importance,
-        "feature_cols": FEATURE_COLS,
-        "target_col": TARGET_COL,
+        "feature_cols": _fcols,
+        "feature_count": len(_fcols),
+        "expanded_features": len(_fcols) > 5,
+        "target_col": _tcol,
         "train_samples": len(X_train),
         "val_samples": len(X_val),
+        "pipeline_version": "2.0.0" if len(_fcols) > 5 else "1.0.0",
     }
     meta_path = ckpt_dir / "xgboost_meta.json"
     meta_path.write_text(json.dumps(meta, indent=2))
@@ -334,24 +418,88 @@ def train_xgboost(
 
 
 # ---------------------------------------------------------------------------
+# Convenience: train via feature_service (recommended new entry-point)
+# ---------------------------------------------------------------------------
+def train_xgboost_v2(
+    symbols: List[str],
+    end_date: str = None,
+    param_grid: Optional[Dict[str, List[Any]]] = None,
+) -> Optional[Dict[str, Any]]:
+    """Train XGBoost using FeaturePipeline + DuckDB end-to-end.
+
+    This is the recommended entry-point for new training runs.
+    Handles data loading, feature generation, walk-forward split,
+    and model training in one call.
+
+    Usage:
+        result = train_xgboost_v2(["AAPL", "MSFT", "GOOGL", "NVDA"])
+    """
+    from app.services.feature_service import feature_service
+
+    train_df, val_df, manifest = feature_service.build_training_set(
+        symbols=symbols,
+        end_date=end_date,
+    )
+
+    if train_df.empty:
+        log.error("No training data from feature_service. Check DuckDB has OHLCV data.")
+        return None
+
+    feature_cols = manifest.get("feature_cols", _get_feature_cols())
+    label_cols = manifest.get("label_cols", [_get_target_col()])
+    target_col = _get_target_col()  # y_direction for binary classification
+
+    # Combine train + val for split_by_time compatibility
+    df = pd.concat([train_df, val_df], ignore_index=True)
+    train_end = str(train_df["date"].max())
+    val_end = str(val_df["date"].max()) if not val_df.empty else train_end
+
+    log.info(
+        "train_xgboost_v2: %d symbols, %d features, %d labels, train_end=%s",
+        df["symbol"].nunique(), len(feature_cols), len(label_cols), train_end
+    )
+
+    return train_xgboost(
+        df=df,
+        train_end=train_end,
+        val_end=val_end,
+        feature_cols=feature_cols,
+        target_col=target_col,
+        param_grid=param_grid,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Quick CLI entry-point for manual runs
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    import duckdb
+    import sys
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
-    conn = duckdb.connect("elite_trading.duckdb", read_only=True)
-    df = load_feature_frame(conn)
-    if df.empty:
-        log.error("No data in daily_features table.")
-    else:
-        result = train_xgboost(
-            df,
-            train_end="2024-06-30",
-            val_end="2024-12-31",
-        )
+
+    # Prefer v2 path if feature_service is available
+    try:
+        symbols = sys.argv[1:] or ["AAPL", "MSFT", "GOOGL", "NVDA", "TSLA"]
+        log.info("Training v2 pipeline with symbols: %s", symbols)
+        result = train_xgboost_v2(symbols)
         if result:
-            log.info("Training complete. Val accuracy: %.4f", result["val_accuracy"])
+            log.info(
+                "Training complete. Val accuracy: %.4f, Features: %d",
+                result["val_accuracy"], len(result["metadata"]["feature_cols"])
+            )
         else:
             log.error("Training returned None.")
-    conn.close()
+    except Exception as exc:
+        log.warning("v2 path failed (%s), trying legacy...", exc)
+        import duckdb
+        conn = duckdb.connect("elite_trading.duckdb", read_only=True)
+        df = load_feature_frame(conn)
+        if df.empty:
+            log.error("No data in daily_features table.")
+        else:
+            result = train_xgboost(
+                df, train_end="2024-06-30", val_end="2024-12-31",
+            )
+            if result:
+                log.info("Training complete. Val accuracy: %.4f", result["val_accuracy"])
+        conn.close()
