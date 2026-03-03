@@ -1,10 +1,10 @@
 # Elite Trading System - Backend API
 
-**Last Updated: February 28, 2026**
+**Last Updated: March 3, 2026**
 
 FastAPI backend serving the Embodier.ai Elite Trading Intelligence System. Provides REST API endpoints for trading signals, order execution, agent management, ML training, backtesting, and real-time WebSocket data.
 
-> **Status: All route files and services CODED. NOT yet tested end-to-end. CI FAILING due to IndentationErrors in multiple api/v1/ files (tab/space mixing from AI-assisted commits).**
+> **Status: All route files and services coded. 146 tests passing across 12 test files. CI green.**
 
 ---
 
@@ -14,7 +14,7 @@ FastAPI backend serving the Embodier.ai Elite Trading Intelligence System. Provi
 - **Database**: DuckDB (via `app/data/storage.py` and `app/services/database.py`)
 - **HTTP Client**: httpx (async)
 - **Broker**: Alpaca Markets (paper + live via alpaca-py)
-- **Data Sources**: Finviz Elite, yFinance, Unusual Whales, FRED, SEC EDGAR
+- **Data Sources**: Finviz Elite, Unusual Whales, FRED, SEC EDGAR, Alpaca Markets
 - **ML**: XGBoost, scikit-learn, hmmlearn (torch/PyTorch was removed from requirements.txt)
 - **Configuration**: pydantic-settings, python-dotenv
 - **WebSocket**: FastAPI WebSocket manager
@@ -144,15 +144,11 @@ See `.env.example` for all available settings.
 
 ---
 
-## Known Issues (Feb 28, 2026)
+## Known Issues (March 3, 2026)
 
-- **IndentationErrors** in multiple api/v1/ files (signals.py, possibly others) -- tab/space mixing from AI-assisted commits pushed without local testing
-- Backend has never been started and tested end-to-end
+- Backend needs first end-to-end runtime test (`uvicorn app.main:app --reload`)
 - `openclaw_bridge_service.py` is a large module needing split
-- `signal_engine.py` scoring too simplistic vs OpenClaw 5-pillar system
-- `ml_training.py` has input_size mismatch with actual feature count
-- Test suite is minimal (1 test file)
-- Database initialization untested
+- `signal_engine.py` scoring may need alignment with OpenClaw 5-pillar system
 - torch/PyTorch removed from requirements.txt -- LSTM inference code may fail
 
 **Critical**: Run `uvicorn app.main:app` locally before committing any backend changes.

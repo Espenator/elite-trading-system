@@ -410,7 +410,7 @@ async def lifespan(app: FastAPI):
     risk_monitor_task = asyncio.create_task(_risk_monitor_loop())
 
     log.info("="*60)
-    log.info("Elite Trading System v3.1.0 ONLINE")
+    log.info("Elite Trading System v%s ONLINE", settings.APP_VERSION)
     log.info("  API: http://localhost:8000/docs")
     log.info("  Health: http://localhost:8000/health")
     log.info("  WS: ws://localhost:8000/ws")
@@ -444,7 +444,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title=settings.PROJECT_NAME if hasattr(settings, 'PROJECT_NAME') else "Elite Trading System",
-    version="3.1.0",
+    version=settings.APP_VERSION,
     lifespan=lifespan,
 )
 
@@ -581,7 +581,7 @@ async def health_check():
 
     return {
         "status": "healthy",
-        "version": "3.1.0",
+        "version": settings.APP_VERSION,
         "ml_engine": ml_status,
         "event_pipeline": event_pipeline,
         "duckdb": duckdb_status,

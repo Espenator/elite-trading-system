@@ -40,7 +40,7 @@ Paste this at the start of every AI session:
 
 ```
 PROJECT: Elite Trading System
-STATUS: CI GREEN (22 tests passing)
+STATUS: CI GREEN (146 tests passing, 12 test files)
 STACK: FastAPI + React (Vite) + DuckDB
 DATA: Alpaca Markets, Unusual Whales, FinViz (NO yfinance)
 BRANCH: main
@@ -88,7 +88,7 @@ The codebase has clear boundaries. Stay within one domain per session:
 | signal_engine.py | ~500 | Core signal generation |
 | kelly_position_sizer.py | ~400 | Position sizing logic |
 | test_api.py | ~300 | Main test suite |
-| main.py (backend) | ~200 | FastAPI app setup |
+| main.py (backend) | ~590 | FastAPI app + event-driven pipeline |
 
 ## Common Pitfalls
 

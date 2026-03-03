@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     # ── App ─────────────────────────────────────────────────
     APP_NAME: str = "Elite Trading System"
     PROJECT_NAME: str = "Elite Trading System"
-    APP_VERSION: str = "2.0.0"
+    APP_VERSION: str = "3.1.0"
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
     ENVIRONMENT: str = "development"
@@ -29,9 +29,6 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost:8501"
 
     # ── Alpaca Markets ──────────────────────────────────────
-    APCA_API_KEY_ID: str = ""
-    APCA_API_SECRET_KEY: str = ""
-    APCA_API_BASE_URL: str = "https://paper-api.alpaca.markets"
     ALPACA_API_KEY: str = ""
     ALPACA_SECRET_KEY: str = ""
     ALPACA_BASE_URL: str = "https://paper-api.alpaca.markets"

@@ -266,7 +266,7 @@ elite-trading-system/
 4. **WebSocket** - Real-time updates via `websocket.js` service
 5. **DuckDB** - Primary analytics database (WAL mode, connection pooling)
 6. **OpenClaw** - Multi-agent trading system with 8+ sub-modules
-7. **CI** - 22 tests passing, GitHub Actions on every push
+7. **CI** - 146 tests passing (12 test files), GitHub Actions on every push
 
 ## Quick Reference: API Endpoints
 
