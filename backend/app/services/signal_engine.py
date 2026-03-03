@@ -54,6 +54,7 @@ def _numeric(val, default: float = 0.0) -> float:
         return default
 
 
+
 def _compute_rsi(closes: List[float], period: int = 14) -> float:
     """Compute RSI (0-100) from close prices. Returns 50 if insufficient data."""
     if len(closes) < period + 1:

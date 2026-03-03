@@ -147,10 +147,8 @@ def test_risk_score_structure():
 def test_risk_config_complete():
     from app.core.config import settings
     required = [
-        'ATR_STOP_MULTIPLIER', 'MAX_DAILY_DRAWDOWN_PCT',
-        'MAX_DAILY_LOSS_PCT', 'AUTO_PAUSE_TRADING',
-        'VAR_LIMIT_PCT', 'RISK_FREE_RATE', 'MIN_RISK_SCORE',
-        'TRAILING_STOP_PCT', 'MAX_POSITION_PCT',
+        'MAX_PORTFOLIO_HEAT', 'MAX_SECTOR_CONCENTRATION',
+        'MIN_RISK_SCORE', 'VOLATILITY_BASELINE',
     ]
     for attr in required:
         assert hasattr(settings, attr), f"Missing config: {attr}"

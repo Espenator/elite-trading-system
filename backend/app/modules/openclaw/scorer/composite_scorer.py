@@ -117,7 +117,7 @@ class ScoreBreakdown:
     tier: str = 'NO_TRADE'
     confidence: float = 0.0
     score_quality: float = 0.0
-        kelly_edge: float = 0.0
+    kelly_edge: float = 0.0
     kelly_fraction: float = 0.0
     expected_value: float = 0.0
     details: Dict = field(default_factory=dict)

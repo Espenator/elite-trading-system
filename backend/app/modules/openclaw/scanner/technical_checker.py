@@ -95,7 +95,7 @@ class TechnicalChecker:
         STOCK_SECTOR_HINTS first, then falls back to Alpaca asset API.
         Results are cached.
         """
-            if ticker in _SECTOR_CACHE:
+        if ticker in _SECTOR_CACHE:
             sector, ts = _SECTOR_CACHE[ticker]
             if time.time() - ts < _SECTOR_CACHE_TTL:
                 return sector

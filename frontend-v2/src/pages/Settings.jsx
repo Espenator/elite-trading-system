@@ -50,7 +50,7 @@ function FieldRow({ label, children }) {
 
 // ────────────────────────────────────────────────────────────────
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState("api-keys");
+  const [tab, setTab] = useState("profile");
   const {
     settings, loading, saving, dirty,
     connectionResults, updateField,
@@ -475,42 +475,6 @@ export default function SettingsPage() {
     );
   };
 
-
-
-  // --- Tab: Data Sources ------------------------------------------------
-  const renderDataSources = () => {
-    const sources = [
-      { key: "alpacaMarketData",  label: "Alpaca Market Data",  fields: ["apiUrl", "wsUrl"] },
-      { key: "polygon",           label: "Polygon.io",          fields: ["apiKey", "wsEnabled"] },
-      { key: "unusualWhales",     label: "Unusual Whales",      fields: ["apiKey", "pollInterval"] },
-      { key: "benzinga",          label: "Benzinga",            fields: ["apiKey", "newsEnabled"] },
-      { key: "tradingView",       label: "TradingView",         fields: ["webhookSecret"] },
-    ];
-    return (
-      <div className="space-y-6 animate-in fade-in duration-300">
-        <SectionHeader icon={Database} title="Data Source Configuration" sub="Manage market data feeds and external data providers." />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl">
-          {sources.map((s) => (
-            <Card key={s.key} className="bg-[#080E14] border-gray-800 p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold text-[#06b6d4] uppercase tracking-wider">{s.label}</h4>
-                <Toggle checked={!!get("dataSources", `${s.key}.enabled`, false)} onChange={(v) => updateField("dataSources", `${s.key}.enabled`, v)} />
-              </div>
-              {s.fields.map((f) => (
-                <TextField key={f} label={f.replace(/([A-Z])/g, " $1").trim()} type={f.toLowerCase().includes("key") || f.toLowerCase().includes("secret") ? "password" : "text"} value={get("dataSources", `${s.key}.${f}`) || ""} onChange={(e) => updateField("dataSources", `${s.key}.${f}`, e.target.value)} inputClassName="text-xs" />
-              ))}
-              <Button variant="ghost" size="xs" leftIcon={Zap} onClick={() => testConnection("dataSources", s.key)} className="text-xs text-gray-400 hover:text-[#06b6d4]">Test</Button>
-            </Card>
-          ))}
-        </div>
-        <div className="flex gap-3">
-          <Button variant="primary" size="sm" leftIcon={Save} onClick={() => { onSave("dataSources"); }} disabled={saving} className="bg-[#06b6d4] hover:bg-[#0891b2] text-black font-bold">Save</Button>
-          <Button variant="secondary" size="sm" leftIcon={RotateCcw} onClick={() => onReset("dataSources")} className="text-xs border-gray-700 text-gray-400">Reset</Button>
-        </div>
-      </div>
-    );
-  };
-
   // --- Tab: Appearance ---------------------------------------------------
   const renderAppearance = () => {
     const themes = ["dark", "midnight", "terminal", "light"];
@@ -702,4 +666,4 @@ export default function SettingsPage() {
       </div>
     </div>
   );
-};
+}

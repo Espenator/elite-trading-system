@@ -329,8 +329,8 @@ class MacroBrainState:
             self.contrarian_bias = WAVE_STATE_MAP.get(new_state, 1.0)
             
             if old_state != new_state:
-                logger.info(f'[MacroBrainState] Wave transition: {old_state} → {new_state} "
-                            f"(osc={self.oscillator:.1f}, bias={self.contrarian_bias:.2f})")
+                logger.info(f'[MacroBrainState] Wave transition: {old_state} → {new_state} '
+                            f'(osc={self.oscillator:.1f}, bias={self.contrarian_bias:.2f})')
                 # Spawn regime-specific teams
                 self._spawn_teams_for_wave(new_state)
             

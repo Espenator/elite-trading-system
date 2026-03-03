@@ -88,7 +88,7 @@ class TradeMemory:
 
     def __init__(self, filepath: Path = MEMORY_FILE):
         self.filepath = filepath
-              self._lock = threading.Lock()
+        self._lock = threading.Lock()
         self.data = self._load()
 
     # ------------------------------------------------------------------ #

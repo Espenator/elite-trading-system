@@ -1126,7 +1126,7 @@ if __name__ == "__main__":
     flask_thread.daemon = True
     flask_thread.start()
     logger.info("\ud83c\udf10 Flask webhook server started on http://0.0.0.0:5000")
-        logger.info("\ud83c\udf10 AI endpoints: /ai-analysis, /ai-chat, /llm-status, /api/v1/openclaw/*")
+    logger.info("\ud83c\udf10 AI endpoints: /ai-analysis, /ai-chat, /llm-status, /api/v1/openclaw/*")
 
     # Run initial daily scan on startup
     try:

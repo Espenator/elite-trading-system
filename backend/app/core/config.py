@@ -1,168 +1,119 @@
-"""Application configuration using pydantic-settings.
-
-APEX Phase 2 additions:
-- GPU_DEVICE, TORCH_MIXED_PRECISION  (PyTorch / LSTM trainer)
-- XGBOOST_GPU_ID                     (XGBoost trainer)
-- TRAINING_SCHEDULE                  (cron expression for scheduled retraining)
-- MODEL_ARTIFACTS_PATH               (where trained models are saved)
+﻿"""
+Elite Trading System - Application Configuration
+All fields match EXACTLY what services reference via settings.FIELD_NAME
 """
-
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Optional
 
 
 class Settings(BaseSettings):
-    """Application settings loaded from environment variables."""
-
     model_config = SettingsConfigDict(
         extra="ignore",
         env_file=".env",
         env_file_encoding="utf-8",
-        case_sensitive=True,
     )
 
-    # Application
-    APP_NAME: str = "Embodier.ai Trading Intelligence"
+    # ── App ─────────────────────────────────────────────────
+    APP_NAME: str = "Elite Trading System"
+    PROJECT_NAME: str = "Elite Trading System"
+    APP_VERSION: str = "2.0.0"
     DEBUG: bool = False
-    API_V1_PREFIX: str = "/api/v1"
-    PORT: int = 8001
+    LOG_LEVEL: str = "INFO"
+    ENVIRONMENT: str = "development"
+    TRADING_MODE: str = "paper"
+    SCAN_INTERVAL_MINUTES: int = 5
+
+    # ── Server ──────────────────────────────────────────────
     HOST: str = "0.0.0.0"
+    BACKEND_PORT: int = 8001
+    FRONTEND_PORT: int = 3000
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost:8501"
 
-    # CORS
-    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
-
-    # WebSocket
-    WS_HEARTBEAT_INTERVAL: int = 30
-    WS_MAX_CONNECTIONS: int = 100
-
-    # Finviz API  -- set in .env
-    FINVIZ_API_KEY: str = ""
-    FINVIZ_BASE_URL: str = "https://elite.finviz.com"
-
-    # Screener filters (comma-separated, e.g., "cap_midover,sh_avgvol_o500,sh_price_o10")
-    FINVIZ_SCREENER_FILTERS: str = "cap_midover,sh_avgvol_o500,sh_price_o10"
-    FINVIZ_SCREENER_VERSION: str = "111"
-    FINVIZ_SCREENER_FILTER_TYPE: str = "4"
-
-    # Quote/Chart settings
-    FINVIZ_QUOTE_TIMEFRAME: str = "d"  # d=daily, w=weekly, m=monthly, etc.
-
-    # -------------------------------------------------------------------
-    # OpenClaw Bridge (PC1 -> PC2)
-    # -------------------------------------------------------------------
-    OPENCLAW_BRIDGE_TOKEN: str = ""  # Shared secret for X-OpenClaw-Token header
-    OPENCLAW_BRIDGE_SECRET: str = ""  # HMAC-SHA256 secret for bridge signature verification
-    OPENCLAW_API_URL: str = (
-        ""  # URL of OpenClaw API on PC1 (e.g., http://192.168.x.x:5000)
-    )
-
-    # -------------------------------------------------------------------
-    # GPU / CUDA (APEX Phase 2)
-    # -------------------------------------------------------------------
-    GPU_DEVICE: str = "auto"  # "auto" | "cuda:0" | "cuda:1" | "cpu"
-    TORCH_MIXED_PRECISION: bool = True  # Enable AMP (FP16) when CUDA available
-    XGBOOST_GPU_ID: int = 0  # GPU device ordinal for XGBoost gpu_hist
-
-    # -------------------------------------------------------------------
-    # Training schedule & artefacts (APEX Phase 2)
-    # -------------------------------------------------------------------
-    TRAINING_SCHEDULE: str = "0 2 * * 6"  # cron: every Saturday at 02:00 UTC
-    MODEL_ARTIFACTS_PATH: str = (
-        "models/artifacts"  # directory for checkpoints & metadata
-    )
-
-    # -------------------------------------------------------------------
-    # DuckDB
-    # -------------------------------------------------------------------
-    DUCKDB_PATH: str = "elite_trading.duckdb"
-
-    # Alpaca Markets API -- set in .env; paper by default
+    # ── Alpaca Markets ──────────────────────────────────────
+    APCA_API_KEY_ID: str = ""
+    APCA_API_SECRET_KEY: str = ""
+    APCA_API_BASE_URL: str = "https://paper-api.alpaca.markets"
     ALPACA_API_KEY: str = ""
     ALPACA_SECRET_KEY: str = ""
-    ALPACA_BASE_URL: str = "https://paper-api.alpaca.markets/v2"
-    TRADING_MODE: str = (
-        "paper"  # "paper" | "live" -- only use "live" when explicitly ready
-    )
+    ALPACA_BASE_URL: str = "https://paper-api.alpaca.markets"
+    ALPACA_DATA_URL: str = "https://data.alpaca.markets"
 
-    # FRED (Federal Reserve Economic Data) -- set in .env
+    # ── FinViz ──────────────────────────────────────────────
+    FINVIZ_API_KEY: str = ""
+    FINVIZ_BASE_URL: str = "https://elite.finviz.com/export.ashx"
+    FINVIZ_QUOTE_TIMEFRAME: str = "d"
+    FINVIZ_SCREENER_FILTERS: str = "sh_avgvol_o500,sh_price_u500"
+    FINVIZ_SCREENER_FILTER_TYPE: str = "all"
+    FINVIZ_SCREENER_VERSION: str = "2"
+
+    # ── FRED ────────────────────────────────────────────────
     FRED_API_KEY: str = ""
+    FRED_BASE_URL: str = "https://api.stlouisfed.org/fred"
 
-    # Unusual Whales (options flow) -- set in .env
+    # ── SEC Edgar ───────────────────────────────────────────
+    SEC_EDGAR_USER_AGENT: str = ""
+
+    # ── Unusual Whales ──────────────────────────────────────
     UNUSUAL_WHALES_API_KEY: str = ""
-    UNUSUAL_WHALES_BASE_URL: str = "https://api.unusualwhales.com"
-    UNUSUAL_WHALES_FLOW_PATH: str = (
-        ""  # Default /api/option-trades/flow-alerts; override if needed
-    )
+    UNUSUAL_WHALES_BASE_URL: str = "https://api.unusualwhales.com/api"
 
-    # SEC EDGAR -- no key; User-Agent required (set in code)
-
-    # Sentiment Agent / Social News Engine -- set in .env
-    NEWS_API_KEY: str = ""
+    # ── StockGeist (Sentiment) ──────────────────────────────
     STOCKGEIST_API_KEY: str = ""
     STOCKGEIST_BASE_URL: str = "https://api.stockgeist.ai"
-    DISCORD_BOT_TOKEN: str = ""
-    DISCORD_API_BASE: str = "https://discord.com/api/v10"
-    # Discord channel IDs to monitor (comma-separated)
-    DISCORD_CHANNEL_IDS: str = ""
 
-    # X (Twitter) API -- OAuth 2.0 client credentials; set in .env
-    X_API_KEY: str = ""
-    X_API_KEY_SECRET: str = ""
-    X_OAUTH2_CLIENT_ID: str = ""
-    X_OAUTH2_CLIENT_SECRET: str = ""
+    # ── News API ────────────────────────────────────────────
+    NEWS_API_KEY: str = ""
 
-    # YouTube Knowledge Agent -- set in .env
+    # ── YouTube Knowledge Agent ─────────────────────────────
     YOUTUBE_API_KEY: str = ""
-    YOUTUBE_SEARCH_QUERY: str = (
-        "stock market trading technical analysis"  # Used when only API key is set
-    )
+    YOUTUBE_SEARCH_QUERY: str = "stock trading signals analysis"
 
-    # Resend -- transactional email for risk/alert notifications; set in .env
+    # ── Discord ─────────────────────────────────────────────
+    DISCORD_BOT_TOKEN: str = ""
+    DISCORD_CHANNEL_IDS: str = ""
+    DISCORD_API_BASE: str = "https://discord.com/api/v10"
+
+    # ── X / Twitter ─────────────────────────────────────────
+    X_OAUTH: str = ""
+
+    # ── Kelly Criterion Position Sizing ─────────────────────
+    KELLY_DEFAULT_WIN_RATE: float = 0.55
+    KELLY_DEFAULT_AVG_WIN: float = 1.5
+    KELLY_DEFAULT_AVG_LOSS: float = 1.0
+    KELLY_MAX_ALLOCATION: float = 0.25
+    KELLY_USE_HALF: bool = True
+
+    # ── Risk Management ─────────────────────────────────────
+    MAX_PORTFOLIO_HEAT: float = 0.06
+    MAX_SECTOR_CONCENTRATION: float = 0.30
+    MIN_RISK_SCORE: float = 3.0
+    VOLATILITY_BASELINE: float = 0.15
+
+    # ── Database ────────────────────────────────────────────
+    DATABASE_URL: str = "duckdb:///data/elite_trading.duckdb"
+
+    # ── Google Sheets ───────────────────────────────────────
+    GOOGLE_SHEETS_CREDENTIALS_FILE: str = ""
+    GOOGLE_SHEETS_SPREADSHEET_ID: str = ""
+
+    # ── Telegram Alerts ─────────────────────────────────────
+    TELEGRAM_BOT_TOKEN: str = ""
+    TELEGRAM_CHAT_ID: str = ""
+
+    # ── Email / Resend ──────────────────────────────────────
+    EMAIL_SENDER: str = ""
+    EMAIL_PASSWORD: str = ""
+    EMAIL_RECIPIENT: str = ""
     RESEND_API_KEY: str = ""
-    RESEND_FROM_EMAIL: str = ""  # Must be a verified domain in Resend
-    RESEND_ALERT_TO_EMAIL: str = (
-        ""  # Default recipient for test and risk alerts
-    )
+    RESEND_FROM_EMAIL: str = "alerts@elite-trading.dev"
+    RESEND_ALERT_TO_EMAIL: str = ""
 
-    # OpenClaw Bridge -- reads scan data from GitHub Gist; set in .env
-    OPENCLAW_GIST_ID: str = ""
-    OPENCLAW_GIST_TOKEN: str = (
-        ""  # GitHub personal access token with gist scope (optional for public gists)
-    )
+    # ── OpenClaw (Multi-Agent) ──────────────────────────────
+    OPENCLAW_ENABLED: bool = False
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
 
-    # -----------------------------------------------------------------
-    # Kelly Criterion & Position Sizing
-    # -----------------------------------------------------------------
-    KELLY_MAX_ALLOCATION: float = 0.10  # Max 10% per position
-    KELLY_DEFAULT_WIN_RATE: float = 0.55  # Baseline win rate
-    KELLY_DEFAULT_AVG_WIN: float = 0.035  # 3.5% avg win
-    KELLY_DEFAULT_AVG_LOSS: float = 0.015  # 1.5% avg loss
-    KELLY_USE_HALF: bool = True  # Use half-Kelly for safety
-    MAX_PORTFOLIO_HEAT: float = 0.25  # Max 25% total exposure
-    MAX_SECTOR_CONCENTRATION: float = 0.25  # Max 25% in one sector
-    VOLATILITY_BASELINE: float = 0.02  # 2% daily vol baseline
-
-    # -----------------------------------------------------------------
-    # Signal Thresholds
-    # -----------------------------------------------------------------
-    SIGNAL_BUY_THRESHOLD: float = 0.60  # Min prob_up for BUY
-    SIGNAL_STRONG_BUY_THRESHOLD: float = 0.75  # Strong BUY
-    SIGNAL_MIN_EDGE: float = 0.05  # Min Kelly edge to trade
-    SIGNAL_MIN_VOLUME_SCORE: float = 0.5  # Min relative volume
-
-    # -----------------------------------------------------------------
-    # Risk Management & Drawdown Protection
-    # -----------------------------------------------------------------
-    ATR_STOP_MULTIPLIER: float = 2.0  # ATR multiplier for dynamic stop-loss
-    MAX_DAILY_DRAWDOWN_PCT: float = 5.0  # Max daily drawdown before pause
-    MAX_DAILY_LOSS_PCT: float = 2.0  # Max single-day loss percentage
-    AUTO_PAUSE_TRADING: bool = True  # Auto-pause on drawdown breach
-    VAR_LIMIT_PCT: float = 1.5  # Value-at-Risk daily limit
-    RISK_FREE_RATE: float = 0.05  # Risk-free rate for Sharpe/Sortino
-    MIN_RISK_SCORE: int = 40  # Minimum risk score to allow trading
-    TRAILING_STOP_PCT: float = 0.03  # 3% trailing stop default
-    MAX_POSITION_PCT: float = 0.10  # Max single position as % of portfolio
+    # ── ML Engine ───────────────────────────────────────────
+    ML_MODEL_DIR: str = "data/models"
+    ML_RETRAIN_INTERVAL_HOURS: int = 168
 
 
-# Global settings instance
 settings = Settings()

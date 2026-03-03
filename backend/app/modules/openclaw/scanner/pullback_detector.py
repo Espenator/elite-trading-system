@@ -154,11 +154,11 @@ def calculate_volume_profile(closes: list, volumes: list, highs: list, lows: lis
     high_idx = poc_idx
 
     for _vp_iter in range(bins * 2):  # Bounded loop prevents infinite iteration
-                if va_vol >= target_vol:
+        if va_vol >= target_vol:
             break
         if low_idx <= 0 and high_idx >= bins - 1:
             break  # Expanded to full range, stop
-expand_low = vol_profile[low_idx - 1] if low_idx > 0 else 0
+        expand_low = vol_profile[low_idx - 1] if low_idx > 0 else 0
         expand_high = vol_profile[high_idx + 1] if high_idx < bins - 1 else 0
         if expand_low >= expand_high and low_idx > 0:
             low_idx -= 1

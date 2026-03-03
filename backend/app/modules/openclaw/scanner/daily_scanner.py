@@ -826,7 +826,7 @@ class DailyScanner:
             if w.get('composite_score', 0) >= 80
         ]
 
-            def get_kelly_ranked_tickers(self):
+    def get_kelly_ranked_tickers(self):
         """Return tickers ranked by Kelly edge * signal_quality (best first)."""
         ranked = []
         for w in self.scan_results.get('watchlist', []):

@@ -1046,29 +1046,21 @@ export default function MarketRegime() {
           {/* PANEL 11: Transition History (12 cols) */}
           <div className="col-span-12">
             <TransitionHistory regimeData={transitionData || regimeData} />
-            <span className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">
-              Bias Multiplier
-            </span>
-            <input
-              type="range"
-              min="0"
-              max="5"
-              step="0.1"
-              value={biasMultiplier}
-              onChange={(e) => handleBiasChange(parseFloat(e.target.value))}
-              className="flex-1 h-1 accent-cyan-500"
-            />
-            <span className="text-sm font-mono text-cyan-400 w-10 text-right">
-              {biasMultiplier.toFixed(1)}
-            </span>
-            {whaleFlow?.alerts?.length > 0 && (
-              <div className="ml-4 flex items-center gap-2 text-[10px]">
-                <span className="text-purple-400 font-semibold">WHALE:</span>
-                <span className="text-gray-300">
-                  {whaleFlow.alerts[0]?.symbol} - {whaleFlow.alerts[0]?.type}
-                </span>
-              </div>
-            )}
+          </div>
+
+          {/* Bias Multiplier + Whale Flow strip (12 cols) */}
+          <div className="col-span-12">
+            <div className="bg-[#111827] rounded-lg border border-gray-700/30 p-3 flex items-center gap-4">
+              <span className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">Bias Multiplier</span>
+              <input type="range" min="0" max="5" step="0.1" value={biasMultiplier} onChange={(e) => handleBiasChange(parseFloat(e.target.value))} className="flex-1 h-1 accent-cyan-500" />
+              <span className="text-sm font-mono text-cyan-400 w-10 text-right">{biasMultiplier.toFixed(1)}</span>
+              {whaleFlow?.alerts?.length > 0 && (
+                <div className="ml-4 flex items-center gap-2 text-[10px]">
+                  <span className="text-purple-400 font-semibold">WHALE:</span>
+                  <span className="text-gray-300">{whaleFlow.alerts[0]?.symbol} - {whaleFlow.alerts[0]?.type}</span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

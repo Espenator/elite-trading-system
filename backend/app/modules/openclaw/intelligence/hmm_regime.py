@@ -485,7 +485,7 @@ def detect_hmm_regime() -> Dict:
 
     except Exception as e:
         logger.error(f"HMM: Regime detection failed: {e}")
-                return _vix_fallback_regime(result)
+        return _vix_fallback_regime(result)
 
 
 def detect_regime() -> Dict:

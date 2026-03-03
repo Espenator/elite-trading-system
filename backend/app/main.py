@@ -12,7 +12,11 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from app.websocket_manager import add_connection, remove_connection, heartbeat_loop
+from app.websocket_manager import (
+    add_connection, remove_connection, heartbeat_loop, accept_connection,
+    handle_pong, subscribe, unsubscribe, broadcast_ws,
+)
+import json
 from app.core.config import settings
 from app.api.v1 import (
     stocks,
@@ -396,12 +400,39 @@ app.include_router(risk_shield_api.router, prefix="/api/v1", tags=["risk_shield"
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket endpoint for real-time updates."""
+    """WebSocket endpoint for real-time updates.
+
+    Handles client messages:
+      {"type": "pong"}              - heartbeat response
+      {"type": "subscribe", "channel": "..."}   - subscribe to a data channel
+      {"type": "unsubscribe", "channel": "..."} - unsubscribe
+      {"channel": "...", "data": ...}           - client emit (forwarded)
+    """
     await websocket.accept()
     add_connection(websocket)
     try:
         while True:
-            data = await websocket.receive_text()
+            raw = await websocket.receive_text()
+            try:
+                msg = json.loads(raw)
+            except (json.JSONDecodeError, TypeError):
+                continue
+
+            msg_type = msg.get("type", "")
+
+            if msg_type == "pong":
+                handle_pong(websocket)
+            elif msg_type == "subscribe":
+                ch = msg.get("channel")
+                if ch:
+                    subscribe(websocket, ch)
+            elif msg_type == "unsubscribe":
+                ch = msg.get("channel")
+                if ch:
+                    unsubscribe(websocket, ch)
+            elif msg.get("channel"):
+                # Client-emitted message — rebroadcast to channel subscribers
+                await broadcast_ws(msg["channel"], msg.get("data", {}))
     except Exception:
         pass
     finally:
