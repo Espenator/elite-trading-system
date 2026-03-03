@@ -39,7 +39,7 @@ def _get_ml_data(key: str, default=None):
 # Core ML Brain Endpoints (preserved from v1)
 # ---------------------------------------------------------------------------
 
-@router.get("/ml-brain/performance")
+@router.get("/performance")
 async def get_ml_performance():
     """
     Return ML model walk-forward accuracy history.
@@ -52,7 +52,7 @@ async def get_ml_performance():
     return data
 
 
-@router.get("/ml-brain/signals/staged")
+@router.get("/signals/staged")
 async def get_staged_inferences():
     """
     Return top staged signal inferences.
@@ -65,7 +65,7 @@ async def get_staged_inferences():
     return data
 
 
-@router.get("/ml-brain/flywheel-logs")
+@router.get("/flywheel-logs")
 async def get_flywheel_logs():
     """
     Return latest trade outcome logs for the flywheel.
@@ -81,7 +81,7 @@ async def get_flywheel_logs():
 # Trading Conference Endpoint (v2.0)
 # ---------------------------------------------------------------------------
 
-@router.post("/ml-brain/conference/{symbol}")
+@router.post("/conference/{symbol}")
 async def run_conference(symbol: str, timeframe: str = "1d"):
     """Run a Trading Conference (multi-agent consensus DAG) for a symbol.
     
@@ -142,7 +142,7 @@ async def run_conference(symbol: str, timeframe: str = "1d"):
         }
 
 
-@router.post("/ml-brain/conference/batch")
+@router.post("/conference/batch")
 async def run_conference_batch(symbols: List[str], timeframe: str = "1d"):
     """Run Trading Conference for multiple symbols concurrently."""
     try:
@@ -160,7 +160,7 @@ async def run_conference_batch(symbols: List[str], timeframe: str = "1d"):
 # Model Registry & Drift Endpoints (v2.0)
 # ---------------------------------------------------------------------------
 
-@router.get("/ml-brain/registry/status")
+@router.get("/registry/status")
 async def get_registry_status():
     """Get model registry status with champion/challenger info."""
     try:
@@ -173,7 +173,7 @@ async def get_registry_status():
         return {"status": "error", "message": str(e)}
 
 
-@router.get("/ml-brain/drift/status")
+@router.get("/drift/status")
 async def get_drift_status():
     """Get drift monitor status and recent checks."""
     try:
@@ -187,7 +187,7 @@ async def get_drift_status():
         return {"status": "error", "message": str(e)}
 
 
-@router.get("/ml-brain/lstm/predict/{symbol}")
+@router.get("/lstm/predict/{symbol}")
 async def lstm_predict(symbol: str):
     """Run LSTM multi-task prediction for a symbol.
     
@@ -205,7 +205,7 @@ async def lstm_predict(symbol: str):
         return {"status": "error", "message": str(e), "symbol": symbol}
 
 
-@router.get("/ml-brain/status")
+@router.get("/status")
 async def get_ml_brain_status():
     """Aggregate ML Brain status: all components."""
     status: Dict[str, Any] = {

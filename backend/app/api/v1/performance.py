@@ -142,7 +142,7 @@ def _iso_date_only(s: Any) -> Optional[str]:
     return None
 
 
-@router.get("/performance/health")
+@router.get("/health")
 async def performance_health() -> Dict[str, Any]:
     conn = _conn()
     try:
@@ -158,7 +158,7 @@ async def performance_health() -> Dict[str, Any]:
         conn.close()
 
 
-@router.get("/performance/summary")
+@router.get("/summary")
 async def performance_summary(limit_trades: int = 5000) -> Dict[str, Any]:
     """
     Returns realized performance metrics from the detected trade table.
@@ -262,7 +262,7 @@ async def performance_summary(limit_trades: int = 5000) -> Dict[str, Any]:
         conn.close()
 
 
-@router.get("/performance/equity")
+@router.get("/equity")
 async def performance_equity(limit_trades: int = 5000) -> Dict[str, Any]:
     """
     Equity curve computed from realized trade PnL in chronological order if possible.
@@ -315,7 +315,7 @@ async def performance_equity(limit_trades: int = 5000) -> Dict[str, Any]:
         conn.close()
 
 
-@router.get("/performance/trades")
+@router.get("/trades")
 async def performance_trades(limit: int = 200) -> Dict[str, Any]:
     """
     Recent trades (raw rows shaped into a stable response).
@@ -379,7 +379,7 @@ async def performance_trades(limit: int = 200) -> Dict[str, Any]:
 import numpy as np
 
 
-@router.get("/performance/risk-metrics")
+@router.get("/risk-metrics")
 async def risk_metrics() -> Dict[str, Any]:
     """
     Compute portfolio risk metrics from actual trade history:

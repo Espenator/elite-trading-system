@@ -224,8 +224,8 @@ async def run_preflight(req: PreflightRequest):
         checks=checks,
         timestamp=datetime.now(timezone.utc).isoformat(),
     )
-    _verdicts.append(verdict.dict())
-    _persist_verdict(verdict.dict())
+    _verdicts.append(verdict.model_dump())
+    _persist_verdict(verdict.model_dump())
     if len(_verdicts) > 200:
         _verdicts.pop(0)
 

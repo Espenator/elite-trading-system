@@ -74,7 +74,7 @@ def _compute_accuracy(history: list, days: int) -> float:
 # Core Flywheel Endpoints (preserved from v1)
 # ---------------------------------------------------------------------------
 
-@router.get("/flywheel")
+@router.get("")
 async def get_flywheel():
     """Return current flywheel accuracy metrics and history."""
     data = _get_flywheel_data()
@@ -87,7 +87,7 @@ async def get_flywheel():
     }
 
 
-@router.post("/flywheel/record")
+@router.post("/record")
 async def record_flywheel(record: FlywheelRecord):
     """Submit a flywheel accuracy snapshot (called by ML training/evaluation)."""
     data = _get_flywheel_data()
@@ -129,7 +129,7 @@ async def record_flywheel(record: FlywheelRecord):
 # Flywheel Engine Endpoints (v2.0 enhancements)
 # ---------------------------------------------------------------------------
 
-@router.get("/flywheel/engine")
+@router.get("/engine")
 async def get_flywheel_engine():
     """Aggregate flywheel engine status: registry + drift + features + accuracy."""
     engine_status: Dict[str, Any] = {
@@ -186,7 +186,7 @@ async def get_flywheel_engine():
     return engine_status
 
 
-@router.get("/flywheel/registry")
+@router.get("/registry")
 async def get_registry_status():
     """Get model registry status and champion models."""
     try:
@@ -199,7 +199,7 @@ async def get_registry_status():
         return {"status": "error", "message": str(e)}
 
 
-@router.get("/flywheel/drift")
+@router.get("/drift")
 async def get_drift_status():
     """Get drift monitor status and recent drift history."""
     try:
@@ -214,7 +214,7 @@ async def get_drift_status():
         return {"status": "error", "message": str(e)}
 
 
-@router.get("/flywheel/features")
+@router.get("/features")
 async def get_feature_pipeline_status():
     """Get feature pipeline manifest and configuration."""
     try:
@@ -242,7 +242,7 @@ async def get_feature_pipeline_status():
 # Kelly Learning Feedback: calibrate edge predictions from outcomes
 # -----------------------------------------------------------------
 
-@router.post("/flywheel/kelly-feedback")
+@router.post("/kelly-feedback")
 async def kelly_feedback(outcomes: List[Dict]):
     """Update edge calibration from realized trade outcomes.
 

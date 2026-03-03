@@ -73,7 +73,7 @@ async def create_advanced_order(req: AdvancedOrderRequest):
                 "error": "ALIGNMENT_BLOCKED",
                 "blockedBy": verdict.blockedBy,
                 "summary": verdict.summary,
-                "checks": [c.dict() for c in verdict.checks],
+                "checks": [c.model_dump() for c in verdict.checks],
             },
         )
     logger.info("Alignment preflight PASSED for %s %s %s", req.side, req.qty, req.symbol)

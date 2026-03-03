@@ -18,7 +18,7 @@ except ImportError as e:
     logger.warning("RiskGovernor module not found: %s. RiskShield endpoints will return 503.", e)
     risk_gov = None
 
-router = APIRouter(prefix="/api/v1/risk-shield", tags=["RiskShield"])
+router = APIRouter(tags=["RiskShield"])
 
 
 class EmergencyActionReq(BaseModel):

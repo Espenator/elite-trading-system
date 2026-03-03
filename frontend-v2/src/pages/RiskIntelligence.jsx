@@ -439,7 +439,7 @@ handleRefresh();
                 </div>
               )}
             </div>
-section>
+        </section>
 
         {/* ─── ROW 2 LEFT: 12 MINI GAUGES — 4×3 grid (5 cols) ──────── */}
         <section className="col-span-5 bg-[#111827] rounded-lg border border-[#1E293B] p-4">
@@ -635,10 +635,9 @@ section>
             )}
           </div>
         </section>
-      </div>
 
-            {/* ── ROW 5: ALIGNMENT ENGINE — BRIGHT LINES + RECENT BLOCKS ── */}
-      <section className="col-span-12 grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* ── ROW 5: ALIGNMENT ENGINE — BRIGHT LINES + RECENT BLOCKS ── */}
+        <section className="col-span-12 grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-[#1A1F2E] rounded-lg border border-[#1E293B] p-4">
           <h3 className="text-sm font-bold uppercase tracking-wider mb-3" style={{color: C.amber}}>Bright Lines — Constitutional Limits</h3>
           <div className="grid grid-cols-2 gap-3">
@@ -680,9 +679,8 @@ section>
             )}
           </div>
         </div>
-      </section>
-
-
+        </section>
+      </div>
 
       {/* ═══ FOOTER ══════════════════════════════════════════════════════ */}
       <footer className="flex items-center justify-between bg-[#111827] rounded-lg px-4 py-2 border border-[#1E293B]
