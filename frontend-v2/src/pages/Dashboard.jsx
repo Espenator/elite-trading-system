@@ -573,7 +573,9 @@ const LWChartFallback = ({
           lineStyle: 2,
           title: "Target",
         });
-    } catch {}
+    } catch (err) {
+      log.warn("Chart data update error:", err);
+    }
   }, [quotesData, signalEntry, signalStop, signalTarget]);
 
   return (

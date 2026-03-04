@@ -127,7 +127,7 @@ class OverfittingGuard:
         is_sharpe = is_metrics.get("sharpe", 0)
         oos_sharpe = oos_metrics.get("sharpe", 0)
 
-        if oos_sharpe > 0 and is_sharpe / max(oos_sharpe, 0.01) > MAX_TRAIN_TEST_SHARPE_RATIO:
+        if oos_sharpe > 0.1 and is_sharpe > 0 and is_sharpe / oos_sharpe > MAX_TRAIN_TEST_SHARPE_RATIO:
             result.fail(
                 f"Sharpe ratio degradation: IS={is_sharpe:.2f} vs OOS={oos_sharpe:.2f} "
                 f"(ratio={is_sharpe / oos_sharpe:.1f}x > {MAX_TRAIN_TEST_SHARPE_RATIO}x)"
@@ -137,7 +137,7 @@ class OverfittingGuard:
 
         is_dd = abs(is_metrics.get("max_drawdown", 0))
         oos_dd = abs(oos_metrics.get("max_drawdown", 0))
-        if is_dd > 0 and oos_dd / max(is_dd, 0.001) > MAX_DRAWDOWN_RATIO:
+        if is_dd > 0.01 and oos_dd > 0 and oos_dd / is_dd > MAX_DRAWDOWN_RATIO:
             result.fail(
                 f"Drawdown expansion: IS={is_dd:.1%} vs OOS={oos_dd:.1%} "
                 f"(ratio={oos_dd / is_dd:.1f}x > {MAX_DRAWDOWN_RATIO}x)"

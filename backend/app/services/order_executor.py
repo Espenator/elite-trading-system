@@ -94,11 +94,12 @@ class OrderExecutor:
     ):
         self.message_bus = message_bus
         self.auto_execute = auto_execute
-        self.min_score = min_score
-        self.max_daily_trades = max_daily_trades
-        self.cooldown_seconds = cooldown_seconds
-        self.max_portfolio_heat = max_portfolio_heat
-        self.max_single_position = max_single_position
+        # Range-validate parameters to prevent misconfiguration
+        self.min_score = max(0.0, min(float(min_score), 100.0))
+        self.max_daily_trades = max(1, min(int(max_daily_trades), 100))
+        self.cooldown_seconds = max(0, min(int(cooldown_seconds), 86400))
+        self.max_portfolio_heat = max(0.01, min(float(max_portfolio_heat), 1.0))
+        self.max_single_position = max(0.01, min(float(max_single_position), 1.0))
         self.use_bracket_orders = use_bracket_orders
 
         # State tracking

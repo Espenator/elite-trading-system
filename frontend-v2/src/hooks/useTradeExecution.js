@@ -66,27 +66,29 @@ export default function useTradeExecution() {
 
   // ─── WebSocket Handler ─────────────────────────────────
   const handleWsMessage = useCallback((data) => {
+    if (!data || typeof data !== 'object') return;
+    const payload = data.payload;
     switch (data.type) {
       case 'portfolio':
-        setPortfolio(data.payload);
+        if (payload) setPortfolio(payload);
         break;
       case 'order_book':
-        setOrderBook(data.payload);
+        if (payload) setOrderBook(payload);
         break;
       case 'price_ladder':
-        setPriceLadder(data.payload);
+        if (payload) setPriceLadder(payload);
         break;
       case 'positions':
-        setPositions(data.payload);
+        if (payload) setPositions(payload);
         break;
       case 'news':
-        setNewsFeed(prev => [data.payload, ...prev].slice(0, 20));
+        if (payload) setNewsFeed(prev => [payload, ...prev].slice(0, 20));
         break;
       case 'system_status':
-        setSystemStatus(prev => [data.payload, ...prev].slice(0, 20));
+        if (payload) setSystemStatus(prev => [payload, ...prev].slice(0, 20));
         break;
       case 'order_executed':
-        setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: data.payload.message, type: 'success' }, ...prev].slice(0, 20));
+        setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: payload?.message || 'Order executed', type: 'success' }, ...prev].slice(0, 20));
         break;
       default:
         break;

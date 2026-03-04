@@ -528,6 +528,15 @@ async def lifespan(app: FastAPI):
                 await task
             except asyncio.CancelledError:
                 pass
+        # Stop intelligence cache background loop
+        try:
+            from app.services.intelligence_cache import get_intelligence_cache
+            cache = get_intelligence_cache()
+            if cache._running:
+                await cache.stop()
+        except Exception:
+            pass
+
         # Close DuckDB connection
         try:
             from app.data.duckdb_storage import duckdb_store

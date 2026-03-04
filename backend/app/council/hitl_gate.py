@@ -106,8 +106,12 @@ class HITLGate:
         if not self.config.enabled:
             return GateResult()
 
+        decision_id = decision.get("council_decision_id", "")
+        if not decision_id:
+            import uuid
+            decision_id = f"hitl_{uuid.uuid4().hex[:12]}"
         result = GateResult(
-            decision_id=decision.get("council_decision_id", ""),
+            decision_id=decision_id,
             symbol=decision.get("symbol", ""),
         )
 
