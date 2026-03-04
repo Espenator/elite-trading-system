@@ -59,6 +59,9 @@ htmlcov/
 .pytest_cache/
 .tox/
 
+# Runtime data
+data/
+
 # Misc
 *.bak
 *.tmp
