@@ -91,6 +91,20 @@ class HomeostasisMonitor:
         except Exception:
             pass
 
+        # Data quality — track PNS data source freshness
+        try:
+            from app.council.data_quality import get_data_quality_monitor
+            dqm = get_data_quality_monitor()
+            dq_health = dqm.get_health()
+            vitals["data_quality_score"] = dq_health["overall_quality_score"]
+            vitals["data_sources_stale"] = dq_health["critical_stale"]
+            if dqm.should_degrade():
+                vitals["data_freshness"] = "stale"
+                # Lower risk score to trigger DEFENSIVE mode
+                vitals["risk_score"] = min(vitals["risk_score"], 45)
+        except Exception:
+            pass
+
         self._last_vitals = vitals
         self._last_check = now
         self._mode = self._compute_mode(vitals)

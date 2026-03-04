@@ -210,6 +210,31 @@ async def run_council(
         len(all_votes),
     )
 
+    # HITL gate — check if human approval is required before execution
+    try:
+        from app.council.hitl_gate import get_hitl_gate
+        hitl = get_hitl_gate()
+        hitl_result = hitl.check(
+            decision={
+                "council_decision_id": blackboard.council_decision_id,
+                "symbol": symbol,
+                "final_direction": decision.final_direction,
+                "final_confidence": decision.final_confidence,
+                "vetoed": decision.vetoed,
+                "metadata": blackboard.metadata,
+            },
+            portfolio_context=context.get("portfolio_context"),
+        )
+        if hitl_result.requires_approval:
+            decision.execution_ready = False
+            decision.council_reasoning += (
+                f" | HITL: awaiting approval ({', '.join(hitl_result.gates_triggered)})"
+            )
+            blackboard.metadata["hitl_pending"] = hitl_result.to_dict()
+            await hitl.request_approval(hitl_result)
+    except Exception as e:
+        logger.debug("HITL gate check failed (proceeding): %s", e)
+
     # Record decision in feedback loop for learning
     try:
         from app.council.feedback_loop import record_decision
