@@ -56,6 +56,32 @@ Arbiter Rules:
 3. Weighted confidence aggregation for direction
 4. Final confidence = weighted average of non-vetoing agents
 
+## CNS Architecture (Central Nervous System)
+
+The agent swarm IS the nervous system of Embodier Trader:
+
+- **Brainstem** (always on, <50ms): risk_governor, execution_engine health, regime_agent, symbol_universe, CircuitBreaker reflexes
+- **Cortex** (LLM-powered, 300-800ms): hypothesis_agent + critic_agent via brain_service gRPC
+- **Spinal Cord** (council DAG, ~1500ms): S1 parallel perception -> S2 hypothesis -> S3 strategy -> S4 parallel risk/execution -> S5 critic -> S6 arbiter
+- **Autonomic**: Bayesian weight updates, overnight learning, threshold adaptation, AgentHealthMonitor
+- **PNS Sensory**: Alpaca WS, Unusual Whales, FinViz, News APIs, FRED, EDGAR
+- **PNS Motor**: execution_agent -> Alpaca Orders, short_basket_compiler
+- **Blackboard** (thalamus): shared state all agents read/write, single source of truth
+
+Swarm Invariants:
+1. No trade without council_decision_id
+2. No data flows without agent validation
+3. No UI state changes without agent approval
+4. Council decisions expire after 30 seconds
+
+Migration Roadmap:
+- Phase 1: BlackboardState replaces raw features dict
+- Phase 2: brain_service gRPC -> hypothesis + critic agents
+- Phase 3: Port OpenClaw Flask/Slack agents to FastAPI tools
+- Phase 4: Bayesian weights + DuckDB trade outcomes + threshold adaptation
+- Phase 5: LangGraph wrapper for tracing/checkpointing
+- Phase 6: Async parallel stages, LLM caching, feature pre-compute
+
 ## Architecture
 
 ```
