@@ -170,12 +170,25 @@ async def run_council(
     except Exception as e:
         logger.debug("Feedback loop record failed: %s", e)
 
-    # Publish to message bus if available
+    # Publish enhanced verdict to message bus + WebSocket
     try:
         from app.core.message_bus import get_message_bus
         bus = get_message_bus()
         if bus._running:
-            await bus.publish("council.verdict", decision.to_dict())
+            verdict_payload = {
+                "type": "council_verdict",
+                "council_decision_id": blackboard.council_decision_id,
+                "symbol": symbol,
+                "direction": decision.final_direction,
+                "confidence": decision.final_confidence,
+                "agent_votes": [v.to_dict() for v in all_votes],
+                "circuit_breaker": blackboard.metadata.get("circuit_breaker"),
+                "timestamp": timestamp,
+                "vetoed": decision.vetoed,
+                "execution_ready": decision.execution_ready,
+                "council_reasoning": decision.council_reasoning,
+            }
+            await bus.publish("council.verdict", verdict_payload)
     except Exception:
         pass
 
