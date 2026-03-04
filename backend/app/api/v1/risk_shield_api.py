@@ -121,7 +121,8 @@ async def execute_emergency_action(payload: EmergencyActionReq):
         raise HTTPException(status_code=400, detail="Unknown tactical command.")
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Emergency action failed: %s", e)
+        raise HTTPException(status_code=500, detail="Emergency action failed")
 
 
 @router.get("/history")

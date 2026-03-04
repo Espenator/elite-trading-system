@@ -64,6 +64,10 @@ class AlpacaService:
         return None
 
     def _cache_set(self, key: str, data: Any) -> None:
+        # Prevent unbounded cache growth
+        if len(self._cache) > 500:
+            now = time.time()
+            self._cache = {k: v for k, v in self._cache.items() if (now - v[0]) < 300}
         self._cache[key] = (time.time(), data)
 
     async def _request(

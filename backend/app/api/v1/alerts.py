@@ -131,7 +131,7 @@ async def test_email_alert():
         raise HTTPException(status_code=502, detail=f"Resend API error: {msg}")
     except Exception as e:
         logger.exception("Resend send failed")
-        raise HTTPException(status_code=502, detail=f"Failed to send email: {str(e)}")
+        raise HTTPException(status_code=502, detail="Failed to send email")
 
 
 @router.post("/test-sms", dependencies=[Depends(require_auth)])

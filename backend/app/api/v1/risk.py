@@ -10,9 +10,10 @@ import math
 from datetime import date
 from typing import Any, List
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
+from app.core.security import require_auth
 from app.services.alpaca_service import alpaca_service
 from app.services.database import db_service
 from app.websocket_manager import broadcast_ws
@@ -228,7 +229,7 @@ async def get_risk_history():
     return _get_risk_history()
 
 
-@router.put("")
+@router.put("", dependencies=[Depends(require_auth)])
 async def update_risk(update: RiskUpdate):
     """Update risk parameters in DB. Broadcasts change via WebSocket."""
     config = _get_risk_config()

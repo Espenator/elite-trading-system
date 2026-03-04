@@ -4,9 +4,10 @@ Mounts at /api/v1/alpaca — proxies account, positions, orders, activities
 from Alpaca Markets v2 API through the centralized AlpacaService.
 """
 import logging
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from typing import Dict, List, Optional
 
+from app.core.security import require_auth
 from app.services.alpaca_service import alpaca_service
 
 logger = logging.getLogger(__name__)
@@ -71,7 +72,7 @@ async def get_activities(limit: int = 30, activity_type: str = "FILL"):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.delete("/positions/{symbol}")
+@router.delete("/positions/{symbol}", dependencies=[Depends(require_auth)])
 async def close_position(symbol: str, qty: Optional[str] = None, percentage: Optional[str] = None):
     """DELETE /v2/positions/{symbol} — close or reduce position."""
     try:
@@ -82,7 +83,7 @@ async def close_position(symbol: str, qty: Optional[str] = None, percentage: Opt
         raise HTTPException(status_code=400, detail="Internal server error")
 
 
-@router.delete("/positions")
+@router.delete("/positions", dependencies=[Depends(require_auth)])
 async def close_all_positions():
     """DELETE /v2/positions — liquidate all."""
     try:

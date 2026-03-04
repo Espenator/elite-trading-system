@@ -27,6 +27,7 @@ import asyncio
 import logging
 import time
 import uuid
+import collections
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -103,7 +104,7 @@ class OrderExecutor:
         # State tracking
         self._running = False
         self._start_time: Optional[float] = None
-        self._orders: List[OrderRecord] = []
+        self._orders: collections.deque = collections.deque(maxlen=10000)
         self._daily_trade_count = 0
         self._daily_reset_date: Optional[str] = None
         self._symbol_last_trade: Dict[str, float] = {}  # symbol -> timestamp

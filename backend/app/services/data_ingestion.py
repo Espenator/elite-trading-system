@@ -105,7 +105,10 @@ class DataIngestionService:
                     page_token = None
                     symbol_rows = []
 
-                    while True:
+                    max_pages = 100  # Safety limit to prevent infinite pagination
+                    page_count = 0
+                    while page_count < max_pages:
+                        page_count += 1
                         params = {
                             "start": start_str,
                             "end": end_str,

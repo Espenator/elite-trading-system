@@ -58,7 +58,9 @@ class FeatureManifest:
     created_at: str = ""
 
     def save(self, path: Path = MANIFEST_FILE):
-        path.write_text(json.dumps(asdict(self), indent=2))
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(asdict(self), indent=2))
+        tmp.replace(path)
 
     @classmethod
     def load(cls, path: Path = MANIFEST_FILE) -> "FeatureManifest":

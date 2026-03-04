@@ -91,8 +91,8 @@ Weight Update → update_agent_weights() → persist to settings → agents read
 - **CI**: GREEN (151 tests, all passing)
 - **Frontend**: 15 pages built, all wired to real API hooks
 - **Backend**: 28+ API routes defined, services layer implemented
-- **Authentication**: Bearer token on 47 state-changing endpoints (`security.py`)
-- **ML**: XGBoost trainer + feature pipeline operational
+- **Authentication**: Bearer token on 56+ state-changing endpoints (`security.py`)
+- **ML**: XGBoost trainer + feature pipeline operational, atomic writes for model registry
 - **OpenClaw**: Phase 2 complete (8 sub-modules integrated)
 - **Council**: 8-agent debate with configurable thresholds via settings service
 - **Feedback Loop**: Council decisions recorded, outcomes tracked, agent weights auto-adjusted
@@ -100,7 +100,10 @@ Weight Update → update_agent_weights() → persist to settings → agents read
 - **Feature Aggregator**: Real OHLCV, technicals, flow, regime from DuckDB
 - **WebSocket**: Signal→MessageBus→WebSocket bridges wired (signals, orders, council, risk)
 - **Brain Service**: gRPC wired to hypothesis + critic agents (needs `BRAIN_ENABLED=true`)
-- **CORS**: Restricted to localhost:3000, localhost:5173, localhost:8501
+- **CORS**: Restricted to configured origins with specific methods/headers
+- **Security Headers**: X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy
+- **Startup Validation**: Live trading mode blocks startup if ALPACA keys or AUTH_TOKEN missing
+- **Memory Safety**: Bounded order history (deque), cache cleanup, pagination limits
 
 ## Completed Work (March 4, 2026 Session)
 
@@ -131,6 +134,18 @@ Weight Update → update_agent_weights() → persist to settings → agents read
 ### Cleanup
 - Deleted dead `backend/routers/trade_execution.py` (superseded by OrderExecutor service)
 
+### Production Hardening (March 4, 2026 — Session 2)
+- **Auth expanded**: Added `require_auth` to 9 more endpoints (alpaca DELETE positions, PUT risk, patterns POST/DELETE, sentiment POST/DELETE, ml-brain POST conference)
+- **Error leak fix**: Replaced `str(e)` in HTTPException with generic messages across 6 API files (stocks, quotes, alerts, risk_shield, ml_brain)
+- **Memory safety**: OrderExecutor._orders → bounded `deque(maxlen=10000)`, Alpaca cache auto-cleanup at 500+ keys, data ingestion pagination limited to 100 pages
+- **Atomic writes**: model_registry `_save_runs()` and `_save_champions()` now write to .tmp then rename; same for feature_pipeline manifest
+- **CORS tightened**: Replaced `allow_methods=["*"]` / `allow_headers=["*"]` with explicit lists
+- **Security headers**: Added middleware for X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy
+- **Startup validation**: config.py blocks startup in `TRADING_MODE=live` if ALPACA keys or AUTH_TOKEN missing
+- **DuckDB shutdown**: Explicit connection close in lifespan shutdown handler
+- **Frontend localhost fix**: openclawService.js derives WS URL from window.location in production
+- **Env docs**: Updated frontend-v2/.env.example with VITE_API_URL, VITE_WS_URL, VITE_ENABLE_AGENT_MOCKS
+
 ## Remaining Work / Phase 1 TODOs
 
 1. **Enable Brain Service**: Set `BRAIN_ENABLED=true`, ensure Ollama running on PC2
@@ -139,6 +154,10 @@ Weight Update → update_agent_weights() → persist to settings → agents read
 4. **Frontend Council Page**: Wire council performance stats to Agent Command Center dashboard
 5. **Live Testing**: Run full pipeline end-to-end with Alpaca paper trading
 6. **Notification Wiring**: Connect Discord/Telegram/Email alerts to trade events
+7. **Risk Shield TODOs**: Wire kill_switch, hedge_all, reduce_50, freeze_entries to Alpaca API (4 stubs remain)
+8. **Structured Logging**: Switch to JSON logging format with correlation IDs for production observability
+9. **Rate Limiting**: Add slowapi rate limiter to API endpoints
+10. **Database Migrations**: Add Alembic for schema versioning and rollback capability
 
 ## Rules for AI Assistants
 
@@ -152,3 +171,6 @@ Weight Update → update_agent_weights() → persist to settings → agents read
 8. ALWAYS add auth (`dependencies=[Depends(require_auth)]`) to new POST/PUT/DELETE endpoints
 9. ALWAYS use `getAuthHeaders()` in frontend POST/PUT/DELETE fetch calls
 10. Council agent thresholds go in `agent_config.py` / settings service, NOT hardcoded
+11. NEVER expose `str(e)` in HTTPException details — use generic messages, log details server-side
+12. Use atomic writes (write to .tmp, rename) for any JSON file persistence
+13. All in-memory caches MUST have size bounds (deque maxlen, periodic cleanup, or LRU)

@@ -150,3 +150,18 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# Production safety: validate critical keys when in live trading mode
+if settings.TRADING_MODE.lower() == "live":
+    _missing = []
+    if not settings.ALPACA_API_KEY:
+        _missing.append("ALPACA_API_KEY")
+    if not settings.ALPACA_SECRET_KEY:
+        _missing.append("ALPACA_SECRET_KEY")
+    if not settings.API_AUTH_TOKEN:
+        _missing.append("API_AUTH_TOKEN")
+    if _missing:
+        raise ValueError(
+            f"Live trading mode requires these env vars: {', '.join(_missing)}. "
+            "Set them in .env or switch TRADING_MODE=paper."
+        )

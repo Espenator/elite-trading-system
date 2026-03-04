@@ -457,6 +457,16 @@ async def lifespan(app: FastAPI):
                 await task
             except asyncio.CancelledError:
                 pass
+        # Close DuckDB connection
+        try:
+            from app.data.duckdb_storage import duckdb_store
+            if hasattr(duckdb_store, '_conn') and duckdb_store._conn:
+                duckdb_store._conn.close()
+                duckdb_store._conn = None
+                log.info("DuckDB connection closed")
+        except Exception:
+            pass
+
         log.info("Application shutdown complete")
 
 
@@ -471,9 +481,19 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
 )
+
+
+@app.middleware("http")
+async def add_security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
 
 # --- API Routers ---
 # Each router gets its own sub-path prefix matching frontend API_CONFIG.endpoints.

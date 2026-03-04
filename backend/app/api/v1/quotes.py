@@ -1,5 +1,8 @@
 """Quote/chart data API endpoints."""
+import logging
 from fastapi import APIRouter, HTTPException, Query, Path
+
+logger = logging.getLogger(__name__)
 from typing import Optional, List, Dict, Any
 from app.services.finviz_service import FinvizService
 
@@ -95,7 +98,8 @@ async def get_candles(
                 normalized.append(n)
         return {"candles": normalized, "bars": normalized}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Candle fetch failed for %s: %s", ticker, e)
+        raise HTTPException(status_code=500, detail="Failed to fetch candle data")
 
 
 @router.get("/{ticker}/book")
@@ -157,5 +161,6 @@ async def get_quote_data(
         )
         return quotes
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Quote data fetch failed for %s: %s", ticker, e)
+        raise HTTPException(status_code=500, detail="Failed to fetch quote data")
 
