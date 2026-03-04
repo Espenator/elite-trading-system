@@ -183,7 +183,16 @@ class OrderExecutor:
             symbol, score, price, regime, label,
         )
 
-        # ── Risk Gate 2: Daily trade limit ──
+        # ── Risk Gate 2: Freeze check (RiskShield emergency) ──
+        try:
+            from app.api.v1.risk_shield_api import is_entries_frozen
+            if is_entries_frozen():
+                self._reject(symbol, score, "Entries frozen by RiskShield emergency action")
+                return
+        except Exception:
+            pass  # If risk shield module unavailable, continue
+
+        # ── Risk Gate 3: Daily trade limit ──
         self._check_daily_reset()
         if self._daily_trade_count >= self.max_daily_trades:
             self._reject(symbol, score, "Daily trade limit reached")

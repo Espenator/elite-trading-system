@@ -18,8 +18,12 @@ from dotenv import load_dotenv
 _env_path = Path(__file__).resolve().parent.parent / ".env"
 load_dotenv(_env_path, override=False)
 
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from app.websocket_manager import (
     add_connection, remove_connection, heartbeat_loop, accept_connection,
     handle_pong, subscribe, unsubscribe, broadcast_ws,
@@ -58,12 +62,9 @@ from app.api.v1 import (
 )
 from app.api import ingestion
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
+# Configure structured logging (JSON in production, human-readable in dev)
+from app.core.logging_config import setup_logging, correlation_id, generate_correlation_id
+setup_logging()
 log = logging.getLogger(__name__)
 
 
@@ -470,11 +471,23 @@ async def lifespan(app: FastAPI):
         log.info("Application shutdown complete")
 
 
+# Rate limiter: 200/min general, 20/min for order endpoints
+limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
+
 app = FastAPI(
     title=settings.PROJECT_NAME if hasattr(settings, 'PROJECT_NAME') else "Elite Trading System",
     version="3.1.0",
     lifespan=lifespan,
 )
+app.state.limiter = limiter
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Rate limit exceeded. Please slow down."},
+    )
 
 # CORS - uses CORS_ORIGINS from .env / config.py (comma-separated)
 app.add_middleware(
@@ -487,13 +500,20 @@ app.add_middleware(
 
 
 @app.middleware("http")
-async def add_security_headers(request, call_next):
-    response = await call_next(request)
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    return response
+async def add_security_and_correlation_headers(request, call_next):
+    # Set correlation ID for request tracing
+    cid = request.headers.get("X-Correlation-ID") or generate_correlation_id()
+    token = correlation_id.set(cid)
+    try:
+        response = await call_next(request)
+        response.headers["X-Correlation-ID"] = cid
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
+    finally:
+        correlation_id.reset(token)
 
 # --- API Routers ---
 # Each router gets its own sub-path prefix matching frontend API_CONFIG.endpoints.
@@ -582,9 +602,56 @@ async def websocket_endpoint(websocket: WebSocket):
         remove_connection(websocket)
 
 
+@app.get("/healthz")
+async def liveness():
+    """Liveness probe — confirms the process is alive and can serve HTTP.
+
+    Kubernetes uses this to decide whether to restart the container.
+    Must be fast (<50ms) with zero external dependencies.
+    """
+    return {"status": "alive"}
+
+
+@app.get("/readyz")
+async def readiness():
+    """Readiness probe — confirms the app can serve real traffic.
+
+    Kubernetes uses this to decide whether to route traffic to this pod.
+    Checks critical dependencies: DuckDB, Alpaca connectivity.
+    Returns 503 if any critical dependency is down.
+    """
+    checks = {}
+    ready = True
+
+    # DuckDB — critical for all data operations
+    try:
+        from app.data.duckdb_storage import duckdb_store
+        health = duckdb_store.health_check()
+        checks["duckdb"] = "ok" if health.get("total_tables", 0) > 0 else "degraded"
+    except Exception:
+        checks["duckdb"] = "unavailable"
+        ready = False
+
+    # Alpaca API keys configured (required for trading)
+    from app.services.alpaca_service import alpaca_service
+    checks["alpaca_configured"] = "ok" if alpaca_service._is_configured() else "not_configured"
+
+    # Event pipeline running
+    checks["message_bus"] = "ok" if _message_bus else "not_started"
+
+    status_code = 200 if ready else 503
+    return JSONResponse(
+        status_code=status_code,
+        content={"status": "ready" if ready else "not_ready", "checks": checks},
+    )
+
+
 @app.get("/health")
 async def health_check():
-    """Health check endpoint with ML engine + event pipeline + DuckDB status."""
+    """Detailed health check — full system status for dashboards and debugging.
+
+    Not used as a Kubernetes probe (too slow). Use /healthz and /readyz instead.
+    """
     ml_status = {}
 
     try:

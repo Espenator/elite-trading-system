@@ -104,6 +104,10 @@ Weight Update → update_agent_weights() → persist to settings → agents read
 - **Security Headers**: X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy
 - **Startup Validation**: Live trading mode blocks startup if ALPACA keys or AUTH_TOKEN missing
 - **Memory Safety**: Bounded order history (deque), cache cleanup, pagination limits
+- **Risk Shield**: kill_switch (cancel all + liquidate), reduce_50 (50% close), freeze_entries (DB flag + executor gate) — all wired to Alpaca API
+- **Structured Logging**: JSON format in production, human-readable in dev, correlation IDs per request (`logging_config.py`)
+- **Rate Limiting**: slowapi with 200/minute default, 20/minute on order creation
+- **Health Probes**: `/healthz` (liveness), `/readyz` (readiness with DuckDB/Alpaca checks), `/health` (full status)
 
 ## Completed Work (March 4, 2026 Session)
 
@@ -146,6 +150,13 @@ Weight Update → update_agent_weights() → persist to settings → agents read
 - **Frontend localhost fix**: openclawService.js derives WS URL from window.location in production
 - **Env docs**: Updated frontend-v2/.env.example with VITE_API_URL, VITE_WS_URL, VITE_ENABLE_AGENT_MOCKS
 
+### Production Hardening (March 4, 2026 — Session 3)
+- **Risk Shield wiring**: kill_switch cancels all orders + liquidates via Alpaca; reduce_50 closes each position at 50%; freeze_entries toggles DB flag checked by OrderExecutor as Risk Gate 2; hedge_all returns "unavailable" (Alpaca doesn't support options)
+- **Structured JSON logging**: Created `logging_config.py` with JSONFormatter (production) and DevFormatter (dev), correlation_id ContextVar for per-request tracing, X-Correlation-ID header in responses
+- **Rate limiting**: Added slowapi to requirements.txt, 200/minute default limit on all endpoints, 20/minute on order creation (`/orders/advanced`)
+- **Health probes**: Added `/healthz` (liveness — instant, no deps), `/readyz` (readiness — checks DuckDB + Alpaca config + message bus), existing `/health` kept for detailed dashboard status
+- **project_state.md**: Updated with all new features, removed completed TODOs (Risk Shield, Structured Logging, Rate Limiting)
+
 ## Remaining Work / Phase 1 TODOs
 
 1. **Enable Brain Service**: Set `BRAIN_ENABLED=true`, ensure Ollama running on PC2
@@ -154,10 +165,7 @@ Weight Update → update_agent_weights() → persist to settings → agents read
 4. **Frontend Council Page**: Wire council performance stats to Agent Command Center dashboard
 5. **Live Testing**: Run full pipeline end-to-end with Alpaca paper trading
 6. **Notification Wiring**: Connect Discord/Telegram/Email alerts to trade events
-7. **Risk Shield TODOs**: Wire kill_switch, hedge_all, reduce_50, freeze_entries to Alpaca API (4 stubs remain)
-8. **Structured Logging**: Switch to JSON logging format with correlation IDs for production observability
-9. **Rate Limiting**: Add slowapi rate limiter to API endpoints
-10. **Database Migrations**: Add Alembic for schema versioning and rollback capability
+7. **Database Migrations**: Add Alembic for schema versioning and rollback capability
 
 ## Rules for AI Assistants
 

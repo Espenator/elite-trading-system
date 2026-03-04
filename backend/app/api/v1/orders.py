@@ -10,8 +10,12 @@ Endpoints:
 """
 import json
 import logging
-from fastapi import APIRouter, HTTPException, Body, Depends
+from fastapi import APIRouter, HTTPException, Body, Depends, Request
 from app.core.security import require_auth
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+_limiter = Limiter(key_func=get_remote_address)
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Any
 
@@ -54,7 +58,8 @@ class ReplaceOrderRequest(BaseModel):
 
 # ── Advanced order creation ─────────────────────────────────────────────
 @router.post("/advanced", response_model=Dict, dependencies=[Depends(require_auth)])
-async def create_advanced_order(req: AdvancedOrderRequest):
+@_limiter.limit("20/minute")
+async def create_advanced_order(request: Request, req: AdvancedOrderRequest):
     """Submit any Alpaca v2 order: simple, bracket, OCO, OTO, trailing."""
         # ── Alignment Preflight Gate ─────────────────────────────────────
     # Every order MUST pass alignment before reaching the broker.
