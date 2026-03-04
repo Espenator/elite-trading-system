@@ -1,15 +1,15 @@
-# Project State - Elite Trading System (Embodier.ai)
+# Project State - Embodier Trader (Embodier.ai)
 
-> Paste this file at the start of every new AI chat session.
-> Say: "Read this project state document. Acknowledge you understand the architecture, and then I will give you your first task."
-> Last updated: March 3, 2026
+> Paste this file at the start of every new AI chat session. Say: "Read this project state document. Acknowledge you understand the architecture, and then I will give you your first task."
+> Last updated: March 4, 2026
 
 ## Identity
 
-- **Project**: Elite Trading System by Embodier.ai
+- **Project**: Embodier Trader by Embodier.ai
 - **Repo**: github.com/Espenator/elite-trading-system (private)
 - **Owner**: Espenator (Asheville, NC)
-- **Status**: Active development, CI GREEN (70 tests)
+- **Status**: Active development, Phase 1 implementation
+- **Philosophy**: Embodied Intelligence - the system IS profit, not seeking it
 
 ## Tech Stack
 
@@ -19,16 +19,17 @@
 | Frontend | React 18 (Vite), Tailwind CSS, Lightweight Charts |
 | Database | DuckDB (WAL mode, connection pooling) |
 | ML | XGBoost, scikit-learn, LSTM (no PyTorch in prod) |
-| Agents | OpenClaw multi-agent system (8+ sub-modules) |
+| Agents | 8-agent council DAG with deterministic arbiter |
+| Brain Service | gRPC + Ollama (PC2) for LLM inference |
 | CI/CD | GitHub Actions (70 tests passing) |
 | Infra | Docker, docker-compose.yml |
-| Local AI | Ollama (planned for agent inference) |
+| Local AI | Ollama on RTX GPU cluster |
 
 ## Hardware (Dual-PC Setup)
 
 - PC 1: Development + Frontend + Backend API
-- PC 2: RTX GPU cluster for ML training + Ollama inference
-- Both PCs will route via OpenClaw agent orchestration
+- PC 2: RTX GPU cluster for ML training + Ollama inference (brain_service)
+- Both PCs connected via gRPC (brain_service port 50051)
 
 ## Data Sources (CRITICAL - NO yfinance)
 
@@ -38,11 +39,31 @@
 - FRED - Economic macro data
 - SEC EDGAR - Company filings
 
+## Council Architecture (8-Agent DAG)
+
+```
+Stage 1 (Parallel): market_perception, flow_perception, regime
+Stage 2: hypothesis (wired to brain_service LLM)
+Stage 3: strategy (entry/exit/sizing)
+Stage 4 (Parallel): risk, execution
+Stage 5: critic (postmortem learning)
+Stage 6: arbiter (deterministic BUY/SELL/HOLD)
+```
+
+Arbiter Rules:
+1. VETO from risk_agent or execution_agent -> hold, vetoed=True
+2. Requires: regime OK + risk OK + strategy OK for any trade
+3. Weighted confidence aggregation for direction
+4. Final confidence = weighted average of non-vetoing agents
+
 ## Architecture
 
+```
 [React Frontend] --useApi()--> [FastAPI Backend] --services--> [External APIs]
 15 pages, 25 API routes, WebSocket via websocket_manager.py
-OpenClaw Agents, ML Engine (XGBoost), DuckDB Analytics
+8-Agent Council DAG, ML Engine (XGBoost), DuckDB Analytics
+[Brain Service gRPC] <-- Ollama LLM inference on PC2
+```
 
 ## Key Code Patterns
 
@@ -52,33 +73,46 @@ OpenClaw Agents, ML Engine (XGBoost), DuckDB Analytics
 4. JSX unicode: BMP only
 5. API pattern: Route handler -> Service layer -> External API
 6. Mockups: docs/mockups-v3/images/ are the source of truth
+7. Council: All agents return AgentVote(agent_name, direction, confidence, reasoning, weight)
 
-## Current State (Mar 3, 2026)
+## Current State (Mar 4, 2026)
 
-- CI: GREEN (70 tests, all passing)
+- CI: 70 tests passing (latest commit build needs fix)
 - Frontend: 15 pages built, all wired to real API hooks
 - Backend: 25 API routes defined, services layer implemented
-- Backend server: Ready to start (all startup blockers resolved)
+- Council: 8 agents + arbiter + runner fully implemented
+- Brain Service: gRPC server + Ollama client ready (not yet connected to council)
 - ML: XGBoost trainer + feature pipeline operational
-- OpenClaw: Phase 2 complete (8 sub-modules integrated)
-- Agent Command Center: Fully decomposed and deployed (thin shell + 8 tabs + 6 shared components)
 - WebSocket: Code exists but not connected end-to-end
 - CORS: Restricted to localhost:3000, localhost:5173, localhost:8080
 
+## Phase 1 TODO (Active)
+
+- [ ] P1.1: Fix CI build failure from latest commit
+- [ ] P1.2: Wire feature_aggregator to real Alpaca bars
+- [ ] P1.3: Connect brain_service gRPC to hypothesis + critic agents
+- [ ] P1.4: Create trade_execution router with Alpaca orders
+- [ ] P1.5: Add /api/v1/council/run endpoint
+- [ ] P1.6: Wire WebSocket for real-time council verdicts
+- [ ] P1.7: Add adaptive threshold config (replace hardcoded values)
+- [ ] P1.8: Implement postmortem table in DuckDB
+
 ## Fixed Issues
 
-1. ~~Backend signals.py had missing return statement~~ FIXED
-2. ~~main.py had hard ImportError on routers.trade_execution~~ FIXED (now try/except)
-3. ~~main.py imported unused accept_connection~~ FIXED (removed)
-4. ~~IndentationErrors across 20+ Python files~~ FIXED (all resolved)
-5. ~~Agent Command Center 77KB monolith~~ FIXED (decomposed into tabs + shared components)
+1. Backend signals.py had missing return statement FIXED
+2. main.py had hard ImportError on routers.trade_execution FIXED
+3. main.py imported unused accept_connection FIXED
+4. IndentationErrors across 20+ Python files FIXED
+5. Agent Command Center 77KB monolith FIXED (decomposed)
 
 ## Remaining Issues
 
-1. Backend has never been started locally (uvicorn app.main:app) — ready to start, blockers removed
+1. Backend has never been started locally (uvicorn app.main:app)
 2. No authentication system yet
 3. WebSocket not flowing real-time data yet
-4. routers/trade_execution module does not exist yet (skipped gracefully)
+4. routers/trade_execution module does not exist yet
+5. Brain service not connected to council agents
+6. Agent thresholds are hardcoded (no adaptive learning)
 
 ## Rules for AI Assistants
 
@@ -89,3 +123,5 @@ OpenClaw Agents, ML Engine (XGBoost), DuckDB Analytics
 5. ALWAYS check mockups before building UI
 6. Run npm run build before committing frontend changes
 7. Run python -m pytest before committing backend changes
+8. Council agents MUST return AgentVote schema
+9. All new features must support the Embodier profit-being philosophy
