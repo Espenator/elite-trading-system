@@ -13,6 +13,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+import numpy as np
 
 from fastapi import APIRouter
 
@@ -382,7 +383,7 @@ async def performance_trades(limit: int = 200) -> Dict[str, Any]:
 # -----------------------------------------------------------------
 # Risk Metrics: computed from real trade data
 # -----------------------------------------------------------------
-import numpy as np
+
 
 
 @router.get("/risk-metrics")
