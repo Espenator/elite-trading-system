@@ -442,15 +442,20 @@ export default function AgentCommandCenter() {
   useEffect(() => { loadSwarm(); const t = setInterval(loadSwarm, SWARM_POLL_MS); return () => clearInterval(t); }, [loadSwarm]);
   useEffect(() => { loadCandidates(); const t = setInterval(loadCandidates, CANDIDATES_POLL_MS); return () => clearInterval(t); }, [loadCandidates]);
   useEffect(() => { loadConsensus(); const t = setInterval(loadConsensus, 30000); return () => clearInterval(t); }, [loadConsensus]);
-  // --- LLM Flow WebSocket ---
+  // --- LLM Flow: backend exposes GET /openclaw/llm-flow (HTTP), not WebSocket — use polling
+  const { data: llmFlowData } = useApi("openclaw", {
+    endpoint: "/openclaw/llm-flow",
+    pollIntervalMs: 5000,
+  });
   useEffect(() => {
-    const wsUrl = openclaw.getLlmFlowWsUrl(); let socket;
-    try { socket = new WebSocket(wsUrl); wsRef.current = socket;
-      socket.onmessage = (ev) => { try { const msg = JSON.parse(ev.data); setLlmAlerts(prev => [{ ...msg, id: Date.now() + crypto.randomUUID() }, ...prev].slice(0, LLM_ALERTS_MAX)); } catch { setLlmAlerts(prev => [{ id: Date.now(), message: ev.data, severity: "info" }, ...prev.slice(0, LLM_ALERTS_MAX - 1)]); } };
-      socket.onclose = () => { wsRef.current = null; };
-    } catch (e) { log.warn("LLM flow WebSocket failed:", e); }
-    return () => { if (wsRef.current) { wsRef.current.close(); wsRef.current = null; } };
-  }, []);
+    const alerts = llmFlowData?.alerts;
+    if (Array.isArray(alerts) && alerts.length > 0) {
+      setLlmAlerts((prev) => {
+        const merged = [...alerts.map((a, i) => ({ ...a, id: a.id || `llm-${Date.now()}-${i}` }))];
+        return merged.slice(0, LLM_ALERTS_MAX);
+      });
+    }
+  }, [llmFlowData]);
   useEffect(() => { const unsub = ws.on("agents", (msg) => { if (msg?.type === "agent_status") refetchAgents(); }); return unsub; }, [refetchAgents]);
   // --- Blackboard & HITL mock ---
   useEffect(() => {
