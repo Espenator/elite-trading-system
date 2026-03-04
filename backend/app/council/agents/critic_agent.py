@@ -1,5 +1,9 @@
-"""Critic Agent — post-trade learning signals (skips during pre-trade eval)."""
+"""Critic Agent — post-trade learning signals (skips during pre-trade eval).
+
+Writes postmortem to DuckDB after every post-trade evaluation.
+"""
 import logging
+import uuid
 from typing import Any, Dict
 
 from app.council.agent_config import get_agent_thresholds
@@ -16,7 +20,7 @@ async def evaluate(
     """Produce learning signals from past trades.
 
     During pre-trade evaluation: returns neutral vote.
-    Post-trade: analyzes outcomes and produces critic feedback.
+    Post-trade: analyzes outcomes and produces critic feedback, writes postmortem to DuckDB.
     """
     cfg = get_agent_thresholds()
 
@@ -58,6 +62,7 @@ async def evaluate(
         performance_score = 0.1
 
     # Try brain service for deeper analysis
+    critic_analysis = ""
     try:
         from app.services.brain_client import get_brain_client
         import json
@@ -74,8 +79,31 @@ async def evaluate(
                 lessons.extend(result["lessons"][:3])
             if result.get("performance_score", 0) > 0:
                 performance_score = result["performance_score"]
+            critic_analysis = result.get("analysis", "")
     except Exception as e:
         logger.debug("Critic brain analysis not available: %s", e)
+
+    # Write postmortem to DuckDB
+    blackboard = context.get("blackboard")
+    try:
+        from app.data.duckdb_storage import duckdb_store
+        postmortem = {
+            "id": str(uuid.uuid4()),
+            "council_decision_id": blackboard.council_decision_id if blackboard else "",
+            "symbol": symbol,
+            "direction": trade_outcome.get("direction", ""),
+            "confidence": trade_outcome.get("confidence", 0.0),
+            "entry_price": trade_outcome.get("entry_price", 0.0),
+            "exit_price": trade_outcome.get("exit_price", 0.0),
+            "pnl": pnl,
+            "agent_votes": context.get("all_votes", []),
+            "blackboard_snapshot": blackboard.to_snapshot() if blackboard else {},
+            "critic_analysis": critic_analysis or "; ".join(lessons[:3]),
+        }
+        duckdb_store.insert_postmortem(postmortem)
+        logger.info("Postmortem written for %s: R=%.2f, PnL=$%.2f", symbol, r_multiple, pnl)
+    except Exception as e:
+        logger.debug("Postmortem write failed: %s", e)
 
     return AgentVote(
         agent_name=NAME,
