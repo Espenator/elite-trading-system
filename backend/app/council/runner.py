@@ -89,6 +89,17 @@ async def run_council(
     spawner = TaskSpawner(blackboard)
     spawner.register_all_agents()
 
+    # Check self-awareness for hibernated agents
+    try:
+        from app.council.self_awareness import get_self_awareness
+        sa = get_self_awareness()
+        for agent_name in list(spawner.registered_agents):
+            if sa.should_skip_agent(agent_name):
+                logger.warning("Skipping hibernated/unhealthy agent: %s", agent_name)
+                spawner._registry.pop(agent_name, None)
+    except Exception:
+        pass  # Self-awareness unavailable, proceed with all agents
+
     all_votes: List[AgentVote] = []
 
     # Stage 1: Perception (parallel)

@@ -78,6 +78,16 @@ def arbitrate(
             council_reasoning=f"Missing required agents: {missing}",
         )
 
+    # Load Bayesian self-awareness weights (graceful fallback to static weights)
+    effective_weights = {}
+    try:
+        from app.council.self_awareness import get_self_awareness
+        sa = get_self_awareness()
+        for v in votes:
+            effective_weights[v.agent_name] = sa.get_effective_weight(v.agent_name)
+    except Exception:
+        pass  # Fall back to static v.weight
+
     # Weighted voting for direction
     buy_weight = 0.0
     sell_weight = 0.0
@@ -87,7 +97,8 @@ def arbitrate(
     for v in votes:
         if v.veto:
             continue  # Skip vetoing agents from direction calc
-        w = v.weight * v.confidence
+        agent_weight = effective_weights.get(v.agent_name, v.weight)
+        w = agent_weight * v.confidence
         total_weight += w
         if v.direction == "buy":
             buy_weight += w
