@@ -206,7 +206,8 @@ async def get_regime_params():
     except Exception:
         pass
 
-    # Priority: manual override > live bridge > DB config > YELLOW default
+   @router.post("/pre-trade-check/{symbol}")
+async def pre_trade_check(symbol: str = "", side: str = "buy"):# Priority: manual override > live bridge > DB config > YELLOW default
     if override:
         regime = override
     elif live_regime:

@@ -1,4 +1,4 @@
-/**
+h/**
  * Generic fetch hook for API calls.
  * Uses config/api.js getApiUrl(endpoint).
  * Optional polling when pollIntervalMs > 0.
@@ -170,31 +170,31 @@ export function useBlackboardFeed(pollMs = 5000) {
 // ---- Backtesting Enhanced Hooks ----
 
 export function useBacktestResults(pollMs = 30000) {
-  return useApi('backtest/results', { pollIntervalMs: pollMs });
+  return useApi('backtestResults', { pollIntervalMs: pollMs });
 }
 
 export function useBacktestOptimization(pollMs = 60000) {
-  return useApi('backtest/optimization', { pollIntervalMs: pollMs });
+  return useApi('backtestOptimization', { pollIntervalMs: pollMs });
 }
 
 export function useBacktestWalkForward(pollMs = 60000) {
-  return useApi('backtest/walk-forward', { pollIntervalMs: pollMs });
+  return useApi('backtestWalkforward', { pollIntervalMs: pollMs });
 }
 
 export function useBacktestMonteCarlo(pollMs = 60000) {
-  return useApi('backtest/monte-carlo', { pollIntervalMs: pollMs });
+  return useApi('backtestMontecarlo', { pollIntervalMs: pollMs });
 }
 
 export function useBacktestCorrelation(pollMs = 60000) {
-  return useApi('backtest/correlation', { pollIntervalMs: pollMs });
+  return useApi('backtestCorrelation', { pollIntervalMs: pollMs });
 }
 
 export function useBacktestSectorExposure(pollMs = 60000) {
-  return useApi('backtest/sector-exposure', { pollIntervalMs: pollMs });
+  return useApi('backtestSectorExposure', { pollIntervalMs: pollMs });
 }
 
 export function useBacktestDrawdownAnalysis(pollMs = 60000) {
-  return useApi('backtest/drawdown-analysis', { pollIntervalMs: pollMs });
+  return useApi('backtestDrawdownAnalysis', { pollIntervalMs: pollMs });
 }
 
 // ---- Market Regime Page (10/15) Specialized Hooks ----
