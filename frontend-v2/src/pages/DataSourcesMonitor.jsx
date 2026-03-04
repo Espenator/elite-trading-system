@@ -51,14 +51,15 @@ function latencyColor(ms) {
 
 // Mini sparkline SVG matching mockup 09 inline charts
 function MiniSparkline({ data = [], color = '#06b6d4' }) {
-  if (!data || data.length < 2) return <span className="text-gray-600 text-xs">--</span>;
-  const max = Math.max(...data);
-  const min = Math.min(...data);
+  const arr = Array.isArray(data) ? data.map((v) => (typeof v === 'number' && Number.isFinite(v) ? v : Number(v))).filter(Number.isFinite) : [];
+  if (arr.length < 2) return <span className="text-gray-600 text-xs">--</span>;
+  const max = Math.max(...arr);
+  const min = Math.min(...arr);
   const range = max - min || 1;
   const w = 60;
   const h = 20;
-  const points = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * w;
+  const points = arr.map((v, i) => {
+    const x = (i / (arr.length - 1)) * w;
     const y = h - ((v - min) / range) * h;
     return `${x},${y}`;
   }).join(' ');
@@ -70,11 +71,13 @@ function MiniSparkline({ data = [], color = '#06b6d4' }) {
 }
 
 function StatusBadge({ status }) {
-  const colors = STATUS_COLORS[status] || STATUS_COLORS.pending;
+  const raw = status != null && typeof status === 'object' ? (status.status ?? status.value ?? JSON.stringify(status)) : status;
+  const s = raw != null ? String(raw) : 'pending';
+  const colors = STATUS_COLORS[s] || STATUS_COLORS.pending;
   return (
     <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase ${colors.bg} ${colors.text}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${colors.dot}`} />
-      {status}
+      {s}
     </span>
   );
 }
@@ -115,7 +118,7 @@ function CredentialPanel({ source, onClose, onSave, onTest, saving, testing }) {
       polling_interval: source?.polling_interval || 'real-time',
       account_type: source?.account_type || '',
     });
-    setTestLog(source?.connection_log || []);
+    setTestLog(Array.isArray(source?.connection_log) ? source.connection_log : []);
     setTestResult(source?.status === 'healthy' && source?.last_latency_ms != null
       ? { ok: true, latency: source.last_latency_ms, detail: source.account_info || '' }
       : null);
@@ -140,12 +143,12 @@ function CredentialPanel({ source, onClose, onSave, onTest, saving, testing }) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-[#0A0E1A] rounded-lg flex items-center justify-center text-xl">
-              {source.icon || CATEGORY_LABELS[source.category]?.[0] || '\u2699'}
+              {typeof source.icon === 'string' ? source.icon : (typeof source.category === 'string' && CATEGORY_LABELS[source.category] ? CATEGORY_LABELS[source.category][0] : '\u2699')}
             </div>
             <div>
-              <h3 className="text-white font-bold text-base">{source.name}</h3>
+              <h3 className="text-white font-bold text-base">{source.name != null ? String(source.name) : 'Unknown'}</h3>
               <span className="text-[10px] px-2 py-0.5 bg-cyan-600/20 text-cyan-400 rounded-full font-medium">
-                {CATEGORY_LABELS[source.category] || source.category}
+                {source.category != null ? (CATEGORY_LABELS[source.category] || String(source.category)) : 'Custom'}
               </span>
             </div>
           </div>
@@ -155,27 +158,30 @@ function CredentialPanel({ source, onClose, onSave, onTest, saving, testing }) {
 
       {/* Credential Fields */}
       <div className="p-4 space-y-3 max-h-[calc(100vh-300px)] overflow-y-auto">
-        {(source.required_keys || []).map((keyName) => (
-          <div key={keyName}>
-            <label className="text-xs text-gray-400 mb-1 block">{keyName}</label>
+        {(source.required_keys || []).map((keyName, idx) => {
+          const k = typeof keyName === 'string' ? keyName : (keyName?.key ?? keyName?.name ?? String(idx));
+          return (
+          <div key={k}>
+            <label className="text-xs text-gray-400 mb-1 block">{k}</label>
             <div className="flex items-center gap-1">
-              <input type={showKeys[keyName] ? 'text' : 'password'} value={keys[keyName] || ''}
-                onChange={(e) => setKeys({ ...keys, [keyName]: e.target.value })}
+              <input type={showKeys[k] ? 'text' : 'password'} value={keys[k] || ''}
+                onChange={(e) => setKeys({ ...keys, [k]: e.target.value })}
                 className="flex-1 px-3 py-2 bg-[#0A0E1A] border border-[#2A3444] rounded-lg text-white text-sm focus:border-cyan-500 focus:outline-none font-mono"
-                placeholder={source.has_credentials ? source[`masked_${keyName}`] || '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' : `Enter ${keyName}...`}
+                placeholder={source.has_credentials ? (typeof source[`masked_${k}`] === 'string' ? source[`masked_${k}`] : '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022') : `Enter ${k}...`}
                 disabled={saving} />
               {/* Show/Copy/Rotate icon buttons (mockup 09) */}
-              <button onClick={() => setShowKeys({ ...showKeys, [keyName]: !showKeys[keyName] })}
+              <button onClick={() => setShowKeys({ ...showKeys, [k]: !showKeys[k] })}
                 className="w-7 h-7 flex items-center justify-center bg-[#0A0E1A] border border-[#2A3444] rounded text-gray-500 hover:text-white text-[10px]"
-                title="Show/Hide">{showKeys[keyName] ? '\u{1F441}' : '\u25CF'}</button>
-              <button onClick={() => navigator.clipboard.writeText(keys[keyName] || '')}
+                title="Show/Hide">{showKeys[k] ? '\u{1F441}' : '\u25CF'}</button>
+              <button onClick={() => navigator.clipboard.writeText(keys[k] || '')}
                 className="w-7 h-7 flex items-center justify-center bg-[#0A0E1A] border border-[#2A3444] rounded text-gray-500 hover:text-white text-[10px]"
                 title="Copy">{"\u{1F4CB}"}</button>
               <button className="w-7 h-7 flex items-center justify-center bg-[#0A0E1A] border border-[#2A3444] rounded text-gray-500 hover:text-white text-[10px]"
                 title="Rotate">\u21BB</button>
             </div>
           </div>
-        ))}
+          );
+        })}
 
         <div>
           <label className="text-xs text-gray-400 mb-1 block">Base URL</label>
@@ -240,7 +246,7 @@ function CredentialPanel({ source, onClose, onSave, onTest, saving, testing }) {
         {testLog.length > 0 && (
           <div className="mt-3">
             <div className="bg-[#0A0E1A] border border-[#2A3444] rounded-lg p-2 max-h-32 overflow-y-auto font-mono text-[10px] text-gray-400 space-y-0.5">
-              {testLog.map((log, i) => <div key={i}>{log}</div>)}
+              {testLog.map((log, i) => <div key={i}>{typeof log === 'object' ? JSON.stringify(log) : String(log)}</div>)}
             </div>
           </div>
         )}
@@ -296,9 +302,9 @@ function AIDetectModal({ onClose, onDetect }) {
         {error && <div className="p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-400 text-sm mb-4">{error}</div>}
         {result && (
           <div className="p-3 bg-[#0A0E1A] border border-[#2A3444] rounded-lg text-sm">
-            <div className="text-cyan-400 font-bold">{result.detected_provider || 'Unknown'}</div>
-            <div className="text-gray-400 mt-1">{result.suggestion}</div>
-            {result.confidence > 0 && <div className="text-emerald-400 mt-1">Confidence: {(result.confidence * 100).toFixed(0)}%</div>}
+            <div className="text-cyan-400 font-bold">{result.detected_provider != null ? String(result.detected_provider) : 'Unknown'}</div>
+            <div className="text-gray-400 mt-1">{result.suggestion != null ? (typeof result.suggestion === 'string' ? result.suggestion : JSON.stringify(result.suggestion)) : ''}</div>
+            {result.confidence > 0 && <div className="text-emerald-400 mt-1">Confidence: {(Number(result.confidence) * 100).toFixed(0)}%</div>}
           </div>
         )}
         <button onClick={onClose} className="w-full mt-4 px-4 py-2 bg-gray-600/20 text-gray-400 rounded-lg hover:bg-gray-600/30 text-sm">Close</button>
@@ -308,11 +314,12 @@ function AIDetectModal({ onClose, onDetect }) {
 }
 
 function DeleteConfirmModal({ sourceId, onClose, onConfirm, deleting }) {
+  const idStr = sourceId != null ? String(sourceId) : '';
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-[#1A1F2E] border border-[#2A3444] rounded-xl p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-lg font-bold text-white mb-4">Delete Source</h3>
-        <p className="text-gray-400 text-sm mb-4">Permanently delete <span className="text-white font-medium">"{sourceId}"</span>?</p>
+        <p className="text-gray-400 text-sm mb-4">Permanently delete <span className="text-white font-medium">&quot;{idStr}&quot;</span>?</p>
         <div className="flex gap-2">
           <button onClick={onClose} className="flex-1 px-4 py-2 bg-gray-600/20 text-gray-400 rounded-lg hover:bg-gray-600/30 text-sm">Cancel</button>
           <button onClick={onConfirm} disabled={deleting} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium disabled:opacity-50">
@@ -320,6 +327,231 @@ function DeleteConfirmModal({ sourceId, onClose, onConfirm, deleting }) {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ensurePrimitive(val) {
+  if (val == null) return '';
+  if (typeof val === 'object') return JSON.stringify(val);
+  return String(val);
+}
+
+export default function DataSourcesMonitor() {
+  const [sources, setSources] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [filterTab, setFilterTab] = useState('all');
+  const [selected, setSelected] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [toast, setToast] = useState({ message: null, type: 'info' });
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showAIDetect, setShowAIDetect] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(null);
+
+  const loadSources = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await dataSources.list();
+      const list = Array.isArray(res) ? res : (res?.sources ?? res?.items ?? []);
+      setSources(list.map((s) => ({
+        ...s,
+        id: ensurePrimitive(s?.id ?? s?.source_id),
+        name: ensurePrimitive(s?.name),
+        category: typeof s?.category === 'string' ? s.category : (s?.category?.value ?? s?.category?.id ?? 'custom'),
+        status: typeof s?.status === 'string' ? s.status : (s?.status?.status ?? s?.status?.value ?? 'pending'),
+        last_latency_ms: typeof s?.last_latency_ms === 'number' ? s.last_latency_ms : (s?.last_latency_ms != null ? Number(s.last_latency_ms) : null),
+        latency_series: Array.isArray(s?.latency_series) ? s.latency_series.map((v) => (typeof v === 'number' ? v : Number(v))) : [],
+        connection_log: Array.isArray(s?.connection_log) ? s.connection_log : [],
+      })));
+    } catch (err) {
+      setError(err?.message || String(err));
+      setSources([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSources();
+  }, [loadSources]);
+
+  const filteredSources = filterTab === 'all'
+    ? sources
+    : sources.filter((s) => s.category === filterTab);
+
+  const handleSaveCredentials = async (keys) => {
+    if (!selected) return;
+    setSaving(true);
+    try {
+      await dataSources.setCredentials(selected.id, keys);
+      setToast({ message: 'Credentials saved', type: 'success' });
+      loadSources();
+      const updated = await dataSources.get(selected.id);
+      const u = updated || selected;
+      setSelected({
+        ...u,
+        id: ensurePrimitive(u?.id ?? u?.source_id),
+        name: ensurePrimitive(u?.name),
+        category: typeof u?.category === 'string' ? u.category : (u?.category?.value ?? u?.category?.id ?? 'custom'),
+        status: typeof u?.status === 'string' ? u.status : (u?.status?.status ?? u?.status?.value ?? 'pending'),
+        connection_log: Array.isArray(u?.connection_log) ? u.connection_log : [],
+      });
+    } catch (err) {
+      setToast({ message: err?.message || 'Save failed', type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTest = async (sourceId) => {
+    setTesting(true);
+    try {
+      const result = await dataSources.test(sourceId);
+      return result;
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const handleAdd = async (form) => {
+    setSaving(true);
+    try {
+      await dataSources.create(form);
+      setShowAddModal(false);
+      setToast({ message: 'Source added', type: 'success' });
+      loadSources();
+    } catch (err) {
+      setToast({ message: err?.message || 'Add failed', type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!showDeleteModal) return;
+    setDeleting(true);
+    try {
+      await dataSources.remove(showDeleteModal);
+      setShowDeleteModal(null);
+      setSelected(null);
+      setToast({ message: 'Source deleted', type: 'success' });
+      loadSources();
+    } catch (err) {
+      setToast({ message: err?.message || 'Delete failed', type: 'error' });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const selectedDetail = selected && sources.find((s) => s.id === selected.id) ? { ...selected, ...sources.find((s) => s.id === selected.id) } : selected;
+
+  return (
+    <div className="h-full flex flex-col">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-xl font-bold text-white">Data Sources Manager</h1>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowAIDetect(true)} className="px-3 py-2 bg-purple-600/20 text-purple-400 border border-purple-500/30 rounded-lg hover:bg-purple-600/30 text-xs font-medium">
+            AI Detect Provider
+          </button>
+          <button onClick={() => setShowAddModal(true)} className="px-3 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 text-xs font-medium">
+            Add Source
+          </button>
+        </div>
+      </div>
+
+      {toast.message && (
+        <Toast message={toast.message} type={toast.type} onDismiss={() => setToast({ message: null, type: 'info' })} />
+      )}
+
+      <div className="flex gap-4 flex-1 min-h-0">
+        {/* Left: filter tabs + table */}
+        <div className="flex-1 flex flex-col min-w-0 bg-[#1A1F2E] border border-[#2A3444] rounded-xl overflow-hidden">
+          <div className="flex gap-1 p-2 border-b border-[#2A3444] flex-wrap">
+            {FILTER_TABS.map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setFilterTab(tab)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium ${filterTab === tab ? 'bg-cyan-600/30 text-cyan-400' : 'text-gray-400 hover:text-white'}`}
+              >
+                {FILTER_TAB_LABELS[tab] ?? tab}
+              </button>
+            ))}
+          </div>
+          <div className="flex-1 overflow-auto">
+            {loading && <div className="p-8 text-center text-gray-400 text-sm">Loading sources...</div>}
+            {error && <div className="p-4 text-red-400 text-sm">{error}</div>}
+            {!loading && !error && filteredSources.length === 0 && (
+              <div className="p-8 text-center text-gray-500 text-sm">No data sources match the filter.</div>
+            )}
+            {!loading && !error && filteredSources.length > 0 && (
+              <table className="w-full text-left text-sm">
+                <thead className="sticky top-0 bg-[#0A0E1A] border-b border-[#2A3444] text-gray-400 font-medium">
+                  <tr>
+                    <th className="px-4 py-3">Source</th>
+                    <th className="px-4 py-3">Category</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Latency</th>
+                    <th className="px-4 py-3">Trend</th>
+                    <th className="px-4 py-3 w-24">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredSources.map((src) => (
+                    <tr
+                      key={src.id}
+                      onClick={() => setSelected(src)}
+                      className={`border-b border-[#2A3444] cursor-pointer hover:bg-[#252B3B] ${selected?.id === src.id ? 'bg-cyan-600/10' : ''}`}
+                    >
+                      <td className="px-4 py-3 text-white font-medium">{src.name}</td>
+                      <td className="px-4 py-3 text-gray-400">{CATEGORY_LABELS[src.category] || src.category}</td>
+                      <td className="px-4 py-3"><StatusBadge status={src.status} /></td>
+                      <td className={`px-4 py-3 ${latencyColor(src.last_latency_ms)}`}>
+                        {src.last_latency_ms != null ? `${Math.round(src.last_latency_ms)} ms` : '--'}
+                      </td>
+                      <td className="px-4 py-3"><MiniSparkline data={src.latency_series} /></td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setShowDeleteModal(src.id); }}
+                          className="text-red-400 hover:text-red-300 text-xs"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+
+        {/* Right: credential panel */}
+        <div className="w-[380px] flex-shrink-0">
+          <CredentialPanel
+            source={selectedDetail}
+            onClose={() => setSelected(null)}
+            onSave={handleSaveCredentials}
+            onTest={handleTest}
+            saving={saving}
+            testing={testing}
+          />
+        </div>
+      </div>
+
+      {showAddModal && <AddSourceModal onClose={() => setShowAddModal(false)} onAdd={handleAdd} saving={saving} />}
+      {showAIDetect && <AIDetectModal onClose={() => setShowAIDetect(false)} onDetect={(url) => dataSources.aiDetect(url)} />}
+      {showDeleteModal && (
+        <DeleteConfirmModal
+          sourceId={showDeleteModal}
+          onClose={() => setShowDeleteModal(null)}
+          onConfirm={handleDelete}
+          deleting={deleting}
+        />
+      )}
     </div>
   );
 }

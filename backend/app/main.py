@@ -7,22 +7,31 @@ Enhanced with:
 - EventDrivenSignalEngine reacting to market_data.bar events
 - OrderExecutor auto-executing trades from signal.generated events
 """
+
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 # Load .env into os.environ BEFORE any other imports, so os.getenv()
 # picks up keys everywhere (openclaw/config.py, sensorium.py, etc.)
 from dotenv import load_dotenv
+
 _env_path = Path(__file__).resolve().parent.parent / ".env"
 load_dotenv(_env_path, override=False)
 
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from app.websocket_manager import (
-    add_connection, remove_connection, heartbeat_loop, accept_connection,
-    handle_pong, subscribe, unsubscribe, broadcast_ws,
+    add_connection,
+    remove_connection,
+    heartbeat_loop,
+    accept_connection,
+    handle_pong,
+    subscribe,
+    unsubscribe,
+    broadcast_ws,
 )
 import json
 from app.core.config import settings
@@ -80,10 +89,13 @@ def _init_ml_singletons():
     # Model Registry
     try:
         from app.modules.ml_engine.model_registry import get_registry
+
         registry = get_registry()
         initialized.append("ModelRegistry")
-        log.info("ML Model Registry initialized: %s",
-                 registry.get_status() if hasattr(registry, 'get_status') else 'OK')
+        log.info(
+            "ML Model Registry initialized: %s",
+            registry.get_status() if hasattr(registry, "get_status") else "OK",
+        )
     except ImportError:
         log.info("model_registry not available -- skipping")
     except Exception as e:
@@ -92,17 +104,20 @@ def _init_ml_singletons():
     # Drift Monitor
     try:
         from app.modules.ml_engine.drift_detector import get_drift_monitor
+
         monitor = get_drift_monitor()
         initialized.append("DriftMonitor")
-        log.info("ML Drift Monitor initialized: %s",
-                 monitor.get_status() if hasattr(monitor, 'get_status') else 'OK')
+        log.info(
+            "ML Drift Monitor initialized: %s",
+            monitor.get_status() if hasattr(monitor, "get_status") else "OK",
+        )
     except ImportError:
         log.info("drift_detector not available -- skipping")
     except Exception as e:
         log.warning("DriftMonitor init failed: %s", e)
 
     if initialized:
-        log.info("ML Flywheel singletons ready: %s", ', '.join(initialized))
+        log.info("ML Flywheel singletons ready: %s", ", ".join(initialized))
 
     return initialized
 
@@ -159,10 +174,9 @@ def _get_recent_features():
     """Pull recent feature rows from DuckDB for drift detection."""
     try:
         from app.data.duckdb_storage import duckdb_store
+
         conn = duckdb_store._get_conn()
-        df = conn.execute(
-            "SELECT * FROM features ORDER BY ts DESC LIMIT 200"
-        ).fetchdf()
+        df = conn.execute("SELECT * FROM features ORDER BY ts DESC LIMIT 200").fetchdf()
         return df if not df.empty else None
     except Exception:
         return None
@@ -179,6 +193,7 @@ async def _market_data_tick_loop():
     await asyncio.sleep(2)  # brief delay so app is ready
     try:
         from app.api.v1 import agents as _agents_mod
+
         await _agents_mod.run_market_data_tick_if_running()
     except asyncio.CancelledError:
         return
@@ -189,6 +204,7 @@ async def _market_data_tick_loop():
         await asyncio.sleep(60)
         try:
             from app.api.v1 import agents as _agents_mod
+
             await _agents_mod.run_market_data_tick_if_running()
         except asyncio.CancelledError:
             break
@@ -201,14 +217,19 @@ async def _risk_monitor_loop():
     await asyncio.sleep(10)  # Wait for app to stabilize
     while True:
         try:
-            from app.api.v1.risk import risk_score, drawdown_check_status as drawdown_check
+            from app.api.v1.risk import (
+                risk_score,
+                drawdown_check_status as drawdown_check,
+            )
             from app.websocket_manager import broadcast_ws
 
             risk_data = await risk_score()
             await broadcast_ws("risk", {"type": "risk_update", "data": risk_data})
 
             dd_data = await drawdown_check()
-            if dd_data.get("drawdown_breached") or not dd_data.get("trading_allowed", True):
+            if dd_data.get("drawdown_breached") or not dd_data.get(
+                "trading_allowed", True
+            ):
                 await broadcast_ws("risk", {"type": "drawdown_alert", "data": dd_data})
 
             await asyncio.sleep(30)
@@ -246,12 +267,14 @@ async def _start_event_driven_pipeline():
 
     # 1. MessageBus
     from app.core.message_bus import get_message_bus
+
     _message_bus = get_message_bus()
     await _message_bus.start()
     log.info("\u2705 MessageBus started")
 
     # 2. EventDrivenSignalEngine (subscribes to market_data.bar)
     from app.services.signal_engine import EventDrivenSignalEngine
+
     _event_signal_engine = EventDrivenSignalEngine(_message_bus)
     await _event_signal_engine.start()
     log.info("\u2705 EventDrivenSignalEngine started")
@@ -272,17 +295,23 @@ async def _start_event_driven_pipeline():
         use_bracket_orders=os.getenv("ORDER_USE_BRACKETS", "true").lower() == "true",
     )
     await _order_executor.start()
-    log.info("\u2705 OrderExecutor started (%s mode)", "AUTO" if auto_execute else "SHADOW")
+    log.info(
+        "\u2705 OrderExecutor started (%s mode)", "AUTO" if auto_execute else "SHADOW"
+    )
 
     # 4. Signal-to-WebSocket bridge (forward signals to frontend)
     async def _bridge_signal_to_ws(signal_data):
         """Forward signal.generated events to frontend via WebSocket."""
         try:
             from app.websocket_manager import broadcast_ws
-            await broadcast_ws("signal", {
-                "type": "new_signal",
-                "signal": signal_data,
-            })
+
+            await broadcast_ws(
+                "signal",
+                {
+                    "type": "new_signal",
+                    "signal": signal_data,
+                },
+            )
         except Exception as e:
             log.debug("WS broadcast failed: %s", e)
 
@@ -294,10 +323,14 @@ async def _start_event_driven_pipeline():
         """Forward order events to frontend via WebSocket."""
         try:
             from app.websocket_manager import broadcast_ws
-            await broadcast_ws("order", {
-                "type": "order_update",
-                "order": order_data,
-            })
+
+            await broadcast_ws(
+                "order",
+                {
+                    "type": "order_update",
+                    "order": order_data,
+                },
+            )
         except Exception as e:
             log.debug("WS order broadcast failed: %s", e)
 
@@ -311,36 +344,62 @@ async def _start_event_driven_pipeline():
         """Forward council.verdict events to frontend via WebSocket."""
         try:
             from app.websocket_manager import broadcast_ws
-            await broadcast_ws("council", {
-                "type": "council_verdict",
-                "verdict": verdict_data,
-            })
+
+            await broadcast_ws(
+                "council",
+                {
+                    "type": "council_verdict",
+                    "verdict": verdict_data,
+                },
+            )
         except Exception as e:
             log.debug("WS council broadcast failed: %s", e)
 
     await _message_bus.subscribe("council.verdict", _bridge_council_to_ws)
     log.info("\u2705 Council->WebSocket bridge active")
 
-    # 6. AlpacaStreamService (publishes market_data.bar events)
-    from app.services.alpaca_stream_service import AlpacaStreamService
+    # 6. AlpacaStreamService (publishes market_data.bar events) — skip if disabled (e.g. when using OpenClaw --stream)
+    if os.getenv("DISABLE_ALPACA_DATA_STREAM", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    ):
+        log.info("AlpacaStreamService skipped (DISABLE_ALPACA_DATA_STREAM=1)")
+    else:
+        from app.services.alpaca_stream_service import AlpacaStreamService
 
-    try:
-        from app.modules.symbol_universe import get_tracked_symbols
-        tracked = get_tracked_symbols()
-    except Exception:
-        tracked = []
+        try:
+            from app.modules.symbol_universe import get_tracked_symbols
 
-    default_symbols = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META", "SPY", "QQQ", "IWM"]
-    symbols = list(set(tracked or default_symbols))
+            tracked = get_tracked_symbols()
+        except Exception:
+            tracked = []
 
-    _alpaca_stream = AlpacaStreamService(_message_bus, symbols)
-    _alpaca_stream_task = asyncio.create_task(_alpaca_stream.start())
-    log.info("\u2705 AlpacaStreamService launched for %d symbols", len(symbols))
+        default_symbols = [
+            "AAPL",
+            "MSFT",
+            "GOOGL",
+            "AMZN",
+            "NVDA",
+            "TSLA",
+            "META",
+            "SPY",
+            "QQQ",
+            "IWM",
+        ]
+        symbols = list(set(tracked or default_symbols))
+
+        _alpaca_stream = AlpacaStreamService(_message_bus, symbols)
+        _alpaca_stream_task = asyncio.create_task(_alpaca_stream.start())
+        log.info("\u2705 AlpacaStreamService launched for %d symbols", len(symbols))
 
     log.info("=" * 60)
     log.info("\u2705 Event-Driven Pipeline ONLINE")
     log.info("   Stream -> MessageBus -> SignalEngine -> OrderExecutor -> Alpaca")
-    log.info("   Mode: %s | Latency: <1s end-to-end", "AUTO-EXECUTE" if auto_execute else "SHADOW")
+    log.info(
+        "   Mode: %s | Latency: <1s end-to-end",
+        "AUTO-EXECUTE" if auto_execute else "SHADOW",
+    )
     log.info("=" * 60)
 
 
@@ -388,6 +447,7 @@ async def lifespan(app: FastAPI):
     # 1. Data schema
     try:
         from app.data.storage import init_schema
+
         init_schema()
         log.info("SQLite schema initialized")
     except Exception as e:
@@ -396,9 +456,13 @@ async def lifespan(app: FastAPI):
     # 1b. DuckDB schema
     try:
         from app.data.duckdb_storage import duckdb_store
+
         health = duckdb_store.health_check()
-        log.info("DuckDB ready: %d tables, %d rows",
-                 health.get("total_tables", 0), health.get("total_rows", 0))
+        log.info(
+            "DuckDB ready: %d tables, %d rows",
+            health.get("total_tables", 0),
+            health.get("total_rows", 0),
+        )
     except Exception as e:
         log.warning("DuckDB init skipped: %s", e)
 
@@ -412,11 +476,14 @@ async def lifespan(app: FastAPI):
     try:
         await _start_event_driven_pipeline()
     except Exception:
-        log.exception("Event-driven pipeline failed to start -- falling back to polling only")
+        log.exception(
+            "Event-driven pipeline failed to start -- falling back to polling only"
+        )
 
     # 3b. Flywheel scheduler (optional)
     try:
         from app.jobs.scheduler import start_scheduler
+
         start_scheduler()
     except Exception as e:
         log.debug("Flywheel scheduler not started: %s", e)
@@ -427,12 +494,12 @@ async def lifespan(app: FastAPI):
     heartbeat_task = asyncio.create_task(heartbeat_loop())
     risk_monitor_task = asyncio.create_task(_risk_monitor_loop())
 
-    log.info("="*60)
+    log.info("=" * 60)
     log.info("Elite Trading System v3.1.0 ONLINE")
     log.info("  API: http://localhost:8000/docs")
     log.info("  Health: http://localhost:8000/health")
     log.info("  WS: ws://localhost:8000/ws")
-    log.info("="*60)
+    log.info("=" * 60)
 
     try:
         yield
@@ -440,6 +507,7 @@ async def lifespan(app: FastAPI):
         # Shutdown flywheel scheduler
         try:
             from app.jobs.scheduler import stop_scheduler
+
             stop_scheduler()
         except Exception:
             pass
@@ -461,7 +529,11 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title=settings.PROJECT_NAME if hasattr(settings, 'PROJECT_NAME') else "Elite Trading System",
+    title=(
+        settings.PROJECT_NAME
+        if hasattr(settings, "PROJECT_NAME")
+        else "Elite Trading System"
+    ),
     version="3.1.0",
     lifespan=lifespan,
 )
@@ -478,32 +550,38 @@ app.add_middleware(
 # --- API Routers ---
 # Each router gets its own sub-path prefix matching frontend API_CONFIG.endpoints.
 # Route decorators use relative paths (e.g. @router.get(""), @router.get("/history")).
-app.include_router(stocks.router,          prefix="/api/v1/stocks",       tags=["stocks"])
-app.include_router(quotes.router,          prefix="/api/v1/quotes",       tags=["quotes"])
-app.include_router(orders.router,          prefix="/api/v1/orders",       tags=["orders"])
-app.include_router(system.router,          prefix="/api/v1/system",       tags=["system"])
-app.include_router(training.router,        prefix="/api/v1/training",     tags=["training"])
-app.include_router(signals.router,         prefix="/api/v1/signals",      tags=["signals"])
-app.include_router(backtest_routes.router, prefix="/api/v1/backtest",     tags=["backtest"])
-app.include_router(status.router,          prefix="/api/v1/status",       tags=["status"])
-app.include_router(data_sources.router,    prefix="/api/v1/data-sources", tags=["data_sources"])
-app.include_router(portfolio.router,       prefix="/api/v1/portfolio",    tags=["portfolio"])
-app.include_router(risk.router,            prefix="/api/v1/risk",         tags=["risk"])
-app.include_router(strategy.router,        prefix="/api/v1/strategy",     tags=["strategy"])
-app.include_router(performance.router,     prefix="/api/v1/performance",  tags=["performance"])
-app.include_router(flywheel.router,        prefix="/api/v1/flywheel",     tags=["flywheel"])
-app.include_router(logs.router,            prefix="/api/v1/logs",         tags=["logs"])
-app.include_router(patterns.router,        prefix="/api/v1/patterns",     tags=["patterns"])
-app.include_router(openclaw.router,        prefix="/api/v1/openclaw",     tags=["openclaw"])
-app.include_router(ml_brain.router,        prefix="/api/v1/ml-brain",     tags=["ml_brain"])
-app.include_router(market.router,          prefix="/api/v1/market",       tags=["market"])
-app.include_router(agents.router,          prefix="/api/v1/agents",       tags=["agents"])
-app.include_router(sentiment.router,       prefix="/api/v1/sentiment",    tags=["sentiment"])
-app.include_router(alerts.router,          prefix="/api/v1/alerts",       tags=["alerts"])
-app.include_router(settings_routes.router, prefix="/api/v1/settings",     tags=["settings"])
-app.include_router(alpaca.router,          prefix="/api/v1/alpaca",       tags=["alpaca"])
-app.include_router(alignment.router,       prefix="/api/v1/alignment",    tags=["alignment"])
-app.include_router(risk_shield_api.router, prefix="/api/v1/risk-shield",  tags=["risk_shield"])
+app.include_router(stocks.router, prefix="/api/v1/stocks", tags=["stocks"])
+app.include_router(quotes.router, prefix="/api/v1/quotes", tags=["quotes"])
+app.include_router(orders.router, prefix="/api/v1/orders", tags=["orders"])
+app.include_router(system.router, prefix="/api/v1/system", tags=["system"])
+app.include_router(training.router, prefix="/api/v1/training", tags=["training"])
+app.include_router(signals.router, prefix="/api/v1/signals", tags=["signals"])
+app.include_router(backtest_routes.router, prefix="/api/v1/backtest", tags=["backtest"])
+app.include_router(status.router, prefix="/api/v1/status", tags=["status"])
+app.include_router(
+    data_sources.router, prefix="/api/v1/data-sources", tags=["data_sources"]
+)
+app.include_router(portfolio.router, prefix="/api/v1/portfolio", tags=["portfolio"])
+app.include_router(risk.router, prefix="/api/v1/risk", tags=["risk"])
+app.include_router(strategy.router, prefix="/api/v1/strategy", tags=["strategy"])
+app.include_router(
+    performance.router, prefix="/api/v1/performance", tags=["performance"]
+)
+app.include_router(flywheel.router, prefix="/api/v1/flywheel", tags=["flywheel"])
+app.include_router(logs.router, prefix="/api/v1/logs", tags=["logs"])
+app.include_router(patterns.router, prefix="/api/v1/patterns", tags=["patterns"])
+app.include_router(openclaw.router, prefix="/api/v1/openclaw", tags=["openclaw"])
+app.include_router(ml_brain.router, prefix="/api/v1/ml-brain", tags=["ml_brain"])
+app.include_router(market.router, prefix="/api/v1/market", tags=["market"])
+app.include_router(agents.router, prefix="/api/v1/agents", tags=["agents"])
+app.include_router(sentiment.router, prefix="/api/v1/sentiment", tags=["sentiment"])
+app.include_router(alerts.router, prefix="/api/v1/alerts", tags=["alerts"])
+app.include_router(settings_routes.router, prefix="/api/v1/settings", tags=["settings"])
+app.include_router(alpaca.router, prefix="/api/v1/alpaca", tags=["alpaca"])
+app.include_router(alignment.router, prefix="/api/v1/alignment", tags=["alignment"])
+app.include_router(
+    risk_shield_api.router, prefix="/api/v1/risk-shield", tags=["risk_shield"]
+)
 
 app.include_router(features_routes.router, prefix="/api/v1/features", tags=["features"])
 app.include_router(council.router, prefix="/api/v1/council", tags=["council"])
@@ -517,6 +595,7 @@ app.include_router(ingestion.router, tags=["ingestion"])
 async def consensus_alias():
     """Same as GET /api/v1/agents/consensus. Ensures consensus is available at both paths."""
     from app.api.v1.agents import get_consensus
+
     return await get_consensus()
 
 
@@ -568,9 +647,10 @@ async def health_check():
 
     try:
         from app.modules.ml_engine.model_registry import get_registry
+
         ml_status["model_registry"] = (
             get_registry().get_status()
-            if hasattr(get_registry(), 'get_status')
+            if hasattr(get_registry(), "get_status")
             else "loaded"
         )
     except Exception:
@@ -578,9 +658,10 @@ async def health_check():
 
     try:
         from app.modules.ml_engine.drift_detector import get_drift_monitor
+
         ml_status["drift_monitor"] = (
             get_drift_monitor().get_status()
-            if hasattr(get_drift_monitor(), 'get_status')
+            if hasattr(get_drift_monitor(), "get_status")
             else "loaded"
         )
     except Exception:
@@ -601,6 +682,7 @@ async def health_check():
     duckdb_status = {}
     try:
         from app.data.duckdb_storage import duckdb_store
+
         duckdb_status = duckdb_store.health_check()
     except Exception:
         duckdb_status = {"status": "unavailable"}
