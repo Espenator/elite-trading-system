@@ -8,7 +8,8 @@ from app.strategy.backtest import (
     load_spy_returns,
     evaluate_backtest,
 )
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from app.core.security import require_auth
 from app.websocket_manager import broadcast_ws
 
 router = APIRouter()
@@ -107,7 +108,7 @@ def run_backtest(
     }
 
 
-@router.post("/")
+@router.post("/", dependencies=[Depends(require_auth)])
 async def run_backtest_post(request: BacktestRequest):
     """
     Run a backtest with configuration from request body.
@@ -187,7 +188,7 @@ from app.services.backtest_engine import BacktestEngine
 _bt_engine = BacktestEngine()
 
 
-@router.post("/compare-kelly")
+@router.post("/compare-kelly", dependencies=[Depends(require_auth)])
 async def compare_kelly_sizing(request: BacktestRequest):
     """
     Run identical backtest twice: fixed sizing vs Kelly sizing.

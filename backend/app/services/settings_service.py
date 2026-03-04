@@ -9,6 +9,7 @@ import os
 from datetime import datetime
 from typing import Any, Dict, Optional
 
+from app.core.config import settings
 from app.services.database import db_service
 
 
@@ -278,7 +279,11 @@ def validate_api_key(provider: str, api_key: str, secret_key: str = "") -> Dict[
     if provider == "alpaca":
         try:
             import httpx
-            base_url = "https://paper-api.alpaca.markets/v2"
+            trading_mode = getattr(settings, "TRADING_MODE", "paper").lower()
+            if trading_mode == "live":
+                base_url = "https://api.alpaca.markets/v2"
+            else:
+                base_url = "https://paper-api.alpaca.markets/v2"
             resp = httpx.get(
                 f"{base_url}/account",
                 headers={

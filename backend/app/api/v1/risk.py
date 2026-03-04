@@ -7,6 +7,7 @@ No mock data. No fabricated numbers.
 """
 import logging
 import math
+import time
 from datetime import date
 from typing import Any, List
 
@@ -298,7 +299,7 @@ async def kelly_sizer_defaults():
     }
 
 
-@router.post("/kelly-sizer")
+@router.post("/kelly-sizer", dependencies=[Depends(require_auth)])
 async def kelly_calculate(req: KellyRequest):
     """Calculate Kelly position size for given parameters."""
     if req.current_volatility is not None:
@@ -330,7 +331,7 @@ async def kelly_calculate(req: KellyRequest):
     }
 
 
-@router.post("/position-sizing")
+@router.post("/position-sizing", dependencies=[Depends(require_auth)])
 async def portfolio_position_sizing(positions: List[dict]):
     """Apply Kelly + sector correlation caps to a list of positions.
 
@@ -351,7 +352,7 @@ async def portfolio_position_sizing(positions: List[dict]):
 
 # ----- Drawdown Protection & Dynamic Stop-Loss -----
 
-@router.post("/drawdown-check")
+@router.post("/drawdown-check", dependencies=[Depends(require_auth)])
 async def drawdown_check_post():
     """Check current drawdown vs limits and return trading permission (POST)."""
     config = _get_risk_config()
@@ -362,6 +363,8 @@ async def drawdown_check_post():
     # Get today's P&L from Alpaca
     try:
         account = await alpaca_service.get_account()
+        if not account:
+            return {"trading_allowed": True, "warning": "Alpaca not connected", "daily_pnl": 0, "daily_pnl_pct": 0, "equity": 0}
         equity = float(account.get("equity", 0))
         last_equity = float(account.get("last_equity", equity))
         daily_pnl = equity - last_equity
@@ -387,7 +390,7 @@ async def drawdown_check_post():
     }
 
 
-@router.post("/dynamic-stop-loss")
+@router.post("/dynamic-stop-loss", dependencies=[Depends(require_auth)])
 async def dynamic_stop_loss(symbol: str, entry_price: float, side: str = "buy"):
     """Calculate ATR-based dynamic stop-loss for a position."""
     try:
@@ -441,6 +444,8 @@ async def risk_score():
 
     try:
         account = await alpaca_service.get_account()
+        if not account:
+            return {"score": 50, "warnings": ["Alpaca not connected — using neutral score"], "equity": 0, "daily_pnl_pct": 0, "positions": 0, "timestamp": time.time()}
         equity = float(account.get("equity", 0))
         last_equity = float(account.get("last_equity", equity))
         daily_pnl_pct = (
@@ -535,7 +540,7 @@ async def var_analysis():
     config = _get_risk_config()  # FIX: was missing — caused NameError
     try:
         account = await alpaca_service.get_account()
-        equity = float(account.get("equity", 0))
+        equity = float(account.get("equity", 0)) if account else 0
         positions = await alpaca_service.get_positions()
 
         if not positions:
@@ -610,6 +615,8 @@ async def drawdown_check_status():
     config = _get_risk_config()  # FIX: was missing — caused NameError
     try:
         account = await alpaca_service.get_account()
+        if not account:
+            return {"trading_allowed": True, "warning": "Alpaca not connected", "equity": 0, "daily_pnl_pct": 0}
         equity = float(account.get("equity", 0))
         last_equity = float(account.get("last_equity", equity))
         daily_pnl_pct = (
@@ -649,7 +656,7 @@ async def get_risk_gauges():
     """Return 12 risk gauge values for V3 Risk Intelligence dashboard."""
     try:
         account = await alpaca_service.get_account()
-        equity = float(account.get("equity", 0))
+        equity = float(account.get("equity", 0)) if account else 0
         positions = await alpaca_service.get_positions() or []
 
         total_exposure = sum(

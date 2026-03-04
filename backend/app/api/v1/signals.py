@@ -3,7 +3,8 @@
 from datetime import date
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from app.core.security import require_auth
 from app.schemas.signals import Signal, SignalsResponse, ActiveSignalResponse
 from app.data.storage import get_conn
 from app.models.inference import load_model, make_signals_for_date
@@ -43,7 +44,7 @@ def _get_raw_signals_and_feats(as_of: date | None = None):
     return raw_signals, feats
 
 
-@router.post("/", response_model=SignalsResponse)
+@router.post("/", response_model=SignalsResponse, dependencies=[Depends(require_auth)])
 async def trigger_signals(as_of: date | None = None):
     """
     Trigger a fresh signal scan. Same logic as GET but semantically used

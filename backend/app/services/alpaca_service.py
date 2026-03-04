@@ -42,6 +42,13 @@ class AlpacaService:
         self.trading_mode = (getattr(settings, "TRADING_MODE", None) or "paper").lower()
         if self.trading_mode not in ("paper", "live"):
             self.trading_mode = "paper"
+        # Safety: validate URL matches trading mode
+        is_paper_url = "paper-api" in raw_url or "paper" in raw_url
+        if self.trading_mode == "paper" and not is_paper_url and "localhost" not in raw_url:
+            logger.warning("SAFETY: TRADING_MODE=paper but URL does not contain 'paper': %s — forcing paper URL", raw_url)
+            self.base_url = "https://paper-api.alpaca.markets/v2"
+        elif self.trading_mode == "live" and is_paper_url:
+            logger.warning("TRADING_MODE=live but using paper API URL: %s", raw_url)
         self._cache: Dict[str, Any] = {}  # key -> (timestamp, data)
 
     # ── helpers ──────────────────────────────────────────────────────────────────
