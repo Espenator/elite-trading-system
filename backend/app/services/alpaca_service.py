@@ -1,4 +1,4 @@
-"""Alpaca Markets API service — account, positions, orders, activities, portfolio history.
+h"""Alpaca Markets API service — account, positions, orders, activities, portfolio history.
 Real data only. No mock data, no fabricated numbers.
 """
 import httpx
@@ -388,6 +388,44 @@ class AlpacaService:
         except Exception as exc:
             logger.warning("Alpaca get_asset_exchange_map failed: %s", exc)
         return out
+
+    # ── bars (OHLCV) ──────────────────────────────────────────────────────────
+    async def get_bars(
+        self,
+        symbol: str,
+        timeframe: str = "1Day",
+        limit: int = 14,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+    ) -> Optional[List[Dict]]:
+        """GET /v2/bars — historical OHLCV bars from Alpaca Data API.
+        Uses data.alpaca.markets (not the trading API).
+        """
+        if not self._is_configured():
+            return None
+        data_url = "https://data.alpaca.markets/v2"
+        url = f"{data_url}/stocks/{symbol.upper()}/bars"
+        params = {"timeframe": timeframe, "limit": str(limit)}
+        if start:
+            params["start"] = start
+        if end:
+            params["end"] = end
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    url,
+                    headers=self._get_headers(),
+                    params=params,
+                    timeout=self._TIMEOUT if hasattr(self, '_TIMEOUT') else 30.0,
+                )
+                if resp.status_code != 200:
+                    logger.error("Alpaca bars %s -> %s", symbol, resp.status_code)
+                    return None
+                data = resp.json()
+                return data.get("bars", [])
+        except Exception as exc:
+            logger.error("Alpaca get_bars error for %s: %s", symbol, exc)
+            return None
 
 
 # ── singleton ────────────────────────────────────────────────────────────────────
