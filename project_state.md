@@ -194,3 +194,57 @@ transform our council DAG from a static pipeline into a living, self-aware syste
 5. **Trading Directives** (like CLAUDE.md)
    - Markdown files loaded by agents based on regime
    - Replaces hardcoded thresholds (hypothesis >0.6, arbiter 0.4)
+   - 
+   ## Recursive Self-Improvement Architecture (Phase 3)
+
+The system teaches itself to find and exploit market patterns through three learning layers.
+Inspired by Mind Evolution, FinMem, FLAG-Trader, and SEP research.
+Ref: saulius.io/blog/recursive-self-improvement-llm-trading
+
+### Layer 1: Pattern Discovery Engine (Cerebellum)
+- Mines 3-5 years of historical data from Alpaca for all sectors
+- Discovers: mean-reversion bounces, sector rotation symmetry, fear/greed rebounds, intraday overreaction corrections, overnight gap reversals
+- Stores patterns in DuckDB `pattern_library` table: name, conditions, expected_outcome, confidence, regime, win_rate
+- hypothesis_agent and strategy_agent load relevant patterns when generating signals
+- Specific patterns: sector down >2% bounce probability, index symmetry correlations, Fear/Greed extreme entry windows, intraday overreaction reversal probability, sector rotation lag timing, volume divergence signals
+
+### Layer 2: Strategy Evolution (Prefrontal Cortex)
+- Mind Evolution-style evolutionary search using brain_service as mutation/crossover operator
+- 4 strategy islands maintained in DuckDB: mean-reversion, momentum, event-driven, hybrid
+- Each strategy = natural language description + parameters
+- Backtesting engine = fitness function (Sharpe, drawdown, win rate, regime robustness)
+- critic_agent = critic role, hypothesis_agent = author role (RCC loop)
+- Top strategies migrate between islands each generation
+- Runs overnight as background TaskSpawner jobs
+- Overfitting detection: flag if strategy >3x better on recent vs full historical data
+
+### Layer 3: Memory & Continuous Learning (Hippocampus)
+- PatternMemory: tracks pattern profitability, auto-adjusts confidence
+- StrategyMemory: tracks strategy performance per regime
+- SourceMemory: tracks data source predictive value per pattern
+- Postmortem table feeds BayesianAgentWeights
+- HomeostasisMonitor reads all memory stores for mode switching
+- DirectiveLoader auto-adjusts thresholds from memory
+
+### Recursive Loop
+```
+Pattern Discovery -> Strategy Evolution -> Council DAG Execution -> Postmortem + Memory -> (repeat)
+```
+Each cycle the system gets smarter. When regimes change and patterns stop working,
+BayesianAgentWeights downweight, StreakDetector triggers PROBATION, next evolution cycle adapts.
+
+### New Files for RSI
+| File | Purpose | Priority |
+|------|---------|----------|
+| council/pattern_discovery.py | Historical pattern mining engine | P2 |
+| council/strategy_evolution.py | Mind Evolution strategy populations | P3 |
+| council/memory/pattern_memory.py | Pattern confidence tracking | P2 |
+| council/memory/strategy_memory.py | Strategy-regime performance | P3 |
+| council/memory/source_memory.py | Data source predictive tracking | P3 |
+
+### New DuckDB Tables
+- pattern_library: discovered patterns with confidence scores
+- strategy_populations: evolved strategy variants per island
+- pattern_outcomes: pattern prediction vs actual result
+- strategy_outcomes: strategy performance per regime period
+- source_accuracy: data source predictive value tracking
