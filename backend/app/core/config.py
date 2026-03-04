@@ -130,6 +130,15 @@ class Settings(BaseSettings):
     BRAIN_PORT: int = 50051
     OLLAMA_MODEL: str = "llama3.2"
 
+    # ── Multi-LLM Intelligence Layer ─────────────────────
+    PERPLEXITY_API_KEY: str = ""
+    PERPLEXITY_BASE_URL: str = "https://api.perplexity.ai"
+    PERPLEXITY_MODEL: str = "sonar-pro"
+    ANTHROPIC_API_KEY: str = ""
+    ANTHROPIC_MODEL: str = "claude-sonnet-4-20250514"
+    LLM_ROUTER_ENABLED: bool = True
+    LLM_COST_TRACKING: bool = True
+
     # ── Council ────────────────────────────────────────────
     COUNCIL_ENABLED: bool = True
 

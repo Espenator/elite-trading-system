@@ -22,14 +22,18 @@ async def evaluate(
 
         client = get_brain_client()
         if not client.enabled:
-            return AgentVote(
-                agent_name=NAME,
-                direction="hold",
-                confidence=0.1,
-                reasoning="Brain service disabled — no LLM hypothesis",
-                weight=cfg["weight_hypothesis"],
-                metadata={"brain_enabled": False},
-            )
+            # Fallback: try LLM router brainstem tier
+            try:
+                return await _hypothesis_via_router(symbol, timeframe, features, context, cfg)
+            except Exception:
+                return AgentVote(
+                    agent_name=NAME,
+                    direction="hold",
+                    confidence=0.1,
+                    reasoning="Brain service disabled and LLM router unavailable",
+                    weight=cfg["weight_hypothesis"],
+                    metadata={"brain_enabled": False, "router_fallback": False},
+                )
 
         feature_json = json.dumps(features.get("features", features), default=str)
         regime = str(features.get("features", {}).get("regime", "unknown"))
@@ -110,3 +114,83 @@ async def evaluate(
             reasoning=f"Hypothesis error: {e}",
             weight=cfg["weight_hypothesis"],
         )
+
+
+async def _hypothesis_via_router(
+    symbol: str, timeframe: str, features: Dict[str, Any],
+    context: Dict[str, Any], cfg: Dict[str, Any],
+) -> AgentVote:
+    """Fallback: generate hypothesis via LLM router when brain service is disabled."""
+    from app.services.llm_router import get_llm_router, Tier
+
+    router = get_llm_router()
+    f = features.get("features", features)
+    regime = str(f.get("regime", "unknown"))
+
+    # Build context from blackboard intelligence if available
+    intel_context = ""
+    blackboard = context.get("blackboard")
+    if blackboard:
+        intel = blackboard.metadata.get("intelligence", {})
+        if intel.get("cortex_news", {}).get("data"):
+            intel_context += f"\nBreaking news: {json.dumps(intel['cortex_news']['data'], default=str)[:500]}"
+        if intel.get("cortex_earnings", {}).get("data"):
+            intel_context += f"\nEarnings: {json.dumps(intel['cortex_earnings']['data'], default=str)[:300]}"
+
+    prompt = (
+        f"Analyze {symbol} for a {timeframe} trading hypothesis.\n"
+        f"Regime: {regime}\n"
+        f"Key features: RSI={f.get('rsi_14', '?')}, MACD={f.get('macd', '?')}, "
+        f"ADX={f.get('adx_14', '?')}, Volume surge={f.get('volume_surge_ratio', '?')}\n"
+        f"{intel_context}\n\n"
+        f"Return JSON: {{\"direction\": \"buy\"|\"sell\"|\"hold\", \"confidence\": 0.0-1.0, "
+        f"\"summary\": str, \"risk_flags\": [str]}}"
+    )
+
+    result = await router.route_with_fallback(
+        tier=Tier.BRAINSTEM,
+        messages=[
+            {"role": "system", "content": "You are a trading hypothesis engine. Return valid JSON only."},
+            {"role": "user", "content": prompt},
+        ],
+        task="quick_hypothesis",
+        temperature=0.3,
+        max_tokens=512,
+    )
+
+    if result.error or not result.content:
+        raise RuntimeError(f"Router hypothesis failed: {result.error}")
+
+    # Parse JSON response
+    import re
+    parsed = None
+    try:
+        parsed = json.loads(result.content.strip())
+    except json.JSONDecodeError:
+        match = re.search(r'\{.*\}', result.content, re.DOTALL)
+        if match:
+            try:
+                parsed = json.loads(match.group())
+            except json.JSONDecodeError:
+                pass
+
+    if not parsed:
+        raise RuntimeError("Could not parse router hypothesis response")
+
+    direction = parsed.get("direction", "hold")
+    llm_conf = float(parsed.get("confidence", 0.5))
+    summary = parsed.get("summary", "Router hypothesis")
+
+    return AgentVote(
+        agent_name=NAME,
+        direction=direction,
+        confidence=round(llm_conf, 2),
+        reasoning=f"[Router/{result.tier}] {summary}",
+        weight=cfg["weight_hypothesis"],
+        metadata={
+            "brain_enabled": False,
+            "router_fallback": True,
+            "tier": result.tier,
+            "risk_flags": parsed.get("risk_flags", []),
+        },
+    )

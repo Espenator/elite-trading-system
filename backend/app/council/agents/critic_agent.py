@@ -90,6 +90,29 @@ async def evaluate(
             if result.get("performance_score", 0) > 0:
                 performance_score = result["performance_score"]
             critic_analysis = result.get("analysis", "")
+        else:
+            # Fallback: try Claude deep reasoning for postmortem
+            try:
+                from app.services.claude_reasoning import get_claude_reasoning
+                reasoning_svc = get_claude_reasoning()
+                agent_votes = context.get("all_votes", [])
+                market_ctx = {}
+                if blackboard:
+                    market_ctx = blackboard.to_snapshot()
+                deep_result = await reasoning_svc.deep_postmortem(
+                    trade=trade_outcome,
+                    market_context=market_ctx,
+                    agent_votes=agent_votes,
+                )
+                if not deep_result.get("error"):
+                    data = deep_result.get("data", {})
+                    if data.get("lessons"):
+                        lessons.extend([l["lesson"] for l in data["lessons"][:3] if isinstance(l, dict)])
+                    if data.get("overall_score"):
+                        performance_score = data["overall_score"] / 100
+                    critic_analysis = data.get("key_takeaway", "")
+            except Exception as deep_err:
+                logger.debug("Claude deep postmortem not available: %s", deep_err)
     except Exception as e:
         logger.debug("Critic brain analysis not available: %s", e)
 

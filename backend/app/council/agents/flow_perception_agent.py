@@ -58,11 +58,28 @@ async def evaluate(
         f"Call vol={call_vol:,.0f}, Put vol={put_vol:,.0f}"
     )
 
+    # Enrich with institutional flow intelligence if available
+    intel_meta = {"data_available": True, "pcr": pcr}
+    blackboard = context.get("blackboard")
+    if blackboard:
+        intel = blackboard.metadata.get("intelligence", {})
+        inst_flow = intel.get("cortex_institutional", {})
+        if isinstance(inst_flow, dict) and inst_flow.get("data"):
+            flow_data = inst_flow["data"]
+            inst_sentiment = flow_data.get("institutional_sentiment")
+            if inst_sentiment == "accumulating" and direction != "sell":
+                confidence = min(0.85, confidence + 0.05)
+                reasoning += f" | Institutional: {inst_sentiment}"
+            elif inst_sentiment == "distributing" and direction != "buy":
+                confidence = min(0.85, confidence + 0.05)
+                reasoning += f" | Institutional: {inst_sentiment}"
+            intel_meta["institutional_sentiment"] = inst_sentiment
+
     return AgentVote(
         agent_name=NAME,
         direction=direction,
         confidence=round(confidence, 2),
         reasoning=reasoning,
         weight=cfg["weight_flow_perception"],
-        metadata={"data_available": True, "pcr": pcr},
+        metadata=intel_meta,
     )

@@ -114,6 +114,29 @@ async def run_council(
     except Exception as e:
         logger.debug("Circuit breaker check failed (proceeding): %s", e)
 
+    # Intelligence gathering — pre-council multi-tier LLM package
+    try:
+        from app.services.intelligence_orchestrator import get_intelligence_orchestrator
+        from app.core.config import settings as app_settings
+        if app_settings.LLM_ROUTER_ENABLED:
+            orchestrator = get_intelligence_orchestrator()
+            regime = str(features.get("features", {}).get("regime", "unknown"))
+            intel_package = await orchestrator.prepare_intelligence_package(
+                symbol=symbol,
+                features=features,
+                regime=regime,
+                include_deep=False,  # deep cortex only for post-trade / overnight
+            )
+            blackboard.metadata["intelligence"] = intel_package
+            logger.info(
+                "Intelligence package for %s: tiers=%s, latency=%.0fms",
+                symbol,
+                intel_package.get("tiers_queried", []),
+                intel_package.get("total_latency_ms", 0),
+            )
+    except Exception as e:
+        logger.debug("Intelligence gathering failed (proceeding without): %s", e)
+
     # Initialize TaskSpawner with all agents
     spawner = TaskSpawner(blackboard)
     spawner.register_all_agents()

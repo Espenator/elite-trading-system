@@ -77,10 +77,31 @@ async def evaluate(
         f"Bull/Bear={bull_score}/{bear_score}"
     )
 
+    # Enrich with intelligence package if available
+    intel_meta = {}
+    blackboard = context.get("blackboard")
+    if blackboard:
+        intel = blackboard.metadata.get("intelligence", {})
+        news = intel.get("cortex_news", {})
+        if isinstance(news, dict) and news.get("data"):
+            news_data = news["data"]
+            sentiment = news_data.get("overall_sentiment")
+            catalyst_score = news_data.get("catalyst_score", 0)
+            if sentiment and catalyst_score > 50:
+                if sentiment == "bullish" and direction != "sell":
+                    confidence = min(0.95, confidence + 0.05)
+                    reasoning += f" | News: {sentiment} (catalyst={catalyst_score})"
+                elif sentiment == "bearish" and direction != "buy":
+                    confidence = min(0.95, confidence + 0.05)
+                    reasoning += f" | News: {sentiment} (catalyst={catalyst_score})"
+            intel_meta["news_sentiment"] = sentiment
+            intel_meta["catalyst_score"] = catalyst_score
+
     return AgentVote(
         agent_name=NAME,
         direction=direction,
         confidence=round(confidence, 2),
         reasoning=reasoning,
         weight=cfg["weight_market_perception"],
+        metadata=intel_meta if intel_meta else None,
     )
