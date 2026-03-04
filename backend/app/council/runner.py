@@ -1,7 +1,7 @@
-"""Council Runner — orchestrates the 8-agent DAG and arbiter.
+"""Council Runner — orchestrates the 11-agent DAG and arbiter.
 
 DAG execution order (parallel within stages):
-  Stage 1: [market_perception, flow_perception, regime]
+  Stage 1: [market_perception, flow_perception, regime, social_perception, news_catalyst, youtube_knowledge]
   Stage 2: [hypothesis]
   Stage 3: [strategy]
   Stage 4: [risk, execution]
@@ -160,11 +160,14 @@ async def run_council(
 
     all_votes: List[AgentVote] = []
 
-    # Stage 1: Perception (parallel)
+    # Stage 1: Perception (parallel — 6 agents: 3 core + 3 data-source)
     stage1 = await spawner.spawn_parallel([
         {"agent_type": "market_perception", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "flow_perception", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "regime", "symbol": symbol, "timeframe": timeframe, "context": context},
+        {"agent_type": "social_perception", "symbol": symbol, "timeframe": timeframe, "context": context},
+        {"agent_type": "news_catalyst", "symbol": symbol, "timeframe": timeframe, "context": context},
+        {"agent_type": "youtube_knowledge", "symbol": symbol, "timeframe": timeframe, "context": context},
     ])
     all_votes.extend(stage1)
     context["stage1"] = {v.agent_name: v.to_dict() for v in stage1}

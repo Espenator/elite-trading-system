@@ -50,6 +50,16 @@ _DEFAULTS: Dict[str, Any] = {
     "llm_buy_confidence_threshold": 0.6,
     "llm_sell_confidence_threshold": 0.4,
 
+    # Social Perception Agent
+    "social_bullish_threshold": 62,
+    "social_bearish_threshold": 38,
+    "social_strong_bullish_threshold": 75,
+    "social_strong_bearish_threshold": 25,
+
+    # News Catalyst Agent (no additional thresholds — uses keyword matching)
+
+    # YouTube Knowledge Agent (no additional thresholds — uses concept matching)
+
     # Critic Agent (R-multiple tiers)
     "critic_excellent_r": 2.0,
     "critic_good_r": 1.0,
@@ -66,6 +76,9 @@ _DEFAULTS: Dict[str, Any] = {
     "weight_market_perception": 1.0,
     "weight_flow_perception": 0.8,
     "weight_regime": 1.2,
+    "weight_social_perception": 0.7,
+    "weight_news_catalyst": 0.6,
+    "weight_youtube_knowledge": 0.4,
     "weight_hypothesis": 0.9,
     "weight_strategy": 1.1,
     "weight_risk": 1.5,

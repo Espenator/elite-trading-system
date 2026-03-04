@@ -39,11 +39,14 @@ class TaskSpawner:
         self._registry[name] = agent_module
 
     def register_all_agents(self):
-        """Auto-register all 8 council agents."""
+        """Auto-register all 11 council agents (8 core + 3 data-source perception)."""
         from app.council.agents import (
             market_perception_agent,
             flow_perception_agent,
             regime_agent,
+            social_perception_agent,
+            news_catalyst_agent,
+            youtube_knowledge_agent,
             hypothesis_agent,
             strategy_agent,
             risk_agent,
@@ -53,6 +56,9 @@ class TaskSpawner:
         self.register("market_perception", market_perception_agent)
         self.register("flow_perception", flow_perception_agent)
         self.register("regime", regime_agent)
+        self.register("social_perception", social_perception_agent)
+        self.register("news_catalyst", news_catalyst_agent)
+        self.register("youtube_knowledge", youtube_knowledge_agent)
         self.register("hypothesis", hypothesis_agent)
         self.register("strategy", strategy_agent)
         self.register("risk", risk_agent)

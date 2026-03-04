@@ -140,6 +140,22 @@ async def _hypothesis_via_router(
         if intel.get("cortex_earnings", {}).get("data"):
             intel_context += f"\nEarnings: {json.dumps(intel['cortex_earnings']['data'], default=str)[:300]}"
 
+        # Enrich with social perception and news catalyst from Stage 1 agents
+        social = blackboard.metadata.get("social_sentiment")
+        if social:
+            intel_context += f"\nSocial sentiment: {social.get('direction', 'neutral')} (score={social.get('score', 50)}, sources={social.get('sources', [])})"
+            if social.get("spike"):
+                intel_context += f" SPIKE: {social['spike']}"
+        news_cat = blackboard.metadata.get("news_catalysts")
+        if news_cat:
+            intel_context += (
+                f"\nNews catalysts: {news_cat.get('bullish_count', 0)} bullish, "
+                f"{news_cat.get('bearish_count', 0)} bearish in {news_cat.get('headline_count', 0)} headlines"
+            )
+        yt = blackboard.metadata.get("youtube_knowledge")
+        if yt and yt.get("entries_found", 0) > 0:
+            intel_context += f"\nYouTube intel: {yt.get('ideas_count', 0)} ideas, bull/bear={yt.get('bull_signals', 0)}/{yt.get('bear_signals', 0)}"
+
     prompt = (
         f"Analyze {symbol} for a {timeframe} trading hypothesis.\n"
         f"Regime: {regime}\n"

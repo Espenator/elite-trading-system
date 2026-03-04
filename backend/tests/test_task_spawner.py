@@ -23,12 +23,15 @@ class TestTaskSpawner:
         assert "market_perception" in names
         assert "flow_perception" in names
         assert "regime" in names
+        assert "social_perception" in names
+        assert "news_catalyst" in names
+        assert "youtube_knowledge" in names
         assert "hypothesis" in names
         assert "strategy" in names
         assert "risk" in names
         assert "execution" in names
         assert "critic" in names
-        assert len(names) == 8
+        assert len(names) == 11
 
     @pytest.mark.anyio
     async def test_spawn_single_agent(self, spawner):

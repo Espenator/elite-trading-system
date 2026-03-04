@@ -221,10 +221,26 @@ class IntelligenceCache:
                 news = {"error": "timeout"}
                 institutional = {"error": "timeout"}
 
+            # Social sentiment (sync, fast)
+            social_data = {}
+            try:
+                from app.modules.social_news_engine.aggregators import aggregate_all
+                from app.modules.social_news_engine.sentiment import score_text, score_to_0_100
+                from app.modules.social_news_engine.config import DEFAULT_SOURCES
+                social_items = aggregate_all([symbol], DEFAULT_SOURCES)
+                if social_items:
+                    texts = [it.get("text", "") for it in social_items if it.get("text")]
+                    raw = score_text(" ".join(texts), use_vader=True) if texts else 0.0
+                    score = score_to_0_100(raw)
+                    social_data = {"score": score, "item_count": len(social_items)}
+            except Exception:
+                pass
+
             package = {
                 "symbol": symbol,
                 "cortex_news": news if not isinstance(news, Exception) else {"error": str(news)},
                 "cortex_institutional": institutional if not isinstance(institutional, Exception) else {"error": str(institutional)},
+                "social_sentiment": social_data,
                 "refreshed_at": time.time(),
                 "latency_ms": (time.time() - t0) * 1000,
             }

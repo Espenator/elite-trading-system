@@ -111,7 +111,27 @@ async def evaluate(
     except Exception:
         pass
 
-    reasoning = f"Strategy checks: {checks_passed}/{checks_total} passed. " + "; ".join(reasons[:4])
+    # Factor in Stage 1 social/news perception consensus
+    blackboard = context.get("blackboard")
+    if blackboard:
+        social = blackboard.metadata.get("social_sentiment")
+        news_cat = blackboard.metadata.get("news_catalysts")
+        # If social + news agree with our direction, boost confidence
+        social_agrees = social and social.get("direction") == direction
+        news_agrees = news_cat and news_cat.get("direction") == direction
+        if social_agrees and news_agrees:
+            confidence = min(0.9, confidence + 0.08)
+            reasons.append("Social + News confirm direction")
+        elif social_agrees or news_agrees:
+            confidence = min(0.9, confidence + 0.04)
+            which = "Social" if social_agrees else "News"
+            reasons.append(f"{which} confirms direction")
+        # If strong counter-signal, dampen confidence
+        if social and social.get("spike") and social.get("direction") != direction and direction != "hold":
+            confidence *= 0.85
+            reasons.append(f"Social spike opposes ({social.get('direction')})")
+
+    reasoning = f"Strategy checks: {checks_passed}/{checks_total} passed. " + "; ".join(reasons[:5])
 
     return AgentVote(
         agent_name=NAME,

@@ -65,6 +65,50 @@ class IntelligenceOrchestrator:
             "errors": [],
         }
 
+        # ── Social sentiment pre-fetch (sync, fast) ──────────────────────────
+        try:
+            from app.modules.social_news_engine.aggregators import aggregate_all
+            from app.modules.social_news_engine.sentiment import score_text, score_to_0_100
+            from app.modules.social_news_engine.config import DEFAULT_SOURCES
+            social_items = aggregate_all([symbol], DEFAULT_SOURCES)
+            if social_items:
+                texts = [it.get("text", "") for it in social_items if it.get("text")]
+                raw = score_text(" ".join(texts), use_vader=True) if texts else 0.0
+                score = score_to_0_100(raw)
+                sources_used = list({it.get("source", "unknown") for it in social_items})
+                package["social_sentiment"] = {
+                    "score": score,
+                    "item_count": len(social_items),
+                    "sources": sources_used,
+                    "direction": "bullish" if score > 60 else "bearish" if score < 40 else "neutral",
+                }
+                package["tiers_queried"].append("social")
+        except Exception as e:
+            logger.debug("Social sentiment pre-fetch failed: %s", e)
+
+        # ── YouTube knowledge (read from store, instant) ─────────────────────
+        try:
+            from app.services.database import db_service
+            yt_knowledge = db_service.get_config("youtube_knowledge") or []
+            if isinstance(yt_knowledge, list):
+                sym_upper = symbol.upper()
+                relevant = [e for e in yt_knowledge
+                            if sym_upper in [s.upper() for s in (e.get("symbols") or [])]]
+                if relevant:
+                    all_ideas = []
+                    all_concepts = []
+                    for entry in relevant[:5]:
+                        all_ideas.extend(entry.get("ideas", []))
+                        all_concepts.extend(entry.get("concepts", []))
+                    package["youtube_knowledge"] = {
+                        "entries": len(relevant),
+                        "ideas": all_ideas[:20],
+                        "concepts": all_concepts[:20],
+                    }
+                    package["tiers_queried"].append("youtube")
+        except Exception as e:
+            logger.debug("YouTube knowledge pre-fetch failed: %s", e)
+
         # ── Parallel cortex queries (Perplexity) ─────────────────────────────
         cortex_tasks = {}
         if settings.PERPLEXITY_API_KEY:
