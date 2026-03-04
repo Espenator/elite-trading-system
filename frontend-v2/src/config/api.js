@@ -64,6 +64,7 @@ const API_CONFIG = {
     openclaw: "/openclaw", // OpenClaw bridge: regime, top candidates, health, scan
     market: "/market", // Market indices (SPY, QQQ, DIA) for Dashboard
     marketIndices: "/market/indices", // GET indices snapshot for Dashboard top bar
+    openclawRegime: "/openclaw/regime", // Regime state for Signal Intelligence / Market Regime
     mlBrain: "/ml-brain", // ML brain model status + predictions
     riskShield: "/risk-shield", // RiskShield emergency controls + safety checks
         kellySizer: "/risk/kelly-sizer", // Bug #19 fix: was /kelly-sizer, needs /risk prefix

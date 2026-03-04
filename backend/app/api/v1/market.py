@@ -65,6 +65,45 @@ def _set_cached_indices(result: List[Dict[str, Any]]) -> None:
     _INDICES_CACHE["ts"] = time.monotonic()
 
 
+@router.get("", summary="Market snapshot (indices + stub for Signal Intelligence)")
+@router.get("/", summary="Market snapshot with trailing slash")
+async def get_market_root() -> Dict[str, Any]:
+    """
+    Return market snapshot. Signal Intelligence and Market Regime pages call GET /api/v1/market.
+    Reuses the same indices cache as /market/indices for consistency.
+    """
+    cached = _get_cached_indices()
+    if cached is not None:
+        return {"indices": cached, "marketIndices": cached}
+    # Trigger one fetch so next request gets cache; return minimal so we don't block
+    result: List[Dict[str, Any]] = []
+    for item in INDEX_SYMBOLS[:4]:  # SPY, QQQ, DIA, SPY only for root to keep fast
+        try:
+            quotes = await finviz.get_quote_data(ticker=item["ticker"], timeframe="d", duration="d5")
+            if not quotes or not isinstance(quotes, list):
+                result.append({"id": item["id"], "value": None, "change": None})
+            else:
+                row = quotes[-1] if quotes else {}
+                prev = quotes[-2] if len(quotes) >= 2 else {}
+                close_key = next((k for k in ("Close", "close", "C", "Adj Close") if k in row), None)
+                if not close_key and row:
+                    close_key = list(row.keys())[-2] if len(row) > 1 else None
+                close = _parse_float(row.get(close_key))
+                prev_close = _parse_float(prev.get(close_key)) if prev else close
+                change = ((close - prev_close) / prev_close) * 100 if prev_close and close else None
+                result.append({
+                    "id": item["id"],
+                    "value": f"{close:.2f}" if close else None,
+                    "change": round(change, 2) if change is not None else None,
+                })
+        except Exception as e:
+            logger.debug("Market root fetch %s: %s", item["ticker"], e)
+            result.append({"id": item["id"], "value": None, "change": None})
+        await asyncio.sleep(_DELAY_BETWEEN_REQUESTS_SEC)
+    _set_cached_indices(result)
+    return {"indices": result, "marketIndices": result}
+
+
 @router.get("/indices")
 async def get_indices() -> Dict[str, Any]:
     """

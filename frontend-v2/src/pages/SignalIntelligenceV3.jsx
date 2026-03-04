@@ -268,13 +268,37 @@ export default function SignalIntelligenceV3() {
         const json = await res.json();
         const bars = json.bars || json.data || json || [];
         if (bars.length === 0) return;
-        const data = bars.map(b => ({ time: Math.floor(new Date(b.timestamp || b.t).getTime() / 1000), open: b.open || b.o, high: b.high || b.h, low: b.low || b.l, close: b.close || b.c }));
-        const volData = bars.map((b, i) => ({ time: data[i].time, value: b.volume || b.v || 0, color: data[i].close >= data[i].open ? '#10b98144' : '#ef444444' }));
+        const rawData = bars.map(b => {
+          const t = b.timestamp ?? b.t ?? b.time;
+          const ts = t != null ? Math.floor(new Date(t).getTime() / 1000) : NaN;
+          const open = Number(b.open ?? b.o);
+          const high = Number(b.high ?? b.h);
+          const low = Number(b.low ?? b.l);
+          const close = Number(b.close ?? b.c);
+          const volume = Number(b.volume ?? b.v ?? 0);
+          return { time: Number.isFinite(ts) ? ts : NaN, open, high, low, close, volume };
+        });
+        const sorted = rawData
+          .filter(d => Number.isFinite(d.time) && Number.isFinite(d.close))
+          .sort((a, b) => a.time - b.time);
+        // De-duplicate by time (chart requires strictly ascending; keep last per timestamp)
+        const data = [];
+        let prevTime = -1;
+        for (const d of sorted) {
+          if (d.time > prevTime) {
+            data.push(d);
+            prevTime = d.time;
+          } else if (d.time === prevTime && data.length > 0) {
+            data[data.length - 1] = d;
+          }
+        }
+        if (data.length === 0) return;
+        const volData = data.map((d, i) => ({ time: d.time, value: d.volume, color: d.close >= d.open ? '#10b98144' : '#ef444444' }));
         // Compute SMA20, SMA50, SMA200, VWAP from real data
         const s20 = []; const s50 = []; const s200 = []; const vwapData = [];
         let cumVol = 0, cumVolPrice = 0;
         data.forEach((d, i) => {
-          const vol = bars[i].volume || bars[i].v || 0;
+          const vol = d.volume;
           const tp = (d.high + d.low + d.close) / 3;
           cumVol += vol; cumVolPrice += tp * vol;
           if (cumVol > 0) vwapData.push({ time: d.time, value: cumVolPrice / cumVol });
@@ -295,7 +319,7 @@ export default function SignalIntelligenceV3() {
     const handleResize = () => { if (chartContainerRef.current) chart.applyOptions({ width: chartContainerRef.current.clientWidth }); };
     window.addEventListener('resize', handleResize);
     return () => { window.removeEventListener('resize', handleResize); chart.remove(); chartRef.current = null; };
-  }, []);
+  }, [selectedSymbol, chartTimeframe]);
 
   // --- SYNC API SIGNALS TO LOCAL STATE ---
   useEffect(() => {

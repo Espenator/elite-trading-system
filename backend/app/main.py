@@ -64,6 +64,7 @@ from app.api.v1 import (
     alignment,
     features as features_routes,
     council,
+    youtube_knowledge,
 )
 from app.api import ingestion
 
@@ -585,6 +586,7 @@ app.include_router(
 
 app.include_router(features_routes.router, prefix="/api/v1/features", tags=["features"])
 app.include_router(council.router, prefix="/api/v1/council", tags=["council"])
+app.include_router(youtube_knowledge.router, prefix="/api/v1/youtube-knowledge", tags=["youtube_knowledge"])
 
 # Data ingestion endpoints (backfill + DuckDB health)
 app.include_router(ingestion.router, tags=["ingestion"])
