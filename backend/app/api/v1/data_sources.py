@@ -429,7 +429,7 @@ async def add_source(payload: DataSourceCreate):
         "type": payload.type.value,
         "category": payload.category.value,
         "base_url": payload.base_url,
-        "required_keys": payload.required_keys,h
+        "required_keys": payload.required_keys,
         "test_endpoint": payload.test_endpoint,
         "status": "pending",
         "enabled": payload.enabled,
