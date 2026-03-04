@@ -803,7 +803,7 @@ async def get_circuit_breakers():
 async def run_stress_test():
     """Run Monte Carlo stress test simulation."""
     try:
-        import random
+        import random; random.seed(42)
 
         positions = await alpaca_service.get_positions()
         account = await alpaca_service.get_account()
