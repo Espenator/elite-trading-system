@@ -1,4 +1,4 @@
-"""Council API — evaluate symbols through the 11-agent debate council.
+"""Council API — evaluate symbols through the 17-agent debate council.
 
 POST /api/v1/council/evaluate     → full DecisionPacket
 GET  /api/v1/council/status       → council configuration
@@ -29,7 +29,7 @@ class CouncilEvalRequest(BaseModel):
 
 @router.post("/evaluate", dependencies=[Depends(require_auth)])
 async def evaluate_symbol(req: CouncilEvalRequest):
-    """Run the 11-agent council on a symbol and return DecisionPacket."""
+    """Run the 17-agent council on a symbol and return DecisionPacket."""
     global _latest_decision
     try:
         from app.council.runner import run_council
@@ -65,20 +65,14 @@ async def council_status():
         "council_enabled": os.getenv("COUNCIL_ENABLED", "true").lower() == "true",
         "brain_enabled": os.getenv("BRAIN_ENABLED", "false").lower() == "true",
         "agents": [
-            "market_perception",
-            "flow_perception",
-            "regime",
-            "social_perception",
-            "news_catalyst",
-            "youtube_knowledge",
-            "hypothesis",
-            "strategy",
-            "risk",
-            "execution",
-            "critic",
+            "market_perception", "flow_perception", "regime",
+            "social_perception", "news_catalyst", "youtube_knowledge", "intermarket",
+            "rsi", "bbv", "ema_trend", "relative_strength", "cycle_timing",
+            "hypothesis", "strategy", "risk", "execution", "critic",
         ],
         "dag_stages": [
-            ["market_perception", "flow_perception", "regime", "social_perception", "news_catalyst", "youtube_knowledge"],
+            ["market_perception", "flow_perception", "regime", "social_perception", "news_catalyst", "youtube_knowledge", "intermarket"],
+            ["rsi", "bbv", "ema_trend", "relative_strength", "cycle_timing"],
             ["hypothesis"],
             ["strategy"],
             ["risk", "execution"],

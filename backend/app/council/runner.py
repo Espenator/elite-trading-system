@@ -1,12 +1,13 @@
-"""Council Runner — orchestrates the 11-agent DAG and arbiter.
+"""Council Runner — orchestrates the 17-agent DAG and arbiter.
 
 DAG execution order (parallel within stages):
-  Stage 1: [market_perception, flow_perception, regime, social_perception, news_catalyst, youtube_knowledge]
-  Stage 2: [hypothesis]
-  Stage 3: [strategy]
-  Stage 4: [risk, execution]
-  Stage 5: [critic]
-  Stage 6: arbiter (deterministic)
+  Stage 1: [market_perception, flow_perception, regime, social_perception, news_catalyst, youtube_knowledge, intermarket]
+  Stage 2: [rsi, bbv, ema_trend, relative_strength, cycle_timing]
+  Stage 3: [hypothesis]
+  Stage 4: [strategy]
+  Stage 5: [risk, execution]
+  Stage 6: [critic]
+  Stage 7: arbiter (deterministic)
 
 Uses BlackboardState as shared context and TaskSpawner for agent execution.
 """
@@ -29,7 +30,7 @@ async def run_council(
     features: Optional[Dict[str, Any]] = None,
     context: Optional[Dict[str, Any]] = None,
 ) -> DecisionPacket:
-    """Run the full 8-agent council and return a DecisionPacket.
+    """Run the full 17-agent council and return a DecisionPacket.
 
     Args:
         symbol: Ticker symbol to evaluate
@@ -160,7 +161,7 @@ async def run_council(
 
     all_votes: List[AgentVote] = []
 
-    # Stage 1: Perception (parallel — 6 agents: 3 core + 3 data-source)
+    # Stage 1: Perception + Data Sources + Intermarket (parallel — 7 agents)
     stage1 = await spawner.spawn_parallel([
         {"agent_type": "market_perception", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "flow_perception", "symbol": symbol, "timeframe": timeframe, "context": context},
@@ -168,44 +169,58 @@ async def run_council(
         {"agent_type": "social_perception", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "news_catalyst", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "youtube_knowledge", "symbol": symbol, "timeframe": timeframe, "context": context},
+        {"agent_type": "intermarket", "symbol": symbol, "timeframe": timeframe, "context": context},
     ])
     all_votes.extend(stage1)
     context["stage1"] = {v.agent_name: v.to_dict() for v in stage1}
     for v in stage1:
         blackboard.perceptions[v.agent_name] = v.to_dict()
 
-    # Stage 2: Hypothesis (deep model tier for LLM)
-    stage2 = await spawner.spawn("hypothesis", symbol, timeframe, context=context, model_tier="deep")
-    all_votes.append(stage2)
-    context["stage2"] = {stage2.agent_name: stage2.to_dict()}
-    blackboard.hypothesis = stage2.to_dict()
+    # Stage 2: Technical Analysis (parallel — 5 agents)
+    stage2 = await spawner.spawn_parallel([
+        {"agent_type": "rsi", "symbol": symbol, "timeframe": timeframe, "context": context},
+        {"agent_type": "bbv", "symbol": symbol, "timeframe": timeframe, "context": context},
+        {"agent_type": "ema_trend", "symbol": symbol, "timeframe": timeframe, "context": context},
+        {"agent_type": "relative_strength", "symbol": symbol, "timeframe": timeframe, "context": context},
+        {"agent_type": "cycle_timing", "symbol": symbol, "timeframe": timeframe, "context": context},
+    ])
+    all_votes.extend(stage2)
+    context["stage2"] = {v.agent_name: v.to_dict() for v in stage2}
+    for v in stage2:
+        blackboard.perceptions[v.agent_name] = v.to_dict()
 
-    # Stage 3: Strategy
-    stage3 = await spawner.spawn("strategy", symbol, timeframe, context=context)
+    # Stage 3: Hypothesis (deep model tier for LLM)
+    stage3 = await spawner.spawn("hypothesis", symbol, timeframe, context=context, model_tier="deep")
     all_votes.append(stage3)
     context["stage3"] = {stage3.agent_name: stage3.to_dict()}
-    blackboard.strategy = stage3.to_dict()
+    blackboard.hypothesis = stage3.to_dict()
 
-    # Stage 4: Risk + Execution (parallel)
-    stage4 = await spawner.spawn_parallel([
+    # Stage 4: Strategy
+    stage4 = await spawner.spawn("strategy", symbol, timeframe, context=context)
+    all_votes.append(stage4)
+    context["stage4"] = {stage4.agent_name: stage4.to_dict()}
+    blackboard.strategy = stage4.to_dict()
+
+    # Stage 5: Risk + Execution (parallel)
+    stage5 = await spawner.spawn_parallel([
         {"agent_type": "risk", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "execution", "symbol": symbol, "timeframe": timeframe, "context": context},
     ])
-    all_votes.extend(stage4)
-    context["stage4"] = {v.agent_name: v.to_dict() for v in stage4}
-    for v in stage4:
+    all_votes.extend(stage5)
+    context["stage5"] = {v.agent_name: v.to_dict() for v in stage5}
+    for v in stage5:
         if v.agent_name == "risk":
             blackboard.risk_assessment = v.to_dict()
         elif v.agent_name == "execution":
             blackboard.execution_plan = v.to_dict()
 
-    # Stage 5: Critic
-    stage5 = await spawner.spawn("critic", symbol, timeframe, context=context)
-    all_votes.append(stage5)
-    context["stage5"] = {stage5.agent_name: stage5.to_dict()}
-    blackboard.critic_review = stage5.to_dict()
+    # Stage 6: Critic
+    stage6 = await spawner.spawn("critic", symbol, timeframe, context=context)
+    all_votes.append(stage6)
+    context["stage6"] = {stage6.agent_name: stage6.to_dict()}
+    blackboard.critic_review = stage6.to_dict()
 
-    # Stage 6: Arbiter
+    # Stage 7: Arbiter
     decision = arbitrate(symbol, timeframe, timestamp, all_votes)
     decision.council_decision_id = blackboard.council_decision_id
 

@@ -31,7 +31,13 @@ class TestTaskSpawner:
         assert "risk" in names
         assert "execution" in names
         assert "critic" in names
-        assert len(names) == 11
+        assert "rsi" in names
+        assert "bbv" in names
+        assert "ema_trend" in names
+        assert "intermarket" in names
+        assert "relative_strength" in names
+        assert "cycle_timing" in names
+        assert len(names) == 17
 
     @pytest.mark.anyio
     async def test_spawn_single_agent(self, spawner):
