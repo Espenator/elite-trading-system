@@ -9,6 +9,7 @@ import {
 import { createChart } from 'lightweight-charts';
 import { useApi } from '../hooks/useApi';
 import Card from '../components/ui/Card';
+import PostmortemAttribution from '../components/dashboard/PostmortemAttribution';
 
 // --- Mini Lightweight Charts Components ---
 
@@ -688,6 +689,11 @@ const PerformanceAnalytics = () => {
         <div className="text-gray-600">
           Filters: {activePeriod} | Multi-Agent &nbsp; Data: Jan 1 - Feb 28, 2026
         </div>
+      </div>
+
+      {/* Agent Attribution from Postmortems */}
+      <div className="mt-4">
+        <PostmortemAttribution />
       </div>
 
     </div>

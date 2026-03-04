@@ -1,6 +1,7 @@
 import React, { useEffect, useCallback } from 'react';
 import useTradeExecution from '../hooks/useTradeExecution';
 import AlignmentEngine from "../components/settings/AlignmentEngine";
+import CouncilVerdictPanel from "../components/dashboard/CouncilVerdictPanel";
 import { getApiUrl } from '../config/api';
 
 // ========== UI-DESIGN-SYSTEM.md EXACT COLORS ==========
@@ -396,12 +397,15 @@ export default function TradeExecution() {
 
       </div>
 
-      {/* Alignment Engine */}
-      <Card title="Alignment Engine">
-        <div style={{ padding: '8px 12px', maxHeight: 400, overflowY: 'auto' }}>
-          <AlignmentEngine />
-        </div>
-      </Card>
+      {/* Council Verdict + Alignment Engine */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+        <CouncilVerdictPanel symbol={symbol} />
+        <Card title="Alignment Engine">
+          <div style={{ padding: '8px 12px', maxHeight: 400, overflowY: 'auto' }}>
+            <AlignmentEngine />
+          </div>
+        </Card>
+      </div>
 
     </div>
   );

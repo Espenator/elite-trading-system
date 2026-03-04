@@ -295,3 +295,73 @@ export async function postBiasOverride(biasMultiplier) {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
+
+// ---- CNS (Central Nervous System) Hooks ----
+
+export function useHomeostasis(pollMs = 10000) {
+  return useApi('cnsHomeostasis', { pollIntervalMs: pollMs });
+}
+
+export function useCircuitBreakerStatus(pollMs = 15000) {
+  return useApi('cnsCircuitBreaker', { pollIntervalMs: pollMs });
+}
+
+export function useCnsAgentsHealth(pollMs = 15000) {
+  return useApi('cnsAgentsHealth', { pollIntervalMs: pollMs });
+}
+
+export function useCnsBlackboard(pollMs = 10000) {
+  return useApi('cnsBlackboard', { pollIntervalMs: pollMs });
+}
+
+export function useCnsPostmortems(pollMs = 30000) {
+  return useApi('cnsPostmortems', { pollIntervalMs: pollMs });
+}
+
+export function useCnsAttribution(pollMs = 60000) {
+  return useApi('cnsPostmortemsAttribution', { pollIntervalMs: pollMs });
+}
+
+export function useCnsDirectives() {
+  return useApi('cnsDirectives');
+}
+
+export function useCnsLastVerdict(pollMs = 10000) {
+  return useApi('cnsLastVerdict', { pollIntervalMs: pollMs });
+}
+
+/** POST helper to override agent streak status */
+export async function postAgentOverrideStatus(agentName, action) {
+  const url = `${getApiUrl('cnsAgentsHealth').replace('/health', '')}/${encodeURIComponent(agentName)}/override-status`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    body: JSON.stringify({ action }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+/** POST helper to override agent Bayesian weight */
+export async function postAgentOverrideWeight(agentName, alpha, beta) {
+  const url = `${getApiUrl('cnsAgentsHealth').replace('/health', '')}/${encodeURIComponent(agentName)}/override-weight`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    body: JSON.stringify({ alpha, beta }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+/** PUT helper to update a directive file */
+export async function putDirective(filename, content) {
+  const url = `${getApiUrl('cnsDirectives')}/${encodeURIComponent(filename)}`;
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    body: JSON.stringify({ content }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}

@@ -7,6 +7,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useApi } from "../hooks/useApi";
 import { getApiUrl } from "../config/api";
 import log from "@/utils/logger";
+import SelfAwarenessPanel from "../components/agents/SelfAwarenessPanel";
 
 // ─── COLOR PALETTE (aurora design system) ──────────────────────────────────
 const C = {
@@ -1373,6 +1374,15 @@ handleRefresh();
         </div>
         </section>
       </div>
+
+      {/* === AGENT SELF-AWARENESS ============================================ */}
+      <section className="aurora-card p-4 mt-4">
+        <h2 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-cyan-400" />
+          Agent Self-Awareness — Bayesian Weights & Streak Status
+        </h2>
+        <SelfAwarenessPanel />
+      </section>
 
       {/* === FOOTER ========================================================= */}
       <footer className="aurora-card flex items-center justify-between px-4 py-2

@@ -123,6 +123,16 @@ const API_CONFIG = {
 
     // ---- FLYWHEEL SCHEDULER ----
     flywheelScheduler: "/flywheel/scheduler", // GET: scheduler status + next runs
+
+    // ---- CNS (Central Nervous System) ----
+    cnsHomeostasis: "/cns/homeostasis/vitals",
+    cnsCircuitBreaker: "/cns/circuit-breaker/status",
+    cnsAgentsHealth: "/cns/agents/health",
+    cnsBlackboard: "/cns/blackboard/current",
+    cnsPostmortems: "/cns/postmortems",
+    cnsPostmortemsAttribution: "/cns/postmortems/attribution",
+    cnsDirectives: "/cns/directives",
+    cnsLastVerdict: "/cns/council/last-verdict",
   },
 };
 
@@ -185,10 +195,13 @@ export const WS_CHANNELS = {
   trades: "trades",
   logs: "logs",
   sentiment: "sentiment",
-    risk: "risk",
+  risk: "risk",
   kelly: "kelly",
-      alignment: "alignment",
+  alignment: "alignment",
   council: "council",
+  council_verdict: "council_verdict",
+  homeostasis: "homeostasis",
+  circuit_breaker: "circuit_breaker",
 };
 
 export default API_CONFIG;

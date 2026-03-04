@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import log from "@/utils/logger";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl } from "../config/api";
+import CNSVitals from "../components/dashboard/CNSVitals";
 
 // --- TOP TICKER STRIP (scrolling market tickers) ---
 const TickerStrip = ({ indices, signals }) => {
@@ -1287,6 +1288,11 @@ export default function Dashboard() {
     <div className="flex flex-col h-screen w-full bg-[#0B0E14] text-[#e5e7eb] font-sans text-[9px] leading-tight overflow-hidden selection:bg-[#00D9FF]/30">
       {/* 0. SCROLLING TICKER STRIP */}
       <TickerStrip indices={indices} signals={processedSignals} />
+
+      {/* CNS VITALS — homeostasis, circuit breaker, agent health, verdict */}
+      <div className="px-4 pt-2 shrink-0">
+        <CNSVitals />
+      </div>
 
       {/* 1. TOP HEADER BAR */}
       <header className="flex items-center justify-between px-4 py-2 border-b border-[rgba(42,52,68,0.5)] bg-[#111827] shrink-0">

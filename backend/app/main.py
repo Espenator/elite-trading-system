@@ -59,6 +59,7 @@ from app.api.v1 import (
     alignment,
     features as features_routes,
     council,
+    cns,
 )
 from app.api import ingestion
 
@@ -547,6 +548,7 @@ app.include_router(risk_shield_api.router, prefix="/api/v1/risk-shield",  tags=[
 
 app.include_router(features_routes.router, prefix="/api/v1/features", tags=["features"])
 app.include_router(council.router, prefix="/api/v1/council", tags=["council"])
+app.include_router(cns.router, prefix="/api/v1/cns", tags=["cns"])
 
 # Data ingestion endpoints (backfill + DuckDB health)
 app.include_router(ingestion.router, tags=["ingestion"])

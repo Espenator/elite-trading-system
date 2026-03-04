@@ -34,6 +34,9 @@ import ConferencePipeline from '../components/agents/ConferencePipeline';
 import DriftMonitor from '../components/agents/DriftMonitor';
 import SystemAlerts from '../components/agents/SystemAlerts';
 import AgentResourceMonitor from '../components/agents/AgentResourceMonitor';
+// --- CNS Components ---
+import CircuitBreakerPanel from '../components/agents/CircuitBreakerPanel';
+import SelfAwarenessPanel from '../components/agents/SelfAwarenessPanel';
 // --- Constants ---
 const AGENT_ICONS = {
   "Market Data Agent": Activity, "Signal Generation Agent": Zap,
@@ -493,6 +496,8 @@ export default function AgentCommandCenter() {
     { id: "blackboard", label: "Blackboard & Comms", icon: ClipboardList },
     { id: "conference", label: "Conference & Consensus", icon: Users },
     { id: "ml-ops", label: "ML Ops", icon: Brain },
+    { id: "circuit-breaker", label: "Circuit Breaker", icon: Shield },
+    { id: "self-awareness", label: "Self-Awareness", icon: Gauge },
     { id: "logs", label: "Logs & Telemetry", icon: Terminal },
   ];
   return (
@@ -889,6 +894,14 @@ export default function AgentCommandCenter() {
               </table>
             </Card>
           </div>
+        )}
+        {/* ============ TAB: CIRCUIT BREAKER ============ */}
+        {activeTab === "circuit-breaker" && (
+          <CircuitBreakerPanel />
+        )}
+        {/* ============ TAB: SELF-AWARENESS ============ */}
+        {activeTab === "self-awareness" && (
+          <SelfAwarenessPanel />
         )}
         {/* ============ TAB 8: LOGS & TELEMETRY ============ */}
         {activeTab === "logs" && (
