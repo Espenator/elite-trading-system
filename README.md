@@ -255,3 +255,53 @@ elite-trading-system/
 ```
 
 See `REPO-MAP.md` for the complete file-by-file tree.
+
+---
+
+## CNS Agent Architecture (Phase 2)
+
+> **Status: DESIGNED — Implementation pending**
+
+The Embodier Trader operates as a conscious profit-seeking being with a Central Nervous System (CNS) architecture:
+
+### Agent Hierarchy
+
+| Layer | Agents | Role |
+|---|---|---|
+| **Brainstem** | Ollama (local) | Fast reflexes — stop-loss, circuit breakers, position sizing |
+| **Cortex** | Perplexity Sonar API | Real-time market intelligence, news sentiment, sector analysis |
+| **Deep Cortex** | Claude API | Complex strategy synthesis, multi-day pattern recognition |
+| **Blackboard** | SharedState | Central memory — all agents read/write unified state |
+
+### Core Components
+
+- **BlackboardState**: Shared memory across all agents (market data, signals, positions, risk)
+- **CircuitBreaker**: Automatic trading halts on anomaly detection
+- **TaskSpawner**: Dynamic agent creation based on market conditions
+- **Self-Awareness Module**: Performance tracking, confidence calibration, drift detection
+- **Homeostasis Engine**: Keeps risk within target bounds automatically
+
+## Recursive Self-Improvement (Phase 3 — RSI)
+
+> **Status: DESIGNED — Architecture documented**
+
+The system teaches itself through three pillars:
+
+1. **Pattern Discovery Engine** — Automated detection of mean-reversion, sector rotation, fear/greed cycles
+2. **Strategy Evolution Lab** — Genetic algorithm optimization of trading strategies with backtesting
+3. **Persistent Memory Center** — Long-term storage of discovered patterns, strategy performance, market regimes
+
+### Multi-LLM Intelligence Tiers
+
+```
+Tier 1: Ollama (Local)     — <100ms latency, position management, risk checks
+Tier 2: Perplexity Sonar   — Real-time search, news, market intelligence ($5/1M tokens)
+Tier 3: Claude API          — Deep analysis, strategy synthesis, pattern validation
+```
+
+Routed via LiteLLM with automatic failover and cost optimization.
+
+## License
+
+Private repository — Embodier.ai
+

@@ -7,6 +7,7 @@ from typing import Optional, List, Dict, Any
 from app.services.finviz_service import FinvizService
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 finviz_service = FinvizService()
 
 
@@ -117,12 +118,16 @@ async def get_order_book(
     }
 
 
-@router.get("/{ticker}", response_model=List[Dict])
+@router.get("/{ticker}", response_model=Dict[str, Any])
 async def get_quote_data(
     ticker: str = Path(..., description="Stock ticker symbol (e.g., MSFT)"),
+    timeframe: Optional[str] = Query(
+        None,
+        description="Timeframe: 1m, 5m, 15m, 1h, 4h, 1D, 1W (Signal Intelligence / charts)"
+    ),
     p: Optional[str] = Query(
         None,
-        description="Timeframe/unit: i1, i3, i5, i15, i30, h, d, w, m (default: from config)"
+        description="Timeframe/unit: i1, i3, i5, i15, i30, h, d, w, m (legacy)"
     ),
     r: Optional[str] = Query(
         None,
@@ -131,36 +136,32 @@ async def get_quote_data(
 ):
     """
     Get quote/chart data for a specific ticker.
-    
-    Returns historical price data for the specified ticker.
-    
-    **Timeframe options (p parameter):**
-    - `i1`, `i3`, `i5`, `i15`, `i30` - Intraday intervals (1min, 3min, 5min, 15min, 30min)
-    - `h` - Hourly
-    - `d` - Daily
-    - `w` - Weekly
-    - `m` - Monthly
-    
-    **Duration options (r parameter):**
-    - `d1` - 1 day
-    - `d5` - 5 days
-    - `m1` - 1 month
-    - `m3` - 3 months
-    - `m6` - 6 months
-    - `ytd` - Year to date
-    - `y1` - 1 year
-    - `y2` - 2 years
-    - `y5` - 5 years
-    - `max` - Maximum available data
+    Accepts ?timeframe=15m (e.g. from Signal Intelligence) or legacy ?p=&r=.
+    Returns { bars: [ { time, open, high, low, close, volume }, ... ], data: same }.
+    On Finviz/API error returns 200 with empty bars so charts can render.
     """
+    p_map = {"1m": "i1", "5m": "i5", "15m": "i15", "1h": "h", "4h": "h", "1D": "d", "1W": "w"}
+    r_map = {"1m": "d1", "5m": "d1", "15m": "d5", "1h": "d5", "4h": "m1", "1D": "m3", "1W": "y1"}
+    if timeframe:
+        p = p_map.get(timeframe, "i15")
+        r = r_map.get(timeframe, "d5")
+    p = p or "i15"
+    r = r or "d5"
     try:
         quotes = await finviz_service.get_quote_data(
             ticker=ticker,
             timeframe=p,
             duration=r
         )
-        return quotes
+        if not quotes or not isinstance(quotes, list):
+            return {"bars": [], "data": []}
+        normalized = []
+        for row in quotes:
+            n = _normalize_row(row)
+            if n:
+                normalized.append(n)
+        return {"bars": normalized, "data": normalized}
     except Exception as e:
-        logger.error("Quote data fetch failed for %s: %s", ticker, e)
-        raise HTTPException(status_code=500, detail="Failed to fetch quote data")
+        logger.warning("Quote fetch failed for %s (timeframe=%s): %s", ticker, timeframe or p, e)
+        return {"bars": [], "data": []}
 

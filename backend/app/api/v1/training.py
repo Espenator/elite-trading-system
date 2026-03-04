@@ -50,6 +50,7 @@ def _run_training_job(run_db_id: int, body: StartTrainingRequest) -> None:
     Persists progress to DB; respects stop requests (best-effort).
     """
     try:
+
         def stop_check() -> bool:
             status = training_store.get_run_status(run_db_id)
             return (status or "").lower().strip() == "stop_requested"
@@ -87,7 +88,9 @@ def _run_training_job(run_db_id: int, body: StartTrainingRequest) -> None:
             return
 
         # Ensure run row has a result_json even if ml_training already updated it.
-        training_store.set_run_success(run_db_id, result=result if isinstance(result, dict) else {"result": result})
+        training_store.set_run_success(
+            run_db_id, result=result if isinstance(result, dict) else {"result": result}
+        )
 
     except Exception as e:
         logger.exception("Training job failed")
@@ -95,6 +98,30 @@ def _run_training_job(run_db_id: int, body: StartTrainingRequest) -> None:
 
 
 # --- Endpoints ----------------------------------------------------------------
+@router.get("", response_model=dict)
+@router.get("/", response_model=dict)
+async def get_training_summary():
+    """Summary for Signal Intelligence / dashboards: datasets, runs, last run (avoids 404 on GET /api/v1/training)."""
+    try:
+        datasets = training_store.list_datasets_payload()
+        runs = training_store.list_runs(limit=5)
+        progress = training_store.get_active_progress_payload()
+        return {
+            "datasets": datasets or [],
+            "runs": runs or [],
+            "activeProgress": progress,
+            "last_retrain": (runs[0] or {}).get("createdAt") if runs else None,
+        }
+    except Exception as e:
+        logger.debug("Training summary failed: %s", e)
+        return {
+            "datasets": [],
+            "runs": [],
+            "activeProgress": None,
+            "last_retrain": None,
+        }
+
+
 @router.get("/datasets", response_model=List[dict])
 async def get_datasets():
     """List all datasets available for training (real DB-derived)."""
@@ -129,7 +156,9 @@ async def start_training(body: StartTrainingRequest, background_tasks: Backgroun
     Real async background training; progress available via /runs/active/progress.
     """
     if training_store.has_active_run():
-        raise HTTPException(status_code=409, detail="A training run is already in progress")
+        raise HTTPException(
+            status_code=409, detail="A training run is already in progress"
+        )
 
     run_db_id = training_store.create_run(
         TrainingRunCreate(

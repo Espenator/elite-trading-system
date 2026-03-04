@@ -35,7 +35,7 @@ import json
 import httpx
 from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Depends, Header, Query, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, Header, Query, HTTPException, Request
 from app.core.security import require_auth
 from app.services.openclaw_bridge_service import (
     openclaw_bridge,
@@ -423,7 +423,7 @@ async def get_swarm_status():
 
 @router.post("/macro/override", summary="Override Macro Brain Bias", dependencies=[Depends(require_auth)])
 async def macro_override(
-    bias_multiplier: float = Query(
+    bias_multiplier: float = Body(
         ..., ge=0.0, le=5.0, description="Bias multiplier (0.0-5.0)"
     )
 ):
@@ -557,7 +557,7 @@ async def get_llm_flow(limit: int = Query(default=5, ge=1, le=50)):
 
 # ------------------------------------------------------------------ #
 # ADDITIONAL ENDPOINTS (called by openclawService.js)
-# consensus, nlp-spawn, health-matrix
+# nlp-spawn, health-matrix
 # ------------------------------------------------------------------ #
 @router.get("/consensus-summary", summary="Get Agent Swarm Consensus")
 async def get_consensus():
@@ -580,6 +580,7 @@ async def get_consensus():
     except Exception as e:
         logger.debug(f"[OPENCLAW] Consensus error: {e}")
         return {"consensus": [], "count": 0}
+
 
 
 @router.post("/nlp-spawn", summary="Spawn Agent Team via NLP Prompt", dependencies=[Depends(require_auth)])
