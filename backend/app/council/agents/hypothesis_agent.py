@@ -34,7 +34,15 @@ async def evaluate(
         feature_json = json.dumps(features.get("features", features), default=str)
         regime = str(features.get("features", {}).get("regime", "unknown"))
 
-        # Build rich context from blackboard (perceptions + regime + features)
+        # Load trading directives for current regime
+        directives_text = ""
+        try:
+            from app.council.directives.loader import directive_loader
+            directives_text = directive_loader.load(regime)
+        except Exception:
+            pass
+
+        # Build rich context from blackboard (perceptions + regime + features + directives)
         blackboard = context.get("blackboard")
         if blackboard:
             brain_context = json.dumps({
@@ -42,6 +50,7 @@ async def evaluate(
                 "regime": regime,
                 "council_decision_id": blackboard.council_decision_id,
                 "stage1_votes": context.get("stage1", {}),
+                "directives": directives_text[:2000] if directives_text else "",
             }, default=str)
         else:
             brain_context = json.dumps(context, default=str) if context else ""

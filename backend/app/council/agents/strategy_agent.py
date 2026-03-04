@@ -96,6 +96,21 @@ async def evaluate(
         direction = "hold"
         confidence = 0.4
 
+    # Load regime directives for bias adjustment
+    regime_bias = "NEUTRAL"
+    try:
+        from app.council.directives.loader import directive_loader
+        regime = str(f.get("regime", "unknown")).lower()
+        regime_bias = directive_loader.get_regime_bias(regime)
+        if regime_bias == "DEFENSIVE" and direction == "buy":
+            confidence *= 0.8  # Reduce buy confidence in defensive regime
+            reasons.append(f"Regime bias={regime_bias} (reduced buy confidence)")
+        elif regime_bias == "LONG" and direction == "sell":
+            confidence *= 0.85  # Reduce sell confidence in bullish regime
+            reasons.append(f"Regime bias={regime_bias} (reduced sell confidence)")
+    except Exception:
+        pass
+
     reasoning = f"Strategy checks: {checks_passed}/{checks_total} passed. " + "; ".join(reasons[:4])
 
     return AgentVote(
@@ -104,5 +119,5 @@ async def evaluate(
         confidence=round(min(0.9, confidence), 2),
         reasoning=reasoning,
         weight=cfg["weight_strategy"],
-        metadata={"checks_passed": checks_passed, "checks_total": checks_total},
+        metadata={"checks_passed": checks_passed, "checks_total": checks_total, "regime_bias": regime_bias},
     )
