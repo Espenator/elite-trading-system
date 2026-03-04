@@ -1,4 +1,4 @@
-"""Council schemas — shared data structures for the 8-agent debate council."""
+"""Council schemas — shared data structures for the 11-agent debate council."""
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
 

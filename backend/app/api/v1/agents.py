@@ -1,6 +1,7 @@
 """
-Agent Command Center API — status and control of the 5 AI agents.
+Agent Command Center API — status and control of the 5 operational tick agents.
 GET returns agents + logs; POST start/stop/pause/restart update persisted status and append to activity log.
+Note: These are the 5 data-collection tick agents. The 11-agent council DAG is at /council/status.
 """
 
 import logging
