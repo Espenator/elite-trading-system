@@ -39,16 +39,21 @@
 - FRED - Economic macro data
 - SEC EDGAR - Company filings
 
-## Council Architecture (8-Agent DAG)
+## Council Architecture (11-Agent DAG)
 
 ```
-Stage 1 (Parallel): market_perception, flow_perception, regime
-Stage 2: hypothesis (wired to brain_service LLM)
-Stage 3: strategy (entry/exit/sizing)
+Stage 1 (Parallel): market_perception, flow_perception, regime, social_perception, news_catalyst, youtube_knowledge
+Stage 2: hypothesis (wired to brain_service LLM, reads social/news/youtube from blackboard)
+Stage 3: strategy (entry/exit/sizing, confidence modulated by social+news consensus)
 Stage 4 (Parallel): risk, execution
 Stage 5: critic (postmortem learning)
 Stage 6: arbiter (deterministic BUY/SELL/HOLD)
 ```
+
+Data-source perception agents (Stage 1):
+- **social_perception** (weight 0.7): StockGeist + News API + Discord + X/Twitter sentiment
+- **news_catalyst** (weight 0.6): Breaking news catalyst detection (FDA, M&A, earnings, analyst changes)
+- **youtube_knowledge** (weight 0.4): YouTube transcript intelligence from knowledge store
 
 Arbiter Rules:
 1. VETO from risk_agent or execution_agent -> hold, vetoed=True
@@ -62,7 +67,7 @@ The agent swarm IS the nervous system of Embodier Trader:
 
 - **Brainstem** (always on, <50ms): risk_governor, execution_engine health, regime_agent, symbol_universe, CircuitBreaker reflexes
 - **Cortex** (LLM-powered, 300-800ms): hypothesis_agent + critic_agent via brain_service gRPC
-- **Spinal Cord** (council DAG, ~1500ms): S1 parallel perception -> S2 hypothesis -> S3 strategy -> S4 parallel risk/execution -> S5 critic -> S6 arbiter
+- **Spinal Cord** (council DAG, ~1500ms): S1 parallel perception (6 agents) -> S2 hypothesis -> S3 strategy -> S4 parallel risk/execution -> S5 critic -> S6 arbiter
 - **Autonomic**: Bayesian weight updates, overnight learning, threshold adaptation, AgentHealthMonitor
 - **PNS Sensory**: Alpaca WS, Unusual Whales, FinViz, News APIs, FRED, EDGAR
 - **PNS Motor**: execution_agent -> Alpaca Orders, short_basket_compiler
@@ -75,19 +80,19 @@ Swarm Invariants:
 4. Council decisions expire after 30 seconds
 
 Migration Roadmap:
-- Phase 1: BlackboardState replaces raw features dict
-- Phase 2: brain_service gRPC -> hypothesis + critic agents
-- Phase 3: Port OpenClaw Flask/Slack agents to FastAPI tools
-- Phase 4: Bayesian weights + DuckDB trade outcomes + threshold adaptation
-- Phase 5: LangGraph wrapper for tracing/checkpointing
-- Phase 6: Async parallel stages, LLM caching, feature pre-compute
+- Phase 1: BlackboardState replaces raw features dict ✅ DONE
+- Phase 2: brain_service gRPC -> hypothesis + critic agents ✅ DONE
+- Phase 3: Port OpenClaw Flask/Slack agents to FastAPI tools ✅ DONE
+- Phase 4: Bayesian weights + DuckDB trade outcomes + threshold adaptation ✅ DONE
+- Phase 5: LangGraph wrapper for tracing/checkpointing (PLANNED)
+- Phase 6: Async parallel stages, LLM caching, feature pre-compute ✅ DONE (TaskSpawner + intelligence cache)
 
 ## Architecture
 
 ```
 [React Frontend] --useApi()--> [FastAPI Backend] --services--> [External APIs]
-15 pages, 25 API routes, WebSocket via websocket_manager.py
-8-Agent Council DAG, ML Engine (XGBoost), DuckDB Analytics
+14 pages, 31 API route files, WebSocket via websocket_manager.py
+11-Agent Council DAG, ML Engine (XGBoost), DuckDB Analytics
 [Brain Service gRPC] <-- Ollama LLM inference on PC2
 ```
 
@@ -103,42 +108,45 @@ Migration Roadmap:
 
 ## Current State (Mar 4, 2026)
 
-- CI: 70 tests passing (latest commit build needs fix)
-- Frontend: 15 pages built, all wired to real API hooks
-- Backend: 25 API routes defined, services layer implemented
-- Council: 8 agents + arbiter + runner fully implemented
-- Brain Service: gRPC server + Ollama client ready (not yet connected to council)
-- ML: XGBoost trainer + feature pipeline operational
-- WebSocket: Code exists but not connected end-to-end
-- CORS: Restricted to localhost:3000, localhost:5173, localhost:8080
+- CI: 304+ tests passing
+- Frontend: 14 pages built (React 18 + Vite), all wired to real API hooks
+- Backend: 31 API route files, v3.1.0, starts cleanly with uvicorn
+- Council: 11 agents + arbiter + runner fully implemented (8 core + 3 data-source)
+- Brain Service: gRPC server + Ollama client connected to hypothesis + critic agents
+- ML: XGBoost trainer + feature pipeline operational, drift detection active
+- WebSocket: Connected end-to-end (heartbeat, channels, signal/order/council/risk bridges)
+- Event Pipeline: MessageBus -> SignalEngine -> OrderExecutor (SHADOW mode)
+- CORS: Restricted to localhost:3000, localhost:5173
+- Intelligence: Multi-tier LLM (Perplexity cortex + Ollama brainstem + Claude deep cortex)
+- Data Sources: StockGeist, News API, Discord, X/Twitter, YouTube all wired through council spawner
 
-## Phase 1 TODO (Active)
+## Completed Milestones
 
-- [ ] P1.1: Fix CI build failure from latest commit
-- [ ] P1.2: Wire feature_aggregator to real Alpaca bars
-- [ ] P1.3: Connect brain_service gRPC to hypothesis + critic agents
-- [ ] P1.4: Create trade_execution router with Alpaca orders
-- [ ] P1.5: Add /api/v1/council/run endpoint
-- [ ] P1.6: Wire WebSocket for real-time council verdicts
-- [ ] P1.7: Add adaptive threshold config (replace hardcoded values)
-- [ ] P1.8: Implement postmortem table in DuckDB
+- [x] P1.1: CI build fixed — 304 tests passing
+- [x] P1.2: Feature aggregator with Alpaca bars
+- [x] P1.3: Brain service gRPC connected to hypothesis + critic agents
+- [x] P1.4: Trade execution via Alpaca service + order executor
+- [x] P1.5: /api/v1/council/evaluate endpoint working
+- [x] P1.6: WebSocket wired for council verdicts, signals, orders, risk
+- [x] P1.7: Adaptive threshold config via agent_config.py + settings service
+- [x] P1.8: Postmortem table in DuckDB with critic agent writing
+- [x] P1.9: BlackboardState replaces raw features dict
+- [x] P1.10: TaskSpawner dynamic agent creation
+- [x] P1.11: Circuit breaker brainstem reflexes
+- [x] P1.12: Self-awareness (Bayesian weights, streak detection)
+- [x] P1.13: Homeostasis system vital signs + mode switching
+- [x] P1.14: HITL gate for human approval
+- [x] P1.15: Shadow tracker for paper vs live comparison
+- [x] P1.16: Data-source perception agents (social, news, youtube) through council spawner
+- [x] P1.17: Intelligence orchestrator with multi-tier LLM package
+- [x] P1.18: Intelligence cache with background pre-fetch
 
-## Fixed Issues
+## Known Limitations
 
-1. Backend signals.py had missing return statement FIXED
-2. main.py had hard ImportError on routers.trade_execution FIXED
-3. main.py imported unused accept_connection FIXED
-4. IndentationErrors across 20+ Python files FIXED
-5. Agent Command Center 77KB monolith FIXED (decomposed)
-
-## Remaining Issues
-
-1. Backend has never been started locally (uvicorn app.main:app)
-2. No authentication system yet
-3. WebSocket not flowing real-time data yet
-4. routers/trade_execution module does not exist yet
-5. Brain service not connected to council agents
-6. Agent thresholds are hardcoded (no adaptive learning)
+1. Alpaca API keys required for live market data (MOCK mode without)
+2. Finviz API key required for stock screener
+3. Brain service (PC2 Ollama) optional — graceful degradation to rule-based
+4. Social data sources (StockGeist, Discord, X) require individual API keys
 
 ## Rules for AI Assistants
 
@@ -157,19 +165,23 @@ Migration Roadmap:
 Inspired by Claude Code's Task Tool and Agent Teams architecture. These patterns
 transform our council DAG from a static pipeline into a living, self-aware system.
 
-### New Files to Create
+### Architecture Files (All Created)
 
-| File | Purpose | Priority |
-|------|---------|----------|
-| council/blackboard.py | BlackboardState dataclass replacing raw features dict | P1 |
-| council/task_spawner.py | Dynamic agent spawning with model_tier + background support | P2 |
-| council/self_awareness.py | AgentHealthMonitor, StreakDetector, BayesianAgentWeights | P2 |
-| council/reflexes/circuit_breaker.py | Pre-council brainstem reflexes (flash crash, VIX spike) | P2 |
-| council/homeostasis.py | System vital signs monitoring + mode switching | P3 |
-| council/task_queue.py | Dependency-aware task queue replacing rigid stages | P3 |
-| directives/global.md | Always-on trading rules loaded by agents at runtime | P2 |
-| directives/regime_bull.md | Bull market agent behavior overrides | P3 |
-| directives/regime_bear.md | Bear market defensive behaviors | P3 |
+| File | Purpose | Status |
+|------|---------|--------|
+| council/blackboard.py | BlackboardState dataclass replacing raw features dict | ✅ DONE |
+| council/task_spawner.py | Dynamic agent spawning with model_tier + background support | ✅ DONE |
+| council/self_awareness.py | AgentHealthMonitor, StreakDetector, BayesianAgentWeights | ✅ DONE |
+| council/reflexes/circuit_breaker.py | Pre-council brainstem reflexes (flash crash, VIX spike) | ✅ DONE |
+| council/homeostasis.py | System vital signs monitoring + mode switching | ✅ DONE |
+| council/hitl_gate.py | Human-in-the-loop approval gate | ✅ DONE |
+| council/feedback_loop.py | Outcome resolution + agent weight learning | ✅ DONE |
+| council/agents/social_perception_agent.py | Social sentiment via council spawner | ✅ DONE |
+| council/agents/news_catalyst_agent.py | News catalyst detection via council spawner | ✅ DONE |
+| council/agents/youtube_knowledge_agent.py | YouTube transcript intelligence via council spawner | ✅ DONE |
+| directives/global.md | Always-on trading rules loaded by agents at runtime | ✅ DONE |
+| directives/regime_bull.md | Bull market agent behavior overrides | ✅ DONE |
+| directives/regime_bear.md | Bear market defensive behaviors | ✅ DONE |
 
 ### Key Architecture Changes
 
