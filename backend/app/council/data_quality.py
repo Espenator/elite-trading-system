@@ -220,7 +220,7 @@ class DataQualityMonitor:
         score -= error_rate * 40  # Up to -40 for 100% error rate
 
         # Penalize for staleness
-        if health.last_success > 0:
+        if health.last_success > 0 and config.expected_interval_seconds > 0:
             age = time.time() - health.last_success
             staleness_ratio = age / config.expected_interval_seconds
             if staleness_ratio > 1:

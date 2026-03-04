@@ -30,6 +30,7 @@ DEFAULT_REFRESH_INTERVAL = 60.0  # Refresh intelligence every 60s
 DEFAULT_TTL = 120.0  # Cache entries valid for 120s
 MAX_STALE_AGE = 300.0  # After 5 min, mark as stale (agents should lower confidence)
 MARKET_REFRESH_INTERVAL = 300.0  # Market-wide intel refreshed every 5 min
+MAX_SYMBOL_CACHE_SIZE = 200  # Prevent unbounded cache growth
 
 # Latency budgets (hard limits)
 LATENCY_BUDGET_MS = {
@@ -229,6 +230,11 @@ class IntelligenceCache:
             }
 
             self._symbol_cache[symbol] = CacheEntry(package)
+            # Evict oldest entries if cache exceeds limit
+            if len(self._symbol_cache) > MAX_SYMBOL_CACHE_SIZE:
+                oldest_key = min(self._symbol_cache, key=lambda k: self._symbol_cache[k].created_at)
+                if oldest_key not in self._watchlist:
+                    self._symbol_cache.pop(oldest_key, None)
 
         except Exception as e:
             logger.debug("Symbol intelligence refresh failed for %s: %s", symbol, e)

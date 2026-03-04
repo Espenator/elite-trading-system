@@ -81,11 +81,20 @@ def _parse_json_safe(text: str) -> Optional[Dict]:
     return None
 
 
+def _sanitize_input(value: str, max_length: int = 20) -> str:
+    """Sanitize user-provided inputs to prevent prompt injection."""
+    import re
+    # Strip to alphanumeric, dots, hyphens, spaces (covers tickers, patterns, etc.)
+    sanitized = re.sub(r'[^a-zA-Z0-9.\-/ ]', '', value)
+    return sanitized[:max_length]
+
+
 class PerplexityIntelligence:
     """Real-time market intelligence powered by Perplexity Sonar Pro."""
 
     async def scan_breaking_news(self, symbol: str, context: str = "") -> Dict[str, Any]:
         """Scan for breaking news affecting a symbol."""
+        symbol = _sanitize_input(symbol, 10)
         prompt = (
             f"What is the most recent breaking news for {symbol} stock in the last 24 hours? "
             f"Focus on: earnings surprises, FDA decisions, M&A, management changes, "
@@ -101,6 +110,7 @@ class PerplexityIntelligence:
 
     async def analyze_earnings(self, symbol: str) -> Dict[str, Any]:
         """Get earnings context: dates, estimates, whisper numbers, history."""
+        symbol = _sanitize_input(symbol, 10)
         prompt = (
             f"For {symbol} stock, provide current earnings information:\n"
             f"1. Next earnings date and time (pre/post market)\n"
@@ -167,6 +177,7 @@ class PerplexityIntelligence:
 
     async def get_institutional_flow(self, symbol: str) -> Dict[str, Any]:
         """Get institutional activity signals for a symbol."""
+        symbol = _sanitize_input(symbol, 10)
         prompt = (
             f"What is the recent institutional activity for {symbol}?\n"
             f"1. Recent 13F filings or institutional buys/sells\n"
@@ -184,6 +195,9 @@ class PerplexityIntelligence:
 
     async def search_pattern_context(self, symbol: str, pattern: str, timeframe: str = "1d") -> Dict[str, Any]:
         """Validate a chart pattern against real-world catalysts."""
+        symbol = _sanitize_input(symbol, 10)
+        pattern = _sanitize_input(pattern, 50)
+        timeframe = _sanitize_input(timeframe, 10)
         prompt = (
             f"{symbol} is showing a {pattern} pattern on the {timeframe} chart. "
             f"Is there a fundamental catalyst that supports or contradicts this pattern?\n"

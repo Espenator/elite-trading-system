@@ -10,6 +10,7 @@ DAG execution order (parallel within stages):
 
 Uses BlackboardState as shared context and TaskSpawner for agent execution.
 """
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -114,18 +115,21 @@ async def run_council(
     except Exception as e:
         logger.debug("Circuit breaker check failed (proceeding): %s", e)
 
-    # Intelligence gathering — pre-council multi-tier LLM package
+    # Intelligence gathering — pre-council multi-tier LLM package (with timeout)
     try:
         from app.services.intelligence_orchestrator import get_intelligence_orchestrator
         from app.core.config import settings as app_settings
         if app_settings.LLM_ROUTER_ENABLED:
             orchestrator = get_intelligence_orchestrator()
             regime = str(features.get("features", {}).get("regime", "unknown"))
-            intel_package = await orchestrator.prepare_intelligence_package(
-                symbol=symbol,
-                features=features,
-                regime=regime,
-                include_deep=False,  # deep cortex only for post-trade / overnight
+            intel_package = await asyncio.wait_for(
+                orchestrator.prepare_intelligence_package(
+                    symbol=symbol,
+                    features=features,
+                    regime=regime,
+                    include_deep=False,  # deep cortex only for post-trade / overnight
+                ),
+                timeout=10.0,  # Hard 10s budget for intelligence gathering
             )
             blackboard.metadata["intelligence"] = intel_package
             logger.info(
@@ -134,6 +138,8 @@ async def run_council(
                 intel_package.get("tiers_queried", []),
                 intel_package.get("total_latency_ms", 0),
             )
+    except asyncio.TimeoutError:
+        logger.warning("Intelligence gathering timed out for %s (proceeding without)", symbol)
     except Exception as e:
         logger.debug("Intelligence gathering failed (proceeding without): %s", e)
 

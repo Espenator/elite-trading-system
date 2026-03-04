@@ -76,6 +76,10 @@ class GateResult:
         }
 
 
+MAX_PENDING_APPROVALS = 100
+MAX_APPROVAL_HISTORY = 500
+
+
 class HITLGate:
     """Human-in-the-loop gate system."""
 
@@ -176,6 +180,10 @@ class HITLGate:
                     break
 
         if result.requires_approval:
+            # Cap pending approvals to prevent unbounded memory
+            if len(self._pending_approvals) >= MAX_PENDING_APPROVALS:
+                oldest_key = next(iter(self._pending_approvals))
+                self._pending_approvals.pop(oldest_key, None)
             self._pending_approvals[result.decision_id] = result
             logger.info(
                 "HITL gate triggered for %s: %s",
@@ -203,6 +211,8 @@ class HITLGate:
                 "gates": result.gates_triggered,
                 "timestamp": time.time(),
             })
+            # Cap history to prevent unbounded growth
+            self._approval_history = self._approval_history[-MAX_APPROVAL_HISTORY:]
             logger.info("HITL: Decision %s APPROVED by %s", decision_id[:8], approver)
             return True
         return False
@@ -220,6 +230,8 @@ class HITLGate:
                 "gates": result.gates_triggered,
                 "timestamp": time.time(),
             })
+            # Cap history to prevent unbounded growth
+            self._approval_history = self._approval_history[-MAX_APPROVAL_HISTORY:]
             logger.info("HITL: Decision %s REJECTED by %s: %s", decision_id[:8], rejector, reason)
             return True
         return False

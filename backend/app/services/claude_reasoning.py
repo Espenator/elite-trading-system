@@ -83,6 +83,12 @@ def _parse_json_safe(text: str) -> Optional[Dict]:
     return None
 
 
+def _sanitize_input(value: str, max_length: int = 20) -> str:
+    """Sanitize user-provided inputs to prevent prompt injection."""
+    sanitized = re.sub(r'[^a-zA-Z0-9.\-/ ]', '', value)
+    return sanitized[:max_length]
+
+
 class ClaudeReasoning:
     """Deep reasoning engine powered by Claude."""
 
@@ -161,6 +167,8 @@ class ClaudeReasoning:
         market_context: str = ""
     ) -> Dict[str, Any]:
         """Deep interpretation of a chart pattern with multi-factor analysis."""
+        symbol = _sanitize_input(symbol, 10)
+        pattern = _sanitize_input(pattern, 50)
         prompt = (
             f"Interpret this chart pattern for {symbol}:\n\n"
             f"Pattern: {pattern}\n"
@@ -186,6 +194,8 @@ class ClaudeReasoning:
         intelligence: Dict[str, Any] = None
     ) -> Dict[str, Any]:
         """Build a complete trade thesis with full reasoning chain."""
+        symbol = _sanitize_input(symbol, 10)
+        direction = _sanitize_input(direction, 10)
         prompt = (
             f"Build a complete trade thesis for {symbol} ({direction}):\n\n"
             f"Context: {json.dumps(context, indent=2)}\n\n"

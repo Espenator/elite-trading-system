@@ -57,7 +57,8 @@ class BayesianAgentWeights:
         Default prior: Beta(2, 2) = 0.5 (neutral/uninformative).
         """
         alpha, beta = self._weights.get(agent_name, (2.0, 2.0))
-        return alpha / (alpha + beta)
+        denom = alpha + beta
+        return alpha / denom if denom > 0 else 0.5
 
     def get_all_weights(self) -> Dict[str, float]:
         """Return all agent weights as a dict."""
@@ -77,16 +78,17 @@ class BayesianAgentWeights:
         self._save()
         logger.debug(
             "Bayesian update: %s -> Beta(%.1f, %.1f) = %.3f",
-            agent_name, alpha, beta, alpha / (alpha + beta),
+            agent_name, alpha, beta, alpha / (alpha + beta) if (alpha + beta) > 0 else 0.5,
         )
 
     def get_distribution(self, agent_name: str) -> Dict[str, float]:
         """Return full distribution info for an agent."""
         alpha, beta = self._weights.get(agent_name, (2.0, 2.0))
+        denom = alpha + beta
         return {
             "alpha": alpha,
             "beta": beta,
-            "mean": alpha / (alpha + beta),
+            "mean": alpha / denom if denom > 0 else 0.5,
             "samples": alpha + beta - 4,  # subtract prior
         }
 
