@@ -155,7 +155,7 @@ export const getApiUrl = (endpoint) => {
 export const getWsBaseUrl = () =>
   API_CONFIG.WS_URL ||
   (typeof window !== "undefined"
-    ? `ws://${window.location.host}/ws`
+    ? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`
     : "ws://localhost:3000/ws");
 
 /**
