@@ -26,6 +26,13 @@ class TestFlashCrashDetector:
         bb.raw_features = {"features": {"return_1d": -0.08}}
         result = await cb.flash_crash_detector(bb)
         assert result is not None
+        assert "price collapse" in result.lower() or "flash crash" in result.lower()
+
+    @pytest.mark.anyio
+    async def test_intraday_crash_detected(self, cb, bb):
+        bb.raw_features = {"features": {"return_5min": -0.06}}
+        result = await cb.flash_crash_detector(bb)
+        assert result is not None
         assert "Flash crash" in result
 
 
@@ -64,4 +71,4 @@ class TestCheckAll:
         bb.raw_features = {"features": {"return_1d": -0.10, "vix_close": 15.0}}
         result = await cb.check_all(bb)
         assert result is not None
-        assert "Flash crash" in result
+        assert "price collapse" in result.lower() or "flash crash" in result.lower()

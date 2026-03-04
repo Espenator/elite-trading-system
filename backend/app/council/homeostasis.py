@@ -34,15 +34,17 @@ class HomeostasisMonitor:
         self._last_vitals: Dict[str, Any] = {}
         self._last_check: float = 0
         self._mode: str = "NORMAL"
-        self._cache_ttl: float = 30.0  # Recheck every 30s
+        self._cache_ttl: float = 10.0  # Recheck every 10s (fast enough for crisis detection)
 
     async def check_vitals(self) -> Dict[str, Any]:
         """Returns system state: portfolio heat, agent health, data freshness, drawdown.
 
-        Caches results for 30 seconds to avoid excessive API calls.
+        Caches results briefly. Uses shorter TTL during DEFENSIVE/HALTED modes.
         """
         now = time.time()
-        if self._last_vitals and (now - self._last_check) < self._cache_ttl:
+        # Bypass cache faster during crisis modes
+        effective_ttl = 3.0 if self._mode in ("DEFENSIVE", "HALTED") else self._cache_ttl
+        if self._last_vitals and (now - self._last_check) < effective_ttl:
             return self._last_vitals
 
         vitals = {

@@ -142,16 +142,29 @@ class TaskSpawner:
 
         return list(await asyncio.gather(*tasks))
 
-    async def _run_agent(self, module, symbol, timeframe, features, context) -> AgentVote:
-        """Run a single agent with error handling and timing."""
+    async def _run_agent(self, module, symbol, timeframe, features, context, timeout: float = 30.0) -> AgentVote:
+        """Run a single agent with error handling, timing, and timeout."""
         name = getattr(module, "NAME", getattr(module, "__name__", "unknown"))
         start = time.monotonic()
         try:
-            vote = await module.evaluate(symbol, timeframe, features, context)
+            vote = await asyncio.wait_for(
+                module.evaluate(symbol, timeframe, features, context),
+                timeout=timeout,
+            )
             vote.blackboard_ref = self.blackboard.council_decision_id
             elapsed = (time.monotonic() - start) * 1000
             logger.debug("Agent %s completed in %.0fms", name, elapsed)
             return vote
+        except asyncio.TimeoutError:
+            elapsed = (time.monotonic() - start) * 1000
+            logger.warning("Agent %s timed out after %.0fms (limit=%.0fs)", name, elapsed, timeout)
+            return AgentVote(
+                agent_name=name,
+                direction="hold",
+                confidence=0.0,
+                reasoning=f"Agent timeout after {elapsed:.0f}ms",
+                blackboard_ref=self.blackboard.council_decision_id,
+            )
         except Exception as e:
             elapsed = (time.monotonic() - start) * 1000
             logger.exception("Agent %s failed after %.0fms: %s", name, elapsed, e)

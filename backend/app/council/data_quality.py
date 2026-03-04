@@ -44,6 +44,8 @@ class DataSourceConfig:
     max_stale_seconds: float = 0  # After this, source is "dead" (0 = 3x interval)
 
     def __post_init__(self):
+        if self.expected_interval_seconds <= 0:
+            self.expected_interval_seconds = 300  # Default to 5 min to avoid div-by-zero
         if self.max_stale_seconds == 0:
             self.max_stale_seconds = self.expected_interval_seconds * 3
 

@@ -67,8 +67,11 @@ async def evaluate(
             context=brain_context,
         )
 
-        # Map LLM confidence to direction
-        llm_conf = result.get("confidence", 0.5)
+        # Map LLM confidence to direction (coerce to float for safety)
+        try:
+            llm_conf = float(result.get("confidence", 0.5))
+        except (ValueError, TypeError):
+            llm_conf = 0.5
         risk_flags = result.get("risk_flags", [])
 
         if "llm_unavailable" in risk_flags or "brain_disabled" in risk_flags:

@@ -37,10 +37,10 @@ async def evaluate(
 
     if regime in ("bullish", "bull", "trending_up", "risk_on"):
         direction = "buy"
-        confidence = 0.5 + regime_confidence * 0.3
+        confidence = min(0.9, 0.5 + regime_confidence * 0.3)
     elif regime in ("bearish", "bear", "trending_down", "risk_off"):
         direction = "sell"
-        confidence = 0.5 + regime_confidence * 0.3
+        confidence = min(0.9, 0.5 + regime_confidence * 0.3)
     elif regime in ("choppy", "range", "sideways", "volatile"):
         direction = "hold"
         confidence = 0.5

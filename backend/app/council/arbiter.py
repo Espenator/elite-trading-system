@@ -85,8 +85,8 @@ def arbitrate(
         sa = get_self_awareness()
         for v in votes:
             effective_weights[v.agent_name] = sa.get_effective_weight(v.agent_name)
-    except Exception:
-        pass  # Fall back to static v.weight
+    except Exception as e:
+        logger.debug("Self-awareness weights unavailable (%s), using static weights", e)
 
     # Weighted voting for direction
     buy_weight = 0.0
@@ -130,7 +130,7 @@ def arbitrate(
     # Execution readiness
     execution_ready = final_direction != "hold" and final_confidence > 0.4
     exec_vote = next((v for v in votes if v.agent_name == "execution"), None)
-    if exec_vote:
+    if exec_vote and exec_vote.metadata:
         execution_ready = execution_ready and exec_vote.metadata.get("execution_ready", False)
 
     risk_limits = _extract_risk_limits(votes)
@@ -166,6 +166,6 @@ def arbitrate(
 def _extract_risk_limits(votes: List[AgentVote]) -> Dict:
     """Extract risk limits from agent metadata."""
     for v in votes:
-        if v.agent_name == "risk":
+        if v.agent_name == "risk" and v.metadata:
             return v.metadata.get("risk_limits", {})
     return {}

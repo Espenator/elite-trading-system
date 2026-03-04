@@ -274,14 +274,22 @@ class OrderExecutor:
             }
 
             # Bracket order with take-profit and stop-loss
-            if self.use_bracket_orders and record.stop_loss and record.take_profit:
-                order_kwargs["order_class"] = "bracket"
-                order_kwargs["take_profit"] = {
-                    "limit_price": str(round(record.take_profit, 2)),
-                }
-                order_kwargs["stop_loss"] = {
-                    "stop_price": str(round(record.stop_loss, 2)),
-                }
+            if self.use_bracket_orders:
+                if record.stop_loss and record.take_profit:
+                    order_kwargs["order_class"] = "bracket"
+                    order_kwargs["take_profit"] = {
+                        "limit_price": str(round(record.take_profit, 2)),
+                    }
+                    order_kwargs["stop_loss"] = {
+                        "stop_price": str(round(record.stop_loss, 2)),
+                    }
+                else:
+                    # Bracket mode enabled but missing stop/tp — reject to prevent naked order
+                    record.status = "failed"
+                    record.reject_reason = "Bracket mode requires both stop_loss and take_profit"
+                    self._signals_rejected += 1
+                    logger.warning("Order rejected for %s: bracket mode but missing SL/TP", record.symbol)
+                    return
 
             result = await alpaca.create_order(**order_kwargs)
 
@@ -589,10 +597,17 @@ class OrderExecutor:
             return True, {}  # Allow if can't check
 
     def _check_daily_reset(self) -> None:
-        """Reset daily trade count at market open."""
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        if self._daily_reset_date != today:
-            self._daily_reset_date = today
+        """Reset daily trade count at market open (US/Eastern)."""
+        try:
+            from zoneinfo import ZoneInfo
+            eastern = ZoneInfo("America/New_York")
+        except ImportError:
+            from datetime import timedelta
+            # Fallback: approximate ET as UTC-5 (ignores DST but better than UTC)
+            eastern = timezone(timedelta(hours=-5))
+        today_et = datetime.now(eastern).strftime("%Y-%m-%d")
+        if self._daily_reset_date != today_et:
+            self._daily_reset_date = today_et
             self._daily_trade_count = 0
 
     def _reject(self, symbol: str, score: float, reason: str) -> None:

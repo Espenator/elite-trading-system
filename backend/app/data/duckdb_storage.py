@@ -377,6 +377,8 @@ class DuckDBStorage:
         """
         conn = self._get_conn()
         placeholders = ",".join(["?" for _ in symbols])
+        # Sanitize lookback_days to prevent SQL injection
+        lookback_days = max(1, min(int(lookback_days), 5000))
 
         df = conn.execute(f"""
             SELECT o.symbol, o.date, o.open, o.high, o.low, o.close, o.volume

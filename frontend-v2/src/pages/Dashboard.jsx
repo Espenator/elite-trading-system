@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import log from "@/utils/logger";
 import { useApi } from "../hooks/useApi";
-import { getApiUrl } from "../config/api";
+import { getApiUrl, getAuthHeaders } from "../config/api";
 import CNSVitals from "../components/dashboard/CNSVitals";
 
 // --- TOP TICKER STRIP (scrolling market tickers) ---
@@ -1135,7 +1135,7 @@ export default function Dashboard() {
       try {
         const res = await fetch(getApiUrl("orders"), {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
           body: JSON.stringify({
             symbol: selectedSymbol,
             action,
@@ -1144,7 +1144,8 @@ export default function Dashboard() {
             stopLoss: riskData?.proposal?.stopLoss,
           }),
         });
-        if (res.ok) alert(`Execution successful: ${action} ${selectedSymbol}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        alert(`Execution successful: ${action} ${selectedSymbol}`);
       } catch (err) {
         log.error("Execution failed:", err);
       }
@@ -1155,7 +1156,8 @@ export default function Dashboard() {
   // --- ACTION HANDLERS ---
   const handleRunScan = useCallback(async () => {
     try {
-      await fetch(getApiUrl("signals"), { method: "POST" });
+      const res = await fetch(getApiUrl("signals"), { method: "POST", headers: getAuthHeaders() });
+      if (!res.ok) log.error("Scan failed:", res.status);
     } catch (e) {
       log.error(e);
     }
@@ -1166,7 +1168,7 @@ export default function Dashboard() {
       try {
         await fetch(getApiUrl("orders"), {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
           body: JSON.stringify({
             symbol: sig.symbol,
             action: sig.direction === "LONG" ? "BUY" : "SELL",
@@ -1180,14 +1182,16 @@ export default function Dashboard() {
   }, [processedSignals]);
   const handleFlatten = useCallback(async () => {
     try {
-      await fetch(getApiUrl("orders") + "/flatten-all", { method: "POST" });
+      const res = await fetch(getApiUrl("orders") + "/flatten-all", { method: "POST", headers: getAuthHeaders() });
+      if (!res.ok) log.error("Flatten failed:", res.status);
     } catch (e) {
       log.error(e);
     }
   }, []);
   const handleEmergencyStop = useCallback(async () => {
     try {
-      await fetch(getApiUrl("orders") + "/emergency-stop", { method: "POST" });
+      const res = await fetch(getApiUrl("orders") + "/emergency-stop", { method: "POST", headers: getAuthHeaders() });
+      if (!res.ok) log.error("Emergency stop failed:", res.status);
     } catch (e) {
       log.error(e);
     }

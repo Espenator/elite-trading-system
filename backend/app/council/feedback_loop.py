@@ -110,15 +110,19 @@ def record_outcome(
     })
     store["outcomes"] = outcomes[-MAX_DECISIONS:]
 
-    # Find the matching decision
+    # Find the matching decision — prefer exact trade_id match
     decisions = store.get("decisions", [])
     matching = None
     for d in reversed(decisions):
-        if d.get("trade_id") == trade_id or (
-            d.get("symbol") == symbol.upper() and d.get("final_direction") != "hold"
-        ):
+        if trade_id and d.get("trade_id") == trade_id:
             matching = d
             break
+    # Fallback: match by symbol only if no trade_id provided
+    if not matching and not trade_id:
+        for d in reversed(decisions):
+            if d.get("symbol") == symbol.upper() and d.get("final_direction") != "hold":
+                matching = d
+                break
 
     if matching:
         _update_agent_stats(store, matching, outcome)

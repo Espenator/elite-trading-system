@@ -84,6 +84,7 @@ class ShadowTracker:
                     "cumulative_pnl": self._shadow_pnl,
                 })
                 return trade
+        logger.warning("close_shadow_trade called for %s but no open position found", symbol)
         return None
 
     def record_live_trade(

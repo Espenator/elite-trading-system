@@ -108,8 +108,11 @@ async def evaluate(
                     data = deep_result.get("data", {})
                     if data.get("lessons"):
                         lessons.extend([l["lesson"] for l in data["lessons"][:3] if isinstance(l, dict)])
-                    if data.get("overall_score"):
-                        performance_score = data["overall_score"] / 100
+                    if data.get("overall_score") is not None:
+                        try:
+                            performance_score = float(data["overall_score"]) / 100
+                        except (ValueError, TypeError):
+                            pass
                     critic_analysis = data.get("key_takeaway", "")
             except Exception as deep_err:
                 logger.debug("Claude deep postmortem not available: %s", deep_err)

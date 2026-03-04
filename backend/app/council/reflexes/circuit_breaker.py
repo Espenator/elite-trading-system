@@ -62,10 +62,18 @@ class CircuitBreaker:
         """Detect rapid price drops (>5% in 5min equivalent)."""
         thresholds = _get_thresholds()
         f = blackboard.raw_features.get("features", blackboard.raw_features)
-        ret_1d = abs(f.get("return_1d", 0))
-        # Use 1d return as proxy — true intraday would need streaming data
-        if ret_1d > thresholds["cb_flash_crash_threshold"]:
-            return f"Flash crash detected: {ret_1d:.1%} daily move exceeds {thresholds['cb_flash_crash_threshold']:.0%} threshold"
+        threshold = thresholds["cb_flash_crash_threshold"]
+        # Prefer intraday returns if available for true flash crash detection
+        intraday_ret = f.get("return_5min") or f.get("return_15min") or f.get("return_1h")
+        if intraday_ret is not None:
+            ret = abs(intraday_ret)
+            if ret > threshold:
+                return f"Flash crash detected: {ret:.1%} intraday move exceeds {threshold:.0%} threshold"
+        else:
+            # Fallback to daily return with a higher threshold
+            ret_1d = abs(f.get("return_1d", 0))
+            if ret_1d > threshold * 1.5:
+                return f"Daily price collapse: {ret_1d:.1%} exceeds {threshold * 1.5:.0%} threshold"
         return None
 
     async def vix_spike_detector(self, blackboard: BlackboardState) -> Optional[str]:

@@ -103,5 +103,5 @@ async def evaluate(
         confidence=round(confidence, 2),
         reasoning=reasoning,
         weight=cfg["weight_market_perception"],
-        metadata=intel_meta if intel_meta else None,
+        metadata=intel_meta,
     )
