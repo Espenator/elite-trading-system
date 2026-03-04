@@ -8,9 +8,8 @@ DAG execution order (parallel within stages):
   Stage 5: [critic]
   Stage 6: arbiter (deterministic)
 
-Uses BlackboardState as shared context passed through all stages.
+Uses BlackboardState as shared context and TaskSpawner for agent execution.
 """
-import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -18,30 +17,9 @@ from typing import Any, Dict, List, Optional
 from app.council.blackboard import BlackboardState
 from app.council.schemas import AgentVote, DecisionPacket
 from app.council.arbiter import arbitrate
+from app.council.task_spawner import TaskSpawner
 
 logger = logging.getLogger(__name__)
-
-
-async def _run_agent(module, symbol, timeframe, features, context, blackboard: BlackboardState) -> AgentVote:
-    """Run a single agent with error handling.
-
-    Agents receive the legacy (symbol, timeframe, features, context) signature
-    for backward compatibility. The blackboard is available via context["blackboard"].
-    """
-    try:
-        vote = await module.evaluate(symbol, timeframe, features, context)
-        vote.blackboard_ref = blackboard.council_decision_id
-        return vote
-    except Exception as e:
-        name = getattr(module, "NAME", module.__name__)
-        logger.exception("Agent %s failed: %s", name, e)
-        return AgentVote(
-            agent_name=name,
-            direction="hold",
-            confidence=0.0,
-            reasoning=f"Agent error: {e}",
-            blackboard_ref=blackboard.council_decision_id,
-        )
 
 
 async def run_council(
@@ -107,48 +85,40 @@ async def run_council(
     except Exception as e:
         logger.debug("Circuit breaker check failed (proceeding): %s", e)
 
-    # Import all agents
-    from app.council.agents import (
-        market_perception_agent,
-        flow_perception_agent,
-        regime_agent,
-        hypothesis_agent,
-        strategy_agent,
-        risk_agent,
-        execution_agent,
-        critic_agent,
-    )
+    # Initialize TaskSpawner with all agents
+    spawner = TaskSpawner(blackboard)
+    spawner.register_all_agents()
 
     all_votes: List[AgentVote] = []
 
     # Stage 1: Perception (parallel)
-    stage1 = await asyncio.gather(
-        _run_agent(market_perception_agent, symbol, timeframe, features, context, blackboard),
-        _run_agent(flow_perception_agent, symbol, timeframe, features, context, blackboard),
-        _run_agent(regime_agent, symbol, timeframe, features, context, blackboard),
-    )
+    stage1 = await spawner.spawn_parallel([
+        {"agent_type": "market_perception", "symbol": symbol, "timeframe": timeframe, "context": context},
+        {"agent_type": "flow_perception", "symbol": symbol, "timeframe": timeframe, "context": context},
+        {"agent_type": "regime", "symbol": symbol, "timeframe": timeframe, "context": context},
+    ])
     all_votes.extend(stage1)
     context["stage1"] = {v.agent_name: v.to_dict() for v in stage1}
     for v in stage1:
         blackboard.perceptions[v.agent_name] = v.to_dict()
 
-    # Stage 2: Hypothesis
-    stage2 = await _run_agent(hypothesis_agent, symbol, timeframe, features, context, blackboard)
+    # Stage 2: Hypothesis (deep model tier for LLM)
+    stage2 = await spawner.spawn("hypothesis", symbol, timeframe, context=context, model_tier="deep")
     all_votes.append(stage2)
     context["stage2"] = {stage2.agent_name: stage2.to_dict()}
     blackboard.hypothesis = stage2.to_dict()
 
     # Stage 3: Strategy
-    stage3 = await _run_agent(strategy_agent, symbol, timeframe, features, context, blackboard)
+    stage3 = await spawner.spawn("strategy", symbol, timeframe, context=context)
     all_votes.append(stage3)
     context["stage3"] = {stage3.agent_name: stage3.to_dict()}
     blackboard.strategy = stage3.to_dict()
 
     # Stage 4: Risk + Execution (parallel)
-    stage4 = await asyncio.gather(
-        _run_agent(risk_agent, symbol, timeframe, features, context, blackboard),
-        _run_agent(execution_agent, symbol, timeframe, features, context, blackboard),
-    )
+    stage4 = await spawner.spawn_parallel([
+        {"agent_type": "risk", "symbol": symbol, "timeframe": timeframe, "context": context},
+        {"agent_type": "execution", "symbol": symbol, "timeframe": timeframe, "context": context},
+    ])
     all_votes.extend(stage4)
     context["stage4"] = {v.agent_name: v.to_dict() for v in stage4}
     for v in stage4:
@@ -158,7 +128,7 @@ async def run_council(
             blackboard.execution_plan = v.to_dict()
 
     # Stage 5: Critic
-    stage5 = await _run_agent(critic_agent, symbol, timeframe, features, context, blackboard)
+    stage5 = await spawner.spawn("critic", symbol, timeframe, context=context)
     all_votes.append(stage5)
     context["stage5"] = {stage5.agent_name: stage5.to_dict()}
     blackboard.critic_review = stage5.to_dict()
