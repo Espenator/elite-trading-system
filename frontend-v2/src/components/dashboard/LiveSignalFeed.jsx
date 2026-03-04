@@ -53,7 +53,7 @@ export default function LiveSignalFeed({ signals: rawSignals = [] }) {
                     {signal.direction}
                   </span>
                 </div>
-                <span className="text-xs text-secondary">{signal.setupType.replace(/_/g, ' ')}</span>
+                <span className="text-xs text-secondary">{(signal.setupType || '').replace(/_/g, ' ')}</span>
               </div>
             </div>
 

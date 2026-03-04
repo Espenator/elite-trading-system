@@ -11,6 +11,8 @@ from fastapi import APIRouter, HTTPException, Body
 from pydantic import BaseModel, Field
 from typing import Dict, Any, List, Optional
 import os
+import base64
+import logging
 import requests
 import json
 from cryptography.fernet import Fernet, InvalidToken
@@ -22,11 +24,16 @@ from app.services.database import db_service
 from app.websocket_manager import broadcast_ws
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Fernet encryption for API credentials
 # ---------------------------------------------------------------------------
-FERNET_KEY = os.getenv("FERNET_KEY") or "hNVQaTlcL0bFLlh2XU5IHhN6Xja27dDAq4PUfYmJx9M="
+FERNET_KEY = os.getenv("FERNET_KEY")
+if not FERNET_KEY:
+    import secrets
+    logger.warning("FERNET_KEY not set! Generating ephemeral key (credentials will not persist across restarts)")
+    FERNET_KEY = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode()
 _cipher = Fernet(FERNET_KEY.encode())
 
 DB_CONFIG_KEY = "data_sources_registry"
@@ -429,7 +436,7 @@ async def add_source(payload: DataSourceCreate):
         "type": payload.type.value,
         "category": payload.category.value,
         "base_url": payload.base_url,
-        "required_keys": payload.required_keys,h
+        "required_keys": payload.required_keys,
         "test_endpoint": payload.test_endpoint,
         "status": "pending",
         "enabled": payload.enabled,

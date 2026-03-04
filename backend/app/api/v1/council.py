@@ -6,7 +6,7 @@ GET  /api/v1/council/status    → council configuration
 import logging
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -40,8 +40,8 @@ async def evaluate_symbol(req: CouncilEvalRequest):
         _latest_decision = result
         return result
     except Exception as e:
-        logger.exception("Council evaluation failed for %s", req.symbol)
-        return {"status": "error", "message": str(e), "symbol": req.symbol}
+        logger.error("Council evaluation failed: %s", e)
+        raise HTTPException(status_code=500, detail="Council evaluation failed")
 
 
 @router.get("/latest")

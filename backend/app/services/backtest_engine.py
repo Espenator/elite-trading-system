@@ -138,9 +138,9 @@ class BacktestEngine:
         )
         avg_r = float(returns.mean())
         total_pnl = float(df_trades["pnl_dollars"].sum())
-        # FIX Bug #17: Calmar = return / |maxDD|. abs() only on denominator
-        # so losing strategies correctly show negative Calmar.
-        calmar = float(total_pnl / abs(maxdd)) if maxdd != 0 else 0.0
+        total_return_pct = (equity - initial_equity) / initial_equity
+        # Calmar = percentage return / |maxDD| (both in percentage terms)
+        calmar = float(total_return_pct / abs(maxdd)) if maxdd != 0 else 0.0
 
         # Enhanced metrics for profitability
         neg_returns = returns[returns < 0]
@@ -185,9 +185,30 @@ class BacktestEngine:
         }
 
     def _get_price(self, symbol: str, timestamp: str) -> Optional[float]:
-        """Stub: query pricedata table or Alpaca historical."""
-        # TODO: implement Alpaca historical bar lookup
-        return None
+        """Look up price from daily_ohlcv in the orders DB, fall back to OHLCV table."""
+        conn = self._conn()
+        try:
+            # Try to get close price from daily_ohlcv on or before the timestamp date
+            row = conn.execute(
+                """SELECT close FROM daily_ohlcv
+                   WHERE symbol = ? AND date <= date(?)
+                   ORDER BY date DESC LIMIT 1""",
+                [symbol.upper(), timestamp],
+            ).fetchone()
+            if row and row[0]:
+                return float(row[0])
+            # Fallback: try openclaw_signals entry price for the same symbol/time
+            row = conn.execute(
+                """SELECT entry FROM openclaw_signals
+                   WHERE symbol = ? AND entry IS NOT NULL
+                   ORDER BY ABS(julianday(received_at) - julianday(?)) LIMIT 1""",
+                [symbol.upper(), timestamp],
+            ).fetchone()
+            if row and row[0]:
+                return float(row[0])
+            return None
+        finally:
+            conn.close()
 
     def monte_carlo_simulation(
         self,

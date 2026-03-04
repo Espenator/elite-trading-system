@@ -1,6 +1,7 @@
 """SEC EDGAR API service for company filings and ticker/CIK lookup. No API key; User-Agent required."""
 
 import logging
+import os
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -8,7 +9,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 # SEC requires a descriptive User-Agent (company name + contact)
-DEFAULT_USER_AGENT = "EliteTradingSystem/1.0 (Market Data Agent; contact@example.com)"
+DEFAULT_USER_AGENT = os.getenv("SEC_EDGAR_USER_AGENT", "EliteTradingSystem/1.0")
 
 
 class SecEdgarService:

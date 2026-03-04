@@ -136,8 +136,12 @@ async def ingest_signals(
         "meta": {"openclaw_version": "2026.2.22"}
     }
     """
-    # Token authentication
-    if authorization:
+    # Token authentication - REQUIRED in live mode
+    if not authorization:
+        if os.getenv("TRADING_MODE", "paper") == "live":
+            raise HTTPException(status_code=401, detail="Authorization header required in live mode")
+        logger.warning("[OPENCLAW] Signal ingestion without auth token (non-live mode)")
+    else:
         token = authorization.replace("Bearer ", "").strip()
         if not validate_bridge_token(token):
             raise HTTPException(status_code=401, detail="Invalid bridge token")
@@ -554,7 +558,7 @@ async def get_llm_flow(limit: int = Query(default=5, ge=1, le=50)):
 # ADDITIONAL ENDPOINTS (called by openclawService.js)
 # consensus, nlp-spawn, health-matrix
 # ------------------------------------------------------------------ #
-@router.get("/consensus", summary="Get Agent Swarm Consensus")
+@router.get("/consensus-summary", summary="Get Agent Swarm Consensus")
 async def get_consensus():
     """
     Return the current agent consensus view — aggregated opinions

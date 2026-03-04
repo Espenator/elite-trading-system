@@ -46,7 +46,7 @@ async def run_backfill(req: BackfillRequest):
         return BackfillResponse(status="ok", report=report)
     except Exception as e:
         logger.exception("Backfill failed")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/health")
@@ -56,4 +56,5 @@ async def ingestion_health():
         from app.data.duckdb_storage import duckdb_store
         return duckdb_store.health_check()
     except Exception as e:
-        return {"status": "error", "detail": str(e)}
+        logger.error("ingestion_health failed: %s", e)
+        return {"status": "error", "detail": "Internal server error"}

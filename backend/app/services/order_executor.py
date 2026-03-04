@@ -597,8 +597,8 @@ class OrderExecutor:
         """Wire filled order → ML outcome_resolver for flywheel accuracy tracking."""
         try:
             from app.modules.ml_engine.outcome_resolver import record_outcome
-            outcome = 1 if record.side == "buy" else 0
-            prediction = 1 if record.signal_score >= 0.5 else 0
+            outcome = None  # resolved later by outcome_resolver
+            prediction = 1 if record.signal_score >= 50 else 0
             signal_date = datetime.fromtimestamp(record.timestamp, tz=timezone.utc).strftime("%Y-%m-%d")
             record_outcome(
                 symbol=record.symbol,

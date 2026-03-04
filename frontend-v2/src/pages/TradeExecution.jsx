@@ -83,6 +83,7 @@ export default function TradeExecution() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ symbol: orderForm?.symbol || 'SPY', side: orderForm?.side || 'buy', quantity: orderForm?.quantity || 1, strategy: 'manual' })
       });
+      if (!res.ok) throw new Error('Alignment preflight failed');
       const data = await res.json();
       setPreflightVerdict(data);
     } catch (err) {
@@ -93,13 +94,14 @@ export default function TradeExecution() {
   // Keyboard Shortcuts
   const handleKeyDown = useCallback((e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if (!e.ctrlKey && !e.metaKey) return;
     switch (e.key.toUpperCase()) {
-      case 'B': executeMarketBuy(); break;
-      case 'S': executeMarketSell(); break;
-      case 'L': executeLimitBuy(); break;
-      case 'O': executeLimitSell(); break;
-      case 'T': executeStopLoss(); break;
-      case 'E': executeAdvancedOrder(); break;
+      case 'B': e.preventDefault(); executeMarketBuy(); break;
+      case 'S': e.preventDefault(); executeMarketSell(); break;
+      case 'L': e.preventDefault(); executeLimitBuy(); break;
+      case 'O': e.preventDefault(); executeLimitSell(); break;
+      case 'T': e.preventDefault(); executeStopLoss(); break;
+      case 'E': e.preventDefault(); executeAdvancedOrder(); break;
       default: break;
     }
   }, [executeMarketBuy, executeMarketSell, executeLimitBuy, executeLimitSell, executeStopLoss, executeAdvancedOrder]);
@@ -130,11 +132,11 @@ export default function TradeExecution() {
       {/* === QUICK EXECUTION BAR === */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         {[
-          { label: 'Market Buy [B]', color: C.green, bg: C.greenDim, action: executeMarketBuy },
-          { label: 'Market Sell [S]', color: C.red, bg: C.redDim, action: executeMarketSell },
-          { label: 'Limit Buy [L]', color: C.blue, bg: 'transparent', border: C.blue, action: executeLimitBuy },
-          { label: 'Limit Sell [O]', color: C.blue, bg: 'transparent', border: C.blue, action: executeLimitSell },
-          { label: 'Stop Loss [T]', color: C.red, bg: 'transparent', border: C.red, action: executeStopLoss },
+          { label: 'Market Buy [Ctrl+B]', color: C.green, bg: C.greenDim, action: executeMarketBuy },
+          { label: 'Market Sell [Ctrl+S]', color: C.red, bg: C.redDim, action: executeMarketSell },
+          { label: 'Limit Buy [Ctrl+L]', color: C.blue, bg: 'transparent', border: C.blue, action: executeLimitBuy },
+          { label: 'Limit Sell [Ctrl+O]', color: C.blue, bg: 'transparent', border: C.blue, action: executeLimitSell },
+          { label: 'Stop Loss [Ctrl+T]', color: C.red, bg: 'transparent', border: C.red, action: executeStopLoss },
         ].map(btn => (
           <button key={btn.label} onClick={btn.action}
             style={{ padding: '8px 18px', borderRadius: 6, border: btn.border ? `1px solid ${btn.border}` : 'none', fontSize: 12, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", background: btn.bg, color: btn.color, cursor: 'pointer', letterSpacing: 0.5, transition: 'all 0.2s' }}
@@ -246,7 +248,7 @@ export default function TradeExecution() {
               style={{ padding: '10px 16px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", background: `linear-gradient(135deg, #00D9FF, ${C.blue})`, color: '#fff', cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.6 : 1, letterSpacing: 0.5, transition: 'all 0.2s' }}
               onMouseEnter={e => { if (!loading) { e.currentTarget.style.boxShadow = '0 0 20px rgba(0,217,255,0.25)'; e.currentTarget.style.transform = 'translateY(-1px)'; } }}
               onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none'; }}>
-              {loading ? 'Executing...' : 'Execute Order [E]'}
+              {loading ? 'Executing...' : 'Execute Order [Ctrl+E]'}
             </button>
           </div>
         </Card>

@@ -553,8 +553,9 @@ async def websocket_endpoint(websocket: WebSocket):
                 if ch:
                     unsubscribe(websocket, ch)
             elif msg.get("channel"):
-                # Client-emitted message -- rebroadcast to channel subscribers
-                await broadcast_ws(msg["channel"], msg.get("data", {}))
+                # SECURITY: clients must NOT broadcast to channels (message injection risk)
+                logging.warning("Blocked client attempt to broadcast to channel: %s", msg.get("channel"))
+                pass
     except Exception:
         pass
     finally:

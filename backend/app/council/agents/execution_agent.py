@@ -75,7 +75,7 @@ async def evaluate(
 
     return AgentVote(
         agent_name=NAME,
-        direction="buy",  # Execution agent doesn't decide direction
+        direction="hold",  # Execution agent doesn't decide direction
         confidence=0.5,
         reasoning="Execution checks passed. " + "; ".join(reasons),
         weight=WEIGHT,

@@ -100,18 +100,22 @@ async def execute_emergency_action(payload: EmergencyActionReq):
 
     try:
         if action == "kill_switch":
-            # Direct command to Alpaca to liquidate all and cancel orders
-            return {"status": "success", "message": "KILL SWITCH ENGAGED. Liquidating.", "action": action}
+            # TODO: Wire to Alpaca API to liquidate all and cancel orders
+            logger.critical("KILL SWITCH requested but NOT IMPLEMENTED - no positions were liquidated!")
+            return {"status": "stub", "executed": False, "warning": "NOT IMPLEMENTED - action was NOT executed", "message": "KILL SWITCH requested but not wired to broker.", "action": action}
         elif action == "hedge_all":
-            # Command to buy beta-weighted index puts
-            return {"status": "success", "message": "HEDGE ALL ENGAGED. Beta neutralized.", "action": action}
+            # TODO: Wire to broker to buy beta-weighted index puts
+            logger.critical("HEDGE ALL requested but NOT IMPLEMENTED - no hedges were placed!")
+            return {"status": "stub", "executed": False, "warning": "NOT IMPLEMENTED - action was NOT executed", "message": "HEDGE ALL requested but not wired to broker.", "action": action}
         elif action == "reduce_50":
-            # Command to halve active positions
-            return {"status": "success", "message": "REDUCE 50% ENGAGED. Exposure halved.", "action": action}
+            # TODO: Wire to broker to halve active positions
+            logger.critical("REDUCE 50%% requested but NOT IMPLEMENTED - no positions were reduced!")
+            return {"status": "stub", "executed": False, "warning": "NOT IMPLEMENTED - action was NOT executed", "message": "REDUCE 50% requested but not wired to broker.", "action": action}
         elif action == "freeze_entries":
-            # Toggle hard block in risk_gov for new entries
+            # TODO: Wire to risk_gov to toggle hard block for new entries
             state = "ON" if payload.value else "OFF"
-            return {"status": "success", "message": f"FREEZE NEW ENTRIES set to {state}.", "action": action}
+            logger.critical("FREEZE ENTRIES %s requested but NOT IMPLEMENTED - entries are NOT frozen!", state)
+            return {"status": "stub", "executed": False, "warning": "NOT IMPLEMENTED - action was NOT executed", "message": f"FREEZE NEW ENTRIES {state} requested but not wired to risk governor.", "action": action}
 
         raise HTTPException(status_code=400, detail="Unknown tactical command.")
 

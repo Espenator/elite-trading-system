@@ -264,7 +264,7 @@ async def get_drift_status():
         return {"status": "error", "message": str(e)}
 
 
-@router.get("/features")
+@router.get("/feature-pipeline-status")
 async def get_feature_pipeline_status():
     """Get feature pipeline manifest and configuration."""
     try:

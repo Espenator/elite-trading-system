@@ -19,8 +19,8 @@ export default function MarketRegimeCard({ regime: regimeData = null }) {
       borderColor: 'border-success',
       icon: TrendingUp,
       description: 'Bullish conditions, momentum favored',
-      strategy: '70% momentum / 30% reversion'
-            kellyScale: 1.0, maxPosition: '10%', minEdge: '3%',
+      strategy: '70% momentum / 30% reversion',
+      kellyScale: 1.0, maxPosition: '10%', minEdge: '3%',
     },
     YELLOW: {
       color: 'bg-warning',
@@ -28,8 +28,8 @@ export default function MarketRegimeCard({ regime: regimeData = null }) {
       borderColor: 'border-warning',
       icon: AlertTriangle,
       description: 'Mixed conditions, selective trading',
-      strategy: '50% momentum / 50% reversion'
-            kellyScale: 0.7, maxPosition: '7%', minEdge: '5%',
+      strategy: '50% momentum / 50% reversion',
+      kellyScale: 0.7, maxPosition: '7%', minEdge: '5%',
     },
     RED: {
       color: 'bg-danger',
@@ -37,8 +37,8 @@ export default function MarketRegimeCard({ regime: regimeData = null }) {
       borderColor: 'border-danger',
       icon: TrendingDown,
       description: 'Bearish/volatile, defensive mode',
-            kellyScale: 0.3, maxPosition: '4%', minEdge: '8%',
-      strategy: '30% momentum / 70% reversion'
+      strategy: '30% momentum / 70% reversion',
+      kellyScale: 0.3, maxPosition: '4%', minEdge: '8%',
     },
     RED_RECOVERY: {
       color: 'bg-warning',
@@ -46,17 +46,17 @@ export default function MarketRegimeCard({ regime: regimeData = null }) {
       borderColor: 'border-warning',
       icon: Activity,
       description: 'Recovery phase, volatility unwinding',
-            kellyScale: 0.5, maxPosition: '5%', minEdge: '6%',
-      strategy: '40% momentum / 60% reversion'
+      strategy: '40% momentum / 60% reversion',
+      kellyScale: 0.5, maxPosition: '5%', minEdge: '6%',
     },
     unknown: {
       color: 'bg-secondary',
       textColor: 'text-secondary',
       borderColor: 'border-secondary',
       icon: Shield,
-            kellyScale: 0.5, maxPosition: '5%', minEdge: '5%',
       description: 'Awaiting regime data...',
-      strategy: 'No active strategy'
+      strategy: 'No active strategy',
+      kellyScale: 0.5, maxPosition: '5%', minEdge: '5%',
     }
   };
 

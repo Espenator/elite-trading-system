@@ -29,8 +29,6 @@ def load_features_and_predictions(start: date, end: date, model_id: str) -> pd.D
         ).df()
     except Exception:
         return pd.DataFrame()
-    finally:
-        conn.close()
 
     if df_feat.empty or df_pred.empty:
         return pd.DataFrame()
@@ -121,8 +119,6 @@ def load_spy_returns(start: date, end: date) -> pd.DataFrame:
         ).df()
     except Exception:
         return pd.DataFrame()
-    finally:
-        conn.close()
     if df.empty:
         return pd.DataFrame(columns=["date", "equity"])
     df["date"] = pd.to_datetime(df["date"])
@@ -158,7 +154,8 @@ def evaluate_backtest(curve_df: pd.DataFrame, spy_df: pd.DataFrame) -> dict:
     spy_ar = ann_return(df["ret_spy"])
     strat_vol = ann_vol(df["ret_strategy"])
     spy_vol = ann_vol(df["ret_spy"])
-    sharpe = strat_ar / strat_vol if strat_vol > 0 else 0.0
+    risk_free_rate = 0.05  # ~5% T-bill rate
+    sharpe = (strat_ar - risk_free_rate) / strat_vol if strat_vol > 0 else 0.0
     max_equity = df["equity_strategy"].cummax()
     drawdown = df["equity_strategy"] / max_equity - 1.0
     max_dd = drawdown.min()

@@ -1,3 +1,4 @@
+import { useId } from "react";
 import clsx from "clsx";
 
 const defaultTrack =
@@ -38,7 +39,8 @@ function Slider({
   id: idProp,
   ...rest
 }) {
-    const id = idProp || `slider-${crypto.randomUUID()}`;
+    const autoId = useId();
+    const id = idProp || autoId;
   const isInteractive =
     !disabled && !readOnly && typeof onChange === "function";
   const displayValue = formatValue ? formatValue(value) : value;

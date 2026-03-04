@@ -413,7 +413,7 @@ def train_xgboost(
     log.info("Model saved: %s", model_path)
 
     meta = {
-        "best_params": {k: v for k, v in best_params.items() if k != "gpu_id"},
+        "best_params": {k: v for k, v in best_params.items() if k != "gpu_id" and not callable(v)},
         "best_cv": best_cv,
         "val_accuracy": val_accuracy,
         "feature_importance": importance,

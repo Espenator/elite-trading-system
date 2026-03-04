@@ -87,7 +87,8 @@ export default function Trades() {
   const handleCancelAll = async () => {
     try {
       const base = import.meta.env.VITE_API_URL ?? "";
-      await fetch(`${base}/api/v1/orders/cancel-all`, { method: "DELETE" });
+      const res = await fetch(`${base}/api/v1/orders/cancel-all`, { method: "DELETE" });
+      if (!res.ok) throw new Error('Failed');
       refetchOrders();
     } catch (e) { log.error("Cancel all failed:", e); }
   };
@@ -95,7 +96,8 @@ export default function Trades() {
   const handleClosePosition = async (symbol, pct = 100) => {
     try {
       const base = import.meta.env.VITE_API_URL ?? "";
-      await fetch(`${base}/api/v1/portfolio/close/${symbol}?percentage=${pct}`, { method: "DELETE" });
+      const res = await fetch(`${base}/api/v1/portfolio/close/${symbol}?percentage=${pct}`, { method: "DELETE" });
+      if (!res.ok) throw new Error('Failed');
       refetchPortfolio();
     } catch (e) { log.error("Close position failed:", e); }
   };

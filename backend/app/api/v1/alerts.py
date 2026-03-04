@@ -145,12 +145,14 @@ async def test_sms_alert():
 # -----------------------------------------------------------------
 
 @router.post("/evaluate")
-async def evaluate_alerts(signals: list[dict] = []):
+async def evaluate_alerts(signals: list[dict] = None):
     """Evaluate a list of signals against enabled alert rules.
 
     Returns triggered alerts for each signal that exceeds thresholds.
     Used by the scanner to generate real-time notifications.
     """
+    if signals is None:
+        signals = []
     rules = _get_rules()
     enabled_rules = [r for r in rules if r.get("enabled", False)]
     triggered = []

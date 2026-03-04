@@ -292,20 +292,26 @@ def get_backtest_optimization():
 def get_backtest_walk_forward():
     """Walk-forward analysis with in-sample/out-of-sample windows."""
     import random
+    from dateutil.relativedelta import relativedelta
+    base = date(2023, 1, 1)
+    windows = []
+    for i in range(5):
+        is_start = base + relativedelta(months=i * 2)
+        is_end = is_start + relativedelta(months=1, days=-1)
+        os_start = is_end + relativedelta(days=1)
+        os_end = os_start + relativedelta(months=1, days=-1)
+        windows.append({
+            "id": i + 1,
+            "inSampleStart": is_start.isoformat(),
+            "inSampleEnd": is_end.isoformat(),
+            "outSampleStart": os_start.isoformat(),
+            "outSampleEnd": os_end.isoformat(),
+            "inSampleSharpe": round(1.5 + random.random() * 2, 2),
+            "outSampleSharpe": round(0.8 + random.random() * 1.5, 2),
+            "degradation": round(random.uniform(5, 35), 1),
+        })
     return {
-        "windows": [
-            {
-                "id": i + 1,
-                "inSampleStart": f"2023-{str(i*2+1).zfill(2)}-01",
-                "inSampleEnd": f"2023-{str(i*2+2).zfill(2)}-28",
-                "outSampleStart": f"2023-{str(i*2+3).zfill(2)}-01",
-                "outSampleEnd": f"2023-{str(i*2+4).zfill(2)}-28",
-                "inSampleSharpe": round(1.5 + random.random() * 2, 2),
-                "outSampleSharpe": round(0.8 + random.random() * 1.5, 2),
-                "degradation": round(random.uniform(5, 35), 1)
-            }
-            for i in range(5)
-        ],
+        "windows": windows,
         "avgDegradation": 18.5,
         "robustnessScore": 72.3
     }
@@ -407,7 +413,7 @@ def get_backtest_trade_distribution():
     buckets = list(range(-5000, 5500, 500))
     return {
         "buckets": [
-            {"range_low": b, "range_high": b + 500, "count": int(random.gauss(20, 10))}
+            {"range_low": b, "range_high": b + 500, "count": max(0, int(random.gauss(20, 10)))}
             for b in buckets
         ],
         "mean": round(random.uniform(100, 500), 2),

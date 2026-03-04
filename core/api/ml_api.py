@@ -106,7 +106,7 @@ def get_ml_performance(
 
     except Exception as exc:
         logger.exception("ml/performance query failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # ────────────────────────────────────────────────────────────
@@ -163,7 +163,7 @@ def get_stage4_inferences(
 
     except Exception as exc:
         logger.exception("ml/signals/stage4 query failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # ────────────────────────────────────────────────────────────
@@ -213,4 +213,4 @@ def get_flywheel_logs(
 
     except Exception as exc:
         logger.exception("ml/flywheel-logs query failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error")

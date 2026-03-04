@@ -82,11 +82,6 @@ input[type="number"]::-webkit-inner-spin-button {
   position: absolute;
 }
 
-input[type="number"] {
-  -moz-appearance: textfield;
-  appearance: textfield;
-}
-
 /* Aurora Design System Utilities */
 :root {
   --bg-primary: #0B0E1A;

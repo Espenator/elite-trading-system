@@ -134,7 +134,9 @@ async def _compute_live_risk(config: dict) -> dict:
         concentration_pct = (largest_position_value / portfolio_value) * 100
 
     # --- Parametric VaR (95%) estimate ---
-    daily_vol_pct = abs(daily_pnl_pct) if daily_pnl_pct != 0 else 1.0
+    # NOTE: This is a rough estimate using today's absolute P&L as a volatility proxy.
+    # A proper implementation would use a rolling window (e.g., 20-day) of daily returns.
+    daily_vol_pct = abs(daily_pnl_pct) if daily_pnl_pct != 0 else 0.0
     var95_pct = daily_vol_pct * 1.65
     var95_dollars = (var95_pct / 100) * portfolio_value if portfolio_value > 0 else 0
 
@@ -423,7 +425,7 @@ async def dynamic_stop_loss(symbol: str, entry_price: float, side: str = "buy"):
         }
     except Exception as e:
         logger.error("Dynamic stop-loss error: %s", e)
-        return {"error": str(e)}
+        return {"error": "Internal server error"}
 
 
 @router.get("/risk-score")
@@ -487,7 +489,7 @@ async def risk_score():
     except Exception as e:
         logger.error("Risk score error: %s", e)
         score = 50
-        warnings.append(f"Error computing risk: {str(e)}")
+        warnings.append("Error computing risk")
 
     score = max(0, min(100, score))
     grade = (
@@ -595,7 +597,7 @@ async def var_analysis():
         }
     except Exception as e:
         logger.error("VaR analysis error: %s", e)
-        return {"error": str(e)}
+        return {"error": "Internal server error"}
 
 
 @router.get("/drawdown-check")
@@ -635,7 +637,7 @@ async def drawdown_check_status():
         }
     except Exception as e:
         logger.error("Drawdown check error: %s", e)
-        return {"trading_allowed": True, "error": str(e)}
+        return {"trading_allowed": True, "error": "Internal server error"}
 
 
 # --- V3 Risk Intelligence Enhanced Endpoints ---
@@ -831,7 +833,7 @@ async def run_stress_test():
         }
     except Exception as e:
         logger.error("Stress test error: %s", e)
-        return {"error": str(e)}
+        return {"error": "Internal server error"}
 
 
 @router.get("/monte-carlo")

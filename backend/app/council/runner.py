@@ -87,14 +87,17 @@ async def run_council(
         _run_agent(regime_agent, symbol, timeframe, features, context),
     )
     all_votes.extend(stage1)
+    context["stage1"] = {v.agent_name: v.to_dict() for v in stage1}
 
     # Stage 2: Hypothesis
     stage2 = await _run_agent(hypothesis_agent, symbol, timeframe, features, context)
     all_votes.append(stage2)
+    context["stage2"] = {stage2.agent_name: stage2.to_dict()}
 
     # Stage 3: Strategy
     stage3 = await _run_agent(strategy_agent, symbol, timeframe, features, context)
     all_votes.append(stage3)
+    context["stage3"] = {stage3.agent_name: stage3.to_dict()}
 
     # Stage 4: Risk + Execution (parallel)
     stage4 = await asyncio.gather(
@@ -102,10 +105,12 @@ async def run_council(
         _run_agent(execution_agent, symbol, timeframe, features, context),
     )
     all_votes.extend(stage4)
+    context["stage4"] = {v.agent_name: v.to_dict() for v in stage4}
 
     # Stage 5: Critic
     stage5 = await _run_agent(critic_agent, symbol, timeframe, features, context)
     all_votes.append(stage5)
+    context["stage5"] = {stage5.agent_name: stage5.to_dict()}
 
     # Stage 6: Arbiter
     decision = arbitrate(symbol, timeframe, timestamp, all_votes)

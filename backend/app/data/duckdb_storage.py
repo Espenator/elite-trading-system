@@ -47,15 +47,17 @@ class DuckDBStorage:
     def __init__(self, db_path: str = None):
         self._db_path = str(db_path or DUCKDB_PATH)
         self._conn = None
+        self._lock = threading.Lock()
         self._init_schema()
 
     def _get_conn(self):
         """Thread-safe connection with WAL mode."""
-        if self._conn is None:
-            duckdb = _get_duckdb()
-            self._conn = duckdb.connect(self._db_path)
-            self._conn.execute("PRAGMA enable_progress_bar")
-        return self._conn
+        with self._lock:
+            if self._conn is None:
+                duckdb = _get_duckdb()
+                self._conn = duckdb.connect(self._db_path)
+                self._conn.execute("SET enable_progress_bar = true")
+            return self._conn
 
     def _init_schema(self):
         """Create analytics tables if they don't exist."""

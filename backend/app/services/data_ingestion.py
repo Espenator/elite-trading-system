@@ -497,7 +497,9 @@ class DataIngestionService:
                 if matching_sells:
                     sell = matching_sells[0]
                     pnl = (sell["price"] - buy["price"]) * buy["qty"]
-                    r_mult = (sell["price"] - buy["price"]) / (buy["price"] + 1e-10)
+                    # This is a percentage return, not a true R-multiple
+                    # (R-multiple requires stop distance: pnl / risk_per_share)
+                    pct_return = (sell["price"] - buy["price"]) / (buy["price"] + 1e-10)
 
                     self.store.insert_trade_outcome({
                         "symbol": symbol,
@@ -508,7 +510,7 @@ class DataIngestionService:
                         "exit_price": sell["price"],
                         "shares": int(round(buy["qty"])),  # DB column is INTEGER; fractional rounded
                         "pnl": pnl,
-                        "r_multiple": r_mult,
+                        "r_multiple": pct_return,
                         "outcome": "WIN" if pnl > 0 else "LOSS",
                         "resolved": True,
                         "resolved_at": datetime.utcnow().isoformat(),

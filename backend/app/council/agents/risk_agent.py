@@ -92,8 +92,8 @@ async def evaluate(
 
     return AgentVote(
         agent_name=NAME,
-        direction="buy",  # Risk agent doesn't decide direction, just gates
-        confidence=0.6,
+        direction="hold",  # Risk agent doesn't decide direction, just gates
+        confidence=0.5,
         reasoning="Risk checks passed. " + "; ".join(reasons),
         weight=WEIGHT,
         metadata={"risk_limits": risk_limits},

@@ -10,13 +10,18 @@ Used by: signal_engine.py, kelly_position_sizer.py, alpaca_service.py,
 from __future__ import annotations
 
 import logging
+from enum import Enum
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal, Optional
 
 logger = logging.getLogger(__name__)
 
 Side = Literal["BUY", "SELL"]
-Severity = Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+class Severity(str, Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
 
 
 # ---------------------------------------------------------------------------
@@ -74,6 +79,22 @@ class TradeIntent:
     stop: Dict[str, Any] = field(default_factory=dict)
     take_profit: Dict[str, Any] = field(default_factory=dict)
     meta: Dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def symbol(self) -> str:
+        return self.proposal.identity.ticker
+
+    @property
+    def confidence(self) -> float:
+        return self.proposal.confidence
+
+    @property
+    def thesis(self) -> str:
+        return self.proposal.identity.narrative
+
+    @property
+    def invalidation_condition(self) -> str:
+        return self.meta.get("invalidation_condition", "")
 
 
 @dataclass

@@ -16,6 +16,14 @@ class AgentVote:
     weight: float = 1.0
     metadata: Dict[str, Any] = field(default_factory=dict)
 
+    def __post_init__(self):
+        if self.direction not in {"buy", "sell", "hold"}:
+            raise ValueError(f"direction must be 'buy', 'sell', or 'hold', got '{self.direction}'")
+        if not (0.0 <= self.confidence <= 1.0):
+            raise ValueError(f"confidence must be in [0.0, 1.0], got {self.confidence}")
+        if self.weight <= 0:
+            raise ValueError(f"weight must be > 0, got {self.weight}")
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "agent_name": self.agent_name,

@@ -1,4 +1,4 @@
-h/**
+/**
  * Generic fetch hook for API calls.
  * Uses config/api.js getApiUrl(endpoint).
  * Optional polling when pollIntervalMs > 0.

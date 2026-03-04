@@ -103,7 +103,7 @@ async def create_advanced_order(req: AdvancedOrderRequest):
         raise
     except Exception as e:
         logger.error("create_advanced_order failed: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Internal server error")
 
 
 # ── Replace / amend order ───────────────────────────────────────────────
@@ -127,7 +127,7 @@ async def replace_order(order_id: str, req: ReplaceOrderRequest):
         raise
     except Exception as e:
         logger.error("replace_order failed: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Internal server error")
 
 
 # ── Cancel single order ────────────────────────────────────────────────
@@ -139,7 +139,7 @@ async def cancel_order(order_id: str):
         return {"status": "cancelled", "order_id": order_id, "detail": result}
     except Exception as e:
         logger.error("cancel_order failed: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Internal server error")
 
 
 # ── Cancel ALL open orders ──────────────────────────────────────────────
@@ -151,7 +151,7 @@ async def cancel_all_orders():
         return {"status": "all_cancelled", "detail": result}
     except Exception as e:
         logger.error("cancel_all_orders failed: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Internal server error")
 
 
 # ── List open orders from Alpaca ─────────────────────────────────────────
@@ -165,7 +165,7 @@ async def get_orders(status: str = "open", limit: int = 50):
         return result
     except Exception as e:
         logger.error("get_orders failed: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # ── Recent orders from local DB ─────────────────────────────────────────
@@ -175,7 +175,8 @@ async def get_recent_orders(limit: int = 10):
     try:
         return db_service.get_recent_orders(limit=limit)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("get_recent_orders failed: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # ── Close position ────────────────────────────────────────────────────
@@ -187,7 +188,7 @@ async def close_position(symbol: str = Body(...), side: str = Body("all")):
         return result or {"status": "closed", "symbol": symbol}
     except Exception as e:
         logger.error("close_position failed: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Internal server error")
 
 
 # ── Adjust position ───────────────────────────────────────────────────
@@ -201,7 +202,7 @@ async def adjust_position(symbol: str = Body(...), qty: str = Body(None), side: 
         return result or {"status": "adjusted", "symbol": symbol}
     except Exception as e:
         logger.error("adjust_position failed: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Internal server error")
 
 
 # ── Flatten all positions ─────────────────────────────────────────────
@@ -213,7 +214,7 @@ async def flatten_all():
         return result or {"status": "all_flattened"}
     except Exception as e:
         logger.error("flatten_all failed: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Internal server error")
 
 
 # ── Emergency stop ────────────────────────────────────────────────────
@@ -224,9 +225,11 @@ async def emergency_stop():
     try:
         await alpaca_service.cancel_all_orders()
     except Exception as e:
-        errors.append(f"cancel_orders: {e}")
+        logger.error("emergency_stop cancel_orders failed: %s", e)
+        errors.append("cancel_orders failed")
     try:
         await alpaca_service.close_all_positions()
     except Exception as e:
-        errors.append(f"close_positions: {e}")
+        logger.error("emergency_stop close_positions failed: %s", e)
+        errors.append("close_positions failed")
     return {"status": "emergency_stop_executed", "errors": errors if errors else None}

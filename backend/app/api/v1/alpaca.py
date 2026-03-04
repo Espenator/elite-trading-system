@@ -23,7 +23,7 @@ async def get_account():
         return result
     except Exception as e:
         logger.error("alpaca/account failed: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/positions")
@@ -36,7 +36,7 @@ async def get_positions():
         return result
     except Exception as e:
         logger.error("alpaca/positions failed: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/orders")
@@ -49,7 +49,7 @@ async def get_orders(status: str = "open", limit: int = 50):
         return result
     except Exception as e:
         logger.error("alpaca/orders failed: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/activities")
@@ -68,7 +68,7 @@ async def get_activities(limit: int = 30, activity_type: str = "FILL"):
         return activities
     except Exception as e:
         logger.error("alpaca/activities failed: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.delete("/positions/{symbol}")
@@ -79,7 +79,7 @@ async def close_position(symbol: str, qty: Optional[str] = None, percentage: Opt
         return result or {"status": "closed", "symbol": symbol}
     except Exception as e:
         logger.error("alpaca/close_position failed: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Internal server error")
 
 
 @router.delete("/positions")
@@ -90,4 +90,4 @@ async def close_all_positions():
         return result or {"status": "all_closed"}
     except Exception as e:
         logger.error("alpaca/close_all_positions failed: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Internal server error")

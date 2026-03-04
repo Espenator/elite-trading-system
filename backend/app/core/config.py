@@ -34,13 +34,18 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost:8501"
 
     # ── Alpaca Markets ──────────────────────────────────────
-    APCA_API_KEY_ID: str = ""
-    APCA_API_SECRET_KEY: str = ""
-    APCA_API_BASE_URL: str = "https://paper-api.alpaca.markets"
     ALPACA_API_KEY: str = ""
     ALPACA_SECRET_KEY: str = ""
     ALPACA_BASE_URL: str = "https://paper-api.alpaca.markets"
     ALPACA_DATA_URL: str = "https://data.alpaca.markets"
+
+    @property
+    def APCA_API_KEY_ID(self) -> str:
+        return self.ALPACA_API_KEY
+
+    @property
+    def APCA_API_SECRET_KEY(self) -> str:
+        return self.ALPACA_SECRET_KEY
 
     # ── FinViz ──────────────────────────────────────────────
     FINVIZ_API_KEY: str = ""
