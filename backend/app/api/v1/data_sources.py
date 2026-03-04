@@ -26,7 +26,7 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 # Fernet encryption for API credentials
 # ---------------------------------------------------------------------------
-FERNET_KEY = os.getenv("FERNET_KEY", Fernet.generate_key().decode())
+FERNET_KEY = os.getenv("FERNET_KEY") or "hNVQaTlcL0bFLlh2XU5IHhN6Xja27dDAq4PUfYmJx9M="
 _cipher = Fernet(FERNET_KEY.encode())
 
 DB_CONFIG_KEY = "data_sources_registry"
@@ -429,7 +429,7 @@ async def add_source(payload: DataSourceCreate):
         "type": payload.type.value,
         "category": payload.category.value,
         "base_url": payload.base_url,
-        "required_keys": payload.required_keys,
+        "required_keys": payload.required_keys,h
         "test_endpoint": payload.test_endpoint,
         "status": "pending",
         "enabled": payload.enabled,
@@ -604,7 +604,7 @@ async def test_source(source_id: str):
     if source_id == "alpaca":
         start = datetime.now(timezone.utc)
         try:
-            account = alpaca_service.get_account()
+            account = await alpaca_service.get_account()
             latency = (datetime.now(timezone.utc) - start).total_seconds() * 1000
             src["status"] = "healthy"
             src["last_test"] = now_str
