@@ -151,3 +151,46 @@ Migration Roadmap:
 7. Run python -m pytest before committing backend changes
 8. Council agents MUST return AgentVote schema
 9. All new features must support the Embodier profit-being philosophy
+10. 
+## Claude Code-Inspired Architecture Patterns (Phase 2)
+
+Inspired by Claude Code's Task Tool and Agent Teams architecture. These patterns
+transform our council DAG from a static pipeline into a living, self-aware system.
+
+### New Files to Create
+
+| File | Purpose | Priority |
+|------|---------|----------|
+| council/blackboard.py | BlackboardState dataclass replacing raw features dict | P1 |
+| council/task_spawner.py | Dynamic agent spawning with model_tier + background support | P2 |
+| council/self_awareness.py | AgentHealthMonitor, StreakDetector, BayesianAgentWeights | P2 |
+| council/reflexes/circuit_breaker.py | Pre-council brainstem reflexes (flash crash, VIX spike) | P2 |
+| council/homeostasis.py | System vital signs monitoring + mode switching | P3 |
+| council/task_queue.py | Dependency-aware task queue replacing rigid stages | P3 |
+| directives/global.md | Always-on trading rules loaded by agents at runtime | P2 |
+| directives/regime_bull.md | Bull market agent behavior overrides | P3 |
+| directives/regime_bear.md | Bear market defensive behaviors | P3 |
+
+### Key Architecture Changes
+
+1. **BlackboardState** (replaces features dict in runner.py)
+   - Each stage writes to blackboard; later stages read accumulated context
+   - Arbiter reads final blackboard state, not just vote tallies
+
+2. **TaskSpawner** (like Claude Code's Task tool)
+   - spawn(agent_type, symbol, model_tier="fast"|"deep", background=False)
+   - background=True for postmortems, overnight learning
+   - Replaces hardcoded imports in runner.py
+
+3. **Agent Self-Awareness** (replaces static weight=1.0)
+   - BayesianAgentWeights: Beta(alpha,beta) updated from trade outcomes
+   - StreakDetector: 5 losses = PROBATION (0.25x), 10 = HIBERNATION
+   - Wires into arbiter.py weighted voting
+
+4. **Circuit Breaker** (runs BEFORE council)
+   - flash_crash, vix_spike, daily_drawdown, position_limit reflexes
+   - If any fires -> HALT_ALL, council never runs
+
+5. **Trading Directives** (like CLAUDE.md)
+   - Markdown files loaded by agents based on regime
+   - Replaces hardcoded thresholds (hypothesis >0.6, arbiter 0.4)
