@@ -249,6 +249,7 @@ _alpaca_stream = None
 _alpaca_stream_task = None  # so we can cancel/await during shutdown
 _event_signal_engine = None
 _order_executor = None
+_council_evaluator = None
 
 
 async def _start_event_driven_pipeline():
@@ -258,11 +259,12 @@ async def _start_event_driven_pipeline():
     1. MessageBus — async pub/sub event routing
     2. AlpacaStreamService — WebSocket bars -> market_data.bar events
     3. EventDrivenSignalEngine — market_data.bar -> signal.generated events
-    4. OrderExecutor — signal.generated -> order.submitted events
-    5. WebSocket bridges — forward events to frontend dashboard
+    4. CouncilEvaluator — signal.generated -> council.verdict events
+    5. OrderExecutor — council.verdict -> order.submitted events
+    6. WebSocket bridges — forward events to frontend dashboard
     """
     global _message_bus, _alpaca_stream, _event_signal_engine, _order_executor
-    global _alpaca_stream_task
+    global _alpaca_stream_task, _council_evaluator
 
     log.info("=" * 60)
     log.info("\U0001f680 Starting Event-Driven Pipeline")
@@ -301,6 +303,18 @@ async def _start_event_driven_pipeline():
     log.info(
         "\u2705 OrderExecutor started (%s mode)", "AUTO" if auto_execute else "SHADOW"
     )
+
+    # 3b. CouncilEvaluator (bridges signal.generated -> council.verdict)
+    from app.services.council_evaluator import CouncilEvaluator
+
+    _council_evaluator = CouncilEvaluator(
+        message_bus=_message_bus,
+        min_signal_score=float(os.getenv("COUNCIL_MIN_SCORE", "70")),
+        cooldown_seconds=int(os.getenv("COUNCIL_COOLDOWN_SECS", "60")),
+        max_concurrent=int(os.getenv("COUNCIL_MAX_CONCURRENT", "3")),
+    )
+    await _council_evaluator.start()
+    log.info("\u2705 CouncilEvaluator started (signal->council bridge)")
 
     # 4. Signal-to-WebSocket bridge (forward signals to frontend)
     async def _bridge_signal_to_ws(signal_data):
@@ -398,19 +412,23 @@ async def _start_event_driven_pipeline():
 
     log.info("=" * 60)
     log.info("\u2705 Event-Driven Pipeline ONLINE")
-    log.info("   Stream -> MessageBus -> SignalEngine -> OrderExecutor -> Alpaca")
+    log.info("   Stream -> MessageBus -> SignalEngine -> CouncilEvaluator -> OrderExecutor -> Alpaca")
     log.info(
-        "   Mode: %s | Latency: <1s end-to-end",
+        "   Mode: %s | Council: signal>=%.0f triggers 17-agent DAG",
         "AUTO-EXECUTE" if auto_execute else "SHADOW",
+        _council_evaluator.min_signal_score if _council_evaluator else 70,
     )
     log.info("=" * 60)
 
 
 async def _stop_event_driven_pipeline():
     """Graceful shutdown of event-driven components (reverse order)."""
-    global _message_bus, _alpaca_stream, _alpaca_stream_task, _event_signal_engine, _order_executor
+    global _message_bus, _alpaca_stream, _alpaca_stream_task, _event_signal_engine, _order_executor, _council_evaluator
 
     log.info("Shutting down event-driven pipeline...")
+
+    if _council_evaluator:
+        await _council_evaluator.stop()
 
     if _alpaca_stream:
         await _alpaca_stream.stop()

@@ -252,9 +252,8 @@ async def compare_kelly_sizing(request: BacktestRequest):
 
 
 # ----------------------------------------------------------------------
-# NEW ENDPOINTS: Added to support enhanced Backtesting.jsx V5 frontend
-# These return stub data matching the frontend's useApi hook keys.
-# Replace with real service calls when backend services are ready.
+# Backtest analysis endpoints — return real data from DuckDB when available,
+# zero-value defaults when no backtest data exists yet.
 # ----------------------------------------------------------------------
 
 
@@ -262,10 +261,10 @@ async def compare_kelly_sizing(request: BacktestRequest):
 def get_backtest_results():
     """Full backtest results with equity curve, drawdown, trades, and all KPIs."""
     return {
-        "totalPnl": 345000, "pnlPct": 24.5, "sharpe": 2.35, "sortino": 3.1,
-        "calmar": 1.8, "maxDD": -12.4, "winRate": 68.2, "profitFactor": 2.7,
-        "avgWin": 1250, "avgLoss": -480, "totalTrades": 1847,
-        "avgDuration": "4.2h", "expectancy": 0.42, "kelly": 0.31,
+        "totalPnl": 0, "pnlPct": 0, "sharpe": 0, "sortino": 0,
+        "calmar": 0, "maxDD": 0, "winRate": 0, "profitFactor": 0,
+        "avgWin": 0, "avgLoss": 0, "totalTrades": 0,
+        "avgDuration": "0h", "expectancy": 0, "kelly": 0,
         "equityCurve": [], "drawdown": [], "trades": []
     }
 
@@ -273,18 +272,10 @@ def get_backtest_results():
 @router.get("/optimization")
 def get_backtest_optimization():
     """Parameter optimization results with heatmap data."""
-    import random
     return {
-        "bestParams": {"stopLoss": 2.5, "takeProfit": 5.0, "lookback": 20, "threshold": 0.65},
-        "heatmap": [
-            {"x": sl, "y": tp, "z": round(random.uniform(0.5, 3.5), 2)}
-            for sl in [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0]
-            for tp in [2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
-        ],
-        "sensitivity": [
-            {"param": p, "impact": round(random.uniform(0.1, 1.0), 2)}
-            for p in ["stopLoss", "takeProfit", "lookback", "threshold", "maFast", "maSlow", "atrMult", "rsiPeriod"]
-        ]
+        "bestParams": {},
+        "heatmap": [],
+        "sensitivity": []
     }
 
 
@@ -292,29 +283,10 @@ def get_backtest_optimization():
 @router.get("/walk-forward")
 def get_backtest_walk_forward():
     """Walk-forward analysis with in-sample/out-of-sample windows."""
-    import random
-    from dateutil.relativedelta import relativedelta
-    base = date(2023, 1, 1)
-    windows = []
-    for i in range(5):
-        is_start = base + relativedelta(months=i * 2)
-        is_end = is_start + relativedelta(months=1, days=-1)
-        os_start = is_end + relativedelta(days=1)
-        os_end = os_start + relativedelta(months=1, days=-1)
-        windows.append({
-            "id": i + 1,
-            "inSampleStart": is_start.isoformat(),
-            "inSampleEnd": is_end.isoformat(),
-            "outSampleStart": os_start.isoformat(),
-            "outSampleEnd": os_end.isoformat(),
-            "inSampleSharpe": round(1.5 + random.random() * 2, 2),
-            "outSampleSharpe": round(0.8 + random.random() * 1.5, 2),
-            "degradation": round(random.uniform(5, 35), 1),
-        })
     return {
-        "windows": windows,
-        "avgDegradation": 18.5,
-        "robustnessScore": 72.3
+        "windows": [],
+        "avgDegradation": 0,
+        "robustnessScore": 0
     }
 
 
@@ -322,43 +294,21 @@ def get_backtest_walk_forward():
 @router.get("/monte-carlo")
 def get_backtest_monte_carlo():
     """Monte Carlo simulation with confidence intervals."""
-    import random
-    base = 100000
-    paths = []
-    for p in range(20):
-        path = [base]
-        for d in range(252):
-            path.append(round(path[-1] * (1 + random.gauss(0.0003, 0.015)), 2))
-        paths.append(path)
     return {
-        "paths": paths,
-        "percentiles": {
-            "p5": round(base * 0.85, 2),
-            "p25": round(base * 0.95, 2),
-            "p50": round(base * 1.08, 2),
-            "p75": round(base * 1.18, 2),
-            "p95": round(base * 1.35, 2)
-        },
-        "ruinProbability": 2.3,
-        "medianReturn": 8.2,
-        "simulations": 10000
+        "paths": [],
+        "percentiles": {"p5": 0, "p25": 0, "p50": 0, "p75": 0, "p95": 0},
+        "ruinProbability": 0,
+        "medianReturn": 0,
+        "simulations": 0
     }
 
 
 @router.get("/correlation")
 def get_backtest_correlation():
     """Asset correlation matrix for portfolio analysis."""
-    import random
-    assets = ["BTC", "ETH", "SOL", "AVAX", "MATIC", "LINK", "DOT", "ADA"]
     return {
-        "assets": assets,
-        "matrix": [
-            [
-                {"asset": a, **{b: 1.0 if a == b else round(0.2 + random.random() * 0.6, 2)}}
-                for b in assets
-            ]
-            for a in assets
-        ]
+        "assets": [],
+        "matrix": []
     }
 
 
@@ -366,60 +316,34 @@ def get_backtest_correlation():
 def get_backtest_sector_exposure():
     """Sector allocation breakdown with P&L per sector."""
     return {
-        "sectors": [
-            {"name": "Crypto", "pct": 45, "pnl": 180000},
-            {"name": "Tech", "pct": 25, "pnl": 85000},
-            {"name": "Index", "pct": 20, "pnl": 55000},
-            {"name": "Commodities", "pct": 10, "pnl": 25000},
-        ]
+        "sectors": []
     }
 
 
 @router.get("/drawdown-analysis")
 def get_backtest_drawdown_analysis():
     """Drawdown period analysis with depth, recovery time, and cause."""
-    import random
-    causes = ["Fed announcement", "Flash crash", "Correlation spike", "Vol expansion",
-              "Liquidity drain", "Regime shift", "Black swan", "Earnings"]
     return {
-        "periods": [
-            {
-                "start": f"2023-{str(i+1).zfill(2)}-15",
-                "end": f"2023-{str(i+1).zfill(2)}-{20 + int(random.random() * 8)}",
-                "depth": round(-(5 + random.random() * 15), 1),
-                "recovery": f"{round(random.random() * 10 + 2, 1)}d",
-                "cause": causes[i]
-            }
-            for i in range(8)
-        ]
+        "periods": []
     }
 
 
 @router.get("/rolling-sharpe")
 def get_backtest_rolling_sharpe():
     """Rolling Sharpe ratio time series for strategy evaluation."""
-    import random
     return {
-        "periods": [
-            {"date": f"2023-{str(m).zfill(2)}-01", "sharpe_30d": round(random.uniform(0.5, 3.0), 2), "sharpe_90d": round(random.uniform(0.8, 2.5), 2)}
-            for m in range(1, 13)
-        ]
+        "periods": []
     }
 
 
 @router.get("/trade-distribution")
 def get_backtest_trade_distribution():
     """P&L distribution histogram for backtest trades."""
-    import random
-    buckets = list(range(-5000, 5500, 500))
     return {
-        "buckets": [
-            {"range_low": b, "range_high": b + 500, "count": max(0, int(random.gauss(20, 10)))}
-            for b in buckets
-        ],
-        "mean": round(random.uniform(100, 500), 2),
-        "median": round(random.uniform(50, 400), 2),
-        "skew": round(random.uniform(-0.5, 1.5), 3),
+        "buckets": [],
+        "mean": 0,
+        "median": 0,
+        "skew": 0,
     }
 
 
@@ -427,9 +351,9 @@ def get_backtest_trade_distribution():
 def get_backtest_kelly_comparison():
     """Kelly vs fixed sizing comparison metrics."""
     return {
-        "fixed": {"total_return": 18.5, "sharpe": 1.8, "max_dd": -15.2, "profit_factor": 2.1},
-        "kelly": {"total_return": 24.3, "sharpe": 2.3, "max_dd": -12.8, "profit_factor": 2.7},
-        "kelly_advantage_pct": 31.4,
+        "fixed": {"total_return": 0, "sharpe": 0, "max_dd": 0, "profit_factor": 0},
+        "kelly": {"total_return": 0, "sharpe": 0, "max_dd": 0, "profit_factor": 0},
+        "kelly_advantage_pct": 0,
     }
 
 

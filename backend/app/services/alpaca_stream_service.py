@@ -189,39 +189,22 @@ class AlpacaStreamService:
         await self._stream._run_forever()
 
     async def _run_mock_stream(self) -> None:
-        """Simulated bar stream for development without Alpaca keys."""
-        import random
+        """Idle loop when Alpaca keys are unavailable — publishes no data.
 
-        logger.info("Mock stream started for %d symbols", len(self.symbols))
+        No fake market data is generated. The system simply waits for
+        Alpaca API credentials to be configured.
+        """
+        logger.warning(
+            "AlpacaStreamService running in OFFLINE mode — "
+            "no market data will be published until Alpaca API keys are configured. "
+            "Symbols queued: %d",
+            len(self.symbols),
+        )
         self._running = True
         self._start_time = time.time()
 
-        mock_prices = {s: round(random.uniform(50, 500), 2) for s in self.symbols}
-
         while self._running:
-            for symbol in self.symbols:
-                price = mock_prices[symbol]
-                change = round(random.uniform(-0.5, 0.5), 2)
-                new_price = round(max(1.0, price + change), 2)
-                mock_prices[symbol] = new_price
-
-                bar_data = {
-                    "symbol": symbol,
-                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
-                    "open": price,
-                    "high": round(max(price, new_price) + abs(change) * 0.5, 2),
-                    "low": round(min(price, new_price) - abs(change) * 0.5, 2),
-                    "close": new_price,
-                    "volume": random.randint(10000, 500000),
-                    "vwap": round((price + new_price) / 2, 2),
-                    "trade_count": random.randint(50, 2000),
-                    "source": "mock",
-                }
-                await self.message_bus.publish("market_data.bar", bar_data)
-                self._bars_received += 1
-                self._last_bar_time = time.time()
-
-            await asyncio.sleep(60)  # Mock bars every 60s
+            await asyncio.sleep(60)
 
     async def stop(self) -> None:
         """Graceful shutdown."""

@@ -6,6 +6,7 @@ GET  /api/v1/council/performance  → agent accuracy stats (feedback loop)
 POST /api/v1/council/update-weights → recompute agent weights from outcomes
 """
 import logging
+import time
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -19,6 +20,11 @@ router = APIRouter()
 # In-memory cache for the latest council decision (shown on dashboard)
 _latest_decision: Optional[Dict[str, Any]] = None
 
+# Rate limiting: max evaluations per minute to prevent DoS
+_eval_timestamps: list = []
+_RATE_LIMIT_MAX = 10  # Max 10 council evaluations per minute
+_RATE_LIMIT_WINDOW = 60  # seconds
+
 
 class CouncilEvalRequest(BaseModel):
     symbol: str
@@ -27,10 +33,24 @@ class CouncilEvalRequest(BaseModel):
     context: Optional[Dict[str, Any]] = None
 
 
+def _check_rate_limit():
+    """Enforce rate limiting on council evaluations."""
+    now = time.time()
+    # Prune old timestamps
+    _eval_timestamps[:] = [t for t in _eval_timestamps if now - t < _RATE_LIMIT_WINDOW]
+    if len(_eval_timestamps) >= _RATE_LIMIT_MAX:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit exceeded: max {_RATE_LIMIT_MAX} evaluations per minute",
+        )
+    _eval_timestamps.append(now)
+
+
 @router.post("/evaluate", dependencies=[Depends(require_auth)])
 async def evaluate_symbol(req: CouncilEvalRequest):
     """Run the 17-agent council on a symbol and return DecisionPacket."""
     global _latest_decision
+    _check_rate_limit()
     try:
         from app.council.runner import run_council
 

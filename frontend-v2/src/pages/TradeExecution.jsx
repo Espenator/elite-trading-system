@@ -289,19 +289,10 @@ export default function TradeExecution() {
           <Card title="Price Charts" subtitle="SPX \u00B7 S&P 500 Index \u00B7 1M">
             <div style={{ padding: '8px 12px' }}>
               <div style={{ fontSize: 18, fontWeight: 700, color: C.text, fontFamily: "'JetBrains Mono', monospace" }}>
-                4450.25 <span style={{ fontSize: 12, color: C.green }}>+430.50 (+0.35%)</span>
+                -- <span style={{ fontSize: 12, color: C.textMuted }}>Awaiting data</span>
               </div>
               <svg width="100%" height="160" viewBox="0 0 300 160" style={{ marginTop: 8 }}>
-                {Array.from({ length: 30 }, (_, i) => {
-                  const h = 20 + Math.random() * 80 + (i > 20 ? i * 3 : 0);
-                  const isGreen = Math.random() > 0.4;
-                  return <rect key={i} x={i * 10} y={160 - h} width={7} height={h} rx={1} fill={isGreen ? C.green : C.red} opacity={0.8} />;
-                })}
-                {/* Volume bars at bottom */}
-                {Array.from({ length: 30 }, (_, i) => {
-                  const vol = 5 + Math.random() * 20;
-                  return <rect key={`v${i}`} x={i * 10} y={155} width={7} height={vol * 0.2} fill={C.textDim} opacity={0.3} />;
-                })}
+                <text x="150" y="85" textAnchor="middle" fill={C.textMuted} fontSize="11">Awaiting market data...</text>
               </svg>
               <div style={{ textAlign: 'right', marginTop: 4 }}>
                 <span style={{ fontSize: 10, color: C.textMuted, background: C.cardAlt, padding: '2px 6px', borderRadius: 3, cursor: 'pointer' }}>TV</span>

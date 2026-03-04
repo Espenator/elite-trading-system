@@ -137,10 +137,11 @@ class OrderExecutor:
         return self._kelly_sizer
 
     async def start(self) -> None:
-        """Subscribe to signal.generated and begin processing."""
+        """Subscribe to signal.generated + council.verdict and begin processing."""
         self._running = True
         self._start_time = time.time()
         await self.message_bus.subscribe("signal.generated", self._on_signal)
+        await self.message_bus.subscribe("council.verdict", self._on_council_verdict)
         mode = "AUTO-EXECUTE" if self.auto_execute else "SHADOW (dry-run)"
         logger.info(
             "OrderExecutor started in %s mode — "
@@ -153,10 +154,62 @@ class OrderExecutor:
         """Unsubscribe and stop processing."""
         self._running = False
         await self.message_bus.unsubscribe("signal.generated", self._on_signal)
+        await self.message_bus.unsubscribe("council.verdict", self._on_council_verdict)
         logger.info(
             "OrderExecutor stopped — %d signals received, %d executed, %d rejected",
             self._signals_received, self._signals_executed, self._signals_rejected,
         )
+
+    async def _on_council_verdict(self, verdict_data: Dict[str, Any]) -> None:
+        """Process council.verdict events for execution decisions.
+
+        Council verdicts carry the full 17-agent consensus. Only execute if
+        the council says BUY/SELL with sufficient confidence and execution_ready.
+        """
+        if not self._running:
+            return
+
+        direction = verdict_data.get("direction", "hold")
+        confidence = verdict_data.get("confidence", 0)
+        vetoed = verdict_data.get("vetoed", False)
+        execution_ready = verdict_data.get("execution_ready", False)
+        symbol = verdict_data.get("symbol", "")
+        council_id = verdict_data.get("council_decision_id", "")
+
+        # Only act on actionable verdicts
+        if direction == "hold" or vetoed or not execution_ready:
+            logger.debug(
+                "Council verdict for %s: %s (conf=%.0f%%, vetoed=%s, ready=%s) — no action",
+                symbol, direction, confidence * 100, vetoed, execution_ready,
+            )
+            return
+
+        if confidence < 0.5:
+            logger.debug(
+                "Council verdict for %s: confidence %.0f%% below 50%% threshold",
+                symbol, confidence * 100,
+            )
+            return
+
+        # Convert council verdict to signal-like format for existing risk gates
+        synthetic_signal = {
+            "symbol": symbol,
+            "score": confidence * 100,  # Map 0-1 confidence to 0-100 score
+            "price": verdict_data.get("agent_votes", [{}])[0].get("metadata", {}).get("price", 0)
+                     if verdict_data.get("agent_votes") else 0,
+            "regime": "COUNCIL",
+            "label": f"council_{direction}",
+            "council_decision_id": council_id,
+            "source": "council_evaluator",
+        }
+
+        logger.info(
+            "Council verdict -> execution: %s %s @ %.0f%% confidence [%s]",
+            direction.upper(), symbol, confidence * 100, council_id[:8],
+        )
+
+        # Route through existing risk gates
+        await self._on_signal(synthetic_signal)
 
     # ── Main Signal Handler ─────────────────────────────────────────────────
 

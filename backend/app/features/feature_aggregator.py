@@ -1,11 +1,12 @@
 """Feature Aggregator — produce clean, stable feature vectors.
 
 Combines OHLCV data, technical indicators, volume metrics, regime snapshot,
-and optional flow features into a unified FeatureVector used by:
+flow features, intermarket data, benchmark returns, and multi-timeframe
+indicators into a unified FeatureVector used by:
 - XGBoost training
 - LLM hypothesis prompts
 - Critic postmortems
-- Council agent evaluations
+- Council agent evaluations (all 17 agents)
 
 Usage:
     from app.features.feature_aggregator import aggregate
@@ -15,6 +16,7 @@ import hashlib
 import json
 import logging
 import math
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -34,10 +36,12 @@ class FeatureVector:
     regime_features: Dict[str, Any] = field(default_factory=dict)
     flow_features: Dict[str, float] = field(default_factory=dict)
     indicator_features: Dict[str, float] = field(default_factory=dict)
+    intermarket_features: Dict[str, float] = field(default_factory=dict)
+    benchmark_features: Dict[str, float] = field(default_factory=dict)
     raw: Dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
-        """Flatten all features into a single dict."""
+    def _all_features(self) -> Dict[str, Any]:
+        """Merge all feature dicts into one."""
         merged = {}
         merged.update(self.price_features)
         merged.update(self.volume_features)
@@ -45,6 +49,13 @@ class FeatureVector:
         merged.update(self.regime_features)
         merged.update(self.flow_features)
         merged.update(self.indicator_features)
+        merged.update(self.intermarket_features)
+        merged.update(self.benchmark_features)
+        return merged
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Flatten all features into a single dict."""
+        merged = self._all_features()
         return {
             "symbol": self.symbol,
             "timestamp": self.timestamp,
@@ -57,14 +68,7 @@ class FeatureVector:
     @property
     def hash(self) -> str:
         """Compute stable hash of all features."""
-        all_features = {}
-        all_features.update(self.price_features)
-        all_features.update(self.volume_features)
-        all_features.update(self.volatility_features)
-        all_features.update(self.regime_features)
-        all_features.update(self.flow_features)
-        all_features.update(self.indicator_features)
-        canonical = json.dumps(all_features, sort_keys=True, default=str)
+        canonical = json.dumps(self._all_features(), sort_keys=True, default=str)
         return hashlib.sha256(canonical.encode()).hexdigest()[:16]
 
 
@@ -229,6 +233,229 @@ def _get_indicator_features(symbol: str) -> Dict[str, float]:
     return {}
 
 
+def _compute_ema(values: List[float], span: int) -> float:
+    """Compute EMA for a given span over a list of values."""
+    if not values or span <= 0:
+        return 0.0
+    k = 2.0 / (span + 1)
+    ema = values[0]
+    for v in values[1:]:
+        ema = v * k + ema * (1 - k)
+    return ema
+
+
+def _compute_rsi(closes: List[float], period: int = 14) -> float:
+    """Compute RSI from close prices."""
+    if len(closes) < period + 1:
+        return 50.0
+    deltas = [closes[i] - closes[i - 1] for i in range(1, len(closes))]
+    gains = [d if d > 0 else 0.0 for d in deltas[-period:]]
+    losses = [-d if d < 0 else 0.0 for d in deltas[-period:]]
+    avg_gain = sum(gains) / period
+    avg_loss = sum(losses) / period
+    if avg_loss == 0:
+        return 100.0
+    rs = avg_gain / avg_loss
+    return 100.0 - (100.0 / (1.0 + rs))
+
+
+def _compute_extended_indicators(ohlcv_rows: list) -> Dict[str, float]:
+    """Compute additional indicators needed by technical agents.
+
+    Fills the gaps for: ema_trend_agent (EMA 5/10/20), rsi_agent (prev RSI).
+    These are computed directly from OHLCV when DuckDB indicators are unavailable.
+    """
+    if len(ohlcv_rows) < 5:
+        return {}
+
+    closes = [_safe_float(r.get("close")) for r in ohlcv_rows if r.get("close")]
+    if len(closes) < 5:
+        return {}
+
+    features: Dict[str, float] = {}
+
+    # EMA 5, 10, 20 for ema_trend_agent
+    features["ind_ema_5"] = _compute_ema(closes, 5)
+    features["ind_ema_10"] = _compute_ema(closes, 10)
+    if len(closes) >= 20:
+        features["ind_ema_20"] = _compute_ema(closes, 20)
+
+    # Previous RSI for slope calculation (rsi_agent)
+    if len(closes) >= 16:
+        features["rsi_14_prev"] = _compute_rsi(closes[:-1], 14)
+
+    # 60-day return for relative_strength_agent
+    if len(closes) >= 61:
+        features["return_60d"] = closes[-1] / closes[-61] - 1
+
+    return features
+
+
+def _get_intermarket_features(symbol: str) -> Dict[str, float]:
+    """Compute intermarket correlation and VIX features for intermarket_agent.
+
+    Fetches SPY, UVXY, IEF, IWM data from DuckDB to compute rolling correlations,
+    and VIX level from regime service or DuckDB.
+    """
+    features: Dict[str, float] = {}
+
+    try:
+        from app.data.duckdb_storage import duckdb_store
+        conn = duckdb_store._get_conn()
+
+        # Get the symbol's recent returns
+        sym_df = conn.execute("""
+            SELECT close FROM daily_ohlcv
+            WHERE symbol = ? ORDER BY date DESC LIMIT 21
+        """, [symbol.upper()]).fetchall()
+        sym_closes = [_safe_float(r[0]) for r in reversed(sym_df)] if sym_df else []
+
+        if len(sym_closes) >= 6:
+            sym_returns = [(sym_closes[i] / sym_closes[i - 1] - 1)
+                           for i in range(1, len(sym_closes))]
+
+            # Fetch benchmark returns for correlation
+            for bench_sym, key_prefix in [
+                ("SPY", "spy"), ("UVXY", "uvxy"), ("IEF", "ief"), ("IWM", "iwm")
+            ]:
+                bench_df = conn.execute("""
+                    SELECT close FROM daily_ohlcv
+                    WHERE symbol = ? ORDER BY date DESC LIMIT 21
+                """, [bench_sym]).fetchall()
+                if bench_df and len(bench_df) >= 6:
+                    bench_closes = [_safe_float(r[0]) for r in reversed(bench_df)]
+                    bench_returns = [(bench_closes[i] / bench_closes[i - 1] - 1)
+                                     for i in range(1, len(bench_closes))]
+                    # Compute correlation over matching length
+                    n = min(len(sym_returns), len(bench_returns))
+                    if n >= 5:
+                        sr = sym_returns[-n:]
+                        br = bench_returns[-n:]
+                        mean_s = sum(sr) / n
+                        mean_b = sum(br) / n
+                        cov = sum((s - mean_s) * (b - mean_b) for s, b in zip(sr, br)) / n
+                        std_s = (sum((s - mean_s) ** 2 for s in sr) / n) ** 0.5
+                        std_b = (sum((b - mean_b) ** 2 for b in br) / n) ** 0.5
+                        if std_s > 0 and std_b > 0:
+                            corr = cov / (std_s * std_b)
+                            corr = max(-1.0, min(1.0, corr))
+                        else:
+                            corr = 0.0
+
+                        if bench_sym == "SPY":
+                            features["ticker_spy_correlation"] = corr
+                            # Beta = cov(sym, spy) / var(spy)
+                            var_spy = sum((b - mean_b) ** 2 for b in br) / n
+                            features["beta"] = cov / var_spy if var_spy > 0 else 1.0
+                        elif bench_sym == "UVXY":
+                            features["spy_uvxy_correlation"] = corr
+                        elif bench_sym == "IEF":
+                            features["spy_ief_correlation"] = corr
+                        elif bench_sym == "IWM":
+                            features["spy_iwm_correlation"] = corr
+
+        # VIX level from DuckDB
+        vix_row = conn.execute("""
+            SELECT close FROM daily_ohlcv
+            WHERE symbol IN ('VIX', '^VIX', 'VIXY')
+            ORDER BY date DESC LIMIT 2
+        """).fetchall()
+        if vix_row:
+            vix_closes = [_safe_float(r[0]) for r in vix_row]
+            features["vix_level"] = vix_closes[0]
+            if len(vix_closes) >= 2 and vix_closes[1] > 0:
+                features["vix_change_pct"] = (vix_closes[0] / vix_closes[1] - 1) * 100
+
+    except Exception as e:
+        logger.debug("Intermarket features unavailable: %s", e)
+
+    # Sector breadth from finviz if available
+    try:
+        from app.services.screener_service import get_sector_performance
+        sectors = get_sector_performance()
+        if sectors:
+            bullish = sum(1 for s in sectors if _safe_float(s.get("change", 0)) > 0)
+            features["sector_bullish_pct"] = (bullish / len(sectors)) * 100
+    except Exception:
+        pass
+
+    return features
+
+
+def _get_benchmark_features(symbol: str) -> Dict[str, float]:
+    """Compute benchmark return features for relative_strength_agent.
+
+    Gets SPY returns at 5d/20d/60d horizons for excess return calculation.
+    """
+    features: Dict[str, float] = {}
+
+    try:
+        from app.data.duckdb_storage import duckdb_store
+        conn = duckdb_store._get_conn()
+
+        spy_df = conn.execute("""
+            SELECT close FROM daily_ohlcv
+            WHERE symbol = 'SPY' ORDER BY date DESC LIMIT 61
+        """).fetchall()
+        if spy_df:
+            spy_closes = [_safe_float(r[0]) for r in reversed(spy_df)]
+            if len(spy_closes) >= 6:
+                features["spy_return_5d"] = spy_closes[-1] / spy_closes[-6] - 1
+            if len(spy_closes) >= 21:
+                features["spy_return_20d"] = spy_closes[-1] / spy_closes[-21] - 1
+            if len(spy_closes) >= 61:
+                features["spy_return_60d"] = spy_closes[-1] / spy_closes[-61] - 1
+
+        # Peer percentile: rank this symbol's 20d return vs sector peers
+        sym_row = conn.execute("""
+            SELECT close FROM daily_ohlcv
+            WHERE symbol = ? ORDER BY date DESC LIMIT 21
+        """, [symbol.upper()]).fetchall()
+        if sym_row and len(sym_row) >= 21:
+            sym_closes = [_safe_float(r[0]) for r in reversed(sym_row)]
+            sym_ret_20d = sym_closes[-1] / sym_closes[0] - 1
+
+            # Get a representative set of liquid stocks for peer comparison
+            peer_df = conn.execute("""
+                SELECT symbol, (
+                    SELECT close FROM daily_ohlcv d2
+                    WHERE d2.symbol = d1.symbol ORDER BY date DESC LIMIT 1
+                ) as last_close,
+                (
+                    SELECT close FROM daily_ohlcv d3
+                    WHERE d3.symbol = d1.symbol ORDER BY date ASC
+                    LIMIT 1 OFFSET (
+                        SELECT MAX(0, COUNT(*) - 21) FROM daily_ohlcv d4
+                        WHERE d4.symbol = d1.symbol
+                    )
+                ) as close_21ago
+                FROM (SELECT DISTINCT symbol FROM daily_ohlcv) d1
+                LIMIT 50
+            """).fetchall()
+            if peer_df and len(peer_df) >= 5:
+                peer_returns = []
+                for row in peer_df:
+                    lc = _safe_float(row[1])
+                    c21 = _safe_float(row[2])
+                    if lc > 0 and c21 > 0:
+                        peer_returns.append(lc / c21 - 1)
+                if peer_returns:
+                    below = sum(1 for r in peer_returns if r < sym_ret_20d)
+                    features["peer_percentile_20d"] = below / len(peer_returns)
+
+            # RS line slope (relative strength vs SPY over 20d)
+            if "spy_return_20d" in features:
+                excess = sym_ret_20d - features["spy_return_20d"]
+                features["excess_return_20d"] = excess
+                # Approximate RS line slope as daily excess return
+                features["rs_line_slope"] = excess / 20
+
+    except Exception as e:
+        logger.debug("Benchmark features unavailable: %s", e)
+
+    return features
+
+
 async def aggregate(
     symbol: str,
     ts: Optional[datetime] = None,
@@ -268,6 +495,13 @@ async def aggregate(
         logger.warning("Failed to fetch OHLCV for %s: %s", symbol, e)
 
     # Compute features
+    indicator_features = _get_indicator_features(symbol)
+    # Fill gaps with computed indicators from OHLCV (EMA 5/10/20, prev RSI, etc.)
+    extended = _compute_extended_indicators(ohlcv_rows)
+    for k, v in extended.items():
+        if k not in indicator_features:
+            indicator_features[k] = v
+
     fv = FeatureVector(
         symbol=symbol.upper(),
         timestamp=ts.isoformat() if isinstance(ts, datetime) else str(ts),
@@ -277,7 +511,9 @@ async def aggregate(
         volatility_features=_compute_volatility_features(ohlcv_rows),
         regime_features=_get_regime_snapshot(),
         flow_features=_get_flow_features(symbol),
-        indicator_features=_get_indicator_features(symbol),
+        indicator_features=indicator_features,
+        intermarket_features=_get_intermarket_features(symbol),
+        benchmark_features=_get_benchmark_features(symbol),
     )
 
     # Persist to feature store if requested

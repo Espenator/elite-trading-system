@@ -94,8 +94,9 @@ const MonteCarloLC = ({ data }) => {
     seriesRefs.current.forEach(series => chartRef.current.removeSeries(series));
     seriesRefs.current = [];
 
-    // Use provided data or generate realistic mock Monte Carlo paths
-    const chartDataPaths = data && data.length > 0 ? data : generateMockMonteCarloData();
+    // Only render real data — no mock/synthetic data
+    const chartDataPaths = data && data.length > 0 ? data : [];
+    if (chartDataPaths.length === 0) return;
 
     // Render the simulated pathways (background lines)
     chartDataPaths.forEach((pathData, index) => {
@@ -139,49 +140,5 @@ const MonteCarloLC = ({ data }) => {
     </div>
   );
 };
-
-// Helper function to generate 50+ mock distribution pathways for UI visualization
-function generateMockMonteCarloData() {
-  const paths = [];
-  const numSimulations = 50;
-  const days = 180;
-  const initialCapital = 1000000;
-  
-  const startDate = new Date();
-  startDate.setMonth(startDate.getMonth() - 6);
-
-  // Generate Median/Base Path first (Index 0)
-  const medianPath = [];
-  let medianValue = initialCapital;
-  for (let i = 0; i < days; i++) {
-    const time = new Date(startDate);
-    time.setDate(time.getDate() + i);
-    medianValue += 800; // Steady positive drift
-    medianPath.push({ time: time.toISOString().split('T')[0], value: medianValue });
-  }
-  paths.push(medianPath);
-
-  // Generate Simulation Paths
-  for (let s = 0; s < numSimulations; s++) {
-    const simPath = [];
-    let currentValue = initialCapital;
-    // Each path has a slightly different base drift
-    const pathDrift = 500 + (Math.random() - 0.3) * 600; 
-
-    for (let i = 0; i < days; i++) {
-      const time = new Date(startDate);
-      time.setDate(time.getDate() + i);
-      
-      // Random walk with drift
-      const vol = (Math.random() - 0.5) * 20000; 
-      currentValue += pathDrift + vol;
-      
-      simPath.push({ time: time.toISOString().split('T')[0], value: currentValue });
-    }
-    paths.push(simPath);
-  }
-
-  return paths;
-}
 
 export default MonteCarloLC;

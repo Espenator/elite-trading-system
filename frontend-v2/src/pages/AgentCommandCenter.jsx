@@ -111,7 +111,7 @@ function AgentHealthMatrix({ agents }) {
       <div className="grid grid-cols-5 gap-3">
         {categories.map((cat, i) => {
           const agent = agents[i % agents.length];
-          const health = agent?.health || (i % 4 === 0 ? "degraded" : i % 7 === 0 ? "error" : "healthy");
+          const health = agent?.health || "unknown";
           return (
             <div key={cat} className="flex flex-col items-center gap-1 cursor-pointer hover:scale-110 transition-transform"
               onClick={() => toast.info(`Inspecting ${cat} health metrics`)}>
@@ -132,43 +132,80 @@ function AgentHealthMatrix({ agents }) {
 }
 // --- Helper: Live Agent Activity Feed (from mockup 01) ---
 function LiveActivityFeed({ agents }) {
-  const [feedItems] = useState(() => {
-    const items = [];
-    const agentNames = ["RegimeDetector", "Scanner-07", "MLTrain-01", "Researcher", "BridgeSender", "Arbitrator", "Sentiment", "Execution-02"];
-    const actions = ["Market regime shifted to GREEN", "Found 3 candidates passed filters", "Epoch 847/1000 val_loss: 0.0023",
-      "Deep analysis complete for conf #941", "12 alerts dispatched to Slack", "Consensus reached for conf #941",
-      "Twitter data stream processing", "Order execution pending for AAPL"];
-    const colors = ["text-emerald-400", "text-cyan-400", "text-amber-400", "text-purple-400", "text-red-400", "text-blue-400"];
-    for (let i = 0; i < 10; i++) {
-      items.push({ id: i, time: `[${String(9).padStart(2,'0')}:${String(Math.max(0,41-i*2)).padStart(2,'0')}:${String(Math.floor(Math.random()*60)).padStart(2,'0')}]`,
-        agent: agentNames[i % agentNames.length], action: actions[i % actions.length], color: colors[i % colors.length] });
+  const [feedItems, setFeedItems] = useState([]);
+  const feedRef = useRef([]);
+  const colorMap = useRef({});
+  const colors = ["text-emerald-400", "text-cyan-400", "text-amber-400", "text-purple-400", "text-red-400", "text-blue-400"];
+
+  // Subscribe to real-time agent events via WebSocket
+  useEffect(() => {
+    const handler = (msg) => {
+      if (!msg) return;
+      const now = new Date();
+      const time = `[${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}]`;
+      const agentName = msg.agent_name || msg.agent || msg.type || "system";
+      if (!colorMap.current[agentName]) {
+        colorMap.current[agentName] = colors[Object.keys(colorMap.current).length % colors.length];
+      }
+      const item = {
+        id: Date.now() + Math.random(),
+        time,
+        agent: agentName,
+        action: msg.action || msg.message || msg.reasoning || JSON.stringify(msg).slice(0, 120),
+        color: colorMap.current[agentName],
+      };
+      feedRef.current = [item, ...feedRef.current].slice(0, 50);
+      setFeedItems([...feedRef.current]);
+    };
+    ws.subscribe("agents", handler);
+    ws.subscribe("council", handler);
+    return () => {
+      ws.unsubscribe("agents", handler);
+      ws.unsubscribe("council", handler);
+    };
+  }, []);
+
+  // Populate from agents prop if no live data yet
+  useEffect(() => {
+    if (feedItems.length === 0 && agents.length > 0) {
+      const items = agents.slice(0, 10).map((a, i) => ({
+        id: i,
+        time: a.last_tick ? new Date(a.last_tick).toLocaleTimeString() : "--:--:--",
+        agent: a.name || a.agent_name || `Agent-${i}`,
+        action: a.status === "running" ? "Active and monitoring" : `Status: ${a.status || "unknown"}`,
+        color: colors[i % colors.length],
+      }));
+      setFeedItems(items);
     }
-    return items;
-  });
+  }, [agents]);
+
   return (
     <Card title="Live Agent Activity Feed">
       <div className="space-y-1 max-h-[300px] overflow-y-auto scrollbar-thin">
-        {feedItems.map(item => (
+        {feedItems.length === 0 ? (
+          <p className="text-secondary text-xs text-center py-4">Awaiting agent activity...</p>
+        ) : feedItems.map(item => (
           <div key={item.id} className="flex gap-2 text-xs font-mono cursor-pointer hover:bg-cyan-500/10 px-2 py-1 rounded transition-all"
             onClick={() => toast.info(`Trace: ${item.agent} - ${item.action}`)}>
             <span className="text-secondary shrink-0">{item.time}</span>
             <span className={`${item.color} font-bold shrink-0`}>{item.agent}</span>
             <span className="text-secondary">-</span>
             <span className="text-white">{item.action}</span>
-        </div>
-        ))}
           </div>
+        ))}
+      </div>
     </Card>
   );
 }
 // --- Helper: Blackboard Live Feed Table (from mockup 01) ---
 function BlackboardLiveFeed({ blackboardMsgs }) {
-  const topics = [
-    { topic: "SIG_GEN", subs: 12, msgRate: 3.4, lastMsg: "Signal generated for SPY" },
-    { topic: "RISK_EVAL", subs: 8, msgRate: 0.1, lastMsg: "Risk assessment requested" },
-    { topic: "SENTIMENT", subs: 6, msgRate: 5.7, lastMsg: "News stream parsing complete" },
-    { topic: "EXECUTION", subs: 4, msgRate: 0.3, lastMsg: "Order status updated" },
-    { topic: "MACRO_BRAIN", subs: 13, msgRate: 4.2, lastMsg: "Macro data refresh" },
+  const { data: busStatus } = useApi("system/event-bus/status");
+  const topics = busStatus?.topics || [
+    { topic: "signal.generated", subs: 0, msgRate: 0, lastMsg: "Awaiting signals..." },
+    { topic: "council.verdict", subs: 0, msgRate: 0, lastMsg: "Awaiting council..." },
+    { topic: "order.submitted", subs: 0, msgRate: 0, lastMsg: "No orders yet" },
+    { topic: "market_data.bar", subs: 0, msgRate: 0, lastMsg: "Awaiting market data..." },
+    { topic: "risk.alert", subs: 0, msgRate: 0, lastMsg: "No alerts" },
   ];
   return (
     <Card title="Blackboard Live Feed">
@@ -332,7 +369,7 @@ function AgentInspectorPanel({ agent, onClose, onToggle }) {
               <div className="text-[9px] text-secondary mb-1">{m}</div>
               <div className="h-6 bg-gray-800/50 rounded flex items-end gap-px px-1">
                 {Array.from({ length: 12 }, (_, i) => (
-                  <div key={i} className="flex-1 bg-cyan-500/60 rounded-t transition-all" style={{ height: `${Math.random() * 100}%` }} />
+                  <div key={i} className="flex-1 bg-cyan-500/60 rounded-t transition-all" style={{ height: '0%' }} />
                 ))}
               </div>
             </div>
@@ -457,18 +494,38 @@ export default function AgentCommandCenter() {
     }
   }, [llmFlowData]);
   useEffect(() => { const unsub = ws.on("agents", (msg) => { if (msg?.type === "agent_status") refetchAgents(); }); return unsub; }, [refetchAgents]);
-  // --- Blackboard & HITL mock ---
+  // --- Blackboard & HITL: real-time via WebSocket ---
   useEffect(() => {
-    const blackboardInterval = !AGENT_MOCKS ? null : setInterval(() => {
-      const topics = ["SIG_GEN", "RISK_EVAL", "SENTIMENT", "EXECUTION"];
-      const contents = ["Computed tensor weights for epoch " + Math.floor(Math.random() * 1000), "Detected volatility flow anomaly", "Rebalancing portfolio edge weights", "Consensus threshold crossed for entry"];
-      setBlackboardMsgs(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString("en-US", { hour12: false }), topic: topics[Math.floor(Math.random() * topics.length)], content: contents[Math.floor(Math.random() * contents.length)], hash: "0x" + Math.random().toString(16).substring(2, 8).toUpperCase() }, ...prev].slice(0, 100));
-    }, 2500);
-    const hitlInterval = !AGENT_MOCKS ? null : setInterval(() => {
-      if (Math.random() > 0.6) { const actions = ["BIAS_OVERRIDE", "FORCE_LIQUIDATE", "NODE_RESTART", "HALT_SIGNAL"]; setHitlBuffer(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString("en-US", { hour12: false }), action: actions[Math.floor(Math.random() * actions.length)], user: "OP-1", target: `Swarm-Alpha-${Math.floor(Math.random() * 9)}`, status: "ACKNOWLEDGED" }, ...prev].slice(0, 50)); }
-    }, 4500);
-    setConsensusData([{ symbol: "BTC", agree: 88, agents: 5, action: "LONG", strength: "STRONG" }, { symbol: "ETH", agree: 65, agents: 4, action: "SHORT", strength: "WEAK" }, { symbol: "SOL", agree: 92, agents: 5, action: "LONG", strength: "STRONG" }]);
-    return () => { if (blackboardInterval) clearInterval(blackboardInterval); if (hitlInterval) clearInterval(hitlInterval); };
+    const bbHandler = (msg) => {
+      if (!msg) return;
+      setBlackboardMsgs(prev => [{
+        id: Date.now(),
+        time: new Date().toLocaleTimeString("en-US", { hour12: false }),
+        topic: msg.topic || msg.type || "SYSTEM",
+        content: msg.content || msg.message || JSON.stringify(msg).slice(0, 120),
+        hash: msg.hash || msg.council_decision_id?.slice(0, 8) || "",
+      }, ...prev].slice(0, 100));
+    };
+    const hitlHandler = (msg) => {
+      if (!msg || msg.type !== "hitl_approval_needed") return;
+      setHitlBuffer(prev => [{
+        id: Date.now(),
+        time: new Date().toLocaleTimeString("en-US", { hour12: false }),
+        action: msg.action || "APPROVAL_NEEDED",
+        user: msg.user || "SYSTEM",
+        target: msg.symbol || msg.target || "",
+        status: msg.status || "PENDING",
+      }, ...prev].slice(0, 50));
+    };
+    ws.subscribe("council", bbHandler);
+    ws.subscribe("signal", bbHandler);
+    ws.subscribe("order", hitlHandler);
+    setConsensusData([]);
+    return () => {
+      ws.unsubscribe("council", bbHandler);
+      ws.unsubscribe("signal", bbHandler);
+      ws.unsubscribe("order", hitlHandler);
+    };
   }, []);
   // --- Handlers ---
   const handleAgentToggle = async (agent) => {
@@ -603,8 +660,8 @@ export default function AgentCommandCenter() {
                     ))}
                   </tr></thead>
                   <tbody>{agents.map((a, i) => {
-                    const wr = a.win_rate ?? (Math.random() * 40 + 55);
-                    const pnl = a.pnl_30d ?? (Math.random() * 8000 - 2000);
+                    const wr = a.win_rate ?? 0;
+                    const pnl = a.pnl_30d ?? 0;
                         return (
                       <tr key={a.id || i} className="border-b border-gray-800/50 hover:bg-cyan-500/5 cursor-pointer transition-all"
                         onClick={() => setInspectedAgent(a)}>
@@ -615,12 +672,12 @@ export default function AgentCommandCenter() {
                         <td className="px-1">{a.team_id ? <TeamBadge teamId={a.team_id} /> : <span className="text-secondary">-</span>}</td>
                         <td className="px-1 text-secondary font-mono">{1024 + i * 31}</td>
                         <td className="px-1 text-white">{(a.cpu_pct ?? 0).toFixed(1)}</td>
-                        <td className="px-1 text-white">{(a.mem_mb ?? (Math.random() * 500 + 100)).toFixed(0)}</td>
+                        <td className="px-1 text-white">{(a.mem_mb ?? 0).toFixed(0)}</td>
                         <td className={`px-1 ${wr >= 65 ? 'text-emerald-400' : 'text-amber-400'}`}>{wr.toFixed(1)}%</td>
                         <td className={`px-1 ${pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>${pnl >= 0 ? '+' : ''}{pnl.toFixed(0)}</td>
-                        <td className="px-1 text-white">{a.signals_generated ?? Math.floor(Math.random() * 200 + 50)}</td>
-                        <td className="px-1 text-white">{(a.accuracy ?? (Math.random() * 30 + 65)).toFixed(1)}%</td>
-                        <td className="px-1 text-cyan-400">{(a.sharpe ?? (Math.random() * 3 + 0.5)).toFixed(2)}</td>
+                        <td className="px-1 text-white">{a.signals_generated ?? 0}</td>
+                        <td className="px-1 text-white">{(a.accuracy ?? 0).toFixed(1)}%</td>
+                        <td className="px-1 text-cyan-400">{(a.sharpe ?? 0).toFixed(2)}</td>
                         <td className="px-1 text-secondary">{a.uptime || '12h'}</td>
                         <td className="px-1 text-secondary">{a.last_signal || '-'}</td>
                         <td className="px-1">
@@ -851,7 +908,7 @@ export default function AgentCommandCenter() {
                         <td className="text-secondary py-1 font-mono">{from}</td>
                         {["ORCH", "SigGen", "Risk", "ML", "Sent", "Exec"].map((to, ci) => {
                           const isSelf = ri === ci;
-                          const health = isSelf ? 'self' : Math.random() > 0.15 ? 'healthy' : Math.random() > 0.5 ? 'degraded' : 'error';
+                          const health = isSelf ? 'self' : 'unknown';
                           const color = isSelf ? 'bg-gray-700' : health === 'healthy' ? 'bg-emerald-500' : health === 'degraded' ? 'bg-amber-500' : 'bg-red-500';
                           return (<td key={to} className="text-center px-1">
                             <div className={`w-4 h-4 mx-auto rounded-sm ${color} ${!isSelf ? 'cursor-pointer hover:scale-125 transition-transform' : ''}`}

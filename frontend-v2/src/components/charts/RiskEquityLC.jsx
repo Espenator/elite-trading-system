@@ -103,8 +103,8 @@ const RiskEquityLC = ({ data }) => {
   useEffect(() => {
     if (!seriesRef.current || !data) return;
     
-    // Default fallback mock data if none provided (for UI testing)
-    const chartData = data.length > 0 ? data : generateMockEquityData();
+    // Only render real data — no mock/synthetic data in production
+    const chartData = data.length > 0 ? data : [];
     
     seriesRef.current.setData(chartData);
     chartRef.current?.timeScale().fitContent();
@@ -127,29 +127,5 @@ const RiskEquityLC = ({ data }) => {
     </div>
   );
 };
-
-// Helper function to generate realistic looking equity curve for the UI
-function generateMockEquityData() {
-  const data = [];
-  let currentValue = 1000000; // $1M starting capital
-  const startDate = new Date();
-  startDate.setMonth(startDate.getMonth() - 6);
-
-  for (let i = 0; i < 180; i++) {
-    const time = new Date(startDate);
-    time.setDate(time.getDate() + i);
-    
-    // Add realistic drift and volatility
-    const drift = 500;
-    const vol = (Math.random() - 0.48) * 15000; 
-    currentValue += drift + vol;
-
-    data.push({
-      time: time.toISOString().split('T')[0],
-      value: currentValue
-    });
-  }
-  return data;
-}
 
 export default RiskEquityLC;

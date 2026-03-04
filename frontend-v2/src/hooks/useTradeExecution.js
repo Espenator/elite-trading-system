@@ -27,14 +27,14 @@ export default function useTradeExecution() {
 
   // ─── Order Form State ──────────────────────────────────
   const [orderForm, setOrderForm] = useState({
-    symbol: 'SPX',
-    strategy: 'Iron Condor',
-    callStrikes: { call: [4460, 4470], put: [4440, 4430] },
-    putStrikes: { call: [4440, 4450], put: [4440, 4430] },
-    quantity: 10,
+    symbol: '',
+    strategy: '',
+    callStrikes: { call: [0, 0], put: [0, 0] },
+    putStrikes: { call: [0, 0], put: [0, 0] },
+    quantity: 0,
     quantityType: 'Contracts',
-    limitPrice: 1.55,
-    stopPrice: 1.00,
+    limitPrice: 0,
+    stopPrice: 0,
   });
 
   const wsRef = useRef(null);
