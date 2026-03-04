@@ -96,11 +96,8 @@ jobs:
         working-directory: ./frontend-v2
         run: npx playwright install --with-deps chromium
 
-      - name: Start dev server & run E2E
+      - name: Run E2E tests
         working-directory: ./frontend-v2
-        run: |
-          npm run dev &
-          npx wait-on http://localhost:3000 --timeout 30000
-          npx playwright test --reporter=github
+        run: npx playwright test --reporter=github
         env:
           CI: true
