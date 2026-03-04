@@ -61,6 +61,35 @@ async def run_council(
 
     timestamp = datetime.now(timezone.utc).isoformat()
 
+    # Homeostasis — check system vitals and set mode
+    try:
+        from app.council.homeostasis import get_homeostasis
+        homeostasis = get_homeostasis()
+        vitals = await homeostasis.check_vitals()
+        mode = homeostasis.get_mode()
+        blackboard.metadata["homeostasis_mode"] = mode
+        blackboard.metadata["position_scale"] = homeostasis.get_position_scale()
+        context["homeostasis_mode"] = mode
+
+        if mode == "HALTED":
+            logger.warning("Homeostasis HALTED for %s — skipping council", symbol)
+            return DecisionPacket(
+                symbol=symbol,
+                timeframe=timeframe,
+                timestamp=timestamp,
+                votes=[],
+                final_direction="hold",
+                final_confidence=0.0,
+                vetoed=True,
+                veto_reasons=["Homeostasis: system in HALTED mode"],
+                risk_limits={},
+                execution_ready=False,
+                council_reasoning=f"HALTED by homeostasis: risk_score={vitals.get('risk_score', 0)}",
+                council_decision_id=blackboard.council_decision_id,
+            )
+    except Exception as e:
+        logger.debug("Homeostasis check failed (proceeding): %s", e)
+
     # Circuit breaker — brainstem reflexes run BEFORE the DAG
     try:
         from app.council.reflexes.circuit_breaker import circuit_breaker
