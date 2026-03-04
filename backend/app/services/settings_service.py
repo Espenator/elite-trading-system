@@ -206,6 +206,15 @@ DEFAULTS: Dict[str, Dict[str, Any]] = {
         "twoFactorEnabled": False,
         "sessionTimeoutMinutes": 30,
     },
+    "device": {
+        "deviceName": "",
+        "deviceRole": "full",
+        "backendPort": 8000,
+        "brainHost": "localhost",
+        "brainPort": 50051,
+        "peerDevices": [],
+        "tradingMode": "paper",
+    },
 }
 
 

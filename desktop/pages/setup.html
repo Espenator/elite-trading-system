@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Embodier Trader — Setup</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: #0a0e1a;
+    color: #e2e8f0;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  /* Title bar */
+  .titlebar {
+    -webkit-app-region: drag;
+    height: 36px;
+    background: #0d1117;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    border-bottom: 1px solid rgba(0, 217, 255, 0.15);
+    flex-shrink: 0;
+  }
+  .titlebar-text { font-size: 12px; color: rgba(255,255,255,0.5); }
+  .titlebar-close {
+    -webkit-app-region: no-drag;
+    background: none; border: none; color: rgba(255,255,255,0.3);
+    cursor: pointer; font-size: 18px; padding: 2px 8px; border-radius: 4px;
+  }
+  .titlebar-close:hover { background: #e53e3e; color: white; }
+
+  /* Content */
+  .content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 32px 40px;
+  }
+  .header {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+  .header h1 { font-size: 24px; font-weight: 700; color: #fff; }
+  .header p { font-size: 13px; color: rgba(0, 217, 255, 0.6); margin-top: 4px; }
+
+  /* Steps */
+  .step { display: none; }
+  .step.active { display: block; }
+  .step-title {
+    font-size: 16px; font-weight: 600; color: #00d9ff;
+    margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+  }
+  .step-title .num {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: rgba(0, 217, 255, 0.2); border: 1px solid rgba(0, 217, 255, 0.4);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; color: #00d9ff;
+  }
+
+  /* Device cards */
+  .device-cards {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    margin-bottom: 16px;
+  }
+  .device-card {
+    background: #111827;
+    border: 2px solid rgba(42, 52, 68, 0.5);
+    border-radius: 12px; padding: 20px; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .device-card:hover { border-color: rgba(0, 217, 255, 0.4); }
+  .device-card.selected { border-color: #00d9ff; background: rgba(0, 217, 255, 0.08); }
+  .device-card h3 { font-size: 15px; color: #fff; margin-bottom: 4px; }
+  .device-card p { font-size: 12px; color: rgba(255,255,255,0.4); }
+  .device-card .role { font-size: 11px; color: #00d9ff; margin-top: 8px; text-transform: uppercase; letter-spacing: 1px; }
+
+  /* Custom name input */
+  .custom-name {
+    margin-top: 12px; display: none;
+  }
+  .custom-name.show { display: block; }
+
+  /* Form fields */
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 12px; color: rgba(255,255,255,0.5); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .field input, .field select {
+    width: 100%; padding: 10px 12px; background: #1a2332;
+    border: 1px solid rgba(42, 52, 68, 0.8); border-radius: 8px;
+    color: #e2e8f0; font-size: 14px; outline: none;
+    transition: border-color 0.2s;
+  }
+  .field input:focus, .field select:focus { border-color: #00d9ff; }
+  .field input::placeholder { color: rgba(255,255,255,0.2); }
+  .field .hint { font-size: 11px; color: rgba(255,255,255,0.3); margin-top: 4px; }
+
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* Peer section */
+  .peer-toggle {
+    background: #111827; border: 1px solid rgba(42, 52, 68, 0.5);
+    border-radius: 10px; padding: 16px; margin-bottom: 16px;
+  }
+  .peer-toggle-header {
+    display: flex; align-items: center; gap: 10px; cursor: pointer;
+  }
+  .peer-toggle-header input[type="checkbox"] { accent-color: #00d9ff; }
+  .peer-toggle-header span { font-size: 14px; color: #fff; }
+  .peer-fields { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(42, 52, 68, 0.5); }
+  .peer-fields.show { display: block; }
+
+  /* API key section */
+  .api-section {
+    background: #111827; border: 1px solid rgba(42, 52, 68, 0.5);
+    border-radius: 10px; padding: 16px; margin-bottom: 12px;
+  }
+  .api-section h4 { font-size: 13px; color: #8b5cf6; margin-bottom: 10px; }
+  .api-section .optional { font-size: 10px; color: rgba(255,255,255,0.3); margin-left: 8px; }
+
+  /* Navigation */
+  .nav {
+    padding: 16px 40px;
+    display: flex; justify-content: space-between;
+    border-top: 1px solid rgba(42, 52, 68, 0.3);
+    flex-shrink: 0;
+  }
+  .btn {
+    padding: 10px 24px; border-radius: 8px; border: none;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-back {
+    background: transparent; color: rgba(255,255,255,0.5);
+    border: 1px solid rgba(42, 52, 68, 0.5);
+  }
+  .btn-back:hover { border-color: rgba(255,255,255,0.3); color: #fff; }
+  .btn-next {
+    background: linear-gradient(135deg, #00d9ff, #0099cc);
+    color: #000; font-weight: 700;
+  }
+  .btn-next:hover { filter: brightness(1.1); }
+  .btn-next:disabled { opacity: 0.3; cursor: not-allowed; }
+  .btn-finish {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: #fff; font-weight: 700;
+  }
+  .btn-finish:hover { filter: brightness(1.1); }
+
+  /* Progress dots */
+  .dots {
+    display: flex; gap: 6px; justify-content: center; margin-bottom: 24px;
+  }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: rgba(255,255,255,0.15); transition: all 0.3s;
+  }
+  .dot.active { background: #00d9ff; box-shadow: 0 0 8px rgba(0, 217, 255, 0.5); }
+  .dot.done { background: #10b981; }
+
+  /* System info */
+  .sys-info {
+    background: rgba(0, 217, 255, 0.05);
+    border: 1px solid rgba(0, 217, 255, 0.15);
+    border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;
+    font-family: 'SF Mono', 'Consolas', monospace;
+    font-size: 12px; color: rgba(0, 217, 255, 0.6);
+    line-height: 1.8;
+  }
+</style>
+</head>
+<body>
+
+<div class="titlebar">
+  <span class="titlebar-text">Embodier Trader — First Run Setup</span>
+  <button class="titlebar-close" onclick="window.close()">&times;</button>
+</div>
+
+<div class="content">
+  <div class="header">
+    <h1>Welcome to Embodier Trader</h1>
+    <p>Let's configure your trading station</p>
+  </div>
+
+  <div class="dots">
+    <div class="dot active" data-step="0"></div>
+    <div class="dot" data-step="1"></div>
+    <div class="dot" data-step="2"></div>
+    <div class="dot" data-step="3"></div>
+  </div>
+
+  <!-- Step 1: Device Identity -->
+  <div class="step active" data-step="0">
+    <div class="step-title"><span class="num">1</span> Name This Device</div>
+
+    <div class="sys-info" id="sysInfo">Detecting system...</div>
+
+    <div class="device-cards">
+      <div class="device-card" data-device="ESPENMAIN" onclick="selectDevice(this)">
+        <h3>ESPENMAIN</h3>
+        <p>Primary Control Station</p>
+        <div class="role">Primary Controller</div>
+      </div>
+      <div class="device-card" data-device="Profit Trader" onclick="selectDevice(this)">
+        <h3>Profit Trader</h3>
+        <p>Secondary Trading Node</p>
+        <div class="role">Secondary Node</div>
+      </div>
+    </div>
+
+    <div class="custom-name" id="customNameSection">
+      <div class="field">
+        <label>Custom Device Name</label>
+        <input type="text" id="customDeviceName" placeholder="e.g., MacBook Trading">
+      </div>
+    </div>
+
+    <div class="device-card" style="grid-column: span 1; max-width: 200px;" data-device="custom" onclick="selectDevice(this)">
+      <h3>Custom</h3>
+      <p>Enter a custom name</p>
+      <div class="role">Any Role</div>
+    </div>
+  </div>
+
+  <!-- Step 2: Network & Peers -->
+  <div class="step" data-step="1">
+    <div class="step-title"><span class="num">2</span> Network Setup</div>
+
+    <div class="field">
+      <label>Backend Port</label>
+      <input type="number" id="backendPort" value="8000" min="1024" max="65535">
+      <div class="hint">Default: 8000. Change if running multiple instances.</div>
+    </div>
+
+    <div class="peer-toggle">
+      <div class="peer-toggle-header" onclick="togglePeer()">
+        <input type="checkbox" id="hasPeer">
+        <span>I have another Embodier device on my network</span>
+      </div>
+      <div class="peer-fields" id="peerFields">
+        <div class="field">
+          <label>Peer Device Name</label>
+          <input type="text" id="peerName" placeholder="e.g., Profit Trader">
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Peer IP Address</label>
+            <input type="text" id="peerIp" placeholder="192.168.1.x">
+          </div>
+          <div class="field">
+            <label>Peer Port</label>
+            <input type="number" id="peerPort" value="8000">
+          </div>
+        </div>
+        <div class="field">
+          <label>Peer Role</label>
+          <select id="peerRole">
+            <option value="primary">Primary (ESPENMAIN)</option>
+            <option value="secondary">Secondary (Profit Trader)</option>
+            <option value="brain-only">Brain Service Only</option>
+            <option value="scanner-only">Scanner Only</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Brain Service Location</label>
+      <select id="brainLocation">
+        <option value="localhost">Local (this machine)</option>
+        <option value="peer">Peer Device</option>
+        <option value="disabled">Disabled</option>
+      </select>
+      <div class="hint">LLM inference via Ollama. Runs well on GPUs or Apple Silicon.</div>
+    </div>
+  </div>
+
+  <!-- Step 3: API Keys -->
+  <div class="step" data-step="2">
+    <div class="step-title"><span class="num">3</span> API Keys</div>
+
+    <div class="api-section">
+      <h4>Alpaca Trading <span class="optional">(Required for live/paper trading)</span></h4>
+      <div class="field">
+        <label>API Key</label>
+        <input type="text" id="alpacaKey" placeholder="PK...">
+      </div>
+      <div class="field">
+        <label>Secret Key</label>
+        <input type="password" id="alpacaSecret" placeholder="Your Alpaca secret key">
+      </div>
+      <div class="field">
+        <label>Environment</label>
+        <select id="alpacaEnv">
+          <option value="https://paper-api.alpaca.markets">Paper Trading (Recommended)</option>
+          <option value="https://api.alpaca.markets">Live Trading</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="api-section">
+      <h4>Data Sources <span class="optional">(All optional — enhances signals)</span></h4>
+      <div class="field-row">
+        <div class="field">
+          <label>Finviz Email</label>
+          <input type="text" id="finvizEmail" placeholder="your@email.com">
+        </div>
+        <div class="field">
+          <label>FRED API Key</label>
+          <input type="text" id="fredKey" placeholder="FRED economic data">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>News API Key</label>
+          <input type="text" id="newsApiKey" placeholder="newsapi.org">
+        </div>
+        <div class="field">
+          <label>Unusual Whales Token</label>
+          <input type="text" id="uwToken" placeholder="Options flow data">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 4: Summary -->
+  <div class="step" data-step="3">
+    <div class="step-title"><span class="num">4</span> Ready to Launch</div>
+
+    <div class="sys-info" id="summary" style="line-height: 2.2;">
+      Loading summary...
+    </div>
+
+    <div style="text-align: center; margin-top: 20px; color: rgba(255,255,255,0.4); font-size: 13px;">
+      You can change all settings later from Settings &rarr; Devices & Network
+    </div>
+  </div>
+</div>
+
+<div class="nav">
+  <button class="btn btn-back" id="btnBack" onclick="prevStep()" style="visibility:hidden">Back</button>
+  <button class="btn btn-next" id="btnNext" onclick="nextStep()">Next</button>
+</div>
+
+<script>
+  let currentStep = 0;
+  const totalSteps = 4;
+  let selectedDevice = null;
+
+  // Detect system info on load
+  (async () => {
+    if (window.embodier) {
+      const info = await window.embodier.getSystemInfo();
+      document.getElementById('sysInfo').innerHTML =
+        `${info.hostname} &bull; ${info.platform} ${info.arch} &bull; ${info.cpus} cores &bull; ${info.totalMemoryGB}GB RAM` +
+        (info.isAppleSilicon ? ' &bull; Apple Silicon' : '') +
+        `<br>IP: ${info.networkAddresses.map(a => a.address).join(', ') || 'detecting...'}`;
+    }
+  })();
+
+  function selectDevice(el) {
+    document.querySelectorAll('.device-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedDevice = el.dataset.device;
+
+    const customSection = document.getElementById('customNameSection');
+    if (selectedDevice === 'custom') {
+      customSection.classList.add('show');
+      // Auto-suggest peer name
+      document.getElementById('peerName').value = 'ESPENMAIN';
+    } else {
+      customSection.classList.remove('show');
+      // Auto-fill peer info
+      if (selectedDevice === 'ESPENMAIN') {
+        document.getElementById('peerName').value = 'Profit Trader';
+        document.getElementById('peerRole').value = 'secondary';
+      } else {
+        document.getElementById('peerName').value = 'ESPENMAIN';
+        document.getElementById('peerRole').value = 'primary';
+      }
+    }
+  }
+
+  function togglePeer() {
+    const cb = document.getElementById('hasPeer');
+    cb.checked = !cb.checked;
+    document.getElementById('peerFields').classList.toggle('show', cb.checked);
+  }
+
+  function getDeviceName() {
+    if (selectedDevice === 'custom') {
+      return document.getElementById('customDeviceName').value || 'My Trading PC';
+    }
+    return selectedDevice || 'My Trading PC';
+  }
+
+  function getDeviceRole() {
+    if (selectedDevice === 'ESPENMAIN') return 'primary';
+    if (selectedDevice === 'Profit Trader') return 'secondary';
+    return 'full';
+  }
+
+  function gatherConfig() {
+    const hasPeer = document.getElementById('hasPeer').checked;
+    const peerDevices = [];
+    if (hasPeer) {
+      peerDevices.push({
+        id: document.getElementById('peerName').value.replace(/\s/g, '-').toLowerCase(),
+        name: document.getElementById('peerName').value,
+        address: document.getElementById('peerIp').value,
+        port: parseInt(document.getElementById('peerPort').value) || 8000,
+        role: document.getElementById('peerRole').value,
+      });
+    }
+
+    const brainLoc = document.getElementById('brainLocation').value;
+    let brainHost = 'localhost';
+    let brainPort = 50051;
+    if (brainLoc === 'peer' && peerDevices.length) {
+      brainHost = peerDevices[0].address;
+    } else if (brainLoc === 'disabled') {
+      brainHost = 'disabled';
+    }
+
+    return {
+      deviceName: getDeviceName(),
+      deviceRole: getDeviceRole(),
+      backendPort: parseInt(document.getElementById('backendPort').value) || 8000,
+      brainHost,
+      brainPort,
+      tradingMode: document.getElementById('alpacaEnv').value.includes('paper') ? 'paper' : 'live',
+      peerDevices,
+      apiKeys: {
+        alpacaApiKey: document.getElementById('alpacaKey').value,
+        alpacaSecretKey: document.getElementById('alpacaSecret').value,
+        alpacaBaseUrl: document.getElementById('alpacaEnv').value,
+        finvizEmail: document.getElementById('finvizEmail').value,
+        fredApiKey: document.getElementById('fredKey').value,
+        newsApiKey: document.getElementById('newsApiKey').value,
+        unusualWhalesToken: document.getElementById('uwToken').value,
+      },
+    };
+  }
+
+  function updateSummary() {
+    const config = gatherConfig();
+    const hasAlpaca = config.apiKeys.alpacaApiKey ? 'Configured' : 'Not set (will use mock data)';
+    const peerLine = config.peerDevices.length
+      ? `Peer: ${config.peerDevices[0].name} (${config.peerDevices[0].address || 'no IP'})`
+      : 'No peer devices';
+
+    document.getElementById('summary').innerHTML = [
+      `<strong>Device:</strong> ${config.deviceName}`,
+      `<strong>Role:</strong> ${config.deviceRole}`,
+      `<strong>Backend Port:</strong> ${config.backendPort}`,
+      `<strong>Trading Mode:</strong> ${config.tradingMode}`,
+      `<strong>Brain Service:</strong> ${config.brainHost === 'disabled' ? 'Disabled' : config.brainHost}`,
+      `<strong>Network:</strong> ${peerLine}`,
+      `<strong>Alpaca:</strong> ${hasAlpaca}`,
+      `<strong>Data Sources:</strong> ${[config.apiKeys.finvizEmail && 'Finviz', config.apiKeys.fredApiKey && 'FRED', config.apiKeys.newsApiKey && 'News API', config.apiKeys.unusualWhalesToken && 'UW'].filter(Boolean).join(', ') || 'None (will use defaults)'}`,
+    ].join('<br>');
+  }
+
+  function updateDots() {
+    document.querySelectorAll('.dot').forEach((dot, i) => {
+      dot.classList.remove('active', 'done');
+      if (i === currentStep) dot.classList.add('active');
+      else if (i < currentStep) dot.classList.add('done');
+    });
+  }
+
+  function showStep(n) {
+    document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+    document.querySelector(`.step[data-step="${n}"]`).classList.add('active');
+
+    document.getElementById('btnBack').style.visibility = n === 0 ? 'hidden' : 'visible';
+
+    const btnNext = document.getElementById('btnNext');
+    if (n === totalSteps - 1) {
+      btnNext.textContent = 'Launch Embodier Trader';
+      btnNext.className = 'btn btn-finish';
+    } else {
+      btnNext.textContent = 'Next';
+      btnNext.className = 'btn btn-next';
+    }
+
+    if (n === totalSteps - 1) updateSummary();
+    updateDots();
+  }
+
+  function nextStep() {
+    if (currentStep === 0 && !selectedDevice) {
+      // Auto-select first card if none selected
+      selectDevice(document.querySelector('.device-card'));
+    }
+
+    if (currentStep < totalSteps - 1) {
+      currentStep++;
+      showStep(currentStep);
+    } else {
+      // Finish — send config to main process
+      const config = gatherConfig();
+      if (window.embodier) {
+        // Use IPC via preload
+        const { ipcRenderer } = require('electron');
+        ipcRenderer.send('setup-complete', config);
+      } else {
+        // Fallback for testing outside Electron
+        console.log('Setup complete:', config);
+        alert('Setup complete! Config logged to console.');
+      }
+    }
+  }
+
+  function prevStep() {
+    if (currentStep > 0) {
+      currentStep--;
+      showStep(currentStep);
+    }
+  }
+</script>
+</body>
+</html>

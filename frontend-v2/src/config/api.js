@@ -122,6 +122,9 @@ const API_CONFIG = {
     featuresLatest: "/features/latest", // GET: latest feature vector for symbol
     featuresCompute: "/features/compute", // POST: compute + persist feature vector
 
+    // ---- DEVICE & SYSTEM ----
+    deviceInfo: "/system/device", // GET: device identity for multi-PC setups
+
     // ---- FLYWHEEL SCHEDULER ----
     flywheelScheduler: "/flywheel/scheduler", // GET: scheduler status + next runs
 
