@@ -16,11 +16,11 @@ class UnusualWhalesService:
     def __init__(self):
         self.base_url = (
             getattr(settings, "UNUSUAL_WHALES_BASE_URL", None)
-            or "https://api.unusualwhales.com"
+            or "https://api.unusualwhales.com/api"
         ).rstrip("/")
         self.api_key = (getattr(settings, "UNUSUAL_WHALES_API_KEY", None) or "").strip()
         flow_path = (getattr(settings, "UNUSUAL_WHALES_FLOW_PATH", None) or "").strip()
-        self.flow_path = flow_path or "/api/option-trades/flow-alerts"
+        self.flow_path = flow_path or "/option-trades/flow-alerts"
         if not self.flow_path.startswith("/"):
             self.flow_path = "/" + self.flow_path
 

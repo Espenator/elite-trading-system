@@ -436,7 +436,8 @@ class AlpacaService:
         """
         if not self._is_configured():
             return None
-        data_url = "https://data.alpaca.markets/v2"
+        _du = getattr(settings, "ALPACA_DATA_URL", "https://data.alpaca.markets").rstrip("/")
+        data_url = _du if _du.endswith("/v2") else _du + "/v2"
         url = f"{data_url}/stocks/{symbol.upper()}/bars"
         params = {"timeframe": timeframe, "limit": str(limit)}
         if start:

@@ -54,9 +54,9 @@ class Settings(BaseSettings):
     FINVIZ_API_KEY: str = ""
     FINVIZ_BASE_URL: str = "https://elite.finviz.com"
     FINVIZ_QUOTE_TIMEFRAME: str = "d"
-    FINVIZ_SCREENER_FILTERS: str = "sh_avgvol_o500,sh_price_u500"
-    FINVIZ_SCREENER_FILTER_TYPE: str = "all"
-    FINVIZ_SCREENER_VERSION: str = "2"
+    FINVIZ_SCREENER_FILTERS: str = "cap_midover,sh_avgvol_o500,sh_price_o10"
+    FINVIZ_SCREENER_FILTER_TYPE: str = "4"
+    FINVIZ_SCREENER_VERSION: str = "111"
 
     # ── FRED ────────────────────────────────────────────────
     FRED_API_KEY: str = ""
@@ -66,8 +66,10 @@ class Settings(BaseSettings):
     SEC_EDGAR_USER_AGENT: str = ""
 
     # ── Unusual Whales ──────────────────────────────────────
+    # Accepts both UNUSUAL_WHALES_API_KEY and UNUSUALWHALES_API_KEY from env
     UNUSUAL_WHALES_API_KEY: str = ""
     UNUSUAL_WHALES_BASE_URL: str = "https://api.unusualwhales.com/api"
+    UNUSUALWHALES_API_KEY: str = ""  # OpenClaw compat alias
 
     # ── StockGeist (Sentiment) ──────────────────────────────
     STOCKGEIST_API_KEY: str = ""
@@ -159,6 +161,12 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# Unify Unusual Whales env var names (UNUSUAL_WHALES_API_KEY <-> UNUSUALWHALES_API_KEY)
+if settings.UNUSUALWHALES_API_KEY and not settings.UNUSUAL_WHALES_API_KEY:
+    settings.UNUSUAL_WHALES_API_KEY = settings.UNUSUALWHALES_API_KEY
+elif settings.UNUSUAL_WHALES_API_KEY and not settings.UNUSUALWHALES_API_KEY:
+    settings.UNUSUALWHALES_API_KEY = settings.UNUSUAL_WHALES_API_KEY
 
 # Production safety: validate critical keys when in live trading mode
 if settings.TRADING_MODE.lower() == "live":

@@ -8,8 +8,9 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# SEC requires a descriptive User-Agent (company name + contact)
-DEFAULT_USER_AGENT = os.getenv("SEC_EDGAR_USER_AGENT", "EliteTradingSystem/1.0")
+# SEC requires a descriptive User-Agent with contact email (company name + email)
+# See: https://www.sec.gov/os/accessing-edgar-data
+DEFAULT_USER_AGENT = os.getenv("SEC_EDGAR_USER_AGENT", "EliteTradingSystem/1.0 admin@elite-trading.dev")
 
 
 class SecEdgarService:

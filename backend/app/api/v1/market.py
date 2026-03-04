@@ -45,6 +45,7 @@ INDEX_SYMBOLS = [
 
 # Concurrency limit for Finviz requests (avoid 429 while still being fast)
 _FINVIZ_SEMAPHORE = asyncio.Semaphore(4)
+_DELAY_BETWEEN_REQUESTS_SEC = 0.5  # Rate limit padding between sequential requests
 
 
 def _parse_float(val: Any, default: float = 0.0) -> float:

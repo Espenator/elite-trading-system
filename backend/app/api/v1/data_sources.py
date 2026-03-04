@@ -177,18 +177,18 @@ DEFAULT_SOURCES: Dict[str, Dict[str, Any]] = {
         "category": "options_flow",
         "base_url": "https://api.unusualwhales.com/api",
         "required_keys": ["api_key"],
-        "test_endpoint": "/v1/flow/live",
+        "test_endpoint": "/market/overview",
         "status": "active",
         "enabled": True,
     },
     "finviz": {
         "id": "finviz",
-        "name": "Finviz",
-        "type": "scraper",
+        "name": "Finviz Elite",
+        "type": "rest",
         "category": "market",
-        "base_url": "https://finviz.com",
+        "base_url": "https://elite.finviz.com",
         "required_keys": ["api_key"],
-        "test_endpoint": "/screener.ashx?v=111",
+        "test_endpoint": "/export.ashx?v=111",
         "status": "active",
         "enabled": True,
     },
@@ -588,7 +588,7 @@ def _build_params(source_id: str, creds: Dict[str, str]) -> Dict[str, str]:
     elif source_id == "youtube":
         params["key"] = creds.get("api_key", "")
     elif source_id == "finviz":
-        params["apikey"] = creds.get("api_key", "")
+        params["auth"] = creds.get("api_key", "")
     return params
 
 

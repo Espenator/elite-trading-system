@@ -30,7 +30,8 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 # Alpaca Market Data API (separate from trading API)
-ALPACA_DATA_BASE_URL = "https://data.alpaca.markets/v2"
+_alpaca_data = getattr(settings, "ALPACA_DATA_URL", "https://data.alpaca.markets").rstrip("/")
+ALPACA_DATA_BASE_URL = _alpaca_data if _alpaca_data.endswith("/v2") else _alpaca_data + "/v2"
 
 # FRED series IDs for macro features
 FRED_SERIES = {

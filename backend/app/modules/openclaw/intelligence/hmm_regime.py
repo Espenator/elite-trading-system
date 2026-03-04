@@ -125,7 +125,8 @@ def _fetch_spy_data(days=HMM_LOOKBACK_DAYS):
 
         end = datetime.utcnow()
         start = end - timedelta(days=min(days, 730))
-        url = "https://data.alpaca.markets/v2/stocks/SPY/bars"
+        data_url = getattr(settings, "ALPACA_DATA_URL", "https://data.alpaca.markets").rstrip("/")
+        url = f"{data_url}/v2/stocks/SPY/bars" if "/v2" not in data_url else f"{data_url}/stocks/SPY/bars"
         params = {
             "start": start.strftime("%Y-%m-%dT00:00:00Z"),
             "end": end.strftime("%Y-%m-%dT00:00:00Z"),
