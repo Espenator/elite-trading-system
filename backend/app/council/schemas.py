@@ -15,6 +15,7 @@ class AgentVote:
     veto_reason: str = ""
     weight: float = 1.0
     metadata: Dict[str, Any] = field(default_factory=dict)
+    blackboard_ref: str = ""  # council_decision_id linking vote to blackboard
 
     def __post_init__(self):
         if self.direction not in {"buy", "sell", "hold"}:
@@ -25,7 +26,7 @@ class AgentVote:
             raise ValueError(f"weight must be > 0, got {self.weight}")
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        d = {
             "agent_name": self.agent_name,
             "direction": self.direction,
             "confidence": self.confidence,
@@ -35,6 +36,9 @@ class AgentVote:
             "weight": self.weight,
             "metadata": self.metadata,
         }
+        if self.blackboard_ref:
+            d["blackboard_ref"] = self.blackboard_ref
+        return d
 
 
 @dataclass
@@ -52,9 +56,10 @@ class DecisionPacket:
     risk_limits: Dict[str, Any]
     execution_ready: bool
     council_reasoning: str
+    council_decision_id: str = ""  # links to BlackboardState
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        d = {
             "symbol": self.symbol,
             "timeframe": self.timeframe,
             "timestamp": self.timestamp,
@@ -68,3 +73,6 @@ class DecisionPacket:
             "council_reasoning": self.council_reasoning,
             "vote_count": len(self.votes),
         }
+        if self.council_decision_id:
+            d["council_decision_id"] = self.council_decision_id
+        return d

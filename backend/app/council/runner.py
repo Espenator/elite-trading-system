@@ -7,22 +7,31 @@ DAG execution order (parallel within stages):
   Stage 4: [risk, execution]
   Stage 5: [critic]
   Stage 6: arbiter (deterministic)
+
+Uses BlackboardState as shared context passed through all stages.
 """
 import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from app.council.blackboard import BlackboardState
 from app.council.schemas import AgentVote, DecisionPacket
 from app.council.arbiter import arbitrate
 
 logger = logging.getLogger(__name__)
 
 
-async def _run_agent(module, symbol, timeframe, features, context) -> AgentVote:
-    """Run a single agent with error handling."""
+async def _run_agent(module, symbol, timeframe, features, context, blackboard: BlackboardState) -> AgentVote:
+    """Run a single agent with error handling.
+
+    Agents receive the legacy (symbol, timeframe, features, context) signature
+    for backward compatibility. The blackboard is available via context["blackboard"].
+    """
     try:
-        return await module.evaluate(symbol, timeframe, features, context)
+        vote = await module.evaluate(symbol, timeframe, features, context)
+        vote.blackboard_ref = blackboard.council_decision_id
+        return vote
     except Exception as e:
         name = getattr(module, "NAME", module.__name__)
         logger.exception("Agent %s failed: %s", name, e)
@@ -31,6 +40,7 @@ async def _run_agent(module, symbol, timeframe, features, context) -> AgentVote:
             direction="hold",
             confidence=0.0,
             reasoning=f"Agent error: {e}",
+            blackboard_ref=blackboard.council_decision_id,
         )
 
 
@@ -64,6 +74,13 @@ async def run_council(
             logger.warning("Feature aggregation failed for %s: %s", symbol, e)
             features = {"features": {}, "symbol": symbol}
 
+    # Create BlackboardState — single source of truth for this evaluation
+    blackboard = BlackboardState(
+        symbol=symbol,
+        raw_features=features,
+    )
+    context["blackboard"] = blackboard
+
     timestamp = datetime.now(timezone.utc).isoformat()
 
     # Import all agents
@@ -82,42 +99,54 @@ async def run_council(
 
     # Stage 1: Perception (parallel)
     stage1 = await asyncio.gather(
-        _run_agent(market_perception_agent, symbol, timeframe, features, context),
-        _run_agent(flow_perception_agent, symbol, timeframe, features, context),
-        _run_agent(regime_agent, symbol, timeframe, features, context),
+        _run_agent(market_perception_agent, symbol, timeframe, features, context, blackboard),
+        _run_agent(flow_perception_agent, symbol, timeframe, features, context, blackboard),
+        _run_agent(regime_agent, symbol, timeframe, features, context, blackboard),
     )
     all_votes.extend(stage1)
     context["stage1"] = {v.agent_name: v.to_dict() for v in stage1}
+    for v in stage1:
+        blackboard.perceptions[v.agent_name] = v.to_dict()
 
     # Stage 2: Hypothesis
-    stage2 = await _run_agent(hypothesis_agent, symbol, timeframe, features, context)
+    stage2 = await _run_agent(hypothesis_agent, symbol, timeframe, features, context, blackboard)
     all_votes.append(stage2)
     context["stage2"] = {stage2.agent_name: stage2.to_dict()}
+    blackboard.hypothesis = stage2.to_dict()
 
     # Stage 3: Strategy
-    stage3 = await _run_agent(strategy_agent, symbol, timeframe, features, context)
+    stage3 = await _run_agent(strategy_agent, symbol, timeframe, features, context, blackboard)
     all_votes.append(stage3)
     context["stage3"] = {stage3.agent_name: stage3.to_dict()}
+    blackboard.strategy = stage3.to_dict()
 
     # Stage 4: Risk + Execution (parallel)
     stage4 = await asyncio.gather(
-        _run_agent(risk_agent, symbol, timeframe, features, context),
-        _run_agent(execution_agent, symbol, timeframe, features, context),
+        _run_agent(risk_agent, symbol, timeframe, features, context, blackboard),
+        _run_agent(execution_agent, symbol, timeframe, features, context, blackboard),
     )
     all_votes.extend(stage4)
     context["stage4"] = {v.agent_name: v.to_dict() for v in stage4}
+    for v in stage4:
+        if v.agent_name == "risk":
+            blackboard.risk_assessment = v.to_dict()
+        elif v.agent_name == "execution":
+            blackboard.execution_plan = v.to_dict()
 
     # Stage 5: Critic
-    stage5 = await _run_agent(critic_agent, symbol, timeframe, features, context)
+    stage5 = await _run_agent(critic_agent, symbol, timeframe, features, context, blackboard)
     all_votes.append(stage5)
     context["stage5"] = {stage5.agent_name: stage5.to_dict()}
+    blackboard.critic_review = stage5.to_dict()
 
     # Stage 6: Arbiter
     decision = arbitrate(symbol, timeframe, timestamp, all_votes)
+    decision.council_decision_id = blackboard.council_decision_id
 
     logger.info(
-        "Council decision for %s: %s @ %.0f%% confidence (vetoed=%s, agents=%d)",
+        "Council decision for %s [%s]: %s @ %.0f%% confidence (vetoed=%s, agents=%d)",
         symbol,
+        blackboard.council_decision_id[:8],
         decision.final_direction.upper(),
         decision.final_confidence * 100,
         decision.vetoed,
