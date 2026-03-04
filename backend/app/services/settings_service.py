@@ -344,21 +344,138 @@ def validate_api_key(provider: str, api_key: str, secret_key: str = "") -> Dict[
         except Exception as e:
             return {"valid": False, "provider": provider, "message": str(e)}
 
+    elif provider == "news_api":
+        try:
+            import httpx
+            resp = httpx.get(
+                f"https://newsapi.org/v2/top-headlines?country=us&pageSize=1&apiKey={api_key}",
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                return {"valid": True, "provider": provider, "message": "News API connected"}
+            return {"valid": False, "provider": provider, "message": f"HTTP {resp.status_code}"}
+        except Exception as e:
+            return {"valid": False, "provider": provider, "message": str(e)}
+
+    elif provider == "discord":
+        try:
+            import httpx
+            resp = httpx.get(
+                "https://discord.com/api/v10/users/@me",
+                headers={"Authorization": f"Bot {api_key}"},
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                user = resp.json()
+                return {"valid": True, "provider": provider, "message": f"Discord bot: {user.get('username', 'OK')}"}
+            return {"valid": False, "provider": provider, "message": f"HTTP {resp.status_code}"}
+        except Exception as e:
+            return {"valid": False, "provider": provider, "message": str(e)}
+
+    elif provider == "youtube":
+        try:
+            import httpx
+            resp = httpx.get(
+                f"https://www.googleapis.com/youtube/v3/search?part=snippet&q=stock+market&maxResults=1&key={api_key}",
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                return {"valid": True, "provider": provider, "message": "YouTube API connected"}
+            return {"valid": False, "provider": provider, "message": f"HTTP {resp.status_code}"}
+        except Exception as e:
+            return {"valid": False, "provider": provider, "message": str(e)}
+
+    elif provider == "stockgeist":
+        try:
+            import httpx
+            resp = httpx.get(
+                "https://api.stockgeist.ai/v1/health",
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                return {"valid": True, "provider": provider, "message": "StockGeist connected"}
+            return {"valid": False, "provider": provider, "message": f"HTTP {resp.status_code}"}
+        except Exception as e:
+            return {"valid": False, "provider": provider, "message": str(e)}
+
+    elif provider == "resend":
+        try:
+            import httpx
+            resp = httpx.get(
+                "https://api.resend.com/domains",
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                return {"valid": True, "provider": provider, "message": "Resend API connected"}
+            return {"valid": False, "provider": provider, "message": f"HTTP {resp.status_code}"}
+        except Exception as e:
+            return {"valid": False, "provider": provider, "message": str(e)}
+
+    elif provider == "perplexity":
+        try:
+            import httpx
+            resp = httpx.post(
+                "https://api.perplexity.ai/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={"model": "sonar", "messages": [{"role": "user", "content": "ping"}], "max_tokens": 5},
+                timeout=15,
+            )
+            if resp.status_code == 200:
+                return {"valid": True, "provider": provider, "message": "Perplexity API connected"}
+            return {"valid": False, "provider": provider, "message": f"HTTP {resp.status_code}"}
+        except Exception as e:
+            return {"valid": False, "provider": provider, "message": str(e)}
+
+    elif provider == "anthropic":
+        try:
+            import httpx
+            resp = httpx.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01",
+                    "Content-Type": "application/json",
+                },
+                json={"model": "claude-haiku-4-5-20251001", "max_tokens": 5, "messages": [{"role": "user", "content": "ping"}]},
+                timeout=15,
+            )
+            if resp.status_code == 200:
+                return {"valid": True, "provider": provider, "message": "Anthropic API connected"}
+            return {"valid": False, "provider": provider, "message": f"HTTP {resp.status_code}"}
+        except Exception as e:
+            return {"valid": False, "provider": provider, "message": str(e)}
+
     return {"valid": False, "provider": provider, "message": f"Unknown provider: {provider}"}
 
 
 def test_connection(source: str) -> Dict[str, Any]:
     """Test connectivity to a data source using stored keys."""
-    settings = get_settings_by_category("dataSources")
+    ds_settings = get_settings_by_category("dataSources")
 
     if source == "alpaca":
-        return validate_api_key("alpaca", settings["alpacaApiKey"], settings["alpacaSecretKey"])
+        return validate_api_key("alpaca", ds_settings.get("alpacaApiKey", ""), ds_settings.get("alpacaSecretKey", ""))
     elif source == "unusual_whales":
-        return validate_api_key("unusual_whales", settings["unusualWhalesApiKey"])
+        return validate_api_key("unusual_whales", ds_settings.get("unusualWhalesApiKey", ""))
     elif source == "finviz":
-        return validate_api_key("finviz", settings["finvizApiKey"])
+        return validate_api_key("finviz", ds_settings.get("finvizApiKey", ""))
     elif source == "fred":
-        return validate_api_key("fred", settings["fredApiKey"])
+        return validate_api_key("fred", ds_settings.get("fredApiKey", ""))
+    elif source == "news_api":
+        return validate_api_key("news_api", ds_settings.get("newsApiKey", ""))
+    elif source == "discord":
+        return validate_api_key("discord", ds_settings.get("discordBotToken", ""))
+    elif source == "youtube":
+        return validate_api_key("youtube", ds_settings.get("youtubeApiKey", ""))
+    elif source == "stockgeist":
+        return validate_api_key("stockgeist", ds_settings.get("stockgeistApiKey", ""))
+    elif source == "resend":
+        return validate_api_key("resend", ds_settings.get("resendApiKey", ""))
+    elif source == "perplexity":
+        return validate_api_key("perplexity", ds_settings.get("perplexityApiKey", ""))
+    elif source == "anthropic":
+        return validate_api_key("anthropic", ds_settings.get("anthropicApiKey", ""))
     elif source == "ollama":
         try:
             import httpx

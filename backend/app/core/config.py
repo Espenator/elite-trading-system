@@ -89,6 +89,16 @@ class Settings(BaseSettings):
 
     # ── X / Twitter ─────────────────────────────────────────
     X_OAUTH: str = ""
+    X_OAUTH2_CLIENT_ID: str = ""
+    X_OAUTH2_CLIENT_SECRET: str = ""
+    X_BEARER_TOKEN: str = ""
+
+    # ── Reddit ──────────────────────────────────────────────
+    REDDIT_CLIENT_ID: str = ""
+    REDDIT_CLIENT_SECRET: str = ""
+
+    # ── Benzinga ───────────────────────────────────────────
+    BENZINGA_API_KEY: str = ""
 
     # ── Kelly Criterion Position Sizing ─────────────────────
     KELLY_DEFAULT_WIN_RATE: float = 0.55
