@@ -1,4 +1,4 @@
-"""Council API — evaluate symbols through the 8-agent debate council.
+"""Council API — evaluate symbols through the 11-agent debate council.
 
 POST /api/v1/council/evaluate     → full DecisionPacket
 GET  /api/v1/council/status       → council configuration
@@ -29,7 +29,7 @@ class CouncilEvalRequest(BaseModel):
 
 @router.post("/evaluate", dependencies=[Depends(require_auth)])
 async def evaluate_symbol(req: CouncilEvalRequest):
-    """Run the 8-agent council on a symbol and return DecisionPacket."""
+    """Run the 11-agent council on a symbol and return DecisionPacket."""
     global _latest_decision
     try:
         from app.council.runner import run_council
@@ -68,6 +68,9 @@ async def council_status():
             "market_perception",
             "flow_perception",
             "regime",
+            "social_perception",
+            "news_catalyst",
+            "youtube_knowledge",
             "hypothesis",
             "strategy",
             "risk",
@@ -75,7 +78,7 @@ async def council_status():
             "critic",
         ],
         "dag_stages": [
-            ["market_perception", "flow_perception", "regime"],
+            ["market_perception", "flow_perception", "regime", "social_perception", "news_catalyst", "youtube_knowledge"],
             ["hypothesis"],
             ["strategy"],
             ["risk", "execution"],
