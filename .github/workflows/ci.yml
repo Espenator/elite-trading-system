@@ -89,7 +89,7 @@ jobs:
           cache-dependency-path: frontend-v2/package-lock.json
       - name: Install deps
         working-directory: ./frontend-v2
-        run: npm ci
+              run: npm install
       - name: Install Playwright browsers
         working-directory: ./frontend-v2
         run: npx playwright install --with-deps chromium
