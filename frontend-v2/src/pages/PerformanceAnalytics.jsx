@@ -99,7 +99,7 @@ const PerformanceAnalytics = () => {
   const { data: tradesData } = useApi("performance", { endpoint: "/performance/trades" });
   const { data: riskMetrics } = useApi("performance", { endpoint: "/performance/risk-metrics" });
   const { data: flywheel } = useApi("flywheel");
-  const { data: agents } = useApi("agents", { endpoint: "/agents/consensus" });
+  const { data: agents } = useApi("agents", { endpoint: "/consensus" });
   const { data: riskStatus } = useApi("risk");
   const { data: strategyData } = useApi("strategy");
 

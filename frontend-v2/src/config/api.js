@@ -135,12 +135,17 @@ const API_CONFIG = {
  * so 'backtest/results' becomes '/backtest/results' not 'backtest/results'.
  */
 export const getApiUrl = (endpoint) => {
-  const mapped = API_CONFIG.endpoints[endpoint];
+  // If given a full path (e.g. /api/v1/agents), avoid double prefix
+  const ep = typeof endpoint === "string" ? endpoint.trim() : "";
+  if (ep.startsWith("/api/v1")) {
+    return `${API_CONFIG.BASE_URL}${ep}`;
+  }
+  const mapped = API_CONFIG.endpoints[ep];
   if (mapped) {
     return `${API_CONFIG.BASE_URL}${API_CONFIG.API_PREFIX}${mapped}`;
   }
   // Fallback: treat endpoint as raw path, ensure leading slash
-  const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const path = ep.startsWith('/') ? ep : `/${ep}`;
   return `${API_CONFIG.BASE_URL}${API_CONFIG.API_PREFIX}${path}`;
 };
 

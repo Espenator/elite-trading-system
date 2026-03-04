@@ -512,6 +512,14 @@ app.include_router(council.router, prefix="/api/v1/council", tags=["council"])
 app.include_router(ingestion.router, tags=["ingestion"])
 
 
+# Alias so GET /api/v1/consensus works (openclawService and any client using this path)
+@app.get("/api/v1/consensus", tags=["agents"])
+async def consensus_alias():
+    """Same as GET /api/v1/agents/consensus. Ensures consensus is available at both paths."""
+    from app.api.v1.agents import get_consensus
+    return await get_consensus()
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for real-time updates.

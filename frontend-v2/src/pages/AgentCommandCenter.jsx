@@ -412,7 +412,7 @@ function AgentInspectorPanel({ agent, onClose, onToggle }) {
 export default function AgentCommandCenter() {
   const navigate = useNavigate();
   const { tab: urlTab } = useParams();
-  const { data: agentsRaw, loading: agentsLoading, refetch: refetchAgents } = useApi("/api/v1/agents");
+  const { data: agentsRaw, loading: agentsLoading, refetch: refetchAgents } = useApi("agents", { pollIntervalMs: 10000 });
   const agents = useMemo(() => (Array.isArray(agentsRaw) ? agentsRaw : agentsRaw?.agents || []), [agentsRaw]);
   const [macro, setMacro] = useState(null);
   const [swarm, setSwarm] = useState({ active: 0, total: 0, teams: [] });
@@ -468,7 +468,7 @@ export default function AgentCommandCenter() {
   // --- Handlers ---
   const handleAgentToggle = async (agent) => {
     const action = agent.status === "running" ? "stop" : "start";
-    try { await fetch(getApiUrl(`/api/v1/agents/${agent.id}/${action}`), { method: "POST" }); toast.success(`${agent.name} ${action}ed`); refetchAgents(); } catch { toast.error(`Failed to ${action} ${agent.name}`); }
+    try { await fetch(`${getApiUrl("agents")}/${agent.id}/${action}`, { method: "POST" }); toast.success(`${agent.name} ${action}ed`); refetchAgents(); } catch { toast.error(`Failed to ${action} ${agent.name}`); }
   };
   const handleBiasChange = (value) => { setBias(value); setBiasOverrideSent(false); };
   const handleBiasSubmit = async () => { try { await openclaw.setBiasOverride(bias); setBiasOverrideSent(true); toast.success(`Bias override set to ${bias.toFixed(1)}x`); } catch { toast.error("Bias override failed"); } };

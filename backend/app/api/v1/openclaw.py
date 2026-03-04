@@ -99,6 +99,20 @@ async def get_openclaw_summary():
     return await _openclaw_summary()
 
 
+@router.get("/consensus")
+async def get_openclaw_consensus():
+    """Consensus list for openclawService.getConsensus(). Returns { consensus: [] } when no bridge data."""
+    try:
+        candidates = await openclaw_bridge.get_top_candidates(n=20)
+        consensus = [
+            {"symbol": c.get("symbol", ""), "score": c.get("composite_score"), "direction": c.get("direction", "LONG")}
+            for c in (candidates or [])
+        ]
+        return {"consensus": consensus}
+    except Exception:
+        return {"consensus": []}
+
+
 # ===========================================================================
 # REAL-TIME SIGNAL INGESTION (v2 - 2026.2.22)
 # POST /api/v1/openclaw/signals - Hot path from bridge_sender.py
