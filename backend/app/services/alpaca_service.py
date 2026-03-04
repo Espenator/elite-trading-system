@@ -1,4 +1,4 @@
-h"""Alpaca Markets API service — account, positions, orders, activities, portfolio history.
+"""Alpaca Markets API service — account, positions, orders, activities, portfolio history.
 Real data only. No mock data, no fabricated numbers.
 """
 import httpx
