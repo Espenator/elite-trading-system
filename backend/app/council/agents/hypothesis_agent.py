@@ -34,12 +34,24 @@ async def evaluate(
         feature_json = json.dumps(features.get("features", features), default=str)
         regime = str(features.get("features", {}).get("regime", "unknown"))
 
+        # Build rich context from blackboard (perceptions + regime + features)
+        blackboard = context.get("blackboard")
+        if blackboard:
+            brain_context = json.dumps({
+                "perceptions": blackboard.perceptions,
+                "regime": regime,
+                "council_decision_id": blackboard.council_decision_id,
+                "stage1_votes": context.get("stage1", {}),
+            }, default=str)
+        else:
+            brain_context = json.dumps(context, default=str) if context else ""
+
         result = await client.infer(
             symbol=symbol,
             timeframe=timeframe,
             feature_json=feature_json,
             regime=regime,
-            context=json.dumps(context, default=str) if context else "",
+            context=brain_context,
         )
 
         # Map LLM confidence to direction

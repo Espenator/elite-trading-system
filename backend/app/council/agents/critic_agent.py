@@ -61,18 +61,28 @@ async def evaluate(
         lessons.append("Large loss — review entry conditions and stop placement")
         performance_score = 0.1
 
-    # Try brain service for deeper analysis
+    # Try brain service for deeper analysis (sends blackboard + outcome)
     critic_analysis = ""
+    blackboard = context.get("blackboard")
     try:
         from app.services.brain_client import get_brain_client
         import json
 
         client = get_brain_client()
         if client.enabled:
+            # Build rich entry context from blackboard
+            entry_ctx = context.get("entry_context", {})
+            if blackboard:
+                entry_ctx = {
+                    **entry_ctx,
+                    "blackboard_snapshot": blackboard.to_snapshot(),
+                    "council_decision_id": blackboard.council_decision_id,
+                }
+
             result = await client.critic(
                 trade_id=trade_outcome.get("trade_id", "unknown"),
                 symbol=symbol,
-                entry_context=json.dumps(context.get("entry_context", {}), default=str),
+                entry_context=json.dumps(entry_ctx, default=str),
                 outcome_json=json.dumps(trade_outcome, default=str),
             )
             if result.get("lessons"):
@@ -84,7 +94,6 @@ async def evaluate(
         logger.debug("Critic brain analysis not available: %s", e)
 
     # Write postmortem to DuckDB
-    blackboard = context.get("blackboard")
     try:
         from app.data.duckdb_storage import duckdb_store
         postmortem = {
