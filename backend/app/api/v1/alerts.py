@@ -6,7 +6,8 @@ POST /api/v1/alerts/test-email sends a test email via Resend (requires RESEND_AP
 
 import logging
 import ssl
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from app.core.security import require_auth
 from pydantic import BaseModel
 import httpx
 
@@ -51,7 +52,7 @@ async def get_alerts():
     return {"rules": _get_rules()}
 
 
-@router.patch("/{rule_id}")
+@router.patch("/{rule_id}", dependencies=[Depends(require_auth)])
 async def update_alert(rule_id: int, body: AlertRuleUpdate):
     """Toggle or update a rule (e.g. enabled) in DB."""
     if body.enabled is not None:
@@ -83,7 +84,7 @@ async def _send_email_via_resend(to_email: str, subject: str, html: str) -> None
         response.raise_for_status()
 
 
-@router.post("/test-email")
+@router.post("/test-email", dependencies=[Depends(require_auth)])
 async def test_email_alert():
     """Send a test email alert via Resend. Requires RESEND_API_KEY and RESEND_ALERT_TO_EMAIL in .env."""
     if not (settings.RESEND_API_KEY and settings.RESEND_API_KEY.strip()):
@@ -133,7 +134,7 @@ async def test_email_alert():
         raise HTTPException(status_code=502, detail=f"Failed to send email: {str(e)}")
 
 
-@router.post("/test-sms")
+@router.post("/test-sms", dependencies=[Depends(require_auth)])
 async def test_sms_alert():
     """Send a test SMS alert. Stub: returns success; wire to SMS provider when configured."""
     # TODO: Integrate with SMS provider (e.g. Twilio) when configured
@@ -144,7 +145,7 @@ async def test_sms_alert():
 # Kelly Alert Evaluation: check signals against alert thresholds
 # -----------------------------------------------------------------
 
-@router.post("/evaluate")
+@router.post("/evaluate", dependencies=[Depends(require_auth)])
 async def evaluate_alerts(signals: list[dict] = None):
     """Evaluate a list of signals against enabled alert rules.
 

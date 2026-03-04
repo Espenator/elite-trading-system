@@ -5,7 +5,7 @@
  * instead of broken './api' import and non-existent '/api/trade-execution' base.
  * WebSocket now uses getWsBaseUrl() instead of hardcoded port.
  */
-import { getApiUrl, getWsBaseUrl } from '../config/api';
+import { getApiUrl, getWsBaseUrl, getAuthHeaders } from '../config/api';
 import log from "@/utils/logger";
 
 // ─── Portfolio & Account ───────────────────────────────────
@@ -25,7 +25,7 @@ export const getPositions = async () => {
 export const closePosition = async (symbol, side) => {
   const res = await fetch(`${getApiUrl('orders')}/close`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify({ symbol, side }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -35,7 +35,7 @@ export const closePosition = async (symbol, side) => {
 export const adjustPosition = async (symbol, side, adjustment) => {
   const res = await fetch(`${getApiUrl('orders')}/adjust`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify({ symbol, side, ...adjustment }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -60,7 +60,7 @@ export const getPriceLadder = async (symbol = 'SPX') => {
 export const executeOrder = async (order) => {
   const res = await fetch(getApiUrl('orders'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify(order),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -91,7 +91,7 @@ export const stopLoss = async (symbol, quantity, stopPrice) => {
 export const executeAdvancedOrder = async (order) => {
   const res = await fetch(`${getApiUrl('orders')}/advanced`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify(order),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);

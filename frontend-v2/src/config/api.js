@@ -150,6 +150,19 @@ export const getApiUrl = (endpoint) => {
 };
 
 /**
+ * Get auth headers for state-changing requests (POST/PUT/DELETE).
+ * Reads API_AUTH_TOKEN from VITE_API_AUTH_TOKEN env var.
+ * Returns headers object to spread into fetch options.
+ */
+export const getAuthHeaders = () => {
+  const token = import.meta.env.VITE_API_AUTH_TOKEN;
+  if (token) {
+    return { Authorization: `Bearer ${token}` };
+  }
+  return {};
+};
+
+/**
  * Get WebSocket base URL. When WS_URL is "" (dev), uses current host so Vite proxy is used.
  */
 export const getWsBaseUrl = () =>

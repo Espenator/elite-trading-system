@@ -66,14 +66,14 @@ async def test_portfolio_endpoint(client):
 
 
 @pytest.mark.anyio
-async def test_alignment_preflight_rejects_oversized(client):
+async def test_alignment_preflight_rejects_oversized(client, auth_headers):
     """Alignment engine should block an absurdly large trade."""
     resp = await client.post("/api/v1/alignment/preflight", json={
         "symbol": "SPY",
         "side": "buy",
         "qty": 99999,
         "strategy": "",
-    })
+    }, headers=auth_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data.get("allowed") is False

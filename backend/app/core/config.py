@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     TRADING_MODE: str = "paper"
     SCAN_INTERVAL_MINUTES: int = 5
 
+    # ── API Authentication ────────────────────────────────
+    API_AUTH_TOKEN: str = ""  # Set to enable Bearer token auth on state-changing endpoints
+
     # ── Server ──────────────────────────────────────────────
     HOST: str = "0.0.0.0"
     BACKEND_PORT: int = 8000

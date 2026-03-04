@@ -16,7 +16,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from app.core.security import require_auth
 from pydantic import BaseModel
 
 from app.services.database import db_service
@@ -137,7 +138,7 @@ async def get_flywheel_features():
     return {"flywheel": {"features": [], "version": None}}
 
 
-@router.post("/record")
+@router.post("/record", dependencies=[Depends(require_auth)])
 async def record_flywheel(record: FlywheelRecord):
     """Submit a flywheel accuracy snapshot (called by ML training/evaluation)."""
     data = _get_flywheel_data()
@@ -292,7 +293,7 @@ async def get_feature_pipeline_status():
 # Kelly Learning Feedback: calibrate edge predictions from outcomes
 # -----------------------------------------------------------------
 
-@router.post("/kelly-feedback")
+@router.post("/kelly-feedback", dependencies=[Depends(require_auth)])
 async def kelly_feedback(outcomes: List[Dict]):
     """Update edge calibration from realized trade outcomes.
 

@@ -3,7 +3,8 @@ Trade Execution API Router
 Handles order execution, positions, order book, and real-time trade data.
 """
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException, Query
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException, Query, Depends
+from app.core.security import require_auth
 from pydantic import BaseModel, Field
 from typing import Optional, List, Literal
 from datetime import datetime
@@ -188,7 +189,7 @@ async def get_positions():
     return _positions
 
 
-@router.post("/positions/close", response_model=OrderResponse)
+@router.post("/positions/close", response_model=OrderResponse, dependencies=[Depends(require_auth)])
 async def close_position(req: ClosePositionRequest):
     """Close a specific position."""
     global _order_counter
@@ -221,7 +222,7 @@ async def close_position(req: ClosePositionRequest):
     )
 
 
-@router.post("/positions/adjust")
+@router.post("/positions/adjust", dependencies=[Depends(require_auth)])
 async def adjust_position(req: AdjustPositionRequest):
     """Adjust an existing position (stop loss, quantity, etc.)."""
     for pos in _positions:
@@ -247,7 +248,7 @@ async def get_price_ladder(symbol: str = Query("SPX")):
     return _generate_price_ladder(symbol)
 
 
-@router.post("/orders", response_model=OrderResponse)
+@router.post("/orders", response_model=OrderResponse, dependencies=[Depends(require_auth)])
 async def execute_order(order: OrderRequest):
     """Execute a standard order (market, limit, stop)."""
     global _order_counter
@@ -300,7 +301,7 @@ async def execute_order(order: OrderRequest):
     )
 
 
-@router.post("/orders/advanced", response_model=OrderResponse)
+@router.post("/orders/advanced", response_model=OrderResponse, dependencies=[Depends(require_auth)])
 async def execute_advanced_order(order: AdvancedOrderRequest):
     """Execute an advanced multi-leg options order (Iron Condor, spreads, etc.)."""
     global _order_counter

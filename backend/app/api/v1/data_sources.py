@@ -7,7 +7,8 @@ AI provider detection, WebSocket broadcasts on all mutations.
 NO yfinance. Primary: Alpaca, Unusual Whales, Finviz.
 """
 
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, Depends
+from app.core.security import require_auth
 from pydantic import BaseModel, Field
 from typing import Dict, Any, List, Optional
 import os
@@ -424,7 +425,7 @@ async def get_source(source_id: str):
     raise HTTPException(404, f"Source '{source_id}' not found")
 
 
-@router.post("/", response_model=DataSourceRead, status_code=201)
+@router.post("/", response_model=DataSourceRead, status_code=201, dependencies=[Depends(require_auth)])
 async def add_source(payload: DataSourceCreate):
     """Add a new data source (custom or from defaults)."""
     sources = _load_sources()
@@ -455,7 +456,7 @@ async def add_source(payload: DataSourceCreate):
     return _source_to_read(new_source)
 
 
-@router.put("/{source_id}", response_model=DataSourceRead)
+@router.put("/{source_id}", response_model=DataSourceRead, dependencies=[Depends(require_auth)])
 async def update_source(source_id: str, payload: DataSourceUpdate):
     """Update an existing data source's configuration."""
     sources = _load_sources()
@@ -487,7 +488,7 @@ async def update_source(source_id: str, payload: DataSourceUpdate):
     return _source_to_read(src)
 
 
-@router.delete("/{source_id}")
+@router.delete("/{source_id}", dependencies=[Depends(require_auth)])
 async def delete_source(source_id: str):
     """Remove a data source and its stored credentials."""
     sources = _load_sources()
@@ -510,7 +511,7 @@ async def delete_source(source_id: str):
 # ---------------------------------------------------------------------------
 
 
-@router.put("/{source_id}/credentials")
+@router.put("/{source_id}/credentials", dependencies=[Depends(require_auth)])
 async def set_credentials(source_id: str, payload: CredentialsPayload):
     """Encrypt and store API credentials for a source."""
     sources = _load_sources()
@@ -598,7 +599,7 @@ def _test_result_to_dict(result: TestResult) -> dict:
     return result.dict()
 
 
-@router.post("/{source_id}/test", response_model=TestResult)
+@router.post("/{source_id}/test", response_model=TestResult, dependencies=[Depends(require_auth)])
 async def test_source(source_id: str):
     """Live connection test. Alpaca uses alpaca_service.get_account()."""
     sources = _load_sources()
@@ -847,7 +848,7 @@ AI_DETECT_MAP = {
 }
 
 
-@router.post("/ai-detect", response_model=AIDetectResponse)
+@router.post("/ai-detect", response_model=AIDetectResponse, dependencies=[Depends(require_auth)])
 async def ai_detect_provider(payload: AIDetectRequest):
     """Detect API provider from a URL and return source template."""
     url_lower = payload.url.lower().strip()

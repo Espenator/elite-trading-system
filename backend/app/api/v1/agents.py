@@ -7,7 +7,8 @@ import logging
 import os
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from app.core.security import require_auth
 
 from app.websocket_manager import broadcast_ws
 from app.services.database import db_service
@@ -359,7 +360,7 @@ async def _run_youtube_knowledge_tick():
         _set_current_task(5, f"Error: {str(e)[:80]}")
 
 
-@router.post("/{agent_id}/start")
+@router.post("/{agent_id}/start", dependencies=[Depends(require_auth)])
 async def start_agent(agent_id: int):
     """Start an agent; persist status and append to activity log.
     Market Data Agent (id=1): runs one tick (Finviz Elite, Alpaca, FRED/EDGAR/UW).
@@ -384,7 +385,7 @@ async def start_agent(agent_id: int):
     return {"ok": True, "agent_id": agent_id, "status": "running"}
 
 
-@router.post("/{agent_id}/tick")
+@router.post("/{agent_id}/tick", dependencies=[Depends(require_auth)])
 async def run_agent_tick(agent_id: int):
     """Run one data-collection tick for an agent. For Market Data Agent (id=1): runs
     Finviz, Alpaca, FRED/EDGAR/UW. Call every 60s (configurable) when agent is running.
@@ -447,7 +448,7 @@ async def run_agent_tick(agent_id: int):
     return {"ok": True, "agent_id": agent_id}
 
 
-@router.post("/{agent_id}/stop")
+@router.post("/{agent_id}/stop", dependencies=[Depends(require_auth)])
 async def stop_agent(agent_id: int):
     """Stop an agent; persist status and append to activity log."""
     agent = _agent_by_id(agent_id)
@@ -459,7 +460,7 @@ async def stop_agent(agent_id: int):
     return {"ok": True, "agent_id": agent_id, "status": "stopped"}
 
 
-@router.post("/{agent_id}/pause")
+@router.post("/{agent_id}/pause", dependencies=[Depends(require_auth)])
 async def pause_agent(agent_id: int):
     """Pause an agent; persist status and append to activity log."""
     agent = _agent_by_id(agent_id)
@@ -471,7 +472,7 @@ async def pause_agent(agent_id: int):
     return {"ok": True, "agent_id": agent_id, "status": "paused"}
 
 
-@router.post("/{agent_id}/restart")
+@router.post("/{agent_id}/restart", dependencies=[Depends(require_auth)])
 async def restart_agent(agent_id: int):
     """Restart an agent; persist status and append to activity log."""
     agent = _agent_by_id(agent_id)

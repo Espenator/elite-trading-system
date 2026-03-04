@@ -10,7 +10,8 @@ Endpoints:
 """
 import json
 import logging
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, Depends
+from app.core.security import require_auth
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Any
 
@@ -52,7 +53,7 @@ class ReplaceOrderRequest(BaseModel):
 
 
 # ── Advanced order creation ─────────────────────────────────────────────
-@router.post("/advanced", response_model=Dict)
+@router.post("/advanced", response_model=Dict, dependencies=[Depends(require_auth)])
 async def create_advanced_order(req: AdvancedOrderRequest):
     """Submit any Alpaca v2 order: simple, bracket, OCO, OTO, trailing."""
         # ── Alignment Preflight Gate ─────────────────────────────────────
@@ -107,7 +108,7 @@ async def create_advanced_order(req: AdvancedOrderRequest):
 
 
 # ── Replace / amend order ───────────────────────────────────────────────
-@router.patch("/{order_id}", response_model=Dict)
+@router.patch("/{order_id}", response_model=Dict, dependencies=[Depends(require_auth)])
 async def replace_order(order_id: str, req: ReplaceOrderRequest):
     """PATCH /v2/orders/{id} — amend qty, price, trail, or TIF."""
     try:
@@ -131,7 +132,7 @@ async def replace_order(order_id: str, req: ReplaceOrderRequest):
 
 
 # ── Cancel single order ────────────────────────────────────────────────
-@router.delete("/{order_id}")
+@router.delete("/{order_id}", dependencies=[Depends(require_auth)])
 async def cancel_order(order_id: str):
     """Cancel a single open order."""
     try:
@@ -143,7 +144,7 @@ async def cancel_order(order_id: str):
 
 
 # ── Cancel ALL open orders ──────────────────────────────────────────────
-@router.delete("/")
+@router.delete("/", dependencies=[Depends(require_auth)])
 async def cancel_all_orders():
     """Cancel all open orders."""
     try:
@@ -180,7 +181,7 @@ async def get_recent_orders(limit: int = 10):
 
 
 # ── Close position ────────────────────────────────────────────────────
-@router.post("/close")
+@router.post("/close", dependencies=[Depends(require_auth)])
 async def close_position(symbol: str = Body(...), side: str = Body("all")):
     """Close a specific position via Alpaca."""
     try:
@@ -192,7 +193,7 @@ async def close_position(symbol: str = Body(...), side: str = Body("all")):
 
 
 # ── Adjust position ───────────────────────────────────────────────────
-@router.post("/adjust")
+@router.post("/adjust", dependencies=[Depends(require_auth)])
 async def adjust_position(symbol: str = Body(...), qty: str = Body(None), side: str = Body("buy")):
     """Adjust an existing position size."""
     try:
@@ -206,7 +207,7 @@ async def adjust_position(symbol: str = Body(...), qty: str = Body(None), side: 
 
 
 # ── Flatten all positions ─────────────────────────────────────────────
-@router.post("/flatten-all")
+@router.post("/flatten-all", dependencies=[Depends(require_auth)])
 async def flatten_all():
     """Liquidate all open positions."""
     try:
@@ -218,7 +219,7 @@ async def flatten_all():
 
 
 # ── Emergency stop ────────────────────────────────────────────────────
-@router.post("/emergency-stop")
+@router.post("/emergency-stop", dependencies=[Depends(require_auth)])
 async def emergency_stop():
     """Cancel all orders and close all positions immediately."""
     errors = []

@@ -14,7 +14,8 @@ Endpoints:
   GET  /api/v1/settings/export            - Export full settings as JSON
   POST /api/v1/settings/import            - Import settings from JSON
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from app.core.security import require_auth
 from typing import Any, Dict, Optional
 
 from app.services.settings_service import (
@@ -49,8 +50,8 @@ async def get_settings() -> Dict[str, Any]:
     return get_all_settings()
 
 
-@router.put("", summary="Bulk update settings")
-@router.put("/", include_in_schema=False)
+@router.put("", summary="Bulk update settings", dependencies=[Depends(require_auth)])
+@router.put("/", include_in_schema=False, dependencies=[Depends(require_auth)])
 async def put_settings(payload: Dict[str, Any]) -> Dict[str, Any]:
     """Merge incoming category-keyed payload into stored settings."""
     return update_all_settings(payload)
@@ -74,7 +75,7 @@ async def get_category(category: str) -> Dict[str, Any]:
     return get_settings_by_category(category)
 
 
-@router.put("/{category}", summary="Update category settings")
+@router.put("/{category}", summary="Update category settings", dependencies=[Depends(require_auth)])
 async def put_category(category: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     """Merge payload keys into the specified category settings."""
     _assert_category(category)
@@ -82,7 +83,7 @@ async def put_category(category: str, payload: Dict[str, Any]) -> Dict[str, Any]
 
 
 # ── Reset ─────────────────────────────────────────────────────
-@router.post("/reset/{category}", summary="Reset category to defaults")
+@router.post("/reset/{category}", summary="Reset category to defaults", dependencies=[Depends(require_auth)])
 async def post_reset(category: str) -> Dict[str, Any]:
     """Reset a single settings category back to factory defaults."""
     _assert_category(category)
@@ -90,7 +91,7 @@ async def post_reset(category: str) -> Dict[str, Any]:
 
 
 # ── Validation & connectivity ───────────────────────────────────
-@router.post("/validate", summary="Validate an API key")
+@router.post("/validate", summary="Validate an API key", dependencies=[Depends(require_auth)])
 async def post_validate(payload: Dict[str, Any]) -> Dict[str, Any]:
     """
     Validate a single provider API key against the real provider endpoint.
@@ -106,7 +107,7 @@ async def post_validate(payload: Dict[str, Any]) -> Dict[str, Any]:
     )
 
 
-@router.post("/test-connection", summary="Test data-source connection")
+@router.post("/test-connection", summary="Test data-source connection", dependencies=[Depends(require_auth)])
 async def post_test_connection(payload: Dict[str, Any]) -> Dict[str, Any]:
     """
     Test live connectivity to a data source using stored keys.
@@ -125,7 +126,7 @@ async def get_export() -> Dict[str, Any]:
     return export_settings()
 
 
-@router.post("/import", summary="Import settings from JSON")
+@router.post("/import", summary="Import settings from JSON", dependencies=[Depends(require_auth)])
 async def post_import(payload: Dict[str, Any]) -> Dict[str, Any]:
     """Import a previously exported settings snapshot."""
     return import_settings(payload)

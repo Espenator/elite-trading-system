@@ -21,7 +21,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import { useApi } from "../hooks/useApi";
-import { getApiUrl } from "../config/api";
+import { getApiUrl, getAuthHeaders } from "../config/api";
 
 // ── Formatters ──
 const fmtM = (n) => {
@@ -87,7 +87,7 @@ export default function Trades() {
   const handleCancelAll = async () => {
     try {
       const base = import.meta.env.VITE_API_URL ?? "";
-      const res = await fetch(`${base}/api/v1/orders/cancel-all`, { method: "DELETE" });
+      const res = await fetch(`${base}/api/v1/orders/cancel-all`, { method: "DELETE", headers: getAuthHeaders() });
       if (!res.ok) throw new Error('Failed');
       refetchOrders();
     } catch (e) { log.error("Cancel all failed:", e); }
@@ -96,7 +96,7 @@ export default function Trades() {
   const handleClosePosition = async (symbol, pct = 100) => {
     try {
       const base = import.meta.env.VITE_API_URL ?? "";
-      const res = await fetch(`${base}/api/v1/portfolio/close/${symbol}?percentage=${pct}`, { method: "DELETE" });
+      const res = await fetch(`${base}/api/v1/portfolio/close/${symbol}?percentage=${pct}`, { method: "DELETE", headers: getAuthHeaders() });
       if (!res.ok) throw new Error('Failed');
       refetchPortfolio();
     } catch (e) { log.error("Close position failed:", e); }
@@ -124,7 +124,7 @@ export default function Trades() {
       const base = import.meta.env.VITE_API_URL ?? "";
       const res = await fetch(`${base}/api/v1/orders`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({
           symbol: orderForm.symbol.toUpperCase(),
           side: orderForm.side.toLowerCase(),
@@ -150,7 +150,7 @@ export default function Trades() {
   const handleCancelOrder = async (orderId) => {
     try {
       const base = import.meta.env.VITE_API_URL ?? "";
-      await fetch(`${base}/api/v1/orders/${orderId}`, { method: "DELETE" });
+      await fetch(`${base}/api/v1/orders/${orderId}`, { method: "DELETE", headers: getAuthHeaders() });
       refetchOrders();
     } catch (e) { log.error("Cancel order failed:", e); }
   };

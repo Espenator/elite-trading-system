@@ -4,7 +4,7 @@
  * Optional polling when pollIntervalMs > 0.
  */
 import { useState, useEffect, useCallback } from "react";
-import { getApiUrl } from "../config/api";
+import { getApiUrl, getAuthHeaders } from "../config/api";
 
 // Simple in-memory cache for API responses (stale-while-revalidate)
 const _apiCache = new Map();
@@ -115,7 +115,7 @@ export async function fetchDynamicStopLoss(symbol, entryPrice, side = 'buy') {
   const url = getApiUrl('dynamicStopLoss');
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify({ symbol, entry_price: entryPrice, side }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -130,7 +130,7 @@ export async function fetchPreTradeCheck(symbol, side = 'buy') {
   const url = `${getApiUrl('preTradeCheck')}/${encodeURIComponent(symbol)}`;
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify({ symbol, side }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -250,7 +250,7 @@ export async function fetchCouncilEvaluate(symbol, timeframe = '1d', context = '
   const url = getApiUrl('councilEvaluate');
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify({ symbol, timeframe, context }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -271,7 +271,7 @@ export async function fetchFeaturesCompute(symbol, timeframe = '1d') {
   const url = getApiUrl('featuresCompute');
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify({ symbol, timeframe }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -289,7 +289,7 @@ export async function postBiasOverride(biasMultiplier) {
   const url = getApiUrl('openclaw/macro/override');
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify({ bias_multiplier: biasMultiplier }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
