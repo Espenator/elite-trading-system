@@ -437,7 +437,14 @@ async def _start_event_driven_pipeline():
     await _discord_bridge.start()
     log.info("\u2705 DiscordSwarmBridge started (%d channels)", len(_discord_bridge._channels))
 
-    # 12. Swarm result -> WebSocket bridge
+    # 12. GeopoliticalRadar — continuous macro event detection
+    from app.services.geopolitical_radar import get_geopolitical_radar
+    _geo_radar = get_geopolitical_radar()
+    _geo_radar._bus = _message_bus
+    await _geo_radar.start()
+    log.info("\u2705 GeopoliticalRadar started (alert_level=%s)", _geo_radar._alert_level)
+
+    # 13. Swarm result -> WebSocket bridge
     async def _bridge_swarm_to_ws(result_data):
         try:
             from app.websocket_manager import broadcast_ws
@@ -448,12 +455,24 @@ async def _start_event_driven_pipeline():
     await _message_bus.subscribe("swarm.result", _bridge_swarm_to_ws)
     log.info("\u2705 Swarm->WebSocket bridge active")
 
+    # 14. Macro event -> WebSocket bridge
+    async def _bridge_macro_to_ws(event_data):
+        try:
+            from app.websocket_manager import broadcast_ws
+            await broadcast_ws("risk", {"type": "macro_event", "event": event_data})
+        except Exception as e:
+            log.debug("WS macro broadcast failed: %s", e)
+
+    await _message_bus.subscribe("scout.discovery", _bridge_macro_to_ws)
+    log.info("\u2705 MacroEvent->WebSocket bridge active")
+
     log.info("=" * 60)
     log.info("\u2705 Event-Driven Pipeline ONLINE")
     log.info("   Stream -> MessageBus -> SignalEngine -> CouncilEvaluator -> OrderExecutor -> Alpaca")
     log.info("   Swarm: ideas -> SwarmSpawner -> Council + Backtest -> Results")
     log.info("   Scout: auto-discovery -> flow/screener/watchlist -> SwarmSpawner")
     log.info("   Discord: channels -> DiscordSwarmBridge -> SwarmSpawner")
+    log.info("   Radar: GeopoliticalRadar -> MacroPlaybook -> IMMEDIATE swarms")
     log.info(
         "   Mode: %s | Council: signal>=%.0f triggers 17-agent DAG",
         "AUTO-EXECUTE" if auto_execute else "SHADOW",
@@ -469,6 +488,11 @@ async def _stop_event_driven_pipeline():
     log.info("Shutting down event-driven pipeline...")
 
     # Stop swarm intelligence components first (reverse startup order)
+    try:
+        from app.services.geopolitical_radar import get_geopolitical_radar
+        await get_geopolitical_radar().stop()
+    except Exception:
+        pass
     try:
         from app.services.discord_swarm_bridge import get_discord_bridge
         await get_discord_bridge().stop()

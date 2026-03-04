@@ -55,6 +55,7 @@ TASK_TIER_MAP: Dict[str, Tier] = {
     "institutional_flow": Tier.CORTEX,
     "pattern_context": Tier.CORTEX,
     "breaking_news": Tier.CORTEX,
+    "geopolitical_scan": Tier.CORTEX,
     # Deep cortex (reasoning)
     "strategy_critic": Tier.DEEP_CORTEX,
     "strategy_evolution": Tier.DEEP_CORTEX,

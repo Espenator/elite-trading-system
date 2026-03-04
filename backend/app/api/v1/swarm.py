@@ -279,20 +279,72 @@ async def remove_discord_channel(channel_id: int):
     return {"status": "ok", "channels": get_discord_bridge().list_channels()}
 
 
+class InjectEventRequest(BaseModel):
+    headline: str
+    description: str = ""
+    event_type: str = ""  # military_conflict, financial_crisis, etc.
+    severity: str = "high"  # critical, high, medium, low
+
+
+# ------------------------------------------------------------------
+# Geopolitical Radar endpoints
+# ------------------------------------------------------------------
+@router.get("/radar/status")
+async def radar_status():
+    """Get geopolitical radar status: alert level, active events, scan stats."""
+    from app.services.geopolitical_radar import get_geopolitical_radar
+    return get_geopolitical_radar().get_status()
+
+
+@router.get("/radar/playbook")
+async def radar_playbook(event_type: str = None):
+    """Get the macro event playbook — what trades execute for each event type.
+
+    Shows exactly what happens if war breaks out, a bank fails, etc.
+    """
+    from app.services.geopolitical_radar import get_geopolitical_radar
+    return {"playbook": get_geopolitical_radar().get_playbook(event_type)}
+
+
+@router.post("/radar/inject")
+async def inject_event(req: InjectEventRequest):
+    """Manually inject a macro event to test the system's response.
+
+    Example: inject a 'military_conflict' event to see which swarms spawn.
+    """
+    from app.services.geopolitical_radar import get_geopolitical_radar, MacroEvent
+    radar = get_geopolitical_radar()
+    event = MacroEvent(
+        event_type=req.event_type or "unknown",
+        severity=req.severity,
+        headline=req.headline,
+        description=req.description,
+        source="manual_injection",
+    )
+    radar.inject_event(event)
+    return {
+        "status": "injected",
+        "event": event.to_dict(),
+        "message": "Event injected — swarms will spawn for playbook instruments",
+    }
+
+
 # ------------------------------------------------------------------
 # Combined system status
 # ------------------------------------------------------------------
 @router.get("/intelligence/status")
 async def intelligence_status():
-    """Get combined status of all intelligence systems: swarm, scout, discord, ingestion."""
+    """Get combined status of all intelligence systems: swarm, scout, discord, radar, ingestion."""
     from app.services.swarm_spawner import get_swarm_spawner
     from app.services.autonomous_scout import get_scout_service
     from app.services.discord_swarm_bridge import get_discord_bridge
     from app.services.knowledge_ingest import knowledge_ingest
+    from app.services.geopolitical_radar import get_geopolitical_radar
 
     return {
         "swarm": get_swarm_spawner().get_status(),
         "scout": get_scout_service().get_status(),
         "discord": get_discord_bridge().get_status(),
+        "radar": get_geopolitical_radar().get_status(),
         "ingestion": knowledge_ingest.get_stats(),
     }
