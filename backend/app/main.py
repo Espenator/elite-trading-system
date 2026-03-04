@@ -70,6 +70,7 @@ from app.api.v1 import (
     council,
     cns,
     youtube_knowledge,
+    swarm,
 )
 from app.api import ingestion
 
@@ -410,9 +411,49 @@ async def _start_event_driven_pipeline():
         _alpaca_stream_task = asyncio.create_task(_alpaca_stream.start())
         log.info("\u2705 AlpacaStreamService launched for %d symbols", len(symbols))
 
+    # 8. SwarmSpawner — spawns analysis swarms from ideas
+    from app.services.swarm_spawner import get_swarm_spawner
+    _swarm_spawner = get_swarm_spawner()
+    _swarm_spawner._bus = _message_bus
+    await _swarm_spawner.start()
+    log.info("\u2705 SwarmSpawner started (%d workers)", _swarm_spawner.MAX_CONCURRENT_SWARMS)
+
+    # 9. KnowledgeIngestionService — connect to message bus
+    from app.services.knowledge_ingest import knowledge_ingest
+    knowledge_ingest.set_message_bus(_message_bus)
+    log.info("\u2705 KnowledgeIngestionService connected to MessageBus")
+
+    # 10. AutonomousScoutService — proactive opportunity discovery
+    from app.services.autonomous_scout import get_scout_service
+    _scout_service = get_scout_service()
+    _scout_service._bus = _message_bus
+    await _scout_service.start()
+    log.info("\u2705 AutonomousScoutService started (%d scouts)", len(_scout_service._tasks))
+
+    # 11. DiscordSwarmBridge — Discord channels -> swarm analysis
+    from app.services.discord_swarm_bridge import get_discord_bridge
+    _discord_bridge = get_discord_bridge()
+    _discord_bridge._bus = _message_bus
+    await _discord_bridge.start()
+    log.info("\u2705 DiscordSwarmBridge started (%d channels)", len(_discord_bridge._channels))
+
+    # 12. Swarm result -> WebSocket bridge
+    async def _bridge_swarm_to_ws(result_data):
+        try:
+            from app.websocket_manager import broadcast_ws
+            await broadcast_ws("swarm", {"type": "swarm_result", "result": result_data})
+        except Exception as e:
+            log.debug("WS swarm broadcast failed: %s", e)
+
+    await _message_bus.subscribe("swarm.result", _bridge_swarm_to_ws)
+    log.info("\u2705 Swarm->WebSocket bridge active")
+
     log.info("=" * 60)
     log.info("\u2705 Event-Driven Pipeline ONLINE")
     log.info("   Stream -> MessageBus -> SignalEngine -> CouncilEvaluator -> OrderExecutor -> Alpaca")
+    log.info("   Swarm: ideas -> SwarmSpawner -> Council + Backtest -> Results")
+    log.info("   Scout: auto-discovery -> flow/screener/watchlist -> SwarmSpawner")
+    log.info("   Discord: channels -> DiscordSwarmBridge -> SwarmSpawner")
     log.info(
         "   Mode: %s | Council: signal>=%.0f triggers 17-agent DAG",
         "AUTO-EXECUTE" if auto_execute else "SHADOW",
@@ -426,6 +467,23 @@ async def _stop_event_driven_pipeline():
     global _message_bus, _alpaca_stream, _alpaca_stream_task, _event_signal_engine, _order_executor, _council_evaluator
 
     log.info("Shutting down event-driven pipeline...")
+
+    # Stop swarm intelligence components first (reverse startup order)
+    try:
+        from app.services.discord_swarm_bridge import get_discord_bridge
+        await get_discord_bridge().stop()
+    except Exception:
+        pass
+    try:
+        from app.services.autonomous_scout import get_scout_service
+        await get_scout_service().stop()
+    except Exception:
+        pass
+    try:
+        from app.services.swarm_spawner import get_swarm_spawner
+        await get_swarm_spawner().stop()
+    except Exception:
+        pass
 
     if _council_evaluator:
         await _council_evaluator.stop()
@@ -656,6 +714,9 @@ app.include_router(features_routes.router, prefix="/api/v1/features", tags=["fea
 app.include_router(council.router, prefix="/api/v1/council", tags=["council"])
 app.include_router(cns.router, prefix="/api/v1/cns", tags=["cns"])
 app.include_router(youtube_knowledge.router, prefix="/api/v1/youtube-knowledge", tags=["youtube_knowledge"])
+
+# Swarm intelligence endpoints (ingestion + swarm + scout + discord)
+app.include_router(swarm.router, prefix="/api/v1/swarm", tags=["swarm"])
 
 # Data ingestion endpoints (backfill + DuckDB health)
 app.include_router(ingestion.router, tags=["ingestion"])

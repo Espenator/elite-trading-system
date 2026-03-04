@@ -43,6 +43,12 @@ class MessageBus:
         "system.heartbeat",
         "council.verdict",
         "hitl.approval_needed",
+        # Swarm intelligence topics
+        "swarm.idea",           # New idea submitted for analysis
+        "swarm.spawned",        # Swarm spawned and running
+        "swarm.result",         # Swarm analysis complete
+        "knowledge.ingested",   # New knowledge fed into the system
+        "scout.discovery",      # Scout found an opportunity
     }
 
     def __init__(self, max_queue_size: int = 10_000):

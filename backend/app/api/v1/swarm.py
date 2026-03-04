@@ -1,0 +1,298 @@
+"""Swarm & Knowledge Ingestion API routes.
+
+Provides endpoints for:
+  - Feeding data into the system (YouTube, news, URLs, text, symbols)
+  - Managing the autonomous scout service (watchlist, config)
+  - Monitoring swarm status and results
+  - Managing Discord channel monitoring
+"""
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
+from typing import Any, Dict, List, Optional
+
+router = APIRouter()
+
+
+# ------------------------------------------------------------------
+# Request models
+# ------------------------------------------------------------------
+class IngestYouTubeRequest(BaseModel):
+    url: str = ""
+    transcript: str = ""
+    title: str = ""
+    channel: str = ""
+
+class IngestNewsRequest(BaseModel):
+    url: str = ""
+    text: str = ""
+    title: str = ""
+    source_name: str = ""
+
+class IngestTextRequest(BaseModel):
+    text: str
+    idea_type: str = "trade_idea"  # trade_idea, chart_analysis, research, note
+    symbols: Optional[List[str]] = None
+
+class IngestURLRequest(BaseModel):
+    url: str
+    hint: str = ""
+
+class IngestSymbolsRequest(BaseModel):
+    symbols: List[str]
+    reason: str = "User requested analysis"
+
+class WatchlistRequest(BaseModel):
+    symbols: List[str]
+
+class AddChannelRequest(BaseModel):
+    channel_id: int
+    name: str
+    source: str = "custom"
+    type: str = "trade_idea"
+
+class ScoutConfigRequest(BaseModel):
+    flow_scan_interval: Optional[int] = None
+    screener_scan_interval: Optional[int] = None
+    watchlist_scan_interval: Optional[int] = None
+    backtest_scan_interval: Optional[int] = None
+    max_discoveries_per_scan: Optional[int] = None
+    enabled_scouts: Optional[List[str]] = None
+
+
+# ------------------------------------------------------------------
+# Knowledge Ingestion endpoints
+# ------------------------------------------------------------------
+@router.post("/ingest/youtube")
+async def ingest_youtube(req: IngestYouTubeRequest):
+    """Ingest a YouTube video transcript into the knowledge base.
+
+    Provide either a URL (will try to fetch transcript automatically)
+    or paste the transcript text directly. Extracted symbols will
+    trigger a swarm analysis automatically.
+    """
+    from app.services.knowledge_ingest import knowledge_ingest
+    result = await knowledge_ingest.ingest_youtube(
+        url=req.url, transcript=req.transcript,
+        title=req.title, channel=req.channel,
+    )
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@router.post("/ingest/news")
+async def ingest_news(req: IngestNewsRequest):
+    """Ingest a news article into the knowledge base.
+
+    Provide a URL to scrape or paste the article text directly.
+    """
+    from app.services.knowledge_ingest import knowledge_ingest
+    result = await knowledge_ingest.ingest_news(
+        url=req.url, text=req.text,
+        title=req.title, source_name=req.source_name,
+    )
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@router.post("/ingest/text")
+async def ingest_text(req: IngestTextRequest):
+    """Ingest free-text: trade ideas, chart analysis, research notes.
+
+    The system will extract symbols, direction, and concepts automatically.
+    """
+    from app.services.knowledge_ingest import knowledge_ingest
+    result = await knowledge_ingest.ingest_text(
+        text=req.text, idea_type=req.idea_type, symbols=req.symbols,
+    )
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@router.post("/ingest/url")
+async def ingest_url(req: IngestURLRequest):
+    """Scrape a URL and ingest the content.
+
+    Works with any URL: news sites, blog posts, research reports.
+    YouTube URLs will be handled specially (transcript extraction).
+    """
+    from app.services.knowledge_ingest import knowledge_ingest
+    result = await knowledge_ingest.ingest_url(url=req.url, hint=req.hint)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@router.post("/ingest/symbols")
+async def ingest_symbols(req: IngestSymbolsRequest):
+    """Queue multiple symbols for swarm analysis.
+
+    The simplest way to say 'analyze these tickers.'
+    Each symbol gets its own swarm: data ingestion + council + backtest.
+    """
+    from app.services.knowledge_ingest import knowledge_ingest
+    result = await knowledge_ingest.ingest_symbols(
+        symbols=req.symbols, reason=req.reason,
+    )
+    return result
+
+
+@router.get("/ingest/feed")
+async def get_knowledge_feed(limit: int = 50, type_filter: str = None):
+    """Get recent knowledge feed entries."""
+    from app.services.knowledge_ingest import knowledge_ingest
+    return {
+        "entries": knowledge_ingest.get_knowledge_feed(limit=limit, type_filter=type_filter),
+        "stats": knowledge_ingest.get_stats(),
+    }
+
+
+# ------------------------------------------------------------------
+# Swarm management endpoints
+# ------------------------------------------------------------------
+@router.get("/swarm/status")
+async def swarm_status():
+    """Get swarm spawner status: active swarms, queue depth, stats."""
+    from app.services.swarm_spawner import get_swarm_spawner
+    return get_swarm_spawner().get_status()
+
+
+@router.get("/swarm/results")
+async def swarm_results(limit: int = 20, source: str = None):
+    """Get recent swarm analysis results."""
+    from app.services.swarm_spawner import get_swarm_spawner
+    return {
+        "results": get_swarm_spawner().get_results(limit=limit, source=source),
+    }
+
+
+@router.get("/swarm/result/{idea_id}")
+async def swarm_result(idea_id: str):
+    """Get a specific swarm result by idea ID."""
+    from app.services.swarm_spawner import get_swarm_spawner
+    result = get_swarm_spawner().get_result(idea_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Swarm result not found")
+    return result
+
+
+# ------------------------------------------------------------------
+# Scout management endpoints
+# ------------------------------------------------------------------
+@router.get("/scout/status")
+async def scout_status():
+    """Get autonomous scout service status."""
+    from app.services.autonomous_scout import get_scout_service
+    return get_scout_service().get_status()
+
+
+@router.post("/scout/watchlist")
+async def set_watchlist(req: WatchlistRequest):
+    """Set the scout watchlist (replaces existing)."""
+    from app.services.autonomous_scout import get_scout_service
+    get_scout_service().set_watchlist(req.symbols)
+    return {"status": "ok", "watchlist": get_scout_service()._watchlist}
+
+
+@router.post("/scout/watchlist/add")
+async def add_to_watchlist(req: WatchlistRequest):
+    """Add symbols to the scout watchlist."""
+    from app.services.autonomous_scout import get_scout_service
+    get_scout_service().add_to_watchlist(req.symbols)
+    return {"status": "ok", "watchlist": get_scout_service()._watchlist}
+
+
+@router.post("/scout/watchlist/remove")
+async def remove_from_watchlist(req: WatchlistRequest):
+    """Remove symbols from the scout watchlist."""
+    from app.services.autonomous_scout import get_scout_service
+    get_scout_service().remove_from_watchlist(req.symbols)
+    return {"status": "ok", "watchlist": get_scout_service()._watchlist}
+
+
+@router.post("/scout/config")
+async def update_scout_config(req: ScoutConfigRequest):
+    """Update scout configuration (scan intervals, enabled scouts)."""
+    from app.services.autonomous_scout import get_scout_service
+    scout = get_scout_service()
+    if req.flow_scan_interval is not None:
+        scout.config["flow_scan_interval"] = req.flow_scan_interval
+    if req.screener_scan_interval is not None:
+        scout.config["screener_scan_interval"] = req.screener_scan_interval
+    if req.watchlist_scan_interval is not None:
+        scout.config["watchlist_scan_interval"] = req.watchlist_scan_interval
+    if req.backtest_scan_interval is not None:
+        scout.config["backtest_scan_interval"] = req.backtest_scan_interval
+    if req.max_discoveries_per_scan is not None:
+        scout.config["max_discoveries_per_scan"] = req.max_discoveries_per_scan
+    if req.enabled_scouts is not None:
+        scout.config["enabled_scouts"] = req.enabled_scouts
+    return {"status": "ok", "config": scout.config}
+
+
+@router.post("/scout/reset")
+async def reset_scout_discoveries():
+    """Reset daily discoveries so scouts can re-scan symbols."""
+    from app.services.autonomous_scout import get_scout_service
+    get_scout_service().reset_daily_discoveries()
+    return {"status": "ok", "message": "Daily discoveries reset"}
+
+
+# ------------------------------------------------------------------
+# Discord channel management
+# ------------------------------------------------------------------
+@router.get("/discord/status")
+async def discord_status():
+    """Get Discord swarm bridge status."""
+    from app.services.discord_swarm_bridge import get_discord_bridge
+    return get_discord_bridge().get_status()
+
+
+@router.get("/discord/channels")
+async def discord_channels():
+    """List all monitored Discord channels."""
+    from app.services.discord_swarm_bridge import get_discord_bridge
+    return {"channels": get_discord_bridge().list_channels()}
+
+
+@router.post("/discord/channels")
+async def add_discord_channel(req: AddChannelRequest):
+    """Add a Discord channel to monitor.
+
+    You'll need the channel ID (right-click channel in Discord -> Copy ID).
+    """
+    from app.services.discord_swarm_bridge import get_discord_bridge
+    get_discord_bridge().add_channel(
+        channel_id=req.channel_id, name=req.name,
+        source=req.source, msg_type=req.type,
+    )
+    return {"status": "ok", "channels": get_discord_bridge().list_channels()}
+
+
+@router.delete("/discord/channels/{channel_id}")
+async def remove_discord_channel(channel_id: int):
+    """Remove a Discord channel from monitoring."""
+    from app.services.discord_swarm_bridge import get_discord_bridge
+    get_discord_bridge().remove_channel(channel_id)
+    return {"status": "ok", "channels": get_discord_bridge().list_channels()}
+
+
+# ------------------------------------------------------------------
+# Combined system status
+# ------------------------------------------------------------------
+@router.get("/intelligence/status")
+async def intelligence_status():
+    """Get combined status of all intelligence systems: swarm, scout, discord, ingestion."""
+    from app.services.swarm_spawner import get_swarm_spawner
+    from app.services.autonomous_scout import get_scout_service
+    from app.services.discord_swarm_bridge import get_discord_bridge
+    from app.services.knowledge_ingest import knowledge_ingest
+
+    return {
+        "swarm": get_swarm_spawner().get_status(),
+        "scout": get_scout_service().get_status(),
+        "discord": get_discord_bridge().get_status(),
+        "ingestion": knowledge_ingest.get_stats(),
+    }
