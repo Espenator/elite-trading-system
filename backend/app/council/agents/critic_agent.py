@@ -2,12 +2,12 @@
 import logging
 from typing import Any, Dict
 
+from app.council.agent_config import get_agent_thresholds
 from app.council.schemas import AgentVote
 
 logger = logging.getLogger(__name__)
 
 NAME = "critic"
-WEIGHT = 0.5  # Low weight — critic is for learning, not trading decisions
 
 
 async def evaluate(
@@ -18,6 +18,8 @@ async def evaluate(
     During pre-trade evaluation: returns neutral vote.
     Post-trade: analyzes outcomes and produces critic feedback.
     """
+    cfg = get_agent_thresholds()
+
     # Check if this is a post-trade evaluation
     is_post_trade = context.get("post_trade", False)
 
@@ -27,7 +29,7 @@ async def evaluate(
             direction="hold",
             confidence=0.1,
             reasoning="Pre-trade eval — critic skips (learning signals only post-trade)",
-            weight=WEIGHT,
+            weight=cfg["weight_critic"],
             metadata={"post_trade": False},
         )
 
@@ -39,16 +41,16 @@ async def evaluate(
     lessons = []
     performance_score = 0.5
 
-    if r_multiple > 2.0:
+    if r_multiple > cfg["critic_excellent_r"]:
         lessons.append("Excellent R-multiple — strategy working well")
         performance_score = 0.9
-    elif r_multiple > 1.0:
+    elif r_multiple > cfg["critic_good_r"]:
         lessons.append("Positive R-multiple — acceptable trade")
         performance_score = 0.7
     elif r_multiple > 0:
         lessons.append("Small gain — consider tighter entry criteria")
         performance_score = 0.5
-    elif r_multiple > -1.0:
+    elif r_multiple > cfg["critic_small_loss_r"]:
         lessons.append("Small loss within risk bounds — acceptable")
         performance_score = 0.3
     else:
@@ -80,7 +82,7 @@ async def evaluate(
         direction="hold",
         confidence=round(performance_score, 2),
         reasoning=f"Post-trade critic: R={r_multiple:.2f}, PnL=${pnl:,.2f}. " + "; ".join(lessons[:3]),
-        weight=WEIGHT,
+        weight=cfg["weight_critic"],
         metadata={
             "post_trade": True,
             "r_multiple": r_multiple,

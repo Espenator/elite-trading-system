@@ -2,12 +2,12 @@
 import logging
 from typing import Any, Dict
 
+from app.council.agent_config import get_agent_thresholds
 from app.council.schemas import AgentVote
 
 logger = logging.getLogger(__name__)
 
 NAME = "strategy"
-WEIGHT = 1.1
 
 
 async def evaluate(
@@ -20,6 +20,7 @@ async def evaluate(
     - RSI/MACD confirmation
     - Trend alignment via moving averages
     """
+    cfg = get_agent_thresholds()
     f = features.get("features", features)
 
     checks_passed = 0
@@ -30,10 +31,10 @@ async def evaluate(
     rsi = f.get("ind_rsi_14", 0)
     if rsi > 0:
         checks_total += 1
-        if 30 < rsi < 70:
+        if cfg["rsi_oversold"] < rsi < cfg["rsi_overbought"]:
             checks_passed += 1
             reasons.append(f"RSI={rsi:.0f} (neutral zone)")
-        elif rsi <= 30:
+        elif rsi <= cfg["rsi_oversold"]:
             checks_passed += 1
             reasons.append(f"RSI={rsi:.0f} (oversold → buy bias)")
         else:
@@ -68,7 +69,7 @@ async def evaluate(
     adx = f.get("ind_adx_14", 0)
     if adx > 0:
         checks_total += 1
-        if adx > 25:
+        if adx > cfg["adx_trending_threshold"]:
             checks_passed += 1
             reasons.append(f"ADX={adx:.0f} (trending)")
         else:
@@ -81,14 +82,14 @@ async def evaluate(
             direction="hold",
             confidence=0.3,
             reasoning="Insufficient indicator data for strategy assessment",
-            weight=WEIGHT,
+            weight=cfg["weight_strategy"],
         )
 
     pass_rate = checks_passed / checks_total
-    if pass_rate >= 0.6:
+    if pass_rate >= cfg["strategy_buy_pass_rate"]:
         direction = "buy"
         confidence = 0.4 + pass_rate * 0.4
-    elif pass_rate <= 0.3:
+    elif pass_rate <= cfg["strategy_sell_pass_rate"]:
         direction = "sell"
         confidence = 0.4 + (1 - pass_rate) * 0.3
     else:
@@ -102,6 +103,6 @@ async def evaluate(
         direction=direction,
         confidence=round(min(0.9, confidence), 2),
         reasoning=reasoning,
-        weight=WEIGHT,
+        weight=cfg["weight_strategy"],
         metadata={"checks_passed": checks_passed, "checks_total": checks_total},
     )

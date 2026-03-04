@@ -3,18 +3,20 @@ import json
 import logging
 from typing import Any, Dict
 
+from app.council.agent_config import get_agent_thresholds
 from app.council.schemas import AgentVote
 
 logger = logging.getLogger(__name__)
 
 NAME = "hypothesis"
-WEIGHT = 0.9
 
 
 async def evaluate(
     symbol: str, timeframe: str, features: Dict[str, Any], context: Dict[str, Any]
 ) -> AgentVote:
     """Call brain_client for LLM inference when enabled; otherwise stub."""
+    cfg = get_agent_thresholds()
+
     try:
         from app.services.brain_client import get_brain_client
 
@@ -25,7 +27,7 @@ async def evaluate(
                 direction="hold",
                 confidence=0.1,
                 reasoning="Brain service disabled — no LLM hypothesis",
-                weight=WEIGHT,
+                weight=cfg["weight_hypothesis"],
                 metadata={"brain_enabled": False},
             )
 
@@ -50,14 +52,13 @@ async def evaluate(
                 direction="hold",
                 confidence=0.1,
                 reasoning=result.get("summary", "LLM unavailable"),
-                weight=WEIGHT,
+                weight=cfg["weight_hypothesis"],
                 metadata={"brain_enabled": True, "error": result.get("error", "")},
             )
 
-        # LLM confidence > 0.6 suggests conviction
-        if llm_conf > 0.6:
+        if llm_conf > cfg["llm_buy_confidence_threshold"]:
             direction = "buy"
-        elif llm_conf < 0.4:
+        elif llm_conf < cfg["llm_sell_confidence_threshold"]:
             direction = "sell"
         else:
             direction = "hold"
@@ -72,7 +73,7 @@ async def evaluate(
             direction=direction,
             confidence=round(llm_conf, 2),
             reasoning=reasoning,
-            weight=WEIGHT,
+            weight=cfg["weight_hypothesis"],
             metadata={
                 "brain_enabled": True,
                 "risk_flags": risk_flags,
@@ -86,5 +87,5 @@ async def evaluate(
             direction="hold",
             confidence=0.1,
             reasoning=f"Hypothesis error: {e}",
-            weight=WEIGHT,
+            weight=cfg["weight_hypothesis"],
         )

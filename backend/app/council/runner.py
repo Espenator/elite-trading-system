@@ -124,6 +124,18 @@ async def run_council(
         len(all_votes),
     )
 
+    # Record decision in feedback loop for learning
+    try:
+        from app.council.feedback_loop import record_decision
+        record_decision(
+            symbol=symbol,
+            final_direction=decision.final_direction,
+            votes=[v.to_dict() for v in all_votes],
+            trade_id=context.get("trade_id"),
+        )
+    except Exception as e:
+        logger.debug("Feedback loop record failed: %s", e)
+
     # Publish to message bus if available
     try:
         from app.core.message_bus import get_message_bus

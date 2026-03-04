@@ -610,6 +610,20 @@ class OrderExecutor:
         except Exception as e:
             logger.debug("outcome_resolver not available: %s", e)
 
+        # Feed outcome to council feedback loop for agent weight tuning
+        try:
+            from app.council.feedback_loop import record_outcome as council_record_outcome
+            r_mult = getattr(record, "r_multiple", 0.0) or 0.0
+            outcome_str = "win" if r_mult > 0 else ("loss" if r_mult < 0 else "scratch")
+            council_record_outcome(
+                trade_id=record.order_id,
+                symbol=record.symbol,
+                outcome=outcome_str,
+                r_multiple=r_mult,
+            )
+        except Exception as e:
+            logger.debug("council feedback_loop not available: %s", e)
+
     # ── Frontend Notifications ──────────────────────────────────────────────
 
     async def _notify_frontend(self, record: OrderRecord, price: float, status: str) -> None:

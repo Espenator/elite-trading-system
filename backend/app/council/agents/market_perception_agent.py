@@ -2,18 +2,19 @@
 import logging
 from typing import Any, Dict
 
+from app.council.agent_config import get_agent_thresholds
 from app.council.schemas import AgentVote
 
 logger = logging.getLogger(__name__)
 
 NAME = "market_perception"
-WEIGHT = 1.0
 
 
 async def evaluate(
     symbol: str, timeframe: str, features: Dict[str, Any], context: Dict[str, Any]
 ) -> AgentVote:
     """Analyze OHLCV price action and volume to determine market direction."""
+    cfg = get_agent_thresholds()
     f = features.get("features", features)
 
     # Price momentum signals
@@ -28,32 +29,32 @@ async def evaluate(
     bull_score = 0
     bear_score = 0
 
-    if ret_1d > 0.005:
+    if ret_1d > cfg["return_1d_threshold"]:
         bull_score += 1
-    elif ret_1d < -0.005:
+    elif ret_1d < -cfg["return_1d_threshold"]:
         bear_score += 1
 
-    if ret_5d > 0.01:
+    if ret_5d > cfg["return_5d_threshold"]:
         bull_score += 1
-    elif ret_5d < -0.01:
+    elif ret_5d < -cfg["return_5d_threshold"]:
         bear_score += 1
 
-    if ret_20d > 0.03:
+    if ret_20d > cfg["return_20d_threshold"]:
         bull_score += 1
-    elif ret_20d < -0.03:
+    elif ret_20d < -cfg["return_20d_threshold"]:
         bear_score += 1
 
     # Volume confirmation
-    if vol_surge > 1.5:
+    if vol_surge > cfg["volume_surge_threshold"]:
         if ret_1d > 0:
             bull_score += 1
         else:
             bear_score += 1
 
     # Near highs/lows
-    if pct_from_high > -0.02:
+    if pct_from_high > cfg["near_high_threshold"]:
         bull_score += 1
-    if pct_from_low < 0.02:
+    if pct_from_low < cfg["near_low_threshold"]:
         bear_score += 1
 
     total = bull_score + bear_score
@@ -81,5 +82,5 @@ async def evaluate(
         direction=direction,
         confidence=round(confidence, 2),
         reasoning=reasoning,
-        weight=WEIGHT,
+        weight=cfg["weight_market_perception"],
     )

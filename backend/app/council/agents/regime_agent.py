@@ -2,18 +2,19 @@
 import logging
 from typing import Any, Dict
 
+from app.council.agent_config import get_agent_thresholds
 from app.council.schemas import AgentVote
 
 logger = logging.getLogger(__name__)
 
 NAME = "regime"
-WEIGHT = 1.2  # Higher weight — regime is critical
 
 
 async def evaluate(
     symbol: str, timeframe: str, features: Dict[str, Any], context: Dict[str, Any]
 ) -> AgentVote:
     """Check market regime and align trading direction."""
+    cfg = get_agent_thresholds()
     f = features.get("features", features)
 
     regime = str(f.get("regime", "unknown")).lower()
@@ -54,6 +55,6 @@ async def evaluate(
         direction=direction,
         confidence=round(min(0.9, confidence), 2),
         reasoning=reasoning,
-        weight=WEIGHT,
+        weight=cfg["weight_regime"],
         metadata={"regime": regime, "regime_confidence": regime_confidence},
     )

@@ -3,6 +3,26 @@
 **Scope:** Every file in the repository (~200+ files)
 **Reviewed by:** Claude Code (8 parallel review agents)
 
+## Resolution Status (Updated March 4, 2026)
+
+All 105+ issues from this review have been **FIXED** across 4 commits:
+
+| Commit | Description | Files Changed |
+|--------|-------------|---------------|
+| `e3b4110` | Add comprehensive codebase review document | 1 |
+| `224afd3` | Fix 105+ bugs across entire codebase (P0-P3) | 58 |
+| `591cf3d` | Add Bearer token authentication across full stack | 24 |
+| `401bb4a` | Update ML drift artifacts from test run | 2 |
+
+**Additional improvements beyond the review:**
+- Created `backend/app/core/security.py` — Bearer token auth on 47 endpoints
+- Created `backend/app/council/agent_config.py` — configurable agent thresholds via settings
+- Created `backend/app/council/feedback_loop.py` — closed-loop learning from trade outcomes
+- Added `council` settings category with all agent thresholds
+- Deleted dead `backend/routers/trade_execution.py`
+- Updated `project_state.md` with current architecture and state
+- **151 tests passing** (up from ~70 at time of review)
+
 ---
 
 ## Executive Summary

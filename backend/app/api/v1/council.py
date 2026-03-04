@@ -1,13 +1,17 @@
 """Council API — evaluate symbols through the 8-agent debate council.
 
-POST /api/v1/council/evaluate  → full DecisionPacket
-GET  /api/v1/council/status    → council configuration
+POST /api/v1/council/evaluate     → full DecisionPacket
+GET  /api/v1/council/status       → council configuration
+GET  /api/v1/council/performance  → agent accuracy stats (feedback loop)
+POST /api/v1/council/update-weights → recompute agent weights from outcomes
 """
 import logging
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+
+from app.core.security import require_auth
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -23,7 +27,7 @@ class CouncilEvalRequest(BaseModel):
     context: Optional[Dict[str, Any]] = None
 
 
-@router.post("/evaluate")
+@router.post("/evaluate", dependencies=[Depends(require_auth)])
 async def evaluate_symbol(req: CouncilEvalRequest):
     """Run the 8-agent council on a symbol and return DecisionPacket."""
     global _latest_decision
@@ -79,3 +83,26 @@ async def council_status():
             ["arbiter"],
         ],
     }
+
+
+@router.get("/performance")
+async def council_agent_performance():
+    """Return per-agent accuracy stats from the feedback loop."""
+    try:
+        from app.council.feedback_loop import get_agent_performance
+        return get_agent_performance()
+    except Exception as e:
+        logger.error("Failed to get agent performance: %s", e)
+        return {"agent_stats": {}, "total_decisions": 0, "total_outcomes": 0, "feedback_active": False}
+
+
+@router.post("/update-weights", dependencies=[Depends(require_auth)])
+async def council_update_weights():
+    """Recompute agent weights from outcome history and persist to settings."""
+    try:
+        from app.council.feedback_loop import update_agent_weights
+        new_weights = update_agent_weights()
+        return {"status": "updated", "weights": new_weights}
+    except Exception as e:
+        logger.error("Failed to update agent weights: %s", e)
+        raise HTTPException(status_code=500, detail="Weight update failed")
