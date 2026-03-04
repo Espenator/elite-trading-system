@@ -83,6 +83,30 @@ async def run_council(
 
     timestamp = datetime.now(timezone.utc).isoformat()
 
+    # Circuit breaker — brainstem reflexes run BEFORE the DAG
+    try:
+        from app.council.reflexes.circuit_breaker import circuit_breaker
+        halt_reason = await circuit_breaker.check_all(blackboard)
+        if halt_reason:
+            logger.warning("Circuit breaker halted council for %s: %s", symbol, halt_reason)
+            blackboard.metadata["circuit_breaker"] = halt_reason
+            return DecisionPacket(
+                symbol=symbol,
+                timeframe=timeframe,
+                timestamp=timestamp,
+                votes=[],
+                final_direction="hold",
+                final_confidence=0.0,
+                vetoed=True,
+                veto_reasons=[f"Circuit breaker: {halt_reason}"],
+                risk_limits={},
+                execution_ready=False,
+                council_reasoning=f"HALTED by circuit breaker: {halt_reason}",
+                council_decision_id=blackboard.council_decision_id,
+            )
+    except Exception as e:
+        logger.debug("Circuit breaker check failed (proceeding): %s", e)
+
     # Import all agents
     from app.council.agents import (
         market_perception_agent,

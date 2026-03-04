@@ -55,6 +55,13 @@ _DEFAULTS: Dict[str, Any] = {
     "critic_good_r": 1.0,
     "critic_small_loss_r": -1.0,
 
+    # Circuit Breaker thresholds
+    "cb_vix_spike_threshold": 35.0,
+    "cb_daily_drawdown_limit": 0.03,
+    "cb_flash_crash_threshold": 0.05,
+    "cb_max_positions": 10,
+    "cb_max_single_position_pct": 0.20,
+
     # Agent weights
     "weight_market_perception": 1.0,
     "weight_flow_perception": 0.8,
