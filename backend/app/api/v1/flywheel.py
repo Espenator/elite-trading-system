@@ -90,6 +90,53 @@ async def get_flywheel():
     }
 
 
+@router.get("/logs")
+async def get_flywheel_logs():
+    """Return recent flywheel/ML pipeline log entries for ML Brain Flywheel page."""
+    stored = db_service.get_config("flywheel_logs")
+    if not stored or not isinstance(stored, list):
+        return {"flywheel": {"logs": []}}
+    return {"flywheel": {"logs": stored[-100:]}}
+
+
+@router.get("/kpis")
+async def get_flywheel_kpis():
+    """Flywheel KPIs for ML Brain page. Stub when no pipeline data."""
+    data = _get_flywheel_data()
+    return {
+        "flywheel": {
+            "accuracy": round((data.get("accuracy30d") or 0) * 100, 1),
+            "resolvedSignals": data.get("resolvedSignals", 0),
+            "pendingResolution": data.get("pendingResolution", 0),
+        }
+    }
+
+
+@router.get("/performance")
+async def get_flywheel_performance():
+    """Flywheel performance metrics for ML Brain page."""
+    data = _get_flywheel_data()
+    return {"flywheel": {"history": data.get("history", [])[-90:], "accuracy30d": data.get("accuracy30d", 0)}}
+
+
+@router.get("/signals/staged")
+async def get_flywheel_signals_staged():
+    """Staged signals for flywheel. Stub."""
+    return {"flywheel": {"signals": [], "staged": 0}}
+
+
+@router.get("/models")
+async def get_flywheel_models():
+    """Model registry summary for ML Brain page. Stub."""
+    return {"flywheel": {"models": [], "champion": None}}
+
+
+@router.get("/features")
+async def get_flywheel_features():
+    """Feature pipeline status for ML Brain page. Stub."""
+    return {"flywheel": {"features": [], "version": None}}
+
+
 @router.post("/record")
 async def record_flywheel(record: FlywheelRecord):
     """Submit a flywheel accuracy snapshot (called by ML training/evaluation)."""

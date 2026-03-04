@@ -94,12 +94,12 @@ const MiniAreaChart = ({ data, dataKey, dateKey, lineColor, topColor, height = 5
 
 const PerformanceAnalytics = () => {
   // --- API DATA FETCHING (all real endpoints, zero fake data) ---
-  const { data: summary } = useApi("performance", { endpoint: "/summary", pollIntervalMs: 60000 });
-  const { data: equityData } = useApi("performance", { endpoint: "/equity" });
-  const { data: tradesData } = useApi("performance", { endpoint: "/trades" });
-  const { data: riskMetrics } = useApi("performance", { endpoint: "/risk-metrics" });
+  const { data: summary } = useApi("performance", { endpoint: "/performance/summary", pollIntervalMs: 60000 });
+  const { data: equityData } = useApi("performance", { endpoint: "/performance/equity" });
+  const { data: tradesData } = useApi("performance", { endpoint: "/performance/trades" });
+  const { data: riskMetrics } = useApi("performance", { endpoint: "/performance/risk-metrics" });
   const { data: flywheel } = useApi("flywheel");
-  const { data: agents } = useApi("agents", { endpoint: "/consensus" });
+  const { data: agents } = useApi("agents", { endpoint: "/agents/consensus" });
   const { data: riskStatus } = useApi("risk");
   const { data: strategyData } = useApi("strategy");
 

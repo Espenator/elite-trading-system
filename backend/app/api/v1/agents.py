@@ -555,6 +555,12 @@ async def get_conference_status():
     }
 
 
+@router.get("/consensus")
+async def get_consensus():
+    """Agent consensus for Performance Analytics. Same data as conference when available."""
+    return await get_conference_status()
+
+
 # --- Team Status ---
 @router.get("/teams")
 async def get_team_status():
