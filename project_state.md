@@ -114,28 +114,31 @@ The codebase had five separate agent/decision systems. As of v3.2.0, Systems 2 a
 | Infra | Docker, docker-compose.yml |
 | Local AI | Ollama on RTX GPU cluster |
 
-## Hardware (Dual-PC Setup)
-- PC 1: Development + Frontend + Backend API
-- PC 2: RTX GPU cluster for ML training + Ollama inference (brain_service)
-- Connected via gRPC (brain_service port 50051)
-
 ## Data Sources (CRITICAL - NO yfinance)
+
 - Alpaca Markets (alpaca-py) — Market data + order execution
 - Unusual Whales — Options flow + institutional activity
 - FinViz (finviz) — Screener, fundamentals, VIX proxy
 - FRED — Economic macro data
 - SEC EDGAR — Company filings
+- StockGeist / News API / Discord / X — Social sentiment (via council agents)
+- YouTube — Transcript intelligence (via council agent)
 
 ## Council Architecture (13-Agent DAG, 7 Stages)
 ```
-Stage 1 (Parallel): market_perception, flow_perception, regime, intermarket
-Stage 2 (Parallel): rsi, bbv, ema_trend, relative_strength, cycle_timing
-Stage 3: hypothesis (wired to brain_service LLM)
-Stage 4: strategy (entry/exit/sizing)
+Stage 1 (Parallel, 7): market_perception, flow_perception, regime, social_perception, news_catalyst, youtube_knowledge, intermarket
+Stage 2 (Parallel, 5): rsi, bbv, ema_trend, relative_strength, cycle_timing
+Stage 3: hypothesis (wired to brain_service LLM, reads blackboard)
+Stage 4: strategy (entry/exit/sizing, confidence modulated by social+news consensus)
 Stage 5 (Parallel): risk, execution
 Stage 6: critic (postmortem learning)
 Stage 7: arbiter (deterministic BUY/SELL/HOLD with Bayesian weights)
 ```
+
+Agent Groups:
+- **Core (8)**: market_perception, flow_perception, regime, hypothesis, strategy, risk, execution, critic
+- **Data-Source Perception (3)**: social_perception (0.7), news_catalyst (0.6), youtube_knowledge (0.4)
+- **Technical Analysis (5)**: rsi, bbv, ema_trend, intermarket, relative_strength, cycle_timing
 
 Arbiter Rules:
 1. VETO from risk or execution -> hold, vetoed=True
@@ -170,7 +173,18 @@ AlpacaStreamService
   -> Frontend
 ```
 
+## Architecture
+
+```
+[React Frontend] --useApi()--> [FastAPI Backend] --services--> [External APIs]
+15 pages, 31 API route files, WebSocket via websocket_manager.py
+17-Agent Council DAG, ML Engine (XGBoost), DuckDB Analytics
+[Brain Service gRPC] <-- Ollama LLM inference on PC2
+[Electron Desktop Shell] -- spawns backend + serves frontend
+```
+
 ## Key Code Patterns
+
 1. Frontend: useApi('endpoint') hook, no mock data
 2. Python: 4-space indentation, never tabs
 3. Council agents: pure async functions with NAME, WEIGHT, evaluate() -> AgentVote
@@ -191,9 +205,10 @@ AlpacaStreamService
 - Mock Guard: OrderExecutor rejects trades from mock data sources
 
 ## Rules for AI Assistants
+
 1. NEVER import or use yfinance
-2. NEVER use mock/fake data in production
-3. ALWAYS use useApi() hook for frontend data
+2. NEVER use mock/fake data in production components
+3. ALWAYS use useApi() hook for frontend data fetching
 4. ALWAYS use 4-space indentation in Python
 5. Council agents MUST return AgentVote schema
 6. The ONE repo is Espenator/elite-trading-system — do NOT commit to Embodier-Trader
@@ -205,7 +220,6 @@ AlpacaStreamService
 12. New agents should NOT have veto power
 13. CouncilGate is the bridge — signals go through council before OrderExecutor
 
-## Recursive Self-Improvement (Phase 3 - Future)
 - Layer 1: Pattern Discovery Engine — mines historical data, stores in DuckDB
 - Layer 2: Strategy Evolution — Mind Evolution search, 4 strategy islands
 - Layer 3: Memory — PatternMemory, StrategyMemory, SourceMemory feed Bayesian weights

@@ -13,6 +13,7 @@ import hashlib
 import json
 import logging
 import math
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -37,8 +38,8 @@ class FeatureVector:
     cycle_features: Dict[str, float] = field(default_factory=dict)
     raw: Dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
-        """Flatten all features into a single dict."""
+    def _all_features(self) -> Dict[str, Any]:
+        """Merge all feature dicts into one."""
         merged = {}
         merged.update(self.price_features)
         merged.update(self.volume_features)
@@ -394,6 +395,13 @@ async def aggregate(
         logger.warning("Failed to fetch OHLCV for %s: %s", symbol, e)
 
     # Compute features
+    indicator_features = _get_indicator_features(symbol)
+    # Fill gaps with computed indicators from OHLCV (EMA 5/10/20, prev RSI, etc.)
+    extended = _compute_extended_indicators(ohlcv_rows)
+    for k, v in extended.items():
+        if k not in indicator_features:
+            indicator_features[k] = v
+
     fv = FeatureVector(
         symbol=symbol.upper(),
         timestamp=ts.isoformat() if isinstance(ts, datetime) else str(ts),

@@ -12,7 +12,7 @@ import pandas as pd
 
 from app.data.storage import get_conn
 from app.modules.ml_engine.config import (
-    FEATURE_COLS,
+    get_feature_cols,
     TARGET_COL,
     MODEL_FILE,
     METADATA_FILE,
@@ -27,24 +27,21 @@ def load_feature_frame(
 ) -> pd.DataFrame:
     """Load feature DataFrame from DuckDB daily_features."""
     conn = get_conn()
-    try:
-        query = (
-            "SELECT symbol, date, close, "
-            + ", ".join(FEATURE_COLS + [TARGET_COL])
-            + " FROM daily_features"
-        )
-        params = []
-        if start and end:
-            query += " WHERE date BETWEEN ? AND ?"
-            params = [start, end]
-        df = conn.execute(query, params).df()
-    finally:
-        conn.close()
+    query = (
+        "SELECT symbol, date, close, "
+        + ", ".join(get_feature_cols() + [TARGET_COL])
+        + " FROM daily_features"
+    )
+    params = []
+    if start and end:
+        query += " WHERE date BETWEEN ? AND ?"
+        params = [start, end]
+    df = conn.execute(query, params).df()
     if df is None or df.empty:
         return pd.DataFrame()
     df["date"] = pd.to_datetime(df["date"])
     return df.sort_values(["symbol", "date"]).dropna(
-        subset=FEATURE_COLS + [TARGET_COL], how="any"
+        subset=get_feature_cols() + [TARGET_COL], how="any"
     )
 
 
@@ -90,9 +87,9 @@ def train_xgb(
         return None
 
     df_train, df_val = split_by_time(df, train_end, val_end)
-    X_train = df_train[FEATURE_COLS]
+    X_train = df_train[get_feature_cols()]
     y_train = df_train[TARGET_COL]
-    X_val = df_val[FEATURE_COLS]
+    X_val = df_val[get_feature_cols()]
     y_val = df_val[TARGET_COL]
     if len(X_train) < 50 or len(X_val) < 10:
         return None
@@ -152,9 +149,9 @@ def train_lightgbm(
         return None
 
     df_train, df_val = split_by_time(df, train_end, val_end)
-    X_train = df_train[FEATURE_COLS]
+    X_train = df_train[get_feature_cols()]
     y_train = df_train[TARGET_COL]
-    X_val = df_val[FEATURE_COLS]
+    X_val = df_val[get_feature_cols()]
     y_val = df_val[TARGET_COL]
     if len(X_train) < 50 or len(X_val) < 10:
         return None

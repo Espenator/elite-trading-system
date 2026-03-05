@@ -1,4 +1,4 @@
-"""Tests for the 8-agent debate council + arbiter."""
+"""Tests for the 11-agent debate council + arbiter."""
 import pytest
 
 from app.council.schemas import AgentVote, DecisionPacket
@@ -36,7 +36,7 @@ def _full_votes(
     exec_veto_reason="",
     execution_ready=True,
 ):
-    """Build a full list of 8 agent votes with configurable directions."""
+    """Build a list of 8 core agent votes with configurable directions (3 perception agents write to blackboard)."""
     return [
         _vote("market_perception", market_dir, weight=1.0),
         _vote("flow_perception", flow_dir, weight=0.8),

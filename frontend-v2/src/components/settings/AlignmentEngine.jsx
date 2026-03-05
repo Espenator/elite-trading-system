@@ -87,6 +87,11 @@ export default function AlignmentEngine() {
           fetch(`${getApiUrl('alignment')}/constitution`),
           fetch(`${getApiUrl('alignment')}/drift-history`),
       ]);
+      if (!stateRes.ok) throw new Error('Failed to fetch alignment state');
+      if (!patternsRes.ok) throw new Error('Failed to fetch patterns');
+      if (!auditRes.ok) throw new Error('Failed to fetch audit');
+      if (!constitutionRes.ok) throw new Error('Failed to fetch constitution');
+      if (!driftRes.ok) throw new Error('Failed to fetch drift history');
       setAlignmentState(await stateRes.json());
       setPatterns(await patternsRes.json());
       setAuditLog(await auditRes.json());

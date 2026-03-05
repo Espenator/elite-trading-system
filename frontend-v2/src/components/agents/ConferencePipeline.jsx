@@ -4,7 +4,7 @@ import { useConferenceStatus, useCouncilLatest } from '../../hooks/useApi';
 /**
  * ConferencePipeline - Dual pipeline view:
  *  - Legacy 4-agent: Researcher → RiskOfficer → Adversary → Arbitrator
- *  - New 8-agent Council: Market → Flow → Regime → Hypothesis → Strategy → Risk → Execution → Critic → Arbiter
+ *  - New 11-agent Council: Market → Flow → Regime → Social → News → YouTube → Hypothesis → Strategy → Risk → Execution → Critic → Arbiter
  *
  * Council panel shown when COUNCIL_ENABLED=true on backend and data available.
  * Falls back to legacy 4-agent pipeline when council data is not available.

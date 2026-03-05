@@ -11,7 +11,7 @@ const log = {
   debug: isDev ? console.debug.bind(console) : noop,
   info: isDev ? console.log.bind(console) : noop,
   warn: isDev ? console.warn.bind(console) : noop,
-  error: isDev ? console.error.bind(console) : noop,
+  error: (...args) => console.error('[ERROR]', ...args),
 };
 
 export default log;

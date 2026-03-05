@@ -29,8 +29,8 @@ import asyncio
 import logging
 import time
 import uuid
-from collections import defaultdict
-from dataclasses import dataclass, field
+import collections
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -101,17 +101,18 @@ class OrderExecutor:
     ):
         self.message_bus = message_bus
         self.auto_execute = auto_execute
-        self.min_score = min_score
-        self.max_daily_trades = max_daily_trades
-        self.cooldown_seconds = cooldown_seconds
-        self.max_portfolio_heat = max_portfolio_heat
-        self.max_single_position = max_single_position
+        # Range-validate parameters to prevent misconfiguration
+        self.min_score = max(0.0, min(float(min_score), 100.0))
+        self.max_daily_trades = max(1, min(int(max_daily_trades), 100))
+        self.cooldown_seconds = max(0, min(int(cooldown_seconds), 86400))
+        self.max_portfolio_heat = max(0.01, min(float(max_portfolio_heat), 1.0))
+        self.max_single_position = max(0.01, min(float(max_single_position), 1.0))
         self.use_bracket_orders = use_bracket_orders
 
         # State tracking
         self._running = False
         self._start_time: Optional[float] = None
-        self._orders: List[OrderRecord] = []
+        self._orders: collections.deque = collections.deque(maxlen=10000)
         self._daily_trade_count = 0
         self._daily_reset_date: Optional[str] = None
         self._symbol_last_trade: Dict[str, float] = {}
@@ -625,10 +626,17 @@ class OrderExecutor:
             return True, {}
 
     def _check_daily_reset(self) -> None:
-        """Reset daily trade count at market open."""
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        if self._daily_reset_date != today:
-            self._daily_reset_date = today
+        """Reset daily trade count at market open (US/Eastern)."""
+        try:
+            from zoneinfo import ZoneInfo
+            eastern = ZoneInfo("America/New_York")
+        except ImportError:
+            from datetime import timedelta
+            # Fallback: approximate ET as UTC-5 (ignores DST but better than UTC)
+            eastern = timezone(timedelta(hours=-5))
+        today_et = datetime.now(eastern).strftime("%Y-%m-%d")
+        if self._daily_reset_date != today_et:
+            self._daily_reset_date = today_et
             self._daily_trade_count = 0
 
     def _reject(self, symbol: str, score: float, reason: str) -> None:

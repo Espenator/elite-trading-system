@@ -1,17 +1,13 @@
 """Risk Agent — Kelly/Van Tharp constraints with VETO power."""
 import logging
-import os
 from typing import Any, Dict
 
+from app.council.agent_config import get_agent_thresholds
 from app.council.schemas import AgentVote
 
 logger = logging.getLogger(__name__)
 
 NAME = "risk"
-WEIGHT = 1.5  # Highest weight — risk is paramount
-
-MAX_PORTFOLIO_HEAT = float(os.getenv("MAX_PORTFOLIO_HEAT", "0.06"))
-MAX_SINGLE_POSITION = float(os.getenv("MAX_SINGLE_POSITION", "0.02"))
 
 
 async def evaluate(
@@ -25,11 +21,11 @@ async def evaluate(
     - Drawdown status
     - Volatility regime
     """
+    cfg = get_agent_thresholds()
     f = features.get("features", features)
     veto = False
     veto_reason = ""
     reasons = []
-    risk_limits = {}
 
     # Check portfolio heat via risk API
     try:
@@ -38,9 +34,9 @@ async def evaluate(
         risk_score = risk_data.get("risk_score", 50)
         reasons.append(f"Risk score={risk_score}")
 
-        if risk_score < 30:
+        if risk_score < cfg["risk_score_veto_threshold"]:
             veto = True
-            veto_reason = f"Risk score too low ({risk_score} < 30)"
+            veto_reason = f"Risk score too low ({risk_score} < {cfg['risk_score_veto_threshold']})"
     except Exception:
         reasons.append("Risk API unavailable")
 
@@ -63,18 +59,18 @@ async def evaluate(
 
     # Volatility check
     vol = f.get("volatility_annualized", 0)
-    if vol > 0.50:
+    if vol > cfg["volatility_extreme_threshold"]:
         veto = True
         veto_reason = f"Extreme volatility ({vol:.0%}) — standing aside"
         reasons.append(f"Vol={vol:.0%} EXTREME")
-    elif vol > 0.30:
+    elif vol > cfg["volatility_elevated_threshold"]:
         reasons.append(f"Vol={vol:.0%} elevated")
     else:
         reasons.append(f"Vol={vol:.0%} normal")
 
     risk_limits = {
-        "max_portfolio_heat": MAX_PORTFOLIO_HEAT,
-        "max_single_position": MAX_SINGLE_POSITION,
+        "max_portfolio_heat": cfg["max_portfolio_heat"],
+        "max_single_position": cfg["max_single_position"],
         "current_volatility": vol,
     }
 
@@ -86,15 +82,15 @@ async def evaluate(
             reasoning=f"VETO: {veto_reason}. " + "; ".join(reasons),
             veto=True,
             veto_reason=veto_reason,
-            weight=WEIGHT,
+            weight=cfg["weight_risk"],
             metadata={"risk_limits": risk_limits},
         )
 
     return AgentVote(
         agent_name=NAME,
-        direction="buy",  # Risk agent doesn't decide direction, just gates
-        confidence=0.6,
+        direction="hold",  # Risk agent doesn't decide direction, just gates
+        confidence=0.5,
         reasoning="Risk checks passed. " + "; ".join(reasons),
-        weight=WEIGHT,
+        weight=cfg["weight_risk"],
         metadata={"risk_limits": risk_limits},
     )

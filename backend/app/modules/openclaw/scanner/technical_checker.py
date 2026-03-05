@@ -39,8 +39,10 @@ logger = logging.getLogger(__name__)
 
 ALPACA_API_KEY = os.getenv('ALPACA_API_KEY', '')
 ALPACA_SECRET_KEY = os.getenv('ALPACA_SECRET_KEY', '')
-ALPACA_DATA_URL = 'https://data.alpaca.markets/v2'
-ALPACA_TRADE_URL = 'https://paper-api.alpaca.markets/v2'
+_data_url = os.getenv('ALPACA_DATA_URL', 'https://data.alpaca.markets').rstrip('/')
+ALPACA_DATA_URL = _data_url if _data_url.endswith('/v2') else _data_url + '/v2'
+_trade_url = os.getenv('ALPACA_BASE_URL', 'https://paper-api.alpaca.markets').rstrip('/')
+ALPACA_TRADE_URL = _trade_url if _trade_url.endswith('/v2') else _trade_url + '/v2'
 
 # Sector lookup cache with TTL to avoid repeated API calls and unbounded growth
 _SECTOR_CACHE: Dict[str, tuple] = {}  # {ticker: (sector, timestamp)}

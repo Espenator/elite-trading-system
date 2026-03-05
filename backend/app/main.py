@@ -21,13 +21,16 @@ from dotenv import load_dotenv
 _env_path = Path(__file__).resolve().parent.parent / ".env"
 load_dotenv(_env_path, override=False)
 
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from app.websocket_manager import (
     add_connection,
     remove_connection,
     heartbeat_loop,
-    accept_connection,
     handle_pong,
     subscribe,
     unsubscribe,
@@ -65,16 +68,15 @@ from app.api.v1 import (
     alignment,
     features as features_routes,
     council,
+    cns,
     youtube_knowledge,
+    swarm,
 )
 from app.api import ingestion
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
+# Configure structured logging (JSON in production, human-readable in dev)
+from app.core.logging_config import setup_logging, correlation_id, generate_correlation_id
+setup_logging()
 log = logging.getLogger(__name__)
 
 
@@ -224,6 +226,7 @@ _alpaca_stream_task = None
 _event_signal_engine = None
 _council_gate = None
 _order_executor = None
+_council_evaluator = None
 
 
 async def _start_event_driven_pipeline():
@@ -342,6 +345,133 @@ async def _start_event_driven_pipeline():
         _alpaca_stream_task = asyncio.create_task(_alpaca_stream.start())
         log.info("\u2705 AlpacaStreamService launched for %d symbols", len(symbols))
 
+    # 8. SwarmSpawner — spawns analysis swarms from ideas
+    from app.services.swarm_spawner import get_swarm_spawner
+    _swarm_spawner = get_swarm_spawner()
+    _swarm_spawner._bus = _message_bus
+    await _swarm_spawner.start()
+    log.info("\u2705 SwarmSpawner started (%d workers)", _swarm_spawner.MAX_CONCURRENT_SWARMS)
+
+    # 9. KnowledgeIngestionService — connect to message bus
+    from app.services.knowledge_ingest import knowledge_ingest
+    knowledge_ingest.set_message_bus(_message_bus)
+    log.info("\u2705 KnowledgeIngestionService connected to MessageBus")
+
+    # 10. AutonomousScoutService — proactive opportunity discovery
+    from app.services.autonomous_scout import get_scout_service
+    _scout_service = get_scout_service()
+    _scout_service._bus = _message_bus
+    await _scout_service.start()
+    log.info("\u2705 AutonomousScoutService started (%d scouts)", len(_scout_service._tasks))
+
+    # 11. DiscordSwarmBridge — Discord channels -> swarm analysis
+    from app.services.discord_swarm_bridge import get_discord_bridge
+    _discord_bridge = get_discord_bridge()
+    _discord_bridge._bus = _message_bus
+    await _discord_bridge.start()
+    log.info("\u2705 DiscordSwarmBridge started (%d channels)", len(_discord_bridge._channels))
+
+    # 12. GeopoliticalRadar — continuous macro event detection
+    from app.services.geopolitical_radar import get_geopolitical_radar
+    _geo_radar = get_geopolitical_radar()
+    _geo_radar._bus = _message_bus
+    await _geo_radar.start()
+    log.info("\u2705 GeopoliticalRadar started (alert_level=%s)", _geo_radar._alert_level)
+
+    # 13. Swarm result -> WebSocket bridge
+    async def _bridge_swarm_to_ws(result_data):
+        try:
+            from app.websocket_manager import broadcast_ws
+            await broadcast_ws("swarm", {"type": "swarm_result", "result": result_data})
+        except Exception as e:
+            log.debug("WS swarm broadcast failed: %s", e)
+
+    await _message_bus.subscribe("swarm.result", _bridge_swarm_to_ws)
+    log.info("\u2705 Swarm->WebSocket bridge active")
+
+    # 14. Macro event -> WebSocket bridge
+    async def _bridge_macro_to_ws(event_data):
+        try:
+            from app.websocket_manager import broadcast_ws
+            await broadcast_ws("risk", {"type": "macro_event", "event": event_data})
+        except Exception as e:
+            log.debug("WS macro broadcast failed: %s", e)
+
+    await _message_bus.subscribe("scout.discovery", _bridge_macro_to_ws)
+    log.info("\u2705 MacroEvent->WebSocket bridge active")
+
+    # 15. CorrelationRadar — cross-asset correlation breaks + sector rotation
+    from app.services.correlation_radar import get_correlation_radar, KEY_PAIRS
+    _corr_radar = get_correlation_radar()
+    _corr_radar._bus = _message_bus
+    await _corr_radar.start()
+    log.info("\u2705 CorrelationRadar started (%d key pairs)", len(KEY_PAIRS))
+
+    # 16. PatternLibrary — discovers and validates recurring patterns
+    from app.services.pattern_library import get_pattern_library
+    _pattern_lib = get_pattern_library()
+    _pattern_lib._bus = _message_bus
+    await _pattern_lib.start()
+    log.info("\u2705 PatternLibrary started (%d patterns)", len(_pattern_lib._patterns))
+
+    # 17. ExpectedMoveService — options-derived reversal zones
+    from app.services.expected_move_service import get_expected_move_service
+    _em_service = get_expected_move_service()
+    _em_service._bus = _message_bus
+    await _em_service.start()
+    log.info("\u2705 ExpectedMoveService started (%d symbols)", len(get_expected_move_service()._levels) or 18)
+
+    # 18. TurboScanner — parallel multi-source 60s scanner (10 concurrent DuckDB screens)
+    from app.services.turbo_scanner import get_turbo_scanner
+    _turbo_scanner = get_turbo_scanner()
+    _turbo_scanner._bus = _message_bus
+    await _turbo_scanner.start()
+    log.info("\u2705 TurboScanner started (interval=%ds)", _turbo_scanner._scan_interval)
+
+    # 19. HyperSwarm — 50+ concurrent micro-swarms via local Ollama
+    from app.services.hyper_swarm import get_hyper_swarm
+    _hyper_swarm = get_hyper_swarm()
+    _hyper_swarm._bus = _message_bus
+    await _hyper_swarm.start()
+    log.info("\u2705 HyperSwarm started (%d workers, %d Ollama nodes)", len(_hyper_swarm._workers), len(_hyper_swarm._ollama_urls))
+
+    # 20. NewsAggregator — 8+ RSS/API news sources every 60s
+    from app.services.news_aggregator import get_news_aggregator
+    _news_agg = get_news_aggregator()
+    _news_agg._bus = _message_bus
+    await _news_agg.start()
+    log.info("\u2705 NewsAggregator started (%d RSS feeds)", 9)
+
+    # 21. MarketWideSweep — batch Alpaca ingest + 10 SQL screens across full market
+    from app.services.market_wide_sweep import get_market_sweep
+    _market_sweep = get_market_sweep()
+    _market_sweep._bus = _message_bus
+    await _market_sweep.start()
+    log.info("\u2705 MarketWideSweep started (universe=%d symbols)", len(_market_sweep._universe))
+
+    # 22. UnifiedProfitEngine — single adaptive scorer replacing 5 competing brains
+    from app.services.unified_profit_engine import get_unified_engine
+    _unified = get_unified_engine()
+    _unified._bus = _message_bus
+    await _unified.start()
+    log.info("\u2705 UnifiedProfitEngine started — weights: %s",
+             {k: f"{v:.2f}" for k, v in _unified._weights.items()})
+
+    # 23. PositionManager — automated exits (trailing stops, time exits, partial profits)
+    from app.services.position_manager import get_position_manager
+    _position_mgr = get_position_manager()
+    _position_mgr._bus = _message_bus
+    await _position_mgr.start()
+    log.info("\u2705 PositionManager started (trailing stops + time exits)")
+
+    # 23. OutcomeTracker — closes the feedback loop (real PnL → Kelly calibration + agent weights)
+    from app.services.outcome_tracker import get_outcome_tracker
+    _outcome_tracker = get_outcome_tracker()
+    _outcome_tracker._bus = _message_bus
+    await _outcome_tracker.start()
+    log.info("\u2705 OutcomeTracker started (win_rate=%.2f, resolved=%d)",
+             _outcome_tracker._stats["win_rate"], _outcome_tracker._stats["total_resolved"])
+
     log.info("=" * 60)
     log.info("\u2705 Event-Driven Pipeline ONLINE (Council-Controlled)")
     log.info("  Stream -> SignalEngine -> CouncilGate -> Council -> OrderExecutor")
@@ -358,6 +488,81 @@ async def _stop_event_driven_pipeline():
     global _message_bus, _alpaca_stream, _alpaca_stream_task
     global _event_signal_engine, _council_gate, _order_executor
     log.info("Shutting down event-driven pipeline...")
+
+    # Stop swarm intelligence components first (reverse startup order)
+    try:
+        from app.services.outcome_tracker import get_outcome_tracker
+        await get_outcome_tracker().stop()
+    except Exception:
+        pass
+    try:
+        from app.services.unified_profit_engine import get_unified_engine
+        await get_unified_engine().stop()
+    except Exception:
+        pass
+    try:
+        from app.services.position_manager import get_position_manager
+        await get_position_manager().stop()
+    except Exception:
+        pass
+    try:
+        from app.services.market_wide_sweep import get_market_sweep
+        await get_market_sweep().stop()
+    except Exception:
+        pass
+    try:
+        from app.services.news_aggregator import get_news_aggregator
+        await get_news_aggregator().stop()
+    except Exception:
+        pass
+    try:
+        from app.services.hyper_swarm import get_hyper_swarm
+        await get_hyper_swarm().stop()
+    except Exception:
+        pass
+    try:
+        from app.services.turbo_scanner import get_turbo_scanner
+        await get_turbo_scanner().stop()
+    except Exception:
+        pass
+    try:
+        from app.services.expected_move_service import get_expected_move_service
+        await get_expected_move_service().stop()
+    except Exception:
+        pass
+    try:
+        from app.services.pattern_library import get_pattern_library
+        await get_pattern_library().stop()
+    except Exception:
+        pass
+    try:
+        from app.services.correlation_radar import get_correlation_radar
+        await get_correlation_radar().stop()
+    except Exception:
+        pass
+    try:
+        from app.services.geopolitical_radar import get_geopolitical_radar
+        await get_geopolitical_radar().stop()
+    except Exception:
+        pass
+    try:
+        from app.services.discord_swarm_bridge import get_discord_bridge
+        await get_discord_bridge().stop()
+    except Exception:
+        pass
+    try:
+        from app.services.autonomous_scout import get_scout_service
+        await get_scout_service().stop()
+    except Exception:
+        pass
+    try:
+        from app.services.swarm_spawner import get_swarm_spawner
+        await get_swarm_spawner().stop()
+    except Exception:
+        pass
+
+    if _council_evaluator:
+        await _council_evaluator.stop()
 
     if _alpaca_stream:
         await _alpaca_stream.stop()
@@ -454,8 +659,30 @@ async def lifespan(app: FastAPI):
                 await task
             except asyncio.CancelledError:
                 pass
+        # Stop intelligence cache background loop
+        try:
+            from app.services.intelligence_cache import get_intelligence_cache
+            cache = get_intelligence_cache()
+            if cache._running:
+                await cache.stop()
+        except Exception:
+            pass
+
+        # Close DuckDB connection
+        try:
+            from app.data.duckdb_storage import duckdb_store
+            if hasattr(duckdb_store, '_conn') and duckdb_store._conn:
+                duckdb_store._conn.close()
+                duckdb_store._conn = None
+                log.info("DuckDB connection closed")
+        except Exception:
+            pass
+
         log.info("Application shutdown complete")
 
+
+# Rate limiter: 200/min general, 20/min for order endpoints
+limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 
 app = FastAPI(
     title=(
@@ -466,15 +693,41 @@ app = FastAPI(
     version="3.2.0",
     lifespan=lifespan,
 )
+app.state.limiter = limiter
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Rate limit exceeded. Please slow down."},
+    )
 
 # CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
 )
+
+
+@app.middleware("http")
+async def add_security_and_correlation_headers(request, call_next):
+    # Set correlation ID for request tracing
+    cid = request.headers.get("X-Correlation-ID") or generate_correlation_id()
+    token = correlation_id.set(cid)
+    try:
+        response = await call_next(request)
+        response.headers["X-Correlation-ID"] = cid
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
+    finally:
+        correlation_id.reset(token)
 
 # --- API Routers ---
 app.include_router(stocks.router, prefix="/api/v1/stocks", tags=["stocks"])
@@ -505,6 +758,7 @@ app.include_router(alignment.router, prefix="/api/v1/alignment", tags=["alignmen
 app.include_router(risk_shield_api.router, prefix="/api/v1/risk-shield", tags=["risk_shield"])
 app.include_router(features_routes.router, prefix="/api/v1/features", tags=["features"])
 app.include_router(council.router, prefix="/api/v1/council", tags=["council"])
+app.include_router(cns.router, prefix="/api/v1/cns", tags=["cns"])
 app.include_router(youtube_knowledge.router, prefix="/api/v1/youtube-knowledge", tags=["youtube_knowledge"])
 app.include_router(ingestion.router, tags=["ingestion"])
 
@@ -545,6 +799,50 @@ async def websocket_endpoint(websocket: WebSocket):
         pass
     finally:
         remove_connection(websocket)
+
+
+@app.get("/healthz")
+async def liveness():
+    """Liveness probe — confirms the process is alive and can serve HTTP.
+
+    Kubernetes uses this to decide whether to restart the container.
+    Must be fast (<50ms) with zero external dependencies.
+    """
+    return {"status": "alive"}
+
+
+@app.get("/readyz")
+async def readiness():
+    """Readiness probe — confirms the app can serve real traffic.
+
+    Kubernetes uses this to decide whether to route traffic to this pod.
+    Checks critical dependencies: DuckDB, Alpaca connectivity.
+    Returns 503 if any critical dependency is down.
+    """
+    checks = {}
+    ready = True
+
+    # DuckDB — critical for all data operations
+    try:
+        from app.data.duckdb_storage import duckdb_store
+        health = duckdb_store.health_check()
+        checks["duckdb"] = "ok" if health.get("total_tables", 0) > 0 else "degraded"
+    except Exception:
+        checks["duckdb"] = "unavailable"
+        ready = False
+
+    # Alpaca API keys configured (required for trading)
+    from app.services.alpaca_service import alpaca_service
+    checks["alpaca_configured"] = "ok" if alpaca_service._is_configured() else "not_configured"
+
+    # Event pipeline running
+    checks["message_bus"] = "ok" if _message_bus else "not_started"
+
+    status_code = 200 if ready else 503
+    return JSONResponse(
+        status_code=status_code,
+        content={"status": "ready" if ready else "not_ready", "checks": checks},
+    )
 
 
 @app.get("/health")

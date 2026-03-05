@@ -172,9 +172,12 @@ class DatabaseService:
         """Create a new order."""
         with _db_cursor(self.db_path) as (conn, cursor):
             now = datetime.now().isoformat()
-            estimated_cost = estimated_cost or (quantity * price)
-            required_margin = required_margin or (estimated_cost * 0.5)
-            potential_pnl = potential_pnl or (estimated_cost * 0.02)
+            if estimated_cost is None:
+                estimated_cost = quantity * price
+            if required_margin is None:
+                required_margin = estimated_cost * 0.5
+            if potential_pnl is None:
+                potential_pnl = 0.0
             
             # Map Alpaca status to our status
             status = 'Pending'

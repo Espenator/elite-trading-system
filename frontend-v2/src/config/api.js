@@ -114,16 +114,41 @@ const API_CONFIG = {
     "alignment/metacognition": "/alignment/metacognition", // GET metacognition flags + trends
     "alignment/critique": "/alignment/critique", // GET swarm critique role stats
 
-    // ---- COUNCIL (8-Agent Debate Council) ----
-    councilEvaluate: "/council/evaluate", // POST: run 8-agent council evaluation
+    // ---- COUNCIL (11-Agent Debate Council) ----
+    councilEvaluate: "/council/evaluate", // POST: run 11-agent council evaluation
     councilLatest: "/council/latest", // GET: latest council DecisionPacket
 
     // ---- FEATURE STORE ----
     featuresLatest: "/features/latest", // GET: latest feature vector for symbol
     featuresCompute: "/features/compute", // POST: compute + persist feature vector
 
+    // ---- DEVICE & SYSTEM ----
+    deviceInfo: "/system/device", // GET: device identity for multi-PC setups
+
     // ---- FLYWHEEL SCHEDULER ----
     flywheelScheduler: "/flywheel/scheduler", // GET: scheduler status + next runs
+
+    // ---- CNS (Central Nervous System) ----
+    cnsHomeostasis: "/cns/homeostasis/vitals",
+    cnsCircuitBreaker: "/cns/circuit-breaker/status",
+    cnsAgentsHealth: "/cns/agents/health",
+    cnsBlackboard: "/cns/blackboard/current",
+    cnsPostmortems: "/cns/postmortems",
+    cnsPostmortemsAttribution: "/cns/postmortems/attribution",
+    cnsDirectives: "/cns/directives",
+    cnsLastVerdict: "/cns/council/last-verdict",
+    cnsProfitBrain: "/cns/profit-brain",
+
+    // ---- SWARM INTELLIGENCE ----
+    swarmTurboStatus: "/swarm/turbo/status",
+    swarmHyperStatus: "/swarm/hyper/status",
+    swarmNewsStatus: "/swarm/news/status",
+    swarmSweepStatus: "/swarm/sweep/status",
+    swarmUnifiedStatus: "/swarm/unified/status",
+    swarmOutcomesStatus: "/swarm/outcomes/status",
+    swarmOutcomesKelly: "/swarm/outcomes/kelly",
+    swarmPositionsManaged: "/swarm/positions/managed",
+    swarmMlScorerStatus: "/swarm/ml/scorer/status",
   },
 };
 
@@ -151,6 +176,19 @@ export const getApiUrl = (endpoint) => {
 };
 
 /**
+ * Get auth headers for state-changing requests (POST/PUT/DELETE).
+ * Reads API_AUTH_TOKEN from VITE_API_AUTH_TOKEN env var.
+ * Returns headers object to spread into fetch options.
+ */
+export const getAuthHeaders = () => {
+  const token = import.meta.env.VITE_API_AUTH_TOKEN;
+  if (token) {
+    return { Authorization: `Bearer ${token}` };
+  }
+  return {};
+};
+
+/**
  * Get WebSocket base URL. When WS_URL is "" (dev), uses current host so Vite proxy is used.
  */
 export const getWsBaseUrl = () =>
@@ -173,10 +211,13 @@ export const WS_CHANNELS = {
   trades: "trades",
   logs: "logs",
   sentiment: "sentiment",
-    risk: "risk",
+  risk: "risk",
   kelly: "kelly",
-      alignment: "alignment",
+  alignment: "alignment",
   council: "council",
+  council_verdict: "council_verdict",
+  homeostasis: "homeostasis",
+  circuit_breaker: "circuit_breaker",
 };
 
 export default API_CONFIG;

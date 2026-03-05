@@ -7,16 +7,24 @@ GET  /api/v1/council/weights   -> current agent weights (Bayesian-updated)
 POST /api/v1/council/weights/reset -> reset weights to defaults
 """
 import logging
+import time
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+
+from app.core.security import require_auth
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # In-memory cache for the latest council decision (shown on dashboard)
 _latest_decision: Optional[Dict[str, Any]] = None
+
+# Rate limiting: max evaluations per minute to prevent DoS
+_eval_timestamps: list = []
+_RATE_LIMIT_MAX = 10  # Max 10 council evaluations per minute
+_RATE_LIMIT_WINDOW = 60  # seconds
 
 
 class CouncilEvalRequest(BaseModel):
@@ -26,10 +34,24 @@ class CouncilEvalRequest(BaseModel):
     context: Optional[Dict[str, Any]] = None
 
 
-@router.post("/evaluate")
+def _check_rate_limit():
+    """Enforce rate limiting on council evaluations."""
+    now = time.time()
+    # Prune old timestamps
+    _eval_timestamps[:] = [t for t in _eval_timestamps if now - t < _RATE_LIMIT_WINDOW]
+    if len(_eval_timestamps) >= _RATE_LIMIT_MAX:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit exceeded: max {_RATE_LIMIT_MAX} evaluations per minute",
+        )
+    _eval_timestamps.append(now)
+
+
+@router.post("/evaluate", dependencies=[Depends(require_auth)])
 async def evaluate_symbol(req: CouncilEvalRequest):
     """Run the 13-agent council on a symbol and return DecisionPacket."""
     global _latest_decision
+    _check_rate_limit()
     try:
         from app.council.runner import run_council
 
@@ -44,8 +66,8 @@ async def evaluate_symbol(req: CouncilEvalRequest):
         _latest_decision = result
         return result
     except Exception as e:
-        logger.exception("Council evaluation failed for %s", req.symbol)
-        return {"status": "error", "message": str(e), "symbol": req.symbol}
+        logger.error("Council evaluation failed: %s", e)
+        raise HTTPException(status_code=500, detail="Council evaluation failed")
 
 
 @router.get("/latest")

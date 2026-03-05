@@ -17,7 +17,7 @@ def load_model(path: str, num_features: int):
         return None
     from app.models.lstm_daily import DailyLSTM
     model = DailyLSTM(num_features=num_features)
-    state = torch.load(path, map_location="cpu")
+    state = torch.load(path, map_location="cpu", weights_only=True)
     model._module.load_state_dict(state)
     model._module.eval()
     return model

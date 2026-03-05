@@ -54,6 +54,7 @@ def run(model_name: str = "xgboost_daily") -> dict:
 
         # Generate synthetic evaluation data based on stored metrics
         # Real implementation would load actual prediction/outcome pairs
+        log.warning("CHAMPION_CHALLENGER: Using synthetic evaluation data - results are NOT reliable for production")
         val_acc = metrics.get("val_accuracy", 0.5)
         n_samples = 300  # need at least 252 for yearly window
         rng = np.random.RandomState(hash(challenger_run_id) % 2**31)
@@ -75,6 +76,7 @@ def run(model_name: str = "xgboost_daily") -> dict:
             actuals=actuals,
         )
 
+        result["synthetic"] = True
         result["promoted"] = eval_result.get("promoted", False)
         result["eval_results"] = eval_result.get("eval_results", {})
         result["arena_result"] = eval_result.get("arena_result")

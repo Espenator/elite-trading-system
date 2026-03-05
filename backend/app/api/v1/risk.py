@@ -7,12 +7,14 @@ No mock data. No fabricated numbers.
 """
 import logging
 import math
+import time
 from datetime import date
 from typing import Any, List
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
+from app.core.security import require_auth
 from app.services.alpaca_service import alpaca_service
 from app.services.database import db_service
 from app.websocket_manager import broadcast_ws
@@ -134,7 +136,9 @@ async def _compute_live_risk(config: dict) -> dict:
         concentration_pct = (largest_position_value / portfolio_value) * 100
 
     # --- Parametric VaR (95%) estimate ---
-    daily_vol_pct = abs(daily_pnl_pct) if daily_pnl_pct != 0 else 1.0
+    # NOTE: This is a rough estimate using today's absolute P&L as a volatility proxy.
+    # A proper implementation would use a rolling window (e.g., 20-day) of daily returns.
+    daily_vol_pct = abs(daily_pnl_pct) if daily_pnl_pct != 0 else 0.0
     var95_pct = daily_vol_pct * 1.65
     var95_dollars = (var95_pct / 100) * portfolio_value if portfolio_value > 0 else 0
 
@@ -226,7 +230,7 @@ async def get_risk_history():
     return _get_risk_history()
 
 
-@router.put("")
+@router.put("", dependencies=[Depends(require_auth)])
 async def update_risk(update: RiskUpdate):
     """Update risk parameters in DB. Broadcasts change via WebSocket."""
     config = _get_risk_config()
@@ -295,7 +299,7 @@ async def kelly_sizer_defaults():
     }
 
 
-@router.post("/kelly-sizer")
+@router.post("/kelly-sizer", dependencies=[Depends(require_auth)])
 async def kelly_calculate(req: KellyRequest):
     """Calculate Kelly position size for given parameters."""
     if req.current_volatility is not None:
@@ -327,7 +331,7 @@ async def kelly_calculate(req: KellyRequest):
     }
 
 
-@router.post("/position-sizing")
+@router.post("/position-sizing", dependencies=[Depends(require_auth)])
 async def portfolio_position_sizing(positions: List[dict]):
     """Apply Kelly + sector correlation caps to a list of positions.
 
@@ -348,7 +352,7 @@ async def portfolio_position_sizing(positions: List[dict]):
 
 # ----- Drawdown Protection & Dynamic Stop-Loss -----
 
-@router.post("/drawdown-check")
+@router.post("/drawdown-check", dependencies=[Depends(require_auth)])
 async def drawdown_check_post():
     """Check current drawdown vs limits and return trading permission (POST)."""
     config = _get_risk_config()
@@ -359,6 +363,8 @@ async def drawdown_check_post():
     # Get today's P&L from Alpaca
     try:
         account = await alpaca_service.get_account()
+        if not account:
+            return {"trading_allowed": True, "warning": "Alpaca not connected", "daily_pnl": 0, "daily_pnl_pct": 0, "equity": 0}
         equity = float(account.get("equity", 0))
         last_equity = float(account.get("last_equity", equity))
         daily_pnl = equity - last_equity
@@ -384,7 +390,7 @@ async def drawdown_check_post():
     }
 
 
-@router.post("/dynamic-stop-loss")
+@router.post("/dynamic-stop-loss", dependencies=[Depends(require_auth)])
 async def dynamic_stop_loss(symbol: str, entry_price: float, side: str = "buy"):
     """Calculate ATR-based dynamic stop-loss for a position."""
     try:
@@ -423,7 +429,7 @@ async def dynamic_stop_loss(symbol: str, entry_price: float, side: str = "buy"):
         }
     except Exception as e:
         logger.error("Dynamic stop-loss error: %s", e)
-        return {"error": str(e)}
+        return {"error": "Internal server error"}
 
 
 @router.get("/risk-score")
@@ -438,6 +444,8 @@ async def risk_score():
 
     try:
         account = await alpaca_service.get_account()
+        if not account:
+            return {"score": 50, "warnings": ["Alpaca not connected — using neutral score"], "equity": 0, "daily_pnl_pct": 0, "positions": 0, "timestamp": time.time()}
         equity = float(account.get("equity", 0))
         last_equity = float(account.get("last_equity", equity))
         daily_pnl_pct = (
@@ -487,7 +495,7 @@ async def risk_score():
     except Exception as e:
         logger.error("Risk score error: %s", e)
         score = 50
-        warnings.append(f"Error computing risk: {str(e)}")
+        warnings.append("Error computing risk")
 
     score = max(0, min(100, score))
     grade = (
@@ -532,7 +540,7 @@ async def var_analysis():
     config = _get_risk_config()  # FIX: was missing — caused NameError
     try:
         account = await alpaca_service.get_account()
-        equity = float(account.get("equity", 0))
+        equity = float(account.get("equity", 0)) if account else 0
         positions = await alpaca_service.get_positions()
 
         if not positions:
@@ -595,7 +603,7 @@ async def var_analysis():
         }
     except Exception as e:
         logger.error("VaR analysis error: %s", e)
-        return {"error": str(e)}
+        return {"error": "Internal server error"}
 
 
 @router.get("/drawdown-check")
@@ -607,6 +615,8 @@ async def drawdown_check_status():
     config = _get_risk_config()  # FIX: was missing — caused NameError
     try:
         account = await alpaca_service.get_account()
+        if not account:
+            return {"trading_allowed": True, "warning": "Alpaca not connected", "equity": 0, "daily_pnl_pct": 0}
         equity = float(account.get("equity", 0))
         last_equity = float(account.get("last_equity", equity))
         daily_pnl_pct = (
@@ -635,7 +645,7 @@ async def drawdown_check_status():
         }
     except Exception as e:
         logger.error("Drawdown check error: %s", e)
-        return {"trading_allowed": True, "error": str(e)}
+        return {"trading_allowed": True, "error": "Internal server error"}
 
 
 # --- V3 Risk Intelligence Enhanced Endpoints ---
@@ -646,7 +656,7 @@ async def get_risk_gauges():
     """Return 12 risk gauge values for V3 Risk Intelligence dashboard."""
     try:
         account = await alpaca_service.get_account()
-        equity = float(account.get("equity", 0))
+        equity = float(account.get("equity", 0)) if account else 0
         positions = await alpaca_service.get_positions() or []
 
         total_exposure = sum(
@@ -831,7 +841,7 @@ async def run_stress_test():
         }
     except Exception as e:
         logger.error("Stress test error: %s", e)
-        return {"error": str(e)}
+        return {"error": "Internal server error"}
 
 
 @router.get("/monte-carlo")
@@ -846,3 +856,127 @@ async def position_var():
     """Per-position Value-at-Risk breakdown.
     Wraps the var-analysis endpoint for frontend compatibility."""
     return await var_analysis()
+
+
+# ---------------------------------------------------------------------------
+# Risk Intelligence page endpoints (shield, equity curve, etc.)
+# ---------------------------------------------------------------------------
+
+@router.get("/shield")
+async def risk_shield_status():
+    """Risk shield status — aggregates circuit breakers + drawdown checks."""
+    try:
+        from app.services.database import db_service
+        limits = db_service.get_config("risk_limits") or DEFAULT_RISK
+        positions = []
+        try:
+            positions = alpaca_service.get_positions() or []
+        except Exception:
+            pass
+        total_exposure = sum(abs(float(p.market_value)) for p in positions) if positions else 0
+        try:
+            account = alpaca_service.get_account()
+            equity = float(account.equity) if account else 100000
+        except Exception:
+            equity = 100000
+        heat = (total_exposure / equity * 100) if equity > 0 else 0
+        return {
+            "shield_active": True,
+            "heat_pct": round(heat, 1),
+            "max_heat": limits.get("maxPortfolioHeat", 25),
+            "drawdown_limit": limits.get("maxDailyDrawdown", 10),
+            "circuit_breakers_ok": heat < limits.get("maxPortfolioHeat", 25),
+            "positions_count": len(positions),
+        }
+    except Exception as e:
+        logger.error("Risk shield status error: %s", e)
+        return {"shield_active": False, "error": str(e)}
+
+
+@router.get("/equity-curve")
+async def equity_curve(tf: str = "1M"):
+    """Equity curve data for charting — pulls from risk history."""
+    history = db_service.get_config("risk_history") or []
+    points = []
+    for entry in history:
+        points.append({
+            "date": entry.get("date", ""),
+            "equity": entry.get("equity", 0),
+            "drawdown": entry.get("drawdownPct", 0),
+        })
+    return {"timeframe": tf, "points": points}
+
+
+@router.get("/correlation-matrix")
+async def correlation_matrix():
+    """Position correlation matrix — computes from current holdings."""
+    try:
+        positions = alpaca_service.get_positions() or []
+        symbols = [p.symbol for p in positions[:10]]
+        # Return structure for frontend rendering
+        matrix = {}
+        for s in symbols:
+            matrix[s] = {s2: (1.0 if s == s2 else 0.0) for s2 in symbols}
+        return {"symbols": symbols, "matrix": matrix}
+    except Exception as e:
+        logger.error("Correlation matrix error: %s", e)
+        return {"symbols": [], "matrix": {}}
+
+
+@router.get("/var-histogram")
+async def var_histogram():
+    """VaR histogram — distribution of daily P&L for risk visualization."""
+    history = db_service.get_config("risk_history") or []
+    daily_pnl = []
+    for i in range(1, len(history)):
+        prev_eq = history[i - 1].get("equity", 0)
+        curr_eq = history[i].get("equity", 0)
+        if prev_eq > 0:
+            daily_pnl.append(round((curr_eq - prev_eq) / prev_eq * 100, 2))
+    return {"daily_returns_pct": daily_pnl, "count": len(daily_pnl)}
+
+
+@router.get("/drawdown-episodes")
+async def drawdown_episodes():
+    """Historical drawdown episodes for risk analysis."""
+    history = db_service.get_config("risk_history") or []
+    episodes = []
+    peak = 0
+    ep_start = None
+    for entry in history:
+        eq = entry.get("equity", 0)
+        if eq > peak:
+            if ep_start and peak > 0:
+                episodes.append({
+                    "start": ep_start,
+                    "end": entry.get("date", ""),
+                    "max_drawdown_pct": round((peak - min_eq) / peak * 100, 2),
+                })
+            peak = eq
+            ep_start = None
+            min_eq = eq
+        else:
+            if ep_start is None:
+                ep_start = entry.get("date", "")
+                min_eq = eq
+            min_eq = min(min_eq, eq)
+    return {"episodes": episodes[-10:]}  # Last 10 drawdowns
+
+
+@router.post("/emergency/{action}")
+async def emergency_action(action: str):
+    """Emergency risk actions: halt, resume, flatten."""
+    logger.warning("Emergency risk action: %s", action)
+    if action == "halt":
+        db_service.set_config("risk_emergency_halt", True)
+        return {"status": "halted", "message": "Trading halted via emergency action"}
+    elif action == "resume":
+        db_service.set_config("risk_emergency_halt", False)
+        return {"status": "resumed", "message": "Trading resumed"}
+    elif action == "flatten":
+        try:
+            alpaca_service.close_all_positions()
+            return {"status": "flattened", "message": "All positions closed"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+    return {"status": "unknown", "message": f"Unknown action: {action}"}

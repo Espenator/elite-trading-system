@@ -9,6 +9,7 @@ import {
 import { createChart } from 'lightweight-charts';
 import { useApi } from '../hooks/useApi';
 import Card from '../components/ui/Card';
+import PostmortemAttribution from '../components/dashboard/PostmortemAttribution';
 
 // --- Mini Lightweight Charts Components ---
 
@@ -99,7 +100,7 @@ const PerformanceAnalytics = () => {
   const { data: tradesData } = useApi("performance", { endpoint: "/performance/trades" });
   const { data: riskMetrics } = useApi("performance", { endpoint: "/performance/risk-metrics" });
   const { data: flywheel } = useApi("flywheel");
-  const { data: agents } = useApi("agents", { endpoint: "/consensus" });
+  const { data: agents } = useApi("agents", { endpoint: "/agents/consensus" });
   const { data: riskStatus } = useApi("risk");
   const { data: strategyData } = useApi("strategy");
 
@@ -688,6 +689,11 @@ const PerformanceAnalytics = () => {
         <div className="text-gray-600">
           Filters: {activePeriod} | Multi-Agent &nbsp; Data: Jan 1 - Feb 28, 2026
         </div>
+      </div>
+
+      {/* Agent Attribution from Postmortems */}
+      <div className="mt-4">
+        <PostmortemAttribution />
       </div>
 
     </div>

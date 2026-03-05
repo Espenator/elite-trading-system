@@ -47,15 +47,17 @@ class DuckDBStorage:
     def __init__(self, db_path: str = None):
         self._db_path = str(db_path or DUCKDB_PATH)
         self._conn = None
+        self._lock = threading.Lock()
         self._init_schema()
 
     def _get_conn(self):
         """Thread-safe connection with WAL mode."""
-        if self._conn is None:
-            duckdb = _get_duckdb()
-            self._conn = duckdb.connect(self._db_path)
-            self._conn.execute("PRAGMA enable_progress_bar")
-        return self._conn
+        with self._lock:
+            if self._conn is None:
+                duckdb = _get_duckdb()
+                self._conn = duckdb.connect(self._db_path)
+                self._conn.execute("SET enable_progress_bar = true")
+            return self._conn
 
     def _init_schema(self):
         """Create analytics tables if they don't exist."""
@@ -185,6 +187,23 @@ class DuckDBStorage:
             )
         """)
 
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS postmortems (
+                id VARCHAR PRIMARY KEY,
+                council_decision_id VARCHAR,
+                symbol VARCHAR NOT NULL,
+                direction VARCHAR,
+                confidence DOUBLE,
+                entry_price DOUBLE,
+                exit_price DOUBLE,
+                pnl DOUBLE,
+                agent_votes VARCHAR,
+                blackboard_snapshot VARCHAR,
+                critic_analysis VARCHAR,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         # Indexes for fast range scans
         conn.execute("CREATE INDEX IF NOT EXISTS idx_ohlcv_date ON daily_ohlcv (date)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_ohlcv_symbol ON daily_ohlcv (symbol)")
@@ -193,6 +212,8 @@ class DuckDBStorage:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_outcomes_symbol ON trade_outcomes (symbol, entry_date)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_features_symbol_ts ON features (symbol, ts)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_model_evals_model ON model_evals (model_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_postmortems_symbol ON postmortems (symbol)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_postmortems_decision ON postmortems (council_decision_id)")
 
         logger.info("DuckDB analytics schema initialized at %s", self._db_path)
 
@@ -356,6 +377,8 @@ class DuckDBStorage:
         """
         conn = self._get_conn()
         placeholders = ",".join(["?" for _ in symbols])
+        # Sanitize lookback_days to prevent SQL injection
+        lookback_days = max(1, min(int(lookback_days), 5000))
 
         df = conn.execute(f"""
             SELECT o.symbol, o.date, o.open, o.high, o.low, o.close, o.volume
@@ -415,18 +438,77 @@ class DuckDBStorage:
             return str(result[0]), str(result[1])
         return None, None
 
+    # ------------------------------------------------------------------
+    # Postmortem methods (council post-trade analysis)
+    # ------------------------------------------------------------------
+
+    def insert_postmortem(self, postmortem: Dict) -> None:
+        """Record a council postmortem after trade exit."""
+        import json
+        conn = self._get_conn()
+        conn.execute("""
+            INSERT INTO postmortems
+            (id, council_decision_id, symbol, direction, confidence,
+             entry_price, exit_price, pnl, agent_votes,
+             blackboard_snapshot, critic_analysis, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        """, [
+            postmortem["id"],
+            postmortem.get("council_decision_id", ""),
+            postmortem["symbol"],
+            postmortem.get("direction", ""),
+            postmortem.get("confidence", 0.0),
+            postmortem.get("entry_price", 0.0),
+            postmortem.get("exit_price", 0.0),
+            postmortem.get("pnl", 0.0),
+            json.dumps(postmortem.get("agent_votes", []), default=str),
+            json.dumps(postmortem.get("blackboard_snapshot", {}), default=str),
+            postmortem.get("critic_analysis", ""),
+        ])
+
+    def get_postmortems(self, symbol: Optional[str] = None, limit: int = 50) -> pd.DataFrame:
+        """Fetch postmortems, optionally filtered by symbol."""
+        conn = self._get_conn()
+        if symbol:
+            return conn.execute(
+                "SELECT * FROM postmortems WHERE symbol = ? ORDER BY created_at DESC LIMIT ?",
+                [symbol, limit],
+            ).fetchdf()
+        return conn.execute(
+            "SELECT * FROM postmortems ORDER BY created_at DESC LIMIT ?",
+            [limit],
+        ).fetchdf()
+
+    def get_postmortem_count(self) -> int:
+        """Count total postmortems."""
+        conn = self._get_conn()
+        result = conn.execute("SELECT COUNT(*) FROM postmortems").fetchone()
+        return result[0] if result else 0
+
     def health_check(self) -> Dict:
         """Return storage health metrics."""
         conn = self._get_conn()
+        tables = {
+            "ohlcv_rows": "daily_ohlcv",
+            "indicator_rows": "technical_indicators",
+            "flow_rows": "options_flow",
+            "macro_rows": "macro_data",
+            "trade_outcomes": "trade_outcomes",
+            "feature_rows": "features",
+            "model_eval_rows": "model_evals",
+            "postmortem_rows": "postmortems",
+        }
+        counts = {}
+        total = 0
+        for key, table in tables.items():
+            count = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            counts[key] = count
+            total += count
         return {
             "db_path": self._db_path,
-            "ohlcv_rows": conn.execute("SELECT COUNT(*) FROM daily_ohlcv").fetchone()[0],
-            "indicator_rows": conn.execute("SELECT COUNT(*) FROM technical_indicators").fetchone()[0],
-            "flow_rows": conn.execute("SELECT COUNT(*) FROM options_flow").fetchone()[0],
-            "macro_rows": conn.execute("SELECT COUNT(*) FROM macro_data").fetchone()[0],
-            "trade_outcomes": conn.execute("SELECT COUNT(*) FROM trade_outcomes").fetchone()[0],
-            "feature_rows": conn.execute("SELECT COUNT(*) FROM features").fetchone()[0],
-            "model_eval_rows": conn.execute("SELECT COUNT(*) FROM model_evals").fetchone()[0],
+            **counts,
+            "total_tables": len(tables),
+            "total_rows": total,
             "symbols": self.get_symbol_count(),
             "date_range": self.get_date_range(),
         }

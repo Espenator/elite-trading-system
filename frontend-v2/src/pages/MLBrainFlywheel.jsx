@@ -309,7 +309,7 @@ export default function MLBrainFlywheel() {
   const handleRetrain = async () => {
     setIsRetraining(true);
     try {
-      await fetch(getApiUrl('flywheel/retrain'), { method: 'POST' });
+      await fetch(getApiUrl('training') + '/runs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'retrain' }) });
       // In a real app, this would trigger a toast or update logs
     } catch (e) {
       log.error("Retrain failed", e);

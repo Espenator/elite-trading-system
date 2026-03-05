@@ -35,7 +35,8 @@ import json
 import httpx
 from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Body, Header, Query, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, Header, Query, HTTPException, Request
+from app.core.security import require_auth
 from app.services.openclaw_bridge_service import (
     openclaw_bridge,
     validate_bridge_token,
@@ -117,7 +118,7 @@ async def get_openclaw_consensus():
 # REAL-TIME SIGNAL INGESTION (v2 - 2026.2.22)
 # POST /api/v1/openclaw/signals - Hot path from bridge_sender.py
 # ===========================================================================
-@router.post("/signals", summary="Ingest Real-time Signals from OpenClaw Bridge")
+@router.post("/signals", summary="Ingest Real-time Signals from OpenClaw Bridge", dependencies=[Depends(require_auth)])
 async def ingest_signals(
     request: Request,
     authorization: Optional[str] = Header(None),
@@ -136,8 +137,12 @@ async def ingest_signals(
         "meta": {"openclaw_version": "2026.2.22"}
     }
     """
-    # Token authentication
-    if authorization:
+    # Token authentication - REQUIRED in live mode
+    if not authorization:
+        if os.getenv("TRADING_MODE", "paper") == "live":
+            raise HTTPException(status_code=401, detail="Authorization header required in live mode")
+        logger.warning("[OPENCLAW] Signal ingestion without auth token (non-live mode)")
+    else:
         token = authorization.replace("Bearer ", "").strip()
         if not validate_bridge_token(token):
             raise HTTPException(status_code=401, detail="Invalid bridge token")
@@ -279,7 +284,7 @@ async def get_sector_rankings():
     return {"count": len(sectors), "sectors": sectors}
 
 
-@router.post("/refresh")
+@router.post("/refresh", dependencies=[Depends(require_auth)])
 async def force_refresh():
     """Force a cache refresh - fetches fresh data from Gist immediately."""
     logger.info("[OPENCLAW] Manual refresh triggered")
@@ -416,7 +421,7 @@ async def get_swarm_status():
     }
 
 
-@router.post("/macro/override", summary="Override Macro Brain Bias")
+@router.post("/macro/override", summary="Override Macro Brain Bias", dependencies=[Depends(require_auth)])
 async def macro_override(
     bias_multiplier: float = Body(
         ..., ge=0.0, le=5.0, description="Bias multiplier (0.0-5.0)"
@@ -492,7 +497,7 @@ async def get_candidates(n: int = Query(default=20, ge=1, le=50)):
     return {"candidates": [], "count": 0, "_fallback": True}
 
 
-@router.post("/spawn-team", summary="Spawn or Kill Agent Team")
+@router.post("/spawn-team", summary="Spawn or Kill Agent Team", dependencies=[Depends(require_auth)])
 async def spawn_team(
     team_type: str = Query(default="momentum", description="Team type to spawn"),
     action: str = Query(default="spawn", description="'spawn' or 'kill'"),
@@ -554,8 +559,31 @@ async def get_llm_flow(limit: int = Query(default=5, ge=1, le=50)):
 # ADDITIONAL ENDPOINTS (called by openclawService.js)
 # nlp-spawn, health-matrix
 # ------------------------------------------------------------------ #
+@router.get("/consensus-summary", summary="Get Agent Swarm Consensus")
+async def get_consensus():
+    """
+    Return the current agent consensus view — aggregated opinions
+    from all active swarm agents on top candidates.
+    """
+    try:
+        candidates = await openclaw_bridge.get_top_candidates(n=10)
+        consensus = []
+        for c in candidates:
+            consensus.append({
+                "symbol": c.get("symbol"),
+                "score": c.get("composite_score", 0),
+                "direction": "LONG" if c.get("composite_score", 0) > 60 else "NEUTRAL",
+                "agent_count": c.get("agent_count", 1),
+                "agreement_pct": c.get("agreement_pct", 100),
+            })
+        return {"consensus": consensus, "count": len(consensus)}
+    except Exception as e:
+        logger.debug(f"[OPENCLAW] Consensus error: {e}")
+        return {"consensus": [], "count": 0}
 
-@router.post("/nlp-spawn", summary="Spawn Agent Team via NLP Prompt")
+
+
+@router.post("/nlp-spawn", summary="Spawn Agent Team via NLP Prompt", dependencies=[Depends(require_auth)])
 async def nlp_spawn(request: Request):
     """
     Natural language prompt to spawn an agent team.

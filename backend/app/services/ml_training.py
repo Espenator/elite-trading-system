@@ -154,9 +154,9 @@ class LSTMTrainer:
                           COALESCE(momentum_score, 50) as momentum,
                           COALESCE(pattern_score, 50) as pattern,
                           CASE WHEN direction='LONG' THEN
-                            CASE WHEN target > entry THEN 1 ELSE 0 END
+                            CASE WHEN LEAD(entry) OVER (ORDER BY received_at) > entry THEN 1 ELSE 0 END
                           ELSE
-                            CASE WHEN entry > target THEN 1 ELSE 0 END
+                            CASE WHEN entry > LEAD(entry) OVER (ORDER BY received_at) THEN 1 ELSE 0 END
                           END as label
                    FROM openclaw_signals
                    WHERE received_at BETWEEN ? AND ?

@@ -10,7 +10,12 @@ Endpoints:
 """
 import json
 import logging
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, Depends, Request
+from app.core.security import require_auth
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+_limiter = Limiter(key_func=get_remote_address)
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Any
 
@@ -52,8 +57,9 @@ class ReplaceOrderRequest(BaseModel):
 
 
 # ── Advanced order creation ─────────────────────────────────────────────
-@router.post("/advanced", response_model=Dict)
-async def create_advanced_order(req: AdvancedOrderRequest):
+@router.post("/advanced", response_model=Dict, dependencies=[Depends(require_auth)])
+@_limiter.limit("20/minute")
+async def create_advanced_order(request: Request, req: AdvancedOrderRequest):
     """Submit any Alpaca v2 order: simple, bracket, OCO, OTO, trailing."""
         # ── Alignment Preflight Gate ─────────────────────────────────────
     # Every order MUST pass alignment before reaching the broker.
@@ -103,11 +109,11 @@ async def create_advanced_order(req: AdvancedOrderRequest):
         raise
     except Exception as e:
         logger.error("create_advanced_order failed: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Internal server error")
 
 
 # ── Replace / amend order ───────────────────────────────────────────────
-@router.patch("/{order_id}", response_model=Dict)
+@router.patch("/{order_id}", response_model=Dict, dependencies=[Depends(require_auth)])
 async def replace_order(order_id: str, req: ReplaceOrderRequest):
     """PATCH /v2/orders/{id} — amend qty, price, trail, or TIF."""
     try:
@@ -127,11 +133,11 @@ async def replace_order(order_id: str, req: ReplaceOrderRequest):
         raise
     except Exception as e:
         logger.error("replace_order failed: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Internal server error")
 
 
 # ── Cancel single order ────────────────────────────────────────────────
-@router.delete("/{order_id}")
+@router.delete("/{order_id}", dependencies=[Depends(require_auth)])
 async def cancel_order(order_id: str):
     """Cancel a single open order."""
     try:
@@ -139,11 +145,11 @@ async def cancel_order(order_id: str):
         return {"status": "cancelled", "order_id": order_id, "detail": result}
     except Exception as e:
         logger.error("cancel_order failed: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Internal server error")
 
 
 # ── Cancel ALL open orders ──────────────────────────────────────────────
-@router.delete("/")
+@router.delete("/", dependencies=[Depends(require_auth)])
 async def cancel_all_orders():
     """Cancel all open orders."""
     try:
@@ -151,7 +157,7 @@ async def cancel_all_orders():
         return {"status": "all_cancelled", "detail": result}
     except Exception as e:
         logger.error("cancel_all_orders failed: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Internal server error")
 
 
 # ── List open orders from Alpaca ─────────────────────────────────────────
@@ -165,7 +171,7 @@ async def get_orders(status: str = "open", limit: int = 50):
         return result
     except Exception as e:
         logger.error("get_orders failed: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # ── Recent orders from local DB ─────────────────────────────────────────
@@ -175,23 +181,36 @@ async def get_recent_orders(limit: int = 10):
     try:
         return db_service.get_recent_orders(limit=limit)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("get_recent_orders failed: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # ── Close position ────────────────────────────────────────────────────
-@router.post("/close")
-async def close_position(symbol: str = Body(...), side: str = Body("all")):
-    """Close a specific position via Alpaca."""
+@router.post("/close", dependencies=[Depends(require_auth)])
+async def close_position(
+    symbol: Optional[str] = None,
+    request: Request = None,
+):
+    """Close a specific position via Alpaca. Symbol via query param or JSON body."""
+    sym = symbol
+    if not sym:
+        try:
+            body = await request.json()
+            sym = body.get("symbol")
+        except Exception:
+            pass
+    if not sym:
+        raise HTTPException(status_code=400, detail="symbol is required")
     try:
-        result = await alpaca_service.close_position(symbol)
-        return result or {"status": "closed", "symbol": symbol}
+        result = await alpaca_service.close_position(sym)
+        return result or {"status": "closed", "symbol": sym}
     except Exception as e:
         logger.error("close_position failed: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Internal server error")
 
 
 # ── Adjust position ───────────────────────────────────────────────────
-@router.post("/adjust")
+@router.post("/adjust", dependencies=[Depends(require_auth)])
 async def adjust_position(symbol: str = Body(...), qty: str = Body(None), side: str = Body("buy")):
     """Adjust an existing position size."""
     try:
@@ -201,11 +220,11 @@ async def adjust_position(symbol: str = Body(...), qty: str = Body(None), side: 
         return result or {"status": "adjusted", "symbol": symbol}
     except Exception as e:
         logger.error("adjust_position failed: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Internal server error")
 
 
 # ── Flatten all positions ─────────────────────────────────────────────
-@router.post("/flatten-all")
+@router.post("/flatten-all", dependencies=[Depends(require_auth)])
 async def flatten_all():
     """Liquidate all open positions."""
     try:
@@ -213,20 +232,22 @@ async def flatten_all():
         return result or {"status": "all_flattened"}
     except Exception as e:
         logger.error("flatten_all failed: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Internal server error")
 
 
 # ── Emergency stop ────────────────────────────────────────────────────
-@router.post("/emergency-stop")
+@router.post("/emergency-stop", dependencies=[Depends(require_auth)])
 async def emergency_stop():
     """Cancel all orders and close all positions immediately."""
     errors = []
     try:
         await alpaca_service.cancel_all_orders()
     except Exception as e:
-        errors.append(f"cancel_orders: {e}")
+        logger.error("emergency_stop cancel_orders failed: %s", e)
+        errors.append("cancel_orders failed")
     try:
         await alpaca_service.close_all_positions()
     except Exception as e:
-        errors.append(f"close_positions: {e}")
+        logger.error("emergency_stop close_positions failed: %s", e)
+        errors.append("close_positions failed")
     return {"status": "emergency_stop_executed", "errors": errors if errors else None}

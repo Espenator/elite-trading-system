@@ -12,7 +12,8 @@ Endpoints:
 """
 import logging
 from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from app.core.security import require_auth
 from pydantic import BaseModel
 from typing import Optional, List
 import json
@@ -172,7 +173,7 @@ async def get_verdicts():
     persisted = _load_verdicts()
     merged = persisted + [v for v in _verdicts if v not in persisted]
     return merged[-50:]
-@router.post("/preflight")
+@router.post("/preflight", dependencies=[Depends(require_auth)])
 async def run_preflight(req: PreflightRequest):
     checks = []
     all_passed = True
@@ -248,7 +249,7 @@ async def get_alignment_settings():
     }
 
 
-@router.post("/evaluate")
+@router.post("/evaluate", dependencies=[Depends(require_auth)])
 async def evaluate_trade_intent(req: PreflightRequest):
     """Alias for /preflight — evaluates trade intent through alignment checks."""
     return await run_preflight(req)

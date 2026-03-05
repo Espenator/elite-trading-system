@@ -4,9 +4,10 @@ Mounts at /api/v1/alpaca — proxies account, positions, orders, activities
 from Alpaca Markets v2 API through the centralized AlpacaService.
 """
 import logging
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from typing import Dict, List, Optional
 
+from app.core.security import require_auth
 from app.services.alpaca_service import alpaca_service
 
 logger = logging.getLogger(__name__)
@@ -23,7 +24,7 @@ async def get_account():
         return result
     except Exception as e:
         logger.error("alpaca/account failed: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/positions")
@@ -36,7 +37,7 @@ async def get_positions():
         return result
     except Exception as e:
         logger.error("alpaca/positions failed: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/orders")
@@ -49,7 +50,7 @@ async def get_orders(status: str = "open", limit: int = 50):
         return result
     except Exception as e:
         logger.error("alpaca/orders failed: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/activities")
@@ -68,10 +69,10 @@ async def get_activities(limit: int = 30, activity_type: str = "FILL"):
         return activities
     except Exception as e:
         logger.error("alpaca/activities failed: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.delete("/positions/{symbol}")
+@router.delete("/positions/{symbol}", dependencies=[Depends(require_auth)])
 async def close_position(symbol: str, qty: Optional[str] = None, percentage: Optional[str] = None):
     """DELETE /v2/positions/{symbol} — close or reduce position."""
     try:
@@ -79,10 +80,10 @@ async def close_position(symbol: str, qty: Optional[str] = None, percentage: Opt
         return result or {"status": "closed", "symbol": symbol}
     except Exception as e:
         logger.error("alpaca/close_position failed: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Internal server error")
 
 
-@router.delete("/positions")
+@router.delete("/positions", dependencies=[Depends(require_auth)])
 async def close_all_positions():
     """DELETE /v2/positions — liquidate all."""
     try:
@@ -90,4 +91,4 @@ async def close_all_positions():
         return result or {"status": "all_closed"}
     except Exception as e:
         logger.error("alpaca/close_all_positions failed: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Internal server error")

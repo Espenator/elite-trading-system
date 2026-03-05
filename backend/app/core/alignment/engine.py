@@ -143,18 +143,18 @@ class AlignmentEngine:
                 adjusted_confidence=0.0,
                 bright_line_report=bl_report,
                 flags=all_flags,
-                recommendation=bl_report.decision.recommendation if bl_report.decision else "Bright-line violation.",
+                recommendation=bl_report.decision.veto_reason if bl_report.decision else "Bright-line violation.",
             )
 
         # ----- 2. TRADING BIBLE -----
         bible_report = self.bible_checker.check_trade(
             cited_principles=cited_principles or [],
             has_thesis=bool(intent.thesis),
-            has_stop_loss=True,  # TODO: wire to actual stop loss check
+            has_stop_loss=bool(intent.stop),
             has_invalidation=bool(intent.invalidation_condition),
             is_during_drawdown=current_drawdown_pct > 0.05,
-            is_increasing_size=False,  # TODO: wire to position tracking
-            is_revenge_trade=False,  # TODO: wire to metacognition
+            is_increasing_size=intent.meta.get("is_increasing_size", False),
+            is_revenge_trade=intent.meta.get("is_revenge_trade", False),
         )
         if bible_report.hard_violations:
             all_flags.extend([f"bible:{v}" for v in bible_report.hard_violations])

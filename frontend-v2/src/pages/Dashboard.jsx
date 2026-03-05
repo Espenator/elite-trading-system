@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import log from "@/utils/logger";
 import { useApi } from "../hooks/useApi";
-import { getApiUrl } from "../config/api";
+import { getApiUrl, getAuthHeaders } from "../config/api";
+import CNSVitals from "../components/dashboard/CNSVitals";
+import ProfitBrainBar from "../components/dashboard/ProfitBrainBar";
 
 // --- TOP TICKER STRIP (scrolling market tickers) ---
 const TickerStrip = ({ indices, signals }) => {
@@ -572,7 +574,9 @@ const LWChartFallback = ({
           lineStyle: 2,
           title: "Target",
         });
-    } catch {}
+    } catch (err) {
+      log.warn("Chart data update error:", err);
+    }
   }, [quotesData, signalEntry, signalStop, signalTarget]);
 
   return (
@@ -1050,8 +1054,7 @@ export default function Dashboard() {
     enabled: !!selectedSymbol,
   });
   const { data: dataSourcesData } = useApi("dataSources", {
-    endpoint: `/data-sources/${selectedSymbol}`,
-    enabled: !!selectedSymbol,
+    pollIntervalMs: 30000,
   });
   const { data: riskData } = useApi("risk", {
     endpoint: `/risk/proposal/${selectedSymbol}`,
@@ -1132,18 +1135,32 @@ export default function Dashboard() {
   const handleExecute = useCallback(
     async (action) => {
       try {
-        const res = await fetch(getApiUrl("orders"), {
+        const side = action === "BUY" ? "buy" : "sell";
+        const qty = String(riskData?.proposal?.proposedSize || 100);
+        const body = {
+          symbol: selectedSymbol,
+          side,
+          type: riskData?.proposal?.limitPrice ? "limit" : "market",
+          time_in_force: "day",
+          qty,
+        };
+        if (riskData?.proposal?.limitPrice) {
+          body.limit_price = String(riskData.proposal.limitPrice);
+        }
+        if (riskData?.proposal?.stopLoss) {
+          body.order_class = "bracket";
+          body.stop_loss = { stop_price: String(riskData.proposal.stopLoss) };
+          if (riskData?.proposal?.takeProfit) {
+            body.take_profit = { limit_price: String(riskData.proposal.takeProfit) };
+          }
+        }
+        const res = await fetch(getApiUrl("orders/advanced"), {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            symbol: selectedSymbol,
-            action,
-            size: riskData?.proposal?.proposedSize || 100,
-            limitPrice: riskData?.proposal?.limitPrice,
-            stopLoss: riskData?.proposal?.stopLoss,
-          }),
+          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+          body: JSON.stringify(body),
         });
-        if (res.ok) alert(`Execution successful: ${action} ${selectedSymbol}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        alert(`Execution successful: ${action} ${selectedSymbol}`);
       } catch (err) {
         log.error("Execution failed:", err);
       }
@@ -1154,7 +1171,8 @@ export default function Dashboard() {
   // --- ACTION HANDLERS ---
   const handleRunScan = useCallback(async () => {
     try {
-      await fetch(getApiUrl("signals"), { method: "POST" });
+      const res = await fetch(getApiUrl("signals"), { method: "POST", headers: getAuthHeaders() });
+      if (!res.ok) log.error("Scan failed:", res.status);
     } catch (e) {
       log.error(e);
     }
@@ -1163,13 +1181,15 @@ export default function Dashboard() {
     const top5 = processedSignals.slice(0, 5);
     for (const sig of top5) {
       try {
-        await fetch(getApiUrl("orders"), {
+        await fetch(getApiUrl("orders/advanced"), {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
           body: JSON.stringify({
             symbol: sig.symbol,
-            action: sig.direction === "LONG" ? "BUY" : "SELL",
-            size: 100,
+            side: sig.direction === "LONG" ? "buy" : "sell",
+            type: "market",
+            time_in_force: "day",
+            qty: "100",
           }),
         });
       } catch (e) {
@@ -1179,14 +1199,16 @@ export default function Dashboard() {
   }, [processedSignals]);
   const handleFlatten = useCallback(async () => {
     try {
-      await fetch(getApiUrl("orders") + "/flatten-all", { method: "POST" });
+      const res = await fetch(getApiUrl("orders") + "/flatten-all", { method: "POST", headers: getAuthHeaders() });
+      if (!res.ok) log.error("Flatten failed:", res.status);
     } catch (e) {
       log.error(e);
     }
   }, []);
   const handleEmergencyStop = useCallback(async () => {
     try {
-      await fetch(getApiUrl("orders") + "/emergency-stop", { method: "POST" });
+      const res = await fetch(getApiUrl("orders") + "/emergency-stop", { method: "POST", headers: getAuthHeaders() });
+      if (!res.ok) log.error("Emergency stop failed:", res.status);
     } catch (e) {
       log.error(e);
     }
@@ -1287,6 +1309,14 @@ export default function Dashboard() {
     <div className="flex flex-col h-screen w-full bg-[#0B0E14] text-[#e5e7eb] font-sans text-[9px] leading-tight overflow-hidden selection:bg-[#00D9FF]/30">
       {/* 0. SCROLLING TICKER STRIP */}
       <TickerStrip indices={indices} signals={processedSignals} />
+
+      {/* CNS VITALS — homeostasis, circuit breaker, agent health, verdict */}
+      <div className="px-4 pt-2 shrink-0">
+        <CNSVitals />
+      </div>
+
+      {/* PROFIT BRAIN — win rate, PnL, brain weights, feedback loop */}
+      <ProfitBrainBar />
 
       {/* 1. TOP HEADER BAR */}
       <header className="flex items-center justify-between px-4 py-2 border-b border-[rgba(42,52,68,0.5)] bg-[#111827] shrink-0">

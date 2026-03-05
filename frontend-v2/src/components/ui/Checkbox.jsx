@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { useRef, useEffect } from "react";
+import { useId, useRef, useEffect } from "react";
 
 const sizes = {
   sm: "w-4 h-4",
@@ -33,7 +33,8 @@ function Checkbox({
   ...rest
 }) {
   const inputRef = useRef(null);
-    const id = idProp || `checkbox-${crypto.randomUUID()}`;
+    const autoId = useId();
+    const id = idProp || autoId;
   const isInteractive =
     !disabled && !readOnly && typeof onChange === "function";
   const sizeClass = sizes[size] || sizes.md;

@@ -8,9 +8,11 @@ const BASE = () => getApiUrl("openclaw");
 
 function getWsBaseUrl() {
   const url = getApiUrl("openclaw");
-  return url
-    ? url.replace(/^http/, "ws")
-    : "ws://localhost:8000/api/v1/openclaw";
+  if (url) return url.replace(/^http/, "ws");
+  // Derive from current window location for production
+  const proto = window?.location?.protocol === "https:" ? "wss:" : "ws:";
+  const host = window?.location?.host || "localhost:8000";
+  return `${proto}//${host}/api/v1/openclaw`;
 }
 
 export async function getMacro() {

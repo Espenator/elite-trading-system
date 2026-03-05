@@ -22,7 +22,8 @@ logger = logging.getLogger(__name__)
 
 ALPACA_API_KEY = os.getenv('ALPACA_API_KEY', '')
 ALPACA_SECRET_KEY = os.getenv('ALPACA_SECRET_KEY', '')
-ALPACA_DATA_URL = 'https://data.alpaca.markets/v2'
+_data_url = os.getenv('ALPACA_DATA_URL', 'https://data.alpaca.markets').rstrip('/')
+ALPACA_DATA_URL = _data_url if _data_url.endswith('/v2') else _data_url + '/v2'
 
 # Timeframe configs: (alpaca_timeframe, bars_needed, weight)
 TIMEFRAMES = {

@@ -10,6 +10,7 @@ import { useSettings } from "../hooks/useSettings";
 import { useApi } from "../hooks/useApi";
 import { toast } from "react-toastify";
 import AlignmentEngine from "../components/settings/AlignmentEngine";
+import DirectiveEditor from "../components/settings/DirectiveEditor";
 import {
   User, Key, Activity, Bell, Layout, Cpu, Database,
   ShieldAlert, History, Save, RefreshCw, CheckCircle2,
@@ -523,6 +524,7 @@ export default function SettingsPage() {
     { key: "appearance", label: "Appearance", icon: Palette, render: renderAppearance },
     { key: "audit-log", label: "Audit Log", icon: FileText, render: renderAuditLog },
     { key: "alignment", label: "Alignment", icon: ShieldAlert, render: renderAlignment },
+    { key: "directives", label: "Directives", icon: FileText, render: () => <DirectiveEditor /> },
   ];
 
   const activeTabObj = tabs.find(t => t.key === activeTab) || tabs[0];

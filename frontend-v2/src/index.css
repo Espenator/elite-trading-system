@@ -82,11 +82,6 @@ input[type="number"]::-webkit-inner-spin-button {
   position: absolute;
 }
 
-input[type="number"] {
-  -moz-appearance: textfield;
-  appearance: textfield;
-}
-
 /* Aurora Design System Utilities */
 :root {
   --bg-primary: #0B0E1A;
@@ -110,4 +105,20 @@ input[type="number"] {
 .Toastify__toast-body,
 .Toastify__toast-container {
   font-family: "Inter", sans-serif !important;
+}
+
+/* Slide-in animation for toast notifications */
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(100px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }

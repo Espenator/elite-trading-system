@@ -8,7 +8,8 @@ No in-memory mock structures, no simulated metrics, no fabricated dates.
 from __future__ import annotations
 
 import logging
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends
+from app.core.security import require_auth
 from pydantic import BaseModel
 from typing import Any, Dict, List, Optional
 
@@ -148,7 +149,7 @@ async def get_run_details(run_id: str):
         raise HTTPException(status_code=404, detail="Run not found")
 
 
-@router.post("/runs")
+@router.post("/runs", dependencies=[Depends(require_auth)])
 async def start_training(body: StartTrainingRequest, background_tasks: BackgroundTasks):
     """
     Start a new training run.
@@ -181,7 +182,7 @@ async def start_training(body: StartTrainingRequest, background_tasks: Backgroun
     return {"runId": f"MT-{run_db_id:06d}", "message": "Training started"}
 
 
-@router.post("/runs/{run_id}/stop")
+@router.post("/runs/{run_id}/stop", dependencies=[Depends(require_auth)])
 async def stop_training(run_id: str):
     """
     Stop an active training run (best-effort).
@@ -206,14 +207,14 @@ async def get_model_comparison(limit: int = 20):
     return training_store.model_comparison_payload(limit=limit)
 
 
-@router.post("/config")
+@router.post("/config", dependencies=[Depends(require_auth)])
 async def save_config(body: SaveConfigRequest):
     """Save training configuration to DB (real persistence)."""
     training_store.save_config(body.model_dump())
     return {"saved": True, "message": "Configuration saved"}
 
 
-@router.post("/deploy")
+@router.post("/deploy", dependencies=[Depends(require_auth)])
 async def deploy_model(body: Optional[DeployRequest] = None):
     """
     Mark a trained model as active in models_registry (real DB-backed).

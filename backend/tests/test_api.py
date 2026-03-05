@@ -28,14 +28,14 @@ async def test_health_endpoint(client):
 @pytest.mark.anyio
 async def test_status_endpoint(client):
     response = await client.get("/api/v1/status/overview")
-    assert response.status_code in [200, 404, 500]
+    assert response.status_code in [200, 404]
 
 
 # --- Test 5: Signals endpoint exists ---
 @pytest.mark.anyio
 async def test_signals_endpoint(client):
     response = await client.get("/api/v1/signals")
-    assert response.status_code in [200, 307, 404, 500]
+    assert response.status_code in [200, 307, 404]
 
 
 # --- Test 6: CORS is restricted (not wildcard) ---
@@ -159,6 +159,7 @@ def test_risk_config_complete():
 
 # --- Test 18: Composite scorer risk dampener logic ---
 def test_risk_dampener():
+    """Placeholder: validates Kelly dampening arithmetic."""
     assert 0.5 * 80 == 40
     assert 0.75 * 80 == 60
     assert 1.0 * 80 == 80

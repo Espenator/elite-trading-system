@@ -133,16 +133,20 @@ def arbitrate(
         final_direction = "hold"
         final_confidence = 0.0
     else:
-        max_weight = max(buy_weight, sell_weight, hold_weight)
-        if max_weight == buy_weight:
-            final_direction = "buy"
-            final_confidence = buy_weight / total_weight
-        elif max_weight == sell_weight:
-            final_direction = "sell"
-            final_confidence = sell_weight / total_weight
-        else:
+        if buy_weight == sell_weight:
             final_direction = "hold"
-            final_confidence = hold_weight / total_weight
+            final_confidence = hold_weight / total_weight if hold_weight > 0 else 0.0
+        else:
+            max_weight = max(buy_weight, sell_weight, hold_weight)
+            if max_weight == buy_weight:
+                final_direction = "buy"
+                final_confidence = buy_weight / total_weight
+            elif max_weight == sell_weight:
+                final_direction = "sell"
+                final_confidence = sell_weight / total_weight
+            else:
+                final_direction = "hold"
+                final_confidence = hold_weight / total_weight
 
     # Execution readiness
     execution_ready = final_direction != "hold" and final_confidence > 0.4
@@ -189,6 +193,6 @@ def arbitrate(
 def _extract_risk_limits(votes: List[AgentVote]) -> Dict:
     """Extract risk limits from agent metadata."""
     for v in votes:
-        if v.agent_name == "risk":
+        if v.agent_name == "risk" and v.metadata:
             return v.metadata.get("risk_limits", {})
     return {}

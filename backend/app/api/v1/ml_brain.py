@@ -19,8 +19,9 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from app.core.security import require_auth
 from app.services.database import db_service
 
 logger = logging.getLogger(__name__)
@@ -81,7 +82,7 @@ async def get_flywheel_logs():
 # Trading Conference Endpoint (v2.0)
 # ---------------------------------------------------------------------------
 
-@router.post("/conference/{symbol}")
+@router.post("/conference/{symbol}", dependencies=[Depends(require_auth)])
 async def run_conference(symbol: str, timeframe: str = "1d"):
     """Run a Trading Conference (multi-agent consensus DAG) for a symbol.
     
@@ -137,12 +138,12 @@ async def run_conference(symbol: str, timeframe: str = "1d"):
         logger.exception("Conference failed for %s", symbol)
         return {
             "status": "error",
-            "message": str(e),
+            "message": "Conference evaluation failed",
             "symbol": symbol,
         }
 
 
-@router.post("/conference/batch")
+@router.post("/conference/batch", dependencies=[Depends(require_auth)])
 async def run_conference_batch(symbols: List[str], timeframe: str = "1d"):
     """Run Trading Conference for multiple symbols concurrently."""
     try:
@@ -153,7 +154,8 @@ async def run_conference_batch(symbols: List[str], timeframe: str = "1d"):
     except ImportError:
         return {"status": "not_installed", "message": "trading_conference module not available"}
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        logger.error("Conference batch failed: %s", e)
+        return {"status": "error", "message": "Batch conference failed"}
 
 
 # ---------------------------------------------------------------------------
@@ -170,7 +172,8 @@ async def get_registry_status():
     except ImportError:
         return {"status": "not_installed", "message": "model_registry module not available"}
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        logger.error("Registry status failed: %s", e)
+        return {"status": "error", "message": "Registry unavailable"}
 
 
 @router.get("/drift/status")
@@ -184,7 +187,8 @@ async def get_drift_status():
     except ImportError:
         return {"status": "not_installed", "message": "drift_detector module not available"}
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        logger.error("Drift status failed: %s", e)
+        return {"status": "error", "message": "Drift monitor unavailable"}
 
 
 @router.get("/lstm/predict/{symbol}")
@@ -202,7 +206,8 @@ async def lstm_predict(symbol: str):
     except ImportError:
         return {"status": "not_installed", "message": "inference module not available"}
     except Exception as e:
-        return {"status": "error", "message": str(e), "symbol": symbol}
+        logger.error("LSTM predict failed for %s: %s", symbol, e)
+        return {"status": "error", "message": "Prediction failed", "symbol": symbol}
 
 
 @router.get("/status")
