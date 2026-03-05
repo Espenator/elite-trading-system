@@ -487,16 +487,44 @@ async def _start_event_driven_pipeline():
     await _em_service.start()
     log.info("\u2705 ExpectedMoveService started (%d symbols)", len(get_expected_move_service()._levels) or 18)
 
+    # 18. TurboScanner — parallel multi-source 60s scanner (10 concurrent DuckDB screens)
+    from app.services.turbo_scanner import get_turbo_scanner
+    _turbo_scanner = get_turbo_scanner()
+    _turbo_scanner._bus = _message_bus
+    await _turbo_scanner.start()
+    log.info("\u2705 TurboScanner started (interval=%ds)", _turbo_scanner._scan_interval)
+
+    # 19. HyperSwarm — 50+ concurrent micro-swarms via local Ollama
+    from app.services.hyper_swarm import get_hyper_swarm
+    _hyper_swarm = get_hyper_swarm()
+    _hyper_swarm._bus = _message_bus
+    await _hyper_swarm.start()
+    log.info("\u2705 HyperSwarm started (%d workers, %d Ollama nodes)", len(_hyper_swarm._workers), len(_hyper_swarm._ollama_urls))
+
+    # 20. NewsAggregator — 8+ RSS/API news sources every 60s
+    from app.services.news_aggregator import get_news_aggregator
+    _news_agg = get_news_aggregator()
+    _news_agg._bus = _message_bus
+    await _news_agg.start()
+    log.info("\u2705 NewsAggregator started (%d RSS feeds)", 9)
+
+    # 21. MarketWideSweep — batch Alpaca ingest + 10 SQL screens across full market
+    from app.services.market_wide_sweep import get_market_sweep
+    _market_sweep = get_market_sweep()
+    _market_sweep._bus = _message_bus
+    await _market_sweep.start()
+    log.info("\u2705 MarketWideSweep started (universe=%d symbols)", len(_market_sweep._universe))
+
     log.info("=" * 60)
-    log.info("\u2705 Event-Driven Pipeline ONLINE")
-    log.info("   Stream -> MessageBus -> SignalEngine -> CouncilEvaluator -> OrderExecutor -> Alpaca")
-    log.info("   Swarm: ideas -> SwarmSpawner -> Council + Backtest -> Results")
-    log.info("   Scout: auto-discovery -> flow/screener/watchlist -> SwarmSpawner")
-    log.info("   Discord: channels -> DiscordSwarmBridge -> SwarmSpawner")
-    log.info("   Radar: GeopoliticalRadar -> MacroPlaybook -> IMMEDIATE swarms")
-    log.info("   Correlations: CorrelationRadar -> rotation/reversion -> SwarmSpawner")
-    log.info("   Patterns: PatternLibrary -> validated patterns -> SwarmSpawner")
-    log.info("   ExpectedMoves: EM boundaries -> reversal zones -> SwarmSpawner")
+    log.info("\u2705 Event-Driven Pipeline ONLINE — 100x SCALED")
+    log.info("   Stream -> MessageBus -> SignalEngine -> CouncilEvaluator -> OrderExecutor")
+    log.info("   TurboScanner: 10 parallel DuckDB screens every 60s")
+    log.info("   HyperSwarm: 50+ micro-swarms via local Ollama (<500ms each)")
+    log.info("   NewsAggregator: 8+ RSS/API feeds every 60s")
+    log.info("   MarketWideSweep: batch Alpaca + 10 SQL screens across 8000+ symbols")
+    log.info("   SwarmSpawner: 20 concurrent full-council analyses (was 5)")
+    log.info("   Scouts: flow/screener/watchlist at 60-120s intervals (was 5-15min)")
+    log.info("   Radar: GeopoliticalRadar + CorrelationRadar + PatternLibrary + ExpectedMoves")
     log.info(
         "   Mode: %s | Council: signal>=%.0f triggers 17-agent DAG",
         "AUTO-EXECUTE" if auto_execute else "SHADOW",
@@ -512,6 +540,26 @@ async def _stop_event_driven_pipeline():
     log.info("Shutting down event-driven pipeline...")
 
     # Stop swarm intelligence components first (reverse startup order)
+    try:
+        from app.services.market_wide_sweep import get_market_sweep
+        await get_market_sweep().stop()
+    except Exception:
+        pass
+    try:
+        from app.services.news_aggregator import get_news_aggregator
+        await get_news_aggregator().stop()
+    except Exception:
+        pass
+    try:
+        from app.services.hyper_swarm import get_hyper_swarm
+        await get_hyper_swarm().stop()
+    except Exception:
+        pass
+    try:
+        from app.services.turbo_scanner import get_turbo_scanner
+        await get_turbo_scanner().stop()
+    except Exception:
+        pass
     try:
         from app.services.expected_move_service import get_expected_move_service
         await get_expected_move_service().stop()

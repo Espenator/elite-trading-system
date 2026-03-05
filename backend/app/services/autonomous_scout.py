@@ -42,11 +42,11 @@ class AutonomousScoutService:
         }
         # Scout configuration
         self.config = {
-            "flow_scan_interval": 300,       # 5 min
-            "screener_scan_interval": 900,   # 15 min
-            "watchlist_scan_interval": 600,  # 10 min
-            "backtest_scan_interval": 3600,  # 1 hr
-            "max_discoveries_per_scan": 5,
+            "flow_scan_interval": 60,        # 1 min (was 5 min) — 5x faster
+            "screener_scan_interval": 120,   # 2 min (was 15 min) — 7x faster
+            "watchlist_scan_interval": 60,   # 1 min (was 10 min) — 10x faster
+            "backtest_scan_interval": 900,   # 15 min (was 1 hr) — 4x faster
+            "max_discoveries_per_scan": 20,  # 4x more (was 5)
             "min_flow_score": 3,             # Minimum unusual flow score to trigger
             "enabled_scouts": ["flow", "screener", "watchlist", "backtest"],
         }

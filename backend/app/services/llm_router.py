@@ -185,9 +185,9 @@ class LLMRouter:
             t: ProviderCircuitBreaker() for t in Tier
         }
         self._limiters: Dict[Tier, AsyncRateLimiter] = {
-            Tier.BRAINSTEM: AsyncRateLimiter(rate=5.0, burst=10),
-            Tier.CORTEX: AsyncRateLimiter(rate=1.0, burst=3),
-            Tier.DEEP_CORTEX: AsyncRateLimiter(rate=0.5, burst=2),
+            Tier.BRAINSTEM: AsyncRateLimiter(rate=20.0, burst=40),   # 4x (2-PC Ollama pool)
+            Tier.CORTEX: AsyncRateLimiter(rate=3.0, burst=8),        # 3x
+            Tier.DEEP_CORTEX: AsyncRateLimiter(rate=1.0, burst=4),   # 2x
         }
         self._stats: Dict[str, int] = {
             "brainstem_calls": 0, "cortex_calls": 0, "deep_cortex_calls": 0,

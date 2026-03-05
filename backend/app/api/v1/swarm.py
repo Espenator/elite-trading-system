@@ -456,8 +456,17 @@ async def intelligence_status():
     from app.services.pattern_library import get_pattern_library
     from app.services.expected_move_service import get_expected_move_service
 
+    from app.services.turbo_scanner import get_turbo_scanner
+    from app.services.hyper_swarm import get_hyper_swarm
+    from app.services.news_aggregator import get_news_aggregator
+    from app.services.market_wide_sweep import get_market_sweep
+
     return {
         "swarm": get_swarm_spawner().get_status(),
+        "hyper_swarm": get_hyper_swarm().get_status(),
+        "turbo_scanner": get_turbo_scanner().get_status(),
+        "news_aggregator": get_news_aggregator().get_status(),
+        "market_sweep": get_market_sweep().get_status(),
         "scout": get_scout_service().get_status(),
         "discord": get_discord_bridge().get_status(),
         "radar": get_geopolitical_radar().get_status(),
@@ -466,3 +475,106 @@ async def intelligence_status():
         "expected_moves": get_expected_move_service().get_status(),
         "ingestion": knowledge_ingest.get_stats(),
     }
+
+
+# ------------------------------------------------------------------
+# TurboScanner endpoints
+# ------------------------------------------------------------------
+@router.get("/turbo/status")
+async def turbo_scanner_status():
+    """Get TurboScanner status: scan rate, signals found, volatile mode."""
+    from app.services.turbo_scanner import get_turbo_scanner
+    return get_turbo_scanner().get_status()
+
+
+@router.get("/turbo/signals")
+async def turbo_signals(signal_type: str = None, limit: int = 50):
+    """Get recent signals from TurboScanner.
+
+    Filter by type: technical_breakout, volume_spike, momentum_surge,
+    rsi_extreme, macd_cross, sector_divergence, vix_regime,
+    unusual_flow, mean_reversion
+    """
+    from app.services.turbo_scanner import get_turbo_scanner
+    return {"signals": get_turbo_scanner().get_signals(signal_type, limit)}
+
+
+@router.post("/turbo/reset-daily")
+async def turbo_reset():
+    """Reset daily dedup set (call at market open to allow re-scanning)."""
+    from app.services.turbo_scanner import get_turbo_scanner
+    get_turbo_scanner().reset_daily()
+    return {"status": "ok", "message": "Daily signal dedup cleared"}
+
+
+# ------------------------------------------------------------------
+# HyperSwarm endpoints
+# ------------------------------------------------------------------
+@router.get("/hyper/status")
+async def hyper_swarm_status():
+    """Get HyperSwarm status: queue depth, workers, score distribution."""
+    from app.services.hyper_swarm import get_hyper_swarm
+    return get_hyper_swarm().get_status()
+
+
+@router.get("/hyper/results")
+async def hyper_results(limit: int = 50, min_score: int = 0):
+    """Get micro-swarm analysis results. Filter by minimum score (0-100)."""
+    from app.services.hyper_swarm import get_hyper_swarm
+    return {"results": get_hyper_swarm().get_results(limit, min_score)}
+
+
+@router.get("/hyper/escalations")
+async def hyper_escalations(limit: int = 20):
+    """Get signals escalated to full council by HyperSwarm (score >= 65)."""
+    from app.services.hyper_swarm import get_hyper_swarm
+    return {"escalations": get_hyper_swarm().get_escalations(limit)}
+
+
+# ------------------------------------------------------------------
+# NewsAggregator endpoints
+# ------------------------------------------------------------------
+@router.get("/news/status")
+async def news_aggregator_status():
+    """Get NewsAggregator status: feeds active, items processed, sentiment breakdown."""
+    from app.services.news_aggregator import get_news_aggregator
+    return get_news_aggregator().get_status()
+
+
+@router.get("/news/feed")
+async def news_feed(source: str = None, sentiment: str = None, limit: int = 50):
+    """Get aggregated news feed. Filter by source or sentiment (bullish/bearish/neutral)."""
+    from app.services.news_aggregator import get_news_aggregator
+    return {"news": get_news_aggregator().get_news(source, sentiment, limit)}
+
+
+# ------------------------------------------------------------------
+# MarketWideSweep endpoints
+# ------------------------------------------------------------------
+@router.get("/sweep/status")
+async def market_sweep_status():
+    """Get MarketWideSweep status: universe size, screens run, hits found."""
+    from app.services.market_wide_sweep import get_market_sweep
+    return get_market_sweep().get_status()
+
+
+@router.get("/sweep/screens")
+async def all_screens():
+    """Get results from all market-wide screens."""
+    from app.services.market_wide_sweep import get_market_sweep
+    return {"screens": get_market_sweep().get_all_screens()}
+
+
+@router.get("/sweep/screen/{screen_name}")
+async def get_screen(screen_name: str):
+    """Get results from a specific screen.
+
+    Available: momentum_leaders, volume_anomalies, rsi_extremes,
+    bollinger_squeeze, sma_crosses, new_highs_lows, mean_reversion,
+    institutional_accumulation, sector_strength, consecutive_moves
+    """
+    from app.services.market_wide_sweep import get_market_sweep
+    result = get_market_sweep().get_screen(screen_name)
+    if not result:
+        raise HTTPException(status_code=404, detail=f"Screen '{screen_name}' not found or not yet run")
+    return result

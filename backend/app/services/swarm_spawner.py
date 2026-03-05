@@ -104,12 +104,12 @@ class SwarmResult:
 class SwarmSpawner:
     """Spawns targeted analysis swarms from ideas."""
 
-    MAX_CONCURRENT_SWARMS = 5
-    MAX_HISTORY = 200
+    MAX_CONCURRENT_SWARMS = 20   # Scaled 4x (was 5) — local LLMs are free
+    MAX_HISTORY = 1000           # Scaled 5x (was 200)
 
     def __init__(self, message_bus=None):
         self._bus = message_bus
-        self._queue: asyncio.Queue = asyncio.Queue(maxsize=100)
+        self._queue: asyncio.Queue = asyncio.Queue(maxsize=2000)  # Scaled 20x (was 100)
         self._running = False
         self._workers: List[asyncio.Task] = []
         self._active_swarms: Dict[str, SwarmStatus] = {}
@@ -252,7 +252,7 @@ class SwarmSpawner:
         quality = {"symbols_requested": len(symbols), "symbols_ready": 0, "errors": []}
         try:
             from app.services.data_ingestion import data_ingestion
-            for sym in symbols[:10]:  # Cap at 10 symbols per swarm
+            for sym in symbols[:25]:  # Cap at 25 symbols per swarm (was 10)
                 try:
                     await data_ingestion.ingest_daily_bars([sym], days=60)
                     await data_ingestion.compute_and_store_indicators([sym])
