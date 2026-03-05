@@ -267,7 +267,7 @@ async def _start_event_driven_pipeline():
             cooldown_seconds=int(os.getenv("COUNCIL_COOLDOWN_SECS", "120")),
         )
         await _council_gate.start()
-        log.info("\u2705 CouncilGate started (14-agent council controls trading)")
+        log.info("\u2705 CouncilGate started (council controls trading)")
     else:
         log.info("\u26a0 CouncilGate DISABLED -- signals go directly to OrderExecutor")
 
@@ -403,6 +403,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         log.warning("DuckDB init skipped: %s", e)
 
+    # 1b. Memory schemas (episodic, semantic, prediction)
+    try:
+        from app.data.memory_schemas import init_memory_schemas
+        init_memory_schemas()
+        log.info("Memory schemas initialized (episodic, semantic, prediction)")
+    except Exception as e:
+        log.debug("Memory schemas init skipped: %s", e)
+
     # 2. ML Flywheel singletons
     try:
         _init_ml_singletons()
@@ -417,21 +425,59 @@ async def lifespan(app: FastAPI):
             "Event-driven pipeline failed to start -- falling back to polling only"
         )
 
-    # 3b. Flywheel scheduler (optional)
+    # 4. Flywheel scheduler (optional)
     try:
         from app.jobs.scheduler import start_scheduler
         start_scheduler()
     except Exception as e:
         log.debug("Flywheel scheduler not started: %s", e)
 
-    # 4-6. Background tasks (legacy + monitoring)
+    # 5. trade.resolved → WeightLearner bridge
+    try:
+        from app.council.weight_learner import get_weight_learner
+        from app.core.message_bus import get_message_bus
+
+        _wl_bus = get_message_bus()
+
+        async def _bridge_trade_resolved(resolved_data):
+            try:
+                learner = get_weight_learner()
+                learner.update_from_outcome(
+                    symbol=resolved_data.get("symbol", ""),
+                    outcome_direction=resolved_data.get("outcome", ""),
+                    pnl=resolved_data.get("pnl", 0.0),
+                    r_multiple=resolved_data.get("r_multiple", 0.0),
+                )
+            except Exception as e:
+                log.debug("WeightLearner update failed: %s", e)
+
+        await _wl_bus.subscribe("trade.resolved", _bridge_trade_resolved)
+        log.info("\u2705 trade.resolved -> WeightLearner bridge active")
+    except Exception as e:
+        log.debug("WeightLearner bridge not started: %s", e)
+
+    # 5b. HemisphereBridge (PC-1 ↔ PC-2 communication)
+    _hemisphere_bridge = None
+    try:
+        brain_enabled = os.getenv("BRAIN_ENABLED", "false").lower() == "true"
+        if brain_enabled:
+            from app.core.hemisphere_bridge import get_hemisphere_bridge
+            _hemisphere_bridge = get_hemisphere_bridge()
+            await _hemisphere_bridge.start()
+            log.info("\u2705 HemisphereBridge started (PC-1 ↔ PC-2)")
+        else:
+            log.info("HemisphereBridge skipped (BRAIN_ENABLED=false)")
+    except Exception as e:
+        log.debug("HemisphereBridge not started: %s", e)
+
+    # 6. Background tasks (legacy + monitoring)
     tick_task = asyncio.create_task(_market_data_tick_loop())
     drift_task = asyncio.create_task(_drift_check_loop())
     heartbeat_task = asyncio.create_task(heartbeat_loop())
     risk_monitor_task = asyncio.create_task(_risk_monitor_loop())
 
     log.info("=" * 60)
-    log.info("Embodier Trader v3.2.0 ONLINE (Council-Controlled Intelligence)")
+    log.info("Embodier Trader v4.0.0 ONLINE (Cognitive-1000 Brain)")
     log.info("  API: http://localhost:8000/docs")
     log.info("  Health: http://localhost:8000/health")
     log.info("  WS: ws://localhost:8000/ws")
@@ -445,6 +491,11 @@ async def lifespan(app: FastAPI):
             stop_scheduler()
         except Exception as e:
             log.debug("Scheduler stop failed: %s", e)
+        if _hemisphere_bridge:
+            try:
+                await _hemisphere_bridge.stop()
+            except Exception as e:
+                log.debug("HemisphereBridge stop failed: %s", e)
         await _stop_event_driven_pipeline()
         tick_task.cancel()
         drift_task.cancel()
@@ -464,7 +515,7 @@ app = FastAPI(
         if hasattr(settings, "PROJECT_NAME")
         else "Embodier Trader"
     ),
-    version="3.2.0",
+    version="4.0.0",
     lifespan=lifespan,
 )
 
@@ -605,13 +656,40 @@ async def health_check():
     except Exception:
         duckdb_status = {"status": "unavailable"}
 
+    # LLM Router status
+    llm_router_status = {}
+    try:
+        from app.core.llm_router import get_llm_router
+        llm_router_status = get_llm_router().get_status()
+    except Exception:
+        llm_router_status = {"status": "unavailable"}
+
+    # Hemisphere Bridge status
+    hemisphere_status = {}
+    try:
+        from app.core.hemisphere_bridge import get_hemisphere_bridge
+        hemisphere_status = get_hemisphere_bridge().get_status()
+    except Exception:
+        hemisphere_status = {"status": "unavailable"}
+
+    # Prediction Tracker status
+    prediction_status = {}
+    try:
+        from app.council.prediction_tracker import get_prediction_tracker
+        prediction_status = get_prediction_tracker().get_status()
+    except Exception:
+        prediction_status = {"status": "unavailable"}
+
     return {
         "status": "healthy",
-        "version": "3.2.0",
+        "version": "4.0.0",
         "brand": "Embodier Trader",
-        "architecture": "council-controlled",
+        "architecture": "cognitive-1000",
         "ml_engine": ml_status,
         "event_pipeline": event_pipeline,
         "agent_weights": agent_weights,
         "duckdb": duckdb_status,
+        "llm_router": llm_router_status,
+        "hemisphere_bridge": hemisphere_status,
+        "prediction_tracker": prediction_status,
     }

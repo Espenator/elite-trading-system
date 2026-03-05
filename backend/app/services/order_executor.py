@@ -640,7 +640,6 @@ class OrderExecutor:
         except Exception as e:
             logger.debug("trade_stats recording unavailable: %s", e)
 
-        # Legacy outcome_resolver
         # NOTE: At fill time we don't know the actual P&L yet (position hasn't
         # closed). Outcome should be deferred to position close when we know
         # whether the trade was profitable. Recording with outcome=None here.
@@ -658,6 +657,27 @@ class OrderExecutor:
             )
         except Exception as e:
             logger.debug("outcome_resolver not available: %s", e)
+
+    async def publish_trade_resolved(
+        self, symbol: str, outcome: str, pnl: float = 0.0, r_multiple: float = 0.0
+    ) -> None:
+        """Publish trade.resolved event for WeightLearner feedback loop.
+
+        Call this when a position is closed and the PnL is known.
+        The main.py bridge forwards this to WeightLearner.update_from_outcome().
+        """
+        await self.message_bus.publish("trade.resolved", {
+            "symbol": symbol,
+            "outcome": outcome,
+            "pnl": pnl,
+            "r_multiple": r_multiple,
+            "timestamp": time.time(),
+            "source": "order_executor",
+        })
+        logger.info(
+            "Published trade.resolved: %s %s pnl=%.2f R=%.2f",
+            symbol, outcome, pnl, r_multiple,
+        )
 
     # -- Frontend Notifications --
     async def _notify_frontend(self, record: OrderRecord, price: float, status: str) -> None:

@@ -103,6 +103,27 @@ async def run_council(
             for v in votes
         }
 
+    # Pre-Stage: Intuition lookup from episodic memory
+    try:
+        from app.services.intuition_engine import get_intuition_engine
+        engine = get_intuition_engine()
+        intuition = await engine.get_intuition(
+            symbol=symbol,
+            regime=context.get("signal_regime", ""),
+            signal_score=context.get("signal_score", 0),
+            features=features,
+        )
+        context["intuition"] = intuition
+        if intuition.get("prior_direction") != "hold":
+            logger.debug(
+                "Intuition for %s: %s @ %.0f%% (%d episodes)",
+                symbol, intuition["prior_direction"],
+                intuition["prior_confidence"] * 100,
+                intuition.get("episode_count", 0),
+            )
+    except Exception as e:
+        logger.debug("Intuition lookup skipped: %s", e)
+
     # Stage 1: Perception + Intermarket (parallel)
     stage1 = await asyncio.gather(
         _run_agent(market_perception_agent, symbol, timeframe, features, context),

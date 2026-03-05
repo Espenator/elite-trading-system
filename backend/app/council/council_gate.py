@@ -215,11 +215,19 @@ class CouncilGate:
                         score,
                     )
 
-                    # Trigger weight learning from this decision
+                    # Record decision for weight learning
                     try:
                         from app.council.weight_learner import get_weight_learner
                         learner = get_weight_learner()
                         learner.record_decision(decision)
+                    except Exception:
+                        pass
+
+                    # Record predictions for Free Energy tracking
+                    try:
+                        from app.council.prediction_tracker import get_prediction_tracker
+                        tracker = get_prediction_tracker()
+                        await tracker.record_predictions(decision)
                     except Exception:
                         pass
 

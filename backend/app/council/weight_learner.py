@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-# Default weights for all 14 agents (+ arbiter reference)
+# Default weights for all 14 council agents (arbiter is deterministic, not weighted)
 DEFAULT_WEIGHTS: Dict[str, float] = {
     "market_perception": 1.0,
     "flow_perception": 0.8,

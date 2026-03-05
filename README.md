@@ -4,11 +4,11 @@
 
 CI Status: GREEN — 151 tests passing
 Backend: Ready to start (uvicorn never run yet). Frontend builds clean.
-Council: 13-agent DAG in 7 stages — council-controlled trading via CouncilGate (v3.2.0)
+Council: 14-agent DAG in 7 stages — council-controlled trading via CouncilGate (v3.2.0)
 
 ---
 
-React + FastAPI full-stack trading application with 15-route V3 widescreen dashboard, DuckDB database, 13-agent council DAG with Bayesian weight learning, Alpaca + Finviz integrations, XGBoost ML pipeline, event-driven council-controlled order execution, and gRPC brain service for local Ollama LLM inference.
+React + FastAPI full-stack trading application with 15-route V3 widescreen dashboard, DuckDB database, 14-agent council DAG with Bayesian weight learning, Alpaca + Finviz integrations, XGBoost ML pipeline, event-driven council-controlled order execution, and gRPC brain service for local Ollama LLM inference.
 
 ## Current State (March 5, 2026)
 
@@ -17,7 +17,7 @@ React + FastAPI full-stack trading application with 15-route V3 widescreen dashb
 | Frontend pages | 15 (14 sidebar + 1 hidden) | All wired to useApi hooks, no mock data |
 | Backend API routes | 29 files in api/v1/ | All mounted in main.py |
 | Backend services | 24 files in services/ | Business logic layer |
-| Council agents | 13 agents in 7-stage DAG | BUILT + CONNECTED to event pipeline via CouncilGate |
+| Council agents | 14 agents in 7-stage DAG | BUILT + CONNECTED to event pipeline via CouncilGate |
 | Council intelligence | WeightLearner + CouncilGate | Bayesian self-learning agent weights |
 | Tests | 151 passing | Backend pytest + frontend build |
 | Brain service | gRPC + Ollama | BUILT — not yet wired to council |
@@ -33,7 +33,7 @@ AlpacaStreamService
   -> market_data.bar
   -> EventDrivenSignalEngine
   -> signal.generated (score >= 65)
-  -> CouncilGate (invokes 13-agent council)
+  -> CouncilGate (invokes 14-agent council)
   -> council.verdict (BUY/SELL/HOLD with Bayesian-weighted confidence)
   -> OrderExecutor (real DuckDB stats, real ATR, mock-source guard)
   -> order.submitted
@@ -41,12 +41,12 @@ AlpacaStreamService
   -> Frontend
 ```
 
-Every signal passes through the full 13-agent council before any trade is executed. No hardcoded data — Kelly sizing uses real DuckDB trade statistics, ATR comes from real feature data, and the mock-source guard prevents trading on fake data.
+Every signal passes through the full 14-agent council before any trade is executed. No hardcoded data — Kelly sizing uses real DuckDB trade statistics, ATR comes from real feature data, and the mock-source guard prevents trading on fake data.
 
 ## What Was Recently Done
 
 ### v3.2.0 (March 5, 2026) — Council-Controlled Intelligence
-- **CouncilGate**: New bridge class that intercepts all signals (score >= 65) and auto-invokes the 13-agent council before any trade
+- **CouncilGate**: New bridge class that intercepts all signals (score >= 65) and auto-invokes the 14-agent council before any trade
 - **WeightLearner**: Bayesian self-learning agent weights — agents that vote correctly get higher weight over time
 - **TradeStatsService**: Real win_rate/avg_win/avg_loss from DuckDB replaces all hardcoded Kelly parameters
 - **OrderExecutor**: Now listens to council.verdict (not raw signals), uses real stats + real ATR, mock-source guard
@@ -55,7 +55,7 @@ Every signal passes through the full 13-agent council before any trade is execut
 - **Pipeline**: main.py wires CouncilGate into startup — council controls all trading decisions
 
 ### v3.1.0 (March 4, 2026) — 13-Agent Expansion
-- Expanded council from 8 to 13 agents — added RSI, BBV, EMA Trend, Intermarket, Relative Strength, Cycle Timing
+- Expanded council from 8 to 14 agents — added RSI, BBV, EMA Trend, Intermarket, Relative Strength, Cycle Timing
 - Updated council runner.py to 7-stage parallel DAG
 - Added brain_service gRPC server + Ollama client
 - Added 6 new service files: alpaca_stream_service, brain_client, data_ingestion, execution_simulator, feature_service, order_executor
@@ -69,7 +69,7 @@ Every signal passes through the full 13-agent council before any trade is execut
 - [ ] P3: Build CircuitBreaker reflexes (brainstem <50ms)
 - [ ] P4: Clean up OpenClaw dead code
 - [ ] P5: Build TaskSpawner (dynamic agent registry)
-- [ ] P6: Unify Agent Command Center UI (show real 13-agent council, not 5 template agents)
+- [ ] P6: Unify Agent Command Center UI (show real 14-agent council, not 5 template agents)
 - [ ] P7: Wire brain_service gRPC (hypothesis_agent is still a stub)
 - [ ] Signal scoring weights calibration from historical data
 - [ ] Multi-timeframe analysis in real-time path
@@ -84,7 +84,7 @@ Every signal passes through the full 13-agent council before any trade is execut
 | System | Location | Status |
 |--------|----------|--------|
 | 1. Agent Command Center (5 polling agents) | api/v1/agents.py | BUILT — template agents, not real |
-| 2. Council (13-agent DAG) | council/ | **CONNECTED** to event pipeline via CouncilGate (v3.2.0) |
+| 2. Council (14-agent DAG) | council/ | **CONNECTED** to event pipeline via CouncilGate (v3.2.0) |
 | 3. OpenClaw (copied Flask system) | modules/openclaw/ | DEAD CODE — needs cleanup |
 | 4. Event-Driven Pipeline | core/message_bus.py, services/ | **CONNECTED** to council via CouncilGate (v3.2.0) |
 | 5. CNS Architecture | Partially built | CouncilGate (P0) + WeightLearner (P8) built, rest TODO |
@@ -113,7 +113,7 @@ AlpacaStreamService -> market_data.bar -> EventDrivenSignalEngine -> signal.gene
 | Layer | Role | Status |
 |-------|------|--------|
 | Brainstem (<50ms) | CircuitBreaker reflexes | TO BUILD |
-| Spinal Cord (~1500ms) | 13-agent council DAG | **BUILT** |
+| Spinal Cord (~1500ms) | 14-agent council DAG | **BUILT** |
 | Cortex (300-800ms) | hypothesis + critic via brain_service | NOT WIRED |
 | Thalamus | BlackboardState shared memory | TO BUILD |
 | Autonomic | Bayesian WeightLearner | **BUILT** (v3.2.0) |
@@ -224,7 +224,7 @@ All pages in frontend-v2/src/pages/. All use useApi() hook. No mock data.
 | Frontend | React 18, Vite, TailwindCSS, Lightweight Charts, lucide-react |
 | Backend | Python 3.11+, FastAPI, DuckDB, pydantic-settings |
 | AI/ML | XGBoost, scikit-learn, HMM (hmmlearn), Kelly criterion |
-| Council | 13-agent DAG with Bayesian-weighted arbiter (7 stages) |
+| Council | 14-agent DAG with Bayesian-weighted arbiter (7 stages) |
 | Brain Service | gRPC + Ollama (local LLM on RTX GPU) |
 | Broker | Alpaca Markets (paper + live via alpaca-py) |
 | Data | Alpaca Markets, Unusual Whales, Finviz, FRED, SEC EDGAR |

@@ -432,6 +432,14 @@ class DuckDBStorage:
             return str(result[0]), str(result[1])
         return None, None
 
+    def get_connection(self):
+        """Public accessor for the DuckDB connection.
+
+        Use this instead of accessing _get_conn() directly from outside
+        this module.
+        """
+        return self._get_conn()
+
     def health_check(self) -> Dict:
         """Return storage health metrics."""
         conn = self._get_conn()
