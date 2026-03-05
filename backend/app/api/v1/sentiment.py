@@ -11,9 +11,10 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
+from app.core.security import require_auth
 from app.services.database import db_service
 from app.websocket_manager import broadcast_ws
 
@@ -147,9 +148,15 @@ def _detect_divergences(items: list) -> list:
 
 @router.get("")
 async def get_sentiment(time_range: str = Query("24h", alias="timeRange")):
-    """Return sentiment items from DB."""
+    """Return sentiment items from DB and a global score for Dashboard header."""
     items = _get_sentiment_data()
-    return {"items": items, "timeRange": time_range, "count": len(items)}
+    mood = _compute_market_mood(items)
+    return {
+        "items": items,
+        "timeRange": time_range,
+        "count": len(items),
+        "sentiment": {"score": mood["value"]},
+    }
 
 
 @router.get("/summary")
@@ -217,7 +224,7 @@ async def get_sentiment_history(hours: int = Query(24, ge=1, le=168)):
     return {"points": history, "hours": hours, "count": len(history)}
 
 
-@router.post("")
+@router.post("", dependencies=[Depends(require_auth)])
 async def submit_sentiment(data: SentimentSubmit):
     """Submit or update sentiment for a ticker."""
     items = _get_sentiment_data()
@@ -263,7 +270,7 @@ async def submit_sentiment(data: SentimentSubmit):
     return {"ok": True, "item": new_item}
 
 
-@router.post("/source-health")
+@router.post("/source-health", dependencies=[Depends(require_auth)])
 async def submit_source_health(data: SourceHealthSubmit):
     """Agents report source health (latency, status, current score)."""
     sources = _get_source_health()
@@ -291,7 +298,7 @@ async def submit_source_health(data: SourceHealthSubmit):
     return {"ok": True, "source": new_entry}
 
 
-@router.delete("/{ticker}")
+@router.delete("/{ticker}", dependencies=[Depends(require_auth)])
 async def remove_sentiment(ticker: str):
     """Remove sentiment data for a ticker."""
     items = _get_sentiment_data()

@@ -7,6 +7,7 @@ from httpx import AsyncClient, ASGITransport
 os.environ["TRADING_MODE"] = "paper"
 os.environ["ALPACA_API_KEY"] = "test_key"
 os.environ["ALPACA_SECRET_KEY"] = "test_secret"
+os.environ["API_AUTH_TOKEN"] = "test_auth_token_for_tests"
 
 from app.main import app  # noqa: E402
 
@@ -22,6 +23,12 @@ async def client():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
+
+
+@pytest.fixture
+def auth_headers():
+    """Auth headers for state-changing endpoint tests."""
+    return {"Authorization": "Bearer test_auth_token_for_tests"}
 
 
 

@@ -21,7 +21,46 @@ router = APIRouter()
 
 
 # ---------------------------------------------------------------------------
-# /status  (unchanged)
+# GET "" — summary for Sidebar / Dashboard (activeAgents, healthy)
+# Frontend calls GET /api/v1/system (no trailing path); without this, 404.
+# ---------------------------------------------------------------------------
+@router.get("")
+async def system_summary():
+    """Return short system summary for sidebar/UI. Use /status for full breakdown."""
+    return await _system_summary_impl()
+
+
+@router.get("/")
+async def system_summary_slash():
+    """Same as GET "" for clients that request /api/v1/system/."""
+    return await _system_summary_impl()
+
+
+async def _system_summary_impl():
+    try:
+        status = await system_status()
+        modules = status.get("modules") or {}
+        mod_list = list(modules.values()) if isinstance(modules, dict) else []
+        ready = 0
+        for m in mod_list:
+            if isinstance(m, dict) and m.get("status") == "ready":
+                ready += 1
+            elif not isinstance(m, dict):
+                ready += 1
+        total = len(mod_list)
+        healthy = total > 0 and ready >= total
+        return {
+            "activeAgents": ready,
+            "healthy": healthy,
+            "trading_mode": status.get("trading_mode", "paper"),
+        }
+    except Exception as e:
+        log.warning("system summary failed: %s", e)
+        return {"activeAgents": 0, "healthy": False, "trading_mode": "paper"}
+
+
+# ---------------------------------------------------------------------------
+# /status
 # ---------------------------------------------------------------------------
 @router.get("/status")
 async def system_status():
@@ -136,3 +175,33 @@ async def gpu_status():
 async def gpu_raw():
     """Return raw nvidia-smi text output (full dashboard view)."""
     return _run_nvidia_smi()
+
+
+# ---------------------------------------------------------------------------
+# /device  — Device identity for multi-PC setups
+# ---------------------------------------------------------------------------
+@router.get("/device")
+async def device_info():
+    """Return this device's identity and system info for the Electron shell and Settings UI."""
+    import os
+    import platform
+    import socket
+
+    from app.services.settings_service import get_settings_by_category
+
+    device_settings = get_settings_by_category("device")
+
+    return {
+        "deviceName": device_settings.get("deviceName") or socket.gethostname(),
+        "deviceRole": device_settings.get("deviceRole", "full"),
+        "hostname": socket.gethostname(),
+        "platform": platform.system().lower(),
+        "arch": platform.machine(),
+        "pythonVersion": platform.python_version(),
+        "cpuCount": os.cpu_count(),
+        "backendPort": device_settings.get("backendPort", 8000),
+        "tradingMode": device_settings.get("tradingMode", "paper"),
+        "peerDevices": device_settings.get("peerDevices", []),
+        "brainHost": device_settings.get("brainHost", "localhost"),
+        "brainPort": device_settings.get("brainPort", 50051),
+    }

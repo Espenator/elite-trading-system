@@ -9,6 +9,7 @@ import os
 from datetime import datetime
 from typing import Any, Dict, Optional
 
+from app.core.config import settings
 from app.services.database import db_service
 
 
@@ -124,6 +125,49 @@ DEFAULTS: Dict[str, Dict[str, Any]] = {
         "finvizQuoteTimeframe": "d",
         "scanInterval": 300,
     },
+    "council": {
+        # Market Perception Agent
+        "return_1d_threshold": 0.005,
+        "return_5d_threshold": 0.01,
+        "return_20d_threshold": 0.03,
+        "volume_surge_threshold": 1.5,
+        "near_high_threshold": -0.02,
+        "near_low_threshold": 0.02,
+        # Flow Perception Agent
+        "pcr_bullish_threshold": 0.7,
+        "pcr_mild_bearish_threshold": 1.0,
+        "pcr_bearish_threshold": 1.3,
+        # Strategy Agent
+        "rsi_oversold": 30,
+        "rsi_overbought": 70,
+        "adx_trending_threshold": 25,
+        "strategy_buy_pass_rate": 0.6,
+        "strategy_sell_pass_rate": 0.3,
+        # Risk Agent
+        "max_portfolio_heat": 0.06,
+        "max_single_position": 0.02,
+        "risk_score_veto_threshold": 30,
+        "volatility_elevated_threshold": 0.30,
+        "volatility_extreme_threshold": 0.50,
+        # Execution Agent
+        "min_volume_threshold": 50000,
+        # Hypothesis Agent
+        "llm_buy_confidence_threshold": 0.6,
+        "llm_sell_confidence_threshold": 0.4,
+        # Critic Agent
+        "critic_excellent_r": 2.0,
+        "critic_good_r": 1.0,
+        "critic_small_loss_r": -1.0,
+        # Agent weights
+        "weight_market_perception": 1.0,
+        "weight_flow_perception": 0.8,
+        "weight_regime": 1.2,
+        "weight_hypothesis": 0.9,
+        "weight_strategy": 1.1,
+        "weight_risk": 1.5,
+        "weight_execution": 1.3,
+        "weight_critic": 0.5,
+    },
     "strategy": {
         "defaultOrderType": "market",
         "entryMethod": "signal",
@@ -155,12 +199,21 @@ DEFAULTS: Dict[str, Dict[str, Any]] = {
         "maintenanceMode": False,
     },
     "user": {
-        "displayName": "Espen Schiefloe",
-        "email": "espen@embodier.ai",
+        "displayName": "",
+        "email": "",
         "timezone": "America/New_York",
         "currency": "USD",
         "twoFactorEnabled": False,
         "sessionTimeoutMinutes": 30,
+    },
+    "device": {
+        "deviceName": "",
+        "deviceRole": "full",
+        "backendPort": 8000,
+        "brainHost": "localhost",
+        "brainPort": 50051,
+        "peerDevices": [],
+        "tradingMode": "paper",
     },
 }
 
@@ -234,15 +287,29 @@ def validate_api_key(provider: str, api_key: str, secret_key: str = "") -> Dict[
     """Validate API key by testing actual connection to provider."""
     if provider == "alpaca":
         try:
-            from app.services.alpaca_service import AlpacaService
-            svc = AlpacaService(api_key=api_key, secret_key=secret_key)
-            account = svc.get_account()
-            return {
-                "valid": True,
-                "provider": provider,
-                "message": f"Connected - Account {account.get('account_number', 'OK')}",
-                "details": {"status": account.get("status"), "equity": str(account.get("equity", ""))},
-            }
+            import httpx
+            trading_mode = getattr(settings, "TRADING_MODE", "paper").lower()
+            if trading_mode == "live":
+                base_url = "https://api.alpaca.markets/v2"
+            else:
+                base_url = "https://paper-api.alpaca.markets/v2"
+            resp = httpx.get(
+                f"{base_url}/account",
+                headers={
+                    "APCA-API-KEY-ID": api_key,
+                    "APCA-API-SECRET-KEY": secret_key,
+                },
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                account = resp.json()
+                return {
+                    "valid": True,
+                    "provider": provider,
+                    "message": f"Connected - Account {account.get('account_number', 'OK')}",
+                    "details": {"status": account.get("status"), "equity": str(account.get("equity", ""))},
+                }
+            return {"valid": False, "provider": provider, "message": f"HTTP {resp.status_code}"}
         except Exception as e:
             return {"valid": False, "provider": provider, "message": str(e)}
 
@@ -286,21 +353,138 @@ def validate_api_key(provider: str, api_key: str, secret_key: str = "") -> Dict[
         except Exception as e:
             return {"valid": False, "provider": provider, "message": str(e)}
 
+    elif provider == "news_api":
+        try:
+            import httpx
+            resp = httpx.get(
+                f"https://newsapi.org/v2/top-headlines?country=us&pageSize=1&apiKey={api_key}",
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                return {"valid": True, "provider": provider, "message": "News API connected"}
+            return {"valid": False, "provider": provider, "message": f"HTTP {resp.status_code}"}
+        except Exception as e:
+            return {"valid": False, "provider": provider, "message": str(e)}
+
+    elif provider == "discord":
+        try:
+            import httpx
+            resp = httpx.get(
+                "https://discord.com/api/v10/users/@me",
+                headers={"Authorization": f"Bot {api_key}"},
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                user = resp.json()
+                return {"valid": True, "provider": provider, "message": f"Discord bot: {user.get('username', 'OK')}"}
+            return {"valid": False, "provider": provider, "message": f"HTTP {resp.status_code}"}
+        except Exception as e:
+            return {"valid": False, "provider": provider, "message": str(e)}
+
+    elif provider == "youtube":
+        try:
+            import httpx
+            resp = httpx.get(
+                f"https://www.googleapis.com/youtube/v3/search?part=snippet&q=stock+market&maxResults=1&key={api_key}",
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                return {"valid": True, "provider": provider, "message": "YouTube API connected"}
+            return {"valid": False, "provider": provider, "message": f"HTTP {resp.status_code}"}
+        except Exception as e:
+            return {"valid": False, "provider": provider, "message": str(e)}
+
+    elif provider == "stockgeist":
+        try:
+            import httpx
+            resp = httpx.get(
+                "https://api.stockgeist.ai/v1/health",
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                return {"valid": True, "provider": provider, "message": "StockGeist connected"}
+            return {"valid": False, "provider": provider, "message": f"HTTP {resp.status_code}"}
+        except Exception as e:
+            return {"valid": False, "provider": provider, "message": str(e)}
+
+    elif provider == "resend":
+        try:
+            import httpx
+            resp = httpx.get(
+                "https://api.resend.com/domains",
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                return {"valid": True, "provider": provider, "message": "Resend API connected"}
+            return {"valid": False, "provider": provider, "message": f"HTTP {resp.status_code}"}
+        except Exception as e:
+            return {"valid": False, "provider": provider, "message": str(e)}
+
+    elif provider == "perplexity":
+        try:
+            import httpx
+            resp = httpx.post(
+                "https://api.perplexity.ai/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={"model": "sonar", "messages": [{"role": "user", "content": "ping"}], "max_tokens": 5},
+                timeout=15,
+            )
+            if resp.status_code == 200:
+                return {"valid": True, "provider": provider, "message": "Perplexity API connected"}
+            return {"valid": False, "provider": provider, "message": f"HTTP {resp.status_code}"}
+        except Exception as e:
+            return {"valid": False, "provider": provider, "message": str(e)}
+
+    elif provider == "anthropic":
+        try:
+            import httpx
+            resp = httpx.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01",
+                    "Content-Type": "application/json",
+                },
+                json={"model": "claude-haiku-4-5-20251001", "max_tokens": 5, "messages": [{"role": "user", "content": "ping"}]},
+                timeout=15,
+            )
+            if resp.status_code == 200:
+                return {"valid": True, "provider": provider, "message": "Anthropic API connected"}
+            return {"valid": False, "provider": provider, "message": f"HTTP {resp.status_code}"}
+        except Exception as e:
+            return {"valid": False, "provider": provider, "message": str(e)}
+
     return {"valid": False, "provider": provider, "message": f"Unknown provider: {provider}"}
 
 
 def test_connection(source: str) -> Dict[str, Any]:
     """Test connectivity to a data source using stored keys."""
-    settings = get_settings_by_category("dataSources")
+    ds_settings = get_settings_by_category("dataSources")
 
     if source == "alpaca":
-        return validate_api_key("alpaca", settings["alpacaApiKey"], settings["alpacaSecretKey"])
+        return validate_api_key("alpaca", ds_settings.get("alpacaApiKey", ""), ds_settings.get("alpacaSecretKey", ""))
     elif source == "unusual_whales":
-        return validate_api_key("unusual_whales", settings["unusualWhalesApiKey"])
+        return validate_api_key("unusual_whales", ds_settings.get("unusualWhalesApiKey", ""))
     elif source == "finviz":
-        return validate_api_key("finviz", settings["finvizApiKey"])
+        return validate_api_key("finviz", ds_settings.get("finvizApiKey", ""))
     elif source == "fred":
-        return validate_api_key("fred", settings["fredApiKey"])
+        return validate_api_key("fred", ds_settings.get("fredApiKey", ""))
+    elif source == "news_api":
+        return validate_api_key("news_api", ds_settings.get("newsApiKey", ""))
+    elif source == "discord":
+        return validate_api_key("discord", ds_settings.get("discordBotToken", ""))
+    elif source == "youtube":
+        return validate_api_key("youtube", ds_settings.get("youtubeApiKey", ""))
+    elif source == "stockgeist":
+        return validate_api_key("stockgeist", ds_settings.get("stockgeistApiKey", ""))
+    elif source == "resend":
+        return validate_api_key("resend", ds_settings.get("resendApiKey", ""))
+    elif source == "perplexity":
+        return validate_api_key("perplexity", ds_settings.get("perplexityApiKey", ""))
+    elif source == "anthropic":
+        return validate_api_key("anthropic", ds_settings.get("anthropicApiKey", ""))
     elif source == "ollama":
         try:
             import httpx

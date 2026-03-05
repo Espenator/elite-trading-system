@@ -3,7 +3,8 @@
 from datetime import date
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from app.core.security import require_auth
 from app.schemas.signals import Signal, SignalsResponse, ActiveSignalResponse
 from app.data.storage import get_conn
 from app.models.inference import load_model, make_signals_for_date
@@ -43,6 +44,15 @@ def _get_raw_signals_and_feats(as_of: date | None = None):
     return raw_signals, feats
 
 
+@router.post("/", response_model=SignalsResponse, dependencies=[Depends(require_auth)])
+async def trigger_signals(as_of: date | None = None):
+    """
+    Trigger a fresh signal scan. Same logic as GET but semantically used
+    by the Dashboard "Run Scan" button to force re-evaluation.
+    """
+    return await get_signals(as_of=as_of)
+
+
 @router.get("/", response_model=SignalsResponse)
 async def get_signals(as_of: date | None = None):
     """
@@ -80,6 +90,61 @@ async def get_signals(as_of: date | None = None):
             )
         )
     return SignalsResponse(as_of=as_of, signals=signals)
+
+
+@router.get("/{symbol}/technicals")
+async def get_technicals(symbol: str, as_of: date | None = None):
+    """Technical indicators for a symbol (Dashboard). Stub when no features; real when available."""
+    symbol = symbol.upper().strip() if symbol else ""
+    raw_signals, feats = _get_raw_signals_and_feats(as_of)
+    if feats is None or feats.empty or "symbol" not in feats.columns:
+        return {
+            "symbol": symbol or "?",
+            "indicators": {},
+            "score": 0,
+            "momentum": "neutral",
+            "breakout": 0,
+            "meanReversion": 0,
+            "volume": 0,
+        }
+    syms = feats["symbol"].astype(str).str.upper().tolist()
+    if symbol and symbol not in syms:
+        return {
+            "symbol": symbol,
+            "indicators": {},
+            "score": 0,
+            "momentum": "neutral",
+            "breakout": 0,
+            "meanReversion": 0,
+            "volume": 0,
+        }
+    try:
+        row = feats[feats["symbol"].astype(str).str.upper() == symbol].iloc[-1]
+        return {
+            "symbol": symbol,
+            "indicators": {
+                "ma_10_dist": float(row.get("ma_10_dist", 0)),
+                "ma_20_dist": float(row.get("ma_20_dist", 0)),
+                "vol_20": float(row.get("vol_20", 0)),
+                "vol_rel": float(row.get("vol_rel", 0)),
+                "return_1d": float(row.get("return_1d", 0)),
+            },
+            "score": 50,
+            "momentum": "neutral",
+            "breakout": 0,
+            "meanReversion": 0,
+            "volume": 0,
+        }
+    except Exception:
+        return {
+            "symbol": symbol,
+            "indicators": {},
+            "score": 0,
+            "momentum": "neutral",
+            "breakout": 0,
+            "meanReversion": 0,
+            "volume": 0,
+        }
 
 
 @router.get("/active/{symbol}", response_model=ActiveSignalResponse)

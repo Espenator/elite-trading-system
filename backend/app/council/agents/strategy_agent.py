@@ -2,12 +2,12 @@
 import logging
 from typing import Any, Dict
 
+from app.council.agent_config import get_agent_thresholds
 from app.council.schemas import AgentVote
 
 logger = logging.getLogger(__name__)
 
 NAME = "strategy"
-WEIGHT = 1.1
 
 
 async def evaluate(
@@ -20,6 +20,7 @@ async def evaluate(
     - RSI/MACD confirmation
     - Trend alignment via moving averages
     """
+    cfg = get_agent_thresholds()
     f = features.get("features", features)
 
     checks_passed = 0
@@ -30,10 +31,10 @@ async def evaluate(
     rsi = f.get("ind_rsi_14", 0)
     if rsi > 0:
         checks_total += 1
-        if 30 < rsi < 70:
+        if cfg["rsi_oversold"] < rsi < cfg["rsi_overbought"]:
             checks_passed += 1
             reasons.append(f"RSI={rsi:.0f} (neutral zone)")
-        elif rsi <= 30:
+        elif rsi <= cfg["rsi_oversold"]:
             checks_passed += 1
             reasons.append(f"RSI={rsi:.0f} (oversold → buy bias)")
         else:
@@ -68,7 +69,7 @@ async def evaluate(
     adx = f.get("ind_adx_14", 0)
     if adx > 0:
         checks_total += 1
-        if adx > 25:
+        if adx > cfg["adx_trending_threshold"]:
             checks_passed += 1
             reasons.append(f"ADX={adx:.0f} (trending)")
         else:
@@ -81,27 +82,62 @@ async def evaluate(
             direction="hold",
             confidence=0.3,
             reasoning="Insufficient indicator data for strategy assessment",
-            weight=WEIGHT,
+            weight=cfg["weight_strategy"],
         )
 
     pass_rate = checks_passed / checks_total
-    if pass_rate >= 0.6:
+    if pass_rate >= cfg["strategy_buy_pass_rate"]:
         direction = "buy"
         confidence = 0.4 + pass_rate * 0.4
-    elif pass_rate <= 0.3:
+    elif pass_rate <= cfg["strategy_sell_pass_rate"]:
         direction = "sell"
         confidence = 0.4 + (1 - pass_rate) * 0.3
     else:
         direction = "hold"
         confidence = 0.4
 
-    reasoning = f"Strategy checks: {checks_passed}/{checks_total} passed. " + "; ".join(reasons[:4])
+    # Load regime directives for bias adjustment
+    regime_bias = "NEUTRAL"
+    try:
+        from app.council.directives.loader import directive_loader
+        regime = str(f.get("regime", "unknown")).lower()
+        regime_bias = directive_loader.get_regime_bias(regime)
+        if regime_bias == "DEFENSIVE" and direction == "buy":
+            confidence *= 0.8  # Reduce buy confidence in defensive regime
+            reasons.append(f"Regime bias={regime_bias} (reduced buy confidence)")
+        elif regime_bias == "LONG" and direction == "sell":
+            confidence *= 0.85  # Reduce sell confidence in bullish regime
+            reasons.append(f"Regime bias={regime_bias} (reduced sell confidence)")
+    except Exception:
+        pass
+
+    # Factor in Stage 1 social/news perception consensus
+    blackboard = context.get("blackboard")
+    if blackboard:
+        social = blackboard.metadata.get("social_sentiment")
+        news_cat = blackboard.metadata.get("news_catalysts")
+        # If social + news agree with our direction, boost confidence
+        social_agrees = social and social.get("direction") == direction
+        news_agrees = news_cat and news_cat.get("direction") == direction
+        if social_agrees and news_agrees:
+            confidence = min(0.9, confidence + 0.08)
+            reasons.append("Social + News confirm direction")
+        elif social_agrees or news_agrees:
+            confidence = min(0.9, confidence + 0.04)
+            which = "Social" if social_agrees else "News"
+            reasons.append(f"{which} confirms direction")
+        # If strong counter-signal, dampen confidence
+        if social and social.get("spike") and social.get("direction") != direction and direction != "hold":
+            confidence *= 0.85
+            reasons.append(f"Social spike opposes ({social.get('direction')})")
+
+    reasoning = f"Strategy checks: {checks_passed}/{checks_total} passed. " + "; ".join(reasons[:5])
 
     return AgentVote(
         agent_name=NAME,
         direction=direction,
         confidence=round(min(0.9, confidence), 2),
         reasoning=reasoning,
-        weight=WEIGHT,
-        metadata={"checks_passed": checks_passed, "checks_total": checks_total},
+        weight=cfg["weight_strategy"],
+        metadata={"checks_passed": checks_passed, "checks_total": checks_total, "regime_bias": regime_bias},
     )

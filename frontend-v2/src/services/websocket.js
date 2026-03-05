@@ -42,6 +42,8 @@ class AppWebSocket {
           }
         }
 
+        // Clear previous heartbeat timer to prevent leak on reconnect
+        if (this._heartbeatTimer) clearInterval(this._heartbeatTimer);
         // Start heartbeat pong responses
         this._heartbeatTimer = setInterval(() => {
           if (this.ws?.readyState === WebSocket.OPEN) {

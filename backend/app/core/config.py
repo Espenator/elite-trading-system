@@ -2,13 +2,18 @@
 Elite Trading System - Application Configuration
 All fields match EXACTLY what services reference via settings.FIELD_NAME
 """
+from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Resolve .env relative to backend/ root (parent of app/core/)
+_BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
+_ENV_FILE = _BACKEND_DIR / ".env"
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         extra="ignore",
-        env_file=".env",
+        env_file=str(_ENV_FILE),
         env_file_encoding="utf-8",
     )
 
@@ -22,6 +27,9 @@ class Settings(BaseSettings):
     TRADING_MODE: str = "paper"
     SCAN_INTERVAL_MINUTES: int = 5
 
+    # ── API Authentication ────────────────────────────────
+    API_AUTH_TOKEN: str = ""  # Set to enable Bearer token auth on state-changing endpoints
+
     # ── Server ──────────────────────────────────────────────
     HOST: str = "0.0.0.0"
     BACKEND_PORT: int = 8000
@@ -34,13 +42,21 @@ class Settings(BaseSettings):
     ALPACA_BASE_URL: str = "https://paper-api.alpaca.markets"
     ALPACA_DATA_URL: str = "https://data.alpaca.markets"
 
+    @property
+    def APCA_API_KEY_ID(self) -> str:
+        return self.ALPACA_API_KEY
+
+    @property
+    def APCA_API_SECRET_KEY(self) -> str:
+        return self.ALPACA_SECRET_KEY
+
     # ── FinViz ──────────────────────────────────────────────
     FINVIZ_API_KEY: str = ""
     FINVIZ_BASE_URL: str = "https://elite.finviz.com"
     FINVIZ_QUOTE_TIMEFRAME: str = "d"
-    FINVIZ_SCREENER_FILTERS: str = "sh_avgvol_o500,sh_price_u500"
-    FINVIZ_SCREENER_FILTER_TYPE: str = "all"
-    FINVIZ_SCREENER_VERSION: str = "2"
+    FINVIZ_SCREENER_FILTERS: str = "cap_midover,sh_avgvol_o500,sh_price_o10"
+    FINVIZ_SCREENER_FILTER_TYPE: str = "4"
+    FINVIZ_SCREENER_VERSION: str = "111"
 
     # ── FRED ────────────────────────────────────────────────
     FRED_API_KEY: str = ""
@@ -50,8 +66,10 @@ class Settings(BaseSettings):
     SEC_EDGAR_USER_AGENT: str = ""
 
     # ── Unusual Whales ──────────────────────────────────────
+    # Accepts both UNUSUAL_WHALES_API_KEY and UNUSUALWHALES_API_KEY from env
     UNUSUAL_WHALES_API_KEY: str = ""
     UNUSUAL_WHALES_BASE_URL: str = "https://api.unusualwhales.com/api"
+    UNUSUALWHALES_API_KEY: str = ""  # OpenClaw compat alias
 
     # ── StockGeist (Sentiment) ──────────────────────────────
     STOCKGEIST_API_KEY: str = ""
@@ -71,6 +89,16 @@ class Settings(BaseSettings):
 
     # ── X / Twitter ─────────────────────────────────────────
     X_OAUTH: str = ""
+    X_OAUTH2_CLIENT_ID: str = ""
+    X_OAUTH2_CLIENT_SECRET: str = ""
+    X_BEARER_TOKEN: str = ""
+
+    # ── Reddit ──────────────────────────────────────────────
+    REDDIT_CLIENT_ID: str = ""
+    REDDIT_CLIENT_SECRET: str = ""
+
+    # ── Benzinga ───────────────────────────────────────────
+    BENZINGA_API_KEY: str = ""
 
     # ── Kelly Criterion Position Sizing ─────────────────────
     KELLY_DEFAULT_WIN_RATE: float = 0.55
@@ -114,6 +142,15 @@ class Settings(BaseSettings):
     BRAIN_PORT: int = 50051
     OLLAMA_MODEL: str = "llama3.2"
 
+    # ── Multi-LLM Intelligence Layer ─────────────────────
+    PERPLEXITY_API_KEY: str = ""
+    PERPLEXITY_BASE_URL: str = "https://api.perplexity.ai"
+    PERPLEXITY_MODEL: str = "sonar-pro"
+    ANTHROPIC_API_KEY: str = ""
+    ANTHROPIC_MODEL: str = "claude-sonnet-4-20250514"
+    LLM_ROUTER_ENABLED: bool = True
+    LLM_COST_TRACKING: bool = True
+
     # ── Council ────────────────────────────────────────────
     COUNCIL_ENABLED: bool = True
 
@@ -134,3 +171,24 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# Unify Unusual Whales env var names (UNUSUAL_WHALES_API_KEY <-> UNUSUALWHALES_API_KEY)
+if settings.UNUSUALWHALES_API_KEY and not settings.UNUSUAL_WHALES_API_KEY:
+    settings.UNUSUAL_WHALES_API_KEY = settings.UNUSUALWHALES_API_KEY
+elif settings.UNUSUAL_WHALES_API_KEY and not settings.UNUSUALWHALES_API_KEY:
+    settings.UNUSUALWHALES_API_KEY = settings.UNUSUAL_WHALES_API_KEY
+
+# Production safety: validate critical keys when in live trading mode
+if settings.TRADING_MODE.lower() == "live":
+    _missing = []
+    if not settings.ALPACA_API_KEY:
+        _missing.append("ALPACA_API_KEY")
+    if not settings.ALPACA_SECRET_KEY:
+        _missing.append("ALPACA_SECRET_KEY")
+    if not settings.API_AUTH_TOKEN:
+        _missing.append("API_AUTH_TOKEN")
+    if _missing:
+        raise ValueError(
+            f"Live trading mode requires these env vars: {', '.join(_missing)}. "
+            "Set them in .env or switch TRADING_MODE=paper."
+        )

@@ -42,6 +42,13 @@ class MessageBus:
         "risk.alert",
         "system.heartbeat",
         "council.verdict",
+        "hitl.approval_needed",
+        # Swarm intelligence topics
+        "swarm.idea",           # New idea submitted for analysis
+        "swarm.spawned",        # Swarm spawned and running
+        "swarm.result",         # Swarm analysis complete
+        "knowledge.ingested",   # New knowledge fed into the system
+        "scout.discovery",      # Scout found an opportunity
     }
 
     def __init__(self, max_queue_size: int = 10_000):
@@ -86,10 +93,15 @@ class MessageBus:
             self._error_count,
         )
 
+    MAX_SUBSCRIBERS_PER_TOPIC = 50
+
     async def subscribe(self, topic: str, handler: EventHandler) -> None:
         """Subscribe a coroutine handler to a topic."""
         if topic not in self.VALID_TOPICS:
             logger.warning("Subscribing to unregistered topic '%s' — consider adding to VALID_TOPICS", topic)
+        if len(self._subscribers[topic]) >= self.MAX_SUBSCRIBERS_PER_TOPIC:
+            logger.warning("Topic '%s' at subscriber limit (%d) — rejecting new handler", topic, self.MAX_SUBSCRIBERS_PER_TOPIC)
+            return
         self._subscribers[topic].append(handler)
         logger.info(
             "Subscribed %s to '%s' (%d total handlers)",

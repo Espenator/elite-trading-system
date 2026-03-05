@@ -27,14 +27,14 @@ export default function useTradeExecution() {
 
   // ─── Order Form State ──────────────────────────────────
   const [orderForm, setOrderForm] = useState({
-    symbol: 'SPX',
-    strategy: 'Iron Condor',
-    callStrikes: { call: [4460, 4470], put: [4440, 4430] },
-    putStrikes: { call: [4440, 4450], put: [4440, 4430] },
-    quantity: 10,
+    symbol: '',
+    strategy: '',
+    callStrikes: { call: [0, 0], put: [0, 0] },
+    putStrikes: { call: [0, 0], put: [0, 0] },
+    quantity: 0,
     quantityType: 'Contracts',
-    limitPrice: 1.55,
-    stopPrice: 1.00,
+    limitPrice: 0,
+    stopPrice: 0,
   });
 
   const wsRef = useRef(null);
@@ -66,27 +66,29 @@ export default function useTradeExecution() {
 
   // ─── WebSocket Handler ─────────────────────────────────
   const handleWsMessage = useCallback((data) => {
+    if (!data || typeof data !== 'object') return;
+    const payload = data.payload;
     switch (data.type) {
       case 'portfolio':
-        setPortfolio(data.payload);
+        if (payload) setPortfolio(payload);
         break;
       case 'order_book':
-        setOrderBook(data.payload);
+        if (payload) setOrderBook(payload);
         break;
       case 'price_ladder':
-        setPriceLadder(data.payload);
+        if (payload) setPriceLadder(payload);
         break;
       case 'positions':
-        setPositions(data.payload);
+        if (payload) setPositions(payload);
         break;
       case 'news':
-        setNewsFeed(prev => [data.payload, ...prev].slice(0, 20));
+        if (payload) setNewsFeed(prev => [payload, ...prev].slice(0, 20));
         break;
       case 'system_status':
-        setSystemStatus(prev => [data.payload, ...prev].slice(0, 20));
+        if (payload) setSystemStatus(prev => [payload, ...prev].slice(0, 20));
         break;
       case 'order_executed':
-        setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: data.payload.message, type: 'success' }, ...prev].slice(0, 20));
+        setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: payload?.message || 'Order executed', type: 'success' }, ...prev].slice(0, 20));
         break;
       default:
         break;

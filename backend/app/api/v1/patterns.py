@@ -9,9 +9,10 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from app.core.security import require_auth
 from app.services.database import db_service
 from app.websocket_manager import broadcast_ws
 
@@ -64,7 +65,7 @@ async def get_patterns():
     return {"patterns": patterns, "count": len(patterns)}
 
 
-@router.post("")
+@router.post("", dependencies=[Depends(require_auth)])
 async def submit_pattern(data: PatternSubmit):
     """
     Submit a newly detected pattern (called by agents/modules).
@@ -96,7 +97,7 @@ async def submit_pattern(data: PatternSubmit):
     return {"ok": True, "pattern": new_pattern}
 
 
-@router.delete("/{pattern_id}")
+@router.delete("/{pattern_id}", dependencies=[Depends(require_auth)])
 async def delete_pattern(pattern_id: int):
     """Remove a pattern by ID."""
     patterns = _get_patterns()
@@ -109,7 +110,7 @@ async def delete_pattern(pattern_id: int):
     return {"ok": True}
 
 
-@router.delete("")
+@router.delete("", dependencies=[Depends(require_auth)])
 async def clear_patterns():
     """Clear all patterns."""
     _save_patterns([])

@@ -34,14 +34,21 @@ class AlpacaService:
     Uses paper by default. Every method returns real Alpaca data or None on failure."""
 
     def __init__(self):
-        self.base_url = (
-            settings.ALPACA_BASE_URL or "https://paper-api.alpaca.markets/v2"
-        )
+        raw_url = settings.ALPACA_BASE_URL or "https://paper-api.alpaca.markets"
+        # Ensure base URL includes /v2 for Alpaca API v2 endpoints
+        self.base_url = raw_url.rstrip("/") + "/v2" if "/v2" not in raw_url else raw_url
         self.api_key = settings.ALPACA_API_KEY
         self.secret_key = settings.ALPACA_SECRET_KEY
         self.trading_mode = (getattr(settings, "TRADING_MODE", None) or "paper").lower()
         if self.trading_mode not in ("paper", "live"):
             self.trading_mode = "paper"
+        # Safety: validate URL matches trading mode
+        is_paper_url = "paper-api" in raw_url or "paper" in raw_url
+        if self.trading_mode == "paper" and not is_paper_url and "localhost" not in raw_url:
+            logger.warning("SAFETY: TRADING_MODE=paper but URL does not contain 'paper': %s — forcing paper URL", raw_url)
+            self.base_url = "https://paper-api.alpaca.markets/v2"
+        elif self.trading_mode == "live" and is_paper_url:
+            logger.warning("TRADING_MODE=live but using paper API URL: %s", raw_url)
         self._cache: Dict[str, Any] = {}  # key -> (timestamp, data)
 
     # ── helpers ──────────────────────────────────────────────────────────────────
@@ -64,6 +71,10 @@ class AlpacaService:
         return None
 
     def _cache_set(self, key: str, data: Any) -> None:
+        # Prevent unbounded cache growth
+        if len(self._cache) > 500:
+            now = time.time()
+            self._cache = {k: v for k, v in self._cache.items() if (now - v[0]) < 300}
         self._cache[key] = (time.time(), data)
 
     async def _request(
@@ -73,44 +84,66 @@ class AlpacaService:
         params: Optional[Dict] = None,
         json_body: Optional[Dict] = None,
         timeout: float = _TIMEOUT,
+        _retries: int = 3,
     ) -> Optional[Any]:
-        """Centralised HTTP caller with error handling."""
+        """Centralised HTTP caller with error handling and retry for 429/503."""
         if not self._is_configured():
             logger.warning("Alpaca API keys not configured")
             return None
         url = f"{self.base_url}{path}"
-        try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.request(
-                    method,
-                    url,
-                    headers=self._get_headers(),
-                    params=params,
-                    json=json_body,
-                    timeout=timeout,
-                )
-            if resp.status_code == 200:
-                return resp.json()
-            if resp.status_code == 204:
-                return True
-            if resp.status_code == 429:
-                logger.warning("Alpaca rate-limited on %s %s", method, path)
-                return None
-            detail = ""
+
+        import asyncio
+
+        for attempt in range(_retries + 1):
             try:
-                detail = resp.json().get("message", resp.text)
-            except Exception:
-                detail = resp.text
-            logger.error("Alpaca %s %s -> %s: %s", method, path, resp.status_code, detail)
-            if resp.status_code == 404:
+                async with httpx.AsyncClient() as client:
+                    resp = await client.request(
+                        method,
+                        url,
+                        headers=self._get_headers(),
+                        params=params,
+                        json=json_body,
+                        timeout=timeout,
+                    )
+                if resp.status_code == 200:
+                    return resp.json()
+                if resp.status_code == 204:
+                    return True
+                if resp.status_code in (429, 503) and attempt < _retries:
+                    wait = 2 ** attempt  # 1s, 2s, 4s
+                    logger.warning(
+                        "Alpaca %s on %s %s — retrying in %ds (attempt %d/%d)",
+                        resp.status_code, method, path, wait, attempt + 1, _retries,
+                    )
+                    await asyncio.sleep(wait)
+                    continue
+                if resp.status_code in (429, 503):
+                    logger.error("Alpaca %s on %s %s — retries exhausted", resp.status_code, method, path)
+                    return None
+                detail = ""
+                try:
+                    detail = resp.json().get("message", resp.text)
+                except Exception:
+                    detail = resp.text
+                logger.error("Alpaca %s %s -> %s: %s", method, path, resp.status_code, detail)
+                if resp.status_code == 404:
+                    return None
+                raise Exception(f"Alpaca API error {resp.status_code}: {detail}")
+            except httpx.TimeoutException:
+                if attempt < _retries:
+                    logger.warning("Alpaca timeout on %s %s — retrying (attempt %d/%d)", method, path, attempt + 1, _retries)
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                logger.error("Alpaca timeout on %s %s — retries exhausted", method, path)
                 return None
-            raise Exception(f"Alpaca API error {resp.status_code}: {detail}")
-        except httpx.TimeoutException:
-            logger.error("Alpaca timeout on %s %s", method, path)
-            return None
-        except httpx.RequestError as exc:
-            logger.error("Alpaca connection error on %s %s: %s", method, path, exc)
-            return None
+            except httpx.RequestError as exc:
+                if attempt < _retries:
+                    logger.warning("Alpaca connection error on %s %s: %s — retrying", method, path, exc)
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                logger.error("Alpaca connection error on %s %s: %s — retries exhausted", method, path, exc)
+                return None
+        return None
 
     # ── account ──────────────────────────────────────────────────────────────────
 
@@ -388,6 +421,45 @@ class AlpacaService:
         except Exception as exc:
             logger.warning("Alpaca get_asset_exchange_map failed: %s", exc)
         return out
+
+    # ── bars (OHLCV) ──────────────────────────────────────────────────────────
+    async def get_bars(
+        self,
+        symbol: str,
+        timeframe: str = "1Day",
+        limit: int = 14,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+    ) -> Optional[List[Dict]]:
+        """GET /v2/bars — historical OHLCV bars from Alpaca Data API.
+        Uses data.alpaca.markets (not the trading API).
+        """
+        if not self._is_configured():
+            return None
+        _du = getattr(settings, "ALPACA_DATA_URL", "https://data.alpaca.markets").rstrip("/")
+        data_url = _du if _du.endswith("/v2") else _du + "/v2"
+        url = f"{data_url}/stocks/{symbol.upper()}/bars"
+        params = {"timeframe": timeframe, "limit": str(limit)}
+        if start:
+            params["start"] = start
+        if end:
+            params["end"] = end
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    url,
+                    headers=self._get_headers(),
+                    params=params,
+                    timeout=self._TIMEOUT if hasattr(self, '_TIMEOUT') else 30.0,
+                )
+                if resp.status_code != 200:
+                    logger.error("Alpaca bars %s -> %s", symbol, resp.status_code)
+                    return None
+                data = resp.json()
+                return data.get("bars", [])
+        except Exception as exc:
+            logger.error("Alpaca get_bars error for %s: %s", symbol, exc)
+            return None
 
 
 # ── singleton ────────────────────────────────────────────────────────────────────

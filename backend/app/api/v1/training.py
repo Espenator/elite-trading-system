@@ -8,7 +8,8 @@ No in-memory mock structures, no simulated metrics, no fabricated dates.
 from __future__ import annotations
 
 import logging
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends
+from app.core.security import require_auth
 from pydantic import BaseModel
 from typing import Any, Dict, List, Optional
 
@@ -49,6 +50,7 @@ def _run_training_job(run_db_id: int, body: StartTrainingRequest) -> None:
     Persists progress to DB; respects stop requests (best-effort).
     """
     try:
+
         def stop_check() -> bool:
             status = training_store.get_run_status(run_db_id)
             return (status or "").lower().strip() == "stop_requested"
@@ -86,7 +88,9 @@ def _run_training_job(run_db_id: int, body: StartTrainingRequest) -> None:
             return
 
         # Ensure run row has a result_json even if ml_training already updated it.
-        training_store.set_run_success(run_db_id, result=result if isinstance(result, dict) else {"result": result})
+        training_store.set_run_success(
+            run_db_id, result=result if isinstance(result, dict) else {"result": result}
+        )
 
     except Exception as e:
         logger.exception("Training job failed")
@@ -94,6 +98,30 @@ def _run_training_job(run_db_id: int, body: StartTrainingRequest) -> None:
 
 
 # --- Endpoints ----------------------------------------------------------------
+@router.get("", response_model=dict)
+@router.get("/", response_model=dict)
+async def get_training_summary():
+    """Summary for Signal Intelligence / dashboards: datasets, runs, last run (avoids 404 on GET /api/v1/training)."""
+    try:
+        datasets = training_store.list_datasets_payload()
+        runs = training_store.list_runs(limit=5)
+        progress = training_store.get_active_progress_payload()
+        return {
+            "datasets": datasets or [],
+            "runs": runs or [],
+            "activeProgress": progress,
+            "last_retrain": (runs[0] or {}).get("createdAt") if runs else None,
+        }
+    except Exception as e:
+        logger.debug("Training summary failed: %s", e)
+        return {
+            "datasets": [],
+            "runs": [],
+            "activeProgress": None,
+            "last_retrain": None,
+        }
+
+
 @router.get("/datasets", response_model=List[dict])
 async def get_datasets():
     """List all datasets available for training (real DB-derived)."""
@@ -121,14 +149,16 @@ async def get_run_details(run_id: str):
         raise HTTPException(status_code=404, detail="Run not found")
 
 
-@router.post("/runs")
+@router.post("/runs", dependencies=[Depends(require_auth)])
 async def start_training(body: StartTrainingRequest, background_tasks: BackgroundTasks):
     """
     Start a new training run.
     Real async background training; progress available via /runs/active/progress.
     """
     if training_store.has_active_run():
-        raise HTTPException(status_code=409, detail="A training run is already in progress")
+        raise HTTPException(
+            status_code=409, detail="A training run is already in progress"
+        )
 
     run_db_id = training_store.create_run(
         TrainingRunCreate(
@@ -152,7 +182,7 @@ async def start_training(body: StartTrainingRequest, background_tasks: Backgroun
     return {"runId": f"MT-{run_db_id:06d}", "message": "Training started"}
 
 
-@router.post("/runs/{run_id}/stop")
+@router.post("/runs/{run_id}/stop", dependencies=[Depends(require_auth)])
 async def stop_training(run_id: str):
     """
     Stop an active training run (best-effort).
@@ -177,14 +207,14 @@ async def get_model_comparison(limit: int = 20):
     return training_store.model_comparison_payload(limit=limit)
 
 
-@router.post("/config")
+@router.post("/config", dependencies=[Depends(require_auth)])
 async def save_config(body: SaveConfigRequest):
     """Save training configuration to DB (real persistence)."""
     training_store.save_config(body.model_dump())
     return {"saved": True, "message": "Configuration saved"}
 
 
-@router.post("/deploy")
+@router.post("/deploy", dependencies=[Depends(require_auth)])
 async def deploy_model(body: Optional[DeployRequest] = None):
     """
     Mark a trained model as active in models_registry (real DB-backed).

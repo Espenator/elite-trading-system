@@ -7,10 +7,13 @@ AI provider detection, WebSocket broadcasts on all mutations.
 NO yfinance. Primary: Alpaca, Unusual Whales, Finviz.
 """
 
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, Depends
+from app.core.security import require_auth
 from pydantic import BaseModel, Field
 from typing import Dict, Any, List, Optional
 import os
+import base64
+import logging
 import requests
 import json
 from cryptography.fernet import Fernet, InvalidToken
@@ -21,12 +24,17 @@ from app.services.alpaca_service import alpaca_service
 from app.services.database import db_service
 from app.websocket_manager import broadcast_ws
 
-router = APIRouter(prefix="/data-sources", tags=["data-sources"])
+router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Fernet encryption for API credentials
 # ---------------------------------------------------------------------------
-FERNET_KEY = os.getenv("FERNET_KEY", Fernet.generate_key().decode())
+FERNET_KEY = os.getenv("FERNET_KEY")
+if not FERNET_KEY:
+    import secrets
+    logger.warning("FERNET_KEY not set! Generating ephemeral key (credentials will not persist across restarts)")
+    FERNET_KEY = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode()
 _cipher = Fernet(FERNET_KEY.encode())
 
 DB_CONFIG_KEY = "data_sources_registry"
@@ -169,18 +177,18 @@ DEFAULT_SOURCES: Dict[str, Dict[str, Any]] = {
         "category": "options_flow",
         "base_url": "https://api.unusualwhales.com/api",
         "required_keys": ["api_key"],
-        "test_endpoint": "/v1/flow/live",
+        "test_endpoint": "/market/overview",
         "status": "active",
         "enabled": True,
     },
     "finviz": {
         "id": "finviz",
-        "name": "Finviz",
-        "type": "scraper",
+        "name": "Finviz Elite",
+        "type": "rest",
         "category": "market",
-        "base_url": "https://finviz.com",
+        "base_url": "https://elite.finviz.com",
         "required_keys": ["api_key"],
-        "test_endpoint": "/screener.ashx?v=111",
+        "test_endpoint": "/export.ashx?v=111",
         "status": "active",
         "enabled": True,
     },
@@ -393,14 +401,31 @@ async def list_sources():
 
 @router.get("/{source_id}", response_model=DataSourceRead)
 async def get_source(source_id: str):
-    """Get single source details."""
+    """Get single source details. For ticker-like IDs (e.g. SPY), return a stub for Dashboard."""
     sources = _load_sources()
-    if source_id not in sources:
-        raise HTTPException(404, f"Source '{source_id}' not found")
-    return _source_to_read(sources[source_id])
+    if source_id in sources:
+        return _source_to_read(sources[source_id])
+    # Dashboard calls /data-sources/SPY for per-symbol panel; return stub when id looks like a ticker
+    if source_id and len(source_id) <= 5 and source_id.isupper() and source_id.isalpha():
+        return DataSourceRead(
+            id=source_id,
+            name=f"Market data ({source_id})",
+            type="rest",
+            category="market",
+            base_url="",
+            required_keys=[],
+            test_endpoint="",
+            status="healthy",
+            enabled=True,
+            last_test=None,
+            last_latency_ms=None,
+            last_error=None,
+            has_credentials=False,
+        )
+    raise HTTPException(404, f"Source '{source_id}' not found")
 
 
-@router.post("/", response_model=DataSourceRead, status_code=201)
+@router.post("/", response_model=DataSourceRead, status_code=201, dependencies=[Depends(require_auth)])
 async def add_source(payload: DataSourceCreate):
     """Add a new data source (custom or from defaults)."""
     sources = _load_sources()
@@ -431,7 +456,7 @@ async def add_source(payload: DataSourceCreate):
     return _source_to_read(new_source)
 
 
-@router.put("/{source_id}", response_model=DataSourceRead)
+@router.put("/{source_id}", response_model=DataSourceRead, dependencies=[Depends(require_auth)])
 async def update_source(source_id: str, payload: DataSourceUpdate):
     """Update an existing data source's configuration."""
     sources = _load_sources()
@@ -463,7 +488,7 @@ async def update_source(source_id: str, payload: DataSourceUpdate):
     return _source_to_read(src)
 
 
-@router.delete("/{source_id}")
+@router.delete("/{source_id}", dependencies=[Depends(require_auth)])
 async def delete_source(source_id: str):
     """Remove a data source and its stored credentials."""
     sources = _load_sources()
@@ -486,7 +511,7 @@ async def delete_source(source_id: str):
 # ---------------------------------------------------------------------------
 
 
-@router.put("/{source_id}/credentials")
+@router.put("/{source_id}/credentials", dependencies=[Depends(require_auth)])
 async def set_credentials(source_id: str, payload: CredentialsPayload):
     """Encrypt and store API credentials for a source."""
     sources = _load_sources()
@@ -563,7 +588,7 @@ def _build_params(source_id: str, creds: Dict[str, str]) -> Dict[str, str]:
     elif source_id == "youtube":
         params["key"] = creds.get("api_key", "")
     elif source_id == "finviz":
-        params["apikey"] = creds.get("api_key", "")
+        params["auth"] = creds.get("api_key", "")
     return params
 
 
@@ -574,7 +599,7 @@ def _test_result_to_dict(result: TestResult) -> dict:
     return result.dict()
 
 
-@router.post("/{source_id}/test", response_model=TestResult)
+@router.post("/{source_id}/test", response_model=TestResult, dependencies=[Depends(require_auth)])
 async def test_source(source_id: str):
     """Live connection test. Alpaca uses alpaca_service.get_account()."""
     sources = _load_sources()
@@ -587,7 +612,7 @@ async def test_source(source_id: str):
     if source_id == "alpaca":
         start = datetime.now(timezone.utc)
         try:
-            account = alpaca_service.get_account()
+            account = await alpaca_service.get_account()
             latency = (datetime.now(timezone.utc) - start).total_seconds() * 1000
             src["status"] = "healthy"
             src["last_test"] = now_str
@@ -823,7 +848,7 @@ AI_DETECT_MAP = {
 }
 
 
-@router.post("/ai-detect", response_model=AIDetectResponse)
+@router.post("/ai-detect", response_model=AIDetectResponse, dependencies=[Depends(require_auth)])
 async def ai_detect_provider(payload: AIDetectRequest):
     """Detect API provider from a URL and return source template."""
     url_lower = payload.url.lower().strip()

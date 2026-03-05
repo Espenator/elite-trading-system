@@ -10,7 +10,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from app.core.security import require_auth
 from pydantic import BaseModel
 
 from app.services.database import db_service
@@ -92,7 +93,7 @@ async def get_strategies():
     return {"controls": controls, "strategies": strategies}
 
 
-@router.post("")
+@router.post("", dependencies=[Depends(require_auth)])
 async def create_strategy(data: StrategyCreate):
     """Register a new strategy (from config or agents)."""
     strategies = _get_strategies()
@@ -113,7 +114,7 @@ async def create_strategy(data: StrategyCreate):
     return {"ok": True, "strategy": new_strategy}
 
 
-@router.put("/{strategy_id}")
+@router.put("/{strategy_id}", dependencies=[Depends(require_auth)])
 async def update_strategy_metrics(strategy_id: int, update: StrategyMetricsUpdate):
     """Update strategy performance metrics (called by execution engine)."""
     strategies = _get_strategies()
@@ -134,7 +135,7 @@ async def update_strategy_metrics(strategy_id: int, update: StrategyMetricsUpdat
     raise HTTPException(status_code=404, detail="Strategy not found")
 
 
-@router.delete("/{strategy_id}")
+@router.delete("/{strategy_id}", dependencies=[Depends(require_auth)])
 async def remove_strategy(strategy_id: int):
     """Remove a strategy by ID."""
     strategies = _get_strategies()
@@ -147,7 +148,7 @@ async def remove_strategy(strategy_id: int):
     return {"ok": True}
 
 
-@router.post("/controls")
+@router.post("/controls", dependencies=[Depends(require_auth)])
 async def update_controls(controls: StrategyControls):
     """Update emergency controls in DB. Broadcasts change via WebSocket."""
     ctrl = _get_controls()
@@ -233,7 +234,7 @@ async def get_regime_params():
 # ----------------------------------------------------------------
 # Pre-Trade Risk Guard: checks drawdown + risk score before execution
 # ----------------------------------------------------------------
-@router.post("/pre-trade-check")
+@router.post("/pre-trade-check/{symbol}", dependencies=[Depends(require_auth)])
 async def pre_trade_check(symbol: str = "", side: str = "buy"):
     """
     Gate every trade through drawdown + risk score checks.

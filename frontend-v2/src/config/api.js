@@ -64,6 +64,7 @@ const API_CONFIG = {
     openclaw: "/openclaw", // OpenClaw bridge: regime, top candidates, health, scan
     market: "/market", // Market indices (SPY, QQQ, DIA) for Dashboard
     marketIndices: "/market/indices", // GET indices snapshot for Dashboard top bar
+    openclawRegime: "/openclaw/regime", // Regime state for Signal Intelligence / Market Regime
     mlBrain: "/ml-brain", // ML brain model status + predictions
     riskShield: "/risk-shield", // RiskShield emergency controls + safety checks
         kellySizer: "/risk/kelly-sizer", // Bug #19 fix: was /kelly-sizer, needs /risk prefix
@@ -113,16 +114,41 @@ const API_CONFIG = {
     "alignment/metacognition": "/alignment/metacognition", // GET metacognition flags + trends
     "alignment/critique": "/alignment/critique", // GET swarm critique role stats
 
-    // ---- COUNCIL (8-Agent Debate Council) ----
-    councilEvaluate: "/council/evaluate", // POST: run 8-agent council evaluation
+    // ---- COUNCIL (11-Agent Debate Council) ----
+    councilEvaluate: "/council/evaluate", // POST: run 11-agent council evaluation
     councilLatest: "/council/latest", // GET: latest council DecisionPacket
 
     // ---- FEATURE STORE ----
     featuresLatest: "/features/latest", // GET: latest feature vector for symbol
     featuresCompute: "/features/compute", // POST: compute + persist feature vector
 
+    // ---- DEVICE & SYSTEM ----
+    deviceInfo: "/system/device", // GET: device identity for multi-PC setups
+
     // ---- FLYWHEEL SCHEDULER ----
     flywheelScheduler: "/flywheel/scheduler", // GET: scheduler status + next runs
+
+    // ---- CNS (Central Nervous System) ----
+    cnsHomeostasis: "/cns/homeostasis/vitals",
+    cnsCircuitBreaker: "/cns/circuit-breaker/status",
+    cnsAgentsHealth: "/cns/agents/health",
+    cnsBlackboard: "/cns/blackboard/current",
+    cnsPostmortems: "/cns/postmortems",
+    cnsPostmortemsAttribution: "/cns/postmortems/attribution",
+    cnsDirectives: "/cns/directives",
+    cnsLastVerdict: "/cns/council/last-verdict",
+    cnsProfitBrain: "/cns/profit-brain",
+
+    // ---- SWARM INTELLIGENCE ----
+    swarmTurboStatus: "/swarm/turbo/status",
+    swarmHyperStatus: "/swarm/hyper/status",
+    swarmNewsStatus: "/swarm/news/status",
+    swarmSweepStatus: "/swarm/sweep/status",
+    swarmUnifiedStatus: "/swarm/unified/status",
+    swarmOutcomesStatus: "/swarm/outcomes/status",
+    swarmOutcomesKelly: "/swarm/outcomes/kelly",
+    swarmPositionsManaged: "/swarm/positions/managed",
+    swarmMlScorerStatus: "/swarm/ml/scorer/status",
   },
 };
 
@@ -135,13 +161,31 @@ const API_CONFIG = {
  * so 'backtest/results' becomes '/backtest/results' not 'backtest/results'.
  */
 export const getApiUrl = (endpoint) => {
-  const mapped = API_CONFIG.endpoints[endpoint];
+  // If given a full path (e.g. /api/v1/agents), avoid double prefix
+  const ep = typeof endpoint === "string" ? endpoint.trim() : "";
+  if (ep.startsWith("/api/v1")) {
+    return `${API_CONFIG.BASE_URL}${ep}`;
+  }
+  const mapped = API_CONFIG.endpoints[ep];
   if (mapped) {
     return `${API_CONFIG.BASE_URL}${API_CONFIG.API_PREFIX}${mapped}`;
   }
   // Fallback: treat endpoint as raw path, ensure leading slash
-  const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const path = ep.startsWith('/') ? ep : `/${ep}`;
   return `${API_CONFIG.BASE_URL}${API_CONFIG.API_PREFIX}${path}`;
+};
+
+/**
+ * Get auth headers for state-changing requests (POST/PUT/DELETE).
+ * Reads API_AUTH_TOKEN from VITE_API_AUTH_TOKEN env var.
+ * Returns headers object to spread into fetch options.
+ */
+export const getAuthHeaders = () => {
+  const token = import.meta.env.VITE_API_AUTH_TOKEN;
+  if (token) {
+    return { Authorization: `Bearer ${token}` };
+  }
+  return {};
 };
 
 /**
@@ -150,7 +194,7 @@ export const getApiUrl = (endpoint) => {
 export const getWsBaseUrl = () =>
   API_CONFIG.WS_URL ||
   (typeof window !== "undefined"
-    ? `ws://${window.location.host}/ws`
+    ? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`
     : "ws://localhost:3000/ws");
 
 /**
@@ -167,10 +211,13 @@ export const WS_CHANNELS = {
   trades: "trades",
   logs: "logs",
   sentiment: "sentiment",
-    risk: "risk",
+  risk: "risk",
   kelly: "kelly",
-      alignment: "alignment",
+  alignment: "alignment",
   council: "council",
+  council_verdict: "council_verdict",
+  homeostasis: "homeostasis",
+  circuit_breaker: "circuit_breaker",
 };
 
 export default API_CONFIG;

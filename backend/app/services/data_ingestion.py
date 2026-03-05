@@ -30,7 +30,8 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 # Alpaca Market Data API (separate from trading API)
-ALPACA_DATA_BASE_URL = "https://data.alpaca.markets/v2"
+_alpaca_data = getattr(settings, "ALPACA_DATA_URL", "https://data.alpaca.markets").rstrip("/")
+ALPACA_DATA_BASE_URL = _alpaca_data if _alpaca_data.endswith("/v2") else _alpaca_data + "/v2"
 
 # FRED series IDs for macro features
 FRED_SERIES = {
@@ -105,7 +106,10 @@ class DataIngestionService:
                     page_token = None
                     symbol_rows = []
 
-                    while True:
+                    max_pages = 100  # Safety limit to prevent infinite pagination
+                    page_count = 0
+                    while page_count < max_pages:
+                        page_count += 1
                         params = {
                             "start": start_str,
                             "end": end_str,
@@ -480,7 +484,7 @@ class DataIngestionService:
                 "symbol": symbol,
                 "date": (fill.get("transaction_time") or "")[:10],
                 "price": float(fill.get("price") or 0),
-                "qty": int(fill.get("qty") or 0),
+                "qty": float(fill.get("qty") or 0),  # fractional shares (e.g. crypto) supported
             }
             if side == "buy":
                 buys[symbol].append(entry)
@@ -497,7 +501,9 @@ class DataIngestionService:
                 if matching_sells:
                     sell = matching_sells[0]
                     pnl = (sell["price"] - buy["price"]) * buy["qty"]
-                    r_mult = (sell["price"] - buy["price"]) / (buy["price"] + 1e-10)
+                    # This is a percentage return, not a true R-multiple
+                    # (R-multiple requires stop distance: pnl / risk_per_share)
+                    pct_return = (sell["price"] - buy["price"]) / (buy["price"] + 1e-10)
 
                     self.store.insert_trade_outcome({
                         "symbol": symbol,
@@ -506,9 +512,9 @@ class DataIngestionService:
                         "exit_date": sell["date"],
                         "entry_price": buy["price"],
                         "exit_price": sell["price"],
-                        "shares": buy["qty"],
+                        "shares": int(round(buy["qty"])),  # DB column is INTEGER; fractional rounded
                         "pnl": pnl,
-                        "r_multiple": r_mult,
+                        "r_multiple": pct_return,
                         "outcome": "WIN" if pnl > 0 else "LOSS",
                         "resolved": True,
                         "resolved_at": datetime.utcnow().isoformat(),

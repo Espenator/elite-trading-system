@@ -112,7 +112,9 @@ class ModelRegistry:
         return []
 
     def _save_runs(self):
-        _RUNS_FILE.write_text(json.dumps(self._runs, indent=2, default=str))
+        tmp = _RUNS_FILE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(self._runs, indent=2, default=str))
+        tmp.replace(_RUNS_FILE)
 
     @staticmethod
     def _load_champions() -> Dict[str, str]:
@@ -124,7 +126,9 @@ class ModelRegistry:
         return {}
 
     def _save_champions(self):
-        _CHAMPIONS_FILE.write_text(json.dumps(self._champions, indent=2))
+        tmp = _CHAMPIONS_FILE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(self._champions, indent=2))
+        tmp.replace(_CHAMPIONS_FILE)
 
     @staticmethod
     def _check_mlflow() -> bool:

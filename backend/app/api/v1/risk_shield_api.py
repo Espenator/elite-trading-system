@@ -3,10 +3,14 @@ risk_shield_api.py — RiskShield Emergency Controls API
 Wires the RiskShield UI to OpenClaw risk_governor.py (474 lines)
 Maps 9 safety checks to UI checklist, portfolio heatmap, emergency controls
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from app.core.security import require_auth
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 import logging
+
+from app.services.alpaca_service import alpaca_service
+from app.services.database import db_service
 
 logger = logging.getLogger("elite.risk_shield")
 
@@ -24,6 +28,12 @@ router = APIRouter(tags=["RiskShield"])
 class EmergencyActionReq(BaseModel):
     action: str  # 'kill_switch', 'hedge_all', 'reduce_50', 'freeze_entries'
     value: Optional[bool] = None
+
+
+def is_entries_frozen() -> bool:
+    """Check if new entries are frozen (used by order executor)."""
+    state = db_service.get_config("risk_shield_freeze_entries")
+    return bool(state and state.get("frozen"))
 
 
 @router.get("/status")
@@ -84,55 +94,152 @@ async def get_risk_shield_status() -> Dict[str, Any]:
             "equity": status.get("equity", 0.0),
             "daily_pnl_pct": status.get("daily_pnl_pct", 0.0),
             "heatmap": heatmap_data,
+            "entries_frozen": is_entries_frozen(),
         }
 
     except Exception as e:
-        logging.error(f"Error fetching risk status: {e}")
+        logger.error("Error fetching risk status: %s", e)
         raise HTTPException(status_code=500, detail="Internal Risk Governor Error")
 
 
-@router.post("/emergency-action")
+@router.post("/emergency-action", dependencies=[Depends(require_auth)])
 async def execute_emergency_action(payload: EmergencyActionReq):
     """
-    Executes tactical emergency commands mapped to Alpaca API / OpenClaw.
+    Executes tactical emergency commands via Alpaca API.
     """
     action = payload.action
 
     try:
         if action == "kill_switch":
-            # Direct command to Alpaca to liquidate all and cancel orders
-            return {"status": "success", "message": "KILL SWITCH ENGAGED. Liquidating.", "action": action}
+            return await _execute_kill_switch()
         elif action == "hedge_all":
-            # Command to buy beta-weighted index puts
-            return {"status": "success", "message": "HEDGE ALL ENGAGED. Beta neutralized.", "action": action}
+            return _hedge_all_stub()
         elif action == "reduce_50":
-            # Command to halve active positions
-            return {"status": "success", "message": "REDUCE 50% ENGAGED. Exposure halved.", "action": action}
+            return await _execute_reduce_50()
         elif action == "freeze_entries":
-            # Toggle hard block in risk_gov for new entries
-            state = "ON" if payload.value else "OFF"
-            return {"status": "success", "message": f"FREEZE NEW ENTRIES set to {state}.", "action": action}
+            return _execute_freeze_entries(payload.value)
 
         raise HTTPException(status_code=400, detail="Unknown tactical command.")
 
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Emergency action failed: %s", e)
+        raise HTTPException(status_code=500, detail="Emergency action failed")
+
+
+async def _execute_kill_switch() -> Dict[str, Any]:
+    """Cancel all open orders and liquidate all positions via Alpaca."""
+    logger.critical("KILL SWITCH activated — cancelling orders and liquidating all positions")
+
+    results = {"action": "kill_switch", "executed": True, "orders_cancelled": False, "positions_closed": False}
+
+    # Step 1: Cancel all open orders
+    try:
+        cancel_result = await alpaca_service.cancel_all_orders()
+        results["orders_cancelled"] = True
+        results["cancelled_orders"] = cancel_result if isinstance(cancel_result, list) else []
+        logger.critical("KILL SWITCH: All open orders cancelled")
+    except Exception as e:
+        logger.error("KILL SWITCH: Failed to cancel orders: %s", e)
+        results["orders_error"] = str(type(e).__name__)
+
+    # Step 2: Liquidate all positions
+    try:
+        close_result = await alpaca_service.close_all_positions(cancel_orders=True)
+        results["positions_closed"] = True
+        results["closed_positions"] = close_result if isinstance(close_result, list) else []
+        logger.critical("KILL SWITCH: All positions liquidated")
+    except Exception as e:
+        logger.error("KILL SWITCH: Failed to close positions: %s", e)
+        results["positions_error"] = str(type(e).__name__)
+
+    # Step 3: Freeze entries to prevent new orders
+    db_service.set_config("risk_shield_freeze_entries", {"frozen": True, "reason": "kill_switch"})
+    results["entries_frozen"] = True
+
+    results["status"] = "completed" if results["positions_closed"] else "partial"
+    results["message"] = "All positions liquidated and entries frozen" if results["positions_closed"] else "Kill switch partially executed — check errors"
+    return results
+
+
+def _hedge_all_stub() -> Dict[str, Any]:
+    """Hedging via index puts requires options trading (not available in Alpaca basic).
+    Returns stub with clear explanation."""
+    logger.warning("HEDGE ALL requested — options hedging not available via Alpaca equity API")
+    return {
+        "action": "hedge_all",
+        "executed": False,
+        "status": "unavailable",
+        "message": "Options hedging (beta-weighted index puts) requires an options-enabled broker. "
+                   "Alpaca equity API does not support options trading. "
+                   "Use kill_switch or reduce_50 as alternatives.",
+    }
+
+
+async def _execute_reduce_50() -> Dict[str, Any]:
+    """Reduce all open positions by 50% via Alpaca close_position with percentage."""
+    logger.critical("REDUCE 50%% activated — halving all positions")
+
+    results = {"action": "reduce_50", "executed": True, "reduced": [], "errors": []}
+
+    positions = await alpaca_service.get_positions()
+    if not positions:
+        results["message"] = "No open positions to reduce"
+        return results
+
+    for pos in positions:
+        symbol = pos.get("symbol", "")
+        try:
+            await alpaca_service.close_position(symbol, percentage="50")
+            results["reduced"].append(symbol)
+            logger.critical("REDUCE 50%%: Halved position in %s", symbol)
+        except Exception as e:
+            logger.error("REDUCE 50%%: Failed for %s: %s", symbol, e)
+            results["errors"].append({"symbol": symbol, "error": str(type(e).__name__)})
+
+    results["status"] = "completed" if not results["errors"] else "partial"
+    results["message"] = f"Reduced {len(results['reduced'])} positions by 50%"
+    if results["errors"]:
+        results["message"] += f" ({len(results['errors'])} failures)"
+    return results
+
+
+def _execute_freeze_entries(value: Optional[bool]) -> Dict[str, Any]:
+    """Toggle the freeze-entries flag in DB. Order executor checks this before placing orders."""
+    frozen = bool(value) if value is not None else True
+    db_service.set_config("risk_shield_freeze_entries", {"frozen": frozen, "reason": "manual"})
+
+    state = "ON" if frozen else "OFF"
+    logger.critical("FREEZE ENTRIES %s — new order entries are now %s",
+                    state, "blocked" if frozen else "allowed")
+
+    return {
+        "action": "freeze_entries",
+        "executed": True,
+        "status": "completed",
+        "frozen": frozen,
+        "message": f"New entries {'frozen — no new orders will be placed' if frozen else 'unfrozen — trading resumed'}",
+    }
+
+
+@router.get("/freeze-status")
+async def get_freeze_status():
+    """Check if new entries are currently frozen."""
+    return {"frozen": is_entries_frozen()}
 
 
 @router.get("/history")
 async def get_risk_history():
     """
     Returns historical risk metrics for the UI drawdown chart.
-    Wires to Alpaca portfolio history API for real equity curve data.
+    Uses Alpaca portfolio history API for real equity curve data.
     """
     try:
-        # Try to get real history from Alpaca
-        from app.services.alpaca_client import get_portfolio_history
-        history = get_portfolio_history(period="1M", timeframe="1D")
-        return {"history": history}
-    except ImportError:
-        logger.warning("alpaca_client not available, returning empty history")
+        history = await alpaca_service.get_portfolio_history(period="1M", timeframe="1D")
+        if history:
+            return {"history": history}
         return {"history": []}
     except Exception as e:
-        logger.error(f"Error fetching risk history: {e}")
+        logger.error("Error fetching risk history: %s", e)
         return {"history": []}

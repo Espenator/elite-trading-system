@@ -144,7 +144,8 @@ class TestMultiWindowEvaluation:
         actuals = rng.normal(0.0, 0.02, n)  # random walk
         result = evaluate_model_all_windows(preds, actuals, windows=[30, 60, 90])
         # Random predictions on random walk should likely fail
-        assert result["all_passed"] is False or len(result["failing_windows"]) >= 0
+        assert result["all_passed"] is False
+        assert len(result["failing_windows"]) > 0
 
     def test_not_enough_data_marks_skipped(self):
         preds = np.ones(20)

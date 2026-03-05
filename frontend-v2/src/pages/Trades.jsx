@@ -21,7 +21,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import { useApi } from "../hooks/useApi";
-import { getApiUrl } from "../config/api";
+import { getApiUrl, getAuthHeaders } from "../config/api";
 
 // ── Formatters ──
 const fmtM = (n) => {
@@ -86,16 +86,17 @@ export default function Trades() {
 
   const handleCancelAll = async () => {
     try {
-      const base = import.meta.env.VITE_API_URL ?? "";
-      await fetch(`${base}/api/v1/orders/cancel-all`, { method: "DELETE" });
+      const res = await fetch(getApiUrl("orders"), { method: "DELETE", headers: getAuthHeaders() });
+      if (!res.ok) throw new Error('Failed');
       refetchOrders();
     } catch (e) { log.error("Cancel all failed:", e); }
   };
 
   const handleClosePosition = async (symbol, pct = 100) => {
     try {
-      const base = import.meta.env.VITE_API_URL ?? "";
-      await fetch(`${base}/api/v1/portfolio/close/${symbol}?percentage=${pct}`, { method: "DELETE" });
+      const qty = pct < 100 ? `&qty_pct=${pct}` : "";
+      const res = await fetch(getApiUrl("orders") + `/close?symbol=${encodeURIComponent(symbol)}${qty}`, { method: "POST", headers: getAuthHeaders() });
+      if (!res.ok) throw new Error('Failed');
       refetchPortfolio();
     } catch (e) { log.error("Close position failed:", e); }
   };
@@ -119,17 +120,24 @@ export default function Trades() {
     setSubmitting(true);
     setSubmitMsg(null);
     try {
-      const base = import.meta.env.VITE_API_URL ?? "";
-      const res = await fetch(`${base}/api/v1/orders`, {
+      const body = {
+        symbol: orderForm.symbol.toUpperCase(),
+        side: orderForm.side.toLowerCase(),
+        type: orderForm.type === "limit" ? "limit" : "market",
+        time_in_force: "day",
+        qty: String(parseInt(orderForm.qty)),
+      };
+      if (orderForm.type === "limit" && orderForm.limitPrice) {
+        body.limit_price = String(parseFloat(orderForm.limitPrice));
+      }
+      if (orderForm.stopPrice) {
+        body.stop_loss = { stop_price: String(parseFloat(orderForm.stopPrice)) };
+        body.order_class = "bracket";
+      }
+      const res = await fetch(getApiUrl("orders/advanced"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          symbol: orderForm.symbol.toUpperCase(),
-          side: orderForm.side.toLowerCase(),
-          order_type: orderForm.type,
-          quantity: parseInt(orderForm.qty),
-          price: parseFloat(orderForm.limitPrice) || 0,
-        }),
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (res.ok) {
@@ -147,8 +155,7 @@ export default function Trades() {
 
   const handleCancelOrder = async (orderId) => {
     try {
-      const base = import.meta.env.VITE_API_URL ?? "";
-      await fetch(`${base}/api/v1/orders/${orderId}`, { method: "DELETE" });
+      await fetch(getApiUrl("orders") + `/${orderId}`, { method: "DELETE", headers: getAuthHeaders() });
       refetchOrders();
     } catch (e) { log.error("Cancel order failed:", e); }
   };

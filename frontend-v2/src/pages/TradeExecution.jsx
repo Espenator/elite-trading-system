@@ -1,6 +1,7 @@
 import React, { useEffect, useCallback } from 'react';
 import useTradeExecution from '../hooks/useTradeExecution';
 import AlignmentEngine from "../components/settings/AlignmentEngine";
+import CouncilVerdictPanel from "../components/dashboard/CouncilVerdictPanel";
 import { getApiUrl } from '../config/api';
 
 // ========== UI-DESIGN-SYSTEM.md EXACT COLORS ==========
@@ -83,6 +84,7 @@ export default function TradeExecution() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ symbol: orderForm?.symbol || 'SPY', side: orderForm?.side || 'buy', quantity: orderForm?.quantity || 1, strategy: 'manual' })
       });
+      if (!res.ok) throw new Error('Alignment preflight failed');
       const data = await res.json();
       setPreflightVerdict(data);
     } catch (err) {
@@ -93,13 +95,14 @@ export default function TradeExecution() {
   // Keyboard Shortcuts
   const handleKeyDown = useCallback((e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if (!e.ctrlKey && !e.metaKey) return;
     switch (e.key.toUpperCase()) {
-      case 'B': executeMarketBuy(); break;
-      case 'S': executeMarketSell(); break;
-      case 'L': executeLimitBuy(); break;
-      case 'O': executeLimitSell(); break;
-      case 'T': executeStopLoss(); break;
-      case 'E': executeAdvancedOrder(); break;
+      case 'B': e.preventDefault(); executeMarketBuy(); break;
+      case 'S': e.preventDefault(); executeMarketSell(); break;
+      case 'L': e.preventDefault(); executeLimitBuy(); break;
+      case 'O': e.preventDefault(); executeLimitSell(); break;
+      case 'T': e.preventDefault(); executeStopLoss(); break;
+      case 'E': e.preventDefault(); executeAdvancedOrder(); break;
       default: break;
     }
   }, [executeMarketBuy, executeMarketSell, executeLimitBuy, executeLimitSell, executeStopLoss, executeAdvancedOrder]);
@@ -130,11 +133,11 @@ export default function TradeExecution() {
       {/* === QUICK EXECUTION BAR === */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         {[
-          { label: 'Market Buy [B]', color: C.green, bg: C.greenDim, action: executeMarketBuy },
-          { label: 'Market Sell [S]', color: C.red, bg: C.redDim, action: executeMarketSell },
-          { label: 'Limit Buy [L]', color: C.blue, bg: 'transparent', border: C.blue, action: executeLimitBuy },
-          { label: 'Limit Sell [O]', color: C.blue, bg: 'transparent', border: C.blue, action: executeLimitSell },
-          { label: 'Stop Loss [T]', color: C.red, bg: 'transparent', border: C.red, action: executeStopLoss },
+          { label: 'Market Buy [Ctrl+B]', color: C.green, bg: C.greenDim, action: executeMarketBuy },
+          { label: 'Market Sell [Ctrl+S]', color: C.red, bg: C.redDim, action: executeMarketSell },
+          { label: 'Limit Buy [Ctrl+L]', color: C.blue, bg: 'transparent', border: C.blue, action: executeLimitBuy },
+          { label: 'Limit Sell [Ctrl+O]', color: C.blue, bg: 'transparent', border: C.blue, action: executeLimitSell },
+          { label: 'Stop Loss [Ctrl+T]', color: C.red, bg: 'transparent', border: C.red, action: executeStopLoss },
         ].map(btn => (
           <button key={btn.label} onClick={btn.action}
             style={{ padding: '8px 18px', borderRadius: 6, border: btn.border ? `1px solid ${btn.border}` : 'none', fontSize: 12, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", background: btn.bg, color: btn.color, cursor: 'pointer', letterSpacing: 0.5, transition: 'all 0.2s' }}
@@ -246,7 +249,7 @@ export default function TradeExecution() {
               style={{ padding: '10px 16px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", background: `linear-gradient(135deg, #00D9FF, ${C.blue})`, color: '#fff', cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.6 : 1, letterSpacing: 0.5, transition: 'all 0.2s' }}
               onMouseEnter={e => { if (!loading) { e.currentTarget.style.boxShadow = '0 0 20px rgba(0,217,255,0.25)'; e.currentTarget.style.transform = 'translateY(-1px)'; } }}
               onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none'; }}>
-              {loading ? 'Executing...' : 'Execute Order [E]'}
+              {loading ? 'Executing...' : 'Execute Order [Ctrl+E]'}
             </button>
           </div>
         </Card>
@@ -286,19 +289,10 @@ export default function TradeExecution() {
           <Card title="Price Charts" subtitle="SPX \u00B7 S&P 500 Index \u00B7 1M">
             <div style={{ padding: '8px 12px' }}>
               <div style={{ fontSize: 18, fontWeight: 700, color: C.text, fontFamily: "'JetBrains Mono', monospace" }}>
-                4450.25 <span style={{ fontSize: 12, color: C.green }}>+430.50 (+0.35%)</span>
+                -- <span style={{ fontSize: 12, color: C.textMuted }}>Awaiting data</span>
               </div>
               <svg width="100%" height="160" viewBox="0 0 300 160" style={{ marginTop: 8 }}>
-                {Array.from({ length: 30 }, (_, i) => {
-                  const h = 20 + Math.random() * 80 + (i > 20 ? i * 3 : 0);
-                  const isGreen = Math.random() > 0.4;
-                  return <rect key={i} x={i * 10} y={160 - h} width={7} height={h} rx={1} fill={isGreen ? C.green : C.red} opacity={0.8} />;
-                })}
-                {/* Volume bars at bottom */}
-                {Array.from({ length: 30 }, (_, i) => {
-                  const vol = 5 + Math.random() * 20;
-                  return <rect key={`v${i}`} x={i * 10} y={155} width={7} height={vol * 0.2} fill={C.textDim} opacity={0.3} />;
-                })}
+                <text x="150" y="85" textAnchor="middle" fill={C.textMuted} fontSize="11">Awaiting market data...</text>
               </svg>
               <div style={{ textAlign: 'right', marginTop: 4 }}>
                 <span style={{ fontSize: 10, color: C.textMuted, background: C.cardAlt, padding: '2px 6px', borderRadius: 3, cursor: 'pointer' }}>TV</span>
@@ -394,12 +388,15 @@ export default function TradeExecution() {
 
       </div>
 
-      {/* Alignment Engine */}
-      <Card title="Alignment Engine">
-        <div style={{ padding: '8px 12px', maxHeight: 400, overflowY: 'auto' }}>
-          <AlignmentEngine />
-        </div>
-      </Card>
+      {/* Council Verdict + Alignment Engine */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+        <CouncilVerdictPanel symbol={symbol} />
+        <Card title="Alignment Engine">
+          <div style={{ padding: '8px 12px', maxHeight: 400, overflowY: 'auto' }}>
+            <AlignmentEngine />
+          </div>
+        </Card>
+      </div>
 
     </div>
   );

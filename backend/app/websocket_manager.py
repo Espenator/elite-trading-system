@@ -32,7 +32,9 @@ def set_ws_auth_token(token: str):
 def verify_ws_token(token: Optional[str]) -> bool:
     """Verify WebSocket connection token."""
     if _WS_AUTH_TOKEN is None:
-        return True  # Auth not configured, allow all (dev mode)
+        # Allow in development, block in production
+        import os
+        return os.getenv("TRADING_MODE", "paper") != "live"
     return token == _WS_AUTH_TOKEN
 
 

@@ -1,4 +1,4 @@
-import { forwardRef } from 'react';
+import { forwardRef, useId } from 'react';
 import clsx from 'clsx';
 import { ChevronDown } from 'lucide-react';
 
@@ -19,7 +19,8 @@ const Select = forwardRef(function Select(
   },
   ref
 ) {
-    const id = idProp || `select-${crypto.randomUUID()}`;
+    const autoId = useId();
+    const id = idProp || autoId;
   const baseSelect =
     'w-full px-4 py-2.5 bg-dark border border-secondary/50 rounded-xl text-sm text-white outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors disabled:opacity-50 appearance-none cursor-pointer';
   const errorSelect = 'border-danger focus:border-danger focus:ring-danger/30';

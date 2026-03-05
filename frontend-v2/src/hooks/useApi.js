@@ -4,7 +4,7 @@
  * Optional polling when pollIntervalMs > 0.
  */
 import { useState, useEffect, useCallback } from "react";
-import { getApiUrl } from "../config/api";
+import { getApiUrl, getAuthHeaders } from "../config/api";
 
 // Simple in-memory cache for API responses (stale-while-revalidate)
 const _apiCache = new Map();
@@ -115,7 +115,7 @@ export async function fetchDynamicStopLoss(symbol, entryPrice, side = 'buy') {
   const url = getApiUrl('dynamicStopLoss');
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify({ symbol, entry_price: entryPrice, side }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -130,7 +130,7 @@ export async function fetchPreTradeCheck(symbol, side = 'buy') {
   const url = `${getApiUrl('preTradeCheck')}/${encodeURIComponent(symbol)}`;
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify({ symbol, side }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -170,31 +170,31 @@ export function useBlackboardFeed(pollMs = 5000) {
 // ---- Backtesting Enhanced Hooks ----
 
 export function useBacktestResults(pollMs = 30000) {
-  return useApi('backtest/results', { pollIntervalMs: pollMs });
+  return useApi('backtestResults', { pollIntervalMs: pollMs });
 }
 
 export function useBacktestOptimization(pollMs = 60000) {
-  return useApi('backtest/optimization', { pollIntervalMs: pollMs });
+  return useApi('backtestOptimization', { pollIntervalMs: pollMs });
 }
 
 export function useBacktestWalkForward(pollMs = 60000) {
-  return useApi('backtest/walk-forward', { pollIntervalMs: pollMs });
+  return useApi('backtestWalkforward', { pollIntervalMs: pollMs });
 }
 
 export function useBacktestMonteCarlo(pollMs = 60000) {
-  return useApi('backtest/monte-carlo', { pollIntervalMs: pollMs });
+  return useApi('backtestMontecarlo', { pollIntervalMs: pollMs });
 }
 
 export function useBacktestCorrelation(pollMs = 60000) {
-  return useApi('backtest/correlation', { pollIntervalMs: pollMs });
+  return useApi('backtestCorrelation', { pollIntervalMs: pollMs });
 }
 
 export function useBacktestSectorExposure(pollMs = 60000) {
-  return useApi('backtest/sector-exposure', { pollIntervalMs: pollMs });
+  return useApi('backtestSectorExposure', { pollIntervalMs: pollMs });
 }
 
 export function useBacktestDrawdownAnalysis(pollMs = 60000) {
-  return useApi('backtest/drawdown-analysis', { pollIntervalMs: pollMs });
+  return useApi('backtestDrawdownAnalysis', { pollIntervalMs: pollMs });
 }
 
 // ---- Market Regime Page (10/15) Specialized Hooks ----
@@ -250,7 +250,7 @@ export async function fetchCouncilEvaluate(symbol, timeframe = '1d', context = '
   const url = getApiUrl('councilEvaluate');
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify({ symbol, timeframe, context }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -271,7 +271,7 @@ export async function fetchFeaturesCompute(symbol, timeframe = '1d') {
   const url = getApiUrl('featuresCompute');
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify({ symbol, timeframe }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -289,8 +289,120 @@ export async function postBiasOverride(biasMultiplier) {
   const url = getApiUrl('openclaw/macro/override');
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify({ bias_multiplier: biasMultiplier }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+// ---- CNS (Central Nervous System) Hooks ----
+
+export function useHomeostasis(pollMs = 10000) {
+  return useApi('cnsHomeostasis', { pollIntervalMs: pollMs });
+}
+
+export function useCircuitBreakerStatus(pollMs = 15000) {
+  return useApi('cnsCircuitBreaker', { pollIntervalMs: pollMs });
+}
+
+export function useCnsAgentsHealth(pollMs = 15000) {
+  return useApi('cnsAgentsHealth', { pollIntervalMs: pollMs });
+}
+
+export function useCnsBlackboard(pollMs = 10000) {
+  return useApi('cnsBlackboard', { pollIntervalMs: pollMs });
+}
+
+export function useCnsPostmortems(pollMs = 30000) {
+  return useApi('cnsPostmortems', { pollIntervalMs: pollMs });
+}
+
+export function useCnsAttribution(pollMs = 60000) {
+  return useApi('cnsPostmortemsAttribution', { pollIntervalMs: pollMs });
+}
+
+export function useCnsDirectives() {
+  return useApi('cnsDirectives');
+}
+
+export function useCnsLastVerdict(pollMs = 10000) {
+  return useApi('cnsLastVerdict', { pollIntervalMs: pollMs });
+}
+
+export function useProfitBrain(pollMs = 10000) {
+  return useApi('cnsProfitBrain', { pollIntervalMs: pollMs });
+}
+
+// ---- Swarm Intelligence Hooks ----
+
+export function useSwarmTurbo(pollMs = 10000) {
+  return useApi('swarmTurboStatus', { pollIntervalMs: pollMs });
+}
+
+export function useSwarmHyper(pollMs = 10000) {
+  return useApi('swarmHyperStatus', { pollIntervalMs: pollMs });
+}
+
+export function useSwarmNews(pollMs = 10000) {
+  return useApi('swarmNewsStatus', { pollIntervalMs: pollMs });
+}
+
+export function useSwarmSweep(pollMs = 10000) {
+  return useApi('swarmSweepStatus', { pollIntervalMs: pollMs });
+}
+
+export function useSwarmUnified(pollMs = 10000) {
+  return useApi('swarmUnifiedStatus', { pollIntervalMs: pollMs });
+}
+
+export function useSwarmOutcomes(pollMs = 10000) {
+  return useApi('swarmOutcomesStatus', { pollIntervalMs: pollMs });
+}
+
+export function useSwarmKelly(pollMs = 10000) {
+  return useApi('swarmOutcomesKelly', { pollIntervalMs: pollMs });
+}
+
+export function useSwarmPositions(pollMs = 10000) {
+  return useApi('swarmPositionsManaged', { pollIntervalMs: pollMs });
+}
+
+export function useSwarmMlScorer(pollMs = 10000) {
+  return useApi('swarmMlScorerStatus', { pollIntervalMs: pollMs });
+}
+
+/** POST helper to override agent streak status */
+export async function postAgentOverrideStatus(agentName, action) {
+  const url = `${getApiUrl('cnsAgentsHealth').replace('/health', '')}/${encodeURIComponent(agentName)}/override-status`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    body: JSON.stringify({ action }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+/** POST helper to override agent Bayesian weight */
+export async function postAgentOverrideWeight(agentName, alpha, beta) {
+  const url = `${getApiUrl('cnsAgentsHealth').replace('/health', '')}/${encodeURIComponent(agentName)}/override-weight`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    body: JSON.stringify({ alpha, beta }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+/** PUT helper to update a directive file */
+export async function putDirective(filename, content) {
+  const url = `${getApiUrl('cnsDirectives')}/${encodeURIComponent(filename)}`;
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    body: JSON.stringify({ content }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();

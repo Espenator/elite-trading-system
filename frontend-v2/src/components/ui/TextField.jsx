@@ -1,4 +1,4 @@
-import { forwardRef, useState } from 'react';
+import { forwardRef, useId, useState } from 'react';
 import clsx from 'clsx';
 import { Eye, EyeOff } from 'lucide-react';
 
@@ -10,7 +10,8 @@ const TextField = forwardRef(function TextField(
   { label, error, multiline = false, rows = 3, suffix, prefix, className, inputClassName, id: idProp, type: typeProp = 'text', ...props },
   ref
 ) {
-    const id = idProp || `textfield-${crypto.randomUUID()}`;
+    const autoId = useId();
+    const id = idProp || autoId;
   const isPassword = typeProp === 'password';
   const [visible, setVisible] = useState(false);
   const inputType = isPassword ? (visible ? 'text' : 'password') : typeProp;

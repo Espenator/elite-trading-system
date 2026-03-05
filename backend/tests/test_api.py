@@ -9,12 +9,13 @@ from app.services.kelly_position_sizer import KellyPositionSizer
 # --- Test 1: App instance exists ---
 def test_app_exists():
     assert app is not None
-    assert app.title == "Elite Trading System"
+    assert app.title in ("Elite Trading System", "Embodier Trader")
 
 
-# --- Test 2: API version is 3.0.0 ---
+# --- Test 2: API version is 3.2.0 ---
 def test_app_version():
-    assert app.version == "3.1.0"
+    assert app.version == "3.2.0"
+
 
 # --- Test 3: Health endpoint returns 200 ---
 @pytest.mark.anyio
@@ -27,14 +28,14 @@ async def test_health_endpoint(client):
 @pytest.mark.anyio
 async def test_status_endpoint(client):
     response = await client.get("/api/v1/status/overview")
-    assert response.status_code in [200, 404, 500]
+    assert response.status_code in [200, 404]
 
 
 # --- Test 5: Signals endpoint exists ---
 @pytest.mark.anyio
 async def test_signals_endpoint(client):
     response = await client.get("/api/v1/signals")
-    assert response.status_code in [200, 307, 404, 500]
+    assert response.status_code in [200, 307, 404]
 
 
 # --- Test 6: CORS is restricted (not wildcard) ---
@@ -147,8 +148,10 @@ def test_risk_score_structure():
 def test_risk_config_complete():
     from app.core.config import settings
     required = [
-        'MAX_PORTFOLIO_HEAT', 'MAX_SECTOR_CONCENTRATION',
-        'MIN_RISK_SCORE', 'VOLATILITY_BASELINE',
+        'MAX_PORTFOLIO_HEAT',
+        'MAX_SECTOR_CONCENTRATION',
+        'MIN_RISK_SCORE',
+        'VOLATILITY_BASELINE',
     ]
     for attr in required:
         assert hasattr(settings, attr), f"Missing config: {attr}"
@@ -156,6 +159,7 @@ def test_risk_config_complete():
 
 # --- Test 18: Composite scorer risk dampener logic ---
 def test_risk_dampener():
+    """Placeholder: validates Kelly dampening arithmetic."""
     assert 0.5 * 80 == 40
     assert 0.75 * 80 == 60
     assert 1.0 * 80 == 80
@@ -191,4 +195,3 @@ def test_kelly_regime_multipliers():
     assert "BULLISH" in _REGIME_MULTIPLIERS
     assert "CRISIS" in _REGIME_MULTIPLIERS
     assert _REGIME_MULTIPLIERS["CRISIS"] < _REGIME_MULTIPLIERS["BULLISH"]
-

@@ -12,7 +12,7 @@
  *   POST /api/v1/settings/import           - import JSON
  */
 import { useState, useEffect, useCallback } from "react";
-import { getApiUrl } from "../config/api";
+import { getApiUrl, getAuthHeaders } from "../config/api";
 
 const BASE = () => getApiUrl("settings");
 
@@ -59,7 +59,7 @@ export function useSettings() {
       const payload = settings?.[category] ?? {};
       const res = await fetch(`${BASE()}/${category}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -81,7 +81,7 @@ export function useSettings() {
     try {
       const res = await fetch(BASE(), {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify(settings),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -102,7 +102,7 @@ export function useSettings() {
     try {
       const res = await fetch(`${BASE()}/reset/${category}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({}),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -120,7 +120,7 @@ export function useSettings() {
     try {
       const res = await fetch(`${BASE()}/validate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ provider, apiKey, secretKey }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -136,7 +136,7 @@ export function useSettings() {
     try {
       const res = await fetch(`${BASE()}/test-connection`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ source }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -161,7 +161,7 @@ export function useSettings() {
   const importSettings = useCallback(async (payload) => {
     const res = await fetch(`${BASE()}/import`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);

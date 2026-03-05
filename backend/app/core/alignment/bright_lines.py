@@ -183,6 +183,9 @@ class BrightLineEnforcer:
 
         if not passed:
             self._violation_log.extend(violations)
+            # Keep last 1000 violations to prevent memory leak
+            if len(self._violation_log) > 1000:
+                self._violation_log = self._violation_log[-1000:]
             for v in violations:
                 logger.warning("BRIGHT_LINE_VIOLATION: %s", v.message)
 

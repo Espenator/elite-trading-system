@@ -16,7 +16,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from app.core.security import require_auth
 from pydantic import BaseModel
 
 from app.services.database import db_service
@@ -78,16 +79,66 @@ def _compute_accuracy(history: list, days: int) -> float:
 async def get_flywheel():
     """Return current flywheel accuracy metrics and history."""
     data = _get_flywheel_data()
+    acc30 = data.get("accuracy30d", 0.0)
+    acc90 = data.get("accuracy90d", 0.0)
     return {
-        "accuracy30d": data.get("accuracy30d", 0.0),
-        "accuracy90d": data.get("accuracy90d", 0.0),
+        "accuracy30d": acc30,
+        "accuracy90d": acc90,
+        "accuracy": round(acc30 * 100, 1),
         "resolvedSignals": data.get("resolvedSignals", 0),
         "pendingResolution": data.get("pendingResolution", 0),
         "history": data.get("history", [])[-90:],
     }
 
 
-@router.post("/record")
+@router.get("/logs")
+async def get_flywheel_logs():
+    """Return recent flywheel/ML pipeline log entries for ML Brain Flywheel page."""
+    stored = db_service.get_config("flywheel_logs")
+    if not stored or not isinstance(stored, list):
+        return {"flywheel": {"logs": []}}
+    return {"flywheel": {"logs": stored[-100:]}}
+
+
+@router.get("/kpis")
+async def get_flywheel_kpis():
+    """Flywheel KPIs for ML Brain page. Stub when no pipeline data."""
+    data = _get_flywheel_data()
+    return {
+        "flywheel": {
+            "accuracy": round((data.get("accuracy30d") or 0) * 100, 1),
+            "resolvedSignals": data.get("resolvedSignals", 0),
+            "pendingResolution": data.get("pendingResolution", 0),
+        }
+    }
+
+
+@router.get("/performance")
+async def get_flywheel_performance():
+    """Flywheel performance metrics for ML Brain page."""
+    data = _get_flywheel_data()
+    return {"flywheel": {"history": data.get("history", [])[-90:], "accuracy30d": data.get("accuracy30d", 0)}}
+
+
+@router.get("/signals/staged")
+async def get_flywheel_signals_staged():
+    """Staged signals for flywheel. Stub."""
+    return {"flywheel": {"signals": [], "staged": 0}}
+
+
+@router.get("/models")
+async def get_flywheel_models():
+    """Model registry summary for ML Brain page. Stub."""
+    return {"flywheel": {"models": [], "champion": None}}
+
+
+@router.get("/features")
+async def get_flywheel_features():
+    """Feature pipeline status for ML Brain page. Stub."""
+    return {"flywheel": {"features": [], "version": None}}
+
+
+@router.post("/record", dependencies=[Depends(require_auth)])
 async def record_flywheel(record: FlywheelRecord):
     """Submit a flywheel accuracy snapshot (called by ML training/evaluation)."""
     data = _get_flywheel_data()
@@ -214,7 +265,7 @@ async def get_drift_status():
         return {"status": "error", "message": str(e)}
 
 
-@router.get("/features")
+@router.get("/feature-pipeline-status")
 async def get_feature_pipeline_status():
     """Get feature pipeline manifest and configuration."""
     try:
@@ -242,7 +293,7 @@ async def get_feature_pipeline_status():
 # Kelly Learning Feedback: calibrate edge predictions from outcomes
 # -----------------------------------------------------------------
 
-@router.post("/kelly-feedback")
+@router.post("/kelly-feedback", dependencies=[Depends(require_auth)])
 async def kelly_feedback(outcomes: List[Dict]):
     """Update edge calibration from realized trade outcomes.
 

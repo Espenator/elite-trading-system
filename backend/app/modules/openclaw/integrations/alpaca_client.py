@@ -38,11 +38,13 @@ class AlpacaClient:
     """
 
     def __init__(self):
+        trading_mode = os.getenv("TRADING_MODE", "paper").lower()
+        use_paper = trading_mode != "live"
         self.client = TradingClient(
-            ALPACA_API_KEY, ALPACA_SECRET_KEY, paper=True
+            ALPACA_API_KEY, ALPACA_SECRET_KEY, paper=use_paper
         )
         self.account = None
-        logger.info("AlpacaClient initialized (paper=True)")
+        logger.info("AlpacaClient initialized (paper=%s, TRADING_MODE=%s)", use_paper, trading_mode)
 
     # ==================== ACCOUNT ====================
 

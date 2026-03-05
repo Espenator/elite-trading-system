@@ -13,6 +13,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+import numpy as np
 
 from fastapi import APIRouter
 
@@ -115,6 +116,8 @@ async def performance_root(limit_trades: int = 5000) -> Dict[str, Any]:
         for i, p in enumerate(points)
     ]
     last_equity = points[-1]["equity"] if points else 0.0
+    win_rate = metrics.get("winRate") if metrics.get("winRate") is not None else 0
+    max_dd = metrics.get("maxDrawdown") if metrics.get("maxDrawdown") is not None else 0
 
     return {
         "hasData": summary.get("hasData", False),
@@ -123,9 +126,13 @@ async def performance_root(limit_trades: int = 5000) -> Dict[str, Any]:
         "totalValue": last_equity,
         "dailyPnL": None,
         "totalReturnPct": (metrics.get("netPnl") or 0) / max(abs(last_equity), 1) * 100 if last_equity else 0,
-        "winRate": metrics.get("winRate"),
-        "sharpeRatio": None,
-        "maxDrawdown": metrics.get("maxDrawdown"),
+        "winRate": win_rate,
+        "win_rate": win_rate,
+        "sharpeRatio": 0,
+        "sharpe": 0,
+        "alpha": 0,
+        "maxDrawdown": max_dd,
+        "max_drawdown": max_dd,
         "equityCurve": equity_curve,
         "sectors": None,
         "lastUpdated": summary.get("lastUpdated"),
@@ -376,7 +383,7 @@ async def performance_trades(limit: int = 200) -> Dict[str, Any]:
 # -----------------------------------------------------------------
 # Risk Metrics: computed from real trade data
 # -----------------------------------------------------------------
-import numpy as np
+
 
 
 @router.get("/risk-metrics")

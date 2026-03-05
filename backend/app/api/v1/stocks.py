@@ -1,6 +1,9 @@
 """Stock screener API endpoints. Tracked symbols from Market Data Agent via symbol_universe."""
+import logging
 
 from fastapi import APIRouter, HTTPException, Query
+
+logger = logging.getLogger(__name__)
 from typing import Optional, List, Dict
 from app.services.finviz_service import FinvizService
 from app.modules.symbol_universe import get_tracked_symbols, get_symbol_metadata
@@ -58,4 +61,5 @@ async def get_stock_list(
         )
         return stocks
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Stock list fetch failed: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to fetch stock list")
