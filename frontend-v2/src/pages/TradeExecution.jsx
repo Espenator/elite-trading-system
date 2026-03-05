@@ -114,8 +114,13 @@ export default function TradeExecution() {
 
   const fmt = (v) => v?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00';
   const fmtUsd = (v) => `$${fmt(v)}`;
-  const maxLadderSize = Math.max(...(priceLadder || []).map(r => r.size || 0), 1);
-  const maxBookSize = Math.max(...(orderBook || []).map(r => r.size || 0), 1);
+  const ladderArr = Array.isArray(priceLadder) ? priceLadder : (priceLadder?.levels || []);
+  const bookArr = Array.isArray(orderBook) ? orderBook : (orderBook?.bids ? [...(orderBook.asks || []), ...(orderBook.bids || [])] : []);
+  const posArr = Array.isArray(positions) ? positions : (positions?.positions || []);
+  const newsArr = Array.isArray(newsFeed) ? newsFeed : [];
+  const statusArr = Array.isArray(systemStatus) ? systemStatus : [systemStatus].filter(Boolean);
+  const maxLadderSize = Math.max(...ladderArr.map(r => r.size || 0), 1);
+  const maxBookSize = Math.max(...bookArr.map(r => r.size || 0), 1);
 
   return (
     <div style={{ background: C.bg, minHeight: '100vh', padding: 16, fontFamily: "'Inter', sans-serif" }}>
@@ -163,7 +168,7 @@ export default function TradeExecution() {
                 </tr>
               </thead>
               <tbody>
-                {priceLadder.map((row, i) => {
+                {ladderArr.map((row, i) => {
                   const isSelected = i + 1 === selectedRow;
                   const priceColor = row.size > 15 ? C.green : row.size > 5 ? C.amber : C.red;
                   return (
@@ -266,7 +271,7 @@ export default function TradeExecution() {
                 </tr>
               </thead>
               <tbody>
-                {orderBook.map((row, i) => (
+                {bookArr.map((row, i) => (
                   <tr key={i} style={{ position: 'relative', transition: 'background 0.15s', cursor: 'pointer' }}
                     onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,217,255,0.04)'; }}
                     onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
@@ -301,8 +306,8 @@ export default function TradeExecution() {
           </Card>
           <Card title="News Feed">
             <div style={{ padding: '4px 8px', maxHeight: 200, overflowY: 'auto' }}>
-              {newsFeed.map((item, i) => (
-                <div key={i} style={{ padding: '4px 0', borderBottom: i < newsFeed.length - 1 ? `1px solid ${C.border}` : 'none', fontSize: 11, lineHeight: 1.4 }}>
+              {newsArr.map((item, i) => (
+                <div key={i} style={{ padding: '4px 0', borderBottom: i < newsArr.length - 1 ? `1px solid ${C.border}` : 'none', fontSize: 11, lineHeight: 1.4 }}>
                   <span style={{ color: C.cyan500, fontWeight: 600, marginRight: 8 }}>{item.time}</span>
                   <span style={{ color: C.textMuted }}>| {item.text}</span>
                 </div>
@@ -328,7 +333,7 @@ export default function TradeExecution() {
                 </tr>
               </thead>
               <tbody>
-                {positions.map((pos, i) => (
+                {posArr.map((pos, i) => (
                   <tr key={i} style={{ borderBottom: `1px solid ${C.border}` }}>
                     <td style={{ padding: '6px 8px', color: C.cyan400, fontWeight: 600 }}>{pos.symbol}</td>
                     <td style={{ padding: '6px 8px', color: pos.side === 'Long' ? C.green : C.red }}>{pos.side}</td>
@@ -342,7 +347,7 @@ export default function TradeExecution() {
                     </td>
                   </tr>
                 ))}
-                {positions.length === 0 && (
+                {posArr.length === 0 && (
                   <tr><td colSpan={7} style={{ padding: 24, textAlign: 'center', color: C.textDim }}>No open positions</td></tr>
                 )}
               </tbody>
@@ -374,8 +379,8 @@ export default function TradeExecution() {
         {/* System Status Log */}
         <Card title="System Status Log">
           <div style={{ padding: '8px 12px', maxHeight: 200, overflowY: 'auto' }}>
-            {systemStatus.map((item, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', padding: '6px 0', borderBottom: i < systemStatus.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+            {statusArr.map((item, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', padding: '6px 0', borderBottom: i < statusArr.length - 1 ? `1px solid ${C.border}` : 'none' }}>
                 <StatusDot type={item.type} />
                 <div style={{ fontSize: 12, lineHeight: 1.4 }}>
                   <span style={{ color: item.type === 'warning' ? C.amber : item.type === 'error' ? C.red : C.cyan500, fontWeight: 600, marginRight: 8 }}>{item.time}</span>
