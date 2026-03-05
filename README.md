@@ -1,14 +1,14 @@
 # Elite Trading System
 ### Embodier.ai — Full-Stack AI Trading Intelligence Platform
-**Version 3.2.0** | Last Updated: March 5, 2026
+**Version 4.0.0** | Last Updated: March 5, 2026
 
 CI Status: GREEN — 151 tests passing
 Backend: Ready to start (uvicorn never run yet). Frontend builds clean.
-Council: 14-agent DAG in 7 stages — council-controlled trading via CouncilGate (v3.2.0)
+Council: 14-agent DAG in 7 stages — Cognitive-1000 Brain with Hybrid LLM Router (v4.0.0)
 
 ---
 
-React + FastAPI full-stack trading application with 15-route V3 widescreen dashboard, DuckDB database, 14-agent council DAG with Bayesian weight learning, Alpaca + Finviz integrations, XGBoost ML pipeline, event-driven council-controlled order execution, and gRPC brain service for local Ollama LLM inference.
+React + FastAPI full-stack trading application with 15-route V3 widescreen dashboard, DuckDB database, 14-agent council DAG with Bayesian weight learning, Hybrid LLM Router (Ollama → Claude → Perplexity), episodic memory architecture, Hemisphere Bridge (PC-1 ↔ PC-2), Alpaca + Finviz integrations, XGBoost ML pipeline, event-driven council-controlled order execution, and gRPC brain service for local Ollama LLM inference.
 
 ## Current State (March 5, 2026)
 
@@ -16,17 +16,21 @@ React + FastAPI full-stack trading application with 15-route V3 widescreen dashb
 |------|-------|--------|
 | Frontend pages | 15 (14 sidebar + 1 hidden) | All wired to useApi hooks, no mock data |
 | Backend API routes | 29 files in api/v1/ | All mounted in main.py |
-| Backend services | 24 files in services/ | Business logic layer |
+| Backend services | 26 files in services/ | Business logic layer |
+| Core modules | 5 files in core/ | MessageBus, LLM Router, Hemisphere Bridge, config |
 | Council agents | 14 agents in 7-stage DAG | BUILT + CONNECTED to event pipeline via CouncilGate |
-| Council intelligence | WeightLearner + CouncilGate | Bayesian self-learning agent weights |
+| Council intelligence | WeightLearner + CouncilGate + PredictionTracker | Bayesian self-learning + Free Energy Principle |
+| Memory architecture | 3 DuckDB tables | Episodic, semantic, prediction history |
+| LLM Router | Ollama 3B/14B/32B → Claude → Perplexity | Tiered routing with daily budget |
+| Hemisphere Bridge | PC-1 ↔ PC-2 heartbeat + forwarding | Auto-fallback to local LLM |
 | Tests | 151 passing | Backend pytest + frontend build |
-| Brain service | gRPC + Ollama | BUILT — not yet wired to council |
+| Brain service | gRPC + Ollama | BUILT — wired via Hemisphere Bridge |
 | Event pipeline | MessageBus + CouncilGate + SignalEngine + OrderExecutor | BUILT — council-controlled trading |
 | Database | DuckDB (WAL mode, pooling) | BUILT |
 | Authentication | None | Not started |
 | WebSocket | Code exists | Not connected to frontend |
 
-## Trade Pipeline (v3.2.0 — Council-Controlled)
+## Trade Pipeline (v4.0.0 — Cognitive-1000)
 
 ```
 AlpacaStreamService
@@ -34,19 +38,34 @@ AlpacaStreamService
   -> EventDrivenSignalEngine
   -> signal.generated (score >= 65)
   -> CouncilGate (invokes 14-agent council)
+    -> IntuitionEngine (episodic memory lookup before Stage 1)
+    -> 14-agent DAG (7 stages)
+    -> PredictionTracker (Free Energy recording)
   -> council.verdict (BUY/SELL/HOLD with Bayesian-weighted confidence)
   -> OrderExecutor (real DuckDB stats, real ATR, mock-source guard)
   -> order.submitted
+  -> trade.resolved -> WeightLearner (self-learning feedback loop)
   -> WebSocket bridges
   -> Frontend
 ```
 
-Every signal passes through the full 14-agent council before any trade is executed. No hardcoded data — Kelly sizing uses real DuckDB trade statistics, ATR comes from real feature data, and the mock-source guard prevents trading on fake data.
+Every signal passes through the full 14-agent council before any trade is executed. No hardcoded data — Kelly sizing uses real DuckDB trade statistics, ATR comes from real feature data, and the mock-source guard prevents trading on fake data. The Hybrid LLM Router provides tiered intelligence: local Ollama for fast decisions, Claude/Perplexity for high-stakes or live-context needs.
 
 ## What Was Recently Done
 
+### v4.0.0 (March 5, 2026) — Cognitive-1000 Brain
+- **Hybrid LLM Router**: Tiered routing — local Ollama (3B/14B/32B) → Claude API → Perplexity Sonar with daily budget ceiling and auto-escalation when PC-2 is down
+- **Memory Architecture**: Episodic memory, semantic patterns, and prediction history tables in DuckDB with embedding-based similarity search
+- **PredictionTracker**: Free Energy Principle learning — tracks per-agent prediction accuracy, computes surprise/free energy, feeds WeightLearner
+- **IntuitionEngine**: Embedding-based episodic memory pattern matching — provides "gut feeling" prior before council evaluates
+- **HemisphereBridge**: PC-1 (analytical) ↔ PC-2 (intuition) communication with heartbeat monitoring, intuition requests, decision/outcome forwarding
+- **PerplexityIntelService**: Live market context via Perplexity Sonar API with caching
+- **trade.resolved feedback loop**: WeightLearner now receives actual trade outcomes via MessageBus, closing the self-learning loop
+- **DuckDB upsert fixes**: All INSERT OR REPLACE replaced with proper ON CONFLICT syntax
+- **Bug fixes**: Private method access, agent count consistency, step numbering, WS bridge subscriptions
+
 ### v3.2.0 (March 5, 2026) — Council-Controlled Intelligence
-- **CouncilGate**: New bridge class that intercepts all signals (score >= 65) and auto-invokes the 14-agent council before any trade
+- **CouncilGate**: Bridge class that intercepts all signals (score >= 65) and auto-invokes the 14-agent council before any trade
 - **WeightLearner**: Bayesian self-learning agent weights — agents that vote correctly get higher weight over time
 - **TradeStatsService**: Real win_rate/avg_win/avg_loss from DuckDB replaces all hardcoded Kelly parameters
 - **OrderExecutor**: Now listens to council.verdict (not raw signals), uses real stats + real ATR, mock-source guard
@@ -61,7 +80,6 @@ Every signal passes through the full 14-agent council before any trade is execut
 - Added 6 new service files: alpaca_stream_service, brain_client, data_ingestion, execution_simulator, feature_service, order_executor
 - Added 6 new API routes: alpaca, alignment, features, council, youtube_knowledge
 - Production cleanup: logging, Docker hardening, security headers
-- Complete README rewrite with accurate file counts
 
 ## What Is NOT Done (TODO)
 
@@ -79,48 +97,54 @@ Every signal passes through the full 14-agent council before any trade is execut
 
 ## Architecture
 
-### Five Systems (Fragmentation Status)
+### Six Systems
 
 | System | Location | Status |
 |--------|----------|--------|
 | 1. Agent Command Center (5 polling agents) | api/v1/agents.py | BUILT — template agents, not real |
-| 2. Council (14-agent DAG) | council/ | **CONNECTED** to event pipeline via CouncilGate (v3.2.0) |
-| 3. OpenClaw (copied Flask system) | modules/openclaw/ | DEAD CODE — needs cleanup |
-| 4. Event-Driven Pipeline | core/message_bus.py, services/ | **CONNECTED** to council via CouncilGate (v3.2.0) |
-| 5. CNS Architecture | Partially built | CouncilGate (P0) + WeightLearner (P8) built, rest TODO |
+| 2. Council (14-agent DAG) | council/ | **CONNECTED** to event pipeline via CouncilGate |
+| 3. Cognitive-1000 Brain | core/llm_router.py, core/hemisphere_bridge.py | **BUILT** (v4.0.0) |
+| 4. OpenClaw (copied Flask system) | modules/openclaw/ | DEAD CODE — needs cleanup |
+| 5. Event-Driven Pipeline | core/message_bus.py, services/ | **CONNECTED** to council via CouncilGate |
+| 6. Memory Architecture | data/memory_schemas.py, services/intuition_engine.py | **BUILT** (v4.0.0) |
 
 ### Council DAG (14 Agents, 7 Stages)
 
 ```
+Pre-Stage: IntuitionEngine (episodic memory pattern matching)
 Stage 1 (Parallel): market_perception, flow_perception, regime, intermarket
 Stage 2 (Parallel): rsi, bbv, ema_trend, relative_strength, cycle_timing
-Stage 3: hypothesis (to be wired to brain_service LLM)
+Stage 3: hypothesis (wired to LLM Router)
 Stage 4: strategy (entry/exit/sizing)
 Stage 5 (Parallel): risk, execution
 Stage 6: critic (postmortem learning)
 Stage 7: arbiter (deterministic BUY/SELL/HOLD with Bayesian weights)
+Post-Stage: PredictionTracker (Free Energy recording)
 ```
 
-### Event-Driven Pipeline (v3.2.0)
+### Event-Driven Pipeline (v4.0.0)
 
 ```
 AlpacaStreamService -> market_data.bar -> EventDrivenSignalEngine -> signal.generated (score >= 65)
   -> CouncilGate -> 14-Agent Council -> council.verdict -> OrderExecutor -> Alpaca
+  -> trade.resolved -> WeightLearner (self-learning) + PredictionTracker (Free Energy)
 ```
 
-### CNS Architecture (Target)
+### CNS Architecture
 
 | Layer | Role | Status |
 |-------|------|--------|
 | Brainstem (<50ms) | CircuitBreaker reflexes | TO BUILD |
 | Spinal Cord (~1500ms) | 14-agent council DAG | **BUILT** |
-| Cortex (300-800ms) | hypothesis + critic via brain_service | NOT WIRED |
+| Cortex (300-800ms) | hypothesis + critic via LLM Router | **BUILT** (v4.0.0) |
 | Thalamus | BlackboardState shared memory | TO BUILD |
-| Autonomic | Bayesian WeightLearner | **BUILT** (v3.2.0) |
+| Hippocampus | Episodic memory + IntuitionEngine | **BUILT** (v4.0.0) |
+| Autonomic | Bayesian WeightLearner + PredictionTracker | **BUILT** (v4.0.0) |
+| Corpus Callosum | HemisphereBridge (PC-1 ↔ PC-2) | **BUILT** (v4.0.0) |
 | PNS Sensory | Alpaca WS, Unusual Whales, FinViz, FRED, EDGAR | **BUILT** |
 | PNS Motor | OrderExecutor -> Alpaca Orders (via council.verdict) | **BUILT** |
 | Event Bus | MessageBus pub/sub | **BUILT** |
-| Council Gate | SignalEngine -> Council -> OrderExecutor | **BUILT** (v3.2.0) |
+| Council Gate | SignalEngine -> Council -> OrderExecutor | **BUILT** |
 
 ## Frontend Pages (15)
 
@@ -178,7 +202,7 @@ All pages in frontend-v2/src/pages/. All use useApi() hook. No mock data.
 | training.py | ML training jobs |
 | youtube_knowledge.py | YouTube research |
 
-## Backend Services (24 files in backend/app/services/)
+## Backend Services (26 files in backend/app/services/)
 
 | File | Purpose |
 |------|---------|
@@ -187,35 +211,58 @@ All pages in frontend-v2/src/pages/. All use useApi() hook. No mock data.
 | backtest_engine.py | Backtester + Monte Carlo |
 | brain_client.py | gRPC client for brain_service |
 | data_ingestion.py | Data ingestion pipeline |
-| database.py | DuckDB layer (WAL, pooling) |
+| database.py | SQLite layer (settings, alerts) |
 | execution_simulator.py | Paper trading simulator |
 | feature_service.py | DuckDB feature queries |
 | finviz_service.py | Finviz screening |
 | fred_service.py | FRED economic data |
+| intuition_engine.py | Episodic memory pattern matching (NEW v4.0.0) |
 | kelly_position_sizer.py | Kelly criterion sizing |
 | market_data_agent.py | Market data aggregation |
 | ml_training.py | LSTM/XGBoost training |
 | openclaw_bridge_service.py | OpenClaw bridge |
 | openclaw_db.py | OpenClaw SQLite |
 | order_executor.py | Event-driven order execution (council-controlled) |
+| perplexity_intel.py | Live market context via Perplexity Sonar (NEW v4.0.0) |
 | sec_edgar_service.py | SEC EDGAR filings |
 | settings_service.py | Settings CRUD service |
 | signal_engine.py | Signal scoring + EventDrivenSignalEngine |
-| trade_stats_service.py | Real DuckDB trade stats for Kelly sizing (NEW v3.2.0) |
+| trade_stats_service.py | Real DuckDB trade stats for Kelly sizing |
 | training_store.py | ML artifact storage |
 | unusual_whales_service.py | Options flow |
 | walk_forward_validator.py | Walk-forward validation |
+
+## Core Modules (5 files in backend/app/core/)
+
+| File | Purpose |
+|------|---------|
+| config.py | pydantic-settings configuration |
+| converters.py | Data type converters |
+| hemisphere_bridge.py | PC-1 ↔ PC-2 communication with heartbeat (NEW v4.0.0) |
+| llm_router.py | Hybrid LLM Router: Ollama → Claude → Perplexity (NEW v4.0.0) |
+| message_bus.py | Async pub/sub event bus |
 
 ## Council Files (backend/app/council/)
 
 | File | Purpose |
 |------|---------|
-| runner.py | 7-stage parallel DAG orchestrator |
+| runner.py | 7-stage parallel DAG orchestrator + intuition pre-stage |
 | arbiter.py | Deterministic BUY/SELL/HOLD with Bayesian weights |
 | schemas.py | AgentVote + DecisionPacket dataclasses |
-| council_gate.py | Bridge: SignalEngine -> Council -> OrderExecutor (NEW v3.2.0) |
-| weight_learner.py | Bayesian self-learning agent weights (NEW v3.2.0) |
-| agents/ | 13 agent modules |
+| council_gate.py | Bridge: SignalEngine -> Council -> OrderExecutor |
+| weight_learner.py | Bayesian self-learning agent weights |
+| prediction_tracker.py | Free Energy Principle prediction tracking (NEW v4.0.0) |
+| agent_helpers.py | Shared agent utilities |
+| agents/ | 14 agent modules |
+
+## Data Layer (backend/app/data/)
+
+| File | Purpose |
+|------|---------|
+| duckdb_storage.py | DuckDB analytics storage (OHLCV, indicators, flow, macro) |
+| feature_store.py | Feature vector persistence + model evaluation tracking |
+| memory_schemas.py | Episodic memory, semantic patterns, prediction history DDL (NEW v4.0.0) |
+| storage.py | SQLite storage for orders/config |
 
 ## Tech Stack
 
@@ -224,8 +271,10 @@ All pages in frontend-v2/src/pages/. All use useApi() hook. No mock data.
 | Frontend | React 18, Vite, TailwindCSS, Lightweight Charts, lucide-react |
 | Backend | Python 3.11+, FastAPI, DuckDB, pydantic-settings |
 | AI/ML | XGBoost, scikit-learn, HMM (hmmlearn), Kelly criterion |
+| LLM Intelligence | Hybrid Router: Ollama (3B/14B/32B) → Claude API → Perplexity Sonar |
 | Council | 14-agent DAG with Bayesian-weighted arbiter (7 stages) |
-| Brain Service | gRPC + Ollama (local LLM on RTX GPU) |
+| Memory | Episodic + Semantic memory with DuckDB vector search |
+| Brain Service | gRPC + Ollama (local LLM on RTX GPU) via HemisphereBridge |
 | Broker | Alpaca Markets (paper + live via alpaca-py) |
 | Data | Alpaca Markets, Unusual Whales, Finviz, FRED, SEC EDGAR |
 | Event Pipeline | MessageBus → CouncilGate → Council → OrderExecutor |
@@ -239,11 +288,13 @@ All pages in frontend-v2/src/pages/. All use useApi() hook. No mock data.
 - Finviz (finviz) — Screener, fundamentals, VIX proxy
 - FRED — Economic macro data
 - SEC EDGAR — Company filings
+- Perplexity Sonar — Live market context via API (NEW v4.0.0)
 
 ## Hardware (Dual-PC Setup)
-- PC 1: Development + Frontend + Backend API
-- PC 2: RTX GPU cluster for ML training + Ollama inference (brain_service)
-- Connected via gRPC (brain_service port 50051)
+- PC 1 "Left Hemisphere": Development + Frontend + Backend API (analytical)
+- PC 2 "Right Hemisphere": RTX GPU cluster for ML training + Ollama inference (intuition)
+- Connected via HemisphereBridge: gRPC (brain_service port 50051) + Ollama API (port 11434)
+- Auto-fallback: if PC-2 is down, LLM Router falls back to cloud (Claude/Perplexity) or local models
 
 ## Quick Start
 
@@ -255,7 +306,7 @@ cd elite-trading-system
 # Backend setup
 cd backend
 pip install -r requirements.txt
-cp .env.example .env  # Edit .env with Alpaca API keys
+cp .env.example .env  # Edit .env with API keys (Alpaca, Anthropic, Perplexity)
 python start_server.py
 
 # Frontend setup (new terminal)

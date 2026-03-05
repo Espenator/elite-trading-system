@@ -1,4 +1,4 @@
-"""FastAPI application entry point.
+"""FastAPI application entry point — Embodier Trader v4.0.0 (Cognitive-1000).
 
 Enhanced with:
 - ML Flywheel Engine initialization (model registry + drift monitor)
@@ -8,6 +8,11 @@ Enhanced with:
 - CouncilGate: 14-agent council controls all trading decisions
 - OrderExecutor receives council.verdict (not raw signals)
 - Bayesian weight learning from trade outcomes
+- Hybrid LLM Router: local Ollama → Claude → Perplexity (v4.0.0)
+- Memory Architecture: episodic + semantic + prediction history (v4.0.0)
+- HemisphereBridge: PC-1 ↔ PC-2 communication (v4.0.0)
+- PredictionTracker: Free Energy Principle learning (v4.0.0)
+- IntuitionEngine: episodic memory pattern matching (v4.0.0)
 """
 import asyncio
 import logging
