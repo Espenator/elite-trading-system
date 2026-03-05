@@ -13,7 +13,7 @@ import hashlib
 import json
 import logging
 import math
-from collections import deque
+from collections import dequeh
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -57,6 +57,10 @@ class FeatureVector:
             "feature_hash": self.hash,
             "feature_count": len(merged),
         }
+
+        def to_dict(self) -> Dict[str, Any]:
+                    """Convert to dictionary representation."""
+                    return self._all_features()
 
     @property
     def hash(self) -> str:
