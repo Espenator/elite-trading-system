@@ -232,7 +232,7 @@ async def flatten_all():
         return result or {"status": "all_flattened"}
     except Exception as e:
         logger.error("flatten_all failed: %s", e)
-        raise HTTPException(status_code=400, detail="Internal server error")
+        raise HTTPException(status_code=503, detail=f"Broker unavailable: {type(e).__name__}")
 
 
 # ── Emergency stop ────────────────────────────────────────────────────
