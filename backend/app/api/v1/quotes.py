@@ -10,7 +10,6 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 finviz_service = FinvizService()
 
-
 def _date_to_yyyy_mm_dd(t: Any) -> Optional[str]:
     """Normalize date string to yyyy-mm-dd (lightweight-charts / frontend expect this)."""
     if t is None:
@@ -100,7 +99,7 @@ async def get_candles(
         return {"candles": normalized, "bars": normalized}
     except Exception as e:
         logger.error("Candle fetch failed for %s: %s", ticker, e)
-        raise HTTPException(status_code=500, detail="Failed to fetch candle data")
+        return {"candles": [], "bars": [], "error": str(e)}
 
 
 @router.get("/{ticker}/book")
