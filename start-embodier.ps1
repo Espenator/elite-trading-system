@@ -52,10 +52,11 @@ if (-not (Test-Path "venv")) {
 
 & .\venv\Scripts\Activate.ps1
 
-$fastapiCheck = pip show fastapi 2>&1
+try { $fastapiCheck = pip show fastapi 2>&1 } catch {}
 if ($LASTEXITCODE -ne 0) {
     Log "Installing Python dependencies (first run)..."
     pip install -r requirements.txt
+    if ($LASTEXITCODE -ne 0) { Err "pip install failed"; exit 1 }
 }
 
 if (-not (Test-Path ".env")) {

@@ -64,8 +64,17 @@ async def list_categories():
     return {"categories": sorted(VALID_CATEGORIES)}
 
 
+# ── Audit log (must be before /{category} catch-all) ──────────
+@router.get("/audit-log", summary="Recent settings change log")
+async def get_audit_log():
+    """Return recent settings changes for the audit log tab."""
+    from app.services.database import db_service
+    log = db_service.get_config("settings_audit_log") or []
+    return {"entries": log[-50:], "logs": log[-50:]}
+
+
 # ── Per-category CRUD ──────────────────────────────────────────
-# NOTE: static paths (/categories, /export, /validate, /test-connection, /import)
+# NOTE: static paths (/categories, /export, /validate, /test-connection, /import, /audit-log)
 # MUST be declared before the /{category} catch-all path.
 
 @router.get("/{category}", summary="Get settings by category")
@@ -130,11 +139,3 @@ async def get_export() -> Dict[str, Any]:
 async def post_import(payload: Dict[str, Any]) -> Dict[str, Any]:
     """Import a previously exported settings snapshot."""
     return import_settings(payload)
-
-
-@router.get("/audit-log", summary="Recent settings change log")
-async def get_audit_log():
-    """Return recent settings changes for the audit log tab."""
-    from app.services.database import db_service
-    log = db_service.get_config("settings_audit_log") or []
-    return {"entries": log[-50:]}

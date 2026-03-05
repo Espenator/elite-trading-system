@@ -300,11 +300,11 @@ export default function MLBrainFlywheel() {
 
   // Safe data extraction with fallbacks
   const kpis = apiKpis?.flywheel || FALLBACK_KPIS;
-  const performanceData = apiPerf?.flywheel || FALLBACK_PERFORMANCE;
-  const signalsData = apiSignals?.flywheel || FALLBACK_SIGNALS;
-  const modelsData = apiModels?.flywheel || FALLBACK_MODELS;
-  const logsData = apiLogs?.flywheel || FALLBACK_LOGS;
-  const featuresData = apiFeatures?.flywheel || FALLBACK_FEATURES;
+  const performanceData = apiPerf?.flywheel?.history ?? FALLBACK_PERFORMANCE;
+  const signalsData = apiSignals?.flywheel?.signals ?? FALLBACK_SIGNALS;
+  const modelsData = apiModels?.flywheel?.models ?? FALLBACK_MODELS;
+  const logsData = apiLogs?.flywheel?.logs ?? FALLBACK_LOGS;
+  const featuresData = apiFeatures?.flywheel?.features ?? FALLBACK_FEATURES;
 
   const handleRetrain = async () => {
     setIsRetraining(true);

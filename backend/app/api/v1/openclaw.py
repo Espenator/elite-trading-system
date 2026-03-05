@@ -421,6 +421,30 @@ async def get_swarm_status():
     }
 
 
+@router.get("/agents", summary="Get Agent List for Backtesting/Command Center")
+async def get_agents():
+    """
+    Return list of agent subsystems with status.
+    Used by Backtesting page swarm panel and Agent Command Center.
+    """
+    try:
+        health = await openclaw_bridge.get_health()
+        connected = health.get("connected", False)
+        base_status = "active" if connected else "idle"
+        agents = [
+            {"id": "scanner", "name": "Market Scanner", "status": base_status, "type": "scanner"},
+            {"id": "memory", "name": "Memory Agent", "status": base_status, "type": "memory"},
+            {"id": "signals", "name": "Signal Processor", "status": base_status, "type": "signals"},
+            {"id": "regime", "name": "Regime Detector", "status": base_status, "type": "regime"},
+            {"id": "risk", "name": "Risk Monitor", "status": base_status, "type": "risk"},
+            {"id": "execution", "name": "Execution Agent", "status": base_status, "type": "execution"},
+        ]
+        return {"agents": agents, "total": len(agents), "active": sum(1 for a in agents if a["status"] == "active")}
+    except Exception as e:
+        logger.debug(f"[OPENCLAW] Agents list error: {e}")
+        return {"agents": [], "total": 0, "active": 0}
+
+
 @router.post("/macro/override", summary="Override Macro Brain Bias", dependencies=[Depends(require_auth)])
 async def macro_override(
     bias_multiplier: float = Body(

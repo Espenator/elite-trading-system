@@ -128,7 +128,7 @@ class AlpacaService:
                 logger.error("Alpaca %s %s -> %s: %s", method, path, resp.status_code, detail)
                 if resp.status_code == 404:
                     return None
-                raise Exception(f"Alpaca API error {resp.status_code}: {detail}")
+                return None  # Non-retriable HTTP error — callers handle None gracefully
             except httpx.TimeoutException:
                 if attempt < _retries:
                     logger.warning("Alpaca timeout on %s %s — retrying (attempt %d/%d)", method, path, attempt + 1, _retries)
