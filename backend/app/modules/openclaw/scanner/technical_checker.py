@@ -41,8 +41,9 @@ ALPACA_API_KEY = os.getenv('ALPACA_API_KEY', '')
 ALPACA_SECRET_KEY = os.getenv('ALPACA_SECRET_KEY', '')
 _data_url = os.getenv('ALPACA_DATA_URL', 'https://data.alpaca.markets').rstrip('/')
 ALPACA_DATA_URL = _data_url if _data_url.endswith('/v2') else _data_url + '/v2'
-_trade_url = os.getenv('ALPACA_BASE_URL', 'https://paper-api.alpaca.markets').rstrip('/')
+_trade_url = os.getenv('ALPACA_BASE_URL', 'https://api.alpaca.markets').rstrip('/')
 ALPACA_TRADE_URL = _trade_url if _trade_url.endswith('/v2') else _trade_url + '/v2'
+ALPACA_FEED = os.getenv('ALPACA_FEED', 'sip')
 
 # Sector lookup cache with TTL to avoid repeated API calls and unbounded growth
 _SECTOR_CACHE: Dict[str, tuple] = {}  # {ticker: (sector, timestamp)}
@@ -78,7 +79,7 @@ class TechnicalChecker:
             'timeframe': timeframe,
             'limit': limit,
             'adjustment': 'split',
-            'feed': 'iex',
+            'feed': ALPACA_FEED,
                 'start': (datetime.now() - timedelta(days=int(limit * 1.6))).strftime('%Y-%m-%d'),
         }
         try:

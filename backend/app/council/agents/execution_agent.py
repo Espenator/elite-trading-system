@@ -28,7 +28,7 @@ async def evaluate(
 
     # Check trading mode
     auto_execute = os.getenv("AUTO_EXECUTE_TRADES", "false").lower() == "true"
-    trading_mode = os.getenv("TRADING_MODE", "paper").lower()
+    trading_mode = os.getenv("TRADING_MODE", "live").lower()
 
     if not auto_execute:
         reasons.append("Shadow mode (AUTO_EXECUTE_TRADES=false)")

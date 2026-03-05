@@ -1,7 +1,7 @@
 """
-Execution Engine — paper/live order execution and risk checks.
+Execution Engine — live/paper order execution and risk checks.
 
-Wraps Alpaca; paper by default (TRADING_MODE=paper). Order placement,
+Wraps Alpaca; live by default (TRADING_MODE=live). Order placement,
 cancellation, risk checks, audit log. Feeds fill/outcome data back for ML learning.
 """
 
@@ -10,9 +10,9 @@ from app.services.alpaca_service import alpaca_service
 
 
 def get_trading_mode() -> str:
-    """Return current mode: 'paper' or 'live'. For glass-box UI."""
-    mode = getattr(settings, "TRADING_MODE", "paper") or "paper"
-    return mode.lower() if mode.lower() in ("paper", "live") else "paper"
+    """Return current mode: 'live' or 'paper'. For glass-box UI."""
+    mode = getattr(settings, "TRADING_MODE", "live") or "live"
+    return mode.lower() if mode.lower() in ("paper", "live") else "live"
 
 
 def get_status() -> dict:

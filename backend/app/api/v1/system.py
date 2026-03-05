@@ -52,11 +52,11 @@ async def _system_summary_impl():
         return {
             "activeAgents": ready,
             "healthy": healthy,
-            "trading_mode": status.get("trading_mode", "paper"),
+            "trading_mode": status.get("trading_mode", "live"),
         }
     except Exception as e:
         log.warning("system summary failed: %s", e)
-        return {"activeAgents": 0, "healthy": False, "trading_mode": "paper"}
+        return {"activeAgents": 0, "healthy": False, "trading_mode": "live"}
 
 
 # ---------------------------------------------------------------------------
@@ -223,7 +223,7 @@ async def device_info():
         "pythonVersion": platform.python_version(),
         "cpuCount": os.cpu_count(),
         "backendPort": device_settings.get("backendPort", 8000),
-        "tradingMode": device_settings.get("tradingMode", "paper"),
+        "tradingMode": device_settings.get("tradingMode", "live"),
         "peerDevices": device_settings.get("peerDevices", []),
         "brainHost": device_settings.get("brainHost", "localhost"),
         "brainPort": device_settings.get("brainPort", 50051),

@@ -121,7 +121,7 @@ class MarketWideSweep:
 
             api_key = settings.ALPACA_API_KEY
             secret_key = settings.ALPACA_SECRET_KEY
-            base_url = getattr(settings, "ALPACA_BASE_URL", "https://paper-api.alpaca.markets")
+            base_url = getattr(settings, "ALPACA_BASE_URL", "https://api.alpaca.markets")
 
             if not api_key or not secret_key:
                 logger.warning("Alpaca keys not configured, using DuckDB universe")

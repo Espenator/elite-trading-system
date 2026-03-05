@@ -34,7 +34,7 @@ def verify_ws_token(token: Optional[str]) -> bool:
     if _WS_AUTH_TOKEN is None:
         # Allow in development, block in production
         import os
-        return os.getenv("TRADING_MODE", "paper") != "live"
+        return os.getenv("TRADING_MODE", "live") != "live"
     return token == _WS_AUTH_TOKEN
 
 

@@ -52,6 +52,7 @@ export default function Trades() {
     useApi("orders", { pollIntervalMs: 5000 });
   const { data: riskData } = useApi("risk", { pollIntervalMs: 10000 });
   const { data: dsData } = useApi("dataSources", { pollIntervalMs: 30000 });
+  const { data: systemData } = useApi("system", { pollIntervalMs: 30000 });
 
   // ── Derived Data ──
   const positions = portfolioData?.positions || [];
@@ -202,7 +203,11 @@ export default function Trades() {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-bold">TRADE MODE:</span>
-            <span className="px-2 py-0.5 bg-emerald-500 text-white rounded text-[9px] font-bold">PAPER</span>
+            {(systemData?.tradingMode || systemData?.trading_mode || "live").toUpperCase() === "LIVE" ? (
+              <span className="px-2 py-0.5 bg-red-600 text-white rounded text-[9px] font-bold animate-pulse">LIVE</span>
+            ) : (
+              <span className="px-2 py-0.5 bg-emerald-500 text-white rounded text-[9px] font-bold">PAPER</span>
+            )}
           </div>
         </div>
       </div>
