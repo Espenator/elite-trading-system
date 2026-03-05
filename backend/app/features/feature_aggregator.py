@@ -58,9 +58,9 @@ class FeatureVector:
             "feature_count": len(merged),
         }
 
-        def to_dict(self) -> Dict[str, Any]:
-                    """Convert to dictionary representation."""
-                    return self._all_features()
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary representation."""
+        return self._all_features()
 
     @property
     def hash(self) -> str:
