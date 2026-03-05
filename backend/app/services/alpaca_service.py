@@ -43,6 +43,7 @@ class AlpacaService:
         if self.trading_mode not in ("paper", "live"):
             self.trading_mode = "paper"
         self._cache: Dict[str, Any] = {}  # key -> (timestamp, data)
+        self._cache_max_size = 100  # Prevent unbounded memory growth
 
     # ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -65,6 +66,12 @@ class AlpacaService:
 
     def _cache_set(self, key: str, data: Any) -> None:
         self._cache[key] = (time.time(), data)
+        # Evict stale entries when cache exceeds max size
+        if len(self._cache) > self._cache_max_size:
+            now = time.time()
+            stale = [k for k, (ts, _) in self._cache.items() if now - ts > _CACHE_TTL_MEDIUM]
+            for k in stale:
+                del self._cache[k]
 
     async def _request(
         self,

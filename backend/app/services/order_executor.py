@@ -29,7 +29,7 @@ import asyncio
 import logging
 import time
 import uuid
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -111,7 +111,7 @@ class OrderExecutor:
         # State tracking
         self._running = False
         self._start_time: Optional[float] = None
-        self._orders: List[OrderRecord] = []
+        self._orders: deque[OrderRecord] = deque(maxlen=1000)
         self._daily_trade_count = 0
         self._daily_reset_date: Optional[str] = None
         self._symbol_last_trade: Dict[str, float] = {}
@@ -504,7 +504,8 @@ class OrderExecutor:
             avg_loss_pct = stats["avg_loss_pct"]
             trade_count = stats["trade_count"]
             stats_source = stats["data_source"]
-        except Exception:
+        except Exception as e:
+            logger.warning("Trade stats unavailable for %s/%s: %s", symbol, regime, e)
             # Conservative fallback with Bayesian priors
             win_rate = 0.45
             avg_win_pct = 0.025
@@ -587,7 +588,7 @@ class OrderExecutor:
             logger.debug("Drawdown check unavailable: %s", e)
             return True
 
-    async def _check_portfolio_heat(self, new_position_pct: float) -> tuple:
+    async def _check_portfolio_heat(self, new_position_pct: float) -> tuple[bool, Dict[str, Any]]:
         """Check total portfolio heat."""
         try:
             alpaca = self._get_alpaca_service()

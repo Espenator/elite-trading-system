@@ -198,20 +198,25 @@ class ExecutionSimulator:
         return max(0.01, min(1.0, fill_ratio))
 
 
-# Singleton
+# Singleton with thread-safe initialization
+import threading
+
 _simulator: Optional[ExecutionSimulator] = None
+_simulator_lock = threading.Lock()
 
 
 def get_execution_simulator() -> ExecutionSimulator:
-    """Get or create the singleton ExecutionSimulator."""
+    """Get or create the singleton ExecutionSimulator (thread-safe)."""
     global _simulator
     if _simulator is None:
-        slippage = float(os.getenv("SLIPPAGE_BPS", "5.0"))
-        seed_val = int(os.getenv("FILL_SEED", "0"))
-        partial = os.getenv("PARTIAL_FILL_ENABLED", "true").lower() == "true"
-        _simulator = ExecutionSimulator(
-            slippage_bps=slippage,
-            seed=seed_val if seed_val != 0 else None,
-            partial_fill_enabled=partial,
-        )
+        with _simulator_lock:
+            if _simulator is None:
+                slippage = float(os.getenv("SLIPPAGE_BPS", "5.0"))
+                seed_val = int(os.getenv("FILL_SEED", "0"))
+                partial = os.getenv("PARTIAL_FILL_ENABLED", "true").lower() == "true"
+                _simulator = ExecutionSimulator(
+                    slippage_bps=slippage,
+                    seed=seed_val if seed_val != 0 else None,
+                    partial_fill_enabled=partial,
+                )
     return _simulator

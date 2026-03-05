@@ -196,14 +196,19 @@ class MessageBus:
 
 
 # ---------------------------------------------------------------------------
-# Module-level singleton (lazy init)
+# Module-level singleton (thread-safe lazy init)
 # ---------------------------------------------------------------------------
+import threading
+
 _bus_instance: Optional[MessageBus] = None
+_bus_lock = threading.Lock()
 
 
 def get_message_bus() -> MessageBus:
-    """Get or create the global MessageBus singleton."""
+    """Get or create the global MessageBus singleton (thread-safe)."""
     global _bus_instance
     if _bus_instance is None:
-        _bus_instance = MessageBus()
+        with _bus_lock:
+            if _bus_instance is None:
+                _bus_instance = MessageBus()
     return _bus_instance
