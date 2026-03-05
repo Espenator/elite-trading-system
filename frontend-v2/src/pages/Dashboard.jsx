@@ -3,6 +3,7 @@ import log from "@/utils/logger";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl, getAuthHeaders } from "../config/api";
 import CNSVitals from "../components/dashboard/CNSVitals";
+import ProfitBrainBar from "../components/dashboard/ProfitBrainBar";
 
 // --- TOP TICKER STRIP (scrolling market tickers) ---
 const TickerStrip = ({ indices, signals }) => {
@@ -1299,6 +1300,9 @@ export default function Dashboard() {
       <div className="px-4 pt-2 shrink-0">
         <CNSVitals />
       </div>
+
+      {/* PROFIT BRAIN — win rate, PnL, brain weights, feedback loop */}
+      <ProfitBrainBar />
 
       {/* 1. TOP HEADER BAR */}
       <header className="flex items-center justify-between px-4 py-2 border-b border-[rgba(42,52,68,0.5)] bg-[#111827] shrink-0">

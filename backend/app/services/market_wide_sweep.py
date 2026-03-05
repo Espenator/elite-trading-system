@@ -648,6 +648,15 @@ class MarketWideSweep:
                     "priority": 4,
                     "metadata": {"screen": screen_name, "data": sym_data},
                 })
+                # Also publish as signal.generated for unified scoring
+                await self._bus.publish("signal.generated", {
+                    "symbol": symbol,
+                    "score": 65.0,  # Sweep hit = moderate signal
+                    "label": f"sweep_{screen_name}",
+                    "price": sym_data.get("close", 0),
+                    "regime": "SWEEP",
+                    "source": "market_wide_sweep",
+                })
 
     # ──────────────────────────────────────────────────────────────────────
     # Status / API

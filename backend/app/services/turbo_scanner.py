@@ -803,7 +803,7 @@ class TurboScanner:
     # Signal Emission
     # ──────────────────────────────────────────────────────────────────────
     async def _emit_signal(self, signal: ScanSignal):
-        """Publish signal to MessageBus for swarm processing."""
+        """Publish signal to MessageBus for swarm processing + unified scoring."""
         self._stats["swarms_triggered"] += 1
         if self._bus:
             priority = SIGNAL_TYPES.get(signal.signal_type, {}).get("priority", 5)
@@ -819,6 +819,16 @@ class TurboScanner:
                     "data": signal.data,
                 },
             })
+            # Also publish as signal.generated so UnifiedProfitEngine can score it
+            if signal.score >= 60:
+                await self._bus.publish("signal.generated", {
+                    "symbol": signal.symbol,
+                    "score": signal.score,
+                    "label": f"scanner_{signal.signal_type}",
+                    "price": signal.data.get("close", 0) if isinstance(signal.data, dict) else 0,
+                    "regime": "SCANNER",
+                    "source": "turbo_scanner",
+                })
 
     def reset_daily(self):
         """Reset daily dedup set (call at market open)."""

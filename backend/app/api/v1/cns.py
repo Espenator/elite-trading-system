@@ -301,6 +301,142 @@ async def update_directive(filename: str, req: DirectiveUpdateRequest):
 
 # ─── Council Last Verdict ───
 
+@router.get("/profit-brain")
+async def profit_brain_status():
+    """Complete Profit Brain CNS status — the 40,000ft view.
+
+    Aggregates all subsystems into a single response showing:
+    - Sensory cortex: data ingestion health (scanner, sweep, news, stream)
+    - Cerebral cortex: scoring engine (unified brain weights + accuracy)
+    - Prefrontal cortex: council deliberation (agent health, verdicts)
+    - Motor cortex: execution (order stats, position management)
+    - Cerebellum: feedback loop (outcome tracking, Kelly calibration)
+    - Risk shield: circuit breaker, drawdown, regime
+    """
+    brain = {
+        "version": "3.2.0",
+        "mode": "UNKNOWN",
+    }
+
+    # Sensory Cortex — data flowing in?
+    sensory = {}
+    try:
+        from app.services.turbo_scanner import get_turbo_scanner
+        ts = get_turbo_scanner()
+        sensory["turbo_scanner"] = {"running": ts._running, "signals": ts._stats.get("total_signals", 0)}
+    except Exception:
+        sensory["turbo_scanner"] = {"running": False}
+    try:
+        from app.services.news_aggregator import get_news_aggregator
+        sensory["news"] = get_news_aggregator().get_status()
+    except Exception:
+        sensory["news"] = {"running": False}
+    try:
+        from app.services.market_wide_sweep import get_market_sweep
+        ms = get_market_sweep()
+        sensory["sweep"] = {"running": ms._running, "universe": len(ms._universe)}
+    except Exception:
+        sensory["sweep"] = {"running": False}
+    try:
+        from app.services.hyper_swarm import get_hyper_swarm
+        hs = get_hyper_swarm()
+        sensory["hyper_swarm"] = {"running": hs._running, "triaged": hs._stats.get("total_triaged", 0)}
+    except Exception:
+        sensory["hyper_swarm"] = {"running": False}
+    brain["sensory_cortex"] = sensory
+
+    # Cerebral Cortex — scoring + ML
+    cortex = {}
+    try:
+        from app.services.unified_profit_engine import get_unified_engine
+        ue = get_unified_engine()
+        cortex["unified_engine"] = ue.get_status()
+    except Exception:
+        cortex["unified_engine"] = {"running": False}
+    try:
+        from app.services.ml_scorer import get_ml_scorer
+        cortex["ml_scorer"] = get_ml_scorer().get_status()
+    except Exception:
+        cortex["ml_scorer"] = {"model_loaded": False}
+    brain["cerebral_cortex"] = cortex
+
+    # Prefrontal Cortex — council
+    prefrontal = {}
+    try:
+        from app.council.feedback_loop import get_agent_performance
+        prefrontal["agent_performance"] = get_agent_performance()
+    except Exception:
+        prefrontal["agent_performance"] = {}
+    try:
+        from app.council.self_awareness import get_self_awareness
+        sa = get_self_awareness()
+        status = sa.get_status()
+        prefrontal["agent_count"] = len(status)
+        prefrontal["hibernated"] = sum(1 for a in status.values() if a.get("skip"))
+    except Exception:
+        prefrontal["agent_count"] = 17
+        prefrontal["hibernated"] = 0
+    brain["prefrontal_cortex"] = prefrontal
+
+    # Motor Cortex — execution
+    motor = {}
+    try:
+        from app.services.order_executor import OrderExecutor
+        # Get from the global instance in main.py
+        from app.main import _order_executor
+        if _order_executor:
+            motor["executor"] = _order_executor.get_status()
+    except Exception:
+        motor["executor"] = {}
+    try:
+        from app.services.position_manager import get_position_manager
+        motor["position_manager"] = get_position_manager().get_status()
+    except Exception:
+        motor["position_manager"] = {"running": False}
+    brain["motor_cortex"] = motor
+
+    # Cerebellum — feedback loop
+    cerebellum = {}
+    try:
+        from app.services.outcome_tracker import get_outcome_tracker
+        ot = get_outcome_tracker()
+        cerebellum["outcome_tracker"] = ot.get_status()
+        cerebellum["kelly_params"] = ot.get_kelly_params()
+    except Exception:
+        cerebellum["outcome_tracker"] = {"running": False}
+        cerebellum["kelly_params"] = {}
+    brain["cerebellum"] = cerebellum
+
+    # Risk Shield
+    risk_shield = {}
+    try:
+        from app.council.homeostasis import get_homeostasis
+        h = get_homeostasis()
+        risk_shield["mode"] = h.get_mode()
+        risk_shield["position_scale"] = h.get_position_scale()
+        brain["mode"] = h.get_mode()
+    except Exception:
+        risk_shield["mode"] = "NORMAL"
+    try:
+        from app.council.reflexes.circuit_breaker import _get_thresholds
+        risk_shield["circuit_breaker"] = _get_thresholds()
+    except Exception:
+        pass
+    brain["risk_shield"] = risk_shield
+
+    # Health summary
+    running_count = sum(1 for s in sensory.values() if isinstance(s, dict) and s.get("running"))
+    brain["health"] = {
+        "sensory_systems_active": running_count,
+        "ml_model_loaded": cortex.get("ml_scorer", {}).get("model_loaded", False),
+        "feedback_loop_calibrated": cerebellum.get("outcome_tracker", {}).get("kelly_calibrated", False),
+        "win_rate": cerebellum.get("outcome_tracker", {}).get("win_rate", 0),
+        "total_pnl": cerebellum.get("outcome_tracker", {}).get("total_pnl", 0),
+    }
+
+    return brain
+
+
 @router.get("/council/last-verdict")
 async def council_last_verdict():
     """Get the latest council verdict (alias for council/latest with extra metadata)."""

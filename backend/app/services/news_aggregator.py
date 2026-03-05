@@ -492,6 +492,18 @@ class NewsAggregator:
                     "sentiment_score": item.sentiment_score,
                 },
             })
+            # Also publish as signal.generated for unified scoring (breaking/high-sentiment news)
+            if item.urgency in ("breaking", "developing") and item.symbols:
+                score = 50 + abs(item.sentiment_score) * 30  # 50-80 range
+                for sym in item.symbols[:3]:
+                    await self._bus.publish("signal.generated", {
+                        "symbol": sym,
+                        "score": min(80, score),
+                        "label": f"news_{item.urgency}_{item.sentiment}",
+                        "price": 0,
+                        "regime": "NEWS",
+                        "source": "news_aggregator",
+                    })
 
     # ──────────────────────────────────────────────────────────────────────
     # Status / API

@@ -137,10 +137,11 @@ class OrderExecutor:
         return self._kelly_sizer
 
     async def start(self) -> None:
-        """Subscribe to signal.generated + council.verdict and begin processing."""
+        """Subscribe to signal.generated + signal.unified + council.verdict and begin processing."""
         self._running = True
         self._start_time = time.time()
         await self.message_bus.subscribe("signal.generated", self._on_signal)
+        await self.message_bus.subscribe("signal.unified", self._on_unified_signal)
         await self.message_bus.subscribe("council.verdict", self._on_council_verdict)
         mode = "AUTO-EXECUTE" if self.auto_execute else "SHADOW (dry-run)"
         logger.info(
@@ -154,6 +155,7 @@ class OrderExecutor:
         """Unsubscribe and stop processing."""
         self._running = False
         await self.message_bus.unsubscribe("signal.generated", self._on_signal)
+        await self.message_bus.unsubscribe("signal.unified", self._on_unified_signal)
         await self.message_bus.unsubscribe("council.verdict", self._on_council_verdict)
         logger.info(
             "OrderExecutor stopped — %d signals received, %d executed, %d rejected",
@@ -209,6 +211,40 @@ class OrderExecutor:
         )
 
         # Route through existing risk gates
+        await self._on_signal(synthetic_signal)
+
+    async def _on_unified_signal(self, unified_data: Dict[str, Any]) -> None:
+        """Process signal.unified events from UnifiedProfitEngine.
+
+        Unified signals already blend ML + TA + Scanner + Pattern scores.
+        Only act on high-confidence unified signals (score >= 70, confidence >= 0.3).
+        """
+        if not self._running:
+            return
+
+        score = unified_data.get("unified_score", 0)
+        confidence = unified_data.get("confidence", 0)
+        direction = unified_data.get("direction", "neutral")
+        symbol = unified_data.get("symbol", "")
+
+        if direction == "neutral" or score < 70 or confidence < 0.3:
+            return
+
+        synthetic_signal = {
+            "symbol": symbol,
+            "score": score,
+            "price": 0,  # Will be fetched by _on_signal
+            "regime": "UNIFIED",
+            "label": f"unified_{direction}",
+            "source": "unified_profit_engine",
+            "brain_scores": unified_data.get("brain_scores", {}),
+        }
+
+        logger.info(
+            "Unified signal -> execution: %s score=%.1f conf=%.2f brains=%s",
+            symbol, score, confidence, unified_data.get("brains_active", 0),
+        )
+
         await self._on_signal(synthetic_signal)
 
     # ── Main Signal Handler ─────────────────────────────────────────────────
