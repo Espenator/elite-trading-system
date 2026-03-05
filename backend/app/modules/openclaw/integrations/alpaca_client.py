@@ -19,10 +19,14 @@ from alpaca.trading.requests import (
     StopLossRequest,
 )
 from alpaca.trading.enums import OrderSide, TimeInForce, OrderClass
-from config import ALPACA_API_KEY, ALPACA_SECRET_KEY, ALPACA_BASE_URL
+from app.core.config import settings
+ALPACA_API_KEY = settings.ALPACA_API_KEY
+ALPACA_SECRET_KEY = settings.ALPACA_SECRET_KEY
+ALPACA_BASE_URL = settings.ALPACA_BASE_URL
 
 try:
-    from llm_client import llm_router
+    from app.services.adaptive_router import get_router as _get_llm_router
+    llm_router = _get_llm_router()
     LLM_AVAILABLE = True
 except ImportError:
     LLM_AVAILABLE = False

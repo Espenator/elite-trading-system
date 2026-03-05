@@ -73,13 +73,13 @@ export default function useTradeExecution() {
         if (payload) setPortfolio(payload);
         break;
       case 'order_book':
-        if (payload) setOrderBook(payload);
+        if (payload) setOrderBook(Array.isArray(payload) ? payload : []);
         break;
       case 'price_ladder':
-        if (payload) setPriceLadder(payload);
+        if (payload) setPriceLadder(Array.isArray(payload) ? payload : (payload.levels || []));
         break;
       case 'positions':
-        if (payload) setPositions(payload);
+        if (payload) setPositions(Array.isArray(payload) ? payload : (payload.positions || []));
         break;
       case 'news':
         if (payload) setNewsFeed(prev => [payload, ...prev].slice(0, 20));

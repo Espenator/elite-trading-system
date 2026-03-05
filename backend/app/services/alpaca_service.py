@@ -54,6 +54,17 @@ class AlpacaService:
         self.base_url = raw_url.rstrip("/") + "/v2" if "/v2" not in raw_url else raw_url
         self.api_key = settings.ALPACA_API_KEY
         self.secret_key = settings.ALPACA_SECRET_KEY
+
+        # Fallback: if .env keys are empty, try stored settings DB_CONFIG_KEY
+        if not self.api_key or not self.secret_key:
+        try:
+            from app.services.settings_service import get_settings_by_category
+            ds = get_settings_by_category("dataSources")
+            self.api_key = ds.get("alpacaApiKey", "") or self.api_key
+            self.secret_key = ds.get("alpacaSecretKey", "") or self.secret_key
+            except Exception:
+                pass
+            
         self._cache: Dict[str, Any] = {}  # key -> (timestamp, data)
 
         logger.info("AlpacaService initialized: mode=%s, url=%s", self.trading_mode, self.base_url)
@@ -457,7 +468,7 @@ class AlpacaService:
                     url,
                     headers=self._get_headers(),
                     params=params,
-                    timeout=self._TIMEOUT if hasattr(self, '_TIMEOUT') else 30.0,
+                    timeout=_TIMEOUT,
                 )
                 if resp.status_code != 200:
                     logger.error("Alpaca bars %s -> %s", symbol, resp.status_code)
