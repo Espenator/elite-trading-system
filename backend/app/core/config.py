@@ -1,4 +1,4 @@
-﻿"""
+"""
 Elite Trading System - Application Configuration
 All fields match EXACTLY what services reference via settings.FIELD_NAME
 """

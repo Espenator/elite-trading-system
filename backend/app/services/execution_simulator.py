@@ -185,11 +185,11 @@ class ExecutionSimulator:
             elif participation > 0.01:
                 base_fill *= 0.90
 
-        # Volatility adjustment (high vol → more partial fills)
-        if volatility and volatility > 0.30:
-            base_fill *= 0.90
-        elif volatility and volatility > 0.50:
+        # Volatility adjustment (high vol -> more partial fills)
+        if volatility and volatility > 0.50:
             base_fill *= 0.80
+        elif volatility and volatility > 0.30:
+            base_fill *= 0.90
 
         # Add randomness
         fill_ratio = base_fill * self.rng.uniform(0.85, 1.0)

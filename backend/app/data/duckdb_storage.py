@@ -418,15 +418,25 @@ class DuckDBStorage:
     def health_check(self) -> Dict:
         """Return storage health metrics."""
         conn = self._get_conn()
+        ohlcv = conn.execute("SELECT COUNT(*) FROM daily_ohlcv").fetchone()[0]
+        indicators = conn.execute("SELECT COUNT(*) FROM technical_indicators").fetchone()[0]
+        flow = conn.execute("SELECT COUNT(*) FROM options_flow").fetchone()[0]
+        macro = conn.execute("SELECT COUNT(*) FROM macro_data").fetchone()[0]
+        outcomes = conn.execute("SELECT COUNT(*) FROM trade_outcomes").fetchone()[0]
+        features = conn.execute("SELECT COUNT(*) FROM features").fetchone()[0]
+        evals = conn.execute("SELECT COUNT(*) FROM model_evals").fetchone()[0]
+        total_rows = ohlcv + indicators + flow + macro + outcomes + features + evals
         return {
             "db_path": self._db_path,
-            "ohlcv_rows": conn.execute("SELECT COUNT(*) FROM daily_ohlcv").fetchone()[0],
-            "indicator_rows": conn.execute("SELECT COUNT(*) FROM technical_indicators").fetchone()[0],
-            "flow_rows": conn.execute("SELECT COUNT(*) FROM options_flow").fetchone()[0],
-            "macro_rows": conn.execute("SELECT COUNT(*) FROM macro_data").fetchone()[0],
-            "trade_outcomes": conn.execute("SELECT COUNT(*) FROM trade_outcomes").fetchone()[0],
-            "feature_rows": conn.execute("SELECT COUNT(*) FROM features").fetchone()[0],
-            "model_eval_rows": conn.execute("SELECT COUNT(*) FROM model_evals").fetchone()[0],
+            "total_tables": 7,
+            "total_rows": total_rows,
+            "ohlcv_rows": ohlcv,
+            "indicator_rows": indicators,
+            "flow_rows": flow,
+            "macro_rows": macro,
+            "trade_outcomes": outcomes,
+            "feature_rows": features,
+            "model_eval_rows": evals,
             "symbols": self.get_symbol_count(),
             "date_range": self.get_date_range(),
         }

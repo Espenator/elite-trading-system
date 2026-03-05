@@ -138,9 +138,9 @@ class BacktestEngine:
         )
         avg_r = float(returns.mean())
         total_pnl = float(df_trades["pnl_dollars"].sum())
-        # FIX Bug #17: Calmar = return / |maxDD|. abs() only on denominator
-        # so losing strategies correctly show negative Calmar.
-        calmar = float(total_pnl / abs(maxdd)) if maxdd != 0 else 0.0
+        # Calmar = total return % / |maxDD %|
+        total_return_pct = total_pnl / initial_equity
+        calmar = float(total_return_pct / abs(maxdd)) if maxdd != 0 else 0.0
 
         # Enhanced metrics for profitability
         neg_returns = returns[returns < 0]
