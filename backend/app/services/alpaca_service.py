@@ -31,25 +31,32 @@ _ORDER_TYPE_MAP = {
 
 class AlpacaService:
     """Service for interacting with Alpaca Markets API.
-    Uses paper by default. Every method returns real Alpaca data or None on failure."""
+    Production mode by default. Every method returns real Alpaca data or None on failure."""
 
     def __init__(self):
-        raw_url = settings.ALPACA_BASE_URL or "https://paper-api.alpaca.markets"
+        self.trading_mode = (getattr(settings, "TRADING_MODE", None) or "live").lower()
+        if self.trading_mode not in ("paper", "live"):
+            self.trading_mode = "live"
+
+        # Determine correct API URL based on trading mode
+        raw_url = settings.ALPACA_BASE_URL or "https://api.alpaca.markets"
+        is_paper_url = "paper-api" in raw_url or "paper" in raw_url
+
+        # Safety: ensure URL matches trading mode
+        if self.trading_mode == "live" and is_paper_url:
+            logger.warning("SAFETY: TRADING_MODE=live but URL contains 'paper': %s — forcing live URL", raw_url)
+            raw_url = "https://api.alpaca.markets"
+        elif self.trading_mode == "paper" and not is_paper_url and "localhost" not in raw_url:
+            logger.warning("SAFETY: TRADING_MODE=paper but URL does not contain 'paper': %s — forcing paper URL", raw_url)
+            raw_url = "https://paper-api.alpaca.markets"
+
         # Ensure base URL includes /v2 for Alpaca API v2 endpoints
         self.base_url = raw_url.rstrip("/") + "/v2" if "/v2" not in raw_url else raw_url
         self.api_key = settings.ALPACA_API_KEY
         self.secret_key = settings.ALPACA_SECRET_KEY
-        self.trading_mode = (getattr(settings, "TRADING_MODE", None) or "paper").lower()
-        if self.trading_mode not in ("paper", "live"):
-            self.trading_mode = "paper"
-        # Safety: validate URL matches trading mode
-        is_paper_url = "paper-api" in raw_url or "paper" in raw_url
-        if self.trading_mode == "paper" and not is_paper_url and "localhost" not in raw_url:
-            logger.warning("SAFETY: TRADING_MODE=paper but URL does not contain 'paper': %s — forcing paper URL", raw_url)
-            self.base_url = "https://paper-api.alpaca.markets/v2"
-        elif self.trading_mode == "live" and is_paper_url:
-            logger.warning("TRADING_MODE=live but using paper API URL: %s", raw_url)
         self._cache: Dict[str, Any] = {}  # key -> (timestamp, data)
+
+        logger.info("AlpacaService initialized: mode=%s, url=%s", self.trading_mode, self.base_url)
 
     # ── helpers ──────────────────────────────────────────────────────────────────
 

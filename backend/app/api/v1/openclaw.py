@@ -139,7 +139,7 @@ async def ingest_signals(
     """
     # Token authentication - REQUIRED in live mode
     if not authorization:
-        if os.getenv("TRADING_MODE", "paper") == "live":
+        if os.getenv("TRADING_MODE", "live") == "live":
             raise HTTPException(status_code=401, detail="Authorization header required in live mode")
         logger.warning("[OPENCLAW] Signal ingestion without auth token (non-live mode)")
     else:

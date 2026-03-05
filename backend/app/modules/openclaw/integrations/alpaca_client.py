@@ -33,12 +33,12 @@ logger = logging.getLogger(__name__)
 class AlpacaClient:
     """
     Alpaca v2 trading client with bracket order support.
-    All orders go to paper trading by default.
+    Production live trading by default. Set TRADING_MODE=paper for paper trading.
     Includes optional LLM-powered pre-trade risk assessment.
     """
 
     def __init__(self):
-        trading_mode = os.getenv("TRADING_MODE", "paper").lower()
+        trading_mode = os.getenv("TRADING_MODE", "live").lower()
         use_paper = trading_mode != "live"
         self.client = TradingClient(
             ALPACA_API_KEY, ALPACA_SECRET_KEY, paper=use_paper

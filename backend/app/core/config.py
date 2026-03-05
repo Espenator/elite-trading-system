@@ -20,11 +20,11 @@ class Settings(BaseSettings):
     # ── App ─────────────────────────────────────────────────
     APP_NAME: str = "Elite Trading System"
     PROJECT_NAME: str = "Elite Trading System"
-    APP_VERSION: str = "3.1.0"
+    APP_VERSION: str = "4.0.0"
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
-    ENVIRONMENT: str = "development"
-    TRADING_MODE: str = "paper"
+    ENVIRONMENT: str = "production"
+    TRADING_MODE: str = "live"
     SCAN_INTERVAL_MINUTES: int = 5
 
     # ── API Authentication ────────────────────────────────
@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     # ── Alpaca Markets ──────────────────────────────────────
     ALPACA_API_KEY: str = ""
     ALPACA_SECRET_KEY: str = ""
-    ALPACA_BASE_URL: str = "https://paper-api.alpaca.markets"
+    ALPACA_BASE_URL: str = "https://api.alpaca.markets"
     ALPACA_DATA_URL: str = "https://data.alpaca.markets"
 
     @property
@@ -133,11 +133,11 @@ class Settings(BaseSettings):
     RESEND_ALERT_TO_EMAIL: str = ""
 
     # ── OpenClaw (Multi-Agent) ──────────────────────────────
-    OPENCLAW_ENABLED: bool = False
+    OPENCLAW_ENABLED: bool = True
     OLLAMA_BASE_URL: str = "http://localhost:11434"
 
     # ── Brain Service (PC2) ───────────────────────────────
-    BRAIN_ENABLED: bool = False
+    BRAIN_ENABLED: bool = True
     BRAIN_HOST: str = "localhost"
     BRAIN_PORT: int = 50051
     OLLAMA_MODEL: str = "llama3.2"
@@ -160,7 +160,7 @@ class Settings(BaseSettings):
     FILL_SEED: int = 0  # 0 = random
 
     # ── Scheduler ──────────────────────────────────────────
-    SCHEDULER_ENABLED: bool = False
+    SCHEDULER_ENABLED: bool = True
 
     # ── Risk Guardrails (additional) ───────────────────────
     MAX_SINGLE_POSITION: float = 0.02
