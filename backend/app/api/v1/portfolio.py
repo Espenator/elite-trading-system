@@ -125,6 +125,27 @@ async def get_portfolio():
         await broadcast_ws("trades", {"type": "trade_executed", ...})
         await broadcast_ws("trades", {"type": "position_updated", ...})
     """
+    try:
+        return await _get_portfolio_inner()
+    except Exception as e:
+        logger.exception("Portfolio endpoint error: %s", e)
+        return {
+            "positions": [],
+            "history": [],
+            "error": f"Portfolio unavailable: {e}",
+            "totalEquity": 0,
+            "dayPnL": 0,
+            "deployedPercent": 0,
+            "summary": {
+                "totalValue": 0, "totalUnrealizedPnL": 0,
+                "positionCount": 0, "longCount": 0, "shortCount": 0,
+                "portfolioHeat": 0,
+            },
+        }
+
+
+async def _get_portfolio_inner():
+    """Inner portfolio logic — separated for error wrapping."""
     positions_raw = await alpaca_service.get_positions()
     activities_raw = await alpaca_service.get_activities(
         activity_types="FILL", limit=50
