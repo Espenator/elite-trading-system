@@ -26,7 +26,7 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 # Fernet encryption for API credentials
 # ---------------------------------------------------------------------------
-FERNET_KEY = os.getenv("FERNET_KEY") or "hNVQaTlcL0bFLlh2XU5IHhN6Xja27dDAq4PUfYmJx9M="
+FERNET_KEY = os.getenv("FERNET_KEY") or Fernet.generate_key().decode()
 _cipher = Fernet(FERNET_KEY.encode())
 
 DB_CONFIG_KEY = "data_sources_registry"

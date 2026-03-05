@@ -23,7 +23,7 @@ DEFAULT_RULES = [
     {"name": "Drawdown > 5%", "condition": "drawdown_gt_5", "enabled": True},
     {"name": "Signal score > 85", "condition": "signal_score_gt_85", "enabled": True},
     {"name": "Daily loss limit", "condition": "daily_loss_limit", "enabled": False},
-        {"name": "Kelly edge > 0.15", "condition": "kelly_edge_gt_15", "enabled": True},
+    {"name": "Kelly edge > 0.15", "condition": "kelly_edge_gt_15", "enabled": True},
     {"name": "Position size > 8%", "condition": "kelly_pos_gt_8", "enabled": True},
     {"name": "Portfolio heat > 20%", "condition": "portfolio_heat_gt_20", "enabled": True},
     {"name": "Signal quality > 0.8", "condition": "signal_quality_gt_80", "enabled": False},
