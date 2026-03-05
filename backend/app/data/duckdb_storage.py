@@ -232,8 +232,12 @@ class DuckDBStorage:
         conn.execute("CREATE OR REPLACE TEMP TABLE _staging AS SELECT * FROM daily_ohlcv LIMIT 0")
         conn.execute("INSERT INTO _staging SELECT * FROM df")
         conn.execute("""
-            INSERT OR REPLACE INTO daily_ohlcv
+            INSERT INTO daily_ohlcv
             SELECT * FROM _staging
+            ON CONFLICT (symbol, date) DO UPDATE SET
+                open = EXCLUDED.open, high = EXCLUDED.high,
+                low = EXCLUDED.low, close = EXCLUDED.close,
+                volume = EXCLUDED.volume, source = EXCLUDED.source
         """)
         logger.info("Upserted %d OHLCV rows", len(df))
         return len(df)
@@ -243,7 +247,18 @@ class DuckDBStorage:
         if df.empty:
             return 0
         conn = self._get_conn()
-        conn.execute("INSERT OR REPLACE INTO technical_indicators SELECT * FROM df")
+        conn.execute("""
+            INSERT INTO technical_indicators SELECT * FROM df
+            ON CONFLICT (symbol, date) DO UPDATE SET
+                rsi_14 = EXCLUDED.rsi_14, macd = EXCLUDED.macd,
+                macd_signal = EXCLUDED.macd_signal, macd_hist = EXCLUDED.macd_hist,
+                sma_20 = EXCLUDED.sma_20, sma_50 = EXCLUDED.sma_50, sma_200 = EXCLUDED.sma_200,
+                ema_9 = EXCLUDED.ema_9, ema_21 = EXCLUDED.ema_21,
+                atr_14 = EXCLUDED.atr_14, atr_21 = EXCLUDED.atr_21,
+                bb_upper = EXCLUDED.bb_upper, bb_lower = EXCLUDED.bb_lower,
+                bb_middle = EXCLUDED.bb_middle, adx_14 = EXCLUDED.adx_14,
+                williams_r = EXCLUDED.williams_r
+        """)
         logger.info("Upserted %d indicator rows", len(df))
         return len(df)
 
@@ -252,7 +267,14 @@ class DuckDBStorage:
         if df.empty:
             return 0
         conn = self._get_conn()
-        conn.execute("INSERT OR REPLACE INTO options_flow SELECT * FROM df")
+        conn.execute("""
+            INSERT INTO options_flow SELECT * FROM df
+            ON CONFLICT (symbol, date) DO UPDATE SET
+                call_volume = EXCLUDED.call_volume, put_volume = EXCLUDED.put_volume,
+                net_premium = EXCLUDED.net_premium, pcr_volume = EXCLUDED.pcr_volume,
+                dark_pool_volume = EXCLUDED.dark_pool_volume,
+                total_premium = EXCLUDED.total_premium, source = EXCLUDED.source
+        """)
         logger.info("Upserted %d options flow rows", len(df))
         return len(df)
 
@@ -261,7 +283,14 @@ class DuckDBStorage:
         if df.empty:
             return 0
         conn = self._get_conn()
-        conn.execute("INSERT OR REPLACE INTO macro_data SELECT * FROM df")
+        conn.execute("""
+            INSERT INTO macro_data SELECT * FROM df
+            ON CONFLICT (date) DO UPDATE SET
+                vix_close = EXCLUDED.vix_close, dxy_close = EXCLUDED.dxy_close,
+                us10y_yield = EXCLUDED.us10y_yield, fed_funds_rate = EXCLUDED.fed_funds_rate,
+                spy_close = EXCLUDED.spy_close, qqq_close = EXCLUDED.qqq_close,
+                breadth_ratio = EXCLUDED.breadth_ratio
+        """)
         logger.info("Upserted %d macro rows", len(df))
         return len(df)
 

@@ -321,7 +321,8 @@ async def _start_event_driven_pipeline():
             log.debug("WS council broadcast failed: %s", e)
 
     await _message_bus.subscribe("council.verdict", _bridge_council_to_ws)
-    log.info("\u2705 Council->WebSocket bridge active")
+    await _message_bus.subscribe("council.evaluation_complete", _bridge_council_to_ws)
+    log.info("\u2705 Council->WebSocket bridge active (verdict + evaluation_complete)")
 
     # 6. AlpacaStreamService (publishes market_data.bar events)
     if os.getenv("DISABLE_ALPACA_DATA_STREAM", "").strip().lower() in ("1", "true", "yes"):

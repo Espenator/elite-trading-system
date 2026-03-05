@@ -54,7 +54,7 @@ Every signal passes through the full 14-agent council before any trade is execut
 - **Feature Aggregator**: Expanded with intermarket, cycle, extended indicators (EMA-5/10/20, VIX, SPY correlation, sector breadth)
 - **Pipeline**: main.py wires CouncilGate into startup — council controls all trading decisions
 
-### v3.1.0 (March 4, 2026) — 13-Agent Expansion
+### v3.1.0 (March 4, 2026) — 14-Agent Expansion
 - Expanded council from 8 to 14 agents — added RSI, BBV, EMA Trend, Intermarket, Relative Strength, Cycle Timing
 - Updated council runner.py to 7-stage parallel DAG
 - Added brain_service gRPC server + Ollama client
@@ -89,7 +89,7 @@ Every signal passes through the full 14-agent council before any trade is execut
 | 4. Event-Driven Pipeline | core/message_bus.py, services/ | **CONNECTED** to council via CouncilGate (v3.2.0) |
 | 5. CNS Architecture | Partially built | CouncilGate (P0) + WeightLearner (P8) built, rest TODO |
 
-### Council DAG (13 Agents, 7 Stages)
+### Council DAG (14 Agents, 7 Stages)
 
 ```
 Stage 1 (Parallel): market_perception, flow_perception, regime, intermarket
@@ -105,7 +105,7 @@ Stage 7: arbiter (deterministic BUY/SELL/HOLD with Bayesian weights)
 
 ```
 AlpacaStreamService -> market_data.bar -> EventDrivenSignalEngine -> signal.generated (score >= 65)
-  -> CouncilGate -> 13-Agent Council -> council.verdict -> OrderExecutor -> Alpaca
+  -> CouncilGate -> 14-Agent Council -> council.verdict -> OrderExecutor -> Alpaca
 ```
 
 ### CNS Architecture (Target)

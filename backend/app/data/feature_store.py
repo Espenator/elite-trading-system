@@ -23,7 +23,7 @@ class FeatureStore:
     def _get_conn(self):
         """Get DuckDB connection from the shared storage instance."""
         from app.data.duckdb_storage import duckdb_store
-        return duckdb_store._get_conn()
+        return duckdb_store.get_connection()
 
     @staticmethod
     def _compute_hash(feature_dict: Dict[str, Any]) -> str:
@@ -51,8 +51,12 @@ class FeatureStore:
         now = datetime.now(timezone.utc)
 
         conn.execute("""
-            INSERT OR REPLACE INTO features (symbol, ts, timeframe, feature_json, feature_hash, created_at)
+            INSERT INTO features (symbol, ts, timeframe, feature_json, feature_hash, created_at)
             VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT (symbol, ts, timeframe) DO UPDATE SET
+                feature_json = EXCLUDED.feature_json,
+                feature_hash = EXCLUDED.feature_hash,
+                created_at = EXCLUDED.created_at
         """, [symbol.upper(), ts, timeframe, feature_json, feature_hash, now])
 
         logger.debug("Stored features for %s@%s: hash=%s", symbol, ts, feature_hash)
@@ -118,9 +122,16 @@ class FeatureStore:
         conn = self._get_conn()
         now = datetime.now(timezone.utc)
         conn.execute("""
-            INSERT OR REPLACE INTO model_evals
+            INSERT INTO model_evals
             (eval_id, model_id, "window", sharpe, profit_factor, win_rate, max_dd, passed, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (eval_id) DO UPDATE SET
+                sharpe = EXCLUDED.sharpe,
+                profit_factor = EXCLUDED.profit_factor,
+                win_rate = EXCLUDED.win_rate,
+                max_dd = EXCLUDED.max_dd,
+                passed = EXCLUDED.passed,
+                created_at = EXCLUDED.created_at
         """, [
             eval_id, model_id, window,
             metrics.get("sharpe", 0.0),
