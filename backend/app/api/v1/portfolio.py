@@ -8,28 +8,12 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter
 
+from app.core.converters import safe_float as _safe_float, safe_int as _safe_int
 from app.services.alpaca_service import alpaca_service
 from app.websocket_manager import broadcast_ws
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-
-def _safe_float(val: Any, default: float = 0.0) -> float:
-    """Safely parse a string or number to float."""
-    if val is None:
-        return default
-    try:
-        return float(val)
-    except (ValueError, TypeError):
-        return default
-
-
-def _safe_int(val: Any, default: int = 0) -> int:
-    try:
-        return int(float(val))
-    except (ValueError, TypeError):
-        return default
 
 
 def _format_position(pos: Dict, idx: int) -> Dict:

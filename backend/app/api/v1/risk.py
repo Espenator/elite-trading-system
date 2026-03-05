@@ -13,6 +13,7 @@ from typing import Any, List
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from app.core.converters import safe_float as _safe_float
 from app.services.alpaca_service import alpaca_service
 from app.services.database import db_service
 from app.websocket_manager import broadcast_ws
@@ -44,15 +45,6 @@ class RiskUpdate(BaseModel):
     autoPauseTrading: bool | None = None
     dailyPnLLossAlert: float | None = None
     maxDrawdownAlert: float | None = None
-
-
-def _safe_float(val: Any, default: float = 0.0) -> float:
-    if val is None:
-        return default
-    try:
-        return float(val)
-    except (ValueError, TypeError):
-        return default
 
 
 def _get_risk_config() -> dict:

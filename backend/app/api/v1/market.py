@@ -13,6 +13,7 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter
 
+from app.core.converters import safe_float as _parse_float
 from app.services.finviz_service import FinvizService
 
 logger = logging.getLogger(__name__)
@@ -45,15 +46,9 @@ INDEX_SYMBOLS = [
 
 # Concurrency limit for Finviz requests (avoid 429 while still being fast)
 _FINVIZ_SEMAPHORE = asyncio.Semaphore(4)
+_DELAY_BETWEEN_REQUESTS_SEC = 0.1  # Small delay between sequential Finviz requests
 
 
-def _parse_float(val: Any, default: float = 0.0) -> float:
-    if val is None:
-        return default
-    try:
-        return float(val)
-    except (TypeError, ValueError):
-        return default
 
 
 def _get_cached_indices() -> List[Dict[str, Any]] | None:
@@ -107,6 +102,8 @@ async def get_market_root() -> Dict[str, Any]:
         await asyncio.sleep(_DELAY_BETWEEN_REQUESTS_SEC)
     _set_cached_indices(result)
     return {"indices": result, "marketIndices": result}
+
+
 async def _fetch_one_ticker(ticker: str) -> Dict[str, Any]:
     """Fetch quote data for a single ticker with semaphore throttling."""
     async with _FINVIZ_SEMAPHORE:
