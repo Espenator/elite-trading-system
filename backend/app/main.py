@@ -466,6 +466,27 @@ async def _start_event_driven_pipeline():
     await _message_bus.subscribe("scout.discovery", _bridge_macro_to_ws)
     log.info("\u2705 MacroEvent->WebSocket bridge active")
 
+    # 15. CorrelationRadar — cross-asset correlation breaks + sector rotation
+    from app.services.correlation_radar import get_correlation_radar, KEY_PAIRS
+    _corr_radar = get_correlation_radar()
+    _corr_radar._bus = _message_bus
+    await _corr_radar.start()
+    log.info("\u2705 CorrelationRadar started (%d key pairs)", len(KEY_PAIRS))
+
+    # 16. PatternLibrary — discovers and validates recurring patterns
+    from app.services.pattern_library import get_pattern_library
+    _pattern_lib = get_pattern_library()
+    _pattern_lib._bus = _message_bus
+    await _pattern_lib.start()
+    log.info("\u2705 PatternLibrary started (%d patterns)", len(_pattern_lib._patterns))
+
+    # 17. ExpectedMoveService — options-derived reversal zones
+    from app.services.expected_move_service import get_expected_move_service
+    _em_service = get_expected_move_service()
+    _em_service._bus = _message_bus
+    await _em_service.start()
+    log.info("\u2705 ExpectedMoveService started (%d symbols)", len(get_expected_move_service()._levels) or 18)
+
     log.info("=" * 60)
     log.info("\u2705 Event-Driven Pipeline ONLINE")
     log.info("   Stream -> MessageBus -> SignalEngine -> CouncilEvaluator -> OrderExecutor -> Alpaca")
@@ -473,6 +494,9 @@ async def _start_event_driven_pipeline():
     log.info("   Scout: auto-discovery -> flow/screener/watchlist -> SwarmSpawner")
     log.info("   Discord: channels -> DiscordSwarmBridge -> SwarmSpawner")
     log.info("   Radar: GeopoliticalRadar -> MacroPlaybook -> IMMEDIATE swarms")
+    log.info("   Correlations: CorrelationRadar -> rotation/reversion -> SwarmSpawner")
+    log.info("   Patterns: PatternLibrary -> validated patterns -> SwarmSpawner")
+    log.info("   ExpectedMoves: EM boundaries -> reversal zones -> SwarmSpawner")
     log.info(
         "   Mode: %s | Council: signal>=%.0f triggers 17-agent DAG",
         "AUTO-EXECUTE" if auto_execute else "SHADOW",
@@ -488,6 +512,21 @@ async def _stop_event_driven_pipeline():
     log.info("Shutting down event-driven pipeline...")
 
     # Stop swarm intelligence components first (reverse startup order)
+    try:
+        from app.services.expected_move_service import get_expected_move_service
+        await get_expected_move_service().stop()
+    except Exception:
+        pass
+    try:
+        from app.services.pattern_library import get_pattern_library
+        await get_pattern_library().stop()
+    except Exception:
+        pass
+    try:
+        from app.services.correlation_radar import get_correlation_radar
+        await get_correlation_radar().stop()
+    except Exception:
+        pass
     try:
         from app.services.geopolitical_radar import get_geopolitical_radar
         await get_geopolitical_radar().stop()

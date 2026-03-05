@@ -329,22 +329,140 @@ async def inject_event(req: InjectEventRequest):
     }
 
 
+class SetExpectedMoveLevelsRequest(BaseModel):
+    symbol: str
+    upper: float
+    lower: float
+    source: str = "fom_discord"
+
+
+# ------------------------------------------------------------------
+# Correlation Radar endpoints
+# ------------------------------------------------------------------
+@router.get("/correlations/status")
+async def correlation_status():
+    """Get correlation radar status: active breaks, rotation signals, reversion signals."""
+    from app.services.correlation_radar import get_correlation_radar
+    return get_correlation_radar().get_status()
+
+
+@router.get("/correlations/matrix")
+async def correlation_matrix():
+    """Get the current cross-asset correlation matrix."""
+    from app.services.correlation_radar import get_correlation_radar
+    return get_correlation_radar().get_correlation_matrix()
+
+
+@router.get("/correlations/rotations")
+async def rotation_signals(limit: int = 20):
+    """Get recent sector rotation signals."""
+    from app.services.correlation_radar import get_correlation_radar
+    return {"rotations": get_correlation_radar().get_rotation_signals(limit)}
+
+
+@router.get("/correlations/reversions")
+async def reversion_signals(limit: int = 20):
+    """Get mean reversion signals (overextended symbols likely to snap back)."""
+    from app.services.correlation_radar import get_correlation_radar
+    return {"reversions": get_correlation_radar().get_reversion_signals(limit)}
+
+
+# ------------------------------------------------------------------
+# Pattern Library endpoints
+# ------------------------------------------------------------------
+@router.get("/patterns/status")
+async def pattern_library_status():
+    """Get pattern library status: total patterns, validated, active."""
+    from app.services.pattern_library import get_pattern_library
+    return get_pattern_library().get_status()
+
+
+@router.get("/patterns/list")
+async def list_patterns(pattern_type: str = None):
+    """List all patterns with their backtest statistics.
+
+    Filter by type: reversal, rotation, momentum, expected_move, cycle
+    """
+    from app.services.pattern_library import get_pattern_library
+    return {"patterns": get_pattern_library().get_patterns(pattern_type)}
+
+
+@router.get("/patterns/{pattern_id}")
+async def get_pattern(pattern_id: str):
+    """Get details of a specific pattern including backtest stats."""
+    from app.services.pattern_library import get_pattern_library
+    p = get_pattern_library().get_pattern(pattern_id)
+    if not p:
+        raise HTTPException(status_code=404, detail="Pattern not found")
+    return p
+
+
+# ------------------------------------------------------------------
+# Expected Move Service endpoints
+# ------------------------------------------------------------------
+@router.get("/expected-moves/levels")
+async def expected_move_levels(symbol: str = None):
+    """Get expected move levels for tracked symbols.
+
+    Shows upper/lower boundaries where reversals are statistically likely.
+    """
+    from app.services.expected_move_service import get_expected_move_service
+    return {"levels": get_expected_move_service().get_levels(symbol)}
+
+
+@router.get("/expected-moves/reversals")
+async def expected_move_reversals():
+    """Get symbols currently at expected move reversal zones."""
+    from app.services.expected_move_service import get_expected_move_service
+    return {"reversal_zones": get_expected_move_service().get_reversal_zones()}
+
+
+@router.post("/expected-moves/fom-levels")
+async def set_fom_levels(req: SetExpectedMoveLevelsRequest):
+    """Set expected move levels from FOM Discord or manual input.
+
+    Use this to override calculated levels with real options-derived data
+    from FOM's expected move analysis.
+    """
+    from app.services.expected_move_service import get_expected_move_service
+    get_expected_move_service().set_fom_levels(req.symbol, req.upper, req.lower, req.source)
+    return {
+        "status": "ok",
+        "symbol": req.symbol.upper(),
+        "upper": req.upper,
+        "lower": req.lower,
+    }
+
+
+@router.get("/expected-moves/status")
+async def expected_move_status():
+    """Get expected move service status."""
+    from app.services.expected_move_service import get_expected_move_service
+    return get_expected_move_service().get_status()
+
+
 # ------------------------------------------------------------------
 # Combined system status
 # ------------------------------------------------------------------
 @router.get("/intelligence/status")
 async def intelligence_status():
-    """Get combined status of all intelligence systems: swarm, scout, discord, radar, ingestion."""
+    """Get combined status of ALL intelligence systems."""
     from app.services.swarm_spawner import get_swarm_spawner
     from app.services.autonomous_scout import get_scout_service
     from app.services.discord_swarm_bridge import get_discord_bridge
     from app.services.knowledge_ingest import knowledge_ingest
     from app.services.geopolitical_radar import get_geopolitical_radar
+    from app.services.correlation_radar import get_correlation_radar
+    from app.services.pattern_library import get_pattern_library
+    from app.services.expected_move_service import get_expected_move_service
 
     return {
         "swarm": get_swarm_spawner().get_status(),
         "scout": get_scout_service().get_status(),
         "discord": get_discord_bridge().get_status(),
         "radar": get_geopolitical_radar().get_status(),
+        "correlations": get_correlation_radar().get_status(),
+        "patterns": get_pattern_library().get_status(),
+        "expected_moves": get_expected_move_service().get_status(),
         "ingestion": knowledge_ingest.get_stats(),
     }
