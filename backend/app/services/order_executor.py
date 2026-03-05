@@ -546,11 +546,23 @@ class OrderExecutor:
         """Compute Kelly-optimal position size and bracket levels."""
         sizer = self._get_kelly_sizer()
 
-        # Historical stats (TODO: pull from trade_outcomes table)
-        # For now, derive win_rate from signal score heuristic
-        win_rate = min(0.75, 0.40 + (score - 50) * 0.007)
-        avg_win_pct = 0.035
-        avg_loss_pct = 0.015
+        # Pull calibrated Kelly params from OutcomeTracker (real trade data)
+        # Falls back to heuristic if insufficient history
+        try:
+            from app.services.outcome_tracker import get_outcome_tracker
+            kelly_params = get_outcome_tracker().get_kelly_params()
+            if kelly_params["sample_size"] >= 10:
+                win_rate = kelly_params["win_rate"]
+                avg_win_pct = kelly_params["avg_win_pct"]
+                avg_loss_pct = kelly_params["avg_loss_pct"]
+            else:
+                win_rate = min(0.75, 0.40 + (score - 50) * 0.007)
+                avg_win_pct = 0.035
+                avg_loss_pct = 0.015
+        except Exception:
+            win_rate = min(0.75, 0.40 + (score - 50) * 0.007)
+            avg_win_pct = 0.035
+            avg_loss_pct = 0.015
 
         pos = sizer.calculate(
             win_rate=win_rate,
@@ -673,35 +685,12 @@ class OrderExecutor:
         )
 
     def _record_fill_outcome(self, record: OrderRecord) -> None:
-        """Wire filled order → ML outcome_resolver for flywheel accuracy tracking."""
-        try:
-            from app.modules.ml_engine.outcome_resolver import record_outcome
-            outcome = None  # resolved later by outcome_resolver
-            prediction = 1 if record.signal_score >= 50 else 0
-            signal_date = datetime.fromtimestamp(record.timestamp, tz=timezone.utc).strftime("%Y-%m-%d")
-            record_outcome(
-                symbol=record.symbol,
-                signal_date=signal_date,
-                outcome=outcome,
-                prediction=prediction,
-            )
-            logger.info("Recorded fill outcome for %s → outcome_resolver", record.symbol)
-        except Exception as e:
-            logger.debug("outcome_resolver not available: %s", e)
-
-        # Feed outcome to council feedback loop for agent weight tuning
-        try:
-            from app.council.feedback_loop import record_outcome as council_record_outcome
-            r_mult = getattr(record, "r_multiple", 0.0) or 0.0
-            outcome_str = "win" if r_mult > 0 else ("loss" if r_mult < 0 else "scratch")
-            council_record_outcome(
-                trade_id=record.order_id,
-                symbol=record.symbol,
-                outcome=outcome_str,
-                r_multiple=r_mult,
-            )
-        except Exception as e:
-            logger.debug("council feedback_loop not available: %s", e)
+        """Log fill for tracking. Actual outcome resolution is handled by OutcomeTracker
+        which monitors positions until close and feeds real PnL to feedback systems."""
+        logger.info(
+            "Fill recorded for %s — OutcomeTracker will resolve outcome on position close",
+            record.symbol,
+        )
 
     # ── Frontend Notifications ──────────────────────────────────────────────
 

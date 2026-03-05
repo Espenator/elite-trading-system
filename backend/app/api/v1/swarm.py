@@ -578,3 +578,81 @@ async def get_screen(screen_name: str):
     if not result:
         raise HTTPException(status_code=404, detail=f"Screen '{screen_name}' not found or not yet run")
     return result
+
+
+# ------------------------------------------------------------------
+# Outcome Tracker (P0 — feedback loop)
+# ------------------------------------------------------------------
+
+@router.get("/outcomes/status")
+async def outcome_tracker_status():
+    """Get OutcomeTracker status: win rate, PnL, Kelly params, feedback loop health."""
+    from app.services.outcome_tracker import get_outcome_tracker
+    return get_outcome_tracker().get_status()
+
+@router.get("/outcomes/kelly")
+async def outcome_kelly_params():
+    """Get calibrated Kelly parameters derived from real trade outcomes."""
+    from app.services.outcome_tracker import get_outcome_tracker
+    return get_outcome_tracker().get_kelly_params()
+
+@router.get("/outcomes/open")
+async def outcome_open_positions():
+    """Get all positions currently being tracked for outcome resolution."""
+    from app.services.outcome_tracker import get_outcome_tracker
+    return get_outcome_tracker().get_open_positions()
+
+@router.get("/outcomes/closed")
+async def outcome_closed_positions(limit: int = 50):
+    """Get recently closed positions with PnL and R-multiple."""
+    from app.services.outcome_tracker import get_outcome_tracker
+    return get_outcome_tracker().get_closed_positions(limit=limit)
+
+
+# ------------------------------------------------------------------
+# Position Manager (P2 — automated exits)
+# ------------------------------------------------------------------
+
+@router.get("/positions/managed")
+async def managed_positions_status():
+    """Get PositionManager status: active positions, trailing stops, exit stats."""
+    from app.services.position_manager import get_position_manager
+    return get_position_manager().get_status()
+
+
+# ------------------------------------------------------------------
+# ML Scorer (P1 — live model status)
+# ------------------------------------------------------------------
+
+@router.get("/ml/scorer/status")
+async def ml_scorer_status():
+    """Get ML live scorer status: model loaded, predictions made, accuracy."""
+    from app.services.ml_scorer import get_ml_scorer
+    return get_ml_scorer().get_status()
+
+@router.post("/ml/scorer/reload")
+async def ml_scorer_reload():
+    """Reload the ML model (e.g., after retraining)."""
+    from app.services.ml_scorer import get_ml_scorer
+    loaded = get_ml_scorer().reload()
+    return {"reloaded": loaded, "status": get_ml_scorer().get_status()}
+
+
+# ------------------------------------------------------------------
+# Unified Profit Engine (P3 — adaptive ensemble)
+# ------------------------------------------------------------------
+
+@router.get("/unified/status")
+async def unified_engine_status():
+    """Get UnifiedProfitEngine status: brain weights, accuracy, scores produced."""
+    from app.services.unified_profit_engine import get_unified_engine
+    return get_unified_engine().get_status()
+
+@router.get("/unified/score/{symbol}")
+async def unified_score(symbol: str):
+    """Get unified score for a symbol across all brains."""
+    from app.services.unified_profit_engine import get_unified_engine
+    result = await get_unified_engine().score(symbol.upper())
+    if not result:
+        raise HTTPException(status_code=404, detail=f"No data available for {symbol}")
+    return result

@@ -515,6 +515,29 @@ async def _start_event_driven_pipeline():
     await _market_sweep.start()
     log.info("\u2705 MarketWideSweep started (universe=%d symbols)", len(_market_sweep._universe))
 
+    # 22. UnifiedProfitEngine — single adaptive scorer replacing 5 competing brains
+    from app.services.unified_profit_engine import get_unified_engine
+    _unified = get_unified_engine()
+    _unified._bus = _message_bus
+    await _unified.start()
+    log.info("\u2705 UnifiedProfitEngine started — weights: %s",
+             {k: f"{v:.2f}" for k, v in _unified._weights.items()})
+
+    # 23. PositionManager — automated exits (trailing stops, time exits, partial profits)
+    from app.services.position_manager import get_position_manager
+    _position_mgr = get_position_manager()
+    _position_mgr._bus = _message_bus
+    await _position_mgr.start()
+    log.info("\u2705 PositionManager started (trailing stops + time exits)")
+
+    # 23. OutcomeTracker — closes the feedback loop (real PnL → Kelly calibration + agent weights)
+    from app.services.outcome_tracker import get_outcome_tracker
+    _outcome_tracker = get_outcome_tracker()
+    _outcome_tracker._bus = _message_bus
+    await _outcome_tracker.start()
+    log.info("\u2705 OutcomeTracker started (win_rate=%.2f, resolved=%d)",
+             _outcome_tracker._stats["win_rate"], _outcome_tracker._stats["total_resolved"])
+
     log.info("=" * 60)
     log.info("\u2705 Event-Driven Pipeline ONLINE — 100x SCALED")
     log.info("   Stream -> MessageBus -> SignalEngine -> CouncilEvaluator -> OrderExecutor")
@@ -525,6 +548,9 @@ async def _start_event_driven_pipeline():
     log.info("   SwarmSpawner: 20 concurrent full-council analyses (was 5)")
     log.info("   Scouts: flow/screener/watchlist at 60-120s intervals (was 5-15min)")
     log.info("   Radar: GeopoliticalRadar + CorrelationRadar + PatternLibrary + ExpectedMoves")
+    log.info("   UnifiedProfitEngine: 5 brains → 1 adaptive scorer (weights from outcomes)")
+    log.info("   PositionManager: trailing stops + time exits + partial profits at 2R")
+    log.info("   OutcomeTracker: real PnL → Kelly calibration + agent weight tuning")
     log.info(
         "   Mode: %s | Council: signal>=%.0f triggers 17-agent DAG",
         "AUTO-EXECUTE" if auto_execute else "SHADOW",
@@ -540,6 +566,21 @@ async def _stop_event_driven_pipeline():
     log.info("Shutting down event-driven pipeline...")
 
     # Stop swarm intelligence components first (reverse startup order)
+    try:
+        from app.services.outcome_tracker import get_outcome_tracker
+        await get_outcome_tracker().stop()
+    except Exception:
+        pass
+    try:
+        from app.services.unified_profit_engine import get_unified_engine
+        await get_unified_engine().stop()
+    except Exception:
+        pass
+    try:
+        from app.services.position_manager import get_position_manager
+        await get_position_manager().stop()
+    except Exception:
+        pass
     try:
         from app.services.market_wide_sweep import get_market_sweep
         await get_market_sweep().stop()

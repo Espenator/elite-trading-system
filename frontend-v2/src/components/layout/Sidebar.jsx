@@ -49,6 +49,7 @@ const navSections = [
       },
       { to: "/data-sources", icon: Link2, label: "Data Sources Manager" },
       { to: "/signal-intelligence-v3", icon: Radar, label: "Signal Intelligence" },
+      { to: "/swarm-intelligence", icon: Sparkles, label: "Swarm Intelligence" },
     ],
   },
   {

@@ -17,6 +17,7 @@ const AgentCommandCenter = lazy(() => import("./pages/AgentCommandCenter"));
 const SentimentIntelligence = lazy(() => import("./pages/SentimentIntelligence"));
   const DataSourcesMonitor = lazy(() => import("./pages/DataSourcesMonitor"));
 const SignalIntelligenceV3 = lazy(() => import("./pages/SignalIntelligenceV3"));
+const SwarmIntelligence = lazy(() => import("./pages/SwarmIntelligence"));
 
 // ML & ANALYSIS section (5 pages)
 const MLBrainFlywheel = lazy(() => import("./pages/MLBrainFlywheel"));
@@ -65,6 +66,7 @@ function App() {
             <Route path="sentiment" element={<Suspense fallback={<PageLoader />}><SentimentIntelligence /></Suspense>} />
                           <Route path="data-sources" element={<Suspense fallback={<PageLoader />}><DataSourcesMonitor /></Suspense>} />
             <Route path="signal-intelligence-v3" element={<Suspense fallback={<PageLoader />}><SignalIntelligenceV3 /></Suspense>} />
+            <Route path="swarm-intelligence" element={<Suspense fallback={<PageLoader />}><SwarmIntelligence /></Suspense>} />
 
             {/* ML & ANALYSIS */}
             <Route path="ml-brain" element={<Suspense fallback={<PageLoader />}><MLBrainFlywheel /></Suspense>} />

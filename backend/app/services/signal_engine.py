@@ -448,6 +448,22 @@ class EventDrivenSignalEngine:
         else:
             blended = ta_score
 
+        # Blend with ML XGBoost score if model is loaded
+        try:
+            from app.services.ml_scorer import get_ml_scorer
+            ml = get_ml_scorer()
+            if ml.is_loaded:
+                ml_result = ml.score(symbol, list(history))
+                if ml_result:
+                    ml_score = ml_result["ml_score"]
+                    ml_conf = ml_result["confidence"]
+                    # Weight ML by its confidence: high-confidence ML dominates
+                    ml_weight = min(0.5, 0.2 + ml_conf * 0.3)  # 0.2-0.5
+                    blended = blended * (1 - ml_weight) + ml_score * ml_weight
+                    label = f"{label}+ML({ml_result['probability']:.0%})"
+        except Exception:
+            pass
+
         final_score = max(0.0, min(100.0, blended * self._regime_mult))
 
         # Only publish signals above threshold
