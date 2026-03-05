@@ -468,6 +468,12 @@ export default function AgentCommandCenter() {
   const [spawnPrompt, setSpawnPrompt] = useState("");
   const [nlpSpawnLoading, setNlpSpawnLoading] = useState(false);
   const [inspectedAgent, setInspectedAgent] = useState(null);
+  const [agentSearch, setAgentSearch] = useState("");
+  const filteredAgents = useMemo(() => {
+    if (!agentSearch) return agents;
+    const q = agentSearch.toLowerCase();
+    return agents.filter(a => (a.name || "").toLowerCase().includes(q) || (a.type || "").toLowerCase().includes(q) || (a.team_id || "").toLowerCase().includes(q));
+  }, [agents, agentSearch]);
   // --- URL sync ---
   useEffect(() => { if (activeTab) navigate(`/agents/${activeTab}`, { replace: true }); }, [activeTab]);
   // --- Loaders ---
@@ -647,7 +653,7 @@ export default function AgentCommandCenter() {
                 <div className="flex gap-2">
                   <div className="flex items-center gap-2">
                     <Search className="w-4 h-4 text-secondary" />
-                    <input className="bg-[#0d1117] border border-cyan-500/20 rounded px-3 py-1.5 text-sm text-white placeholder-secondary/50 w-48" placeholder="Search Agents" />
+                    <input className="bg-[#0d1117] border border-cyan-500/20 rounded px-3 py-1.5 text-sm text-white placeholder-secondary/50 w-48" placeholder="Search Agents" value={agentSearch} onChange={(e) => setAgentSearch(e.target.value)} />
                   </div>
                   <Button size="xs" onClick={() => { refetchAgents(); toast.success("Synced"); }}>Force Sync</Button>
                   </div>
@@ -660,7 +666,7 @@ export default function AgentCommandCenter() {
                       <th key={h} className="text-left py-2 px-1 whitespace-nowrap">{h}</th>
                     ))}
                   </tr></thead>
-                  <tbody>{agents.map((a, i) => {
+                  <tbody>{filteredAgents.map((a, i) => {
                     const wr = a.win_rate ?? 0;
                     const pnl = a.pnl_30d ?? 0;
                         return (

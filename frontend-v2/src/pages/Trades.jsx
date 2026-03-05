@@ -66,10 +66,10 @@ export default function Trades() {
   const uwOk = dsStatus.some?.((s) => s.name?.toLowerCase().includes("unusual") && s.status === "connected");
   const fvOk = dsStatus.some?.((s) => s.name?.toLowerCase().includes("finviz") && s.status === "connected");
 
-  // Account metrics from summary
-  const equity = summary.totalValue || 0;
-  const dayPnl = summary.totalUnrealizedPnl || summary.daily_pnl_est || 0;
-  const buyingPower = summary.buyingPower || 0;
+  // Account metrics — totalEquity/dayPnL are top-level, buyingPower from risk endpoint
+  const equity = portfolioData?.totalEquity || summary.totalValue || 0;
+  const dayPnl = portfolioData?.dayPnL || summary.totalUnrealizedPnL || summary.daily_pnl_est || 0;
+  const buyingPower = riskData?.buyingPower || 0;
   const exposure = summary.max_position_pct || 0;
   const posCount = positions.length;
   const ordCount = orders.length;
@@ -81,6 +81,18 @@ export default function Trades() {
   const filteredOrders = orders.filter((o) =>
     !ordFilter || (o.symbol || "").toUpperCase().includes(ordFilter.toUpperCase())
   );
+
+  // ── Keyboard shortcut: Ctrl+Enter to submit order ──
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        if (orderForm.symbol && orderForm.qty && !submitting) handleSubmitOrder();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  });
 
   // ── Actions ──
   const handleRefresh = () => { refetchPortfolio(); refetchOrders(); };
@@ -125,7 +137,7 @@ export default function Trades() {
         symbol: orderForm.symbol.toUpperCase(),
         side: orderForm.side.toLowerCase(),
         type: orderForm.type.toLowerCase() === "limit" ? "limit" : orderForm.type.toLowerCase() === "stop" ? "stop" : "market",
-        time_in_force: "day",
+        time_in_force: orderForm.tif.toLowerCase(),
         qty: String(parseInt(orderForm.qty) || 1),
       };
       if (orderForm.type.toLowerCase() === "limit" && orderForm.limitPrice) {
@@ -292,7 +304,11 @@ export default function Trades() {
           <div className="flex items-center justify-between px-3 py-2 bg-slate-900/60 border-b border-slate-700/50">
             <span className="text-xs font-semibold text-slate-200">ACTIVE ORDERS ({ordCount})</span>
             <div className="flex items-center gap-2">
-              <button className="px-2 py-1 bg-slate-900 border border-slate-700 rounded text-[10px] text-slate-300 hover:bg-slate-700">Filter: Working</button>
+              <input
+                type="text" placeholder="Filter..." value={ordFilter}
+                onChange={(e) => setOrdFilter(e.target.value)}
+                className="px-2 py-1 bg-slate-900 border border-slate-700 rounded text-[10px] text-slate-300 w-24 outline-none focus:border-cyan-500"
+              />
               <button onClick={handleCancelAll} className="px-2 py-1 bg-slate-900 border border-red-500/30 rounded text-[10px] text-red-400 hover:bg-red-500/10">Cancel All</button>
             </div>
           </div>
@@ -334,10 +350,10 @@ export default function Trades() {
                           <span>{filled}</span>
                         </div>
                       </td>
-                      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-300">{typ === "Limit" || typ === "Stop Limit" ? fmtM(o.price) : "--"}</td>
-                      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-300">{typ === "Stop" || typ === "Stop Limit" ? fmtM(o.price) : "--"}</td>
-                      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-300">--</td>
-                      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-300">DAY</td>
+                      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-300">{o.limit_price ? fmtM(o.limit_price) : "--"}</td>
+                      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-300">{o.stop_price ? fmtM(o.stop_price) : "--"}</td>
+                      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-300">{o.trail_percent ? `${o.trail_percent}%` : "--"}</td>
+                      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-300">{(o.time_in_force || o.tif || "day").toUpperCase()}</td>
                       <td className="px-2 py-1.5"><span className="text-cyan-400 text-[10px] font-semibold">{status}</span></td>
                       <td className="px-2 py-1.5 font-mono text-[11px] text-slate-400">{subDisplay}</td>
                       <td className="px-2 py-1.5 font-mono text-[11px] text-slate-400">--</td>
@@ -346,7 +362,10 @@ export default function Trades() {
                       <td className="px-2 py-1.5 font-mono text-[11px] text-slate-400">1</td>
                       <td className="px-2 py-1.5">
                         <div className="flex items-center gap-1">
-                          <button className="px-1.5 py-0.5 bg-slate-900 border border-slate-700 rounded text-[9px] text-slate-300 hover:bg-slate-700">Mod</button>
+                          <button onClick={() => {
+                            handleCancelOrder(o.id);
+                            setOrderForm({ symbol: sym, side: side, type: typ || "Limit", qty: String(qty), limitPrice: o.limit_price || "", stopPrice: o.stop_price || "", tif: (o.time_in_force || "day").toUpperCase() });
+                          }} className="px-1.5 py-0.5 bg-slate-900 border border-slate-700 rounded text-[9px] text-slate-300 hover:bg-slate-700" title="Cancel & replace: fills Quick Execute with this order">Mod</button>
                           <button onClick={() => handleCancelOrder(o.id)} className="px-1.5 py-0.5 bg-slate-900 border border-slate-700 rounded text-[9px] text-red-400 hover:bg-red-500/20">Cxl</button>
                         </div>
                       </td>

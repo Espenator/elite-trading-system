@@ -145,10 +145,10 @@ function VarRow({ symbol, weight, var95, var99, contribution, color }) {
   return (
     <tr className="border-b border-aurora-border hover:bg-aurora-muted/20 text-xs">
       <td className="py-1.5 px-2 font-mono font-bold" style={{ color: color || C.cyan }}>{symbol}</td>
-      <td className="py-1.5 px-2 text-right text-slate-300">{weight}</td>
-      <td className="py-1.5 px-2 text-right text-amber-400">{var95}</td>
-      <td className="py-1.5 px-2 text-right text-red-400">{var99}</td>
-      <td className="py-1.5 px-2 text-right text-slate-300">{contribution}</td>
+      <td className="py-1.5 px-2 text-right text-slate-300">{Number(weight).toFixed(1)}%</td>
+      <td className="py-1.5 px-2 text-right text-amber-400">{Number(var95).toFixed(2)}%</td>
+      <td className="py-1.5 px-2 text-right text-red-400">{Number(var99).toFixed(2)}%</td>
+      <td className="py-1.5 px-2 text-right text-slate-300">{Number(contribution).toFixed(1)}%</td>
     </tr>
   );
 }
@@ -902,8 +902,8 @@ export default function RiskIntelligence() {
       'KILL SWITCH: This will CLOSE ALL POSITIONS and HALT TRADING.\n\nAre you absolutely sure?'
     )) return;
     try {
-            await fetch(getApiUrl('risk') + `/emergency/${action.toLowerCase()}`, { method: 'POST' });
-handleRefresh();
+      await fetch(getApiUrl('risk') + `/emergency/${action.toLowerCase()}`, { method: 'POST' });
+      handleRefresh();
     } catch (err) {
       log.error(`Emergency ${action} failed:`, err);
     }

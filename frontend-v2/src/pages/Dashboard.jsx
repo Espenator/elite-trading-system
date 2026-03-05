@@ -1215,6 +1215,22 @@ export default function Dashboard() {
     }
   }, []);
 
+  const handleExportCSV = useCallback(() => {
+    const data = processedSignals;
+    if (!data.length) return;
+    const headers = ["symbol","direction","score","entry","target","stop","rMultiple","kellyPercent"];
+    const rows = data.map(s => headers.map(h => `"${s[h] ?? ""}"`).join(","));
+    const csv = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "signals.csv"; a.click();
+    URL.revokeObjectURL(url);
+  }, [processedSignals]);
+
+  const handleSpawnAgent = useCallback(() => {
+    window.location.href = "/agents";
+  }, []);
+
   // --- KEYBOARD SHORTCUTS ---
   useEffect(() => {
     const handler = (e) => {
@@ -1224,6 +1240,7 @@ export default function Dashboard() {
       }
       if (e.key === "F7") {
         e.preventDefault();
+        handleExportCSV();
       }
       if (
         e.key === "n" &&
@@ -1231,12 +1248,12 @@ export default function Dashboard() {
         !e.metaKey &&
         document.activeElement?.tagName !== "INPUT"
       ) {
-        /* spawn agent */
+        handleSpawnAgent();
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [handleRunScan]);
+  }, [handleRunScan, handleExportCSV, handleSpawnAgent]);
 
   // Safe data extraction
   const portfolio = portfolioData?.portfolio || portfolioData || {};
@@ -2186,10 +2203,10 @@ export default function Dashboard() {
           >
             Run Scan [F5]
           </button>
-          <button className="bg-[#1e293b] hover:bg-[#1e293b]/80 text-white px-2 py-0.5 rounded">
+          <button onClick={handleSpawnAgent} className="bg-[#1e293b] hover:bg-[#1e293b]/80 text-white px-2 py-0.5 rounded">
             Spawn [N]
           </button>
-          <button className="bg-[#1e293b] hover:bg-[#1e293b]/80 text-white px-2 py-0.5 rounded">
+          <button onClick={handleExportCSV} className="bg-[#1e293b] hover:bg-[#1e293b]/80 text-white px-2 py-0.5 rounded">
             Export [F7]
           </button>
           <button
