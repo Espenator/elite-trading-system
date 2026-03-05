@@ -234,15 +234,26 @@ def validate_api_key(provider: str, api_key: str, secret_key: str = "") -> Dict[
     """Validate API key by testing actual connection to provider."""
     if provider == "alpaca":
         try:
-            from app.services.alpaca_service import AlpacaService
-            svc = AlpacaService(api_key=api_key, secret_key=secret_key)
-            account = svc.get_account()
-            return {
-                "valid": True,
-                "provider": provider,
-                "message": f"Connected - Account {account.get('account_number', 'OK')}",
-                "details": {"status": account.get("status"), "equity": str(account.get("equity", ""))},
-            }
+            import httpx
+            # Use direct sync HTTP call instead of async AlpacaService.get_account()
+            base_url = "https://paper-api.alpaca.markets"
+            resp = httpx.get(
+                f"{base_url}/v2/account",
+                headers={
+                    "APCA-API-KEY-ID": api_key,
+                    "APCA-API-SECRET-KEY": secret_key,
+                },
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                account = resp.json()
+                return {
+                    "valid": True,
+                    "provider": provider,
+                    "message": f"Connected - Account {account.get('account_number', 'OK')}",
+                    "details": {"status": account.get("status"), "equity": str(account.get("equity", ""))},
+                }
+            return {"valid": False, "provider": provider, "message": f"HTTP {resp.status_code}: {resp.text[:200]}"}
         except Exception as e:
             return {"valid": False, "provider": provider, "message": str(e)}
 

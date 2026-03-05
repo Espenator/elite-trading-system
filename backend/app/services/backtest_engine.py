@@ -152,7 +152,7 @@ class BacktestEngine:
         profit_factor = (
             float(returns[returns > 0].sum() / abs(returns[returns < 0].sum()))
             if len(neg_returns) > 0 and abs(returns[returns < 0].sum()) > 0
-            else float('inf')
+            else 999.0  # Cap instead of inf for JSON serialization safety
         )
         kelly_trades = [t for t in trades if t.get("kelly_sized")]
         kelly_efficiency = len(kelly_trades) / len(trades) if trades else 0
@@ -177,7 +177,7 @@ class BacktestEngine:
             "final_equity": round(equity, 2),
             "trades_detail": trades,
             "sortino": round(sortino, 4),
-            "profit_factor": round(profit_factor, 4) if profit_factor != float('inf') else "inf",
+            "profit_factor": round(profit_factor, 4),
             "kelly_efficiency": round(kelly_efficiency, 4),
             "avg_kelly_pnl": round(avg_kelly_pnl, 2),
             "avg_non_kelly_pnl": round(avg_non_kelly_pnl, 2),

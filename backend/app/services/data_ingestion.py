@@ -414,14 +414,13 @@ class DataIngestionService:
 
         # Try to get SPY/QQQ close from DuckDB (already ingested via Alpaca)
         try:
-            conn = self.store._get_conn()
             for etf in ["SPY", "QQQ"]:
-                etf_df = conn.execute(f"""
+                etf_df = self.store.query(f"""
                     SELECT date, close as {etf.lower()}_close
                     FROM daily_ohlcv
-                    WHERE symbol = '{etf}'
+                    WHERE symbol = ?
                     ORDER BY date
-                """).fetchdf()
+                """, [etf]).fetchdf()
                 if not etf_df.empty:
                     etf_df["date"] = pd.to_datetime(etf_df["date"]).dt.date
                     df = df.merge(etf_df, on="date", how="left", suffixes=("", "_ohlcv"))
