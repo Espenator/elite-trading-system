@@ -162,13 +162,13 @@ export default function Patterns() {
   const defaultFilters = {
     search: "",
     priceRange: [0, 500],
-    marketCap: ["mega", "large", "mid"],
-    exchanges: ["NASDAQ", "NYSE"],
+    marketCap: [], // show all by default; was ["mega","large","mid"] which excluded stocks without parseable marketCap
+    exchanges: [], // show all by default
     assetType: "stocks",
-    minVolume: 500000,
-    rsiRange: [20, 80],
+    minVolume: 0, // was 500000; show all, user can raise
+    rsiRange: [0, 100],
     patternTypes: [],
-    patternDirection: "ALL", // ALL, bullish, bearish, neutral
+    patternDirection: "ALL",
     minConfidence: 0,
     onlyActivePatterns: false,
   };
@@ -257,6 +257,12 @@ export default function Patterns() {
   }, [stocks, patternByTicker]);
 
   const filteredStocks = useMemo(() => {
+    const priceRange = Array.isArray(filters.priceRange) && filters.priceRange.length >= 2
+      ? filters.priceRange
+      : [0, 1000];
+    const rsiRange = Array.isArray(filters.rsiRange) && filters.rsiRange.length >= 2
+      ? filters.rsiRange
+      : [0, 100];
     return enrichedStocks.filter((s) => {
       if (
         filters.search &&
@@ -264,12 +270,12 @@ export default function Patterns() {
         !s.name.toLowerCase().includes(filters.search.toLowerCase())
       )
         return false;
-      if (s.price < filters.priceRange[0] || s.price > filters.priceRange[1])
+      if (s.price < priceRange[0] || s.price > priceRange[1])
         return false;
       if (s.volume < filters.minVolume) return false;
       if (
         s.rsi !== null &&
-        (s.rsi < filters.rsiRange[0] || s.rsi > filters.rsiRange[1])
+        (s.rsi < rsiRange[0] || s.rsi > rsiRange[1])
       )
         return false;
       if (filters.onlyActivePatterns && !s.pattern) return false;

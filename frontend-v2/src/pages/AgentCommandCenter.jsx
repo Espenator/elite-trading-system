@@ -718,7 +718,7 @@ export default function AgentCommandCenter() {
               <Button size="xs" onClick={() => handleSpawnTeam("fear_bounce_team", "spawn")} className="bg-red-500/15 text-red-400 border-red-500/40">Spawn Fear Team</Button>
               <Button size="xs" onClick={() => handleSpawnTeam("greed_momentum_team", "spawn")} className="bg-emerald-500/15 text-emerald-400 border-emerald-500/40">Spawn Greed Team</Button>
               <Button size="xs" onClick={() => handleSpawnTeam("all", "kill")} className="hover:border-red-500 hover:text-red-500">Kill All</Button>
-              <Slider min={0} max={5} step={0.1} value={bias} onChange={e => handleBiasChange(Number(e.target.value))} suffix="x" formatValue={v => Number(v).toFixed(1)} className="flex-1 min-w-0 max-w-[200px]" />
+              <Slider min={0} max={5} step={0.1} value={bias} onChange={(v) => handleBiasChange(v)} suffix="x" formatValue={v => Number(v).toFixed(1)} className="flex-1 min-w-0 max-w-[200px]" />
               <Button size="xs" onClick={handleBiasSubmit}>Apply</Button>
               {biasOverrideSent && <span className="text-emerald-400 text-xs">Saved</span>}
             </div>

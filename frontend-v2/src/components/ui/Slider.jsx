@@ -11,7 +11,7 @@ const defaultTrack =
  * @param {number} max - Maximum value
  * @param {number} [step=1] - Step value
  * @param {number} value - Current value (controlled)
- * @param {function} [onChange] - (e) => {} or (value: number) => {}; omit for read-only
+ * @param {function} [onChange] - (value: number) => {}; called with parsed number, not the event
  * @param {string} [suffix] - Shown after value (e.g. "%", "s")
  * @param {function} [formatValue] - (value) => string for display; default is value.toString()
  * @param {boolean} [disabled] - Disable interaction
@@ -45,7 +45,11 @@ function Slider({
     !disabled && !readOnly && typeof onChange === "function";
   const displayValue = formatValue ? formatValue(value) : value;
   const handleChange = (e) => {
-    if (typeof onChange === "function") onChange(e);
+    if (typeof onChange === "function") {
+      const raw = e.target.value;
+      const num = step >= 1 ? parseInt(raw, 10) : parseFloat(raw);
+      onChange(Number.isNaN(num) ? value : num);
+    }
   };
 
   return (
