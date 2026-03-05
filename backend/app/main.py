@@ -848,67 +848,74 @@ async def readiness():
 @app.get("/health")
 async def health_check():
     """Health check with ML + event pipeline + council + DuckDB status."""
-    ml_status = {}
     try:
-        from app.modules.ml_engine.model_registry import get_registry
-        ml_status["model_registry"] = (
-            get_registry().get_status()
-            if hasattr(get_registry(), "get_status")
-            else "loaded"
-        )
-    except Exception:
-        ml_status["model_registry"] = "unavailable"
+        ml_status = {}
+        try:
+            from app.modules.ml_engine.model_registry import get_registry
+            ml_status["model_registry"] = (
+                get_registry().get_status()
+                if hasattr(get_registry(), "get_status")
+                else "loaded"
+            )
+        except Exception:
+            ml_status["model_registry"] = "unavailable"
 
-    try:
-        from app.modules.ml_engine.drift_detector import get_drift_monitor
-        ml_status["drift_monitor"] = (
-            get_drift_monitor().get_status()
-            if hasattr(get_drift_monitor(), "get_status")
-            else "loaded"
-        )
-    except Exception:
-        ml_status["drift_monitor"] = "unavailable"
+        try:
+            from app.modules.ml_engine.drift_detector import get_drift_monitor
+            ml_status["drift_monitor"] = (
+                get_drift_monitor().get_status()
+                if hasattr(get_drift_monitor(), "get_status")
+                else "loaded"
+            )
+        except Exception:
+            ml_status["drift_monitor"] = "unavailable"
 
-    # Event pipeline status
-    event_pipeline = {}
-    if _message_bus:
-        event_pipeline["message_bus"] = _message_bus.get_metrics()
-    if _alpaca_stream:
-        event_pipeline["alpaca_stream"] = _alpaca_stream.get_status()
-    if _event_signal_engine:
-        event_pipeline["signal_engine"] = _event_signal_engine.get_status()
-    if _council_gate:
-        event_pipeline["council_gate"] = _council_gate.get_status()
-    if _order_executor:
-        event_pipeline["order_executor"] = _order_executor.get_status()
+        # Event pipeline status
+        event_pipeline = {}
+        if _message_bus:
+            event_pipeline["message_bus"] = _message_bus.get_metrics()
+        if _alpaca_stream:
+            event_pipeline["alpaca_stream"] = _alpaca_stream.get_status()
+        if _event_signal_engine:
+            event_pipeline["signal_engine"] = _event_signal_engine.get_status()
+        if _council_gate:
+            event_pipeline["council_gate"] = _council_gate.get_status()
+        if _order_executor:
+            event_pipeline["order_executor"] = _order_executor.get_status()
 
-    # Agent weights
-    agent_weights = {}
-    try:
-        from app.council.weight_learner import get_weight_learner
-        learner = get_weight_learner()
-        agent_weights = {
-            "weights": learner.get_weights(),
-            "update_count": learner.update_count,
+        # Agent weights
+        agent_weights = {}
+        try:
+            from app.council.weight_learner import get_weight_learner
+            learner = get_weight_learner()
+            agent_weights = {
+                "weights": learner.get_weights(),
+                "update_count": learner.update_count,
+            }
+        except Exception:
+            agent_weights = {"status": "unavailable"}
+
+        # DuckDB status
+        duckdb_status = {}
+        try:
+            from app.data.duckdb_storage import duckdb_store
+            duckdb_status = duckdb_store.health_check()
+        except Exception:
+            duckdb_status = {"status": "unavailable"}
+
+        return {
+            "status": "healthy",
+            "version": "3.2.0",
+            "brand": "Embodier Trader",
+            "architecture": "council-controlled",
+            "ml_engine": ml_status,
+            "event_pipeline": event_pipeline,
+            "agent_weights": agent_weights,
+            "duckdb": duckdb_status,
         }
-    except Exception:
-        agent_weights = {"status": "unavailable"}
-
-    # DuckDB status
-    duckdb_status = {}
-    try:
-        from app.data.duckdb_storage import duckdb_store
-        duckdb_status = duckdb_store.health_check()
-    except Exception:
-        duckdb_status = {"status": "unavailable"}
-
-    return {
-        "status": "healthy",
-        "version": "3.2.0",
-        "brand": "Embodier Trader",
-        "architecture": "council-controlled",
-        "ml_engine": ml_status,
-        "event_pipeline": event_pipeline,
-        "agent_weights": agent_weights,
-        "duckdb": duckdb_status,
-    }
+    except Exception as exc:
+        log.exception("Health check failed")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "unhealthy", "error": str(exc)},
+        )
