@@ -215,6 +215,124 @@ class DuckDBStorage:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_postmortems_symbol ON postmortems (symbol)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_postmortems_decision ON postmortems (council_decision_id)")
 
+        # ── Phase 1: LLM Router telemetry ────────────────────────────
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS llm_calls (
+                call_id VARCHAR PRIMARY KEY,
+                ts TIMESTAMP NOT NULL,
+                agent_name VARCHAR NOT NULL,
+                stage INTEGER,
+                provider VARCHAR NOT NULL,
+                model VARCHAR,
+                latency_ms DOUBLE,
+                cost_usd DOUBLE DEFAULT 0,
+                tokens_in INTEGER DEFAULT 0,
+                tokens_out INTEGER DEFAULT 0,
+                router_reason VARCHAR,
+                council_decision_id VARCHAR,
+                outcome_correct BOOLEAN
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS adaptive_routing (
+                agent_name VARCHAR NOT NULL,
+                provider VARCHAR NOT NULL,
+                avg_accuracy DOUBLE DEFAULT 0.5,
+                avg_latency_ms DOUBLE DEFAULT 0,
+                total_cost DOUBLE DEFAULT 0,
+                call_count INTEGER DEFAULT 0,
+                PRIMARY KEY (agent_name, provider)
+            )
+        """)
+
+        # ── Phase 2: Debate + Red Team logs ──────────────────────────
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS debate_logs (
+                id VARCHAR PRIMARY KEY,
+                council_decision_id VARCHAR NOT NULL,
+                symbol VARCHAR NOT NULL,
+                bull_arguments VARCHAR,
+                bear_arguments VARCHAR,
+                judge_summary VARCHAR,
+                quality_score DOUBLE,
+                winner VARCHAR,
+                evidence_breadth DOUBLE,
+                final_spread DOUBLE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS red_team_logs (
+                id VARCHAR PRIMARY KEY,
+                council_decision_id VARCHAR NOT NULL,
+                symbol VARCHAR NOT NULL,
+                scenarios_json VARCHAR,
+                worst_case_loss DOUBLE,
+                scenarios_survived INTEGER,
+                overall_recommendation VARCHAR,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # ── Phase 3: Cognitive 1000 — Knowledge system ───────────────
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS agent_memories (
+                memory_id VARCHAR PRIMARY KEY,
+                agent_name VARCHAR NOT NULL,
+                trade_id VARCHAR,
+                symbol VARCHAR NOT NULL,
+                timestamp TIMESTAMP NOT NULL,
+                regime VARCHAR,
+                market_context VARCHAR,
+                agent_observation VARCHAR,
+                agent_vote VARCHAR,
+                confidence DOUBLE,
+                embedding FLOAT[],
+                outcome_r_multiple DOUBLE,
+                was_correct BOOLEAN
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS heuristics (
+                heuristic_id VARCHAR PRIMARY KEY,
+                agent_name VARCHAR NOT NULL,
+                regime VARCHAR,
+                pattern_name VARCHAR NOT NULL,
+                description TEXT,
+                condition_vector FLOAT[],
+                trigger_conditions VARCHAR,
+                win_rate DOUBLE NOT NULL,
+                avg_r_multiple DOUBLE,
+                sample_size INTEGER NOT NULL,
+                bayesian_confidence DOUBLE,
+                decay_factor DOUBLE DEFAULT 1.0,
+                active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_used_at TIMESTAMP
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS knowledge_edges (
+                edge_id VARCHAR PRIMARY KEY,
+                source_heuristic_id VARCHAR NOT NULL,
+                target_heuristic_id VARCHAR NOT NULL,
+                relationship VARCHAR NOT NULL,
+                strength DOUBLE DEFAULT 0.5,
+                co_occurrence_count INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Indexes for new tables
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_calls_agent ON llm_calls (agent_name, ts)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_calls_decision ON llm_calls (council_decision_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_debate_decision ON debate_logs (council_decision_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_redteam_decision ON red_team_logs (council_decision_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_agent ON agent_memories (agent_name, symbol)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_trade ON agent_memories (trade_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_heuristics_agent ON heuristics (agent_name, regime)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_knowledge_edges_src ON knowledge_edges (source_heuristic_id)")
+
         logger.info("DuckDB analytics schema initialized at %s", self._db_path)
 
     # ------------------------------------------------------------------

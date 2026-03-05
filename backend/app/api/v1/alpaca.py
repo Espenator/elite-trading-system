@@ -24,7 +24,7 @@ async def get_account():
         return result
     except Exception as e:
         logger.error("alpaca/account failed: %s", e)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        return {"status": "unavailable", "error": "Broker connection unavailable"}
 
 
 @router.get("/positions")
@@ -37,7 +37,7 @@ async def get_positions():
         return result
     except Exception as e:
         logger.error("alpaca/positions failed: %s", e)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        return []
 
 
 @router.get("/orders")
