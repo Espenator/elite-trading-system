@@ -8,6 +8,7 @@ pandas==2.2.3
 numpy==2.1.3
 duckdb==1.1.3
 alpaca-py==0.30.1
+websockets>=10.4,<14  # 14+ breaks alpaca-py (extra_headers). Pin to 13.x: pip install "websockets==13.1"
 psutil==6.1.0
 xgboost==2.1.3
 youtube-transcript-api==0.6.0

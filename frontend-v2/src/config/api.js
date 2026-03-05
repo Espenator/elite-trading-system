@@ -64,6 +64,7 @@ const API_CONFIG = {
     openclaw: "/openclaw", // OpenClaw bridge: regime, top candidates, health, scan
     market: "/market", // Market indices (SPY, QQQ, DIA) for Dashboard
     marketIndices: "/market/indices", // GET indices snapshot for Dashboard top bar
+    openclawRegime: "/openclaw/regime", // Regime state for Signal Intelligence / Market Regime
     mlBrain: "/ml-brain", // ML brain model status + predictions
     riskShield: "/risk-shield", // RiskShield emergency controls + safety checks
         kellySizer: "/risk/kelly-sizer", // Bug #19 fix: was /kelly-sizer, needs /risk prefix
@@ -135,12 +136,17 @@ const API_CONFIG = {
  * so 'backtest/results' becomes '/backtest/results' not 'backtest/results'.
  */
 export const getApiUrl = (endpoint) => {
-  const mapped = API_CONFIG.endpoints[endpoint];
+  // If given a full path (e.g. /api/v1/agents), avoid double prefix
+  const ep = typeof endpoint === "string" ? endpoint.trim() : "";
+  if (ep.startsWith("/api/v1")) {
+    return `${API_CONFIG.BASE_URL}${ep}`;
+  }
+  const mapped = API_CONFIG.endpoints[ep];
   if (mapped) {
     return `${API_CONFIG.BASE_URL}${API_CONFIG.API_PREFIX}${mapped}`;
   }
   // Fallback: treat endpoint as raw path, ensure leading slash
-  const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const path = ep.startsWith('/') ? ep : `/${ep}`;
   return `${API_CONFIG.BASE_URL}${API_CONFIG.API_PREFIX}${path}`;
 };
 
@@ -150,7 +156,7 @@ export const getApiUrl = (endpoint) => {
 export const getWsBaseUrl = () =>
   API_CONFIG.WS_URL ||
   (typeof window !== "undefined"
-    ? `ws://${window.location.host}/ws`
+    ? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`
     : "ws://localhost:3000/ws");
 
 /**

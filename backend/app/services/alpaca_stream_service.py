@@ -6,6 +6,7 @@ and graceful shutdown.
 
 Requires env vars: ALPACA_API_KEY, ALPACA_SECRET_KEY
 """
+
 import asyncio
 import logging
 import os
@@ -20,12 +21,24 @@ class AlpacaStreamService:
 
     MAX_RECONNECT_DELAY = 60  # seconds
     INITIAL_RECONNECT_DELAY = 2  # seconds
+    # When Alpaca returns "connection limit exceeded", fall back to mock after this many failures (0 = never)
+    CONNECTION_LIMIT_FALLBACK_AFTER = int(
+        os.getenv("ALPACA_STREAM_FALLBACK_AFTER_LIMIT", "1")
+    )
 
     def __init__(self, message_bus, symbols: Optional[List[str]] = None):
         self.message_bus = message_bus
         self.symbols = symbols or [
-            "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA",
-            "TSLA", "META", "SPY", "QQQ", "IWM",
+            "AAPL",
+            "MSFT",
+            "GOOGL",
+            "AMZN",
+            "NVDA",
+            "TSLA",
+            "META",
+            "SPY",
+            "QQQ",
+            "IWM",
         ]
         self._stream = None
         self._running = False
@@ -34,6 +47,7 @@ class AlpacaStreamService:
         self._last_bar_time: Optional[float] = None
         self._start_time: Optional[float] = None
         self._use_mock = False
+        self._connection_limit_failures = 0
 
     async def start(self) -> None:
         """Start streaming with auto-reconnect loop."""
@@ -63,6 +77,45 @@ class AlpacaStreamService:
             except asyncio.CancelledError:
                 logger.info("AlpacaStreamService cancelled")
                 break
+            except TypeError as e:
+                if "extra_headers" in str(e) or "create_connection" in str(e):
+                    logger.warning(
+                        "Alpaca websocket failed (incompatible websockets library). "
+                        'Install: pip install "websockets>=10.4,<14" then restart. Using MOCK stream.'
+                    )
+                    self._use_mock = True
+                    await self._run_mock_stream()
+                    return
+                raise
+            except ValueError as e:
+                err_msg = str(e).lower()
+                if "connection limit exceeded" in err_msg or "auth failed" in err_msg:
+                    self._connection_limit_failures += 1
+                    fallback_after = self.CONNECTION_LIMIT_FALLBACK_AFTER
+                    if (
+                        fallback_after > 0
+                        and self._connection_limit_failures >= fallback_after
+                    ):
+                        logger.warning(
+                            "Alpaca data stream: connection limit exceeded (%d time(s)). "
+                            "Only one WebSocket per account is allowed. Falling back to MOCK stream. "
+                            "To free the slot: close other apps/tabs using the same Alpaca API key, or set "
+                            "DISABLE_ALPACA_DATA_STREAM=1 if you use OpenClaw --stream separately.",
+                            self._connection_limit_failures,
+                        )
+                        self._use_mock = True
+                        await self._run_mock_stream()
+                        return
+                    logger.warning(
+                        "Alpaca data stream: %s. Only one websocket per account is allowed. "
+                        "Close other apps/tabs using the same API key, then retry. Backing off %ds.",
+                        e,
+                        self.MAX_RECONNECT_DELAY,
+                    )
+                    self._reconnect_delay = self.MAX_RECONNECT_DELAY
+                    await asyncio.sleep(self._reconnect_delay)
+                    continue
+                raise
             except Exception:
                 logger.exception(
                     "Alpaca stream disconnected — reconnecting in %ds",
@@ -100,14 +153,22 @@ class AlpacaStreamService:
 
             bar_data = {
                 "symbol": bar.symbol,
-                "timestamp": bar.timestamp.isoformat() if hasattr(bar.timestamp, "isoformat") else str(bar.timestamp),
+                "timestamp": (
+                    bar.timestamp.isoformat()
+                    if hasattr(bar.timestamp, "isoformat")
+                    else str(bar.timestamp)
+                ),
                 "open": float(bar.open),
                 "high": float(bar.high),
                 "low": float(bar.low),
                 "close": float(bar.close),
                 "volume": int(bar.volume),
                 "vwap": float(bar.vwap) if hasattr(bar, "vwap") and bar.vwap else None,
-                "trade_count": int(bar.trade_count) if hasattr(bar, "trade_count") and bar.trade_count else None,
+                "trade_count": (
+                    int(bar.trade_count)
+                    if hasattr(bar, "trade_count") and bar.trade_count
+                    else None
+                ),
                 "source": "alpaca_websocket",
             }
 
@@ -122,7 +183,9 @@ class AlpacaStreamService:
                 )
 
         self._stream.subscribe_bars(_handle_bar, *self.symbols)
-        logger.info("Alpaca WebSocket connected — subscribed to %d symbols", len(self.symbols))
+        logger.info(
+            "Alpaca WebSocket connected — subscribed to %d symbols", len(self.symbols)
+        )
         await self._stream._run_forever()
 
     async def _run_mock_stream(self) -> None:

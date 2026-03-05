@@ -135,6 +135,9 @@ async def get_portfolio():
             "positions": [],
             "history": [],
             "error": "Alpaca API unavailable or not configured",
+            "totalEquity": 0,
+            "dayPnL": 0,
+            "deployedPercent": 0,
         }
 
     positions = []
@@ -163,6 +166,19 @@ async def get_portfolio():
     short_count = sum(1 for p in positions if p.get("side") == "Short")
     at_risk = sum(p.get("riskScore", 0) for p in positions)
 
+    # Dashboard header expects totalEquity, dayPnL, deployedPercent
+    equity = 0.0
+    last_equity = 0.0
+    try:
+        account = await alpaca_service.get_account()
+        if account:
+            equity = _safe_float(account.get("equity"), 0.0)
+            last_equity = _safe_float(account.get("last_equity"), equity)
+    except Exception:
+        pass
+    day_pnl = (equity - last_equity) if last_equity else 0.0
+    deployed_pct = round((total_value / equity * 100), 1) if equity > 0 else 0.0
+
     return {
         "positions": positions,
         "history": history,
@@ -173,7 +189,6 @@ async def get_portfolio():
             "longCount": long_count,
             "shortCount": short_count,
             "portfolioHeat": round(at_risk / max(len(positions), 1), 2),
-            # Risk & drawdown integration (placeholders until enrichment)
             "kelly_avg_edge": round(sum(p.get("kellyEdge", 0) for p in positions) / max(1, len(positions)), 4),
             "kelly_avg_quality": round(sum(p.get("signalQuality", 0) for p in positions) / max(1, len(positions)), 3),
             "kelly_utilization": round(sum(1 for p in positions if p.get("kellyEdge", 0) > 0) / max(1, len(positions)), 3),
@@ -181,4 +196,7 @@ async def get_portfolio():
             "concentration_risk": "HIGH" if any(p.get("portfolioPct", 0) > 30 for p in positions) else "NORMAL",
             "daily_pnl_est": round(total_unrealized, 2),
         },
+        "totalEquity": round(equity, 2),
+        "dayPnL": round(day_pnl, 2),
+        "deployedPercent": deployed_pct,
     }

@@ -2,13 +2,18 @@
 Elite Trading System - Application Configuration
 All fields match EXACTLY what services reference via settings.FIELD_NAME
 """
+from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Resolve .env relative to backend/ root (parent of app/core/)
+_BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
+_ENV_FILE = _BACKEND_DIR / ".env"
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         extra="ignore",
-        env_file=".env",
+        env_file=str(_ENV_FILE),
         env_file_encoding="utf-8",
     )
 

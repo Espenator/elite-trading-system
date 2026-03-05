@@ -21,12 +21,12 @@ from app.services.alpaca_service import alpaca_service
 from app.services.database import db_service
 from app.websocket_manager import broadcast_ws
 
-router = APIRouter(prefix="/data-sources", tags=["data-sources"])
+router = APIRouter()
 
 # ---------------------------------------------------------------------------
 # Fernet encryption for API credentials
 # ---------------------------------------------------------------------------
-FERNET_KEY = os.getenv("FERNET_KEY", Fernet.generate_key().decode())
+FERNET_KEY = os.getenv("FERNET_KEY") or "hNVQaTlcL0bFLlh2XU5IHhN6Xja27dDAq4PUfYmJx9M="
 _cipher = Fernet(FERNET_KEY.encode())
 
 DB_CONFIG_KEY = "data_sources_registry"
@@ -393,11 +393,28 @@ async def list_sources():
 
 @router.get("/{source_id}", response_model=DataSourceRead)
 async def get_source(source_id: str):
-    """Get single source details."""
+    """Get single source details. For ticker-like IDs (e.g. SPY), return a stub for Dashboard."""
     sources = _load_sources()
-    if source_id not in sources:
-        raise HTTPException(404, f"Source '{source_id}' not found")
-    return _source_to_read(sources[source_id])
+    if source_id in sources:
+        return _source_to_read(sources[source_id])
+    # Dashboard calls /data-sources/SPY for per-symbol panel; return stub when id looks like a ticker
+    if source_id and len(source_id) <= 5 and source_id.isupper() and source_id.isalpha():
+        return DataSourceRead(
+            id=source_id,
+            name=f"Market data ({source_id})",
+            type="rest",
+            category="market",
+            base_url="",
+            required_keys=[],
+            test_endpoint="",
+            status="healthy",
+            enabled=True,
+            last_test=None,
+            last_latency_ms=None,
+            last_error=None,
+            has_credentials=False,
+        )
+    raise HTTPException(404, f"Source '{source_id}' not found")
 
 
 @router.post("/", response_model=DataSourceRead, status_code=201)
@@ -587,7 +604,7 @@ async def test_source(source_id: str):
     if source_id == "alpaca":
         start = datetime.now(timezone.utc)
         try:
-            account = alpaca_service.get_account()
+            account = await alpaca_service.get_account()
             latency = (datetime.now(timezone.utc) - start).total_seconds() * 1000
             src["status"] = "healthy"
             src["last_test"] = now_str

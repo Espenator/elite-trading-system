@@ -93,8 +93,8 @@ _AGENTS_TEMPLATE = [
         "status": "running",
         "cpuPercent": 12,
         "memoryMb": 256,
-        "uptime": "72h 15m",
-        "lastActionTimestamp": "2026-02-18T13:02:15Z",
+        "uptime": "0m",
+        "lastActionTimestamp": None,
         "lastAction": "Pulled FRED CPI, SEC 8-K for AAPL",
         "currentTask": "Scanning Finviz Elite + Alpaca bars (next in 45s)",
         "description": "Scans Finviz Elite, Alpaca, Unusual Whales; pulls FRED economic data, SEC EDGAR filings. Runs every 60s during market hours.",
@@ -110,8 +110,8 @@ _AGENTS_TEMPLATE = [
         "status": "running",
         "cpuPercent": 18,
         "memoryMb": 512,
-        "uptime": "72h 15m",
-        "lastActionTimestamp": "2026-02-18T13:01:48Z",
+        "uptime": "0m",
+        "lastActionTimestamp": None,
         "lastAction": "Generated composite score 87 for MSFT (Bull Flag)",
         "currentTask": "Applying momentum algo to S&P 500 watchlist",
         "description": "Takes raw data from Market Data Agent; applies technical analysis, chart patterns, momentum algos; generates composite signal scores (0-100).",
@@ -127,8 +127,8 @@ _AGENTS_TEMPLATE = [
         "status": "running",
         "cpuPercent": 8,
         "memoryMb": 2048,
-        "uptime": "72h 15m",
-        "lastActionTimestamp": "2026-02-18T13:00:30Z",
+        "uptime": "0m",
+        "lastActionTimestamp": None,
         "lastAction": "Inference batch completed (142 tickers)",
         "currentTask": "Idle until next Sunday retrain",
         "description": "XGBoost/LightGBM on GPU via CUDA. Trains on historical outcomes. Sunday full retrain (schedulable). Flywheel: outcome resolver feeds accuracy back.",
@@ -140,8 +140,8 @@ _AGENTS_TEMPLATE = [
         "status": "running",
         "cpuPercent": 5,
         "memoryMb": 384,
-        "uptime": "72h 15m",
-        "lastActionTimestamp": "2026-02-18T12:58:12Z",
+        "uptime": "0m",
+        "lastActionTimestamp": None,
         "lastAction": "Aggregated sentiment for NVDA: 78 (Stockgeist + News + X)",
         "currentTask": "Polling Discord channels",
         "description": "Aggregates from Stockgeist, News API, Discord, X (Twitter). NLP sentiment scoring per ticker; unusual sentiment spike detection.",
@@ -156,8 +156,8 @@ _AGENTS_TEMPLATE = [
         "status": "running",
         "cpuPercent": 3,
         "memoryMb": 128,
-        "uptime": "48h 30m",
-        "lastActionTimestamp": "2026-02-18T12:55:00Z",
+        "uptime": "0m",
+        "lastActionTimestamp": None,
         "lastAction": "Extracted 5 ideas from 'Top 5 Swing Trade Setups'",
         "currentTask": "Processing: 'Fed Rate Decision Analysis'",
         "description": "Ingests transcripts from financial YouTube videos; extracts trading ideas, technical analysis concepts; feeds into ML feature engineering. 24/7 self-learning flywheel.",
@@ -528,6 +528,12 @@ async def get_swarm_topology():
     }
 
 
+@router.get("/swarm-topology/{symbol}")
+async def get_swarm_topology_for_symbol(symbol: str):
+    """Same as GET /swarm-topology; symbol is optional (Dashboard per-symbol panel)."""
+    return await get_swarm_topology()
+
+
 # --- Conference Pipeline ---
 @router.get("/conference")
 async def get_conference_status():
@@ -547,6 +553,12 @@ async def get_conference_status():
         },
         "total_conferences": int(db_service.get_config("conference_count") or 0),
     }
+
+
+@router.get("/consensus")
+async def get_consensus():
+    """Agent consensus for Performance Analytics. Same data as conference when available."""
+    return await get_conference_status()
 
 
 # --- Team Status ---
