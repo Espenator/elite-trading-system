@@ -635,7 +635,7 @@ async def lifespan(app: FastAPI):
     risk_monitor_task = asyncio.create_task(_risk_monitor_loop())
 
     log.info("=" * 60)
-    log.info("Embodier Trader v4.0.0 ONLINE — PRODUCTION (Council-Controlled Intelligence)")
+    log.info("Embodier Trader v3.2.0 ONLINE — PRODUCTION (Council-Controlled Intelligence)")
     log.info("  API: http://localhost:8000/docs")
     log.info("  Health: http://localhost:8000/health")
     log.info("  WS: ws://localhost:8000/ws")
@@ -690,7 +690,7 @@ app = FastAPI(
         if hasattr(settings, "PROJECT_NAME")
         else "Embodier Trader"
     ),
-    version="4.0.0",
+    version="3.2.0",
     lifespan=lifespan,
 )
 app.state.limiter = limiter
