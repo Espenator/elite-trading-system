@@ -58,10 +58,19 @@ export const getPriceLadder = async (symbol = 'SPX') => {
 
 // ─── Order Execution ───────────────────────────────────────
 export const executeOrder = async (order) => {
-  const res = await fetch(getApiUrl('orders'), {
+  const body = {
+    symbol: order.symbol,
+    side: order.side || 'buy',
+    type: order.type || 'market',
+    time_in_force: order.time_in_force || 'day',
+    qty: String(order.quantity || order.qty || 1),
+  };
+  if (order.limit_price) body.limit_price = String(order.limit_price);
+  if (order.stop_price) body.stop_price = String(order.stop_price);
+  const res = await fetch(getApiUrl('orders/advanced'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-    body: JSON.stringify(order),
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
   return res.json();
@@ -76,15 +85,15 @@ export const marketSell = async (symbol, quantity) => {
 };
 
 export const limitBuy = async (symbol, quantity, limitPrice) => {
-  return executeOrder({ symbol, side: 'buy', type: 'limit', quantity, limit_price: limitPrice });
+  return executeOrder({ symbol, side: 'buy', type: 'limit', quantity, limit_price: String(limitPrice) });
 };
 
 export const limitSell = async (symbol, quantity, limitPrice) => {
-  return executeOrder({ symbol, side: 'sell', type: 'limit', quantity, limit_price: limitPrice });
+  return executeOrder({ symbol, side: 'sell', type: 'limit', quantity, limit_price: String(limitPrice) });
 };
 
 export const stopLoss = async (symbol, quantity, stopPrice) => {
-  return executeOrder({ symbol, side: 'sell', type: 'stop', quantity, stop_price: stopPrice });
+  return executeOrder({ symbol, side: 'sell', type: 'stop', quantity, stop_price: String(stopPrice) });
 };
 
 // ─── Advanced Order (Iron Condor, Spreads, etc.) ───────────
@@ -100,9 +109,14 @@ export const executeAdvancedOrder = async (order) => {
 
 // ─── News Feed ─────────────────────────────────────────────
 export const getNewsFeed = async (limit = 20) => {
-  const res = await fetch(`${getApiUrl('sentiment')}/news?limit=${limit}`);
-  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-  return res.json();
+  try {
+    const res = await fetch(getApiUrl('swarmNewsStatus'));
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data.recent_items || []).slice(0, limit);
+  } catch {
+    return [];
+  }
 };
 
 // ─── System Status ─────────────────────────────────────────

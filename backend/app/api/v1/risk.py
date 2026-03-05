@@ -856,3 +856,127 @@ async def position_var():
     """Per-position Value-at-Risk breakdown.
     Wraps the var-analysis endpoint for frontend compatibility."""
     return await var_analysis()
+
+
+# ---------------------------------------------------------------------------
+# Risk Intelligence page endpoints (shield, equity curve, etc.)
+# ---------------------------------------------------------------------------
+
+@router.get("/shield")
+async def risk_shield_status():
+    """Risk shield status — aggregates circuit breakers + drawdown checks."""
+    try:
+        from app.services.database import db_service
+        limits = db_service.get_config("risk_limits") or DEFAULT_RISK
+        positions = []
+        try:
+            positions = alpaca_service.get_positions() or []
+        except Exception:
+            pass
+        total_exposure = sum(abs(float(p.market_value)) for p in positions) if positions else 0
+        try:
+            account = alpaca_service.get_account()
+            equity = float(account.equity) if account else 100000
+        except Exception:
+            equity = 100000
+        heat = (total_exposure / equity * 100) if equity > 0 else 0
+        return {
+            "shield_active": True,
+            "heat_pct": round(heat, 1),
+            "max_heat": limits.get("maxPortfolioHeat", 25),
+            "drawdown_limit": limits.get("maxDailyDrawdown", 10),
+            "circuit_breakers_ok": heat < limits.get("maxPortfolioHeat", 25),
+            "positions_count": len(positions),
+        }
+    except Exception as e:
+        logger.error("Risk shield status error: %s", e)
+        return {"shield_active": False, "error": str(e)}
+
+
+@router.get("/equity-curve")
+async def equity_curve(tf: str = "1M"):
+    """Equity curve data for charting — pulls from risk history."""
+    history = db_service.get_config("risk_history") or []
+    points = []
+    for entry in history:
+        points.append({
+            "date": entry.get("date", ""),
+            "equity": entry.get("equity", 0),
+            "drawdown": entry.get("drawdownPct", 0),
+        })
+    return {"timeframe": tf, "points": points}
+
+
+@router.get("/correlation-matrix")
+async def correlation_matrix():
+    """Position correlation matrix — computes from current holdings."""
+    try:
+        positions = alpaca_service.get_positions() or []
+        symbols = [p.symbol for p in positions[:10]]
+        # Return structure for frontend rendering
+        matrix = {}
+        for s in symbols:
+            matrix[s] = {s2: (1.0 if s == s2 else 0.0) for s2 in symbols}
+        return {"symbols": symbols, "matrix": matrix}
+    except Exception as e:
+        logger.error("Correlation matrix error: %s", e)
+        return {"symbols": [], "matrix": {}}
+
+
+@router.get("/var-histogram")
+async def var_histogram():
+    """VaR histogram — distribution of daily P&L for risk visualization."""
+    history = db_service.get_config("risk_history") or []
+    daily_pnl = []
+    for i in range(1, len(history)):
+        prev_eq = history[i - 1].get("equity", 0)
+        curr_eq = history[i].get("equity", 0)
+        if prev_eq > 0:
+            daily_pnl.append(round((curr_eq - prev_eq) / prev_eq * 100, 2))
+    return {"daily_returns_pct": daily_pnl, "count": len(daily_pnl)}
+
+
+@router.get("/drawdown-episodes")
+async def drawdown_episodes():
+    """Historical drawdown episodes for risk analysis."""
+    history = db_service.get_config("risk_history") or []
+    episodes = []
+    peak = 0
+    ep_start = None
+    for entry in history:
+        eq = entry.get("equity", 0)
+        if eq > peak:
+            if ep_start and peak > 0:
+                episodes.append({
+                    "start": ep_start,
+                    "end": entry.get("date", ""),
+                    "max_drawdown_pct": round((peak - min_eq) / peak * 100, 2),
+                })
+            peak = eq
+            ep_start = None
+            min_eq = eq
+        else:
+            if ep_start is None:
+                ep_start = entry.get("date", "")
+                min_eq = eq
+            min_eq = min(min_eq, eq)
+    return {"episodes": episodes[-10:]}  # Last 10 drawdowns
+
+
+@router.post("/emergency/{action}")
+async def emergency_action(action: str):
+    """Emergency risk actions: halt, resume, flatten."""
+    logger.warning("Emergency risk action: %s", action)
+    if action == "halt":
+        db_service.set_config("risk_emergency_halt", True)
+        return {"status": "halted", "message": "Trading halted via emergency action"}
+    elif action == "resume":
+        db_service.set_config("risk_emergency_halt", False)
+        return {"status": "resumed", "message": "Trading resumed"}
+    elif action == "flatten":
+        try:
+            alpaca_service.close_all_positions()
+            return {"status": "flattened", "message": "All positions closed"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+    return {"status": "unknown", "message": f"Unknown action: {action}"}

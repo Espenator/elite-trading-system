@@ -187,11 +187,23 @@ async def get_recent_orders(limit: int = 10):
 
 # ── Close position ────────────────────────────────────────────────────
 @router.post("/close", dependencies=[Depends(require_auth)])
-async def close_position(symbol: str = Body(...), side: str = Body("all")):
-    """Close a specific position via Alpaca."""
+async def close_position(
+    symbol: Optional[str] = None,
+    request: Request = None,
+):
+    """Close a specific position via Alpaca. Symbol via query param or JSON body."""
+    sym = symbol
+    if not sym:
+        try:
+            body = await request.json()
+            sym = body.get("symbol")
+        except Exception:
+            pass
+    if not sym:
+        raise HTTPException(status_code=400, detail="symbol is required")
     try:
-        result = await alpaca_service.close_position(symbol)
-        return result or {"status": "closed", "symbol": symbol}
+        result = await alpaca_service.close_position(sym)
+        return result or {"status": "closed", "symbol": sym}
     except Exception as e:
         logger.error("close_position failed: %s", e)
         raise HTTPException(status_code=400, detail="Internal server error")

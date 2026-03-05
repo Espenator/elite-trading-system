@@ -1054,8 +1054,7 @@ export default function Dashboard() {
     enabled: !!selectedSymbol,
   });
   const { data: dataSourcesData } = useApi("dataSources", {
-    endpoint: `/data-sources/${selectedSymbol}`,
-    enabled: !!selectedSymbol,
+    pollIntervalMs: 30000,
   });
   const { data: riskData } = useApi("risk", {
     endpoint: `/risk/proposal/${selectedSymbol}`,
@@ -1136,16 +1135,29 @@ export default function Dashboard() {
   const handleExecute = useCallback(
     async (action) => {
       try {
-        const res = await fetch(getApiUrl("orders"), {
+        const side = action === "BUY" ? "buy" : "sell";
+        const qty = String(riskData?.proposal?.proposedSize || 100);
+        const body = {
+          symbol: selectedSymbol,
+          side,
+          type: riskData?.proposal?.limitPrice ? "limit" : "market",
+          time_in_force: "day",
+          qty,
+        };
+        if (riskData?.proposal?.limitPrice) {
+          body.limit_price = String(riskData.proposal.limitPrice);
+        }
+        if (riskData?.proposal?.stopLoss) {
+          body.order_class = "bracket";
+          body.stop_loss = { stop_price: String(riskData.proposal.stopLoss) };
+          if (riskData?.proposal?.takeProfit) {
+            body.take_profit = { limit_price: String(riskData.proposal.takeProfit) };
+          }
+        }
+        const res = await fetch(getApiUrl("orders/advanced"), {
           method: "POST",
           headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-          body: JSON.stringify({
-            symbol: selectedSymbol,
-            action,
-            size: riskData?.proposal?.proposedSize || 100,
-            limitPrice: riskData?.proposal?.limitPrice,
-            stopLoss: riskData?.proposal?.stopLoss,
-          }),
+          body: JSON.stringify(body),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         alert(`Execution successful: ${action} ${selectedSymbol}`);
@@ -1169,13 +1181,15 @@ export default function Dashboard() {
     const top5 = processedSignals.slice(0, 5);
     for (const sig of top5) {
       try {
-        await fetch(getApiUrl("orders"), {
+        await fetch(getApiUrl("orders/advanced"), {
           method: "POST",
           headers: { "Content-Type": "application/json", ...getAuthHeaders() },
           body: JSON.stringify({
             symbol: sig.symbol,
-            action: sig.direction === "LONG" ? "BUY" : "SELL",
-            size: 100,
+            side: sig.direction === "LONG" ? "buy" : "sell",
+            type: "market",
+            time_in_force: "day",
+            qty: "100",
           }),
         });
       } catch (e) {

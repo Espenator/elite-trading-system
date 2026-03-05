@@ -130,3 +130,11 @@ async def get_export() -> Dict[str, Any]:
 async def post_import(payload: Dict[str, Any]) -> Dict[str, Any]:
     """Import a previously exported settings snapshot."""
     return import_settings(payload)
+
+
+@router.get("/audit-log", summary="Recent settings change log")
+async def get_audit_log():
+    """Return recent settings changes for the audit log tab."""
+    from app.services.database import db_service
+    log = db_service.get_config("settings_audit_log") or []
+    return {"entries": log[-50:]}
