@@ -547,8 +547,8 @@ class OrderExecutor:
             ).fetchone()
             if row and row[0] and float(row[0]) > 0:
                 atr_estimate = float(row[0])
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("ATR lookup failed for %s: %s", symbol, e)
 
         stop_data = sizer.calculate_trailing_stop(
             entry_price=price,

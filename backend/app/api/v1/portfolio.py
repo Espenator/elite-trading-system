@@ -4,9 +4,10 @@ No mock data. No fabricated numbers.
 """
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter
+from pydantic import BaseModel
 
 from app.core.converters import safe_float as _safe_float, safe_int as _safe_int
 from app.services.alpaca_service import alpaca_service
@@ -14,6 +15,25 @@ from app.websocket_manager import broadcast_ws
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+class PortfolioSummary(BaseModel):
+    totalValue: float = 0.0
+    totalUnrealizedPnL: float = 0.0
+    positionCount: int = 0
+    longCount: int = 0
+    shortCount: int = 0
+    portfolioHeat: float = 0.0
+
+
+class PortfolioResponse(BaseModel):
+    positions: List[Dict[str, Any]]
+    history: List[Dict[str, Any]]
+    summary: Optional[PortfolioSummary] = None
+    totalEquity: float = 0.0
+    dayPnL: float = 0.0
+    deployedPercent: float = 0.0
+    error: Optional[str] = None
 
 
 def _format_position(pos: Dict, idx: int) -> Dict:
@@ -158,8 +178,8 @@ async def get_portfolio():
         if account:
             equity = _safe_float(account.get("equity"), 0.0)
             last_equity = _safe_float(account.get("last_equity"), equity)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Alpaca account unavailable for portfolio summary: %s", e)
     day_pnl = (equity - last_equity) if last_equity else 0.0
     deployed_pct = round((total_value / equity * 100), 1) if equity > 0 else 0.0
 

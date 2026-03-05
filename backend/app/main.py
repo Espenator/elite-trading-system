@@ -159,7 +159,8 @@ def _get_recent_features():
         from app.data.duckdb_storage import duckdb_store
         df = duckdb_store.query("SELECT * FROM features ORDER BY ts DESC LIMIT 200").fetchdf()
         return df if not df.empty else None
-    except Exception:
+    except Exception as e:
+        log.debug("Recent features unavailable: %s", e)
         return None
 
 
@@ -330,7 +331,8 @@ async def _start_event_driven_pipeline():
         try:
             from app.modules.symbol_universe import get_tracked_symbols
             tracked = get_tracked_symbols()
-        except Exception:
+        except Exception as e:
+            log.debug("Symbol universe unavailable, using defaults: %s", e)
             tracked = []
         default_symbols = [
             "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA",
@@ -441,8 +443,8 @@ async def lifespan(app: FastAPI):
         try:
             from app.jobs.scheduler import stop_scheduler
             stop_scheduler()
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("Scheduler stop failed: %s", e)
         await _stop_event_driven_pipeline()
         tick_task.cancel()
         drift_task.cancel()
@@ -540,8 +542,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     unsubscribe(websocket, ch)
             elif msg.get("channel"):
                 await broadcast_ws(msg["channel"], msg.get("data", {}))
-    except Exception:
-        pass
+    except Exception as e:
+        log.debug("WebSocket connection error: %s", e)
     finally:
         remove_connection(websocket)
 

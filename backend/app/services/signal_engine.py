@@ -367,6 +367,7 @@ class EventDrivenSignalEngine:
         self._regime_state = "UNKNOWN"
         self._regime_mult = 1.0
         self._claw_scores: Dict[str, Dict[str, float]] = {}
+        self._max_claw_scores = 500  # Bound to prevent unbounded growth
         self._last_regime_refresh: float = 0
         self._regime_refresh_interval = 300  # Refresh OpenClaw every 5 min
 
@@ -476,7 +477,13 @@ class EventDrivenSignalEngine:
     async def _refresh_regime(self) -> None:
         """Background refresh of OpenClaw regime context."""
         try:
-            self._regime_state, self._claw_scores = await _get_openclaw_context()
+            self._regime_state, claw_scores = await _get_openclaw_context()
+            # Bound claw_scores to prevent unbounded memory growth
+            if len(claw_scores) > self._max_claw_scores:
+                # Keep only the top scores by composite value
+                sorted_keys = sorted(claw_scores, key=lambda k: claw_scores[k].get("composite", 0), reverse=True)
+                claw_scores = {k: claw_scores[k] for k in sorted_keys[:self._max_claw_scores]}
+            self._claw_scores = claw_scores
             self._regime_mult = _REGIME_MULTIPLIERS.get(self._regime_state, 1.0)
             if self._claw_scores:
                 logger.debug(

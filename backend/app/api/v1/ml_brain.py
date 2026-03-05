@@ -106,15 +106,15 @@ async def run_conference(symbol: str, timeframe: str = "1d"):
             pred = get_prediction(symbol) if callable(get_prediction) else {}
             if pred:
                 ml_signals = pred
-        except Exception:
-            pass
-        
+        except Exception as e:
+            logger.debug("ML prediction unavailable: %s", e)
+
         # Try to get regime
         try:
             from app.modules.openclaw.intelligence.hmm_regime import get_current_regime
             regime = get_current_regime() or "unknown"
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Regime unavailable: %s", e)
         
         result = await conference.convene(
             symbol=symbol,

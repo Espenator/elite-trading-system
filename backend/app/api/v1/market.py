@@ -23,6 +23,7 @@ finviz = FinvizService()
 # In-memory cache to reduce Finviz API calls (Dashboard polls every 5s)
 _INDICES_CACHE: Dict[str, Any] = {}
 _INDICES_CACHE_TTL_SEC = 120  # Serve cached result for 120s before refetch
+_INDICES_CACHE_LOCK = asyncio.Lock()  # Prevent concurrent fetches
 
 # Map display id -> ticker for quote fetch (matches Dashboard TickerStrip indexMap)
 INDEX_SYMBOLS = [
@@ -124,54 +125,61 @@ async def get_indices() -> Dict[str, Any]:
     if cached is not None:
         return {"indices": cached}
 
-    # Deduplicate tickers so SPY/QQQ/DIA are only fetched once
-    unique_tickers = list({item["ticker"] for item in INDEX_SYMBOLS})
+    # Prevent thundering herd: only one coroutine fetches at a time
+    async with _INDICES_CACHE_LOCK:
+        # Double-check after acquiring lock
+        cached = _get_cached_indices()
+        if cached is not None:
+            return {"indices": cached}
 
-    # Fetch all unique tickers in parallel (semaphore limits concurrency)
-    tasks = [_fetch_one_ticker(t) for t in unique_tickers]
-    fetched = await asyncio.gather(*tasks, return_exceptions=True)
+        # Deduplicate tickers so SPY/QQQ/DIA are only fetched once
+        unique_tickers = list({item["ticker"] for item in INDEX_SYMBOLS})
 
-    # Build ticker -> quotes lookup
-    ticker_data: Dict[str, Any] = {}
-    for res in fetched:
-        if isinstance(res, Exception):
-            logger.warning("Indices fetch error: %s", res)
-            continue
-        ticker_data[res["ticker"]] = res["quotes"]
+        # Fetch all unique tickers in parallel (semaphore limits concurrency)
+        tasks = [_fetch_one_ticker(t) for t in unique_tickers]
+        fetched = await asyncio.gather(*tasks, return_exceptions=True)
 
-    # Map results back to display items
-    result: List[Dict[str, Any]] = []
-    for item in INDEX_SYMBOLS:
-        quotes = ticker_data.get(item["ticker"])
-        try:
-            if not quotes or not isinstance(quotes, list):
-                result.append({"id": item["id"], "value": None, "change": None})
-            else:
-                row = quotes[-1] if quotes else {}
-                prev = quotes[-2] if len(quotes) >= 2 else {}
-                close_key = next(
-                    (k for k in ("Close", "close", "C", "Adj Close") if k in row),
-                    None,
-                )
-                if not close_key:
-                    close_key = list(row.keys())[-2] if len(row) > 1 else None
-                close = _parse_float(row.get(close_key))
-                prev_close = _parse_float(prev.get(close_key)) if prev else close
-                if prev_close and close:
-                    change = ((close - prev_close) / prev_close) * 100
+        # Build ticker -> quotes lookup
+        ticker_data: Dict[str, Any] = {}
+        for res in fetched:
+            if isinstance(res, Exception):
+                logger.warning("Indices fetch error: %s", res)
+                continue
+            ticker_data[res["ticker"]] = res["quotes"]
+
+        # Map results back to display items
+        result: List[Dict[str, Any]] = []
+        for item in INDEX_SYMBOLS:
+            quotes = ticker_data.get(item["ticker"])
+            try:
+                if not quotes or not isinstance(quotes, list):
+                    result.append({"id": item["id"], "value": None, "change": None})
                 else:
-                    change = None
-                result.append({
-                    "id": item["id"],
-                    "value": f"{close:.2f}" if close else None,
-                    "change": round(change, 2) if change is not None else None,
-                })
-        except Exception as e:
-            logger.warning("Indices parse %s: %s", item["ticker"], e)
-            result.append({"id": item["id"], "value": None, "change": None})
+                    row = quotes[-1] if quotes else {}
+                    prev = quotes[-2] if len(quotes) >= 2 else {}
+                    close_key = next(
+                        (k for k in ("Close", "close", "C", "Adj Close") if k in row),
+                        None,
+                    )
+                    if not close_key:
+                        close_key = list(row.keys())[-2] if len(row) > 1 else None
+                    close = _parse_float(row.get(close_key))
+                    prev_close = _parse_float(prev.get(close_key)) if prev else close
+                    if prev_close and close:
+                        change = ((close - prev_close) / prev_close) * 100
+                    else:
+                        change = None
+                    result.append({
+                        "id": item["id"],
+                        "value": f"{close:.2f}" if close else None,
+                        "change": round(change, 2) if change is not None else None,
+                    })
+            except Exception as e:
+                logger.warning("Indices parse %s: %s", item["ticker"], e)
+                result.append({"id": item["id"], "value": None, "change": None})
 
-    _set_cached_indices(result)
-    return {"indices": result}
+        _set_cached_indices(result)
+        return {"indices": result}
 
 
 @router.get("/order-book")

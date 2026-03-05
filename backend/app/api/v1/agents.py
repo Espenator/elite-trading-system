@@ -596,8 +596,8 @@ async def get_drift_metrics():
         monitor = get_drift_monitor()
         if hasattr(monitor, 'get_metrics'):
             return monitor.get_metrics()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Drift monitor unavailable: %s", e)
 
     # Return structure matching mockup even without real data
     return {
@@ -639,8 +639,8 @@ async def get_system_alerts():
                         "message": f"{agent['name']} slow heartbeat — {int(elapsed/60)}m since last tick",
                         "agent_id": agent["id"],
                     })
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Agent heartbeat check failed for %s: %s", agent.get("name", "?"), e)
 
     # Check process metrics
     metrics = _get_process_metrics()

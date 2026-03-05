@@ -164,7 +164,7 @@ async def run_council(
         bus = get_message_bus()
         if bus.is_running:
             await bus.publish("council.verdict", decision.to_dict())
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Failed to publish council verdict to bus: %s", e)
 
     return decision

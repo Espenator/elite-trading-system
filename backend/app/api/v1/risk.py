@@ -196,7 +196,8 @@ async def get_risk_proposal(symbol: str):
         account = await alpaca_service.get_account()
         equity = float(account.get("equity", 0))
         buying_power = float(account.get("buying_power", 0))
-    except Exception:
+    except Exception as e:
+        logger.debug("Alpaca account unavailable for risk proposal: %s", e)
         equity = 0
         buying_power = 0
     max_notional = buying_power * 0.25 if buying_power else 0
@@ -355,7 +356,8 @@ async def drawdown_check_post():
         last_equity = float(account.get("last_equity", equity))
         daily_pnl = equity - last_equity
         daily_pnl_pct = (daily_pnl / last_equity * 100) if last_equity > 0 else 0
-    except Exception:
+    except Exception as e:
+        logger.debug("Alpaca account unavailable for drawdown check: %s", e)
         daily_pnl = 0
         daily_pnl_pct = 0
         equity = 0

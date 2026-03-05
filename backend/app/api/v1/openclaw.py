@@ -109,7 +109,8 @@ async def get_openclaw_consensus():
             for c in (candidates or [])
         ]
         return {"consensus": consensus}
-    except Exception:
+    except Exception as e:
+        logger.debug("Consensus fetch failed: %s", e)
         return {"consensus": []}
 
 
@@ -378,8 +379,8 @@ async def get_macro_state():
                     "hy_spread": None,
                     "fear_greed_index": None,
                 }
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Macro brain fallback failed: %s", e)
         return {
             "oscillator": 0.0,
             "wave_state": "NEUTRAL",
@@ -407,8 +408,8 @@ async def get_swarm_status():
                 "total": len(teams),
                 "teams": teams,
             }
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Swarm status fetch failed: %s", e)
     return {
         "active": 0,
         "total": 0,
@@ -487,8 +488,8 @@ async def get_candidates(n: int = Query(default=20, ge=1, le=50)):
             "count": len(formatted),
             "_source": "bridge_fallback",
         }
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Candidates bridge fallback failed: %s", e)
     return {"candidates": [], "count": 0, "_fallback": True}
 
 
@@ -682,8 +683,8 @@ async def get_regime_transitions(limit: int = Query(default=30, ge=1, le=100)):
                             "pnl_impact": None,
                         })
                     prev_regime = current
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Regime transition parse failed: %s", e)
 
         return {
             "count": len(transitions),

@@ -203,8 +203,8 @@ async def get_regime_params():
         regime_data = await openclaw_bridge.get_regime()
         if regime_data and regime_data.get("state"):
             live_regime = regime_data["state"]
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Live regime unavailable: %s", e)
 
     if override:
         regime = override

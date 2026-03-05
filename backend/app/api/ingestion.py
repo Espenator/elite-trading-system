@@ -56,4 +56,5 @@ async def ingestion_health():
         from app.data.duckdb_storage import duckdb_store
         return duckdb_store.health_check()
     except Exception as e:
-        return {"status": "error", "detail": str(e)}
+        logger.warning("DuckDB health check failed: %s", e)
+        raise HTTPException(status_code=503, detail=f"DuckDB unavailable: {e}")

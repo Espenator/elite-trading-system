@@ -6,10 +6,11 @@ GET  /api/v1/council/latest    -> most recent DecisionPacket
 GET  /api/v1/council/weights   -> current agent weights (Bayesian-updated)
 POST /api/v1/council/weights/reset -> reset weights to defaults
 """
+import asyncio
 import logging
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -17,6 +18,7 @@ router = APIRouter()
 
 # In-memory cache for the latest council decision (shown on dashboard)
 _latest_decision: Optional[Dict[str, Any]] = None
+_decision_lock = asyncio.Lock()
 
 
 class CouncilEvalRequest(BaseModel):
@@ -41,11 +43,15 @@ async def evaluate_symbol(req: CouncilEvalRequest):
         )
 
         result = decision.to_dict()
-        _latest_decision = result
+        async with _decision_lock:
+            _latest_decision = result
         return result
+    except ImportError as e:
+        logger.warning("Council runner not available: %s", e)
+        raise HTTPException(status_code=503, detail="Council runner not available")
     except Exception as e:
         logger.exception("Council evaluation failed for %s", req.symbol)
-        return {"status": "error", "message": str(e), "symbol": req.symbol}
+        raise HTTPException(status_code=500, detail=f"Council evaluation failed: {e}")
 
 
 @router.get("/latest")
@@ -67,8 +73,8 @@ async def council_status():
         from app.council.weight_learner import get_weight_learner
         learner = get_weight_learner()
         agent_weights = learner.get_weights()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Weight learner unavailable: %s", e)
 
     return {
         "council_enabled": os.getenv("COUNCIL_ENABLED", "true").lower() == "true",

@@ -169,8 +169,8 @@ async def record_flywheel(record: FlywheelRecord):
 
     try:
         await broadcast_ws("flywheel", {"type": "flywheel_update", "data": updated})
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Flywheel WS broadcast failed: %s", e)
 
     return {"status": "recorded", "entry": entry}
 
@@ -338,8 +338,8 @@ async def kelly_feedback(outcomes: List[Dict]):
         risk_gated = risk_data.get("risk_score", 100) >= 30
         data["lastRiskScore"] = risk_data.get("risk_score", 100)
         data["lastRiskGrade"] = risk_data.get("grade", "N/A")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Risk score unavailable for Kelly feedback: %s", e)
 
     if not risk_gated:
         data["calibrationPaused"] = True
