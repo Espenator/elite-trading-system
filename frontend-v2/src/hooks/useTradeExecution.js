@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import tradeExecutionService from '../services/tradeExecutionService';
 import log from "@/utils/logger";
 
-const POLL_INTERVAL = 2000;
+const POLL_INTERVAL = 10000; // 10s — was 2s, caused browser connection exhaustion
 
 // ─── Default State (empty — real data loaded from API) ─────
 const defaultPortfolio = { value: 0, dailyPnl: 0, dailyPnlPct: 0, status: 'OFFLINE', latency: 0 };

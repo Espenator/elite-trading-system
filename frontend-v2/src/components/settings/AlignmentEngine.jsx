@@ -76,31 +76,25 @@ export default function AlignmentEngine() {
   const [loading, setLoading] = useState(true);
   const [driftHistory, setDriftHistory] = useState([]);
 
-  // —— Fetch alignment state on mount
+  // —— Fetch alignment state on mount (each endpoint independent — graceful degradation)
   const fetchAll = useCallback(async () => {
     setLoading(true);
-    try {
-      const [stateRes, patternsRes, auditRes, constitutionRes, driftRes] = await Promise.all([
-                  fetch(`${getApiUrl('alignment')}/state`),
-          fetch(`${getApiUrl('alignment')}/patterns`),
-          fetch(`${getApiUrl('alignment')}/audit`),
-          fetch(`${getApiUrl('alignment')}/constitution`),
-          fetch(`${getApiUrl('alignment')}/drift-history`),
-      ]);
-      if (!stateRes.ok) throw new Error('Failed to fetch alignment state');
-      if (!patternsRes.ok) throw new Error('Failed to fetch patterns');
-      if (!auditRes.ok) throw new Error('Failed to fetch audit');
-      if (!constitutionRes.ok) throw new Error('Failed to fetch constitution');
-      if (!driftRes.ok) throw new Error('Failed to fetch drift history');
-      setAlignmentState(await stateRes.json());
-      setPatterns(await patternsRes.json());
-      setAuditLog(await auditRes.json());
-      const cData = await constitutionRes.json();
-      setConstitutionText(cData.text || JSON.stringify(cData, null, 2));
-      setDriftHistory(await driftRes.json());
-    } catch (err) {
-      log.error('Alignment fetch error:', err);
-    }
+    const safeFetch = async (path) => {
+      try {
+        const res = await fetch(`${getApiUrl('alignment')}/${path}`);
+        if (!res.ok) return null;
+        return await res.json();
+      } catch { return null; }
+    };
+    const [stateData, patternsData, auditData, constitutionData, driftData] = await Promise.all([
+      safeFetch('state'), safeFetch('patterns'), safeFetch('audit'),
+      safeFetch('constitution'), safeFetch('drift-history'),
+    ]);
+    if (stateData) setAlignmentState(stateData);
+    if (Array.isArray(patternsData)) setPatterns(patternsData);
+    if (Array.isArray(auditData)) setAuditLog(auditData);
+    if (constitutionData) setConstitutionText(constitutionData.text || JSON.stringify(constitutionData, null, 2));
+    if (Array.isArray(driftData)) setDriftHistory(driftData);
     setLoading(false);
   }, []);
 

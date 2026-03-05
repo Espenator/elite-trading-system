@@ -1018,30 +1018,31 @@ export default function Dashboard() {
   const [autoExec, setAutoExec] = useState(false);
 
   // --- API HOOKS (Real-time polling) ---
+  // Intervals tuned to prevent request flooding (max ~2 req/s combined)
   const {
     data: signalsData,
     loading: sigLoading,
     error: sigErr,
-  } = useApi("signals", { pollIntervalMs: 3000 });
-  const { data: kellyData } = useApi("kellyRanked", { pollIntervalMs: 5000 });
-  const { data: portfolioData } = useApi("portfolio", { pollIntervalMs: 5000 });
+  } = useApi("signals", { pollIntervalMs: 15000 });
+  const { data: kellyData } = useApi("kellyRanked", { pollIntervalMs: 30000 });
+  const { data: portfolioData } = useApi("portfolio", { pollIntervalMs: 15000 });
   const { data: indicesData } = useApi("marketIndices", {
-    pollIntervalMs: 5000,
+    pollIntervalMs: 15000,
   });
-  const { data: openclawData } = useApi("openclaw", { pollIntervalMs: 10000 });
+  const { data: openclawData } = useApi("openclaw", { pollIntervalMs: 30000 });
   const { data: performanceData } = useApi("performance", {
-    pollIntervalMs: 15000,
+    pollIntervalMs: 60000,
   });
-  const { data: agentsData } = useApi("agents", { pollIntervalMs: 10000 });
+  const { data: agentsData } = useApi("agents", { pollIntervalMs: 30000 });
   const { data: riskScoreData } = useApi("riskScore", {
-    pollIntervalMs: 15000,
+    pollIntervalMs: 30000,
   });
   const { data: alertsData } = useApi("systemAlerts", {
-    pollIntervalMs: 10000,
+    pollIntervalMs: 30000,
   });
-  const { data: flywheelData } = useApi("flywheel", { pollIntervalMs: 30000 });
+  const { data: flywheelData } = useApi("flywheel", { pollIntervalMs: 60000 });
   const { data: sentimentData } = useApi("sentiment", {
-    pollIntervalMs: 15000,
+    pollIntervalMs: 30000,
   });
 
   // Right Panel specific APIs based on selectedSymbol
@@ -1054,7 +1055,7 @@ export default function Dashboard() {
     enabled: !!selectedSymbol,
   });
   const { data: dataSourcesData } = useApi("dataSources", {
-    pollIntervalMs: 30000,
+    pollIntervalMs: 60000,
   });
   const { data: riskData } = useApi("risk", {
     endpoint: `/risk/proposal/${selectedSymbol}`,
@@ -1062,12 +1063,12 @@ export default function Dashboard() {
   });
   const { data: quotesData } = useApi("quotes", {
     endpoint: `/quotes/${selectedSymbol}/book`,
-    pollIntervalMs: 1000,
+    pollIntervalMs: 10000,
     enabled: !!selectedSymbol,
   });
   const { data: candleData } = useApi("quotes", {
     endpoint: `/quotes/${selectedSymbol}/candles?timeframe=${activeTimeframe}`,
-    pollIntervalMs: 10000,
+    pollIntervalMs: 30000,
     enabled: !!selectedSymbol,
   });
 
@@ -1292,23 +1293,28 @@ export default function Dashboard() {
   const globalSentiment = sentimentData?.sentiment || sentimentData || {};
 
   // --- LOADING / ERROR STATES ---
-  if (sigLoading && !signalsData?.signals)
+  // Only show boot screen on very first load (no data AND no error yet)
+  if (sigLoading && !signalsData && !sigErr)
     return (
       <div className="h-screen w-full bg-[#0B0E14] flex items-center justify-center text-[#00D9FF] font-mono text-xs">
         INITIALIZING EMBODIER NEURAL NET...
       </div>
     );
-  if (sigErr)
-    return (
-      <div className="h-screen w-full bg-[#0B0E14] text-red-500 p-4 font-mono text-xs">
-        SYSTEM FAULT: {sigErr.message}
-      </div>
-    );
+  /* sigErr no longer blocks the entire page — we show a banner instead
+     so that non-signal panels (portfolio, risk, etc.) remain usable. */
 
   return (
     <div className="flex flex-col h-screen w-full bg-[#0B0E14] text-[#e5e7eb] font-sans text-[9px] leading-tight overflow-hidden selection:bg-[#00D9FF]/30">
       {/* 0. SCROLLING TICKER STRIP */}
       <TickerStrip indices={indices} signals={processedSignals} />
+
+      {/* Signal-error banner (non-blocking) */}
+      {sigErr && (
+        <div className="mx-4 mt-2 px-3 py-1.5 rounded bg-red-500/10 border border-red-500/30 text-red-400 text-[10px] font-mono flex items-center gap-2 shrink-0">
+          <span className="font-bold">SIGNAL API OFFLINE</span>
+          <span className="text-red-400/70">{sigErr.message}</span>
+        </div>
+      )}
 
       {/* CNS VITALS — homeostasis, circuit breaker, agent health, verdict */}
       <div className="px-4 pt-2 shrink-0">

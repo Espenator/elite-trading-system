@@ -164,7 +164,7 @@ function RegimeStateMachine({ currentState, regimeData }) {
               </div>
               {isCurrent && (
                 <div className={`mt-1 text-[10px] ${rc.text} font-semibold`}>
-                  \u25CF CURRENT
+                  ● CURRENT
                 </div>
               )}
             </div>

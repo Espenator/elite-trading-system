@@ -28,7 +28,7 @@ const API_CONFIG = {
     orders: "/orders", // Order execution (Alpaca)
     system: "/system", // System status + config
     "system/event-bus/status": "/system/event-bus/status", // Event-bus topics for Agent Command Center
-    signals: "/signals", // Generated trading signals
+    signals: "/signals/", // Generated trading signals (trailing slash required by FastAPI)
     backtest: "/backtest", // Backtesting engine
     backtestRuns: "/backtest/runs", // Recent backtest runs (for Backtesting page)
         backtestResults: "/backtest/results", // Full backtest results + equity curve
@@ -48,7 +48,7 @@ const API_CONFIG = {
 
     // ---- NEW (Oleh needs to create these routers) ----
     agents: "/agents", // Agent control: start/stop/pause/config
-    dataSources: "/data-sources", // Health of all 10 data feeds
+    dataSources: "/data-sources/", // Health of all 10 data feeds (trailing slash required by FastAPI)
     sentiment: "/sentiment", // Aggregated sentiment from 4 sources
     youtubeKnowledge: "/youtube-knowledge", // YouTube transcript ingestion
     flywheel: "/flywheel", // ML flywheel metrics + accuracy over time
