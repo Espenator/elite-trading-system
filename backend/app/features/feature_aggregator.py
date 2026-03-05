@@ -13,7 +13,7 @@ import hashlib
 import json
 import logging
 import math
-from collections import dequeh
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
