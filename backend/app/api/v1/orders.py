@@ -12,10 +12,10 @@ import json
 import logging
 from fastapi import APIRouter, HTTPException, Body, Depends, Request
 from app.core.security import require_auth
-from slowapi import Limiter
-from slowapi.util import get_remote_address
+# slowapi rate limiting handled at app level (main.py)
+# from slowapi.util import get_remote_address  # moved to app-level
 
-_limiter = Limiter(key_func=get_remote_address)
+# _limiter removed — rate limiting handled at app level
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Any
 
@@ -58,7 +58,7 @@ class ReplaceOrderRequest(BaseModel):
 
 # ── Advanced order creation ─────────────────────────────────────────────
 @router.post("/advanced", response_model=Dict, dependencies=[Depends(require_auth)])
-@_limiter.limit("20/minute")
+# Rate limited by app-level limiter (200/min) in main.py
 async def create_advanced_order(request: Request, req: AdvancedOrderRequest):
     """Submit any Alpaca v2 order: simple, bracket, OCO, OTO, trailing."""
         # ── Alignment Preflight Gate ─────────────────────────────────────
