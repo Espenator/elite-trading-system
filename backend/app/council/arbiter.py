@@ -1,9 +1,12 @@
 """Arbiter — deterministic rules for final council decision.
 
+Uses Bayesian-updated weights from WeightLearner (self-learning).
+Falls back to static agent weights if learner is unavailable.
+
 Rules:
-1. VETO from risk_agent or execution_agent → hold, vetoed=True
+1. VETO from risk_agent or execution_agent -> hold, vetoed=True
 2. Requires: regime OK + risk OK + strategy OK for any trade
-3. Weighted confidence aggregation for direction
+3. Weighted confidence aggregation for direction (Bayesian weights)
 4. Hypothesis contributes confidence but cannot override risk veto
 5. Final confidence = weighted average of non-vetoing agents
 """
@@ -16,8 +19,23 @@ logger = logging.getLogger(__name__)
 
 # Agents whose approval is required for trading
 REQUIRED_AGENTS = {"regime", "risk", "strategy"}
+
 # Agents with veto power
 VETO_AGENTS = {"risk", "execution"}
+
+
+def _get_learned_weights() -> Dict[str, float]:
+    """Fetch Bayesian-updated weights from WeightLearner.
+
+    Returns empty dict if learner is unavailable (arbiter will use
+    each agent's static weight from their module-level WEIGHT constant).
+    """
+    try:
+        from app.council.weight_learner import get_weight_learner
+        learner = get_weight_learner()
+        return learner.get_weights()
+    except Exception:
+        return {}
 
 
 def arbitrate(
@@ -28,15 +46,27 @@ def arbitrate(
 ) -> DecisionPacket:
     """Apply deterministic arbiter rules to produce final decision.
 
+    Uses Bayesian-learned weights when available, otherwise falls back
+    to each agent's static WEIGHT constant.
+
     Args:
         symbol: Ticker symbol
         timeframe: Timeframe
         timestamp: ISO timestamp
-        votes: List of AgentVote from all agents
+        votes: List of AgentVote from all 13 agents
 
     Returns:
         DecisionPacket with final decision
     """
+    # Get learned weights (may be empty if learner unavailable)
+    learned_weights = _get_learned_weights()
+
+    # Apply learned weights to votes (override static weights)
+    if learned_weights:
+        for v in votes:
+            if v.agent_name in learned_weights:
+                v.weight = learned_weights[v.agent_name]
+
     # Collect vetoes
     veto_reasons = []
     for v in votes:
@@ -61,7 +91,9 @@ def arbitrate(
         )
 
     # Check required agents voted non-hold
-    required_votes = {v.agent_name: v for v in votes if v.agent_name in REQUIRED_AGENTS}
+    required_votes = {
+        v.agent_name: v for v in votes if v.agent_name in REQUIRED_AGENTS
+    }
     missing = REQUIRED_AGENTS - set(required_votes.keys())
     if missing:
         return DecisionPacket(
@@ -78,7 +110,7 @@ def arbitrate(
             council_reasoning=f"Missing required agents: {missing}",
         )
 
-    # Weighted voting for direction
+    # Weighted voting for direction (using Bayesian weights)
     buy_weight = 0.0
     sell_weight = 0.0
     hold_weight = 0.0
@@ -86,7 +118,7 @@ def arbitrate(
 
     for v in votes:
         if v.veto:
-            continue  # Skip vetoing agents from direction calc
+            continue
         w = v.weight * v.confidence
         total_weight += w
         if v.direction == "buy":
@@ -116,7 +148,9 @@ def arbitrate(
     execution_ready = final_direction != "hold" and final_confidence > 0.4
     exec_vote = next((v for v in votes if v.agent_name == "execution"), None)
     if exec_vote:
-        execution_ready = execution_ready and exec_vote.metadata.get("execution_ready", False)
+        execution_ready = execution_ready and exec_vote.metadata.get(
+            "execution_ready", False
+        )
 
     risk_limits = _extract_risk_limits(votes)
 
@@ -124,12 +158,16 @@ def arbitrate(
     direction_counts = {"buy": 0, "sell": 0, "hold": 0}
     for v in votes:
         if not v.veto:
-            direction_counts[v.direction] = direction_counts.get(v.direction, 0) + 1
+            direction_counts[v.direction] = (
+                direction_counts.get(v.direction, 0) + 1
+            )
 
+    weight_source = "bayesian" if learned_weights else "static"
     reasoning = (
-        f"Council vote: buy={direction_counts['buy']} sell={direction_counts['sell']} "
-        f"hold={direction_counts['hold']}. "
-        f"Weighted: buy={buy_weight:.2f} sell={sell_weight:.2f} hold={hold_weight:.2f}. "
+        f"Council vote: buy={direction_counts['buy']} "
+        f"sell={direction_counts['sell']} hold={direction_counts['hold']}. "
+        f"Weighted ({weight_source}): "
+        f"buy={buy_weight:.2f} sell={sell_weight:.2f} hold={hold_weight:.2f}. "
         f"Decision: {final_direction.upper()} @ {final_confidence:.0%} confidence."
     )
 
