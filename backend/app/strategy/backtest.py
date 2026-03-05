@@ -1,10 +1,13 @@
 """Top-N long-only daily backtest (research doc)."""
+import logging
 from datetime import date
 from typing import Optional
 
 import pandas as pd
 
 from app.data.storage import get_conn
+
+logger = logging.getLogger(__name__)
 
 
 def load_features_and_predictions(start: date, end: date, model_id: str) -> pd.DataFrame:
@@ -27,7 +30,8 @@ def load_features_and_predictions(start: date, end: date, model_id: str) -> pd.D
             """,
             [model_id, start, end],
         ).df()
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to load features/predictions: %s", e)
         return pd.DataFrame()
     finally:
         conn.close()
@@ -119,7 +123,8 @@ def load_spy_returns(start: date, end: date) -> pd.DataFrame:
             """,
             [start, end],
         ).df()
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to load SPY returns: %s", e)
         return pd.DataFrame()
     finally:
         conn.close()

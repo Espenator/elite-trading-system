@@ -86,9 +86,7 @@ async def broadcast_ws(channel: str, data: dict | list):
     msg = {"channel": channel, "data": data, "ts": time.time()}
     
     # Use channel subscribers if any, otherwise broadcast to all
-    targets = _channel_subscriptions.get(channel, _ws_connections)
-    if not targets:
-        targets = _ws_connections
+    targets = _channel_subscriptions.get(channel) or _ws_connections
     
     dead = set()
     for ws in targets:

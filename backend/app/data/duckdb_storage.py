@@ -52,9 +52,11 @@ class DuckDBStorage:
     def _get_conn(self):
         """Thread-safe connection with WAL mode."""
         if self._conn is None:
-            duckdb = _get_duckdb()
-            self._conn = duckdb.connect(self._db_path)
-            self._conn.execute("PRAGMA enable_progress_bar")
+            with _lock:
+                if self._conn is None:
+                    duckdb = _get_duckdb()
+                    self._conn = duckdb.connect(self._db_path)
+                    self._conn.execute("PRAGMA enable_progress_bar")
         return self._conn
 
     def query(self, sql: str, params=None):
