@@ -67,25 +67,39 @@ const normalizeExchange = (ex) => {
   return ex;
 };
 
-const mapRowToStockData = (row) => ({
-  symbol: row.ticker || row.symbol || "",
-  name: row.company || row.name || "",
-  price: parseFloat(row.price) || 0,
-  change: parseFloat(row.change) || 0,
-  changePct: parseFloat(row.changePct || row.perf_w) || 0,
-  volume: parseInt(row.volume) || 0,
-  marketCap: row.marketCap || row.market_cap || "",
-  sector: row.sector || "",
-  industry: row.industry || "",
-  exchange: normalizeExchange(row.exchange),
-  pe: parseFloat(row.pe) || null,
-  rsi: parseFloat(row.rsi14 || row.rsi) || null,
-  atr: parseFloat(row.atr14 || row.atr) || null,
-  sma20: parseFloat(row.sma20) || null,
-  sma50: parseFloat(row.sma50) || null,
-  sma200: parseFloat(row.sma200) || null,
-  raw: row,
-});
+// Normalize a row that may use PascalCase / "Market Cap" from Finviz CSV or nested raw
+const _r = (row, key, ...altKeys) => {
+  const r = row && row.raw ? { ...row.raw, ...row } : row;
+  if (!r) return undefined;
+  const v = r[key] ?? altKeys.map((k) => r[k]).find((val) => val !== undefined && val !== "");
+  return v === undefined || v === "" ? undefined : v;
+};
+
+const mapRowToStockData = (row) => {
+  const num = (v) => (v === undefined || v === null || v === "") ? null : parseFloat(String(v).replace(/[^0-9.-]/g, ""));
+  const price = num(_r(row, "price", "Price")) ?? 0;
+  const changePctVal = _r(row, "changePct", "perf_w", "Change");
+  const changePctNum = typeof changePctVal === "string" ? parseFloat(String(changePctVal).replace("%", "")) : parseFloat(changePctVal);
+  return {
+    symbol: (_r(row, "ticker", "symbol", "Ticker") || "").toString().trim().toUpperCase(),
+    name: (_r(row, "company", "name", "Company") || "").toString().trim(),
+    price,
+    change: num(_r(row, "change", "Change")) ?? 0,
+    changePct: Number.isFinite(changePctNum) ? changePctNum : (num(_r(row, "Change")) ?? 0),
+    volume: parseInt(_r(row, "volume", "Volume") || "0", 10) || 0,
+    marketCap: (_r(row, "marketCap", "market_cap", "Market Cap", "market_cap_display") || "").toString().trim(),
+    sector: (_r(row, "sector", "Sector") || "").toString().trim(),
+    industry: (_r(row, "industry", "Industry") || "").toString().trim(),
+    exchange: normalizeExchange(_r(row, "exchange", "Exchange")),
+    pe: num(_r(row, "pe", "P/E")) ?? null,
+    rsi: num(_r(row, "rsi14", "rsi", "RSI")) ?? null,
+    atr: num(_r(row, "atr14", "atr", "ATR")) ?? null,
+    sma20: num(_r(row, "sma20", "SMA20")) ?? null,
+    sma50: num(_r(row, "sma50", "SMA50")) ?? null,
+    sma200: num(_r(row, "sma200", "SMA200")) ?? null,
+    raw: row,
+  };
+};
 
 // ═══════════════════════════════════════════════════
 // PATTERN DISPLAY CONFIG
