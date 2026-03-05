@@ -662,7 +662,7 @@ class TradingConference:
     ) -> List[ConferenceResult]:
         """Run conferences for multiple symbols concurrently."""
         tasks = [self.convene(symbol=s, **kwargs) for s in symbols]
-        return await asyncio.gather(*tasks, return_exceptions=False)
+        return await asyncio.gather(*tasks, return_exceptions=True)
 
 
 # ---------------------------------------------------------------------------

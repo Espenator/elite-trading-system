@@ -85,7 +85,7 @@ class ManagedPosition:
   shares_remaining: int = 0
   entry_time: datetime = None
   highest_price: float = 0.0
-  lowest_price: float = 999999.0
+  lowest_price: float = float("inf")
   pnl_dollars: float = 0.0
   pnl_pct: float = 0.0
   status: str = "OPEN"
