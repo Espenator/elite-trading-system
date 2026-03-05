@@ -1,6 +1,6 @@
-"""Council schemas — shared data structures for the 13-agent council.
+"""Council schemas — shared data structures for the 14-agent council.
 
-DAG: 7 stages, 13 agents + arbiter.
+DAG: 7 stages, 14 agents + arbiter.
 Stage 1: [market_perception, flow_perception, regime, intermarket]
 Stage 2: [rsi, bbv, ema_trend, relative_strength, cycle_timing]
 Stage 3: [hypothesis]

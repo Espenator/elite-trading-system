@@ -5,7 +5,7 @@ Enhanced with:
 - Event-driven MessageBus architecture for <1s signal latency
 - Alpaca WebSocket streaming for real-time market data
 - EventDrivenSignalEngine reacting to market_data.bar events
-- CouncilGate: 13-agent council controls all trading decisions
+- CouncilGate: 14-agent council controls all trading decisions
 - OrderExecutor receives council.verdict (not raw signals)
 - Bayesian weight learning from trade outcomes
 """
@@ -267,7 +267,7 @@ async def _start_event_driven_pipeline():
             cooldown_seconds=int(os.getenv("COUNCIL_COOLDOWN_SECS", "120")),
         )
         await _council_gate.start()
-        log.info("\u2705 CouncilGate started (13-agent council controls trading)")
+        log.info("\u2705 CouncilGate started (14-agent council controls trading)")
     else:
         log.info("\u26a0 CouncilGate DISABLED -- signals go directly to OrderExecutor")
 

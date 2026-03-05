@@ -1,13 +1,13 @@
-"""Council Runner -- orchestrates the 13-agent DAG and arbiter.
+"""Council Runner -- orchestrates the 14-agent DAG and arbiter.
 
 DAG execution order (parallel within stages):
-  Stage 1: [market_perception, flow_perception, regime, intermarket]
-    Stage 2: [rsi, bbv, ema_trend, relative_strength, cycle_timing]
-      Stage 3: [hypothesis]
-        Stage 4: [strategy]
-          Stage 5: [risk, execution]
-            Stage 6: [critic]
-              Stage 7: arbiter (deterministic)
+  Stage 1: [market_perception, flow_perception, regime, intermarket]  (4 agents)
+  Stage 2: [rsi, bbv, ema_trend, relative_strength, cycle_timing]    (5 agents)
+  Stage 3: [hypothesis]                                               (1 agent)
+  Stage 4: [strategy]                                                 (1 agent)
+  Stage 5: [risk, execution]                                          (2 agents)
+  Stage 6: [critic]                                                   (1 agent)
+  Stage 7: arbiter (deterministic, not counted as agent)
 """
 
 import asyncio
@@ -42,7 +42,7 @@ async def run_council(
     features: Optional[Dict[str, Any]] = None,
     context: Optional[Dict[str, Any]] = None,
 ) -> DecisionPacket:
-    """Run the full 13-agent council and return a DecisionPacket.
+    """Run the full 14-agent council and return a DecisionPacket.
 
     Args:
         symbol: Ticker symbol to evaluate
@@ -158,13 +158,15 @@ async def run_council(
         len(all_votes),
     )
 
-    # Publish to message bus if available
+    # Publish evaluation complete (NOT council.verdict — that's CouncilGate's job)
+    # Publishing council.verdict here would cause duplicate trades since
+    # OrderExecutor subscribes to council.verdict.
     try:
         from app.core.message_bus import get_message_bus
         bus = get_message_bus()
         if bus.is_running:
-            await bus.publish("council.verdict", decision.to_dict())
+            await bus.publish("council.evaluation_complete", decision.to_dict())
     except Exception as e:
-        logger.debug("Failed to publish council verdict to bus: %s", e)
+        logger.debug("Failed to publish council evaluation to bus: %s", e)
 
     return decision

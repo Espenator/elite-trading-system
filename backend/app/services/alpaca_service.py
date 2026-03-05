@@ -58,6 +58,10 @@ class AlpacaService:
             "content-type": "application/json",
         }
 
+    def get_headers(self) -> Dict[str, str]:
+        """Public accessor for API headers (used by market_data_agent, etc.)."""
+        return self._get_headers()
+
     def _cache_get(self, key: str, ttl: float) -> Any:
         entry = self._cache.get(key)
         if entry and (time.time() - entry[0]) < ttl:

@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-# Default weights for all 13 agents (+ arbiter reference)
+# Default weights for all 14 agents (+ arbiter reference)
 DEFAULT_WEIGHTS: Dict[str, float] = {
     "market_perception": 1.0,
     "flow_perception": 0.8,
@@ -294,9 +294,13 @@ class WeightLearner:
             """)
             for agent, weight in self._weights.items():
                 duckdb_store.query(
-                    """INSERT OR REPLACE INTO agent_weights
+                    """INSERT INTO agent_weights
                        (agent_name, weight, update_count, last_update)
-                       VALUES (?, ?, ?, CURRENT_TIMESTAMP)""",
+                       VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                       ON CONFLICT (agent_name) DO UPDATE SET
+                         weight = EXCLUDED.weight,
+                         update_count = EXCLUDED.update_count,
+                         last_update = EXCLUDED.last_update""",
                     [agent, weight, self.update_count],
                 )
             logger.debug("WeightLearner: persisted %d weights", len(self._weights))

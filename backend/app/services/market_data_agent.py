@@ -78,7 +78,7 @@ async def run_tick(
             async with httpx.AsyncClient(timeout=10.0) as client:
                 r = await client.get(
                     url,
-                    headers=alpaca_service._get_headers(),
+                    headers=alpaca_service.get_headers(),
                 )
             if r.status_code == 200:
                 data = r.json()

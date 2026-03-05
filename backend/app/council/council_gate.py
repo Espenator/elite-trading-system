@@ -1,7 +1,7 @@
 """Council Gate — bridges SignalEngine → Council → OrderExecutor.
 
 Subscribes to signal.generated on the MessageBus.  When a signal arrives
-with score >= gate_threshold the full 13-agent council is invoked.
+with score >= gate_threshold the full 14-agent council is invoked.
 If the council verdict is execution_ready the signal is re-published as
 council.verdict which the OrderExecutor listens on.
 
@@ -51,6 +51,7 @@ class CouncilGate:
         self._running = False
         self._start_time: Optional[float] = None
         self._semaphore = asyncio.Semaphore(max_concurrent)
+        self._active_evaluations = 0
         self._symbol_last_eval: Dict[str, float] = {}
         self._signals_received = 0
         self._councils_invoked = 0
@@ -111,118 +112,123 @@ class CouncilGate:
         if now - last_eval < self.cooldown_seconds:
             return
 
-        # Gate 4: Concurrency limit
-        if self._semaphore.locked():
+        # Gate 4: Concurrency limit — use a counter instead of semaphore.locked()
+        # which is unreliable with create_task (task hasn't acquired semaphore yet)
+        if self._active_evaluations >= self.max_concurrent:
             logger.debug(
-                "CouncilGate: max concurrent evaluations reached, skipping %s",
-                symbol,
+                "CouncilGate: max concurrent evaluations reached (%d/%d), skipping %s",
+                self._active_evaluations, self.max_concurrent, symbol,
             )
             return
 
         # Launch council evaluation (non-blocking)
+        self._active_evaluations += 1
         asyncio.create_task(self._evaluate_with_council(symbol, signal_data))
 
     async def _evaluate_with_council(
         self, symbol: str, signal_data: Dict[str, Any]
     ) -> None:
-        """Run the full 13-agent council for the symbol."""
-        async with self._semaphore:
-            self._symbol_last_eval[symbol] = time.time()
-            self._councils_invoked += 1
+        """Run the full 14-agent council for the symbol."""
+        try:
+            async with self._semaphore:
+                self._symbol_last_eval[symbol] = time.time()
+                self._councils_invoked += 1
 
-            try:
-                from app.council.runner import run_council
-
-                score = signal_data.get("score", 0)
-                regime = signal_data.get("regime", "UNKNOWN")
-                price = signal_data.get("close", signal_data.get("price", 0))
-
-                logger.info(
-                    "\u2699 CouncilGate: invoking council for %s "
-                    "(signal=%.1f, regime=%s, price=$%.2f)",
-                    symbol,
-                    score,
-                    regime,
-                    price,
-                )
-
-                # Pass signal data as context for agents
-                context = {
-                    "signal_score": score,
-                    "signal_label": signal_data.get("label", ""),
-                    "signal_regime": regime,
-                    "signal_price": price,
-                    "signal_volume": signal_data.get("volume", 0),
-                    "signal_timestamp": signal_data.get("timestamp", ""),
-                    "source": "council_gate",
-                }
-
-                decision = await run_council(
-                    symbol=symbol,
-                    timeframe="1d",
-                    context=context,
-                )
-
-                # Process council verdict
-                if decision.vetoed:
-                    self._councils_vetoed += 1
-                    logger.info(
-                        "\u26d4 Council VETOED %s: %s",
-                        symbol,
-                        "; ".join(decision.veto_reasons),
-                    )
-                    return
-
-                if decision.final_direction == "hold":
-                    self._councils_held += 1
-                    logger.info(
-                        "\u23f8 Council HOLD on %s (confidence=%.0f%%)",
-                        symbol,
-                        decision.final_confidence * 100,
-                    )
-                    return
-
-                if not decision.execution_ready:
-                    self._councils_held += 1
-                    logger.info(
-                        "\u23f8 Council not execution-ready for %s "
-                        "(direction=%s, confidence=%.0f%%)",
-                        symbol,
-                        decision.final_direction,
-                        decision.final_confidence * 100,
-                    )
-                    return
-
-                # Council approved — publish verdict for OrderExecutor
-                self._councils_passed += 1
-                verdict_data = decision.to_dict()
-                verdict_data["signal_data"] = signal_data
-                verdict_data["price"] = price
-
-                await self.message_bus.publish("council.verdict", verdict_data)
-
-                logger.info(
-                    "\u2705 Council APPROVED %s: %s @ %.0f%% confidence "
-                    "(votes=%d, signal=%.1f)",
-                    symbol,
-                    decision.final_direction.upper(),
-                    decision.final_confidence * 100,
-                    len(decision.votes),
-                    score,
-                )
-
-                # Trigger weight learning from this decision
                 try:
-                    from app.council.weight_learner import get_weight_learner
-                    learner = get_weight_learner()
-                    learner.record_decision(decision)
-                except Exception:
-                    pass
+                    from app.council.runner import run_council
 
-            except Exception as e:
-                logger.exception(
-                    "CouncilGate evaluation failed for %s: %s", symbol, e
-                )
+                    score = signal_data.get("score", 0)
+                    regime = signal_data.get("regime", "UNKNOWN")
+                    price = signal_data.get("close", signal_data.get("price", 0))
+
+                    logger.info(
+                        "\u2699 CouncilGate: invoking council for %s "
+                        "(signal=%.1f, regime=%s, price=$%.2f)",
+                        symbol,
+                        score,
+                        regime,
+                        price,
+                    )
+
+                    # Pass signal data as context for agents
+                    context = {
+                        "signal_score": score,
+                        "signal_label": signal_data.get("label", ""),
+                        "signal_regime": regime,
+                        "signal_price": price,
+                        "signal_volume": signal_data.get("volume", 0),
+                        "signal_timestamp": signal_data.get("timestamp", ""),
+                        "source": "council_gate",
+                    }
+
+                    decision = await run_council(
+                        symbol=symbol,
+                        timeframe="1d",
+                        context=context,
+                    )
+
+                    # Process council verdict
+                    if decision.vetoed:
+                        self._councils_vetoed += 1
+                        logger.info(
+                            "\u26d4 Council VETOED %s: %s",
+                            symbol,
+                            "; ".join(decision.veto_reasons),
+                        )
+                        return
+
+                    if decision.final_direction == "hold":
+                        self._councils_held += 1
+                        logger.info(
+                            "\u23f8 Council HOLD on %s (confidence=%.0f%%)",
+                            symbol,
+                            decision.final_confidence * 100,
+                        )
+                        return
+
+                    if not decision.execution_ready:
+                        self._councils_held += 1
+                        logger.info(
+                            "\u23f8 Council not execution-ready for %s "
+                            "(direction=%s, confidence=%.0f%%)",
+                            symbol,
+                            decision.final_direction,
+                            decision.final_confidence * 100,
+                        )
+                        return
+
+                    # Council approved — publish verdict for OrderExecutor
+                    self._councils_passed += 1
+                    verdict_data = decision.to_dict()
+                    verdict_data["signal_data"] = signal_data
+                    verdict_data["price"] = price
+
+                    await self.message_bus.publish("council.verdict", verdict_data)
+
+                    logger.info(
+                        "\u2705 Council APPROVED %s: %s @ %.0f%% confidence "
+                        "(votes=%d, signal=%.1f)",
+                        symbol,
+                        decision.final_direction.upper(),
+                        decision.final_confidence * 100,
+                        len(decision.votes),
+                        score,
+                    )
+
+                    # Trigger weight learning from this decision
+                    try:
+                        from app.council.weight_learner import get_weight_learner
+                        learner = get_weight_learner()
+                        learner.record_decision(decision)
+                    except Exception:
+                        pass
+
+                except Exception as e:
+                    logger.exception(
+                        "CouncilGate evaluation failed for %s: %s", symbol, e
+                    )
+        finally:
+            self._active_evaluations -= 1
 
     def get_status(self) -> Dict[str, Any]:
         """Return gate status for monitoring."""

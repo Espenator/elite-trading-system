@@ -1,6 +1,6 @@
 """Council Agent Helpers — shared utilities for all council agents.
 
-Reduces boilerplate across the 13 agents by providing:
+Reduces boilerplate across the 14 agents by providing:
 - Safe feature extraction with type coercion
 - Standard scoring → direction/confidence mapping
 - Consistent float parsing from feature dicts

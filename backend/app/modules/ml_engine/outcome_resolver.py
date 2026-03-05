@@ -30,11 +30,14 @@ def _set_store(data: dict):
 def record_outcome(
     symbol: str,
     signal_date: str,
-    outcome: int,
+    outcome: Optional[int] = None,
     prediction: Optional[int] = None,
     resolved_at: Optional[str] = None,
 ):
-    """Record one resolved outcome (0 = down, 1 = up). Optional prediction (0/1) for accuracy."""
+    """Record one resolved outcome (0 = down, 1 = up). Optional prediction (0/1) for accuracy.
+
+    If outcome is None, the entry is recorded as pending (not yet resolved).
+    """
     from datetime import datetime, timezone
 
     store = _get_store()
@@ -43,7 +46,7 @@ def record_outcome(
         {
             "symbol": symbol.upper(),
             "signal_date": signal_date,
-            "outcome": 1 if outcome else 0,
+            "outcome": (1 if outcome else 0) if outcome is not None else None,
             "prediction": prediction if prediction is not None else None,
             "resolved_at": resolved_at or datetime.now(timezone.utc).isoformat(),
         }

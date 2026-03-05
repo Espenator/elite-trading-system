@@ -1,7 +1,7 @@
 """Event-Driven Order Executor — council-controlled trading.
 
 Subscribes to `council.verdict` on the MessageBus (published by CouncilGate
-after the 13-agent council approves a trade).  This ensures every trade
+after the 14-agent council approves a trade).  This ensures every trade
 passes through the full agent intelligence layer.
 
 Pipeline:
@@ -64,7 +64,7 @@ class OrderExecutor:
     """Event-driven order executor subscribing to council.verdict.
 
     Now listens to council.verdict (from CouncilGate) instead of raw
-    signal.generated, ensuring every trade is approved by the 13-agent
+    signal.generated, ensuring every trade is approved by the 14-agent
     council before execution.
 
     Parameters
@@ -641,9 +641,11 @@ class OrderExecutor:
             logger.debug("trade_stats recording unavailable: %s", e)
 
         # Legacy outcome_resolver
+        # NOTE: At fill time we don't know the actual P&L yet (position hasn't
+        # closed). Outcome should be deferred to position close when we know
+        # whether the trade was profitable. Recording with outcome=None here.
         try:
             from app.modules.ml_engine.outcome_resolver import record_outcome
-            outcome = 1 if record.side == "buy" else 0
             prediction = 1 if record.signal_score >= 0.5 else 0
             signal_date = datetime.fromtimestamp(
                 record.timestamp, tz=timezone.utc
@@ -651,7 +653,7 @@ class OrderExecutor:
             record_outcome(
                 symbol=record.symbol,
                 signal_date=signal_date,
-                outcome=outcome,
+                outcome=None,
                 prediction=prediction,
             )
         except Exception as e:
