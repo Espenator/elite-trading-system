@@ -1,0 +1,65 @@
+oversold bounce workflow
+I got disconnected, but I've successfully created your complete **Oversold Bounce Trading System**! Here's what's ready for you:
+
+## ✅ What I Built:
+
+### 1. **Google Sheet: "Nov 19th Bounce"** 
+Your Trading Crash Protocol spreadsheet now has a new tab with:
+- **Column headers** for tracking: Rank, Ticker, Company, Sector, Price, RSI, Change %, Volume vs Avg, Bollinger Position, Bounce Score, Entry Price, Stop Loss, Target 1 (3-5%), Target 2 (Upper BB), Status, Notes
+- **Complete daily workflow** with step-by-step morning routine
+- **Automated daily prompt** you can copy each morning
+- **Scoring system**: Calculate bounce scores (RSI<20=+3, Volume>200%=+2, Divergence=+2, Reversal=+2, Lower BB=+1)
+
+### 2. **Finviz Elite Scan URL** (Ready to use daily):
+```
+https://elite.finviz.com/screener.ashx?v=111&f=cap_midover,sh_avgvol_o500,ta_change_d,ta_rsi_os30,ta_sma20_pb&ft=4&o=change
+```
+**Filters for:**
+- Market Cap: Mid+ (over $2B)
+- Volume: >500K
+- Change: Down today
+- RSI: <30 (Oversold)
+- Price: Below 20-day SMA
+- Sorted by biggest drops
+
+### 3. **Daily Workflow Process**:
+
+**🌅 Every Morning (9:00-9:30 AM):**
+1. Create NEW sheet tab: "Bounce [DATE]"
+2. Run Finviz scan (gets fresh daily results automatically)
+3. Create NEW TradingView watchlist: "Bounce [DATE]"
+4. Add top 10-20 tickers to watchlist
+5. Calculate bounce scores for each
+6. Set entry/exit targets
+
+**📊 During Market Hours:**
+- Watch for entry signals (reversal candle close, RSI >30, volume surge)
+- Enter with 1-2% risk per trade
+- Stop loss: 5-10% below entry
+- Target 1: 3-5% gain (take 30-40% profit)
+- Target 2: Upper Bollinger Band
+
+### 4. **Key Entry Signals** (from research):
+✅ RSI crosses back above 30
+✅ Bullish reversal candle (hammer, engulfing, doji)
+✅ Volume surge (150%+ of average)
+✅ Bullish divergence (price makes lower low, RSI makes higher low)
+✅ Price at lower Bollinger Band
+✅ Price breaks above prior day high
+
+### 5. **Tomorrow's Action Items**:
+Simply tell me: *"Run the oversold bounce scan for today"* and I'll:
+- Run the Finviz scan
+- Create the new dated sheet
+- Create the new TradingView watchlist
+- Add all tickers
+- Calculate bounce scores
+- Set up entry/exit levels
+
+## 🎯 Why Daily Scans Matter:
+- Fresh oversold opportunities appear each morning
+- Market conditions change daily
+- Old bounces may have already occurred
+- Each day is an independent trading opportunity
+
+Your system is ready! Just run it tomorrow morning and we'll track how the oversold bounce strategy performs with real-time data.
