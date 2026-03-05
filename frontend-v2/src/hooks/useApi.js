@@ -330,6 +330,48 @@ export function useCnsLastVerdict(pollMs = 10000) {
   return useApi('cnsLastVerdict', { pollIntervalMs: pollMs });
 }
 
+export function useProfitBrain(pollMs = 10000) {
+  return useApi('cnsProfitBrain', { pollIntervalMs: pollMs });
+}
+
+// ---- Swarm Intelligence Hooks ----
+
+export function useSwarmTurbo(pollMs = 10000) {
+  return useApi('swarmTurboStatus', { pollIntervalMs: pollMs });
+}
+
+export function useSwarmHyper(pollMs = 10000) {
+  return useApi('swarmHyperStatus', { pollIntervalMs: pollMs });
+}
+
+export function useSwarmNews(pollMs = 10000) {
+  return useApi('swarmNewsStatus', { pollIntervalMs: pollMs });
+}
+
+export function useSwarmSweep(pollMs = 10000) {
+  return useApi('swarmSweepStatus', { pollIntervalMs: pollMs });
+}
+
+export function useSwarmUnified(pollMs = 10000) {
+  return useApi('swarmUnifiedStatus', { pollIntervalMs: pollMs });
+}
+
+export function useSwarmOutcomes(pollMs = 10000) {
+  return useApi('swarmOutcomesStatus', { pollIntervalMs: pollMs });
+}
+
+export function useSwarmKelly(pollMs = 10000) {
+  return useApi('swarmOutcomesKelly', { pollIntervalMs: pollMs });
+}
+
+export function useSwarmPositions(pollMs = 10000) {
+  return useApi('swarmPositionsManaged', { pollIntervalMs: pollMs });
+}
+
+export function useSwarmMlScorer(pollMs = 10000) {
+  return useApi('swarmMlScorerStatus', { pollIntervalMs: pollMs });
+}
+
 /** POST helper to override agent streak status */
 export async function postAgentOverrideStatus(agentName, action) {
   const url = `${getApiUrl('cnsAgentsHealth').replace('/health', '')}/${encodeURIComponent(agentName)}/override-status`;

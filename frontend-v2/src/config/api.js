@@ -137,6 +137,18 @@ const API_CONFIG = {
     cnsPostmortemsAttribution: "/cns/postmortems/attribution",
     cnsDirectives: "/cns/directives",
     cnsLastVerdict: "/cns/council/last-verdict",
+    cnsProfitBrain: "/cns/profit-brain",
+
+    // ---- SWARM INTELLIGENCE ----
+    swarmTurboStatus: "/swarm/turbo/status",
+    swarmHyperStatus: "/swarm/hyper/status",
+    swarmNewsStatus: "/swarm/news/status",
+    swarmSweepStatus: "/swarm/sweep/status",
+    swarmUnifiedStatus: "/swarm/unified/status",
+    swarmOutcomesStatus: "/swarm/outcomes/status",
+    swarmOutcomesKelly: "/swarm/outcomes/kelly",
+    swarmPositionsManaged: "/swarm/positions/managed",
+    swarmMlScorerStatus: "/swarm/ml/scorer/status",
   },
 };
 

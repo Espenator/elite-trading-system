@@ -11,34 +11,17 @@
  *   - PositionManager (active trailing stops)
  *   - ML Scorer (live model status)
  */
-import { useState, useEffect, useCallback } from "react";
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-
-function useFetch(path, interval = 10000) {
-  const [data, setData] = useState(null);
-  const [error, setError] = useState(null);
-
-  const fetchData = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_BASE}${path}`);
-      if (res.ok) {
-        setData(await res.json());
-        setError(null);
-      }
-    } catch (e) {
-      setError(e.message);
-    }
-  }, [path]);
-
-  useEffect(() => {
-    fetchData();
-    const id = setInterval(fetchData, interval);
-    return () => clearInterval(id);
-  }, [fetchData, interval]);
-
-  return { data, error };
-}
+import {
+  useSwarmTurbo,
+  useSwarmHyper,
+  useSwarmNews,
+  useSwarmSweep,
+  useSwarmUnified,
+  useSwarmOutcomes,
+  useSwarmKelly,
+  useSwarmPositions,
+  useSwarmMlScorer,
+} from "../hooks/useApi";
 
 // Status badge
 function Badge({ status, label }) {
@@ -82,15 +65,15 @@ function Card({ title, badge, children }) {
 }
 
 export default function SwarmIntelligence() {
-  const { data: turbo } = useFetch("/api/v1/swarm/turbo/status");
-  const { data: hyper } = useFetch("/api/v1/swarm/hyper/status");
-  const { data: news } = useFetch("/api/v1/swarm/news/status");
-  const { data: sweep } = useFetch("/api/v1/swarm/sweep/status");
-  const { data: unified } = useFetch("/api/v1/swarm/unified/status");
-  const { data: outcomes } = useFetch("/api/v1/swarm/outcomes/status");
-  const { data: positions } = useFetch("/api/v1/swarm/positions/managed");
-  const { data: mlStatus } = useFetch("/api/v1/swarm/ml/scorer/status");
-  const { data: kelly } = useFetch("/api/v1/swarm/outcomes/kelly");
+  const { data: turbo } = useSwarmTurbo();
+  const { data: hyper } = useSwarmHyper();
+  const { data: news } = useSwarmNews();
+  const { data: sweep } = useSwarmSweep();
+  const { data: unified } = useSwarmUnified();
+  const { data: outcomes } = useSwarmOutcomes();
+  const { data: positions } = useSwarmPositions();
+  const { data: mlStatus } = useSwarmMlScorer();
+  const { data: kelly } = useSwarmKelly();
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">

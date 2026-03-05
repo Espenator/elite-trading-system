@@ -1,27 +1,12 @@
 /**
  * ProfitBrainBar — compact status bar showing the profit brain's vital signs.
- * Fetches from /api/v1/cns/profit-brain every 10s.
+ * Fetches from /api/v1/cns/profit-brain every 10s via standard useApi hook.
  * Shows: win rate, total PnL, brain weights, feedback loop status, active systems count.
  */
-import { useState, useEffect, useCallback } from "react";
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+import { useProfitBrain } from "../../hooks/useApi";
 
 export default function ProfitBrainBar() {
-  const [brain, setBrain] = useState(null);
-
-  const fetchBrain = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_BASE}/api/v1/cns/profit-brain`);
-      if (res.ok) setBrain(await res.json());
-    } catch { /* ignore */ }
-  }, []);
-
-  useEffect(() => {
-    fetchBrain();
-    const id = setInterval(fetchBrain, 10000);
-    return () => clearInterval(id);
-  }, [fetchBrain]);
+  const { data: brain } = useProfitBrain();
 
   if (!brain) return null;
 
