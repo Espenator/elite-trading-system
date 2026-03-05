@@ -75,6 +75,33 @@ class TradeIntent:
     take_profit: Dict[str, Any] = field(default_factory=dict)
     meta: Dict[str, Any] = field(default_factory=dict)
 
+    # Convenience accessors (delegate to nested proposal/identity)
+    @property
+    def symbol(self) -> str:
+        return self.proposal.identity.ticker
+
+    @property
+    def confidence(self) -> float:
+        return self.proposal.confidence
+
+    @property
+    def direction(self) -> str:
+        return self.proposal.side.lower()
+
+    @property
+    def thesis(self) -> str:
+        """Trade thesis from reasons or narrative."""
+        if self.proposal.reasons:
+            return "; ".join(self.proposal.reasons)
+        return self.proposal.identity.narrative
+
+    @property
+    def invalidation_condition(self) -> str:
+        """When is this trade wrong? Derived from stop or meta."""
+        if self.stop:
+            return f"Stop at {self.stop}"
+        return self.meta.get("invalidation", "")
+
 
 @dataclass
 class EnforcementDecision:

@@ -45,7 +45,8 @@ def run(symbols: list = None, use_risk_adjusted: bool = True) -> dict:
         try:
             from app.modules.symbol_universe import get_tracked_symbols
             symbols = get_tracked_symbols()
-        except Exception:
+        except Exception as e:
+            logger.debug("Symbol universe unavailable, using defaults: %s", e)
             symbols = ["SPY", "QQQ", "AAPL", "MSFT", "NVDA"]
 
     # Train via v2 pipeline

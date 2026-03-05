@@ -375,9 +375,10 @@ class ModelRegistry:
         """Get registry status for API/dashboard."""
         return {
             "total_runs": len(self._runs),
-            "champions": {name: self._get_run(rid).get("metrics", {})
+            "champions": {name: run.get("metrics", {})
                          for name, rid in self._champions.items()
-                         if self._get_run(rid)},
+                         for run in [self._get_run(rid)]
+                         if run is not None},
             "latest_runs": self._runs[-5:] if self._runs else [],
             "registry_dir": str(_REGISTRY_DIR),
         }

@@ -205,7 +205,7 @@ def run_full_retrain(use_lightgbm: bool = False) -> Optional[dict]:
     unique_dates = sorted(df["date"].unique())
     split_idx = int(len(unique_dates) * 0.8)
     train_end = (
-        pd.Timestamp(unique_dates[split_idx]).isoformat()[:10]
+        str(pd.Timestamp(unique_dates[split_idx]).date())
         if split_idx < len(unique_dates)
         else end.isoformat()
     )

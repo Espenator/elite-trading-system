@@ -150,11 +150,14 @@ class AlignmentEngine:
         bible_report = self.bible_checker.check_trade(
             cited_principles=cited_principles or [],
             has_thesis=bool(intent.thesis),
-            has_stop_loss=True,  # TODO: wire to actual stop loss check
+            has_stop_loss=bool(intent.stop),
             has_invalidation=bool(intent.invalidation_condition),
             is_during_drawdown=current_drawdown_pct > 0.05,
-            is_increasing_size=False,  # TODO: wire to position tracking
-            is_revenge_trade=False,  # TODO: wire to metacognition
+            is_increasing_size=intent.symbol in (current_positions or []),
+            is_revenge_trade=bool(
+                recent_outcomes and len(recent_outcomes) >= 2
+                and all(o < 0 for o in recent_outcomes[-2:])
+            ),
         )
         if bible_report.hard_violations:
             all_flags.extend([f"bible:{v}" for v in bible_report.hard_violations])
