@@ -22,7 +22,8 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      - TRADING_MODE=${TRADING_MODE:-paper}
+      - TRADING_MODE=${TRADING_MODE:-live}
+      - ENVIRONMENT=production
     volumes:
       - duckdb_data:/app/data
       - model_artifacts:/app/models/artifacts

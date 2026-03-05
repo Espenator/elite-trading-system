@@ -57,8 +57,8 @@ function buildEnvVars() {
     // API Keys
     ALPACA_API_KEY: apiKeys.alpacaApiKey || "",
     ALPACA_SECRET_KEY: apiKeys.alpacaSecretKey || "",
-    ALPACA_BASE_URL: apiKeys.alpacaBaseUrl || "https://paper-api.alpaca.markets",
-    ALPACA_FEED: "iex",
+    ALPACA_BASE_URL: apiKeys.alpacaBaseUrl || "https://api.alpaca.markets",
+    ALPACA_FEED: "sip",
     BRAIN_ENABLED: apiKeys.brainHost !== "disabled" ? "true" : "false",
     BRAIN_HOST: apiKeys.brainHost || "localhost",
     BRAIN_PORT: String(apiKeys.brainPort || 50051),

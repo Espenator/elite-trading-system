@@ -24,6 +24,7 @@ ALPACA_API_KEY = os.getenv('ALPACA_API_KEY', '')
 ALPACA_SECRET_KEY = os.getenv('ALPACA_SECRET_KEY', '')
 _data_url = os.getenv('ALPACA_DATA_URL', 'https://data.alpaca.markets').rstrip('/')
 ALPACA_DATA_URL = _data_url if _data_url.endswith('/v2') else _data_url + '/v2'
+ALPACA_FEED = os.getenv('ALPACA_FEED', 'sip')
 
 # Timeframe configs: (alpaca_timeframe, bars_needed, weight)
 TIMEFRAMES = {
@@ -52,7 +53,7 @@ class MTFAlignment:
             'timeframe': timeframe,
             'limit': limit,
             'adjustment': 'split',
-                'feed': 'iex',
+                'feed': ALPACA_FEED,
                   'start': (datetime.now() - timedelta(days=int(limit * 1.6))).strftime('%Y-%m-%d'),
         }
         try:
