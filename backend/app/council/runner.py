@@ -144,6 +144,42 @@ async def run_council(
     except Exception as e:
         logger.debug("Intelligence gathering failed (proceeding without): %s", e)
 
+    # ── Knowledge System: recall relevant heuristics + memories ─────────
+    try:
+        from app.core.config import settings as app_settings
+        if getattr(app_settings, "KNOWLEDGE_SYSTEM_ENABLED", True):
+            from app.knowledge.heuristic_engine import get_heuristic_engine
+            from app.knowledge.knowledge_graph import get_knowledge_graph
+
+            heuristic_engine = get_heuristic_engine()
+            knowledge_graph = get_knowledge_graph()
+
+            f = features.get("features", features)
+            regime = str(f.get("regime", "unknown")).lower()
+
+            # Get active heuristics for this regime
+            active_heuristics = heuristic_engine.get_active_heuristics(regime=regime)
+            active_ids = {h.heuristic_id for h in active_heuristics}
+
+            # Get confirming cross-agent patterns
+            confirmations = knowledge_graph.get_confirming_patterns(active_ids)
+            contradictions = knowledge_graph.get_contradictions(active_ids)
+
+            blackboard.knowledge_context = {
+                "active_heuristics": [h.to_dict() for h in active_heuristics[:10]],
+                "confirmations": confirmations[:5],
+                "contradictions": contradictions[:5],
+                "total_heuristics": len(active_heuristics),
+            }
+
+            if active_heuristics:
+                logger.info(
+                    "Knowledge context for %s: %d heuristics, %d confirmations, %d contradictions",
+                    symbol, len(active_heuristics), len(confirmations), len(contradictions),
+                )
+    except Exception as e:
+        logger.debug("Knowledge system recall failed (proceeding): %s", e)
+
     # Initialize TaskSpawner with all agents
     spawner = TaskSpawner(blackboard)
     spawner.register_all_agents()
@@ -214,6 +250,119 @@ async def run_council(
         elif v.agent_name == "execution":
             blackboard.execution_plan = v.to_dict()
 
+    # ── Bayesian Regime Update ────────────────────────────────────────────
+    try:
+        from app.council.regime.bayesian_regime import (
+            get_bayesian_regime, compute_likelihoods,
+        )
+        bayes_regime = get_bayesian_regime()
+        f = features.get("features", features)
+        likelihoods = compute_likelihoods(
+            vix=float(f.get("vix_close", 20)),
+            trend_strength=float(f.get("adx_14", 25)) / 50.0 - 0.5,  # normalize to [-0.5, 0.5]
+            breadth_ratio=float(f.get("breadth_ratio", 0.5)),
+            volatility_ratio=float(f.get("atr_14", 1)) / float(f.get("atr_21", 1)) if f.get("atr_21") else 1.0,
+        )
+        bayes_regime.update(likelihoods)
+        blackboard.regime_belief = bayes_regime.get_beliefs()
+        blackboard.metadata["regime_entropy"] = bayes_regime.entropy()
+        blackboard.metadata["regime_position_modifier"] = bayes_regime.position_size_modifier()
+        dom_regime, dom_prob = bayes_regime.dominant_regime()
+        logger.info(
+            "Bayesian regime for %s: %s (%.0f%%), entropy=%.3f, position_mod=%.2f",
+            symbol, dom_regime, dom_prob * 100,
+            bayes_regime.entropy(), bayes_regime.position_size_modifier(),
+        )
+    except Exception as e:
+        logger.debug("Bayesian regime update failed (proceeding): %s", e)
+
+    # ── Stage 5.5: Debate + Red Team (parallel) ──────────────────────────
+    # Only run if debate is enabled and we have a non-hold direction
+    try:
+        from app.core.config import settings as app_settings
+        proposed_direction = "hold"
+        proposed_confidence = 0.0
+        for v in all_votes:
+            if v.agent_name == "strategy" and v.direction != "hold":
+                proposed_direction = v.direction
+                proposed_confidence = v.confidence
+                break
+
+        if getattr(app_settings, "DEBATE_ENABLED", True) and proposed_direction != "hold":
+            from app.council.debate.debate_engine import DebateEngine
+            from app.council.agents.red_team_agent import stress_test
+
+            debate_engine = DebateEngine(
+                max_rounds=getattr(app_settings, "DEBATE_MAX_ROUNDS", 3)
+            )
+
+            # Run debate and red team in parallel
+            debate_coro = debate_engine.run_debate(
+                blackboard=blackboard,
+                symbol=symbol,
+                proposed_direction=proposed_direction,
+                context=context,
+            )
+            red_team_coro = stress_test(
+                blackboard=blackboard,
+                proposed_direction=proposed_direction,
+                proposed_confidence=proposed_confidence,
+                context=context,
+            )
+
+            debate_result, red_team_report = await asyncio.gather(
+                debate_coro, red_team_coro, return_exceptions=True,
+            )
+
+            # Process debate result
+            if isinstance(debate_result, Exception):
+                logger.warning("Debate engine error: %s", debate_result)
+            else:
+                blackboard.debate = debate_result.to_dict()
+                context["debate"] = debate_result.to_dict()
+                logger.info(
+                    "Debate for %s: winner=%s, quality=%.2f, modifier=%s",
+                    symbol, debate_result.winner, debate_result.quality_score,
+                    debate_result.action_modifier,
+                )
+                # If debate says veto, create a veto vote
+                if debate_result.action_modifier == "veto":
+                    veto_vote = AgentVote(
+                        agent_name="debate_engine",
+                        direction="hold",
+                        confidence=0.9,
+                        reasoning=f"Debate VETO: {debate_result.judge_summary[:200]}",
+                        veto=True,
+                        veto_reason="Debate engine veto: bear case overwhelmingly stronger",
+                        metadata={"debate_score": debate_result.quality_score},
+                        blackboard_ref=blackboard.council_decision_id,
+                    )
+                    all_votes.append(veto_vote)
+
+            # Process red team result
+            if isinstance(red_team_report, Exception):
+                logger.warning("Red team error: %s", red_team_report)
+            else:
+                blackboard.red_team_report = red_team_report.to_dict()
+                context["red_team"] = red_team_report.to_dict()
+                # Create red team vote
+                red_team_vote = AgentVote(
+                    agent_name="red_team",
+                    direction="hold" if red_team_report.overall_recommendation == "REJECT" else proposed_direction,
+                    confidence=0.7 if red_team_report.overall_recommendation == "PROCEED" else 0.4,
+                    reasoning=f"Red team: {red_team_report.overall_recommendation} "
+                              f"(survived={red_team_report.scenarios_survived}/{red_team_report.total_scenarios})",
+                    veto=(red_team_report.overall_recommendation == "REJECT"),
+                    veto_reason=f"Stress test REJECT: worst_case={red_team_report.worst_case_loss_pct:.1%}"
+                                if red_team_report.overall_recommendation == "REJECT" else "",
+                    metadata=red_team_report.to_dict(),
+                    blackboard_ref=blackboard.council_decision_id,
+                )
+                all_votes.append(red_team_vote)
+
+    except Exception as e:
+        logger.debug("Stage 5.5 (debate/red-team) failed (proceeding): %s", e)
+
     # Stage 6: Critic
     stage6 = await spawner.spawn("critic", symbol, timeframe, context=context)
     all_votes.append(stage6)
@@ -270,6 +419,42 @@ async def run_council(
         )
     except Exception as e:
         logger.debug("Feedback loop record failed: %s", e)
+
+    # ── Knowledge System: store agent memories for compound learning ──
+    try:
+        from app.core.config import settings as app_settings
+        if getattr(app_settings, "KNOWLEDGE_SYSTEM_ENABLED", True):
+            from app.knowledge.memory_bank import get_memory_bank, AgentMemory
+
+            bank = get_memory_bank()
+            f = features.get("features", features)
+            regime = str(f.get("regime", "unknown")).lower()
+            trade_id = context.get("trade_id", blackboard.council_decision_id)
+
+            for vote in all_votes:
+                memory = AgentMemory(
+                    agent_name=vote.agent_name,
+                    symbol=symbol,
+                    regime=regime,
+                    market_context={
+                        k: v for k, v in f.items()
+                        if isinstance(v, (int, float, str)) and k in (
+                            "rsi_14", "macd", "atr_14", "adx_14", "sma_20",
+                            "sma_50", "volume", "close", "vix_close",
+                        )
+                    },
+                    agent_observation={
+                        "direction": vote.direction,
+                        "confidence": vote.confidence,
+                        "reasoning": vote.reasoning[:200],
+                    },
+                    agent_vote=vote.direction,
+                    confidence=vote.confidence,
+                    trade_id=trade_id,
+                )
+                bank.store_observation(memory)
+    except Exception as e:
+        logger.debug("Knowledge memory storage failed: %s", e)
 
     # Publish enhanced verdict to message bus + WebSocket
     try:

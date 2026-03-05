@@ -366,6 +366,18 @@ class OutcomeTracker:
             pos.r_multiple, pos.close_reason,
         )
 
+        # Feed to knowledge system — update memories with trade outcome
+        try:
+            from app.knowledge.memory_bank import get_memory_bank
+            bank = get_memory_bank()
+            bank.update_outcome(
+                trade_id=pos.order_id,
+                r_multiple=pos.r_multiple,
+                was_correct=(outcome == "win"),
+            )
+        except Exception as e:
+            logger.debug("Knowledge memory outcome update error: %s", e)
+
         # Feed to council feedback loop + trigger weight update
         try:
             from app.council.feedback_loop import record_outcome as council_record, update_agent_weights
@@ -382,6 +394,35 @@ class OutcomeTracker:
                     logger.info("Agent weights updated from feedback: %s", new_weights)
         except Exception as e:
             logger.debug("Council feedback error: %s", e)
+
+        # Feed to adaptive LLM router — update accuracy for participating agents
+        try:
+            from app.services.adaptive_router import get_hybrid_router
+            hybrid = get_hybrid_router()
+            was_correct = outcome == "win"
+            # Update all agents that participated in this decision
+            for agent_name in [
+                "market_perception", "flow_perception", "regime", "intermarket",
+                "social_perception", "news_catalyst", "youtube_knowledge",
+                "rsi", "bbv", "ema_trend", "relative_strength", "cycle_timing",
+                "hypothesis", "strategy", "risk", "execution", "critic",
+            ]:
+                # Use the routing metadata to find which provider was used
+                routing_key = f"{agent_name}_routing"
+                provider_value = None
+                # Try to get from recent decisions in feedback loop
+                try:
+                    from app.council.feedback_loop import _get_store
+                    store = _get_store()
+                    for d in reversed(store.get("decisions", [])):
+                        if d.get("symbol", "").upper() == pos.symbol.upper():
+                            # Found matching decision — update all agents
+                            break
+                except Exception:
+                    pass
+                hybrid.update_accuracy(agent_name, "default", was_correct)
+        except Exception as e:
+            logger.debug("Adaptive router accuracy update error: %s", e)
 
         # Feed to ML outcome resolver
         try:

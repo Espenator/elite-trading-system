@@ -38,6 +38,17 @@ class BlackboardState:
     execution_plan: Optional[Dict[str, Any]] = None  # S4 execution writes here
     critic_review: Optional[Dict[str, Any]] = None  # S5 writes here
 
+    # Phase 1: LLM routing provenance
+    llm_trace: list = field(default_factory=list)  # [{agent, provider, latency_ms}]
+
+    # Phase 2: Debate + adversarial outputs (Stage 5.5)
+    regime_belief: Dict[str, float] = field(default_factory=dict)  # state→probability
+    debate: Optional[Dict[str, Any]] = None  # transcript + scores from debate engine
+    red_team_report: Optional[Dict[str, Any]] = None  # stress test results
+
+    # Phase 3: Knowledge system context
+    knowledge_context: Optional[Dict[str, Any]] = None  # recalled heuristics + memories
+
     # Identity and lifecycle
     council_decision_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
@@ -69,6 +80,11 @@ class BlackboardState:
             "risk_assessment": self.risk_assessment,
             "execution_plan": self.execution_plan,
             "critic_review": self.critic_review,
+            "llm_trace": self.llm_trace,
+            "regime_belief": self.regime_belief,
+            "debate": self.debate,
+            "red_team_report": self.red_team_report,
+            "knowledge_context": self.knowledge_context,
             "ttl_seconds": self.ttl_seconds,
             "metadata": self.metadata,
         }
