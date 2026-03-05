@@ -1397,7 +1397,7 @@ export default function Dashboard() {
             <span>
               Deployed{" "}
               <span className="text-[#00D9FF]">
-                {Number(portfolio.deployedPercent ?? 0)}%
+                {Number(portfolio.deployedPercent ?? 0).toFixed(1)}%
               </span>
             </span>
             <span>
@@ -1583,22 +1583,22 @@ export default function Dashboard() {
                         {sig.topShap || "\u2014"}
                       </td>
                       <td className="p-1.5 text-[#00D9FF]">
-                        {sig.kellyPercent}%
+                        {sig.kellyPercent ?? 0}%
                       </td>
                       <td className="p-1.5 text-[#94a3b8]">
-                        ${sig.entry?.toFixed(2)}
+                        {sig.entry != null ? `$${Number(sig.entry).toFixed(2)}` : "\u2014"}
                       </td>
                       <td className="p-1.5 text-green-400">
-                        ${sig.target?.toFixed(2)}
+                        {sig.target != null ? `$${Number(sig.target).toFixed(2)}` : "\u2014"}
                       </td>
                       <td className="p-1.5 text-red-400">
-                        ${sig.stop?.toFixed(2)}
+                        {sig.stop != null ? `$${Number(sig.stop).toFixed(2)}` : "\u2014"}
                       </td>
                       <td className="p-1.5 text-white">
-                        {sig.rMultiple?.toFixed(1)}:1
+                        {sig.rMultiple != null ? `${Number(sig.rMultiple).toFixed(1)}:1` : "\u2014"}
                       </td>
                       <td className="p-1.5 text-green-400">
-                        +${sig.expPnL?.toLocaleString()}
+                        {sig.expPnL != null ? `+$${Number(sig.expPnL).toLocaleString()}` : "\u2014"}
                       </td>
                       <td className="p-1.5 text-[#64748b]">
                         {sig.sector?.substring(0, 3) || "\u2014"}
@@ -1991,7 +1991,10 @@ export default function Dashboard() {
                     </div>
                     {(techs.shapFeatures || selectedSignal.shapFeatures || [])
                       .slice(0, 5)
-                      .map((s) => (
+                      .map((s) => {
+                        const imp = Number(s.impact) || 0;
+                        const barW = Math.min(Math.abs(imp) * 500, 100);
+                        return (
                         <div
                           key={s.feature}
                           className="flex items-center justify-between"
@@ -2000,42 +2003,37 @@ export default function Dashboard() {
                             {s.feature}
                           </span>
                           <div className="flex-1 flex items-center mx-2">
-                            {s.impact < 0 ? (
+                            {imp < 0 ? (
                               <div className="w-1/2 flex justify-end">
                                 <div
                                   className="h-1.5 bg-red-500"
-                                  style={{
-                                    width: `${Math.abs(s.impact) * 500}%`,
-                                  }}
+                                  style={{ width: `${barW}%` }}
                                 ></div>
                               </div>
                             ) : (
                               <div className="w-1/2"></div>
                             )}
-                            {s.impact > 0 && (
+                            {imp > 0 && (
                               <div className="w-1/2">
                                 <div
                                   className="h-1.5 bg-green-500"
-                                  style={{
-                                    width: `${Math.abs(s.impact) * 500}%`,
-                                  }}
+                                  style={{ width: `${barW}%` }}
                                 ></div>
                               </div>
                             )}
                           </div>
                           <span
                             className={
-                              s.impact > 0
+                              imp > 0
                                 ? "text-green-400 w-8 text-right"
                                 : "text-red-400 w-8 text-right"
                             }
                           >
-                            {s.impact > 0
-                              ? `+${s.impact.toFixed(2)}`
-                              : s.impact.toFixed(2)}
+                            {imp > 0 ? `+${imp.toFixed(2)}` : imp.toFixed(2)}
                           </span>
                         </div>
-                      ))}
+                        );
+                      })}
                   </div>
                 </div>
               </div>
@@ -2084,14 +2082,14 @@ export default function Dashboard() {
                     <span className="text-[#94a3b8]">
                       Sizing:{" "}
                       <span className="text-white">
-                        Kelly {selectedSignal.kellyPercent}%
+                        Kelly {selectedSignal.kellyPercent ?? 0}%
                       </span>
                     </span>
                   </div>
                   {/* L2 Order Book */}
                   <div className="text-[#94a3b8] mb-1">
                     LIVE L2 ORDER BOOK (Spread: $
-                    {quotes.spread?.toFixed(2) || "\u2014"})
+                    {quotes.spread != null ? Number(quotes.spread).toFixed(2) : "\u2014"})
                   </div>
                   <div className="flex flex-col gap-[1px]">
                     {quotes.asks
@@ -2102,13 +2100,13 @@ export default function Dashboard() {
                           key={"ask" + i}
                           className="flex items-center text-[7px]"
                         >
-                          <span className="w-10 text-red-400">{ask.price}</span>
+                          <span className="w-10 text-red-400">{Number(ask.price).toFixed(2)}</span>
                           <span className="w-8 text-right mr-1">
                             {ask.size}
                           </span>
                           <div
                             className="h-1.5 bg-red-500/30"
-                            style={{ width: `${(ask.size / 1500) * 100}%` }}
+                            style={{ width: `${Math.min((Number(ask.size) / 1500) * 100, 100)}%` }}
                           ></div>
                         </div>
                       )) || (
@@ -2122,11 +2120,11 @@ export default function Dashboard() {
                         key={"bid" + i}
                         className="flex items-center text-[7px]"
                       >
-                        <span className="w-10 text-green-400">{bid.price}</span>
+                        <span className="w-10 text-green-400">{Number(bid.price).toFixed(2)}</span>
                         <span className="w-8 text-right mr-1">{bid.size}</span>
                         <div
                           className="h-1.5 bg-green-500/30"
-                          style={{ width: `${(bid.size / 1500) * 100}%` }}
+                          style={{ width: `${Math.min((Number(bid.size) / 1500) * 100, 100)}%` }}
                         ></div>
                       </div>
                     )) || (

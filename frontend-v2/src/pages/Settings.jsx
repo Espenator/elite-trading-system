@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import PageHeader from "../components/ui/PageHeader";
@@ -90,13 +90,14 @@ function AuditLogTab() {
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("api-keys");
   const {
-    settings, loading, saving, dirty,
+    settings, loading, saving, dirty, error,
     connectionResults, updateField,
     saveCategory, saveAllSettings, resetCategory,
     validateKey, testConnection,
     exportSettings, importSettings, refetch,
   } = useSettings();
 
+  const importRef = useRef(null);
   const S = settings || {};
 
   // Helper: get a value from a category
@@ -162,8 +163,8 @@ export default function SettingsPage() {
       <Card className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-4 space-y-3 max-w-xl">
         <TextField label="Display Name" value={get("user", "displayName")} onChange={(e) => updateField("user", "displayName", e.target.value)} inputClassName="text-xs py-1.5 rounded-md" />
         <TextField label="Email" value={get("user", "email")} onChange={(e) => updateField("user", "email", e.target.value)} inputClassName="text-xs py-1.5 rounded-md" />
-        <Select label="Timezone" value={get("user", "timezone", "America/New_York")} options={["America/New_York", "America/Chicago", "America/Los_Angeles", "Europe/Oslo", "UTC"]} onChange={(v) => updateField("user", "timezone", v)} selectClassName="text-xs py-1.5 rounded-md" />
-        <Select label="Currency" value={get("user", "currency", "USD")} options={["USD", "EUR", "NOK", "GBP"]} onChange={(v) => updateField("user", "currency", v)} selectClassName="text-xs py-1.5 rounded-md" />
+        <Select label="Timezone" value={get("user", "timezone", "America/New_York")} options={["America/New_York", "America/Chicago", "America/Los_Angeles", "Europe/Oslo", "UTC"]} onChange={(e) => updateField("user", "timezone", e.target.value)} selectClassName="text-xs py-1.5 rounded-md" />
+        <Select label="Currency" value={get("user", "currency", "USD")} options={["USD", "EUR", "NOK", "GBP"]} onChange={(e) => updateField("user", "currency", e.target.value)} selectClassName="text-xs py-1.5 rounded-md" />
         <TextField label="Session Timeout" type="number" value={get("user", "sessionTimeoutMinutes", 30)} onChange={(e) => updateField("user", "sessionTimeoutMinutes", Number(e.target.value))} suffix="min" inputClassName="text-xs py-1.5 rounded-md" />
         <FieldRow label="Two-Factor Auth">
           <Toggle checked={!!get("user", "twoFactorEnabled", false)} onChange={(v) => updateField("user", "twoFactorEnabled", v)} />
@@ -190,10 +191,7 @@ export default function SettingsPage() {
         <SectionHeader icon={Key} title="API Keys" sub="Manage broker and data provider credentials." />
         <div className="flex gap-2 mb-4">
           <Button variant="secondary" size="xs" leftIcon={Download} onClick={onExport} className="text-xs text-gray-400">Export</Button>
-          <label className="cursor-pointer">
-            <input type="file" accept=".json" className="hidden" onChange={onImport} />
-            <Button variant="secondary" size="xs" leftIcon={Upload} className="text-xs text-gray-400">Import</Button>
-          </label>
+          <Button variant="secondary" size="xs" leftIcon={Upload} onClick={() => importRef.current?.click()} className="text-xs text-gray-400">Import</Button>
         </div>
         {providers.map((p) => {
           const cr = connectionResults[p.id] || {};
@@ -254,8 +252,8 @@ export default function SettingsPage() {
         <TextField label="Max Position Size ($)" type="number" value={get("trading", "maxPositionSize", 10000)} onChange={(e) => updateField("trading", "maxPositionSize", Number(e.target.value))} inputClassName="text-xs py-1.5 rounded-md" />
         <TextField label="Max Daily Trades" type="number" value={get("trading", "maxDailyTrades", 10)} onChange={(e) => updateField("trading", "maxDailyTrades", Number(e.target.value))} inputClassName="text-xs py-1.5 rounded-md" />
         <h4 className="text-xs font-bold text-[#00D9FF] uppercase tracking-wider mt-4">Trade Management</h4>
-        <Select label="Default Order Type" value={get("trading", "defaultOrderType", "market")} options={["market", "limit", "stop", "stop_limit"]} onChange={(v) => updateField("trading", "defaultOrderType", v)} selectClassName="text-xs py-1.5" />
-        <Select label="Entry Method" value={get("trading", "entryMethod", "market")} options={["market", "limit", "scale_in"]} onChange={(v) => updateField("trading", "entryMethod", v)} selectClassName="text-xs py-1.5" />
+        <Select label="Default Order Type" value={get("trading", "defaultOrderType", "market")} options={["market", "limit", "stop", "stop_limit"]} onChange={(e) => updateField("trading", "defaultOrderType", e.target.value)} selectClassName="text-xs py-1.5" />
+        <Select label="Entry Method" value={get("trading", "entryMethod", "market")} options={["market", "limit", "scale_in"]} onChange={(e) => updateField("trading", "entryMethod", e.target.value)} selectClassName="text-xs py-1.5" />
         <h4 className="text-xs font-bold text-[#00D9FF] uppercase tracking-wider mt-4">Session Hours</h4>
         <TextField label="Market Open" value={get("trading", "marketOpen", "09:30")} onChange={(e) => updateField("trading", "marketOpen", e.target.value)} inputClassName="text-xs py-1.5 rounded-md" />
         <TextField label="Market Close" value={get("trading", "marketClose", "16:00")} onChange={(e) => updateField("trading", "marketClose", e.target.value)} inputClassName="text-xs py-1.5 rounded-md" />
@@ -303,8 +301,8 @@ export default function SettingsPage() {
       <SectionHeader icon={Cpu} title="AI / ML Configuration" sub="Model settings, Ollama LLM, and drift detection." />
       <Card className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-4 space-y-3 max-w-xl">
         <h4 className="text-xs font-bold text-[#00D9FF] uppercase tracking-wider">Model Config</h4>
-        <Select label="Model Type" value={get("ml", "modelType", "xgboost")} options={["xgboost", "random_forest", "lstm", "transformer"]} onChange={(v) => updateField("ml", "modelType", v)} selectClassName="text-xs py-1.5" />
-        <Select label="Retrain Frequency" value={get("ml", "retrainFrequency", "weekly")} options={["daily", "weekly", "monthly"]} onChange={(v) => updateField("ml", "retrainFrequency", v)} selectClassName="text-xs py-1.5" />
+        <Select label="Model Type" value={get("ml", "modelType", "xgboost")} options={["xgboost", "random_forest", "lstm", "transformer"]} onChange={(e) => updateField("ml", "modelType", e.target.value)} selectClassName="text-xs py-1.5" />
+        <Select label="Retrain Frequency" value={get("ml", "retrainFrequency", "weekly")} options={["daily", "weekly", "monthly"]} onChange={(e) => updateField("ml", "retrainFrequency", e.target.value)} selectClassName="text-xs py-1.5" />
         <TextField label="Confidence Threshold" type="number" step="0.01" value={get("ml", "confidenceThreshold", 0.7)} onChange={(e) => updateField("ml", "confidenceThreshold", parseFloat(e.target.value))} suffix="ratio" inputClassName="text-xs py-1.5" />
         <TextField label="Min Composite Score" type="number" value={get("ml", "minCompositeScore", 60)} onChange={(e) => updateField("ml", "minCompositeScore", Number(e.target.value))} suffix="pts" inputClassName="text-xs py-1.5" />
         <TextField label="Min ML Confidence" type="number" value={get("ml", "minMLConfidence", 50)} onChange={(e) => updateField("ml", "minMLConfidence", Number(e.target.value))} suffix="pts" inputClassName="text-xs py-1.5" />
@@ -392,7 +390,7 @@ export default function SettingsPage() {
                 <TextField key={f} label={f.replace(/([A-Z])/g, ' $1').trim()} type={f.toLowerCase().includes("key") || f.toLowerCase().includes("secret") ? "password" : "text"}
                   value={get("dataSources", `${s.key}.${f}`, "")} onChange={(e) => updateField("dataSources", `${s.key}.${f}`, e.target.value)} inputClassName="text-xs" />
               ))}
-              <Button variant="ghost" size="xs" leftIcon={Zap} onClick={() => testConnection("dataSources", s.key)} className="text-xs text-gray-400 hover:text-[#00D9FF]">Test</Button>
+              <Button variant="ghost" size="xs" leftIcon={Zap} onClick={() => onTestConn(s.key)} className="text-xs text-gray-400 hover:text-[#00D9FF]">Test</Button>
             </Card>
           ))}
         </div>
@@ -488,7 +486,7 @@ export default function SettingsPage() {
       <Card className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-4 space-y-4 max-w-3xl">
         <h4 className="text-xs font-bold text-[#f59e0b] uppercase tracking-wider mb-2">Engine Mode</h4>
         <FieldRow label="Alignment Enabled"><Toggle checked={!!get("alignment", "enabled", true)} onChange={(v) => updateField("alignment", "enabled", v)} /></FieldRow>
-        <Select label="Mode" value={get("alignment", "mode", "strict")} options={["strict", "moderate", "advisory"]} onChange={(v) => updateField("alignment", "mode", v)} selectClassName="text-xs py-1.5" />
+        <Select label="Mode" value={get("alignment", "mode", "strict")} options={["strict", "moderate", "advisory"]} onChange={(e) => updateField("alignment", "mode", e.target.value)} selectClassName="text-xs py-1.5" />
         <h4 className="text-xs font-bold text-[#f59e0b] uppercase tracking-wider mt-4">Active Checks</h4>
         <FieldRow label="Bright Lines"><Toggle checked={!!get("alignment", "checkBrightLines", true)} onChange={(v) => updateField("alignment", "checkBrightLines", v)} /></FieldRow>
         <FieldRow label="Trading Bible"><Toggle checked={!!get("alignment", "checkBible", true)} onChange={(v) => updateField("alignment", "checkBible", v)} /></FieldRow>
@@ -540,6 +538,16 @@ export default function SettingsPage() {
     );
   }
 
+  if (error && !settings) {
+    return (
+      <div className="min-h-screen bg-[#0B0E14] flex flex-col items-center justify-center gap-3">
+        <AlertTriangle className="w-6 h-6 text-red-400" />
+        <span className="text-gray-400 text-sm">Failed to load settings: {error.message}</span>
+        <Button variant="secondary" size="xs" onClick={refetch} leftIcon={RefreshCw}>Retry</Button>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#0B0E14] text-gray-100 p-4">
       {/* Header */}
@@ -550,10 +558,8 @@ export default function SettingsPage() {
         </div>
         <div className="flex gap-2">
           <Button variant="secondary" size="xs" leftIcon={Download} onClick={onExport} className="text-xs text-gray-400">Export</Button>
-          <label className="cursor-pointer">
-            <input type="file" accept=".json" className="hidden" onChange={onImport} />
-            <Button variant="secondary" size="xs" leftIcon={Upload} className="text-xs text-gray-400">Import</Button>
-          </label>
+          <input ref={importRef} type="file" accept=".json" className="hidden" onChange={onImport} />
+          <Button variant="secondary" size="xs" leftIcon={Upload} onClick={() => importRef.current?.click()} className="text-xs text-gray-400">Import</Button>
         </div>
       </div>
 

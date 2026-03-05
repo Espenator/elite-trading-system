@@ -57,11 +57,11 @@ class AlpacaService:
 
         # Fallback: if .env keys are empty, try stored settings DB_CONFIG_KEY
         if not self.api_key or not self.secret_key:
-        try:
-            from app.services.settings_service import get_settings_by_category
-            ds = get_settings_by_category("dataSources")
-            self.api_key = ds.get("alpacaApiKey", "") or self.api_key
-            self.secret_key = ds.get("alpacaSecretKey", "") or self.secret_key
+            try:
+                from app.services.settings_service import get_settings_by_category
+                ds = get_settings_by_category("dataSources")
+                self.api_key = ds.get("alpacaApiKey", "") or self.api_key
+                self.secret_key = ds.get("alpacaSecretKey", "") or self.secret_key
             except Exception:
                 pass
             

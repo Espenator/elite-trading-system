@@ -215,6 +215,28 @@ DEFAULTS: Dict[str, Dict[str, Any]] = {
         "peerDevices": [],
         "tradingMode": "live",
     },
+    "appearance": {
+        "theme": "dark",
+        "density": "compact",
+        "chartTimeframe": "5m",
+        "showPnlHeader": True,
+        "animations": True,
+        "soundAlerts": False,
+    },
+    "alignment": {
+        "enabled": True,
+        "mode": "strict",
+        "checkBrightLines": True,
+        "checkBible": True,
+        "checkMetacognition": True,
+        "checkCritique": True,
+        "maxPositionPct": 5,
+        "maxHeatPct": 20,
+        "maxDrawdownPct": 10,
+        "dailyTradeCap": 15,
+        "rapidFireWindowSec": 60,
+        "critiqueThreshold": 70,
+    },
 }
 
 

@@ -27,11 +27,11 @@ export default function useTradeExecution() {
 
   // ─── Order Form State ──────────────────────────────────
   const [orderForm, setOrderForm] = useState({
-    symbol: '',
-    strategy: '',
+    symbol: 'SPY',
+    strategy: 'Iron Condor',
     callStrikes: { call: [0, 0], put: [0, 0] },
     putStrikes: { call: [0, 0], put: [0, 0] },
-    quantity: 0,
+    quantity: 1,
     quantityType: 'Contracts',
     limitPrice: 0,
     stopPrice: 0,

@@ -572,8 +572,8 @@ const PerformanceAnalytics = () => {
                       <td className="py-1 text-right text-gray-400">{trade.qty}</td>
                       <td className="py-1 text-right text-gray-300">{fmt(trade.entry)}</td>
                       <td className="py-1 text-right text-gray-300">{fmt(trade.exit)}</td>
-                      <td className={`py-1 text-right font-medium ${trade.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {trade.pnl >= 0 ? '+' : ''}{fmt(trade.pnl)}
+                      <td className={`py-1 text-right font-medium ${Number(trade.pnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {Number(trade.pnl ?? 0) >= 0 ? '+' : ''}{fmt(trade.pnl ?? 0)}
                       </td>
                     </tr>
                   ))}

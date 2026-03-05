@@ -609,10 +609,10 @@ export default function SentimentIntelligence() {
                     <div className="space-y-2">
                       <div className="flex justify-between text-2xs">
                         <span className="text-aurora-subtext">Probability</span>
-                        <span className="text-aurora-primary font-bold font-mono">{pm.probability}%</span>
+                        <span className="text-aurora-primary font-bold font-mono">{pm.probability ?? 0}%</span>
                       </div>
                       <div className="w-full bg-aurora-muted rounded-full h-1.5">
-                        <div className="h-1.5 rounded-full transition-all duration-500" style={{ width: `${pm.probability}%`, backgroundColor: '#00D9FF' }} />
+                        <div className="h-1.5 rounded-full transition-all duration-500" style={{ width: `${pm.probability ?? 0}%`, backgroundColor: '#00D9FF' }} />
                       </div>
                       <div className="flex justify-between text-2xs">
                         <span className="text-aurora-subtext">Progress</span>

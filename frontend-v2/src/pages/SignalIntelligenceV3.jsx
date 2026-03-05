@@ -312,7 +312,7 @@ export default function SignalIntelligenceV3() {
         candleSeries.createPriceLine({ price: lastPrice, color: '#06b6d4', lineWidth: 2, lineStyle: LineStyle.Solid, title: 'ENTRY' });
         candleSeries.createPriceLine({ price: lastPrice * 1.05, color: '#10b981', lineWidth: 2, lineStyle: LineStyle.Dashed, title: 'TARGET' });
         candleSeries.createPriceLine({ price: lastPrice * 0.98, color: '#ef4444', lineWidth: 2, lineStyle: LineStyle.Dotted, title: 'STOP' });
-      } catch (err) { log.error('Chart data fetch error:', err); }
+      } catch (err) { log.warn('Chart data fetch (expected if no quotes endpoint):', err.message); }
     };
     fetchChart();
     chartRef.current = chart;
@@ -690,7 +690,7 @@ export default function SignalIntelligenceV3() {
                       </td>
                       <td className="py-1 px-1 font-mono text-gray-400">{sig.compression || sig.comp || '--'}</td>
                       <td className="py-1 px-1 font-mono text-purple-400">{sig.velez_score || sig.velezScore || '--'}</td>
-                      <td className="py-1 px-1 font-mono text-[#00D9FF]">{sig.vol_ratio || sig.volRatio ? (sig.vol_ratio || sig.volRatio).toFixed(1) : '--'}</td>
+                      <td className="py-1 px-1 font-mono text-[#00D9FF]">{(sig.vol_ratio || sig.volRatio) ? Number(sig.vol_ratio || sig.volRatio).toFixed(1) : '--'}</td>
                       <td className="py-1 px-1">
                         <span className={`text-[8px] ${regimeData.state?.includes('BULL') ? 'text-emerald-400' : regimeData.state?.includes('BEAR') ? 'text-red-400' : 'text-amber-400'}`}>
                           {sig.regime || regimeBanner.label}

@@ -679,7 +679,7 @@ export default function Backtesting() {
                   nodes={swarmAgents.map((a, i) => ({
                     id: String(a.id),
                     position: { x: 80 + (i % 4) * 200, y: 40 + Math.floor(i / 4) * 120 },
-                    data: { label: `${a.role}\nTasks: ${a.tasksCompleted || 0}\nP&L: $${(a.pnl || 0).toLocaleString()}` },
+                    data: { label: `${a.role}\nTasks: ${a.tasksCompleted || 0}\nP&L: $${Number(a.pnl || 0).toLocaleString()}` },
                     style: {
                       background: a.status === 'active' ? '#064e3b' : '#1e293b',
                       color: '#e2e8f0', border: '1px solid #334155',

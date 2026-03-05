@@ -86,18 +86,18 @@ export default function SwarmIntelligence() {
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 bg-gray-800/30 rounded-lg p-4 border border-gray-700/30">
         <Metric
           label="Win Rate"
-          value={outcomes?.win_rate != null ? `${(outcomes.win_rate * 100).toFixed(1)}%` : "-"}
-          sub={outcomes ? `${outcomes.wins}W / ${outcomes.losses}L` : ""}
+          value={outcomes?.win_rate != null ? `${(Number(outcomes.win_rate) * 100).toFixed(1)}%` : "-"}
+          sub={outcomes ? `${outcomes.wins ?? 0}W / ${outcomes.losses ?? 0}L` : ""}
         />
         <Metric
           label="Total PnL"
-          value={outcomes?.total_pnl != null ? `$${outcomes.total_pnl.toFixed(0)}` : "-"}
+          value={outcomes?.total_pnl != null ? `$${Number(outcomes.total_pnl).toFixed(0)}` : "-"}
           sub={outcomes ? `${outcomes.total_resolved} trades` : ""}
         />
         <Metric
           label="Kelly Calibrated"
           value={outcomes?.kelly_calibrated ? "Yes" : "No"}
-          sub={kelly ? `WR=${(kelly.win_rate * 100).toFixed(0)}% W=${(kelly.avg_win_pct * 100).toFixed(1)}%` : ""}
+          sub={kelly ? `WR=${(Number(kelly.win_rate) * 100).toFixed(0)}% W=${(Number(kelly.avg_win_pct) * 100).toFixed(1)}%` : ""}
         />
         <Metric
           label="Active Positions"
@@ -124,10 +124,10 @@ export default function SwarmIntelligence() {
           <div className="grid grid-cols-5 gap-3">
             {Object.entries(unified.weights || {}).map(([brain, weight]) => (
               <div key={brain} className="text-center bg-gray-900/50 rounded p-2">
-                <div className="text-lg font-bold text-cyan-400">{(weight * 100).toFixed(1)}%</div>
+                <div className="text-lg font-bold text-cyan-400">{(Number(weight) * 100).toFixed(1)}%</div>
                 <div className="text-xs text-gray-400 capitalize">{brain.replace("_", " ")}</div>
                 {unified.brain_accuracy?.[brain] != null && (
-                  <div className="text-xs text-gray-500">acc: {(unified.brain_accuracy[brain] * 100).toFixed(0)}%</div>
+                  <div className="text-xs text-gray-500">acc: {(Number(unified.brain_accuracy[brain]) * 100).toFixed(0)}%</div>
                 )}
               </div>
             ))}

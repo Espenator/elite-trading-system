@@ -177,7 +177,7 @@ export default function TradeExecution() {
                       onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'rgba(0,217,255,0.04)'; }}
                       onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}>
                       <td style={{ padding: '3px 6px', color: C.textDim, fontSize: 10 }}>{row.row}</td>
-                      <td style={{ padding: '3px 6px', color: isSelected ? C.cyan400 : C.text, fontWeight: isSelected ? 700 : 400 }}>{parseFloat(row.price).toFixed(2)}</td>
+                      <td style={{ padding: '3px 6px', color: isSelected ? C.cyan400 : C.text, fontWeight: isSelected ? 700 : 400 }}>{(parseFloat(row.price) || 0).toFixed(2)}</td>
                       <td style={{ padding: '3px 6px', textAlign: 'right', color: priceColor, position: 'relative' }}>
                         <div style={{ position: 'absolute', top: 0, bottom: 0, right: 0, width: `${Math.min(row.size * 4, 100)}%`, background: priceColor, opacity: 0.15 }} />
                         <span style={{ position: 'relative', zIndex: 1 }}>{row.size}</span>
@@ -336,11 +336,11 @@ export default function TradeExecution() {
                 {posArr.map((pos, i) => (
                   <tr key={i} style={{ borderBottom: `1px solid ${C.border}` }}>
                     <td style={{ padding: '6px 8px', color: C.cyan400, fontWeight: 600 }}>{pos.symbol}</td>
-                    <td style={{ padding: '6px 8px', color: pos.side === 'Long' ? C.green : C.red }}>{pos.side}</td>
-                    <td style={{ padding: '6px 8px', color: C.text }}>{pos.quantity}</td>
-                    <td style={{ padding: '6px 8px', color: C.text }}>{pos.avgPrice.toFixed(2)}</td>
-                    <td style={{ padding: '6px 8px', color: C.text }}>{pos.currentPrice.toFixed(2)}</td>
-                    <td style={{ padding: '6px 8px', color: pos.pnl >= 0 ? C.green : C.red, fontWeight: 600 }}>{pos.pnl >= 0 ? '+' : ''}{fmtUsd(pos.pnl)}</td>
+                    <td style={{ padding: '6px 8px', color: (pos.side || '').toLowerCase().includes('long') ? C.green : C.red }}>{pos.side}</td>
+                    <td style={{ padding: '6px 8px', color: C.text }}>{parseFloat(pos.quantity ?? pos.qty ?? 0)}</td>
+                    <td style={{ padding: '6px 8px', color: C.text }}>{parseFloat(pos.avgPrice ?? pos.avg_entry_price ?? 0).toFixed(2)}</td>
+                    <td style={{ padding: '6px 8px', color: C.text }}>{parseFloat(pos.currentPrice ?? pos.current_price ?? 0).toFixed(2)}</td>
+                    <td style={{ padding: '6px 8px', color: parseFloat(pos.pnl ?? pos.unrealized_pl ?? 0) >= 0 ? C.green : C.red, fontWeight: 600 }}>{parseFloat(pos.pnl ?? pos.unrealized_pl ?? 0) >= 0 ? '+' : ''}{fmtUsd(parseFloat(pos.pnl ?? pos.unrealized_pl ?? 0))}</td>
                     <td style={{ padding: '6px 8px' }}>
                       <button onClick={() => closePosition(pos.symbol, pos.side)} style={{ padding: '4px 12px', borderRadius: 4, border: 'none', fontSize: 11, fontWeight: 600, background: C.redDim, color: C.red, cursor: 'pointer', marginRight: 4 }}>Close</button>
                       <button onClick={() => adjustPosition(pos.symbol, pos.side)} style={{ padding: '4px 12px', borderRadius: 4, border: `1px solid ${C.border}`, fontSize: 11, fontWeight: 600, background: 'transparent', color: C.textMuted, cursor: 'pointer' }}>Adjust</button>

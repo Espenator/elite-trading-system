@@ -124,11 +124,11 @@ export default function Trades() {
       const body = {
         symbol: orderForm.symbol.toUpperCase(),
         side: orderForm.side.toLowerCase(),
-        type: orderForm.type === "limit" ? "limit" : "market",
+        type: orderForm.type.toLowerCase() === "limit" ? "limit" : orderForm.type.toLowerCase() === "stop" ? "stop" : "market",
         time_in_force: "day",
-        qty: String(parseInt(orderForm.qty)),
+        qty: String(parseInt(orderForm.qty) || 1),
       };
-      if (orderForm.type === "limit" && orderForm.limitPrice) {
+      if (orderForm.type.toLowerCase() === "limit" && orderForm.limitPrice) {
         body.limit_price = String(parseFloat(orderForm.limitPrice));
       }
       if (orderForm.stopPrice) {
@@ -199,7 +199,7 @@ export default function Trades() {
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] font-semibold opacity-80">EXPOSURE</span>
-            <span className="text-base font-bold font-mono">{exposure.toFixed(1)}%</span>
+            <span className="text-base font-bold font-mono">{(Number(exposure) || 0).toFixed(1)}%</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-bold">TRADE MODE:</span>

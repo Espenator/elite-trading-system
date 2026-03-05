@@ -456,7 +456,7 @@ export default function MLBrainFlywheel() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Scores:</span>
-                      <span className="text-cyan-400">{model.score1.toFixed(3)} / {model.score2.toFixed(3)}</span>
+                      <span className="text-cyan-400">{(Number(model.score1) || 0).toFixed(3)} / {(Number(model.score2) || 0).toFixed(3)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Lookback:</span>

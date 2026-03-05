@@ -29,7 +29,10 @@ export function useSettings() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(BASE(), { cache: "no-store" });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      const res = await fetch(BASE(), { cache: "no-store", signal: controller.signal });
+      clearTimeout(timeout);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       setSettings(json);
