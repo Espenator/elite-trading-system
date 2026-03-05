@@ -421,37 +421,53 @@ async def run_council(
         logger.debug("Feedback loop record failed: %s", e)
 
     # ── Knowledge System: store agent memories for compound learning ──
+    # Batch embedding generation to avoid 17 serial GPU calls on the hot path
     try:
         from app.core.config import settings as app_settings
         if getattr(app_settings, "KNOWLEDGE_SYSTEM_ENABLED", True):
             from app.knowledge.memory_bank import get_memory_bank, AgentMemory
+            from app.knowledge.embedding_service import get_embedding_engine
 
             bank = get_memory_bank()
+            embed_engine = get_embedding_engine()
             f = features.get("features", features)
             regime = str(f.get("regime", "unknown")).lower()
             trade_id = context.get("trade_id", blackboard.council_decision_id)
 
+            market_ctx = {
+                k: v for k, v in f.items()
+                if isinstance(v, (int, float, str)) and k in (
+                    "rsi_14", "macd", "atr_14", "adx_14", "sma_20",
+                    "sma_50", "volume", "close", "vix_close",
+                )
+            }
+
+            # Build all memories and embedding texts upfront
+            memories = []
+            embed_texts = []
             for vote in all_votes:
+                obs = {
+                    "direction": vote.direction,
+                    "confidence": vote.confidence,
+                    "reasoning": vote.reasoning[:200],
+                }
                 memory = AgentMemory(
                     agent_name=vote.agent_name,
                     symbol=symbol,
                     regime=regime,
-                    market_context={
-                        k: v for k, v in f.items()
-                        if isinstance(v, (int, float, str)) and k in (
-                            "rsi_14", "macd", "atr_14", "adx_14", "sma_20",
-                            "sma_50", "volume", "close", "vix_close",
-                        )
-                    },
-                    agent_observation={
-                        "direction": vote.direction,
-                        "confidence": vote.confidence,
-                        "reasoning": vote.reasoning[:200],
-                    },
+                    market_context=market_ctx,
+                    agent_observation=obs,
                     agent_vote=vote.direction,
                     confidence=vote.confidence,
                     trade_id=trade_id,
                 )
+                memories.append(memory)
+                embed_texts.append(bank._context_to_text(market_ctx | obs, regime))
+
+            # Single batched embedding call instead of N serial calls
+            embeddings = embed_engine.embed(embed_texts)
+            for memory, embedding in zip(memories, embeddings):
+                memory.embedding = embedding
                 bank.store_observation(memory)
     except Exception as e:
         logger.debug("Knowledge memory storage failed: %s", e)

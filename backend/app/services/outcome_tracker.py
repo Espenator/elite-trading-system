@@ -401,26 +401,31 @@ class OutcomeTracker:
             hybrid = get_hybrid_router()
             was_correct = outcome == "win"
             # Update all agents that participated in this decision
+            # Find the actual routing metadata from the matching decision
+            provider_map = {}
+            try:
+                from app.council.feedback_loop import _get_store
+                store = _get_store()
+                for d in reversed(store.get("decisions", [])):
+                    if d.get("symbol", "").upper() == pos.symbol.upper():
+                        # Extract per-agent provider from stored routing metadata
+                        for vote in d.get("votes", []):
+                            name = vote.get("agent_name", "")
+                            meta = vote.get("metadata", {})
+                            if isinstance(meta, dict) and "provider" in meta:
+                                provider_map[name] = meta["provider"]
+                        break
+            except Exception:
+                pass
+
             for agent_name in [
                 "market_perception", "flow_perception", "regime", "intermarket",
                 "social_perception", "news_catalyst", "youtube_knowledge",
                 "rsi", "bbv", "ema_trend", "relative_strength", "cycle_timing",
                 "hypothesis", "strategy", "risk", "execution", "critic",
             ]:
-                # Use the routing metadata to find which provider was used
-                routing_key = f"{agent_name}_routing"
-                provider_value = None
-                # Try to get from recent decisions in feedback loop
-                try:
-                    from app.council.feedback_loop import _get_store
-                    store = _get_store()
-                    for d in reversed(store.get("decisions", [])):
-                        if d.get("symbol", "").upper() == pos.symbol.upper():
-                            # Found matching decision — update all agents
-                            break
-                except Exception:
-                    pass
-                hybrid.update_accuracy(agent_name, "default", was_correct)
+                provider_value = provider_map.get(agent_name, "default")
+                hybrid.update_accuracy(agent_name, provider_value, was_correct)
         except Exception as e:
             logger.debug("Adaptive router accuracy update error: %s", e)
 

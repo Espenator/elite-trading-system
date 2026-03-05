@@ -152,7 +152,7 @@ class HybridLLMRouter:
         stats.avg_accuracy = stats.avg_accuracy * (1 - alpha) + new_val * alpha
         stats.call_count += 1
 
-        self._persist_adaptive_stats()
+        self._persist_adaptive_stats(agent_name)
 
     # ── Internal routing logic ────────────────────────────────────────────────
 
@@ -362,12 +362,22 @@ class HybridLLMRouter:
         except Exception as e:
             logger.debug("Adaptive stats not loaded (table may not exist): %s", e)
 
-    def _persist_adaptive_stats(self) -> None:
-        """Persist adaptive stats to DuckDB."""
+    def _persist_adaptive_stats(self, agent_name: str = None) -> None:
+        """Persist adaptive stats to DuckDB.
+
+        Args:
+            agent_name: If provided, only persist stats for this agent.
+                        Otherwise persists all stats.
+        """
         try:
             from app.data.duckdb_storage import duckdb_store
             conn = duckdb_store._get_conn()
-            for agent, providers in self._adaptive_stats.items():
+            items = (
+                [(agent_name, self._adaptive_stats.get(agent_name, {}))]
+                if agent_name and agent_name in self._adaptive_stats
+                else self._adaptive_stats.items()
+            )
+            for agent, providers in items:
                 for prov, stats in providers.items():
                     conn.execute("""
                         INSERT OR REPLACE INTO adaptive_routing

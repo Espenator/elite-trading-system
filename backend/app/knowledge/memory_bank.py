@@ -255,8 +255,9 @@ class MemoryBank:
             query += " ORDER BY timestamp DESC LIMIT ?"
             params.append(limit)
 
-            rows = conn.execute(query, params).fetchall()
-            columns = [desc[0] for desc in conn.execute(query, params).description] if rows else []
+            result = conn.execute(query, params)
+            rows = result.fetchall()
+            columns = [desc[0] for desc in result.description] if rows else []
 
             memories = []
             for row in rows:

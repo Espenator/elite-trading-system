@@ -14,7 +14,7 @@ from typing import Any, Dict, List
 logger = logging.getLogger(__name__)
 
 
-def score_debate(rounds, all_evidence_keys) -> "DebateResult":
+def score_debate(rounds, all_evidence_keys, max_rounds: int = 3) -> "DebateResult":
     """Score a completed debate.
 
     Args:
@@ -46,7 +46,6 @@ def score_debate(rounds, all_evidence_keys) -> "DebateResult":
     confidence_convergence = 1.0 - final_spread  # high when contested/close
 
     # Round utilization
-    max_rounds = 3
     round_utilization = len(rounds) / max_rounds
 
     # Weighted score

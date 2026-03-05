@@ -3,10 +3,10 @@
 Part of Stage 5.5 (debate). Routed to Claude for reasoning depth.
 Must cite specific blackboard evidence keys to support arguments.
 """
-import json
 import logging
-import re
 from typing import Any, Dict, List
+
+from app.council.debate.debate_utils import parse_json_from_llm, summarize_evidence
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ async def evaluate_debate(
             f"Address their concerns in your rebuttal.\n"
         )
 
-    evidence_summary = _summarize_evidence(evidence)
+    evidence_summary = summarize_evidence(evidence)
 
     prompt = (
         f"You are the BULL debater for {symbol}. The council proposes: {proposed_direction.upper()}.\n\n"
@@ -73,7 +73,7 @@ async def evaluate_debate(
     )
 
     if result.content:
-        parsed = _parse_response(result.content)
+        parsed = parse_json_from_llm(result.content)
         if parsed:
             return parsed
 
@@ -82,55 +82,3 @@ async def evaluate_debate(
         "evidence": [],
         "confidence": 0.5,
     }
-
-
-def _summarize_evidence(evidence: Dict[str, Any]) -> str:
-    """Build a concise evidence summary from the blackboard."""
-    lines = []
-
-    # Perceptions
-    perceptions = evidence.get("perceptions", {})
-    for agent, data in perceptions.items():
-        if isinstance(data, dict):
-            direction = data.get("direction", "?")
-            confidence = data.get("confidence", 0)
-            reasoning = data.get("reasoning", "")[:100]
-            lines.append(f"  [{agent}] {direction} ({confidence:.0%}): {reasoning}")
-
-    # Hypothesis
-    hyp = evidence.get("hypothesis")
-    if hyp and isinstance(hyp, dict):
-        lines.append(f"  [hypothesis] {hyp.get('direction', '?')} ({hyp.get('confidence', 0):.0%}): {hyp.get('reasoning', '')[:100]}")
-
-    # Strategy
-    strat = evidence.get("strategy")
-    if strat and isinstance(strat, dict):
-        lines.append(f"  [strategy] {strat.get('direction', '?')} ({strat.get('confidence', 0):.0%})")
-
-    # Risk
-    risk = evidence.get("risk_assessment")
-    if risk and isinstance(risk, dict):
-        lines.append(f"  [risk] veto={risk.get('veto', False)}: {risk.get('reasoning', '')[:100]}")
-
-    # Intelligence
-    intel = evidence.get("intelligence", {})
-    for key, val in intel.items():
-        if isinstance(val, dict) and "data" in val:
-            lines.append(f"  [intel:{key}] {str(val.get('data', ''))[:100]}")
-
-    return "\n".join(lines) if lines else "No evidence available."
-
-
-def _parse_response(text: str) -> Dict[str, Any]:
-    """Parse JSON from LLM response."""
-    try:
-        return json.loads(text.strip())
-    except json.JSONDecodeError:
-        pass
-    match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text, re.DOTALL)
-    if match:
-        try:
-            return json.loads(match.group())
-        except json.JSONDecodeError:
-            pass
-    return None

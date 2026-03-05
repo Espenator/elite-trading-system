@@ -9,13 +9,12 @@ Research basis: TradingAgents Framework (UCLA/MIT) — agentic debate
 between opposing viewpoints significantly improves decision quality.
 """
 import asyncio
-import json
 import logging
-import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from app.council.blackboard import BlackboardState
+from app.council.debate.debate_utils import parse_json_from_llm
 
 logger = logging.getLogger(__name__)
 
@@ -217,19 +216,9 @@ class DebateEngine:
         )
 
         if result.content:
-            import re
-            try:
-                # Try JSON parse
-                parsed = json.loads(result.content.strip())
+            parsed = parse_json_from_llm(result.content)
+            if parsed:
                 return parsed
-            except json.JSONDecodeError:
-                # Try extracting JSON from markdown
-                match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', result.content, re.DOTALL)
-                if match:
-                    try:
-                        return json.loads(match.group())
-                    except json.JSONDecodeError:
-                        pass
         return {"summary": result.content or "Judge unavailable", "action_modifier": "neutral"}
 
     def _score_debate(
@@ -237,7 +226,7 @@ class DebateEngine:
     ) -> DebateResult:
         """Score the debate using the debate_scorer formula."""
         from app.council.debate.debate_scorer import score_debate
-        return score_debate(rounds, all_evidence_keys)
+        return score_debate(rounds, all_evidence_keys, max_rounds=self.MAX_ROUNDS)
 
     def _get_available_evidence_keys(self, blackboard: BlackboardState) -> List[str]:
         """List all available evidence keys on the blackboard."""

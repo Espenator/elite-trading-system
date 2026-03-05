@@ -11,8 +11,7 @@ Stress scenarios:
     api_outage: broker goes down during open position
 """
 import logging
-import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from app.council.blackboard import BlackboardState
