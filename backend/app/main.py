@@ -31,7 +31,6 @@ from app.websocket_manager import (
     add_connection,
     remove_connection,
     heartbeat_loop,
-    accept_connection,
     handle_pong,
     subscribe,
     unsubscribe,
