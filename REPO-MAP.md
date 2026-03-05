@@ -1,14 +1,15 @@
-# Elite Trading System - Repository Map
-
-> Auto-generated reference for AI coding assistants. Last updated: February 28, 2026.
+# Embodier Trader - Repository Map
+> Auto-generated reference for AI coding assistants. Last updated: March 5, 2026 (v3.2.0).
 > Run `python map_repo.py` to regenerate, or `python bundle_files.py` to bundle key files.
 
 ## Tech Stack
-
-- **Backend**: Python 3.11, FastAPI, DuckDB, SQLAlchemy
+- **Backend**: Python 3.11, FastAPI, DuckDB
 - **Frontend**: React 18 (Vite), Lightweight Charts, Tailwind CSS
-- **Data Sources**: Alpaca Markets API, Unusual Whales API, FinViz API
-- **CI/CD**: GitHub Actions (`.github/workflows/ci.yml`)
+- **Council**: 13-agent DAG with Bayesian-weighted arbiter (7 stages)
+- **Data Sources**: Alpaca Markets, Unusual Whales, FinViz, FRED, SEC EDGAR (NO yfinance)
+- **Event Pipeline**: MessageBus -> CouncilGate -> Council -> OrderExecutor
+- **Brain Service**: gRPC + Ollama (local LLM on RTX GPU)
+- **CI/CD**: GitHub Actions (`.github/workflows/ci.yml`) — 151 tests passing
 - **Infra**: Docker, docker-compose.yml
 
 ## Directory Tree
@@ -22,6 +23,7 @@ elite-trading-system/
 |-- README.md                          # Project overview + status
 |-- REPO-MAP.md                        # THIS FILE
 |-- AI-CONTEXT-GUIDE.md                # AI context strategies
+|-- project_state.md                   # AI session initialization (READ FIRST)
 |-- bundle_files.py                    # Bundle key files for AI context
 |-- map_repo.py                        # Generate repo tree map
 |-- docker-compose.yml                 # Docker orchestration
@@ -38,44 +40,77 @@ elite-trading-system/
 |   |
 |   |-- app/
 |   |   |-- __init__.py
-|   |   |-- main.py                    # FastAPI app entry point
+|   |   |-- main.py                    # FastAPI app entry (v3.2.0, Embodier Trader)
 |   |   |-- websocket_manager.py       # WebSocket broadcast manager
 |   |   |
-|   |   |-- api/v1/                     # REST API endpoints (15 services)
+|   |   |-- api/v1/                    # REST API endpoints (29 routes)
 |   |   |   |-- __init__.py
-|   |   |   |-- agents.py              # Agent management
-|   |   |   |-- alerts.py              # Alert system
-|   |   |   |-- backtest_routes.py     # Backtesting engine
-|   |   |   |-- data_sources.py        # Data source status
-|   |   |   |-- flywheel.py            # Learning flywheel
+|   |   |   |-- agents.py              # Agent Command Center (5 template agents)
+|   |   |   |-- alerts.py              # Drawdown alerts, system alerts
+|   |   |   |-- alignment.py           # Alignment/consensus endpoints
+|   |   |   |-- alpaca.py              # Alpaca API proxy for frontend
+|   |   |   |-- backtest_routes.py     # Strategy backtesting
+|   |   |   |-- council.py             # Council evaluate, status, weights (13-agent)
+|   |   |   |-- data_sources.py        # Data source health
+|   |   |   |-- features.py            # Feature aggregator endpoints
+|   |   |   |-- flywheel.py            # ML flywheel metrics
 |   |   |   |-- logs.py                # System logs
-|   |   |   |-- market.py              # Market data
-|   |   |   |-- ml_brain.py            # ML brain status
-|   |   |   |-- openclaw.py            # OpenClaw integration
-|   |   |   |-- orders.py              # Order management
-|   |   |   |-- patterns.py            # Pattern detection
-|   |   |   |-- performance.py         # Performance metrics
-|   |   |   |-- portfolio.py           # Portfolio tracking
-|   |   |   |-- quotes.py              # Stock quotes
-|   |   |   |-- risk.py                # Risk management
-|   |   |   |-- risk_shield_api.py     # Risk shield
-|   |   |   |-- sentiment.py           # Sentiment analysis
-|   |   |   |-- settings_routes.py     # User settings
+|   |   |   |-- market.py              # Market data, regime, indices
+|   |   |   |-- ml_brain.py            # ML model management
+|   |   |   |-- openclaw.py            # OpenClaw bridge
+|   |   |   |-- orders.py              # Alpaca order CRUD
+|   |   |   |-- patterns.py            # Pattern/screener (DB-backed)
+|   |   |   |-- performance.py         # Performance analytics
+|   |   |   |-- portfolio.py           # Portfolio positions, P&L
+|   |   |   |-- quotes.py              # Price/chart data
+|   |   |   |-- risk.py                # Risk metrics, Monte Carlo
+|   |   |   |-- risk_shield_api.py     # Emergency controls
+|   |   |   |-- sentiment.py           # Sentiment aggregation
+|   |   |   |-- settings_routes.py     # Settings CRUD
 |   |   |   |-- signals.py             # Trading signals
-|   |   |   |-- status.py              # System status
-|   |   |   |-- stocks.py              # Stock data
-|   |   |   |-- strategy.py            # Strategy config
-|   |   |   |-- system.py              # System health
-|   |   |   |-- training.py            # ML training
-|   |   |   |-- youtube_knowledge.py   # YouTube insights
+|   |   |   |-- status.py              # System health
+|   |   |   |-- stocks.py              # Finviz screener
+|   |   |   |-- strategy.py            # Regime-based strategies
+|   |   |   |-- system.py              # System config, GPU
+|   |   |   |-- training.py            # ML training jobs
+|   |   |   |-- youtube_knowledge.py   # YouTube research
+|   |   |
+|   |   |-- council/                   # 13-Agent Council DAG (7 stages)
+|   |   |   |-- __init__.py
+|   |   |   |-- runner.py              # 7-stage parallel DAG orchestrator
+|   |   |   |-- arbiter.py             # Deterministic arbiter + Bayesian weights
+|   |   |   |-- schemas.py             # AgentVote + DecisionPacket dataclasses
+|   |   |   |-- council_gate.py        # Bridge: SignalEngine -> Council -> OrderExecutor (NEW v3.2.0)
+|   |   |   |-- weight_learner.py      # Bayesian self-learning agent weights (NEW v3.2.0)
+|   |   |   |-- agents/
+|   |   |       |-- __init__.py
+|   |   |       |-- market_perception_agent.py   # Stage 1: market conditions
+|   |   |       |-- flow_perception_agent.py     # Stage 1: options flow PCR
+|   |   |       |-- regime_agent.py              # Stage 1: market regime alignment
+|   |   |       |-- intermarket_agent.py         # Stage 1: cross-market correlations
+|   |   |       |-- rsi_agent.py                 # Stage 2: multi-timeframe RSI
+|   |   |       |-- bbv_agent.py                 # Stage 2: Bollinger Band mean-reversion
+|   |   |       |-- ema_trend_agent.py           # Stage 2: EMA cascade classification
+|   |   |       |-- relative_strength_agent.py   # Stage 2: sector relative strength
+|   |   |       |-- cycle_timing_agent.py        # Stage 2: market cycle timing
+|   |   |       |-- hypothesis_agent.py          # Stage 3: brain_service LLM (stub)
+|   |   |       |-- strategy_agent.py            # Stage 4: entry/exit/sizing
+|   |   |       |-- risk_agent.py                # Stage 5: risk assessment (VETO)
+|   |   |       |-- execution_agent.py           # Stage 5: execution readiness (VETO)
+|   |   |       |-- critic_agent.py              # Stage 6: postmortem learning
 |   |   |
 |   |   |-- core/
 |   |   |   |-- __init__.py
 |   |   |   |-- config.py              # App configuration
+|   |   |   |-- message_bus.py         # Async pub/sub event bus
 |   |   |
 |   |   |-- data/
 |   |   |   |-- __init__.py
 |   |   |   |-- storage.py             # DuckDB storage layer
+|   |   |
+|   |   |-- features/
+|   |   |   |-- __init__.py
+|   |   |   |-- feature_aggregator.py  # FeatureVector with 50+ indicators
 |   |   |
 |   |   |-- models/
 |   |   |   |-- __init__.py
@@ -95,7 +130,7 @@ elite-trading-system/
 |   |   |   |   |-- outcome_resolver.py
 |   |   |   |   |-- trainer.py
 |   |   |   |   |-- xgboost_trainer.py
-|   |   |   |-- openclaw/              # OpenClaw multi-agent system
+|   |   |   |-- openclaw/             # OpenClaw (DEAD CODE — P4 cleanup)
 |   |   |   |   |-- app.py
 |   |   |   |   |-- config.py
 |   |   |   |   |-- main.py
@@ -114,34 +149,44 @@ elite-trading-system/
 |   |   |
 |   |   |-- schemas/
 |   |   |   |-- __init__.py
-|   |   |   |-- signals.py             # Signal data models
+|   |   |   |-- signals.py            # Signal data models
 |   |   |
-|   |   |-- services/                  # Business logic layer
+|   |   |-- services/                 # Business logic layer (24 files)
 |   |   |   |-- __init__.py
-|   |   |   |-- alpaca_service.py      # Alpaca Markets API
-|   |   |   |-- backtest_engine.py     # Backtesting logic
-|   |   |   |-- database.py            # DB connection + pooling
-|   |   |   |-- finviz_service.py      # FinViz API
-|   |   |   |-- fred_service.py        # FRED economic data
-|   |   |   |-- kelly_position_sizer.py # Kelly criterion sizing
-|   |   |   |-- market_data_agent.py   # Market data aggregation
-|   |   |   |-- ml_training.py         # ML training pipeline
-|   |   |   |-- openclaw_bridge_service.py
-|   |   |   |-- openclaw_db.py
-|   |   |   |-- sec_edgar_service.py   # SEC filings
-|   |   |   |-- signal_engine.py       # Signal generation
-|   |   |   |-- training_store.py      # Training data store
-|   |   |   |-- unusual_whales_service.py # Unusual Whales API
-|   |   |   |-- walk_forward_validator.py # Walk-forward validation
+|   |   |   |-- alpaca_service.py          # Alpaca broker REST
+|   |   |   |-- alpaca_stream_service.py   # Alpaca WebSocket -> MessageBus
+|   |   |   |-- backtest_engine.py         # Backtester + Monte Carlo
+|   |   |   |-- brain_client.py            # gRPC client for brain_service
+|   |   |   |-- data_ingestion.py          # Data ingestion pipeline
+|   |   |   |-- database.py               # DuckDB layer (WAL, pooling)
+|   |   |   |-- execution_simulator.py     # Paper trading simulator
+|   |   |   |-- feature_service.py         # DuckDB feature queries
+|   |   |   |-- finviz_service.py          # Finviz screening
+|   |   |   |-- fred_service.py            # FRED economic data
+|   |   |   |-- kelly_position_sizer.py    # Kelly criterion sizing
+|   |   |   |-- market_data_agent.py       # Market data aggregation
+|   |   |   |-- ml_training.py             # LSTM/XGBoost training
+|   |   |   |-- openclaw_bridge_service.py # OpenClaw bridge
+|   |   |   |-- openclaw_db.py             # OpenClaw SQLite
+|   |   |   |-- order_executor.py          # Council-controlled order execution
+|   |   |   |-- sec_edgar_service.py       # SEC EDGAR filings
+|   |   |   |-- settings_service.py        # Settings CRUD service
+|   |   |   |-- signal_engine.py           # Signal scoring + EventDrivenSignalEngine
+|   |   |   |-- trade_stats_service.py     # Real DuckDB trade stats (NEW v3.2.0)
+|   |   |   |-- training_store.py          # ML artifact storage
+|   |   |   |-- unusual_whales_service.py  # Options flow
+|   |   |   |-- walk_forward_validator.py  # Walk-forward validation
 |   |   |
 |   |   |-- strategy/
-|   |   |   |-- __init__.py
-|   |   |   |-- backtest.py            # Backtest framework
+|   |       |-- __init__.py
+|   |       |-- backtest.py            # Backtest framework
 |   |
 |   |-- tests/
 |       |-- __init__.py
 |       |-- conftest.py                # Test fixtures
-|       |-- test_api.py                # API integration tests
+|       |-- test_api.py                # API integration tests (151 tests)
+|
+|-- brain_service/                     # gRPC + Ollama LLM service (PC2)
 |
 |-- core/
 |   |-- api/
@@ -177,8 +222,8 @@ elite-trading-system/
 |       |-- lib/
 |       |   |-- dataSourceIcons.js     # Data source icon mapping
 |       |   |-- symbolIcons.js         # Stock symbol icons
-|       |   |-- types/
-|       |       |-- index.ts           # Shared TypeScript interfaces
+|       |-- types/
+|       |   |-- index.ts              # Shared TypeScript interfaces
 |       |
 |       |-- components/
 |       |   |-- ErrorBoundary.jsx
@@ -222,7 +267,7 @@ elite-trading-system/
 |       |       |-- TextField.jsx
 |       |       |-- Toggle.jsx
 |       |
-|       |-- pages/                     # Route pages (14 total)
+|       |-- pages/                     # Route pages (15 total)
 |           |-- AgentCommandCenter.jsx
 |           |-- Backtesting.jsx
 |           |-- Dashboard.jsx
@@ -260,16 +305,26 @@ elite-trading-system/
 
 ## Key Architecture Notes
 
-1. **No yfinance** - All market data via Alpaca, Unusual Whales, FinViz APIs
+1. **No yfinance** - All market data via Alpaca, Unusual Whales, FinViz, FRED, SEC EDGAR
 2. **Real API only** - No mock data in production components
 3. **useApi hook** - Central data fetching: `useApi('endpoint')` returns `{ data, loading, error }`
-4. **WebSocket** - Real-time updates via `websocket.js` service
-5. **DuckDB** - Primary analytics database (WAL mode, connection pooling)
-6. **OpenClaw** - Multi-agent trading system with 8+ sub-modules
-7. **CI** - 22 tests passing, GitHub Actions on every push
+4. **Council-controlled trading** - All signals pass through 13-agent council via CouncilGate before execution
+5. **Bayesian weight learning** - WeightLearner adjusts agent influence based on trade outcomes
+6. **DuckDB** - Primary analytics database (WAL mode, connection pooling)
+7. **OpenClaw** - Legacy dead code, scheduled for cleanup (P4)
+8. **CI** - 151 tests passing, GitHub Actions on every push
+9. **Brain Service** - gRPC + Ollama on PC2 for LLM inference (not yet wired to council)
+
+## Trade Pipeline (v3.2.0)
+
+```
+AlpacaStreamService -> market_data.bar -> SignalEngine -> signal.generated (score >= 65)
+  -> CouncilGate -> 13-Agent Council (7 stages) -> council.verdict
+  -> OrderExecutor (real DuckDB stats, real ATR, mock-source guard) -> Alpaca
+```
 
 ## Quick Reference: API Endpoints
 
 All backend routes: `http://localhost:8000/api/v1/{service}`
 
-Services: `agents`, `alerts`, `backtest`, `data-sources`, `flywheel`, `logs`, `market`, `ml-brain`, `openclaw`, `orders`, `patterns`, `performance`, `portfolio`, `quotes`, `risk`, `sentiment`, `settings`, `signals`, `status`, `stocks`, `strategy`, `system`, `training`, `youtube-knowledge`
+Services: `agents`, `alerts`, `alignment`, `alpaca`, `backtest`, `council`, `data-sources`, `features`, `flywheel`, `logs`, `market`, `ml-brain`, `openclaw`, `orders`, `patterns`, `performance`, `portfolio`, `quotes`, `risk`, `risk-shield`, `sentiment`, `settings`, `signals`, `status`, `stocks`, `strategy`, `system`, `training`, `youtube-knowledge`

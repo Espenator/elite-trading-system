@@ -1,9 +1,10 @@
-"""Council API — evaluate symbols through the 17-agent debate council.
+"""Council API — evaluate symbols through the 13-agent council.
 
-POST /api/v1/council/evaluate     → full DecisionPacket
-GET  /api/v1/council/status       → council configuration
-GET  /api/v1/council/performance  → agent accuracy stats (feedback loop)
-POST /api/v1/council/update-weights → recompute agent weights from outcomes
+POST /api/v1/council/evaluate  -> full DecisionPacket
+GET  /api/v1/council/status    -> council configuration (13 agents, 7 stages)
+GET  /api/v1/council/latest    -> most recent DecisionPacket
+GET  /api/v1/council/weights   -> current agent weights (Bayesian-updated)
+POST /api/v1/council/weights/reset -> reset weights to defaults
 """
 import logging
 import time
@@ -48,7 +49,7 @@ def _check_rate_limit():
 
 @router.post("/evaluate", dependencies=[Depends(require_auth)])
 async def evaluate_symbol(req: CouncilEvalRequest):
-    """Run the 17-agent council on a symbol and return DecisionPacket."""
+    """Run the 13-agent council on a symbol and return DecisionPacket."""
     global _latest_decision
     _check_rate_limit()
     try:
@@ -60,6 +61,7 @@ async def evaluate_symbol(req: CouncilEvalRequest):
             features=req.features,
             context=req.context or {},
         )
+
         result = decision.to_dict()
         _latest_decision = result
         return result
@@ -78,20 +80,41 @@ async def council_latest():
 
 @router.get("/status")
 async def council_status():
-    """Return council configuration and agent list."""
+    """Return council configuration and agent list (13 agents, 7 stages)."""
     import os
+
+    # Try to get live weight data from weight_learner
+    agent_weights = {}
+    try:
+        from app.council.weight_learner import get_weight_learner
+        learner = get_weight_learner()
+        agent_weights = learner.get_weights()
+    except Exception:
+        pass
 
     return {
         "council_enabled": os.getenv("COUNCIL_ENABLED", "true").lower() == "true",
         "brain_enabled": os.getenv("BRAIN_ENABLED", "false").lower() == "true",
+        "council_gate_enabled": os.getenv("COUNCIL_GATE_ENABLED", "true").lower() == "true",
+        "agent_count": 13,
         "agents": [
-            "market_perception", "flow_perception", "regime",
-            "social_perception", "news_catalyst", "youtube_knowledge", "intermarket",
-            "rsi", "bbv", "ema_trend", "relative_strength", "cycle_timing",
-            "hypothesis", "strategy", "risk", "execution", "critic",
+            "market_perception",
+            "flow_perception",
+            "regime",
+            "intermarket",
+            "rsi",
+            "bbv",
+            "ema_trend",
+            "relative_strength",
+            "cycle_timing",
+            "hypothesis",
+            "strategy",
+            "risk",
+            "execution",
+            "critic",
         ],
         "dag_stages": [
-            ["market_perception", "flow_perception", "regime", "social_perception", "news_catalyst", "youtube_knowledge", "intermarket"],
+            ["market_perception", "flow_perception", "regime", "intermarket"],
             ["rsi", "bbv", "ema_trend", "relative_strength", "cycle_timing"],
             ["hypothesis"],
             ["strategy"],
@@ -99,27 +122,32 @@ async def council_status():
             ["critic"],
             ["arbiter"],
         ],
+        "agent_weights": agent_weights,
     }
 
 
-@router.get("/performance")
-async def council_agent_performance():
-    """Return per-agent accuracy stats from the feedback loop."""
+@router.get("/weights")
+async def council_weights():
+    """Return current Bayesian-updated agent weights."""
     try:
-        from app.council.feedback_loop import get_agent_performance
-        return get_agent_performance()
+        from app.council.weight_learner import get_weight_learner
+        learner = get_weight_learner()
+        return {
+            "weights": learner.get_weights(),
+            "update_count": learner.update_count,
+            "last_update": learner.last_update,
+        }
     except Exception as e:
-        logger.error("Failed to get agent performance: %s", e)
-        return {"agent_stats": {}, "total_decisions": 0, "total_outcomes": 0, "feedback_active": False}
+        return {"status": "weight_learner_unavailable", "error": str(e)}
 
 
-@router.post("/update-weights", dependencies=[Depends(require_auth)])
-async def council_update_weights():
-    """Recompute agent weights from outcome history and persist to settings."""
+@router.post("/weights/reset")
+async def reset_weights():
+    """Reset agent weights to defaults."""
     try:
-        from app.council.feedback_loop import update_agent_weights
-        new_weights = update_agent_weights()
-        return {"status": "updated", "weights": new_weights}
+        from app.council.weight_learner import get_weight_learner
+        learner = get_weight_learner()
+        learner.reset()
+        return {"status": "ok", "weights": learner.get_weights()}
     except Exception as e:
-        logger.error("Failed to update agent weights: %s", e)
-        raise HTTPException(status_code=500, detail="Weight update failed")
+        return {"status": "error", "error": str(e)}

@@ -1,4 +1,14 @@
-"""Council schemas — shared data structures for the 11-agent debate council."""
+"""Council schemas — shared data structures for the 13-agent council.
+
+DAG: 7 stages, 13 agents + arbiter.
+Stage 1: [market_perception, flow_perception, regime, intermarket]
+Stage 2: [rsi, bbv, ema_trend, relative_strength, cycle_timing]
+Stage 3: [hypothesis]
+Stage 4: [strategy]
+Stage 5: [risk, execution]
+Stage 6: [critic]
+Stage 7: arbiter (deterministic)
+"""
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
 
