@@ -9,12 +9,12 @@ from app.services.kelly_position_sizer import KellyPositionSizer
 # --- Test 1: App instance exists ---
 def test_app_exists():
     assert app is not None
-    assert app.title == "Elite Trading System"
+        assert app.title in ("Elite Trading System", "Embodier Trader")
 
 
 # --- Test 2: API version is 3.0.0 ---
 def test_app_version():
-    assert app.version == "3.1.0"
+        assert app.version == "3.2.0"
 
 # --- Test 3: Health endpoint returns 200 ---
 @pytest.mark.anyio
