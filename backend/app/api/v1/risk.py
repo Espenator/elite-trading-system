@@ -194,7 +194,10 @@ async def get_risk():
         live.get("var95", 0),
     )
 
-    await broadcast_ws("risk", {"type": "risk_snapshot", "data": response})
+    try:
+        await broadcast_ws("risk", {"type": "risk_snapshot", "data": response})
+    except Exception:
+        pass
     return response
 
 
@@ -870,13 +873,13 @@ async def risk_shield_status():
         limits = db_service.get_config("risk_limits") or DEFAULT_RISK
         positions = []
         try:
-            positions = alpaca_service.get_positions() or []
+            positions = await alpaca_service.get_positions() or []
         except Exception:
             pass
-        total_exposure = sum(abs(float(p.market_value)) for p in positions) if positions else 0
+        total_exposure = sum(abs(float(p.get("market_value", 0))) for p in positions) if positions else 0
         try:
-            account = alpaca_service.get_account()
-            equity = float(account.equity) if account else 100000
+            account = await alpaca_service.get_account()
+            equity = float(account.get("equity", 0)) if account else 100000
         except Exception:
             equity = 100000
         heat = (total_exposure / equity * 100) if equity > 0 else 0
@@ -911,8 +914,8 @@ async def equity_curve(tf: str = "1M"):
 async def correlation_matrix():
     """Position correlation matrix — computes from current holdings."""
     try:
-        positions = alpaca_service.get_positions() or []
-        symbols = [p.symbol for p in positions[:10]]
+        positions = await alpaca_service.get_positions() or []
+        symbols = [p.get("symbol", "") for p in positions[:10]]
         # Return structure for frontend rendering
         matrix = {}
         for s in symbols:
@@ -975,7 +978,7 @@ async def emergency_action(action: str):
         return {"status": "resumed", "message": "Trading resumed"}
     elif action == "flatten":
         try:
-            alpaca_service.close_all_positions()
+            await alpaca_service.close_all_positions()
             return {"status": "flattened", "message": "All positions closed"}
         except Exception as e:
             return {"status": "error", "message": str(e)}
