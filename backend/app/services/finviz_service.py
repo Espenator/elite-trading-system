@@ -157,10 +157,14 @@ class FinvizService:
                 response = await client.get(url, params=params)
                 response.raise_for_status()
                 
-                # Parse CSV response
+                # Parse CSV response — validate it's actually CSV, not an HTML error page
                 csv_content = response.text
+                if csv_content.strip().startswith("<!") or csv_content.strip().startswith("<html"):
+                    logger.error("Finviz returned HTML instead of CSV (likely auth or parameter error). First 200 chars: %s", csv_content[:200])
+                    raise Exception("Finviz returned HTML error page instead of CSV data. Check FINVIZ_API_KEY and screener parameters.")
                 csv_reader = csv.DictReader(io.StringIO(csv_content))
                 rows = [dict(row) for row in csv_reader]
+                logger.info("Finviz screener returned %d rows", len(rows))
                 # Exchange: Finviz CSV often has no Exchange column; resolve from Alpaca when available
                 exchange_map: Dict[str, str] = {}
                 try:

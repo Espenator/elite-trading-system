@@ -51,6 +51,41 @@ function FieldRow({ label, children }) {
   );
 }
 
+// -- AuditLogTab (own component so it can use hooks safely) -- v2
+function AuditLogTab() {
+  const { data: auditData, loading: logLoading } = useApi("settings", { endpoint: "/settings/audit-log" });
+  const logs = auditData?.logs || [];
+  return (
+    <div className="space-y-6 animate-in fade-in duration-300">
+      <SectionHeader icon={FileText} title="Audit Log" sub="Track all settings changes and system events." />
+      <Card className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-4">
+        {logLoading ? (
+          <div className="flex items-center gap-2 text-gray-500 text-xs"><Loader2 className="w-4 h-4 animate-spin" />Loading audit log...</div>
+        ) : logs.length === 0 ? (
+          <p className="text-gray-500 text-xs">No audit entries found.</p>
+        ) : (
+          <div className="space-y-1 max-h-[500px] overflow-y-auto">
+            {logs.map((log, i) => (
+              <div key={i} className="flex items-center gap-3 py-1.5 px-2 text-xs border-b border-gray-800/50 hover:bg-gray-800/30">
+                <span className="text-gray-500 font-mono w-36 shrink-0">{new Date(log.timestamp).toLocaleString()}</span>
+                <span className={`w-16 shrink-0 font-bold uppercase ${log.action === "update" ? "text-yellow-500" : log.action === "reset" ? "text-red-400" : "text-[#00D9FF]"}`}>{log.action}</span>
+                <span className="text-gray-300">{log.category}</span>
+                <span className="text-gray-500 truncate">{log.detail || ""}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+      <div className="flex gap-3">
+        <Button variant="secondary" size="sm" leftIcon={Download} onClick={() => {
+          const blob = new Blob([JSON.stringify(logs, null, 2)], { type: "application/json" });
+          const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "audit-log.json"; a.click();
+        }} className="text-xs border-gray-700 text-gray-400">Export Log</Button>
+      </div>
+    </div>
+  );
+}
+
 // -------------------------------------------------------
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("api-keys");
@@ -444,40 +479,7 @@ export default function SettingsPage() {
     );
   };
 
-  // == Tab: Audit Log (fixed - uses useApi hook instead of raw api) ==
-  const renderAuditLog = () => {
-    const { data: auditData, loading: logLoading } = useApi("settings", { endpoint: "/audit-log" });
-    const logs = auditData?.logs || [];
-    return (
-      <div className="space-y-6 animate-in fade-in duration-300">
-        <SectionHeader icon={FileText} title="Audit Log" sub="Track all settings changes and system events." />
-        <Card className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-4">
-          {logLoading ? (
-            <div className="flex items-center gap-2 text-gray-500 text-xs"><Loader2 className="w-4 h-4 animate-spin" />Loading audit log...</div>
-          ) : logs.length === 0 ? (
-            <p className="text-gray-500 text-xs">No audit entries found.</p>
-          ) : (
-            <div className="space-y-1 max-h-[500px] overflow-y-auto">
-              {logs.map((log, i) => (
-                <div key={i} className="flex items-center gap-3 py-1.5 px-2 text-xs border-b border-gray-800/50 hover:bg-gray-800/30">
-                  <span className="text-gray-500 font-mono w-36 shrink-0">{new Date(log.timestamp).toLocaleString()}</span>
-                  <span className={`w-16 shrink-0 font-bold uppercase ${log.action === "update" ? "text-yellow-500" : log.action === "reset" ? "text-red-400" : "text-[#00D9FF]"}`}>{log.action}</span>
-                  <span className="text-gray-300">{log.category}</span>
-                  <span className="text-gray-500 truncate">{log.detail || ""}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-        <div className="flex gap-3">
-          <Button variant="secondary" size="sm" leftIcon={Download} onClick={() => {
-            const blob = new Blob([JSON.stringify(logs, null, 2)], { type: "application/json" });
-            const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "audit-log.json"; a.click();
-          }} className="text-xs border-gray-700 text-gray-400">Export Log</Button>
-        </div>
-      </div>
-    );
-  };
+  // == Tab: Audit Log (rendered as child component to avoid Rules of Hooks violation) ==
 
   // == Tab: Alignment ==
   const renderAlignment = () => (
@@ -522,7 +524,7 @@ export default function SettingsPage() {
     { key: "data-sources", label: "Data Sources", icon: Database, render: renderDataSources },
     { key: "notifications", label: "Notifications", icon: Bell, render: renderNotifications },
     { key: "appearance", label: "Appearance", icon: Palette, render: renderAppearance },
-    { key: "audit-log", label: "Audit Log", icon: FileText, render: renderAuditLog },
+    { key: "audit-log", label: "Audit Log", icon: FileText, render: () => <AuditLogTab /> },
     { key: "alignment", label: "Alignment", icon: ShieldAlert, render: renderAlignment },
     { key: "directives", label: "Directives", icon: FileText, render: () => <DirectiveEditor /> },
   ];
@@ -574,9 +576,9 @@ export default function SettingsPage() {
           })}
         </div>
 
-        {/* Content area */}
+        {/* Content area — AuditLogTab is a real component (has own hooks) */}
         <div className="flex-1 min-w-0">
-          {activeTabObj.render()}
+          {activeTab === "audit-log" ? <AuditLogTab /> : activeTabObj.render()}
         </div>
       </div>
     </div>

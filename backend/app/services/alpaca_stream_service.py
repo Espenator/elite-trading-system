@@ -139,10 +139,12 @@ class AlpacaStreamService:
             await self._run_mock_stream()
             return
 
+        feed = os.getenv("ALPACA_FEED", "sip")
         self._stream = StockDataStream(
             api_key=api_key,
             secret_key=secret_key,
             raw_data=False,
+            feed=feed,
         )
 
         async def _handle_bar(bar) -> None:

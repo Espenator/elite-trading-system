@@ -892,8 +892,8 @@ export default function SignalIntelligenceV3() {
             </div>
             <div className="flex items-center gap-2 py-1">
               <span className="text-[9px] text-gray-500 w-24">Trading Mode</span>
-              <select className="bg-[#1e293b] border border-[#374151] rounded px-2 py-1 text-[9px] outline-none text-emerald-400 font-bold flex-1">
-                <option>PAPER TRADING</option><option>LIVE (ALPACA)</option>
+              <select className="bg-[#1e293b] border border-[#374151] rounded px-2 py-1 text-[9px] outline-none text-red-400 font-bold flex-1" defaultValue="LIVE (ALPACA)">
+                <option>LIVE (ALPACA)</option><option>PAPER TRADING</option>
               </select>
             </div>
             <div className="flex items-center gap-2 py-1">

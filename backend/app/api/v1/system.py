@@ -52,11 +52,11 @@ async def _system_summary_impl():
         return {
             "activeAgents": ready,
             "healthy": healthy,
-            "trading_mode": status.get("trading_mode", "paper"),
+            "trading_mode": status.get("trading_mode", "live"),
         }
     except Exception as e:
         log.warning("system summary failed: %s", e)
-        return {"activeAgents": 0, "healthy": False, "trading_mode": "paper"}
+        return {"activeAgents": 0, "healthy": False, "trading_mode": "live"}
 
 
 # ---------------------------------------------------------------------------
@@ -163,6 +163,29 @@ def _safe_float(val: str) -> float | None:
         return None
 
 
+@router.get("/event-bus/status")
+async def event_bus_status():
+    """Return event bus metrics: topics, subscriber counts, message rates."""
+    try:
+        from app.core.message_bus import get_message_bus
+        bus = get_message_bus()
+        metrics = bus.get_metrics()
+        topics = []
+        events_by_topic = metrics.get("events_by_topic", {})
+        subs_by_topic = metrics.get("subscribers_by_topic", {})
+        for topic in sorted(set(list(events_by_topic.keys()) + list(subs_by_topic.keys()))):
+            topics.append({
+                "topic": topic,
+                "subs": subs_by_topic.get(topic, 0),
+                "msgRate": events_by_topic.get(topic, 0),
+                "lastMsg": f"{events_by_topic.get(topic, 0)} events processed",
+            })
+        return {"running": metrics.get("running", False), "topics": topics}
+    except Exception as e:
+        log.debug("event-bus status failed: %s", e)
+        return {"running": False, "topics": []}
+
+
 @router.get("/gpu")
 async def gpu_status():
     """
@@ -209,7 +232,7 @@ async def device_info():
         "pythonVersion": platform.python_version(),
         "cpuCount": os.cpu_count(),
         "backendPort": device_settings.get("backendPort", 8000),
-        "tradingMode": device_settings.get("tradingMode", "paper"),
+        "tradingMode": device_settings.get("tradingMode", "live"),
         "peerDevices": device_settings.get("peerDevices", []),
         "brainHost": device_settings.get("brainHost", "localhost"),
         "brainPort": device_settings.get("brainPort", 50051),

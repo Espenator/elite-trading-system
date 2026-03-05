@@ -41,7 +41,7 @@ try:
 except ImportError:
     HAS_AIOHTTP = False
 
-from config import ALPACA_API_KEY, ALPACA_SECRET_KEY
+from config import ALPACA_API_KEY, ALPACA_SECRET_KEY, ALPACA_FEED
 
 try:
     from config import UNUSUALWHALES_API_KEY, UNUSUALWHALES_BASE_URL
@@ -1550,7 +1550,7 @@ class StreamingEngine:
         while self.running:
             try:
                 self.stream = StockDataStream(
-                    ALPACA_API_KEY, ALPACA_SECRET_KEY, feed="iex"
+                    ALPACA_API_KEY, ALPACA_SECRET_KEY, feed=ALPACA_FEED
                 )
                 self.stream.subscribe_bars(
                     self._handle_bar, *list(self.watchlist.keys())

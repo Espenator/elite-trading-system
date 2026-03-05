@@ -12,14 +12,26 @@ import log from "@/utils/logger";
 export const getPortfolio = async () => {
   const res = await fetch(`${getApiUrl('alpaca')}/account`);
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-  return res.json();
+  const acct = await res.json();
+  // Normalize Alpaca account shape to what the UI expects
+  return {
+    value: parseFloat(acct.equity || acct.portfolio_value || 0),
+    dailyPnl: parseFloat(acct.equity || 0) - parseFloat(acct.last_equity || acct.equity || 0),
+    dailyPnlPct: acct.last_equity ? ((parseFloat(acct.equity) - parseFloat(acct.last_equity)) / parseFloat(acct.last_equity)) * 100 : 0,
+    status: acct.status || 'UNKNOWN',
+    latency: 0,
+    buyingPower: parseFloat(acct.buying_power || 0),
+    cash: parseFloat(acct.cash || 0),
+  };
 };
 
 // ─── Positions ─────────────────────────────────────────────
 export const getPositions = async () => {
   const res = await fetch(`${getApiUrl('alpaca')}/positions`);
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-  return res.json();
+  const data = await res.json();
+  // Ensure array (backend returns {positions:[...]} or [...])
+  return Array.isArray(data) ? data : (data.positions || []);
 };
 
 export const closePosition = async (symbol, side) => {
@@ -46,14 +58,20 @@ export const adjustPosition = async (symbol, side, adjustment) => {
 export const getOrderBook = async (symbol = 'SPX') => {
   const res = await fetch(`${getApiUrl('market')}/order-book?symbol=${encodeURIComponent(symbol)}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-  return res.json();
+  const data = await res.json();
+  // Backend returns {symbol, bids, asks, status} — UI expects flat array of rows
+  const bids = (data.bids || []).map(b => ({ ...b, side: 'bid' }));
+  const asks = (data.asks || []).map(a => ({ ...a, side: 'ask' }));
+  return [...asks.reverse(), ...bids];
 };
 
 // ─── Price Ladder ──────────────────────────────────────────
 export const getPriceLadder = async (symbol = 'SPX') => {
   const res = await fetch(`${getApiUrl('market')}/price-ladder?symbol=${encodeURIComponent(symbol)}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-  return res.json();
+  const data = await res.json();
+  // Backend returns {symbol, levels, status} — UI expects flat array of levels
+  return data.levels || [];
 };
 
 // ─── Order Execution ───────────────────────────────────────
@@ -123,7 +141,9 @@ export const getNewsFeed = async (limit = 20) => {
 export const getSystemStatus = async () => {
   const res = await fetch(getApiUrl('status'));
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-  return res.json();
+  const data = await res.json();
+  // Backend returns {status, connected, latency, ...} — UI expects array of log entries
+  return [{ time: new Date().toLocaleTimeString(), text: `System ${data.status || 'ok'} — latency ${data.latency || 0}ms`, type: data.status === 'ok' ? 'info' : 'warning' }];
 };
 
 // ─── WebSocket ─────────────────────────────────────────────

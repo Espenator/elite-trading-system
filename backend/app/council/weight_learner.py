@@ -40,6 +40,10 @@ DEFAULT_WEIGHTS: Dict[str, float] = {
     "risk": 1.3,
     "execution": 1.0,
     "critic": 0.5,
+    # Phase 2: Debate + Red Team agents
+    "bull_debater": 0.7,
+    "bear_debater": 0.7,
+    "red_team": 0.8,
 }
 
 
@@ -126,6 +130,11 @@ class WeightLearner:
         outcome_direction: str,
         pnl: float = 0.0,
         r_multiple: float = 0.0,
+        debate_quality_score: float = 0.0,
+        red_team_score: float = 0.0,
+        regime_entropy: float = 0.0,
+        debate_winner: str = "",
+        red_team_recommendation: str = "",
     ) -> Dict[str, float]:
         """Update weights based on a trade outcome.
 
@@ -144,6 +153,16 @@ class WeightLearner:
             Profit/loss amount (for magnitude-weighted learning).
         r_multiple : float
             Risk-adjusted return (for quality-weighted learning).
+        debate_quality_score : float
+            Quality score from the debate engine (0.0-1.0).
+        red_team_score : float
+            Fraction of scenarios survived by the trade.
+        regime_entropy : float
+            Shannon entropy of the regime belief distribution.
+        debate_winner : str
+            "bull", "bear", or "contested" from the debate.
+        red_team_recommendation : str
+            "PROCEED", "REDUCE_SIZE", or "REJECT".
 
         Returns
         -------
@@ -210,6 +229,38 @@ class WeightLearner:
                 "direction": vote["direction"],
             }
 
+        # ── Auxiliary learning from debate + red team ─────────────────────
+        # If bear correctly predicted loss → increase bear debater weight
+        if debate_winner == "bear" and outcome_direction in ("loss", "stop_loss"):
+            if "bear_debater" not in self._weights:
+                self._weights["bear_debater"] = 1.0
+            self._weights["bear_debater"] *= (1.0 + self.learning_rate * 0.5)
+            self._weights["bear_debater"] = min(self.max_weight, self._weights["bear_debater"])
+
+        # If trade won despite strong bear case → only reduce bear weight if evidence was low
+        if debate_winner == "bear" and outcome_direction in ("win", "profit"):
+            if debate_quality_score < 0.5 and "bear_debater" in self._weights:
+                self._weights["bear_debater"] *= (1.0 - self.learning_rate * 0.3)
+                self._weights["bear_debater"] = max(self.min_weight, self._weights["bear_debater"])
+
+        # If red team flagged fragility and trade lost → penalize strategy/risk agents
+        if red_team_recommendation in ("REJECT", "REDUCE_SIZE") and outcome_direction in ("loss", "stop_loss"):
+            for agent in ("strategy", "risk"):
+                if agent in self._weights:
+                    self._weights[agent] *= (1.0 - self.learning_rate * 0.3)
+                    self._weights[agent] = max(self.min_weight, self._weights[agent])
+            # Boost red team weight
+            if "red_team" not in self._weights:
+                self._weights["red_team"] = 1.0
+            self._weights["red_team"] *= (1.0 + self.learning_rate * 0.5)
+            self._weights["red_team"] = min(self.max_weight, self._weights["red_team"])
+
+        # High regime entropy + loss → regime agent needs improvement
+        if regime_entropy > 1.2 and outcome_direction in ("loss", "stop_loss"):
+            if "regime" in self._weights:
+                self._weights["regime"] *= (1.0 - self.learning_rate * 0.2)
+                self._weights["regime"] = max(self.min_weight, self._weights["regime"])
+
         # Normalize: keep mean weight at 1.0 to preserve arbiter math
         self._normalize_weights()
 
@@ -225,11 +276,13 @@ class WeightLearner:
 
         logger.info(
             "WeightLearner: updated from %s %s outcome "
-            "(R=%.2f, %d agents adjusted, update #%d)",
+            "(R=%.2f, %d agents adjusted, debate=%s, red_team=%s, update #%d)",
             symbol,
             outcome_direction,
             r_multiple,
             len(adjustments),
+            debate_winner or "none",
+            red_team_recommendation or "none",
             self.update_count,
         )
 

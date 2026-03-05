@@ -109,7 +109,7 @@ async def create_advanced_order(request: Request, req: AdvancedOrderRequest):
         raise
     except Exception as e:
         logger.error("create_advanced_order failed: %s", e)
-        raise HTTPException(status_code=400, detail="Internal server error")
+        raise HTTPException(status_code=502, detail=f"Order failed: {e}")
 
 
 # ── Replace / amend order ───────────────────────────────────────────────
@@ -133,7 +133,7 @@ async def replace_order(order_id: str, req: ReplaceOrderRequest):
         raise
     except Exception as e:
         logger.error("replace_order failed: %s", e)
-        raise HTTPException(status_code=400, detail="Internal server error")
+        raise HTTPException(status_code=502, detail="Broker unavailable")
 
 
 # ── Cancel single order ────────────────────────────────────────────────
@@ -145,7 +145,7 @@ async def cancel_order(order_id: str):
         return {"status": "cancelled", "order_id": order_id, "detail": result}
     except Exception as e:
         logger.error("cancel_order failed: %s", e)
-        raise HTTPException(status_code=400, detail="Internal server error")
+        raise HTTPException(status_code=502, detail="Broker unavailable")
 
 
 # ── Cancel ALL open orders ──────────────────────────────────────────────
@@ -157,7 +157,7 @@ async def cancel_all_orders():
         return {"status": "all_cancelled", "detail": result}
     except Exception as e:
         logger.error("cancel_all_orders failed: %s", e)
-        raise HTTPException(status_code=400, detail="Internal server error")
+        raise HTTPException(status_code=502, detail="Broker unavailable")
 
 
 # ── List open orders from Alpaca ─────────────────────────────────────────
@@ -171,7 +171,7 @@ async def get_orders(status: str = "open", limit: int = 50):
         return result
     except Exception as e:
         logger.error("get_orders failed: %s", e)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        return []
 
 
 # ── Recent orders from local DB ─────────────────────────────────────────
@@ -182,7 +182,7 @@ async def get_recent_orders(limit: int = 10):
         return db_service.get_recent_orders(limit=limit)
     except Exception as e:
         logger.error("get_recent_orders failed: %s", e)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        return []
 
 
 # ── Close position ────────────────────────────────────────────────────
@@ -206,7 +206,7 @@ async def close_position(
         return result or {"status": "closed", "symbol": sym}
     except Exception as e:
         logger.error("close_position failed: %s", e)
-        raise HTTPException(status_code=400, detail="Internal server error")
+        raise HTTPException(status_code=502, detail="Broker unavailable")
 
 
 # ── Adjust position ───────────────────────────────────────────────────
@@ -220,7 +220,7 @@ async def adjust_position(symbol: str = Body(...), qty: str = Body(None), side: 
         return result or {"status": "adjusted", "symbol": symbol}
     except Exception as e:
         logger.error("adjust_position failed: %s", e)
-        raise HTTPException(status_code=400, detail="Internal server error")
+        raise HTTPException(status_code=502, detail="Broker unavailable")
 
 
 # ── Flatten all positions ─────────────────────────────────────────────
@@ -232,7 +232,7 @@ async def flatten_all():
         return result or {"status": "all_flattened"}
     except Exception as e:
         logger.error("flatten_all failed: %s", e)
-        raise HTTPException(status_code=400, detail="Internal server error")
+        raise HTTPException(status_code=503, detail=f"Broker unavailable: {type(e).__name__}")
 
 
 # ── Emergency stop ────────────────────────────────────────────────────

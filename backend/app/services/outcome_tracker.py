@@ -366,6 +366,18 @@ class OutcomeTracker:
             pos.r_multiple, pos.close_reason,
         )
 
+        # Feed to knowledge system — update memories with trade outcome
+        try:
+            from app.knowledge.memory_bank import get_memory_bank
+            bank = get_memory_bank()
+            bank.update_outcome(
+                trade_id=pos.order_id,
+                r_multiple=pos.r_multiple,
+                was_correct=(outcome == "win"),
+            )
+        except Exception as e:
+            logger.debug("Knowledge memory outcome update error: %s", e)
+
         # Feed to council feedback loop + trigger weight update
         try:
             from app.council.feedback_loop import record_outcome as council_record, update_agent_weights
@@ -382,6 +394,40 @@ class OutcomeTracker:
                     logger.info("Agent weights updated from feedback: %s", new_weights)
         except Exception as e:
             logger.debug("Council feedback error: %s", e)
+
+        # Feed to adaptive LLM router — update accuracy for participating agents
+        try:
+            from app.services.adaptive_router import get_hybrid_router
+            hybrid = get_hybrid_router()
+            was_correct = outcome == "win"
+            # Update all agents that participated in this decision
+            # Find the actual routing metadata from the matching decision
+            provider_map = {}
+            try:
+                from app.council.feedback_loop import _get_store
+                store = _get_store()
+                for d in reversed(store.get("decisions", [])):
+                    if d.get("symbol", "").upper() == pos.symbol.upper():
+                        # Extract per-agent provider from stored routing metadata
+                        for vote in d.get("votes", []):
+                            name = vote.get("agent_name", "")
+                            meta = vote.get("metadata", {})
+                            if isinstance(meta, dict) and "provider" in meta:
+                                provider_map[name] = meta["provider"]
+                        break
+            except Exception:
+                pass
+
+            for agent_name in [
+                "market_perception", "flow_perception", "regime", "intermarket",
+                "social_perception", "news_catalyst", "youtube_knowledge",
+                "rsi", "bbv", "ema_trend", "relative_strength", "cycle_timing",
+                "hypothesis", "strategy", "risk", "execution", "critic",
+            ]:
+                provider_value = provider_map.get(agent_name, "default")
+                hybrid.update_accuracy(agent_name, provider_value, was_correct)
+        except Exception as e:
+            logger.debug("Adaptive router accuracy update error: %s", e)
 
         # Feed to ML outcome resolver
         try:

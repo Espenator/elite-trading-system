@@ -712,7 +712,7 @@ class OrderExecutor:
                 "regime": o.regime,
                 "time": datetime.fromtimestamp(o.timestamp, tz=timezone.utc).isoformat(),
             }
-            for o in self._orders[-20:]
+            for o in list(self._orders)[-20:]
         ]
         return {
             "running": self._running,

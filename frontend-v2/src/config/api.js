@@ -42,8 +42,8 @@ const API_CONFIG = {
     backtestCorrelation: "/backtest/correlation", // Asset correlation matrix
     backtestSectorExposure: "/backtest/sector-exposure", // Sector allocation breakdown
     backtestDrawdownAnalysis: "/backtest/drawdown-analysis", // Drawdown period analysis
-    openclawSwarmStatus: "/openclaw/swarm/status", // Swarm intelligence metrics
-    openclawAgents: "/openclaw/agents", // Individual agent status + tasks
+    openclawSwarmStatus: "/openclaw/swarm-status", // Swarm intelligence metrics
+    openclawAgents: "/openclaw/candidates", // Individual agent status + tasks
     status: "/status", // System health check
 
     // ---- NEW (Oleh needs to create these routers) ----

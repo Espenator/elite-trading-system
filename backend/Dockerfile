@@ -32,7 +32,8 @@ COPY --chown=appuser:appuser . .
 ENV PATH="/home/appuser/.local/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
-    TRADING_MODE=paper
+    TRADING_MODE=live \
+    ENVIRONMENT=production
 
 # Switch to non-root user
 USER appuser

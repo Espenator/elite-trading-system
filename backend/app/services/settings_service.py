@@ -15,11 +15,11 @@ from app.services.database import db_service
 
 DEFAULTS: Dict[str, Dict[str, Any]] = {
     "trading": {
-        "tradingMode": "paper",
+        "tradingMode": "live",
         "defaultOrderType": "market",
         "maxPositionSize": 10000,
         "maxDailyTrades": 20,
-        "autoExecute": False,
+        "autoExecute": True,
         "confirmBeforeOrder": True,
         "marketOpen": "09:30",
         "marketClose": "16:00",
@@ -53,7 +53,7 @@ DEFAULTS: Dict[str, Dict[str, Any]] = {
     "dataSources": {
         "alpacaApiKey": "",
         "alpacaSecretKey": "",
-        "alpacaBaseUrl": "paper",
+        "alpacaBaseUrl": "live",
         "unusualWhalesApiKey": "",
         "finvizApiKey": "",
         "fredApiKey": "",
@@ -213,7 +213,7 @@ DEFAULTS: Dict[str, Dict[str, Any]] = {
         "brainHost": "localhost",
         "brainPort": 50051,
         "peerDevices": [],
-        "tradingMode": "paper",
+        "tradingMode": "live",
     },
 }
 
@@ -288,7 +288,7 @@ def validate_api_key(provider: str, api_key: str, secret_key: str = "") -> Dict[
     if provider == "alpaca":
         try:
             import httpx
-            trading_mode = getattr(settings, "TRADING_MODE", "paper").lower()
+            trading_mode = getattr(settings, "TRADING_MODE", "live").lower()
             if trading_mode == "live":
                 base_url = "https://api.alpaca.markets/v2"
             else:

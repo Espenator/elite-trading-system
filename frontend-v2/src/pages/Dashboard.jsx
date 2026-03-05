@@ -1466,7 +1466,7 @@ export default function Dashboard() {
                   <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>{" "}
                   LIVE
                 </span>
-                <span>Flywheel: {flywheel.accuracy ?? flywheel.accuracy30d != null ? Math.round(Number(flywheel.accuracy30d) * 100) : 0}%</span>
+                <span>Flywheel: {flywheel.accuracy ?? (flywheel.accuracy30d != null ? Math.round(Number(flywheel.accuracy30d) * 100) : 0)}%</span>
               </div>
             </div>
           </div>

@@ -20,11 +20,11 @@ class Settings(BaseSettings):
     # ── App ─────────────────────────────────────────────────
     APP_NAME: str = "Elite Trading System"
     PROJECT_NAME: str = "Elite Trading System"
-    APP_VERSION: str = "3.1.0"
+    APP_VERSION: str = "4.0.0"
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
-    ENVIRONMENT: str = "development"
-    TRADING_MODE: str = "paper"
+    ENVIRONMENT: str = "production"
+    TRADING_MODE: str = "live"
     SCAN_INTERVAL_MINUTES: int = 5
 
     # ── API Authentication ────────────────────────────────
@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     # ── Alpaca Markets ──────────────────────────────────────
     ALPACA_API_KEY: str = ""
     ALPACA_SECRET_KEY: str = ""
-    ALPACA_BASE_URL: str = "https://paper-api.alpaca.markets"
+    ALPACA_BASE_URL: str = "https://api.alpaca.markets"
     ALPACA_DATA_URL: str = "https://data.alpaca.markets"
 
     @property
@@ -133,11 +133,11 @@ class Settings(BaseSettings):
     RESEND_ALERT_TO_EMAIL: str = ""
 
     # ── OpenClaw (Multi-Agent) ──────────────────────────────
-    OPENCLAW_ENABLED: bool = False
+    OPENCLAW_ENABLED: bool = True
     OLLAMA_BASE_URL: str = "http://localhost:11434"
 
     # ── Brain Service (PC2) ───────────────────────────────
-    BRAIN_ENABLED: bool = False
+    BRAIN_ENABLED: bool = True
     BRAIN_HOST: str = "localhost"
     BRAIN_PORT: int = 50051
     OLLAMA_MODEL: str = "llama3.2"
@@ -151,6 +151,31 @@ class Settings(BaseSettings):
     LLM_ROUTER_ENABLED: bool = True
     LLM_COST_TRACKING: bool = True
 
+    # ── Dual-PC Ollama Configuration ──────────────────────
+    OLLAMA_PC2_URL: str = "http://localhost:11434"  # PC-2 endpoint (set to PC-2 IP for dual-PC)
+    OLLAMA_SMALL_MODEL: str = "mistral:7b"          # PC-1: fast, <200ms, ~4GB VRAM
+    OLLAMA_LARGE_MODEL: str = "llama3:70b-q4_K_M"   # PC-2: complex, ~40GB VRAM
+
+    # ── Adaptive Router Settings ──────────────────────────
+    ADAPTIVE_ROUTING_ENABLED: bool = True
+    ROUTING_ACCURACY_THRESHOLD: float = 0.45   # escalate if accuracy below this
+    ROUTING_MIN_CALLS: int = 10                # min calls before adaptive kicks in
+    ROUTING_MONTHLY_BUDGET_USD: float = 100.0  # cloud API monthly budget cap
+    ROUTING_TIMEOUT_BRAINSTEM: float = 10.0
+    ROUTING_TIMEOUT_CORTEX: float = 15.0
+    ROUTING_TIMEOUT_DEEP: float = 30.0
+
+    # ── Debate Engine Settings ────────────────────────────
+    DEBATE_ENABLED: bool = True
+    DEBATE_MAX_ROUNDS: int = 3
+    DEBATE_CONFIDENCE_SPREAD_THRESHOLD: float = 0.7
+
+    # ── Knowledge System Settings ─────────────────────────
+    KNOWLEDGE_SYSTEM_ENABLED: bool = True
+    KNOWLEDGE_EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
+    KNOWLEDGE_HEURISTIC_MIN_SAMPLE: int = 25
+    KNOWLEDGE_HEURISTIC_MIN_WIN_RATE: float = 0.55
+
     # ── Council ────────────────────────────────────────────
     COUNCIL_ENABLED: bool = True
 
@@ -160,7 +185,7 @@ class Settings(BaseSettings):
     FILL_SEED: int = 0  # 0 = random
 
     # ── Scheduler ──────────────────────────────────────────
-    SCHEDULER_ENABLED: bool = False
+    SCHEDULER_ENABLED: bool = True
 
     # ── Risk Guardrails (additional) ───────────────────────
     MAX_SINGLE_POSITION: float = 0.02

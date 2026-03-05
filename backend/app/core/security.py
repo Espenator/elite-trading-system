@@ -49,7 +49,7 @@ def _get_auth_token() -> Optional[str]:
 
 
 def _is_live_mode() -> bool:
-    return os.getenv("TRADING_MODE", "paper") == "live"
+    return os.getenv("TRADING_MODE", "live") == "live"
 
 
 async def require_auth(
