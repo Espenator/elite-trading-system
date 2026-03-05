@@ -1,14 +1,21 @@
-# AI Context Guide - Elite Trading System
-
+# AI Context Guide - Embodier Trader (Elite Trading System)
 > Strategies for managing AI context limits when working with this codebase.
 > This repo has 100+ files. Feeding everything at once causes "lost in the middle" problems.
+> Last updated: March 5, 2026 — v3.2.0
+
+## Quick Start for AI Sessions
+
+**Always start every new AI chat by pasting `project_state.md` and saying:**
+> "Read this project state document. Acknowledge you understand the architecture, and then I will give you your first task."
+
+This gives the AI the full architecture, rules, and current state in one shot.
 
 ## 5 Context Management Strategies
 
 ### 1. Repo Map First (Always Start Here)
 
 Before any coding session, feed the AI:
-1. `REPO-MAP.md` - Full directory tree with annotations
+1. `project_state.md` - Full project state, architecture, rules, and roadmap
 2. `README.md` - Project overview and current status
 3. The specific file(s) you want to modify
 
@@ -18,11 +25,13 @@ Load context in layers based on the task:
 
 | Task Type | Layer 1 (Always) | Layer 2 (Task) | Layer 3 (If needed) |
 |-----------|------------------|----------------|---------------------|
-| Frontend fix | REPO-MAP.md | The page .jsx | useApi.js, api.js |
-| Backend fix | REPO-MAP.md | The route .py | service .py, schema |
-| New feature | REPO-MAP.md + README | Mockup image | Related page + API |
-| Bug fix | REPO-MAP.md | Error log | Failing file(s) |
-| CI fix | REPO-MAP.md | ci.yml | test_api.py, conftest |
+| Frontend fix | project_state.md | The page .jsx | useApi.js, api.js |
+| Backend fix | project_state.md | The route .py | service .py, schema |
+| Council fix | project_state.md | The agent .py | arbiter.py, schemas.py, runner.py |
+| Pipeline fix | project_state.md | council_gate.py | signal_engine.py, order_executor.py |
+| New feature | project_state.md + README | Mockup image | Related page + API |
+| Bug fix | project_state.md | Error log | Failing file(s) |
+| CI fix | project_state.md | ci.yml | test_api.py, conftest |
 
 ### 3. Bundle Files Script
 
@@ -39,20 +48,24 @@ This bundles the most important files into a copy-pasteable format with syntax h
 Paste this at the start of every AI session:
 
 ```
-PROJECT: Elite Trading System
-STATUS: CI GREEN (22 tests passing)
+PROJECT: Embodier Trader (Elite Trading System)
+VERSION: 3.2.0
+STATUS: CI GREEN (151 tests passing)
 STACK: FastAPI + React (Vite) + DuckDB
-DATA: Alpaca Markets, Unusual Whales, FinViz (NO yfinance)
+DATA: Alpaca Markets, Unusual Whales, FinViz, FRED, SEC EDGAR (NO yfinance)
+COUNCIL: 13-agent DAG in 7 stages with Bayesian weight learning
+PIPELINE: AlpacaStream -> SignalEngine -> CouncilGate -> 13-Agent Council -> OrderExecutor -> Alpaca
 BRANCH: main
 LAST UPDATE: [date]
-
 RULES:
-- No mock data in production components
-- All frontend data via useApi() hook
-- No yfinance anywhere
-- 4-space indentation in Python
-- Mockups in docs/mockups-v3/images/ are the source of truth for UI
-
+  - No mock data in production components
+  - All frontend data via useApi() hook
+  - No yfinance anywhere
+  - 4-space indentation in Python
+  - Council agents MUST return AgentVote schema
+  - VETO_AGENTS = {"risk", "execution"} only
+  - CouncilGate bridges signals to council — do NOT bypass
+  - ONE repo: Espenator/elite-trading-system
 CURRENT TASK: [describe what you want to do]
 FILES TO MODIFY: [list specific files]
 ```
@@ -71,13 +84,26 @@ The codebase has clear boundaries. Stay within one domain per session:
 - `backend/app/services/*.py` - Business logic
 - Pattern: route calls service, service calls external API
 
+**Council** (13-agent DAG + intelligence layer):
+- `backend/app/council/agents/*.py` - 13 agent modules
+- `backend/app/council/runner.py` - 7-stage DAG orchestrator
+- `backend/app/council/arbiter.py` - Deterministic arbiter with Bayesian weights
+- `backend/app/council/council_gate.py` - Pipeline bridge (signal -> council -> order)
+- `backend/app/council/weight_learner.py` - Bayesian self-learning weights
+- `backend/app/council/schemas.py` - AgentVote + DecisionPacket
+
+**Event Pipeline** (real-time trading):
+- `backend/app/core/message_bus.py` - Pub/sub event bus
+- `backend/app/services/signal_engine.py` - Signal scoring
+- `backend/app/services/order_executor.py` - Council-controlled order execution
+- `backend/app/services/trade_stats_service.py` - Real DuckDB stats for Kelly
+
 **ML Engine** (isolated module):
 - `backend/app/modules/ml_engine/` - Self-contained ML pipeline
 - Has own config, trainer, feature pipeline
 
-**OpenClaw** (isolated multi-agent system):
-- `backend/app/modules/openclaw/` - 8+ sub-modules
-- Has own app.py, config.py, main.py entry points
+**OpenClaw** (legacy — to be cleaned up):
+- `backend/app/modules/openclaw/` - Dead code, needs P4 cleanup
 
 ## File Size Quick Reference
 
@@ -87,16 +113,24 @@ The codebase has clear boundaries. Stay within one domain per session:
 | DataSourcesMonitor.jsx | ~600 | Data source dashboard |
 | signal_engine.py | ~500 | Core signal generation |
 | kelly_position_sizer.py | ~400 | Position sizing logic |
+| order_executor.py | ~350 | Council-controlled order execution |
 | test_api.py | ~300 | Main test suite |
 | main.py (backend) | ~200 | FastAPI app setup |
+| arbiter.py | ~200 | Deterministic arbiter + Bayesian weights |
+| council_gate.py | ~100 | Signal -> Council -> Order bridge |
+| weight_learner.py | ~80 | Bayesian alpha/beta learning |
 
 ## Common Pitfalls
 
 1. **Don't import yfinance** - Removed from requirements.txt, use Alpaca/FinViz/UW
 2. **Don't use mock data** - All components wire to real API endpoints
-3. **Python indentation** - Use 4 spaces, never tabs. Run `scripts/fix_indentation.py` if issues
-4. **Emoji in JSX** - Use BMP unicode only (e.g. `\u21BB` not `\u{1F504}`)
-5. **WebSocket** - Keep catch blocks on single lines to avoid parse errors
+3. **Python indentation** - Use 4 spaces, never tabs
+4. **Don't bypass CouncilGate** - All signals must go through the 13-agent council
+5. **Agent votes** - Must return AgentVote schema from council/schemas.py
+6. **Veto power** - Only risk and execution agents can veto
+7. **Emoji in JSX** - Use BMP unicode only (e.g. `\u21BB` not `\u{1F504}`)
+8. **WebSocket** - Keep catch blocks on single lines to avoid parse errors
+9. **GitHub editor** - Use clipboard paste method for multi-line edits to avoid auto-indent issues
 
 ---
 
@@ -108,19 +142,19 @@ Claude models parse structured XML tags better than raw code dumps. Wrap context
 
 ```xml
 <project_goal>
-Refactor the legacy codebase to match the new UI mockups and integrate the OpenClaw agent swarm.
+Refactor the council arbiter to use Bayesian weights from WeightLearner.
 </project_goal>
 
-<current_ui_code>
-[Paste bundled UI code here]
-</current_ui_code>
+<council_code>
+[Paste arbiter.py, weight_learner.py, schemas.py here]
+</council_code>
 
-<agent_logic_code>
-[Paste bundled Python agent code here]
-</agent_logic_code>
+<pipeline_code>
+[Paste council_gate.py, order_executor.py here]
+</pipeline_code>
 
 <instructions>
-Compare the UI code to the agent logic and write the missing websocket connection between them.
+Update the arbiter to query WeightLearner for current weights before aggregation.
 </instructions>
 ```
 
@@ -128,7 +162,7 @@ Compare the UI code to the agent logic and write the missing websocket connectio
 
 Use the two helper scripts in sequence:
 
-1. **Skeleton**: Send `REPO-MAP.md` tree + explain your goal. Ask the AI: "Based on this tree, which specific files do you need to see?"
+1. **Skeleton**: Send `project_state.md` + explain your goal. Ask the AI: "Based on this project state, which specific files do you need to see?"
 2. **Muscle**: AI replies with 3-4 files. Run `python bundle_files.py` (edit the file list) to grab exactly those files. Feed them back.
 3. This ensures the AI holds **only** the exact context it needs.
 
@@ -139,6 +173,8 @@ Stop the conversation immediately if the AI:
 - Suggests libraries you don't use (e.g., yfinance)
 - Forgets your data sources (Alpaca/FinViz/UW)
 - Starts hallucinating variable names or endpoints
+- Suggests bypassing the council for direct order execution
+- Proposes mock data or hardcoded values
 
 **Recovery**: Copy any good code, save to repo, start a new chat with `project_state.md` to re-initialize.
 
@@ -150,8 +186,10 @@ Never mix domains in the same prompt:
 |---------|-------|------------------|
 | UI Build | Static React pages | Mockup image + page .jsx + components |
 | API Wiring | Connect frontend to backend | Finished UI + useApi.js + route .py |
-| Agent Swarm | OpenClaw recursive loops | openclaw/ module + API endpoints |
-| Hardware | Deploy to dual-PC RTX setup | OpenClaw config + Ollama settings |
+| Council | Agent intelligence | council/ agents + arbiter + schemas |
+| Pipeline | Event flow | council_gate.py + signal_engine.py + order_executor.py |
+| Brain Service | LLM inference | brain_client.py + hypothesis_agent.py + critic_agent.py |
+| Hardware | Deploy to dual-PC RTX setup | Docker config + Ollama settings |
 
 ### 10. The project_state.md "Save Point"
 
@@ -160,4 +198,3 @@ Maintain `project_state.md` in the repo root. Paste it at the start of **every n
 > "Read this project state document. Acknowledge you understand the architecture, and then I will give you your first task."
 
 See `project_state.md` for the current version.
-
