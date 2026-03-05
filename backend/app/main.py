@@ -760,6 +760,7 @@ app.include_router(features_routes.router, prefix="/api/v1/features", tags=["fea
 app.include_router(council.router, prefix="/api/v1/council", tags=["council"])
 app.include_router(cns.router, prefix="/api/v1/cns", tags=["cns"])
 app.include_router(youtube_knowledge.router, prefix="/api/v1/youtube-knowledge", tags=["youtube_knowledge"])
+app.include_router(swarm.router, prefix="/api/v1/swarm", tags=["swarm"])
 app.include_router(ingestion.router, tags=["ingestion"])
 
 

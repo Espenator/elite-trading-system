@@ -390,7 +390,7 @@ export default function TradeExecution() {
 
       {/* Council Verdict + Alignment Engine */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-        <CouncilVerdictPanel symbol={symbol} />
+        <CouncilVerdictPanel symbol={orderForm?.symbol || 'SPY'} />
         <Card title="Alignment Engine">
           <div style={{ padding: '8px 12px', maxHeight: 400, overflowY: 'auto' }}>
             <AlignmentEngine />

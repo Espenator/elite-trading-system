@@ -129,6 +129,22 @@ class AppWebSocket {
     };
   }
 
+  /** Alias for on() — subscribe to a channel. Returns unsubscribe function. */
+  subscribe(channel, handler) {
+    return this.on(channel, handler);
+  }
+
+  /** Explicitly unsubscribe a handler from a channel. */
+  unsubscribe(channel, handler) {
+    if (this.handlers.has(channel)) {
+      this.handlers.get(channel).delete(handler);
+      if (this.handlers.get(channel).size === 0) {
+        this._sendRaw({ type: "unsubscribe", channel });
+        this.handlers.delete(channel);
+      }
+    }
+  }
+
   emit(channel, data) {
     this._sendRaw({ channel, data });
   }

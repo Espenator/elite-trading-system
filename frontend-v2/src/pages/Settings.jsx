@@ -446,7 +446,7 @@ export default function SettingsPage() {
 
   // == Tab: Audit Log (fixed - uses useApi hook instead of raw api) ==
   const renderAuditLog = () => {
-    const { data: auditData, loading: logLoading } = useApi("settings", { endpoint: "/audit-log" });
+    const { data: auditData, loading: logLoading } = useApi("settings", { endpoint: "/settings/audit-log" });
     const logs = auditData?.logs || [];
     return (
       <div className="space-y-6 animate-in fade-in duration-300">

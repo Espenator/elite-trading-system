@@ -42,7 +42,7 @@ const API_CONFIG = {
     backtestCorrelation: "/backtest/correlation", // Asset correlation matrix
     backtestSectorExposure: "/backtest/sector-exposure", // Sector allocation breakdown
     backtestDrawdownAnalysis: "/backtest/drawdown-analysis", // Drawdown period analysis
-    openclawSwarmStatus: "/openclaw/swarm/status", // Swarm intelligence metrics
+    openclawSwarmStatus: "/openclaw/swarm-status", // Swarm intelligence metrics
     openclawAgents: "/openclaw/agents", // Individual agent status + tasks
     status: "/status", // System health check
 

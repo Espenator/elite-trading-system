@@ -16,7 +16,7 @@ export default function PostmortemAttribution() {
 
   const agents = attribution.data?.attribution || {};
   const totalPMs = attribution.data?.total_postmortems || 0;
-  const pmList = postmortems.data?.postmortems || [];
+  const pmList = Array.isArray(postmortems.data?.postmortems) ? postmortems.data.postmortems : [];
 
   return (
     <div className="space-y-4">
