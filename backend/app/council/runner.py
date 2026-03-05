@@ -92,6 +92,17 @@ async def run_council(
 
     all_votes: List[AgentVote] = []
 
+    def _votes_summary(votes: List[AgentVote]) -> Dict[str, Any]:
+        """Summarize votes for downstream agents to reference."""
+        return {
+            v.agent_name: {
+                "direction": v.direction,
+                "confidence": v.confidence,
+                "veto": v.veto,
+            }
+            for v in votes
+        }
+
     # Stage 1: Perception + Intermarket (parallel)
     stage1 = await asyncio.gather(
         _run_agent(market_perception_agent, symbol, timeframe, features, context),
@@ -100,6 +111,7 @@ async def run_council(
         _run_agent(intermarket_agent, symbol, timeframe, features, context),
     )
     all_votes.extend(stage1)
+    context["prior_votes"] = _votes_summary(all_votes)
 
     # Stage 2: Technical analysis agents (parallel)
     stage2 = await asyncio.gather(
@@ -110,14 +122,17 @@ async def run_council(
         _run_agent(cycle_timing_agent, symbol, timeframe, features, context),
     )
     all_votes.extend(stage2)
+    context["prior_votes"] = _votes_summary(all_votes)
 
     # Stage 3: Hypothesis
     stage3 = await _run_agent(hypothesis_agent, symbol, timeframe, features, context)
     all_votes.append(stage3)
+    context["prior_votes"] = _votes_summary(all_votes)
 
     # Stage 4: Strategy
     stage4 = await _run_agent(strategy_agent, symbol, timeframe, features, context)
     all_votes.append(stage4)
+    context["prior_votes"] = _votes_summary(all_votes)
 
     # Stage 5: Risk + Execution (parallel)
     stage5 = await asyncio.gather(
@@ -125,6 +140,7 @@ async def run_council(
         _run_agent(execution_agent, symbol, timeframe, features, context),
     )
     all_votes.extend(stage5)
+    context["prior_votes"] = _votes_summary(all_votes)
 
     # Stage 6: Critic
     stage6 = await _run_agent(critic_agent, symbol, timeframe, features, context)
@@ -146,7 +162,7 @@ async def run_council(
     try:
         from app.core.message_bus import get_message_bus
         bus = get_message_bus()
-        if bus._running:
+        if bus.is_running:
             await bus.publish("council.verdict", decision.to_dict())
     except Exception:
         pass

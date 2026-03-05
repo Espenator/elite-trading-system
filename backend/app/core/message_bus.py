@@ -53,6 +53,11 @@ class MessageBus:
         self._error_count: int = 0
         self._start_time: Optional[float] = None
 
+    @property
+    def is_running(self) -> bool:
+        """Whether the bus is currently processing events."""
+        return self._running
+
     async def start(self) -> None:
         """Start the event processing loop."""
         if self._running:

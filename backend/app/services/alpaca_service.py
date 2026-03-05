@@ -112,6 +112,20 @@ class AlpacaService:
             logger.error("Alpaca connection error on %s %s: %s", method, path, exc)
             return None
 
+    def get_cached_equity(self, default: float = 100_000.0) -> float:
+        """Return cached account equity without making an API call.
+
+        Useful for synchronous contexts (e.g., Kelly sizing) where you need
+        a recent equity value but can't await.
+        """
+        cached = self._cache_get("account", _CACHE_TTL_MEDIUM)
+        if cached:
+            try:
+                return float(cached.get("equity", default))
+            except (ValueError, TypeError):
+                pass
+        return default
+
     # ── account ──────────────────────────────────────────────────────────────────
 
     async def get_account(self) -> Optional[Dict]:

@@ -530,14 +530,7 @@ class OrderExecutor:
             }
 
         # Get account equity for $ sizing
-        equity = 100_000.0
-        try:
-            alpaca = self._get_alpaca_service()
-            cached = alpaca._cache_get("account", 60)
-            if cached:
-                equity = float(cached.get("equity", 100_000))
-        except Exception:
-            pass
+        equity = self._get_alpaca_service().get_cached_equity()
 
         dollar_amount = equity * pos.final_pct
         qty = max(0, int(dollar_amount / price))
@@ -545,11 +538,8 @@ class OrderExecutor:
         # ATR-based stop/take-profit using REAL ATR from features
         atr_estimate = price * 0.02  # fallback
         try:
-            from app.features.feature_aggregator import aggregate
-            # Use cached features if available
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
-            row = conn.execute(
+            row = duckdb_store.query(
                 "SELECT atr_14 FROM technical_indicators "
                 "WHERE symbol = ? ORDER BY date DESC LIMIT 1",
                 [symbol.upper()],

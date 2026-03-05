@@ -57,6 +57,21 @@ class DuckDBStorage:
             self._conn.execute("PRAGMA enable_progress_bar")
         return self._conn
 
+    def query(self, sql: str, params=None):
+        """Execute a read-only query and return the result.
+
+        Args:
+            sql: SQL query string.
+            params: Optional list of parameters for parameterized queries.
+
+        Returns:
+            DuckDB query result (use .fetchone(), .fetchall(), .fetchdf()).
+        """
+        conn = self._get_conn()
+        if params:
+            return conn.execute(sql, params)
+        return conn.execute(sql)
+
     def _init_schema(self):
         """Create analytics tables if they don't exist."""
         conn = self._get_conn()

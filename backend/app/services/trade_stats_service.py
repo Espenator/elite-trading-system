@@ -83,12 +83,10 @@ class TradeStatsService:
         """Query trade_outcomes from DuckDB and compute statistics."""
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
-
             # Ensure table exists
             tables = [
                 r[0]
-                for r in conn.execute(
+                for r in duckdb_store.query(
                     "SELECT table_name FROM information_schema.tables"
                 ).fetchall()
             ]
@@ -124,7 +122,7 @@ class TradeStatsService:
                 {where_sql}
             """
 
-            row = conn.execute(query, params).fetchone()
+            row = duckdb_store.query(query, params).fetchone()
 
             if not row or row[0] == 0:
                 return self._prior_stats("no_data")
@@ -214,10 +212,8 @@ class TradeStatsService:
         """Record a trade outcome to DuckDB for future stats."""
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
-
             # Create table if needed
-            conn.execute("""
+            duckdb_store.query("""
                 CREATE TABLE IF NOT EXISTS trade_outcomes (
                     id INTEGER PRIMARY KEY,
                     symbol VARCHAR,
@@ -246,7 +242,7 @@ class TradeStatsService:
             risk = entry_price * 0.02 * qty
             r_multiple = pnl / risk if risk > 0 else 0
 
-            conn.execute(
+            duckdb_store.query(
                 """INSERT INTO trade_outcomes
                    (symbol, side, entry_price, exit_price, qty,
                     pnl, pnl_pct, r_multiple, regime, signal_score, kelly_pct)

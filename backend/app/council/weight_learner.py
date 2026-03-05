@@ -258,9 +258,7 @@ class WeightLearner:
         """Load persisted weights from DuckDB."""
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
-            # Create table if not exists
-            conn.execute("""
+            duckdb_store.query("""
                 CREATE TABLE IF NOT EXISTS agent_weights (
                     agent_name VARCHAR PRIMARY KEY,
                     weight DOUBLE,
@@ -268,7 +266,7 @@ class WeightLearner:
                     last_update TIMESTAMP
                 )
             """)
-            rows = conn.execute(
+            rows = duckdb_store.query(
                 "SELECT agent_name, weight FROM agent_weights"
             ).fetchall()
             if rows:
@@ -286,8 +284,7 @@ class WeightLearner:
         """Save current weights to DuckDB."""
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
-            conn.execute("""
+            duckdb_store.query("""
                 CREATE TABLE IF NOT EXISTS agent_weights (
                     agent_name VARCHAR PRIMARY KEY,
                     weight DOUBLE,
@@ -296,7 +293,7 @@ class WeightLearner:
                 )
             """)
             for agent, weight in self._weights.items():
-                conn.execute(
+                duckdb_store.query(
                     """INSERT OR REPLACE INTO agent_weights
                        (agent_name, weight, update_count, last_update)
                        VALUES (?, ?, ?, CURRENT_TIMESTAMP)""",

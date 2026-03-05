@@ -189,8 +189,7 @@ def _get_flow_features(symbol: str) -> Dict[str, float]:
     """Get options flow features if available."""
     try:
         from app.data.duckdb_storage import duckdb_store
-        conn = duckdb_store._get_conn()
-        row = conn.execute(
+        row = duckdb_store.query(
             """SELECT call_volume, put_volume, net_premium, pcr_volume, total_premium
                FROM options_flow
                WHERE symbol = ?
@@ -218,11 +217,9 @@ def _get_indicator_features(symbol: str) -> Dict[str, float]:
     """
     try:
         from app.data.duckdb_storage import duckdb_store
-        conn = duckdb_store._get_conn()
-
         # Check which columns exist in the table
         try:
-            cols_df = conn.execute(
+            cols_df = duckdb_store.query(
                 "SELECT column_name FROM information_schema.columns "
                 "WHERE table_name = 'technical_indicators'"
             ).fetchall()
@@ -257,7 +254,7 @@ def _get_indicator_features(symbol: str) -> Dict[str, float]:
             return {}
 
         col_str = ", ".join(query_cols)
-        row = conn.execute(
+        row = duckdb_store.query(
             f"SELECT {col_str} FROM technical_indicators "
             f"WHERE symbol = ? ORDER BY date DESC LIMIT 1",
             [symbol.upper()],
@@ -287,9 +284,8 @@ def _get_intermarket_features() -> Dict[str, float]:
     features = {}
     try:
         from app.data.duckdb_storage import duckdb_store
-        conn = duckdb_store._get_conn()
         for ticker, key in benchmarks.items():
-            row = conn.execute(
+            row = duckdb_store.query(
                 "SELECT close FROM daily_ohlcv WHERE symbol = ? "
                 "ORDER BY date DESC LIMIT 2",
                 [ticker],
@@ -379,8 +375,7 @@ async def aggregate(
     ohlcv_rows = []
     try:
         from app.data.duckdb_storage import duckdb_store
-        conn = duckdb_store._get_conn()
-        df = conn.execute(
+        df = duckdb_store.query(
             """SELECT date, open, high, low, close, volume
                FROM daily_ohlcv
                WHERE symbol = ?
