@@ -171,7 +171,7 @@ async def get_orders(status: str = "open", limit: int = 50):
         return result
     except Exception as e:
         logger.error("get_orders failed: %s", e)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        return []
 
 
 # ── Recent orders from local DB ─────────────────────────────────────────
@@ -182,7 +182,7 @@ async def get_recent_orders(limit: int = 10):
         return db_service.get_recent_orders(limit=limit)
     except Exception as e:
         logger.error("get_recent_orders failed: %s", e)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        return []
 
 
 # ── Close position ────────────────────────────────────────────────────
