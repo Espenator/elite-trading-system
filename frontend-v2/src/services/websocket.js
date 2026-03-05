@@ -129,6 +129,31 @@ class AppWebSocket {
     };
   }
 
+  /**
+   * Subscribe to a channel (same as on). Use with unsubscribe(channel, handler) in cleanup.
+   * AgentCommandCenter and other components use this API.
+   */
+  subscribe(channel, handler) {
+    const unsub = this.on(channel, handler);
+    if (!this._subs) this._subs = new Map();
+    const key = channel;
+    if (!this._subs.has(key)) this._subs.set(key, []);
+    this._subs.get(key).push({ handler, unsub });
+  }
+
+  /**
+   * Unsubscribe a handler from a channel. Pair with subscribe(channel, handler).
+   */
+  unsubscribe(channel, handler) {
+    if (!this._subs || !this._subs.has(channel)) return;
+    const arr = this._subs.get(channel);
+    const i = arr.findIndex((e) => e.handler === handler);
+    if (i !== -1) {
+      arr[i].unsub();
+      arr.splice(i, 1);
+    }
+  }
+
   emit(channel, data) {
     this._sendRaw({ channel, data });
   }

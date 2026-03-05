@@ -27,7 +27,7 @@ const API_CONFIG = {
     quotes: "/quotes", // Real-time price quotes
     orders: "/orders", // Order execution (Alpaca)
     system: "/system", // System status + config
-    training: "/training", // ML model training
+    "system/event-bus/status": "/system/event-bus/status", // Event-bus topics for Agent Command Center
     signals: "/signals", // Generated trading signals
     backtest: "/backtest", // Backtesting engine
     backtestRuns: "/backtest/runs", // Recent backtest runs (for Backtesting page)

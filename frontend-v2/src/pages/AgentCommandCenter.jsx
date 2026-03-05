@@ -200,13 +200,14 @@ function LiveActivityFeed({ agents }) {
 // --- Helper: Blackboard Live Feed Table (from mockup 01) ---
 function BlackboardLiveFeed({ blackboardMsgs }) {
   const { data: busStatus } = useApi("system/event-bus/status");
-  const topics = busStatus?.topics || [
+  const defaultTopics = [
     { topic: "signal.generated", subs: 0, msgRate: 0, lastMsg: "Awaiting signals..." },
     { topic: "council.verdict", subs: 0, msgRate: 0, lastMsg: "Awaiting council..." },
     { topic: "order.submitted", subs: 0, msgRate: 0, lastMsg: "No orders yet" },
     { topic: "market_data.bar", subs: 0, msgRate: 0, lastMsg: "Awaiting market data..." },
     { topic: "risk.alert", subs: 0, msgRate: 0, lastMsg: "No alerts" },
   ];
+  const topics = Array.isArray(busStatus?.topics) ? busStatus.topics : defaultTopics;
   return (
     <Card title="Blackboard Live Feed">
       <table className="w-full text-xs">
