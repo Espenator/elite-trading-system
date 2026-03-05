@@ -9,9 +9,38 @@ import { getApiUrl, getAuthHeaders } from "../config/api";
 // Simple in-memory cache for API responses (stale-while-revalidate)
 const _apiCache = new Map();
 
+// Global concurrency limiter — prevents browser connection exhaustion
+let _activeRequests = 0;
+const MAX_CONCURRENT = 6; // Browser limit per host
+const _queue = [];
+
+function _runNext() {
+  while (_queue.length > 0 && _activeRequests < MAX_CONCURRENT) {
+    const { resolve } = _queue.shift();
+    _activeRequests++;
+    resolve();
+  }
+}
+
+function _acquireSlot() {
+  if (_activeRequests < MAX_CONCURRENT) {
+    _activeRequests++;
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => _queue.push({ resolve }));
+}
+
+function _releaseSlot() {
+  _activeRequests--;
+  _runNext();
+}
+
+// Per-URL in-flight deduplication
+const _inflight = new Map();
+
 /**
  * @param {string} endpoint - Key from api.js endpoints (e.g. 'agents', 'dataSources')
- * @param {{ pollIntervalMs?: number, enabled?: boolean, endpoint?: string }} options - Poll interval in ms; if enabled is false, no fetch; endpoint override for custom paths
+ * @param {{ pollIntervalMs?: number, enabled?: boolean, endpoint?: string }} options
  * @returns {{ data: T | null, loading: boolean, error: Error | null, refetch: () => Promise<void> }}
  */
 export function useApi(endpoint, options = {}) {
@@ -26,9 +55,7 @@ export function useApi(endpoint, options = {}) {
 
   const fetchData = useCallback(async () => {
     let url = getApiUrl(endpoint);
-        if (endpointOverride) {
-      // endpointOverride is an absolute path from API prefix (e.g., '/signals/AAPL/technicals')
-      // Use API_PREFIX + endpointOverride directly, NOT appended to the mapped endpoint
+    if (endpointOverride) {
       const base = import.meta.env.VITE_API_URL ?? '';
       url = `${base}/api/v1${endpointOverride}`;
     }
@@ -37,40 +64,49 @@ export function useApi(endpoint, options = {}) {
       setLoading(false);
       return;
     }
+
+    // Deduplicate: if same URL is already in-flight, piggyback on it
+    if (_inflight.has(url)) {
+      try {
+        const json = await _inflight.get(url);
+        setData(json);
+        setError(null);
+        return;
+      } catch (err) {
+        // fall through to cache check below
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    const fetchPromise = (async () => {
+      await _acquireSlot();
+      try {
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        const json = await res.json();
+        _apiCache.set(url, { data: json, ts: Date.now() });
+        return json;
+      } finally {
+        _releaseSlot();
+      }
+    })();
+
+    _inflight.set(url, fetchPromise);
     try {
       setError(null);
-      // Retry with exponential backoff (max 3 attempts)
-      let lastErr;
-      for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-          const res = await fetch(url, { cache: "no-store" });
-          if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-          const json = await res.json();
-          setData(json);
-          // Cache successful response
-          _apiCache.set(url, { data: json, ts: Date.now() });
-          lastErr = null;
-          break;
-        } catch (fetchErr) {
-          lastErr = fetchErr;
-          if (attempt < 2) {
-            await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
-          }
-        }
-      }
-      if (lastErr) {
-        // Use cached data as fallback
-        const cached = _apiCache.get(url);
-        if (cached && Date.now() - cached.ts < 300000) { // 5 min stale
-          setData(cached.data);
-        } else {
-          throw lastErr;
-        }
-      }
+      const json = await fetchPromise;
+      setData(json);
     } catch (err) {
-      setError(err);
-      setData(null);
+      // Use cached data as fallback
+      const cached = _apiCache.get(url);
+      if (cached && Date.now() - cached.ts < 300000) {
+        setData(cached.data);
+      } else {
+        setError(err);
+      }
     } finally {
+      _inflight.delete(url);
       setLoading(false);
     }
   }, [endpoint, endpointOverride]);

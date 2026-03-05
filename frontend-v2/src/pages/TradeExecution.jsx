@@ -291,7 +291,7 @@ export default function TradeExecution() {
 
         {/* COL 4: Price Charts + News Feed */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <Card title="Price Charts" subtitle="SPX \u00B7 S&P 500 Index \u00B7 1M">
+          <Card title="Price Charts" subtitle="SPX · S&P 500 Index · 1M">
             <div style={{ padding: '8px 12px' }}>
               <div style={{ fontSize: 18, fontWeight: 700, color: C.text, fontFamily: "'JetBrains Mono', monospace" }}>
                 -- <span style={{ fontSize: 12, color: C.textMuted }}>Awaiting data</span>
