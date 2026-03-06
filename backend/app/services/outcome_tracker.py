@@ -348,6 +348,7 @@ class OutcomeTracker:
         history = self._stats.get("resolved_history", [])
         history.append({
             "symbol": pos.symbol,
+            "side": pos.side,
             "pnl_pct": round(pos.pnl_pct, 6),
             "r_multiple": round(pos.r_multiple, 3),
             "outcome": outcome,
@@ -472,6 +473,23 @@ class OutcomeTracker:
         r_all = [h["r_multiple"] for h in history if h["r_multiple"] != 0]
         if r_all:
             self._stats["avg_r_multiple"] = round(sum(r_all) / len(r_all), 3)
+
+                    # Per-side Kelly stats for short/long symmetry
+        for side_val in ("buy", "sell"):
+            side_history = [h for h in history if h.get("side") == side_val]
+            side_wins = [h for h in side_history if h["outcome"] == "win"]
+            side_losses = [h for h in side_history if h["outcome"] == "loss"]
+            side_total = len(side_wins) + len(side_losses)
+            if side_total >= 5:
+                self._stats[f"win_rate_{side_val}"] = round(len(side_wins) / side_total, 4)
+                if side_wins:
+                    self._stats[f"avg_win_pct_{side_val}"] = round(
+                        sum(h["pnl_pct"] for h in side_wins) / len(side_wins), 6
+                    )
+                if side_losses:
+                    self._stats[f"avg_loss_pct_{side_val}"] = round(
+                        abs(sum(h["pnl_pct"] for h in side_losses) / len(side_losses)), 6
+                    )
 
     async def _get_current_prices(self, symbols: List[str]) -> Dict[str, float]:
         """Get current prices for symbols from DuckDB or Alpaca."""
