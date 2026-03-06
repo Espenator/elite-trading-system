@@ -72,7 +72,7 @@ _DEFAULTS: Dict[str, Any] = {
     "cb_max_positions": 10,
     "cb_max_single_position_pct": 0.20,
 
-    # Agent weights
+    # Agent weights — Core Council
     "weight_market_perception": 1.0,
     "weight_flow_perception": 0.8,
     "weight_regime": 1.2,
@@ -84,6 +84,68 @@ _DEFAULTS: Dict[str, Any] = {
     "weight_risk": 1.5,
     "weight_execution": 1.3,
     "weight_critic": 0.5,
+
+    # Agent weights — Academic Edge Swarms (P0-P4)
+    # P0: GEX / Options Flow Swarm
+    "weight_gex_agent": 0.9,
+    "gex_long_gamma_confidence_boost": 0.05,
+    "gex_short_gamma_confidence_reduction": 0.1,
+
+    # P0: Insider Filing Swarm
+    "weight_insider_agent": 0.85,
+    "insider_cluster_confidence_boost": 0.2,
+    "insider_min_transaction_value": 10000,
+
+    # P1: Earnings Tone NLP
+    "weight_earnings_tone_agent": 0.8,
+    "earnings_cfo_delta_threshold": 0.2,
+    "earnings_hedging_ratio_threshold": 0.05,
+
+    # P1: FinBERT Social Sentiment
+    "weight_finbert_sentiment_agent": 0.75,
+    "sentiment_volume_anomaly_sigma": 3.0,
+    "sentiment_extreme_bullish_pct": 0.90,
+    "sentiment_extreme_bearish_pct": 0.10,
+
+    # P1: Supply Chain Knowledge Graph
+    "weight_supply_chain_agent": 0.7,
+    "supply_chain_contagion_decay_1st": 0.8,
+    "supply_chain_contagion_decay_2nd": 0.5,
+
+    # P2: 13F Institutional Flow
+    "weight_institutional_flow_agent": 0.7,
+    "institutional_consensus_min_funds": 5,
+    "institutional_crowded_threshold_pct": 0.30,
+
+    # P2: Congressional / Political Trading
+    "weight_congressional_agent": 0.6,
+
+    # P2: Dark Pool Accumulation
+    "weight_dark_pool_agent": 0.7,
+    "dark_pool_dix_bullish_threshold": 0.45,
+    "dark_pool_dix_bearish_threshold": 0.40,
+
+    # P3: Multi-Agent RL Portfolio Optimizer
+    "weight_portfolio_optimizer_agent": 0.8,
+    "portfolio_max_single_position_pct": 0.20,
+    "portfolio_drawdown_reduce_25_pct": 0.03,
+    "portfolio_drawdown_reduce_50_pct": 0.05,
+    "portfolio_drawdown_halt_pct": 0.10,
+
+    # P3: Layered Memory (FinMem)
+    "weight_layered_memory_agent": 0.6,
+    "memory_short_term_trades": 20,
+    "memory_short_term_decay_days": 5,
+    "memory_mid_term_days": 90,
+
+    # P4: Alternative Data
+    "weight_alt_data_agent": 0.5,
+
+    # P4: Cross-Asset Macro Regime
+    "weight_macro_regime_agent": 1.0,
+    "macro_vix_complacency": 15,
+    "macro_vix_elevated": 35,
+    "macro_credit_stress_oas": 600,
 }
 
 

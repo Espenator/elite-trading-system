@@ -39,7 +39,8 @@ class TaskSpawner:
         self._registry[name] = agent_module
 
     def register_all_agents(self):
-        """Auto-register all 17 council agents (8 core + 3 data-source + 6 technical)."""
+        """Auto-register all 35 council agents (17 core + 18 academic edge swarm)."""
+        # Core council agents (17)
         from app.council.agents import (
             market_perception_agent,
             flow_perception_agent,
@@ -76,6 +77,46 @@ class TaskSpawner:
         self.register("risk", risk_agent)
         self.register("execution", execution_agent)
         self.register("critic", critic_agent)
+
+        # Academic Edge Swarm agents (18)
+        # Each import is wrapped to allow graceful degradation
+        self._register_academic_edge_agents()
+
+    def _register_academic_edge_agents(self):
+        """Register all academic edge swarm agents with graceful fallback."""
+        edge_agents = {
+            # P0: GEX / Options Flow Swarm
+            "gex_agent": "app.council.agents.gex_agent",
+            # P0: Insider Filing Swarm
+            "insider_agent": "app.council.agents.insider_agent",
+            # P1: Earnings Tone NLP
+            "earnings_tone_agent": "app.council.agents.earnings_tone_agent",
+            # P1: FinBERT Social Sentiment
+            "finbert_sentiment_agent": "app.council.agents.finbert_sentiment_agent",
+            # P1: Supply Chain Knowledge Graph
+            "supply_chain_agent": "app.council.agents.supply_chain_agent",
+            # P2: 13F Institutional Flow
+            "institutional_flow_agent": "app.council.agents.institutional_flow_agent",
+            # P2: Congressional / Political Trading
+            "congressional_agent": "app.council.agents.congressional_agent",
+            # P2: Dark Pool Accumulation
+            "dark_pool_agent": "app.council.agents.dark_pool_agent",
+            # P3: Multi-Agent RL Portfolio Optimizer
+            "portfolio_optimizer_agent": "app.council.agents.portfolio_optimizer_agent",
+            # P3: Layered Memory (FinMem)
+            "layered_memory_agent": "app.council.agents.layered_memory_agent",
+            # P4: Alternative Data
+            "alt_data_agent": "app.council.agents.alt_data_agent",
+            # P4: Cross-Asset Macro Regime
+            "macro_regime_agent": "app.council.agents.macro_regime_agent",
+        }
+        import importlib
+        for name, module_path in edge_agents.items():
+            try:
+                module = importlib.import_module(module_path)
+                self.register(name, module)
+            except Exception as e:
+                logger.debug("Academic edge agent '%s' not available: %s", name, e)
 
     async def spawn(
         self,

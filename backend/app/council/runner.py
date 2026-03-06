@@ -1,13 +1,24 @@
-"""Council Runner — orchestrates the 17-agent DAG and arbiter.
+"""Council Runner — orchestrates the 35-agent DAG and arbiter.
 
 DAG execution order (parallel within stages):
-  Stage 1: [market_perception, flow_perception, regime, social_perception, news_catalyst, youtube_knowledge, intermarket]
-  Stage 2: [rsi, bbv, ema_trend, relative_strength, cycle_timing]
-  Stage 3: [hypothesis]
-  Stage 4: [strategy]
-  Stage 5: [risk, execution]
-  Stage 6: [critic]
-  Stage 7: arbiter (deterministic)
+  Stage 1: Perception + Academic Edge P0/P1/P2 (parallel — 13 agents)
+    [market_perception, flow_perception, regime, social_perception,
+     news_catalyst, youtube_knowledge, intermarket,
+     gex_agent, insider_agent, finbert_sentiment_agent,
+     earnings_tone_agent, dark_pool_agent, macro_regime_agent]
+  Stage 2: Technical Analysis + Data Enrichment (parallel — 8 agents)
+    [rsi, bbv, ema_trend, relative_strength, cycle_timing,
+     supply_chain_agent, institutional_flow_agent, congressional_agent]
+  Stage 3: Hypothesis + Memory (parallel — 2 agents)
+    [hypothesis, layered_memory_agent]
+  Stage 4: Strategy
+    [strategy]
+  Stage 5: Risk + Execution + Portfolio Optimization (parallel — 3 agents)
+    [risk, execution, portfolio_optimizer_agent]
+  Stage 5.5: Debate + Red Team (existing)
+  Stage 6: Critic
+  Stage 7: Arbiter (deterministic)
+  Post-arbiter: [alt_data_agent] (background enrichment)
 
 Uses BlackboardState as shared context and TaskSpawner for agent execution.
 """
@@ -30,7 +41,7 @@ async def run_council(
     features: Optional[Dict[str, Any]] = None,
     context: Optional[Dict[str, Any]] = None,
 ) -> DecisionPacket:
-    """Run the full 17-agent council and return a DecisionPacket.
+    """Run the full 35-agent council and return a DecisionPacket.
 
     Args:
         symbol: Ticker symbol to evaluate
@@ -197,8 +208,9 @@ async def run_council(
 
     all_votes: List[AgentVote] = []
 
-    # Stage 1: Perception + Data Sources + Intermarket (parallel — 7 agents)
-    stage1 = await spawner.spawn_parallel([
+    # Stage 1: Perception + Academic Edge P0/P1/P2 (parallel — 13 agents)
+    # Core perception agents + GEX, Insider, FinBERT, Earnings, Dark Pool, Macro
+    stage1_configs = [
         {"agent_type": "market_perception", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "flow_perception", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "regime", "symbol": symbol, "timeframe": timeframe, "context": context},
@@ -206,30 +218,56 @@ async def run_council(
         {"agent_type": "news_catalyst", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "youtube_knowledge", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "intermarket", "symbol": symbol, "timeframe": timeframe, "context": context},
-    ])
+        # Academic Edge P0 agents
+        {"agent_type": "gex_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
+        {"agent_type": "insider_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
+        # Academic Edge P1 agents
+        {"agent_type": "finbert_sentiment_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
+        {"agent_type": "earnings_tone_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
+        # Academic Edge P2 agents
+        {"agent_type": "dark_pool_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
+        # Academic Edge P4 agents (macro runs early to inform regime)
+        {"agent_type": "macro_regime_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
+    ]
+    stage1 = await spawner.spawn_parallel(stage1_configs)
     all_votes.extend(stage1)
     context["stage1"] = {v.agent_name: v.to_dict() for v in stage1}
     for v in stage1:
         blackboard.perceptions[v.agent_name] = v.to_dict()
 
-    # Stage 2: Technical Analysis (parallel — 5 agents)
-    stage2 = await spawner.spawn_parallel([
+    # Stage 2: Technical Analysis + Data Enrichment (parallel — 8 agents)
+    # Core technical agents + Supply Chain, Institutional Flow, Congressional
+    stage2_configs = [
         {"agent_type": "rsi", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "bbv", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "ema_trend", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "relative_strength", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "cycle_timing", "symbol": symbol, "timeframe": timeframe, "context": context},
-    ])
+        # Academic Edge P1/P2 data enrichment agents
+        {"agent_type": "supply_chain_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
+        {"agent_type": "institutional_flow_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
+        {"agent_type": "congressional_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
+    ]
+    stage2 = await spawner.spawn_parallel(stage2_configs)
     all_votes.extend(stage2)
     context["stage2"] = {v.agent_name: v.to_dict() for v in stage2}
     for v in stage2:
         blackboard.perceptions[v.agent_name] = v.to_dict()
 
-    # Stage 3: Hypothesis (deep model tier for LLM)
-    stage3 = await spawner.spawn("hypothesis", symbol, timeframe, context=context, model_tier="deep")
-    all_votes.append(stage3)
-    context["stage3"] = {stage3.agent_name: stage3.to_dict()}
-    blackboard.hypothesis = stage3.to_dict()
+    # Stage 3: Hypothesis + Layered Memory (parallel — 2 agents)
+    # Memory provides context for hypothesis agent
+    stage3_configs = [
+        {"agent_type": "hypothesis", "symbol": symbol, "timeframe": timeframe, "context": context, "model_tier": "deep"},
+        {"agent_type": "layered_memory_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
+    ]
+    stage3_votes = await spawner.spawn_parallel(stage3_configs)
+    all_votes.extend(stage3_votes)
+    context["stage3"] = {v.agent_name: v.to_dict() for v in stage3_votes}
+    for v in stage3_votes:
+        if v.agent_name == "hypothesis":
+            blackboard.hypothesis = v.to_dict()
+        else:
+            blackboard.perceptions[v.agent_name] = v.to_dict()
 
     # Stage 4: Strategy
     stage4 = await spawner.spawn("strategy", symbol, timeframe, context=context)
@@ -237,10 +275,11 @@ async def run_council(
     context["stage4"] = {stage4.agent_name: stage4.to_dict()}
     blackboard.strategy = stage4.to_dict()
 
-    # Stage 5: Risk + Execution (parallel)
+    # Stage 5: Risk + Execution + Portfolio Optimizer (parallel — 3 agents)
     stage5 = await spawner.spawn_parallel([
         {"agent_type": "risk", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "execution", "symbol": symbol, "timeframe": timeframe, "context": context},
+        {"agent_type": "portfolio_optimizer_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
     ])
     all_votes.extend(stage5)
     context["stage5"] = {v.agent_name: v.to_dict() for v in stage5}
@@ -249,6 +288,8 @@ async def run_council(
             blackboard.risk_assessment = v.to_dict()
         elif v.agent_name == "execution":
             blackboard.execution_plan = v.to_dict()
+        elif v.agent_name == "portfolio_optimizer_agent":
+            blackboard.perceptions[v.agent_name] = v.to_dict()
 
     # ── Bayesian Regime Update ────────────────────────────────────────────
     try:
@@ -493,5 +534,13 @@ async def run_council(
             await bus.publish("council.verdict", verdict_payload)
     except Exception:
         pass
+
+    # Post-arbiter: Alt Data Agent (background enrichment — low priority P4)
+    try:
+        await spawner.spawn(
+            "alt_data_agent", symbol, timeframe, context=context, background=True,
+        )
+    except Exception:
+        pass  # Alt data is purely supplementary
 
     return decision

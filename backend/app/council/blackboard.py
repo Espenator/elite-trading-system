@@ -14,7 +14,7 @@ Usage:
 """
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 import uuid
 
 
@@ -48,6 +48,126 @@ class BlackboardState:
 
     # Phase 3: Knowledge system context
     knowledge_context: Optional[Dict[str, Any]] = None  # recalled heuristics + memories
+
+    # ── Academic Edge Agent Namespaces ────────────────────────────────────
+
+    # P0: GEX / Options Flow Swarm
+    gex: Dict[str, Any] = field(default_factory=lambda: {
+        "net_gamma": 0.0,       # Aggregate net GEX (positive = dampen, negative = amplify)
+        "gamma_flip": 0.0,      # Price level of gamma flip
+        "call_wall": 0.0,       # Highest call gamma strike
+        "put_wall": 0.0,        # Highest put gamma strike
+        "max_pain": 0.0,        # Max pain strike for nearest expiry
+        "pin_probability": 0.0, # 0-1, increases as expiry approaches and price nears max_pain
+        "regime": "neutral",    # "long_gamma" | "short_gamma" | "neutral"
+    })
+
+    # P0: SEC Form 4 Insider Filing
+    insider: Dict[str, Any] = field(default_factory=lambda: {
+        "latest_filings": [],    # Last 24h of Form 4 filings for watchlist
+        "cluster_tickers": [],   # Tickers with active cluster buys
+        "top_signal": None,      # Highest-scored insider event
+        "sector_heat": {},       # Aggregate insider buying by sector
+    })
+
+    # P1: Earnings Call NLP / Tone Analysis
+    earnings: Dict[str, Any] = field(default_factory=lambda: {
+        "tone_score": 0.0,                # Aggregate tone score
+        "cfo_delta": 0.0,                 # CFO tone change from prior quarter
+        "ceo_tone": 0.0,                  # CEO tone score
+        "cfo_tone": 0.0,                  # CFO tone score
+        "surprise_tone_divergence": 0.0,  # Divergence between surprise and tone
+        "hedging_ratio": 0.0,             # Hedging language frequency
+        "last_transcript_ticker": "",     # Last processed ticker
+    })
+
+    # P1: Social Sentiment (FinBERT) Swarm
+    sentiment: Dict[str, Any] = field(default_factory=lambda: {
+        "ticker_scores": {},     # {ticker: -1 to +1}
+        "volume_anomalies": [],  # Tickers with mention volume spikes
+        "crowd_extremes": [],    # Tickers at >90% bullish or >90% bearish
+        "wsb_momentum": {},      # WSB-specific momentum score
+    })
+
+    # P1: Supply Chain Knowledge Graph
+    supply_chain: Dict[str, Any] = field(default_factory=lambda: {
+        "contagion_alerts": [],      # Active contagion propagation alerts
+        "second_order_targets": [],  # Trade ideas from supply chain events
+        "sector_rotation": {},       # Aggregate sector flow
+        "graph_nodes": 0,            # Number of nodes in knowledge graph
+        "graph_edges": 0,            # Number of edges in knowledge graph
+    })
+
+    # P2: 13F Institutional Flow
+    institutional: Dict[str, Any] = field(default_factory=lambda: {
+        "consensus_buys": [],    # Tickers with 5+ fund consensus
+        "consensus_sells": [],   # Tickers with consensus selling
+        "crowded_longs": [],     # Tickers in 30%+ of portfolios
+        "sector_rotation": {},   # Quarter-over-quarter sector shifts
+        "top_funds_active": 0,   # Number of tracked funds
+    })
+
+    # P2: Congressional / Political Trading
+    congressional: Dict[str, Any] = field(default_factory=lambda: {
+        "recent_trades": [],     # Recent congressional trade disclosures
+        "committee_signals": [], # High-signal committee-relevant trades
+        "cluster_sectors": {},   # Sectors with multi-member trading
+        "top_signal": None,      # Highest-scored political trade event
+    })
+
+    # P2: Dark Pool Accumulation
+    dark_pool: Dict[str, Any] = field(default_factory=lambda: {
+        "dix": 0.0,                   # Dark Index value
+        "dix_20d_avg": 0.0,           # 20-day DIX average
+        "dix_signal": "neutral",      # "bullish_accumulation" | "neutral" | "distribution"
+        "ticker_dark_flow": {},       # Per-ticker dark pool volume anomalies
+        "divergence_tickers": [],     # Tickers with dark pool / price divergence
+    })
+
+    # P3: Multi-Agent RL Portfolio Optimizer
+    portfolio_optimization: Dict[str, Any] = field(default_factory=lambda: {
+        "position_sizes": {},        # Optimized position sizes from RL agent
+        "rebalance_trades": [],      # Pending rebalance trades
+        "risk_parity_weights": {},   # Risk parity target weights
+        "drawdown_level": 0.0,       # Current drawdown percentage
+        "drawdown_action": "none",   # "none" | "reduce_25" | "reduce_50" | "halt"
+    })
+
+    # P3: Multi-Agent Bull/Bear Debate
+    bull_bear_debate: Dict[str, Any] = field(default_factory=lambda: {
+        "bull_case": None,        # Bull hypothesis with evidence
+        "bear_case": None,        # Bear hypothesis with evidence
+        "debate_rounds": 0,       # Number of debate rounds completed
+        "synthesis": None,        # Final probability-weighted assessment
+        "winner": "neutral",      # "bull" | "bear" | "neutral"
+    })
+
+    # P3: Layered Memory (FinMem)
+    layered_memory: Dict[str, Any] = field(default_factory=lambda: {
+        "short_term": [],         # Last 20 trades for current ticker
+        "mid_term": {},           # Sector patterns over past quarter
+        "long_term": {},          # Historical regime transition outcomes
+        "reflection": {},         # Meta-analysis of agent performance
+        "cognitive_span_days": 90,  # Adjustable memory window
+    })
+
+    # P4: Satellite / Alternative Data
+    alt_data: Dict[str, Any] = field(default_factory=lambda: {
+        "signals": [],            # Active alternative data signals
+        "confidence": 0.0,        # Overall alt data confidence
+        "sources": [],            # Data sources contributing
+    })
+
+    # P4: Cross-Asset Macro Regime (FRED enhancement)
+    macro_regime: Dict[str, Any] = field(default_factory=lambda: {
+        "yield_curve_spread": 0.0,   # T10Y2Y spread
+        "yield_curve_inverted": False,
+        "credit_spread": 0.0,        # High yield OAS
+        "breakeven_inflation": 0.0,  # T10YIE
+        "vix_regime": "normal",      # "complacency" | "normal" | "elevated" | "crisis"
+        "leading_indicators": {},    # Composite leading indicators
+        "macro_regime": "NORMAL",    # "RISK_ON" | "NORMAL" | "CAUTIOUS" | "RISK_OFF" | "CRISIS"
+    })
 
     # Identity and lifecycle
     council_decision_id: str = field(default_factory=lambda: str(uuid.uuid4()))
@@ -85,6 +205,20 @@ class BlackboardState:
             "debate": self.debate,
             "red_team_report": self.red_team_report,
             "knowledge_context": self.knowledge_context,
+            # Academic Edge Agent namespaces
+            "gex": self.gex,
+            "insider": self.insider,
+            "earnings": self.earnings,
+            "sentiment": self.sentiment,
+            "supply_chain": self.supply_chain,
+            "institutional": self.institutional,
+            "congressional": self.congressional,
+            "dark_pool": self.dark_pool,
+            "portfolio_optimization": self.portfolio_optimization,
+            "bull_bear_debate": self.bull_bear_debate,
+            "layered_memory": self.layered_memory,
+            "alt_data": self.alt_data,
+            "macro_regime": self.macro_regime,
             "ttl_seconds": self.ttl_seconds,
             "metadata": self.metadata,
         }

@@ -1,13 +1,24 @@
-"""Council schemas — shared data structures for the 13-agent council.
+"""Council schemas — shared data structures for the 35-agent council.
 
-DAG: 7 stages, 13 agents + arbiter.
-Stage 1: [market_perception, flow_perception, regime, intermarket]
-Stage 2: [rsi, bbv, ema_trend, relative_strength, cycle_timing]
-Stage 3: [hypothesis]
+DAG: 7 stages, 35 agents across 12 swarms + arbiter.
+
+Stage 1 — Perception + Academic Edge (13 agents):
+  Core: [market_perception, flow_perception, regime, social_perception,
+         news_catalyst, youtube_knowledge, intermarket]
+  Edge: [gex_agent, insider_agent, finbert_sentiment_agent,
+         earnings_tone_agent, dark_pool_agent, macro_regime_agent]
+
+Stage 2 — Technical + Data Enrichment (8 agents):
+  Core: [rsi, bbv, ema_trend, relative_strength, cycle_timing]
+  Edge: [supply_chain_agent, institutional_flow_agent, congressional_agent]
+
+Stage 3: [hypothesis, layered_memory_agent]
 Stage 4: [strategy]
-Stage 5: [risk, execution]
+Stage 5: [risk, execution, portfolio_optimizer_agent]
+Stage 5.5: [debate + red_team]
 Stage 6: [critic]
 Stage 7: arbiter (deterministic)
+Post-arbiter: [alt_data_agent]
 """
 from dataclasses import dataclass, field
 from typing import Any, Dict, List

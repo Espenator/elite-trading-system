@@ -656,3 +656,196 @@ async def unified_score(symbol: str):
     if not result:
         raise HTTPException(status_code=404, detail=f"No data available for {symbol}")
     return result
+
+
+# ------------------------------------------------------------------
+# Academic Edge Agent Swarm Monitoring
+# ------------------------------------------------------------------
+
+@router.get("/academic-edge/status")
+async def academic_edge_status():
+    """Get status of all 12 academic edge agent swarms.
+
+    Returns agent inventory, registration status, and latest
+    blackboard namespace data for each swarm category.
+    """
+    from app.council.task_spawner import TaskSpawner
+    from app.council.blackboard import BlackboardState
+
+    # Build a test spawner to check registration
+    bb = BlackboardState(symbol="STATUS_CHECK")
+    spawner = TaskSpawner(bb)
+    spawner.register_all_agents()
+    registered = spawner.registered_agents
+
+    # Academic edge agent names
+    edge_agents = [
+        "gex_agent", "insider_agent", "earnings_tone_agent",
+        "finbert_sentiment_agent", "supply_chain_agent",
+        "institutional_flow_agent", "congressional_agent",
+        "dark_pool_agent", "portfolio_optimizer_agent",
+        "layered_memory_agent", "alt_data_agent", "macro_regime_agent",
+    ]
+
+    swarm_inventory = {
+        "gex_swarm": {
+            "agents": ["gex_agent"],
+            "priority": "P0",
+            "status": "active" if "gex_agent" in registered else "unavailable",
+            "frequency": "every_5min",
+        },
+        "insider_swarm": {
+            "agents": ["insider_agent"],
+            "priority": "P0",
+            "status": "active" if "insider_agent" in registered else "unavailable",
+            "frequency": "every_60sec",
+        },
+        "earnings_nlp_swarm": {
+            "agents": ["earnings_tone_agent"],
+            "priority": "P1",
+            "status": "active" if "earnings_tone_agent" in registered else "unavailable",
+            "frequency": "event_driven",
+        },
+        "sentiment_swarm": {
+            "agents": ["finbert_sentiment_agent"],
+            "priority": "P1",
+            "status": "active" if "finbert_sentiment_agent" in registered else "unavailable",
+            "frequency": "every_60sec",
+        },
+        "supply_chain_swarm": {
+            "agents": ["supply_chain_agent"],
+            "priority": "P1",
+            "status": "active" if "supply_chain_agent" in registered else "unavailable",
+            "frequency": "daily",
+        },
+        "institutional_swarm": {
+            "agents": ["institutional_flow_agent"],
+            "priority": "P2",
+            "status": "active" if "institutional_flow_agent" in registered else "unavailable",
+            "frequency": "quarterly",
+        },
+        "political_swarm": {
+            "agents": ["congressional_agent"],
+            "priority": "P2",
+            "status": "active" if "congressional_agent" in registered else "unavailable",
+            "frequency": "daily",
+        },
+        "dark_pool_swarm": {
+            "agents": ["dark_pool_agent"],
+            "priority": "P2",
+            "status": "active" if "dark_pool_agent" in registered else "unavailable",
+            "frequency": "daily",
+        },
+        "portfolio_swarm": {
+            "agents": ["portfolio_optimizer_agent"],
+            "priority": "P3",
+            "status": "active" if "portfolio_optimizer_agent" in registered else "unavailable",
+            "frequency": "per_decision",
+        },
+        "memory_system": {
+            "agents": ["layered_memory_agent"],
+            "priority": "P3",
+            "status": "active" if "layered_memory_agent" in registered else "unavailable",
+            "frequency": "continuous",
+        },
+        "alt_data_swarm": {
+            "agents": ["alt_data_agent"],
+            "priority": "P4",
+            "status": "active" if "alt_data_agent" in registered else "unavailable",
+            "frequency": "daily",
+        },
+        "macro_swarm": {
+            "agents": ["macro_regime_agent"],
+            "priority": "P4",
+            "status": "active" if "macro_regime_agent" in registered else "unavailable",
+            "frequency": "daily",
+        },
+    }
+
+    total_agents = len(registered)
+    edge_registered = sum(1 for a in edge_agents if a in registered)
+
+    return {
+        "total_council_agents": total_agents,
+        "core_agents": total_agents - edge_registered,
+        "academic_edge_agents": edge_registered,
+        "edge_agents_available": edge_agents,
+        "edge_agents_registered": [a for a in edge_agents if a in registered],
+        "edge_agents_missing": [a for a in edge_agents if a not in registered],
+        "swarm_inventory": swarm_inventory,
+    }
+
+
+@router.get("/academic-edge/blackboard/{symbol}")
+async def academic_edge_blackboard(symbol: str):
+    """Get the latest academic edge blackboard data for a symbol.
+
+    Returns all academic edge agent namespace data from the most
+    recent council evaluation for the given symbol.
+    """
+    from app.council.blackboard import BlackboardState
+
+    # Try to get from recent council decision cache
+    try:
+        from app.services.council_cache import get_latest_blackboard
+        bb = await get_latest_blackboard(symbol.upper())
+        if bb:
+            return {
+                "symbol": symbol.upper(),
+                "council_decision_id": bb.get("council_decision_id", ""),
+                "gex": bb.get("gex", {}),
+                "insider": bb.get("insider", {}),
+                "earnings": bb.get("earnings", {}),
+                "sentiment": bb.get("sentiment", {}),
+                "supply_chain": bb.get("supply_chain", {}),
+                "institutional": bb.get("institutional", {}),
+                "congressional": bb.get("congressional", {}),
+                "dark_pool": bb.get("dark_pool", {}),
+                "portfolio_optimization": bb.get("portfolio_optimization", {}),
+                "bull_bear_debate": bb.get("bull_bear_debate", {}),
+                "layered_memory": bb.get("layered_memory", {}),
+                "alt_data": bb.get("alt_data", {}),
+                "macro_regime": bb.get("macro_regime", {}),
+            }
+    except Exception:
+        pass
+
+    # Return empty defaults
+    bb = BlackboardState(symbol=symbol.upper())
+    return {
+        "symbol": symbol.upper(),
+        "council_decision_id": "",
+        "gex": bb.gex,
+        "insider": bb.insider,
+        "earnings": bb.earnings,
+        "sentiment": bb.sentiment,
+        "supply_chain": bb.supply_chain,
+        "institutional": bb.institutional,
+        "congressional": bb.congressional,
+        "dark_pool": bb.dark_pool,
+        "portfolio_optimization": bb.portfolio_optimization,
+        "bull_bear_debate": bb.bull_bear_debate,
+        "layered_memory": bb.layered_memory,
+        "alt_data": bb.alt_data,
+        "macro_regime": bb.macro_regime,
+        "message": "No recent council data — showing defaults",
+    }
+
+
+@router.get("/academic-edge/agent-weights")
+async def academic_edge_weights():
+    """Get current weights and thresholds for all academic edge agents."""
+    from app.council.agent_config import get_agent_thresholds
+    cfg = get_agent_thresholds()
+    edge_keys = {k: v for k, v in cfg.items() if any(
+        prefix in k for prefix in [
+            "weight_gex", "weight_insider", "weight_earnings",
+            "weight_finbert", "weight_supply_chain", "weight_institutional",
+            "weight_congressional", "weight_dark_pool", "weight_portfolio",
+            "weight_layered_memory", "weight_alt_data", "weight_macro",
+            "gex_", "insider_", "earnings_", "sentiment_",
+            "supply_chain_", "institutional_", "dark_pool_",
+            "portfolio_", "memory_", "macro_",
+        ]
+    )}
+    return {"academic_edge_config": edge_keys}
