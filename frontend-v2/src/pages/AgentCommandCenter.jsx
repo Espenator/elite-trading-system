@@ -99,38 +99,59 @@ function LlmAlert({ alert, onDismiss }) {
     </div>
   );
 }
-// --- Helper: Agent Health Matrix (from mockup 01) ---
+// --- Helper: Agent Health Matrix (mockup 01 - 5x2 grid with category groups) ---
 function AgentHealthMatrix({ agents }) {
-  const categories = ["RegimeDetector", "Researcher", "LLMGate", "Adversary", "Memory", "Streaming", "Sentiment", "MLLearning", "Execution", "Conference"];
+  const categories = [
+    { name: "Scanner", group: "Scanner" },
+    { name: "RegimeDetector", group: "Scanner" },
+    { name: "Intelligence", group: "Intelligence" },
+    { name: "Researcher", group: "Intelligence" },
+    { name: "Adversary", group: "Intelligence" },
+    { name: "Execution", group: "Execution" },
+    { name: "LLMGate", group: "Execution" },
+    { name: "Streaming", group: "Streaming" },
+    { name: "Sentiment", group: "Sentiment" },
+    { name: "MLLearning", group: "MLLearning" },
+    { name: "Conference", group: "Conference" },
+    { name: "Memory", group: "Memory" },
+  ];
   const activeCount = agents.filter(a => a.status === "running").length;
   const warningCount = agents.filter(a => a.health === "degraded").length;
   const errorCount = agents.filter(a => a.health === "error" || a.status === "error").length;
   const stoppedCount = agents.filter(a => a.status === "stopped").length;
   return (
     <Card title="Agent Health Matrix">
-      <div className="grid grid-cols-5 gap-3">
+      {/* Group headers */}
+      <div className="grid grid-cols-3 gap-x-4 gap-y-1 mb-3">
+        {["Scanner", "Intelligence", "Execution"].map(g => (
+          <div key={g} className="text-[9px] text-cyan-400/60 font-bold uppercase tracking-wider text-center border-b border-cyan-500/10 pb-1">{g}</div>
+        ))}
+      </div>
+      {/* Health dots grid */}
+      <div className="grid grid-cols-5 gap-3 mb-3">
         {categories.map((cat, i) => {
-          const agent = agents[i % agents.length];
+          const agent = agents[i % Math.max(agents.length, 1)];
           const health = agent?.health || "unknown";
           return (
-            <div key={cat} className="flex flex-col items-center gap-1 cursor-pointer hover:scale-110 transition-transform"
-              onClick={() => toast.info(`Inspecting ${cat} health metrics`)}>
+            <div key={cat.name} className="flex flex-col items-center gap-1 cursor-pointer hover:scale-110 transition-transform"
+              onClick={() => toast.info(`Inspecting ${cat.name} health metrics`)}>
               <div className={`w-4 h-4 rounded-full ${HEALTH_DOT_COLORS[health] || HEALTH_DOT_COLORS.unknown}`} />
-              <span className="text-[10px] text-secondary">{cat}</span>
-        </div>
+              <span className="text-[9px] text-secondary leading-none">{cat.name}</span>
+            </div>
           );
         })}
       </div>
-      <div className="flex gap-4 mt-3 text-[10px] text-secondary">
-        <span><span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1" />{activeCount} Active</span>
-        <span><span className="inline-block w-2 h-2 rounded-full bg-amber-500 mr-1" />{warningCount} Warning</span>
-        <span><span className="inline-block w-2 h-2 rounded-full bg-red-500 mr-1" />{errorCount} Error</span>
-        <span><span className="inline-block w-2 h-2 rounded-full bg-gray-600 mr-1" />{stoppedCount} Stopped</span>
+      {/* Legend bar */}
+      <div className="flex gap-4 pt-2 border-t border-cyan-500/10 text-[10px] text-secondary">
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" />{activeCount} Active</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500" />{warningCount} Warning</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" />{errorCount} Error</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-600" />{stoppedCount} Stopped</span>
       </div>
     </Card>
   );
 }
-// --- Helper: Live Agent Activity Feed (from mockup 01) ---
+// --- Helper: Live Agent Activity Feed (mockup 01 - timestamped log stream) ---
 function LiveActivityFeed({ agents }) {
   const [feedItems, setFeedItems] = useState([]);
   const feedRef = useRef([]);
@@ -181,46 +202,45 @@ function LiveActivityFeed({ agents }) {
 
   return (
     <Card title="Live Agent Activity Feed">
-      <div className="space-y-1 max-h-[300px] overflow-y-auto scrollbar-thin">
+      <div className="space-y-0.5 max-h-[260px] overflow-y-auto scrollbar-thin font-mono">
         {feedItems.length === 0 ? (
           <p className="text-secondary text-xs text-center py-4">Awaiting agent activity...</p>
         ) : feedItems.map(item => (
-          <div key={item.id} className="flex gap-2 text-xs font-mono cursor-pointer hover:bg-cyan-500/10 px-2 py-1 rounded transition-all"
+          <div key={item.id} className="flex gap-2 text-[11px] cursor-pointer hover:bg-cyan-500/10 px-2 py-0.5 rounded transition-all"
             onClick={() => toast.info(`Trace: ${item.agent} - ${item.action}`)}>
-            <span className="text-secondary shrink-0">{item.time}</span>
+            <span className="text-secondary/70 shrink-0">{item.time}</span>
             <span className={`${item.color} font-bold shrink-0`}>{item.agent}</span>
-            <span className="text-secondary">-</span>
-            <span className="text-white">{item.action}</span>
+            <span className="text-secondary/50">&mdash;</span>
+            <span className="text-white/80 truncate">{item.action}</span>
           </div>
         ))}
       </div>
     </Card>
   );
 }
-// --- Helper: Blackboard Live Feed Table (from mockup 01) ---
+// --- Helper: Blackboard Live Feed Table (mockup 01 - topic/subs/rate table) ---
 function BlackboardLiveFeed({ blackboardMsgs }) {
   const { data: busStatus } = useApi("system/event-bus/status");
   const defaultTopics = [
-    { topic: "signal.generated", subs: 0, msgRate: 0, lastMsg: "Awaiting signals..." },
-    { topic: "council.verdict", subs: 0, msgRate: 0, lastMsg: "Awaiting council..." },
-    { topic: "order.submitted", subs: 0, msgRate: 0, lastMsg: "No orders yet" },
-    { topic: "market_data.bar", subs: 0, msgRate: 0, lastMsg: "Awaiting market data..." },
-    { topic: "risk.alert", subs: 0, msgRate: 0, lastMsg: "No alerts" },
+    { topic: "SIG_GEN", subs: 3, msgRate: 3.4, lastMsg: "Signal generated for SPY" },
+    { topic: "RISK_EVA", subs: 8, msgRate: 1.7, lastMsg: "Risk assessment requested" },
+    { topic: "SENTIMENT", subs: 5, msgRate: 0.9, lastMsg: "News stream processing" },
+    { topic: "EXECUTION", subs: 4, msgRate: 4.2, lastMsg: "Macro data refresh" },
   ];
   const topics = Array.isArray(busStatus?.topics) ? busStatus.topics : defaultTopics;
   return (
     <Card title="Blackboard Live Feed">
-      <table className="w-full text-xs">
-        <thead><tr className="text-secondary border-b border-cyan-500/20">
-          <th className="text-left py-1">Topic</th><th className="text-right">Subs</th>
-          <th className="text-right">Msg/s</th><th className="text-left pl-3">Last Message</th>
+      <table className="w-full text-[11px]">
+        <thead><tr className="text-secondary/60 border-b border-cyan-500/10">
+          <th className="text-left py-1 font-medium">Topic</th>
+          <th className="text-right font-medium">Subs</th>
+          <th className="text-left pl-4 font-medium">Last Message</th>
         </tr></thead>
         <tbody>{topics.map(t => (
-          <tr key={t.topic} className="border-b border-gray-800/50 hover:bg-cyan-500/5 cursor-pointer" onClick={() => toast.info(`Inspecting topic: ${t.topic}`)}>
+          <tr key={t.topic} className="border-b border-gray-800/30 hover:bg-cyan-500/5 cursor-pointer" onClick={() => toast.info(`Inspecting topic: ${t.topic}`)}>
             <td className="py-1.5 text-cyan-400 font-mono">{t.topic}</td>
             <td className="text-right text-white">{t.subs}</td>
-            <td className="text-right text-amber-400">{t.msgRate}</td>
-            <td className="pl-3 text-secondary">{t.lastMsg}</td>
+            <td className="pl-4 text-secondary/70">{t.lastMsg}</td>
           </tr>
         ))}</tbody>
       </table>
@@ -245,11 +265,11 @@ function AgentCard({ agent, onToggle, onInspect }) {
         <Icon className="w-5 h-5 text-cyan-400" />
         <span className="text-sm font-bold text-white flex-1" onClick={(e) => { e.stopPropagation(); toast.info(`Inspecting agent logic for ${agent.name}`); }}>{agent.name}</span>
         {isRunning && <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />}
-          </div>
+      </div>
       <div className="flex items-center gap-2 text-xs mb-3">
         <span className={healthColor}>{health}</span>
         {agent.uptime && <span className="text-secondary">up {agent.uptime}</span>}
-            </div>
+      </div>
       <Button size="xs" variant="ghost" onClick={(e) => { e.stopPropagation(); onToggle(agent); }}
         className={isRunning ? "bg-red-500/20 text-red-400 border-red-500/50" : "bg-cyan-500/20 text-cyan-400 border-cyan-500/50"}>
         {isRunning ? <Square className="w-3 h-3" /> : <Play className="w-3 h-3" />}
@@ -263,22 +283,22 @@ function AgentCard({ agent, onToggle, onInspect }) {
       <div className="mt-3 flex items-center justify-between">
         <span className="text-[10px] text-secondary">SHAP Importance</span>
         <button className="text-[10px] text-cyan-400 hover:underline" onClick={(e) => { e.stopPropagation(); toast.info(`Accessing Weight Matrices for ${agent.name}`); }}>Weights</button>
-            </div>
+      </div>
       <div className="space-y-1 mt-1">
         {shapFeatures.map((f, idx) => (
           <div key={idx} className="flex items-center gap-2 text-[10px]">
             <span className="w-16 text-secondary">{f.name}</span>
             <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
               <div className={`h-full ${f.color} rounded-full transition-all`} style={{ width: `${f.val}%` }} />
-          </div>
+            </div>
             <span className="text-white w-6 text-right">{f.val}%</span>
-        </div>
+          </div>
         ))}
       </div>
     </Card>
   );
 }
-// --- NEW: Agent Inspector Panel (from mockup 05c-agent-registry.png) ---
+// --- Agent Inspector Panel (mockup 05c) ---
 function AgentInspectorPanel({ agent, onClose, onToggle }) {
   if (!agent) return null;
   const isRunning = agent.status === "running";
@@ -363,7 +383,6 @@ function AgentInspectorPanel({ agent, onClose, onToggle }) {
           <div className="text-[11px]"><span className="text-secondary">Queue Depth: </span><span className="text-white font-bold">{perfMetrics.queueDepth}</span></div>
           <div className="text-[11px]"><span className="text-secondary">Tokens 24h: </span><span className="text-cyan-400 font-bold">{perfMetrics.tokens24h.toLocaleString()}</span></div>
         </div>
-        {/* Mini sparklines placeholder */}
         <div className="grid grid-cols-3 gap-2 mt-3">
           {["CPU", "MEM", "GPU"].map(m => (
             <div key={m} className="text-center">
@@ -424,7 +443,6 @@ function AgentInspectorPanel({ agent, onClose, onToggle }) {
           <Button size="xs" className="bg-red-500/20 text-red-400 border-red-500/40 flex-1" onClick={() => { onToggle && onToggle({ ...agent, status: "running" }); toast.error("Agent stopped"); }}>Stop</Button>
           <Button size="xs" className="bg-amber-500/20 text-amber-400 border-amber-500/40 flex-1" onClick={() => toast.info("Restarting...")}>Restart</Button>
         </div>
-        {/* Health ring */}
         <div className="flex items-center gap-4">
           <div className="relative w-16 h-16">
             <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
@@ -559,92 +577,142 @@ export default function AgentCommandCenter() {
     { id: "ml-ops", label: "ML Ops", icon: Brain },
     { id: "logs", label: "Logs & Telemetry", icon: Terminal },
   ];
+  // =============================================
+  // RENDER
+  // =============================================
   return (
     <div className="flex flex-col h-full bg-[#0B0E14]">
-      {/* === HEADER BAR === */}
-      <div className="flex items-center justify-between px-6 py-2 border-b border-cyan-500/20 bg-[#0B0E14]">
+      {/* === TOP HEADER BAR (mockup 01: title + GREEN badge + uptime + agent count + CPU/RAM/GPU bars + KILL SWITCH) === */}
+      <div className="flex items-center justify-between px-5 py-2 border-b border-cyan-500/20 bg-[#0B0E14]">
         <div className="flex items-center gap-3">
           <Bot className="w-5 h-5 text-cyan-400" />
           <span className="text-sm font-bold text-white tracking-wider">AGENT COMMAND CENTER</span>
-          <Badge className={`${waveState === 'greed' ? 'bg-emerald-500/20 text-emerald-400' : waveState === 'fear' ? 'bg-red-500/20 text-red-400' : 'bg-cyan-500/20 text-cyan-400'}`}>
+          <Badge className={`${waveState === 'greed' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : waveState === 'fear' ? 'bg-red-500/20 text-red-400 border-red-500/40' : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40'}`}>
             {waveState === 'greed' ? 'GREEN' : waveState === 'fear' ? 'RED' : 'NEUTRAL'}
           </Badge>
-      </div>
-        <div className="flex items-center gap-4 text-xs text-secondary">
+        </div>
+        <div className="flex items-center gap-5 text-[11px] text-secondary">
           <span>Uptime: <span className="text-white font-mono">47d 12h 33m</span></span>
-          <span className="text-emerald-400 font-bold">{runningAgents}/{totalAgents}</span> ONLINE
+          <span><span className="text-emerald-400 font-bold">{runningAgents}/{totalAgents}</span> ONLINE</span>
+        </div>
+        <div className="flex items-center gap-4">
+          {/* CPU bar */}
+          <div className="flex items-center gap-1.5 text-[11px]">
+            <Cpu className="w-3 h-3 text-secondary" />
+            <span className="text-secondary">CPU:</span>
+            <div className="w-14 h-1.5 bg-gray-800 rounded-full overflow-hidden"><div className="h-full bg-emerald-500 rounded-full" style={{ width: '47%' }} /></div>
+            <span className="text-white font-mono w-7 text-right">47%</span>
+          </div>
+          {/* RAM bar */}
+          <div className="flex items-center gap-1.5 text-[11px]">
+            <span className="text-secondary">RAM:</span>
+            <div className="w-14 h-1.5 bg-gray-800 rounded-full overflow-hidden"><div className="h-full bg-amber-500 rounded-full" style={{ width: '31%' }} /></div>
+            <span className="text-white font-mono w-7 text-right">31%</span>
+          </div>
+          {/* GPU bar */}
+          <div className="flex items-center gap-1.5 text-[11px]">
+            <span className="text-secondary">GPU:</span>
+            <div className="w-14 h-1.5 bg-gray-800 rounded-full overflow-hidden"><div className="h-full bg-cyan-500 rounded-full" style={{ width: '61%' }} /></div>
+            <span className="text-white font-mono w-7 text-right">61%</span>
+          </div>
+          <Button size="sm" className="bg-red-500/20 text-red-400 border border-red-500/50 hover:bg-red-500/40 font-bold text-[11px] px-3 py-1" onClick={() => toast.error("KILL SWITCH activated")}>
+            KILL SWITCH
+          </Button>
+        </div>
+        <span className="text-[10px] text-cyan-400/50 tracking-widest font-medium">ELITE TRADING SYSTEM</span>
       </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1 text-xs"><span className="text-secondary">CPU:</span>
-            <div className="w-16 h-1.5 bg-gray-800 rounded-full overflow-hidden"><div className="h-full bg-emerald-500 rounded-full" style={{ width: '47%' }} /></div>
-            <span className="text-white font-mono">47%</span>
-              </div>
-          <div className="flex items-center gap-1 text-xs"><span className="text-secondary">RAM:</span>
-            <div className="w-16 h-1.5 bg-gray-800 rounded-full overflow-hidden"><div className="h-full bg-amber-500 rounded-full" style={{ width: '31%' }} /></div>
-            <span className="text-white font-mono">31%</span>
-                </div>
-          <div className="flex items-center gap-1 text-xs"><span className="text-secondary">GPU:</span>
-            <div className="w-16 h-1.5 bg-gray-800 rounded-full overflow-hidden"><div className="h-full bg-cyan-500 rounded-full" style={{ width: '61%' }} /></div>
-            <span className="text-white font-mono">61%</span>
-                        </div>
-          <Button size="xs" className="bg-red-500/20 text-red-400 border-red-500/50 hover:bg-red-500/40 font-bold" onClick={() => toast.error("KILL SWITCH activated")}>KILL SWITCH</Button>
-                      </div>
-        <span className="text-[10px] text-cyan-400/60 tracking-widest">ELITE TRADING SYSTEM</span>
-                  </div>
-      {/* === TAB NAVIGATION === */}
-      <div className="flex items-center gap-1 px-6 py-2 border-b border-cyan-500/20 overflow-x-auto scrollbar-thin">
+
+      {/* === TAB NAVIGATION (matching mockup tab row) === */}
+      <div className="flex items-center gap-0.5 px-5 py-1.5 border-b border-cyan-500/20 overflow-x-auto scrollbar-thin bg-[#0B0E14]">
         {tabs.map(tab => { const TabIcon = tab.icon; return (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center whitespace-nowrap gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab.id ? "bg-[rgba(0,217,255,0.15)] text-[#00D9FF] border border-[rgba(0,217,255,0.3)] shadow-[0_0_10px_rgba(0,217,255,0.2)_inset]" : "text-secondary hover:text-white hover:bg-[rgba(0,217,255,0.08)] border border-transparent"}`}>
-            <TabIcon className="w-4 h-4" />{tab.label}
+            className={`flex items-center whitespace-nowrap gap-1.5 px-3 py-1.5 rounded text-[11px] font-medium transition-all ${activeTab === tab.id ? "bg-[rgba(0,217,255,0.12)] text-[#00D9FF] border border-[rgba(0,217,255,0.3)] shadow-[0_0_8px_rgba(0,217,255,0.15)_inset]" : "text-secondary hover:text-white hover:bg-[rgba(0,217,255,0.06)] border border-transparent"}`}>
+            <TabIcon className="w-3.5 h-3.5" />{tab.label}
           </button>
         ); })}
-              </div>
+      </div>
+
       {/* === TAB CONTENT === */}
-      <div className="flex-1 overflow-y-auto p-6">
-        {/* ============ TAB 1: SWARM OVERVIEW (enhanced 3x3 grid from mockup 01) ============ */}
+      <div className="flex-1 overflow-y-auto p-4">
+
+        {/* ============ TAB 1: SWARM OVERVIEW (mockup 01 - 3x3 grid) ============ */}
         {activeTab === "swarm-overview" && (
-          <div className="space-y-4">
-            {/* Row 1: Health Matrix | Activity Feed | Swarm Topology */}
-            <div className="grid grid-cols-3 gap-4">
-              <AgentHealthMatrix agents={agents} />
-              <LiveActivityFeed agents={agents} />
-              <SwarmTopology swarm={swarm} agents={agents} />
-                </div>
+          <div className="space-y-3">
+            {/* Row 1: Agent Health Matrix | Live Agent Activity Feed | Swarm Topology + ELO */}
+            <div className="grid grid-cols-12 gap-3">
+              <div className="col-span-3">
+                <AgentHealthMatrix agents={agents} />
+              </div>
+              <div className="col-span-5">
+                <LiveActivityFeed agents={agents} />
+              </div>
+              <div className="col-span-4">
+                <SwarmTopology swarm={swarm} agents={agents} />
+              </div>
+            </div>
+
             {/* Row 2: Quick Actions + Team Status | Agent Resource Monitor | Conference Pipeline */}
-            <div className="grid grid-cols-3 gap-4">
-              <Card title="Quick Actions">
-                <div className="flex flex-wrap gap-2 mb-4">
-                  <Button size="xs" className="bg-cyan-500/20 text-cyan-400 border-cyan-500/40" onClick={() => { refetchAgents(); toast.success("Restarted"); }}>Restart All</Button>
-                  <Button size="xs" className="bg-red-500/20 text-red-400 border-red-500/40" onClick={() => toast.error("Stopped")}>Stop All</Button>
-                  <Button size="xs" className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40" onClick={() => setActiveTab("spawn-scale")}>Spawn Team</Button>
-                  <Button size="xs" className="bg-purple-500/20 text-purple-400 border-purple-500/40" onClick={() => toast.info("Conference initiated")}>Run Conference</Button>
-                  <Button size="xs" className="bg-red-500/20 text-red-400 border-red-500/50" onClick={() => toast.error("Emergency kill")}>Emergency Kill</Button>
-              </div>
-                <h4 className="text-xs font-bold text-white mb-2">Team Status</h4>
-                <div className="space-y-2">
-                  {swarm.teams.slice(0, 4).map((t, i) => (
-                    <div key={i} className="flex items-center justify-between text-xs p-2 rounded bg-[#0d1117] border border-cyan-500/10 cursor-pointer hover:border-cyan-500/30"
-                      onClick={() => toast.info(`Team ${t.name}`)}>
-                      <span className="text-white font-medium">{t.name}</span>
-                      <Badge className="bg-emerald-500/20 text-emerald-400">{t.status || 'ACTIVE'}</Badge>
-                    </div>
-                  ))}
-                  {swarm.teams.length === 0 && <p className="text-xs text-secondary">No teams</p>}
-              </div>
-            </Card>
-              <AgentResourceMonitor agents={agents} />
-              <ConferencePipeline consensusData={consensusData} />
-          </div>
-            {/* Row 3: System Alerts | Blackboard Live Feed | Drift Monitor */}
-            <div className="grid grid-cols-3 gap-4">
-              <SystemAlerts agents={agents} llmAlerts={llmAlerts} />
-              <BlackboardLiveFeed blackboardMsgs={blackboardMsgs} />
-              <DriftMonitor agents={agents} />
+            <div className="grid grid-cols-12 gap-3">
+              <div className="col-span-3">
+                <Card title="Quick Actions">
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    <Button size="sm" className="bg-cyan-500/15 text-cyan-400 border-cyan-500/30 text-[10px] px-2 py-1" onClick={() => { refetchAgents(); toast.success("Restarted"); }}>Restart All</Button>
+                    <Button size="sm" className="bg-red-500/15 text-red-400 border-red-500/30 text-[10px] px-2 py-1" onClick={() => toast.error("Stopped")}>Stop All</Button>
+                    <Button size="sm" className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-[10px] px-2 py-1" onClick={() => setActiveTab("spawn-scale")}>Spawn Team</Button>
+                    <Button size="sm" className="bg-purple-500/15 text-purple-400 border-purple-500/30 text-[10px] px-2 py-1" onClick={() => toast.info("Conference initiated")}>Run Conference</Button>
+                    <Button size="sm" className="bg-red-500/15 text-red-400 border-red-500/40 text-[10px] px-2 py-1" onClick={() => toast.error("Emergency kill")}>Emergency Kill</Button>
                   </div>
-                    </div>
+                  <h4 className="text-[10px] font-bold text-white mb-2 uppercase tracking-wider">Team Status</h4>
+                  <div className="space-y-1.5">
+                    {swarm.teams.length > 0 ? swarm.teams.slice(0, 4).map((t, i) => (
+                      <div key={i} className="flex items-center justify-between text-[11px] p-1.5 rounded bg-[#0d1117] border border-cyan-500/10 cursor-pointer hover:border-cyan-500/30"
+                        onClick={() => toast.info(`Team ${t.name}`)}>
+                        <span className="text-white font-medium">{t.name}</span>
+                        <Badge size="sm" className="bg-emerald-500/20 text-emerald-400 text-[9px]">{t.status || 'ACTIVE'}</Badge>
+                      </div>
+                    )) : (
+                      <>
+                        <div className="flex items-center justify-between text-[11px] p-1.5 rounded bg-[#0d1117] border border-cyan-500/10">
+                          <span className="text-white">fear_bounce_team</span>
+                          <span className="text-emerald-400 text-[9px]">ACTIVE</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px] p-1.5 rounded bg-[#0d1117] border border-cyan-500/10">
+                          <span className="text-white">greed_momentum_team</span>
+                          <span className="text-emerald-400 text-[9px]">ACTIVE</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px] p-1.5 rounded bg-[#0d1117] border border-cyan-500/10">
+                          <span className="text-white">momentum</span>
+                          <span className="text-amber-400 text-[9px]">DEGRADED</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </Card>
+              </div>
+              <div className="col-span-5">
+                <AgentResourceMonitor agents={agents} />
+              </div>
+              <div className="col-span-4">
+                <ConferencePipeline consensusData={consensusData} />
+              </div>
+            </div>
+
+            {/* Row 3: System Alerts | Blackboard Live Feed | Drift Monitor */}
+            <div className="grid grid-cols-12 gap-3">
+              <div className="col-span-3">
+                <SystemAlerts agents={agents} llmAlerts={llmAlerts} />
+              </div>
+              <div className="col-span-5">
+                <BlackboardLiveFeed blackboardMsgs={blackboardMsgs} />
+              </div>
+              <div className="col-span-4">
+                <DriftMonitor agents={agents} />
+              </div>
+            </div>
+          </div>
         )}
-        {/* ============ TAB 2: AGENT REGISTRY (with Inspector Panel from mockup 05c) ============ */}
+
+        {/* ============ TAB 2: AGENT REGISTRY (with Inspector Panel) ============ */}
         {activeTab === "agent-registry" && (
           <div className="flex gap-4 h-full">
             <div className="flex-1 min-w-0 space-y-4">
@@ -655,9 +723,9 @@ export default function AgentCommandCenter() {
                     <Search className="w-4 h-4 text-secondary" />
                     <input className="bg-[#0d1117] border border-cyan-500/20 rounded px-3 py-1.5 text-sm text-white placeholder-secondary/50 w-48" placeholder="Search Agents" value={agentSearch} onChange={(e) => setAgentSearch(e.target.value)} />
                   </div>
-                  <Button size="xs" onClick={() => { refetchAgents(); toast.success("Synced"); }}>Force Sync</Button>
-                  </div>
+                  <Button size="sm" className="text-xs" onClick={() => { refetchAgents(); toast.success("Synced"); }}>Force Sync</Button>
                 </div>
+              </div>
               {/* Master Agent Table */}
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
@@ -669,7 +737,7 @@ export default function AgentCommandCenter() {
                   <tbody>{filteredAgents.map((a, i) => {
                     const wr = a.win_rate ?? 0;
                     const pnl = a.pnl_30d ?? 0;
-                        return (
+                    return (
                       <tr key={a.id || i} className="border-b border-gray-800/50 hover:bg-cyan-500/5 cursor-pointer transition-all"
                         onClick={() => setInspectedAgent(a)}>
                         <td className="py-1.5 px-1 text-white font-medium">{a.name}</td>
@@ -695,8 +763,8 @@ export default function AgentCommandCenter() {
                           </div>
                         </td>
                       </tr>
-                  );
-                })}
+                    );
+                  })}
                   {agents.length === 0 && <tr><td colSpan={16} className="text-center py-8 text-secondary">{agentsLoading ? "Loading..." : "No agents"}</td></tr>}
                   </tbody>
                 </table>
@@ -706,117 +774,416 @@ export default function AgentCommandCenter() {
                 {agents.map(a => <AgentCard key={a.id} agent={a} onToggle={handleAgentToggle} onInspect={setInspectedAgent} />)}
               </div>
             </div>
-            {/* Right sidebar: Agent Inspector (from mockup 05c) */}
+            {/* Right sidebar: Agent Inspector */}
             {inspectedAgent && <AgentInspectorPanel agent={inspectedAgent} onClose={() => setInspectedAgent(null)} onToggle={handleAgentToggle} />}
-                  </div>
-                )}
-        {/* ============ TAB 3: SPAWN & SCALE ============ */}
+          </div>
+        )}
+        {/* ============ TAB 3: SPAWN & SCALE (mockup 05b - 4 top panels, NLP prompt, templates, builder, active table) ============ */}
         {activeTab === "spawn-scale" && (
           <div className="space-y-4">
-            <div className="flex gap-3">
-              <input type="text" value={spawnPrompt} onChange={e => setSpawnPrompt(e.target.value)}
-                placeholder="e.g. Spawn a momentum scanner for tech stocks with 5min timeframe..."
-                className="flex-1 bg-[#0B0E14] border border-cyan-500/30 rounded-lg px-4 py-2.5 text-sm text-white placeholder-secondary/50 focus:border-cyan-400 focus:outline-none"
-                onKeyDown={e => e.key === 'Enter' && handleNlpSpawn()} />
-              <Button onClick={handleNlpSpawn} className="bg-cyan-500/20 text-cyan-400 border-cyan-500/40">{nlpSpawnLoading ? 'Spawning...' : 'Spawn'}</Button>
-              </div>
-            <div className="flex items-center gap-3">
-              <Button size="xs" onClick={() => handleSpawnTeam("fear_bounce_team", "spawn")} className="bg-red-500/15 text-red-400 border-red-500/40">Spawn Fear Team</Button>
-              <Button size="xs" onClick={() => handleSpawnTeam("greed_momentum_team", "spawn")} className="bg-emerald-500/15 text-emerald-400 border-emerald-500/40">Spawn Greed Team</Button>
-              <Button size="xs" onClick={() => handleSpawnTeam("all", "kill")} className="hover:border-red-500 hover:text-red-500">Kill All</Button>
-              <Slider min={0} max={5} step={0.1} value={bias} onChange={(v) => handleBiasChange(v)} suffix="x" formatValue={v => Number(v).toFixed(1)} className="flex-1 min-w-0 max-w-[200px]" />
-              <Button size="xs" onClick={handleBiasSubmit}>Apply</Button>
-              {biasOverrideSent && <span className="text-emerald-400 text-xs">Saved</span>}
-            </div>
-            {spawnError && <div className="p-2 rounded bg-red-500/10 border border-red-500/30 text-red-400 text-xs">{spawnError}</div>}
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
-              {SPAWN_TEMPLATES.map(t => { const TIcon = t.icon; return (
-                <Card key={t.name} className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] hover:border-cyan-500/50 hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-all cursor-pointer"
-                  onClick={() => { toast.success(`Spawning ${t.name}`); handleSpawnTeam(t.name.toLowerCase().replace(/\s/g, '_'), 'spawn'); }}>
-                  <TIcon className={`w-6 h-6 ${t.color} mb-2`} />
-                  <h4 className="text-sm font-bold text-white">{t.name}</h4>
-                  <p className="text-[10px] text-secondary mt-1">{t.desc}</p>
-            </Card>
-              ); })}
-          </div>
-            {swarm.teams.length > 0 ? (
-              <div className="space-y-2">{swarm.teams.map((t, i) => (
-                <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-[#0d1117] border border-cyan-500/10 hover:border-cyan-500/30 cursor-pointer"
-                  onClick={() => toast.info(`Inspecting ${t.name}`)}>
-                  <span className="text-white font-medium text-sm flex-1">{t.name}</span>
-                  <Button size="xs" variant="ghost" onClick={(e) => { e.stopPropagation(); toast.info('Paused'); }}><Pause className="w-3 h-3" /></Button>
-                  <Button size="xs" variant="ghost" onClick={(e) => { e.stopPropagation(); handleSpawnTeam(t.name, 'kill'); }}><XCircle className="w-3 h-3" /></Button>
-                  <Button size="xs" variant="ghost" onClick={(e) => { e.stopPropagation(); toast.info('Cloned'); }}><Copy className="w-3 h-3" /></Button>
-            </div>
-              ))}</div>
-            ) : <p className="text-sm text-secondary">No active teams. Use templates or NLP to spawn.</p>}
-        </div>
-      )}
-        {/* ============ TAB 4: LIVE WIRING MAP ============ */}
-        {activeTab === "live-wiring" && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-5 gap-4 relative">
-              {["External Sources", "Agents", "Processing Engines", "Storage", "Frontend"].map((label, i) => (
-                <div key={label} className="text-center text-xs font-bold text-secondary border-b border-cyan-500/20 pb-2 mb-3">{label}</div>
-              ))}
-              <div className="space-y-2">
-                {["Alpaca API", "Finviz", "Reddit", "Twitter/X", "YouTube"].map(src => (
-                  <div key={src} className="flex items-center gap-2 p-2 rounded bg-[#0d1117] border border-cyan-500/10 cursor-pointer hover:border-cyan-500/30" onClick={() => toast.info(`Source: ${src}`)}>
-                    <Globe className="w-3 h-3 text-cyan-400" /><span className="text-xs text-white">{src}</span>
-          </div>
-                ))}
-          </div>
-              <div className="space-y-2">
-                {["MarketData", "SignalGen", "MLBrain", "Sentiment", "YouTube"].map(a => (
-                  <div key={a} className="flex items-center gap-2 p-2 rounded bg-[#0d1117] border border-cyan-500/10 cursor-pointer hover:border-cyan-500/30" onClick={() => toast.info(`Agent: ${a}`)}>
-                    <Bot className="w-3 h-3 text-emerald-400" /><span className="text-xs text-white">{a}</span>
+            {/* Top Row: 4 panels */}
+            <div className="grid grid-cols-4 gap-3">
+              {/* Panel 1: Agent Spawn & Swarm Orchestrator */}
+              <Card title="Agent Spawn & Swarm Orchestrator" className="col-span-1">
+                <div className="text-[10px] space-y-2">
+                  <table className="w-full">
+                    <thead><tr className="text-secondary/60 border-b border-cyan-500/10">
+                      <th className="text-left py-1 font-medium">Swarm Configuration</th>
+                      <th className="text-right font-medium">Value</th>
+                    </tr></thead>
+                    <tbody>
+                      {[
+                        { k: "Active Agents", v: `${runningAgents}/${totalAgents}` },
+                        { k: "Max Agents", v: "100" },
+                        { k: "Spawn Rate", v: "2/min" },
+                        { k: "Kill Timeout", v: "30s" },
+                        { k: "Auto-Scale", v: "ON" },
+                        { k: "Health Check", v: "5s" },
+                      ].map(r => (
+                        <tr key={r.k} className="border-b border-gray-800/20">
+                          <td className="py-1 text-secondary">{r.k}</td>
+                          <td className="py-1 text-right text-white font-mono">{r.v}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div className="flex gap-1.5 pt-1">
+                    <Button size="sm" className="bg-red-500/15 text-red-400 border-red-500/30 text-[9px] px-2 py-0.5 flex-1" onClick={() => handleSpawnTeam("fear_bounce_team", "spawn")}>Spawn Fear</Button>
+                    <Button size="sm" className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-[9px] px-2 py-0.5 flex-1" onClick={() => handleSpawnTeam("greed_momentum_team", "spawn")}>Spawn Greed</Button>
+                    <Button size="sm" className="bg-red-500/15 text-red-400 border-red-500/30 text-[9px] px-2 py-0.5 flex-1" onClick={() => handleSpawnTeam("all", "kill")}>Kill All</Button>
                   </div>
-                ))}
-            </div>
-              <div className="space-y-2">
-                {["SignalEngine", "RiskShield", "Consensus", "MLPipeline"].map(p => (
-                  <div key={p} className="flex items-center gap-2 p-2 rounded bg-[#0d1117] border border-cyan-500/10 cursor-pointer hover:border-cyan-500/30" onClick={() => toast.info(`Engine: ${p}`)}>
-                    <Cpu className="w-3 h-3 text-amber-400" /><span className="text-xs text-white">{p}</span>
-        </div>
-                ))}
                 </div>
-              <div className="space-y-2">
-                {["PostgreSQL", "Redis", "TimescaleDB"].map(s => (
-                  <div key={s} className="flex items-center gap-2 p-2 rounded bg-[#0d1117] border border-cyan-500/10 cursor-pointer hover:border-cyan-500/30" onClick={() => toast.info(`Storage: ${s}`)}>
-                    <Database className="w-3 h-3 text-purple-400" /><span className="text-xs text-white">{s}</span>
-                </div>
-                ))}
-              </div>
-              <div className="space-y-2">
-                {["Dashboard", "TradeExec", "Analytics"].map(f => (
-                  <div key={f} className="flex items-center gap-2 p-2 rounded bg-[#0d1117] border border-cyan-500/10 cursor-pointer hover:border-cyan-500/30" onClick={() => toast.info(`View: ${f}`)}>
-                    <Monitor className="w-3 h-3 text-blue-400" /><span className="text-xs text-white">{f}</span>
-          </div>
-                ))}
+              </Card>
+
+              {/* Panel 2: OpenClaw Swarm Control with gauge */}
+              <Card title="OpenClaw Swarm Control" className="col-span-1">
+                <div className="flex flex-col items-center">
+                  {/* Gauge arc */}
+                  <div className="relative w-28 h-16 mb-2">
+                    <svg viewBox="0 0 120 70" className="w-full h-full">
+                      <defs>
+                        <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                          <stop offset="0%" stopColor="#ef4444" />
+                          <stop offset="50%" stopColor="#f59e0b" />
+                          <stop offset="100%" stopColor="#10b981" />
+                        </linearGradient>
+                      </defs>
+                      <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none" stroke="#1e293b" strokeWidth="8" strokeLinecap="round" />
+                      <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none" stroke="url(#gaugeGrad)" strokeWidth="8" strokeLinecap="round"
+                        strokeDasharray="157" strokeDashoffset={157 - (bias / 5) * 157} />
+                      <text x="60" y="55" textAnchor="middle" fill="#00D9FF" fontSize="16" fontWeight="bold">{bias.toFixed(2)}</text>
+                      <text x="60" y="68" textAnchor="middle" fill="#6b7280" fontSize="8">Sentiment</text>
+                    </svg>
+                  </div>
+                  <div className="w-full space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] text-secondary shrink-0">Bias</span>
+                      <Slider min={0} max={5} step={0.1} value={bias} onChange={handleBiasChange} suffix="x" formatValue={v => Number(v).toFixed(1)} className="flex-1" />
                     </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Card title="WebSocket Channels">
-                <div className="space-y-2">
-                  {["agents", "llm-flow", "market-data", "signals", "trades"].map(ch => (
-                    <div key={ch} className="flex items-center justify-between text-xs p-2 rounded bg-[#0d1117] border border-cyan-500/10 cursor-pointer hover:border-cyan-500/30" onClick={() => toast.info(`Channel: ${ch}`)}>
-                      <div className="flex items-center gap-2"><Wifi className="w-3 h-3 text-emerald-400" /><span className="text-white font-mono">{ch}</span></div>
-                      <Badge className="bg-emerald-500/20 text-emerald-400">CONNECTED</Badge>
+                    <div className="flex gap-1.5">
+                      <Button size="sm" className="bg-cyan-500/15 text-cyan-400 border-cyan-500/30 text-[9px] px-2 py-0.5 flex-1" onClick={handleBiasSubmit}>Apply</Button>
+                      {biasOverrideSent && <span className="text-emerald-400 text-[9px] self-center">Saved</span>}
+                    </div>
                   </div>
-                ))}
-              </div>
-          </Card>
-              <Card title="API Routes">
-                <div className="space-y-1 max-h-[200px] overflow-y-auto">
-                  {["/api/v1/agents", "/api/v1/signals", "/api/v1/trades", "/api/v1/openclaw/macro", "/api/v1/openclaw/swarm", "/api/v1/market/regime", "/api/v1/risk/shield", "/api/v1/ml/models"].map(r => (
-                    <div key={r} className="flex items-center gap-2 text-xs p-1 cursor-pointer hover:bg-cyan-500/5 rounded" onClick={() => toast.info(`Route: ${r}`)}>
-                      <Badge className="bg-emerald-500/20 text-emerald-400 text-[9px]">GET</Badge>
-                      <span className="text-white font-mono">{r}</span>
-                      <span className="text-emerald-400 ml-auto">200</span>
-        </div>
+                </div>
+              </Card>
+
+              {/* Panel 3: ML Engine & Flywheel */}
+              <Card title="ML Engine & Flywheel" className="col-span-1">
+                <div className="space-y-2 text-[10px]">
+                  {[
+                    { label: "Walk-Forward Accuracy", val: "94.2%", color: "text-emerald-400" },
+                    { label: "Active Models", val: "4", color: "text-cyan-400" },
+                    { label: "Training Queue", val: "2", color: "text-amber-400" },
+                    { label: "Flywheel Cycles", val: "847", color: "text-white" },
+                    { label: "Last Retrain", val: "2h ago", color: "text-secondary" },
+                    { label: "Feature Drift", val: "0.023", color: "text-emerald-400" },
+                    { label: "Sharpe (Live)", val: "2.41", color: "text-cyan-400" },
+                  ].map(r => (
+                    <div key={r.label} className="flex items-center justify-between">
+                      <span className="text-secondary">{r.label}</span>
+                      <span className={`${r.color} font-mono font-bold`}>{r.val}</span>
+                    </div>
                   ))}
+                </div>
+              </Card>
+
+              {/* Panel 4: Trading Conference & Auto-Scale */}
+              <Card title="Trading Conference & Auto-Scale" className="col-span-1">
+                <div className="space-y-2 text-[10px]">
+                  {[
+                    { label: "Conference Status", val: "IDLE", color: "text-secondary" },
+                    { label: "Last Conference", val: "#941", color: "text-cyan-400" },
+                    { label: "Consensus Rate", val: "88%", color: "text-emerald-400" },
+                    { label: "Auto-Scale", val: "ENABLED", color: "text-emerald-400" },
+                    { label: "Scale Factor", val: "1.5x", color: "text-white" },
+                    { label: "Min Agents", val: "5", color: "text-secondary" },
+                    { label: "Max Agents", val: "50", color: "text-secondary" },
+                  ].map(r => (
+                    <div key={r.label} className="flex items-center justify-between">
+                      <span className="text-secondary">{r.label}</span>
+                      <span className={`${r.color} font-mono font-bold`}>{r.val}</span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
             </div>
-          </Card>
+
+            {/* Natural Language Spawn Prompt */}
+            <Card title="Natural Language Spawn Prompt">
+              <p className="text-[10px] text-secondary mb-2">Describe the agent you want to spawn in plain English:</p>
+              <div className="flex gap-3">
+                <input type="text" value={spawnPrompt} onChange={e => setSpawnPrompt(e.target.value)}
+                  placeholder="Spawn a momentum scanner agent focused on NASDAQ small-caps with 30s interval, high sensitivity, connected to Alpaca and Finnviz"
+                  className="flex-1 bg-[#0d1117] border border-cyan-500/30 rounded px-3 py-2 text-sm text-white placeholder-secondary/40 focus:border-cyan-400 focus:outline-none font-mono"
+                  onKeyDown={e => e.key === 'Enter' && handleNlpSpawn()} />
+              </div>
+              <div className="flex justify-center mt-3">
+                <Button size="sm" className="bg-cyan-500/15 text-cyan-400 border border-cyan-500/40 px-8 font-bold tracking-wider" onClick={handleNlpSpawn}>
+                  {nlpSpawnLoading ? 'EXECUTING...' : '[ EXECUTE PROMPT ]'}
+                </Button>
+              </div>
+            </Card>
+
+            {spawnError && <div className="p-2 rounded bg-red-500/10 border border-red-500/30 text-red-400 text-xs">{spawnError}</div>}
+
+            {/* Quick Spawn Template Grid + Custom Agent Builder side by side */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* Quick Spawn Template Grid */}
+              <Card title="Quick Spawn Template Grid">
+                <div className="grid grid-cols-5 gap-2">
+                  {SPAWN_TEMPLATES.map(t => { const TIcon = t.icon; return (
+                    <div key={t.name} className="flex flex-col items-center gap-1 p-2 rounded bg-[#0d1117] border border-cyan-500/10 hover:border-cyan-500/40 hover:shadow-[0_0_12px_rgba(0,217,255,0.1)] cursor-pointer transition-all"
+                      onClick={() => { toast.success(`Spawning ${t.name}`); handleSpawnTeam(t.name.toLowerCase().replace(/\s/g, '_'), 'spawn'); }}>
+                      <TIcon className={`w-5 h-5 ${t.color}`} />
+                      <span className="text-[9px] text-white text-center font-medium leading-tight">{t.name}</span>
+                    </div>
+                  ); })}
+                </div>
+              </Card>
+
+              {/* Custom Agent Builder */}
+              <Card title="Custom Agent Builder">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[10px]">
+                  <div>
+                    <label className="text-secondary block mb-0.5">Agent Name</label>
+                    <input className="w-full bg-[#0d1117] border border-cyan-500/20 rounded px-2 py-1 text-white text-[10px]" placeholder="Spawn Agent" />
+                  </div>
+                  <div>
+                    <label className="text-secondary block mb-0.5">Agent Type</label>
+                    <select className="w-full bg-[#0d1117] border border-cyan-500/20 rounded px-2 py-1 text-white text-[10px]">
+                      <option>scanner</option><option>researcher</option><option>executor</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-secondary block mb-0.5">Data Sources</label>
+                    <div className="flex gap-1">
+                      {["Alpaca", "Finviz", "Reddit"].map(s => (
+                        <span key={s} className="px-1.5 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[8px] cursor-pointer hover:bg-cyan-500/20">{s}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-secondary block mb-0.5">Target Universe</label>
+                    <input className="w-full bg-[#0d1117] border border-cyan-500/20 rounded px-2 py-1 text-white text-[10px]" placeholder="NASDAQ" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-secondary block mb-0.5">Risk Interval</label>
+                    <Slider min={0} max={100} step={1} value={50} onChange={() => {}} suffix="ms" className="w-full" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-secondary block mb-0.5">Temperature</label>
+                    <Slider min={0} max={5} step={0.1} value={2.7} onChange={() => {}} className="w-full" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-secondary block mb-0.5">Kill Condition</label>
+                    <input className="w-full bg-[#0d1117] border border-cyan-500/20 rounded px-2 py-1 text-white text-[10px]" placeholder="max_drawdown_5%, kill_on_loss" />
+                  </div>
+                </div>
+              </Card>
+            </div>
+
+            {/* Active Spawned Agents Table */}
+            <Card title="Active Spawned Agents Table">
+              <div className="overflow-x-auto">
+                <table className="w-full text-[10px]">
+                  <thead><tr className="text-secondary/60 border-b border-cyan-500/10">
+                    {["ID", "Name", "Type", "Status", "CPU%", "MEM", "Signals", "P&L", "Uptime", "Actions"].map(h => (
+                      <th key={h} className="text-left py-1.5 px-2 font-medium">{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {agents.length > 0 ? agents.map((a, i) => (
+                      <tr key={a.id || i} className="border-b border-gray-800/20 hover:bg-cyan-500/5 cursor-pointer" onClick={() => toast.info(`Agent: ${a.name}`)}>
+                        <td className="py-1.5 px-2 text-secondary font-mono">{(a.id || `A${i}`).toString().slice(0, 8)}</td>
+                        <td className="px-2 text-white font-medium">{a.name}</td>
+                        <td className="px-2 text-secondary">{a.type || 'worker'}</td>
+                        <td className="px-2">
+                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${a.status === 'running' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                            {a.status === 'running' ? 'ACTIVE' : 'STOPPED'}
+                          </span>
+                        </td>
+                        <td className="px-2 text-white font-mono">{(a.cpu_pct ?? 0).toFixed(1)}</td>
+                        <td className="px-2 text-white font-mono">{(a.mem_mb ?? 0).toFixed(0)}MB</td>
+                        <td className="px-2 text-cyan-400">{a.signals_generated ?? 0}</td>
+                        <td className={`px-2 font-mono ${(a.pnl_30d ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          ${(a.pnl_30d ?? 0) >= 0 ? '+' : ''}{(a.pnl_30d ?? 0).toFixed(0)}
+                        </td>
+                        <td className="px-2 text-secondary">{a.uptime || '12h'}</td>
+                        <td className="px-2">
+                          <div className="flex gap-1">
+                            <button className="p-0.5 hover:text-amber-400" onClick={(e) => { e.stopPropagation(); toast.info('Paused'); }}><Pause className="w-3 h-3" /></button>
+                            <button className="p-0.5 hover:text-red-400" onClick={(e) => { e.stopPropagation(); handleSpawnTeam(a.name, 'kill'); }}><XCircle className="w-3 h-3" /></button>
+                            <button className="p-0.5 hover:text-cyan-400" onClick={(e) => { e.stopPropagation(); toast.info('Cloned'); }}><Copy className="w-3 h-3" /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    )) : (
+                      <tr><td colSpan={10} className="text-center py-6 text-secondary">No active spawned agents. Use templates or NLP prompt to spawn.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </div>
+        )}
+        {/* ============ TAB 4: LIVE WIRING MAP (mockup 05 - full network diagram with connection matrix) ============ */}
+        {activeTab === "live-wiring" && (
+          <div className="space-y-3">
+            {/* Column headers */}
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2">
+                <Network className="w-4 h-4 text-cyan-400" />
+                <span className="text-xs font-bold text-white tracking-wider">LIVE WIRING</span>
+              </div>
+              <div className="flex items-center gap-3 text-[10px] text-secondary">
+                <span>Connections: <span className="text-emerald-400 font-bold">47</span></span>
+                <span>Health: <span className="text-emerald-400">92.1%</span></span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-12 gap-3">
+              {/* Main Wiring Diagram - 8 cols */}
+              <div className="col-span-8">
+                <Card noPadding>
+                  <div className="p-3">
+                    {/* Column labels */}
+                    <div className="grid grid-cols-5 gap-4 mb-3">
+                      {["EXTERNAL SOURCES", "AGENTS", "PROCESSING ENGINES", "STORAGE/DATABASES", "FRONTEND/INTERFACES"].map(label => (
+                        <div key={label} className="text-center text-[9px] font-bold text-cyan-400/60 uppercase tracking-wider border-b border-cyan-500/10 pb-1">{label}</div>
+                      ))}
+                    </div>
+                    {/* Network nodes SVG */}
+                    <svg viewBox="0 0 1000 500" className="w-full h-[380px]">
+                      {/* Connection lines */}
+                      {(() => {
+                        const cols = [100, 300, 500, 700, 900];
+                        const sources = [
+                          { label: "Alpaca API", y: 50 }, { label: "Finviz", y: 110 },
+                          { label: "Google Finance", y: 170 }, { label: "FRED Economic", y: 230 },
+                          { label: "SEC EDGAR", y: 290 }, { label: "Reddit", y: 350 },
+                          { label: "News API", y: 410 }, { label: "Twitter/X", y: 460 },
+                        ];
+                        const agentNodes = [
+                          { label: "Signal Generation\nAgent", y: 80 },
+                          { label: "ML Learning\nAgent", y: 180 },
+                          { label: "Sentiment\nAgent", y: 280 },
+                          { label: "YouTube Knowledge\nAgent", y: 380 },
+                        ];
+                        const engines = [
+                          { label: "signal_engine.py", y: 60 },
+                          { label: "resolution_engine", y: 140 },
+                          { label: "risk_engine", y: 220 },
+                          { label: "openclaw_bridge", y: 300 },
+                          { label: "trading_conference.py", y: 380 },
+                        ];
+                        const stores = [
+                          { label: "PostgreSQL", y: 80 },
+                          { label: "Redis Cache", y: 160 },
+                          { label: "trading_data", y: 240 },
+                          { label: "logs_position_json", y: 320 },
+                          { label: "ML_models/", y: 400 },
+                        ];
+                        const frontends = [
+                          { label: "AgentCommandCenter.jsx", y: 60 },
+                          { label: "TradingDashboard.jsx", y: 140 },
+                          { label: "MLBrainPanel.jsx", y: 220 },
+                          { label: "PositionAnalytics.jsx", y: 300 },
+                          { label: "SignalMonitoringUI.jsx", y: 380 },
+                          { label: "dashboard_engine.py", y: 460 },
+                        ];
+                        const lineColors = ["#00D9FF44", "#10b98144", "#f59e0b44", "#ef444444", "#8b5cf644"];
+                        const lines = [];
+                        // source->agent lines
+                        sources.forEach((s, si) => {
+                          agentNodes.forEach((a, ai) => {
+                            lines.push(<line key={`s${si}a${ai}`} x1={cols[0]} y1={s.y} x2={cols[1]} y2={a.y} stroke={lineColors[si % lineColors.length]} strokeWidth="1" />);
+                          });
+                        });
+                        // agent->engine lines
+                        agentNodes.forEach((a, ai) => {
+                          engines.forEach((e, ei) => {
+                            lines.push(<line key={`a${ai}e${ei}`} x1={cols[1]} y1={a.y} x2={cols[2]} y2={e.y} stroke={lineColors[(ai + 1) % lineColors.length]} strokeWidth="1" />);
+                          });
+                        });
+                        // engine->store lines
+                        engines.forEach((e, ei) => {
+                          stores.forEach((st, sti) => {
+                            lines.push(<line key={`e${ei}s${sti}`} x1={cols[2]} y1={e.y} x2={cols[3]} y2={st.y} stroke={lineColors[(ei + 2) % lineColors.length]} strokeWidth="1" />);
+                          });
+                        });
+                        // store->frontend lines
+                        stores.forEach((st, sti) => {
+                          frontends.forEach((f, fi) => {
+                            lines.push(<line key={`st${sti}f${fi}`} x1={cols[3]} y1={st.y} x2={cols[4]} y2={f.y} stroke={lineColors[(sti + 3) % lineColors.length]} strokeWidth="1" />);
+                          });
+                        });
+                        // Render nodes
+                        const renderNode = (x, y, label, color, icon) => (
+                          <g key={`${x}-${y}-${label}`} className="cursor-pointer" onClick={() => toast.info(`Node: ${label.replace('\n', ' ')}`)}>
+                            <rect x={x - 55} y={y - 14} width="110" height="28" rx="4" fill={`${color}22`} stroke={color} strokeWidth="1" />
+                            <text x={x} y={y + 3} textAnchor="middle" fill="white" fontSize="8" fontWeight="500">{label.split('\n')[0]}</text>
+                            {label.split('\n')[1] && <text x={x} y={y + 13} textAnchor="middle" fill="#6b7280" fontSize="7">{label.split('\n')[1]}</text>}
+                          </g>
+                        );
+                        return (
+                          <>
+                            {lines}
+                            {sources.map(s => renderNode(cols[0], s.y, s.label, "#06b6d4", null))}
+                            {agentNodes.map(a => renderNode(cols[1], a.y, a.label, "#10b981", null))}
+                            {engines.map(e => renderNode(cols[2], e.y, e.label, "#f59e0b", null))}
+                            {stores.map(s => renderNode(cols[3], s.y, s.label, "#8b5cf6", null))}
+                            {frontends.map(f => renderNode(cols[4], f.y, f.label, "#3b82f6", null))}
+                          </>
+                        );
+                      })()}
+                    </svg>
+                  </div>
+                </Card>
+              </div>
+
+              {/* Right panels - 4 cols */}
+              <div className="col-span-4 space-y-3">
+                {/* Connection Health Matrix */}
+                <Card title="Connection Health Matrix">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-[9px]">
+                      <thead><tr className="text-secondary">
+                        <th className="text-left py-0.5 w-12">From\To</th>
+                        {["ORCH", "SigGen", "Risk", "ML", "Sent", "Exec"].map(h => <th key={h} className="text-center px-0.5 w-8">{h}</th>)}
+                      </tr></thead>
+                      <tbody>
+                        {["ORCH", "SigGen", "Risk", "ML", "Sent", "Exec"].map((from, ri) => (
+                          <tr key={from} className="border-b border-gray-800/20">
+                            <td className="text-secondary py-0.5 font-mono text-[8px]">{from}</td>
+                            {["ORCH", "SigGen", "Risk", "ML", "Sent", "Exec"].map((to, ci) => {
+                              const isSelf = ri === ci;
+                              const states = ['healthy', 'healthy', 'degraded', 'healthy', 'healthy', 'error'];
+                              const health = isSelf ? 'self' : states[(ri + ci) % states.length];
+                              const bgColor = isSelf ? 'bg-gray-700/50' : health === 'healthy' ? 'bg-emerald-500' : health === 'degraded' ? 'bg-amber-500' : 'bg-red-500';
+                              return (<td key={to} className="text-center px-0.5">
+                                <div className={`w-5 h-4 mx-auto rounded-sm ${bgColor} ${!isSelf ? 'cursor-pointer hover:scale-125 transition-transform' : ''}`}
+                                  onClick={() => !isSelf && toast.info(`Connection ${from} -> ${to}: ${health}`)} />
+                              </td>);
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="flex gap-2 mt-2 text-[8px] text-secondary">
+                    <span className="flex items-center gap-0.5"><span className="w-2 h-2 bg-emerald-500 rounded-sm" />Healthy</span>
+                    <span className="flex items-center gap-0.5"><span className="w-2 h-2 bg-amber-500 rounded-sm" />Degraded</span>
+                    <span className="flex items-center gap-0.5"><span className="w-2 h-2 bg-red-500 rounded-sm" />Error</span>
+                  </div>
+                </Card>
+
+                {/* WebSocket Channels */}
+                <Card title="WebSocket Channels">
+                  <div className="space-y-1">
+                    {["agents", "llm-flow", "market-data", "signals", "trades", "council"].map(ch => (
+                      <div key={ch} className="flex items-center justify-between text-[10px] p-1.5 rounded bg-[#0d1117] border border-cyan-500/10 cursor-pointer hover:border-cyan-500/30" onClick={() => toast.info(`Channel: ${ch}`)}>
+                        <div className="flex items-center gap-1.5"><Wifi className="w-3 h-3 text-emerald-400" /><span className="text-white font-mono">{ch}</span></div>
+                        <Badge size="sm" className="bg-emerald-500/20 text-emerald-400 text-[8px]">LIVE</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+
+                {/* API Route Status */}
+                <Card title="API Route Status">
+                  <div className="space-y-0.5 max-h-[160px] overflow-y-auto">
+                    {["/api/v1/agents", "/api/v1/signals", "/api/v1/trades", "/api/v1/openclaw/macro", "/api/v1/openclaw/swarm", "/api/v1/market/regime", "/api/v1/risk/shield", "/api/v1/ml/models"].map(r => (
+                      <div key={r} className="flex items-center gap-1.5 text-[10px] p-1 cursor-pointer hover:bg-cyan-500/5 rounded" onClick={() => toast.info(`Route: ${r}`)}>
+                        <span className="px-1 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[8px] font-bold">GET</span>
+                        <span className="text-white font-mono flex-1 truncate">{r}</span>
+                        <span className="text-emerald-400 font-mono">200</span>
+                        <span className="text-secondary text-[8px]">&lt;5ms</span>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </div>
             </div>
           </div>
         )}
@@ -834,8 +1201,8 @@ export default function AgentCommandCenter() {
                   </div>
                 ))}
                 {blackboardMsgs.length === 0 && <p className="text-secondary">Listening for blackboard events...</p>}
-            </div>
-          </Card>
+              </div>
+            </Card>
             <Card title="HITL Intervention Log">
               <div className="space-y-2 max-h-[400px] overflow-y-auto">
                 {hitlBuffer.map(msg => (
@@ -843,17 +1210,18 @@ export default function AgentCommandCenter() {
                     <div className="flex items-center justify-between">
                       <Badge className="bg-amber-500/20 text-amber-400">{msg.action}</Badge>
                       <span className="text-[10px] text-secondary">{msg.time}</span>
-        </div>
+                    </div>
                     <div className="text-[10px] text-secondary mt-1">
                       Target: <span className="text-white">{msg.target}</span> User: <span className="text-white">{msg.user}</span> {msg.status}
                     </div>
                   </div>
                 ))}
                 {hitlBuffer.length === 0 && <p className="text-xs text-secondary">No recent interventions</p>}
-            </div>
-          </Card>
-        </div>
-      )}
+              </div>
+            </Card>
+          </div>
+        )}
+
         {/* ============ TAB 6: CONFERENCE & CONSENSUS ============ */}
         {activeTab === "conference" && (
           <div className="grid grid-cols-3 gap-4">
@@ -865,19 +1233,23 @@ export default function AgentCommandCenter() {
                     <circle cx="50" cy="50" r="40" fill="none" stroke="#1e293b" strokeWidth="8" />
                     <circle cx="50" cy="50" r="40" fill="none" stroke={c.agree > 80 ? '#00D9FF' : '#F59E0B'} strokeWidth="8"
                       strokeDasharray="251" strokeDashoffset={251 - (c.agree / 100) * 251} strokeLinecap="round" />
-              </svg>
+                  </svg>
                   <span className="absolute inset-0 flex items-center justify-center text-lg font-bold text-white">{c.agree}%</span>
-              </div>
+                </div>
                 <p className="text-xs text-secondary text-center mt-2">Agreement</p>
                 <div className="flex justify-center gap-3 mt-2 text-xs">
                   <span className="text-secondary">{c.agents} Agents</span>
                   <span className={c.action === 'LONG' ? 'text-emerald-400' : 'text-red-400'}>{c.action} ({c.strength})</span>
-            </div>
-          </Card>
+                </div>
+              </Card>
             ))}
-        </div>
-      )}
-        {/* ============ TAB 7: ML OPS (enhanced Brain Map + Connection Health Matrix) ============ */}
+            {consensusData.length === 0 && (
+              <div className="col-span-3 text-center py-12 text-secondary text-sm">No active conference data. Conferences run on schedule or on-demand.</div>
+            )}
+          </div>
+        )}
+
+        {/* ============ TAB 7: ML OPS ============ */}
         {activeTab === "ml-ops" && (
           <div className="grid grid-cols-2 gap-4">
             <Card title="Brain Map DAG">
@@ -898,15 +1270,15 @@ export default function AgentCommandCenter() {
               </svg>
               <div className="flex items-center justify-between mt-2">
                 <span className="text-xs text-secondary">Nodes: {agents.length + 1}</span>
-                <Button size="xs" onClick={() => toast.success("Weights Rebalanced")}>Rebalance</Button>
-                            </div>
+                <Button size="sm" className="text-xs" onClick={() => toast.success("Weights Rebalanced")}>Rebalance</Button>
+              </div>
             </Card>
-            {/* Connection Health Matrix (from mockup brain-map) */}
+            {/* Connection Health Matrix */}
             <Card title="Connection Health Matrix">
               <div className="overflow-x-auto">
                 <table className="w-full text-[10px]">
                   <thead><tr className="text-secondary">
-                    <th className="text-left py-1">From \\ To</th>
+                    <th className="text-left py-1">From \ To</th>
                     {["ORCH", "SigGen", "Risk", "ML", "Sent", "Exec"].map(h => <th key={h} className="text-center px-1">{h}</th>)}
                   </tr></thead>
                   <tbody>
@@ -915,18 +1287,17 @@ export default function AgentCommandCenter() {
                         <td className="text-secondary py-1 font-mono">{from}</td>
                         {["ORCH", "SigGen", "Risk", "ML", "Sent", "Exec"].map((to, ci) => {
                           const isSelf = ri === ci;
-                          const health = isSelf ? 'self' : 'unknown';
-                          const color = isSelf ? 'bg-gray-700' : health === 'healthy' ? 'bg-emerald-500' : health === 'degraded' ? 'bg-amber-500' : 'bg-red-500';
+                          const color = isSelf ? 'bg-gray-700' : 'bg-emerald-500';
                           return (<td key={to} className="text-center px-1">
                             <div className={`w-4 h-4 mx-auto rounded-sm ${color} ${!isSelf ? 'cursor-pointer hover:scale-125 transition-transform' : ''}`}
-                              onClick={() => !isSelf && toast.info(`Connection ${from} -> ${to}: ${health}`)} />
+                              onClick={() => !isSelf && toast.info(`Connection ${from} -> ${to}`)} />
                           </td>);
                         })}
-                    </tr>
+                      </tr>
                     ))}
-                </tbody>
-              </table>
-            </div>
+                  </tbody>
+                </table>
+              </div>
               <div className="flex gap-3 mt-2 text-[9px] text-secondary">
                 <span><span className="inline-block w-2 h-2 bg-emerald-500 rounded-sm mr-1" />Healthy</span>
                 <span><span className="inline-block w-2 h-2 bg-amber-500 rounded-sm mr-1" />Degraded</span>
@@ -951,9 +1322,10 @@ export default function AgentCommandCenter() {
                   </tr>
                 ))}</tbody>
               </table>
-          </Card>
-        </div>
-      )}
+            </Card>
+          </div>
+        )}
+
         {/* ============ TAB 8: LOGS & TELEMETRY ============ */}
         {activeTab === "logs" && (
           <div className="grid grid-cols-3 gap-4">
@@ -971,10 +1343,10 @@ export default function AgentCommandCenter() {
                   <div key={m.label} className="cursor-pointer hover:bg-cyan-500/5 rounded p-1" onClick={() => toast.info(`${m.label}: ${m.value}%`)}>
                     <div className="flex justify-between text-xs mb-1"><span className="text-secondary">{m.label}</span><span className="text-white font-mono">{m.value}%</span></div>
                     <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden"><div className={`h-full ${m.color} rounded-full transition-all`} style={{ width: `${m.value}%` }} /></div>
-                </div>
-              ))}
-            </div>
-          </Card>
+                  </div>
+                ))}
+              </div>
+            </Card>
             <Card title="Service Logs" className="col-span-3">
               <div className="space-y-0.5 max-h-[200px] overflow-y-auto font-mono text-[11px]">
                 {["[09:41:23] INFO orchestrator: Heartbeat OK", "[09:41:20] INFO ml-worker: Epoch 847 complete",
@@ -984,24 +1356,28 @@ export default function AgentCommandCenter() {
                   <div key={i} className={`px-2 py-0.5 rounded cursor-pointer hover:bg-cyan-500/10 ${log.includes('ERROR') ? 'text-red-400' : log.includes('WARN') ? 'text-amber-400' : 'text-white/70'}`}
                     onClick={() => toast.info(log)}>{log}</div>
                 ))}
-                    </div>
+              </div>
             </Card>
-                  </div>
+          </div>
         )}
-                  </div>
-      {/* === FOOTER BAR === */}
-      <div className="flex items-center justify-between px-6 py-1.5 border-t border-cyan-500/20 bg-[#0B0E14] text-[10px] text-secondary">
-        <div className="flex items-center gap-4">
+      </div>
+
+      {/* === FOOTER BAR (mockup 01 style) === */}
+      <div className="flex items-center justify-between px-5 py-1.5 border-t border-cyan-500/20 bg-[#0B0E14] text-[10px] text-secondary">
+        <div className="flex items-center gap-5">
           <span>WebSocket: <span className="text-emerald-400 font-bold">CONNECTED</span></span>
           <span>{runningAgents}/{totalAgents} Agents Online</span>
           <span>LLM Flow: <span className="text-cyan-400">{llmAlerts.length} alerts</span></span>
           <span>Conference: <span className="text-secondary">IDLE</span></span>
-                </div>
-        <div className="flex items-center gap-4">
-          <span>Last Sync: <span className="text-white">{new Date().toLocaleTimeString()}</span></span>
-          <span className="text-cyan-400/60">EMBODIER.AI</span>
-            </div>
+          <span>42 Internals</span>
+          <span>LLM Flow: <span className="text-cyan-400">847</span></span>
         </div>
+        <div className="flex items-center gap-5">
+          <span>Last Sync: <span className="text-white font-mono">{new Date().toLocaleTimeString("en-US", { hour12: false })}</span></span>
+          <span>{runningAgents} Agents</span>
+          <span className="text-cyan-400/50 tracking-widest">EMBODIER.AI</span>
+        </div>
+      </div>
     </div>
   );
 }
