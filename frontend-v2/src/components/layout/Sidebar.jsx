@@ -22,7 +22,6 @@ import {
   Sparkles,
   BarChart3,
     Radar,
-  Activity,
 } from "lucide-react";
 import { useApi } from "../../hooks/useApi";
 
@@ -50,7 +49,6 @@ const navSections = [
       },
       { to: "/data-sources", icon: Link2, label: "Data Sources Manager" },
       { to: "/signal-intelligence-v3", icon: Radar, label: "Signal Intelligence" },
-      { to: "/swarm-intelligence", icon: Sparkles, label: "Swarm Intelligence" },
     ],
   },
   {
@@ -61,7 +59,6 @@ const navSections = [
       { to: "/backtest", icon: RotateCcw, label: "Backtesting Lab" },
       { to: "/performance", icon: TrendingUp, label: "Performance Analytics" },
       { to: "/market-regime", icon: BarChart3, label: "Market Regime" },
-      { to: "/cognitive-dashboard", icon: Activity, label: "Cognitive Telemetry" },
     ],
   },
   {
