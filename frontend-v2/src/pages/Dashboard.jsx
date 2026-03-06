@@ -1322,27 +1322,8 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col h-screen w-full bg-[#0B0E14] text-[#e5e7eb] font-sans text-[9px] leading-tight overflow-hidden selection:bg-[#00D9FF]/30">
-      {/* 0. SCROLLING TICKER STRIP */}
-      <TickerStrip indices={indices} signals={processedSignals} />
-
-      {/* Signal-error banner (non-blocking) */}
-      {sigErr && (
-        <div className="mx-4 mt-2 px-3 py-1.5 rounded bg-red-500/10 border border-red-500/30 text-red-400 text-[10px] font-mono flex items-center gap-2 shrink-0">
-          <span className="font-bold">SIGNAL API OFFLINE</span>
-          <span className="text-red-400/70">{sigErr.message}</span>
-        </div>
-      )}
-
-      {/* CNS VITALS — homeostasis, circuit breaker, agent health, verdict */}
-      <div className="px-4 pt-2 shrink-0">
-        <CNSVitals />
-      </div>
-
-      {/* PROFIT BRAIN — win rate, PnL, brain weights, feedback loop */}
-      <ProfitBrainBar />
-
-      {/* 1. TOP HEADER BAR */}
-      <header className="flex items-center justify-between px-4 py-2 border-b border-[rgba(42,52,68,0.5)] bg-[#111827] shrink-0">
+      {/* TOP HEADER BAR */}
+      <header className="flex items-center justify-between px-4 py-1.5 border-b border-[rgba(42,52,68,0.5)] bg-[#111827] shrink-0">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 pr-4 border-r border-[rgba(42,52,68,0.5)]">
             <HexagonLogo />
@@ -1445,101 +1426,114 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* MAIN CONTENT AREA */}
+      {/* SCROLLING TICKER STRIP */}
+      <TickerStrip indices={indices} signals={processedSignals} />
+
+      {/* Signal-error banner (non-blocking) */}
+      {sigErr && (
+        <div className="mx-4 mt-1 px-3 py-1 rounded bg-red-500/10 border border-red-500/30 text-red-400 text-[10px] font-mono flex items-center gap-2 shrink-0">
+          <span className="font-bold">SIGNAL API OFFLINE</span>
+          <span className="text-red-400/70">{sigErr.message}</span>
+        </div>
+      )}
+
+      {/* MAIN CONTENT AREA: Left Sidebar + Center Table + Right Panel */}
       <main className="flex flex-1 overflow-hidden">
-        {/* CENTER COLUMN: BAR CHART + TABLE (~65%) */}
-        <section className="flex flex-col w-[65%] border-r border-[rgba(42,52,68,0.5)] bg-[#0B0E14]">
-          {/* Filters & Sort Bar */}
-          <div className="flex flex-col border-b border-[rgba(42,52,68,0.5)] bg-[#111827] p-2 gap-2 shrink-0">
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-              {SORT_PILLS.map((pill) => (
+
+        {/* LEFT SIDEBAR NAV */}
+        <aside className="w-[52px] shrink-0 bg-[#0B0E14] border-r border-[rgba(42,52,68,0.5)] flex flex-col items-center py-3 gap-3">
+          {[
+            { label: "Dash", icon: "\u25A3", active: true },
+            { label: "Signals", icon: "\u26A1" },
+            { label: "Port", icon: "\u2637" },
+            { label: "Risk", icon: "\u26D4" },
+            { label: "Agents", icon: "\u2699" },
+            { label: "ML", icon: "\u2B22" },
+          ].map((nav) => (
+            <button
+              key={nav.label}
+              className={`w-9 h-9 rounded flex flex-col items-center justify-center gap-0.5 transition-colors ${nav.active ? "bg-[#00D9FF]/15 text-[#00D9FF] border border-[#00D9FF]/30" : "text-[#64748b] hover:text-[#94a3b8] hover:bg-[#1e293b]/50 border border-transparent"}`}
+            >
+              <span className="text-sm leading-none">{nav.icon}</span>
+              <span className="text-[6px] font-mono leading-none">{nav.label}</span>
+            </button>
+          ))}
+          <div className="flex-1" />
+          <div className="w-9 h-9 rounded border border-[rgba(42,52,68,0.5)] flex items-center justify-center">
+            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+          </div>
+        </aside>
+
+        {/* CENTER COLUMN: Sort Pills + Table (dominant area) */}
+        <section className="flex flex-col flex-1 min-w-0 border-r border-[rgba(42,52,68,0.5)] bg-[#0B0E14]">
+          {/* Sort Pills Row */}
+          <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-[rgba(42,52,68,0.5)] bg-[#111827] shrink-0 overflow-x-auto no-scrollbar">
+            {SORT_PILLS.map((pill) => (
+              <button
+                key={pill}
+                onClick={() => setActiveSortKey(pill)}
+                className={`whitespace-nowrap px-2 py-0.5 rounded-sm border text-[8px] ${activeSortKey === pill ? "bg-[#00D9FF]/20 text-[#00D9FF] border-[#00D9FF]/50" : "bg-transparent text-[#94a3b8] border-[#374151] hover:border-[#64748b]"} transition-colors`}
+              >
+                {pill}
+              </button>
+            ))}
+          </div>
+
+          {/* Timeframe + Status Row */}
+          <div className="flex items-center justify-between px-2 py-1 border-b border-[rgba(42,52,68,0.5)] bg-[#111827] shrink-0 text-[#94a3b8] font-mono">
+            <div className="flex items-center gap-1">
+              <span className="text-[8px]">TF:</span>
+              {TIMEFRAMES.map((tf) => (
                 <button
-                  key={pill}
-                  onClick={() => setActiveSortKey(pill)}
-                  className={`whitespace-nowrap px-2 py-1 rounded-sm border ${activeSortKey === pill ? "bg-[#00D9FF]/20 text-[#00D9FF] border-[#00D9FF]/50" : "bg-transparent text-[#94a3b8] border-[#374151] hover:border-[#64748b]"} transition-colors`}
+                  key={tf}
+                  onClick={() => setActiveTimeframe(tf)}
+                  className={`px-1.5 py-0.5 rounded-sm text-[8px] ${activeTimeframe === tf ? "bg-[#1e293b] text-white" : "hover:bg-[#1e293b]/50"}`}
                 >
-                  {pill}
+                  {tf}
                 </button>
               ))}
             </div>
-            <div className="flex items-center justify-between text-[#94a3b8] font-mono">
-              <div className="flex items-center gap-1">
-                <span>TF:</span>
-                {TIMEFRAMES.map((tf) => (
-                  <button
-                    key={tf}
-                    onClick={() => setActiveTimeframe(tf)}
-                    className={`px-1.5 py-0.5 rounded-sm ${activeTimeframe === tf ? "bg-[#1e293b] text-white" : "hover:bg-[#1e293b]/50"}`}
-                  >
-                    {tf}
-                  </button>
-                ))}
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setAutoExec(!autoExec)}
-                  className="flex items-center gap-1 cursor-pointer hover:text-white transition-colors"
-                >
-                  <div
-                    className={`w-1.5 h-1.5 rounded-full ${autoExec ? "bg-green-500 animate-pulse" : "bg-red-500"}`}
-                  ></div>
-                  Auto-Exec: {autoExec ? "ON" : "OFF"}
-                </button>
-                <span className="flex items-center gap-1">
-                  <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>{" "}
-                  LIVE
-                </span>
-                <span>Flywheel: {flywheel.accuracy ?? (flywheel.accuracy30d != null ? Math.round(Number(flywheel.accuracy30d) * 100) : 0)}%</span>
-              </div>
+            <div className="flex items-center gap-3 text-[8px]">
+              <button
+                onClick={() => setAutoExec(!autoExec)}
+                className="flex items-center gap-1 cursor-pointer hover:text-white transition-colors"
+              >
+                <div className={`w-1.5 h-1.5 rounded-full ${autoExec ? "bg-green-500 animate-pulse" : "bg-red-500"}`} />
+                Auto-Exec: {autoExec ? "ON" : "OFF"}
+              </button>
+              <span className="flex items-center gap-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> LIVE
+              </span>
+              <span>Flywheel: {flywheel.accuracy ?? (flywheel.accuracy30d != null ? Math.round(Number(flywheel.accuracy30d) * 100) : 0)}%</span>
             </div>
           </div>
 
-          {/* SIGNAL BAR CHART (NEW - from mockup) */}
-          <div className="shrink-0 border-b border-[rgba(42,52,68,0.5)]">
-            <SignalBarChart
-              signals={processedSignals}
-              selectedSymbol={selectedSymbol}
-              onSelect={setSelectedSymbol}
-            />
-          </div>
-
-          {/* MAIN LIGHTWEIGHT CHART */}
-          <div className="shrink-0 border-b border-[rgba(42,52,68,0.5)]">
-            <LWChartFallback
-              symbol={selectedSymbol}
-              quotesData={candleData}
-              signalEntry={selectedSignal?.entry}
-              signalStop={selectedSignal?.stop}
-              signalTarget={selectedSignal?.target}
-            />
-          </div>
-
-          {/* Table Container */}
+          {/* MAIN SIGNALS TABLE */}
           <div className="flex-1 overflow-auto bg-[#0B0E14]">
             <table className="w-full text-left font-mono whitespace-nowrap">
               <thead className="sticky top-0 bg-[#111827] text-[#64748b] border-b border-[rgba(42,52,68,0.5)] shadow-md z-10">
                 <tr>
-                  <th className="p-1.5 font-normal">Sym</th>
-                  <th className="p-1.5 font-normal">Dir</th>
-                  <th className="p-1.5 font-normal">Score</th>
-                  <th className="p-1.5 font-normal">Regime</th>
-                  <th className="p-1.5 font-normal">ML</th>
-                  <th className="p-1.5 font-normal">Sent</th>
-                  <th className="p-1.5 font-normal">Tech</th>
-                  <th className="p-1.5 font-normal">Agent</th>
-                  <th className="p-1.5 font-normal">Swarm</th>
-                  <th className="p-1.5 font-normal">SHAP</th>
-                  <th className="p-1.5 font-normal">Kelly</th>
-                  <th className="p-1.5 font-normal">Entry</th>
-                  <th className="p-1.5 font-normal">Tgt</th>
-                  <th className="p-1.5 font-normal">Stop</th>
-                  <th className="p-1.5 font-normal">R-Mult</th>
-                  <th className="p-1.5 font-normal">P&L</th>
-                  <th className="p-1.5 font-normal">Sec</th>
-                  <th className="p-1.5 font-normal">Mom</th>
-                  <th className="p-1.5 font-normal">Vol</th>
-                  <th className="p-1.5 font-normal">News</th>
-                  <th className="p-1.5 font-normal">Pat</th>
+                  <th className="px-1.5 py-1 font-normal">Sym</th>
+                  <th className="px-1.5 py-1 font-normal">Dir</th>
+                  <th className="px-1.5 py-1 font-normal">Score</th>
+                  <th className="px-1.5 py-1 font-normal">Regime</th>
+                  <th className="px-1.5 py-1 font-normal">ML</th>
+                  <th className="px-1.5 py-1 font-normal">Sent</th>
+                  <th className="px-1.5 py-1 font-normal">Tech</th>
+                  <th className="px-1.5 py-1 font-normal">Agent</th>
+                  <th className="px-1.5 py-1 font-normal">Swarm</th>
+                  <th className="px-1.5 py-1 font-normal">SHAP</th>
+                  <th className="px-1.5 py-1 font-normal">Kelly</th>
+                  <th className="px-1.5 py-1 font-normal">Entry</th>
+                  <th className="px-1.5 py-1 font-normal">Tgt</th>
+                  <th className="px-1.5 py-1 font-normal">Stop</th>
+                  <th className="px-1.5 py-1 font-normal">R-Mult</th>
+                  <th className="px-1.5 py-1 font-normal">P&L</th>
+                  <th className="px-1.5 py-1 font-normal">Sec</th>
+                  <th className="px-1.5 py-1 font-normal">Mom</th>
+                  <th className="px-1.5 py-1 font-normal">Vol</th>
+                  <th className="px-1.5 py-1 font-normal">News</th>
+                  <th className="px-1.5 py-1 font-normal">Pat</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#1e293b]/50">
@@ -1553,90 +1547,54 @@ export default function Dashboard() {
                       onClick={() => setSelectedSymbol(sig.symbol)}
                       className={`cursor-pointer hover:bg-[#1e293b]/30 transition-colors ${isSelected ? "bg-[#164e63]/30 border-l-2 border-[#00D9FF]" : "border-l-2 border-transparent"}`}
                     >
-                      <td className="p-1.5 text-white font-bold">
-                        {sig.symbol}
-                      </td>
-                      <td className={`p-1.5 ${dirColor}`}>
-                        {isLong ? "L" : "S"}
-                      </td>
-                      <td className="p-1.5">
+                      <td className="px-1.5 py-1 text-white font-bold">{sig.symbol}</td>
+                      <td className={`px-1.5 py-1 ${dirColor}`}>{isLong ? "L" : "S"}</td>
+                      <td className="px-1.5 py-1">
                         <div className="flex items-center gap-1">
-                          <span
-                            className={
-                              sig.score >= 90
-                                ? "text-green-400"
-                                : "text-[#00D9FF]"
-                            }
-                          >
-                            {sig.score}
-                          </span>
+                          <span className={sig.score >= 90 ? "text-green-400" : "text-[#00D9FF]"}>{sig.score}</span>
                           <div className="w-12 h-1.5 bg-[#1e293b] rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-[#00D9FF]"
-                              style={{ width: `${sig.score}%` }}
-                            ></div>
+                            <div className="h-full rounded-full" style={{ width: `${sig.score}%`, backgroundColor: sig.score >= 85 ? "#10b981" : sig.score >= 70 ? "#00D9FF" : sig.score >= 50 ? "#f59e0b" : "#ef4444" }} />
                           </div>
                         </div>
                       </td>
-                      <td className="p-1.5 text-[#94a3b8]">
-                        {sig.scores?.regime || "\u2014"}
-                      </td>
-                      <td className="p-1.5 text-[#94a3b8]">
-                        {sig.scores?.ml || "\u2014"}
-                      </td>
-                      <td className="p-1.5 text-[#94a3b8]">
-                        {sig.scores?.sentiment || "\u2014"}
-                      </td>
-                      <td className="p-1.5 text-[#94a3b8]">
-                        {sig.scores?.technical || "\u2014"}
-                      </td>
-                      <td className="p-1.5 text-[#00D9FF] truncate max-w-[80px]">
-                        {sig.leadAgent || "\u2014"}
-                      </td>
-                      <td className="p-1.5 text-[#94a3b8]">
-                        {sig.swarmVote || "\u2014"}
-                      </td>
-                      <td className="p-1.5 text-[#64748b] truncate max-w-[60px]">
-                        {sig.topShap || "\u2014"}
-                      </td>
-                      <td className="p-1.5 text-[#00D9FF]">
-                        {sig.kellyPercent ?? 0}%
-                      </td>
-                      <td className="p-1.5 text-[#94a3b8]">
-                        {sig.entry != null ? `$${Number(sig.entry).toFixed(2)}` : "\u2014"}
-                      </td>
-                      <td className="p-1.5 text-green-400">
-                        {sig.target != null ? `$${Number(sig.target).toFixed(2)}` : "\u2014"}
-                      </td>
-                      <td className="p-1.5 text-red-400">
-                        {sig.stop != null ? `$${Number(sig.stop).toFixed(2)}` : "\u2014"}
-                      </td>
-                      <td className="p-1.5 text-white">
-                        {sig.rMultiple != null ? `${Number(sig.rMultiple).toFixed(1)}:1` : "\u2014"}
-                      </td>
-                      <td className="p-1.5 text-green-400">
-                        {sig.expPnL != null ? `+$${Number(sig.expPnL).toLocaleString()}` : "\u2014"}
-                      </td>
-                      <td className="p-1.5 text-[#64748b]">
-                        {sig.sector?.substring(0, 3) || "\u2014"}
-                      </td>
-                      <td className="p-1.5 text-green-400">
-                        +{sig.momentum || "\u2014"}
-                      </td>
-                      <td className="p-1.5 text-[#00D9FF]">
-                        {sig.volSpike || "\u2014"}x
-                      </td>
-                      <td className="p-1.5 text-[#64748b] truncate max-w-[50px]">
-                        {sig.newsImpact || "\u2014"}
-                      </td>
-                      <td className="p-1.5 text-[#00D9FF] truncate max-w-[60px]">
-                        {sig.pattern || "\u2014"}
-                      </td>
+                      <td className="px-1.5 py-1 text-[#94a3b8]">{sig.scores?.regime || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[#94a3b8]">{sig.scores?.ml || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[#94a3b8]">{sig.scores?.sentiment || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[#94a3b8]">{sig.scores?.technical || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[#00D9FF] truncate max-w-[80px]">{sig.leadAgent || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[#94a3b8]">{sig.swarmVote || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[#64748b] truncate max-w-[60px]">{sig.topShap || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[#00D9FF]">{sig.kellyPercent ?? 0}%</td>
+                      <td className="px-1.5 py-1 text-[#94a3b8]">{sig.entry != null ? `$${Number(sig.entry).toFixed(2)}` : "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-green-400">{sig.target != null ? `$${Number(sig.target).toFixed(2)}` : "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-red-400">{sig.stop != null ? `$${Number(sig.stop).toFixed(2)}` : "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-white">{sig.rMultiple != null ? `${Number(sig.rMultiple).toFixed(1)}:1` : "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-green-400">{sig.expPnL != null ? `+$${Number(sig.expPnL).toLocaleString()}` : "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[#64748b]">{sig.sector?.substring(0, 3) || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-green-400">+{sig.momentum || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[#00D9FF]">{sig.volSpike || "\u2014"}x</td>
+                      <td className="px-1.5 py-1 text-[#64748b] truncate max-w-[50px]">{sig.newsImpact || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[#00D9FF] truncate max-w-[60px]">{sig.pattern || "\u2014"}</td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* Inline Action Buttons Row */}
+          <div className="flex items-center gap-2 px-2 py-1.5 border-t border-[rgba(42,52,68,0.5)] bg-[#111827] shrink-0">
+            <button onClick={handleRunScan} className="bg-[#1e293b] hover:bg-[#374151] text-white px-3 py-1 rounded text-[8px] font-mono border border-[#374151]">
+              Run Scan [F5]
+            </button>
+            <button onClick={handleExportCSV} className="bg-[#1e293b] hover:bg-[#374151] text-white px-3 py-1 rounded text-[8px] font-mono border border-[#374151]">
+              Export CSV [F7]
+            </button>
+            <button onClick={handleExecTop5} className="bg-cyan-900/60 hover:bg-cyan-800 text-[#00D9FF] px-3 py-1 rounded text-[8px] font-mono border border-cyan-700/50">
+              Exec Top 5
+            </button>
+            <div className="flex-1" />
+            <span className="text-[8px] font-mono text-[#64748b]">{processedSignals.length} signals</span>
           </div>
 
           {/* Alerts Bar */}
@@ -1645,107 +1603,23 @@ export default function Dashboard() {
               <div className="flex items-center gap-4 text-[8px] font-mono text-amber-400">
                 <span className="font-bold">ALERTS:</span>
                 {alerts.slice(0, 5).map((a, i) => (
-                  <span key={i} className="whitespace-nowrap">
-                    {a.message || a.msg || a}
-                  </span>
+                  <span key={i} className="whitespace-nowrap">{a.message || a.msg || a}</span>
                 ))}
               </div>
             </div>
           )}
-
-          {/* BOTTOM HEATMAP GRID */}
-          <div className="shrink-0">
-            <HeatmapGrid signals={processedSignals} />
-          </div>
         </section>
 
-        {/* RIGHT COLUMN: ALWAYS-VISIBLE SUMMARY CARDS (~35%) */}
-        <section className="flex flex-col w-[35%] bg-[#111827] overflow-y-auto custom-scrollbar p-3 space-y-3">
-          {/* TOP ROW: Regime Donut + Agent Consensus */}
-          <div className="flex gap-3">
-            {/* Regime Donut Ring (NEW) */}
-            <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-2 flex flex-col items-center justify-center hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-shadow">
-              <span className="text-[8px] text-[#94a3b8] uppercase tracking-wider mb-1">
-                REGIME
-              </span>
-              <RegimeDonut
-                regime={openclaw.regime}
-                score={openclaw.compositeScore}
-              />
-            </div>
-            {/* Top Trades Donut (from mockup 02) */}
-            <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-2 flex flex-col items-center justify-center hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-shadow">
-              <span className="text-[8px] text-[#94a3b8] uppercase tracking-wider mb-1">
-                TOP TRADES
-              </span>
-              <TopTradesDonut
-                buyCount={
-                  swarm.buyCount ||
-                  processedSignals.filter((s) => s.direction === "LONG").length
-                }
-                sellCount={
-                  swarm.sellCount ||
-                  processedSignals.filter((s) => s.direction === "SHORT").length
-                }
-                holdCount={
-                  swarm.holdCount ||
-                  Math.max(
-                    1,
-                    processedSignals.length -
-                      processedSignals.filter((s) => s.direction === "LONG")
-                        .length -
-                      processedSignals.filter((s) => s.direction === "SHORT")
-                        .length,
-                  )
-                }
-              />
-            </div>
-            {/* Agent Consensus Ring (Enhanced) */}
-            <div className="flex-1 bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-2 hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-shadow">
-              <h3 className="text-[9px] text-[#00D9FF] font-bold uppercase tracking-wider mb-1">
-                Agent Consensus
-              </h3>
-              <AgentConsensusRing
-                buyPct={
-                  swarm.buyCount ||
-                  processedSignals.filter((s) => s.direction === "LONG").length
-                }
-                sellPct={
-                  swarm.sellCount ||
-                  processedSignals.filter((s) => s.direction === "SHORT").length
-                }
-                holdPct={
-                  swarm.holdCount ||
-                  Math.max(
-                    1,
-                    processedSignals.length -
-                      processedSignals.filter((s) => s.direction === "LONG")
-                        .length -
-                      processedSignals.filter((s) => s.direction === "SHORT")
-                        .length,
-                  )
-                }
-                consensus={
-                  swarm.consensus || openclaw.compositeScore || "\u2014"
-                }
-              />
-            </div>
-          </div>
-
-          {/* Swarm Consensus Horizontal Bars (NEW - from mockup) */}
-          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-2 space-y-1.5 hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-shadow">
-            <h3 className="text-[9px] text-[#00D9FF] font-bold uppercase tracking-wider">
-              Swarm Consensus
-            </h3>
+        {/* RIGHT COLUMN: Intelligence Panel (~32%) */}
+        <section className="flex flex-col w-[32%] bg-[#111827] overflow-y-auto custom-scrollbar">
+          {/* Swarm Consensus Bars (prominent at top per mockup) */}
+          <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5 space-y-1.5">
+            <h3 className="text-[8px] text-[#00D9FF] font-bold uppercase tracking-wider">Swarm Consensus</h3>
             {(swarm.agents || []).slice(0, 6).map((agent, i) => (
               <ConsensusBar
                 key={i}
                 label={agent.name || `Agent ${i + 1}`}
-                buyPct={
-                  agent.vote === "BUY"
-                    ? agent.confidence || 50
-                    : 100 - (agent.confidence || 50)
-                }
+                buyPct={agent.vote === "BUY" ? agent.confidence || 50 : 100 - (agent.confidence || 50)}
                 sellPct={agent.vote === "SELL" ? agent.confidence || 50 : 0}
               />
             ))}
@@ -1755,485 +1629,197 @@ export default function Dashboard() {
                 <ConsensusBar label="Scout" buyPct={65} sellPct={35} />
                 <ConsensusBar label="Sentinel" buyPct={80} sellPct={20} />
                 <ConsensusBar label="Analyst" buyPct={55} sellPct={45} />
+                <ConsensusBar label="Quant" buyPct={68} sellPct={32} />
+                <ConsensusBar label="Flow" buyPct={74} sellPct={26} />
               </>
             )}
           </div>
 
-          {/* Macro & Pattern Triggers Card (always visible) */}
-          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-2 hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-shadow">
-            <h3 className="text-[9px] text-[#00D9FF] font-bold uppercase tracking-wider mb-2">
-              Macro & Pattern Triggers
-            </h3>
-            <div className="grid grid-cols-2 gap-1 font-mono text-[8px]">
-              <div>
-                <span className="text-[#94a3b8]">Market Breadth:</span>{" "}
-                <span className="text-green-400">
-                  +{indices.SPX?.breadth || "\u2014"}%
-                </span>
-              </div>
-              <div>
-                <span className="text-[#94a3b8]">VIX Level:</span>{" "}
-                <span className="text-[#f59e0b]">
-                  {indices.VIX?.value || "\u2014"}
-                </span>
-              </div>
-              <div>
-                <span className="text-[#94a3b8]">Sector Lead:</span>{" "}
-                <span className="text-[#00D9FF]">
-                  {indices.sectorLead || "\u2014"}
-                </span>
-              </div>
-              <div>
-                <span className="text-[#94a3b8]">Pattern:</span>{" "}
-                <span className="text-green-400">
-                  {selectedSignal?.pattern || "\u2014"}
-                </span>
-              </div>
+          {/* Signal Strength Bar Chart */}
+          <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5">
+            <SignalBarChart
+              signals={processedSignals.slice(0, 20)}
+              selectedSymbol={selectedSymbol}
+              onSelect={setSelectedSymbol}
+            />
+          </div>
+
+          {/* Regime Donut + Trades Donut Row */}
+          <div className="flex gap-2 border-b border-[rgba(42,52,68,0.5)] p-2.5">
+            <div className="flex-1 flex flex-col items-center">
+              <span className="text-[7px] text-[#94a3b8] uppercase tracking-wider mb-1">REGIME</span>
+              <RegimeDonut regime={openclaw.regime} score={openclaw.compositeScore} />
+            </div>
+            <div className="flex-1 flex flex-col items-center">
+              <span className="text-[7px] text-[#94a3b8] uppercase tracking-wider mb-1">TOP TRADES</span>
+              <TopTradesDonut
+                buyCount={swarm.buyCount || processedSignals.filter((s) => s.direction === "LONG").length}
+                sellCount={swarm.sellCount || processedSignals.filter((s) => s.direction === "SHORT").length}
+                holdCount={swarm.holdCount || Math.max(1, processedSignals.length - processedSignals.filter((s) => s.direction === "LONG").length - processedSignals.filter((s) => s.direction === "SHORT").length)}
+              />
             </div>
           </div>
 
-          {/* Risk Shield Status Card (always visible) */}
-          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-2 hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-shadow">
-            <h3 className="text-[9px] text-[#00D9FF] font-bold uppercase tracking-wider mb-2">
-              Risk Shield {riskScore.status || "(Active)"}
-            </h3>
-            <div className="grid grid-cols-2 gap-1 font-mono text-[8px]">
-              <div>
-                <span className="text-[#94a3b8]">Daily VaR:</span>{" "}
-                <span className="text-red-400">
-                  {riskScore.dailyVaR != null && riskScore.dailyVaR !== "" ? riskScore.dailyVaR : "0"}%
-                </span>
-              </div>
-              <div>
-                <span className="text-[#94a3b8]">Max Drawdown:</span>{" "}
-                <span className="text-red-400">
-                  {performance.maxDrawdown != null && performance.maxDrawdown !== "" ? performance.maxDrawdown : "0"}%
-                </span>
-              </div>
-              <div>
-                <span className="text-[#94a3b8]">Correlation:</span>{" "}
-                <span className="text-[#00D9FF]">
-                  {riskScore.correlation != null && riskScore.correlation !== "" ? riskScore.correlation : "0"}
-                </span>
-              </div>
-              <div>
-                <span className="text-[#94a3b8]">Position Limit:</span>{" "}
-                <span className="text-white">
-                  {riskScore.positionLimit != null && riskScore.positionLimit !== "" ? riskScore.positionLimit : "—"}
-                </span>
-              </div>
-            </div>
-            <div className="flex gap-1.5 mt-2">
-              <button className="flex-1 bg-green-900/50 text-green-400 py-1 rounded text-[8px] font-bold border border-green-800">
-                APPROVE RISK
-              </button>
-              <button className="flex-1 bg-red-900/50 text-red-400 py-1 rounded text-[8px] font-bold border border-red-800">
-                HALT SYSTEM
-              </button>
-            </div>
-          </div>
-
-          {/* Equity Curve Chart */}
-          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-2 hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-shadow">
-            <h3 className="text-[9px] text-[#00D9FF] font-bold uppercase tracking-wider mb-1">
-              Equity Curve
-            </h3>
-            <MiniEquityCurve points={performance.equityCurve} />
-          </div>
-
-          {/* Flywheel Status Pipeline */}
-          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-2 hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-shadow">
-            <h3 className="text-[9px] text-[#00D9FF] font-bold uppercase tracking-wider mb-2">
-              ML Flywheel
-            </h3>
-            <FlywheelPipeline flywheel={flywheel} />
-          </div>
-
-          {/* SELECTED SYMBOL DETAIL (conditionally expanded) */}
+          {/* Selected Symbol Detail Panel */}
           {selectedSignal && (
-            <>
-              {/* Header */}
-              <div className="flex justify-between items-center pb-2 border-b border-[rgba(42,52,68,0.5)]">
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+            <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5 space-y-2">
+              {/* Symbol Header */}
+              <div className="flex justify-between items-center">
+                <h2 className="text-sm font-bold text-white flex items-center gap-1.5">
                   {selectedSignal.symbol}
-                  <span
-                    className={
-                      selectedSignal.direction === "LONG"
-                        ? "text-green-400"
-                        : "text-red-400"
-                    }
-                  >
+                  <span className={selectedSignal.direction === "LONG" ? "text-green-400 text-[10px]" : "text-red-400 text-[10px]"}>
                     {selectedSignal.direction || "LONG"}
                   </span>
                 </h2>
-                <div className="flex flex-col items-end">
-                  <span className="text-[8px] text-[#94a3b8] uppercase">
-                    Composite Score
-                  </span>
-                  <span className="text-2xl font-mono font-bold text-[#00D9FF]">
-                    {selectedSignal.score || "\u2014"}
-                  </span>
-                </div>
+                <span className="text-lg font-mono font-bold text-[#00D9FF]">{selectedSignal.score || "\u2014"}</span>
               </div>
 
-              {/* Composite Breakdown */}
-              <div className="space-y-1.5">
-                <h3 className="text-[9px] text-[#00D9FF] font-bold uppercase tracking-wider">
-                  Composite Breakdown
-                </h3>
-                <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-2 space-y-1 font-mono text-[8px]">
-                  {[
-                    {
-                      label: "Overall Score",
-                      val: `${selectedSignal.score || 0}/100`,
-                      pct: selectedSignal.score || 0,
-                    },
-                    {
-                      label: "Technical Rank",
-                      val: `${selectedSignal.scores?.technical || "\u2014"}`,
-                      pct: selectedSignal.scores?.technical || 0,
-                    },
-                    {
-                      label: "ML Probability",
-                      val: `${selectedSignal.scores?.ml || "\u2014"}%`,
-                      pct: selectedSignal.scores?.ml || 0,
-                    },
-                    {
-                      label: "Sentiment Pulse",
-                      val: `${selectedSignal.scores?.sentiment || "\u2014"}`,
-                      pct: selectedSignal.scores?.sentiment || 0,
-                    },
-                    {
-                      label: "Swarm Consensus",
-                      val: `${swarm.consensus || "\u2014"}%`,
-                      pct: swarm.consensus || 0,
-                    },
-                  ].map((item) => (
-                    <div
-                      key={item.label}
-                      className="flex items-center justify-between"
-                    >
-                      <span className="text-[#94a3b8] w-24">{item.label}</span>
-                      <div className="flex-1 mx-2 h-1 bg-[#1e293b] rounded-full">
-                        <div
-                          className="h-full bg-[#00D9FF] rounded-full"
-                          style={{ width: `${item.pct}%` }}
-                        ></div>
-                      </div>
-                      <span className="text-white w-10 text-right">
-                        {item.val}
-                      </span>
+              {/* Composite Breakdown Bars */}
+              <div className="space-y-1 font-mono text-[8px]">
+                {[
+                  { label: "Overall Score", val: `${selectedSignal.score || 0}/100`, pct: selectedSignal.score || 0 },
+                  { label: "Technical Rank", val: `${selectedSignal.scores?.technical || "\u2014"}`, pct: selectedSignal.scores?.technical || 0 },
+                  { label: "ML Probability", val: `${selectedSignal.scores?.ml || "\u2014"}%`, pct: selectedSignal.scores?.ml || 0 },
+                  { label: "Sentiment Pulse", val: `${selectedSignal.scores?.sentiment || "\u2014"}`, pct: selectedSignal.scores?.sentiment || 0 },
+                  { label: "Swarm Consensus", val: `${swarm.consensus || "\u2014"}%`, pct: swarm.consensus || 0 },
+                ].map((item) => (
+                  <div key={item.label} className="flex items-center justify-between">
+                    <span className="text-[#94a3b8] w-24">{item.label}</span>
+                    <div className="flex-1 mx-2 h-1.5 bg-[#1e293b] rounded-full">
+                      <div className="h-full bg-[#00D9FF] rounded-full transition-all" style={{ width: `${item.pct}%` }} />
                     </div>
-                  ))}
-                </div>
+                    <span className="text-white w-10 text-right">{item.val}</span>
+                  </div>
+                ))}
               </div>
 
-              {/* Technical Analysis */}
-              <div className="space-y-1.5">
-                <h3 className="text-[9px] text-[#00D9FF] font-bold uppercase tracking-wider">
-                  Technical Analysis
-                </h3>
-                <div className="grid grid-cols-2 gap-1.5 bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-2 font-mono text-[8px]">
-                  <div>
-                    <span className="text-[#94a3b8]">RSI:</span>{" "}
-                    <span className="text-green-400">
-                      {techs.rsi || "\u2014"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[#94a3b8]">MACD:</span>{" "}
-                    <span className="text-green-400">
-                      {techs.macd || "\u2014"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[#94a3b8]">BB:</span>{" "}
-                    <span className="text-white">{techs.bb || "\u2014"}</span>
-                  </div>
-                  <div>
-                    <span className="text-[#94a3b8]">VWAP:</span>{" "}
-                    <span className="text-[#00D9FF]">
-                      {techs.vwap || "\u2014"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[#94a3b8]">20 EMA:</span>{" "}
-                    <span className="text-white">
-                      {techs.ema20 || "\u2014"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[#94a3b8]">50 SMA:</span>{" "}
-                    <span className="text-green-400">
-                      {techs.sma50 || "\u2014"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[#94a3b8]">ADX:</span>{" "}
-                    <span className="text-white">{techs.adx || "\u2014"}</span>
-                  </div>
-                  <div>
-                    <span className="text-[#94a3b8]">Stoch:</span>{" "}
-                    <span className="text-green-400">
-                      {techs.stoch || "\u2014"}
-                    </span>
-                  </div>
-                </div>
+              {/* Technical Analysis Grid */}
+              <div className="grid grid-cols-2 gap-1 font-mono text-[8px] bg-[#0B0E14] rounded p-1.5 border border-[rgba(42,52,68,0.3)]">
+                <div><span className="text-[#64748b]">RSI:</span> <span className="text-green-400">{techs.rsi || "\u2014"}</span></div>
+                <div><span className="text-[#64748b]">MACD:</span> <span className="text-green-400">{techs.macd || "\u2014"}</span></div>
+                <div><span className="text-[#64748b]">BB:</span> <span className="text-white">{techs.bb || "\u2014"}</span></div>
+                <div><span className="text-[#64748b]">VWAP:</span> <span className="text-[#00D9FF]">{techs.vwap || "\u2014"}</span></div>
+                <div><span className="text-[#64748b]">20 EMA:</span> <span className="text-white">{techs.ema20 || "\u2014"}</span></div>
+                <div><span className="text-[#64748b]">50 SMA:</span> <span className="text-green-400">{techs.sma50 || "\u2014"}</span></div>
+                <div><span className="text-[#64748b]">ADX:</span> <span className="text-white">{techs.adx || "\u2014"}</span></div>
+                <div><span className="text-[#64748b]">Stoch:</span> <span className="text-green-400">{techs.stoch || "\u2014"}</span></div>
               </div>
 
-              {/* ML Engine & SHAP */}
-              <div className="space-y-1.5">
-                <h3 className="text-[9px] text-[#00D9FF] font-bold uppercase tracking-wider">
-                  ML Engine & SHAP Drivers
-                </h3>
-                <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-2 font-mono text-[8px]">
-                  <div className="flex justify-between mb-2 pb-2 border-b border-[rgba(42,52,68,0.5)]">
-                    <span className="text-[#94a3b8]">
-                      Probability LONG:{" "}
-                      <span className="text-green-400 font-bold">
-                        {selectedSignal.scores?.ml || "\u2014"}%
-                      </span>
-                    </span>
-                    <span className="text-[#94a3b8]">
-                      Drift Score:{" "}
-                      <span className="text-green-400">
-                        {techs.driftScore || "\u2014"}
-                      </span>
-                    </span>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[#94a3b8] mb-1">
-                      <span>Feature</span>
-                      <span>Impact</span>
-                    </div>
-                    {(techs.shapFeatures || selectedSignal.shapFeatures || [])
-                      .slice(0, 5)
-                      .map((s) => {
-                        const imp = Number(s.impact) || 0;
-                        const barW = Math.min(Math.abs(imp) * 500, 100);
-                        return (
-                        <div
-                          key={s.feature}
-                          className="flex items-center justify-between"
-                        >
-                          <span className="text-white truncate w-24">
-                            {s.feature}
-                          </span>
-                          <div className="flex-1 flex items-center mx-2">
-                            {imp < 0 ? (
-                              <div className="w-1/2 flex justify-end">
-                                <div
-                                  className="h-1.5 bg-red-500"
-                                  style={{ width: `${barW}%` }}
-                                ></div>
-                              </div>
-                            ) : (
-                              <div className="w-1/2"></div>
-                            )}
-                            {imp > 0 && (
-                              <div className="w-1/2">
-                                <div
-                                  className="h-1.5 bg-green-500"
-                                  style={{ width: `${barW}%` }}
-                                ></div>
-                              </div>
-                            )}
-                          </div>
-                          <span
-                            className={
-                              imp > 0
-                                ? "text-green-400 w-8 text-right"
-                                : "text-red-400 w-8 text-right"
-                            }
-                          >
-                            {imp > 0 ? `+${imp.toFixed(2)}` : imp.toFixed(2)}
-                          </span>
+              {/* SHAP Drivers */}
+              <div className="font-mono text-[8px]">
+                <div className="flex justify-between mb-1 text-[#64748b]">
+                  <span>ML Prob: <span className="text-green-400 font-bold">{selectedSignal.scores?.ml || "\u2014"}%</span></span>
+                  <span>Drift: <span className="text-green-400">{techs.driftScore || "\u2014"}</span></span>
+                </div>
+                <div className="space-y-0.5">
+                  {(techs.shapFeatures || selectedSignal.shapFeatures || []).slice(0, 5).map((s) => {
+                    const imp = Number(s.impact) || 0;
+                    const barW = Math.min(Math.abs(imp) * 500, 100);
+                    return (
+                      <div key={s.feature} className="flex items-center justify-between">
+                        <span className="text-white truncate w-20">{s.feature}</span>
+                        <div className="flex-1 flex items-center mx-1.5">
+                          {imp < 0 ? (
+                            <div className="w-1/2 flex justify-end"><div className="h-1.5 bg-red-500 rounded-sm" style={{ width: `${barW}%` }} /></div>
+                          ) : (<div className="w-1/2" />)}
+                          {imp > 0 && (
+                            <div className="w-1/2"><div className="h-1.5 bg-green-500 rounded-sm" style={{ width: `${barW}%` }} /></div>
+                          )}
                         </div>
-                        );
-                      })}
-                  </div>
+                        <span className={imp > 0 ? "text-green-400 w-8 text-right" : "text-red-400 w-8 text-right"}>
+                          {imp > 0 ? `+${imp.toFixed(2)}` : imp.toFixed(2)}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-
-              {/* Risk & Order Proposal */}
-              <div className="space-y-1.5">
-                <h3 className="text-[9px] text-[#00D9FF] font-bold uppercase tracking-wider">
-                  Risk & Order Proposal
-                </h3>
-                <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-2 font-mono text-[8px]">
-                  <div className="text-[#00D9FF] mb-1 font-bold">
-                    PROPOSED ENTRY
-                  </div>
-                  <div className="grid grid-cols-2 gap-1 mb-2 pb-2 border-b border-[rgba(42,52,68,0.5)]/50">
-                    <span className="text-[#94a3b8]">
-                      Action:{" "}
-                      <span className="text-white">
-                        Limit Buy {risk.limitPrice || "\u2014"}
-                      </span>
-                    </span>
-                    <span className="text-[#94a3b8]">
-                      Size:{" "}
-                      <span className="text-white">
-                        {risk.shares || "\u2014"} shs ($
-                        {risk.notional || "\u2014"})
-                      </span>
-                    </span>
-                    <span className="text-[#94a3b8]">
-                      Stop Loss:{" "}
-                      <span className="text-red-400">
-                        {risk.stopLoss || "\u2014"}
-                      </span>
-                    </span>
-                    <span className="text-[#94a3b8]">
-                      Target 1:{" "}
-                      <span className="text-green-400">
-                        {risk.target1 || "\u2014"}
-                      </span>
-                    </span>
-                    <span className="text-[#94a3b8]">
-                      R:R Ratio:{" "}
-                      <span className="text-[#00D9FF]">
-                        {risk.rr || "\u2014"}
-                      </span>
-                    </span>
-                    <span className="text-[#94a3b8]">
-                      Sizing:{" "}
-                      <span className="text-white">
-                        Kelly {selectedSignal.kellyPercent ?? 0}%
-                      </span>
-                    </span>
-                  </div>
-                  {/* L2 Order Book */}
-                  <div className="text-[#94a3b8] mb-1">
-                    LIVE L2 ORDER BOOK (Spread: $
-                    {quotes.spread != null ? Number(quotes.spread).toFixed(2) : "\u2014"})
-                  </div>
-                  <div className="flex flex-col gap-[1px]">
-                    {quotes.asks
-                      ?.slice(0, 3)
-                      .reverse()
-                      .map((ask, i) => (
-                        <div
-                          key={"ask" + i}
-                          className="flex items-center text-[7px]"
-                        >
-                          <span className="w-10 text-red-400">{Number(ask.price).toFixed(2)}</span>
-                          <span className="w-8 text-right mr-1">
-                            {ask.size}
-                          </span>
-                          <div
-                            className="h-1.5 bg-red-500/30"
-                            style={{ width: `${Math.min((Number(ask.size) / 1500) * 100, 100)}%` }}
-                          ></div>
-                        </div>
-                      )) || (
-                      <div className="text-[#64748b] text-center py-1">
-                        Awaiting L2 data...
-                      </div>
-                    )}
-                    <div className="h-px bg-[#1e293b] my-0.5"></div>
-                    {quotes.bids?.slice(0, 3).map((bid, i) => (
-                      <div
-                        key={"bid" + i}
-                        className="flex items-center text-[7px]"
-                      >
-                        <span className="w-10 text-green-400">{Number(bid.price).toFixed(2)}</span>
-                        <span className="w-8 text-right mr-1">{bid.size}</span>
-                        <div
-                          className="h-1.5 bg-green-500/30"
-                          style={{ width: `${Math.min((Number(bid.size) / 1500) * 100, 100)}%` }}
-                        ></div>
-                      </div>
-                    )) || (
-                      <div className="text-[#64748b] text-center py-1">
-                        Awaiting L2 data...
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Execution Controls */}
-              <div className="pt-2">
-                <div className="grid grid-cols-2 gap-1.5 mb-1.5">
-                  <button
-                    onClick={() => handleExecute("BUY")}
-                    className="bg-green-600 hover:bg-green-500 text-white font-bold py-1.5 rounded shadow-[0_0_8px_rgba(16,185,129,0.4)]"
-                  >
-                    EXECUTE LONG
-                  </button>
-                  <button
-                    onClick={() => handleExecute("SELL")}
-                    className="bg-red-600 hover:bg-red-500 text-white font-bold py-1.5 rounded shadow-[0_0_8px_rgba(239,68,68,0.4)]"
-                  >
-                    EXECUTE SHORT
-                  </button>
-                </div>
-                <div className="grid grid-cols-3 gap-1.5 mb-1.5">
-                  <button className="bg-[#1e293b] hover:bg-cyan-900 text-[#00D9FF] py-1 rounded">
-                    Limit Order
-                  </button>
-                  <button className="bg-[#1e293b] hover:bg-cyan-900 text-[#00D9FF] py-1 rounded">
-                    Stop Limit
-                  </button>
-                  <button className="bg-[#1e293b] hover:bg-amber-900 text-[#f59e0b] py-1 rounded">
-                    Modify Setup
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <button className="bg-blue-900/50 hover:bg-blue-800 text-blue-300 py-1 rounded border border-blue-800">
-                    Paper Trade
-                  </button>
-                  <button className="bg-[#1e293b] hover:bg-[#374151] text-[#94a3b8] py-1 rounded">
-                    Cancel / Reject
-                  </button>
-                </div>
-              </div>
-            </>
+            </div>
           )}
+
+          {/* Risk & Order Proposal */}
+          {selectedSignal && (
+            <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5 space-y-2">
+              <h3 className="text-[8px] text-[#00D9FF] font-bold uppercase tracking-wider">Risk & Order Proposal</h3>
+              <div className="font-mono text-[8px]">
+                <div className="grid grid-cols-2 gap-1 mb-1.5 pb-1.5 border-b border-[rgba(42,52,68,0.3)]">
+                  <span className="text-[#94a3b8]">Action: <span className="text-white">Limit Buy {risk.limitPrice || "\u2014"}</span></span>
+                  <span className="text-[#94a3b8]">Size: <span className="text-white">{risk.shares || "\u2014"} shs (${risk.notional || "\u2014"})</span></span>
+                  <span className="text-[#94a3b8]">Stop Loss: <span className="text-red-400">{risk.stopLoss || "\u2014"}</span></span>
+                  <span className="text-[#94a3b8]">Target 1: <span className="text-green-400">{risk.target1 || "\u2014"}</span></span>
+                  <span className="text-[#94a3b8]">R:R Ratio: <span className="text-[#00D9FF]">{risk.rr || "\u2014"}</span></span>
+                  <span className="text-[#94a3b8]">Kelly: <span className="text-white">{selectedSignal.kellyPercent ?? 0}%</span></span>
+                </div>
+                {/* L2 Order Book */}
+                <div className="text-[#64748b] mb-1">L2 BOOK (Spread: ${quotes.spread != null ? Number(quotes.spread).toFixed(2) : "\u2014"})</div>
+                <div className="flex flex-col gap-[1px]">
+                  {quotes.asks?.slice(0, 3).reverse().map((ask, i) => (
+                    <div key={"ask" + i} className="flex items-center text-[7px]">
+                      <span className="w-10 text-red-400">{Number(ask.price).toFixed(2)}</span>
+                      <span className="w-8 text-right mr-1">{ask.size}</span>
+                      <div className="h-1.5 bg-red-500/30 rounded-sm" style={{ width: `${Math.min((Number(ask.size) / 1500) * 100, 100)}%` }} />
+                    </div>
+                  )) || <div className="text-[#64748b] text-center py-1">Awaiting L2 data...</div>}
+                  <div className="h-px bg-[#1e293b] my-0.5" />
+                  {quotes.bids?.slice(0, 3).map((bid, i) => (
+                    <div key={"bid" + i} className="flex items-center text-[7px]">
+                      <span className="w-10 text-green-400">{Number(bid.price).toFixed(2)}</span>
+                      <span className="w-8 text-right mr-1">{bid.size}</span>
+                      <div className="h-1.5 bg-green-500/30 rounded-sm" style={{ width: `${Math.min((Number(bid.size) / 1500) * 100, 100)}%` }} />
+                    </div>
+                  )) || <div className="text-[#64748b] text-center py-1">Awaiting L2 data...</div>}
+                </div>
+              </div>
+
+              {/* Execution Buttons */}
+              <div className="grid grid-cols-2 gap-1.5">
+                <button onClick={() => handleExecute("BUY")} className="bg-green-600 hover:bg-green-500 text-white font-bold py-1.5 rounded text-[9px] shadow-[0_0_8px_rgba(16,185,129,0.4)]">
+                  EXECUTE LONG
+                </button>
+                <button onClick={() => handleExecute("SELL")} className="bg-red-600 hover:bg-red-500 text-white font-bold py-1.5 rounded text-[9px] shadow-[0_0_8px_rgba(239,68,68,0.4)]">
+                  EXECUTE SHORT
+                </button>
+              </div>
+              <div className="grid grid-cols-3 gap-1">
+                <button className="bg-[#1e293b] hover:bg-cyan-900 text-[#00D9FF] py-1 rounded text-[8px]">Limit</button>
+                <button className="bg-[#1e293b] hover:bg-cyan-900 text-[#00D9FF] py-1 rounded text-[8px]">Stop Limit</button>
+                <button className="bg-[#1e293b] hover:bg-amber-900 text-[#f59e0b] py-1 rounded text-[8px]">Modify</button>
+              </div>
+            </div>
+          )}
+
+          {/* Equity Curve + Flywheel (bottom of right panel) */}
+          <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5">
+            <h3 className="text-[8px] text-[#00D9FF] font-bold uppercase tracking-wider mb-1">Equity Curve</h3>
+            <MiniEquityCurve points={performance.equityCurve} />
+          </div>
+
+          <div className="p-2.5">
+            <h3 className="text-[8px] text-[#00D9FF] font-bold uppercase tracking-wider mb-2">ML Flywheel</h3>
+            <FlywheelPipeline flywheel={flywheel} />
+          </div>
         </section>
       </main>
 
       {/* BOTTOM ACTION BAR */}
-      <footer className="flex items-center justify-between px-3 py-1.5 bg-[#0B0E14] border-t border-[rgba(42,52,68,0.5)] shrink-0 font-mono text-[8px] text-[#94a3b8]">
+      <footer className="flex items-center justify-between px-3 py-1 bg-[#0B0E14] border-t border-[rgba(42,52,68,0.5)] shrink-0 font-mono text-[8px] text-[#94a3b8]">
         <div className="flex gap-2">
-          <button
-            onClick={handleRunScan}
-            className="bg-[#1e293b] hover:bg-[#1e293b]/80 text-white px-2 py-0.5 rounded"
-          >
-            Run Scan [F5]
+          <button onClick={handleSpawnAgent} className="bg-[#1e293b] hover:bg-[#374151] text-white px-2 py-0.5 rounded border border-[#374151]">
+            Spawn Agent [N]
           </button>
-          <button onClick={handleSpawnAgent} className="bg-[#1e293b] hover:bg-[#1e293b]/80 text-white px-2 py-0.5 rounded">
-            Spawn [N]
+          <button onClick={handleFlatten} className="bg-amber-900/60 text-[#f59e0b] px-2 py-0.5 rounded border border-amber-700/50">
+            Flatten All
           </button>
-          <button onClick={handleExportCSV} className="bg-[#1e293b] hover:bg-[#1e293b]/80 text-white px-2 py-0.5 rounded">
-            Export [F7]
-          </button>
-          <button
-            onClick={handleExecTop5}
-            className="bg-cyan-900 text-[#00D9FF] px-2 py-0.5 rounded"
-          >
-            Exec Top 5
-          </button>
-          <button
-            onClick={handleFlatten}
-            className="bg-amber-900 text-[#f59e0b] px-2 py-0.5 rounded"
-          >
-            Flatten
-          </button>
-          <button
-            onClick={handleEmergencyStop}
-            className="bg-red-900 text-red-400 px-2 py-0.5 rounded font-bold"
-          >
+          <button onClick={handleEmergencyStop} className="bg-red-900/70 text-red-400 px-2 py-0.5 rounded font-bold border border-red-700/50">
             EMERGENCY STOP
           </button>
         </div>
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1">
-            <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div> WS
+            <div className="w-1.5 h-1.5 rounded-full bg-green-500" /> WS
           </span>
           <span className="flex items-center gap-1">
-            <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div> API
+            <div className="w-1.5 h-1.5 rounded-full bg-green-500" /> API
           </span>
           <span>{agents.total || swarm.total || "\u2014"} Agents</span>
           <span>CPU {performance.cpu || "\u2014"}%</span>
@@ -2241,6 +1827,12 @@ export default function Dashboard() {
           <span>Uptime {performance.uptime || "\u2014"}</span>
         </div>
       </footer>
+
+      {/* Hidden components that provide data hooks */}
+      <div className="hidden">
+        <CNSVitals />
+        <ProfitBrainBar />
+      </div>
 
       {/* Global CSS */}
       <style
