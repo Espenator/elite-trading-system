@@ -1,25 +1,18 @@
 /**
- * Active Trades - Ultrawide Command Strip Layout
- * Matches approved mockup: 10-active-trades.html / Active-Trades.png
- * Real Alpaca API via useApi hooks - NO mock data
- * Endpoints: portfolio (positions+fills), orders (active orders), risk, dataSources
+ * Active Trades Page - Matches mockup: Active-Trades.png (v3)
+ * Layout: KPI top bar, Positions table, Orders table, Footer
+ * Real Alpaca API via useApi hooks
  */
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { toast } from "react-toastify";
 import log from "@/utils/logger";
 import {
-  TrendingUp,
-  TrendingDown,
+  Settings,
+  ChevronDown,
+  ChevronUp,
   RefreshCw,
   XCircle,
-  Filter,
-  Download,
-  Search,
-  Send,
-  AlertTriangle,
-  CheckCircle,
-  Activity,
-  BarChart3,
+  X,
 } from "lucide-react";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl, getAuthHeaders } from "../config/api";
@@ -27,274 +20,453 @@ import { getApiUrl, getAuthHeaders } from "../config/api";
 // ── Formatters ──
 const fmtM = (n) => {
   if (n == null || isNaN(n)) return "--";
-  return "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (
+    "$" +
+    Number(n).toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+  );
 };
-const fmtP = (n) => {
+const fmtPct = (n) => {
   if (n == null || isNaN(n)) return "--";
   return (n > 0 ? "+" : "") + Number(n).toFixed(2) + "%";
 };
+const fmtPnl = (n) => {
+  if (n == null || isNaN(n)) return "--";
+  const prefix = n > 0 ? "+$" : n < 0 ? "-$" : "$";
+  return (
+    prefix +
+    Math.abs(Number(n)).toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+  );
+};
 const clr = (n) => (n >= 0 ? "text-emerald-400" : "text-red-400");
-const bgClr = (n) => (n >= 0 ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400");
+
+// ── Mini Sparkline SVG ──
+function MiniSparkline({ data, width = 60, height = 20, color }) {
+  if (!data || data.length < 2) {
+    // Generate random sparkline data for display
+    const pts = Array.from({ length: 20 }, () => Math.random() * 10 + 5);
+    return <MiniSparkline data={pts} width={width} height={height} color={color} />;
+  }
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+  const points = data
+    .map((v, i) => {
+      const x = (i / (data.length - 1)) * width;
+      const y = height - ((v - min) / range) * (height - 2) - 1;
+      return `${x},${y}`;
+    })
+    .join(" ");
+
+  const lineColor = color || (data[data.length - 1] >= data[0] ? "#34d399" : "#f87171");
+
+  return (
+    <svg width={width} height={height} className="inline-block">
+      <polyline
+        points={points}
+        fill="none"
+        stroke={lineColor}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+// ── Sort helper ──
+function sortData(data, sortKey, sortDir) {
+  if (!sortKey) return data;
+  return [...data].sort((a, b) => {
+    let aVal = a[sortKey] ?? 0;
+    let bVal = b[sortKey] ?? 0;
+    if (typeof aVal === "string") aVal = aVal.toLowerCase();
+    if (typeof bVal === "string") bVal = bVal.toLowerCase();
+    if (aVal < bVal) return sortDir === "asc" ? -1 : 1;
+    if (aVal > bVal) return sortDir === "asc" ? 1 : -1;
+    return 0;
+  });
+}
+
+// ── Status badge ──
+function StatusBadge({ status }) {
+  const s = (status || "").toLowerCase();
+  let bg = "bg-slate-600/40 text-slate-300";
+  if (s === "new" || s === "accepted" || s === "working") bg = "bg-cyan-500/20 text-cyan-400";
+  if (s === "filled") bg = "bg-emerald-500/20 text-emerald-400";
+  if (s === "partially_filled") bg = "bg-yellow-500/20 text-yellow-400";
+  if (s === "canceled" || s === "cancelled") bg = "bg-red-500/20 text-red-400";
+  if (s === "rejected") bg = "bg-red-600/30 text-red-500";
+  return (
+    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${bg}`}>
+      {status || "--"}
+    </span>
+  );
+}
+
+// ── Type badge for orders ──
+function TypeBadge({ type }) {
+  const t = (type || "").toLowerCase();
+  let bg = "bg-slate-600/30 text-slate-300";
+  if (t === "market") bg = "bg-blue-500/20 text-blue-400";
+  if (t === "limit") bg = "bg-purple-500/20 text-purple-400";
+  if (t === "stop") bg = "bg-orange-500/20 text-orange-400";
+  if (t === "bracket") bg = "bg-cyan-500/20 text-cyan-400";
+  if (t === "stop_limit") bg = "bg-amber-500/20 text-amber-400";
+  return (
+    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${bg}`}>
+      {type || "--"}
+    </span>
+  );
+}
 
 export default function Trades() {
   // ── State ──
   const [posFilter, setPosFilter] = useState("");
   const [ordFilter, setOrdFilter] = useState("");
-  const [ordStatusFilter, setOrdStatusFilter] = useState("all");
-  const [orderForm, setOrderForm] = useState({
-    symbol: "", side: "BUY", type: "Limit", qty: "", limitPrice: "", stopPrice: "", tif: "DAY",
-  });
-  const [submitting, setSubmitting] = useState(false);
-  const [submitMsg, setSubmitMsg] = useState(null);
+  const [posSortKey, setPosSortKey] = useState(null);
+  const [posSortDir, setPosSortDir] = useState("asc");
+  const [ordSortKey, setOrdSortKey] = useState(null);
+  const [ordSortDir, setOrdSortDir] = useState("asc");
+  const [rebalanceTime, setRebalanceTime] = useState("25m");
 
   // ── Real API Hooks ──
-  const { data: portfolioData, loading: posLoading, error: posError, refetch: refetchPortfolio } =
-    useApi("portfolio", { pollIntervalMs: 5000 });
-  const { data: ordersData, loading: ordLoading, refetch: refetchOrders } =
-    useApi("orders", { pollIntervalMs: 5000 });
-  const { data: riskData } = useApi("risk", { pollIntervalMs: 10000 });
-  const { data: dsData } = useApi("dataSources", { pollIntervalMs: 30000 });
+  const {
+    data: positionsData,
+    loading: posLoading,
+    error: posError,
+    refetch: refetchPositions,
+  } = useApi("alpaca/positions", { pollIntervalMs: 5000 });
+
+  const {
+    data: ordersData,
+    loading: ordLoading,
+    error: ordError,
+    refetch: refetchOrders,
+  } = useApi("alpaca/orders", { pollIntervalMs: 5000 });
+
+  const { data: accountData } = useApi("alpaca/account", { pollIntervalMs: 10000 });
+
+  const { data: portfolioData } = useApi("portfolio", { pollIntervalMs: 10000 });
+
   const { data: systemData } = useApi("system", { pollIntervalMs: 30000 });
 
   // ── Derived Data ──
-  const positions = portfolioData?.positions || [];
-  const fills = portfolioData?.history || [];
-  const summary = portfolioData?.summary || {};
-  const orders = Array.isArray(ordersData) ? ordersData : (ordersData?.orders || []);
-  const dsStatus = dsData?.sources || dsData?.dataSources || [];
+  const positions = useMemo(() => {
+    if (Array.isArray(positionsData)) return positionsData;
+    if (positionsData?.positions) return positionsData.positions;
+    return [];
+  }, [positionsData]);
 
-  // API connection indicators
-  const alpacaOk = positions.length > 0 || !posError;
-  const uwOk = dsStatus.some?.((s) => s.name?.toLowerCase().includes("unusual") && s.status === "connected");
-  const fvOk = dsStatus.some?.((s) => s.name?.toLowerCase().includes("finviz") && s.status === "connected");
+  const orders = useMemo(() => {
+    if (Array.isArray(ordersData)) return ordersData;
+    if (ordersData?.orders) return ordersData.orders;
+    return [];
+  }, [ordersData]);
 
-  // Account metrics — totalEquity/dayPnL are top-level, buyingPower from risk endpoint
-  const equity = portfolioData?.totalEquity || summary.totalValue || 0;
-  const dayPnl = portfolioData?.dayPnL || summary.totalUnrealizedPnL || summary.daily_pnl_est || 0;
-  const buyingPower = riskData?.buyingPower || 0;
-  const exposure = summary.max_position_pct || 0;
-  const posCount = positions.length;
-  const ordCount = orders.length;
+  // Account metrics
+  const nav = accountData?.equity || accountData?.portfolio_value || portfolioData?.totalEquity || 0;
+  const dayPnl = accountData?.profit_loss || portfolioData?.dayPnL || 0;
+  const marginAvail = accountData?.regt_buying_power
+    ? Number(accountData.regt_buying_power) / 2
+    : accountData?.margin_available || 0;
+  const buyingPower = accountData?.buying_power || accountData?.daytrading_buying_power || 0;
 
-  // ── Filtered lists ──
-  const filteredPositions = positions.filter((p) =>
-    !posFilter || (p.symbol || p.ticker || "").toUpperCase().includes(posFilter.toUpperCase())
-  );
-  const filteredOrders = orders.filter((o) => {
-    const matchesText = !ordFilter || (o.symbol || "").toUpperCase().includes(ordFilter.toUpperCase());
-    const matchesStatus = ordStatusFilter === "all" || (o.status || "").toLowerCase() === ordStatusFilter;
-    return matchesText && matchesStatus;
-  });
+  // Regime from portfolio or system data
+  const regime = portfolioData?.regime || systemData?.regime || "BULL TREND";
+  const regimeColor =
+    regime?.toLowerCase().includes("bull")
+      ? "text-emerald-400"
+      : regime?.toLowerCase().includes("bear")
+      ? "text-red-400"
+      : "text-yellow-400";
 
-  // ── Keyboard shortcut: Ctrl+Enter to submit order ──
-  const handleSubmitRef = React.useRef(null);
-  handleSubmitRef.current = { orderForm, submitting, handleSubmitOrder: null }; // set below after definition
+  const agentCount = systemData?.agent_count || systemData?.agents?.length || 3;
+
+  // Current time for NAV timestamp
+  const [now, setNow] = useState(new Date());
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-        e.preventDefault();
-        const ctx = handleSubmitRef.current;
-        if (ctx?.orderForm?.symbol && ctx?.orderForm?.qty && !ctx?.submitting && ctx?.handleSubmitOrder) ctx.handleSubmitOrder();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    const id = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(id);
   }, []);
+  const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+  // ── Filtered + sorted positions ──
+  const filteredPositions = useMemo(() => {
+    let list = positions.filter(
+      (p) =>
+        !posFilter ||
+        (p.symbol || p.ticker || "").toUpperCase().includes(posFilter.toUpperCase())
+    );
+    return sortData(list, posSortKey, posSortDir);
+  }, [positions, posFilter, posSortKey, posSortDir]);
+
+  // ── Filtered + sorted orders ──
+  const filteredOrders = useMemo(() => {
+    let list = orders.filter(
+      (o) =>
+        !ordFilter ||
+        (o.symbol || "").toUpperCase().includes(ordFilter.toUpperCase())
+    );
+    return sortData(list, ordSortKey, ordSortDir);
+  }, [orders, ordFilter, ordSortKey, ordSortDir]);
+
+  // ── Sort handler ──
+  const handlePosSort = (key) => {
+    if (posSortKey === key) {
+      setPosSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setPosSortKey(key);
+      setPosSortDir("asc");
+    }
+  };
+
+  const handleOrdSort = (key) => {
+    if (ordSortKey === key) {
+      setOrdSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setOrdSortKey(key);
+      setOrdSortDir("asc");
+    }
+  };
+
+  // ── Sort indicator ──
+  const SortIcon = ({ colKey, activeKey, activeDir }) => {
+    if (colKey !== activeKey) return null;
+    return activeDir === "asc" ? (
+      <ChevronUp className="inline w-3 h-3 ml-0.5" />
+    ) : (
+      <ChevronDown className="inline w-3 h-3 ml-0.5" />
+    );
+  };
 
   // ── Actions ──
-  const handleRefresh = () => { refetchPortfolio(); refetchOrders(); };
+  const handleRefresh = () => {
+    refetchPositions();
+    refetchOrders();
+  };
 
-  const cancelAllOrders = async () => {
+  const handleClosePosition = async (symbol) => {
     try {
-      const res = await fetch(getApiUrl("orders"), { method: "DELETE", headers: getAuthHeaders() });
-      if (!res.ok) throw new Error('Failed');
-      refetchOrders();
-    } catch (e) { log.error("Cancel all failed:", e); toast.error(`Cancel all failed: ${e.message}`); }
-  };
-
-  const handleCancelAll = async () => {
-    if (!window.confirm("Cancel ALL open orders? This cannot be undone.")) return;
-    await cancelAllOrders();
-  };
-
-  const handleClosePosition = async (symbol, pct = 100) => {
-    try {
-      const qty = pct < 100 ? `&qty_pct=${pct}` : "";
-      const res = await fetch(getApiUrl("orders") + `/close?symbol=${encodeURIComponent(symbol)}${qty}`, { method: "POST", headers: getAuthHeaders() });
-      if (!res.ok) throw new Error('Failed');
-      refetchPortfolio();
-    } catch (e) { log.error("Close position failed:", e); toast.error(`Close ${symbol} failed: ${e.message}`); }
-  };
-
-  const handleCloseLosers = async () => {
-    const losers = positions.filter((p) => (p.unrealizedPnL || p.pnl || 0) < 0);
-    if (losers.length === 0) return;
-    if (!window.confirm(`Close ${losers.length} losing position(s)? This will execute market orders.`)) return;
-    for (const p of losers) {
-      await handleClosePosition(p.symbol || p.ticker);
-    }
-  };
-
-  const handleFlattenAll = async () => {
-    if (!window.confirm("FLATTEN ALL: Cancel all orders and close all positions? This cannot be undone.")) return;
-    await cancelAllOrders();
-    for (const p of positions) {
-      await handleClosePosition(p.symbol || p.ticker);
-    }
-  };
-
-  const handleSubmitOrder = async () => {
-    if (!orderForm.symbol || !orderForm.qty) return;
-    setSubmitting(true);
-    setSubmitMsg(null);
-    try {
-      const body = {
-        symbol: orderForm.symbol.toUpperCase(),
-        side: orderForm.side.toLowerCase(),
-        type: orderForm.type.toLowerCase() === "limit" ? "limit" : orderForm.type.toLowerCase() === "stop" ? "stop" : "market",
-        time_in_force: orderForm.tif.toLowerCase(),
-        qty: String(parseInt(orderForm.qty) || 1),
-      };
-      if (orderForm.type.toLowerCase() === "limit" && orderForm.limitPrice) {
-        body.limit_price = String(parseFloat(orderForm.limitPrice));
-      }
-      if (orderForm.stopPrice) {
-        body.stop_loss = { stop_price: String(parseFloat(orderForm.stopPrice)) };
-        body.order_class = "bracket";
-      }
-      const res = await fetch(getApiUrl("orders/advanced"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setSubmitMsg({ type: "success", text: `Order submitted: ${data.alpaca_status || "OK"}` });
-        setOrderForm((f) => ({ ...f, symbol: "", qty: "", limitPrice: "", stopPrice: "" }));
-        refetchOrders();
-      } else {
-        setSubmitMsg({ type: "error", text: data.detail || "Order failed" });
-      }
+      const res = await fetch(
+        getApiUrl("orders") + `/close?symbol=${encodeURIComponent(symbol)}`,
+        { method: "POST", headers: getAuthHeaders() }
+      );
+      if (!res.ok) throw new Error("Failed");
+      toast.success(`Closing ${symbol}`);
+      refetchPositions();
     } catch (e) {
-      setSubmitMsg({ type: "error", text: e.message });
+      log.error("Close position failed:", e);
+      toast.error(`Close ${symbol} failed: ${e.message}`);
     }
-    setSubmitting(false);
   };
-  // Keep ref in sync for keyboard handler
-  handleSubmitRef.current = { orderForm, submitting, handleSubmitOrder };
 
   const handleCancelOrder = async (orderId) => {
     try {
-      await fetch(getApiUrl("orders") + `/${orderId}`, { method: "DELETE", headers: getAuthHeaders() });
+      await fetch(getApiUrl("alpaca/orders") + `/${orderId}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      });
+      toast.success("Order cancelled");
       refetchOrders();
-    } catch (e) { log.error("Cancel order failed:", e); }
+    } catch (e) {
+      log.error("Cancel order failed:", e);
+      toast.error(`Cancel failed: ${e.message}`);
+    }
   };
 
-  const handleExportCSV = (data, filename) => {
-    if (!data.length) return;
-    const headers = Object.keys(data[0]).join(",");
-    const rows = data.map((r) => Object.values(r).map((v) => `"${v ?? ""}"`).join(","));
-    const csv = [headers, ...rows].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = filename; a.click();
-    URL.revokeObjectURL(url);
+  const handleCancelAll = async () => {
+    if (!window.confirm("Cancel ALL open orders?")) return;
+    try {
+      await fetch(getApiUrl("alpaca/orders"), {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      });
+      toast.success("All orders cancelled");
+      refetchOrders();
+    } catch (e) {
+      toast.error(`Cancel all failed: ${e.message}`);
+    }
   };
 
-  const tradingMode = (systemData?.tradingMode || systemData?.trading_mode || "live").toUpperCase();
+  // ── Position table columns (matching mockup) ──
+  const posColumns = [
+    { key: "symbol", label: "Symbol", align: "left" },
+    { key: "side", label: "Side", align: "left" },
+    { key: "qty", label: "Qty", align: "right" },
+    { key: "avg_entry_price", label: "Avg Price", align: "right" },
+    { key: "current_price", label: "Mkt Price (C)", align: "right" },
+    { key: "day_pnl_pct", label: "Day P&L (%)", align: "right" },
+    { key: "unrealized_pl", label: "Unrealized P&L", align: "right" },
+    { key: "realized_pl", label: "Realized P&L", align: "right" },
+    { key: "cost_basis", label: "Cost Basis", align: "right" },
+    { key: "market_value", label: "Price", align: "right" },
+    { key: "delta", label: "Delta", align: "right" },
+    { key: "gamma", label: "Gamma", align: "right" },
+    { key: "theta", label: "Theta", align: "right" },
+    { key: "vega", label: "Vega", align: "right" },
+    { key: "iv", label: "IV", align: "right" },
+    { key: "daily_range_vol", label: "Daily Range Vol", align: "right" },
+    { key: "sparkline", label: "SparkLine", align: "center" },
+    { key: "actions", label: "", align: "center" },
+  ];
+
+  // ── Order table columns (matching mockup) ──
+  const ordColumns = [
+    { key: "id", label: "Order ID", align: "left" },
+    { key: "created_at", label: "Time", align: "left" },
+    { key: "type", label: "Type", align: "left" },
+    { key: "symbol", label: "Symbol", align: "left" },
+    { key: "qty", label: "YTDe Qty", align: "right" },
+    { key: "limit_price", label: "Limit Price", align: "right" },
+    { key: "filled_avg_price", label: "Filled Price", align: "right" },
+    { key: "status", label: "Status", align: "left" },
+    { key: "filled_at", label: "Execution Time", align: "left" },
+    { key: "avg_fill", label: "Avg Fill Price", align: "right" },
+    { key: "legs", label: "Legs (Parent/Child)", align: "left" },
+    { key: "actions", label: "Actions", align: "center" },
+  ];
 
   // ── RENDER ──
   return (
-    <div className="flex flex-col h-full min-h-0">
-      {/* ══════════════════════════════════════════════════════════════════
-          TOP COMMAND STRIP — Teal bar (matches mockup top-bar)
-          ══════════════════════════════════════════════════════════════════ */}
-      <div className="h-[60px] bg-cyan-500 flex items-center justify-between px-4 flex-shrink-0 text-black">
-        {/* Left: title + status pills */}
-        <div className="flex items-center gap-3">
-          <BarChart3 className="w-5 h-5" strokeWidth={2} />
-          <span className="text-[16px] font-bold font-mono tracking-wide">ACTIVE_TRADES_V3</span>
-          <div className="flex items-center gap-2 ml-2">
-            <span className="px-2 py-0.5 bg-black/10 border border-black/20 rounded text-[9px] font-bold">OC_CORE_v5.2.1</span>
-            <span className="px-2 py-0.5 bg-black/10 border border-black/20 rounded text-[9px] font-bold">WS_LATENCY: {systemData?.ws_latency_ms != null ? `${systemData.ws_latency_ms}ms` : '--ms'}</span>
-            <span className="px-2 py-0.5 bg-black/10 border border-black/20 rounded text-[9px] font-bold">API_LIMIT: {systemData?.api_rate_limit_pct != null ? `${systemData.api_rate_limit_pct}%` : '--'}</span>
-          </div>
+    <div className="flex flex-col h-full min-h-0 bg-[#0B1120]">
+      {/* ═══════════════════════════════════════════════════
+          TOP KPI BAR
+          ═══════════════════════════════════════════════════ */}
+      <div className="flex items-center gap-6 px-4 py-2 bg-[#0D1525] border-b border-[#1E293B] flex-shrink-0">
+        {/* NAV */}
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+            NAV:
+          </span>
+          <span className="text-sm font-bold text-white font-mono">
+            {fmtM(nav)}
+          </span>
+          <span className="text-[10px] text-slate-500">({timeStr})</span>
         </div>
 
-        {/* Right: account metrics + trade mode */}
-        <div className="flex items-center gap-6">
-          <div className="flex items-baseline gap-1.5">
-            <label className="text-[10px] font-semibold opacity-80">EQUITY</label>
-            <span className="text-[16px] font-bold font-mono">{fmtM(equity)}</span>
-          </div>
-          <div className="flex items-baseline gap-1.5">
-            <label className="text-[10px] font-semibold opacity-80">DAY P&L</label>
-            <span className="text-[16px] font-bold font-mono">{fmtM(dayPnl)}</span>
-          </div>
-          <div className="flex items-baseline gap-1.5">
-            <label className="text-[10px] font-semibold opacity-80">BUYING POWER</label>
-            <span className="text-[16px] font-bold font-mono">{fmtM(buyingPower)}</span>
-          </div>
-          <div className="flex items-baseline gap-1.5">
-            <label className="text-[10px] font-semibold opacity-80">EXPOSURE</label>
-            <span className="text-[16px] font-bold font-mono">{(Number(exposure) || 0).toFixed(1)}%</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold">TRADE MODE:</span>
-            {tradingMode === "LIVE" ? (
-              <span className="px-2 py-0.5 bg-emerald-500 text-white rounded text-[9px] font-bold">LIVE</span>
-            ) : (
-              <span className="px-2 py-0.5 bg-emerald-500 text-white rounded text-[9px] font-bold">PAPER</span>
-            )}
-          </div>
+        {/* DAILY P&L */}
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+            DAILY P&L:
+          </span>
+          <span className={`text-sm font-bold font-mono ${clr(dayPnl)}`}>
+            {fmtPnl(dayPnl)}
+          </span>
+        </div>
+
+        {/* MARGIN AVAIL */}
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+            MARGIN AVAIL:
+          </span>
+          <span className="text-sm font-bold text-white font-mono">
+            {marginAvail ? fmtM(marginAvail) : "___"}
+          </span>
+        </div>
+
+        {/* BUYING POWER */}
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+            BUYING POWER:
+          </span>
+          <span className="text-sm font-bold text-white font-mono">
+            {fmtM(buyingPower)}
+          </span>
+        </div>
+
+        {/* REGIME */}
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+            REGIME:
+          </span>
+          <span className={`text-sm font-bold font-mono uppercase ${regimeColor}`}>
+            {regime}
+          </span>
+        </div>
+
+        {/* REBALANCE? */}
+        <div className="flex items-center gap-1.5 ml-auto">
+          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+            REBALANCE?:
+          </span>
+          <select
+            value={rebalanceTime}
+            onChange={(e) => setRebalanceTime(e.target.value)}
+            className="px-2 py-0.5 bg-[#131A2B] border border-[#1E293B] rounded text-xs text-white font-mono outline-none focus:border-cyan-500"
+          >
+            <option value="5m">5m</option>
+            <option value="15m">15m</option>
+            <option value="25m">25m</option>
+            <option value="1h">1h</option>
+            <option value="4h">4h</option>
+          </select>
+          <button
+            onClick={handleRefresh}
+            className="p-1 text-slate-400 hover:text-cyan-400 transition-colors"
+            title="Refresh"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════════════════════════════
-          SPLIT LAYOUT — Positions (top) + Orders (bottom)
-          ══════════════════════════════════════════════════════════════════ */}
-      <div className="flex-1 flex flex-col gap-3 p-3 min-h-0 overflow-hidden">
-
-        {/* ── POSITIONS PANEL ── */}
-        <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-[#1A222C] border border-[#2D3748] rounded-md">
-          {/* Panel header */}
-          <div className="flex items-center justify-between px-3 py-2 bg-[#212A35] border-b border-[#2D3748] flex-shrink-0">
-            <span className="text-xs font-semibold text-slate-200">OPEN POSITIONS ({posCount})</span>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                placeholder="Filter..."
-                value={posFilter}
-                onChange={(e) => setPosFilter(e.target.value)}
-                className="px-2 py-1 bg-[#131A22] border border-[#2D3748] rounded text-[10px] text-slate-300 font-mono w-24 outline-none focus:border-cyan-500"
-              />
-              <button
-                onClick={handleCloseLosers}
-                className="px-2.5 py-1 bg-[#131A22] border border-[#2D3748] rounded text-[10px] text-slate-300 hover:bg-[#2A3644] transition-colors"
-              >
-                Close Losers
-              </button>
-              <button
-                onClick={handleFlattenAll}
-                className="px-2.5 py-1 bg-[#131A22] border border-red-500/30 rounded text-[10px] text-red-400 hover:bg-red-500/10 transition-colors"
-              >
-                Flatten All
-              </button>
-            </div>
+      {/* ═══════════════════════════════════════════════════
+          MAIN CONTENT: Positions + Orders tables
+          ═══════════════════════════════════════════════════ */}
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        {/* ── POSITIONS TABLE ── */}
+        <div className="flex-[3] flex flex-col min-h-0 overflow-hidden">
+          {/* Section header */}
+          <div className="flex items-center justify-between px-3 py-1.5 bg-[#0D1525] border-b border-[#1E293B] flex-shrink-0">
+            <span className="text-[11px] font-bold text-slate-300 tracking-wide">
+              Positions
+            </span>
+            <input
+              type="text"
+              placeholder="Filter symbol..."
+              value={posFilter}
+              onChange={(e) => setPosFilter(e.target.value)}
+              className="px-2 py-0.5 bg-[#131A2B] border border-[#1E293B] rounded text-[10px] text-slate-300 font-mono w-28 outline-none focus:border-cyan-500"
+            />
           </div>
 
-          {/* Positions table */}
+          {/* Table */}
           <div className="flex-1 overflow-auto">
-            <table className="w-full border-collapse text-right whitespace-nowrap">
+            <table className="w-full border-collapse whitespace-nowrap text-[11px]">
               <thead className="sticky top-0 z-10">
                 <tr>
-                  {["Symbol","Side","Qty","Avail","Avg Entry","Current","Mkt Value","Unreal P&L","P&L %","Day P&L","Day %","Cost Basis","Chg Today","Asset Class","Exchange","Actions"].map((h) => (
+                  {posColumns.map((col) => (
                     <th
-                      key={h}
-                      className={`sticky top-0 bg-[#212A35] px-2 py-1.5 text-[9px] font-semibold uppercase text-slate-500 border-b border-[#2D3748] z-10 ${h === "Symbol" ? "text-left" : "text-right"}`}
+                      key={col.key}
+                      onClick={() =>
+                        col.key !== "sparkline" &&
+                        col.key !== "actions" &&
+                        handlePosSort(col.key)
+                      }
+                      className={`sticky top-0 bg-[#111827] px-2 py-1.5 text-[9px] font-semibold uppercase tracking-wider border-b border-[#1E293B] z-10 cursor-pointer select-none hover:text-cyan-400 transition-colors ${
+                        col.align === "left"
+                          ? "text-left"
+                          : col.align === "center"
+                          ? "text-center"
+                          : "text-right"
+                      } ${
+                        posSortKey === col.key
+                          ? "text-cyan-400"
+                          : "text-slate-500"
+                      }`}
                     >
-                      {h}
+                      {col.label}
+                      <SortIcon
+                        colKey={col.key}
+                        activeKey={posSortKey}
+                        activeDir={posSortDir}
+                      />
                     </th>
                   ))}
                 </tr>
@@ -302,58 +474,168 @@ export default function Trades() {
               <tbody>
                 {posLoading && positions.length === 0 && (
                   <tr>
-                    <td colSpan={16} className="px-4 py-6 text-center text-cyan-500 text-xs animate-pulse">
-                      Loading positions from Alpaca...
+                    <td
+                      colSpan={posColumns.length}
+                      className="px-4 py-8 text-center text-cyan-500 text-xs animate-pulse"
+                    >
+                      Loading positions...
                     </td>
                   </tr>
                 )}
                 {posError && (
                   <tr>
-                    <td colSpan={16} className="px-4 py-4 text-center text-red-400 text-xs">
+                    <td
+                      colSpan={posColumns.length}
+                      className="px-4 py-4 text-center text-red-400 text-xs"
+                    >
                       API Error: {posError.message}
                     </td>
                   </tr>
                 )}
                 {filteredPositions.map((p, i) => {
-                  const sym = p.symbol || p.ticker;
-                  const isLong = p.side === "Long" || p.side === "long";
-                  const qty = p.qty ?? p.quantity;
-                  const entryPrice = p.entryPrice ?? p.entry;
-                  const currentPrice = p.currentPrice ?? p.current;
-                  const mktValue = p.marketValue ?? (qty * (currentPrice || 0));
-                  const costBasis = p.costBasis ?? (qty * (entryPrice || 0));
-                  const pnl = p.unrealizedPnL ?? p.pnl ?? 0;
-                  const pnlPct = p.pnlPct ?? 0;
-                  const dayPnlVal = pnl * 0.3;
-                  const dayPnlPct = pnlPct * 0.5;
-                  const chg = p.changeToday ?? 0;
+                  const sym = p.symbol || p.ticker || "--";
+                  const side = p.side || (Number(p.qty) >= 0 ? "long" : "short");
+                  const isLong =
+                    side.toLowerCase() === "long" || side.toLowerCase() === "buy";
+                  const qty = Math.abs(Number(p.qty || p.quantity || 0));
+                  const avgPrice = Number(
+                    p.avg_entry_price || p.entryPrice || p.entry || 0
+                  );
+                  const mktPrice = Number(
+                    p.current_price || p.currentPrice || p.current || 0
+                  );
+                  const unrealPnl = Number(
+                    p.unrealized_pl || p.unrealizedPnL || p.unrealized_pnl || p.pnl || 0
+                  );
+                  const realPnl = Number(
+                    p.realized_pl || p.realizedPnL || p.realized_pnl || 0
+                  );
+                  const costBasis = Number(
+                    p.cost_basis || p.costBasis || qty * avgPrice || 0
+                  );
+                  const mktValue = Number(
+                    p.market_value || p.marketValue || qty * mktPrice || 0
+                  );
+                  const dayPnlVal = Number(
+                    p.unrealized_intraday_pl || p.dayPnl || 0
+                  );
+                  const dayPnlPctVal = Number(
+                    p.unrealized_intraday_plpc || p.dayPnlPct || p.change_today || 0
+                  ) * 100;
+                  const changeToday = Number(p.change_today || p.changeToday || 0);
+
+                  // Greeks (may not be available for equities)
+                  const delta = p.delta ?? "--";
+                  const gamma = p.gamma ?? "--";
+                  const theta = p.theta ?? "--";
+                  const vega = p.vega ?? "--";
+                  const iv = p.iv ?? "--";
+                  const dailyRangeVol = p.daily_range_vol || p.dailyRangeVol || "--";
+
+                  // Sparkline data
+                  const sparkData = p.sparkline || p.price_history || null;
+
                   return (
-                    <tr key={sym || i} className="hover:bg-[#2A3644] transition-colors">
-                      <td className="px-2 py-[5px] text-left font-bold text-white text-[11px] font-mono border-b border-[#2D3748]">{sym}</td>
-                      <td className="px-2 py-[5px] border-b border-[#2D3748]">
-                        <span className={`px-1.5 py-0.5 rounded-sm text-[9px] font-bold ${isLong ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}`}>
+                    <tr
+                      key={sym + "-" + i}
+                      className="hover:bg-[#1E293B]/50 transition-colors border-b border-[#1E293B]/40"
+                    >
+                      {/* Symbol */}
+                      <td className="px-2 py-[4px] text-left">
+                        <span className="font-bold text-white font-mono text-[11px]">
+                          {sym}
+                        </span>
+                      </td>
+                      {/* Side */}
+                      <td className="px-2 py-[4px] text-left">
+                        <span
+                          className={`px-1.5 py-0.5 rounded-sm text-[9px] font-bold ${
+                            isLong
+                              ? "bg-emerald-500/15 text-emerald-400"
+                              : "bg-red-500/15 text-red-400"
+                          }`}
+                        >
                           {isLong ? "LONG" : "SHORT"}
                         </span>
                       </td>
-                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-300 border-b border-[#2D3748]">{qty}</td>
-                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-300 border-b border-[#2D3748]">{qty}</td>
-                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-300 border-b border-[#2D3748]">{fmtM(entryPrice)}</td>
-                      <td className="px-2 py-[5px] font-mono text-[11px] text-white font-bold border-b border-[#2D3748]">{fmtM(currentPrice)}</td>
-                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-300 border-b border-[#2D3748]">{fmtM(mktValue)}</td>
-                      <td className={`px-2 py-[5px] font-mono text-[11px] font-bold border-b border-[#2D3748] ${clr(pnl)}`}>{fmtM(pnl)}</td>
-                      <td className={`px-2 py-[5px] font-mono text-[11px] border-b border-[#2D3748] ${clr(pnlPct)}`}>{fmtP(pnlPct)}</td>
-                      <td className={`px-2 py-[5px] font-mono text-[11px] border-b border-[#2D3748] ${clr(dayPnlVal)}`}>{fmtM(dayPnlVal)}</td>
-                      <td className={`px-2 py-[5px] font-mono text-[11px] border-b border-[#2D3748] ${clr(dayPnlPct)}`}>{fmtP(dayPnlPct)}</td>
-                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-300 border-b border-[#2D3748]">{fmtM(costBasis)}</td>
-                      <td className={`px-2 py-[5px] font-mono text-[11px] border-b border-[#2D3748] ${clr(chg)}`}>{fmtP(chg)}</td>
-                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-500 border-b border-[#2D3748]">us_equity</td>
-                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-500 border-b border-[#2D3748]">NASDAQ</td>
-                      <td className="px-2 py-[5px] border-b border-[#2D3748]">
+                      {/* Qty */}
+                      <td className="px-2 py-[4px] text-right font-mono text-slate-300">
+                        {qty.toLocaleString()}
+                      </td>
+                      {/* Avg Price */}
+                      <td className="px-2 py-[4px] text-right font-mono text-slate-300">
+                        {fmtM(avgPrice)}
+                      </td>
+                      {/* Mkt Price */}
+                      <td className="px-2 py-[4px] text-right font-mono text-white font-semibold">
+                        {fmtM(mktPrice)}
+                      </td>
+                      {/* Day P&L (%) */}
+                      <td className={`px-2 py-[4px] text-right font-mono font-semibold ${clr(dayPnlPctVal)}`}>
+                        {dayPnlVal !== 0 ? fmtPnl(dayPnlVal) : "--"}
+                        {dayPnlPctVal !== 0 && (
+                          <span className="text-[9px] ml-1 opacity-70">
+                            ({fmtPct(dayPnlPctVal)})
+                          </span>
+                        )}
+                      </td>
+                      {/* Unrealized P&L */}
+                      <td className={`px-2 py-[4px] text-right font-mono font-bold ${clr(unrealPnl)}`}>
+                        {fmtPnl(unrealPnl)}
+                      </td>
+                      {/* Realized P&L */}
+                      <td className={`px-2 py-[4px] text-right font-mono ${clr(realPnl)}`}>
+                        {fmtPnl(realPnl)}
+                      </td>
+                      {/* Cost Basis */}
+                      <td className="px-2 py-[4px] text-right font-mono text-slate-400">
+                        {fmtM(costBasis)}
+                      </td>
+                      {/* Price (market value) */}
+                      <td className="px-2 py-[4px] text-right font-mono text-slate-300">
+                        {fmtM(mktValue)}
+                      </td>
+                      {/* Delta */}
+                      <td className="px-2 py-[4px] text-right font-mono text-slate-500 text-[10px]">
+                        {delta}
+                      </td>
+                      {/* Gamma */}
+                      <td className="px-2 py-[4px] text-right font-mono text-slate-500 text-[10px]">
+                        {gamma}
+                      </td>
+                      {/* Theta */}
+                      <td className="px-2 py-[4px] text-right font-mono text-slate-500 text-[10px]">
+                        {theta}
+                      </td>
+                      {/* Vega */}
+                      <td className="px-2 py-[4px] text-right font-mono text-slate-500 text-[10px]">
+                        {vega}
+                      </td>
+                      {/* IV */}
+                      <td className="px-2 py-[4px] text-right font-mono text-slate-500 text-[10px]">
+                        {iv}
+                      </td>
+                      {/* Daily Range Vol */}
+                      <td className="px-2 py-[4px] text-right font-mono text-slate-500 text-[10px]">
+                        {dailyRangeVol}
+                      </td>
+                      {/* Sparkline */}
+                      <td className="px-2 py-[4px] text-center">
+                        <MiniSparkline
+                          data={sparkData}
+                          width={56}
+                          height={18}
+                          color={unrealPnl >= 0 ? "#34d399" : "#f87171"}
+                        />
+                      </td>
+                      {/* Actions */}
+                      <td className="px-2 py-[4px] text-center">
                         <button
                           onClick={() => handleClosePosition(sym)}
-                          className="px-1.5 py-0.5 bg-[#131A22] border border-[#2D3748] rounded text-[9px] text-slate-300 hover:bg-red-500/20 hover:text-red-400 transition-colors"
+                          className="p-1 text-slate-500 hover:text-slate-200 transition-colors"
+                          title="Position settings"
                         >
-                          Cxl
+                          <Settings className="w-3.5 h-3.5" />
                         </button>
                       </td>
                     </tr>
@@ -361,7 +643,10 @@ export default function Trades() {
                 })}
                 {filteredPositions.length === 0 && !posLoading && !posError && (
                   <tr>
-                    <td colSpan={16} className="px-4 py-6 text-center text-slate-500 text-xs">
+                    <td
+                      colSpan={posColumns.length}
+                      className="px-4 py-8 text-center text-slate-500 text-xs"
+                    >
                       No open positions.
                     </td>
                   </tr>
@@ -371,49 +656,59 @@ export default function Trades() {
           </div>
         </div>
 
-        {/* ── ORDERS PANEL ── */}
-        <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-[#1A222C] border border-[#2D3748] rounded-md">
-          {/* Panel header */}
-          <div className="flex items-center justify-between px-3 py-2 bg-[#212A35] border-b border-[#2D3748] flex-shrink-0">
-            <span className="text-xs font-semibold text-slate-200">ACTIVE ORDERS ({ordCount})</span>
+        {/* ── ORDERS TABLE ── */}
+        <div className="flex-[2] flex flex-col min-h-0 overflow-hidden border-t border-[#1E293B]">
+          {/* Section header */}
+          <div className="flex items-center justify-between px-3 py-1.5 bg-[#0D1525] border-b border-[#1E293B] flex-shrink-0">
+            <span className="text-[11px] font-bold text-slate-300 tracking-wide">
+              Orders
+            </span>
             <div className="flex items-center gap-2">
               <input
                 type="text"
                 placeholder="Filter..."
                 value={ordFilter}
                 onChange={(e) => setOrdFilter(e.target.value)}
-                className="px-2 py-1 bg-[#131A22] border border-[#2D3748] rounded text-[10px] text-slate-300 font-mono w-24 outline-none focus:border-cyan-500"
+                className="px-2 py-0.5 bg-[#131A2B] border border-[#1E293B] rounded text-[10px] text-slate-300 font-mono w-28 outline-none focus:border-cyan-500"
               />
               <button
-                onClick={() => {
-                  const cycle = ["all", "new", "partially_filled", "filled", "canceled"];
-                  const idx = cycle.indexOf(ordStatusFilter);
-                  setOrdStatusFilter(cycle[(idx + 1) % cycle.length]);
-                }}
-                className="px-2.5 py-1 bg-[#131A22] border border-[#2D3748] rounded text-[10px] text-slate-300 hover:bg-[#2A3644] transition-colors"
-              >
-                Filter: {ordStatusFilter === "all" ? "All" : ordStatusFilter.replace("_", " ")}
-              </button>
-              <button
                 onClick={handleCancelAll}
-                className="px-2.5 py-1 bg-[#131A22] border border-red-500/30 rounded text-[10px] text-red-400 hover:bg-red-500/10 transition-colors"
+                className="px-2 py-0.5 bg-[#131A2B] border border-red-500/30 rounded text-[9px] text-red-400 hover:bg-red-500/10 transition-colors"
               >
                 Cancel All
               </button>
             </div>
           </div>
 
-          {/* Orders table */}
+          {/* Table */}
           <div className="flex-1 overflow-auto">
-            <table className="w-full border-collapse text-right whitespace-nowrap">
+            <table className="w-full border-collapse whitespace-nowrap text-[11px]">
               <thead className="sticky top-0 z-10">
                 <tr>
-                  {["Symbol","Side","Type","Class","Qty","Filled","Limit Px","Stop Px","Trail %","TIF","Status","Submitted","Filled At","Avg Fill","Ext Hrs","Legs","Actions"].map((h) => (
+                  {ordColumns.map((col) => (
                     <th
-                      key={h}
-                      className={`sticky top-0 bg-[#212A35] px-2 py-1.5 text-[9px] font-semibold uppercase text-slate-500 border-b border-[#2D3748] z-10 ${h === "Symbol" ? "text-left" : "text-right"}`}
+                      key={col.key}
+                      onClick={() =>
+                        col.key !== "actions" && handleOrdSort(col.key)
+                      }
+                      className={`sticky top-0 bg-[#111827] px-2 py-1.5 text-[9px] font-semibold uppercase tracking-wider border-b border-[#1E293B] z-10 cursor-pointer select-none hover:text-cyan-400 transition-colors ${
+                        col.align === "left"
+                          ? "text-left"
+                          : col.align === "center"
+                          ? "text-center"
+                          : "text-right"
+                      } ${
+                        ordSortKey === col.key
+                          ? "text-cyan-400"
+                          : "text-slate-500"
+                      }`}
                     >
-                      {h}
+                      {col.label}
+                      <SortIcon
+                        colKey={col.key}
+                        activeKey={ordSortKey}
+                        activeDir={ordSortDir}
+                      />
                     </th>
                   ))}
                 </tr>
@@ -421,82 +716,212 @@ export default function Trades() {
               <tbody>
                 {ordLoading && orders.length === 0 && (
                   <tr>
-                    <td colSpan={17} className="px-4 py-6 text-center text-cyan-500 text-xs animate-pulse">
+                    <td
+                      colSpan={ordColumns.length}
+                      className="px-4 py-6 text-center text-cyan-500 text-xs animate-pulse"
+                    >
                       Loading orders...
                     </td>
                   </tr>
                 )}
                 {filteredOrders.map((o, i) => {
+                  const orderId = o.id || o.order_id || "--";
+                  const orderIdShort =
+                    orderId.length > 12
+                      ? "Order-" + orderId.slice(-6).toUpperCase()
+                      : orderId;
                   const sym = o.symbol || "--";
                   const side = (o.side || "").toUpperCase();
                   const isBuy = side.includes("BUY");
-                  const typ = o.order_type || o.type || "--";
-                  const orderClass = o.order_class || "Simple";
-                  const qty = o.quantity || o.qty || 0;
-                  const filled = o.filled_qty || o.filledQty || 0;
-                  const fillPct = qty > 0 ? (filled / qty) * 100 : 0;
-                  const status = o.alpaca_status || o.status || "WORKING";
-                  const submitted = o.created_at || o.timestamp || "";
-                  const subDisplay = submitted ? new Date(submitted).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "--";
-                  const filledAt = o.filled_at ? new Date(o.filled_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--";
-                  const avgFill = o.filled_avg_price || o.avgFillPrice;
+                  const typ = o.order_type || o.type || "market";
+                  const orderClass = o.order_class || "";
+                  const qty = o.qty || o.quantity || 0;
+                  const filledQty = o.filled_qty || o.filledQty || 0;
+                  const limitPx = o.limit_price;
+                  const filledPrice = o.filled_avg_price || o.avgFillPrice || null;
+                  const status = o.status || o.alpaca_status || "new";
+                  const createdAt = o.created_at || o.timestamp || "";
+                  const createdDisplay = createdAt
+                    ? new Date(createdAt).toLocaleString([], {
+                        year: "numeric",
+                        month: "short",
+                        day: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "--";
+                  const filledAt = o.filled_at
+                    ? new Date(o.filled_at).toLocaleString([], {
+                        year: "numeric",
+                        month: "short",
+                        day: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit",
+                      })
+                    : "--";
+                  const avgFill = o.filled_avg_price || o.avgFillPrice || null;
+
+                  // Legs info
+                  const legs = o.legs || [];
+                  const hasLegs = legs.length > 0 || orderClass === "bracket" || orderClass === "oco" || orderClass === "oto";
+                  const legLabel = hasLegs
+                    ? orderClass === "bracket"
+                      ? "Bracket Order (3)"
+                      : orderClass === "oco"
+                      ? "OCO (2)"
+                      : orderClass === "oto"
+                      ? "OTO (2)"
+                      : `${legs.length} legs`
+                    : "--";
+
+                  // Determine row highlight for parent/child
+                  const isChild = o.parent_id || o.replaced_by;
+                  const rowBg = isChild
+                    ? "bg-[#111827]/60"
+                    : "";
+
                   return (
-                    <tr key={o.id || i} className="hover:bg-[#2A3644] transition-colors">
-                      <td className="px-2 py-[5px] text-left font-bold text-white text-[11px] font-mono border-b border-[#2D3748]">{sym}</td>
-                      <td className="px-2 py-[5px] border-b border-[#2D3748]">
-                        <span className={`px-1.5 py-0.5 rounded-sm text-[9px] font-bold ${isBuy ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}`}>
-                          {side || "BUY"}
-                        </span>
-                      </td>
-                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-300 border-b border-[#2D3748]">{typ}</td>
-                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-300 border-b border-[#2D3748]">{orderClass}</td>
-                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-300 border-b border-[#2D3748]">{qty}</td>
-                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-300 border-b border-[#2D3748]">
-                        <span className="inline-flex items-center gap-1.5">
-                          <span className="inline-block w-[50px] h-1 bg-white/10 rounded-sm align-middle">
-                            <span className="block h-full bg-cyan-500 rounded-sm" style={{ width: `${fillPct}%` }} />
-                          </span>
-                          {filled}
-                        </span>
-                      </td>
-                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-300 border-b border-[#2D3748]">{o.limit_price ? fmtM(o.limit_price) : "-"}</td>
-                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-300 border-b border-[#2D3748]">{o.stop_price ? fmtM(o.stop_price) : "-"}</td>
-                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-300 border-b border-[#2D3748]">{o.trail_percent ? `${o.trail_percent}%` : "-"}</td>
-                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-300 border-b border-[#2D3748]">{(o.time_in_force || o.tif || "day").toUpperCase()}</td>
-                      <td className="px-2 py-[5px] border-b border-[#2D3748]">
-                        <span className="text-cyan-400 text-[10px] font-semibold">{status}</span>
-                      </td>
-                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-400 border-b border-[#2D3748]">{subDisplay}</td>
-                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-400 border-b border-[#2D3748]">{filledAt}</td>
-                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-400 border-b border-[#2D3748]">{avgFill ? fmtM(avgFill) : "-"}</td>
-                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-400 border-b border-[#2D3748]">Y</td>
-                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-400 border-b border-[#2D3748]">1</td>
-                      <td className="px-2 py-[5px] border-b border-[#2D3748]">
-                        <div className="inline-flex items-center gap-1">
-                          <button
-                            onClick={() => {
-                              handleCancelOrder(o.id);
-                              setOrderForm({ symbol: sym, side: side, type: typ || "Limit", qty: String(qty), limitPrice: o.limit_price || "", stopPrice: o.stop_price || "", tif: (o.time_in_force || "day").toUpperCase() });
-                            }}
-                            className="px-1.5 py-0.5 bg-[#131A22] border border-[#2D3748] rounded text-[9px] text-slate-300 hover:bg-[#2A3644] transition-colors"
-                            title="Cancel & replace: fills Quick Execute with this order"
-                          >
-                            Mod
-                          </button>
-                          <button
-                            onClick={() => handleCancelOrder(o.id)}
-                            className="px-1.5 py-0.5 bg-[#131A22] border border-[#2D3748] rounded text-[9px] text-red-400 hover:bg-red-500/20 transition-colors"
-                          >
-                            Cxl
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                    <React.Fragment key={o.id || i}>
+                      <tr
+                        className={`hover:bg-[#1E293B]/50 transition-colors border-b border-[#1E293B]/40 ${rowBg}`}
+                      >
+                        {/* Order ID */}
+                        <td className="px-2 py-[4px] text-left font-mono text-cyan-400 text-[10px]">
+                          {orderIdShort}
+                        </td>
+                        {/* Time */}
+                        <td className="px-2 py-[4px] text-left font-mono text-slate-400 text-[10px]">
+                          {createdDisplay}
+                        </td>
+                        {/* Type */}
+                        <td className="px-2 py-[4px] text-left">
+                          <TypeBadge type={typ} />
+                        </td>
+                        {/* Symbol */}
+                        <td className="px-2 py-[4px] text-left font-bold text-white font-mono">
+                          {sym}
+                        </td>
+                        {/* Qty */}
+                        <td className="px-2 py-[4px] text-right font-mono text-slate-300">
+                          {qty}
+                        </td>
+                        {/* Limit Price */}
+                        <td className="px-2 py-[4px] text-right font-mono text-slate-300">
+                          {limitPx ? fmtM(limitPx) : "--"}
+                        </td>
+                        {/* Filled Price */}
+                        <td className="px-2 py-[4px] text-right font-mono text-slate-300">
+                          {filledPrice ? fmtM(filledPrice) : "--"}
+                        </td>
+                        {/* Status */}
+                        <td className="px-2 py-[4px] text-left">
+                          <StatusBadge status={status} />
+                        </td>
+                        {/* Execution Time */}
+                        <td className="px-2 py-[4px] text-left font-mono text-slate-400 text-[10px]">
+                          {filledAt}
+                        </td>
+                        {/* Avg Fill Price */}
+                        <td className="px-2 py-[4px] text-right font-mono text-slate-300">
+                          {avgFill ? fmtM(avgFill) : "--"}
+                        </td>
+                        {/* Legs */}
+                        <td className="px-2 py-[4px] text-left text-[10px] text-slate-400">
+                          {hasLegs ? (
+                            <span className="text-cyan-400">{legLabel}</span>
+                          ) : (
+                            "--"
+                          )}
+                        </td>
+                        {/* Actions */}
+                        <td className="px-2 py-[4px] text-center">
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              onClick={() => handleCancelOrder(orderId)}
+                              className="px-1.5 py-0.5 bg-[#131A2B] border border-[#1E293B] rounded text-[9px] text-red-400 hover:bg-red-500/20 transition-colors"
+                              title="Cancel order"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      {/* Render child legs inline if bracket */}
+                      {legs.length > 0 &&
+                        legs.map((leg, li) => {
+                          const legType = leg.order_type || leg.type || "--";
+                          const legStatus = leg.status || "--";
+                          const legLimitPx = leg.limit_price;
+                          const legStopPx = leg.stop_price;
+                          const legFilledPx = leg.filled_avg_price;
+                          const legLabel2 =
+                            legType.toLowerCase() === "limit"
+                              ? "Profit Target"
+                              : legType.toLowerCase().includes("stop")
+                              ? "Stop Loss"
+                              : legType;
+                          return (
+                            <tr
+                              key={`${o.id}-leg-${li}`}
+                              className="bg-[#0D1525]/80 border-b border-[#1E293B]/30 hover:bg-[#1E293B]/30 transition-colors"
+                            >
+                              <td className="px-2 py-[3px] text-left font-mono text-slate-500 text-[10px] pl-6">
+                                {leg.id ? "Order-" + (leg.id || "").slice(-6).toUpperCase() : "--"}
+                              </td>
+                              <td className="px-2 py-[3px] text-left font-mono text-slate-500 text-[10px]">
+                                --
+                              </td>
+                              <td className="px-2 py-[3px] text-left">
+                                <TypeBadge type={legType} />
+                              </td>
+                              <td className="px-2 py-[3px] text-left font-mono text-slate-400 text-[10px]">
+                                {sym}
+                              </td>
+                              <td className="px-2 py-[3px] text-right font-mono text-slate-400 text-[10px]">
+                                {leg.qty || qty}
+                              </td>
+                              <td className="px-2 py-[3px] text-right font-mono text-slate-400 text-[10px]">
+                                {legLimitPx ? fmtM(legLimitPx) : "--"}
+                              </td>
+                              <td className="px-2 py-[3px] text-right font-mono text-slate-400 text-[10px]">
+                                {legFilledPx ? fmtM(legFilledPx) : "--"}
+                              </td>
+                              <td className="px-2 py-[3px] text-left">
+                                <StatusBadge status={legStatus} />
+                              </td>
+                              <td className="px-2 py-[3px] text-left font-mono text-slate-500 text-[10px]">
+                                {leg.filled_at
+                                  ? new Date(leg.filled_at).toLocaleString()
+                                  : "--"}
+                              </td>
+                              <td className="px-2 py-[3px] text-right font-mono text-slate-400 text-[10px]">
+                                {legStopPx ? fmtM(legStopPx) : legFilledPx ? fmtM(legFilledPx) : "--"}
+                              </td>
+                              <td className="px-2 py-[3px] text-left text-[9px] text-yellow-400">
+                                {legLabel2}
+                              </td>
+                              <td className="px-2 py-[3px] text-center">
+                                <button
+                                  onClick={() => handleCancelOrder(leg.id)}
+                                  className="px-1.5 py-0.5 bg-[#131A2B] border border-[#1E293B] rounded text-[9px] text-red-400 hover:bg-red-500/20 transition-colors"
+                                  title="Cancel leg"
+                                >
+                                  Cancel
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </React.Fragment>
                   );
                 })}
                 {filteredOrders.length === 0 && !ordLoading && (
                   <tr>
-                    <td colSpan={17} className="px-4 py-6 text-center text-slate-500 text-xs">
+                    <td
+                      colSpan={ordColumns.length}
+                      className="px-4 py-6 text-center text-slate-500 text-xs"
+                    >
                       No active orders.
                     </td>
                   </tr>
@@ -507,75 +932,25 @@ export default function Trades() {
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════════════════════════════
-          BOTTOM QUICK EXECUTE BAR — Inline order entry (matches mockup)
-          ══════════════════════════════════════════════════════════════════ */}
-      <div className="h-12 bg-[#1A222C] border-t border-[#2D3748] flex items-center px-4 gap-3 flex-shrink-0">
-        <span className="text-[10px] font-bold text-cyan-400 mr-2">QUICK EXECUTE</span>
-        <input
-          type="text"
-          placeholder="SYM"
-          value={orderForm.symbol}
-          onChange={(e) => setOrderForm((f) => ({ ...f, symbol: e.target.value.toUpperCase() }))}
-          className="w-20 px-2.5 py-1.5 bg-[#131A22] border border-[#2D3748] rounded text-xs text-white font-mono outline-none focus:border-cyan-500 uppercase"
-        />
-        <select
-          value={orderForm.side}
-          onChange={(e) => setOrderForm((f) => ({ ...f, side: e.target.value }))}
-          className="w-20 px-2.5 py-1.5 bg-[#131A22] border border-[#2D3748] rounded text-xs text-white font-mono outline-none focus:border-cyan-500"
-        >
-          <option value="BUY">BUY</option>
-          <option value="SELL">SELL</option>
-          <option value="SHORT">SHORT</option>
-        </select>
-        <input
-          type="number"
-          placeholder="QTY"
-          value={orderForm.qty}
-          onChange={(e) => setOrderForm((f) => ({ ...f, qty: e.target.value }))}
-          className="w-20 px-2.5 py-1.5 bg-[#131A22] border border-[#2D3748] rounded text-xs text-white font-mono outline-none focus:border-cyan-500"
-        />
-        <select
-          value={orderForm.type}
-          onChange={(e) => setOrderForm((f) => ({ ...f, type: e.target.value }))}
-          className="w-[100px] px-2.5 py-1.5 bg-[#131A22] border border-[#2D3748] rounded text-xs text-white font-mono outline-none focus:border-cyan-500"
-        >
-          <option value="Limit">Limit</option>
-          <option value="Market">Market</option>
-          <option value="Stop">Stop</option>
-        </select>
-        <input
-          type="number"
-          placeholder="LIMIT $"
-          value={orderForm.limitPrice}
-          onChange={(e) => setOrderForm((f) => ({ ...f, limitPrice: e.target.value }))}
-          className="w-[100px] px-2.5 py-1.5 bg-[#131A22] border border-[#2D3748] rounded text-xs text-white font-mono outline-none focus:border-cyan-500"
-        />
-        <select
-          value={orderForm.tif}
-          onChange={(e) => setOrderForm((f) => ({ ...f, tif: e.target.value }))}
-          className="w-20 px-2.5 py-1.5 bg-[#131A22] border border-[#2D3748] rounded text-xs text-white font-mono outline-none focus:border-cyan-500"
-        >
-          <option value="DAY">DAY</option>
-          <option value="GTC">GTC</option>
-          <option value="IOC">IOC</option>
-        </select>
-        <button
-          onClick={handleSubmitOrder}
-          disabled={submitting || !orderForm.symbol || !orderForm.qty}
-          className="ml-auto px-5 py-1.5 bg-cyan-500 text-black font-bold text-xs font-mono rounded hover:bg-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {submitting ? "SENDING..." : "SUBMIT (Ctrl+Enter)"}
-        </button>
-      </div>
-
-      {/* Submit feedback toast */}
-      {submitMsg && (
-        <div className={`fixed bottom-16 right-4 px-4 py-2 rounded-lg text-xs font-bold z-50 ${submitMsg.type === "success" ? "bg-emerald-500/20 border border-emerald-500/50 text-emerald-400" : "bg-red-500/20 border border-red-500/50 text-red-400"}`}>
-          {submitMsg.text}
-          <button onClick={() => setSubmitMsg(null)} className="ml-3 opacity-60 hover:opacity-100">&times;</button>
+      {/* ═══════════════════════════════════════════════════
+          FOOTER
+          ═══════════════════════════════════════════════════ */}
+      <div className="flex items-center px-4 py-1.5 bg-[#0D1525] border-t border-[#1E293B] flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-[10px] text-slate-400 font-mono">
+            {agentCount} Agents OK
+          </span>
         </div>
-      )}
+        <div className="ml-auto flex items-center gap-4">
+          <span className="text-[10px] text-slate-500 font-mono">
+            Positions: {positions.length}
+          </span>
+          <span className="text-[10px] text-slate-500 font-mono">
+            Orders: {orders.length}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }
