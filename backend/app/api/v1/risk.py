@@ -983,3 +983,28 @@ async def emergency_action(action: str):
         except Exception as e:
             return {"status": "error", "message": str(e)}
     return {"status": "unknown", "message": f"Unknown action: {action}"}
+
+
+@router.get("/config")
+async def get_risk_config():
+    """Get risk configuration including crash triggers."""
+    config = db_service.get_config("risk_config") or {
+        "crash_triggers": {
+            "vix_spike": True,
+            "circuit_breaker": True,
+            "max_drawdown": True,
+            "correlation_break": True,
+            "liquidity_dry": True,
+        },
+    }
+    return config
+
+
+@router.put("/config", dependencies=[Depends(require_auth)])
+async def update_risk_config(data: dict):
+    """Update risk configuration (crash triggers, thresholds)."""
+    existing = db_service.get_config("risk_config") or {}
+    existing.update(data)
+    db_service.set_config("risk_config", existing)
+    logger.info("Risk config updated: %s", list(data.keys()))
+    return {"ok": True, "config": existing}

@@ -298,6 +298,22 @@ async def submit_source_health(data: SourceHealthSubmit):
     return {"ok": True, "source": new_entry}
 
 
+@router.post("/discover", dependencies=[Depends(require_auth)])
+async def discover_sentiment():
+    """Auto-discover sentiment for tracked tickers via aggregator pipeline."""
+    try:
+        from app.modules.social_news_engine.aggregators import run_aggregator_pipeline
+        results = await run_aggregator_pipeline()
+        return {"ok": True, "discovered": len(results) if results else 0, "results": results or []}
+    except ImportError:
+        # Aggregator not available — return current sentiment as-is
+        items = _get_sentiment_data()
+        return {"ok": True, "discovered": len(items), "results": items}
+    except Exception as e:
+        logger.error("Sentiment auto-discover failed: %s", e)
+        return {"ok": False, "error": str(e), "discovered": 0}
+
+
 @router.delete("/{ticker}", dependencies=[Depends(require_auth)])
 async def remove_sentiment(ticker: str):
     """Remove sentiment data for a ticker."""
