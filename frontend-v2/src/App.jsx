@@ -25,6 +25,7 @@ const Patterns = lazy(() => import("./pages/Patterns"));
 const Backtesting = lazy(() => import("./pages/Backtesting"));
 const PerformanceAnalytics = lazy(() => import("./pages/PerformanceAnalytics"));
 const MarketRegime = lazy(() => import("./pages/MarketRegime"));
+const CognitiveDashboard = lazy(() => import("./pages/CognitiveDashboard"));
 
 // EXECUTION section (3 pages)
 const Trades = lazy(() => import("./pages/Trades"));
@@ -74,6 +75,7 @@ function App() {
             <Route path="backtest" element={<Suspense fallback={<PageLoader />}><Backtesting /></Suspense>} />
             <Route path="performance" element={<Suspense fallback={<PageLoader />}><PerformanceAnalytics /></Suspense>} />
             <Route path="market-regime" element={<Suspense fallback={<PageLoader />}><MarketRegime /></Suspense>} />
+            <Route path="cognitive-dashboard" element={<Suspense fallback={<PageLoader />}><CognitiveDashboard /></Suspense>} />
 
             {/* EXECUTION */}
             <Route path="trades" element={<Suspense fallback={<PageLoader />}><Trades /></Suspense>} />
