@@ -45,7 +45,7 @@ class TradeStatsService:
         self._global_cache_time: float = 0
 
     def get_stats(
-        self, symbol: Optional[str] = None, regime: str = "NEUTRAL"
+        self, symbol: Optional[str] = None, regime: str = "NEUTRAL", side: Optional[str] = None
     ) -> Dict[str, Any]:
         """Get trade statistics, optionally filtered by symbol and regime.
 
@@ -61,7 +61,7 @@ class TradeStatsService:
         regime : str
             Current market regime for regime-specific stats.
         """
-        cache_key = f"{symbol or 'GLOBAL'}_{regime}"
+        cache_key = f"{symbol or 'GLOBAL'}_{regime}_{side or 'ALL'}"
         now = time.time()
 
         # Check cache
@@ -70,7 +70,7 @@ class TradeStatsService:
                 return self._cache[cache_key]
 
         # Query DuckDB
-        stats = self._query_stats(symbol, regime)
+        stats = self._query_stats(symbol, regime, side)
 
         # Cache result
         self._cache[cache_key] = stats
@@ -78,7 +78,7 @@ class TradeStatsService:
         return stats
 
     def _query_stats(
-        self, symbol: Optional[str], regime: str
+        self, symbol: Optional[str], regime: str, side: Optional[str] = None
     ) -> Dict[str, Any]:
         """Query trade_outcomes from DuckDB and compute statistics."""
         try:
@@ -106,6 +106,10 @@ class TradeStatsService:
             if regime and regime != "NEUTRAL":
                 where_clauses.append("regime = ?")
                 params.append(regime.upper())
+
+                        if side:
+                where_clauses.append("side = ?")
+                params.append(side.lower())
 
             where_sql = ""
             if where_clauses:
@@ -207,7 +211,7 @@ class TradeStatsService:
         entry_price: float,
         exit_price: float,
         qty: int,
-        regime: str = "NEUTRAL",
+        regime: str = "NEUTRAL", side: Optional[str] = None,
         signal_score: float = 0.0,
         kelly_pct: float = 0.0,
     ) -> None:
