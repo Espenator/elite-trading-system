@@ -19,7 +19,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.security import require_auth
 from app.services.database import db_service
@@ -136,11 +136,7 @@ async def run_conference(symbol: str, timeframe: str = "1d"):
         }
     except Exception as e:
         logger.exception("Conference failed for %s", symbol)
-        return {
-            "status": "error",
-            "message": "Conference evaluation failed",
-            "symbol": symbol,
-        }
+        raise HTTPException(status_code=500, detail=f"Conference evaluation failed for {symbol}")
 
 
 @router.post("/conference/batch", dependencies=[Depends(require_auth)])
@@ -155,7 +151,7 @@ async def run_conference_batch(symbols: List[str], timeframe: str = "1d"):
         return {"status": "not_installed", "message": "trading_conference module not available"}
     except Exception as e:
         logger.error("Conference batch failed: %s", e)
-        return {"status": "error", "message": "Batch conference failed"}
+        raise HTTPException(status_code=500, detail="Batch conference failed")
 
 
 # ---------------------------------------------------------------------------
@@ -173,7 +169,7 @@ async def get_registry_status():
         return {"status": "not_installed", "message": "model_registry module not available"}
     except Exception as e:
         logger.error("Registry status failed: %s", e)
-        return {"status": "error", "message": "Registry unavailable"}
+        raise HTTPException(status_code=500, detail="Model registry unavailable")
 
 
 @router.get("/drift/status")
@@ -188,7 +184,7 @@ async def get_drift_status():
         return {"status": "not_installed", "message": "drift_detector module not available"}
     except Exception as e:
         logger.error("Drift status failed: %s", e)
-        return {"status": "error", "message": "Drift monitor unavailable"}
+        raise HTTPException(status_code=500, detail="Drift monitor unavailable")
 
 
 @router.get("/lstm/predict/{symbol}")
@@ -207,7 +203,7 @@ async def lstm_predict(symbol: str):
         return {"status": "not_installed", "message": "inference module not available"}
     except Exception as e:
         logger.error("LSTM predict failed for %s: %s", symbol, e)
-        return {"status": "error", "message": "Prediction failed", "symbol": symbol}
+        raise HTTPException(status_code=500, detail=f"Prediction failed for {symbol}")
 
 
 @router.get("/status")

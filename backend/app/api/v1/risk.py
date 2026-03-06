@@ -11,7 +11,7 @@ import time
 from datetime import date
 from typing import Any, List
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.core.security import require_auth
@@ -432,7 +432,7 @@ async def dynamic_stop_loss(symbol: str, entry_price: float, side: str = "buy"):
         }
     except Exception as e:
         logger.error("Dynamic stop-loss error: %s", e)
-        return {"error": "Internal server error"}
+        raise HTTPException(status_code=500, detail="Dynamic stop-loss calculation failed")
 
 
 @router.get("/risk-score")
@@ -606,7 +606,7 @@ async def var_analysis():
         }
     except Exception as e:
         logger.error("VaR analysis error: %s", e)
-        return {"error": "Internal server error"}
+        raise HTTPException(status_code=500, detail="VaR analysis failed")
 
 
 @router.get("/drawdown-check")
@@ -648,7 +648,7 @@ async def drawdown_check_status():
         }
     except Exception as e:
         logger.error("Drawdown check error: %s", e)
-        return {"trading_allowed": True, "error": "Internal server error"}
+        raise HTTPException(status_code=500, detail="Drawdown check failed")
 
 
 # --- V3 Risk Intelligence Enhanced Endpoints ---
@@ -844,7 +844,7 @@ async def run_stress_test():
         }
     except Exception as e:
         logger.error("Stress test error: %s", e)
-        return {"error": "Internal server error"}
+        raise HTTPException(status_code=500, detail="Stress test failed")
 
 
 @router.get("/monte-carlo")

@@ -11,8 +11,10 @@ Usage:
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+
+from app.core.security import require_auth
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +32,7 @@ class BackfillResponse(BaseModel):
     report: dict
 
 
-@router.post("/backfill", response_model=BackfillResponse)
+@router.post("/backfill", response_model=BackfillResponse, dependencies=[Depends(require_auth)])
 async def run_backfill(req: BackfillRequest):
     """Trigger full historical data backfill.
 

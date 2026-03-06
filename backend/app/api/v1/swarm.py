@@ -6,9 +6,11 @@ Provides endpoints for:
   - Monitoring swarm status and results
   - Managing Discord channel monitoring
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Optional
+
+from app.core.security import require_auth
 
 router = APIRouter()
 
@@ -62,7 +64,7 @@ class ScoutConfigRequest(BaseModel):
 # ------------------------------------------------------------------
 # Knowledge Ingestion endpoints
 # ------------------------------------------------------------------
-@router.post("/ingest/youtube")
+@router.post("/ingest/youtube", dependencies=[Depends(require_auth)])
 async def ingest_youtube(req: IngestYouTubeRequest):
     """Ingest a YouTube video transcript into the knowledge base.
 
@@ -80,7 +82,7 @@ async def ingest_youtube(req: IngestYouTubeRequest):
     return result
 
 
-@router.post("/ingest/news")
+@router.post("/ingest/news", dependencies=[Depends(require_auth)])
 async def ingest_news(req: IngestNewsRequest):
     """Ingest a news article into the knowledge base.
 
@@ -96,7 +98,7 @@ async def ingest_news(req: IngestNewsRequest):
     return result
 
 
-@router.post("/ingest/text")
+@router.post("/ingest/text", dependencies=[Depends(require_auth)])
 async def ingest_text(req: IngestTextRequest):
     """Ingest free-text: trade ideas, chart analysis, research notes.
 
@@ -111,7 +113,7 @@ async def ingest_text(req: IngestTextRequest):
     return result
 
 
-@router.post("/ingest/url")
+@router.post("/ingest/url", dependencies=[Depends(require_auth)])
 async def ingest_url(req: IngestURLRequest):
     """Scrape a URL and ingest the content.
 
@@ -125,7 +127,7 @@ async def ingest_url(req: IngestURLRequest):
     return result
 
 
-@router.post("/ingest/symbols")
+@router.post("/ingest/symbols", dependencies=[Depends(require_auth)])
 async def ingest_symbols(req: IngestSymbolsRequest):
     """Queue multiple symbols for swarm analysis.
 
@@ -188,7 +190,7 @@ async def scout_status():
     return get_scout_service().get_status()
 
 
-@router.post("/scout/watchlist")
+@router.post("/scout/watchlist", dependencies=[Depends(require_auth)])
 async def set_watchlist(req: WatchlistRequest):
     """Set the scout watchlist (replaces existing)."""
     from app.services.autonomous_scout import get_scout_service
@@ -196,7 +198,7 @@ async def set_watchlist(req: WatchlistRequest):
     return {"status": "ok", "watchlist": get_scout_service()._watchlist}
 
 
-@router.post("/scout/watchlist/add")
+@router.post("/scout/watchlist/add", dependencies=[Depends(require_auth)])
 async def add_to_watchlist(req: WatchlistRequest):
     """Add symbols to the scout watchlist."""
     from app.services.autonomous_scout import get_scout_service
@@ -204,7 +206,7 @@ async def add_to_watchlist(req: WatchlistRequest):
     return {"status": "ok", "watchlist": get_scout_service()._watchlist}
 
 
-@router.post("/scout/watchlist/remove")
+@router.post("/scout/watchlist/remove", dependencies=[Depends(require_auth)])
 async def remove_from_watchlist(req: WatchlistRequest):
     """Remove symbols from the scout watchlist."""
     from app.services.autonomous_scout import get_scout_service
@@ -212,7 +214,7 @@ async def remove_from_watchlist(req: WatchlistRequest):
     return {"status": "ok", "watchlist": get_scout_service()._watchlist}
 
 
-@router.post("/scout/config")
+@router.post("/scout/config", dependencies=[Depends(require_auth)])
 async def update_scout_config(req: ScoutConfigRequest):
     """Update scout configuration (scan intervals, enabled scouts)."""
     from app.services.autonomous_scout import get_scout_service
@@ -232,7 +234,7 @@ async def update_scout_config(req: ScoutConfigRequest):
     return {"status": "ok", "config": scout.config}
 
 
-@router.post("/scout/reset")
+@router.post("/scout/reset", dependencies=[Depends(require_auth)])
 async def reset_scout_discoveries():
     """Reset daily discoveries so scouts can re-scan symbols."""
     from app.services.autonomous_scout import get_scout_service
@@ -257,7 +259,7 @@ async def discord_channels():
     return {"channels": get_discord_bridge().list_channels()}
 
 
-@router.post("/discord/channels")
+@router.post("/discord/channels", dependencies=[Depends(require_auth)])
 async def add_discord_channel(req: AddChannelRequest):
     """Add a Discord channel to monitor.
 
@@ -271,7 +273,7 @@ async def add_discord_channel(req: AddChannelRequest):
     return {"status": "ok", "channels": get_discord_bridge().list_channels()}
 
 
-@router.delete("/discord/channels/{channel_id}")
+@router.delete("/discord/channels/{channel_id}", dependencies=[Depends(require_auth)])
 async def remove_discord_channel(channel_id: int):
     """Remove a Discord channel from monitoring."""
     from app.services.discord_swarm_bridge import get_discord_bridge
@@ -306,7 +308,7 @@ async def radar_playbook(event_type: str = None):
     return {"playbook": get_geopolitical_radar().get_playbook(event_type)}
 
 
-@router.post("/radar/inject")
+@router.post("/radar/inject", dependencies=[Depends(require_auth)])
 async def inject_event(req: InjectEventRequest):
     """Manually inject a macro event to test the system's response.
 
@@ -417,7 +419,7 @@ async def expected_move_reversals():
     return {"reversal_zones": get_expected_move_service().get_reversal_zones()}
 
 
-@router.post("/expected-moves/fom-levels")
+@router.post("/expected-moves/fom-levels", dependencies=[Depends(require_auth)])
 async def set_fom_levels(req: SetExpectedMoveLevelsRequest):
     """Set expected move levels from FOM Discord or manual input.
 
@@ -499,7 +501,7 @@ async def turbo_signals(signal_type: str = None, limit: int = 50):
     return {"signals": get_turbo_scanner().get_signals(signal_type, limit)}
 
 
-@router.post("/turbo/reset-daily")
+@router.post("/turbo/reset-daily", dependencies=[Depends(require_auth)])
 async def turbo_reset():
     """Reset daily dedup set (call at market open to allow re-scanning)."""
     from app.services.turbo_scanner import get_turbo_scanner
@@ -630,7 +632,7 @@ async def ml_scorer_status():
     from app.services.ml_scorer import get_ml_scorer
     return get_ml_scorer().get_status()
 
-@router.post("/ml/scorer/reload")
+@router.post("/ml/scorer/reload", dependencies=[Depends(require_auth)])
 async def ml_scorer_reload():
     """Reload the ML model (e.g., after retraining)."""
     from app.services.ml_scorer import get_ml_scorer

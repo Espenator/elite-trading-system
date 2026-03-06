@@ -1,5 +1,6 @@
 """Signals API: ML predictions for buy/sell timing (research doc)."""
 
+import logging
 from datetime import date
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from app.services.kelly_position_sizer import KellyPositionSizer
 
 _kelly_sizer = KellyPositionSizer(max_allocation=0.10)
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 FEATURE_COLS = ["return_1d", "ma_10_dist", "ma_20_dist", "vol_20", "vol_rel"]
@@ -30,7 +32,8 @@ def _get_raw_signals_and_feats(as_of: date | None = None):
         conn = get_conn()
         feats = conn.execute("SELECT * FROM daily_features").df()
         conn.close()
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to load daily_features from DuckDB: %s", e)
         return None, None
     if feats is None or feats.empty:
         return None, None
@@ -38,7 +41,8 @@ def _get_raw_signals_and_feats(as_of: date | None = None):
         return None, None
     try:
         model = load_model(str(DEFAULT_MODEL_PATH), num_features=len(FEATURE_COLS))
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to load ML model from %s: %s", DEFAULT_MODEL_PATH, e)
         return None, None
     raw_signals = make_signals_for_date(model, feats, FEATURE_COLS, as_of)
     return raw_signals, feats

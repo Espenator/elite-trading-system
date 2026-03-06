@@ -14,7 +14,7 @@ from typing import Dict, Any, List, Optional
 import os
 import base64
 import logging
-import requests
+import httpx
 import json
 from cryptography.fernet import Fernet, InvalidToken
 from datetime import datetime, timezone
@@ -668,7 +668,8 @@ async def test_source(source_id: str):
         start = datetime.now(timezone.utc)
         try:
             url = f"{src['base_url']}{src['test_endpoint']}"
-            resp = requests.get(url, timeout=5)
+            async with httpx.AsyncClient(timeout=httpx.Timeout(5.0)) as client:
+                resp = await client.get(url)
             latency = (datetime.now(timezone.utc) - start).total_seconds() * 1000
             ok = resp.status_code == 200
             src["status"] = "healthy" if ok else "error"
@@ -709,7 +710,8 @@ async def test_source(source_id: str):
         start = datetime.now(timezone.utc)
         try:
             url = f"{src['base_url']}{src['test_endpoint']}"
-            resp = requests.post(url, json={"symbols": {"tickers": ["NASDAQ:AAPL"], "query": {"types": []}}, "columns": ["close"]}, timeout=10)
+            async with httpx.AsyncClient(timeout=httpx.Timeout(10.0)) as client:
+                resp = await client.post(url, json={"symbols": {"tickers": ["NASDAQ:AAPL"], "query": {"types": []}}, "columns": ["close"]})
             latency = (datetime.now(timezone.utc) - start).total_seconds() * 1000
             ok = resp.status_code == 200
             src["status"] = "healthy" if ok else "error"
@@ -772,7 +774,8 @@ async def test_source(source_id: str):
     start = datetime.now(timezone.utc)
 
     try:
-        resp = requests.request(method, url, headers=headers, params=params, timeout=10)
+        async with httpx.AsyncClient(timeout=httpx.Timeout(10.0)) as client:
+            resp = await client.request(method, url, headers=headers, params=params)
         latency = (datetime.now(timezone.utc) - start).total_seconds() * 1000
         ok = resp.status_code in (200, 201)
         src["status"] = "healthy" if ok else "error"
@@ -791,7 +794,7 @@ async def test_source(source_id: str):
         )
         await broadcast_ws("data_sources", {"type": "source_tested", "source_id": source_id, "result": _test_result_to_dict(result)})
         return result
-    except requests.exceptions.Timeout:
+    except httpx.TimeoutException:
         latency = (datetime.now(timezone.utc) - start).total_seconds() * 1000
         src["status"] = "timeout"
         src["last_test"] = now_str

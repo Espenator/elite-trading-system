@@ -175,10 +175,7 @@ async def run_backtest_post(request: BacktestRequest):
                 "error": str(e),
             },
         )
-        return {
-            "ok": False,
-            "error": str(e),
-        }
+        raise HTTPException(status_code=500, detail=f"Backtest failed: {e}")
 
 
 # -----------------------------------------------------------------
@@ -248,7 +245,7 @@ async def compare_kelly_sizing(request: BacktestRequest):
             },
         }
     except Exception as e:
-        return {"ok": False, "error": str(e)}
+        raise HTTPException(status_code=500, detail=f"Kelly comparison failed: {e}")
 
 
 # ----------------------------------------------------------------------

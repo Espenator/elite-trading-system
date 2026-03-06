@@ -141,7 +141,7 @@ async def council_weights():
         return {"status": "weight_learner_unavailable", "error": str(e)}
 
 
-@router.post("/weights/reset")
+@router.post("/weights/reset", dependencies=[Depends(require_auth)])
 async def reset_weights():
     """Reset agent weights to defaults."""
     try:

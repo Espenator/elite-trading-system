@@ -136,9 +136,11 @@ async def test_email_alert():
 
 @router.post("/test-sms", dependencies=[Depends(require_auth)])
 async def test_sms_alert():
-    """Send a test SMS alert. Stub: returns success; wire to SMS provider when configured."""
-    # TODO: Integrate with SMS provider (e.g. Twilio) when configured
-    return {"ok": True, "message": "Test SMS alert sent"}
+    """Send a test SMS alert. Not yet implemented — requires SMS provider (e.g. Twilio)."""
+    raise HTTPException(
+        status_code=501,
+        detail="SMS alerts not configured. Integrate an SMS provider (e.g. Twilio) to enable.",
+    )
 
 
 # -----------------------------------------------------------------
