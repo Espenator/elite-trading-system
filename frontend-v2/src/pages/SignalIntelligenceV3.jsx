@@ -97,7 +97,7 @@ const SHAP_FACTORS = [
 
 const Panel = ({ title, icon: Icon, children, className = '', headerAction = null }) => (
   <div className={`bg-[#111827] border border-[#1e293b] rounded-aurora overflow-hidden flex flex-col ${className}`}>
-    <div className="px-3 py-2 border-b border-[#1e293b] flex justify-between items-center bg-[#111827] shrink-0">
+    <div className="px-3 py-1.5 border-b border-[#1e293b] flex justify-between items-center bg-[#111827] shrink-0">
       <div className="flex items-center gap-2">
         {Icon && <Icon className="w-3.5 h-3.5 text-[#00D9FF] shrink-0" />}
         <h3 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">{title}</h3>
@@ -434,9 +434,11 @@ export default function SignalIntelligenceV3() {
 
   // --- RENDER ---
   return (
-    <div className="min-h-screen bg-[#0B0E14] text-gray-200 font-mono">
-      {/* TOP TOOLBAR */}
-      <div className="flex items-center justify-between px-4 py-2 bg-[#111827] border-b border-[#1e293b] sticky top-0 z-50">
+    <div className="h-screen bg-[#0B0E14] text-gray-200 font-mono flex flex-col overflow-hidden">
+      {/* ================================================================== */}
+      {/* TOP TOOLBAR                                                        */}
+      {/* ================================================================== */}
+      <div className="flex items-center justify-between px-3 py-1.5 bg-[#111827] border-b border-[#1e293b] shrink-0">
         <div className="flex items-center gap-3">
           <Activity className="w-4 h-4 text-[#00D9FF]" />
           <span className="text-sm font-bold text-[#00D9FF] tracking-wider font-mono">SIGNAL_INTELLIGENCE_V3</span>
@@ -452,172 +454,66 @@ export default function SignalIntelligenceV3() {
       </div>
 
       {/* ================================================================== */}
-      {/* REGIME BANNER - Full-width gradient color-coded market regime     */}
+      {/* REGIME BANNER                                                      */}
       {/* ================================================================== */}
       <div
-        className="flex items-center justify-between px-4 py-2.5 border-b"
+        className="flex items-center justify-between px-3 py-1.5 border-b shrink-0"
         style={{
           background: `linear-gradient(90deg, ${regimeBanner.bg} 0%, rgba(11,14,20,0.95) 50%, ${regimeBanner.bg} 100%)`,
           borderColor: regimeBanner.border
         }}
       >
         <div className="flex items-center gap-3">
-          <span
-            className="w-2.5 h-2.5 rounded-full animate-pulse"
-            style={{ backgroundColor: regimeBanner.color, boxShadow: `0 0 12px ${regimeBanner.color}` }}
-          />
-          {regimeBanner.label === 'BULL' && <TrendingUp className="w-4 h-4" style={{ color: regimeBanner.text }} />}
-          {regimeBanner.label === 'BEAR' && <TrendingDown className="w-4 h-4" style={{ color: regimeBanner.text }} />}
-          {regimeBanner.label === 'HIGH_VOL' && <AlertTriangle className="w-4 h-4" style={{ color: regimeBanner.text }} />}
-          {regimeBanner.label === 'SIDEWAYS' && <Activity className="w-4 h-4" style={{ color: regimeBanner.text }} />}
-          <span className="text-sm font-bold tracking-wider font-mono" style={{ color: regimeBanner.text }}>
-            REGIME: {regimeBanner.label}
+          <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: regimeBanner.color, boxShadow: `0 0 10px ${regimeBanner.color}` }} />
+          {regimeBanner.label === 'BULL' && <TrendingUp className="w-3.5 h-3.5" style={{ color: regimeBanner.text }} />}
+          {regimeBanner.label === 'BEAR' && <TrendingDown className="w-3.5 h-3.5" style={{ color: regimeBanner.text }} />}
+          {regimeBanner.label === 'HIGH_VOL' && <AlertTriangle className="w-3.5 h-3.5" style={{ color: regimeBanner.text }} />}
+          {regimeBanner.label === 'SIDEWAYS' && <Activity className="w-3.5 h-3.5" style={{ color: regimeBanner.text }} />}
+          <span className="text-xs font-bold tracking-wider font-mono" style={{ color: regimeBanner.text }}>
+            {regimeData.state || 'BULL_TREND REGIME'}
           </span>
-          <span className="text-sm text-gray-500 font-mono">|</span>
-          <span className="text-sm font-bold font-mono" style={{ color: regimeBanner.text }}>
-            Confidence: {regimeData.conf ?? '--'}%
-          </span>
-          <span className="text-sm text-gray-500 font-mono">|</span>
-          <span className="text-sm font-mono" style={{ color: regimeBanner.text }}>
-            Since: {regimeData.since ? new Date(regimeData.since).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : regimeData.since_date ? new Date(regimeData.since_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '--'}
-          </span>
-          <span className="text-[9px] text-gray-600 font-mono ml-2">HMM Layer 3</span>
+          <span className="text-[9px] text-gray-600 font-mono">Hidden Markov Model (Layer 3)</span>
+          <span className="text-[9px] text-gray-500 font-mono ml-2">Confidence: {regimeData.conf ?? '--'}%</span>
+          <span className="text-[9px] text-gray-600 font-mono ml-1">Override</span>
+          <Toggle checked={regimeLock} onChange={setRegimeLock} size="sm" />
+          {regimeLock ? <Lock className="w-3 h-3 text-amber-500" /> : <Unlock className="w-3 h-3 text-gray-600" />}
         </div>
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <div className="w-24 h-1.5 bg-[#1e293b] rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{ width: `${regimeData.conf ?? 0}%`, backgroundColor: regimeBanner.color }}
-              />
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[9px] text-gray-500">Override</span>
-            <Toggle checked={regimeLock} onChange={setRegimeLock} size="sm" />
-            {regimeLock ? <Lock className="w-3 h-3 text-amber-500" /> : <Unlock className="w-3 h-3 text-gray-600" />}
+        <div className="flex items-center gap-2">
+          <div className="w-20 h-1.5 bg-[#1e293b] rounded-full overflow-hidden">
+            <div className="h-full rounded-full transition-all duration-500" style={{ width: `${regimeData.conf ?? 0}%`, backgroundColor: regimeBanner.color }} />
           </div>
         </div>
       </div>
 
       {/* ================================================================== */}
-      {/* SCANNER SUMMARY CARDS - 4 cards in a horizontal row              */}
+      {/* MAIN 4-COLUMN GRID LAYOUT                                          */}
       {/* ================================================================== */}
-      <div className="grid grid-cols-4 gap-2 px-2 pt-2">
-        {/* Card 1: Active Scanners */}
-        <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-3 flex items-center gap-3 hover:shadow-glow transition-shadow duration-300">
-          <div className="w-10 h-10 rounded-[8px] bg-[#00D9FF]/10 flex items-center justify-center shrink-0">
-            <Radio className="w-5 h-5 text-[#00D9FF]" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[9px] text-gray-500 uppercase tracking-widest">Active Scanners</div>
-            <div className="text-2xl font-bold font-mono text-[#00D9FF]">{scannerMetrics.activeScanners}<span className="text-xs text-gray-600">/{SCANNERS.length}</span></div>
-          </div>
-          <div className="w-1.5 h-10 bg-[#1e293b] rounded-full overflow-hidden">
-            <div className="w-full bg-[#00D9FF] rounded-full transition-all" style={{ height: `${(scannerMetrics.activeScanners / SCANNERS.length) * 100}%` }} />
-          </div>
-        </div>
+      <div className="flex-1 grid grid-cols-[18%_34%_24%_24%] gap-1.5 p-1.5 overflow-hidden min-h-0">
 
-        {/* Card 2: Signals Today */}
-        <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-3 flex items-center gap-3 hover:shadow-glow transition-shadow duration-300">
-          <div className="w-10 h-10 rounded-[8px] bg-emerald-500/10 flex items-center justify-center shrink-0">
-            <Zap className="w-5 h-5 text-emerald-400" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[9px] text-gray-500 uppercase tracking-widest">Signals Today</div>
-            <div className="text-2xl font-bold font-mono text-[#00D9FF]">{scannerMetrics.signalsToday}</div>
-          </div>
-          <div className="text-[9px] text-gray-600 font-mono">{scannerMetrics.totalRuns} runs</div>
-        </div>
-
-        {/* Card 3: Hit Rate */}
-        <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-3 flex items-center gap-3 hover:shadow-glow transition-shadow duration-300">
-          <div className="w-10 h-10 rounded-[8px] bg-amber-500/10 flex items-center justify-center shrink-0">
-            <Target className="w-5 h-5 text-amber-400" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[9px] text-gray-500 uppercase tracking-widest">Hit Rate</div>
-            <div className="text-2xl font-bold font-mono text-[#00D9FF]">{scannerMetrics.hitRate}%</div>
-          </div>
-          <div className="w-12 h-12 relative">
-            <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-              <circle cx="18" cy="18" r="15" fill="none" stroke="#1e293b" strokeWidth="3" />
-              <circle cx="18" cy="18" r="15" fill="none" stroke="#F59E0B" strokeWidth="3"
-                strokeDasharray={`${scannerMetrics.hitRate * 0.942} 94.2`} strokeLinecap="round" />
-            </svg>
-          </div>
-        </div>
-
-        {/* Card 4: Top Signal */}
-        <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-[8px] p-3 flex items-center gap-3 hover:shadow-glow transition-shadow duration-300">
-          <div className="w-10 h-10 rounded-[8px] bg-purple-500/10 flex items-center justify-center shrink-0">
-            <Rocket className="w-5 h-5 text-purple-400" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[9px] text-gray-500 uppercase tracking-widest">Top Signal</div>
-            {scannerMetrics.topSignal ? (
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-bold font-mono text-[#00D9FF]">{scannerMetrics.topSignal.symbol || scannerMetrics.topSignal.ticker || '--'}</span>
-                <Badge color={scannerMetrics.topSignal.dir === 'LONG' || scannerMetrics.topSignal.action === 'BUY' ? 'emerald' : 'red'}>
-                  {scannerMetrics.topSignal.dir || scannerMetrics.topSignal.action || '--'}
-                </Badge>
-              </div>
-            ) : (
-              <span className="text-sm font-mono text-gray-600">--</span>
-            )}
-          </div>
-          {scannerMetrics.topSignal && (
-            <span className="text-lg font-bold font-mono text-[#00D9FF]">{scannerMetrics.topSignal.score || scannerMetrics.topSignal.confidence || '--'}</span>
-          )}
-        </div>
-      </div>
-
-      {/* ================================================================== */}
-      {/* CHART ROW: Candlestick Chart (full width)                         */}
-      {/* ================================================================== */}
-      <div className="px-2 pt-2">
-        {/* Candlestick Chart with SMA overlays */}
-        <Panel title={`${selectedSymbol} ${chartTimeframe} PATTERNS: ON`} icon={Crosshair}
-          className="hover:shadow-glow transition-shadow duration-300"
-          headerAction={
-            <div className="flex gap-1">
-              {timeframes.map(t => (
-                <button key={t} onClick={() => setChartTimeframe(t)}
-                  className={`px-1.5 py-0.5 rounded-aurora text-[9px] font-mono border transition-all duration-200 ${chartTimeframe === t ? 'bg-[#00D9FF]/20 border-[#00D9FF]/50 text-[#00D9FF] shadow-glow' : 'bg-[#1e293b] border-[#374151] text-gray-500 hover:text-gray-300 hover:border-gray-500'}`}>{t}</button>
-              ))}
-            </div>
-          }>
-          <div ref={chartContainerRef} className="w-full min-h-[340px]" style={{ height: '340px' }} />
-        </Panel>
-      </div>
-
-      {/* ================================================================== */}
-      {/* MAIN CONTENT: Signal Table + ML Controls | 4-Column Controls      */}
-      {/* ================================================================== */}
-      <div className="grid grid-cols-[20%_30%_25%_25%] gap-2 p-2" style={{ height: 'calc(100vh - 500px)', minHeight: '400px' }}>
-
-        {/* COL 1: AGENTS & SCANNERS (20%) */}
-        <div className="flex flex-col gap-2 overflow-y-auto">
-          <Panel title="Scanner Modules" icon={Search} className="max-h-[45%]">
+        {/* ============================================================== */}
+        {/* COLUMN 1: Scanner Modules + OpenClaw Agent Swarm               */}
+        {/* ============================================================== */}
+        <div className="flex flex-col gap-1.5 overflow-hidden min-h-0">
+          {/* Scanner Modules (Layer 1) */}
+          <Panel title="Scanner Modules (Layer 1)" icon={Search} className="flex-[4] min-h-0"
+            headerAction={<span className="text-[8px] text-gray-500">{scannerMetrics.activeScanners} SCANNER TOGGLES</span>}>
             {SCANNERS.map(scan => (
-              <div key={scan.id} className="flex items-center gap-1.5 py-1 border-b border-[#1e293b]/50 last:border-0 hover:bg-[#1e293b]/40 px-0.5 rounded">
+              <div key={scan.id} className="flex items-center gap-1 py-0.5 border-b border-[#1e293b]/50 last:border-0 hover:bg-[#1e293b]/40 px-0.5 rounded">
                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                   scannerStates[scan.id].status === 'green' ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)]'
                   : scannerStates[scan.id].status === 'yellow' ? 'bg-amber-500 animate-pulse'
                   : 'bg-red-500'}`} />
-                <span className="text-[9px] text-gray-300 truncate w-20 shrink-0">{scan.name}</span>
-                <button onClick={() => triggerScan(scan.id)} className="text-gray-500 hover:text-cyan-400">
-                  <Play className="w-2.5 h-2.5" />
-                </button>
+                <span className="text-[9px] text-gray-300 truncate w-24 shrink-0">{scan.name}</span>
                 <Toggle checked={scannerStates[scan.id].active} onChange={(v) => handleToggleState('scanner', scan.id, !v)} size="sm" />
                 <Slider value={scannerStates[scan.id].weight} onChange={(v) => handleUpdateWeight('scanner', scan.id, v)} />
-                <span className="text-[8px] text-gray-600">Runs: {scannerStates[scan.id].runs}</span>
               </div>
             ))}
           </Panel>
 
-          <Panel title="OpenClaw Agent Swarm" icon={Cpu} className="flex-1">
-            <div className="text-[8px] text-gray-500 mb-1 uppercase tracking-widest">CORE AGENTS (7)</div>
+          {/* OpenClaw Score (Layer 4) */}
+          <Panel title="OpenClaw Score (Layer 4)" icon={Cpu} className="flex-[5] min-h-0"
+            headerAction={<span className="text-[8px] text-gray-500">7 CORE AGENTS</span>}>
+            <div className="text-[8px] text-gray-500 mb-0.5 uppercase tracking-widest">CORE AGENTS</div>
             {CORE_AGENTS.map(agent => (
               <ControlRow key={agent.id} title={agent.name}
                 isActive={agentStates[agent.id].active}
@@ -625,11 +521,11 @@ export default function SignalIntelligenceV3() {
                 weight={agentStates[agent.id].weight}
                 onWeightChange={(v) => handleUpdateWeight('agent', agent.id, v)} />
             ))}
-            <div className="flex items-center justify-between mt-2 mb-1">
-              <span className="text-[8px] text-gray-500 uppercase tracking-widest">EXTENDED SWARM (93)</span>
+            <div className="flex items-center justify-between mt-1.5 mb-0.5">
+              <span className="text-[8px] text-gray-500 uppercase tracking-widest">EXTENDED SWARM ({EXTENDED_AGENTS.length})</span>
               <span className="text-[8px] text-cyan-600">SCROLL</span>
             </div>
-            <div className="max-h-[200px] overflow-y-auto">
+            <div className="flex-1 overflow-y-auto min-h-0">
               {EXTENDED_AGENTS.map(agent => (
                 <ControlRow key={agent.id} title={agent.name}
                   isActive={agentStates[agent.id].active}
@@ -641,9 +537,31 @@ export default function SignalIntelligenceV3() {
           </Panel>
         </div>
 
-        {/* COL 2: EXPANDED SIGNAL TABLE + ML CONTROLS (30%) */}
-        <div className="flex flex-col gap-2 overflow-y-auto">
-          <Panel title="Signal Data Table" icon={FileText} className="flex-1 hover:shadow-glow transition-shadow duration-300"
+        {/* ============================================================== */}
+        {/* COLUMN 2: Chart + Signal Data Table                            */}
+        {/* ============================================================== */}
+        <div className="flex flex-col gap-1.5 overflow-hidden min-h-0">
+          {/* Chart with symbol header */}
+          <Panel title={`${selectedSymbol}`} icon={Crosshair} className="flex-[6] min-h-0"
+            headerAction={
+              <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-0.5 mr-2">
+                  <span className="text-[8px] text-cyan-400 font-mono">SMA20</span>
+                  <span className="text-[8px] text-purple-400 font-mono ml-1">SMA50</span>
+                  <span className="text-[8px] text-orange-400 font-mono ml-1">SMA200</span>
+                  <span className="text-[8px] text-white font-mono ml-1">VWAP</span>
+                </div>
+                {timeframes.map(t => (
+                  <button key={t} onClick={() => setChartTimeframe(t)}
+                    className={`px-1.5 py-0.5 rounded-aurora text-[9px] font-mono border transition-all duration-200 ${chartTimeframe === t ? 'bg-[#00D9FF]/20 border-[#00D9FF]/50 text-[#00D9FF] shadow-glow' : 'bg-[#1e293b] border-[#374151] text-gray-500 hover:text-gray-300 hover:border-gray-500'}`}>{t}</button>
+                ))}
+              </div>
+            }>
+            <div ref={chartContainerRef} className="w-full flex-1 min-h-[180px]" />
+          </Panel>
+
+          {/* Signal Data Table */}
+          <Panel title="Signal data table" icon={FileText} className="flex-[4] min-h-0"
             headerAction={
               <div className="flex items-center gap-2">
                 <span className="text-[8px] text-gray-600 font-mono">{signals.length} signals</span>
@@ -652,61 +570,44 @@ export default function SignalIntelligenceV3() {
                 </button>
               </div>
             }>
-            <div className="overflow-x-auto">
+            <div className="overflow-auto flex-1 min-h-0">
               <table className="w-full text-[9px]">
-                <thead>
+                <thead className="sticky top-0 bg-[#111827] z-10">
                   <tr className="text-gray-500 border-b border-[#1e293b] uppercase tracking-wider">
-                    <th className="text-left py-1.5 px-1 sticky left-0 bg-[#111827]">Symbol</th>
-                    <th className="text-left py-1.5 px-1">Dir</th>
-                    <th className="text-left py-1.5 px-1">Prob</th>
-                    <th className="text-left py-1.5 px-1">Comp</th>
-                    <th className="text-left py-1.5 px-1">Velez</th>
-                    <th className="text-left py-1.5 px-1">Vol R</th>
-                    <th className="text-left py-1.5 px-1">Regime</th>
-                    <th className="text-left py-1.5 px-1">Scanner</th>
-                    <th className="text-left py-1.5 px-1">Agent</th>
-                    <th className="text-left py-1.5 px-1">Conf</th>
-                    <th className="text-left py-1.5 px-1">Kelly</th>
-                    <th className="text-left py-1.5 px-1">Time</th>
-                    <th className="text-left py-1.5 px-1">Action</th>
+                    <th className="text-left py-1 px-1">Symbol</th>
+                    <th className="text-left py-1 px-1">Score</th>
+                    <th className="text-left py-1 px-1">Dir</th>
+                    <th className="text-left py-1 px-1">Price</th>
+                    <th className="text-left py-1 px-1">Origin Agent</th>
+                    <th className="text-left py-1 px-1">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {signals.map((sig, idx) => (
                     <tr key={sig.id || idx} className="border-b border-[#1e293b]/30 hover:bg-[#00D9FF]/5 cursor-pointer transition-colors"
                       onClick={() => setSelectedSymbol(sig.symbol || sig.ticker)}>
-                      <td className={`py-1 px-1 font-bold font-mono sticky left-0 bg-[#111827] ${(sig.score || sig.confidence || 0) > 80 ? 'text-[#00D9FF]' : 'text-gray-300'}`}>
+                      <td className="py-1 px-1 font-bold font-mono text-[#00D9FF]">
                         {sig.symbol || sig.ticker}
+                      </td>
+                      <td className="py-1 px-1">
+                        <span className={`font-mono font-bold ${(sig.score || sig.confidence || 0) >= 80 ? 'text-emerald-400' : (sig.score || sig.confidence || 0) >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
+                          {sig.score || sig.confidence || '--'}
+                        </span>
                       </td>
                       <td className="py-1 px-1">
                         <span className={`px-1 py-0.5 rounded text-[8px] font-bold ${(sig.dir === 'LONG' || sig.action === 'BUY') ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>
                           {sig.dir || sig.action || '--'}
                         </span>
                       </td>
-                      <td className="py-1 px-1 font-mono">
-                        <span className={`text-[8px] font-bold ${(sig.probability || sig.score || 0) >= 80 ? 'text-emerald-400' : (sig.probability || sig.score || 0) >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
-                          {sig.probability ? `${(sig.probability * 100).toFixed(0)}%` : sig.score ? `${sig.score}%` : '--'}
-                        </span>
+                      <td className="py-1 px-1 font-mono text-gray-300">${typeof sig.price === 'number' ? sig.price.toFixed(2) : sig.price || '--'}</td>
+                      <td className="py-1 px-1 text-gray-400 truncate max-w-[60px]">
+                        <span className="text-cyan-400">{sig.agent || sig.source || '--'}</span>
                       </td>
-                      <td className="py-1 px-1 font-mono text-gray-400">{sig.compression || sig.comp || '--'}</td>
-                      <td className="py-1 px-1 font-mono text-purple-400">{sig.velez_score || sig.velezScore || '--'}</td>
-                      <td className="py-1 px-1 font-mono text-[#00D9FF]">{(sig.vol_ratio || sig.volRatio) ? Number(sig.vol_ratio || sig.volRatio).toFixed(1) : '--'}</td>
                       <td className="py-1 px-1">
-                        <span className={`text-[8px] ${regimeData.state?.includes('BULL') ? 'text-emerald-400' : regimeData.state?.includes('BEAR') ? 'text-red-400' : 'text-amber-400'}`}>
-                          {sig.regime || regimeBanner.label}
-                        </span>
-                      </td>
-                      <td className="py-1 px-1 text-gray-500 truncate max-w-[50px]">{sig.scanner || sig.source || '--'}</td>
-                      <td className="py-1 px-1 text-gray-500 truncate max-w-[50px]">{sig.agent || '--'}</td>
-                      <td className="py-1 px-1">
-                        <span className={`font-mono text-[8px] font-bold ${(sig.confidence || sig.score || 0) >= 85 ? 'text-emerald-400' : (sig.confidence || sig.score || 0) >= 60 ? 'text-[#00D9FF]' : 'text-amber-400'}`}>
-                          {sig.confidence || sig.score || '--'}
-                        </span>
-                      </td>
-                      <td className="py-1 px-1 text-[#00D9FF] font-mono">{sig.kelly_edge ? `${(sig.kelly_edge * 100).toFixed(1)}%` : '--'}</td>
-                      <td className="py-1 px-1 text-gray-600 font-mono">{sig.timestamp ? new Date(sig.timestamp).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : sig.time || '--'}</td>
-                      <td className="py-1 px-1">
-                        <button className="text-[#00D9FF] hover:text-white transition-colors"><Eye className="w-2.5 h-2.5" /></button>
+                        <div className="flex items-center gap-1">
+                          <button className="text-[#00D9FF] hover:text-white transition-colors"><Eye className="w-2.5 h-2.5" /></button>
+                          <button className="text-emerald-400 hover:text-white transition-colors"><Play className="w-2.5 h-2.5" /></button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -714,105 +615,38 @@ export default function SignalIntelligenceV3() {
               </table>
             </div>
           </Panel>
-
-          {/* ML Controls Panel — integrates flywheel + training data */}
-          <Panel title="ML Controls" icon={Sliders} className="hover:shadow-glow transition-shadow duration-300"
-            headerAction={
-              <Badge color={flywheelData ? 'emerald' : 'gray'}>{flywheelData ? 'FLYWHEEL LIVE' : 'FLYWHEEL --'}</Badge>
-            }>
-            {/* Confidence Threshold Slider */}
-            <div className="mb-3">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[9px] text-gray-500 uppercase tracking-widest">Model Confidence Threshold</span>
-                <span className="text-sm font-bold font-mono text-[#00D9FF]">{mlConfidenceThreshold}%</span>
-              </div>
-              <div className="relative w-full h-2 bg-[#1e293b] rounded-full">
-                <div className="absolute left-0 top-0 h-2 rounded-full bg-gradient-to-r from-red-500 via-amber-500 to-emerald-500 transition-all"
-                  style={{ width: `${mlConfidenceThreshold}%` }} />
-                <input type="range" min="0" max="100" value={mlConfidenceThreshold}
-                  onChange={(e) => setMlConfidenceThreshold(parseInt(e.target.value))}
-                  className="absolute inset-0 w-full opacity-0 cursor-pointer h-2" />
-              </div>
-            </div>
-
-            {/* Active Model Count */}
-            <div className="flex items-center justify-between py-1.5 border-b border-[#1e293b]/50">
-              <span className="text-[9px] text-gray-500">Active Models</span>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold font-mono text-emerald-400">{mlControlsData.activeModels}</span>
-                <span className="text-[8px] text-gray-600 font-mono">/ {ML_MODELS.length}</span>
-              </div>
-            </div>
-
-            {/* Last Retrain Timestamp */}
-            <div className="flex items-center justify-between py-1.5 border-b border-[#1e293b]/50">
-              <span className="text-[9px] text-gray-500">Last Retrain</span>
-              <span className="text-[9px] font-mono text-gray-400">
-                {mlControlsData.lastRetrain ? new Date(mlControlsData.lastRetrain).toLocaleString() : 'No retrain data'}
-              </span>
-            </div>
-
-            {/* Flywheel Cycles & Accuracy */}
-            <div className="flex items-center justify-between py-1.5 border-b border-[#1e293b]/50">
-              <span className="text-[9px] text-gray-500">Flywheel Cycles</span>
-              <span className="text-[9px] font-bold font-mono text-[#00D9FF]">
-                {mlControlsData.flywheelCycles ?? '--'}
-              </span>
-            </div>
-            <div className="flex items-center justify-between py-1.5 border-b border-[#1e293b]/50">
-              <span className="text-[9px] text-gray-500">Model Accuracy</span>
-              <span className="text-[9px] font-bold font-mono text-emerald-400">
-                {mlControlsData.flywheelAccuracy != null ? `${(typeof mlControlsData.flywheelAccuracy === 'number' && mlControlsData.flywheelAccuracy <= 1 ? (mlControlsData.flywheelAccuracy * 100).toFixed(1) : mlControlsData.flywheelAccuracy)}%` : '--'}
-              </span>
-            </div>
-
-            {/* Feature Importance Top-5 */}
-            <div className="mt-2">
-              <span className="text-[8px] text-gray-500 uppercase tracking-widest">Feature Importance (Top 5)</span>
-              <div className="mt-1.5 space-y-1.5">
-                {mlControlsData.featureImportance.map((feat, i) => (
-                  <div key={feat.name || i} className="flex items-center gap-2">
-                    <span className="text-[8px] text-gray-400 w-3 shrink-0 font-mono">{i + 1}.</span>
-                    <span className="text-[9px] text-gray-300 w-28 truncate shrink-0">{feat.name || feat.feature}</span>
-                    <div className="flex-1 h-1.5 bg-[#1e293b] rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all duration-500"
-                        style={{
-                          width: `${(feat.importance || feat.value || 0) * 100}%`,
-                          backgroundColor: i === 0 ? '#00D9FF' : i === 1 ? '#10B981' : i === 2 ? '#A855F7' : i === 3 ? '#F59E0B' : '#EF4444'
-                        }} />
-                    </div>
-                    <span className="text-[8px] font-mono text-gray-500 w-8 text-right">{((feat.importance || feat.value || 0) * 100).toFixed(0)}%</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </Panel>
         </div>
 
-        {/* COL 3: INTEL, SCORING, ML (25%) */}
-        <div className="flex flex-col gap-2 overflow-y-auto">
-          <Panel title="Scoring Engine" icon={Target}>
-            <div className="flex items-center justify-between text-[9px] mb-2">
+        {/* ============================================================== */}
+        {/* COLUMN 3: Global Scoring Engine + Intelligence Modules + Regime */}
+        {/* ============================================================== */}
+        <div className="flex flex-col gap-1.5 overflow-hidden min-h-0">
+          {/* Global Scoring Engine (Layer 2) */}
+          <Panel title="Global Scoring Engine (Layer 2)" icon={Target} className="flex-[5] min-h-0">
+            <div className="flex items-center justify-between text-[9px] mb-1.5">
               <Badge color="cyan">OpenClaw Core</Badge>
+              <span className="text-[8px] text-gray-500">vs</span>
               <Badge color="purple">Tech Analysis</Badge>
             </div>
             <input type="range" min="0" max="100" value={scoringFormula.ocTaBlend}
               onChange={(e) => setScoringFormula(p => ({...p, ocTaBlend: parseInt(e.target.value)}))}
               className="w-full h-1.5 appearance-none bg-gradient-to-r from-cyan-500 to-purple-500 rounded-full cursor-pointer" />
-            <div className="text-center text-[9px] text-gray-400 mt-1">{scoringFormula.ocTaBlend} / {100 - scoringFormula.ocTaBlend}</div>
-            <div className="flex items-center gap-2 mt-2">
+            <div className="text-center text-[9px] text-gray-400 mt-0.5 mb-1.5">{scoringFormula.ocTaBlend} / {100 - scoringFormula.ocTaBlend}</div>
+
+            <div className="flex items-center gap-2 py-0.5">
               <span className="text-[9px] text-gray-500 w-28">Regime Multiplier</span>
               <input type="number" step="0.1" value={scoringFormula.regimeMultiplier}
                 onChange={(e) => setScoringFormula(p => ({...p, regimeMultiplier: parseFloat(e.target.value) || 1}))}
                 className="bg-[#1e293b] border border-[#374151] rounded px-2 py-0.5 text-[9px] text-cyan-400 font-bold w-16 outline-none" />
             </div>
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-2 py-0.5">
               <span className="text-[9px] text-gray-500 w-28">SLAM DUNK Tier</span>
               <input type="number" value={scoringFormula.tierSlamDunk}
                 onChange={(e) => setScoringFormula(p => ({...p, tierSlamDunk: parseInt(e.target.value) || 90}))}
                 className="bg-[#1e293b] border border-[#374151] rounded px-2 py-0.5 text-[9px] text-emerald-400 font-bold w-16 outline-none" />
             </div>
-            <div className="mt-3 text-[8px] text-gray-500 uppercase tracking-widest mb-1">PER-FACTOR SHAP WEIGHTS</div>
+
+            <div className="mt-2 text-[8px] text-gray-500 uppercase tracking-widest mb-1">PER-FACTOR SHAP WEIGHTS</div>
             {SHAP_FACTORS.map(factor => (
               <ControlRow key={factor} title={factor}
                 isActive={true} onToggle={() => {}}
@@ -821,7 +655,8 @@ export default function SignalIntelligenceV3() {
             ))}
           </Panel>
 
-          <Panel title="Intelligence Layer" icon={Shield}>
+          {/* Intelligence Modules (Layer 3) */}
+          <Panel title="Intelligence Modules (Layer 3)" icon={Shield} className="flex-[3] min-h-0">
             {INTEL_MODULES.map(mod => (
               <ControlRow key={mod.id} title={mod.name}
                 isActive={intelStates[mod.id].active}
@@ -831,80 +666,78 @@ export default function SignalIntelligenceV3() {
             ))}
           </Panel>
 
-          <Panel title="ML/AI Models" icon={Cpu}>
-            {ML_MODELS.map(model => (
-              <div key={model.id} className="py-1.5 border-b border-[#1e293b]/50 last:border-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <Toggle checked={mlStates[model.id].active}
-                    onChange={() => setMlStates(p => ({...p, [model.id]: {...p[model.id], active: !p[model.id].active}}))} size="sm" />
-                  <span className="text-[9px] text-gray-300 font-bold">{model.name}</span>
-                  <Badge color="gray">{model.version}</Badge>
-                  <Badge color={mlStates[model.id].status === 'Ready' ? 'emerald' : mlStates[model.id].status === 'Training' ? 'amber' : 'gray'}>
-                    {mlStates[model.id].status}
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[8px] text-gray-600">Conf Thresh</span>
-                  <input type="range" min="0" max="100" value={mlStates[model.id].confThreshold}
-                    onChange={(e) => setMlStates(p => ({...p, [model.id]: {...p[model.id], confThreshold: parseInt(e.target.value)}}))}
-                    className="flex-1 h-1 bg-[#111827] rounded-full appearance-none accent-purple-500" />
-                  <span className="text-[8px] text-gray-400">{mlStates[model.id].confThreshold}%</span>
-                  <button onClick={() => triggerRetrain(model.id)}
-                    className="px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded text-[8px] hover:bg-purple-500 hover:text-white transition-colors">
-                    RETRAIN
-                  </button>
-                </div>
-              </div>
-            ))}
+          {/* Regime Detector */}
+          <Panel title="Regime Detector" icon={BarChart2} className="flex-[2] min-h-0">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: regimeBanner.color, boxShadow: `0 0 8px ${regimeBanner.color}` }} />
+              <span className="text-[10px] font-bold font-mono" style={{ color: regimeBanner.text }}>{regimeData.state || 'BULL_TREND'}</span>
+              <Badge color={bannerColor}>{regimeData.conf ?? '--'}%</Badge>
+            </div>
+            <div className="flex items-center gap-2 text-[8px] text-gray-500">
+              <span>Since: {regimeData.since ? new Date(regimeData.since).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '--'}</span>
+              <span>|</span>
+              <span>HMM Layer 3</span>
+            </div>
+            <div className="w-full h-1.5 bg-[#1e293b] rounded-full overflow-hidden mt-1.5">
+              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${regimeData.conf ?? 0}%`, backgroundColor: regimeBanner.color }} />
+            </div>
           </Panel>
         </div>
 
-        {/* COL 4: SOCIAL, EXECUTION, APIS (25%) */}
-        <div className="flex flex-col gap-2 overflow-y-auto">
-          <Panel title="Social & Data Feeds" icon={Globe}>
+        {/* ============================================================== */}
+        {/* COLUMN 4: External Sensors + Execution + ML Model Control      */}
+        {/* ============================================================== */}
+        <div className="flex flex-col gap-1.5 overflow-hidden min-h-0">
+          {/* External Sensors */}
+          <Panel title="External Sensors" icon={Globe} className="flex-[3] min-h-0">
             {DATA_SOURCES.map(ds => (
-              <div key={ds.id} className="flex items-center gap-2 py-1 border-b border-[#1e293b]/50 last:border-0">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+              <div key={ds.id} className="flex items-center gap-2 py-0.5 border-b border-[#1e293b]/50 last:border-0">
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dataSourceStates[ds.id].active ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]' : 'bg-gray-600'}`} />
                 <span className="text-[9px] text-gray-300 flex-1">{ds.name}</span>
                 <Toggle checked={dataSourceStates[ds.id].active}
                   onChange={() => setDataSourceStates(p => ({...p, [ds.id]: {...p[ds.id], active: !p[ds.id].active}}))} size="sm" />
               </div>
             ))}
-            <div className="flex items-center gap-2 py-1 border-b border-[#1e293b]/50">
+            <div className="flex items-center gap-2 py-0.5 border-b border-[#1e293b]/50">
               <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0" />
               <span className="text-[9px] text-gray-300 flex-1">Discord Listener</span>
               <Badge color="emerald">Connected</Badge>
             </div>
-            <input type="text" placeholder="Watch Channels (comma sep)"
-              className="w-full bg-[#1e293b] border border-[#374151] rounded p-1.5 text-[9px] text-gray-300 outline-none focus:border-purple-500 mt-1"
-              defaultValue="options-flow, alerts-pro" />
-            <div className="flex items-center gap-2 py-1 mt-1">
+            <div className="flex items-center gap-2 py-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
               <span className="text-[9px] text-gray-300 flex-1">YouTube Agent</span>
               <Toggle checked={true} onChange={() => {}} size="sm" />
             </div>
           </Panel>
 
-          <Panel title="Execution Controls" icon={Rocket}>
-            <div className="flex items-center gap-2 mb-2">
+          {/* Execution & Automation Controls */}
+          <Panel title="Execution & Automation Controls" icon={Rocket} className="flex-[4] min-h-0"
+            headerAction={
+              <Badge color={autoExecute ? 'emerald' : 'red'}>{autoExecute ? 'AUTO EXECUTION' : 'MANUAL'}</Badge>
+            }>
+            <div className="flex items-center gap-2 mb-1.5">
               <Toggle checked={autoExecute} onChange={setAutoExecute} />
               <span className={`text-[9px] font-bold ${autoExecute ? 'text-emerald-400' : 'text-gray-500'}`}>AUTO EXECUTION</span>
             </div>
-            <div className="flex items-center gap-2 py-1">
+            <div className="flex items-center gap-2 py-0.5">
               <span className="text-[9px] text-gray-500 w-24">Trading Mode</span>
-              <select className="bg-[#1e293b] border border-[#374151] rounded px-2 py-1 text-[9px] outline-none text-red-400 font-bold flex-1" defaultValue="LIVE (ALPACA)">
+              <select className="bg-[#1e293b] border border-[#374151] rounded px-2 py-0.5 text-[9px] outline-none text-red-400 font-bold flex-1" defaultValue="PAPER TRADING">
                 <option>LIVE (ALPACA)</option><option>PAPER TRADING</option>
               </select>
             </div>
-            <div className="flex items-center gap-2 py-1">
+            <div className="flex items-center gap-2 py-0.5">
               <span className="text-[9px] text-gray-500 w-24">Position Sizer</span>
-              <select className="bg-[#1e293b] border border-[#374151] rounded px-2 py-1 text-[9px] outline-none text-cyan-400 flex-1">
+              <select className="bg-[#1e293b] border border-[#374151] rounded px-2 py-0.5 text-[9px] outline-none text-cyan-400 flex-1">
                 <option>KELLY CRITERION</option><option>FIXED 2%</option><option>DYNAMIC VOL</option>
               </select>
             </div>
-            <Slider value={maxHeat} onChange={setMaxHeat} color="amber" label="Max Heat" />
-            <Slider value={lossLimit} onChange={setLossLimit} color="red" label="Loss Lmt" />
-            <div className="text-[8px] text-gray-500 uppercase tracking-widest mt-2 mb-1">Active Rules (IF/THEN)</div>
+            <div className="mt-1.5">
+              <Slider value={maxHeat} onChange={setMaxHeat} color="amber" label="Max Heat" />
+            </div>
+            <div className="mt-1">
+              <Slider value={lossLimit} onChange={setLossLimit} color="red" label="Loss Lmt" />
+            </div>
+            <div className="text-[8px] text-gray-500 uppercase tracking-widest mt-2 mb-0.5">Active Rules (IF/THEN)</div>
             <div className="flex items-center gap-1 py-0.5">
               <Toggle checked={true} onChange={() => {}} size="sm" />
               <span className="text-[8px] text-gray-400">IF <Badge color="cyan">comp &gt; 90</Badge> AND <Badge color="emerald">regime=BULL</Badge> THEN stage</span>
@@ -915,95 +748,92 @@ export default function SignalIntelligenceV3() {
             </div>
           </Panel>
 
-          <Panel title="API Health Matrix (28)" icon={Server}>
-            <div className="grid grid-cols-7 gap-1">
-              {API_ENDPOINTS.map((ep, i) => {
-                              const health = apiStatus?.endpoints?.[ep];
-              const isWarn = health?.status === 'degraded' || health?.latency > 500;
-              const isErr = health?.status === 'down' || health?.error;
-                            const bg = isErr ? 'bg-red-500 shadow-[0_0_5px_rgba(239,68,68,0.8)]'
-                  : isWarn ? 'bg-amber-500 shadow-[0_0_5px_rgba(245,158,11,0.8)] animate-pulse'
-                  : 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]';
-                return (
-                  <div key={ep} className="flex flex-col items-center gap-0.5" title={ep}>
-                    <span className={`w-2.5 h-2.5 rounded-full ${bg}`} />
-                    <span className="text-[7px] text-gray-600 truncate w-full text-center">{ep.substring(0,6)}</span>
-                  </div>
-                );
-              })}
+          {/* ML Model Control (Layer 5) */}
+          <Panel title="ML Model Control (Layer 5)" icon={Cpu} className="flex-[4] min-h-0"
+            headerAction={
+              <Badge color={flywheelData ? 'emerald' : 'gray'}>{flywheelData ? 'FLYWHEEL LIVE' : 'FLYWHEEL --'}</Badge>
+            }>
+            {ML_MODELS.map(model => (
+              <div key={model.id} className="py-1 border-b border-[#1e293b]/50 last:border-0">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <Toggle checked={mlStates[model.id].active}
+                    onChange={() => setMlStates(p => ({...p, [model.id]: {...p[model.id], active: !p[model.id].active}}))} size="sm" />
+                  <span className="text-[9px] text-gray-300 font-bold">{model.name}</span>
+                  <Badge color="gray">{model.version}</Badge>
+                  <Badge color={mlStates[model.id].status === 'Ready' ? 'emerald' : mlStates[model.id].status === 'Training' ? 'amber' : 'gray'}>
+                    {mlStates[model.id].status}
+                  </Badge>
+                  <button onClick={() => triggerRetrain(model.id)}
+                    className="ml-auto px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded text-[8px] hover:bg-purple-500 hover:text-white transition-colors">
+                    RETRAIN
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            {/* System Telemetry */}
+            <div className="mt-1.5 pt-1.5 border-t border-[#1e293b]">
+              <div className="text-[8px] text-gray-500 uppercase tracking-widest mb-1">System Telemetry</div>
+              <div className="grid grid-cols-2 gap-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[8px] text-gray-500">Active Models</span>
+                  <span className="text-[9px] font-bold font-mono text-emerald-400">{mlControlsData.activeModels}/{ML_MODELS.length}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[8px] text-gray-500">Accuracy</span>
+                  <span className="text-[9px] font-bold font-mono text-[#00D9FF]">
+                    {mlControlsData.flywheelAccuracy != null ? `${(typeof mlControlsData.flywheelAccuracy === 'number' && mlControlsData.flywheelAccuracy <= 1 ? (mlControlsData.flywheelAccuracy * 100).toFixed(1) : mlControlsData.flywheelAccuracy)}%` : '--'}
+                  </span>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-3 mt-2 pt-1 border-t border-[#1e293b]">
-                            <Badge color="emerald">DB: {apiStatus?.db_latency_ms ?? '—'}ms</Badge>
-              <Badge color="cyan">MEM: {apiStatus?.memory_pct ?? '—'}%</Badge>
+
+            {/* API Health minimap */}
+            <div className="mt-1.5 pt-1.5 border-t border-[#1e293b]">
+              <div className="text-[8px] text-gray-500 uppercase tracking-widest mb-1">API PRIORITY MAP ({API_ENDPOINTS.length})</div>
+              <div className="grid grid-cols-7 gap-0.5">
+                {API_ENDPOINTS.map((ep) => {
+                  const health = apiStatus?.endpoints?.[ep];
+                  const isWarn = health?.status === 'degraded' || health?.latency > 500;
+                  const isErr = health?.status === 'down' || health?.error;
+                  const bg = isErr ? 'bg-red-500 shadow-[0_0_3px_rgba(239,68,68,0.8)]'
+                    : isWarn ? 'bg-amber-500 animate-pulse'
+                    : 'bg-emerald-500 shadow-[0_0_3px_rgba(16,185,129,0.5)]';
+                  return (
+                    <div key={ep} className="flex flex-col items-center gap-0.5" title={ep}>
+                      <span className={`w-2 h-2 rounded-full ${bg}`} />
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </Panel>
         </div>
-
       </div>
 
-            {/* LIVE SIGNAL FEED — merged from Signals.jsx */}
-      <div className="mt-4 border border-[#1e293b] rounded-lg overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 bg-[#111827] border-b border-[#1e293b]">
-          <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4 text-cyan-400" />
-            <h3 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">Live Signal Feed</h3>
-            <span className="text-[9px] text-gray-500">
-              {apiSignals ? (Array.isArray(apiSignals) ? apiSignals.length : apiSignals?.signals?.length ?? 0) : 0} signals
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[9px] text-slate-500">Last scan: {new Date().toLocaleTimeString()}</span>
-            <button onClick={refetchSignals} className="flex items-center gap-1 px-2 py-1 bg-cyan-500/15 border border-cyan-500/50 rounded text-[8px] text-cyan-400 hover:bg-cyan-500/25">
-              <RefreshCw className="w-3 h-3" /> Refresh
-            </button>
-          </div>
+      {/* ================================================================== */}
+      {/* BOTTOM STATUS BAR                                                  */}
+      {/* ================================================================== */}
+      <div className="flex items-center justify-between px-3 py-1 bg-[#111827] border-t border-[#1e293b] shrink-0 text-[8px] text-gray-500">
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)]" />
+            {Object.values(agentStates).filter(a => a.active).length} Agents OK
+          </span>
+          <span className="flex items-center gap-1">
+            <Database className="w-3 h-3 text-gray-600" />
+            DB: {apiStatus?.db_latency_ms ?? '--'}ms
+          </span>
+          <span className="flex items-center gap-1">
+            <HardDrive className="w-3 h-3 text-gray-600" />
+            MEM: {apiStatus?.memory_pct ?? '--'}%
+          </span>
         </div>
-        <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
-          <table className="w-full text-[9px]">
-            <thead className="sticky top-0 bg-[#111827]">
-              <tr className="border-b border-[#1e293b]">
-                <th className="px-3 py-2 text-left text-gray-500">Symbol</th>
-                <th className="px-3 py-2 text-left text-gray-500">Action</th>
-                <th className="px-3 py-2 text-left text-gray-500">Conf</th>
-                <th className="px-3 py-2 text-left text-gray-500">Tier</th>
-                <th className="px-3 py-2 text-left text-gray-500">Entry</th>
-                <th className="px-3 py-2 text-left text-gray-500">Target</th>
-                <th className="px-3 py-2 text-left text-gray-500">Stop</th>
-                <th className="px-3 py-2 text-left text-gray-500">R:R</th>
-                <th className="px-3 py-2 text-left text-gray-500">Factors</th>
-                <th className="px-3 py-2 text-left text-gray-500">Time</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(() => {
-                const sigs = Array.isArray(apiSignals) ? apiSignals : apiSignals?.signals ?? [];
-                if (!sigs.length) return (
-                  <tr><td colSpan={10} className="px-4 py-6 text-center text-slate-500">No signals available. Waiting for agent scan...</td></tr>
-                );
-                const tierColor = (tier) => {
-                  if (tier === 'SLAM DUNK') return 'text-emerald-400 bg-emerald-500/15';
-                  if (tier === 'STRONG GO') return 'text-cyan-400 bg-cyan-500/15';
-                  if (tier === 'WATCH') return 'text-amber-400 bg-amber-500/15';
-                  return 'text-slate-400 bg-slate-500/15';
-                };
-                const confColor = (c) => c >= 85 ? 'text-emerald-400' : c >= 60 ? 'text-cyan-400' : 'text-amber-400';
-                return sigs.map((sig, i) => (
-                  <tr key={i} className="border-b border-[#1e293b]/50 hover:bg-[#1e293b]/30">
-                    <td className="px-3 py-2 font-bold text-gray-200">{sig.symbol || sig.ticker || '—'}</td>
-                    <td className="px-3 py-2"><span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${sig.action === 'BUY' ? 'text-emerald-400 bg-emerald-500/15' : sig.action === 'SELL' ? 'text-red-400 bg-red-500/15' : 'text-amber-400 bg-amber-500/15'}`}>{sig.action || '—'}</span></td>
-                    <td className={`px-3 py-2 font-bold ${confColor(sig.confidence)}`}>{sig.confidence ?? '—'}%</td>
-                    <td className="px-3 py-2"><span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${tierColor(sig.tier)}`}>{sig.tier || '—'}</span></td>
-                    <td className="px-3 py-2 text-slate-300">{typeof sig.entry === 'number' ? sig.entry.toFixed(2) : sig.entry || '—'}</td>
-                    <td className="px-3 py-2 text-emerald-400">{typeof sig.target === 'number' ? sig.target.toFixed(2) : sig.target || '—'}</td>
-                    <td className="px-3 py-2 text-red-400">{typeof sig.stop === 'number' ? sig.stop.toFixed(2) : sig.stop || '—'}</td>
-                    <td className="px-3 py-2 text-cyan-400 font-bold">{sig.rr || (sig.entry && sig.target && sig.stop ? ((sig.target - sig.entry) / (sig.entry - sig.stop)).toFixed(1) : '—')}</td>
-                    <td className="px-3 py-2 text-slate-500 max-w-[150px] truncate">{Array.isArray(sig.factors) ? sig.factors.join(', ') : sig.factors || '—'}</td>
-                    <td className="px-3 py-2 text-slate-500">{sig.timestamp ? new Date(sig.timestamp).toLocaleTimeString() : sig.time || '—'}</td>
-                  </tr>
-                ));
-              })()}
-            </tbody>
-          </table>
+        <div className="flex items-center gap-3">
+          <span>Signals: {scannerMetrics.signalsToday}</span>
+          <span>Hit Rate: {scannerMetrics.hitRate}%</span>
+          <span>WS: {wsLatency}ms</span>
+          <span className="text-gray-600">{new Date().toLocaleTimeString()}</span>
         </div>
       </div>
     </div>
@@ -1088,4 +918,3 @@ export const AnalyticsDashboards = () => {
         </div>
     );
 };
-
