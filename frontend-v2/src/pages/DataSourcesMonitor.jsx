@@ -6,16 +6,16 @@ import {
   Eye,
   EyeOff,
   Search,
-  Activity,
   Wifi,
   Database,
-  Globe,
-  BarChart3,
-  ExternalLink,
   ChevronRight,
   RotateCw,
   ShoppingBag,
   Check,
+  StopCircle,
+  ChevronDown,
+  Zap,
+  Link2,
 } from "lucide-react";
 import {
   LineChart,
@@ -57,7 +57,7 @@ const SOURCE_DEFS = [
     status: "healthy",
     latency: "14ms",
     dataRate: "8.6K",
-    dataSize: "***rec/s",
+    dataSize: "rec/s",
     uptime: 99.9,
     sparkData: genSparkline(0.6, 1.0),
   },
@@ -71,7 +71,7 @@ const SOURCE_DEFS = [
     status: "healthy",
     latency: "7ms",
     dataRate: "142K",
-    dataSize: "tick 9.9%",
+    dataSize: "tick/s",
     uptime: 99.9,
     sparkData: genSparkline(0.7, 1.0),
   },
@@ -85,27 +85,27 @@ const SOURCE_DEFS = [
     status: "healthy",
     latency: "340ms",
     dataRate: "1.2K",
-    dataSize: "98.5%  $8.81",
+    dataSize: "",
     uptime: 98.5,
     sparkData: genSparkline(0.3, 0.7),
   },
   {
     id: "sec_edgar",
     name: "SEC EDGAR",
-    type: "Filings",
+    type: "Sentiment",
     typeBadgeColor: "bg-red-500/20 text-red-400",
     icon: "SE",
     iconBg: "bg-slate-600",
     status: "degraded",
     latency: "5.6K",
-    dataRate: "95.2%",
+    dataRate: "",
     dataSize: "Polls 15m",
     uptime: 95.2,
     sparkData: genSparkline(0.2, 0.8),
   },
   {
-    id: "stockgeist",
-    name: "Stockgeist",
+    id: "stockgrid",
+    name: "Stockgrid",
     type: "Sentiment",
     typeBadgeColor: "bg-pink-500/20 text-pink-400",
     icon: "SG",
@@ -175,19 +175,19 @@ const SOURCE_DEFS = [
   },
 ];
 
-const PROVIDER_TABS = [
-  "Finnhub",
-  "Binance",
+const FILTER_CHIPS = [
+  "ALL",
+  "Brokerage",
   "Alpha Vantage",
-  "Quandl",
+  "Quant",
   "RX Cloud",
-  "CoinGecko",
+  "ConfStack",
 ];
 
-const SUPPLEMENTARY_SOURCES = [
-  { id: "binance", label: "Binance" },
-  { id: "openclaw", label: "OpenClaw Bridge" },
+const SUPPLY_CHAIN_SOURCES = [
   { id: "reddit", label: "Reddit" },
+  { id: "benzinga", label: "Benzinga" },
+  { id: "openclaw", label: "OpenClaw Bridge" },
   { id: "tradingview", label: "TradingView" },
   { id: "github_gist", label: "GitHub Gist" },
 ];
@@ -288,6 +288,11 @@ function SourceCard({ source, isSelected, onClick }) {
             <span className="text-[10px] text-gray-500">
               {source.latency}
             </span>
+            {source.uptime && (
+              <span className="text-[10px] text-gray-500">
+                {source.uptime}%
+              </span>
+            )}
             {source.dataRate && (
               <span className="text-[10px] text-gray-500">
                 {source.dataRate}
@@ -304,7 +309,7 @@ function SourceCard({ source, isSelected, onClick }) {
         {/* Sparkline */}
         <MiniSparkline data={source.sparkData} color={sparkColor} />
 
-        {/* Uptime */}
+        {/* Uptime bar */}
         <div className="text-right flex-shrink-0 w-12">
           <div
             className={clsx(
@@ -361,7 +366,7 @@ function ConnectionDetailPanel({ source }) {
       : `wss://stream.${source.id}.com`,
     rateLimit: isAlpaca ? "200 req/min" : "100 req/min",
     pollingInterval: isAlpaca ? "Real-time (WebSocket)" : "30s",
-    connectionType: isAlpaca ? "Paper Trading" : "Production",
+    tradingType: isAlpaca ? "Paper Trading" : "Production",
     testResult: isAlpaca
       ? "Account: $251,456 equity"
       : `Connected - ${source.latency} latency`,
@@ -373,7 +378,7 @@ function ConnectionDetailPanel({ source }) {
       <div className="px-4 py-3 border-b border-gray-800">
         <div className="flex items-center justify-between">
           <div className="text-[10px] text-gray-500 uppercase tracking-widest font-medium">
-            Connection Detail Panel
+            Credential / Config Panel
           </div>
         </div>
         <div className="flex items-center gap-3 mt-2">
@@ -434,12 +439,12 @@ function ConnectionDetailPanel({ source }) {
             <button
               className="px-2 py-0.5 text-[10px] text-gray-400 border border-gray-700 rounded hover:border-gray-500 transition-colors"
             >
-              Paste
+              Copy
             </button>
             <button
               className="px-2 py-0.5 text-[10px] text-gray-400 border border-gray-700 rounded hover:border-gray-500 transition-colors"
             >
-              Reset
+              Rotate
             </button>
           </div>
         </FieldRow>
@@ -489,11 +494,18 @@ function ConnectionDetailPanel({ source }) {
           </span>
         </FieldRow>
 
-        {/* Connection Type */}
-        <FieldRow label="Connection Type">
-          <span className="text-xs text-gray-300">
-            {detail.connectionType}
-          </span>
+        {/* Trading Type - dropdown style */}
+        <FieldRow label="Trading Type">
+          <div className="relative">
+            <select
+              className="w-full bg-[#0d1520] border border-gray-700 rounded px-2 py-1.5 text-xs text-gray-300 appearance-none pr-7 focus:outline-none focus:border-cyan-500/50 transition-colors"
+              defaultValue={detail.tradingType}
+            >
+              <option value="Paper Trading">Paper Trading</option>
+              <option value="Live Trading">Live Trading</option>
+            </select>
+            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
+          </div>
         </FieldRow>
 
         {/* Connection Test Result */}
@@ -514,7 +526,7 @@ function ConnectionDetailPanel({ source }) {
       <div className="px-4 py-3 border-t border-gray-800 flex items-center gap-2">
         <button className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium py-2 px-4 rounded transition-colors flex items-center justify-center gap-1.5">
           <Wifi className="w-3.5 h-3.5" />
-          Connected
+          Connect
         </button>
         <button className="flex-1 border border-gray-700 hover:border-gray-500 text-gray-400 hover:text-gray-200 text-xs font-medium py-2 px-4 rounded transition-colors flex items-center justify-center gap-1.5">
           <RotateCw className="w-3.5 h-3.5" />
@@ -545,11 +557,11 @@ export default function DataSourcesMonitor() {
 
   const [selectedSourceId, setSelectedSourceId] = useState("alpaca");
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeProviderTab, setActiveProviderTab] = useState("Finnhub");
-  const [supplementaryChecked, setSupplementaryChecked] = useState({
-    binance: false,
-    openclaw: true,
+  const [activeFilterChip, setActiveFilterChip] = useState("ALL");
+  const [supplyChainChecked, setSupplyChainChecked] = useState({
     reddit: false,
+    benzinga: true,
+    openclaw: true,
     tradingview: false,
     github_gist: false,
   });
@@ -596,33 +608,32 @@ export default function DataSourcesMonitor() {
     return Math.round((healthyWeight / sources.length) * 100);
   }, [sources]);
 
-  const toggleSupplementary = useCallback((id) => {
-    setSupplementaryChecked((prev) => ({ ...prev, [id]: !prev[id] }));
+  const toggleSupplyChain = useCallback((id) => {
+    setSupplyChainChecked((prev) => ({ ...prev, [id]: !prev[id] }));
   }, []);
 
   return (
     <div className="h-full flex flex-col gap-0 -m-6">
       {/* ===== HEADER BAR ===== */}
       <div className="px-5 py-3 border-b border-gray-800 bg-[#0a0f1a] flex items-center justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <Database className="w-4 h-4 text-cyan-400" />
           <h1 className="text-sm font-bold text-white tracking-wider uppercase">
             Data_Sources_Manager
           </h1>
         </div>
-        <div className="flex items-center gap-4">
-          <TopMetric
-            icon={<Wifi className="w-3 h-3 text-emerald-400" />}
-            label="WS"
-            value="CONNECTED"
-            valueColor="text-emerald-400"
-          />
-          <TopMetric
-            icon={<Activity className="w-3 h-3 text-cyan-400" />}
-            label="API"
-            value="Healthy"
-            valueColor="text-cyan-400"
-          />
+        <div className="flex items-center gap-3">
+          {/* WS Connected badge */}
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[11px] font-medium text-emerald-400">WS Connected</span>
+          </span>
+          {/* API Healthy badge */}
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+            <span className="text-[11px] font-medium text-emerald-400">API Healthy</span>
+          </span>
+          {/* Refresh button */}
           <button
             onClick={refetch}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium rounded transition-colors"
@@ -634,22 +645,28 @@ export default function DataSourcesMonitor() {
       </div>
 
       {/* ===== TOP METRICS BAR ===== */}
-      <div className="px-5 py-2 border-b border-gray-800 bg-[#0b1120] flex items-center gap-6 text-xs">
+      <div className="px-5 py-2.5 border-b border-gray-800 bg-[#0b1120] flex items-center gap-6 text-xs">
         <MetricPill
           label="Connected"
           value={`${connectedCount}/${sources.length} sources`}
         />
+        <span className="text-gray-700">|</span>
         <MetricPill label="System Health" value={`${healthPct}%`} />
+        <span className="text-gray-700">|</span>
         <MetricPill label="Ingestion" value="4.2K rec/min" />
+        <span className="text-gray-700">|</span>
         <MetricPill
           label="OpenClaw Bridge"
           value="CONNECTED"
           valueColor="text-emerald-400"
+          icon={<Link2 className="w-3 h-3 text-emerald-400" />}
         />
+        <span className="text-gray-700">|</span>
         <MetricPill
           label="WS"
           value="CONNECTED"
           valueColor="text-emerald-400"
+          icon={<Zap className="w-3 h-3 text-emerald-400" />}
         />
       </div>
 
@@ -666,36 +683,42 @@ export default function DataSourcesMonitor() {
               className="w-full bg-[#0d1520] border border-gray-700 rounded-lg pl-10 pr-4 py-2 text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-cyan-500/50 transition-colors"
             />
           </div>
-          <button className="flex items-center gap-1.5 px-3 py-2 border border-gray-700 rounded-lg text-xs text-gray-400 hover:text-gray-200 hover:border-gray-500 transition-colors">
+          <button className="flex items-center gap-1.5 px-3 py-2 border border-gray-700 rounded-lg text-xs text-gray-400 hover:text-gray-200 hover:border-gray-500 transition-colors whitespace-nowrap">
             <ShoppingBag className="w-3.5 h-3.5" />
             Shop API store
           </button>
         </div>
 
-        {/* Provider tabs */}
-        <div className="flex items-center gap-1 mt-2">
-          {PROVIDER_TABS.map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveProviderTab(tab)}
-              className={clsx(
-                "px-3 py-1 rounded text-[11px] font-medium transition-colors",
-                activeProviderTab === tab
-                  ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/40"
-                  : "text-gray-500 hover:text-gray-300 border border-transparent hover:border-gray-700"
-              )}
-            >
-              {tab}
-            </button>
-          ))}
+        {/* Filter chips + Stop API scan */}
+        <div className="flex items-center justify-between mt-2">
+          <div className="flex items-center gap-1">
+            {FILTER_CHIPS.map((chip) => (
+              <button
+                key={chip}
+                onClick={() => setActiveFilterChip(chip)}
+                className={clsx(
+                  "px-3 py-1 rounded text-[11px] font-medium transition-colors",
+                  activeFilterChip === chip
+                    ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/40"
+                    : "text-gray-500 hover:text-gray-300 border border-transparent hover:border-gray-700"
+                )}
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+          <button className="flex items-center gap-1.5 px-3 py-1 text-[11px] text-red-400 hover:text-red-300 border border-red-500/30 rounded hover:border-red-500/50 transition-colors">
+            <StopCircle className="w-3 h-3" />
+            Stop API scan
+          </button>
         </div>
       </div>
 
       {/* ===== MAIN SPLIT VIEW ===== */}
       <div className="flex-1 flex min-h-0">
         {/* Left column - Source list */}
-        <div className="w-[58%] border-r border-gray-800 overflow-y-auto custom-scrollbar">
-          <div className="p-3 space-y-1.5">
+        <div className="w-[58%] border-r border-gray-800 flex flex-col">
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-1.5">
             {sources.map((source) => (
               <SourceCard
                 key={source.id}
@@ -706,21 +729,21 @@ export default function DataSourcesMonitor() {
             ))}
           </div>
 
-          {/* SUPPLEMENTARY SECTION */}
+          {/* SUPPLY CHAIN OVERVIEW */}
           <div className="px-4 py-3 border-t border-gray-800">
             <div className="text-[10px] text-gray-500 uppercase tracking-widest font-medium mb-2">
-              Supplementary
+              Supply Chain Overview
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-              {SUPPLEMENTARY_SOURCES.map((sup) => (
+              {SUPPLY_CHAIN_SOURCES.map((sup) => (
                 <label
                   key={sup.id}
                   className="flex items-center gap-1.5 cursor-pointer group"
                 >
                   <input
                     type="checkbox"
-                    checked={supplementaryChecked[sup.id] || false}
-                    onChange={() => toggleSupplementary(sup.id)}
+                    checked={supplyChainChecked[sup.id] || false}
+                    onChange={() => toggleSupplyChain(sup.id)}
                     className="w-3 h-3 rounded border-gray-600 bg-[#0d1520] text-cyan-500 focus:ring-0 focus:ring-offset-0 accent-cyan-500"
                   />
                   <span className="text-[11px] text-gray-400 group-hover:text-gray-200 transition-colors">
@@ -732,7 +755,7 @@ export default function DataSourcesMonitor() {
           </div>
         </div>
 
-        {/* Right column - Connection Detail Panel */}
+        {/* Right column - Credential / Config Panel */}
         <div className="w-[42%] bg-[#0a0f1a] overflow-hidden flex flex-col">
           <ConnectionDetailPanel source={selectedSource} />
         </div>
@@ -745,12 +768,13 @@ export default function DataSourcesMonitor() {
             <span className="text-gray-500">FRED Macro Data:</span> Syncs daily
             at 08:00 EST
           </span>
+          <span className="text-gray-700">|</span>
           <span>
             <span className="text-gray-500">SEC EDGAR:</span> Polls every 15m
           </span>
         </div>
         <div className="flex items-center gap-4">
-          <span>System telemetry: 0/39</span>
+          <span>System telemetry: 10:33</span>
           <span>Idle: 4/11</span>
           <span>
             {new Date().toLocaleTimeString("en-US", {
@@ -768,19 +792,10 @@ export default function DataSourcesMonitor() {
 
 // ---------- Small sub-components ----------
 
-function TopMetric({ icon, label, value, valueColor = "text-gray-300" }) {
-  return (
-    <div className="flex items-center gap-1.5 text-xs">
-      {icon}
-      <span className="text-gray-500">{label}:</span>
-      <span className={clsx("font-medium", valueColor)}>{value}</span>
-    </div>
-  );
-}
-
-function MetricPill({ label, value, valueColor = "text-gray-300" }) {
+function MetricPill({ label, value, valueColor = "text-gray-300", icon }) {
   return (
     <div className="flex items-center gap-1.5">
+      {icon}
       <span className="text-gray-500">{label}:</span>
       <span className={clsx("font-medium", valueColor)}>{value}</span>
     </div>

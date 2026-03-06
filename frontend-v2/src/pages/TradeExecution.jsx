@@ -1,18 +1,65 @@
-import React, { useEffect, useCallback, useRef } from 'react';
+import React, { useEffect, useCallback, useRef, useState } from 'react';
 import useTradeExecution from '../hooks/useTradeExecution';
 import { getApiUrl, getAuthHeaders } from '../config/api';
 import { useApi } from '../hooks/useApi';
-import Card from '../components/ui/Card';
-import Badge from '../components/ui/Badge';
-import Button from '../components/ui/Button';
-import PageHeader from '../components/ui/PageHeader';
 import clsx from 'clsx';
-import {
-  Crosshair, TrendingUp, TrendingDown, ShieldAlert, BarChart3,
-  Newspaper, Activity, Terminal, Zap, ChevronRight, X, SlidersHorizontal,
-  AlertTriangle, CheckCircle2, XCircle, Info,
-} from 'lucide-react';
+import { Minus, Plus } from 'lucide-react';
 
+/* ────────────────────────────────────────────────────────────
+   Shared tiny components used only in this page
+   ──────────────────────────────────────────────────────────── */
+const PanelHead = ({ children }) => (
+  <div className="px-3 py-[7px] border-b border-[#1a2744] flex items-center justify-between bg-[#070d18] shrink-0">
+    <span className="font-mono text-[9px] font-semibold text-[#5a6f8a] uppercase tracking-[0.5px]">{children}</span>
+    <div className="flex gap-[3px]">
+      <span className="w-[3px] h-[3px] rounded-full bg-[#5a6f8a]" />
+      <span className="w-[3px] h-[3px] rounded-full bg-[#5a6f8a]" />
+      <span className="w-[3px] h-[3px] rounded-full bg-[#5a6f8a]" />
+    </div>
+  </div>
+);
+
+const FormField = ({ label, children }) => (
+  <div className="flex items-center mb-2.5">
+    <label className="w-[90px] text-[10px] text-[#5a6f8a] shrink-0">{label}</label>
+    {children}
+  </div>
+);
+
+const FormSelect = ({ value, onChange, children, className }) => (
+  <select
+    value={value}
+    onChange={onChange}
+    className={clsx(
+      'flex-1 bg-[#111b2e] border border-[#1a2744] text-[#e8f0fe] px-2.5 py-1.5 font-mono text-[10px] rounded-[3px] outline-none',
+      'focus:border-cyan-400 focus:shadow-[0_0_8px_rgba(0,212,232,0.15)]',
+      'appearance-none cursor-pointer',
+      className
+    )}
+  >
+    {children}
+  </select>
+);
+
+const FormInput = ({ value, onChange, type = 'text', step, readOnly, className, ...rest }) => (
+  <input
+    type={type}
+    step={step}
+    value={value}
+    onChange={onChange}
+    readOnly={readOnly}
+    className={clsx(
+      'bg-[#111b2e] border border-[#1a2744] text-[#e8f0fe] px-2.5 py-1.5 font-mono text-[10px] rounded-[3px] outline-none',
+      'focus:border-cyan-400 focus:shadow-[0_0_8px_rgba(0,212,232,0.15)]',
+      className
+    )}
+    {...rest}
+  />
+);
+
+/* ────────────────────────────────────────────────────────────
+   Main component
+   ──────────────────────────────────────────────────────────── */
 export default function TradeExecution() {
   const {
     portfolio, priceLadder, orderBook, positions, newsFeed, systemStatus,
@@ -39,11 +86,11 @@ export default function TradeExecution() {
     enabled: !!orderForm?.symbol,
   });
   const callStrikes = (chainData?.calls || []).map(c => c.strike).filter(Boolean).slice(0, 5);
-  const putStrikes = (chainData?.puts || []).map(p => p.strike).filter(Boolean).slice(0, 5);
-  const FALLBACK_CALL_STRIKES = [4450, 4455, 4460, 4465, 4470];
-  const FALLBACK_PUT_STRIKES = [4440, 4435, 4430, 4425, 4420];
-  const displayCallStrikes = callStrikes.length > 0 ? callStrikes : FALLBACK_CALL_STRIKES;
-  const displayPutStrikes = putStrikes.length > 0 ? putStrikes : FALLBACK_PUT_STRIKES;
+  const putStrikes  = (chainData?.puts  || []).map(p => p.strike).filter(Boolean).slice(0, 5);
+  const FALLBACK_CALL = [4450, 4455, 4460, 4465, 4470];
+  const FALLBACK_PUT  = [4440, 4435, 4430, 4425, 4420];
+  const displayCallStrikes = callStrikes.length > 0 ? callStrikes : FALLBACK_CALL;
+  const displayPutStrikes  = putStrikes.length  > 0 ? putStrikes  : FALLBACK_PUT;
 
   // Candle data for price chart
   const { data: candleData } = useApi('quotes', {
@@ -54,7 +101,10 @@ export default function TradeExecution() {
 
   const chartRef = useRef(null);
   const chartInstanceRef = useRef(null);
+  const [chartTimeframe, setChartTimeframe] = useState('1M');
+  const [builderTab, setBuilderTab] = useState('Advanced');
 
+  /* -- Chart init -- */
   useEffect(() => {
     let cancelled = false;
     const initChart = async () => {
@@ -64,26 +114,28 @@ export default function TradeExecution() {
         if (cancelled) return;
         const chart = createChart(chartRef.current, {
           width: chartRef.current.clientWidth,
-          height: 140,
-          layout: { background: { color: '#0B0E14' }, textColor: '#94a3b8', fontSize: 9, fontFamily: "'JetBrains Mono', monospace" },
-          grid: { vertLines: { color: 'rgba(42,52,68,0.3)' }, horzLines: { color: 'rgba(42,52,68,0.3)' } },
+          height: chartRef.current.clientHeight || 160,
+          layout: { background: { color: '#0a1020' }, textColor: '#5a6f8a', fontSize: 9, fontFamily: "'JetBrains Mono', monospace" },
+          grid: { vertLines: { color: 'rgba(26,39,68,0.3)' }, horzLines: { color: 'rgba(26,39,68,0.3)' } },
           crosshair: { mode: 0 },
-          rightPriceScale: { borderColor: 'rgba(42,52,68,0.5)' },
-          timeScale: { borderColor: 'rgba(42,52,68,0.5)', timeVisible: true },
+          rightPriceScale: { borderColor: 'rgba(26,39,68,0.5)' },
+          timeScale: { borderColor: 'rgba(26,39,68,0.5)', timeVisible: true },
         });
         const series = chart.addCandlestickSeries({
-          upColor: '#10b981', downColor: '#ef4444',
-          borderUpColor: '#10b981', borderDownColor: '#ef4444',
-          wickUpColor: '#10b981', wickDownColor: '#ef4444',
+          upColor: '#00e676', downColor: '#ff3860',
+          borderUpColor: '#00e676', borderDownColor: '#ff3860',
+          wickUpColor: '#00e676', wickDownColor: '#ff3860',
         });
         chartInstanceRef.current = { chart, series };
-        const handleResize = () => { if (chartRef.current) chart.applyOptions({ width: chartRef.current.clientWidth }); };
-        window.addEventListener('resize', handleResize);
-        chartInstanceRef.current.cleanup = () => { window.removeEventListener('resize', handleResize); chart.remove(); };
-      } catch (err) { /* lightweight-charts not available */ }
+        const ro = new ResizeObserver(() => {
+          if (chartRef.current) chart.applyOptions({ width: chartRef.current.clientWidth, height: chartRef.current.clientHeight });
+        });
+        ro.observe(chartRef.current);
+        chartInstanceRef.current.cleanup = () => { ro.disconnect(); chart.remove(); };
+      } catch { /* lightweight-charts not available */ }
     };
     initChart();
-    return () => { cancelled = true; if (chartInstanceRef.current?.cleanup) chartInstanceRef.current.cleanup(); chartInstanceRef.current = null; };
+    return () => { cancelled = true; chartInstanceRef.current?.cleanup?.(); chartInstanceRef.current = null; };
   }, []);
 
   useEffect(() => {
@@ -105,24 +157,20 @@ export default function TradeExecution() {
     if (unique.length) inst.series.setData(unique);
   }, [candleData]);
 
-  // Alignment Preflight State
-  const [preflightVerdict, setPreflightVerdict] = React.useState(null);
-  const [preflightLoading, setPreflightLoading] = React.useState(false);
+  /* -- Alignment Preflight -- */
+  const [preflightLoading, setPreflightLoading] = useState(false);
   const runAlignmentPreflight = async (side = 'buy') => {
     setPreflightLoading(true);
     try {
-      const res = await fetch(getApiUrl('alignment/evaluate'), { method: 'POST',
+      const res = await fetch(getApiUrl('alignment/evaluate'), {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify({ symbol: orderForm?.symbol || 'SPY', side, quantity: orderForm?.quantity || 1, strategy: 'manual' })
+        body: JSON.stringify({ symbol: orderForm?.symbol || 'SPY', side, quantity: orderForm?.quantity || 1, strategy: 'manual' }),
       });
       if (!res.ok) throw new Error('Alignment preflight failed');
-      const data = await res.json();
-      setPreflightVerdict(data);
-      return data;
+      return await res.json();
     } catch (err) {
-      const verdict = { allowed: true, blockedBy: 'NETWORK_ERROR', summary: err.message };
-      setPreflightVerdict(verdict);
-      return verdict;
+      return { allowed: true, blockedBy: 'NETWORK_ERROR', summary: err.message };
     } finally {
       setPreflightLoading(false);
     }
@@ -130,13 +178,13 @@ export default function TradeExecution() {
 
   const withPreflight = async (side, action) => {
     const verdict = await runAlignmentPreflight(side);
-    if (verdict && verdict.allowed === false) {
+    if (verdict?.allowed === false) {
       if (!window.confirm(`Alignment blocked: ${verdict.summary || verdict.blockedBy}\n\nOverride and execute anyway?`)) return;
     }
     return action();
   };
 
-  // Keyboard Shortcuts
+  /* -- Keyboard Shortcuts -- */
   const handleKeyDown = useCallback((e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
     if (!e.ctrlKey && !e.metaKey) return;
@@ -156,469 +204,448 @@ export default function TradeExecution() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
-  // Formatters
-  const fmt = (v) => v?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00';
+  /* -- Formatters -- */
+  const fmt  = (v) => v?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00';
   const fmtUsd = (v) => `$${fmt(v)}`;
 
-  // Normalize data arrays
+  /* -- Normalize data arrays -- */
   const ladderArr = Array.isArray(priceLadder) ? priceLadder : (priceLadder?.levels || []);
-  const bookBids = Array.isArray(orderBook) ? orderBook.filter(r => r.side === 'bid') : (orderBook?.bids || []);
-  const bookAsks = Array.isArray(orderBook) ? orderBook.filter(r => r.side === 'ask') : (orderBook?.asks || []);
-  const bookArr = Array.isArray(orderBook) ? orderBook : [...(orderBook?.asks || []).reverse(), ...(orderBook?.bids || [])];
-  const posArr = Array.isArray(positions) ? positions : (positions?.positions || []);
-  const newsArr = Array.isArray(newsFeed) ? newsFeed : [];
+  const bookArr   = Array.isArray(orderBook) ? orderBook : [...(orderBook?.asks || []).reverse(), ...(orderBook?.bids || [])];
+  const posArr    = Array.isArray(positions) ? positions : (positions?.positions || []);
+  const newsArr   = Array.isArray(newsFeed) ? newsFeed : [];
   const statusArr = Array.isArray(systemStatus) ? systemStatus : [systemStatus].filter(Boolean);
-  const maxLadderSize = Math.max(...ladderArr.map(r => r.size || 0), 1);
-  const maxBookSize = Math.max(...bookArr.map(r => r.size || 0), 1);
 
-  // Generate fallback price ladder if empty
-  const displayLadder = ladderArr.length > 0 ? ladderArr : Array.from({ length: 20 }, (_, i) => ({
-    row: i + 1,
-    price: (4449 - i).toFixed(2),
-    size: Math.floor(Math.random() * 80) + 5,
-    side: i < 10 ? 'ask' : 'bid',
+  /* ── Fallback: Price Ladder (5-column with bid/ask depth bars) ── */
+  const displayLadder = ladderArr.length > 0 ? ladderArr : (() => {
+    const base = 4449.50;
+    const mid = 9;
+    return Array.from({ length: 20 }, (_, i) => {
+      const price = (base - i * 0.50).toFixed(2);
+      const isCurrent = i === mid;
+      const isAsk = i < mid;
+      const isBid = i > mid;
+      return {
+        row: i + 1, price,
+        bidSize: isBid ? Math.floor(Math.random() * 55) + 5 : (isCurrent ? 3100000 : 0),
+        askSize: isAsk ? Math.floor(Math.random() * 55) + 5 : (isCurrent ? 3200000 : 0),
+        side: isCurrent ? 'current' : (isBid ? 'bid' : 'ask'),
+        isCurrent,
+      };
+    });
+  })();
+  const maxBidSz = Math.max(...displayLadder.map(r => r.side === 'bid' ? (r.bidSize || r.size || 0) : 0), 1);
+  const maxAskSz = Math.max(...displayLadder.map(r => r.side === 'ask' ? (r.askSize || r.size || 0) : 0), 1);
+
+  /* ── Fallback: Order Book (two halves) ── */
+  const displayBookTop = bookArr.length > 0 ? bookArr.slice(0, Math.ceil(bookArr.length / 2)) : Array.from({ length: 10 }, () => ({
+    asset: '-', bid: (276 + Math.random() * 4).toFixed(3), ask: (273 + Math.random() * 13).toFixed(3), value: Math.floor(Math.random() * 1300) + 300,
   }));
-  const displayMaxLadder = Math.max(...displayLadder.map(r => r.size || 0), 1);
+  const displayBookBot = bookArr.length > 0 ? bookArr.slice(Math.ceil(bookArr.length / 2)) : Array.from({ length: 12 }, () => ({
+    asset: Math.floor(Math.random() * 9000) + 100, bid: (271 + Math.random() * 8).toFixed(3), ask: (271 + Math.random() * 6).toFixed(3), volume: '-',
+  }));
 
-  // Generate fallback order book if empty
-  const displayBook = bookArr.length > 0 ? bookArr : Array.from({ length: 14 }, (_, i) => {
-    const isAsk = i < 7;
-    return {
-      price: isAsk ? (4455 - i).toFixed(2) : (4448 - (i - 7)).toFixed(2),
-      size: Math.floor(Math.random() * 150) + 10,
-      total: Math.floor(Math.random() * 500) + 50,
-      side: isAsk ? 'ask' : 'bid',
-    };
-  });
-  const displayMaxBook = Math.max(...displayBook.map(r => r.size || 0), 1);
-
-  // Fallback news
+  /* ── Fallback: News Feed ── */
   const displayNews = newsArr.length > 0 ? newsArr : [
-    { time: '09:30:25', text: 'FED official comments on interest rates cause market volatility', type: 'negative' },
-    { time: '09:15:30', text: 'Strong economic data released, boosting sentiment.', type: 'positive' },
-    { time: '09:13:00', text: '[Breaking] Geopolitical tensions escalate, impacting oil prices.', type: 'warning' },
-    { time: '09:10:15', text: '[Earnings Alert] XYZ Inc. reports Q2 results, beats estimates.', type: 'positive' },
+    { time: '2 min ago',  text: 'Evercore ISI: market volatility expected to rise amid trade policy uncertainty heading into Q3...', type: 'warning' },
+    { time: '7 min ago',  text: 'Nvidia reports record data center revenue, beating estimates by 12% on strong AI chip demand...', type: 'positive' },
+    { time: '15 min ago', text: 'US Treasury yields spike as Fed signals fewer rate cuts, SPX futures down 0.8% in after-hours...', type: 'negative' },
+    { time: '32 min ago', text: 'Apple announces strategic AI partnership with OpenAI; shares up 2.1% on the news...', type: 'info' },
+    { time: '1 hour ago', text: 'CrowdStrike downgraded by Morgan Stanley on valuation concerns after 60% YTD run-up...', type: 'negative' },
   ];
 
-  // Fallback system status
+  /* ── Fallback: System Status Log ── */
   const displayStatus = statusArr.length > 0 ? statusArr : [
-    { time: '09:01:22', text: 'Order #12345 executed successfully (SPX, Buy, 50 contracts)', type: 'success' },
-    { time: '09:00:45', text: 'Connected to market data feed. Latency: 5ms.', type: 'success' },
-    { time: '08:59:12', text: 'Warning: High market volatility detected.', type: 'warning' },
-    { time: '08:55:30', text: 'Market initialized. All services online.', type: 'info' },
-    { time: '08:50:00', text: 'User Logged in. ELITE status confirmed.', type: 'success' },
+    { time: '16:55:28', text: 'Processed Brackets succeeded.', type: 'success' },
+    { time: '16:55:27', text: 'Processed Quotes succeeded.', type: 'success' },
+    { time: '16:55:25', text: 'Rescanned System Status log.', type: 'warning' },
+    { time: '16:55:24', text: 'Order:Vertation moved compose queue.', type: 'info' },
+    { time: '16:55:22', text: 'Processed Destinations exceeded.', type: 'success' },
+    { time: '16:55:21', text: 'Processed Quotes succeeded.', type: 'success' },
+    { time: '16:55:20', text: 'Rescanned System Status log.', type: 'warning' },
+    { time: '16:55:18', text: 'Kelly optimizer recalc: edge 4.2%, quality 0.88', type: 'info' },
+    { time: '16:55:15', text: 'Alpaca WS heartbeat OK. Latency: 8ms', type: 'success' },
+    { time: '16:55:12', text: 'Risk gov: heat 68%, regime BULL_VOLATILE', type: 'info' },
+    { time: '16:55:10', text: 'Bracket NVDA queued: 785.50/820/770', type: 'success' },
+    { time: '16:55:08', text: 'Circuit breaker armed: max $15,000/day', type: 'warning' },
+    { time: '16:55:05', text: 'Market data: 342 symbols active', type: 'success' },
+    { time: '16:55:01', text: 'Session opened. Equity: $1,580,420.55', type: 'info' },
   ];
 
-  // Fallback positions
+  /* ── Fallback: Positions ── */
   const displayPositions = posArr.length > 0 ? posArr : [
-    { symbol: 'SPX', side: 'Long', quantity: 50, avgPrice: 4435.00, currentPrice: 4450.25, pnl: 762.50 },
-    { symbol: 'SPY', side: 'Long', quantity: 90, avgPrice: 455.00, currentPrice: 4410.25, pnl: -9.92 },
+    { symbol: 'SPX',  orderName: 'Iron Condor 06/21',      orderType: 'Multi-Leg', quantity: 10,   limit: '$2.45',   status: 'FILLED',   legs: 4 },
+    { symbol: 'NVDA', orderName: 'Bracket Buy 785.50',     orderType: 'Bracket',   quantity: 150,  limit: '$785.50', status: 'PENDING',  legs: 3 },
+    { symbol: 'AAPL', orderName: 'Trail Stop -1.5%',       orderType: 'Trailing',  quantity: 500,  limit: 'T-1.5%',  status: 'ACCEPTED', legs: 1 },
+    { symbol: 'TSLA', orderName: 'OCO Exit 195/180',       orderType: 'OCO',       quantity: 200,  limit: '$195.00', status: 'ACCEPTED', legs: 2 },
+    { symbol: 'MSFT', orderName: 'OTO Entry + TP',         orderType: 'OTO',       quantity: 100,  limit: '$405.00', status: 'PARTIAL',  legs: 2 },
+    { symbol: 'META', orderName: 'Limit Buy 480',          orderType: 'Limit',     quantity: 300,  limit: '$480.00', status: 'FILLED',   legs: 1 },
+    { symbol: 'PLTR', orderName: 'Bracket Short 25.50',    orderType: 'Bracket',   quantity: 1000, limit: '$25.50',  status: 'ACCEPTED', legs: 3 },
+    { symbol: 'AMD',  orderName: 'Trail Stop -$2.00',      orderType: 'Trailing',  quantity: 250,  limit: 'T-$2.00', status: 'ACCEPTED', legs: 1 },
   ];
 
-  return (
-    <div className="space-y-3">
+  /* Strike helpers */
+  const callIdx = orderForm.callStrikeIdx ?? 0;
+  const putIdx  = orderForm.putStrikeIdx  ?? 0;
+  const curCall = displayCallStrikes[callIdx] || displayCallStrikes[0];
+  const curPut  = displayPutStrikes[putIdx]  || displayPutStrikes[0];
 
-      {/* ===== HEADER BAR ===== */}
-      <div className="flex items-center justify-between bg-surface border border-secondary/20 rounded-xl px-5 py-3">
-        <PageHeader
-          icon={Crosshair}
-          title="TRADE EXECUTION"
-        />
-        <div className="flex items-center gap-6 text-xs font-mono">
-          <span className="text-gray-500">Portfolio: <span className="text-white font-bold">{fmtUsd(portfolio.value || 1580430.55)}</span></span>
-          <span className="text-gray-500">Daily P/L: <span className={(portfolio.dailyPnl || 12500.80) >= 0 ? 'text-emerald-400 font-bold' : 'text-red-400 font-bold'}>+{fmtUsd(portfolio.dailyPnl || 12500.80)}</span></span>
-          <span className="text-gray-500">Status: <Badge variant="success" size="sm">{portfolio.status || 'ELITE'}</Badge></span>
-          <span className="text-gray-500">Latency: <span className="text-cyan-400 font-bold">{portfolio.latency || 8}ms</span></span>
+  const fmtSz = (s) => {
+    if (!s) return '';
+    if (s >= 1000000) return (s / 1000000).toFixed(1) + 'M';
+    if (s >= 1000) return (s / 1000).toFixed(0) + 'K';
+    return '+' + s;
+  };
+
+  /* ────────────────────────────────────────
+     RENDER
+     ──────────────────────────────────────── */
+  return (
+    <div className="flex flex-col overflow-hidden -m-6" style={{ height: 'calc(100vh - 64px)' }}>
+
+      {/* ═══════ HEADER BAR ═══════ */}
+      <div className="h-[42px] bg-[#070d18] border-b border-[#1a2744] flex items-center px-5 gap-5 shrink-0 relative">
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-400 to-transparent" />
+        <span className="font-mono text-xs font-semibold text-cyan-400 uppercase tracking-wider">Trade Execution</span>
+        <div className="flex items-center gap-5 ml-auto font-mono text-[10px]">
+          <span><span className="text-[#5a6f8a] mr-1">Portfolio:</span><span className="text-[#e8f0fe]">{fmtUsd(portfolio.value || 1580430.55)}</span></span>
+          <span className="text-[#243352]">|</span>
+          <span><span className="text-[#5a6f8a] mr-1">Daily P/L:</span><span className="text-[#00e676]">+{fmtUsd(portfolio.dailyPnl || 12500.80)}</span></span>
+          <span className="text-[#243352]">|</span>
+          <span><span className="text-[#5a6f8a] mr-1">Status:</span><span className="text-cyan-400 font-semibold">{portfolio.status || 'ELITE'}</span></span>
+          <span className="text-[#243352]">|</span>
+          <span><span className="text-[#5a6f8a] mr-1">Latency:</span><span className="text-[#e8f0fe]">{portfolio.latency || 8}ms</span></span>
         </div>
       </div>
 
-      {/* ===== QUICK EXECUTION BAR ===== */}
-      <Card noPadding>
-        <div className="px-4 py-3 flex items-center gap-3 flex-wrap">
-          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider mr-1">Quick Execution</span>
-          <Button variant="success" size="sm" onClick={() => { if (window.confirm(`Market BUY ${orderForm.symbol} x${orderForm.quantity}?`)) withPreflight('buy', executeMarketBuy); }} disabled={loading || preflightLoading}>
-            Market Buy [B]
-          </Button>
-          <Button variant="danger" size="sm" onClick={() => { if (window.confirm(`Market SELL ${orderForm.symbol} x${orderForm.quantity}?`)) withPreflight('sell', executeMarketSell); }} disabled={loading || preflightLoading}>
-            Market Sell [S]
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => withPreflight('buy', executeLimitBuy)} disabled={loading} className="!border-blue-500/50 !text-blue-400 hover:!bg-blue-500/10">
-            Limit Buy [$]
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => withPreflight('sell', executeLimitSell)} disabled={loading} className="!border-amber-500/50 !text-amber-400 hover:!bg-amber-500/10">
-            Limit Sell [$]
-          </Button>
-          <Button variant="outline" size="sm" onClick={executeStopLoss} disabled={loading} className="!border-red-500/50 !text-red-400 hover:!bg-red-500/10">
-            Stop Loss [T]
-          </Button>
-        </div>
-      </Card>
+      {/* ═══════ QUICK EXECUTION BAR ═══════ */}
+      <div className="h-10 bg-[#0a1020] border-b border-[#1a2744] flex items-center px-4 gap-2 shrink-0">
+        <span className="font-mono text-[9px] text-[#5a6f8a] uppercase tracking-[1px] mr-2">Quick Execution</span>
+        {/* Market Buy */}
+        <button
+          onClick={() => { if (window.confirm(`Market BUY ${orderForm.symbol} x${orderForm.quantity}?`)) withPreflight('buy', executeMarketBuy); }}
+          disabled={loading || preflightLoading}
+          className="px-3.5 py-[5px] rounded-[3px] font-mono text-[9px] font-semibold bg-[#00e676] text-black hover:brightness-[1.2] hover:-translate-y-px transition-all disabled:opacity-50 flex items-center gap-1.5"
+        >Market Buy <span className="text-[7px] bg-black/30 px-[3px] py-px rounded-sm">B</span></button>
+        {/* Market Sell */}
+        <button
+          onClick={() => { if (window.confirm(`Market SELL ${orderForm.symbol} x${orderForm.quantity}?`)) withPreflight('sell', executeMarketSell); }}
+          disabled={loading || preflightLoading}
+          className="px-3.5 py-[5px] rounded-[3px] font-mono text-[9px] font-semibold bg-[#ff3860] text-white hover:brightness-[1.2] hover:-translate-y-px transition-all disabled:opacity-50 flex items-center gap-1.5"
+        >Market Sell <span className="text-[7px] bg-black/30 px-[3px] py-px rounded-sm">S</span></button>
+        {/* Limit Buy */}
+        <button
+          onClick={() => withPreflight('buy', executeLimitBuy)}
+          disabled={loading || preflightLoading}
+          className="px-3.5 py-[5px] rounded-[3px] font-mono text-[9px] font-semibold bg-transparent border border-[#00e676] text-[#00e676] hover:brightness-[1.2] hover:-translate-y-px transition-all disabled:opacity-50 flex items-center gap-1.5"
+        >Limit Buy <span className="text-[7px] bg-black/30 px-[3px] py-px rounded-sm">L</span></button>
+        {/* Limit Sell */}
+        <button
+          onClick={() => withPreflight('sell', executeLimitSell)}
+          disabled={loading || preflightLoading}
+          className="px-3.5 py-[5px] rounded-[3px] font-mono text-[9px] font-semibold bg-transparent border border-[#ff3860] text-[#ff3860] hover:brightness-[1.2] hover:-translate-y-px transition-all disabled:opacity-50 flex items-center gap-1.5"
+        >Limit Sell <span className="text-[7px] bg-black/30 px-[3px] py-px rounded-sm">K</span></button>
+        {/* Stop Loss */}
+        <button
+          onClick={executeStopLoss}
+          disabled={loading || preflightLoading}
+          className="px-3.5 py-[5px] rounded-[3px] font-mono text-[9px] font-semibold bg-transparent border border-[#ffab00] text-[#ffab00] hover:brightness-[1.2] hover:-translate-y-px transition-all disabled:opacity-50 flex items-center gap-1.5"
+        >Stop Loss <span className="text-[7px] bg-black/30 px-[3px] py-px rounded-sm">T</span></button>
+      </div>
 
-      {/* ===== MAIN 3-COLUMN GRID ===== */}
-      <div className="grid grid-cols-12 gap-3">
+      {/* ═══════ MAIN 4-COLUMN GRID ═══════
+           Cols: 240px  1fr  240px  300px
+           Rows: 1fr   200px
+           Col 4 row 1 = Charts + News (split vertically inside)
+           Bottom-left = cols 1-3
+           Bottom-right (col 4) = System Status Log
+      */}
+      <div
+        className="flex-1 grid overflow-hidden min-h-0"
+        style={{
+          gridTemplateColumns: '240px 1fr 240px 300px',
+          gridTemplateRows: '1fr 200px',
+          gap: '1px',
+          background: '#1a2744',
+        }}
+      >
 
-        {/* --- COL 1: Multi-Price Ladder --- */}
-        <div className="col-span-3">
-          <Card title="Multi-Price Ladder" noPadding>
-            <div className="overflow-y-auto max-h-[520px]">
-              <table className="w-full text-xs font-mono">
-                <thead className="sticky top-0 bg-surface z-10">
-                  <tr className="border-b border-secondary/20">
-                    <th className="px-2 py-1.5 text-left text-[10px] text-gray-500 font-medium">Row</th>
-                    <th className="px-2 py-1.5 text-center text-[10px] text-gray-500 font-medium">Price</th>
-                    <th className="px-2 py-1.5 text-right text-[10px] text-gray-500 font-medium">Size</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {displayLadder.map((row, i) => {
-                    const rowNum = row.row || i + 1;
-                    const isSelected = rowNum === selectedRow;
-                    const price = parseFloat(row.price) || 0;
-                    const size = row.size || 0;
-                    const isBid = row.side === 'bid' || i >= displayLadder.length / 2;
-                    const isAsk = row.side === 'ask' || i < displayLadder.length / 2;
-                    const isSpread = i === Math.floor(displayLadder.length / 2) - 1 || i === Math.floor(displayLadder.length / 2);
-                    const barColor = isBid ? 'bg-emerald-500' : 'bg-red-500';
-                    const textColor = isBid ? 'text-emerald-400' : 'text-red-400';
-                    const pct = Math.min((size / displayMaxLadder) * 100, 100);
-                    return (
-                      <tr
-                        key={i}
-                        onClick={() => setSelectedRow(rowNum)}
-                        className={clsx(
-                          'cursor-pointer transition-colors relative',
-                          isSelected
-                            ? 'bg-cyan-500/15 border-l-2 border-l-cyan-400'
-                            : isSpread
-                              ? 'bg-cyan-900/10 border-l-2 border-l-transparent hover:bg-cyan-500/10'
-                              : 'border-l-2 border-l-transparent hover:bg-white/[0.02]'
-                        )}
-                      >
-                        <td className="px-2 py-[3px] text-[10px] text-gray-600 w-8">{rowNum}</td>
-                        <td className={clsx(
-                          'px-2 py-[3px] text-center',
-                          isSelected ? 'text-cyan-400 font-bold' : 'text-white/80'
-                        )}>
-                          {price.toFixed(2)}
-                        </td>
-                        <td className="px-2 py-[3px] text-right relative">
-                          <div className={clsx('absolute top-0 bottom-0 right-0 opacity-20', barColor)} style={{ width: `${pct}%` }} />
-                          <span className={clsx('relative z-10', textColor)}>{size}</span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        </div>
+        {/* ═══ COL 1 ROW 1: MULTI-PRICE LADDER ═══ */}
+        <div className="bg-[#0a1020] flex flex-col overflow-hidden">
+          <PanelHead>Multi-Price Ladder</PanelHead>
+          <div className="flex-1 overflow-y-auto">
+            {displayLadder.map((row, i) => {
+              const price = parseFloat(row.price) || 0;
+              const isCurrent = row.isCurrent || row.side === 'current';
+              const isAbove = row.side === 'ask' && !isCurrent;
+              const isBelow = row.side === 'bid' && !isCurrent;
+              const bidSz = row.bidSize || (row.side === 'bid' ? (row.size || 0) : 0);
+              const askSz = row.askSize || (row.side === 'ask' ? (row.size || 0) : 0);
+              const bidPct = isBelow ? Math.min((bidSz / maxBidSz) * 100, 100) : 0;
+              const askPct = isAbove ? Math.min((askSz / maxAskSz) * 100, 100) : 0;
 
-        {/* --- COL 2: Advanced Order Builder --- */}
-        <div className="col-span-3">
-          <Card title="Advanced Order Builder" noPadding>
-            <div className="p-3 space-y-2.5">
-              {/* Symbol + Strategy */}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[10px] text-gray-500 uppercase tracking-wider mb-1">Symbol</label>
-                  <select
-                    value={orderForm.symbol}
-                    onChange={e => updateOrderForm({ symbol: e.target.value })}
-                    className="w-full bg-dark border border-secondary/30 rounded px-2 py-1.5 text-xs text-white focus:border-cyan-500 focus:outline-none font-mono"
-                  >
-                    {symbols.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] text-gray-500 uppercase tracking-wider mb-1">Strategy</label>
-                  <select
-                    value={orderForm.strategy}
-                    onChange={e => updateOrderForm({ strategy: e.target.value })}
-                    className="w-full bg-dark border border-secondary/30 rounded px-2 py-1.5 text-xs text-white focus:border-cyan-500 focus:outline-none"
-                  >
-                    {STRATEGIES.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              {/* Call strike section */}
-              <div className="bg-dark/50 border border-secondary/20 rounded p-2.5">
-                <div className="flex items-center gap-2 mb-2">
-                  <TrendingUp className="w-3 h-3 text-emerald-500" />
-                  <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">Call</span>
-                </div>
-                <div className="flex gap-1.5 flex-wrap">
-                  {displayCallStrikes.map((v, i) => {
-                    const selected = orderForm.callStrikes?.call?.includes(v);
-                    return (
-                      <span
-                        key={i}
-                        onClick={() => updateOrderForm({ callStrikes: { ...orderForm.callStrikes, call: selected ? orderForm.callStrikes.call.filter(s => s !== v) : [...(orderForm.callStrikes?.call || []), v] } })}
-                        className={clsx(
-                          'px-2 py-1 rounded text-[11px] font-mono cursor-pointer border transition-colors',
-                          selected
-                            ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                            : 'bg-transparent text-gray-500 border-secondary/30 hover:border-secondary/50'
-                        )}
-                      >{v}</span>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Put strike section */}
-              <div className="bg-dark/50 border border-secondary/20 rounded p-2.5">
-                <div className="flex items-center gap-2 mb-2">
-                  <TrendingDown className="w-3 h-3 text-red-500" />
-                  <span className="text-[10px] font-semibold text-red-400 uppercase tracking-wider">Put</span>
-                </div>
-                <div className="flex gap-1.5 flex-wrap">
-                  {displayPutStrikes.map((v, i) => {
-                    const selected = orderForm.putStrikes?.put?.includes(v);
-                    return (
-                      <span
-                        key={i}
-                        onClick={() => updateOrderForm({ putStrikes: { ...orderForm.putStrikes, put: selected ? orderForm.putStrikes.put.filter(s => s !== v) : [...(orderForm.putStrikes?.put || []), v] } })}
-                        className={clsx(
-                          'px-2 py-1 rounded text-[11px] font-mono cursor-pointer border transition-colors',
-                          selected
-                            ? 'bg-red-500/15 text-red-400 border-red-500/30'
-                            : 'bg-transparent text-gray-500 border-secondary/30 hover:border-secondary/50'
-                        )}
-                      >{v}</span>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Quantity + Limit */}
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="block text-[10px] text-gray-500 uppercase tracking-wider mb-1">Quantity</label>
-                  <input
-                    type="number"
-                    value={orderForm.quantity}
-                    onChange={e => updateOrderForm({ quantity: parseInt(e.target.value) || 0 })}
-                    className="w-full bg-dark border border-secondary/30 rounded px-2 py-1.5 text-xs text-white font-mono focus:border-cyan-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] text-gray-500 uppercase tracking-wider mb-1">&nbsp;</label>
-                  <select
-                    value={orderForm.quantityType}
-                    onChange={e => updateOrderForm({ quantityType: e.target.value })}
-                    className="w-full bg-dark border border-secondary/30 rounded px-2 py-1.5 text-xs text-white focus:border-cyan-500 focus:outline-none"
-                  >
-                    {['Contracts', 'Shares', 'Lots'].map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] text-gray-500 uppercase tracking-wider mb-1">Limit</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={orderForm.limitPrice}
-                    onChange={e => updateOrderForm({ limitPrice: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-dark border border-secondary/30 rounded px-2 py-1.5 text-xs text-white font-mono focus:border-cyan-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Execute Button */}
-              <button
-                onClick={() => withPreflight('buy', executeAdvancedOrder)}
-                disabled={loading}
-                className="w-full py-2 rounded font-bold text-xs font-mono tracking-wide text-white bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 disabled:opacity-50 disabled:cursor-wait transition-all hover:shadow-[0_0_20px_rgba(16,185,129,0.3)]"
-              >
-                {loading ? 'Executing...' : 'Execute Order [!]'}
-              </button>
-            </div>
-          </Card>
-        </div>
-
-        {/* --- COL 3: Live Order Book --- */}
-        <div className="col-span-3">
-          <Card title="Live Order Book" noPadding>
-            <div className="overflow-y-auto max-h-[520px]">
-              <table className="w-full text-xs font-mono">
-                <thead className="sticky top-0 bg-surface z-10">
-                  <tr className="border-b border-secondary/20">
-                    <th className="px-2 py-1.5 text-right text-[10px] text-gray-500 font-medium">Bid</th>
-                    <th className="px-2 py-1.5 text-right text-[10px] text-gray-500 font-medium">Size</th>
-                    <th className="px-2 py-1.5 text-right text-[10px] text-gray-500 font-medium">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {displayBook.map((row, i) => {
-                    const isGreen = row.side === 'bid' || (row.bid && row.bid >= 4450) || i >= displayBook.length / 2;
-                    const size = row.size || 0;
-                    const pct = Math.min((size / displayMaxBook) * 100, 100);
-                    const price = row.price || row.bid || row.ask || 0;
-                    return (
-                      <tr key={i} className="relative hover:bg-white/[0.02] cursor-pointer transition-colors">
-                        <td className="px-2 py-[3px] text-right relative">
-                          <div
-                            className={clsx(
-                              'absolute top-0 bottom-0 opacity-15',
-                              isGreen ? 'bg-emerald-500 right-0' : 'bg-red-500 right-0'
-                            )}
-                            style={{ width: `${pct}%` }}
-                          />
-                          <span className={clsx('relative z-10', isGreen ? 'text-emerald-400' : 'text-red-400')}>
-                            {parseFloat(price).toFixed(2)}
-                          </span>
-                        </td>
-                        <td className="px-2 py-[3px] text-right text-white/80">{size}</td>
-                        <td className="px-2 py-[3px] text-right text-gray-500">{row.total || Math.floor(size * 2.5)}</td>
-                      </tr>
-                    );
-                  })}
-                  {displayBook.length === 0 && (
-                    <tr><td colSpan={3} className="px-4 py-8 text-center text-gray-600">No order book data</td></tr>
+              return (
+                <div
+                  key={i}
+                  onClick={() => setSelectedRow(row.row || i + 1)}
+                  className={clsx(
+                    'grid h-5 items-center border-b border-[rgba(26,39,68,0.3)] font-mono text-[9px] cursor-pointer transition-colors',
+                    isCurrent && 'bg-[rgba(0,212,232,0.06)]',
+                    !isCurrent && 'hover:bg-[rgba(0,212,232,0.04)]',
                   )}
-                </tbody>
-              </table>
-            </div>
-          </Card>
+                  style={{ gridTemplateColumns: '42px 1fr 56px 1fr 42px' }}
+                >
+                  {/* Bid volume */}
+                  <div className="text-center text-[8px] text-[#00e676]">{bidSz > 0 ? fmtSz(bidSz) : ''}</div>
+                  {/* Bid bar */}
+                  <div className="flex justify-end pr-0.5 h-3">
+                    {bidPct > 0 && <div className="h-3 rounded-[1px]" style={{ width: `${bidPct}%`, background: 'linear-gradient(270deg, rgba(0,230,118,0.35), rgba(0,230,118,0.05))' }} />}
+                  </div>
+                  {/* Price */}
+                  <div className={clsx(
+                    'text-center font-semibold text-[9px]',
+                    isCurrent && 'bg-cyan-400 text-black rounded-sm py-px',
+                    isAbove && !isCurrent && 'text-[#00e676]',
+                    isBelow && !isCurrent && 'text-[#ff3860]',
+                  )}>{price.toFixed(2)}</div>
+                  {/* Ask bar */}
+                  <div className="flex justify-start pl-0.5 h-3">
+                    {askPct > 0 && <div className="h-3 rounded-[1px]" style={{ width: `${askPct}%`, background: 'linear-gradient(90deg, rgba(255,56,96,0.35), rgba(255,56,96,0.05))' }} />}
+                  </div>
+                  {/* Ask volume */}
+                  <div className="text-center text-[8px] text-[#ff3860]">{askSz > 0 ? fmtSz(askSz) : ''}</div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
-        {/* --- COL 4: Price Charts + News Feed --- */}
-        <div className="col-span-3 space-y-3">
+        {/* ═══ COL 2 ROW 1: ADVANCED ORDER BUILDER ═══ */}
+        <div className="bg-[#0a1020] flex flex-col overflow-hidden">
+          <PanelHead>Advanced Order Builder</PanelHead>
+          <div className="flex-1 overflow-y-auto p-3.5">
+            {/* Tabs */}
+            <div className="flex gap-0 mb-3.5 border-b border-[#1a2744]">
+              {['Advanced', 'Strategy', 'News'].map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setBuilderTab(tab)}
+                  className={clsx(
+                    'px-3.5 py-[5px] text-[10px] border-b-2 transition-colors cursor-pointer',
+                    builderTab === tab ? 'text-cyan-400 border-cyan-400' : 'text-[#5a6f8a] border-transparent hover:text-[#c8d6e5]',
+                  )}
+                >{tab}</button>
+              ))}
+            </div>
 
+            <FormField label="Symbol:">
+              <FormSelect value={orderForm.symbol} onChange={e => updateOrderForm({ symbol: e.target.value })}>
+                {symbols.map(s => <option key={s} value={s}>{s}</option>)}
+              </FormSelect>
+            </FormField>
+
+            <FormField label="Strategy:">
+              <FormSelect value={orderForm.strategy} onChange={e => updateOrderForm({ strategy: e.target.value })}>
+                {STRATEGIES.map(s => <option key={s} value={s}>{s}</option>)}
+              </FormSelect>
+            </FormField>
+
+            {/* Call with +/- stepper */}
+            <FormField label="Call:">
+              <div className="flex-1 flex items-center gap-1">
+                <button onClick={() => updateOrderForm({ callStrikeIdx: Math.max(callIdx - 1, 0) })} className="w-6 h-6 flex items-center justify-center bg-[#111b2e] border border-[#1a2744] rounded-[3px] text-[#5a6f8a] hover:border-cyan-400 hover:text-cyan-400 transition-colors shrink-0"><Minus className="w-3 h-3" /></button>
+                <FormInput readOnly value={curCall} className="flex-1 text-center" />
+                <button onClick={() => updateOrderForm({ callStrikeIdx: Math.min(callIdx + 1, displayCallStrikes.length - 1) })} className="w-6 h-6 flex items-center justify-center bg-[#111b2e] border border-[#1a2744] rounded-[3px] text-[#5a6f8a] hover:border-cyan-400 hover:text-cyan-400 transition-colors shrink-0"><Plus className="w-3 h-3" /></button>
+              </div>
+            </FormField>
+
+            {/* Put with +/- stepper */}
+            <FormField label="Put:">
+              <div className="flex-1 flex items-center gap-1">
+                <button onClick={() => updateOrderForm({ putStrikeIdx: Math.max(putIdx - 1, 0) })} className="w-6 h-6 flex items-center justify-center bg-[#111b2e] border border-[#1a2744] rounded-[3px] text-[#5a6f8a] hover:border-cyan-400 hover:text-cyan-400 transition-colors shrink-0"><Minus className="w-3 h-3" /></button>
+                <FormInput readOnly value={curPut} className="flex-1 text-center" />
+                <button onClick={() => updateOrderForm({ putStrikeIdx: Math.min(putIdx + 1, displayPutStrikes.length - 1) })} className="w-6 h-6 flex items-center justify-center bg-[#111b2e] border border-[#1a2744] rounded-[3px] text-[#5a6f8a] hover:border-cyan-400 hover:text-cyan-400 transition-colors shrink-0"><Plus className="w-3 h-3" /></button>
+              </div>
+            </FormField>
+
+            <FormField label="Quantity:">
+              <div className="flex-1 flex items-center gap-1.5">
+                <FormInput type="number" value={orderForm.quantity} onChange={e => updateOrderForm({ quantity: parseInt(e.target.value) || 0 })} className="flex-1" />
+                <span className="text-[9px] text-[#5a6f8a] shrink-0">Contracts</span>
+              </div>
+            </FormField>
+
+            <FormField label="Limit:">
+              <FormInput type="number" step="0.01" value={orderForm.limitPrice} onChange={e => updateOrderForm({ limitPrice: parseFloat(e.target.value) || 0 })} className="flex-1" />
+            </FormField>
+
+            {/* Execute button -- cyan/teal gradient matching mockup */}
+            <button
+              onClick={() => withPreflight('buy', executeAdvancedOrder)}
+              disabled={loading}
+              className="w-full py-3 mt-3.5 rounded font-mono text-[13px] font-bold text-black uppercase tracking-[1px] bg-gradient-to-br from-[#007a8a] to-[#00d4e8] hover:brightness-[1.15] hover:-translate-y-px transition-all disabled:opacity-50 disabled:cursor-wait shadow-[0_4px_20px_rgba(0,212,232,0.15)] hover:shadow-[0_6px_30px_rgba(0,212,232,0.3)]"
+            >{loading ? 'Executing...' : 'Execute Order'}</button>
+          </div>
+        </div>
+
+        {/* ═══ COL 3 ROW 1: LIVE ORDER BOOK ═══ */}
+        <div className="bg-[#0a1020] flex flex-col overflow-hidden">
+          <PanelHead>Live Order Book</PanelHead>
+          <div className="flex-1 overflow-y-auto">
+            {/* Top asks */}
+            <table className="w-full border-collapse">
+              <thead>
+                <tr>
+                  <th className="px-1.5 py-1 font-mono text-[8px] text-[#5a6f8a] uppercase text-left border-b border-[#1a2744] sticky top-0 bg-[#070d18] z-[2]">Asset</th>
+                  <th className="px-1.5 py-1 font-mono text-[8px] text-[#5a6f8a] uppercase text-right border-b border-[#1a2744] sticky top-0 bg-[#070d18] z-[2]">Bid</th>
+                  <th className="px-1.5 py-1 font-mono text-[8px] text-[#5a6f8a] uppercase text-right border-b border-[#1a2744] sticky top-0 bg-[#070d18] z-[2]">Ask</th>
+                  <th className="px-1.5 py-1 font-mono text-[8px] text-[#5a6f8a] uppercase text-right border-b border-[#1a2744] sticky top-0 bg-[#070d18] z-[2]">Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {displayBookTop.map((r, i) => (
+                  <tr key={i} className="hover:bg-[rgba(0,212,232,0.03)]">
+                    <td className="px-1.5 py-[3px] font-mono text-[9px] text-[#5a6f8a] border-b border-[rgba(26,39,68,0.3)]">{r.asset || '-'}</td>
+                    <td className="px-1.5 py-[3px] font-mono text-[9px] text-[#00e676] text-right border-b border-[rgba(26,39,68,0.3)]">{parseFloat(r.bid || r.price || 0).toFixed(3)}</td>
+                    <td className="px-1.5 py-[3px] font-mono text-[9px] text-[#ff3860] text-right border-b border-[rgba(26,39,68,0.3)]">{parseFloat(r.ask || 0).toFixed(3)}</td>
+                    <td className="px-1.5 py-[3px] font-mono text-[9px] text-[#c8d6e5] text-right border-b border-[rgba(26,39,68,0.3)]">{r.value || r.total || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="border-t border-[#1a2744]" />
+            {/* Bottom bids */}
+            <table className="w-full border-collapse">
+              <thead>
+                <tr>
+                  <th className="px-1.5 py-1 font-mono text-[8px] text-[#5a6f8a] uppercase text-left border-b border-[#1a2744] bg-[#070d18]">Asset $</th>
+                  <th className="px-1.5 py-1 font-mono text-[8px] text-[#5a6f8a] uppercase text-right border-b border-[#1a2744] bg-[#070d18]">Bid</th>
+                  <th className="px-1.5 py-1 font-mono text-[8px] text-[#5a6f8a] uppercase text-right border-b border-[#1a2744] bg-[#070d18]">Ask</th>
+                  <th className="px-1.5 py-1 font-mono text-[8px] text-[#5a6f8a] uppercase text-right border-b border-[#1a2744] bg-[#070d18]">Volume</th>
+                </tr>
+              </thead>
+              <tbody>
+                {displayBookBot.map((r, i) => (
+                  <tr key={i} className="hover:bg-[rgba(0,212,232,0.03)]">
+                    <td className="px-1.5 py-[3px] font-mono text-[9px] text-[#c8d6e5] border-b border-[rgba(26,39,68,0.3)]">{r.asset || '-'}</td>
+                    <td className="px-1.5 py-[3px] font-mono text-[9px] text-[#00e676] text-right border-b border-[rgba(26,39,68,0.3)]">{parseFloat(r.bid || r.price || 0).toFixed(3)}</td>
+                    <td className="px-1.5 py-[3px] font-mono text-[9px] text-[#ff3860] text-right border-b border-[rgba(26,39,68,0.3)]">{parseFloat(r.ask || 0).toFixed(3)}</td>
+                    <td className="px-1.5 py-[3px] font-mono text-[9px] text-[#c8d6e5] text-right border-b border-[rgba(26,39,68,0.3)]">{r.volume || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* ═══ COL 4 ROW 1: PRICE CHARTS + NEWS FEED ═══ */}
+        <div className="flex flex-col overflow-hidden" style={{ background: '#1a2744' }}>
           {/* Price Charts */}
-          <Card title="Price Charts" subtitle={`SPY / S&P 500 Index 1M`} noPadding>
-            <div className="p-3">
-              <div className="h-[140px] rounded bg-dark/50 border border-secondary/10 overflow-hidden">
-                <div ref={chartRef} className="w-full h-full" />
+          <div className="flex-1 bg-[#0a1020] flex flex-col overflow-hidden min-h-0">
+            <PanelHead>Price Charts</PanelHead>
+            <div className="px-2.5 py-1 font-mono text-[8px] text-[#5a6f8a] flex items-center gap-2 border-b border-[#1a2744] shrink-0">
+              <span className="text-[#e8f0fe] font-semibold">{orderForm.symbol || 'SPY'}</span>
+              <span>-</span>
+              <span>S&P 500 Index</span>
+              <div className="ml-auto flex gap-1">
+                {['1M', '5M', '15M', '1H'].map(tf => (
+                  <button
+                    key={tf}
+                    onClick={() => setChartTimeframe(tf)}
+                    className={clsx(
+                      'px-1.5 py-0.5 rounded-sm text-[7px] font-mono font-semibold transition-colors',
+                      chartTimeframe === tf ? 'bg-cyan-400/20 text-cyan-400' : 'text-[#5a6f8a] hover:text-[#c8d6e5]',
+                    )}
+                  >{tf}</button>
+                ))}
               </div>
             </div>
-          </Card>
-
+            <div className="flex-1 relative p-1.5 min-h-0">
+              <div ref={chartRef} className="w-full h-full" />
+            </div>
+          </div>
+          {/* 1px gap */}
+          <div className="h-px bg-[#1a2744] shrink-0" />
           {/* News Feed */}
-          <Card title="News Feed" action={<Newspaper className="w-3.5 h-3.5 text-gray-600" />} noPadding>
-            <div className="max-h-[220px] overflow-y-auto divide-y divide-secondary/10">
+          <div className="flex-1 bg-[#0a1020] flex flex-col overflow-hidden min-h-0">
+            <PanelHead>News Feed</PanelHead>
+            <div className="flex-1 overflow-y-auto">
               {displayNews.map((item, i) => {
-                const severityColor = item.type === 'negative' || item.type === 'error'
-                  ? 'text-red-400'
-                  : item.type === 'warning'
-                    ? 'text-amber-400'
-                    : item.type === 'positive' || item.type === 'success'
-                      ? 'text-emerald-400'
-                      : 'text-cyan-400';
-                const dotColor = item.type === 'negative' || item.type === 'error'
-                  ? 'bg-red-500'
-                  : item.type === 'warning'
-                    ? 'bg-amber-500'
-                    : item.type === 'positive' || item.type === 'success'
-                      ? 'bg-emerald-500'
-                      : 'bg-cyan-500';
+                const dotColor =
+                  item.type === 'negative' || item.type === 'error' ? 'bg-[#ff3860]' :
+                  item.type === 'warning' ? 'bg-[#ffab00]' :
+                  item.type === 'positive' || item.type === 'success' ? 'bg-[#00e676]' :
+                  'bg-cyan-400';
                 return (
-                  <div key={i} className="px-3 py-2 hover:bg-white/[0.02] transition-colors">
-                    <div className="flex items-start gap-2">
-                      <span className={clsx('w-1.5 h-1.5 rounded-full mt-1.5 shrink-0', dotColor)} />
-                      <div className="min-w-0">
-                        <span className={clsx('text-[10px] font-mono font-semibold mr-2', severityColor)}>{item.time}</span>
-                        <span className="text-[11px] text-gray-400 leading-snug">{item.text}</span>
-                      </div>
+                  <div key={i} className="px-2.5 py-1.5 border-b border-[rgba(26,39,68,0.3)] flex gap-1.5 items-start">
+                    <span className={clsx('w-1 h-1 rounded-full mt-1.5 shrink-0', dotColor)} />
+                    <div className="min-w-0">
+                      <div className="text-[9px] text-[#5a6f8a] leading-snug">{item.text}</div>
+                      <div className="text-[7px] text-[#5a6f8a] opacity-60 mt-0.5">{item.time}</div>
                     </div>
                   </div>
                 );
               })}
             </div>
-          </Card>
+          </div>
         </div>
-      </div>
 
-      {/* ===== BOTTOM ROW: Live Positions + System Status Log ===== */}
-      <div className="grid grid-cols-2 gap-3">
-
-        {/* Live Positions */}
-        <Card title="Live Positions" noPadding>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs font-mono">
+        {/* ═══ BOTTOM LEFT (cols 1-3): LIVE POSITIONS ═══ */}
+        <div className="bg-[#0a1020] flex flex-col overflow-hidden" style={{ gridColumn: '1 / 4' }}>
+          <div className="flex gap-0 bg-[#070d18] border-b border-[#1a2744] shrink-0">
+            <button className="px-3.5 py-1.5 font-mono text-[9px] text-cyan-400 border-b-2 border-cyan-400 cursor-pointer">Live Positions</button>
+            <button className="px-3.5 py-1.5 font-mono text-[9px] text-[#5a6f8a] border-b-2 border-transparent cursor-pointer hover:text-[#c8d6e5]">Order History</button>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            <table className="w-full border-collapse">
               <thead>
-                <tr className="border-b border-secondary/20">
-                  {['Symbol', 'Side', 'Quantity', 'Avg. Price', 'Current Price', 'P/L', 'Actions'].map(h => (
-                    <th key={h} className="px-3 py-2 text-left text-[10px] text-cyan-400/70 font-medium uppercase tracking-wider">{h}</th>
+                <tr>
+                  {['Asset', 'Order Name', 'Order Type', 'Quantity', 'Limit', 'Order Log', 'Legs'].map(h => (
+                    <th key={h} className="px-2 py-1.5 font-mono text-[8px] text-[#5a6f8a] uppercase text-left border-b border-[#1a2744] sticky top-0 bg-[#0a1020] z-[2]">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-secondary/10">
+              <tbody>
                 {displayPositions.map((pos, i) => {
-                  const pnl = parseFloat(pos.pnl ?? pos.unrealized_pl ?? 0);
-                  const isPositive = pnl >= 0;
+                  const sc = pos.status === 'FILLED' || pos.status === 'ACCEPTED' ? 'text-[#00e676]' : pos.status === 'PENDING' || pos.status === 'PARTIAL' ? 'text-[#ffab00]' : 'text-[#c8d6e5]';
                   return (
-                    <tr key={i} className="hover:bg-white/[0.02] transition-colors">
-                      <td className="px-3 py-2 text-cyan-400 font-semibold">{pos.symbol}</td>
-                      <td className="px-3 py-2">
-                        <Badge variant={(pos.side || '').toLowerCase().includes('long') ? 'success' : 'danger'} size="sm">
-                          {pos.side}
-                        </Badge>
-                      </td>
-                      <td className="px-3 py-2 text-white/80">{parseFloat(pos.quantity ?? pos.qty ?? 0)}</td>
-                      <td className="px-3 py-2 text-white/80">{parseFloat(pos.avgPrice ?? pos.avg_entry_price ?? 0).toFixed(2)}</td>
-                      <td className="px-3 py-2 text-white/80">{parseFloat(pos.currentPrice ?? pos.current_price ?? 0).toFixed(2)}</td>
-                      <td className={clsx('px-3 py-2 font-semibold', isPositive ? 'text-emerald-400' : 'text-red-400')}>
-                        {isPositive ? '+' : ''}{fmtUsd(pnl)}
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="flex gap-1.5">
-                          <button
-                            onClick={() => closePosition(pos.symbol, pos.side)}
-                            className="px-2 py-0.5 rounded text-[10px] font-semibold bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors"
-                          >
-                            <X className="w-3 h-3 inline mr-0.5" />Close
-                          </button>
-                          <button
-                            onClick={() => adjustPosition(pos.symbol, pos.side)}
-                            className="px-2 py-0.5 rounded text-[10px] font-semibold border border-secondary/30 text-gray-400 hover:bg-secondary/10 transition-colors"
-                          >
-                            <SlidersHorizontal className="w-3 h-3 inline mr-0.5" />Adj
-                          </button>
-                        </div>
-                      </td>
+                    <tr key={i} className="hover:bg-[rgba(0,212,232,0.03)]">
+                      <td className="px-2 py-1 font-mono text-[9px] text-cyan-400 border-b border-[rgba(26,39,68,0.3)]">{pos.symbol}</td>
+                      <td className="px-2 py-1 font-mono text-[9px] text-[#c8d6e5] border-b border-[rgba(26,39,68,0.3)]">{pos.orderName || `${pos.side || ''} ${pos.symbol}`}</td>
+                      <td className="px-2 py-1 font-mono text-[9px] text-[#c8d6e5] border-b border-[rgba(26,39,68,0.3)]">{pos.orderType || 'Market'}</td>
+                      <td className="px-2 py-1 font-mono text-[9px] text-[#c8d6e5] border-b border-[rgba(26,39,68,0.3)]">{pos.quantity || pos.qty || 0}</td>
+                      <td className="px-2 py-1 font-mono text-[9px] text-[#c8d6e5] border-b border-[rgba(26,39,68,0.3)]">{pos.limit || (pos.avgPrice ? fmtUsd(pos.avgPrice) : '-')}</td>
+                      <td className={clsx('px-2 py-1 font-mono text-[9px] border-b border-[rgba(26,39,68,0.3)]', sc)}>{pos.status || 'ACTIVE'}</td>
+                      <td className="px-2 py-1 font-mono text-[9px] text-[#c8d6e5] border-b border-[rgba(26,39,68,0.3)]">{pos.legs || '-'}</td>
                     </tr>
                   );
                 })}
-                {displayPositions.length === 0 && (
-                  <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-600 text-xs">No open positions</td></tr>
-                )}
               </tbody>
             </table>
           </div>
-        </Card>
+        </div>
 
-        {/* System Status Log */}
-        <Card title="System Status Log" action={<Terminal className="w-3.5 h-3.5 text-gray-600" />} noPadding>
-          <div className="max-h-[220px] overflow-y-auto divide-y divide-secondary/10">
+        {/* ═══ BOTTOM RIGHT (col 4): SYSTEM STATUS LOG ═══ */}
+        <div className="bg-[#0a1020] flex flex-col overflow-hidden">
+          <PanelHead>System Status Log</PanelHead>
+          <div className="flex-1 overflow-y-auto px-2.5 py-1.5 font-mono text-[8px]">
             {displayStatus.map((item, i) => {
-              const iconEl = item.type === 'success' || item.type === 'info'
-                ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                : item.type === 'warning'
-                  ? <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
-                  : item.type === 'error'
-                    ? <XCircle className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" />
-                    : <Info className="w-3.5 h-3.5 text-cyan-500 shrink-0 mt-0.5" />;
-              const timeColor = item.type === 'warning'
-                ? 'text-amber-400'
-                : item.type === 'error'
-                  ? 'text-red-400'
-                  : 'text-emerald-400';
+              const tc =
+                item.type === 'success' ? 'text-[#00e676]' :
+                item.type === 'warning' ? 'text-[#ffab00]' :
+                item.type === 'info'    ? 'text-cyan-400' :
+                item.type === 'error'   ? 'text-[#ff3860]' :
+                'text-[#00e676]';
               return (
-                <div key={i} className="px-3 py-2 flex items-start gap-2 hover:bg-white/[0.02] transition-colors">
-                  {iconEl}
-                  <div className="text-[11px] leading-relaxed min-w-0">
-                    <span className={clsx('font-mono font-semibold mr-2', timeColor)}>{item.time}</span>
-                    <span className="text-gray-400">{item.text}</span>
-                  </div>
+                <div key={i} className="mb-px leading-relaxed">
+                  <span className="text-[#5a6f8a]">[{item.time}]</span>{' '}
+                  <span className={tc}>{item.text}</span>
                 </div>
               );
             })}
           </div>
-        </Card>
-      </div>
+        </div>
 
+      </div>{/* /main-grid */}
     </div>
   );
 }

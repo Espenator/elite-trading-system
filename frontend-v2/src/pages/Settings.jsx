@@ -12,10 +12,10 @@ import {
   Monitor, Lock, Clock, ChevronDown,
 } from "lucide-react";
 
-// ── Toast config ──────────────────────────────────────────────
+// -- Toast config --
 const TOAST_CFG = { position: "bottom-right", theme: "dark" };
 
-// ── Tiny reusable components ──────────────────────────────────
+// -- Tiny reusable components --
 
 function StatusDot({ ok, testing }) {
   if (testing) return <Loader2 className="w-3 h-3 animate-spin text-[#00D9FF]" />;
@@ -147,7 +147,7 @@ function PrioritySlider({ label, value, onChange, max = 10 }) {
   );
 }
 
-// ── Main Settings Page ────────────────────────────────────────
+// -- Main Settings Page --
 export default function SettingsPage() {
   const {
     settings, loading, saving, dirty, error,
@@ -255,10 +255,13 @@ export default function SettingsPage() {
       {/* Hidden import input */}
       <input ref={importRef} type="file" accept=".json" className="hidden" onChange={onImport} />
 
-      {/* ═══════ HEADER ═══════ */}
+      {/* HEADER */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Settings className="w-4 h-4 text-cyan-400" />
+          <div className="w-5 h-5 rounded bg-gradient-to-br from-cyan-400 to-green-400 flex items-center justify-center text-[8px] text-black font-bold">E</div>
+          <span className="text-[11px] font-bold text-white uppercase tracking-wider">Elite</span>
+          <span className="text-[11px] font-bold text-cyan-400 uppercase tracking-wider">Trading</span>
+          <Settings className="w-4 h-4 text-cyan-400 ml-2" />
           <h1 className="text-sm font-bold text-white uppercase tracking-wider">System Configuration</h1>
         </div>
         <button
@@ -270,15 +273,15 @@ export default function SettingsPage() {
         </button>
       </div>
 
-      {/* ═══════ ROW 1: Identity, Trading Mode, Position & Limits, Circuit Breakers ═══════ */}
-      <div className="grid grid-cols-4 gap-2 mb-2">
+      {/* ROW 1: Identity & Locale, Trading Mode, Position Rules, Risk Limits, Circuit Breakers */}
+      <div className="grid grid-cols-5 gap-2 mb-2">
 
-        {/* IDENTITY & LOCALE */}
+        {/* 1. IDENTITY & LOCALE */}
         <SectionCard title="Identity & Locale">
-          <MiniField label="Display Name" value={get("user", "displayName", "Espen Schafferr")} onChange={(e) => updateField("user", "displayName", e.target.value)} />
-          <MiniSelect label="Timezone" value={get("user", "timezone", "America/Chicago")} options={[
+          <MiniField label="Display Name" value={get("user", "displayName", "Espen Schiefloe")} onChange={(e) => updateField("user", "displayName", e.target.value)} />
+          <MiniSelect label="Timezone" value={get("user", "timezone", "America/New_York")} options={[
+            { value: "America/New_York", label: "EST" },
             { value: "America/Chicago", label: "CT" },
-            { value: "America/New_York", label: "ET" },
             { value: "America/Los_Angeles", label: "PT" },
             { value: "UTC", label: "UTC" },
             { value: "Europe/Oslo", label: "CET" },
@@ -287,12 +290,12 @@ export default function SettingsPage() {
             { value: "en", label: "English" },
             { value: "no", label: "Norwegian" },
           ]} onChange={(e) => updateField("user", "language", e.target.value)} />
-          <MiniSelect label="Timeframe" value={get("appearance", "chartTimeframe", "1h")} options={["1m", "5m", "15m", "1h", "4h", "1d"]} onChange={(e) => updateField("appearance", "chartTimeframe", e.target.value)} />
+          <MiniField label="Timeframe" value={get("appearance", "chartTimeframe", "15")} onChange={(e) => updateField("appearance", "chartTimeframe", e.target.value)} />
           <MiniField label="# Stocks" value={get("scanning", "maxStocks", 15)} type="number" onChange={(e) => updateField("scanning", "maxStocks", Number(e.target.value))} />
-          <MiniCheckbox label="Show Fill" checked={!!get("appearance", "showFill", true)} onChange={(v) => updateField("appearance", "showFill", v)} />
+          <MiniToggle label="Show FII" checked={!!get("appearance", "showFill", true)} onChange={(v) => updateField("appearance", "showFill", v)} />
         </SectionCard>
 
-        {/* TRADING MODE */}
+        {/* 2. TRADING MODE */}
         <SectionCard title="Trading Mode">
           <div className="flex gap-1 mb-1">
             {["PAPER", "LIVE"].map((env) => (
@@ -312,39 +315,55 @@ export default function SettingsPage() {
           <div className="flex items-center gap-1.5 mb-1">
             <div className={`w-2 h-2 rounded-full ${get("dataSources", "alpacaBaseUrl") === "live" ? "bg-red-500 animate-pulse" : "bg-green-500"}`} />
             <span className="text-[9px] text-yellow-400">
-              {get("dataSources", "alpacaBaseUrl") === "live" ? "Live mode + real money" : "Live mode + real money"}
+              {get("dataSources", "alpacaBaseUrl") === "live" ? "Live mode + real money" : "Paper mode + simulated"}
             </span>
           </div>
-          <MiniSelect label="Account" value={get("trading", "accountType", "paper_trading")} options={[
-            { value: "paper_trading", label: "Paper Trading" },
-            { value: "live", label: "Live Trading" },
-          ]} onChange={(e) => updateField("trading", "accountType", e.target.value)} />
-          <MiniField label="Portfolio Size" value={get("trading", "portfolioSize", "")} onChange={(e) => updateField("trading", "portfolioSize", e.target.value)} />
+          <MiniSelect label="Broker" value={get("trading", "broker", "alpaca")} options={[
+            { value: "alpaca", label: "Alpaca Markets" },
+            { value: "ibkr", label: "Interactive Brokers" },
+          ]} onChange={(e) => updateField("trading", "broker", e.target.value)} />
+          <MiniField label="Account" value={get("trading", "accountType", "Paper Trading")} onChange={(e) => updateField("trading", "accountType", e.target.value)} />
+          <div className="flex items-center justify-between py-[1px]">
+            <span className="text-[10px] text-gray-400">Paper Trading</span>
+            <span className="text-[9px] text-green-400">Active</span>
+          </div>
         </SectionCard>
 
-        {/* POSITION & LIMITS */}
-        <SectionCard title="Position & Limits">
-          <MiniField label="Base Size" value={get("trading", "maxPositionSize", 5000)} type="number" suffix="$" onChange={(e) => updateField("trading", "maxPositionSize", Number(e.target.value))} />
+        {/* 3. POSITION RULES */}
+        <SectionCard title="Position Rules">
+          <MiniField label="Base Size" value={get("trading", "maxPositionSize", "$15,000")} onChange={(e) => updateField("trading", "maxPositionSize", e.target.value)} />
           <MiniField label="Max Daily Risk" value={get("risk", "maxDailyRiskPct", 2.5)} type="number" step="0.1" suffix="%" onChange={(e) => updateField("risk", "maxDailyRiskPct", parseFloat(e.target.value))} />
-          <MiniField label="Max Open Positions" value={get("risk", "maxPositions", 10)} type="number" onChange={(e) => updateField("risk", "maxPositions", Number(e.target.value))} />
+          <MiniField label="Max Open" value={get("risk", "maxPositions", 15)} type="number" onChange={(e) => updateField("risk", "maxPositions", Number(e.target.value))} />
           <MiniField label="Max Sector" value={get("risk", "maxSectorExposure", 30)} type="number" suffix="%" onChange={(e) => updateField("risk", "maxSectorExposure", Number(e.target.value))} />
           <MiniToggle label="Auto-Scale" checked={!!get("trading", "autoScale", true)} onChange={(v) => updateField("trading", "autoScale", v)} />
           <MiniField label="Correlation" value={get("risk", "correlationLimit", 0.71)} type="number" step="0.01" onChange={(e) => updateField("risk", "correlationLimit", parseFloat(e.target.value))} />
         </SectionCard>
 
-        {/* CIRCUIT BREAKERS */}
+        {/* 4. RISK LIMITS */}
+        <SectionCard title="Risk Limits">
+          <MiniField label="Max Daily Risk" value={get("risk", "maxDailyRisk", 2.5)} type="number" step="0.1" suffix="%" onChange={(e) => updateField("risk", "maxDailyRisk", parseFloat(e.target.value))} />
+          <MiniField label="Master Killswitch" value={get("risk", "masterKillswitch", "$2,500")} onChange={(e) => updateField("risk", "masterKillswitch", e.target.value)} />
+          <MiniField label="Flash Crash" value={get("risk", "flashCrashLimit", "$1,000")} onChange={(e) => updateField("risk", "flashCrashLimit", e.target.value)} />
+          <MiniField label="Max Drawdown" value={get("risk", "maxDrawdownPct", 5)} type="number" suffix="%" onChange={(e) => updateField("risk", "maxDrawdownPct", Number(e.target.value))} />
+          <MiniField label="VaR Limit" value={get("risk", "varLimit", 1.5)} type="number" step="0.1" suffix="%" onChange={(e) => updateField("risk", "varLimit", parseFloat(e.target.value))} />
+          <MiniToggle label="Auto-Pause" checked={!!get("risk", "autoPause", true)} onChange={(v) => updateField("risk", "autoPause", v)} />
+        </SectionCard>
+
+        {/* 5. CIRCUIT BREAKERS */}
         <SectionCard title="Circuit Breakers">
-          <MiniField label="Daily Loss Limit" value={get("risk", "dailyLossLimit", 2500)} type="number" suffix="$" onChange={(e) => updateField("risk", "dailyLossLimit", Number(e.target.value))} />
-          <MiniField label="Market Killswitch" value={get("risk", "marketKillswitch", 2500)} type="number" suffix="$" onChange={(e) => updateField("risk", "marketKillswitch", Number(e.target.value))} />
-          <MiniField label="Flash Crash" value={get("risk", "flashCrashLimit", 1000)} type="number" suffix="$" onChange={(e) => updateField("risk", "flashCrashLimit", Number(e.target.value))} />
+          <MiniField label="Daily Loss Limit" value={get("risk", "dailyLossLimit", "$2,500")} onChange={(e) => updateField("risk", "dailyLossLimit", e.target.value)} />
+          <MiniField label="Market Killswitch" value={get("risk", "marketKillswitch", "$2,500")} onChange={(e) => updateField("risk", "marketKillswitch", e.target.value)} />
+          <MiniField label="Flash Crash" value={get("risk", "flashCrash", "$1,000")} onChange={(e) => updateField("risk", "flashCrash", e.target.value)} />
           <MiniField label="Consecutive Loss" value={get("risk", "consecutiveLossLimit", 5)} type="number" onChange={(e) => updateField("risk", "consecutiveLossLimit", Number(e.target.value))} />
+          <MiniToggle label="Circuit Breaker" checked={!!get("risk", "circuitBreaker", true)} onChange={(v) => updateField("risk", "circuitBreaker", v)} />
+          <MiniToggle label="Auto-Pause Trading" checked={!!get("risk", "autoPauseTrading", true)} onChange={(v) => updateField("risk", "autoPauseTrading", v)} />
         </SectionCard>
       </div>
 
-      {/* ═══════ ROW 2: Brokerage, Data Feed, Data Source Priority, Ollama, Ollama Models ═══════ */}
+      {/* ROW 2: Brokerage Connections, Data Feed API Keys, Data Source Priority, Global Local LLM, Inference Models */}
       <div className="grid grid-cols-5 gap-2 mb-2">
 
-        {/* BROKERAGE CONNECTIONS */}
+        {/* 6. BROKERAGE CONNECTIONS */}
         <SectionCard title="Brokerage Connections">
           <div className="flex items-center justify-between py-0.5">
             <span className="text-[10px] text-gray-400">Alpaca Markets</span>
@@ -355,7 +374,11 @@ export default function SettingsPage() {
           </div>
           <div className="flex items-center justify-between py-0.5">
             <span className="text-[10px] text-gray-400">Interactive Brokers</span>
-            <ConnBadge status="not_configured" label="Not Configured" />
+            <ConnBadge status="not_configured" label="Not Connected" />
+          </div>
+          <div className="flex items-center justify-between py-0.5">
+            <span className="text-[10px] text-gray-400">TD Ameritrade</span>
+            <ConnBadge status="not_configured" label="Not Connected" />
           </div>
           <div className="mt-1.5 pt-1 border-t border-gray-800/50">
             <button className="text-[9px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1">
@@ -364,7 +387,7 @@ export default function SettingsPage() {
           </div>
         </SectionCard>
 
-        {/* DATA FEED API KEYS */}
+        {/* 7. DATA FEED API KEYS */}
         <SectionCard title="Data Feed API Keys">
           <div className="flex items-center justify-between py-0.5">
             <span className="text-[10px] text-gray-400">Unusual Whales</span>
@@ -380,6 +403,10 @@ export default function SettingsPage() {
             </div>
           </div>
           <div className="flex items-center justify-between py-0.5">
+            <span className="text-[10px] text-gray-400">FinViz</span>
+            <span className="text-[9px] text-gray-500">N/A</span>
+          </div>
+          <div className="flex items-center justify-between py-0.5">
             <span className="text-[10px] text-gray-400">FRED</span>
             <span className="text-[9px] text-gray-500">Not set</span>
           </div>
@@ -389,7 +416,7 @@ export default function SettingsPage() {
           </div>
         </SectionCard>
 
-        {/* DATA SOURCE PRIORITY */}
+        {/* 8. DATA SOURCE PRIORITY */}
         <SectionCard title="Data Source Priority">
           <MiniSelect label="Polygon v3 (SPX)" value={get("dataSources", "endpointPriority", "polygon")} options={["polygon", "alpaca", "benzinga"]} onChange={(e) => updateField("dataSources", "endpointPriority", e.target.value)} />
           <MiniSelect label="Options Flow" value={get("dataSources", "optionsFlowPriority", "unusual_whales")} options={[
@@ -400,11 +427,11 @@ export default function SettingsPage() {
           <MiniSelect label="Rate Limit" value={get("dataSources", "rateLimitMode", "conservative")} options={["conservative", "moderate", "aggressive"]} onChange={(e) => updateField("dataSources", "rateLimitMode", e.target.value)} />
         </SectionCard>
 
-        {/* OLLAMA LOCAL LLM */}
-        <SectionCard title="Ollama Local LLM">
+        {/* 9. GLOBAL LOCAL LLM */}
+        <SectionCard title="Global Local LLM">
           <MiniField label="Endpoint" value={get("ollama", "ollamaHostUrl", "http://localhost:11434")} onChange={(e) => updateField("ollama", "ollamaHostUrl", e.target.value)} className="w-28" />
           <MiniField label="Model" value={get("ollama", "ollamaDefaultModel", "llama3")} onChange={(e) => updateField("ollama", "ollamaDefaultModel", e.target.value)} />
-          <MiniField label="GPT-4o" value={get("ollama", "gpt4oStatus", "disabled")} onChange={(e) => updateField("ollama", "gpt4oStatus", e.target.value)} />
+          <MiniField label="GPT-4" value={get("ollama", "gpt4oStatus", "disabled")} onChange={(e) => updateField("ollama", "gpt4oStatus", e.target.value)} />
           <MiniField label="Context" value={get("ollama", "ollamaContextLength", 8192)} type="number" suffix="tok" onChange={(e) => updateField("ollama", "ollamaContextLength", Number(e.target.value))} />
           <MiniToggle label="CUDA" checked={!!get("ollama", "ollamaCudaEnabled", false)} onChange={(v) => updateField("ollama", "ollamaCudaEnabled", v)} />
           <div className="flex items-center justify-between pt-0.5">
@@ -415,20 +442,25 @@ export default function SettingsPage() {
           </div>
         </SectionCard>
 
-        {/* OLLAMA MODELS */}
-        <SectionCard title="Ollama Models">
+        {/* 10. INFERENCE MODELS */}
+        <SectionCard title="Inference Models">
           <MiniField label="GPT-4o" value={get("ollama", "gpt4Status", "disabled")} onChange={(e) => updateField("ollama", "gpt4Status", e.target.value)} />
+          <div className="flex items-center justify-between py-[1px]">
+            <span className="text-[10px] text-gray-400">GPU/CPU</span>
+            <span className="text-[9px] text-cyan-400">auto</span>
+          </div>
           <MiniField label="Use for" value={get("ollama", "signalAnalysisModel", "Signal Analysis")} onChange={(e) => updateField("ollama", "signalAnalysisModel", e.target.value)} />
           <MiniField label="Use for" value={get("ollama", "patternAnalysisModel", "Pattern Analysis")} onChange={(e) => updateField("ollama", "patternAnalysisModel", e.target.value)} />
           <MiniField label="Use for" value={get("ollama", "signalGenerationModel", "Signal Generation")} onChange={(e) => updateField("ollama", "signalGenerationModel", e.target.value)} />
           <MiniField label="Fallback" value={get("ollama", "fallbackModel", "llama3")} onChange={(e) => updateField("ollama", "fallbackModel", e.target.value)} />
+          <MiniField label="Max Tokens" value={get("ollama", "maxTokens", "500K+")} onChange={(e) => updateField("ollama", "maxTokens", e.target.value)} />
         </SectionCard>
       </div>
 
-      {/* ═══════ ROW 3: ML Models, Learning Loop, Pipeline Guard Agents, Agent Thresholds ═══════ */}
-      <div className="grid grid-cols-4 gap-2 mb-2">
+      {/* ROW 3: ML Models, Learning Log, OpenClaw Agents, Agent Thresholds, Signal Thresholds */}
+      <div className="grid grid-cols-5 gap-2 mb-2">
 
-        {/* ML MODELS */}
+        {/* 11. ML MODELS */}
         <SectionCard title="ML Models">
           <div className="flex gap-1 mb-1">
             <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#10b981]/20 text-[#10b981] border border-[#10b981]/30">XGBoost</span>
@@ -443,31 +475,31 @@ export default function SettingsPage() {
           <MiniSelect label="Lookback" value={get("ml", "lookback", "90d")} options={["30d", "60d", "90d", "180d"]} onChange={(e) => updateField("ml", "lookback", e.target.value)} />
           <MiniSelect label="Lookback" value={get("ml", "retrainFrequency", "weekly")} options={["daily", "weekly", "monthly"]} onChange={(e) => updateField("ml", "retrainFrequency", e.target.value)} />
           <MiniField label="Retrain" value={get("ml", "retrainInterval", 7)} type="number" suffix="days" onChange={(e) => updateField("ml", "retrainInterval", Number(e.target.value))} />
-          <MiniField label="Walk-Forward" value={get("ml", "walkForwardWindow", 90)} type="number" suffix="days" onChange={(e) => updateField("ml", "walkForwardWindow", Number(e.target.value))} />
+          <MiniField label="Metrics" value={get("ml", "metricsInterval", 14)} type="number" suffix="days" onChange={(e) => updateField("ml", "metricsInterval", Number(e.target.value))} />
           <MiniToggle label="Momentum Tracking" checked={!!get("ml", "momentumTracking", true)} onChange={(v) => updateField("ml", "momentumTracking", v)} />
         </SectionCard>
 
-        {/* LEARNING LOOP */}
-        <SectionCard title="Learning Loop">
-          <MiniToggle label="Bull Detection" checked={!!get("ml", "bullDetection", true)} onChange={(v) => updateField("ml", "bullDetection", v)} />
-          <MiniToggle label="Sell Detection" checked={!!get("ml", "sellDetection", true)} onChange={(v) => updateField("ml", "sellDetection", v)} />
-          <MiniSelect label="Priority Queue" value={get("ml", "priorityQueue", "auto")} options={["auto", "manual", "hybrid"]} onChange={(e) => updateField("ml", "priorityQueue", e.target.value)} />
+        {/* 12. LEARNING LOG */}
+        <SectionCard title="Learning Log">
+          <MiniSelect label="Auto" value={get("ml", "autoMode", "auto")} options={["auto", "manual", "hybrid"]} onChange={(e) => updateField("ml", "autoMode", e.target.value)} />
+          <MiniSelect label="Soft" value={get("ml", "softMode", "soft")} options={["soft", "hard", "adaptive"]} onChange={(e) => updateField("ml", "softMode", e.target.value)} />
+          <MiniSelect label="Direction" value={get("ml", "direction", "both")} options={["long", "short", "both"]} onChange={(e) => updateField("ml", "direction", e.target.value)} />
+          <MiniField label="Walk-Forward" value={get("ml", "walkForwardWindow", 90)} type="number" suffix="days" onChange={(e) => updateField("ml", "walkForwardWindow", Number(e.target.value))} />
+          <MiniToggle label="Model Training" checked={!!get("ml", "modelTraining", true)} onChange={(v) => updateField("ml", "modelTraining", v)} />
+          <MiniToggle label="Minimum Tracking" checked={!!get("ml", "minimumTracking", true)} onChange={(v) => updateField("ml", "minimumTracking", v)} />
           <MiniField label="Confidence" value={get("ml", "confidenceThreshold", 0.7)} type="number" step="0.01" onChange={(e) => updateField("ml", "confidenceThreshold", parseFloat(e.target.value))} />
-          <MiniField label="Min Score" value={get("ml", "minCompositeScore", 60)} type="number" suffix="pts" onChange={(e) => updateField("ml", "minCompositeScore", Number(e.target.value))} />
-          <MiniField label="Signal Weight" value={get("ml", "signalWeight", 1.0)} type="number" step="0.1" onChange={(e) => updateField("ml", "signalWeight", parseFloat(e.target.value))} />
-          <MiniField label="ML Weight" value={get("ml", "mlWeight", 1.0)} type="number" step="0.1" onChange={(e) => updateField("ml", "mlWeight", parseFloat(e.target.value))} />
         </SectionCard>
 
-        {/* PIPELINE GUARD AGENTS */}
-        <SectionCard title="Pipeline Guard Agents">
+        {/* 13. OPENCLAW AGENTS */}
+        <SectionCard title="OpenClaw Agents">
           <div className="space-y-0.5">
             {[
+              { key: "priorityScanner", label: "Priority Scanner" },
               { key: "marketScanner", label: "Market Scanner" },
               { key: "momentumAgent", label: "Momentum Agent" },
               { key: "marketRegime", label: "Market Regime" },
               { key: "optionsScanner", label: "Options Scanner" },
               { key: "riskAgent", label: "Risk Agent" },
-              { key: "signalEngine", label: "Signal Engine" },
             ].map((agent) => (
               <div key={agent.key} className="flex items-center justify-between py-[1px]">
                 <div className="flex items-center gap-1">
@@ -489,43 +521,55 @@ export default function SettingsPage() {
               </div>
             ))}
           </div>
+          <MiniSelect label="Regime" value={get("agents", "regimeMode", "adaptive")} options={["adaptive", "fixed", "ml-driven"]} onChange={(e) => updateField("agents", "regimeMode", e.target.value)} />
         </SectionCard>
 
-        {/* AGENT THRESHOLDS */}
+        {/* 14. AGENT THRESHOLDS */}
         <SectionCard title="Agent Thresholds">
-          <MiniField label="Vol Threshold" value={get("agents", "volumeThreshold", "500K")} onChange={(e) => updateField("agents", "volumeThreshold", e.target.value)} />
+          <MiniField label="Vol Threshold" value={get("agents", "volumeThreshold", "500K+")} onChange={(e) => updateField("agents", "volumeThreshold", e.target.value)} />
           <MiniField label="Flow Threshold" value={get("agents", "flowThreshold", "100K")} onChange={(e) => updateField("agents", "flowThreshold", e.target.value)} />
-          <MiniField label="Min Price" value={get("agents", "minPrice", "1K")} onChange={(e) => updateField("agents", "minPrice", e.target.value)} />
+          <MiniField label="Min Price" value={get("agents", "minPrice", "140")} onChange={(e) => updateField("agents", "minPrice", e.target.value)} />
+          <MiniField label="Max Price" value={get("agents", "maxPrice", "155")} onChange={(e) => updateField("agents", "maxPrice", e.target.value)} />
           <MiniField label="Max Concurrent" value={get("agents", "maxConcurrentAgents", 8)} type="number" onChange={(e) => updateField("agents", "maxConcurrentAgents", Number(e.target.value))} />
           <MiniField label="Timeout" value={get("agents", "agentTimeout", 30)} type="number" suffix="sec" onChange={(e) => updateField("agents", "agentTimeout", Number(e.target.value))} />
           <MiniToggle label="Auto Restart" checked={!!get("agents", "autoRestart", true)} onChange={(v) => updateField("agents", "autoRestart", v)} />
         </SectionCard>
+
+        {/* 15. SIGNAL THRESHOLDS */}
+        <SectionCard title="Signal Thresholds">
+          <MiniField label="Min Composite" value={get("ml", "minCompositeScore", 60)} type="number" suffix="pts" onChange={(e) => updateField("ml", "minCompositeScore", Number(e.target.value))} />
+          <MiniField label="Buy Threshold" value={get("ml", "buyThreshold", 0.60)} type="number" step="0.01" onChange={(e) => updateField("ml", "buyThreshold", parseFloat(e.target.value))} />
+          <MiniField label="Strong Buy" value={get("ml", "strongBuyThreshold", 0.75)} type="number" step="0.01" onChange={(e) => updateField("ml", "strongBuyThreshold", parseFloat(e.target.value))} />
+          <MiniField label="Min Kelly Edge" value={get("ml", "minKellyEdge", 0.05)} type="number" step="0.01" onChange={(e) => updateField("ml", "minKellyEdge", parseFloat(e.target.value))} />
+          <MiniField label="Signal Weight" value={get("ml", "signalWeight", 1.0)} type="number" step="0.1" onChange={(e) => updateField("ml", "signalWeight", parseFloat(e.target.value))} />
+          <MiniField label="ML Weight" value={get("ml", "mlWeight", 1.0)} type="number" step="0.1" onChange={(e) => updateField("ml", "mlWeight", parseFloat(e.target.value))} />
+        </SectionCard>
       </div>
 
-      {/* ═══════ ROW 4: Trade Management, Order Execution, Notifications, Security & Safety ═══════ */}
-      <div className="grid grid-cols-4 gap-2 mb-2">
+      {/* ROW 4: Trade Management, Order Execution, Notifications, Security & Auth, Backup & System */}
+      <div className="grid grid-cols-5 gap-2 mb-2">
 
-        {/* TRADE MANAGEMENT */}
+        {/* 16. TRADE MANAGEMENT */}
         <SectionCard title="Trade Management">
-          <MiniField label="TP1" value={get("risk", "takeProfit1", 1.0)} type="number" step="0.1" suffix="R" onChange={(e) => updateField("risk", "takeProfit1", parseFloat(e.target.value))} />
-          <MiniField label="TP2" value={get("risk", "takeProfit2", 1.5)} type="number" step="0.1" suffix="R" onChange={(e) => updateField("risk", "takeProfit2", parseFloat(e.target.value))} />
+          <MiniField label="TP1" value={get("risk", "takeProfit1", 1.5)} type="number" step="0.1" suffix="R" onChange={(e) => updateField("risk", "takeProfit1", parseFloat(e.target.value))} />
+          <MiniField label="TP2" value={get("risk", "takeProfit2", 1.4)} type="number" step="0.1" suffix="R" onChange={(e) => updateField("risk", "takeProfit2", parseFloat(e.target.value))} />
           <MiniField label="TP3" value={get("risk", "takeProfit3", 2.0)} type="number" step="0.1" suffix="R" onChange={(e) => updateField("risk", "takeProfit3", parseFloat(e.target.value))} />
           <MiniField label="Trailing" value={get("risk", "trailingStop", 1.5)} type="number" step="0.1" suffix="R" onChange={(e) => updateField("risk", "trailingStop", parseFloat(e.target.value))} />
           <MiniField label="Time Exit" value={get("trading", "marketClose", "16:00")} onChange={(e) => updateField("trading", "marketClose", e.target.value)} />
           <MiniToggle label="Post-Trade Confirm" checked={!!get("trading", "confirmBeforeOrder", true)} onChange={(v) => updateField("trading", "confirmBeforeOrder", v)} />
         </SectionCard>
 
-        {/* ORDER EXECUTION */}
+        {/* 17. ORDER EXECUTION */}
         <SectionCard title="Order Execution">
           <MiniField label="Slippage" value={get("trading", "slippageTolerance", 0.075)} type="number" step="0.001" suffix="%" onChange={(e) => updateField("trading", "slippageTolerance", parseFloat(e.target.value))} />
+          <MiniToggle label="Trade Execution" checked={!!get("trading", "tradeExecution", true)} onChange={(v) => updateField("trading", "tradeExecution", v)} />
+          <MiniToggle label="EOD Summary" checked={!!get("trading", "eodSummary", true)} onChange={(v) => updateField("trading", "eodSummary", v)} />
           <MiniField label="Partial Fill" value={get("trading", "partialFillPct", 75)} type="number" suffix="%" onChange={(e) => updateField("trading", "partialFillPct", Number(e.target.value))} />
           <MiniToggle label="Retry Failed" checked={!!get("trading", "retryFailed", true)} onChange={(v) => updateField("trading", "retryFailed", v)} />
-          <MiniField label="Max Retries" value={get("trading", "maxRetries", 3)} type="number" onChange={(e) => updateField("trading", "maxRetries", Number(e.target.value))} />
-          <MiniSelect label="Routing" value={get("trading", "orderRouting", "smart")} options={["smart", "direct", "iex"]} onChange={(e) => updateField("trading", "orderRouting", e.target.value)} />
-          <MiniField label="Risk Check" value={get("trading", "riskCheckMs", 50)} type="number" suffix="ms" onChange={(e) => updateField("trading", "riskCheckMs", Number(e.target.value))} />
+          <MiniField label="Timeout" value={get("trading", "riskCheckMs", 50)} type="number" suffix="ms" onChange={(e) => updateField("trading", "riskCheckMs", Number(e.target.value))} />
         </SectionCard>
 
-        {/* NOTIFICATIONS */}
+        {/* 18. NOTIFICATIONS */}
         <SectionCard title="Notifications">
           <div className="mb-0.5">
             <span className="text-[9px] text-gray-500 uppercase font-bold">PMS / Email / Push</span>
@@ -538,30 +582,47 @@ export default function SettingsPage() {
           <MiniToggle label="Daily PnL" checked={!!get("notifications", "dailyPnl", false)} onChange={(v) => updateField("notifications", "dailyPnl", v)} />
         </SectionCard>
 
-        {/* SECURITY & SAFETY */}
-        <SectionCard title="Security & Safety">
+        {/* 19. SECURITY & AUTH */}
+        <SectionCard title="Security & Auth">
           <MiniToggle label="2FA Enabled" checked={!!get("user", "twoFactorEnabled", false)} onChange={(v) => updateField("user", "twoFactorEnabled", v)} />
+          <MiniField label="Session Timeout" value={get("user", "sessionTimeoutMinutes", 30)} type="number" suffix="min" onChange={(e) => updateField("user", "sessionTimeoutMinutes", Number(e.target.value))} />
           <MiniField label="API Key Rotation" value={get("user", "apiKeyRotationDays", 90)} type="number" suffix="days" onChange={(e) => updateField("user", "apiKeyRotationDays", Number(e.target.value))} />
           <MiniToggle label="SSL/TLS" checked={!!get("user", "sslEnabled", true)} onChange={(v) => updateField("user", "sslEnabled", v)} />
           <MiniToggle label="IP Whitelisting" checked={!!get("user", "ipWhitelisting", false)} onChange={(v) => updateField("user", "ipWhitelisting", v)} />
-          <MiniField label="Session Timeout" value={get("user", "sessionTimeoutMinutes", 30)} type="number" suffix="min" onChange={(e) => updateField("user", "sessionTimeoutMinutes", Number(e.target.value))} />
           <div className="text-[9px] text-gray-600 mt-0.5 pt-0.5 border-t border-gray-800/50">
             <div>AES-256 on disk</div>
             <div>Keys hashed (bcrypt)</div>
           </div>
         </SectionCard>
+
+        {/* 20. BACKUP & SYSTEM */}
+        <SectionCard title="Backup & System">
+          <div className="space-y-1">
+            <div className="text-[9px] text-gray-500 font-mono">
+              system.json (primary)
+            </div>
+            <MiniToggle label="Auto-Save" checked={!!get("system", "autoSave", true)} onChange={(v) => updateField("system", "autoSave", v)} />
+            <div className="text-[9px] text-gray-500 font-mono">
+              {new Date().toISOString().replace("T", " ").slice(0, 19)} (latest)
+            </div>
+            <div className="text-[9px] text-gray-600">
+              <div>AES-256 on disk</div>
+              <div>Auto-backup: daily</div>
+            </div>
+          </div>
+        </SectionCard>
       </div>
 
-      {/* ═══════ ROW 5: Appearance, Market Data, Backup & System ═══════ */}
-      <div className="grid grid-cols-4 gap-2 mb-2">
+      {/* ROW 5: Appearance, Market Data, Notification Channels, Logging & Audit, Strategy Config */}
+      <div className="grid grid-cols-5 gap-2 mb-2">
 
-        {/* APPEARANCE */}
+        {/* 21. APPEARANCE */}
         <SectionCard title="Appearance">
           {/* Color theme swatches */}
           <div className="mb-1.5">
             <div className="flex gap-1 mb-1">
               {[
-                { key: "midnight", color: "#1a1a2e", label: "Midnight Neuromorph" },
+                { key: "midnight", color: "#1a1a2e", label: "Midnight Illuminator" },
                 { key: "ocean", color: "#0a2e4a", label: "Ocean Dark" },
                 { key: "emerald", color: "#0a2e1a", label: "Emerald" },
                 { key: "crimson", color: "#2e0a0a", label: "Crimson" },
@@ -581,13 +642,17 @@ export default function SettingsPage() {
               ))}
             </div>
             <span className="text-[9px] text-gray-500">
-              {get("appearance", "theme", "midnight") === "midnight" ? "Midnight Neuromorph" :
+              {get("appearance", "theme", "midnight") === "midnight" ? "Midnight Illuminator" :
                get("appearance", "theme") === "ocean" ? "Ocean Dark" :
                get("appearance", "theme") === "emerald" ? "Emerald" :
                get("appearance", "theme") === "crimson" ? "Crimson" :
-               get("appearance", "theme") === "amber" ? "Amber" : "Midnight Neuromorph"}
+               get("appearance", "theme") === "amber" ? "Amber" : "Midnight Illuminator"}
             </span>
           </div>
+          <MiniSelect label="Dark/Ultra" value={get("appearance", "darkMode", "dark")} options={[
+            { value: "dark", label: "Dark" },
+            { value: "ultra_dark", label: "Ultra Dark" },
+          ]} onChange={(e) => updateField("appearance", "darkMode", e.target.value)} />
           <MiniSelect label="Density" value={get("appearance", "density", "ultra_dense")} options={[
             { value: "ultra_dense", label: "Ultra Dense" },
             { value: "compact", label: "Compact" },
@@ -595,21 +660,20 @@ export default function SettingsPage() {
           ]} onChange={(e) => updateField("appearance", "density", e.target.value)} />
           <MiniSelect label="Font" value={get("appearance", "font", "monospace")} options={["monospace", "sans-serif", "serif"]} onChange={(e) => updateField("appearance", "font", e.target.value)} />
           <MiniToggle label="Animations" checked={!!get("appearance", "animations", true)} onChange={(v) => updateField("appearance", "animations", v)} />
-          <MiniToggle label="Sound Alerts" checked={!!get("appearance", "soundAlerts", false)} onChange={(v) => updateField("appearance", "soundAlerts", v)} />
         </SectionCard>
 
-        {/* MARKET DATA */}
+        {/* 22. MARKET DATA */}
         <SectionCard title="Market Data">
           <MiniSelect label="Timeframe" value={get("appearance", "chartTimeframe", "5m")} options={["1m", "5m", "15m", "1h", "4h", "1d"]} onChange={(e) => updateField("appearance", "chartTimeframe", e.target.value)} />
           <MiniSelect label="Update" value={get("dataSources", "updateFrequency", "5s")} options={["1s", "5s", "15s", "30s", "60s"]} onChange={(e) => updateField("dataSources", "updateFrequency", e.target.value)} />
+          <MiniField label="SSD Rate" value={get("dataSources", "ssdRate", "fast")} onChange={(e) => updateField("dataSources", "ssdRate", e.target.value)} />
           <MiniToggle label="After-hours" checked={!!get("trading", "afterHoursEnabled", false)} onChange={(v) => updateField("trading", "afterHoursEnabled", v)} />
+          <MiniField label="Volume" value={get("scanning", "volumeMin", "YTD, 1M, All")} onChange={(e) => updateField("scanning", "volumeMin", e.target.value)} />
           <MiniField label="Gap filter" value={get("scanning", "gapFilter", 2)} type="number" suffix="%" onChange={(e) => updateField("scanning", "gapFilter", Number(e.target.value))} />
-          <MiniToggle label="Pre-Market" checked={!!get("trading", "preMarketEnabled", false)} onChange={(v) => updateField("trading", "preMarketEnabled", v)} />
-          <MiniField label="Volume Min" value={get("scanning", "volumeMin", "YTD, 1M, All")} onChange={(e) => updateField("scanning", "volumeMin", e.target.value)} />
           <MiniSelect label="Export" value={get("dataSources", "exportFormat", "json")} options={["json", "csv"]} onChange={(e) => updateField("dataSources", "exportFormat", e.target.value)} />
         </SectionCard>
 
-        {/* NOTIFICATION CHANNELS */}
+        {/* 23. NOTIFICATION CHANNELS */}
         <SectionCard title="Notification Channels">
           <div className="space-y-0.5">
             {[
@@ -640,31 +704,14 @@ export default function SettingsPage() {
           </div>
         </SectionCard>
 
-        {/* BACKUP & SYSTEM */}
-        <SectionCard title="Backup & System">
-          <div className="space-y-1">
-            <div className="text-[9px] text-gray-500 font-mono">
-              {new Date().toISOString().replace("T", " ").slice(0, 19)} (Jmesca)
-            </div>
-            <div className="text-[9px] text-gray-600">
-              <div>AES-256 on disk</div>
-              <div>Auto-backup: daily</div>
-            </div>
-            <div className="flex gap-1">
-              <button onClick={onExport} className="flex-1 text-[9px] bg-[#0B0E14] border border-gray-700/50 rounded px-2 py-1 text-cyan-400 hover:bg-gray-800 flex items-center gap-1 justify-center">
-                <Download className="w-2.5 h-2.5" /> Export
-              </button>
-              <button onClick={() => importRef.current?.click()} className="flex-1 text-[9px] bg-[#0B0E14] border border-gray-700/50 rounded px-2 py-1 text-cyan-400 hover:bg-gray-800 flex items-center gap-1 justify-center">
-                <Upload className="w-2.5 h-2.5" /> Import
-              </button>
-            </div>
-            <button
-              onClick={() => { onReset("trading"); onReset("risk"); onReset("ml"); onReset("agents"); }}
-              className="w-full text-[9px] bg-red-900/20 border border-red-800/30 rounded px-2 py-1 text-red-400 hover:bg-red-900/30 flex items-center gap-1 justify-center"
-            >
-              <RotateCcw className="w-2.5 h-2.5" /> Reset All Defaults
-            </button>
-          </div>
+        {/* 24. LOGGING & AUDIT */}
+        <SectionCard title="Logging & Audit">
+          <MiniSelect label="Log Level" value={get("system", "logLevel", "INFO")} options={["DEBUG", "INFO", "WARNING", "ERROR"]} onChange={(e) => updateField("system", "logLevel", e.target.value)} />
+          <MiniField label="Log Retention" value={get("system", "logRetentionDays", 30)} type="number" suffix="days" onChange={(e) => updateField("system", "logRetentionDays", Number(e.target.value))} />
+          <MiniField label="Audit Retention" value={get("system", "auditRetentionDays", 90)} type="number" suffix="days" onChange={(e) => updateField("system", "auditRetentionDays", Number(e.target.value))} />
+          <MiniToggle label="Trade Audit Log" checked={!!get("system", "tradeAuditLog", true)} onChange={(v) => updateField("system", "tradeAuditLog", v)} />
+          <MiniToggle label="Performance Metrics" checked={!!get("system", "perfMetricsLog", true)} onChange={(v) => updateField("system", "perfMetricsLog", v)} />
+          <MiniToggle label="Agent Decision Log" checked={!!get("system", "agentDecisionLog", true)} onChange={(v) => updateField("system", "agentDecisionLog", v)} />
           <button
             onClick={() => setShowFullLog(!showFullLog)}
             className="mt-1 w-full text-[9px] bg-cyan-500/10 border border-cyan-500/20 rounded px-2 py-1 text-cyan-400 hover:bg-cyan-500/20 flex items-center gap-1 justify-center"
@@ -672,9 +719,23 @@ export default function SettingsPage() {
             <FileText className="w-2.5 h-2.5" /> {showFullLog ? "Hide" : "View"} Full Log
           </button>
         </SectionCard>
+
+        {/* 25. STRATEGY CONFIG */}
+        <SectionCard title="Strategy Config">
+          <MiniSelect label="Order Type" value={get("trading", "orderType", "market")} options={["market", "limit", "stop", "stop_limit"]} onChange={(e) => updateField("trading", "orderType", e.target.value)} />
+          <MiniSelect label="Entry Method" value={get("trading", "entryMethod", "signal")} options={[
+            { value: "signal", label: "Signal-driven" },
+            { value: "manual", label: "Manual Only" },
+            { value: "hybrid", label: "Hybrid" },
+          ]} onChange={(e) => updateField("trading", "entryMethod", e.target.value)} />
+          <MiniToggle label="Auto Execute" checked={!!get("trading", "autoExecute", false)} onChange={(v) => updateField("trading", "autoExecute", v)} />
+          <MiniToggle label="Paper Trade First" checked={!!get("trading", "paperTradeFirst", true)} onChange={(v) => updateField("trading", "paperTradeFirst", v)} />
+          <MiniField label="Min Sharpe" value={get("trading", "minSharpe", 1.2)} type="number" step="0.1" onChange={(e) => updateField("trading", "minSharpe", parseFloat(e.target.value))} />
+          <MiniField label="Min Win Rate" value={get("trading", "minWinRate", 52)} type="number" suffix="%" onChange={(e) => updateField("trading", "minWinRate", Number(e.target.value))} />
+        </SectionCard>
       </div>
 
-      {/* ═══════ FOOTER BAR ═══════ */}
+      {/* FOOTER BAR */}
       <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-800/50">
         <div className="flex gap-2">
           <button
@@ -699,14 +760,14 @@ export default function SettingsPage() {
         <button
           onClick={saveAllSettings}
           disabled={saving}
-          className="bg-green-600 hover:bg-green-700 text-white font-bold text-[10px] px-5 py-1.5 rounded uppercase tracking-wider disabled:opacity-50 flex items-center gap-1.5"
+          className="bg-cyan-500 hover:bg-cyan-600 text-black font-bold text-[10px] px-5 py-1.5 rounded uppercase tracking-wider disabled:opacity-50 flex items-center gap-1.5"
         >
           <Save className="w-3 h-3" />
           {saving ? "Saving..." : "SAVE ALL CHANGES"}
         </button>
       </div>
 
-      {/* ═══════ FULL AUDIT LOG (expanded) ═══════ */}
+      {/* FULL AUDIT LOG (expanded) */}
       {showFullLog && (
         <div className="mt-3">
           <AuditLogPanel />
@@ -716,7 +777,7 @@ export default function SettingsPage() {
   );
 }
 
-// ── Audit Log Panel ──────────────────────────────────────────
+// -- Audit Log Panel --
 function AuditLogPanel() {
   const { data: auditData, loading: logLoading } = useApi("settings", { endpoint: "/settings/audit-log" });
   const logs = auditData?.logs || [];

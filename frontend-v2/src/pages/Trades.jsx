@@ -13,6 +13,7 @@ import {
   RefreshCw,
   XCircle,
   X,
+  Edit3,
 } from "lucide-react";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl, getAuthHeaders } from "../config/api";
@@ -45,36 +46,35 @@ const fmtPnl = (n) => {
 };
 const clr = (n) => (n >= 0 ? "text-emerald-400" : "text-red-400");
 
-// ── Mini Sparkline SVG ──
-function MiniSparkline({ data, width = 60, height = 20, color }) {
-  if (!data || data.length < 2) {
-    // Generate random sparkline data for display
-    const pts = Array.from({ length: 20 }, () => Math.random() * 10 + 5);
-    return <MiniSparkline data={pts} width={width} height={height} color={color} />;
-  }
-  const min = Math.min(...data);
-  const max = Math.max(...data);
-  const range = max - min || 1;
-  const points = data
-    .map((v, i) => {
-      const x = (i / (data.length - 1)) * width;
-      const y = height - ((v - min) / range) * (height - 2) - 1;
-      return `${x},${y}`;
-    })
-    .join(" ");
+// ── Mini Sparkline SVG (bar chart style matching mockup) ──
+function MiniSparkline({ data, width = 56, height = 18, color }) {
+  // Generate data if not provided
+  const pts = useMemo(() => {
+    if (data && data.length >= 2) return data;
+    return Array.from({ length: 20 }, () => Math.random() * 10 + 2);
+  }, [data]);
 
-  const lineColor = color || (data[data.length - 1] >= data[0] ? "#34d399" : "#f87171");
+  const max = Math.max(...pts);
+  const barW = width / pts.length;
+
+  const baseColor = color || "#34d399";
 
   return (
-    <svg width={width} height={height} className="inline-block">
-      <polyline
-        points={points}
-        fill="none"
-        stroke={lineColor}
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+    <svg width={width} height={height} className="inline-block align-middle">
+      {pts.map((v, i) => {
+        const barH = (v / max) * (height - 1);
+        return (
+          <rect
+            key={i}
+            x={i * barW}
+            y={height - barH}
+            width={Math.max(barW - 0.5, 1)}
+            height={barH}
+            fill={baseColor}
+            opacity={0.5 + (v / max) * 0.5}
+          />
+        );
+      })}
     </svg>
   );
 }
@@ -172,17 +172,34 @@ export default function Trades() {
   // Account metrics
   const nav = accountData?.equity || accountData?.portfolio_value || portfolioData?.totalEquity || 0;
   const dayPnl = accountData?.profit_loss || portfolioData?.dayPnL || 0;
-  const marginAvail = accountData?.regt_buying_power
-    ? Number(accountData.regt_buying_power) / 2
-    : accountData?.margin_available || 0;
   const buyingPower = accountData?.buying_power || accountData?.daytrading_buying_power || 0;
 
-  // Regime from portfolio or system data
-  const regime = portfolioData?.regime || systemData?.regime || "BULL TREND";
+  // Margin available as percentage (mockup shows "82%")
+  const marginAvailRaw = accountData?.regt_buying_power
+    ? Number(accountData.regt_buying_power)
+    : accountData?.margin_available || 0;
+  const marginPct = nav > 0 ? Math.round((marginAvailRaw / Number(nav)) * 100) : 0;
+
+  // NAV change percentage (mockup shows "1.5%")
+  const navChangePct = portfolioData?.navChangePct
+    || (accountData?.equity && accountData?.last_equity
+      ? ((Number(accountData.equity) - Number(accountData.last_equity)) / Number(accountData.last_equity)) * 100
+      : 0);
+
+  // Regime and Trend from portfolio or system data
+  const regime = portfolioData?.regime || systemData?.regime || "BULL";
   const regimeColor =
     regime?.toLowerCase().includes("bull")
       ? "text-emerald-400"
       : regime?.toLowerCase().includes("bear")
+      ? "text-red-400"
+      : "text-yellow-400";
+
+  const trend = portfolioData?.trend || systemData?.trend || "STRONG";
+  const trendColor =
+    trend?.toLowerCase().includes("strong")
+      ? "text-emerald-400"
+      : trend?.toLowerCase().includes("weak")
       ? "text-red-400"
       : "text-yellow-400";
 
@@ -294,7 +311,8 @@ export default function Trades() {
     }
   };
 
-  // ── Position table columns (matching mockup) ──
+  // ── Position table columns (matching mockup exactly) ──
+  // Mockup headers: Symbol | Side | Qty | Avg Price | Mkt Price (C) | Day P&L (%) | Day P&L ($) | Unrealized P&L | Realized P&L (%) | Cost Basis | Price | Delta | Theta | Qty | Beta | Daily Range Vol | Sparkline | Actions
   const posColumns = [
     { key: "symbol", label: "Symbol", align: "left" },
     { key: "side", label: "Side", align: "left" },
@@ -302,33 +320,35 @@ export default function Trades() {
     { key: "avg_entry_price", label: "Avg Price", align: "right" },
     { key: "current_price", label: "Mkt Price (C)", align: "right" },
     { key: "day_pnl_pct", label: "Day P&L (%)", align: "right" },
+    { key: "day_pnl_dollar", label: "Day P&L ($)", align: "right" },
     { key: "unrealized_pl", label: "Unrealized P&L", align: "right" },
-    { key: "realized_pl", label: "Realized P&L", align: "right" },
+    { key: "realized_pl_pct", label: "Realized P&L (%)", align: "right" },
     { key: "cost_basis", label: "Cost Basis", align: "right" },
     { key: "market_value", label: "Price", align: "right" },
     { key: "delta", label: "Delta", align: "right" },
-    { key: "gamma", label: "Gamma", align: "right" },
     { key: "theta", label: "Theta", align: "right" },
-    { key: "vega", label: "Vega", align: "right" },
-    { key: "iv", label: "IV", align: "right" },
+    { key: "qty2", label: "Qty", align: "right" },
+    { key: "beta", label: "Beta", align: "right" },
     { key: "daily_range_vol", label: "Daily Range Vol", align: "right" },
-    { key: "sparkline", label: "SparkLine", align: "center" },
-    { key: "actions", label: "", align: "center" },
+    { key: "sparkline", label: "Sparkline", align: "center" },
+    { key: "actions", label: "Actions", align: "center" },
   ];
 
-  // ── Order table columns (matching mockup) ──
+  // ── Order table columns (matching mockup exactly) ──
+  // Mockup headers: Order ID | Date | Time | Type | Symbol | P/L(Day Qty) | Limit Price | Stop Price | Status | Execution Time | Avg Fill Price | Legs (Bracket/Order ID) | Actions
   const ordColumns = [
     { key: "id", label: "Order ID", align: "left" },
-    { key: "created_at", label: "Time", align: "left" },
+    { key: "date", label: "Date", align: "left" },
+    { key: "time", label: "Time", align: "left" },
     { key: "type", label: "Type", align: "left" },
     { key: "symbol", label: "Symbol", align: "left" },
-    { key: "qty", label: "YTDe Qty", align: "right" },
+    { key: "qty", label: "P/L(Day Qty)", align: "right" },
     { key: "limit_price", label: "Limit Price", align: "right" },
-    { key: "filled_avg_price", label: "Filled Price", align: "right" },
+    { key: "stop_price", label: "Stop Price", align: "right" },
     { key: "status", label: "Status", align: "left" },
     { key: "filled_at", label: "Execution Time", align: "left" },
     { key: "avg_fill", label: "Avg Fill Price", align: "right" },
-    { key: "legs", label: "Legs (Parent/Child)", align: "left" },
+    { key: "legs", label: "Legs (Bracket/Order ID)", align: "left" },
     { key: "actions", label: "Actions", align: "center" },
   ];
 
@@ -336,69 +356,94 @@ export default function Trades() {
   return (
     <div className="flex flex-col h-full min-h-0 bg-[#0B1120]">
       {/* ═══════════════════════════════════════════════════
-          TOP KPI BAR
+          TOP KPI BAR - matches mockup header strip
+          NAV | DAILY P&L | MARGIN AVAIL | BUYING POWER | REGIME | TREND | REBALANCED
           ═══════════════════════════════════════════════════ */}
-      <div className="flex items-center gap-6 px-4 py-2 bg-[#0D1525] border-b border-[#1E293B] flex-shrink-0">
+      <div className="flex items-center gap-5 px-4 py-1.5 bg-[#0D1525] border-b border-[#1E293B] flex-shrink-0">
         {/* NAV */}
         <div className="flex items-baseline gap-1.5">
           <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
             NAV:
           </span>
-          <span className="text-sm font-bold text-white font-mono">
+          <span className="text-[13px] font-bold text-white font-mono">
             {fmtM(nav)}
           </span>
-          <span className="text-[10px] text-slate-500">({timeStr})</span>
+          <span className={`text-[10px] font-mono ${clr(navChangePct)}`}>
+            ({fmtPct(navChangePct)})
+          </span>
         </div>
+
+        <span className="text-slate-600">|</span>
 
         {/* DAILY P&L */}
         <div className="flex items-baseline gap-1.5">
           <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
             DAILY P&L:
           </span>
-          <span className={`text-sm font-bold font-mono ${clr(dayPnl)}`}>
+          <span className={`text-[13px] font-bold font-mono ${clr(dayPnl)}`}>
             {fmtPnl(dayPnl)}
           </span>
         </div>
 
-        {/* MARGIN AVAIL */}
+        <span className="text-slate-600">|</span>
+
+        {/* MARGIN AVAIL (shown as percentage in mockup) */}
         <div className="flex items-baseline gap-1.5">
           <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
             MARGIN AVAIL:
           </span>
-          <span className="text-sm font-bold text-white font-mono">
-            {marginAvail ? fmtM(marginAvail) : "___"}
+          <span className="text-[13px] font-bold text-white font-mono">
+            {marginPct > 0 ? `${marginPct}%` : "--"}
           </span>
         </div>
+
+        <span className="text-slate-600">|</span>
 
         {/* BUYING POWER */}
         <div className="flex items-baseline gap-1.5">
           <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
             BUYING POWER:
           </span>
-          <span className="text-sm font-bold text-white font-mono">
+          <span className="text-[13px] font-bold text-white font-mono">
             {fmtM(buyingPower)}
           </span>
         </div>
+
+        <span className="text-slate-600">|</span>
 
         {/* REGIME */}
         <div className="flex items-baseline gap-1.5">
           <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
             REGIME:
           </span>
-          <span className={`text-sm font-bold font-mono uppercase ${regimeColor}`}>
+          <span className={`text-[13px] font-bold font-mono uppercase ${regimeColor}`}>
             {regime}
           </span>
         </div>
 
-        {/* REBALANCE? */}
+        <span className="text-slate-600">|</span>
+
+        {/* TREND */}
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+            TREND:
+          </span>
+          <span className={`text-[13px] font-bold font-mono uppercase ${trendColor}`}>
+            {trend}
+          </span>
+        </div>
+
+        <span className="text-slate-600">|</span>
+
+        {/* REBALANCED */}
         <div className="flex items-center gap-1.5 ml-auto">
           <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
-            REBALANCE?:
+            REBALANCED:
           </span>
           <select
             value={rebalanceTime}
             onChange={(e) => setRebalanceTime(e.target.value)}
-            className="px-2 py-0.5 bg-[#131A2B] border border-[#1E293B] rounded text-xs text-white font-mono outline-none focus:border-cyan-500"
+            className="px-2 py-0.5 bg-[#131A2B] border border-[#1E293B] rounded text-[11px] text-white font-mono outline-none focus:border-cyan-500"
           >
             <option value="5m">5m</option>
             <option value="15m">15m</option>
@@ -423,7 +468,7 @@ export default function Trades() {
         {/* ── POSITIONS TABLE ── */}
         <div className="flex-[3] flex flex-col min-h-0 overflow-hidden">
           {/* Section header */}
-          <div className="flex items-center justify-between px-3 py-1.5 bg-[#0D1525] border-b border-[#1E293B] flex-shrink-0">
+          <div className="flex items-center justify-between px-3 py-1 bg-[#0D1525] border-b border-[#1E293B] flex-shrink-0">
             <span className="text-[11px] font-bold text-slate-300 tracking-wide">
               Positions
             </span>
@@ -438,7 +483,7 @@ export default function Trades() {
 
           {/* Table */}
           <div className="flex-1 overflow-auto">
-            <table className="w-full border-collapse whitespace-nowrap text-[11px]">
+            <table className="w-full border-collapse whitespace-nowrap text-[10px]">
               <thead className="sticky top-0 z-10">
                 <tr>
                   {posColumns.map((col) => (
@@ -449,7 +494,7 @@ export default function Trades() {
                         col.key !== "actions" &&
                         handlePosSort(col.key)
                       }
-                      className={`sticky top-0 bg-[#111827] px-2 py-1.5 text-[9px] font-semibold uppercase tracking-wider border-b border-[#1E293B] z-10 cursor-pointer select-none hover:text-cyan-400 transition-colors ${
+                      className={`sticky top-0 bg-[#111827] px-1.5 py-1 text-[8px] font-semibold uppercase tracking-wider border-b border-[#1E293B] z-10 cursor-pointer select-none hover:text-cyan-400 transition-colors ${
                         col.align === "left"
                           ? "text-left"
                           : col.align === "center"
@@ -516,20 +561,20 @@ export default function Trades() {
                   const mktValue = Number(
                     p.market_value || p.marketValue || qty * mktPrice || 0
                   );
-                  const dayPnlVal = Number(
+                  const dayPnlDollar = Number(
                     p.unrealized_intraday_pl || p.dayPnl || 0
                   );
                   const dayPnlPctVal = Number(
                     p.unrealized_intraday_plpc || p.dayPnlPct || p.change_today || 0
                   ) * 100;
-                  const changeToday = Number(p.change_today || p.changeToday || 0);
+
+                  // Realized P&L percentage
+                  const realPnlPct = costBasis !== 0 ? (realPnl / costBasis) * 100 : 0;
 
                   // Greeks (may not be available for equities)
                   const delta = p.delta ?? "--";
-                  const gamma = p.gamma ?? "--";
                   const theta = p.theta ?? "--";
-                  const vega = p.vega ?? "--";
-                  const iv = p.iv ?? "--";
+                  const beta = p.beta ?? "--";
                   const dailyRangeVol = p.daily_range_vol || p.dailyRangeVol || "--";
 
                   // Sparkline data
@@ -538,18 +583,18 @@ export default function Trades() {
                   return (
                     <tr
                       key={sym + "-" + i}
-                      className="hover:bg-[#1E293B]/50 transition-colors border-b border-[#1E293B]/40"
+                      className="hover:bg-[#1E293B]/50 transition-colors border-b border-[#1E293B]/30"
                     >
                       {/* Symbol */}
-                      <td className="px-2 py-[4px] text-left">
-                        <span className="font-bold text-white font-mono text-[11px]">
+                      <td className="px-1.5 py-[3px] text-left">
+                        <span className="font-bold text-white font-mono text-[10px]">
                           {sym}
                         </span>
                       </td>
                       {/* Side */}
-                      <td className="px-2 py-[4px] text-left">
+                      <td className="px-1.5 py-[3px] text-left">
                         <span
-                          className={`px-1.5 py-0.5 rounded-sm text-[9px] font-bold ${
+                          className={`px-1 py-0.5 rounded-sm text-[8px] font-bold ${
                             isLong
                               ? "bg-emerald-500/15 text-emerald-400"
                               : "bg-red-500/15 text-red-400"
@@ -559,84 +604,93 @@ export default function Trades() {
                         </span>
                       </td>
                       {/* Qty */}
-                      <td className="px-2 py-[4px] text-right font-mono text-slate-300">
+                      <td className="px-1.5 py-[3px] text-right font-mono text-slate-300">
                         {qty.toLocaleString()}
                       </td>
                       {/* Avg Price */}
-                      <td className="px-2 py-[4px] text-right font-mono text-slate-300">
+                      <td className="px-1.5 py-[3px] text-right font-mono text-slate-300">
                         {fmtM(avgPrice)}
                       </td>
-                      {/* Mkt Price */}
-                      <td className="px-2 py-[4px] text-right font-mono text-white font-semibold">
+                      {/* Mkt Price (C) */}
+                      <td className="px-1.5 py-[3px] text-right font-mono text-white font-semibold">
                         {fmtM(mktPrice)}
                       </td>
                       {/* Day P&L (%) */}
-                      <td className={`px-2 py-[4px] text-right font-mono font-semibold ${clr(dayPnlPctVal)}`}>
-                        {dayPnlVal !== 0 ? fmtPnl(dayPnlVal) : "--"}
-                        {dayPnlPctVal !== 0 && (
-                          <span className="text-[9px] ml-1 opacity-70">
-                            ({fmtPct(dayPnlPctVal)})
-                          </span>
-                        )}
+                      <td className={`px-1.5 py-[3px] text-right font-mono font-semibold ${clr(dayPnlPctVal)}`}>
+                        {dayPnlPctVal !== 0 ? fmtPct(dayPnlPctVal) : "--"}
+                      </td>
+                      {/* Day P&L ($) */}
+                      <td className={`px-1.5 py-[3px] text-right font-mono font-semibold ${clr(dayPnlDollar)}`}>
+                        {dayPnlDollar !== 0 ? fmtPnl(dayPnlDollar) : "--"}
                       </td>
                       {/* Unrealized P&L */}
-                      <td className={`px-2 py-[4px] text-right font-mono font-bold ${clr(unrealPnl)}`}>
+                      <td className={`px-1.5 py-[3px] text-right font-mono font-bold ${clr(unrealPnl)}`}>
                         {fmtPnl(unrealPnl)}
                       </td>
-                      {/* Realized P&L */}
-                      <td className={`px-2 py-[4px] text-right font-mono ${clr(realPnl)}`}>
-                        {fmtPnl(realPnl)}
+                      {/* Realized P&L (%) */}
+                      <td className={`px-1.5 py-[3px] text-right font-mono ${clr(realPnl)}`}>
+                        {realPnl !== 0 ? fmtPct(realPnlPct) : "--"}
                       </td>
                       {/* Cost Basis */}
-                      <td className="px-2 py-[4px] text-right font-mono text-slate-400">
+                      <td className="px-1.5 py-[3px] text-right font-mono text-slate-400">
                         {fmtM(costBasis)}
                       </td>
                       {/* Price (market value) */}
-                      <td className="px-2 py-[4px] text-right font-mono text-slate-300">
+                      <td className="px-1.5 py-[3px] text-right font-mono text-slate-300">
                         {fmtM(mktValue)}
                       </td>
                       {/* Delta */}
-                      <td className="px-2 py-[4px] text-right font-mono text-slate-500 text-[10px]">
+                      <td className="px-1.5 py-[3px] text-right font-mono text-slate-500 text-[9px]">
                         {delta}
                       </td>
-                      {/* Gamma */}
-                      <td className="px-2 py-[4px] text-right font-mono text-slate-500 text-[10px]">
-                        {gamma}
-                      </td>
                       {/* Theta */}
-                      <td className="px-2 py-[4px] text-right font-mono text-slate-500 text-[10px]">
+                      <td className="px-1.5 py-[3px] text-right font-mono text-slate-500 text-[9px]">
                         {theta}
                       </td>
-                      {/* Vega */}
-                      <td className="px-2 py-[4px] text-right font-mono text-slate-500 text-[10px]">
-                        {vega}
+                      {/* Qty (second instance) */}
+                      <td className="px-1.5 py-[3px] text-right font-mono text-slate-400 text-[9px]">
+                        {qty.toLocaleString()}
                       </td>
-                      {/* IV */}
-                      <td className="px-2 py-[4px] text-right font-mono text-slate-500 text-[10px]">
-                        {iv}
+                      {/* Beta */}
+                      <td className="px-1.5 py-[3px] text-right font-mono text-slate-500 text-[9px]">
+                        {beta}
                       </td>
                       {/* Daily Range Vol */}
-                      <td className="px-2 py-[4px] text-right font-mono text-slate-500 text-[10px]">
+                      <td className="px-1.5 py-[3px] text-right font-mono text-slate-500 text-[9px]">
                         {dailyRangeVol}
                       </td>
                       {/* Sparkline */}
-                      <td className="px-2 py-[4px] text-center">
+                      <td className="px-1.5 py-[3px] text-center">
                         <MiniSparkline
                           data={sparkData}
-                          width={56}
-                          height={18}
-                          color={unrealPnl >= 0 ? "#34d399" : "#f87171"}
+                          width={52}
+                          height={16}
+                          color={unrealPnl >= 0 ? "#2dd4bf" : "#f87171"}
                         />
                       </td>
                       {/* Actions */}
-                      <td className="px-2 py-[4px] text-center">
-                        <button
-                          onClick={() => handleClosePosition(sym)}
-                          className="p-1 text-slate-500 hover:text-slate-200 transition-colors"
-                          title="Position settings"
-                        >
-                          <Settings className="w-3.5 h-3.5" />
-                        </button>
+                      <td className="px-1.5 py-[3px] text-center">
+                        <div className="inline-flex items-center gap-0.5">
+                          <button
+                            onClick={() => handleClosePosition(sym)}
+                            className="p-0.5 text-slate-500 hover:text-red-400 transition-colors"
+                            title="Close position"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                          <button
+                            className="p-0.5 text-slate-500 hover:text-cyan-400 transition-colors"
+                            title="Modify position"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                          </button>
+                          <button
+                            className="p-0.5 text-slate-500 hover:text-slate-200 transition-colors"
+                            title="Position settings"
+                          >
+                            <Settings className="w-3 h-3" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -659,7 +713,7 @@ export default function Trades() {
         {/* ── ORDERS TABLE ── */}
         <div className="flex-[2] flex flex-col min-h-0 overflow-hidden border-t border-[#1E293B]">
           {/* Section header */}
-          <div className="flex items-center justify-between px-3 py-1.5 bg-[#0D1525] border-b border-[#1E293B] flex-shrink-0">
+          <div className="flex items-center justify-between px-3 py-1 bg-[#0D1525] border-b border-[#1E293B] flex-shrink-0">
             <span className="text-[11px] font-bold text-slate-300 tracking-wide">
               Orders
             </span>
@@ -682,7 +736,7 @@ export default function Trades() {
 
           {/* Table */}
           <div className="flex-1 overflow-auto">
-            <table className="w-full border-collapse whitespace-nowrap text-[11px]">
+            <table className="w-full border-collapse whitespace-nowrap text-[10px]">
               <thead className="sticky top-0 z-10">
                 <tr>
                   {ordColumns.map((col) => (
@@ -691,7 +745,7 @@ export default function Trades() {
                       onClick={() =>
                         col.key !== "actions" && handleOrdSort(col.key)
                       }
-                      className={`sticky top-0 bg-[#111827] px-2 py-1.5 text-[9px] font-semibold uppercase tracking-wider border-b border-[#1E293B] z-10 cursor-pointer select-none hover:text-cyan-400 transition-colors ${
+                      className={`sticky top-0 bg-[#111827] px-1.5 py-1 text-[8px] font-semibold uppercase tracking-wider border-b border-[#1E293B] z-10 cursor-pointer select-none hover:text-cyan-400 transition-colors ${
                         col.align === "left"
                           ? "text-left"
                           : col.align === "center"
@@ -738,18 +792,28 @@ export default function Trades() {
                   const qty = o.qty || o.quantity || 0;
                   const filledQty = o.filled_qty || o.filledQty || 0;
                   const limitPx = o.limit_price;
+                  const stopPx = o.stop_price;
                   const filledPrice = o.filled_avg_price || o.avgFillPrice || null;
                   const status = o.status || o.alpaca_status || "new";
                   const createdAt = o.created_at || o.timestamp || "";
-                  const createdDisplay = createdAt
-                    ? new Date(createdAt).toLocaleString([], {
-                        year: "numeric",
-                        month: "short",
-                        day: "2-digit",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })
-                    : "--";
+
+                  // Separate Date and Time columns (matching mockup)
+                  let dateDisplay = "--";
+                  let timeDisplay = "--";
+                  if (createdAt) {
+                    const dt = new Date(createdAt);
+                    dateDisplay = dt.toLocaleDateString([], {
+                      year: "numeric",
+                      month: "short",
+                      day: "2-digit",
+                    });
+                    timeDisplay = dt.toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      second: "2-digit",
+                    });
+                  }
+
                   const filledAt = o.filled_at
                     ? new Date(o.filled_at).toLocaleString([], {
                         year: "numeric",
@@ -784,50 +848,54 @@ export default function Trades() {
                   return (
                     <React.Fragment key={o.id || i}>
                       <tr
-                        className={`hover:bg-[#1E293B]/50 transition-colors border-b border-[#1E293B]/40 ${rowBg}`}
+                        className={`hover:bg-[#1E293B]/50 transition-colors border-b border-[#1E293B]/30 ${rowBg}`}
                       >
                         {/* Order ID */}
-                        <td className="px-2 py-[4px] text-left font-mono text-cyan-400 text-[10px]">
+                        <td className="px-1.5 py-[3px] text-left font-mono text-cyan-400 text-[9px]">
                           {orderIdShort}
                         </td>
+                        {/* Date */}
+                        <td className="px-1.5 py-[3px] text-left font-mono text-slate-400 text-[9px]">
+                          {dateDisplay}
+                        </td>
                         {/* Time */}
-                        <td className="px-2 py-[4px] text-left font-mono text-slate-400 text-[10px]">
-                          {createdDisplay}
+                        <td className="px-1.5 py-[3px] text-left font-mono text-slate-400 text-[9px]">
+                          {timeDisplay}
                         </td>
                         {/* Type */}
-                        <td className="px-2 py-[4px] text-left">
+                        <td className="px-1.5 py-[3px] text-left">
                           <TypeBadge type={typ} />
                         </td>
                         {/* Symbol */}
-                        <td className="px-2 py-[4px] text-left font-bold text-white font-mono">
+                        <td className="px-1.5 py-[3px] text-left font-bold text-white font-mono">
                           {sym}
                         </td>
-                        {/* Qty */}
-                        <td className="px-2 py-[4px] text-right font-mono text-slate-300">
+                        {/* P/L(Day Qty) */}
+                        <td className="px-1.5 py-[3px] text-right font-mono text-slate-300">
                           {qty}
                         </td>
                         {/* Limit Price */}
-                        <td className="px-2 py-[4px] text-right font-mono text-slate-300">
+                        <td className="px-1.5 py-[3px] text-right font-mono text-slate-300">
                           {limitPx ? fmtM(limitPx) : "--"}
                         </td>
-                        {/* Filled Price */}
-                        <td className="px-2 py-[4px] text-right font-mono text-slate-300">
-                          {filledPrice ? fmtM(filledPrice) : "--"}
+                        {/* Stop Price */}
+                        <td className="px-1.5 py-[3px] text-right font-mono text-slate-300">
+                          {stopPx ? fmtM(stopPx) : "--"}
                         </td>
                         {/* Status */}
-                        <td className="px-2 py-[4px] text-left">
+                        <td className="px-1.5 py-[3px] text-left">
                           <StatusBadge status={status} />
                         </td>
                         {/* Execution Time */}
-                        <td className="px-2 py-[4px] text-left font-mono text-slate-400 text-[10px]">
+                        <td className="px-1.5 py-[3px] text-left font-mono text-slate-400 text-[9px]">
                           {filledAt}
                         </td>
                         {/* Avg Fill Price */}
-                        <td className="px-2 py-[4px] text-right font-mono text-slate-300">
+                        <td className="px-1.5 py-[3px] text-right font-mono text-slate-300">
                           {avgFill ? fmtM(avgFill) : "--"}
                         </td>
-                        {/* Legs */}
-                        <td className="px-2 py-[4px] text-left text-[10px] text-slate-400">
+                        {/* Legs (Bracket/Order ID) */}
+                        <td className="px-1.5 py-[3px] text-left text-[9px] text-slate-400">
                           {hasLegs ? (
                             <span className="text-cyan-400">{legLabel}</span>
                           ) : (
@@ -835,14 +903,20 @@ export default function Trades() {
                           )}
                         </td>
                         {/* Actions */}
-                        <td className="px-2 py-[4px] text-center">
+                        <td className="px-1.5 py-[3px] text-center">
                           <div className="inline-flex items-center gap-1">
                             <button
                               onClick={() => handleCancelOrder(orderId)}
-                              className="px-1.5 py-0.5 bg-[#131A2B] border border-[#1E293B] rounded text-[9px] text-red-400 hover:bg-red-500/20 transition-colors"
+                              className="px-1.5 py-0.5 bg-[#131A2B] border border-[#1E293B] rounded text-[8px] text-red-400 hover:bg-red-500/20 transition-colors"
                               title="Cancel order"
                             >
                               Cancel
+                            </button>
+                            <button
+                              className="px-1.5 py-0.5 bg-[#131A2B] border border-[#1E293B] rounded text-[8px] text-slate-400 hover:bg-slate-600/20 transition-colors"
+                              title="Close order"
+                            >
+                              Close
                             </button>
                           </div>
                         </td>
@@ -864,47 +938,50 @@ export default function Trades() {
                           return (
                             <tr
                               key={`${o.id}-leg-${li}`}
-                              className="bg-[#0D1525]/80 border-b border-[#1E293B]/30 hover:bg-[#1E293B]/30 transition-colors"
+                              className="bg-[#0D1525]/80 border-b border-[#1E293B]/20 hover:bg-[#1E293B]/30 transition-colors"
                             >
-                              <td className="px-2 py-[3px] text-left font-mono text-slate-500 text-[10px] pl-6">
+                              <td className="px-1.5 py-[2px] text-left font-mono text-slate-500 text-[9px] pl-5">
                                 {leg.id ? "Order-" + (leg.id || "").slice(-6).toUpperCase() : "--"}
                               </td>
-                              <td className="px-2 py-[3px] text-left font-mono text-slate-500 text-[10px]">
+                              <td className="px-1.5 py-[2px] text-left font-mono text-slate-500 text-[9px]">
                                 --
                               </td>
-                              <td className="px-2 py-[3px] text-left">
+                              <td className="px-1.5 py-[2px] text-left font-mono text-slate-500 text-[9px]">
+                                --
+                              </td>
+                              <td className="px-1.5 py-[2px] text-left">
                                 <TypeBadge type={legType} />
                               </td>
-                              <td className="px-2 py-[3px] text-left font-mono text-slate-400 text-[10px]">
+                              <td className="px-1.5 py-[2px] text-left font-mono text-slate-400 text-[9px]">
                                 {sym}
                               </td>
-                              <td className="px-2 py-[3px] text-right font-mono text-slate-400 text-[10px]">
+                              <td className="px-1.5 py-[2px] text-right font-mono text-slate-400 text-[9px]">
                                 {leg.qty || qty}
                               </td>
-                              <td className="px-2 py-[3px] text-right font-mono text-slate-400 text-[10px]">
+                              <td className="px-1.5 py-[2px] text-right font-mono text-slate-400 text-[9px]">
                                 {legLimitPx ? fmtM(legLimitPx) : "--"}
                               </td>
-                              <td className="px-2 py-[3px] text-right font-mono text-slate-400 text-[10px]">
-                                {legFilledPx ? fmtM(legFilledPx) : "--"}
+                              <td className="px-1.5 py-[2px] text-right font-mono text-slate-400 text-[9px]">
+                                {legStopPx ? fmtM(legStopPx) : "--"}
                               </td>
-                              <td className="px-2 py-[3px] text-left">
+                              <td className="px-1.5 py-[2px] text-left">
                                 <StatusBadge status={legStatus} />
                               </td>
-                              <td className="px-2 py-[3px] text-left font-mono text-slate-500 text-[10px]">
+                              <td className="px-1.5 py-[2px] text-left font-mono text-slate-500 text-[9px]">
                                 {leg.filled_at
                                   ? new Date(leg.filled_at).toLocaleString()
                                   : "--"}
                               </td>
-                              <td className="px-2 py-[3px] text-right font-mono text-slate-400 text-[10px]">
-                                {legStopPx ? fmtM(legStopPx) : legFilledPx ? fmtM(legFilledPx) : "--"}
+                              <td className="px-1.5 py-[2px] text-right font-mono text-slate-400 text-[9px]">
+                                {legFilledPx ? fmtM(legFilledPx) : "--"}
                               </td>
-                              <td className="px-2 py-[3px] text-left text-[9px] text-yellow-400">
+                              <td className="px-1.5 py-[2px] text-left text-[8px] text-yellow-400">
                                 {legLabel2}
                               </td>
-                              <td className="px-2 py-[3px] text-center">
+                              <td className="px-1.5 py-[2px] text-center">
                                 <button
                                   onClick={() => handleCancelOrder(leg.id)}
-                                  className="px-1.5 py-0.5 bg-[#131A2B] border border-[#1E293B] rounded text-[9px] text-red-400 hover:bg-red-500/20 transition-colors"
+                                  className="px-1.5 py-0.5 bg-[#131A2B] border border-[#1E293B] rounded text-[8px] text-red-400 hover:bg-red-500/20 transition-colors"
                                   title="Cancel leg"
                                 >
                                   Cancel
@@ -935,7 +1012,7 @@ export default function Trades() {
       {/* ═══════════════════════════════════════════════════
           FOOTER
           ═══════════════════════════════════════════════════ */}
-      <div className="flex items-center px-4 py-1.5 bg-[#0D1525] border-t border-[#1E293B] flex-shrink-0">
+      <div className="flex items-center px-4 py-1 bg-[#0D1525] border-t border-[#1E293B] flex-shrink-0">
         <div className="flex items-center gap-2">
           <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
           <span className="text-[10px] text-slate-400 font-mono">

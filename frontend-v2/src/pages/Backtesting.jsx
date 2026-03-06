@@ -220,13 +220,13 @@ const defaultStratEdges = [
 /*  Swarm agents list for OpenClaw panel                              */
 /* ------------------------------------------------------------------ */
 const SWARM_AGENTS = [
-  { name: "Axis Orchestrator", icon: Brain, color: "#00D9FF" },
-  { name: "Turbo Scanner", icon: Zap, color: "#10B981" },
-  { name: "Hyper Optimizer", icon: Target, color: "#A78BFA" },
-  { name: "News Sentinel", icon: Activity, color: "#F59E0B" },
-  { name: "Sweep Detector", icon: Search, color: "#EC4899" },
-  { name: "Risk Guardian", icon: Shield, color: "#EF4444" },
-  { name: "Signal Engine", icon: Cpu, color: "#6366F1" },
+  { name: "Apex Orchestrator", icon: Brain, color: "#00D9FF" },
+  { name: "Short Basket", icon: TrendingDown, color: "#EF4444" },
+  { name: "Meta Architect", icon: Layers, color: "#A78BFA" },
+  { name: "Signal Engine", icon: Cpu, color: "#10B981" },
+  { name: "Risk Governor", icon: Shield, color: "#F59E0B" },
+  { name: "Turbo Scanner", icon: Zap, color: "#EC4899" },
+  { name: "Sweep Detector", icon: Search, color: "#6366F1" },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -276,7 +276,7 @@ export default function Backtesting() {
   // --- Config state ---
   const [strategy, setStrategy] = useState("Mean Reversion V2");
   const [startDate, setStartDate] = useState("2023-01-01");
-  const [endDate, setEndDate] = useState("2024-01-11");
+  const [endDate, setEndDate] = useState("2024-01-01");
   const [batches, setBatches] = useState(10);
   const [trainPct, setTrainPct] = useState(70);
   const [minPositions, setMinPositions] = useState(5);
@@ -291,6 +291,11 @@ export default function Backtesting() {
   const [slippage, setSlippage] = useState(0.05);
   const [walkForwardWindow, setWalkForwardWindow] = useState(30);
   const [confidenceLevel, setConfidenceLevel] = useState(95);
+  const [positionFreq, setPositionFreq] = useState(5);
+  const [betPerTrade, setBetPerTrade] = useState(2.0);
+  const [takeProfit, setTakeProfit] = useState(3.0);
+  const [stopType, setStopType] = useState("Trailing");
+  const [wfPasses, setWfPasses] = useState(5);
 
   // --- Backtest running state ---
   const [running, setRunning] = useState(false);
@@ -383,26 +388,30 @@ export default function Backtesting() {
     }
   }, [strategy, startDate, endDate, batches, trainPct, minPositions, txnCost, maxPositions, symbols, benchmark, commission, regimeFilter, slippage, refetchResults]);
 
-  // --- KPI definitions ---
+  // --- KPI definitions (matches mockup KPI Mega Strip order) ---
   const kpiItems = useMemo(() => [
     { label: "Net P&L", value: fmtUsd(kpis.net_pnl ?? kpis.netPnl ?? kpis.total_pnl), raw: kpis.net_pnl ?? kpis.netPnl ?? kpis.total_pnl, thresholds: { good: 0, warn: -1000 } },
+    { label: "Sharpe", value: fmt(kpis.sharpe ?? kpis.sharpe_ratio, 2), raw: kpis.sharpe ?? kpis.sharpe_ratio, thresholds: { good: 1.5, warn: 1.0 } },
     { label: "Win Rate", value: fmtPct(kpis.win_rate ?? kpis.winRate), raw: kpis.win_rate ?? kpis.winRate, thresholds: { good: 55, warn: 45 } },
     { label: "Avg Trade", value: fmtUsd(kpis.avg_trade ?? kpis.avgTrade), raw: kpis.avg_trade ?? kpis.avgTrade, thresholds: { good: 0, warn: -50 } },
     { label: "Expectancy", value: fmt(kpis.expectancy, 2), raw: kpis.expectancy, thresholds: { good: 0.5, warn: 0 } },
     { label: "K/R Ratio", value: fmt(kpis.kr_ratio ?? kpis.krRatio ?? kpis.kelly_ratio, 2), raw: kpis.kr_ratio ?? kpis.krRatio ?? kpis.kelly_ratio, thresholds: { good: 1.5, warn: 1.0 } },
-    { label: "Kelly Efficiency", value: fmtPct(kpis.kelly_efficiency ?? kpis.kellyEfficiency), raw: kpis.kelly_efficiency ?? kpis.kellyEfficiency, thresholds: { good: 30, warn: 15 } },
-    { label: "Sharpe", value: fmt(kpis.sharpe ?? kpis.sharpe_ratio, 2), raw: kpis.sharpe ?? kpis.sharpe_ratio, thresholds: { good: 1.5, warn: 1.0 } },
-    { label: "Sortino", value: fmt(kpis.sortino ?? kpis.sortino_ratio, 2), raw: kpis.sortino ?? kpis.sortino_ratio, thresholds: { good: 2.0, warn: 1.0 } },
-    { label: "Max DD", value: fmtPct(kpis.max_drawdown ?? kpis.maxDrawdown), raw: kpis.max_drawdown ?? kpis.maxDrawdown, thresholds: { good: -5, warn: -15, invert: true } },
+    { label: "K/R Advantage", value: fmt(kpis.kr_advantage ?? kpis.krAdvantage, 2), raw: kpis.kr_advantage ?? kpis.krAdvantage, thresholds: { good: 1.0, warn: 0.5 } },
+    { label: "Trading Grade", value: kpis.trading_grade ?? kpis.tradingGrade ?? kpis.grade ?? "--", raw: null, thresholds: null },
     { label: "Total Trades", value: kpis.total_trades ?? kpis.totalTrades ?? "--", raw: kpis.total_trades ?? kpis.totalTrades, thresholds: { good: 50, warn: 20 } },
-    { label: "Profit Factor", value: fmt(kpis.profit_factor ?? kpis.profitFactor, 2), raw: kpis.profit_factor ?? kpis.profitFactor, thresholds: { good: 1.5, warn: 1.0 } },
-    { label: "Volatility", value: fmtPct(kpis.volatility ?? kpis.annual_vol), raw: kpis.volatility ?? kpis.annual_vol, thresholds: { good: 10, warn: 25, invert: true } },
+    { label: "Avg Win", value: fmtUsd(kpis.avg_win ?? kpis.avgWin), raw: kpis.avg_win ?? kpis.avgWin, thresholds: { good: 100, warn: 0 } },
+    { label: "Avg Loss", value: fmtUsd(kpis.avg_loss ?? kpis.avgLoss), raw: kpis.avg_loss ?? kpis.avgLoss, thresholds: { good: -50, warn: -200, invert: true } },
+    { label: "Kelly Efficiency", value: fmtPct(kpis.kelly_efficiency ?? kpis.kellyEfficiency), raw: kpis.kelly_efficiency ?? kpis.kellyEfficiency, thresholds: { good: 30, warn: 15 } },
+    { label: "Grade", value: kpis.overall_grade ?? kpis.overallGrade ?? "--", raw: null, thresholds: null },
     { label: "Alpha", value: fmt(kpis.alpha, 2), raw: kpis.alpha, thresholds: { good: 0, warn: -2 } },
+    { label: "Volatility", value: fmtPct(kpis.volatility ?? kpis.annual_vol), raw: kpis.volatility ?? kpis.annual_vol, thresholds: { good: 10, warn: 25, invert: true } },
     { label: "Beta", value: fmt(kpis.beta, 2), raw: kpis.beta, thresholds: { good: 0.5, warn: 1.0, invert: true } },
-    { label: "Grade", value: kpis.grade ?? kpis.overall_grade ?? "--", raw: null, thresholds: null },
+    { label: "Max DD", value: fmtPct(kpis.max_drawdown ?? kpis.maxDrawdown), raw: kpis.max_drawdown ?? kpis.maxDrawdown, thresholds: { good: -5, warn: -15, invert: true } },
+    { label: "Sortino", value: fmt(kpis.sortino ?? kpis.sortino_ratio, 2), raw: kpis.sortino ?? kpis.sortino_ratio, thresholds: { good: 2.0, warn: 1.0 } },
+    { label: "Profit Factor", value: fmt(kpis.profit_factor ?? kpis.profitFactor, 2), raw: kpis.profit_factor ?? kpis.profitFactor, thresholds: { good: 1.5, warn: 1.0 } },
   ], [kpis]);
 
-  // --- Trade log columns ---
+  // --- Trade log columns (matches mockup: Date, Asset, Side, Entry, Exit Price, P&L, R:1, Multiple, Agent, Signals, Comment) ---
   const tradeColumns = useMemo(() => [
     { key: "date", label: "Date", render: (v) => v ? String(v).slice(0, 10) : "--" },
     { key: "asset", label: "Asset", render: (v, row) => v ?? row.symbol ?? "--" },
@@ -410,8 +419,11 @@ export default function Backtesting() {
     { key: "entry_price", label: "Entry", render: (v) => fmtUsd(v) },
     { key: "exit_price", label: "Exit Price", render: (v) => fmtUsd(v) },
     { key: "pnl", label: "P&L", render: (v) => <span className={Number(v) >= 0 ? "text-green-400" : "text-red-400"}>{fmtUsd(v)}</span> },
-    { key: "duration", label: "Duration", render: (v) => v ?? "--" },
-    { key: "regime", label: "Regime", render: (v) => v ? <Badge variant={v === "BULL" ? "success" : v === "BEAR" ? "danger" : "warning"} size="sm">{v}</Badge> : "--" },
+    { key: "r_multiple", label: "R:1", render: (v, row) => <span className={Number(v ?? row.r_ratio ?? 0) >= 0 ? "text-green-400" : "text-red-400"}>{fmt(v ?? row.r_ratio, 1)}</span> },
+    { key: "multiple", label: "Multiple", render: (v, row) => fmt(v ?? row.lot_multiple ?? row.size, 2) },
+    { key: "agent", label: "Agent", render: (v, row) => <span className="text-cyan-400 text-[10px]">{v ?? row.agent_name ?? "--"}</span> },
+    { key: "signals", label: "Signals", render: (v, row) => <span className="text-purple-400 text-[10px] truncate max-w-[80px] inline-block">{v ?? row.signal ?? "--"}</span> },
+    { key: "comment", label: "Comment", render: (v) => <span className="text-secondary text-[10px] truncate max-w-[100px] inline-block">{v ?? "--"}</span> },
   ], []);
 
   // --- Run history columns ---
@@ -442,28 +454,17 @@ export default function Backtesting() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
         {/* --- Backtest Configuration --- */}
         <Card title="Backtest Configuration" loading={loadResults}>
-          <div className="space-y-3">
+          <div className="space-y-2">
             <Select label="Strategy" value={strategy} onChange={(e) => setStrategy(e.target.value)}
               options={["Mean Reversion V2", "Momentum V3", "ML Ensemble", "Stat Arb", "Pairs Trading"]} />
             <div className="grid grid-cols-2 gap-2">
-              <TextField label="Period A Start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-              <TextField label="Period A End" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+              <TextField label="Start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              <TextField label="End" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <TextField label="# Batches" type="number" value={batches} onChange={(e) => setBatches(Number(e.target.value))} />
-              <Slider label="% in Training" min={10} max={90} step={5} value={trainPct} onChange={setTrainPct} suffix="%" />
+              <Slider label="% in Trn" min={10} max={90} step={5} value={trainPct} onChange={setTrainPct} suffix="%" />
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              <TextField label="Min Positions" type="number" value={minPositions} onChange={(e) => setMinPositions(Number(e.target.value))} />
-              <TextField label="Txn Cost" type="number" value={txnCost} onChange={(e) => setTxnCost(Number(e.target.value))} />
-              <TextField label="Max Positions" type="number" value={maxPositions} onChange={(e) => setMaxPositions(Number(e.target.value))} />
-            </div>
-          </div>
-        </Card>
-
-        {/* --- Parameter Sweeps & Controls --- */}
-        <Card title="Parameter Sweeps & Controls">
-          <div className="space-y-3">
             <div>
               <label className="text-xs text-secondary font-medium mb-1 block">Symbols</label>
               <div className="flex flex-wrap gap-1">
@@ -472,12 +473,20 @@ export default function Backtesting() {
                 ))}
               </div>
             </div>
+            <Select label="Benchmark" value={benchmark} onChange={(e) => setBenchmark(e.target.value)}
+              options={["SPY", "QQQ", "IWM", "DIA", "BTC"]} />
+          </div>
+        </Card>
+
+        {/* --- Parameter Sweeps & Controls --- */}
+        <Card title="Parameter Sweeps & Controls">
+          <div className="space-y-2">
             <div className="grid grid-cols-2 gap-2">
-              <Select label="Benchmark" value={benchmark} onChange={(e) => setBenchmark(e.target.value)}
-                options={["SPY", "QQQ", "IWM", "DIA", "BTC"]} />
-              <TextField label="Commission" type="number" value={commission} onChange={(e) => setCommission(Number(e.target.value))} />
+              <TextField label="Period A" type="number" value={batches} onChange={(e) => setBatches(Number(e.target.value))} />
+              <TextField label="Transaction Cost" type="number" value={txnCost} onChange={(e) => setTxnCost(Number(e.target.value))} />
             </div>
             <div className="grid grid-cols-2 gap-2">
+              <TextField label="Position Freq" type="number" value={positionFreq} onChange={(e) => setPositionFreq(Number(e.target.value))} />
               <div>
                 <label className="text-xs text-secondary font-medium mb-1 block">Regime Filter</label>
                 <div className="flex gap-1">
@@ -489,20 +498,38 @@ export default function Backtesting() {
                   ))}
                 </div>
               </div>
-              <Slider label="Slippage (bps)" min={0} max={20} step={1} value={slippage * 100} onChange={(v) => setSlippage(v / 100)} suffix=" bps" />
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Slider label="Walk Forward Window" min={10} max={90} step={5} value={walkForwardWindow} onChange={setWalkForwardWindow} suffix=" days" />
+              <TextField label="Min Positions" type="number" value={minPositions} onChange={(e) => setMinPositions(Number(e.target.value))} />
+              <TextField label="Max Positions" type="number" value={maxPositions} onChange={(e) => setMaxPositions(Number(e.target.value))} />
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <TextField label="Bet Per Trade" type="number" value={betPerTrade} onChange={(e) => setBetPerTrade(Number(e.target.value))} />
+              <TextField label="Take Profit" type="number" value={takeProfit} onChange={(e) => setTakeProfit(Number(e.target.value))} />
+              <TextField label="Slippage" type="number" value={slippage} onChange={(e) => setSlippage(Number(e.target.value))} />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <TextField label="Commission" type="number" value={commission} onChange={(e) => setCommission(Number(e.target.value))} />
+              <Select label="Stop Type" value={stopType} onChange={(e) => setStopType(e.target.value)}
+                options={["Trailing", "Fixed", "ATR-Based", "Volatility"]} />
+            </div>
+            <Slider label="Walk-Forward Window" min={10} max={90} step={5} value={walkForwardWindow} onChange={setWalkForwardWindow} suffix=" days" />
+            <div className="grid grid-cols-2 gap-2">
               <Slider label="Confidence Level" min={80} max={99} step={1} value={confidenceLevel} onChange={setConfidenceLevel} suffix="%" />
+              <TextField label="WF Passes" type="number" value={wfPasses} onChange={(e) => setWfPasses(Number(e.target.value))} />
             </div>
           </div>
         </Card>
 
         {/* --- OpenClaw Swarm Backtest Integration --- */}
-        <Card title="OpenClaw Swarm Backtest Integration" action={<Badge variant="success" size="sm">7 Core Agents</Badge>}>
-          <div className="space-y-3">
-            <div className="text-xs text-secondary mb-1">EXTENDED SWARM: 15 sub-agents active</div>
-            <div className="space-y-1.5">
+        <Card title="OpenClaw Swarm Backtest Integration" action={
+          <div className="flex items-center gap-2">
+            <Badge variant="success" size="sm">7 Core Agents</Badge>
+            <span className="text-[10px] text-secondary">Swarm Status</span>
+          </div>
+        }>
+          <div className="space-y-2">
+            <div className="space-y-1">
               {SWARM_AGENTS.map((agent) => {
                 const Ic = agent.icon;
                 return (
@@ -520,7 +547,7 @@ export default function Backtesting() {
               })}
             </div>
             <div className="flex items-center justify-between pt-1 border-t border-secondary/20">
-              <span className="text-xs text-secondary">Swarm Status</span>
+              <span className="text-xs text-secondary">EXTENDED SWARM: 10 sub-agents active</span>
               <Badge variant="success" size="sm">ALL ONLINE</Badge>
             </div>
           </div>
@@ -534,14 +561,9 @@ export default function Backtesting() {
         <div className="overflow-x-auto">
           <div className="flex divide-x divide-secondary/20 min-w-max">
             {kpiItems.map((k) => (
-              <div key={k.label} className="px-4 py-3 flex flex-col items-center min-w-[100px]">
-                <span className="text-[10px] text-secondary uppercase tracking-wider mb-1">{k.label}</span>
-                <span className={clsx("text-lg font-bold", k.thresholds ? kpiColor(k.raw, k.thresholds) : "text-white")}>{k.value}</span>
-                {k.thresholds && k.raw != null && (
-                  <Badge variant={kpiBadge(k.raw, k.thresholds)} size="sm" className="mt-1">
-                    {kpiBadge(k.raw, k.thresholds) === "success" ? "GOOD" : kpiBadge(k.raw, k.thresholds) === "warning" ? "WARN" : "POOR"}
-                  </Badge>
-                )}
+              <div key={k.label} className="px-3 py-2 flex flex-col items-center min-w-[88px]">
+                <span className="text-[9px] text-secondary uppercase tracking-wider mb-0.5 whitespace-nowrap">{k.label}</span>
+                <span className={clsx("text-base font-bold leading-tight", k.thresholds ? kpiColor(k.raw, k.thresholds) : "text-white")}>{k.value}</span>
               </div>
             ))}
           </div>
@@ -549,24 +571,24 @@ export default function Backtesting() {
       </Card>
 
       {/* ============================================================ */}
-      {/*  CHARTS ROW 1: Equity | Parallel Run | P&L Dist | Sharpe     */}
+      {/*  CHARTS ROW 1: Equity | Parallel Run | P&L Dist | Sharpe | WF */}
       {/* ============================================================ */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-        {/* Equity Curve */}
-        <Card title="Equity Curve - Lightweight Charts" loading={loadResults} className="col-span-1">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
+        {/* Equity Curve - slightly wider */}
+        <Card title="Equity Curve - Lightweight Charts" loading={loadResults} className="md:col-span-1">
           <EquityCurveLC data={Array.isArray(equity) ? equity : []} height={220} />
         </Card>
 
         {/* Parallel Run Manager */}
-        <Card title="Parallel Run Manager" className="col-span-1">
-          <div className="space-y-2 mb-3">
+        <Card title="Parallel Run Manager" className="xl:col-span-1">
+          <div className="space-y-1.5 mb-2">
             {parallelRuns.map((r, i) => (
-              <div key={i} className="flex items-center justify-between text-xs bg-dark/40 rounded px-2 py-1.5">
+              <div key={i} className="flex items-center justify-between text-xs bg-dark/40 rounded px-2 py-1">
                 <div className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full" style={{ backgroundColor: r.color }} />
-                  <span className="text-white">{r.name}</span>
+                  <span className="text-white text-[11px]">{r.name}</span>
                 </div>
-                <div className="flex gap-3 text-secondary">
+                <div className="flex gap-2 text-secondary text-[10px]">
                   <span>S: <span className="text-white">{fmt(r.sharpe, 1)}</span></span>
                   <span>R: <span className={Number(r.return) >= 0 ? "text-green-400" : "text-red-400"}>{fmtPct(r.return)}</span></span>
                   <span>DD: <span className="text-red-400">{fmtPct(r.maxDD)}</span></span>
@@ -588,13 +610,37 @@ export default function Backtesting() {
         </Card>
 
         {/* Trade P&L Distribution */}
-        <Card title="Trade P&L Distribution" loading={loadTd} className="col-span-1">
+        <Card title="Trade P&L Distribution" loading={loadTd} className="xl:col-span-1">
           <TradePnlDistLC data={Array.isArray(tdData) ? tdData : []} height={220} />
         </Card>
 
-        {/* Rolling Sharpe Ratio */}
-        <Card title="Rolling Sharpe Ratio (30M)" loading={loadRs} className="col-span-1">
+        {/* Rolling Sharpe Ratio (3M) */}
+        <Card title="Rolling Sharpe Ratio (3M)" loading={loadRs} className="xl:col-span-1">
           <RollingSharpeLC data={Array.isArray(rsData) ? rsData : []} height={220} />
+        </Card>
+
+        {/* Walk Forward Analysis */}
+        <Card title="Walk Forward Analysis" loading={loadWf} className="xl:col-span-1">
+          {Array.isArray(wfData) && wfData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <ComposedChart data={wfData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(42,52,68,0.3)" />
+                <XAxis dataKey="period" stroke="#6B7280" tick={{ fontSize: 9 }} />
+                <YAxis stroke="#6B7280" tick={{ fontSize: 9 }} />
+                <Tooltip content={<DarkTooltip />} />
+                <Bar dataKey="in_sample" name="In-Sample" fill="#00D9FF" opacity={0.6} radius={[2, 2, 0, 0]} />
+                <Bar dataKey="out_sample" name="Out-Sample" fill="#10B981" opacity={0.8} radius={[2, 2, 0, 0]} />
+                <Line type="monotone" dataKey="efficiency" name="Efficiency" stroke="#F59E0B" dot={false} strokeWidth={2} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[220px] text-secondary text-sm">
+              <div className="text-center">
+                <GitBranch className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                <p>Run walk-forward to generate analysis</p>
+              </div>
+            </div>
+          )}
         </Card>
       </div>
 
@@ -602,29 +648,32 @@ export default function Backtesting() {
       {/*  CHARTS ROW 2: Regime | Monte Carlo | Heatmap | Strategy     */}
       {/* ============================================================ */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-        {/* Market Regime Performance */}
+        {/* Market Regime Performance - Donut Charts */}
         <Card title="Market Regime Performance" loading={loadRegime} className="col-span-1">
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={regimeChartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(42,52,68,0.3)" />
-              <XAxis dataKey="regime" stroke="#6B7280" tick={{ fontSize: 10 }} />
-              <YAxis stroke="#6B7280" tick={{ fontSize: 10 }} />
-              <Tooltip content={<DarkTooltip />} />
-              <Bar dataKey="pnl" name="P&L" radius={[4, 4, 0, 0]}>
-                {regimeChartData.map((r, i) => (
-                  <Cell key={i} fill={REGIME_COLORS[r.regime] ?? "#6B7280"} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-          <div className="flex gap-3 mt-2 justify-center">
-            {regimeChartData.map((r) => (
-              <div key={r.regime} className="flex items-center gap-1 text-[10px]">
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: REGIME_COLORS[r.regime] ?? "#6B7280" }} />
-                <span className="text-secondary">{r.regime}</span>
-                <span className={Number(r.pnl) >= 0 ? "text-green-400" : "text-red-400"}>{fmtK(r.pnl)}</span>
-              </div>
-            ))}
+          <div className="flex justify-around items-center py-2">
+            {regimeChartData.map((r) => {
+              const pct = r.winRate ?? 50;
+              const color = REGIME_COLORS[r.regime] ?? "#6B7280";
+              const circumference = 2 * Math.PI * 32;
+              const strokeDash = (pct / 100) * circumference;
+              return (
+                <div key={r.regime} className="flex flex-col items-center gap-1">
+                  <div className="relative w-[76px] h-[76px]">
+                    <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
+                      <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(55,65,81,0.4)" strokeWidth="6" />
+                      <circle cx="40" cy="40" r="32" fill="none" stroke={color} strokeWidth="6"
+                        strokeDasharray={`${strokeDash} ${circumference}`} strokeLinecap="round" />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-sm font-bold text-white">{pct}%</span>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-medium" style={{ color }}>{r.regime}</span>
+                  <span className={clsx("text-[10px]", Number(r.pnl) >= 0 ? "text-green-400" : "text-red-400")}>{fmtK(r.pnl)}</span>
+                  <span className="text-[9px] text-secondary">{r.trades} avg</span>
+                </div>
+              );
+            })}
           </div>
         </Card>
 
@@ -703,65 +752,62 @@ export default function Backtesting() {
       </div>
 
       {/* ============================================================ */}
-      {/*  BOTTOM: Trade-by-Trade Log | Run History & Export            */}
+      {/*  TRADE-BY-TRADE LOG (full width)                              */}
       {/* ============================================================ */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
-        {/* Trade-by-Trade Log */}
-        <div className="xl:col-span-2">
-          <Card title="Trade-by-Trade Log" action={
-            <div className="flex gap-2">
-              <Badge variant="secondary" size="sm">{Array.isArray(trades) ? trades.length : 0} trades</Badge>
-              <Button size="sm" variant="ghost" leftIcon={Download}>CSV</Button>
-            </div>
-          }>
-            <div className="max-h-[280px] overflow-auto">
-              <DataTable
-                columns={tradeColumns}
-                data={Array.isArray(trades) ? trades.slice(0, 50) : []}
-                loading={loadResults}
-                emptyMessage="No trades — run a backtest first"
-                rowKey={(r, i) => `${r.date}-${r.asset ?? r.symbol}-${i}`}
-              />
-            </div>
-          </Card>
+      <Card title="Trade-by-Trade Log" action={
+        <div className="flex gap-2">
+          <Badge variant="secondary" size="sm">{Array.isArray(trades) ? trades.length : 0} trades</Badge>
+          <Button size="sm" variant="ghost" leftIcon={Download}>CSV</Button>
         </div>
-
-        {/* Run History & Export + OpenClaw Swarm Consensus */}
-        <div className="space-y-3">
-          <Card title="Run History & Export" action={
-            <Button size="sm" variant="ghost" leftIcon={Upload}>Import</Button>
-          }>
-            <div className="max-h-[120px] overflow-auto">
-              <DataTable
-                columns={runHistoryColumns}
-                data={Array.isArray(runs) ? runs.slice(0, 10) : []}
-                loading={loadRuns}
-                emptyMessage="No run history"
-                rowKey={(r, i) => `run-${i}`}
-              />
-            </div>
-          </Card>
-
-          <Card title="OpenClaw Swarm Consensus">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-secondary">Consensus Signal</span>
-                <Badge variant="success" size="sm">BULLISH</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-secondary">Confidence</span>
-                <span className="text-sm font-bold text-cyan-400">{fmtPct(kpis.confidence ?? kpis.swarm_confidence ?? 78.5)}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-secondary">Agents Agreeing</span>
-                <span className="text-sm text-white">6 / 7</span>
-              </div>
-              <div className="w-full bg-dark rounded-full h-2 mt-1">
-                <div className="bg-gradient-to-r from-cyan-500 to-green-400 h-2 rounded-full transition-all" style={{ width: "85%" }} />
-              </div>
-            </div>
-          </Card>
+      }>
+        <div className="max-h-[240px] overflow-auto">
+          <DataTable
+            columns={tradeColumns}
+            data={Array.isArray(trades) ? trades.slice(0, 50) : []}
+            loading={loadResults}
+            emptyMessage="No trades — run a backtest first"
+            rowKey={(r, i) => `${r.date}-${r.asset ?? r.symbol}-${i}`}
+          />
         </div>
+      </Card>
+
+      {/* ============================================================ */}
+      {/*  BOTTOM ROW: Run History & Export | OpenClaw Swarm Consensus  */}
+      {/* ============================================================ */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+        <Card title="Run History & Export" action={
+          <Button size="sm" variant="ghost" leftIcon={Upload}>Import</Button>
+        }>
+          <div className="max-h-[140px] overflow-auto">
+            <DataTable
+              columns={runHistoryColumns}
+              data={Array.isArray(runs) ? runs.slice(0, 10) : []}
+              loading={loadRuns}
+              emptyMessage="No run history"
+              rowKey={(r, i) => `run-${i}`}
+            />
+          </div>
+        </Card>
+
+        <Card title="OpenClaw Swarm Consensus">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-secondary">Consensus Signal</span>
+              <Badge variant="success" size="sm">BULLISH</Badge>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-secondary">Confidence</span>
+              <span className="text-sm font-bold text-cyan-400">{fmtPct(kpis.confidence ?? kpis.swarm_confidence ?? 78.5)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-secondary">Agents Agreeing</span>
+              <span className="text-sm text-white">6 / 7</span>
+            </div>
+            <div className="w-full bg-dark rounded-full h-2 mt-1">
+              <div className="bg-gradient-to-r from-cyan-500 to-green-400 h-2 rounded-full transition-all" style={{ width: "85%" }} />
+            </div>
+          </div>
+        </Card>
       </div>
 
       {/* Footer: Agent status bar */}
@@ -771,11 +817,15 @@ export default function Backtesting() {
           <span className="text-green-400 font-medium">7 Agents ON</span>
           <span className="text-secondary/60 mx-1">|</span>
           <span>EXTENDED SWARM (R1)</span>
+          <span className="text-secondary/60 mx-1">|</span>
+          <span className="text-cyan-400">10 sub-agents active</span>
         </div>
         <div className="flex items-center gap-4 text-xs text-secondary">
           <span>Last run: {kpis.last_run ?? kpis.lastRun ?? "--"}</span>
           <span className="text-secondary/60">|</span>
           <span>Engine: V6.2.1</span>
+          <span className="text-secondary/60">|</span>
+          <span>OC_CORE_v6.2.1</span>
         </div>
       </div>
     </div>

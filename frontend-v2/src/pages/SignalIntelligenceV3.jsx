@@ -58,49 +58,39 @@ function parseAgentsFromApi(apiData) {
 
 const SCANNERS = [
   { id: 'scan_entity', name: 'Entity Scanner' },
-  { id: 'scan_daily', name: 'Daily Scanner' },
-  { id: 'scan_finviz', name: 'Finviz Screener' },
-  { id: 'scan_price_action', name: 'Price Action' },
-  { id: 'scan_flow', name: 'Flow Detector' },
+  { id: 'scan_force', name: 'Force Scanner' },
+  { id: 'scan_mfi', name: 'MFI Edge' },
   { id: 'scan_pullback', name: 'Pullback Detector' },
+  { id: 'scan_amd', name: 'AMD Detector' },
   { id: 'scan_rebound', name: 'Rebound Detector' },
-  { id: 'scan_squeeze', name: 'Short Squeeze' },
-  { id: 'scan_tech', name: 'Technical Checker' },
+  { id: 'scan_squeeze', name: 'Smart Squeeze' },
+  { id: 'scan_tech', name: 'Technical Oscillator' },
   { id: 'scan_earnings', name: 'Earnings Calendar' },
-  { id: 'scan_fomc', name: 'FOMC Expected' },
-  { id: 'scan_sector', name: 'Sector Rotation' },
+  { id: 'scan_fomc', name: 'FOMC Calendar' },
   { id: 'scan_whale', name: 'Whale Flow' },
   { id: 'scan_uw', name: 'UW Agents' },
   { id: 'scan_tv_watch', name: 'TV Watchlist' },
-  { id: 'scan_tv_sess', name: 'TV Session Refresh' },
-  { id: 'scan_amd', name: 'AMD Detector' },
   { id: 'scan_tv_decision', name: 'TV Decision Refresh' }
 ];
 
 const SCORING_METRICS = [
-  { id: 'score_signal_notif', name: 'Signal Notification', value: 92 },
-  { id: 'score_feature_store', name: 'Feature Store', value: 88 },
-  { id: 'score_lstm', name: 'LSTM Score', value: 76 },
-  { id: 'score_flow_rank', name: 'Flow Rank', value: 81 },
+  { id: 'score_signal_rat', name: 'Signal Rationalization', value: 92 },
+  { id: 'score_lstm_shot', name: 'LSTM Shot Timer', value: 76 },
+  { id: 'score_slnm', name: 'SLNM Strength', value: 88 },
   { id: 'score_velez', name: 'Velez Score', value: 94 },
-  { id: 'score_volume_surge', name: 'Volume Surge', value: 67 },
-  { id: 'score_whale', name: 'Whale Flow', value: 89 },
-  { id: 'score_rsi', name: 'RSI Structure', value: 72 },
-  { id: 'score_htf', name: 'HTF Structure', value: 85 },
-  { id: 'score_compression', name: 'Compression', value: 63 }
+  { id: 'score_blake', name: 'Blake Flow', value: 81 },
+  { id: 'score_mada', name: 'Mada Flow', value: 67 },
+  { id: 'score_iwi', name: 'IWI Structure', value: 72 },
+  { id: 'score_rl_comp', name: 'R&L Compression', value: 85 },
+  { id: 'score_competition', name: 'Competition', value: 63 }
 ];
 
 const INTEL_MODULES = [
   { id: 'intel_hmm', name: 'HMM Regime', defaultWeight: 100 },
-  { id: 'intel_sector', name: 'Sector Corr', defaultWeight: 85 },
-  { id: 'intel_flow', name: 'Unusual Flow', defaultWeight: 70 },
-  { id: 'intel_llm', name: 'LLM Client', defaultWeight: 85 },
-  { id: 'intel_lora', name: 'LoRA Trainer', defaultWeight: 70 },
+  { id: 'intel_sentiment', name: 'Sentiment', defaultWeight: 85 },
+  { id: 'intel_lstm', name: 'LSTM Trainer', defaultWeight: 76 },
   { id: 'intel_macro', name: 'Macro Context', defaultWeight: 95 },
-  { id: 'intel_mem1', name: 'Memory v1', defaultWeight: 60 },
-  { id: 'intel_mem3', name: 'Memory v3', defaultWeight: 90 },
-  { id: 'intel_mtf', name: 'MTF Alignment', defaultWeight: 85 },
-  { id: 'intel_perf', name: 'Perf Tracker', defaultWeight: 100 }
+  { id: 'intel_monte', name: 'Monte Carlo', defaultWeight: 82 }
 ];
 
 const ML_MODELS = [
@@ -116,10 +106,9 @@ const DATA_SOURCES = [
   { id: 'ds_twitter', name: 'Twitter/X API' },
   { id: 'ds_reddit', name: 'Reddit API' },
   { id: 'ds_discord', name: 'Discord Listener' },
-  { id: 'ds_news', name: 'NewsAPI' },
-  { id: 'ds_benzinga', name: 'Benzinga Pro' },
-  { id: 'ds_rss', name: 'RSS Aggregator' },
-  { id: 'ds_youtube', name: 'YouTube Agent' }
+  { id: 'ds_news', name: 'News API' },
+  { id: 'ds_whale', name: 'Whale Flow' },
+  { id: 'ds_insider', name: 'Insider API' }
 ];
 
 const API_ENDPOINTS = [
@@ -583,49 +572,36 @@ export default function SignalIntelligenceV3() {
       <div className="flex items-center justify-between px-3 py-1.5 bg-[#0d1117] border-b border-[#1e293b] shrink-0">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5">
-            <Activity className="w-4 h-4 text-[#00D9FF]" />
+            {/* Green hexagon icon */}
+            <svg className="w-4 h-4 text-emerald-400 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2l9 5v10l-9 5-9-5V7l9-5z" />
+            </svg>
             <span className="text-xs font-bold text-[#00D9FF] tracking-wider">SIGNAL_INTELLIGENCE_V3</span>
           </div>
-          {/* Regime badge */}
-          <div
-            className="flex items-center gap-1.5 px-2.5 py-0.5 rounded border"
-            style={{ backgroundColor: regimeBanner.bg, borderColor: regimeBanner.border }}
-          >
-            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: regimeBanner.color }} />
-            {regimeBanner.label === 'BULL' && <TrendingUp className="w-3 h-3" style={{ color: regimeBanner.text }} />}
-            {regimeBanner.label === 'BEAR' && <TrendingDown className="w-3 h-3" style={{ color: regimeBanner.text }} />}
-            <span className="text-[10px] font-bold tracking-wider" style={{ color: regimeBanner.text }}>
-              {regimeData.state || 'BULL_TREND'} REGIME
-            </span>
+          {/* PAS / FWL / E.I.T buttons */}
+          <div className="flex items-center gap-0.5">
+            {['PAS', 'FWL', 'E.I.T'].map(btn => (
+              <button key={btn} className="px-1.5 py-0.5 bg-[#1e293b] border border-[#374151] rounded text-[8px] text-gray-400 hover:text-[#00D9FF] hover:border-[#00D9FF]/40 transition-all font-mono">
+                {btn}
+              </button>
+            ))}
+          </div>
+          {/* VL / SHAP labels */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[8px] text-gray-500 font-mono">VL</span>
+            <span className="text-[8px] text-gray-500 font-mono">SHAP</span>
+          </div>
+          {/* SIZE selector */}
+          <div className="flex items-center gap-1">
+            <span className="text-[8px] text-gray-500 font-mono">SIZE</span>
+            <select className="bg-[#1e293b] border border-[#374151] rounded px-1.5 py-0.5 text-[8px] text-gray-300 outline-none cursor-pointer font-mono w-12">
+              <option>100</option>
+              <option>50</option>
+              <option>200</option>
+            </select>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {/* Symbol selector */}
-          <select
-            value={selectedSymbol}
-            onChange={(e) => setSelectedSymbol(e.target.value)}
-            className="bg-[#1e293b] border border-[#374151] rounded px-2 py-0.5 text-[10px] text-[#00D9FF] font-bold outline-none cursor-pointer"
-          >
-            {symbols.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          {/* Timeframe */}
-          <select
-            value={chartTimeframe}
-            onChange={(e) => setChartTimeframe(e.target.value)}
-            className="bg-[#1e293b] border border-[#374151] rounded px-2 py-0.5 text-[10px] text-gray-300 outline-none cursor-pointer"
-          >
-            {timeframes.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
-          {/* Confidence */}
-          <div className="flex items-center gap-1">
-            <span className="text-[9px] text-gray-500">Confidence</span>
-            <span className="text-[10px] font-bold text-emerald-400">{regimeData.conf ?? 87}%</span>
-          </div>
-          {/* Override toggle */}
-          <div className="flex items-center gap-1">
-            <span className="text-[9px] text-gray-500">Override</span>
-            <Toggle checked={regimeLock} onChange={setRegimeLock} size="sm" />
-          </div>
           {/* Save Profile */}
           <button
             onClick={handleSaveProfile}
@@ -637,32 +613,35 @@ export default function SignalIntelligenceV3() {
       </div>
 
       {/* ================================================================== */}
-      {/* MAIN 3-COLUMN GRID LAYOUT                                          */}
+      {/* MAIN 4-COLUMN GRID LAYOUT                                          */}
       {/* ================================================================== */}
-      <div className="flex-1 grid grid-cols-[200px_1fr_320px] gap-1 p-1 overflow-hidden min-h-0">
+      <div className="flex-1 grid grid-cols-[200px_1fr_220px_220px] gap-1 p-1 overflow-hidden min-h-0">
 
         {/* ============================================================== */}
-        {/* LEFT COLUMN: Scanner Modules + OpenClaw Score                   */}
+        {/* COLUMN 1: Scanner Modules (Layer 1) + OpenClaw Score (Layer 4) */}
         {/* ============================================================== */}
         <div className="flex flex-col gap-1 overflow-hidden min-h-0">
           {/* Scanner Modules (Layer 1) */}
           <Panel title="Scanner Modules (Layer 1)" icon={Search} className="flex-[5] min-h-0"
-            headerAction={<span className="text-[7px] text-gray-500">{scannerMetrics.activeScanners} SCANNER TOGGLES</span>}>
+            headerAction={<span className="text-[7px] text-gray-500">{SCANNERS.length} SCANNER TOGGLES</span>}>
             <div className="space-y-0.5">
-              {SCANNERS.map(scan => (
-                <label key={scan.id} className="flex items-center gap-1.5 py-0.5 px-0.5 hover:bg-[#1e293b]/40 rounded cursor-pointer group">
-                  <input
-                    type="checkbox"
-                    checked={scannerStates[scan.id]?.active ?? true}
-                    onChange={() => setScannerStates(p => ({ ...p, [scan.id]: { ...p[scan.id], active: !p[scan.id].active } }))}
-                    className="w-2.5 h-2.5 rounded-sm bg-[#1e293b] border border-[#374151] text-cyan-500 focus:ring-0 focus:ring-offset-0 accent-cyan-500 shrink-0"
-                  />
-                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                    scannerStates[scan.id]?.active ? 'bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.6)]' : 'bg-gray-600'
-                  }`} />
-                  <span className="text-[8px] text-gray-300 truncate">{scan.name}</span>
-                </label>
-              ))}
+              {SCANNERS.map(scan => {
+                const isActive = scannerStates[scan.id]?.active ?? true;
+                return (
+                  <div key={scan.id} className="flex items-center gap-1.5 py-0.5 px-0.5 hover:bg-[#1e293b]/40 rounded group">
+                    <span className="text-[8px] text-gray-300 flex-1 truncate">{scan.name}</span>
+                    <Toggle checked={isActive}
+                      onChange={() => setScannerStates(p => ({ ...p, [scan.id]: { ...p[scan.id], active: !p[scan.id]?.active } }))} size="sm" />
+                    {/* Activity bar */}
+                    <div className="w-10 h-1 bg-[#1e293b] rounded-full overflow-hidden shrink-0">
+                      <div className="h-full rounded-full transition-all duration-500" style={{
+                        width: isActive ? `${40 + ((scan.id.charCodeAt(5) * 17) % 60)}%` : '0%',
+                        backgroundColor: isActive ? '#10b981' : '#374151'
+                      }} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </Panel>
 
@@ -686,7 +665,7 @@ export default function SignalIntelligenceV3() {
         </div>
 
         {/* ============================================================== */}
-        {/* CENTER COLUMN: Chart + Signal Data Table                       */}
+        {/* COLUMN 2: Chart + Signal Data Table                            */}
         {/* ============================================================== */}
         <div className="flex flex-col gap-1 overflow-hidden min-h-0">
           {/* Chart */}
@@ -697,9 +676,7 @@ export default function SignalIntelligenceV3() {
                 <span className="text-[10px] font-bold text-white">{selectedSymbol}</span>
                 <span className="text-[8px] text-gray-500">OHLCV</span>
                 <div className="flex items-center gap-1.5 ml-2">
-                  <span className="flex items-center gap-0.5"><span className="w-2 h-0.5 bg-cyan-400 inline-block rounded" /><span className="text-[7px] text-cyan-400">SMA20</span></span>
-                  <span className="flex items-center gap-0.5"><span className="w-2 h-0.5 bg-purple-400 inline-block rounded" /><span className="text-[7px] text-purple-400">SMA50</span></span>
-                  <span className="flex items-center gap-0.5"><span className="w-2 h-0.5 bg-orange-400 inline-block rounded" /><span className="text-[7px] text-orange-400">SMA200</span></span>
+                  <span className="flex items-center gap-0.5"><span className="w-2 h-0.5 bg-cyan-400 inline-block rounded" /><span className="text-[7px] text-cyan-400">SMAC200</span></span>
                   <span className="flex items-center gap-0.5"><span className="w-2 h-0.5 bg-white inline-block rounded" /><span className="text-[7px] text-gray-300">VWAP</span></span>
                 </div>
               </div>
@@ -747,12 +724,21 @@ export default function SignalIntelligenceV3() {
                         {sig.symbol || sig.ticker}
                       </td>
                       <td className="py-0.5 px-1">
-                        <span className={`font-mono font-bold ${(sig.score || sig.confidence || 0) >= 80 ? 'text-emerald-400' : (sig.score || sig.confidence || 0) >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
-                          {sig.score || sig.confidence || '--'}
-                        </span>
+                        <div className="flex items-center gap-1">
+                          <div className="w-8 h-1 bg-[#1e293b] rounded-full overflow-hidden">
+                            <div className="h-full rounded-full" style={{
+                              width: `${sig.score || sig.confidence || 0}%`,
+                              backgroundColor: (sig.score || sig.confidence || 0) >= 80 ? '#10b981' : (sig.score || sig.confidence || 0) >= 50 ? '#f59e0b' : '#ef4444'
+                            }} />
+                          </div>
+                          <span className={`font-mono font-bold ${(sig.score || sig.confidence || 0) >= 80 ? 'text-emerald-400' : (sig.score || sig.confidence || 0) >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
+                            {sig.score || sig.confidence || '--'}
+                          </span>
+                        </div>
                       </td>
                       <td className="py-0.5 px-1">
-                        <span className={`px-1 py-0.5 rounded text-[7px] font-bold ${(sig.dir === 'LONG' || sig.action === 'BUY') ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>
+                        <span className={`flex items-center gap-0.5 text-[7px] font-bold ${(sig.dir === 'LONG' || sig.action === 'BUY') ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {(sig.dir === 'LONG' || sig.action === 'BUY') ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
                           {sig.dir || sig.action || '--'}
                         </span>
                       </td>
@@ -775,58 +761,38 @@ export default function SignalIntelligenceV3() {
         </div>
 
         {/* ============================================================== */}
-        {/* RIGHT COLUMN: Scoring + Sensors + Intel + Regime + ML + Exec   */}
+        {/* COLUMN 3: Global Scoring Engine + Intelligence Modules          */}
         {/* ============================================================== */}
         <div className="flex flex-col gap-1 overflow-y-auto min-h-0 scrollbar-thin scrollbar-thumb-[#374151] scrollbar-track-transparent">
 
-          {/* Top row: Global Scoring Engine + External Sensors side by side */}
-          <div className="grid grid-cols-2 gap-1 shrink-0">
-            {/* Global Scoring Engine (Layer 2) */}
-            <Panel title="Global Scoring Engine (Layer 2)" icon={Target} className="min-h-0">
-              <div className="flex items-center justify-between text-[8px] mb-1">
-                <span className="text-gray-500">OpenClaw Core vs Tech Analysis</span>
-              </div>
-              <div className="space-y-0.5">
-                {SCORING_METRICS.map(metric => (
-                  <div key={metric.id} className="flex items-center gap-1">
-                    <span className="text-[7px] text-gray-400 w-20 shrink-0 truncate">{metric.name}</span>
-                    <div className="flex-1 h-1 bg-[#1e293b] rounded-full overflow-hidden">
-                      <div className="h-full rounded-full" style={{
-                        width: `${metric.value}%`,
-                        backgroundColor: metric.value >= 85 ? '#10b981' : metric.value >= 70 ? '#00D9FF' : metric.value >= 50 ? '#f59e0b' : '#ef4444'
-                      }} />
-                    </div>
-                    <span className="text-[7px] text-gray-500 w-6 text-right">{metric.value}%</span>
+          {/* Global Scoring Engine (Layer 2) */}
+          <Panel title="Global Scoring Engine (Layer 2)" icon={Target} className="shrink-0">
+            <div className="space-y-0.5">
+              {SCORING_METRICS.map(metric => (
+                <div key={metric.id} className="flex items-center gap-1">
+                  <span className="text-[7px] text-gray-400 w-24 shrink-0 truncate">{metric.name}</span>
+                  <div className="flex-1 h-1 bg-[#1e293b] rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{
+                      width: `${metric.value}%`,
+                      backgroundColor: metric.value >= 85 ? '#10b981' : metric.value >= 70 ? '#00D9FF' : metric.value >= 50 ? '#f59e0b' : '#ef4444'
+                    }} />
                   </div>
-                ))}
-              </div>
-            </Panel>
-
-            {/* External Sensors */}
-            <Panel title="External Sensors" icon={Globe} className="min-h-0">
-              {DATA_SOURCES.map(ds => (
-                <div key={ds.id} className="flex items-center gap-1.5 py-0.5">
-                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                    dataSourceStates[ds.id]?.active ? 'bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)]' : 'bg-gray-600'
-                  }`} />
-                  <span className="text-[8px] text-gray-300 flex-1 truncate">{ds.name}</span>
-                  <Toggle checked={dataSourceStates[ds.id]?.active ?? true}
-                    onChange={() => setDataSourceStates(p => ({...p, [ds.id]: {...p[ds.id], active: !p[ds.id]?.active}}))} size="sm" />
+                  <span className="text-[7px] text-gray-500 w-6 text-right">{metric.value}%</span>
                 </div>
               ))}
-            </Panel>
-          </div>
+            </div>
+          </Panel>
 
           {/* Intelligence Modules (Layer 3) */}
-          <Panel title="Intelligence Modules (Layer 3)" icon={Shield} className="shrink-0">
-            <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
+          <Panel title="Intelligence Modules (Layer 3):" icon={Shield} className="shrink-0">
+            <div className="space-y-0.5">
               {INTEL_MODULES.map(mod => (
                 <div key={mod.id} className="flex items-center gap-1 py-0.5">
                   <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                     intelStates[mod.id]?.active ? 'bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)]' : 'bg-gray-600'
                   }`} />
                   <span className="text-[8px] text-gray-300 flex-1 truncate">{mod.name}</span>
-                  <span className="text-[7px] text-gray-500">{intelStates[mod.id]?.weight ?? mod.defaultWeight}%</span>
+                  <span className="text-[7px] text-gray-500 font-mono">{intelStates[mod.id]?.weight ?? mod.defaultWeight}%</span>
                 </div>
               ))}
             </div>
@@ -838,69 +804,55 @@ export default function SignalIntelligenceV3() {
               <span className="w-2 h-2 rounded-full" style={{ backgroundColor: regimeBanner.color, boxShadow: `0 0 8px ${regimeBanner.color}` }} />
               <span className="text-[10px] font-bold font-mono" style={{ color: regimeBanner.text }}>{regimeData.state || 'BULL_TREND'}</span>
               <Badge color={bannerColor}>{regimeData.conf ?? '--'}%</Badge>
-              <span className="text-[7px] text-gray-500 ml-auto">p-comp:90</span>
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-[7px] text-gray-500">p-comp:90</span>
               <span className="text-[7px] text-gray-500">AND rdir=BULL</span>
             </div>
             <div className="w-full h-1.5 bg-[#1e293b] rounded-full overflow-hidden mt-1.5">
               <div className="h-full rounded-full transition-all duration-500" style={{ width: `${regimeData.conf ?? 0}%`, backgroundColor: regimeBanner.color }} />
             </div>
           </Panel>
+        </div>
 
-          {/* ML Model Control (Layer 5) */}
-          <Panel title="ML Model Control (Layer 5)" icon={Cpu} className="shrink-0">
-            {ML_MODELS.map(model => (
-              <div key={model.id} className="flex items-center gap-1 py-0.5 border-b border-[#1e293b]/30 last:border-0">
-                <span className="text-[8px] text-gray-300 w-24 shrink-0 truncate">{model.name}</span>
-                <Badge color={mlStates[model.id]?.status === 'Ready' ? 'emerald' : mlStates[model.id]?.status === 'Training' ? 'amber' : 'gray'}>
-                  {mlStates[model.id]?.status}
+        {/* ============================================================== */}
+        {/* COLUMN 4: External Sensors + Execution + ML + Telemetry        */}
+        {/* ============================================================== */}
+        <div className="flex flex-col gap-1 overflow-y-auto min-h-0 scrollbar-thin scrollbar-thumb-[#374151] scrollbar-track-transparent">
+
+          {/* External Sensors */}
+          <Panel title="External Sensors" icon={Globe} className="shrink-0">
+            {DATA_SOURCES.map(ds => (
+              <div key={ds.id} className="flex items-center gap-1.5 py-0.5">
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                  dataSourceStates[ds.id]?.active ? 'bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)]' : 'bg-gray-600'
+                }`} />
+                <span className="text-[8px] text-gray-300 flex-1 truncate">{ds.name}</span>
+                <Badge color={dataSourceStates[ds.id]?.active ? 'emerald' : 'gray'}>
+                  {dataSourceStates[ds.id]?.active ? 'ON' : 'OFF'}
                 </Badge>
-                <span className="text-[7px] text-gray-500 ml-auto">{model.version}</span>
               </div>
             ))}
-            {/* Strategy Telemetry */}
-            <div className="mt-1.5 pt-1 border-t border-[#1e293b]">
-              <div className="text-[7px] text-gray-500 uppercase tracking-wider mb-0.5">Strategy Telemetry</div>
-              <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[7px] text-gray-500">Active Models</span>
-                  <span className="text-[8px] font-bold font-mono text-emerald-400">{mlControlsData.activeModels}/{ML_MODELS.length}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[7px] text-gray-500">Accuracy</span>
-                  <span className="text-[8px] font-bold font-mono text-[#00D9FF]">
-                    {mlControlsData.flywheelAccuracy != null ? `${(typeof mlControlsData.flywheelAccuracy === 'number' && mlControlsData.flywheelAccuracy <= 1 ? (mlControlsData.flywheelAccuracy * 100).toFixed(1) : mlControlsData.flywheelAccuracy)}%` : '--'}
-                  </span>
-                </div>
-              </div>
-            </div>
-            {/* ML Pipeline metrics */}
-            <div className="mt-1 pt-1 border-t border-[#1e293b]">
-              <div className="text-[7px] text-gray-500 uppercase tracking-wider mb-0.5">ML Pipeline</div>
-              <div className="flex items-center gap-2">
-                <ProgressBar value={82} color="#a855f7" label="Feature Eng" />
-              </div>
-              <div className="flex items-center gap-2 mt-0.5">
-                <ProgressBar value={67} color="#06b6d4" label="Model Train" />
-              </div>
-            </div>
           </Panel>
 
           {/* Execution & Automation */}
-          <Panel title="Execution & Automation" icon={Rocket} className="shrink-0"
-            headerAction={
-              <Badge color={autoExecute ? 'emerald' : 'red'}>{autoExecute ? 'AUTO EXECUTION' : 'MANUAL'}</Badge>
-            }>
+          <Panel title="Execution & Automation" icon={Rocket} className="shrink-0">
             <div className="space-y-1">
+              {/* Auto Execution toggle */}
+              <div className="flex items-center justify-between">
+                <span className="text-[8px] text-gray-400 uppercase tracking-wider font-bold">AUTO EXECUTION</span>
+                <Toggle checked={autoExecute} onChange={setAutoExecute} size="sm" />
+              </div>
               <div className="flex items-center gap-2">
                 <span className="text-[8px] text-gray-500 w-20">Trading Mode</span>
                 <Badge color="red">PAPER TRADING</Badge>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[8px] text-gray-500 w-20">Position Sizer</span>
+                <span className="text-[8px] text-gray-500 w-20">Position Size</span>
                 <Badge color="cyan">KELLY CRITERION</Badge>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[8px] text-gray-500 w-20">Max Portfolio %</span>
+                <span className="text-[8px] text-gray-500 w-20">Risk Portfolio</span>
                 <span className="text-[8px] font-mono text-amber-400">{maxHeat}%</span>
               </div>
               <div className="flex items-center gap-2">
@@ -908,24 +860,62 @@ export default function SignalIntelligenceV3() {
                 <span className="text-[8px] font-mono text-red-400">{lossLimit}%</span>
               </div>
             </div>
-            {/* API Health minimap */}
-            <div className="mt-1.5 pt-1 border-t border-[#1e293b]">
-              <div className="text-[7px] text-gray-500 uppercase tracking-wider mb-0.5">API PRIORITY MAP ({API_ENDPOINTS.length})</div>
-              <div className="grid grid-cols-7 gap-0.5">
-                {API_ENDPOINTS.map((ep) => {
-                  const health = apiStatus?.endpoints?.[ep];
-                  const isWarn = health?.status === 'degraded' || health?.latency > 500;
-                  const isErr = health?.status === 'down' || health?.error;
-                  const bg = isErr ? 'bg-red-500 shadow-[0_0_3px_rgba(239,68,68,0.8)]'
-                    : isWarn ? 'bg-amber-500 animate-pulse'
-                    : 'bg-emerald-500 shadow-[0_0_3px_rgba(16,185,129,0.5)]';
-                  return (
-                    <div key={ep} className="flex flex-col items-center" title={ep}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${bg}`} />
-                    </div>
-                  );
-                })}
+          </Panel>
+
+          {/* ML Model Control (Layer 5) */}
+          <Panel title="ML Model Control (Layer 5)" icon={Cpu} className="shrink-0">
+            {ML_MODELS.map(model => (
+              <div key={model.id} className="flex items-center gap-1 py-0.5 border-b border-[#1e293b]/30 last:border-0">
+                <span className="text-[8px] text-gray-300 w-20 shrink-0 truncate">{model.name}</span>
+                <div className="flex-1 h-1 bg-[#1e293b] rounded-full overflow-hidden">
+                  <div className="h-full rounded-full" style={{
+                    width: `${mlStates[model.id]?.confThreshold ?? 75}%`,
+                    backgroundColor: mlStates[model.id]?.status === 'Ready' ? '#10b981' : mlStates[model.id]?.status === 'Training' ? '#f59e0b' : '#6b7280'
+                  }} />
+                </div>
+                <span className="text-[7px] text-gray-500 w-6 text-right">{mlStates[model.id]?.confThreshold ?? 75}%</span>
               </div>
+            ))}
+          </Panel>
+
+          {/* Strategy Telemetry */}
+          <Panel title="Strategy Telemetry" icon={BarChart2} className="shrink-0">
+            <div className="space-y-0.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[7px] text-gray-500">Active Models</span>
+                <span className="text-[8px] font-bold font-mono text-emerald-400">{mlControlsData.activeModels}/{ML_MODELS.length}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[7px] text-gray-500">Accuracy</span>
+                <span className="text-[8px] font-bold font-mono text-[#00D9FF]">
+                  {mlControlsData.flywheelAccuracy != null ? `${(typeof mlControlsData.flywheelAccuracy === 'number' && mlControlsData.flywheelAccuracy <= 1 ? (mlControlsData.flywheelAccuracy * 100).toFixed(1) : mlControlsData.flywheelAccuracy)}%` : '--'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[7px] text-gray-500">Flywheel Cycles</span>
+                <span className="text-[8px] font-bold font-mono text-purple-400">{mlControlsData.flywheelCycles ?? '--'}</span>
+              </div>
+            </div>
+          </Panel>
+
+          {/* API Priority Engine */}
+          <Panel title="API Priority Engine" icon={Server} className="shrink-0">
+            <div className="space-y-0.5">
+              {API_ENDPOINTS.slice(0, 10).map((ep, i) => {
+                const health = apiStatus?.endpoints?.[ep];
+                const latency = health?.latency ?? (((ep.charCodeAt(0) * 31 + ep.charCodeAt(1) * 7) % 180) + 15);
+                const isErr = health?.status === 'down' || health?.error;
+                const isWarn = health?.status === 'degraded' || latency > 200;
+                return (
+                  <div key={ep} className="flex items-center gap-1">
+                    <span className={`w-1 h-1 rounded-full shrink-0 ${
+                      isErr ? 'bg-red-500' : isWarn ? 'bg-amber-500' : 'bg-emerald-500'
+                    }`} />
+                    <span className="text-[7px] text-gray-400 flex-1 truncate font-mono">{ep}</span>
+                    <span className={`text-[7px] font-mono ${isErr ? 'text-red-400' : isWarn ? 'text-amber-400' : 'text-gray-500'}`}>{latency}ms</span>
+                  </div>
+                );
+              })}
             </div>
           </Panel>
         </div>
@@ -938,21 +928,20 @@ export default function SignalIntelligenceV3() {
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)]" />
-            {Object.values(agentStates).filter(a => a.active).length} Agents OK
+            <span className="text-emerald-400">{Object.values(agentStates).filter(a => a.active).length} agents connected</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <Wifi className="w-3 h-3 text-gray-600" />
+            WS: {wsLatency}ms
           </span>
           <span className="flex items-center gap-1">
             <Database className="w-3 h-3 text-gray-600" />
             DB: {apiStatus?.db_latency_ms ?? '--'}ms
           </span>
-          <span className="flex items-center gap-1">
-            <HardDrive className="w-3 h-3 text-gray-600" />
-            MEM: {apiStatus?.memory_pct ?? '--'}%
-          </span>
         </div>
         <div className="flex items-center gap-3">
           <span>Signals: {scannerMetrics.signalsToday}</span>
           <span>Hit Rate: {scannerMetrics.hitRate}%</span>
-          <span>WS: {wsLatency}ms</span>
           <span className="text-gray-600">{new Date().toLocaleTimeString()}</span>
         </div>
       </div>

@@ -1,16 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import {
   TrendingUp, TrendingDown, Activity, Shield,
-  Target, Zap, BarChart3, Brain, Gauge,
+  Target, Zap, BarChart3, Brain,
   ArrowUpRight, ArrowDownRight, ChevronDown,
-  RefreshCw, Award, Cpu, AlertTriangle,
-  CheckCircle, Clock, Crosshair, Star
+  Award, Cpu, CheckCircle, Crosshair, Star
 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, ComposedChart,
-  LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, RadialBarChart,
-  RadialBar, Cell, ReferenceLine, ScatterChart, Scatter
+  Line, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, Cell,
+  ScatterChart, Scatter
 } from 'recharts';
 import { useApi } from '../hooks/useApi';
 import clsx from 'clsx';
@@ -21,10 +20,10 @@ const FALLBACK_KPI = {
   totalTrades: 247,
   netPnl: 52147.32,
   winRate: 68.4,
-  avgWin: 312.58,
+  avgWin: 312.56,
   avgLoss: -187.28,
   profitFactor: 2.14,
-  maxDd: -4238,
+  maxDd: -4236,
   maxDdPct: -4.1,
   sharpe: 1.87,
   expectancy: 89.40,
@@ -43,10 +42,10 @@ const FALLBACK_EQUITY = Array.from({ length: 60 }, (_, i) => ({
 }));
 
 const FALLBACK_AGENTS = [
-  { name: 'Alpha Scout', score: 87, elo: 1842, pnl: 27300, trades: 84, winRate: 72.1, color: '#10b981' },
-  { name: 'Risk Guardian', score: 79, elo: 1798, pnl: 14200, trades: 63, winRate: 68.3, color: '#06b6d4' },
-  { name: 'Meta Architect', score: 71, elo: 1756, pnl: 8400, trades: 55, winRate: 65.5, color: '#8b5cf6' },
-  { name: 'Meta Guardian', score: 63, elo: 1710, pnl: 2247, trades: 45, winRate: 60.0, color: '#f59e0b' },
+  { rank: 1, name: 'Alpha Scout', signals: 84, score: 87, elo: 1842, pnl: 27300, trades: 84, winRate: 72.1, color: '#10b981' },
+  { rank: 2, name: 'Risk Guardian', signals: 63, score: 79, elo: 1798, pnl: 14200, trades: 63, winRate: 68.3, color: '#06b6d4' },
+  { rank: 3, name: 'Meta Architect', signals: 55, score: 71, elo: 1756, pnl: 8400, trades: 55, winRate: 65.5, color: '#8b5cf6' },
+  { rank: 4, name: 'Meta Guardian', signals: 45, score: 63, elo: 1710, pnl: 2247, trades: 45, winRate: 60.0, color: '#f59e0b' },
 ];
 
 const FALLBACK_TRADES = [
@@ -64,6 +63,12 @@ const FALLBACK_ROLLING_RISK = Array.from({ length: 30 }, (_, i) => ({
   date: `Aug ${i + 1}`,
   rollingVol: 12 + Math.sin(i * 0.3) * 4 + Math.random() * 2,
   rollingSharpe: 1.5 + Math.sin(i * 0.2) * 0.5 + Math.random() * 0.3,
+}));
+
+const FALLBACK_CONVEXITY = Array.from({ length: 40 }, (_, i) => ({
+  x: Math.random() * 4 - 1,
+  y: Math.random() * 6 - 2,
+  z: Math.random() * 100 + 20,
 }));
 
 const FALLBACK_RR_EXPECT = [
@@ -144,7 +149,7 @@ const KpiPill = ({ label, value, sub, positive, icon: Icon }) => (
 );
 
 const GradeCircle = ({ grade, label, size = 'lg' }) => {
-  const sz = size === 'lg' ? 'w-16 h-16 text-2xl' : 'w-10 h-10 text-base';
+  const sz = size === 'lg' ? 'w-16 h-16 text-2xl' : size === 'sm' ? 'w-8 h-8 text-sm' : 'w-10 h-10 text-base';
   const colors = {
     A: 'from-emerald-500 to-emerald-700 shadow-emerald-500/30',
     B: 'from-cyan-500 to-cyan-700 shadow-cyan-500/30',
@@ -196,6 +201,37 @@ const StatusDot = ({ status }) => {
   return <span className={clsx('inline-block w-2 h-2 rounded-full', c)} />;
 };
 
+/* Semicircle VaR gauge rendered via SVG */
+const VarGauge = ({ label, value, max = 10, color = '#f59e0b' }) => {
+  const pct = Math.min(value / max, 1);
+  const angle = pct * 180;
+  const r = 36;
+  const cx = 50;
+  const cy = 48;
+  // Arc path
+  const startX = cx - r;
+  const startY = cy;
+  const rad = (angle * Math.PI) / 180;
+  const endX = cx - r * Math.cos(rad);
+  const endY = cy - r * Math.sin(rad);
+  const largeArc = angle > 180 ? 1 : 0;
+  const bgPath = `M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`;
+  const valPath = `M ${startX} ${startY} A ${r} ${r} 0 ${largeArc} 1 ${endX} ${endY}`;
+
+  return (
+    <div className="flex flex-col items-center">
+      <svg width="100" height="56" viewBox="0 0 100 56">
+        <path d={bgPath} fill="none" stroke="#1e293b" strokeWidth="8" strokeLinecap="round" />
+        <path d={valPath} fill="none" stroke={color} strokeWidth="8" strokeLinecap="round" />
+        <text x="50" y="46" textAnchor="middle" fill="#e2e8f0" fontSize="13" fontWeight="bold">
+          {value}%
+        </text>
+      </svg>
+      <span className="text-[9px] text-gray-500 -mt-1">{label}</span>
+    </div>
+  );
+};
+
 const chartTooltipStyle = {
   contentStyle: {
     background: '#0d1b2a',
@@ -206,6 +242,9 @@ const chartTooltipStyle = {
   },
   cursor: { stroke: 'rgba(6,182,212,0.3)' },
 };
+
+/* Rank badge colors */
+const rankColors = ['bg-emerald-500', 'bg-cyan-500', 'bg-violet-500', 'bg-amber-500', 'bg-rose-500'];
 
 // ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
 
@@ -232,6 +271,7 @@ export default function PerformanceAnalytics() {
     return sorted;
   }, [tradesData, tradeSort]);
   const rollingRisk = useMemo(() => perfData?.rollingRisk || FALLBACK_ROLLING_RISK, [perfData]);
+  const convexityData = useMemo(() => perfData?.convexity || FALLBACK_CONVEXITY, [perfData]);
   const rrExpect = useMemo(() => perfData?.rrExpectancy || FALLBACK_RR_EXPECT, [perfData]);
   const ml = useMemo(() => ({ ...FALLBACK_ML, ...(flywheelData || {}) }), [flywheelData]);
   const riskExp = useMemo(() => ({ ...FALLBACK_RISK_EXPANDED, ...(riskData || {}) }), [riskData]);
@@ -244,7 +284,7 @@ export default function PerformanceAnalytics() {
     }));
   };
 
-  // Returns Heatmap Calendar placeholder
+  // Returns Heatmap Calendar
   const returnsCalendar = useMemo(() => {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return months.map(m => ({
@@ -259,11 +299,11 @@ export default function PerformanceAnalytics() {
       <div className="px-4 py-3 flex items-center justify-between border-b border-[#1e3a5f]/30 shrink-0">
         <h1 className="text-lg font-bold text-white tracking-tight">Performance Analytics</h1>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-[#0a1628] border border-emerald-500/30 rounded-full px-3 py-1">
-            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-[10px] font-bold text-white">
+          <div className="flex items-center gap-2 bg-[#0a1628] border border-emerald-500/30 rounded-full px-3 py-1.5">
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-xs font-bold text-white shadow-lg shadow-emerald-500/20">
               {kpi.grade}
             </div>
-            <span className="text-xs text-emerald-400 font-medium">Trading Grade</span>
+            <span className="text-xs text-emerald-400 font-semibold">Trading Grade</span>
           </div>
         </div>
       </div>
@@ -282,7 +322,7 @@ export default function PerformanceAnalytics() {
         <div className="w-px h-8 bg-[#1e3a5f]/30" />
         <KpiPill label="Profit Factor" value={kpi.profitFactor} positive={kpi.profitFactor > 1} icon={Zap} />
         <div className="w-px h-8 bg-[#1e3a5f]/30" />
-        <KpiPill label="Max DD" value={`$${kpi.maxDd.toLocaleString()} / ${kpi.maxDdPct}%`} positive={false} icon={TrendingDown} />
+        <KpiPill label="Max DD" value={`-$${Math.abs(kpi.maxDd).toLocaleString()}`} positive={false} icon={TrendingDown} />
         <div className="w-px h-8 bg-[#1e3a5f]/30" />
         <KpiPill label="Sharpe" value={kpi.sharpe} positive={kpi.sharpe > 1} icon={Activity} />
         <div className="w-px h-8 bg-[#1e3a5f]/30" />
@@ -294,14 +334,21 @@ export default function PerformanceAnalytics() {
       {/* ─── CONTENT GRID ──────────────────────────────────────── */}
       <div className="flex-1 p-3 space-y-3 min-h-0 overflow-auto">
 
-        {/* ══ ROW 1 ════════════════════════════════════════════ */}
-        <div className="grid grid-cols-12 gap-3" style={{ minHeight: 280 }}>
+        {/* ══ ROW 1 ═══════════════════════════════════════════════
+            4 panels: Risk Cockpit | Equity + Drawdown | AI + Rolling Risk | Attribution + Agent ELO
+        */}
+        <div className="grid grid-cols-12 gap-3" style={{ minHeight: 300 }}>
 
-          {/* Risk Cockpit */}
+          {/* ── 1. Risk Cockpit ────────────────────────────────── */}
           <Panel title="Risk Cockpit" icon={Shield} className="col-span-3">
-            <div className="flex flex-col items-center gap-3 h-full">
-              <GradeCircle grade={kpi.grade} label={kpi.gradeLabel} />
-              <div className="grid grid-cols-3 gap-3 w-full">
+            <div className="flex flex-col gap-2 h-full">
+              {/* Grade + Label */}
+              <div className="flex flex-col items-center gap-1">
+                <div className="text-[9px] text-gray-500 italic">Trading Grade Rnkr</div>
+                <GradeCircle grade={kpi.grade} label={kpi.gradeLabel} />
+              </div>
+              {/* Sharpe / Sortino / Calmar */}
+              <div className="grid grid-cols-3 gap-2 w-full">
                 <div className="text-center">
                   <div className="text-[10px] text-gray-500 mb-0.5">Sharpe</div>
                   <div className="text-sm font-bold text-cyan-400">{kpi.sharpe}</div>
@@ -315,22 +362,147 @@ export default function PerformanceAnalytics() {
                   <div className="text-sm font-bold text-cyan-400">{kpi.calmar}</div>
                 </div>
               </div>
-              <div className="w-full mt-1">
+              {/* Kelly Criterion */}
+              <div className="w-full">
                 <ProgressBar
                   label="Kelly Criterion"
                   value={kpi.kellyPct}
                   color="bg-emerald-500"
                 />
               </div>
+              {/* Risk/Reward + Expectancy mini bar chart */}
+              <div className="w-full flex-1 min-h-0">
+                <div className="text-[10px] text-gray-500 mb-1">Risk/Reward + Expectancy</div>
+                <div className="h-[70px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={rrExpect} margin={{ top: 2, right: 5, left: -15, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(30,58,95,0.2)" />
+                      <XAxis dataKey="name" tick={{ fontSize: 8, fill: '#6b7280' }} />
+                      <YAxis tick={{ fontSize: 8, fill: '#6b7280' }} />
+                      <Tooltip {...chartTooltipStyle} />
+                      <Bar dataKey="rr" fill="#06b6d4" radius={[2, 2, 0, 0]} opacity={0.7} name="R:R" />
+                      <Line type="monotone" dataKey="expectancy" stroke="#10b981" strokeWidth={1.5} dot={false} name="Expectancy" yAxisId={0} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+          </Panel>
+
+          {/* ── 2. Equity + Drawdown ──────────────────────────── */}
+          <Panel title="Equity + Drawdown" icon={TrendingUp} className="col-span-3">
+            <div className="flex flex-col h-full">
+              <div className="text-[9px] text-gray-500 italic mb-1">Trading Grade Rnkr</div>
+              <div className="flex-1 min-h-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={equityData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="eqGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#10b981" stopOpacity={0.3} />
+                        <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
+                      </linearGradient>
+                      <linearGradient id="ddGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#ef4444" stopOpacity={0.05} />
+                        <stop offset="100%" stopColor="#ef4444" stopOpacity={0.25} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(30,58,95,0.2)" />
+                    <XAxis dataKey="date" tick={{ fontSize: 8, fill: '#6b7280' }} interval="preserveStartEnd" />
+                    <YAxis yAxisId="eq" tick={{ fontSize: 8, fill: '#6b7280' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+                    <YAxis yAxisId="dd" orientation="right" tick={{ fontSize: 8, fill: '#6b7280' }} tickFormatter={v => `${v}%`} />
+                    <Tooltip {...chartTooltipStyle} />
+                    <Area yAxisId="eq" type="monotone" dataKey="equity" stroke="#10b981" strokeWidth={2} fill="url(#eqGrad)" />
+                    <Area yAxisId="dd" type="monotone" dataKey="drawdown" stroke="#ef4444" strokeWidth={1} fill="url(#ddGrad)" />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </Panel>
+
+          {/* ── 3. AI + Rolling Risk ──────────────────────────── */}
+          <Panel title="AI + Rolling Risk" icon={Brain} className="col-span-3">
+            <div className="flex flex-col gap-2 h-full">
+              {/* Reward Convexity vs Distribution - scatter plot */}
+              <div className="flex-1 min-h-0">
+                <div className="text-[9px] text-gray-500 mb-0.5">Reward Convexity vs Dist</div>
+                <div className="h-[100px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ScatterChart margin={{ top: 2, right: 5, left: -15, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(30,58,95,0.2)" />
+                      <XAxis type="number" dataKey="x" tick={{ fontSize: 8, fill: '#6b7280' }} name="Return" />
+                      <YAxis type="number" dataKey="y" tick={{ fontSize: 8, fill: '#6b7280' }} name="Convexity" />
+                      <Tooltip {...chartTooltipStyle} />
+                      <Scatter data={convexityData} fill="#06b6d4" opacity={0.6}>
+                        {convexityData.map((entry, i) => (
+                          <Cell key={i} fill={entry.y > 0 ? '#10b981' : '#ef4444'} opacity={0.6} />
+                        ))}
+                      </Scatter>
+                    </ScatterChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+              {/* Rolling Risk Sharpe line chart */}
+              <div className="flex-1 min-h-0">
+                <div className="text-[9px] text-gray-500 mb-0.5">Rolling Risk Sharpe</div>
+                <div className="h-[100px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={rollingRisk} margin={{ top: 2, right: 5, left: -15, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(30,58,95,0.2)" />
+                      <XAxis dataKey="date" tick={{ fontSize: 7, fill: '#6b7280' }} interval={5} />
+                      <YAxis tick={{ fontSize: 8, fill: '#6b7280' }} />
+                      <Tooltip {...chartTooltipStyle} />
+                      <Bar dataKey="rollingVol" fill="#06b6d4" opacity={0.3} radius={[2, 2, 0, 0]} />
+                      <Line type="monotone" dataKey="rollingSharpe" stroke="#f59e0b" strokeWidth={1.5} dot={false} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+          </Panel>
+
+          {/* ── 4. Attribution + Agent ELO ─────────────────────── */}
+          <Panel title="Attribution + Agent ELO" icon={Award} className="col-span-3">
+            <div className="flex flex-col gap-2 h-full">
+              {/* Agent Attribution Leaderboard mini table */}
+              <div>
+                <div className="text-[9px] text-gray-500 mb-1">Agent Attribution Leaderboard</div>
+                <table className="w-full text-[9px]">
+                  <thead>
+                    <tr className="border-b border-[#1e3a5f]/30">
+                      <th className="text-left py-0.5 text-gray-500 font-normal">#</th>
+                      <th className="text-left py-0.5 text-gray-500 font-normal">Agent</th>
+                      <th className="text-right py-0.5 text-gray-500 font-normal">Signals</th>
+                      <th className="text-right py-0.5 text-gray-500 font-normal">Score</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {agents.slice(0, 4).map((a, idx) => (
+                      <tr key={a.name} className="border-b border-[#1e3a5f]/15">
+                        <td className="py-0.5">
+                          <span className={clsx(
+                            'inline-flex items-center justify-center w-4 h-4 rounded text-[8px] font-bold text-white',
+                            rankColors[idx] || 'bg-gray-600'
+                          )}>
+                            {idx + 1}
+                          </span>
+                        </td>
+                        <td className="py-0.5 text-gray-300">{a.name}</td>
+                        <td className="py-0.5 text-right text-gray-400">{a.signals || a.trades}</td>
+                        <td className="py-0.5 text-right text-white font-medium">{a.score}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
               {/* Returns Heatmap Calendar */}
-              <div className="w-full mt-1">
-                <div className="text-[10px] text-gray-500 mb-1">Returns Heatmap Calendar</div>
+              <div className="flex-1 min-h-0">
+                <div className="text-[9px] text-gray-500 mb-1">Returns Heatmap Calendar</div>
                 <div className="grid grid-cols-6 gap-1">
                   {returnsCalendar.map((m) => (
                     <div
                       key={m.month}
                       className={clsx(
-                        'text-center rounded px-1 py-0.5 text-[9px] font-medium',
+                        'text-center rounded px-1 py-0.5 text-[8px] font-medium',
                         parseFloat(m.value) >= 3 ? 'bg-emerald-600/50 text-emerald-300' :
                         parseFloat(m.value) >= 0 ? 'bg-emerald-900/30 text-emerald-400' :
                         'bg-red-900/30 text-red-400'
@@ -344,78 +516,26 @@ export default function PerformanceAnalytics() {
               </div>
             </div>
           </Panel>
-
-          {/* Equity + Drawdown */}
-          <Panel title="Equity + Drawdown" icon={TrendingUp} className="col-span-5">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={equityData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="eqGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#10b981" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
-                  </linearGradient>
-                  <linearGradient id="ddGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#ef4444" stopOpacity={0.05} />
-                    <stop offset="100%" stopColor="#ef4444" stopOpacity={0.25} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(30,58,95,0.2)" />
-                <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#6b7280' }} interval="preserveStartEnd" />
-                <YAxis yAxisId="eq" tick={{ fontSize: 9, fill: '#6b7280' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
-                <YAxis yAxisId="dd" orientation="right" tick={{ fontSize: 9, fill: '#6b7280' }} tickFormatter={v => `${v}%`} />
-                <Tooltip {...chartTooltipStyle} />
-                <Area yAxisId="eq" type="monotone" dataKey="equity" stroke="#10b981" strokeWidth={2} fill="url(#eqGrad)" />
-                <Area yAxisId="dd" type="monotone" dataKey="drawdown" stroke="#ef4444" strokeWidth={1} fill="url(#ddGrad)" />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </Panel>
-
-          {/* AI + Rolling Risk & Attribution + Agent ELO */}
-          <div className="col-span-4 flex flex-col gap-3">
-            {/* AI + Rolling Risk */}
-            <Panel title="AI + Rolling Risk" icon={Brain} className="flex-1">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={rollingRisk} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(30,58,95,0.2)" />
-                  <XAxis dataKey="date" tick={{ fontSize: 8, fill: '#6b7280' }} interval={4} />
-                  <YAxis tick={{ fontSize: 8, fill: '#6b7280' }} />
-                  <Tooltip {...chartTooltipStyle} />
-                  <Bar dataKey="rollingVol" fill="#06b6d4" opacity={0.4} radius={[2, 2, 0, 0]} />
-                  <Line type="monotone" dataKey="rollingSharpe" stroke="#f59e0b" strokeWidth={1.5} dot={false} />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </Panel>
-
-            {/* Attribution + Agent ELO */}
-            <Panel title="Attribution + Agent ELO" icon={Award} className="flex-1">
-              <div className="space-y-1.5">
-                {agents.slice(0, 4).map((a) => (
-                  <div key={a.name} className="flex items-center gap-2">
-                    <span className="text-[10px] text-gray-400 w-20 truncate">{a.name}</span>
-                    <div className="flex-1 h-3 bg-gray-800/60 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full"
-                        style={{ width: `${a.score}%`, backgroundColor: a.color }}
-                      />
-                    </div>
-                    <span className="text-[10px] text-gray-300 w-6 text-right">{a.score}</span>
-                  </div>
-                ))}
-              </div>
-            </Panel>
-          </div>
         </div>
 
-        {/* ══ ROW 2 ════════════════════════════════════════════ */}
+        {/* ══ ROW 2 ═══════════════════════════════════════════════
+            Agent Attribution Leaderboard (expanded) | Risk/Reward + Expectancy | Enhanced Trades Table
+        */}
         <div className="grid grid-cols-12 gap-3" style={{ minHeight: 240 }}>
 
-          {/* Agent Attribution Leaderboard */}
+          {/* Agent Attribution Leaderboard (expanded) */}
           <Panel title="Agent Attribution Leaderboard" icon={Star} className="col-span-3">
             <div className="space-y-2">
-              {agents.map((a) => (
+              {agents.map((a, idx) => (
                 <div key={a.name}>
                   <div className="flex items-center justify-between mb-0.5">
                     <div className="flex items-center gap-1.5">
+                      <span className={clsx(
+                        'inline-flex items-center justify-center w-4 h-4 rounded text-[8px] font-bold text-white',
+                        rankColors[idx] || 'bg-gray-600'
+                      )}>
+                        {idx + 1}
+                      </span>
                       <div className="w-2 h-2 rounded-full" style={{ backgroundColor: a.color }} />
                       <span className="text-[11px] text-gray-300">{a.name}</span>
                     </div>
@@ -439,8 +559,8 @@ export default function PerformanceAnalytics() {
             </div>
           </Panel>
 
-          {/* Risk/Reward + Expectancy */}
-          <Panel title="Risk/Reward + Expectancy" icon={Crosshair} className="col-span-4">
+          {/* Risk/Reward + Expectancy chart */}
+          <Panel title="Risk/Reward + Expectancy" icon={Crosshair} className="col-span-3">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={rrExpect} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(30,58,95,0.2)" />
@@ -455,7 +575,7 @@ export default function PerformanceAnalytics() {
           </Panel>
 
           {/* Enhanced Trades Table */}
-          <Panel title="Enhanced Trades Table" icon={BarChart3} className="col-span-5">
+          <Panel title="Enhanced Trades Table" icon={BarChart3} className="col-span-6">
             <div className="overflow-auto h-full">
               <table className="w-full text-[10px]">
                 <thead>
@@ -515,12 +635,14 @@ export default function PerformanceAnalytics() {
           </Panel>
         </div>
 
-        {/* ══ ROW 3 ════════════════════════════════════════════ */}
-        <div className="grid grid-cols-12 gap-3" style={{ minHeight: 220 }}>
+        {/* ══ ROW 3 ═══════════════════════════════════════════════
+            ML & Flywheel Engine | Risk Cockpit Expanded | Strategy & Signals
+        */}
+        <div className="grid grid-cols-12 gap-3" style={{ minHeight: 240 }}>
 
           {/* ML & Flywheel Engine */}
           <Panel title="ML & Flywheel Engine" icon={Cpu} className="col-span-3">
-            <div className="space-y-3">
+            <div className="space-y-2">
               {/* ML Model Accuracy Trend */}
               <div>
                 <div className="text-[10px] text-gray-500 mb-1">ML Model Accuracy Trend</div>
@@ -540,14 +662,16 @@ export default function PerformanceAnalytics() {
                   </ResponsiveContainer>
                 </div>
               </div>
-              {/* Staged Inferences */}
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-gray-400">Staged Inferences</span>
-                <span className="text-xs font-bold text-violet-400">{ml.stagedInferences}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-gray-400">Total Inferences</span>
-                <span className="text-xs font-bold text-gray-300">{ml.totalInferences}</span>
+              {/* Staged Inferences & Flywheel Pipeline Health */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-[#0d1b2a] rounded p-1.5 text-center">
+                  <div className="text-[9px] text-gray-500">Staged Inferences</div>
+                  <div className="text-sm font-bold text-violet-400">{ml.stagedInferences}</div>
+                </div>
+                <div className="bg-[#0d1b2a] rounded p-1.5 text-center">
+                  <div className="text-[9px] text-gray-500">Total Inferences</div>
+                  <div className="text-sm font-bold text-gray-300">{ml.totalInferences}</div>
+                </div>
               </div>
               {/* Flywheel Pipeline Health */}
               <ProgressBar
@@ -592,17 +716,11 @@ export default function PerformanceAnalytics() {
                   </ResponsiveContainer>
                 </div>
               </div>
-              {/* VaR Gauges */}
+              {/* VaR Gauges - Semicircle */}
               <div className="text-[10px] text-gray-500 mb-1">VaR Gauges</div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="bg-[#0d1b2a] rounded p-2 text-center">
-                  <div className="text-[9px] text-gray-500">Daily VaR</div>
-                  <div className="text-sm font-bold text-amber-400">{riskExp.varDaily}%</div>
-                </div>
-                <div className="bg-[#0d1b2a] rounded p-2 text-center">
-                  <div className="text-[9px] text-gray-500">Weekly VaR</div>
-                  <div className="text-sm font-bold text-amber-400">{riskExp.varWeekly}%</div>
-                </div>
+              <div className="flex items-center justify-center gap-4">
+                <VarGauge label="Daily VaR" value={riskExp.varDaily} max={10} color="#f59e0b" />
+                <VarGauge label="Weekly VaR" value={riskExp.varWeekly} max={10} color="#ef4444" />
               </div>
               {/* Exposure */}
               <ProgressBar
@@ -665,7 +783,7 @@ export default function PerformanceAnalytics() {
               <div className="space-y-2">
                 <div className="text-[10px] text-gray-500">Active Strategies</div>
                 <div className="space-y-1.5">
-                  {strategy.activeStrategies.map((s, i) => (
+                  {strategy.activeStrategies.map((s) => (
                     <div key={s} className="flex items-center gap-2 bg-[#0d1b2a] rounded px-2 py-1.5">
                       <CheckCircle size={10} className="text-emerald-400 shrink-0" />
                       <span className="text-[10px] text-gray-300 truncate">{s}</span>
@@ -680,8 +798,11 @@ export default function PerformanceAnalytics() {
 
       {/* ─── FOOTER ────────────────────────────────────────────── */}
       <div className="px-4 py-2 border-t border-[#1e3a5f]/30 flex items-center justify-between text-[10px] text-gray-600 shrink-0 bg-[#060e1a]">
-        <span>Embodier Trader &gt; Performance Analytics v2.5</span>
-        <span>{new Date().toLocaleString()}</span>
+        <span>Embodier Trader &gt; Performance Analytics v2.1</span>
+        <div className="flex items-center gap-4">
+          <span>Performance Analytics v2.1</span>
+          <span>{new Date().toLocaleString()}</span>
+        </div>
       </div>
     </div>
   );
