@@ -556,23 +556,18 @@ function FormingDetectionCard({ pattern }) {
         <span className="text-[8px] text-gray-500">Formation progress</span>
         <span className="text-[8px] text-amber-400">{pattern.progress}% formed</span>
       </div>
-      {/* Mini candlestick-style chart */}
-      <ResponsiveContainer width="100%" height={40}>
-        <BarChart data={pattern.data.slice(-20)} barSize={3}>
-          <Bar dataKey="v" fill="#f59e0b" opacity={0.3} />
-          <Line type="monotone" dataKey="y" stroke="#f59e0b" strokeWidth={1} dot={false} />
-        </BarChart>
-      </ResponsiveContainer>
-      <ResponsiveContainer width="100%" height={28}>
-        <AreaChart data={pattern.data.slice(-20)}>
+      {/* Mini candlestick-style chart with volume bars and price line */}
+      <ResponsiveContainer width="100%" height={48}>
+        <ComposedChart data={pattern.data.slice(-20)}>
           <defs>
             <linearGradient id={`fd-${pattern.id}`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.3} />
               <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.02} />
             </linearGradient>
           </defs>
+          <Bar dataKey="v" fill="#f59e0b" opacity={0.2} barSize={3} />
           <Area type="monotone" dataKey="y" stroke="#f59e0b" strokeWidth={1} fill={`url(#fd-${pattern.id})`} dot={false} />
-        </AreaChart>
+        </ComposedChart>
       </ResponsiveContainer>
     </div>
   );

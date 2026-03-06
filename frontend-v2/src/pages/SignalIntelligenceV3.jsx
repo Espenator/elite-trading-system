@@ -424,13 +424,14 @@ export default function SignalIntelligenceV3() {
     if (signals.length === 0) {
       setSignals([
         { id: 1, symbol: 'NVDA', score: 96, dir: 'LONG', price: 145.28, agent: 'Signal Engine', status: 'Staged' },
-        { id: 2, symbol: 'AMD', score: 88, dir: 'LONG', price: 148.50, agent: 'Apex Orchestrator', status: 'Pending' },
-        { id: 3, symbol: 'TSLA', score: 32, dir: 'SHORT', price: 225.10, agent: 'Rel_Weak', status: 'Active' },
-        { id: 4, symbol: 'PLTR', score: 91, dir: 'LONG', price: 44.80, agent: 'Apex Orchestrator', status: 'Staged' },
-        { id: 5, symbol: 'SMCI', score: 85, dir: 'LONG', price: 1045.20, agent: 'Squeeze', status: 'Watch' },
+        { id: 2, symbol: 'AAPL', score: 88, dir: 'LONG', price: 192.40, agent: 'Apex Orchestrator', status: 'Pending' },
+        { id: 3, symbol: 'MSFT', score: 82, dir: 'LONG', price: 420.15, agent: 'Momentum Runner', status: 'Staged' },
+        { id: 4, symbol: 'TSLA', score: 32, dir: 'SHORT', price: 225.10, agent: 'Rel_Weak', status: 'Active' },
+        { id: 5, symbol: 'AMZN', score: 91, dir: 'LONG', price: 186.50, agent: 'Apex Orchestrator', status: 'Staged' },
         { id: 6, symbol: 'META', score: 76, dir: 'LONG', price: 502.10, agent: 'Tech', status: 'Pending' },
-        { id: 7, symbol: 'BA', score: 12, dir: 'SHORT', price: 184.20, agent: 'Short_B', status: 'Active' },
-        { id: 8, symbol: 'AAPL', score: 65, dir: 'LONG', price: 245.15, agent: 'Daily', status: 'Watch' },
+        { id: 7, symbol: 'AMD', score: 85, dir: 'LONG', price: 148.50, agent: 'Squeeze', status: 'Watch' },
+        { id: 8, symbol: 'GOOG', score: 71, dir: 'LONG', price: 174.20, agent: 'Daily', status: 'Pending' },
+        { id: 9, symbol: 'AAPL', score: 65, dir: 'LONG', price: 245.15, agent: 'Short_B', status: 'Watch' },
       ]);
     }
   }, [apiSignals]);
@@ -684,7 +685,7 @@ export default function SignalIntelligenceV3() {
           </Panel>
 
           {/* OpenClaw Score (Layer 4) */}
-          <Panel title="OpenClaw Score (Layer 4)" icon={Cpu} className="flex-[5] min-h-0"
+          <Panel title="OpenClaw Swarm (Layer 4)" icon={Cpu} className="flex-[5] min-h-0"
             headerAction={<span className="text-[7px] text-gray-500">{CORE_AGENTS.length} CORE AGENTS</span>}>
             <div className="space-y-1">
               {CORE_AGENTS.map(agent => (
@@ -862,15 +863,21 @@ export default function SignalIntelligenceV3() {
           {/* Intelligence Modules (Layer 3) */}
           <Panel title="Intelligence Modules (Layer 3)" icon={Shield} className="shrink-0">
             <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
-              {INTEL_MODULES.map(mod => (
-                <div key={mod.id} className="flex items-center gap-1 py-0.5">
-                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                    intelStates[mod.id]?.active ? 'bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)]' : 'bg-gray-600'
-                  }`} />
-                  <span className="text-[8px] text-gray-300 flex-1 truncate">{mod.name}</span>
-                  <span className="text-[7px] text-gray-500">{intelStates[mod.id]?.weight ?? mod.defaultWeight}%</span>
-                </div>
-              ))}
+              {INTEL_MODULES.map(mod => {
+                const weight = intelStates[mod.id]?.weight ?? mod.defaultWeight;
+                return (
+                  <div key={mod.id} className="flex items-center gap-1 py-0.5">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                      intelStates[mod.id]?.active ? 'bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)]' : 'bg-gray-600'
+                    }`} />
+                    <span className="text-[8px] text-gray-300 w-16 shrink-0 truncate">{mod.name}</span>
+                    <div className="flex-1 h-1 bg-[#1e293b] rounded-full overflow-hidden">
+                      <div className="h-full rounded-full bg-cyan-500/70" style={{ width: `${weight}%` }} />
+                    </div>
+                    <span className="text-[7px] text-gray-500 w-6 text-right shrink-0">{weight}%</span>
+                  </div>
+                );
+              })}
             </div>
           </Panel>
 
