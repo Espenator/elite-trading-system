@@ -39,6 +39,7 @@ export default function Trades() {
   // ── State ──
   const [posFilter, setPosFilter] = useState("");
   const [ordFilter, setOrdFilter] = useState("");
+  const [ordStatusFilter, setOrdStatusFilter] = useState("all");
   const [orderForm, setOrderForm] = useState({
     symbol: "", side: "BUY", type: "Limit", qty: "", limitPrice: "", stopPrice: "", tif: "DAY",
   });
@@ -78,9 +79,11 @@ export default function Trades() {
   const filteredPositions = positions.filter((p) =>
     !posFilter || (p.symbol || p.ticker || "").toUpperCase().includes(posFilter.toUpperCase())
   );
-  const filteredOrders = orders.filter((o) =>
-    !ordFilter || (o.symbol || "").toUpperCase().includes(ordFilter.toUpperCase())
-  );
+  const filteredOrders = orders.filter((o) => {
+    const matchesText = !ordFilter || (o.symbol || "").toUpperCase().includes(ordFilter.toUpperCase());
+    const matchesStatus = ordStatusFilter === "all" || (o.status || "").toLowerCase() === ordStatusFilter;
+    return matchesText && matchesStatus;
+  });
 
   // ── Keyboard shortcut: Ctrl+Enter to submit order ──
   useEffect(() => {
@@ -368,9 +371,14 @@ export default function Trades() {
                 className="px-2 py-1 bg-[#131A22] border border-[#2D3748] rounded text-[10px] text-slate-300 font-mono w-24 outline-none focus:border-cyan-500"
               />
               <button
+                onClick={() => {
+                  const cycle = ["all", "new", "partially_filled", "filled", "canceled"];
+                  const idx = cycle.indexOf(ordStatusFilter);
+                  setOrdStatusFilter(cycle[(idx + 1) % cycle.length]);
+                }}
                 className="px-2.5 py-1 bg-[#131A22] border border-[#2D3748] rounded text-[10px] text-slate-300 hover:bg-[#2A3644] transition-colors"
               >
-                Filter: Working
+                Filter: {ordStatusFilter === "all" ? "All" : ordStatusFilter.replace("_", " ")}
               </button>
               <button
                 onClick={handleCancelAll}

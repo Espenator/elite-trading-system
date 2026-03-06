@@ -296,12 +296,12 @@ export default function MLBrainFlywheel() {
   const [isRetraining, setIsRetraining] = useState(false);
 
   // --- API INTEGRATION ---
-  const { data: apiKpis } = useApi('flywheel', { endpoint: '/flywheel/kpis', pollIntervalMs: 10000 });
-  const { data: apiPerf } = useApi('flywheel', { endpoint: '/flywheel/performance', pollIntervalMs: 60000 });
-  const { data: apiSignals } = useApi('flywheel', { endpoint: '/flywheel/signals/staged', pollIntervalMs: 5000 });
-  const { data: apiModels } = useApi('flywheel', { endpoint: '/flywheel/models', pollIntervalMs: 15000 });
-  const { data: apiLogs } = useApi('flywheel', { endpoint: '/flywheel/logs', pollIntervalMs: 2000 });
-  const { data: apiFeatures } = useApi('flywheel', { endpoint: '/flywheel/features', pollIntervalMs: 30000 });
+  const { data: apiKpis } = useApi('flywheelKpis', { pollIntervalMs: 10000 });
+  const { data: apiPerf } = useApi('flywheelPerformance', { pollIntervalMs: 60000 });
+  const { data: apiSignals } = useApi('flywheelSignals', { pollIntervalMs: 5000 });
+  const { data: apiModels } = useApi('flywheelModels', { pollIntervalMs: 15000 });
+  const { data: apiLogs } = useApi('flywheelLogs', { pollIntervalMs: 2000 });
+  const { data: apiFeatures } = useApi('flywheelFeatures', { pollIntervalMs: 30000 });
 
   // Safe data extraction with fallbacks
   const kpis = apiKpis?.flywheel || FALLBACK_KPIS;

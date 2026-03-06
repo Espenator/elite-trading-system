@@ -127,6 +127,12 @@ const API_CONFIG = {
 
     // ---- FLYWHEEL SCHEDULER ----
     flywheelScheduler: "/flywheel/scheduler", // GET: scheduler status + next runs
+    flywheelKpis: "/flywheel/kpis", // GET: flywheel KPI metrics
+    flywheelPerformance: "/flywheel/performance", // GET: flywheel performance history
+    flywheelSignals: "/flywheel/signals/staged", // GET: staged signals
+    flywheelModels: "/flywheel/models", // GET: model status + accuracy
+    flywheelLogs: "/flywheel/logs", // GET: flywheel activity logs
+    flywheelFeatures: "/flywheel/features", // GET: feature importance data
 
     // ---- CNS (Central Nervous System) ----
     cnsHomeostasis: "/cns/homeostasis/vitals",

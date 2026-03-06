@@ -227,8 +227,19 @@ export default function useTradeExecution() {
   }, [fetchAll]);
 
   const adjustPositionAction = useCallback(async (symbol, side) => {
+    setLoading(true);
     setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `Adjusting position: ${symbol} ${side}`, type: 'info' }, ...prev]);
-  }, []);
+    try {
+      await tradeExecutionService.adjustPosition(symbol, side, { action: 'scale' });
+      setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `Position adjusted: ${symbol} ${side}`, type: 'success' }, ...prev]);
+      await fetchAll();
+    } catch (err) {
+      setError(err.message);
+      setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `Adjust failed: ${err.message}`, type: 'error' }, ...prev]);
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchAll]);
 
   const updateOrderForm = useCallback((updates) => {
     setOrderForm(prev => ({ ...prev, ...updates }));

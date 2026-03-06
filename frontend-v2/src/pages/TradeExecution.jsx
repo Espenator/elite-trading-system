@@ -22,6 +22,30 @@ export default function TradeExecution() {
     executeStopLoss, executeAdvancedOrder, closePosition, adjustPosition,
   } = useTradeExecution();
 
+  // Symbol universe from API (fallback to common tickers)
+  const { data: stocksData } = useApi('stocks', { pollIntervalMs: 120000 });
+  const FALLBACK_SYMBOLS = ['SPX', 'SPY', 'QQQ', 'AAPL', 'TSLA', 'NVDA', 'AMD', 'AMZN', 'MSFT', 'META'];
+  const symbolList = (stocksData?.symbols || stocksData?.tickers || stocksData?.universe || [])
+    .map(s => typeof s === 'string' ? s : (s.symbol || s.ticker))
+    .filter(Boolean);
+  const symbols = symbolList.length > 0 ? symbolList : FALLBACK_SYMBOLS;
+
+  // Strategy list (static config — these are option strategy types, not API-driven)
+  const STRATEGIES = ['Iron Condor', 'Bull Call Spread', 'Bear Put Spread', 'Straddle', 'Strangle', 'Butterfly', 'Calendar Spread', 'Single Option'];
+
+  // Options chain for strike prices
+  const { data: chainData } = useApi('quotes', {
+    endpoint: `/quotes/${orderForm?.symbol || 'SPY'}/options-chain`,
+    pollIntervalMs: 60000,
+    enabled: !!orderForm?.symbol,
+  });
+  const callStrikes = (chainData?.calls || []).map(c => c.strike).filter(Boolean).slice(0, 5);
+  const putStrikes = (chainData?.puts || []).map(p => p.strike).filter(Boolean).slice(0, 5);
+  const FALLBACK_CALL_STRIKES = [4460, 4470, 4480, 4490, 4500];
+  const FALLBACK_PUT_STRIKES = [4440, 4430, 4420, 4410, 4400];
+  const displayCallStrikes = callStrikes.length > 0 ? callStrikes : FALLBACK_CALL_STRIKES;
+  const displayPutStrikes = putStrikes.length > 0 ? putStrikes : FALLBACK_PUT_STRIKES;
+
   // Candle data for price chart
   const { data: candleData } = useApi('quotes', {
     endpoint: `/quotes/${orderForm?.symbol || 'SPY'}/candles?timeframe=1h`,
@@ -230,7 +254,7 @@ export default function TradeExecution() {
                     onChange={e => updateOrderForm({ symbol: e.target.value })}
                     className="w-full bg-dark border border-secondary/30 rounded-lg px-3 py-2 text-sm text-white focus:border-cyan-500 focus:outline-none"
                   >
-                    {['SPX', 'SPY', 'QQQ', 'AAPL', 'TSLA', 'NVDA', 'AMD', 'AMZN', 'MSFT', 'META'].map(s => <option key={s} value={s}>{s}</option>)}
+                    {symbols.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
                 <div>
@@ -240,7 +264,7 @@ export default function TradeExecution() {
                     onChange={e => updateOrderForm({ strategy: e.target.value })}
                     className="w-full bg-dark border border-secondary/30 rounded-lg px-3 py-2 text-sm text-white focus:border-cyan-500 focus:outline-none"
                   >
-                    {['Iron Condor', 'Bull Call Spread', 'Bear Put Spread', 'Straddle', 'Strangle', 'Butterfly', 'Calendar Spread', 'Single Option'].map(s => <option key={s} value={s}>{s}</option>)}
+                    {STRATEGIES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
               </div>
@@ -252,16 +276,20 @@ export default function TradeExecution() {
                   <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">Call</span>
                 </div>
                 <div className="flex gap-1.5 flex-wrap">
-                  {[4460, 4470, 4460, 4450, 4460].map((v, i) => (
+                  {displayCallStrikes.map((v, i) => {
+                    const selected = orderForm.callStrikes?.call?.includes(v);
+                    return (
                     <span
                       key={i}
+                      onClick={() => updateOrderForm({ callStrikes: { ...orderForm.callStrikes, call: selected ? orderForm.callStrikes.call.filter(s => s !== v) : [...(orderForm.callStrikes?.call || []), v] } })}
                       className={`px-2 py-1 rounded text-xs font-mono cursor-pointer border transition-colors ${
-                        i >= 1 && i <= 2
+                        selected
                           ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
                           : 'bg-transparent text-gray-500 border-secondary/30 hover:border-secondary/50'
                       }`}
                     >{v}</span>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
@@ -272,16 +300,20 @@ export default function TradeExecution() {
                   <span className="text-[10px] font-semibold text-red-400 uppercase tracking-wider">Put</span>
                 </div>
                 <div className="flex gap-1.5 flex-wrap">
-                  {[4440, 4430, 4430, 4430, 4380].map((v, i) => (
+                  {displayPutStrikes.map((v, i) => {
+                    const selected = orderForm.putStrikes?.put?.includes(v);
+                    return (
                     <span
                       key={i}
+                      onClick={() => updateOrderForm({ putStrikes: { ...orderForm.putStrikes, put: selected ? orderForm.putStrikes.put.filter(s => s !== v) : [...(orderForm.putStrikes?.put || []), v] } })}
                       className={`px-2 py-1 rounded text-xs font-mono cursor-pointer border transition-colors ${
-                        i >= 2
+                        selected
                           ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
                           : 'bg-transparent text-gray-500 border-secondary/30 hover:border-secondary/50'
                       }`}
                     >{v}</span>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 

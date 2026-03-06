@@ -233,6 +233,13 @@ export default function SignalIntelligenceV3() {
   const [shapWeights, setShapWeights] = useState(() =>
     SHAP_FACTORS.reduce((acc, factor) => ({ ...acc, [factor]: 50 }), {})
   );
+  const [shapActive, setShapActive] = useState(() =>
+    SHAP_FACTORS.reduce((acc, factor) => ({ ...acc, [factor]: true }), {})
+  );
+  const [alertRules, setAlertRules] = useState({
+    comp_regime_stage: true,
+    vix_halve_pos: true,
+  });
   const [mlStates, setMlStates] = useState(() =>
     ML_MODELS.reduce((acc, mod) => ({ ...acc, [mod.id]: { active: true, confThreshold: 75, status: mod.defaultStatus } }), {})
   );
@@ -792,7 +799,8 @@ export default function SignalIntelligenceV3() {
             <div className="mt-2 text-[8px] text-gray-500 uppercase tracking-widest mb-1">PER-FACTOR SHAP WEIGHTS</div>
             {SHAP_FACTORS.map(factor => (
               <ControlRow key={factor} title={factor}
-                isActive={true} onToggle={() => {}}
+                isActive={shapActive[factor]}
+                onToggle={() => setShapActive(p => ({ ...p, [factor]: !p[factor] }))}
                 weight={shapWeights[factor]}
                 onWeightChange={(v) => handleUpdateWeight('shap', factor, v)} />
             ))}
@@ -849,7 +857,8 @@ export default function SignalIntelligenceV3() {
             <div className="flex items-center gap-2 py-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
               <span className="text-[9px] text-gray-300 flex-1">YouTube Agent</span>
-              <Toggle checked={true} onChange={() => {}} size="sm" />
+              <Toggle checked={agentStates['youtube']?.active ?? true}
+                onChange={() => handleToggleState('agent', 'youtube', agentStates['youtube']?.active ?? true)} size="sm" />
             </div>
           </Panel>
 
@@ -882,11 +891,21 @@ export default function SignalIntelligenceV3() {
             </div>
             <div className="text-[8px] text-gray-500 uppercase tracking-widest mt-2 mb-0.5">Active Rules (IF/THEN)</div>
             <div className="flex items-center gap-1 py-0.5">
-              <Toggle checked={true} onChange={() => {}} size="sm" />
+              <Toggle checked={alertRules.comp_regime_stage} onChange={async (v) => {
+                setAlertRules(p => ({ ...p, comp_regime_stage: v }));
+                try {
+                  await fetch(getApiUrl('settings/rules'), { method: 'POST', headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, body: JSON.stringify({ rule: 'comp_regime_stage', active: v }) });
+                } catch (err) { log.error('Failed to update alert rule:', err); }
+              }} size="sm" />
               <span className="text-[8px] text-gray-400">IF <Badge color="cyan">comp &gt; 90</Badge> AND <Badge color="emerald">regime=BULL</Badge> THEN stage</span>
             </div>
             <div className="flex items-center gap-1 py-0.5">
-              <Toggle checked={true} onChange={() => {}} size="sm" />
+              <Toggle checked={alertRules.vix_halve_pos} onChange={async (v) => {
+                setAlertRules(p => ({ ...p, vix_halve_pos: v }));
+                try {
+                  await fetch(getApiUrl('settings/rules'), { method: 'POST', headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, body: JSON.stringify({ rule: 'vix_halve_pos', active: v }) });
+                } catch (err) { log.error('Failed to update alert rule:', err); }
+              }} size="sm" />
               <span className="text-[8px] text-gray-400">IF <Badge color="red">VIX &gt; 25</Badge> THEN halve pos size</span>
             </div>
           </Panel>

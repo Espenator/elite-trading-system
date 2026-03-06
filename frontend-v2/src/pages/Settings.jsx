@@ -399,12 +399,12 @@ export default function SettingsPage() {
 
         {/* DATA SOURCE PRIORITY */}
         <SectionCard title="Data Source Priority" icon={Database}>
-          <MiniSelect label="Endpoint" value="polygon" options={["polygon", "alpaca", "benzinga"]} onChange={() => {}} />
-          <MiniSelect label="Options Flow" value="unusual_whales" options={["unusual_whales", "polygon"]} onChange={() => {}} />
-          <MiniSelect label="Screener" value="finviz" options={["finviz", "polygon"]} onChange={() => {}} />
-          <MiniSelect label="News" value="benzinga" options={["benzinga", "newsapi"]} onChange={() => {}} />
-          <MiniSelect label="Fundamentals" value="polygon" options={["polygon", "finviz"]} onChange={() => {}} />
-          <MiniSelect label="Rate Limit" value="conservative" options={["conservative", "moderate", "aggressive"]} onChange={() => {}} />
+          <MiniSelect label="Endpoint" value={get("dataSources", "endpointPriority", "polygon")} options={["polygon", "alpaca", "benzinga"]} onChange={(e) => updateField("dataSources", "endpointPriority", e.target.value)} />
+          <MiniSelect label="Options Flow" value={get("dataSources", "optionsFlowPriority", "unusual_whales")} options={["unusual_whales", "polygon"]} onChange={(e) => updateField("dataSources", "optionsFlowPriority", e.target.value)} />
+          <MiniSelect label="Screener" value={get("dataSources", "screenerPriority", "finviz")} options={["finviz", "polygon"]} onChange={(e) => updateField("dataSources", "screenerPriority", e.target.value)} />
+          <MiniSelect label="News" value={get("dataSources", "newsPriority", "benzinga")} options={["benzinga", "newsapi"]} onChange={(e) => updateField("dataSources", "newsPriority", e.target.value)} />
+          <MiniSelect label="Fundamentals" value={get("dataSources", "fundamentalsPriority", "polygon")} options={["polygon", "finviz"]} onChange={(e) => updateField("dataSources", "fundamentalsPriority", e.target.value)} />
+          <MiniSelect label="Rate Limit" value={get("dataSources", "rateLimitMode", "conservative")} options={["conservative", "moderate", "aggressive"]} onChange={(e) => updateField("dataSources", "rateLimitMode", e.target.value)} />
         </SectionCard>
 
         {/* OLLAMA LOCAL LLM */}
@@ -424,11 +424,11 @@ export default function SettingsPage() {
 
         {/* OLLAMA MODELS */}
         <SectionCard title="Ollama Models" icon={Cpu} color="#a78bfa">
-          <MiniField label="Use for" value="Signal Analysis" onChange={() => {}} />
-          <MiniField label="Use for" value="Pattern Analysis" onChange={() => {}} />
-          <MiniField label="Use for" value="Signal Generation" onChange={() => {}} />
-          <MiniField label="GPT-4" value="disabled" onChange={() => {}} />
-          <MiniField label="Fallback" value="llama3" onChange={() => {}} />
+          <MiniField label="Use for" value={get("ollama", "signalAnalysisModel", "Signal Analysis")} onChange={(e) => updateField("ollama", "signalAnalysisModel", e.target.value)} />
+          <MiniField label="Use for" value={get("ollama", "patternAnalysisModel", "Pattern Analysis")} onChange={(e) => updateField("ollama", "patternAnalysisModel", e.target.value)} />
+          <MiniField label="Use for" value={get("ollama", "signalGenerationModel", "Signal Generation")} onChange={(e) => updateField("ollama", "signalGenerationModel", e.target.value)} />
+          <MiniField label="GPT-4" value={get("ollama", "gpt4Status", "disabled")} onChange={(e) => updateField("ollama", "gpt4Status", e.target.value)} />
+          <MiniField label="Fallback" value={get("ollama", "fallbackModel", "llama3")} onChange={(e) => updateField("ollama", "fallbackModel", e.target.value)} />
         </SectionCard>
       </div>
 
@@ -442,32 +442,32 @@ export default function SettingsPage() {
               <Badge key={m} variant="primary" size="sm">{m}</Badge>
             ))}
           </div>
-          <MiniToggle label="Active" checked={true} onChange={() => {}} />
+          <MiniToggle label="Active" checked={!!get("ml", "mlActive", true)} onChange={(v) => updateField("ml", "mlActive", v)} />
           <MiniSelect label="Model Type" value={get("ml", "modelType", "xgboost")} options={["xgboost", "random_forest", "lstm", "transformer"]} onChange={(e) => updateField("ml", "modelType", e.target.value)} />
           <MiniSelect label="Lookback" value={get("ml", "retrainFrequency", "weekly")} options={["daily", "weekly", "monthly"]} onChange={(e) => updateField("ml", "retrainFrequency", e.target.value)} />
           <MiniField label="Confidence" value={get("ml", "confidenceThreshold", 0.7)} type="number" step="0.01" onChange={(e) => updateField("ml", "confidenceThreshold", parseFloat(e.target.value))} />
           <MiniField label="Min Score" value={get("ml", "minCompositeScore", 60)} type="number" suffix="pts" onChange={(e) => updateField("ml", "minCompositeScore", Number(e.target.value))} />
           <MiniField label="Min ML Conf" value={get("ml", "minMLConfidence", 50)} type="number" suffix="pts" onChange={(e) => updateField("ml", "minMLConfidence", Number(e.target.value))} />
           <MiniField label="Walk-Forward" value={get("ml", "walkForwardWindow", 90)} type="number" suffix="days" onChange={(e) => updateField("ml", "walkForwardWindow", Number(e.target.value))} />
-          <MiniToggle label="Momentum Tracking" checked={true} onChange={() => {}} />
+          <MiniToggle label="Momentum Tracking" checked={!!get("ml", "momentumTracking", true)} onChange={(v) => updateField("ml", "momentumTracking", v)} />
         </SectionCard>
 
         {/* SCANNING CONFIG */}
         <SectionCard title="Scanning Config" icon={Activity}>
-          <MiniSelect label="Scan Distribution" value="auto" options={["auto", "manual", "hybrid"]} onChange={() => {}} />
-          <MiniSelect label="Priority-Based" value="yes" options={["yes", "no"]} onChange={() => {}} />
-          <MiniSelect label="Market Scanner" value="finviz" options={["finviz", "polygon"]} onChange={() => {}} />
-          <MiniSelect label="Options Scanner" value="unusual_whales" options={["unusual_whales", "polygon"]} onChange={() => {}} />
-          <MiniSelect label="Market Regime" value="auto" options={["auto", "bull", "bear", "neutral"]} onChange={() => {}} />
-          <MiniToggle label="After-Hours Scan" checked={false} onChange={() => {}} />
+          <MiniSelect label="Scan Distribution" value={get("scanning", "scanDistribution", "auto")} options={["auto", "manual", "hybrid"]} onChange={(e) => updateField("scanning", "scanDistribution", e.target.value)} />
+          <MiniSelect label="Priority-Based" value={get("scanning", "priorityBased", "yes")} options={["yes", "no"]} onChange={(e) => updateField("scanning", "priorityBased", e.target.value)} />
+          <MiniSelect label="Market Scanner" value={get("scanning", "marketScanner", "finviz")} options={["finviz", "polygon"]} onChange={(e) => updateField("scanning", "marketScanner", e.target.value)} />
+          <MiniSelect label="Options Scanner" value={get("scanning", "optionsScanner", "unusual_whales")} options={["unusual_whales", "polygon"]} onChange={(e) => updateField("scanning", "optionsScanner", e.target.value)} />
+          <MiniSelect label="Market Regime" value={get("scanning", "marketRegime", "auto")} options={["auto", "bull", "bear", "neutral"]} onChange={(e) => updateField("scanning", "marketRegime", e.target.value)} />
+          <MiniToggle label="After-Hours Scan" checked={!!get("scanning", "afterHoursScan", false)} onChange={(v) => updateField("scanning", "afterHoursScan", v)} />
           <MiniToggle label="Pre-Market Scan" checked={!!get("trading", "preMarketEnabled", false)} onChange={(v) => updateField("trading", "preMarketEnabled", v)} />
         </SectionCard>
 
         {/* PIPELINE ADJUSTMENTS */}
         <SectionCard title="Pipeline Adjustments" icon={Sliders}>
-          <MiniField label="Signal Weight" value="1.0" type="number" step="0.1" onChange={() => {}} />
-          <MiniField label="ML Weight" value="1.0" type="number" step="0.1" onChange={() => {}} />
-          <MiniField label="Pattern Weight" value="0.8" type="number" step="0.1" onChange={() => {}} />
+          <MiniField label="Signal Weight" value={get("ml", "signalWeight", 1.0)} type="number" step="0.1" onChange={(e) => updateField("ml", "signalWeight", parseFloat(e.target.value))} />
+          <MiniField label="ML Weight" value={get("ml", "mlWeight", 1.0)} type="number" step="0.1" onChange={(e) => updateField("ml", "mlWeight", parseFloat(e.target.value))} />
+          <MiniField label="Pattern Weight" value={get("ml", "patternWeight", 0.8)} type="number" step="0.1" onChange={(e) => updateField("ml", "patternWeight", parseFloat(e.target.value))} />
           <MiniField label="Drift Threshold" value={get("ml", "driftThreshold", 0.15)} type="number" step="0.01" onChange={(e) => updateField("ml", "driftThreshold", parseFloat(e.target.value))} />
           <MiniToggle label="Drift Detection" checked={!!get("ml", "driftDetectionEnabled", true)} onChange={(v) => updateField("ml", "driftDetectionEnabled", v)} />
           <MiniField label="Critique Thresh" value={get("alignment", "critiqueThreshold", 70)} type="number" suffix="%" onChange={(e) => updateField("alignment", "critiqueThreshold", Number(e.target.value))} />
@@ -521,20 +521,20 @@ export default function SettingsPage() {
         {/* TRADE MANAGEMENT */}
         <SectionCard title="Trade Management" icon={TrendingUp}>
           <MiniField label="TP1" value={get("risk", "takeProfitDefault", 0.04)} type="number" step="0.01" suffix="R" onChange={(e) => updateField("risk", "takeProfitDefault", parseFloat(e.target.value))} />
-          <MiniField label="TP2" value="2.0" type="number" step="0.1" suffix="R" onChange={() => {}} />
-          <MiniField label="TP3" value="3.0" type="number" step="0.1" suffix="R" onChange={() => {}} />
-          <MiniField label="Trailing" value="1.5" type="number" step="0.1" suffix="R" onChange={() => {}} />
+          <MiniField label="TP2" value={get("risk", "takeProfit2", 2.0)} type="number" step="0.1" suffix="R" onChange={(e) => updateField("risk", "takeProfit2", parseFloat(e.target.value))} />
+          <MiniField label="TP3" value={get("risk", "takeProfit3", 3.0)} type="number" step="0.1" suffix="R" onChange={(e) => updateField("risk", "takeProfit3", parseFloat(e.target.value))} />
+          <MiniField label="Trailing" value={get("risk", "trailingStop", 1.5)} type="number" step="0.1" suffix="R" onChange={(e) => updateField("risk", "trailingStop", parseFloat(e.target.value))} />
           <MiniField label="Time Exit" value={get("trading", "marketClose", "16:00")} onChange={(e) => updateField("trading", "marketClose", e.target.value)} />
           <MiniToggle label="Post-Trade Confirm" checked={!!get("trading", "confirmBeforeOrder", true)} onChange={(v) => updateField("trading", "confirmBeforeOrder", v)} />
         </SectionCard>
 
         {/* ORDER EXECUTION */}
         <SectionCard title="Order Execution" icon={Zap}>
-          <MiniField label="Slippage" value="0.075" type="number" step="0.001" suffix="%" onChange={() => {}} />
-          <MiniField label="Partial Fill" value="75" type="number" suffix="%" onChange={() => {}} />
-          <MiniToggle label="Retry Failed" checked={true} onChange={() => {}} />
-          <MiniField label="Max Retries" value="3" type="number" onChange={() => {}} />
-          <MiniSelect label="Routing" value="smart" options={["smart", "direct", "iex"]} onChange={() => {}} />
+          <MiniField label="Slippage" value={get("trading", "slippageTolerance", 0.075)} type="number" step="0.001" suffix="%" onChange={(e) => updateField("trading", "slippageTolerance", parseFloat(e.target.value))} />
+          <MiniField label="Partial Fill" value={get("trading", "partialFillPct", 75)} type="number" suffix="%" onChange={(e) => updateField("trading", "partialFillPct", Number(e.target.value))} />
+          <MiniToggle label="Retry Failed" checked={!!get("trading", "retryFailed", true)} onChange={(v) => updateField("trading", "retryFailed", v)} />
+          <MiniField label="Max Retries" value={get("trading", "maxRetries", 3)} type="number" onChange={(e) => updateField("trading", "maxRetries", Number(e.target.value))} />
+          <MiniSelect label="Routing" value={get("trading", "orderRouting", "smart")} options={["smart", "direct", "iex"]} onChange={(e) => updateField("trading", "orderRouting", e.target.value)} />
         </SectionCard>
 
         {/* NOTIFICATIONS */}
@@ -554,8 +554,8 @@ export default function SettingsPage() {
         <SectionCard title="Security & Auth" icon={Shield} color="#10b981">
           <MiniToggle label="2FA Enabled" checked={!!get("user", "twoFactorEnabled", false)} onChange={(v) => updateField("user", "twoFactorEnabled", v)} />
           <MiniField label="Session Timeout" value={get("user", "sessionTimeoutMinutes", 30)} type="number" suffix="min" onChange={(e) => updateField("user", "sessionTimeoutMinutes", Number(e.target.value))} />
-          <MiniToggle label="IP Whitelisting" checked={false} onChange={() => {}} />
-          <MiniToggle label="API Rate Limit" checked={true} onChange={() => {}} />
+          <MiniToggle label="IP Whitelisting" checked={!!get("user", "ipWhitelisting", false)} onChange={(v) => updateField("user", "ipWhitelisting", v)} />
+          <MiniToggle label="API Rate Limit" checked={!!get("user", "apiRateLimit", true)} onChange={(v) => updateField("user", "apiRateLimit", v)} />
           <div className="text-[9px] text-gray-600 mt-1 pt-1 border-t border-gray-800/50">
             <div>AES-256 on disk</div>
             <div>Keys hashed (bcrypt)</div>
@@ -587,7 +587,7 @@ export default function SettingsPage() {
             ))}
           </div>
           <MiniSelect label="Density" value={get("appearance", "density", "compact")} options={["compact", "comfortable", "spacious"]} onChange={(e) => updateField("appearance", "density", e.target.value)} />
-          <MiniSelect label="Font" value="monospace" options={["monospace", "sans-serif", "serif"]} onChange={() => {}} />
+          <MiniSelect label="Font" value={get("appearance", "font", "monospace")} options={["monospace", "sans-serif", "serif"]} onChange={(e) => updateField("appearance", "font", e.target.value)} />
           <MiniToggle label="Animations" checked={!!get("appearance", "animations", true)} onChange={(v) => updateField("appearance", "animations", v)} />
           <MiniToggle label="Sound Alerts" checked={!!get("appearance", "soundAlerts", false)} onChange={(v) => updateField("appearance", "soundAlerts", v)} />
           <MiniToggle label="Show PnL" checked={!!get("appearance", "showPnlHeader", true)} onChange={(v) => updateField("appearance", "showPnlHeader", v)} />
@@ -600,7 +600,7 @@ export default function SettingsPage() {
           <MiniField label="Market Close" value={get("trading", "marketClose", "16:00")} onChange={(e) => updateField("trading", "marketClose", e.target.value)} />
           <MiniToggle label="Pre-Market" checked={!!get("trading", "preMarketEnabled", false)} onChange={(v) => updateField("trading", "preMarketEnabled", v)} />
           <MiniToggle label="After Hours" checked={!!get("trading", "afterHoursEnabled", false)} onChange={(v) => updateField("trading", "afterHoursEnabled", v)} />
-          <MiniSelect label="Volume" value="relative" options={["relative", "absolute"]} onChange={() => {}} />
+          <MiniSelect label="Volume" value={get("appearance", "volumeDisplay", "relative")} options={["relative", "absolute"]} onChange={(e) => updateField("appearance", "volumeDisplay", e.target.value)} />
         </SectionCard>
 
         {/* NOTIFICATION CHANNELS */}
@@ -632,7 +632,7 @@ export default function SettingsPage() {
               <span className="text-[10px] text-gray-400">SMS</span>
               <Badge variant="secondary" size="sm">N/A</Badge>
             </div>
-            <MiniSelect label="Export" value="json" options={["json", "csv"]} onChange={() => {}} />
+            <MiniSelect label="Export" value={get("notifications", "exportFormat", "json")} options={["json", "csv"]} onChange={(e) => updateField("notifications", "exportFormat", e.target.value)} />
           </div>
         </SectionCard>
 

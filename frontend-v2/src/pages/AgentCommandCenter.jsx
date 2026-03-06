@@ -433,7 +433,14 @@ function AgentInspectorPanel({ agent, onClose, onToggle }) {
             </div>
           ))}
         </div>
-        <button className="mt-2 text-[10px] text-cyan-400 hover:underline w-full text-center" onClick={() => toast.info("Retraining weights...")}>Retrain Weights</button>
+        <button className="mt-2 text-[10px] text-cyan-400 hover:underline w-full text-center" disabled={retrainLoading} onClick={async () => {
+          setRetrainLoading(true);
+          try {
+            await fetch(getApiUrl("flywheel") + "/retrain", { method: "POST", headers: getAuthHeaders() });
+            toast.success("Weight retraining initiated");
+          } catch { toast.error("Failed to retrain weights"); }
+          finally { setRetrainLoading(false); }
+        }}>{retrainLoading ? "Retraining..." : "Retrain Weights"}</button>
       </div>
       {/* Lifecycle Controls Bar */}
       <div className="p-4">
@@ -485,6 +492,13 @@ export default function AgentCommandCenter() {
   const [consensusData, setConsensusData] = useState([]);
   const [spawnPrompt, setSpawnPrompt] = useState("");
   const [nlpSpawnLoading, setNlpSpawnLoading] = useState(false);
+  const [spawnRiskInterval, setSpawnRiskInterval] = useState(50);
+  const [spawnTemperature, setSpawnTemperature] = useState(2.7);
+  const [feedPaused, setFeedPaused] = useState(false);
+  const feedPausedRef = useRef(false);
+  useEffect(() => { feedPausedRef.current = feedPaused; }, [feedPaused]);
+  const [retrainLoading, setRetrainLoading] = useState(false);
+  const [rebalanceLoading, setRebalanceLoading] = useState(false);
   const [inspectedAgent, setInspectedAgent] = useState(null);
   const [agentSearch, setAgentSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState(new Set(["running", "paused", "degraded", "spawning"]));
@@ -549,7 +563,7 @@ export default function AgentCommandCenter() {
   // --- Blackboard & HITL: real-time via WebSocket ---
   useEffect(() => {
     const bbHandler = (msg) => {
-      if (!msg) return;
+      if (!msg || feedPausedRef.current) return;
       setBlackboardMsgs(prev => [{
         id: Date.now(),
         time: new Date().toLocaleTimeString("en-US", { hour12: false }),
@@ -1057,11 +1071,11 @@ export default function AgentCommandCenter() {
                   </div>
                   <div className="col-span-2">
                     <label className="text-secondary block mb-0.5">Risk Interval</label>
-                    <Slider min={0} max={100} step={1} value={50} onChange={() => {}} suffix="ms" className="w-full" />
+                    <Slider min={0} max={100} step={1} value={spawnRiskInterval} onChange={(value) => setSpawnRiskInterval(value)} suffix="ms" className="w-full" />
                   </div>
                   <div className="col-span-2">
                     <label className="text-secondary block mb-0.5">Temperature</label>
-                    <Slider min={0} max={5} step={0.1} value={2.7} onChange={() => {}} className="w-full" />
+                    <Slider min={0} max={5} step={0.1} value={spawnTemperature} onChange={(value) => setSpawnTemperature(value)} className="w-full" />
                   </div>
                   <div className="col-span-2">
                     <label className="text-secondary block mb-0.5">Kill Condition</label>
@@ -1340,8 +1354,8 @@ export default function AgentCommandCenter() {
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                     <span className="text-[9px] text-emerald-400">LIVE</span>
-                    <button className="text-[9px] text-cyan-400 hover:underline cursor-pointer" onClick={() => toast.info("Clearing feed...")}>Clear</button>
-                    <button className="text-[9px] text-cyan-400 hover:underline cursor-pointer" onClick={() => toast.info("Pausing feed...")}>Pause</button>
+                    <button className="text-[9px] text-cyan-400 hover:underline cursor-pointer" onClick={() => { setBlackboardMsgs([]); toast.success("Blackboard feed cleared"); }}>Clear</button>
+                    <button className={`text-[9px] hover:underline cursor-pointer ${feedPaused ? "text-amber-400" : "text-cyan-400"}`} onClick={() => { setFeedPaused(prev => !prev); toast.info(feedPaused ? "Feed resumed" : "Feed paused"); }}>{feedPaused ? "Resume" : "Pause"}</button>
                   </div>
                 </div>
                 <div className="p-3 space-y-0.5 max-h-[500px] overflow-y-auto scrollbar-thin font-mono bg-[#0a0d12]">
@@ -1429,7 +1443,7 @@ export default function AgentCommandCenter() {
                 </div>
                 <div className="flex items-center justify-between text-[10px] text-secondary">
                   <span><span className="text-emerald-400 font-bold">{runningAgents}</span>/{totalAgents} agents online</span>
-                  <span className="text-cyan-400 cursor-pointer hover:underline" onClick={() => toast.info("Opening agent manager...")}>Manage</span>
+                  <span className="text-cyan-400 cursor-pointer hover:underline" onClick={() => setActiveTab("agent-registry")}>Manage</span>
                 </div>
               </Card>
             </div>
@@ -1485,7 +1499,14 @@ export default function AgentCommandCenter() {
               </svg>
               <div className="flex items-center justify-between mt-2">
                 <span className="text-xs text-secondary">Nodes: {agents.length + 1}</span>
-                <Button size="sm" className="text-xs" onClick={() => toast.success("Weights Rebalanced")}>Rebalance</Button>
+                <Button size="sm" className="text-xs" disabled={rebalanceLoading} onClick={async () => {
+                  setRebalanceLoading(true);
+                  try {
+                    await fetch(getApiUrl("agents") + "/rebalance", { method: "POST", headers: getAuthHeaders() });
+                    toast.success("Weights Rebalanced");
+                  } catch { toast.error("Rebalance failed"); }
+                  finally { setRebalanceLoading(false); }
+                }}>{rebalanceLoading ? "Rebalancing..." : "Rebalance"}</Button>
               </div>
             </Card>
             {/* Connection Health Matrix */}
