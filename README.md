@@ -1,6 +1,6 @@
 # Elite Trading System
 ### Embodier.ai — Full-Stack AI Trading Intelligence Platform
-**Version 3.2.0** | Last Updated: March 5, 2026
+**Version 3.3.0** | Last Updated: March 6, 2026
 
 CI Status: GREEN — 151 tests passing
 Backend: Ready to start (uvicorn never run yet). Frontend builds clean.
@@ -45,6 +45,43 @@ Every signal passes through the full 13-agent council before any trade is execut
 
 ## What Was Recently Done
 
+### v3.3.0 (March 6, 2026) — V3 Mockup UI Rebuild
+
+Complete pixel-fidelity rebuild of all frontend pages to match `docs/mockups-v3/images/` mockup designs. Aurora dark theme with glass effects, cyan/emerald/amber/red color system, dense data-driven layouts.
+
+**Pages Rebuilt (13 of 14 complete):**
+
+| # | Page | Status | Description |
+|---|------|--------|-------------|
+| 1 | Dashboard.jsx | DONE | Full-page layout, scrolling ticker, signal table, consensus donut, agent bars, sector breakdown, risk metrics, flywheel, alerts |
+| 2 | SentimentIntelligence.jsx | DONE | OpenClaw Agent Swarm, PAS v4 Regime, symbol heatmap, 30-Day AreaChart, RadarChart, Prediction Markets, Divergence alerts |
+| 3 | DataSourcesMonitor.jsx | DONE | 10 source cards with sparklines, connection detail panel, AI-powered add source, supplementary sources |
+| 4 | MLBrainFlywheel.jsx | DONE | KPI strip, Model Performance chart, 6 model cards with sparklines, ML Probability Ranking heatmap, Flywheel Log |
+| 5 | Patterns.jsx | DONE | Dual-column: Screening Engine (scan agents, trading sliders, live feed) + Pattern Intelligence (agents, ML metrics, arsenal) |
+| 6 | SignalIntelligenceV3.jsx | DONE | 3-column: scanner modules (left), candlestick chart + signal table (center), 5-layer scoring (right) |
+| 7 | Trades.jsx | DONE | KPI bar, positions table with sparklines, orders table with bracket order expansion |
+| 8 | Backtesting.jsx | DONE | Config panel, KPI mega strip, 8 chart panels (equity, P&L dist, rolling Sharpe, regime, Monte Carlo, heatmap, ReactFlow strategy builder) |
+| 9 | MarketRegime.jsx | DONE | Dynamic GREEN/RED styling, regime state machine, VIX+Macro chart, sector rotation, crash protocol, agent consensus |
+| 10 | PerformanceAnalytics.jsx | DONE | Risk cockpit, equity+drawdown chart, agent attribution leaderboard, trades table, ML flywheel, strategy & signals |
+| 11 | TradeExecution.jsx | DONE | Multi-price ladder, advanced order builder, live order book, price charts, news feed, live positions |
+| 12 | RiskIntelligence.jsx | DONE | Risk gauges, stop-loss command, correlation heatmap, volatility regime, AI agent monitors, position sizing, 90-day history |
+| 13 | Settings.jsx | DONE | Multi-section grid: identity, trading mode toggle, position limits, circuit breakers, brokerage, API keys, ML models, themes |
+| 14 | AgentCommandCenter.jsx | **IN PROGRESS** | Existing 8-tab structure needs rebuild to match mockup (swarm overview, registry, spawn, wiring, blackboard, conference, ML ops, logs) |
+
+**What still needs to be done for AgentCommandCenter:**
+- The current file (158KB) has the structure but needs a clean rewrite to exactly match mockups `01-agent-command-center-final.png`, `05-agent-command-center.png`, `05b-agent-command-center-spawn.png`, `05c-agent-registry.png`
+- Key sections: Agent Health Matrix dot grid, Live Activity Feed, Swarm Topology node graph, Conference Pipeline, Agent Resource Monitor, Quick Actions bar, System Alerts, Drift Monitor
+- Agent Registry tab: master table with all 42 agents, inspector panel with config/SHAP/logs, lifecycle controls bar
+- Spawn & Scale tab: NL prompt input, template grid, swarm orchestrator
+- All other tabs (Live Wiring Map, Blackboard & Comms, Conference & Consensus, ML Ops, Logs & Telemetry)
+
+**Design system:**
+- Dark background: #0B0E14, #111827
+- Primary cyan: #06b6d4 / #00D9FF
+- Success green: #10b981, Danger red: #ef4444, Warning amber: #f59e0b
+- Glass card effect: `bg-[#111827]/80 border border-[rgba(42,52,68,0.5)] rounded-lg backdrop-blur`
+- All pages wired to `useApi()` hooks — no hardcoded mock data
+
 ### v3.2.0 (March 5, 2026) — Council-Controlled Intelligence
 - **CouncilGate**: New bridge class that intercepts all signals (score >= 65) and auto-invokes the 13-agent council before any trade
 - **WeightLearner**: Bayesian self-learning agent weights — agents that vote correctly get higher weight over time
@@ -65,14 +102,21 @@ Every signal passes through the full 13-agent council before any trade is execut
 
 ## What Is NOT Done (TODO)
 
+### UI (Frontend)
+- [ ] **P0: Rewrite AgentCommandCenter.jsx** — Last page needing V3 mockup rebuild. Current file is 158KB with 8 tabs but needs clean rewrite to match mockups exactly. See mockups: `01-agent-command-center-final.png`, `05c-agent-registry.png`, `05b-agent-command-center-spawn.png`
+- [ ] P1: Run `npm run build` to verify all 14 rebuilt pages compile without errors
+- [ ] P2: Fix any import/dependency issues from the rebuild (lucide-react icons, recharts components, reactflow)
+
+### Backend / Architecture
 - [ ] P1: Build BlackboardState (shared memory across DAG stages)
 - [ ] P3: Build CircuitBreaker reflexes (brainstem <50ms)
 - [ ] P4: Clean up OpenClaw dead code
 - [ ] P5: Build TaskSpawner (dynamic agent registry)
-- [ ] P6: Unify Agent Command Center UI (show real 13-agent council, not 5 template agents)
 - [ ] P7: Wire brain_service gRPC (hypothesis_agent is still a stub)
 - [ ] Signal scoring weights calibration from historical data
 - [ ] Multi-timeframe analysis in real-time path
+
+### Blockers
 - [ ] BLOCKER-1: Start backend for first time (uvicorn app.main:app)
 - [ ] BLOCKER-2: Establish WebSocket real-time data connectivity
 - [ ] BLOCKER-3: Add JWT authentication for live trading endpoints
@@ -124,25 +168,25 @@ AlpacaStreamService -> market_data.bar -> EventDrivenSignalEngine -> signal.gene
 
 ## Frontend Pages (15)
 
-All pages in frontend-v2/src/pages/. All use useApi() hook. No mock data.
+All pages in frontend-v2/src/pages/. All use useApi() hook. No mock data. **13 of 14 pages rebuilt to V3 mockup fidelity (March 6, 2026).**
 
-| # | Route | File | Status |
+| # | Route | File | V3 Rebuild Status |
 |---|-------|------|--------|
-| 1 | /dashboard | Dashboard.jsx | Wired to useApi |
-| 2 | /agents | AgentCommandCenter.jsx | DEPLOYED — thin shell + 8 tabs |
-| 3 | /signals | Signals.jsx | Wired to useApi |
-| 4 | /sentiment | SentimentIntelligence.jsx | Wired to useApi |
-| 5 | /data-sources | DataSourcesMonitor.jsx | DONE 100% |
-| 6 | /ml-brain | MLBrainFlywheel.jsx | Wired to useApi |
-| 7 | /patterns | Patterns.jsx | DONE — real API |
-| 8 | /backtest | Backtesting.jsx | Wired to useApi |
-| 9 | /performance | PerformanceAnalytics.jsx | ~20% — needs mockup alignment |
-| 10 | /market-regime | MarketRegime.jsx | DONE 100% |
-| 11 | /trades | Trades.jsx | DONE 100% |
-| 12 | /risk | RiskIntelligence.jsx | Wired to useApi |
-| 13 | /trade-execution | TradeExecution.jsx | DONE 100% |
-| 14 | /settings | Settings.jsx | Wired to useApi |
-| 15 | /signal-v3 | SignalIntelligenceV3.jsx | Hidden route |
+| 1 | /dashboard | Dashboard.jsx | **REBUILT** — full-page layout with own sidebar |
+| 2 | /agents | AgentCommandCenter.jsx | **NEEDS REWRITE** — has 8-tab structure, needs mockup alignment |
+| 3 | /signals | SignalIntelligenceV3.jsx | **REBUILT** — 3-column layout |
+| 4 | /sentiment | SentimentIntelligence.jsx | **REBUILT** — OpenClaw swarm + heatmap |
+| 5 | /data-sources | DataSourcesMonitor.jsx | **REBUILT** — 10 source cards |
+| 6 | /ml-brain | MLBrainFlywheel.jsx | **REBUILT** — KPI + model fleet |
+| 7 | /patterns | Patterns.jsx | **REBUILT** — dual-column screening + pattern intelligence |
+| 8 | /backtest | Backtesting.jsx | **REBUILT** — 8 chart panels + ReactFlow |
+| 9 | /performance | PerformanceAnalytics.jsx | **REBUILT** — risk cockpit + agent attribution |
+| 10 | /market-regime | MarketRegime.jsx | **REBUILT** — dynamic GREEN/RED styling |
+| 11 | /trades | Trades.jsx | **REBUILT** — KPI bar + bracket orders |
+| 12 | /risk | RiskIntelligence.jsx | **REBUILT** — gauges + correlation heatmap |
+| 13 | /trade-execution | TradeExecution.jsx | **REBUILT** — price ladder + order builder |
+| 14 | /settings | Settings.jsx | **REBUILT** — multi-section dense grid |
+| 15 | /signal-v3 | SignalIntelligenceV3.jsx | Hidden route (same as #3) |
 
 ## Backend API Routes (29 files in backend/app/api/v1/)
 
