@@ -187,7 +187,7 @@ def score_entry_quality(technicals: Dict, session: Dict) -> Dict:
   }
 
 
-def calculate_limit_price(price: float, atr: float, vwap: float = 0) -> Dict:
+def calculate_limit_price(price: float, atr: float, vwap: float = 0, side: str = "buy") -> Dict:
   """Calculate limit price, stop loss, and take profit targets."""
   if not price or not atr:
     return {"error": "Missing price or ATR"}
@@ -209,16 +209,17 @@ def calculate_limit_price(price: float, atr: float, vwap: float = 0) -> Dict:
     limit_price = round(price - atr * 0.1, 2)
 
   # Stop loss: 1.5 ATR below entry
-  stop_loss = round(limit_price - atr * 1.5, 2)
+  stop_loss = round(limit_price - atr * 1.5, 2) if side == "buy" else round(limit_price + atr * 1.5, 2)
+    d = 1 if side == "buy" else -1
 
   # Take profit targets
-  take_profit_1 = round(limit_price + atr * 1.5, 2)
-  take_profit_2 = round(limit_price + atr * 2.5, 2)
-  take_profit_3 = round(limit_price + atr * 4.0, 2)
+  take_profit_1 = round(limit_price + d * atr * 1.5, 2)
+  take_profit_2 = round(limit_price + d * atr * 2.5, 2)
+  take_profit_3 = round(limit_price + d * atr * 4.0, 2)
 
   # Risk/reward
-  risk_per_share = round(limit_price - stop_loss, 2)
-  reward_per_share = round(take_profit_1 - limit_price, 2)
+  risk_per_share = round(abs(limit_price - stop_loss), 2)
+  reward_per_share = round(abs(take_profit_1 - limit_price), 2)
   reward_risk_ratio = round(reward_per_share / risk_per_share, 2) if risk_per_share > 0 else 0
 
   return {
@@ -234,7 +235,7 @@ def calculate_limit_price(price: float, atr: float, vwap: float = 0) -> Dict:
 
 
 def build_smart_order(ticker: str, technicals: Dict,
-                     position_size: Dict = None) -> Dict:
+                     position_size: Dict = None, side: str = "buy") -> Dict:
   """Build a complete smart order with entry timing."""
   session = get_session_quality()
   entry = score_entry_quality(technicals, session)
@@ -246,12 +247,12 @@ def build_smart_order(ticker: str, technicals: Dict,
   if not price or not atr:
     return {"error": "Missing price or ATR", "ticker": ticker}
 
-  pricing = calculate_limit_price(price, atr, vwap)
+  pricing = calculate_limit_price(price, atr, vwap, side)
   qty = position_size.get("shares", 0) if position_size else 0
 
   return {
     "ticker": ticker,
-    "side": "buy",
+    "side": side,
     "qty": qty,
     "order_type": entry["recommendation"],
     "limit_price": pricing["limit_price"],
