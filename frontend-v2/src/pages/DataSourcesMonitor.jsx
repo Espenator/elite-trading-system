@@ -6,7 +6,7 @@ import {
   X,
   Copy,
   RefreshCw,
-  Settings,h
+  Settings,
   Check,
   XCircle,
   Loader2,
