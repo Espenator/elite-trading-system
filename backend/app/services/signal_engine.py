@@ -38,6 +38,17 @@ _REGIME_MULTIPLIERS: Dict[str, float] = {
     "UNKNOWN": 1.00,
 }
 
+# Bear regime multipliers: boost short signals in bearish conditions
+_BEAR_REGIME_MULTIPLIERS: Dict[str, float] = {
+    "BULLISH": 0.65,
+    "RISK_ON": 0.80,
+    "NEUTRAL": 1.00,
+    "RISK_OFF": 1.05,
+    "BEARISH": 1.10,
+    "CRISIS": 1.35,
+    "UNKNOWN": 1.00,
+}
+
 
 def _numeric(val, default: float = 0.0) -> float:
     """Parse a value to float; strip commas and $."""
@@ -370,6 +381,7 @@ class EventDrivenSignalEngine:
         self._last_regime_refresh: float = 0
         self._regime_refresh_interval = 300  # Refresh OpenClaw every 5 min
 
+            self._bear_regime_mult = 1.0
     async def start(self) -> None:
         """Subscribe to MessageBus events and start processing."""
         self._running = True
@@ -473,6 +485,7 @@ class EventDrivenSignalEngine:
                 "symbol": symbol,
                 "score": round(final_score, 1),
                 "label": label,
+                                "direction": "buy",
                 "price": data.get("close", 0),
                 "volume": data.get("volume", 0),
                 "regime": self._regime_state,
@@ -489,15 +502,42 @@ class EventDrivenSignalEngine:
                     symbol, final_score, label, data.get("close", 0), self._regime_state,
                 )
 
+            # SHORT signal: generate when bear score exceeds threshold
+        bear_score = max(0.0, min(100.0, (100.0 - blended) * self._bear_regime_mult))
+        if bear_score >= self.SIGNAL_THRESHOLD:
+            self._signals_generated += 1
+            short_signal_data = {
+                "symbol": symbol,
+                "score": round(bear_score, 1),
+                "label": f"SHORT:{label}",
+                "direction": "sell",
+                "price": data.get("close", 0),
+                "volume": data.get("volume", 0),
+                "regime": self._regime_state,
+                "regime_mult": self._bear_regime_mult,
+                "bar_count": len(history),
+                "timestamp": data.get("timestamp", ""),
+                "source": "event_driven_signal_engine",
+            }
+            await self.message_bus.publish("signal.generated", short_signal_data)
+
+            if bear_score >= 80:
+                logger.info(
+                    "\u26a1 HIGH SHORT signal: %s score=%.1f (%s) @ $%.2f [regime=%s]",
+                    symbol, bear_score, label, data.get("close", 0), self._regime_state,
+                )
+
     async def _refresh_regime(self) -> None:
         """Background refresh of OpenClaw regime context."""
         try:
             self._regime_state, self._claw_scores = await _get_openclaw_context()
             self._regime_mult = _REGIME_MULTIPLIERS.get(self._regime_state, 1.0)
+                        self._bear_regime_mult = _BEAR_REGIME_MULTIPLIERS.get(self._regime_state, 1.0)
             if self._claw_scores:
                 logger.debug(
                     "Regime refreshed: %s (mult=%.2f, %d candidates)",
                     self._regime_state, self._regime_mult, len(self._claw_scores),
+                            
                 )
         except Exception as e:
             logger.debug("Regime refresh failed: %s", e)
