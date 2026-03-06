@@ -220,13 +220,29 @@ const defaultStratEdges = [
 /*  Swarm agents list for OpenClaw panel                              */
 /* ------------------------------------------------------------------ */
 const SWARM_AGENTS = [
-  { name: "Axis Orchestrator", icon: Brain, color: "#00D9FF" },
-  { name: "Turbo Scanner", icon: Zap, color: "#10B981" },
-  { name: "Hyper Optimizer", icon: Target, color: "#A78BFA" },
-  { name: "News Sentinel", icon: Activity, color: "#F59E0B" },
-  { name: "Sweep Detector", icon: Search, color: "#EC4899" },
-  { name: "Risk Guardian", icon: Shield, color: "#EF4444" },
-  { name: "Signal Engine", icon: Cpu, color: "#6366F1" },
+  { name: "Apex Orchestrator", icon: Brain, color: "#00D9FF", pct: 100 },
+  { name: "Relative Weakness", icon: TrendingDown, color: "#10B981", pct: 81 },
+  { name: "Short Basket", icon: Target, color: "#A78BFA", pct: 73 },
+  { name: "Momentum Runner", icon: Zap, color: "#F59E0B", pct: 90 },
+  { name: "Risk Governor", icon: Shield, color: "#EF4444", pct: 95 },
+  { name: "Signal Engine", icon: Cpu, color: "#6366F1", pct: 88 },
+  { name: "Macro Analyst", icon: Activity, color: "#EC4899", pct: 67 },
+];
+
+const SWARM_TEAMS = [
+  { name: "Alpha Team", status: "online", color: "#10B981" },
+  { name: "Beta Team", status: "online", color: "#10B981" },
+  { name: "Gamma Team", status: "standby", color: "#F59E0B" },
+  { name: "Delta Team", status: "online", color: "#10B981" },
+];
+
+const PARALLEL_RUNS = [
+  { id: 1, strategy: "Mean Reversion V2", status: "Running", progress: 72, statusColor: "#06b6d4" },
+  { id: 2, strategy: "Momentum Alpha", status: "Running", progress: 45, statusColor: "#06b6d4" },
+  { id: 3, strategy: "Pairs Trading", status: "Complete", progress: 100, statusColor: "#10B981" },
+  { id: 4, strategy: "Breakout Scanner", status: "Failed", progress: 33, statusColor: "#EF4444" },
+  { id: 5, strategy: "Stat Arb V3", status: "Running", progress: 88, statusColor: "#06b6d4" },
+  { id: 6, strategy: "ML Ensemble", status: "Complete", progress: 100, statusColor: "#10B981" },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -352,7 +368,7 @@ export default function Backtesting() {
     if (!Array.isArray(regimeData) || !regimeData.length) return [
       { regime: "BULL", pnl: 8450, trades: 45, winRate: 68 },
       { regime: "BEAR", pnl: -2100, trades: 22, winRate: 41 },
-      { regime: "RECOVERY", pnl: 3200, trades: 18, winRate: 61 },
+      { regime: "SIDEWAYS", pnl: 3200, trades: 18, winRate: 61 },
     ];
     return regimeData.map((r) => ({
       regime: r.regime ?? r.name ?? "UNKNOWN",
@@ -361,6 +377,25 @@ export default function Backtesting() {
       winRate: r.win_rate ?? r.winRate ?? 0,
     }));
   }, [regimeData]);
+
+  // --- Walk-Forward Analysis chart data ---
+  const wfChartData = useMemo(() => {
+    if (!Array.isArray(wfData) || !wfData.length) return [
+      { period: "P1", inSample: 1.82, outSample: 1.45 },
+      { period: "P2", inSample: 2.10, outSample: 1.68 },
+      { period: "P3", inSample: 1.95, outSample: 1.52 },
+      { period: "P4", inSample: 2.30, outSample: 1.90 },
+      { period: "P5", inSample: 1.75, outSample: 1.20 },
+      { period: "P6", inSample: 2.15, outSample: 1.78 },
+      { period: "P7", inSample: 1.60, outSample: 1.35 },
+      { period: "P8", inSample: 2.40, outSample: 1.95 },
+    ];
+    return wfData.map((w, i) => ({
+      period: w.period ?? w.name ?? `P${i + 1}`,
+      inSample: w.in_sample ?? w.inSample ?? w.train ?? 0,
+      outSample: w.out_sample ?? w.outSample ?? w.test ?? 0,
+    }));
+  }, [wfData]);
 
   // --- Run backtest handler ---
   const handleRun = useCallback(async () => {
@@ -391,22 +426,27 @@ export default function Backtesting() {
   }, [strategy, startDate, endDate, batches, trainPct, minPositions, txnCost, maxPositions, symbols, benchmark, commission, regimeFilter, slippage, refetchResults]);
 
   // --- KPI definitions ---
+  // Row 1: Net P&L, Sharpe, Sortino, Calmar, Max DD, Win Rate, Profit Factor, Avg Trade
+  // Row 2: Total Trades, Expectancy, Trading Grade, Kelly Efficiency, CAGR, Volatility, Alpha, Beta
   const kpiItems = useMemo(() => [
-    { label: "Net P&L", value: fmtUsd(kpis.net_pnl ?? kpis.netPnl ?? kpis.total_pnl), raw: kpis.net_pnl ?? kpis.netPnl ?? kpis.total_pnl, thresholds: { good: 0, warn: -1000 } },
-    { label: "Win Rate", value: fmtPct(kpis.win_rate ?? kpis.winRate), raw: kpis.win_rate ?? kpis.winRate, thresholds: { good: 55, warn: 45 } },
-    { label: "Avg Trade", value: fmtUsd(kpis.avg_trade ?? kpis.avgTrade), raw: kpis.avg_trade ?? kpis.avgTrade, thresholds: { good: 0, warn: -50 } },
-    { label: "Expectancy", value: fmt(kpis.expectancy, 2), raw: kpis.expectancy, thresholds: { good: 0.5, warn: 0 } },
-    { label: "K/R Ratio", value: fmt(kpis.kr_ratio ?? kpis.krRatio ?? kpis.kelly_ratio, 2), raw: kpis.kr_ratio ?? kpis.krRatio ?? kpis.kelly_ratio, thresholds: { good: 1.5, warn: 1.0 } },
-    { label: "Kelly Efficiency", value: fmtPct(kpis.kelly_efficiency ?? kpis.kellyEfficiency), raw: kpis.kelly_efficiency ?? kpis.kellyEfficiency, thresholds: { good: 30, warn: 15 } },
+    // --- ROW 1 ---
+    { label: "Net P&L", value: fmtK(kpis.net_pnl ?? kpis.netPnl ?? kpis.total_pnl), raw: kpis.net_pnl ?? kpis.netPnl ?? kpis.total_pnl, thresholds: { good: 0, warn: -1000 } },
     { label: "Sharpe", value: fmt(kpis.sharpe ?? kpis.sharpe_ratio, 2), raw: kpis.sharpe ?? kpis.sharpe_ratio, thresholds: { good: 1.5, warn: 1.0 } },
     { label: "Sortino", value: fmt(kpis.sortino ?? kpis.sortino_ratio, 2), raw: kpis.sortino ?? kpis.sortino_ratio, thresholds: { good: 2.0, warn: 1.0 } },
+    { label: "Calmar", value: fmt(kpis.calmar ?? kpis.calmar_ratio, 2), raw: kpis.calmar ?? kpis.calmar_ratio, thresholds: { good: 1.0, warn: 0.5 } },
     { label: "Max DD", value: fmtPct(kpis.max_drawdown ?? kpis.maxDrawdown), raw: kpis.max_drawdown ?? kpis.maxDrawdown, thresholds: { good: -5, warn: -15, invert: true } },
-    { label: "Total Trades", value: kpis.total_trades ?? kpis.totalTrades ?? "--", raw: kpis.total_trades ?? kpis.totalTrades, thresholds: { good: 50, warn: 20 } },
+    { label: "Win Rate", value: fmtPct(kpis.win_rate ?? kpis.winRate), raw: kpis.win_rate ?? kpis.winRate, thresholds: { good: 55, warn: 45 } },
     { label: "Profit Factor", value: fmt(kpis.profit_factor ?? kpis.profitFactor, 2), raw: kpis.profit_factor ?? kpis.profitFactor, thresholds: { good: 1.5, warn: 1.0 } },
+    { label: "Avg Trade", value: fmtUsd(kpis.avg_trade ?? kpis.avgTrade), raw: kpis.avg_trade ?? kpis.avgTrade, thresholds: { good: 0, warn: -50 } },
+    // --- ROW 2 ---
+    { label: "Total Trades", value: kpis.total_trades ?? kpis.totalTrades ?? "--", raw: kpis.total_trades ?? kpis.totalTrades, thresholds: { good: 50, warn: 20 } },
+    { label: "Expectancy", value: fmt(kpis.expectancy, 4), raw: kpis.expectancy, thresholds: { good: 0.5, warn: 0 } },
+    { label: "Trading Grade", value: kpis.grade ?? kpis.overall_grade ?? kpis.trading_grade ?? "--", raw: null, thresholds: null },
+    { label: "Kelly Efficiency", value: fmtPct(kpis.kelly_efficiency ?? kpis.kellyEfficiency), raw: kpis.kelly_efficiency ?? kpis.kellyEfficiency, thresholds: { good: 30, warn: 15 } },
+    { label: "CAGR", value: fmtPct(kpis.cagr ?? kpis.annual_return), raw: kpis.cagr ?? kpis.annual_return, thresholds: { good: 10, warn: 0 } },
     { label: "Volatility", value: fmtPct(kpis.volatility ?? kpis.annual_vol), raw: kpis.volatility ?? kpis.annual_vol, thresholds: { good: 10, warn: 25, invert: true } },
     { label: "Alpha", value: fmt(kpis.alpha, 2), raw: kpis.alpha, thresholds: { good: 0, warn: -2 } },
     { label: "Beta", value: fmt(kpis.beta, 2), raw: kpis.beta, thresholds: { good: 0.5, warn: 1.0, invert: true } },
-    { label: "Grade", value: kpis.grade ?? kpis.overall_grade ?? "--", raw: null, thresholds: null },
   ], [kpis]);
 
   // --- Trade log columns ---
@@ -517,30 +557,42 @@ export default function Backtesting() {
 
         {/* --- OpenClaw Swarm Backtest Integration --- */}
         <Card title="OpenClaw Swarm Backtest Integration" action={<Badge variant="success" size="sm">7 Core Agents</Badge>}>
-          <div className="space-y-3">
-            <div className="text-xs text-secondary mb-1">EXTENDED SWARM: 15 sub-agents active</div>
-            <div className="space-y-1.5">
+          <div className="flex gap-3">
+            {/* Agent progress bars */}
+            <div className="flex-1 space-y-1.5">
               {SWARM_AGENTS.map((agent) => {
                 const Ic = agent.icon;
                 return (
-                  <div key={agent.name} className="flex items-center justify-between bg-dark/50 rounded-lg px-2.5 py-1.5">
-                    <div className="flex items-center gap-2">
-                      <Ic className="w-3.5 h-3.5" style={{ color: agent.color }} />
-                      <span className="text-xs text-white">{agent.name}</span>
+                  <div key={agent.name} className="bg-dark/50 rounded-lg px-2.5 py-1.5">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <Ic className="w-3.5 h-3.5" style={{ color: agent.color }} />
+                        <span className="text-xs text-white">{agent.name}</span>
+                      </div>
+                      <span className="text-[10px] font-bold" style={{ color: agent.color }}>{agent.pct}%</span>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                      <span className="text-[10px] text-green-400">ACTIVE</span>
+                    <div className="w-full bg-gray-800 rounded-full h-1.5">
+                      <div className="h-1.5 rounded-full transition-all" style={{ width: `${agent.pct}%`, backgroundColor: agent.color }} />
                     </div>
                   </div>
                 );
               })}
             </div>
-            <div className="flex items-center justify-between pt-1 border-t border-secondary/20">
-              <span className="text-xs text-secondary">Swarm Status</span>
-              <Badge variant="success" size="sm">ALL ONLINE</Badge>
+            {/* Swarm Status sidebar */}
+            <div className="w-[130px] border-l border-secondary/20 pl-3 space-y-2">
+              <div className="text-[10px] text-secondary uppercase tracking-wider font-bold mb-2">Swarm Status</div>
+              {SWARM_TEAMS.map((team) => (
+                <div key={team.name} className="flex items-center justify-between bg-dark/50 rounded px-2 py-1.5">
+                  <span className="text-[10px] text-white">{team.name}</span>
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: team.color }} />
+                </div>
+              ))}
+              <div className="pt-2 border-t border-secondary/20">
+                <Badge variant="success" size="sm" className="w-full text-center">ALL ONLINE</Badge>
+              </div>
             </div>
           </div>
+          <div className="text-xs text-secondary mt-2 pt-2 border-t border-secondary/20">EXTENDED SWARM: 15 sub-agents active</div>
         </Card>
       </div>
 
@@ -549,9 +601,24 @@ export default function Backtesting() {
       {/* ============================================================ */}
       <Card title="Performance KPI Mega Strip" noPadding>
         <div className="overflow-x-auto">
-          <div className="flex divide-x divide-secondary/20 min-w-max">
-            {kpiItems.map((k) => (
-              <div key={k.label} className="px-4 py-3 flex flex-col items-center min-w-[100px]">
+          {/* Row 1: KPIs 0-7 */}
+          <div className="grid grid-cols-8 divide-x divide-secondary/20 border-b border-secondary/20">
+            {kpiItems.slice(0, 8).map((k) => (
+              <div key={k.label} className="px-3 py-2.5 flex flex-col items-center">
+                <span className="text-[10px] text-secondary uppercase tracking-wider mb-1">{k.label}</span>
+                <span className={clsx("text-lg font-bold", k.thresholds ? kpiColor(k.raw, k.thresholds) : "text-white")}>{k.value}</span>
+                {k.thresholds && k.raw != null && (
+                  <Badge variant={kpiBadge(k.raw, k.thresholds)} size="sm" className="mt-1">
+                    {kpiBadge(k.raw, k.thresholds) === "success" ? "GOOD" : kpiBadge(k.raw, k.thresholds) === "warning" ? "WARN" : "POOR"}
+                  </Badge>
+                )}
+              </div>
+            ))}
+          </div>
+          {/* Row 2: KPIs 8-15 */}
+          <div className="grid grid-cols-8 divide-x divide-secondary/20">
+            {kpiItems.slice(8, 16).map((k) => (
+              <div key={k.label} className="px-3 py-2.5 flex flex-col items-center">
                 <span className="text-[10px] text-secondary uppercase tracking-wider mb-1">{k.label}</span>
                 <span className={clsx("text-lg font-bold", k.thresholds ? kpiColor(k.raw, k.thresholds) : "text-white")}>{k.value}</span>
                 {k.thresholds && k.raw != null && (
@@ -576,32 +643,27 @@ export default function Backtesting() {
 
         {/* Parallel Run Manager */}
         <Card title="Parallel Run Manager" className="col-span-1">
-          <div className="space-y-2 mb-3">
-            {parallelRuns.map((r, i) => (
-              <div key={i} className="flex items-center justify-between text-xs bg-dark/40 rounded px-2 py-1.5">
+          <div className="space-y-1.5">
+            {/* Table header */}
+            <div className="grid grid-cols-[24px_1fr_72px_1fr] gap-2 text-[10px] text-secondary uppercase tracking-wider px-2 pb-1 border-b border-secondary/20">
+              <span>#</span><span>Strategy</span><span>Status</span><span>Progress</span>
+            </div>
+            {PARALLEL_RUNS.map((r) => (
+              <div key={r.id} className="grid grid-cols-[24px_1fr_72px_1fr] gap-2 items-center text-xs bg-dark/40 rounded px-2 py-1.5">
+                <span className="text-secondary">{r.id}</span>
+                <span className="text-white truncate">{r.strategy}</span>
+                <Badge variant={r.status === "Running" ? "primary" : r.status === "Failed" ? "danger" : "success"} size="sm">
+                  {r.status}
+                </Badge>
                 <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: r.color }} />
-                  <span className="text-white">{r.name}</span>
-                </div>
-                <div className="flex gap-3 text-secondary">
-                  <span>S: <span className="text-white">{fmt(r.sharpe, 1)}</span></span>
-                  <span>R: <span className={Number(r.return) >= 0 ? "text-green-400" : "text-red-400"}>{fmtPct(r.return)}</span></span>
-                  <span>DD: <span className="text-red-400">{fmtPct(r.maxDD)}</span></span>
+                  <div className="flex-1 bg-gray-800 rounded-full h-1.5">
+                    <div className="h-1.5 rounded-full transition-all" style={{ width: `${r.progress}%`, backgroundColor: r.statusColor }} />
+                  </div>
+                  <span className="text-[10px] text-secondary w-8 text-right">{r.progress}%</span>
                 </div>
               </div>
             ))}
           </div>
-          <ResponsiveContainer width="100%" height={130}>
-            <BarChart data={parallelRuns} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(42,52,68,0.3)" />
-              <XAxis type="number" stroke="#6B7280" tick={{ fontSize: 10 }} />
-              <YAxis type="category" dataKey="name" stroke="#6B7280" tick={{ fontSize: 9 }} width={90} />
-              <Tooltip content={<DarkTooltip />} />
-              <Bar dataKey="sharpe" name="Sharpe">
-                {parallelRuns.map((r, i) => <Cell key={i} fill={r.color} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
         </Card>
 
         {/* Trade P&L Distribution */}
@@ -610,7 +672,7 @@ export default function Backtesting() {
         </Card>
 
         {/* Rolling Sharpe Ratio */}
-        <Card title="Rolling Sharpe Ratio (30M)" loading={loadRs} className="col-span-1">
+        <Card title="Rolling Sharpe Ratio (24M)" loading={loadRs} className="col-span-1">
           <RollingSharpeLC data={Array.isArray(rsData) ? rsData : []} height={220} />
         </Card>
       </div>

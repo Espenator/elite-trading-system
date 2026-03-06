@@ -24,7 +24,7 @@ import log from "@/utils/logger";
 // MOCK DATA
 // ═══════════════════════════════════════════════════
 
-const TIMEFRAMES = ["1m", "5M", "1H", "4H", "D", "W"];
+const TIMEFRAMES = ["1M", "5M", "15M", "1H", "4H", "D", "W"];
 
 const SCANNER_TYPES = [
   "Alpha Scanner", "Momentum Scanner", "Mean Reversion", "Breakout Hunter",
@@ -36,9 +36,14 @@ const PATTERN_TYPES = [
   "Wyckoff", "ICT", "SMC",
 ];
 
+const LLM_MODELS = ["GPT-4", "GPT-4 Turbo", "Claude-3", "Llama-2-70B", "Mixtral-8x7B"];
+
 const ARCHITECTURES = [
-  "Transformer", "LSTM", "CNN-LSTM", "GAN", "Attention-Net", "ResNet", "GPT-4",
+  "Transformer", "LSTM", "CNN-LSTM", "GAN", "Attention-Net", "ResNet",
 ];
+
+const OPTIONS_FLOW_FILTERS = ["Bull Put Spreads", "Bear Call Spreads", "Iron Condors", "Straddles", "Strangles"];
+const PATTERN_COMPLEXITY_OPTS = ["Simple", "Moderate", "Complex", "Fractal", "Multi-Fractal"];
 
 const VOLATILITY_REGIMES = ["Expansion", "Contraction", "Normal", "Extreme"];
 const VOLUME_PROFILES = ["Value Area High", "Value Area Low", "POC", "HVN", "LVN"];
@@ -50,9 +55,9 @@ const MOCK_SCANNER_AGENTS = [
 ];
 
 const MOCK_PATTERN_AGENTS = [
-  { id: "p1", name: "Fractal_Prophet_G4", type: "BPT-L", architecture: "Transformer", status: "active", patternsFound: 237, accuracy: 87.4 },
-  { id: "p2", name: "Harmonic_Oracle_V2", type: "Harmonic", architecture: "LSTM", status: "active", patternsFound: 156, accuracy: 82.1 },
-  { id: "p3", name: "Elliott_Mind_G3", type: "Elliott Wave", architecture: "CNN-LSTM", status: "idle", patternsFound: 98, accuracy: 79.8 },
+  { id: "p1", name: "Fractal_Prophet_G4", type: "BPT-L", llmModel: "GPT-4", architecture: "Transformer", status: "active", patternsFound: 237, accuracy: 87.4 },
+  { id: "p2", name: "Harmonic_Oracle_V2", type: "Harmonic", llmModel: "Claude-3", architecture: "LSTM", status: "active", patternsFound: 156, accuracy: 82.1 },
+  { id: "p3", name: "Elliott_Mind_G3", type: "Elliott Wave", llmModel: "GPT-4 Turbo", architecture: "CNN-LSTM", status: "idle", patternsFound: 98, accuracy: 79.8 },
 ];
 
 const SYMBOLS = ["AAPL", "TSLA", "NVDA", "MSFT", "AMZN", "SPY", "QQQ", "META", "GOOGL", "AMD"];
@@ -87,16 +92,16 @@ function generatePatternChartData(length = 30) {
 }
 
 const MOCK_PATTERNS_ARSENAL = [
-  { id: "pa1", name: "Inv. Head & Shoulders", type: "Reversal", confidence: 94, symbol: "AAPL", timeframe: "4H", data: generatePatternChartData() },
-  { id: "pa2", name: "Bull Flag", type: "Continuation", confidence: 88, symbol: "TSLA", timeframe: "1H", data: generatePatternChartData() },
-  { id: "pa3", name: "Ascending Triangle", type: "Continuation", confidence: 91, symbol: "NVDA", timeframe: "D", data: generatePatternChartData() },
-  { id: "pa4", name: "Double Bottom", type: "Reversal", confidence: 86, symbol: "AMD", timeframe: "4H", data: generatePatternChartData() },
+  { id: "pa1", name: "Wyckoff Accumulation", type: "Reversal", confidence: 94, symbol: "AAPL", timeframe: "D", data: generatePatternChartData() },
+  { id: "pa2", name: "Elliott Wave 3", type: "Continuation", confidence: 91, symbol: "TSLA", timeframe: "4H", data: generatePatternChartData() },
+  { id: "pa3", name: "Head & Shoulders", type: "Reversal", confidence: 88, symbol: "SPY", timeframe: "D", data: generatePatternChartData() },
+  { id: "pa4", name: "Bull Flag", type: "Continuation", confidence: 86, symbol: "NVDA", timeframe: "1H", data: generatePatternChartData() },
 ];
 
 const MOCK_FORMING = [
-  { id: "f1", name: "Cup & Handle", progress: 72, symbol: "MSFT", timeframe: "D", data: generatePatternChartData() },
-  { id: "f2", name: "Descending Wedge", progress: 58, symbol: "META", timeframe: "4H", data: generatePatternChartData() },
-  { id: "f3", name: "Triple Bottom", progress: 41, symbol: "SPY", timeframe: "1H", data: generatePatternChartData() },
+  { id: "f1", name: "Cup & Handle", progress: 72, confidence: 84, symbol: "AMD", timeframe: "D", data: generatePatternChartData() },
+  { id: "f2", name: "Descending Wedge", progress: 58, confidence: 76, symbol: "NVDA", timeframe: "4H", data: generatePatternChartData() },
+  { id: "f3", name: "Triple Bottom", progress: 41, confidence: 68, symbol: "AMD", timeframe: "1H", data: generatePatternChartData() },
 ];
 
 // ═══════════════════════════════════════════════════
@@ -210,27 +215,46 @@ function StatusDot({ status }) {
 // SCREENING ENGINE (LEFT COLUMN)
 // ═══════════════════════════════════════════════════
 
+/** OS-style window chrome dots */
+function WindowChromeDots() {
+  return (
+    <div className="flex items-center gap-1">
+      <div className="w-2 h-2 rounded-full bg-yellow-500/80 hover:bg-yellow-400 cursor-pointer" title="Minimize" />
+      <div className="w-2 h-2 rounded-full bg-green-500/80 hover:bg-green-400 cursor-pointer" title="Maximize" />
+      <div className="w-2 h-2 rounded-full bg-red-500/80 hover:bg-red-400 cursor-pointer" title="Close" />
+    </div>
+  );
+}
+
 function ScannerAgentCard({ agent, selected, onSelect }) {
   return (
     <button
       onClick={() => onSelect?.(agent.id)}
       className={clsx(
-        "w-full text-left p-2 rounded border transition-all",
+        "w-full text-left rounded border transition-all overflow-hidden",
         selected
           ? "border-cyan-500/60 bg-cyan-950/40 shadow-[0_0_8px_rgba(6,182,212,0.15)]"
           : "border-gray-800/60 bg-gray-900/40 hover:border-cyan-800/40"
       )}
     >
-      <div className="flex items-center justify-between mb-1">
+      {/* Window chrome title bar */}
+      <div className="flex items-center justify-between px-2 py-1 bg-gray-800/60 border-b border-gray-700/40">
         <div className="flex items-center gap-1.5">
           <StatusDot status={agent.status} />
-          <span className="text-[11px] font-semibold text-cyan-200">{agent.name}</span>
+          <span className="text-[10px] text-gray-400 font-mono">{agent.name}</span>
         </div>
-        <span className="text-[9px] text-gray-500">{agent.uptime}</span>
+        <WindowChromeDots />
       </div>
-      <div className="flex items-center gap-3 text-[9px] text-gray-400">
-        <span>Type: <span className="text-cyan-400">{agent.type}</span></span>
-        <span>Hits: <span className="text-emerald-400">{agent.hits}</span></span>
+      {/* Card body */}
+      <div className="p-2">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[11px] font-semibold text-cyan-200">{agent.name}</span>
+          <span className="text-[9px] text-gray-500">{agent.uptime}</span>
+        </div>
+        <div className="flex items-center gap-3 text-[9px] text-gray-400">
+          <span>Type: <span className="text-cyan-400">{agent.type}</span></span>
+          <span>Hits: <span className="text-emerald-400">{agent.hits}</span></span>
+        </div>
       </div>
     </button>
   );
@@ -243,16 +267,17 @@ function ScreeningEngine() {
   const [activeTimeframe, setActiveTimeframe] = useState("1H");
 
   // Trading metric controls
-  const [betaThreshold, setBetaThreshold] = useState(1.2);
+  const [rsiThreshold, setRsiThreshold] = useState(1.2);
+  const [alphaTarget, setAlphaTarget] = useState(1.5);
   const [mfi, setMfi] = useState(25);
-  const [shortInterest, setShortInterest] = useState(10);
+  const [shortInterest, setShortInterest] = useState(15);
   const [relativeStrength, setRelativeStrength] = useState(65);
-  const [optionsFlowBull, setOptionsFlowBull] = useState(true);
+  const [optionsFlowFilter, setOptionsFlowFilter] = useState("Bull Put Spreads");
   const [volatilityRegime, setVolatilityRegime] = useState("Expansion");
   const [volumeProfile, setVolumeProfile] = useState("Value Area High");
-  const [darkPoolActivity, setDarkPoolActivity] = useState(70);
-  const [institutionalAccum, setInstitutionalAccum] = useState(55);
-  const [sectorMomentum, setSectorMomentum] = useState(80);
+  const [darkPoolActivity, setDarkPoolActivity] = useState(true);
+  const [institutionalAccum, setInstitutionalAccum] = useState(true);
+  const [sectorMomentum, setSectorMomentum] = useState(true);
 
   // Live feed
   const [feedEntries, setFeedEntries] = useState(() =>
@@ -290,21 +315,34 @@ function ScreeningEngine() {
 
       {/* SCAN AGENT FLEET */}
       <SectionBox title="Scan Agent Fleet" icon={Bot} className="flex-shrink-0">
-        {/* Scanner Agent Cards */}
+        {/* Scanner Agent Cards - stacked with z-index offset */}
         <div className="mb-2">
           <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
             <Layers size={10} />
             Scanner Agent Cards
           </div>
-          <div className="flex flex-col gap-1 max-h-[90px] overflow-y-auto scrollbar-thin">
-            {MOCK_SCANNER_AGENTS.map(a => (
-              <ScannerAgentCard
-                key={a.id}
-                agent={a}
-                selected={a.id === selectedScanner}
-                onSelect={setSelectedScanner}
-              />
-            ))}
+          <div className="relative" style={{ height: `${70 + (MOCK_SCANNER_AGENTS.length - 1) * 18}px` }}>
+            {MOCK_SCANNER_AGENTS.slice().reverse().map((a, idx, arr) => {
+              const stackIdx = arr.length - 1 - idx;
+              const isSelected = a.id === selectedScanner;
+              return (
+                <div
+                  key={a.id}
+                  className="absolute left-0 right-0 transition-all"
+                  style={{
+                    top: `${stackIdx * 18}px`,
+                    zIndex: isSelected ? 20 : stackIdx + 1,
+                    transform: isSelected ? "scale(1.01)" : "scale(1)",
+                  }}
+                >
+                  <ScannerAgentCard
+                    agent={a}
+                    selected={isSelected}
+                    onSelect={setSelectedScanner}
+                  />
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -359,27 +397,34 @@ function ScreeningEngine() {
 
           <div className="space-y-1">
             <MetricRow label="RSI Threshold 0-3">
-              <Slider min={0} max={3} step={0.1} value={betaThreshold} onChange={setBetaThreshold}
+              <Slider min={0} max={3} step={0.1} value={rsiThreshold} onChange={setRsiThreshold}
                 suffix="" showValue className="flex-1" inputClassName="h-1.5" />
-              <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{betaThreshold.toFixed(1)}</span>
+              <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{rsiThreshold.toFixed(1)}</span>
               <MiniSparkline data={generatePatternChartData(15)} width={44} height={16} />
             </MetricRow>
 
-            <MetricRow label="MFI 0-50">
-              <Slider min={0} max={50} step={1} value={mfi} onChange={setMfi}
+            <MetricRow label="Alpha Target >1.5">
+              <Slider min={0} max={5} step={0.1} value={alphaTarget} onChange={setAlphaTarget}
                 showValue={false} className="flex-1" inputClassName="h-1.5" />
-              <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{mfi}</span>
+              <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{alphaTarget.toFixed(1)}</span>
               <MiniSparkline data={generatePatternChartData(15)} width={44} height={16} />
             </MetricRow>
 
-            <MetricRow label="Short Interest">
+            <MetricRow label="MFI 0-100 >10%">
+              <Slider min={0} max={100} step={1} value={mfi} onChange={setMfi}
+                showValue={false} className="flex-1" inputClassName="h-1.5" />
+              <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{mfi}%</span>
+              <MiniSparkline data={generatePatternChartData(15)} width={44} height={16} />
+            </MetricRow>
+
+            <MetricRow label="Short Interest >10%">
               <Slider min={0} max={100} step={1} value={shortInterest} onChange={setShortInterest}
                 suffix="%" showValue={false} className="flex-1" inputClassName="h-1.5" />
               <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{shortInterest}%</span>
               <MiniSparkline data={generatePatternChartData(15)} width={44} height={16} />
             </MetricRow>
 
-            <MetricRow label="Relative Strength vs SPX">
+            <MetricRow label="Relative Strength">
               <Slider min={0} max={100} step={1} value={relativeStrength} onChange={setRelativeStrength}
                 showValue={false} className="flex-1" inputClassName="h-1.5" />
               <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{relativeStrength}</span>
@@ -387,8 +432,13 @@ function ScreeningEngine() {
             </MetricRow>
 
             <MetricRow label="Options Flow Filter">
-              <Toggle value={optionsFlowBull} onChange={setOptionsFlowBull} />
-              <span className="text-[10px] text-cyan-400">Bull Put Spreads</span>
+              <select
+                value={optionsFlowFilter}
+                onChange={e => setOptionsFlowFilter(e.target.value)}
+                className="bg-gray-900/80 border border-cyan-900/40 rounded px-1 py-0 text-[10px] text-cyan-300 focus:outline-none"
+              >
+                {OPTIONS_FLOW_FILTERS.map(v => <option key={v} value={v}>{v}</option>)}
+              </select>
             </MetricRow>
 
             <MetricRow label="Volatility Regime">
@@ -412,21 +462,18 @@ function ScreeningEngine() {
             </MetricRow>
 
             <MetricRow label="Dark Pool Activity">
-              <Slider min={0} max={100} step={1} value={darkPoolActivity} onChange={setDarkPoolActivity}
-                showValue={false} className="flex-1" inputClassName="h-1.5" />
-              <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{darkPoolActivity}</span>
+              <Toggle value={darkPoolActivity} onChange={setDarkPoolActivity} />
+              <span className="text-[9px] text-cyan-400">{darkPoolActivity ? "ON" : "OFF"}</span>
             </MetricRow>
 
             <MetricRow label="Institutional Accumulation">
-              <Slider min={0} max={100} step={1} value={institutionalAccum} onChange={setInstitutionalAccum}
-                showValue={false} className="flex-1" inputClassName="h-1.5" />
-              <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{institutionalAccum}</span>
+              <Toggle value={institutionalAccum} onChange={setInstitutionalAccum} />
+              <span className="text-[9px] text-cyan-400">{institutionalAccum ? "ON" : "OFF"}</span>
             </MetricRow>
 
             <MetricRow label="Sector Momentum">
-              <Slider min={0} max={100} step={1} value={sectorMomentum} onChange={setSectorMomentum}
-                showValue={false} className="flex-1" inputClassName="h-1.5" />
-              <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{sectorMomentum}</span>
+              <Toggle value={sectorMomentum} onChange={setSectorMomentum} />
+              <span className="text-[9px] text-cyan-400">{sectorMomentum ? "ON" : "OFF"}</span>
             </MetricRow>
           </div>
         </div>
@@ -436,7 +483,7 @@ function ScreeningEngine() {
           <TealButton icon={Plus} onClick={() => log.info("Spawn scanner agent")}>Spawn New Scanner Agent</TealButton>
           <TealButton icon={Copy} variant="secondary" onClick={() => log.info("Clone agent")}>Clone Agent</TealButton>
           <TealButton icon={Boxes} onClick={() => log.info("Spawn swarm")}>Spawn Swarm</TealButton>
-          <TealButton icon={Layers} variant="secondary" onClick={() => log.info("Swarm template")}>Swarm Template</TealButton>
+          <TealButton icon={Layers} variant="secondary" onClick={() => log.info("Swarm template")}>Swarm Templates</TealButton>
           <TealButton icon={Skull} variant="danger" onClick={() => log.info("Kill all agents")}>Kill All Agents</TealButton>
         </div>
       </SectionBox>
@@ -482,23 +529,30 @@ function PatternAgentCard({ agent, selected, onSelect }) {
     <button
       onClick={() => onSelect?.(agent.id)}
       className={clsx(
-        "w-full text-left p-2 rounded border transition-all",
+        "w-full text-left rounded border transition-all overflow-hidden",
         selected
           ? "border-cyan-500/60 bg-cyan-950/40 shadow-[0_0_8px_rgba(6,182,212,0.15)]"
           : "border-gray-800/60 bg-gray-900/40 hover:border-cyan-800/40"
       )}
     >
-      <div className="flex items-center justify-between mb-1">
+      {/* Window chrome title bar */}
+      <div className="flex items-center justify-between px-2 py-1 bg-gray-800/60 border-b border-gray-700/40">
         <div className="flex items-center gap-1.5">
           <StatusDot status={agent.status} />
-          <span className="text-[11px] font-semibold text-cyan-200">{agent.name}</span>
+          <span className="text-[10px] text-gray-400 font-mono">{agent.name}</span>
         </div>
-        <span className="text-[9px] text-emerald-400">{agent.accuracy}%</span>
+        <WindowChromeDots />
       </div>
-      <div className="flex items-center gap-3 text-[9px] text-gray-400">
-        <span>Type: <span className="text-cyan-400">{agent.type}</span></span>
-        <span>Arch: <span className="text-purple-400">{agent.architecture}</span></span>
-        <span>Found: <span className="text-emerald-400">{agent.patternsFound}</span></span>
+      {/* Card body */}
+      <div className="p-2">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[11px] font-semibold text-cyan-200">{agent.name}</span>
+          <span className="text-[9px] text-emerald-400">{agent.accuracy}%</span>
+        </div>
+        <div className="flex items-center gap-3 text-[9px] text-gray-400">
+          <span>LLM Model: <span className="text-purple-400">{agent.llmModel}</span></span>
+          <span>M. Architecture: <span className="text-cyan-400">{agent.architecture}</span></span>
+        </div>
       </div>
     </button>
   );
@@ -725,7 +779,7 @@ function PatternIntelligence() {
         <div className="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-cyan-900/30">
           <TealButton icon={Plus} onClick={() => log.info("Spawn pattern agent")}>Spawn New Pattern Agent</TealButton>
           <TealButton icon={Boxes} onClick={() => log.info("Spawn discovery swarm")}>Spawn Discovery Swarm</TealButton>
-          <TealButton icon={Layers} variant="secondary" onClick={() => log.info("Swarm template")}>Swarm Template</TealButton>
+          <TealButton icon={Layers} variant="secondary" onClick={() => log.info("Swarm template")}>Swarm Templates</TealButton>
           <TealButton icon={Skull} variant="danger" onClick={() => log.info("Kill all agents")}>Kill All Agents</TealButton>
         </div>
       </SectionBox>

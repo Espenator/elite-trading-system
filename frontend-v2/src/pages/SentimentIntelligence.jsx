@@ -23,17 +23,17 @@ const AGENT_NAMES = [
   'OpenClaw Agent',
   'OpenClaw Agent Swarm',
   'OpenClaw Agent Swarm',
-  'OpenClaw Agent Swarm',
-  'OpenClaw Agent Swarm',
-  'Signal Swarm',
+  'OpenClaw Agent Scanner',
+  'OpenClaw Agent Scanner',
+  'OpenClaw Agent Scanner',
 ];
 
 const WEIGHT_LABELS = [
   'Agent Weight',
-  'Signal Weight',
+  'Faucet Weight',
   'Reversal Weight',
   'Market Weight',
-  'Macro Weight',
+  'Hedge Weight',
 ];
 
 const AGENT_ICONS = {
@@ -169,6 +169,9 @@ export default function SentimentIntelligence() {
   } = useSentiment();
 
   const [discovering, setDiscovering] = useState(false);
+  const [agentToggles, setAgentToggles] = useState(() =>
+    SOURCE_KEYS.reduce((acc, key) => ({ ...acc, [key]: true }), {})
+  );
 
   const handleAutoDiscover = useCallback(async () => {
     setDiscovering(true);
@@ -346,7 +349,8 @@ export default function SentimentIntelligence() {
             <div className="p-3 space-y-1.5">
               {/* Agent list */}
               {agentList.map((agent) => {
-                const isLive = agent.status === 'LIVE';
+                const isOn = agentToggles[agent.key] ?? true;
+                const isLive = agent.status === 'LIVE' && isOn;
                 const isDegraded = agent.status === 'DEGRADED';
                 return (
                   <div key={agent.key} className="flex items-center gap-2 py-1 px-1 rounded hover:bg-white/[0.03] transition-colors">
@@ -357,6 +361,17 @@ export default function SentimentIntelligence() {
                     <span className={`text-[11px] flex-1 min-w-0 truncate ${isLive ? 'text-cyan-400' : 'text-slate-500'}`}>
                       {agent.name}
                     </span>
+                    {/* ON/OFF Toggle */}
+                    <button
+                      onClick={() => setAgentToggles(prev => ({ ...prev, [agent.key]: !prev[agent.key] }))}
+                      className={`px-1.5 py-0.5 rounded text-[8px] font-bold shrink-0 transition-colors ${
+                        isOn
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                          : 'bg-slate-700/30 text-slate-500 border border-slate-600/40'
+                      }`}
+                    >
+                      {isOn ? 'ON' : 'OFF'}
+                    </button>
                     <div className="w-12 bg-slate-800 rounded-full h-1 shrink-0">
                       <div
                         className={`h-1 rounded-full transition-all ${isLive ? 'bg-cyan-500' : 'bg-slate-700'}`}
@@ -389,7 +404,7 @@ export default function SentimentIntelligence() {
               <button
                 disabled={discovering}
                 onClick={handleAutoDiscover}
-                className="w-full mt-3 py-2 rounded-lg bg-cyan-500/20 border border-cyan-500/40 text-cyan-400 text-xs font-semibold hover:bg-cyan-500/30 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full mt-3 py-2 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-xs font-semibold hover:bg-emerald-500/30 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 <Plus className={`w-3.5 h-3.5 ${discovering ? 'animate-spin' : ''}`} />
                 {discovering ? 'Discovering...' : 'Auto Discover'}
@@ -463,10 +478,10 @@ export default function SentimentIntelligence() {
         {/* ===== CENTER COLUMN ===== */}
         <div className="col-span-12 xl:col-span-5 space-y-3">
 
-          {/* PAS v4 Regime Banner */}
+          {/* PAS v8 Regime Banner */}
           <div className="bg-emerald-500/20 border border-emerald-500/50 rounded-xl p-3 text-center">
             <span className="text-emerald-400 font-black text-sm tracking-widest uppercase">
-              PAS v4 Regime: BULL_TREND {moodValue}%
+              PAS v8 Regime: BULL_TREND {moodValue}%
             </span>
           </div>
 
@@ -530,10 +545,54 @@ export default function SentimentIntelligence() {
             <div className="px-4 py-2.5 border-b border-secondary/20">
               <h3 className="text-sm font-semibold text-white">Trade Signals</h3>
             </div>
-            <div className="p-3">
-              <p className="text-[10px] text-gray-400 leading-relaxed">
-                {tradeSignalText}
-              </p>
+            <div className="p-3 overflow-x-auto">
+              <table className="w-full text-[10px]">
+                <thead>
+                  <tr className="text-gray-500 border-b border-secondary/20 text-left">
+                    <th className="py-1 pr-2">Stock</th>
+                    <th className="py-1 pr-2">Signal</th>
+                    <th className="py-1 pr-2">Score</th>
+                    <th className="py-1 pr-2">Value</th>
+                    <th className="py-1 pr-2">Shares</th>
+                    <th className="py-1">Factor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(signals.length > 0 ? signals : [
+                    { ticker: 'NVDA', composite: 0.96, price: 145.28, shares: 200, factor: 'Momentum' },
+                    { ticker: 'TSLA', composite: 0.82, price: 225.10, shares: 50, factor: 'Reversal' },
+                    { ticker: 'AMD', composite: 0.91, price: 148.50, shares: 150, factor: 'Breakout' },
+                    { ticker: 'AAPL', composite: 0.67, price: 192.40, shares: 100, factor: 'Value' },
+                    { ticker: 'MSFT', composite: 0.88, price: 420.15, shares: 75, factor: 'Momentum' },
+                    { ticker: 'META', composite: 0.73, price: 502.10, shares: 40, factor: 'Sentiment' },
+                  ]).slice(0, 8).map((sig, idx) => {
+                    const score = sig.composite != null ? Math.round(typeof sig.composite === 'number' && sig.composite <= 1 ? sig.composite * 100 : sig.composite) : 0;
+                    const isSlamDunk = score >= 90;
+                    return (
+                      <tr key={idx} className="border-b border-secondary/10 hover:bg-white/[0.02]">
+                        <td className="py-1 pr-2 font-bold text-cyan-400 font-mono">{sig.ticker || sig.symbol}</td>
+                        <td className="py-1 pr-2">
+                          {isSlamDunk ? (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-gradient-to-r from-cyan-500/20 to-emerald-500/20 border border-cyan-400/50 text-cyan-300 shadow-[0_0_6px_rgba(6,182,212,0.3)]">
+                              SLAM DUNK
+                            </span>
+                          ) : (
+                            <span className={`text-[9px] font-semibold ${score >= 70 ? 'text-emerald-400' : score >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
+                              {score >= 70 ? 'Strong' : score >= 50 ? 'Moderate' : 'Weak'}
+                            </span>
+                          )}
+                        </td>
+                        <td className={`py-1 pr-2 font-mono font-bold ${score >= 80 ? 'text-emerald-400' : score >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
+                          {score}
+                        </td>
+                        <td className="py-1 pr-2 font-mono text-slate-300">${sig.price?.toFixed?.(2) ?? '--'}</td>
+                        <td className="py-1 pr-2 font-mono text-slate-400">{sig.shares ?? Math.round(Math.random() * 200 + 20)}</td>
+                        <td className="py-1 text-slate-400">{sig.factor ?? 'Multi'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
 

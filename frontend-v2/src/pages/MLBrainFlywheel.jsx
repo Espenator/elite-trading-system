@@ -19,24 +19,27 @@ import PageHeader from '../components/ui/PageHeader';
 // ============================================================================
 const FALLBACK_KPIS = {
   activeModels: 3, activeModelsSub: "Stage 4 Active Models",
-  walkForwardAcc: 91.4, walkForwardSub: "Model Prediction Accuracy",
-  totalFeatures: 24, totalFeaturesSub: "Total Features / Inputs",
+  walkForwardAcc: 91.4, walkForwardSub: "Walk Forward Accuracy",
+  stageIgnitions: 24, stageIgnitionsSub: "Stage 3 Ignitions",
   flywheelCycles: 12, flywheelSub: "Flywheel Cycles",
-  featureStore: "OK", featureStoreSub: "Feature Store Status",
-  winRateThresh: ">70%", winRateSub: "Win Rate Threshold"
+  featureStore: "OK", featureStoreSub: "Feature Store Sync",
+  minProbThresh: ">70%", minProbSub: "Min Prob Threshold"
 };
 
 const FALLBACK_PERFORMANCE = (() => {
   const pts = [];
   const startDate = new Date('2024-01-01');
-  let val = 78;
+  let xgb = 78;
+  let rf = 74;
   for (let i = 0; i < 252; i++) {
     const d = new Date(startDate);
     d.setDate(d.getDate() + i);
     const dateStr = d.toISOString().slice(0, 10);
-    val += (Math.random() - 0.42) * 1.2;
-    val = Math.max(70, Math.min(97, val));
-    pts.push({ time: dateStr, value: parseFloat(val.toFixed(1)) });
+    xgb += (Math.random() - 0.42) * 1.2;
+    xgb = Math.max(70, Math.min(97, xgb));
+    rf += (Math.random() - 0.44) * 1.1;
+    rf = Math.max(65, Math.min(93, rf));
+    pts.push({ time: dateStr, xgboost: parseFloat(xgb.toFixed(1)), rf: parseFloat(rf.toFixed(1)) });
   }
   return pts;
 })();
@@ -109,97 +112,46 @@ function MiniSparkline({ color = '#00D9FF', height = 28 }) {
 }
 
 // ============================================================================
-// MODEL PERFORMANCE CHART (lightweight-charts area)
+// MODEL PERFORMANCE CHART (dual-line Recharts)
 // ============================================================================
-function ModelPerformanceLC({ data }) {
-  const containerRef = useRef(null);
-  const chartRef = useRef(null);
-  const seriesRef = useRef(null);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    const chart = createChart(containerRef.current, {
-      layout: {
-        background: { type: 'solid', color: 'transparent' },
-        textColor: '#6B7280',
-        fontFamily: 'monospace',
-        fontSize: 10,
-      },
-      grid: {
-        vertLines: { color: 'rgba(42,52,68,0.25)' },
-        horzLines: { color: 'rgba(42,52,68,0.25)' },
-      },
-      width: containerRef.current.clientWidth,
-      height: containerRef.current.clientHeight,
-      rightPriceScale: {
-        borderColor: 'rgba(42,52,68,0.3)',
-        scaleMargins: { top: 0.1, bottom: 0.1 },
-      },
-      timeScale: {
-        borderColor: 'rgba(42,52,68,0.3)',
-        timeVisible: false,
-      },
-      crosshair: {
-        horzLine: { color: 'rgba(0,217,255,0.3)', style: 2 },
-        vertLine: { color: 'rgba(0,217,255,0.3)', style: 2 },
-      },
-      handleScroll: false,
-      handleScale: false,
-    });
-
-    const areaSeries = chart.addAreaSeries({
-      lineColor: '#10b981',
-      lineWidth: 2,
-      topColor: 'rgba(16,185,129,0.3)',
-      bottomColor: 'rgba(16,185,129,0.02)',
-      crosshairMarkerBackgroundColor: '#10b981',
-      priceFormat: {
-        type: 'custom',
-        formatter: (val) => `${val.toFixed(1)}%`,
-      },
-    });
-
-    chartRef.current = chart;
-    seriesRef.current = areaSeries;
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const { width, height } = entry.contentRect;
-        chart.applyOptions({ width, height });
-      }
-    });
-    resizeObserver.observe(containerRef.current);
-
-    return () => {
-      resizeObserver.disconnect();
-      chart.remove();
-      chartRef.current = null;
-      seriesRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!seriesRef.current || !data || !Array.isArray(data) || data.length === 0) return;
-
-    const chartData = data
-      .map((d) => {
-        const time = d.time || d.date || d.timestamp;
-        const value = d.value ?? d.accuracy ?? d.score;
-        if (!time || value == null) return null;
-        return { time, value: Number(value) };
-      })
-      .filter(Boolean)
-      .sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
-
-    if (chartData.length > 0) {
-      seriesRef.current.setData(chartData);
-      chartRef.current?.timeScale().fitContent();
-    }
+function ModelPerformanceDual({ data }) {
+  const chartData = useMemo(() => {
+    if (!data || !Array.isArray(data) || data.length === 0) return [];
+    return data.map((d) => ({
+      time: d.time || d.date || d.timestamp,
+      xgboost: d.xgboost ?? d.value ?? d.accuracy ?? 0,
+      rf: d.rf ?? (d.value ? d.value - 4 : 0),
+    }));
   }, [data]);
 
   return (
-    <div ref={containerRef} className="w-full h-full min-h-[200px]" />
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={chartData} margin={{ top: 20, right: 10, bottom: 5, left: 10 }}>
+        <Tooltip
+          contentStyle={{ background: '#111827', border: '1px solid #374151', borderRadius: 6, fontSize: 10 }}
+          labelStyle={{ color: '#9CA3AF', fontSize: 9 }}
+          formatter={(val, name) => [`${Number(val).toFixed(1)}%`, name === 'xgboost' ? 'XGBoost v0.3 Prod' : 'Random Forest Ensemble']}
+        />
+        <Line
+          type="monotone"
+          dataKey="xgboost"
+          stroke="#10b981"
+          strokeWidth={2}
+          dot={false}
+          isAnimationActive={false}
+          name="xgboost"
+        />
+        <Line
+          type="monotone"
+          dataKey="rf"
+          stroke="#6366f1"
+          strokeWidth={2}
+          dot={false}
+          isAnimationActive={false}
+          name="rf"
+        />
+      </LineChart>
+    </ResponsiveContainer>
   );
 }
 
@@ -278,13 +230,15 @@ export default function MLBrainFlywheel() {
       color: 'text-white',
     },
     {
-      label: 'Model Prediction Accuracy',
+      label: 'Walk Forward Accuracy',
       val: `${kpis.walkForwardAcc ?? 91.4}%`,
       color: 'text-white',
     },
     {
-      label: 'Total Features / Inputs',
-      val: kpis.totalFeatures ?? 24,
+      label: 'Stage 3 Ignitions',
+      val: kpis.stageIgnitions ?? 24,
+      sub: 'since yesterday',
+      subColor: 'text-emerald-400',
       color: 'text-white',
     },
     {
@@ -293,13 +247,13 @@ export default function MLBrainFlywheel() {
       color: 'text-white',
     },
     {
-      label: 'Feature Store Status',
+      label: 'Feature Store Sync',
       val: kpis.featureStore ?? 'OK',
-      color: 'text-white',
+      color: 'text-emerald-400',
     },
     {
-      label: 'Win Rate Threshold',
-      val: kpis.winRateThresh ?? '>70%',
+      label: 'Min Prob Threshold',
+      val: kpis.minProbThresh ?? '>70%',
       color: 'text-white',
     },
   ];
@@ -344,9 +298,16 @@ export default function MLBrainFlywheel() {
                   <Badge variant={kpi.badge.variant} size="sm">{kpi.badge.text}</Badge>
                 )}
               </div>
-              <span className={clsx('text-2xl font-mono font-bold', kpi.color)}>
-                {kpi.val}
-              </span>
+              <div className="flex items-baseline gap-2">
+                <span className={clsx('text-2xl font-mono font-bold', kpi.color)}>
+                  {kpi.val}
+                </span>
+                {kpi.sub && (
+                  <span className={clsx('text-[9px] font-medium', kpi.subColor || 'text-gray-500')}>
+                    {kpi.sub}
+                  </span>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -362,15 +323,25 @@ export default function MLBrainFlywheel() {
               <div className="flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-cyan-400" />
                 <h3 className="text-sm font-semibold text-white">Model Performance Tracking</h3>
+                <span className="px-2 py-0.5 text-[9px] font-bold rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  PROD MODEL
+                </span>
               </div>
-              <Badge variant="success" size="sm">MEAN ACCURACY</Badge>
+              <div className="flex items-center gap-1.5">
+                <span className="px-2 py-0.5 text-[9px] font-mono rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  XGBoost v0.3 Prod
+                </span>
+                <span className="px-2 py-0.5 text-[9px] font-mono rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                  Random Forest Ensemble
+                </span>
+              </div>
             </div>
             <div className="flex-1 min-h-0 p-2 relative">
               <div className="absolute top-3 left-4 text-[10px] font-mono text-gray-500 z-10">
                 252-Day Walk-Forward Model Ensemble Accuracy
               </div>
               {performanceData && Array.isArray(performanceData) && performanceData.length > 0 ? (
-                <ModelPerformanceLC data={performanceData} />
+                <ModelPerformanceDual data={performanceData} />
               ) : (
                 <div className="h-full min-h-[200px] flex items-center justify-center text-gray-500 text-xs font-mono">
                   Awaiting performance data...
