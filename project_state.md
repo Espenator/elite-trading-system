@@ -193,16 +193,71 @@ AlpacaStreamService
 6. Council Gate: signal.generated -> CouncilGate -> run_council() -> council.verdict -> OrderExecutor
 7. Weight Learning: WeightLearner.update(agent, won) adjusts Bayesian alpha/beta -> arbiter uses learned weights
 
-## Current State (Mar 5, 2026 — v3.2.0)
+## Current State (Mar 6, 2026 — v3.2.0)
 - CI: 151 tests passing (Run #452 GREEN)
 - Version: 3.2.0
-- Frontend: 15 pages, all wired to real API hooks
+- Frontend: 17 pages (15 original + SwarmIntelligence + CognitiveDashboard), all wired to real API hooks
 - Backend: 29 API routes, 24 service files
 - Council: 13 agents + arbiter + runner + CouncilGate + WeightLearner (fully connected to pipeline)
 - Brain Service: gRPC + Ollama ready (not yet connected to council)
 - Event Pipeline: MessageBus + CouncilGate + SignalEngine + OrderExecutor running
 - Kelly Sizing: Real DuckDB stats (no hardcoded values)
 - Mock Guard: OrderExecutor rejects trades from mock data sources
+
+## UI MOCKUP FIDELITY AUDIT (Mar 6, 2026)
+
+> **Full report**: `docs/MOCKUP-FIDELITY-AUDIT.md`
+> **Source of truth**: 23 mockup images in `docs/mockups-v3/images/`
+
+A comprehensive pixel-by-pixel audit was performed comparing all 23 mockup images against all 17 frontend page files. Below is the status of each page.
+
+### Page Fidelity Status
+
+| Page | Mockup(s) | Route | File | Match | Effort |
+|------|-----------|-------|------|-------|--------|
+| Dashboard | `02-intelligence-dashboard.png` | `/dashboard` | `Dashboard.jsx` | 🟢 GOOD | Polish only |
+| ACC Swarm Overview | `01-agent-command-center-final.png` | `/agents` tab 1 | `AgentCommandCenter.jsx` | 🔴 MAJOR GAP | 8-12h rewrite |
+| ACC Agent Registry | `05c-agent-registry.png` | `/agents` tab 2 | `AgentCommandCenter.jsx` | 🟡 PARTIAL | 3-4h fixes |
+| ACC Spawn & Scale | `05b-agent-command-center-spawn.png` | `/agents` tab 3 | `AgentCommandCenter.jsx` | 🟢 GOOD | Polish only |
+| ACC Live Wiring | `05-agent-command-center.png` | `/agents` tab 4 | `AgentCommandCenter.jsx` | 🟡 PARTIAL | 2-3h fixes |
+| ACC Blackboard | `realtimeblackbard fead.png` | `/agents` tab 5 | `AgentCommandCenter.jsx` | 🟡 PARTIAL | 2h fixes |
+| ACC Brain Map | `agent command center brain map.png` | `/agents` tab 9 | `AgentCommandCenter.jsx` | 🟡 PARTIAL | 2-3h fixes |
+| ACC Node Control | `agent command center node control.png` | `/agents` tab 10 | `AgentCommandCenter.jsx` | 🟡 PARTIAL | 4-6h missing panels |
+| Signal Intelligence | `03-signal-intelligence.png` | `/signal-intelligence-v3` | `SignalIntelligenceV3.jsx` | 🟢 GOOD | Polish only |
+| Sentiment | `04-sentiment-intelligence.png` | `/sentiment` | `SentimentIntelligence.jsx` | 🟡 PARTIAL | 2-3h fixes |
+| ML Brain & Flywheel | `06-ml-brain-flywheel.png` | `/ml-brain` | `MLBrainFlywheel.jsx` | 🟢 GOOD | Polish only |
+| Screener & Patterns | `07-screener-and-patterns.png` | `/patterns` | `Patterns.jsx` | 🟢 GOOD | Polish only |
+| Backtesting Lab | `08-backtesting-lab.png` | `/backtest` | `Backtesting.jsx` | 🟢 GOOD | Polish only |
+| Data Sources | `09-data-sources-manager.png` | `/data-sources` | `DataSourcesMonitor.jsx` | 🟢 CLOSE | Verified DONE |
+| Market Regime | `10-market-regime-green/red.png` | `/market-regime` | `MarketRegime.jsx` | 🟢 CLOSE | Verified DONE |
+| Performance Analytics | `11-performance-analytics-fullpage.png` | `/performance` | `PerformanceAnalytics.jsx` | 🟡 PARTIAL | 3-4h fixes |
+| Trade Execution | `12-trade-execution.png` | `/trade-execution` | `TradeExecution.jsx` | 🟡 PARTIAL | 2-3h fixes |
+| Risk Intelligence | `13-risk-intelligence.png` | `/risk` | `RiskIntelligence.jsx` | 🟡 PARTIAL | 2-3h fixes |
+| Settings | `14-settings.png` | `/settings` | `Settings.jsx` | 🟢 GOOD | Polish only |
+| Active Trades | `Active-Trades.png` | `/trades` | `Trades.jsx` | 🟢 CLOSE | Verified DONE |
+| Cognitive Telemetry | ❌ NO MOCKUP | `/cognitive-dashboard` | `CognitiveDashboard.jsx` | ❓ No target | Needs mockup |
+| Swarm Intelligence | ⚠️ DUPLICATE of ACC | `/swarm-intelligence` | `SwarmIntelligence.jsx` | 🔴 CONFLICT | Merge or delete |
+
+### Priority Fix Queue
+
+**P0 (Critical — structure wrong):**
+1. ACC Swarm Overview: mockup shows 12+ dense panels, code has simple card grid → full restructure
+2. ACC Node Control: missing HITL detail table, Override History, Analytics charts
+3. Footer consistency: some pages have footers, some don't. Design system requires footer on ALL pages
+4. SwarmIntelligence.jsx: duplicates ACC at separate route → decision needed: merge or delete
+
+**P1 (Medium — missing panels/components):**
+5. ACC sub-tabs and missing panels across multiple tabs
+6. Sentiment: heatmap density, scanner matrix dots, emergency alerts
+7. Performance Analytics: Trading Grade badge position, Returns Heatmap
+8. Card `border-radius` standardization (`rounded-md` per design system vs `rounded-xl` in code)
+9. Card header styling (ALL CAPS text-xs slate-400 per design system)
+10. JetBrains Mono font loading
+
+**P2 (Minor — cosmetic polish):**
+11. All pages: font sizes, bar proportions, chart colors, slider styling
+
+**Total estimated effort: 33-47 hours**
 
 ## Rules for AI Assistants
 
