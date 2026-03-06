@@ -185,38 +185,48 @@ export default function Trades() {
     URL.revokeObjectURL(url);
   };
 
+  const tradingMode = (systemData?.tradingMode || systemData?.trading_mode || "live").toUpperCase();
+
   // ── RENDER ──
   return (
-    <div className="flex flex-col h-full min-h-0 animate-in fade-in duration-500">
-      {/* ══ TOP COMMAND STRIP - Teal bar matching mockup ══ */}
-      <div className="flex items-center justify-between px-4 py-3 bg-cyan-500 text-black flex-shrink-0">
+    <div className="flex flex-col h-full min-h-0">
+      {/* ══════════════════════════════════════════════════════════════════
+          TOP COMMAND STRIP — Teal bar (matches mockup top-bar)
+          ══════════════════════════════════════════════════════════════════ */}
+      <div className="h-[60px] bg-cyan-500 flex items-center justify-between px-4 flex-shrink-0 text-black">
+        {/* Left: title + status pills */}
         <div className="flex items-center gap-3">
-          <BarChart3 className="w-5 h-5" />
-          <span className="text-base font-bold font-mono tracking-wider">ACTIVE_TRADES_V3</span>
-          <span className="px-2 py-0.5 bg-black/10 border border-black/20 rounded text-[9px] font-bold">OC_CORE_v5.2.1</span>
-          <span className="px-2 py-0.5 bg-black/10 border border-black/20 rounded text-[9px] font-bold">WS_LATENCY: --ms</span>
+          <BarChart3 className="w-5 h-5" strokeWidth={2} />
+          <span className="text-[16px] font-bold font-mono tracking-wide">ACTIVE_TRADES_V3</span>
+          <div className="flex items-center gap-2 ml-2">
+            <span className="px-2 py-0.5 bg-black/10 border border-black/20 rounded text-[9px] font-bold">OC_CORE_v5.2.1</span>
+            <span className="px-2 py-0.5 bg-black/10 border border-black/20 rounded text-[9px] font-bold">WS_LATENCY: --ms</span>
+            <span className="px-2 py-0.5 bg-black/10 border border-black/20 rounded text-[9px] font-bold">API_LIMIT: 95%</span>
+          </div>
         </div>
+
+        {/* Right: account metrics + trade mode */}
         <div className="flex items-center gap-6">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-semibold opacity-80">EQUITY</span>
-            <span className="text-base font-bold font-mono">{fmtM(equity)}</span>
+          <div className="flex items-baseline gap-1.5">
+            <label className="text-[10px] font-semibold opacity-80">EQUITY</label>
+            <span className="text-[16px] font-bold font-mono">{fmtM(equity)}</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-semibold opacity-80">DAY P&L</span>
-            <span className="text-base font-bold font-mono">{fmtM(dayPnl)}</span>
+          <div className="flex items-baseline gap-1.5">
+            <label className="text-[10px] font-semibold opacity-80">DAY P&L</label>
+            <span className="text-[16px] font-bold font-mono">{fmtM(dayPnl)}</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-semibold opacity-80">BUYING POWER</span>
-            <span className="text-base font-bold font-mono">{fmtM(buyingPower)}</span>
+          <div className="flex items-baseline gap-1.5">
+            <label className="text-[10px] font-semibold opacity-80">BUYING POWER</label>
+            <span className="text-[16px] font-bold font-mono">{fmtM(buyingPower)}</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-semibold opacity-80">EXPOSURE</span>
-            <span className="text-base font-bold font-mono">{(Number(exposure) || 0).toFixed(1)}%</span>
+          <div className="flex items-baseline gap-1.5">
+            <label className="text-[10px] font-semibold opacity-80">EXPOSURE</label>
+            <span className="text-[16px] font-bold font-mono">{(Number(exposure) || 0).toFixed(1)}%</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-bold">TRADE MODE:</span>
-            {(systemData?.tradingMode || systemData?.trading_mode || "live").toUpperCase() === "LIVE" ? (
-              <span className="px-2 py-0.5 bg-red-600 text-white rounded text-[9px] font-bold animate-pulse">LIVE</span>
+            {tradingMode === "LIVE" ? (
+              <span className="px-2 py-0.5 bg-emerald-500 text-white rounded text-[9px] font-bold">LIVE</span>
             ) : (
               <span className="px-2 py-0.5 bg-emerald-500 text-white rounded text-[9px] font-bold">PAPER</span>
             )}
@@ -224,75 +234,120 @@ export default function Trades() {
         </div>
       </div>
 
-      {/* ══ SPLIT LAYOUT - Positions top, Orders bottom ══ */}
+      {/* ══════════════════════════════════════════════════════════════════
+          SPLIT LAYOUT — Positions (top) + Orders (bottom)
+          ══════════════════════════════════════════════════════════════════ */}
       <div className="flex-1 flex flex-col gap-3 p-3 min-h-0 overflow-hidden">
 
         {/* ── POSITIONS PANEL ── */}
-        <div className="flex-1 flex flex-col bg-slate-800/40 border border-slate-700/50 rounded-lg min-h-0 overflow-hidden">
-          <div className="flex items-center justify-between px-3 py-2 bg-slate-900/60 border-b border-slate-700/50">
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-[#1A222C] border border-[#2D3748] rounded-md">
+          {/* Panel header */}
+          <div className="flex items-center justify-between px-3 py-2 bg-[#212A35] border-b border-[#2D3748] flex-shrink-0">
             <span className="text-xs font-semibold text-slate-200">OPEN POSITIONS ({posCount})</span>
             <div className="flex items-center gap-2">
               <input
-                type="text" placeholder="Filter..." value={posFilter}
+                type="text"
+                placeholder="Filter..."
+                value={posFilter}
                 onChange={(e) => setPosFilter(e.target.value)}
-                className="px-2 py-1 bg-slate-900 border border-slate-700 rounded text-[10px] text-slate-300 w-24 outline-none focus:border-cyan-500"
+                className="px-2 py-1 bg-[#131A22] border border-[#2D3748] rounded text-[10px] text-slate-300 font-mono w-24 outline-none focus:border-cyan-500"
               />
-              <button onClick={handleCloseLosers} className="px-2 py-1 bg-slate-900 border border-slate-700 rounded text-[10px] text-slate-300 hover:bg-slate-700">Close Losers</button>
-              <button onClick={handleFlattenAll} className="px-2 py-1 bg-slate-900 border border-red-500/30 rounded text-[10px] text-red-400 hover:bg-red-500/10">Flatten All</button>
-              <button onClick={() => handleExportCSV(positions, "positions.csv")} className="px-2 py-1 bg-slate-900 border border-slate-700 rounded text-[10px] text-slate-300 hover:bg-slate-700">
-                <Download className="w-3 h-3 inline" /> CSV
+              <button
+                onClick={handleCloseLosers}
+                className="px-2.5 py-1 bg-[#131A22] border border-[#2D3748] rounded text-[10px] text-slate-300 hover:bg-[#2A3644] transition-colors"
+              >
+                Close Losers
               </button>
-              <button onClick={handleRefresh} className="px-2 py-1 bg-slate-900 border border-slate-700 rounded text-[10px] text-cyan-400 hover:bg-slate-700">
-                <RefreshCw className="w-3 h-3 inline" />
+              <button
+                onClick={handleFlattenAll}
+                className="px-2.5 py-1 bg-[#131A22] border border-red-500/30 rounded text-[10px] text-red-400 hover:bg-red-500/10 transition-colors"
+              >
+                Flatten All
               </button>
             </div>
           </div>
+
+          {/* Positions table */}
           <div className="flex-1 overflow-auto">
-            <table className="w-full text-right whitespace-nowrap">
+            <table className="w-full border-collapse text-right whitespace-nowrap">
               <thead className="sticky top-0 z-10">
-                <tr className="bg-slate-900/80">
+                <tr>
                   {["Symbol","Side","Qty","Avail","Avg Entry","Current","Mkt Value","Unreal P&L","P&L %","Day P&L","Day %","Cost Basis","Chg Today","Asset Class","Exchange","Actions"].map((h) => (
-                    <th key={h} className="px-2 py-1.5 text-slate-500 text-[9px] font-semibold uppercase tracking-wider border-b border-slate-700/50 first:text-left">{h}</th>
+                    <th
+                      key={h}
+                      className={`sticky top-0 bg-[#212A35] px-2 py-1.5 text-[9px] font-semibold uppercase text-slate-500 border-b border-[#2D3748] z-10 ${h === "Symbol" ? "text-left" : "text-right"}`}
+                    >
+                      {h}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {posLoading && positions.length === 0 && (
-                  <tr><td colSpan={16} className="px-4 py-6 text-center text-cyan-500 text-xs animate-pulse">Loading positions from Alpaca...</td></tr>
+                  <tr>
+                    <td colSpan={16} className="px-4 py-6 text-center text-cyan-500 text-xs animate-pulse">
+                      Loading positions from Alpaca...
+                    </td>
+                  </tr>
                 )}
                 {posError && (
-                  <tr><td colSpan={16} className="px-4 py-4 text-center text-red-400 text-xs">API Error: {posError.message}</td></tr>
+                  <tr>
+                    <td colSpan={16} className="px-4 py-4 text-center text-red-400 text-xs">
+                      API Error: {posError.message}
+                    </td>
+                  </tr>
                 )}
                 {filteredPositions.map((p, i) => {
+                  const sym = p.symbol || p.ticker;
+                  const isLong = p.side === "Long" || p.side === "long";
+                  const qty = p.qty ?? p.quantity;
+                  const entryPrice = p.entryPrice ?? p.entry;
+                  const currentPrice = p.currentPrice ?? p.current;
+                  const mktValue = p.marketValue ?? (qty * (currentPrice || 0));
+                  const costBasis = p.costBasis ?? (qty * (entryPrice || 0));
                   const pnl = p.unrealizedPnL ?? p.pnl ?? 0;
                   const pnlPct = p.pnlPct ?? 0;
-                  const dayPnlVal = pnl * 0.3; // Estimate intraday as portion of unrealized
+                  const dayPnlVal = pnl * 0.3;
+                  const dayPnlPct = pnlPct * 0.5;
                   const chg = p.changeToday ?? 0;
                   return (
-                    <tr key={p.symbol || i} className="hover:bg-slate-700/30 transition-colors border-b border-slate-800/50">
-                      <td className="px-2 py-1.5 text-left text-white font-bold text-[11px] font-mono">{p.symbol || p.ticker}</td>
-                      <td className="px-2 py-1.5"><span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${p.side === "Long" ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}`}>{p.side === "Long" ? "LONG" : "SHORT"}</span></td>
-                      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-300">{p.qty ?? p.quantity}</td>
-                      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-300">{p.qty ?? p.quantity}</td>
-                      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-300">{fmtM(p.entryPrice ?? p.entry)}</td>
-                      <td className="px-2 py-1.5 font-mono text-[11px] text-white font-bold">{fmtM(p.currentPrice ?? p.current)}</td>
-                      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-300">{fmtM(p.marketValue)}</td>
-                      <td className={`px-2 py-1.5 font-mono text-[11px] font-bold ${clr(pnl)}`}>{fmtM(pnl)}</td>
-                      <td className={`px-2 py-1.5 font-mono text-[11px] ${clr(pnlPct)}`}>{fmtP(pnlPct)}</td>
-                      <td className={`px-2 py-1.5 font-mono text-[11px] ${clr(dayPnlVal)}`}>{fmtM(dayPnlVal)}</td>
-                      <td className={`px-2 py-1.5 font-mono text-[11px] ${clr(chg)}`}>{fmtP(chg)}</td>
-                      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-300">{fmtM(p.costBasis)}</td>
-                      <td className={`px-2 py-1.5 font-mono text-[11px] ${clr(chg)}`}>{fmtP(chg)}</td>
-                      <td className="px-2 py-1.5 text-[11px] text-slate-500">us_equity</td>
-                      <td className="px-2 py-1.5 text-[11px] text-slate-500">NASDAQ</td>
-                      <td className="px-2 py-1.5">
-                        <button onClick={() => handleClosePosition(p.symbol || p.ticker)} className="px-1.5 py-0.5 bg-slate-900 border border-slate-700 rounded text-[9px] text-slate-300 hover:bg-red-500/20 hover:text-red-400">Cxl</button>
+                    <tr key={sym || i} className="hover:bg-[#2A3644] transition-colors">
+                      <td className="px-2 py-[5px] text-left font-bold text-white text-[11px] font-mono border-b border-[#2D3748]">{sym}</td>
+                      <td className="px-2 py-[5px] border-b border-[#2D3748]">
+                        <span className={`px-1.5 py-0.5 rounded-sm text-[9px] font-bold ${isLong ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}`}>
+                          {isLong ? "LONG" : "SHORT"}
+                        </span>
+                      </td>
+                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-300 border-b border-[#2D3748]">{qty}</td>
+                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-300 border-b border-[#2D3748]">{qty}</td>
+                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-300 border-b border-[#2D3748]">{fmtM(entryPrice)}</td>
+                      <td className="px-2 py-[5px] font-mono text-[11px] text-white font-bold border-b border-[#2D3748]">{fmtM(currentPrice)}</td>
+                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-300 border-b border-[#2D3748]">{fmtM(mktValue)}</td>
+                      <td className={`px-2 py-[5px] font-mono text-[11px] font-bold border-b border-[#2D3748] ${clr(pnl)}`}>{fmtM(pnl)}</td>
+                      <td className={`px-2 py-[5px] font-mono text-[11px] border-b border-[#2D3748] ${clr(pnlPct)}`}>{fmtP(pnlPct)}</td>
+                      <td className={`px-2 py-[5px] font-mono text-[11px] border-b border-[#2D3748] ${clr(dayPnlVal)}`}>{fmtM(dayPnlVal)}</td>
+                      <td className={`px-2 py-[5px] font-mono text-[11px] border-b border-[#2D3748] ${clr(dayPnlPct)}`}>{fmtP(dayPnlPct)}</td>
+                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-300 border-b border-[#2D3748]">{fmtM(costBasis)}</td>
+                      <td className={`px-2 py-[5px] font-mono text-[11px] border-b border-[#2D3748] ${clr(chg)}`}>{fmtP(chg)}</td>
+                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-500 border-b border-[#2D3748]">us_equity</td>
+                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-500 border-b border-[#2D3748]">NASDAQ</td>
+                      <td className="px-2 py-[5px] border-b border-[#2D3748]">
+                        <button
+                          onClick={() => handleClosePosition(sym)}
+                          className="px-1.5 py-0.5 bg-[#131A22] border border-[#2D3748] rounded text-[9px] text-slate-300 hover:bg-red-500/20 hover:text-red-400 transition-colors"
+                        >
+                          Cxl
+                        </button>
                       </td>
                     </tr>
                   );
                 })}
                 {filteredPositions.length === 0 && !posLoading && !posError && (
-                  <tr><td colSpan={16} className="px-4 py-6 text-center text-slate-500 text-xs">No open positions.</td></tr>
+                  <tr>
+                    <td colSpan={16} className="px-4 py-6 text-center text-slate-500 text-xs">
+                      No open positions.
+                    </td>
+                  </tr>
                 )}
               </tbody>
             </table>
@@ -300,80 +355,129 @@ export default function Trades() {
         </div>
 
         {/* ── ORDERS PANEL ── */}
-        <div className="flex-1 flex flex-col bg-slate-800/40 border border-slate-700/50 rounded-lg min-h-0 overflow-hidden">
-          <div className="flex items-center justify-between px-3 py-2 bg-slate-900/60 border-b border-slate-700/50">
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-[#1A222C] border border-[#2D3748] rounded-md">
+          {/* Panel header */}
+          <div className="flex items-center justify-between px-3 py-2 bg-[#212A35] border-b border-[#2D3748] flex-shrink-0">
             <span className="text-xs font-semibold text-slate-200">ACTIVE ORDERS ({ordCount})</span>
             <div className="flex items-center gap-2">
               <input
-                type="text" placeholder="Filter..." value={ordFilter}
+                type="text"
+                placeholder="Filter..."
+                value={ordFilter}
                 onChange={(e) => setOrdFilter(e.target.value)}
-                className="px-2 py-1 bg-slate-900 border border-slate-700 rounded text-[10px] text-slate-300 w-24 outline-none focus:border-cyan-500"
+                className="px-2 py-1 bg-[#131A22] border border-[#2D3748] rounded text-[10px] text-slate-300 font-mono w-24 outline-none focus:border-cyan-500"
               />
-              <button onClick={handleCancelAll} className="px-2 py-1 bg-slate-900 border border-red-500/30 rounded text-[10px] text-red-400 hover:bg-red-500/10">Cancel All</button>
+              <button
+                className="px-2.5 py-1 bg-[#131A22] border border-[#2D3748] rounded text-[10px] text-slate-300 hover:bg-[#2A3644] transition-colors"
+              >
+                Filter: Working
+              </button>
+              <button
+                onClick={handleCancelAll}
+                className="px-2.5 py-1 bg-[#131A22] border border-red-500/30 rounded text-[10px] text-red-400 hover:bg-red-500/10 transition-colors"
+              >
+                Cancel All
+              </button>
             </div>
           </div>
+
+          {/* Orders table */}
           <div className="flex-1 overflow-auto">
-            <table className="w-full text-right whitespace-nowrap">
+            <table className="w-full border-collapse text-right whitespace-nowrap">
               <thead className="sticky top-0 z-10">
-                <tr className="bg-slate-900/80">
+                <tr>
                   {["Symbol","Side","Type","Class","Qty","Filled","Limit Px","Stop Px","Trail %","TIF","Status","Submitted","Filled At","Avg Fill","Ext Hrs","Legs","Actions"].map((h) => (
-                    <th key={h} className="px-2 py-1.5 text-slate-500 text-[9px] font-semibold uppercase tracking-wider border-b border-slate-700/50 first:text-left">{h}</th>
+                    <th
+                      key={h}
+                      className={`sticky top-0 bg-[#212A35] px-2 py-1.5 text-[9px] font-semibold uppercase text-slate-500 border-b border-[#2D3748] z-10 ${h === "Symbol" ? "text-left" : "text-right"}`}
+                    >
+                      {h}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {ordLoading && orders.length === 0 && (
-                  <tr><td colSpan={17} className="px-4 py-6 text-center text-cyan-500 text-xs animate-pulse">Loading orders...</td></tr>
+                  <tr>
+                    <td colSpan={17} className="px-4 py-6 text-center text-cyan-500 text-xs animate-pulse">
+                      Loading orders...
+                    </td>
+                  </tr>
                 )}
                 {filteredOrders.map((o, i) => {
                   const sym = o.symbol || "--";
                   const side = (o.side || "").toUpperCase();
                   const isBuy = side.includes("BUY");
                   const typ = o.order_type || o.type || "--";
+                  const orderClass = o.order_class || "Simple";
                   const qty = o.quantity || o.qty || 0;
                   const filled = o.filled_qty || o.filledQty || 0;
+                  const fillPct = qty > 0 ? (filled / qty) * 100 : 0;
                   const status = o.alpaca_status || o.status || "WORKING";
                   const submitted = o.created_at || o.timestamp || "";
-                  const subDisplay = submitted ? new Date(submitted).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--";
+                  const subDisplay = submitted ? new Date(submitted).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "--";
+                  const filledAt = o.filled_at ? new Date(o.filled_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--";
+                  const avgFill = o.filled_avg_price || o.avgFillPrice;
                   return (
-                    <tr key={o.id || i} className="hover:bg-slate-700/30 transition-colors border-b border-slate-800/50">
-                      <td className="px-2 py-1.5 text-left text-white font-bold text-[11px] font-mono">{sym}</td>
-                      <td className="px-2 py-1.5"><span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${isBuy ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}`}>{side || "BUY"}</span></td>
-                      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-300">{typ}</td>
-                      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-300">{o.order_class || "Simple"}</td>
-                      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-300">{qty}</td>
-                      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-300">
-                        <div className="inline-flex items-center gap-1">
-                          <div className="w-10 h-1 bg-slate-700 rounded-full inline-block">
-                            <div className="h-full bg-cyan-500 rounded-full" style={{ width: `${qty > 0 ? (filled / qty) * 100 : 0}%` }} />
-                          </div>
-                          <span>{filled}</span>
-                        </div>
+                    <tr key={o.id || i} className="hover:bg-[#2A3644] transition-colors">
+                      <td className="px-2 py-[5px] text-left font-bold text-white text-[11px] font-mono border-b border-[#2D3748]">{sym}</td>
+                      <td className="px-2 py-[5px] border-b border-[#2D3748]">
+                        <span className={`px-1.5 py-0.5 rounded-sm text-[9px] font-bold ${isBuy ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}`}>
+                          {side || "BUY"}
+                        </span>
                       </td>
-                      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-300">{o.limit_price ? fmtM(o.limit_price) : "--"}</td>
-                      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-300">{o.stop_price ? fmtM(o.stop_price) : "--"}</td>
-                      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-300">{o.trail_percent ? `${o.trail_percent}%` : "--"}</td>
-                      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-300">{(o.time_in_force || o.tif || "day").toUpperCase()}</td>
-                      <td className="px-2 py-1.5"><span className="text-cyan-400 text-[10px] font-semibold">{status}</span></td>
-                      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-400">{subDisplay}</td>
-                      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-400">--</td>
-                      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-400">--</td>
-                      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-400">Y</td>
-                      <td className="px-2 py-1.5 font-mono text-[11px] text-slate-400">1</td>
-                      <td className="px-2 py-1.5">
-                        <div className="flex items-center gap-1">
-                          <button onClick={() => {
-                            handleCancelOrder(o.id);
-                            setOrderForm({ symbol: sym, side: side, type: typ || "Limit", qty: String(qty), limitPrice: o.limit_price || "", stopPrice: o.stop_price || "", tif: (o.time_in_force || "day").toUpperCase() });
-                          }} className="px-1.5 py-0.5 bg-slate-900 border border-slate-700 rounded text-[9px] text-slate-300 hover:bg-slate-700" title="Cancel & replace: fills Quick Execute with this order">Mod</button>
-                          <button onClick={() => handleCancelOrder(o.id)} className="px-1.5 py-0.5 bg-slate-900 border border-slate-700 rounded text-[9px] text-red-400 hover:bg-red-500/20">Cxl</button>
+                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-300 border-b border-[#2D3748]">{typ}</td>
+                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-300 border-b border-[#2D3748]">{orderClass}</td>
+                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-300 border-b border-[#2D3748]">{qty}</td>
+                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-300 border-b border-[#2D3748]">
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="inline-block w-[50px] h-1 bg-white/10 rounded-sm align-middle">
+                            <span className="block h-full bg-cyan-500 rounded-sm" style={{ width: `${fillPct}%` }} />
+                          </span>
+                          {filled}
+                        </span>
+                      </td>
+                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-300 border-b border-[#2D3748]">{o.limit_price ? fmtM(o.limit_price) : "-"}</td>
+                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-300 border-b border-[#2D3748]">{o.stop_price ? fmtM(o.stop_price) : "-"}</td>
+                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-300 border-b border-[#2D3748]">{o.trail_percent ? `${o.trail_percent}%` : "-"}</td>
+                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-300 border-b border-[#2D3748]">{(o.time_in_force || o.tif || "day").toUpperCase()}</td>
+                      <td className="px-2 py-[5px] border-b border-[#2D3748]">
+                        <span className="text-cyan-400 text-[10px] font-semibold">{status}</span>
+                      </td>
+                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-400 border-b border-[#2D3748]">{subDisplay}</td>
+                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-400 border-b border-[#2D3748]">{filledAt}</td>
+                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-400 border-b border-[#2D3748]">{avgFill ? fmtM(avgFill) : "-"}</td>
+                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-400 border-b border-[#2D3748]">Y</td>
+                      <td className="px-2 py-[5px] font-mono text-[11px] text-slate-400 border-b border-[#2D3748]">1</td>
+                      <td className="px-2 py-[5px] border-b border-[#2D3748]">
+                        <div className="inline-flex items-center gap-1">
+                          <button
+                            onClick={() => {
+                              handleCancelOrder(o.id);
+                              setOrderForm({ symbol: sym, side: side, type: typ || "Limit", qty: String(qty), limitPrice: o.limit_price || "", stopPrice: o.stop_price || "", tif: (o.time_in_force || "day").toUpperCase() });
+                            }}
+                            className="px-1.5 py-0.5 bg-[#131A22] border border-[#2D3748] rounded text-[9px] text-slate-300 hover:bg-[#2A3644] transition-colors"
+                            title="Cancel & replace: fills Quick Execute with this order"
+                          >
+                            Mod
+                          </button>
+                          <button
+                            onClick={() => handleCancelOrder(o.id)}
+                            className="px-1.5 py-0.5 bg-[#131A22] border border-[#2D3748] rounded text-[9px] text-red-400 hover:bg-red-500/20 transition-colors"
+                          >
+                            Cxl
+                          </button>
                         </div>
                       </td>
                     </tr>
                   );
                 })}
                 {filteredOrders.length === 0 && !ordLoading && (
-                  <tr><td colSpan={17} className="px-4 py-6 text-center text-slate-500 text-xs">No active orders.</td></tr>
+                  <tr>
+                    <td colSpan={17} className="px-4 py-6 text-center text-slate-500 text-xs">
+                      No active orders.
+                    </td>
+                  </tr>
                 )}
               </tbody>
             </table>
@@ -381,46 +485,54 @@ export default function Trades() {
         </div>
       </div>
 
-      {/* ══ BOTTOM QUICK EXECUTE BAR - Matching mockup inline order entry ══ */}
-      <div className="flex items-center gap-3 px-4 py-2.5 bg-slate-800/60 border-t border-slate-700/50 flex-shrink-0">
+      {/* ══════════════════════════════════════════════════════════════════
+          BOTTOM QUICK EXECUTE BAR — Inline order entry (matches mockup)
+          ══════════════════════════════════════════════════════════════════ */}
+      <div className="h-12 bg-[#1A222C] border-t border-[#2D3748] flex items-center px-4 gap-3 flex-shrink-0">
         <span className="text-[10px] font-bold text-cyan-400 mr-2">QUICK EXECUTE</span>
         <input
-          type="text" placeholder="SYM" value={orderForm.symbol}
+          type="text"
+          placeholder="SYM"
+          value={orderForm.symbol}
           onChange={(e) => setOrderForm((f) => ({ ...f, symbol: e.target.value.toUpperCase() }))}
-          className="w-20 px-2 py-1.5 bg-slate-900 border border-slate-700 rounded text-xs text-white font-mono outline-none focus:border-cyan-500 uppercase"
+          className="w-20 px-2.5 py-1.5 bg-[#131A22] border border-[#2D3748] rounded text-xs text-white font-mono outline-none focus:border-cyan-500 uppercase"
         />
         <select
           value={orderForm.side}
           onChange={(e) => setOrderForm((f) => ({ ...f, side: e.target.value }))}
-          className="px-2 py-1.5 bg-slate-900 border border-slate-700 rounded text-xs text-white font-mono outline-none focus:border-cyan-500"
+          className="w-20 px-2.5 py-1.5 bg-[#131A22] border border-[#2D3748] rounded text-xs text-white font-mono outline-none focus:border-cyan-500"
         >
           <option value="BUY">BUY</option>
           <option value="SELL">SELL</option>
           <option value="SHORT">SHORT</option>
         </select>
         <input
-          type="number" placeholder="QTY" value={orderForm.qty}
+          type="number"
+          placeholder="QTY"
+          value={orderForm.qty}
           onChange={(e) => setOrderForm((f) => ({ ...f, qty: e.target.value }))}
-          className="w-20 px-2 py-1.5 bg-slate-900 border border-slate-700 rounded text-xs text-white font-mono outline-none focus:border-cyan-500"
+          className="w-20 px-2.5 py-1.5 bg-[#131A22] border border-[#2D3748] rounded text-xs text-white font-mono outline-none focus:border-cyan-500"
         />
         <select
           value={orderForm.type}
           onChange={(e) => setOrderForm((f) => ({ ...f, type: e.target.value }))}
-          className="px-2 py-1.5 bg-slate-900 border border-slate-700 rounded text-xs text-white font-mono outline-none focus:border-cyan-500"
+          className="w-[100px] px-2.5 py-1.5 bg-[#131A22] border border-[#2D3748] rounded text-xs text-white font-mono outline-none focus:border-cyan-500"
         >
           <option value="Limit">Limit</option>
           <option value="Market">Market</option>
           <option value="Stop">Stop</option>
         </select>
         <input
-          type="number" placeholder="LIMIT $" value={orderForm.limitPrice}
+          type="number"
+          placeholder="LIMIT $"
+          value={orderForm.limitPrice}
           onChange={(e) => setOrderForm((f) => ({ ...f, limitPrice: e.target.value }))}
-          className="w-24 px-2 py-1.5 bg-slate-900 border border-slate-700 rounded text-xs text-white font-mono outline-none focus:border-cyan-500"
+          className="w-[100px] px-2.5 py-1.5 bg-[#131A22] border border-[#2D3748] rounded text-xs text-white font-mono outline-none focus:border-cyan-500"
         />
         <select
           value={orderForm.tif}
           onChange={(e) => setOrderForm((f) => ({ ...f, tif: e.target.value }))}
-          className="px-2 py-1.5 bg-slate-900 border border-slate-700 rounded text-xs text-white font-mono outline-none focus:border-cyan-500"
+          className="w-20 px-2.5 py-1.5 bg-[#131A22] border border-[#2D3748] rounded text-xs text-white font-mono outline-none focus:border-cyan-500"
         >
           <option value="DAY">DAY</option>
           <option value="GTC">GTC</option>
@@ -439,7 +551,7 @@ export default function Trades() {
       {submitMsg && (
         <div className={`fixed bottom-16 right-4 px-4 py-2 rounded-lg text-xs font-bold z-50 ${submitMsg.type === "success" ? "bg-emerald-500/20 border border-emerald-500/50 text-emerald-400" : "bg-red-500/20 border border-red-500/50 text-red-400"}`}>
           {submitMsg.text}
-          <button onClick={() => setSubmitMsg(null)} className="ml-3 opacity-60 hover:opacity-100">×</button>
+          <button onClick={() => setSubmitMsg(null)} className="ml-3 opacity-60 hover:opacity-100">&times;</button>
         </div>
       )}
     </div>

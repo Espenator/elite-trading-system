@@ -11,6 +11,8 @@ import {
 } from 'lucide-react';
 import PageHeader from "../components/ui/PageHeader";
 import Button from "../components/ui/Button";
+import Card from "../components/ui/Card";
+import Badge from "../components/ui/Badge";
 import { useSentiment } from "../hooks/useSentiment";
 
 // ---- Constants ----
@@ -185,13 +187,14 @@ export default function SentimentIntelligence() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      {/* Page Header */}
       <PageHeader icon={Radio} title="Sentiment Intelligence" description="Multi-Source Fusion, Divergence Detection & Social Volume">
         <div className="flex items-center gap-3">
           {lastUpdated && (
-            <span className="text-xs text-aurora-subtext">Updated {lastUpdated.toLocaleTimeString()}</span>
+            <span className="text-xs text-gray-500">Updated {lastUpdated.toLocaleTimeString()}</span>
           )}
-          <Button onClick={refetch} disabled={loading}>
+          <Button onClick={refetch} disabled={loading} size="sm">
             <RefreshCw className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
             {loading ? 'Loading...' : 'Refresh'}
           </Button>
@@ -199,517 +202,416 @@ export default function SentimentIntelligence() {
       </PageHeader>
 
       {error && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-aurora p-4 text-red-400 text-sm">
+        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">
           API Error: {error.message} - Retrying automatically...
         </div>
       )}
 
-      {/* ========== HEADER: OpenClaw Swarm Viz (6 Agent Circles) ========== */}
-      <div className="aurora-card">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-bold text-white flex items-center gap-2 text-sm uppercase tracking-widest">
-            <Eye className="w-5 h-5 text-aurora-primary" />
-            OpenClaw Swarm Viz
-          </h3>
-          <span className="text-2xs text-aurora-subtext font-mono">
-            {sourceHealth.length > 0 ? `${sourceHealth.filter(s => s.status === 'LIVE').length}/${agentCircles.length} AGENTS LIVE` : 'AWAITING AGENTS'}
-          </span>
-        </div>
-        <div className="flex flex-wrap justify-center gap-6 py-4">
-          {agentCircles.map((agent) => {
-            const isLive = agent.status === 'LIVE';
-            const isDegraded = agent.status === 'DEGRADED';
-            const AgentIcon = agent.Icon;
-            return (
-              <div key={agent.key} className="flex flex-col items-center gap-2 group cursor-pointer">
-                {/* Agent Circle */}
-                <div className={`relative w-20 h-20 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${
-                  isLive
-                    ? 'border-aurora-primary bg-aurora-primary/10 shadow-glow group-hover:shadow-[0_0_30px_rgba(0,217,255,0.5)]'
-                    : isDegraded
-                      ? 'border-aurora-warning bg-aurora-warning/10'
-                      : 'border-aurora-muted bg-aurora-muted/20'
-                }`}>
-                  <AgentIcon className={`w-7 h-7 ${
-                    isLive ? 'text-aurora-primary' : isDegraded ? 'text-aurora-warning' : 'text-slate-600'
-                  }`} />
-                  {/* Status dot */}
-                  <div className={`absolute -top-1 -right-1 w-4 h-4 rounded-full border-2 border-aurora-bg ${
-                    isLive
-                      ? 'bg-green-400 animate-pulse'
-                      : isDegraded
-                        ? 'bg-yellow-400'
-                        : 'bg-slate-600'
-                  }`} />
-                </div>
-                {/* Agent Name */}
-                <span className={`text-xs font-semibold ${isLive ? 'text-white' : 'text-slate-500'}`}>
-                  {agent.name}
-                </span>
-                {/* Score */}
-                <span className={`text-xs font-mono font-bold ${
-                  agent.score != null ? getSentimentColor(agent.score) : 'text-slate-600'
-                }`}>
-                  {agent.score != null ? (agent.score > 0 ? '+' : '') + agent.score.toFixed(2) : '--'}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      {/* ========== MAIN 3-COLUMN LAYOUT ========== */}
+      <div className="grid grid-cols-12 gap-4">
 
-      {/* ========== ROW 1: Heatmap Grid (12x6) | 30d Sentiment Area Chart ========== */}
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-        {/* Heatmap Grid: 12 symbols x 6 sources */}
-        <div className="xl:col-span-3 aurora-card">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="font-bold text-white flex items-center gap-2 text-sm">
-              <Flame className="w-5 h-5 text-orange-500" />
-              Sentiment Heatmap Grid
-            </h3>
-            <span className="text-2xs text-aurora-subtext font-mono">
-              {heatmap.length > 0 ? `${heatmap.length} SYMBOLS` : 'AWAITING DATA'}
+        {/* ===== LEFT COLUMN: OpenClaw Agent Swarm ===== */}
+        <div className="col-span-12 xl:col-span-3">
+          <Card title="OpenClaw Agent Swarm" subtitle={sourceHealth.length > 0 ? `${sourceHealth.filter(s => s.status === 'LIVE').length}/${agentCircles.length} agents live` : 'Awaiting agents'}>
+            <div className="space-y-2">
+              {agentCircles.map((agent) => {
+                const isLive = agent.status === 'LIVE';
+                const isDegraded = agent.status === 'DEGRADED';
+                const AgentIcon = agent.Icon;
+                const weightPct = agent.weight != null ? Math.round(agent.weight * 100) : 0;
+                return (
+                  <div key={agent.key} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/[0.03] transition-colors group">
+                    {/* Status dot */}
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${
+                      isLive ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]'
+                        : isDegraded ? 'bg-yellow-400' : 'bg-slate-600'
+                    }`} />
+                    {/* Icon + Name */}
+                    <AgentIcon className={`w-4 h-4 shrink-0 ${isLive ? 'text-cyan-400' : isDegraded ? 'text-yellow-400' : 'text-slate-600'}`} />
+                    <span className={`text-xs font-medium flex-1 min-w-0 truncate ${isLive ? 'text-white' : 'text-slate-500'}`}>
+                      {agent.name}
+                    </span>
+                    {/* Score */}
+                    <span className={`text-xs font-mono font-bold shrink-0 ${agent.score != null ? getSentimentColor(agent.score) : 'text-slate-600'}`}>
+                      {agent.score != null ? (agent.score > 0 ? '+' : '') + agent.score.toFixed(2) : '--'}
+                    </span>
+                    {/* Weight bar */}
+                    <div className="w-16 shrink-0">
+                      <div className="w-full bg-slate-800 rounded-full h-1.5">
+                        <div
+                          className={`h-1.5 rounded-full transition-all ${isLive ? 'bg-cyan-500' : isDegraded ? 'bg-yellow-500' : 'bg-slate-700'}`}
+                          style={{ width: `${weightPct}%` }}
+                        />
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-500 w-8 text-right shrink-0">{weightPct}%</span>
+                  </div>
+                );
+              })}
+
+              {/* Agent weight labels */}
+              <div className="border-t border-secondary/20 pt-2 mt-2 space-y-1">
+                {[
+                  { label: 'Agent Weight', key: 'composite' },
+                  { label: 'Signal Weight', key: 'signal' },
+                  { label: 'Recency Weight', key: 'recency' },
+                  { label: 'Market Weight', key: 'market' },
+                ].map(item => (
+                  <div key={item.key} className="flex items-center justify-between text-[10px] px-2">
+                    <span className="text-slate-500">{item.label}</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-16 bg-slate-800 rounded-full h-1">
+                        <div className="h-1 rounded-full bg-cyan-600/60" style={{ width: '65%' }} />
+                      </div>
+                      <span className="text-slate-500 font-mono w-6 text-right">65</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Auto Discover Button */}
+              <button className="w-full mt-3 py-2 rounded-lg bg-cyan-500/20 border border-cyan-500/40 text-cyan-400 text-xs font-semibold hover:bg-cyan-500/30 transition-colors flex items-center justify-center gap-2">
+                <Zap className="w-3.5 h-3.5" />
+                Auto Discover
+              </button>
+            </div>
+          </Card>
+
+          {/* Sentiment Sources / Timeline */}
+          <Card title="Sentiment Sources" className="mt-4">
+            <div className="h-48 w-full">
+              {timelineData.length > 0 ? (
+                <SentimentTimelineLC data={timelineData} height={192} />
+              ) : (
+                <div className="h-full flex items-center justify-center text-slate-500 text-xs">
+                  Timeline data will populate as updates arrive
+                </div>
+              )}
+            </div>
+            {/* Color bar legend */}
+            <div className="mt-3 flex h-2 rounded-full overflow-hidden">
+              <div className="flex-1 bg-red-500" />
+              <div className="flex-1 bg-orange-500" />
+              <div className="flex-1 bg-yellow-400" />
+              <div className="flex-1 bg-lime-400" />
+              <div className="flex-1 bg-green-400" />
+              <div className="flex-1 bg-cyan-400" />
+              <div className="flex-1 bg-violet-500" />
+            </div>
+          </Card>
+        </div>
+
+        {/* ===== CENTER COLUMN ===== */}
+        <div className="col-span-12 xl:col-span-5 space-y-4">
+
+          {/* PAS Regime Banner */}
+          <div className="bg-emerald-500/20 border border-emerald-500/50 rounded-xl p-3 text-center">
+            <span className="text-emerald-400 font-black text-sm tracking-widest uppercase">
+              PAS v8 Regime: BULL TREND {moodValue}%
             </span>
           </div>
-          <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full text-xs border-collapse">
-              <thead>
-                <tr>
-                  <th className="text-left text-aurora-subtext font-semibold p-2 uppercase tracking-wider text-2xs sticky left-0 bg-aurora-card z-10">Symbol</th>
-                  {SENTIMENT_SOURCES.map(src => (
-                    <th key={src} className="text-center text-aurora-subtext font-semibold p-2 uppercase tracking-wider text-2xs">{src}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {heatmapGrid.length > 0 ? heatmapGrid.map((row) => (
-                  <tr key={row.symbol} className="border-t border-aurora-border/30 hover:bg-white/[0.02] transition-colors">
-                    <td className="p-2 font-mono font-bold text-white tracking-wider sticky left-0 bg-aurora-card z-10">
-                      {row.symbol}
-                    </td>
-                    {row.sources.map((score, ci) => (
-                      <td key={ci} className="p-1 text-center">
-                        <div
-                          className="mx-auto rounded-[4px] w-full min-w-[40px] h-8 flex items-center justify-center text-2xs font-mono font-bold transition-all hover:scale-110 cursor-pointer"
-                          style={{ backgroundColor: getHeatmapCellColor(score) }}
-                        >
-                          <span className={score != null ? getSentimentColor(score) : 'text-slate-600'}>
-                            {score != null ? (score > 0 ? '+' : '') + score.toFixed(2) : '--'}
-                          </span>
-                        </div>
-                      </td>
+
+          {/* Heatmap Grid */}
+          <Card title="Sentiment Heatmap" action={
+            <span className="text-[10px] text-gray-500 font-mono">{heatmap.length > 0 ? `${heatmap.length} SYMBOLS` : 'AWAITING DATA'}</span>
+          }>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[10px] border-collapse">
+                <thead>
+                  <tr>
+                    <th className="text-left text-gray-500 font-semibold p-1.5 uppercase tracking-wider sticky left-0 bg-surface z-10">Sym</th>
+                    {SENTIMENT_SOURCES.map(src => (
+                      <th key={src} className="text-center text-gray-500 font-semibold p-1.5 uppercase tracking-wider">{src}</th>
                     ))}
                   </tr>
-                )) : (
-                  <tr>
-                    <td colSpan={7} className="p-8 text-center text-aurora-subtext text-sm">
-                      Awaiting heatmap data from sentiment agents
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* 30d Sentiment Area Chart */}
-        <div className="xl:col-span-2 aurora-card">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="font-bold text-white flex items-center gap-2 text-sm">
-              <TrendingUp className="w-5 h-5 text-aurora-primary" />
-              30D Rolling Sentiment vs Volume
-            </h3>
-          </div>
-          <div className="h-72 w-full">
-            {timelineData.length > 0 ? (
-              <SentimentTimelineLC data={timelineData} height={288} />
-            ) : (
-              <div className="h-full flex items-center justify-center text-aurora-subtext text-sm">
-                Timeline data will populate as sentiment updates arrive
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ========== ROW 2: Signals Table (10 cols) | Radar Chart (8 axes) ========== */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Active Signals Table - 10 Columns */}
-        <div className="xl:col-span-2">
-          <div className="aurora-card">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-white flex items-center gap-2 text-sm">
-                <BarChart2 className="w-5 h-5 text-purple-400" />
-                Active Sentiment Signals ({signals.length})
-              </h3>
-            </div>
-            <div className="overflow-x-auto custom-scrollbar">
-              <table className="w-full text-left border-collapse min-w-[900px]">
-                <thead>
-                  <tr className="bg-aurora-muted/30 border-b border-aurora-border text-2xs uppercase tracking-wider text-aurora-subtext">
-                    <th className="p-3 font-semibold">Symbol</th>
-                    <th className="p-3 font-semibold text-center">Direction</th>
-                    <th className="p-3 font-semibold text-center">Score</th>
-                    <th className="p-3 font-semibold">Source</th>
-                    <th className="p-3 font-semibold">Time</th>
-                    <th className="p-3 font-semibold text-center">Confidence</th>
-                    <th className="p-3 font-semibold">Team</th>
-                    <th className="p-3 font-semibold text-center">Override</th>
-                    <th className="p-3 font-semibold text-center">Action</th>
-                    <th className="p-3 font-semibold text-center">Status</th>
-                  </tr>
                 </thead>
-                <tbody className="divide-y divide-aurora-border/30">
-                  {signals.length > 0 ? signals.map((sig) => (
-                    <tr key={sig.ticker} className="hover:bg-white/[0.02] transition-colors">
-                      {/* Symbol */}
-                      <td className="p-3">
-                        <span className="font-black text-white tracking-widest text-sm flex items-center gap-1.5">
-                          {sig.ticker}
-                          <span className={getSentimentColor(sig.composite)}>{getSentimentIcon(sig.composite)}</span>
-                        </span>
+                <tbody>
+                  {heatmapGrid.length > 0 ? heatmapGrid.map((row) => (
+                    <tr key={row.symbol} className="border-t border-secondary/10 hover:bg-white/[0.02] transition-colors">
+                      <td className="p-1.5 font-mono font-bold text-white tracking-wider sticky left-0 bg-surface z-10">
+                        {row.symbol}
                       </td>
-                      {/* Direction */}
-                      <td className="p-3 text-center">
-                        <span className={`text-xs font-bold px-2 py-1 rounded-aurora ${
-                          sig.composite >= 0.2 ? 'bg-green-500/20 text-green-400' :
-                          sig.composite <= -0.2 ? 'bg-red-500/20 text-red-400' :
-                          'bg-slate-500/20 text-slate-400'
-                        }`}>
-                          {sig.composite >= 0.2 ? 'BULL' : sig.composite <= -0.2 ? 'BEAR' : 'FLAT'}
-                        </span>
-                      </td>
-                      {/* Score */}
-                      <td className="p-3 text-center">
-                        <span className={`font-mono font-bold text-sm ${getSentimentColor(sig.composite)}`}>
-                          {sig.composite > 0 ? '+' : ''}{sig.composite.toFixed(2)}
-                        </span>
-                      </td>
-                      {/* Source */}
-                      <td className="p-3">
-                        <span className="text-xs text-aurora-subtext">
-                          {sig.source ? SOURCE_LABELS[sig.source] || sig.source : 'Composite'}
-                        </span>
-                      </td>
-                      {/* Time */}
-                      <td className="p-3">
-                        <span className="text-xs text-aurora-subtext font-mono">
-                          {sig.timestamp ? new Date(sig.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
-                        </span>
-                      </td>
-                      {/* Confidence */}
-                      <td className="p-3 text-center">
-                        <span className={`text-xs font-bold ${
-                          (sig.confidence ?? 0) >= 0.8 ? 'text-green-400' :
-                          (sig.confidence ?? 0) >= 0.5 ? 'text-aurora-primary' :
-                          'text-aurora-subtext'
-                        }`}>
-                          {sig.confidence != null ? (sig.confidence * 100).toFixed(0) + '%' : '--'}
-                        </span>
-                      </td>
-                      {/* Team */}
-                      <td className="p-3">
-                        <span className="text-xs text-aurora-subtext">
-                          {sig.team || '--'}
-                        </span>
-                      </td>
-                      {/* Override */}
-                      <td className="p-3 text-center">
-                        <span className={`text-2xs font-bold uppercase px-1.5 py-0.5 rounded ${
-                          sig.override ? 'bg-aurora-warning/20 text-aurora-warning' : 'bg-aurora-muted/30 text-slate-500'
-                        }`}>
-                          {sig.override ? 'YES' : 'NO'}
-                        </span>
-                      </td>
-                      {/* Action */}
-                      <td className="p-3 text-center">
-                        <span className={`text-xs font-bold px-2 py-1 rounded-aurora ${
-                          sig.profitSignal?.includes('BUY') ? 'bg-green-500/20 text-green-400' :
-                          sig.profitSignal?.includes('SELL') ? 'bg-red-500/20 text-red-400' :
-                          'bg-slate-500/20 text-slate-400'
-                        }`}>
-                          {sig.profitSignal || 'HOLD'}
-                        </span>
-                      </td>
-                      {/* Status */}
-                      <td className="p-3 text-center">
-                        <span className={`text-2xs font-bold uppercase ${
-                          sig.momentum === 'accelerating' ? 'text-green-400' :
-                          sig.momentum === 'decelerating' ? 'text-red-400' : 'text-aurora-subtext'
-                        }`}>
-                          {sig.momentum || 'stable'}
-                        </span>
-                      </td>
+                      {row.sources.map((score, ci) => (
+                        <td key={ci} className="p-0.5 text-center">
+                          <div
+                            className="mx-auto rounded w-full min-w-[36px] h-6 flex items-center justify-center text-[10px] font-mono font-bold cursor-pointer hover:scale-105 transition-transform"
+                            style={{ backgroundColor: getHeatmapCellColor(score) }}
+                          >
+                            <span className={score != null ? getSentimentColor(score) : 'text-slate-600'}>
+                              {score != null ? (score > 0 ? '+' : '') + score.toFixed(2) : '--'}
+                            </span>
+                          </div>
+                        </td>
+                      ))}
                     </tr>
                   )) : (
                     <tr>
-                      <td colSpan={10} className="p-8 text-center text-aurora-subtext">
-                        Awaiting signal data - signals appear when agents submit sentiment
+                      <td colSpan={7} className="p-6 text-center text-gray-500 text-xs">
+                        Awaiting heatmap data from sentiment agents
                       </td>
                     </tr>
                   )}
                 </tbody>
               </table>
             </div>
-          </div>
-        </div>
+          </Card>
 
-        {/* Multi-Factor Radar Chart (8 axes) */}
-        <div className="xl:col-span-1 aurora-card">
-          <h3 className="font-bold text-white flex items-center gap-2 mb-4 text-sm">
-            <BarChart2 className="w-5 h-5 text-aurora-primary" />
-            Multi-Factor Sentiment Radar
-          </h3>
-          <div className="flex justify-center">
-            <svg viewBox="0 0 220 220" className="w-full max-w-[280px]">
-              {(() => {
-                const cx = 110, cy = 110, maxR = 80;
-                const factors = radarFactors;
-                const angleStep = (2 * Math.PI) / factors.length;
-                const getPoint = (i, r) => ({
-                  x: cx + r * Math.cos(i * angleStep - Math.PI / 2),
-                  y: cy + r * Math.sin(i * angleStep - Math.PI / 2),
-                });
-                const gridLevels = [0.25, 0.5, 0.75, 1.0];
-                const dataPoints = factors.map((f, i) => getPoint(i, (f.value / 100) * maxR));
-                const polygonStr = dataPoints.map(p => `${p.x},${p.y}`).join(' ');
-                const hasData = factors.some(f => f.value > 0);
-                return (
-                  <>
-                    {/* Grid rings */}
-                    {gridLevels.map(level => (
-                      <polygon key={level}
-                        points={factors.map((_, i) => { const p = getPoint(i, maxR * level); return `${p.x},${p.y}`; }).join(' ')}
-                        fill="none" stroke="rgba(42,52,68,0.5)" strokeWidth="0.5" />
-                    ))}
-                    {/* Axis lines */}
-                    {factors.map((_, i) => {
-                      const p = getPoint(i, maxR);
-                      return <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke="rgba(42,52,68,0.5)" strokeWidth="0.5" />;
-                    })}
-                    {/* Data polygon */}
-                    {hasData && (
-                      <polygon points={polygonStr} fill="rgba(0,217,255,0.12)" stroke="#00D9FF" strokeWidth="1.5" />
-                    )}
-                    {/* Data points */}
-                    {hasData && dataPoints.map((p, i) => (
-                      <circle key={i} cx={p.x} cy={p.y} r="3" fill="#00D9FF" />
-                    ))}
-                    {/* Labels */}
-                    {factors.map((f, i) => {
-                      const p = getPoint(i, maxR + 18);
-                      return (
-                        <text key={i} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle"
-                          fill="#9CA3AF" fontSize="7" fontFamily="Inter">
-                          {f.label}
-                        </text>
-                      );
-                    })}
-                    {/* No data message */}
-                    {!hasData && (
-                      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
-                        fill="#9CA3AF" fontSize="10" fontFamily="Inter">
-                        Awaiting data
-                      </text>
-                    )}
-                  </>
-                );
-              })()}
-            </svg>
-          </div>
-          {/* Legend */}
-          <div className="grid grid-cols-2 gap-1 mt-2 px-2">
-            {radarFactors.map((f) => (
-              <div key={f.label} className="flex items-center justify-between text-2xs">
-                <span className="text-aurora-subtext">{f.label}</span>
-                <span className="font-mono font-bold text-aurora-primary">{f.value > 0 ? f.value.toFixed(0) : '--'}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* ========== ROW 3: Prediction Market | Scanner Matrix (8 cols) ========== */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Prediction Markets + Market Mood Gauge */}
-        <div className="xl:col-span-1 space-y-6">
-          {/* Market Mood Gauge */}
-          <div className="aurora-card flex flex-col items-center justify-center relative overflow-hidden">
-            <h3 className="text-2xs font-bold text-aurora-subtext uppercase tracking-widest self-start mb-2">Market Mood</h3>
-            <div className="h-40 w-full relative">
-              <svg viewBox="0 0 200 120" className="w-full h-full">
-                {FEAR_GREED_SEGMENTS.map((seg, i) => {
-                  const startAngle = 180 - (i * 36);
-                  const endAngle = 180 - ((i + 1) * 36);
-                  const startRad = (startAngle * Math.PI) / 180;
-                  const endRad = (endAngle * Math.PI) / 180;
-                  return (
-                    <path
-                      key={`seg-${i}`}
-                      d={`M ${100 + 80 * Math.cos(startRad)} ${100 - 80 * Math.sin(startRad)} A 80 80 0 0 1 ${100 + 80 * Math.cos(endRad)} ${100 - 80 * Math.sin(endRad)}`}
-                      fill="none"
-                      stroke={seg.color}
-                      strokeWidth="16"
-                      strokeLinecap="round"
-                    />
-                  );
-                })}
-                {/* Needle */}
-                {(() => {
-                  const angle = 180 - (moodValue / 100) * 180;
-                  const rad = (angle * Math.PI) / 180;
-                  return <line x1="100" y1="100" x2={100 + 55 * Math.cos(rad)} y2={100 - 55 * Math.sin(rad)} stroke="white" strokeWidth="2" />;
-                })()}
-                <circle cx="100" cy="100" r="4" fill="white" />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-end pb-2 pointer-events-none">
-                <span className="text-3xl font-black text-white">{moodValue}</span>
-                <span className={`font-bold tracking-wider uppercase text-2xs ${moodValue >= 60 ? 'text-green-400' : moodValue <= 40 ? 'text-red-400' : 'text-yellow-400'}`}>{moodLabel}</span>
-              </div>
-            </div>
-            {stats.totalTickers > 0 && (
-              <div className="flex gap-4 mt-1 text-2xs text-aurora-subtext">
-                <span className="text-green-400">{stats.bullish} Bullish</span>
-                <span>{stats.neutral} Neutral</span>
-                <span className="text-red-400">{stats.bearish} Bearish</span>
-              </div>
-            )}
-          </div>
-
-          {/* Prediction Market */}
-          <div className="aurora-card">
-            <h3 className="font-bold text-white flex items-center gap-2 mb-4 text-sm">
-              <Target className="w-5 h-5 text-amber-400" />
-              Prediction Markets
-            </h3>
-            <div className="space-y-4">
-              {sourceHealth.length > 0 ? (
-                [{
-                  title: 'Sentiment Consensus',
-                  desc: 'Composite multi-source sentiment alignment probability',
-                  probability: mood?.value ?? 0,
-                  progress: sourceHealth.filter(s => s.status === 'LIVE').length > 0
-                    ? Math.round((sourceHealth.filter(s => s.status === 'LIVE').length / sourceHealth.length) * 100)
-                    : 0,
-                }, {
-                  title: 'Divergence Risk',
-                  desc: 'Probability of cross-source sentiment divergence',
-                  probability: divergences.length > 0
-                    ? Math.min(95, divergences.length * 25)
-                    : 0,
-                  progress: divergences.length > 0
-                    ? Math.min(100, divergences.length * 20)
-                    : 0,
-                }].map((pm, i) => (
-                  <div key={i} className="bg-aurora-muted/30 border border-aurora-border rounded-aurora p-4">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-white font-semibold text-xs">{pm.title}</span>
-                    </div>
-                    <p className="text-aurora-subtext text-2xs mb-3">{pm.desc}</p>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-2xs">
-                        <span className="text-aurora-subtext">Probability</span>
-                        <span className="text-aurora-primary font-bold font-mono">{pm.probability ?? 0}%</span>
-                      </div>
-                      <div className="w-full bg-aurora-muted rounded-full h-1.5">
-                        <div className="h-1.5 rounded-full transition-all duration-500" style={{ width: `${pm.probability ?? 0}%`, backgroundColor: '#00D9FF' }} />
-                      </div>
-                      <div className="flex justify-between text-2xs">
-                        <span className="text-aurora-subtext">Progress</span>
-                        <span className="text-amber-400 font-bold font-mono">{pm.progress}%</span>
-                      </div>
-                      <div className="w-full bg-aurora-muted rounded-full h-1.5">
-                        <div className="bg-amber-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${pm.progress}%` }} />
-                      </div>
-                    </div>
-                  </div>
-                ))
+          {/* 30-Day Sentiment Chart */}
+          <Card title="30-Day Sentiment">
+            <div className="h-56 w-full">
+              {timelineData.length > 0 ? (
+                <SentimentTimelineLC data={timelineData} height={224} />
               ) : (
-                <div className="text-center text-aurora-subtext text-sm py-6">
-                  Awaiting source data for prediction markets
+                <div className="h-full flex items-center justify-center text-gray-500 text-sm">
+                  Timeline data will populate as sentiment updates arrive
                 </div>
               )}
             </div>
-          </div>
+          </Card>
+
+          {/* Divergence Alerts */}
+          <Card title="Divergence Alerts" action={
+            <Badge variant={divergences.length > 0 ? 'warning' : 'secondary'} size="sm">
+              {divergences.length} active
+            </Badge>
+          }>
+            <div className="space-y-2">
+              {divergences.length > 0 ? divergences.map((alert, idx) => (
+                <div key={idx} className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 relative overflow-hidden">
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500" />
+                  <div className="flex items-start gap-3 pl-2">
+                    <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="font-black text-white text-sm">{alert.ticker}</span>
+                        <span className="text-[10px] text-gray-500 font-mono">Spread: {alert.spread}</span>
+                      </div>
+                      <p className="text-xs text-slate-300 mb-1.5">{alert.conflict}</p>
+                      <div className="text-[10px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1">
+                        <Zap className="w-3 h-3" /> {alert.impact}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )) : (
+                <div className="text-center text-gray-500 text-xs py-4">
+                  <AlertTriangle className="w-6 h-6 mx-auto mb-2 text-slate-600" />
+                  No divergences detected - sources are aligned
+                </div>
+              )}
+            </div>
+          </Card>
         </div>
 
-        {/* Scanner Status Matrix (8 cols) + Divergence Alerts */}
-        <div className="xl:col-span-2 space-y-6">
+        {/* ===== RIGHT COLUMN ===== */}
+        <div className="col-span-12 xl:col-span-4 space-y-4">
+
+          {/* Trade Signals */}
+          <Card title="Trade Signals" action={
+            <Badge variant="primary" size="sm">{signals.length} active</Badge>
+          }>
+            <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
+              {signals.length > 0 ? signals.map((sig) => (
+                <div key={sig.ticker} className="flex items-center gap-2 p-2 rounded-lg bg-secondary/10 hover:bg-secondary/20 transition-colors">
+                  <span className="font-black text-white text-xs tracking-wider w-12">{sig.ticker}</span>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                    sig.composite >= 0.2 ? 'bg-emerald-500/20 text-emerald-400' :
+                    sig.composite <= -0.2 ? 'bg-red-500/20 text-red-400' :
+                    'bg-slate-500/20 text-slate-400'
+                  }`}>
+                    {sig.composite >= 0.2 ? 'BULL' : sig.composite <= -0.2 ? 'BEAR' : 'FLAT'}
+                  </span>
+                  <span className={`font-mono font-bold text-xs flex-1 text-right ${getSentimentColor(sig.composite)}`}>
+                    {sig.composite > 0 ? '+' : ''}{sig.composite.toFixed(2)}
+                  </span>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                    sig.profitSignal?.includes('BUY') ? 'bg-emerald-500/20 text-emerald-400' :
+                    sig.profitSignal?.includes('SELL') ? 'bg-red-500/20 text-red-400' :
+                    'bg-slate-500/20 text-slate-400'
+                  }`}>
+                    {sig.profitSignal || 'HOLD'}
+                  </span>
+                </div>
+              )) : (
+                <div className="text-center text-gray-500 text-xs py-4">
+                  Awaiting signal data from sentiment agents
+                </div>
+              )}
+            </div>
+          </Card>
+
+          {/* Radar Chart + Prediction Markets row */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* Prediction Market 1 */}
+            <Card title="Prediction Market" className="col-span-1">
+              {sourceHealth.length > 0 ? (
+                <div className="space-y-3">
+                  <p className="text-[10px] text-gray-500">Sentiment consensus alignment probability</p>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-gray-500">Probability</span>
+                      <span className="text-cyan-400 font-bold font-mono">{mood?.value ?? 0}%</span>
+                    </div>
+                    <div className="w-full bg-slate-800 rounded-full h-1.5">
+                      <div className="h-1.5 rounded-full bg-cyan-500 transition-all" style={{ width: `${mood?.value ?? 0}%` }} />
+                    </div>
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-gray-500">Progress</span>
+                      <span className="text-amber-400 font-bold font-mono">
+                        {sourceHealth.filter(s => s.status === 'LIVE').length > 0
+                          ? Math.round((sourceHealth.filter(s => s.status === 'LIVE').length / sourceHealth.length) * 100)
+                          : 0}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-800 rounded-full h-1.5">
+                      <div className="bg-amber-500 h-1.5 rounded-full transition-all" style={{
+                        width: `${sourceHealth.filter(s => s.status === 'LIVE').length > 0
+                          ? Math.round((sourceHealth.filter(s => s.status === 'LIVE').length / sourceHealth.length) * 100)
+                          : 0}%`
+                      }} />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center text-gray-500 text-[10px] py-3">Awaiting data</div>
+              )}
+            </Card>
+
+            {/* Prediction Market 2 */}
+            <Card title="Prediction Market" className="col-span-1">
+              {divergences.length >= 0 ? (
+                <div className="space-y-3">
+                  <p className="text-[10px] text-gray-500">Cross-source divergence risk probability</p>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-gray-500">Probability</span>
+                      <span className="text-cyan-400 font-bold font-mono">
+                        {divergences.length > 0 ? Math.min(95, divergences.length * 25) : 0}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-800 rounded-full h-1.5">
+                      <div className="h-1.5 rounded-full bg-cyan-500 transition-all" style={{
+                        width: `${divergences.length > 0 ? Math.min(95, divergences.length * 25) : 0}%`
+                      }} />
+                    </div>
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-gray-500">Progress</span>
+                      <span className="text-amber-400 font-bold font-mono">
+                        {divergences.length > 0 ? Math.min(100, divergences.length * 20) : 0}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-800 rounded-full h-1.5">
+                      <div className="bg-amber-500 h-1.5 rounded-full transition-all" style={{
+                        width: `${divergences.length > 0 ? Math.min(100, divergences.length * 20) : 0}%`
+                      }} />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center text-gray-500 text-[10px] py-3">Awaiting data</div>
+              )}
+            </Card>
+          </div>
+
+          {/* Multi-Factor Radar Chart */}
+          <Card>
+            <div className="flex justify-center">
+              <svg viewBox="0 0 220 220" className="w-full max-w-[260px]">
+                {(() => {
+                  const cx = 110, cy = 110, maxR = 80;
+                  const factors = radarFactors;
+                  const angleStep = (2 * Math.PI) / factors.length;
+                  const getPoint = (i, r) => ({
+                    x: cx + r * Math.cos(i * angleStep - Math.PI / 2),
+                    y: cy + r * Math.sin(i * angleStep - Math.PI / 2),
+                  });
+                  const gridLevels = [0.25, 0.5, 0.75, 1.0];
+                  const dataPoints = factors.map((f, i) => getPoint(i, (f.value / 100) * maxR));
+                  const polygonStr = dataPoints.map(p => `${p.x},${p.y}`).join(' ');
+                  const hasData = factors.some(f => f.value > 0);
+                  return (
+                    <>
+                      {/* Grid rings */}
+                      {gridLevels.map(level => (
+                        <polygon key={level}
+                          points={factors.map((_, i) => { const p = getPoint(i, maxR * level); return `${p.x},${p.y}`; }).join(' ')}
+                          fill="none" stroke="rgba(42,52,68,0.5)" strokeWidth="0.5" />
+                      ))}
+                      {/* Axis lines */}
+                      {factors.map((_, i) => {
+                        const p = getPoint(i, maxR);
+                        return <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke="rgba(42,52,68,0.5)" strokeWidth="0.5" />;
+                      })}
+                      {/* Data polygon */}
+                      {hasData && (
+                        <polygon points={polygonStr} fill="rgba(6,182,212,0.15)" stroke="#06b6d4" strokeWidth="1.5" />
+                      )}
+                      {/* Data points */}
+                      {hasData && dataPoints.map((p, i) => (
+                        <circle key={i} cx={p.x} cy={p.y} r="3" fill="#06b6d4" />
+                      ))}
+                      {/* Labels */}
+                      {factors.map((f, i) => {
+                        const p = getPoint(i, maxR + 18);
+                        return (
+                          <text key={i} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle"
+                            fill="#9CA3AF" fontSize="7" fontFamily="Inter">
+                            {f.label}
+                          </text>
+                        );
+                      })}
+                      {!hasData && (
+                        <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
+                          fill="#9CA3AF" fontSize="10" fontFamily="Inter">
+                          Awaiting data
+                        </text>
+                      )}
+                    </>
+                  );
+                })()}
+              </svg>
+            </div>
+          </Card>
+
           {/* Scanner Status Matrix */}
-          <div className="aurora-card">
-            <h3 className="font-bold text-white flex items-center gap-2 mb-4 text-sm">
-              <Activity className="w-5 h-5 text-emerald-400" />
-              Scanner Status Matrix
-            </h3>
-            <div className="overflow-x-auto custom-scrollbar">
-              <table className="w-full text-2xs">
+          <Card title="Scanner Status Matrix" action={
+            <span className="text-[10px] text-gray-500 font-mono">{heatmap.length} symbols</span>
+          }>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[10px]">
                 <thead>
                   <tr>
-                    <th className="text-left text-aurora-subtext p-1.5 font-semibold uppercase tracking-wider">Sym</th>
+                    <th className="text-left text-gray-500 p-1 font-semibold uppercase tracking-wider">Sym</th>
                     {['S1','S2','S3','S4','S5','S6','S7','S8'].map(s => (
-                      <th key={s} className="text-center text-aurora-subtext p-1.5 font-semibold">{s}</th>
+                      <th key={s} className="text-center text-gray-500 p-1 font-semibold">{s}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {(heatmap.length > 0 ? heatmap.slice(0, 12) : []).map((item, ri) => (
-                    <tr key={ri} className="border-t border-aurora-border/20 hover:bg-white/[0.02] transition-colors">
-                      <td className="text-white font-mono font-bold p-1.5 whitespace-nowrap">{item.ticker}</td>
+                  {(heatmap.length > 0 ? heatmap.slice(0, 12) : DEFAULT_SYMBOLS.map(s => ({ ticker: s, score: null }))).map((item, ri) => (
+                    <tr key={ri} className="border-t border-secondary/10 hover:bg-white/[0.02] transition-colors">
+                      <td className="text-white font-mono font-bold p-1 whitespace-nowrap">{item.ticker}</td>
                       {Array.from({ length: 8 }, (_, ci) => {
-                        // Derive per-scanner score from the item's composite + source variation
                         const score = item.score != null ? item.score : null;
-                        const baseHue = score != null
-                          ? (score > 0.3 ? 'bg-emerald-500' : score > 0 ? 'bg-aurora-primary' : score > -0.3 ? 'bg-amber-500' : 'bg-red-500')
-                          : 'bg-aurora-muted';
-                        const opacity = score != null ? 0.4 + Math.abs(score) * 0.6 : 0.2;
+                        // Vary color per scanner column for visual interest
+                        const variation = score != null ? score + (ci - 4) * 0.05 : null;
+                        const dotColor = variation != null
+                          ? (variation > 0.3 ? 'bg-emerald-400' : variation > 0 ? 'bg-cyan-400' : variation > -0.3 ? 'bg-amber-400' : 'bg-red-400')
+                          : 'bg-slate-700';
+                        const opacity = variation != null ? 0.5 + Math.abs(variation) * 0.5 : 0.3;
                         return (
-                          <td key={ci} className="p-1.5 text-center">
-                            <div className={`w-3.5 h-3.5 rounded-full mx-auto ${baseHue} transition-all`}
+                          <td key={ci} className="p-1 text-center">
+                            <div className={`w-3 h-3 rounded-full mx-auto ${dotColor} transition-all`}
                               style={{ opacity }} />
                           </td>
                         );
                       })}
                     </tr>
                   ))}
-                  {heatmap.length === 0 && (
-                    <tr>
-                      <td colSpan={9} className="p-6 text-center text-aurora-subtext text-sm">
-                        Awaiting scanner data from sentiment agents
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
             </div>
-          </div>
-
-          {/* Divergence Alerts */}
-          <div className="aurora-card">
-            <h3 className="font-bold text-white flex items-center gap-2 mb-4 text-sm">
-              <AlertTriangle className="w-5 h-5 text-yellow-500" />
-              Source Divergence Alerts
-            </h3>
-            <div className="space-y-3">
-              {divergences.length > 0 ? divergences.map((alert, idx) => (
-                <div key={idx} className="bg-aurora-muted/30 border border-aurora-border rounded-aurora p-3 relative overflow-hidden hover:shadow-glow transition-all">
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-yellow-500" />
-                  <div className="flex justify-between items-start mb-1 pl-2">
-                    <span className="font-black text-white">{alert.ticker}</span>
-                    <span className="text-2xs text-aurora-subtext font-mono">Spread: {alert.spread}</span>
-                  </div>
-                  <p className="text-xs text-slate-300 mb-2 bg-aurora-bg/50 p-1.5 rounded-aurora ml-2">{alert.conflict}</p>
-                  <div className="text-2xs font-bold text-yellow-400 uppercase tracking-wider flex items-center gap-1 ml-2">
-                    <Zap className="w-3 h-3" /> {alert.impact}
-                  </div>
-                </div>
-              )) : (
-                <div className="text-center text-aurora-subtext text-sm py-6">
-                  <AlertTriangle className="w-8 h-8 mx-auto mb-2 text-slate-600" />
-                  No divergences detected - sources are aligned
-                </div>
-              )}
-            </div>
-          </div>
+          </Card>
         </div>
       </div>
     </div>

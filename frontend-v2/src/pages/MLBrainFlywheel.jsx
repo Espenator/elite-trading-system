@@ -3,6 +3,11 @@ import { createChart } from 'lightweight-charts';
 import { useApi } from '../hooks/useApi';
 import { getApiUrl } from '../config/api';
 import log from "@/utils/logger";
+import { Brain, Activity, Zap, RotateCcw, Server, ChevronRight, TrendingUp, BarChart3, Radio } from 'lucide-react';
+import Card from '../components/ui/Card';
+import Badge from '../components/ui/Badge';
+import Button from '../components/ui/Button';
+import PageHeader from '../components/ui/PageHeader';
 
 // --- FALLBACK DATA (N/A indicators when API unavailable) ---
 const FALLBACK_KPIS = {
@@ -317,206 +322,226 @@ export default function MLBrainFlywheel() {
     setTimeout(() => setIsRetraining(false), 2000);
   };
 
+  const kpiItems = [
+    { label: 'Stage 4 Active Models', val: kpis.activeModels, sub: kpis.activeModelsSub, color: 'text-emerald-400', icon: Activity },
+    { label: 'Walk Forward Accuracy', val: `${kpis.walkForwardAcc}%`, sub: kpis.walkForwardSub, color: 'text-emerald-400', icon: TrendingUp },
+    { label: 'Stage 3 Ignitions', val: kpis.stage3Ignitions, sub: kpis.stage3Sub, color: 'text-cyan-400', icon: Zap },
+    { label: 'Flywheel Cycles', val: kpis.flywheelCycles, sub: kpis.flywheelSub, color: 'text-white', icon: RotateCcw },
+    { label: 'Feature Store Sync', val: kpis.featureStore, sub: kpis.featureStoreSub, color: 'text-emerald-400', icon: Server },
+    { label: 'Win Rate Threshold', val: kpis.winRateThresh, sub: kpis.winRateSub, color: 'text-cyan-400', icon: BarChart3 },
+  ];
+
   return (
-    <div className="flex flex-col h-screen w-full bg-[#0B0E14] text-[#e5e7eb] font-sans overflow-hidden selection:bg-[#00D9FF]/30 p-4 gap-4">
+    <div className="flex flex-col h-screen w-full bg-[#0B0E14] text-gray-200 font-sans overflow-hidden selection:bg-cyan-500/30">
+      <div className="flex flex-col flex-1 min-h-0 p-4 gap-4">
 
-      {/* HEADER */}
-      <header className="flex justify-between items-end shrink-0">
-        <div>
-          <h1 className="text-2xl font-bold text-white tracking-wide">ML Brain & Flywheel</h1>
-          <p className="text-[#00D9FF] text-xs font-mono mt-1">Autonomous Model Training & Inference Pipeline</p>
-        </div>
-        <button
-          onClick={handleRetrain}
-          disabled={isRetraining}
-          className={`px-4 py-2 border rounded font-mono text-xs transition-all shadow-[0_0_10px_rgba(0,217,255,0.15)] ${
-            isRetraining
-              ? 'bg-[#1e293b] border-gray-500 text-gray-400 cursor-not-allowed'
-              : 'bg-cyan-900/30 border-[#00D9FF]/50 text-[#00D9FF] hover:bg-[#00D9FF]/20'
-          }`}
+        {/* HEADER */}
+        <PageHeader
+          icon={Brain}
+          title="ML Brain & Flywheel"
+          description="Autonomous Model Training & Inference Pipeline"
         >
-          {isRetraining ? 'RETRAINING...' : 'RETRAIN MODELS [F9]'}
-        </button>
-      </header>
+          <Button
+            variant="primary"
+            size="sm"
+            leftIcon={RotateCcw}
+            onClick={handleRetrain}
+            disabled={isRetraining}
+          >
+            {isRetraining ? 'Retraining...' : 'Retrain Models'}
+          </Button>
+        </PageHeader>
 
-      {/* FLYWHEEL CYCLE VISUALIZATION */}
-      <FlywheelCycleSVG />
-
-      {/* ROW 1: KPI STRIP */}
-      <div className="grid grid-cols-6 gap-3 shrink-0">
-        {[
-          { label: 'Stage 4 Active Models', val: kpis.activeModels, sub: kpis.activeModelsSub, color: 'text-green-400' },
-          { label: 'Walk Forward Accuracy', val: `${kpis.walkForwardAcc}%`, sub: kpis.walkForwardSub, color: 'text-green-400' },
-          { label: 'Stage 3 Ignitions', val: kpis.stage3Ignitions, sub: kpis.stage3Sub, color: 'text-cyan-400' },
-          { label: 'Flywheel Cycles', val: kpis.flywheelCycles, sub: kpis.flywheelSub, color: 'text-white' },
-          { label: 'Feature Store Sync', val: kpis.featureStore, sub: kpis.featureStoreSub, color: 'text-green-400' },
-          { label: 'Win Rate Threshold', val: kpis.winRateThresh, sub: kpis.winRateSub, color: 'text-cyan-400' },
-        ].map((kpi, i) => (
-          <div key={i} className="bg-[#111827] border border-[#1e293b] rounded p-3 flex flex-col justify-center">
-            <span className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">{kpi.label}</span>
-            <span className={`text-xl font-mono font-bold ${kpi.color}`}>{kpi.val}</span>
-            <span className="text-[9px] text-gray-500 mt-1">{kpi.sub}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* ROW 2: CHART & PROBABILITY RANKING */}
-      <div className="flex gap-4 h-[35%] shrink-0">
-        {/* LEFT: Chart Panel */}
-        <div className="w-[45%] bg-[#111827] border border-[#1e293b] rounded flex flex-col">
-          <div className="p-3 border-b border-[#1e293b]">
-            <h2 className="text-xs font-bold text-white uppercase tracking-wider">Model Performance Tracking</h2>
-            <p className="text-[10px] text-gray-400 font-mono">252-Day Walk-Forward Accuracy</p>
-          </div>
-          <div className="flex-1 p-2">
-            {performanceData && Array.isArray(performanceData) && performanceData.length > 0 ? (
-              <ModelPerformanceLC data={performanceData} />
-            ) : (
-              <div className="h-full min-h-[200px] flex items-center justify-center text-gray-500 text-xs font-mono">
-                Awaiting performance data...
+        {/* KPI STRIP */}
+        <div className="grid grid-cols-6 gap-3 shrink-0">
+          {kpiItems.map((kpi, i) => (
+            <div
+              key={i}
+              className="bg-surface border border-secondary/20 rounded-xl p-3 flex flex-col justify-between"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">{kpi.label}</span>
+                <kpi.icon className="w-3.5 h-3.5 text-gray-600" />
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* RIGHT: ML Probability Ranking */}
-        <div className="w-[55%] bg-[#111827] border border-[#1e293b] rounded flex flex-col overflow-hidden">
-          <div className="p-3 border-b border-[#1e293b] flex justify-between items-center bg-[#111827] z-10">
-            <h2 className="text-xs font-bold text-white uppercase tracking-wider">Stage 4: ML Probability Ranking</h2>
-            <span className="text-[9px] font-mono text-cyan-400 px-2 py-0.5 border border-cyan-900 rounded bg-cyan-900/20">LIVE INFERENCE</span>
-          </div>
-          <div className="flex-1 overflow-y-auto custom-scrollbar">
-            <table className="w-full text-left font-mono text-[10px]">
-              <thead className="sticky top-0 bg-[#0B0E14] text-gray-400 border-b border-[#1e293b]">
-                <tr>
-                  <th className="p-2 font-normal">SYMBOL</th>
-                  <th className="p-2 font-normal">DIR</th>
-                  <th className="p-2 font-normal">WIN PROB</th>
-                  <th className="p-2 font-normal">COMPRESSION</th>
-                  <th className="p-2 font-normal">VELEZ SCORE</th>
-                  <th className="p-2 font-normal">VOL RATIO</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#1e293b]/50 bg-[#111827]">
-                {signalsData.map((row, idx) => {
-                  const isLong = row.dir === 'LONG';
-                  const dirColor = isLong ? 'text-green-400' : 'text-red-400';
-                  const barColor = isLong ? 'bg-green-500' : 'bg-red-500';
-                  return (
-                    <tr key={idx} className="hover:bg-[#1e293b]/30 transition-colors">
-                      <td className="p-2 text-white font-bold">{row.symbol}</td>
-                      <td className={`p-2 ${dirColor}`}>{row.dir}</td>
-                      <td className="p-2">
-                        <div className="flex items-center gap-2">
-                          <span className={isLong ? 'text-green-400' : 'text-red-400'}>{row.winProb}%</span>
-                          <div className="w-16 h-1.5 bg-[#1e293b] rounded-full overflow-hidden">
-                            <div className={`h-full ${barColor}`} style={{ width: `${row.winProb}%` }}></div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-2 text-gray-300">{row.compression}</td>
-                      <td className="p-2 text-cyan-400">{row.velezScore}</td>
-                      <td className="p-2 text-gray-300">{row.volRatio}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      {/* ROW 3: MODELS, FEATURES & LOGS */}
-      <div className="flex gap-4 flex-1 min-h-0">
-
-        {/* LEFT: Deployed Inference Fleet */}
-        <div className="w-[40%] bg-[#111827] border border-[#1e293b] rounded flex flex-col">
-          <div className="p-3 border-b border-[#1e293b]">
-            <h2 className="text-xs font-bold text-white uppercase tracking-wider">Deployed Inference Fleet <span className="text-gray-500 normal-case ml-2">(TimescaleDB Connected)</span></h2>
-          </div>
-          <div className="flex-1 p-3 grid grid-cols-2 grid-rows-2 gap-3 overflow-y-auto custom-scrollbar">
-            {modelsData.map((model, idx) => {
-              const isProd = model.status === 'PRODUCTION';
-              const badgeStyle = isProd
-                ? 'bg-green-500/20 text-green-400 border-green-500/50'
-                : 'bg-amber-500/20 text-amber-400 border-amber-500/50';
-
-              return (
-                <div key={idx} className="bg-[#0B0E14] border border-[#1e293b] rounded p-3 flex flex-col justify-between hover:border-[#00D9FF]/50 transition-colors">
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="text-[11px] font-bold text-white w-2/3">{model.name}</span>
-                    <span className={`text-[8px] font-mono border px-1.5 py-0.5 rounded ${badgeStyle}`}>
-                      {model.status}
-                    </span>
-                  </div>
-                  <div className="space-y-1 font-mono text-[9px]">
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Uptime:</span>
-                      <span className="text-gray-300">{model.uptime}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Scores:</span>
-                      <span className="text-cyan-400">{(Number(model.score1) || 0).toFixed(3)} / {(Number(model.score2) || 0).toFixed(3)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Lookback:</span>
-                      <span className="text-gray-300">{model.lookback}</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* MIDDLE: Feature Importance */}
-        <div className="w-[25%] bg-[#111827] border border-[#1e293b] rounded flex flex-col">
-          <div className="p-3 border-b border-[#1e293b]">
-            <h2 className="text-xs font-bold text-white uppercase tracking-wider">Feature Importance</h2>
-            <p className="text-[10px] text-gray-400 font-mono">Top predictive features</p>
-          </div>
-          <div className="flex-1 p-3 overflow-y-auto custom-scrollbar">
-            <FeatureImportanceChart features={featuresData} />
-          </div>
-        </div>
-
-        {/* RIGHT: Flywheel Learning Log */}
-        <div className="w-[35%] bg-[#0B0E14] border border-[#1e293b] rounded flex flex-col relative">
-          <div className="p-3 border-b border-[#1e293b] bg-[#111827]">
-            <h2 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-              Flywheel Learning Log <span className="text-gray-500 normal-case ml-1">(Trade Outcomes)</span>
-            </h2>
-          </div>
-          <div className="flex-1 p-3 overflow-y-auto custom-scrollbar font-mono text-[10px] space-y-1.5 text-green-400/90">
-            {logsData.map((log, idx) => (
-              <div key={idx} className="flex gap-3 hover:bg-[#1e293b]/30 px-1 py-0.5 rounded">
-                <span className="text-gray-500 shrink-0">[{log.ts}]</span>
-                <span className="break-words">{log.msg}</span>
-              </div>
-            ))}
-            {/* Blinking cursor effect at the bottom */}
-            <div className="flex gap-3 px-1 py-0.5">
-              <span className="text-gray-500 shrink-0">[{new Date().toLocaleTimeString('en-US', {hour12:false})}]</span>
-              <span className="w-2 h-3 bg-green-400/70 animate-pulse inline-block"></span>
+              <span className={`text-2xl font-mono font-bold ${kpi.color}`}>{kpi.val}</span>
+              <span className="text-[10px] text-gray-500 mt-1 font-mono">{kpi.sub}</span>
             </div>
-          </div>
+          ))}
         </div>
 
-      </div>
+        {/* MIDDLE ROW: Performance Chart + ML Probability Ranking */}
+        <div className="flex gap-4 min-h-0" style={{ flex: '1 1 45%' }}>
+          {/* LEFT: Model Performance Tracking */}
+          <Card
+            title={
+              <span className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-cyan-400" />
+                Model Performance Tracking
+              </span>
+            }
+            subtitle="252-Day Walk-Forward Accuracy vs Random Baseline"
+            action={<Badge variant="success" size="sm">ONLINE</Badge>}
+            className="w-[45%] flex flex-col"
+            bodyClassName="flex-1 min-h-0"
+            noPadding
+          >
+            <div className="h-full p-2">
+              {performanceData && Array.isArray(performanceData) && performanceData.length > 0 ? (
+                <ModelPerformanceLC data={performanceData} />
+              ) : (
+                <div className="h-full min-h-[200px] flex items-center justify-center text-gray-500 text-xs font-mono">
+                  Awaiting performance data...
+                </div>
+              )}
+            </div>
+          </Card>
 
-      {/* BOTTOM LOCAL DATA LAKE STRIP */}
-      <div className="flex items-center gap-3 shrink-0 py-1 px-2 border border-[#1e293b] bg-[#111827] w-fit rounded">
-        <span className="text-[10px] font-bold text-gray-300 uppercase tracking-wider">Local Data Lake</span>
-        <div className="h-3 w-px bg-[#1e293b]"></div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_5px_#10b981]"></div>
-          <span className="text-[9px] font-mono text-green-400">TimescaleDB Synced</span>
+          {/* RIGHT: Stage 4 ML Probability Ranking */}
+          <Card
+            title={
+              <span className="flex items-center gap-2">
+                <Radio className="w-4 h-4 text-cyan-400" />
+                Stage 4: ML Probability Ranking
+              </span>
+            }
+            action={<Badge variant="primary" size="sm">LIVE INFERENCE</Badge>}
+            className="w-[55%] flex flex-col"
+            bodyClassName="flex-1 min-h-0 overflow-hidden"
+            noPadding
+          >
+            <div className="h-full overflow-y-auto custom-scrollbar">
+              <table className="w-full text-left font-mono text-[10px]">
+                <thead className="sticky top-0 bg-[#0B0E14] text-gray-500 border-b border-secondary/20 z-10">
+                  <tr>
+                    <th className="px-4 py-2 font-medium">SYMBOL</th>
+                    <th className="px-3 py-2 font-medium">DIR</th>
+                    <th className="px-3 py-2 font-medium">WIN PROB</th>
+                    <th className="px-3 py-2 font-medium">COMPRESSION</th>
+                    <th className="px-3 py-2 font-medium">VELEZ SCORE</th>
+                    <th className="px-3 py-2 font-medium">VOL RATIO</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-secondary/10">
+                  {signalsData.length > 0 ? signalsData.map((row, idx) => {
+                    const isLong = row.dir === 'LONG';
+                    const dirColor = isLong ? 'text-emerald-400' : 'text-red-400';
+                    const barColor = isLong ? 'bg-emerald-500' : 'bg-red-500';
+                    return (
+                      <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
+                        <td className="px-4 py-2 text-white font-bold">{row.symbol}</td>
+                        <td className={`px-3 py-2 font-bold ${dirColor}`}>{row.dir}</td>
+                        <td className="px-3 py-2">
+                          <div className="flex items-center gap-2">
+                            <span className={dirColor}>{row.winProb}%</span>
+                            <div className="w-14 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                              <div className={`h-full rounded-full ${barColor}`} style={{ width: `${row.winProb}%` }} />
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-gray-300">{row.compression}</td>
+                        <td className="px-3 py-2 text-cyan-400">{row.velezScore}</td>
+                        <td className="px-3 py-2 text-gray-300">{row.volRatio}</td>
+                      </tr>
+                    );
+                  }) : (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                        No staged signals available
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+
+        {/* BOTTOM ROW: Deployed Fleet + Flywheel Learning Log */}
+        <div className="flex gap-4 min-h-0" style={{ flex: '1 1 40%' }}>
+          {/* LEFT: Deployed Inference Fleet */}
+          <Card
+            title={
+              <span className="flex items-center gap-2">
+                <Server className="w-4 h-4 text-cyan-400" />
+                Deployed Inference Fleet
+                <span className="text-gray-500 text-xs font-normal">(TimescaleDB Connected)</span>
+              </span>
+            }
+            className="w-1/2 flex flex-col"
+            bodyClassName="flex-1 min-h-0 overflow-y-auto custom-scrollbar"
+          >
+            <div className="grid grid-cols-3 gap-3">
+              {modelsData.length > 0 ? modelsData.map((model, idx) => {
+                const isProd = model.status === 'PRODUCTION';
+                return (
+                  <div
+                    key={idx}
+                    className="bg-[#0B0E14] border border-secondary/20 rounded-lg p-3 flex flex-col gap-2 hover:border-cyan-500/40 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-1">
+                      <span className="text-[11px] font-bold text-white leading-tight">{model.name}</span>
+                      <Badge variant={isProd ? 'success' : 'warning'} size="sm">
+                        {model.status}
+                      </Badge>
+                    </div>
+                    <div className="flex items-baseline gap-3 mt-1">
+                      <span className="text-lg font-mono font-bold text-cyan-400">
+                        {(Number(model.score1) || 0).toFixed(3)}
+                      </span>
+                      <span className="text-lg font-mono font-bold text-gray-400">
+                        {(Number(model.score2) || 0).toFixed(3)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[9px] font-mono text-gray-500 mt-auto">
+                      <span>{model.uptime}</span>
+                      <span>{model.lookback}</span>
+                    </div>
+                  </div>
+                );
+              }) : (
+                <div className="col-span-3 text-center text-gray-500 text-xs font-mono py-8">
+                  No deployed models
+                </div>
+              )}
+            </div>
+          </Card>
+
+          {/* RIGHT: Flywheel Learning Log */}
+          <Card
+            title={
+              <span className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                Flywheel Learning Log
+                <span className="text-gray-500 text-xs font-normal">(Trade Outcomes)</span>
+              </span>
+            }
+            subtitle="Continuous learning from trade results, failures, and market feedback for model improvement"
+            className="w-1/2 flex flex-col"
+            bodyClassName="flex-1 min-h-0 overflow-y-auto custom-scrollbar"
+            noPadding
+          >
+            <div className="p-3 font-mono text-[10px] space-y-1.5 text-emerald-400/90">
+              {logsData.map((logEntry, idx) => (
+                <div key={idx} className="flex gap-3 hover:bg-white/[0.02] px-2 py-0.5 rounded">
+                  <span className="text-gray-500 shrink-0">[{logEntry.ts}]</span>
+                  <span className="break-words">{logEntry.msg}</span>
+                </div>
+              ))}
+              {logsData.length === 0 && (
+                <div className="text-gray-500 text-center py-8">Awaiting log entries...</div>
+              )}
+              {/* Blinking cursor */}
+              <div className="flex gap-3 px-2 py-0.5">
+                <span className="text-gray-500 shrink-0">[{new Date().toLocaleTimeString('en-US', { hour12: false })}]</span>
+                <span className="w-2 h-3 bg-emerald-400/70 animate-pulse inline-block" />
+              </div>
+            </div>
+          </Card>
         </div>
       </div>
 
-      {/* GLOBAL SCROLLBAR CSS FOR THIS COMPONENT */}
-      <style dangerouslySetInnerHTML={{__html: `
+      {/* GLOBAL SCROLLBAR CSS */}
+      <style dangerouslySetInnerHTML={{ __html: `
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 2px; }
