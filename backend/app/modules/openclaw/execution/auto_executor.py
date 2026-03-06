@@ -106,13 +106,14 @@ def _log_execution(entry: Dict):
         logger.error(f"[AutoExec] Failed to write execution log: {e}")
 
 
-def calculate_em_based_targets(entry_price: float, expected_move_pct: float) -> tuple:
+def calculate_em_based_targets(entry_price: float, expected_move_pct: float, side: str = "buy") -> tuple:
     """Calculate take-profit targets based on FOM expected move."""
     if not expected_move_pct or expected_move_pct <= 0:
         return None, None
     em_dollars = entry_price * (expected_move_pct / 100.0)
-    target1 = round(entry_price + em_dollars * 0.5, 2)
-    target2 = round(entry_price + em_dollars, 2)
+        direction = 1 if side.lower() == "buy" else -1
+    target1 = round(entry_price + direction * em_dollars * 0.5, 2)
+    target2 = round(entry_price + direction * em_dollars, 2)
     return target1, target2
 
 
@@ -134,12 +135,12 @@ def calculate_risk_based_size(equity: float, entry_price: float,
 
 
 def build_bracket_order(ticker: str, qty: int, entry: float,
-                        stop: float, target: float) -> Dict:
+                        stop: float, target: float, side: str = "buy") -> Dict:
     """Construct bracket order parameters."""
     return {
         "symbol": ticker,
         "qty": qty,
-        "side": "buy",
+        "side": side,
         "limit_price": round(entry, 2),
         "stop_loss_price": round(stop, 2),
         "take_profit_price": round(target, 2),
@@ -162,6 +163,7 @@ def execute_signal(signal: Dict, alpaca: 'AlpacaClient',
     atr = float(signal.get("atr", entry_price * 0.02))
     regime = signal.get("regime", "YELLOW")
     trigger = signal.get("trigger", "unknown")
+        side = signal.get("side", "buy").lower()
     # Normalize metadata for memory/performance tracking
     source = (signal.get("source") or signal.get("session") or "auto_executor").lower()
     setup = (signal.get("setup") or signal.get("setup_type") or trigger or "unknown").lower()
@@ -199,8 +201,8 @@ def execute_signal(signal: Dict, alpaca: 'AlpacaClient',
         return result
 
     # Calculate stop and target
-    stop_price = round(entry_price - ATR_STOP_MULTIPLIER * atr, 2)
-    stop_distance = entry_price - stop_price
+    stop_price = round(entry_price - ATR_STOP_MULTIPLIER * atr, 2) if side == "buy" else round(entry_price + ATR_STOP_MULTIPLIER * atr, 2)
+    stop_distance = abs(entry_price - stop_price)
 
     # FOM-based targets
     em_pct = 0
@@ -210,9 +212,9 @@ def execute_signal(signal: Dict, alpaca: 'AlpacaClient',
             em_pct = em_data.get("em_pct", 0) if em_data else 0
         except Exception:
             em_pct = 0
-    target1, target2 = calculate_em_based_targets(entry_price, em_pct)
+    target1, target2 = calculate_em_based_targets(entry_price, em_pct, side)
     if target2 is None:
-        target2 = round(entry_price + RR_RATIO * stop_distance, 2)
+                target2 = round(entry_price + RR_RATIO * stop_distance, 2) if side == "buy" else round(entry_price - RR_RATIO * stop_distance, 2)
 
     # Risk governor check
     if risk_check_fn:
@@ -274,7 +276,7 @@ def execute_signal(signal: Dict, alpaca: 'AlpacaClient',
         order_result = alpaca.place_bracket_order(
             symbol=ticker,
             qty=qty,
-            side="buy",
+                            side=side,
             limit_price=entry_price,
             stop_loss_price=stop_price,
             take_profit_price=target2,
@@ -311,7 +313,7 @@ def execute_signal(signal: Dict, alpaca: 'AlpacaClient',
             try:
                 log_trade({
                     "symbol": ticker,
-                    "side": "buy",
+                    "side": side,
                     "entry_price": entry_price,
                     "shares": qty,
                     "regime": regime,
@@ -409,6 +411,7 @@ async def async_blackboard_consumer(blackboard=None) -> None:
                 "em_pct": payload.get("em_pct", 0),
                 "entry_price": payload.get("entry_price", 0),
                 "atr": payload.get("atr", 0),
+                                "side": payload.get("side", "buy"),
             }
 
             result = execute_signal(signal, alpaca)
@@ -496,6 +499,7 @@ if __name__ == "__main__":
             "em_pct": 2.5,
             "entry_price": 150.00,
             "atr": 3.0,
+                        "side": "buy",
         }
         test_alpaca = AlpacaClient() if AlpacaClient else None
         test_result = execute_signal(test_signal, test_alpaca)
