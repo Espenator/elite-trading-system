@@ -155,6 +155,9 @@ const PerformanceAnalytics = () => {
   const { data: strategyData } = useApi("strategy");
   const { data: kellyData } = useApi("kellySizer", { pollIntervalMs: 30000 });
 
+  // Track whether we're showing demo data (API not yet loaded)
+  const isUsingDemoData = !tradesData && !summary && !equityData;
+
   // --- REFS & STATE ---
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
@@ -407,6 +410,13 @@ const PerformanceAnalytics = () => {
 
   return (
     <div className="min-h-screen bg-[#0B0E14] text-gray-100 p-3 space-y-3">
+      {/* DEMO DATA WARNING */}
+      {isUsingDemoData && (
+        <div className="px-3 py-1.5 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-400 text-xs flex items-center gap-2">
+          <span className="font-bold">DEMO DATA</span>
+          <span>API not connected — showing sample data for preview only</span>
+        </div>
+      )}
 
       {/* ==================== HEADER ==================== */}
       <div className="flex items-center justify-between">

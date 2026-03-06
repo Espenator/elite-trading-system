@@ -55,6 +55,9 @@ export default {
           "50%": { opacity: "0.3" },
         },
       },
+      gridTemplateColumns: {
+        14: "repeat(14, minmax(0, 1fr))",
+      },
       fontSize: {
         "2xs": ["0.65rem", { lineHeight: "0.85rem" }],
       },

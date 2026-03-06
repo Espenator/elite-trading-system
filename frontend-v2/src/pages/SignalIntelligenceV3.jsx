@@ -580,7 +580,7 @@ export default function SignalIntelligenceV3() {
 
   // --- RENDER ---
   return (
-    <div className="h-screen bg-[#0B0E14] text-gray-200 font-mono flex flex-col overflow-hidden">
+    <div className="min-h-screen bg-[#0B0E14] text-gray-200 font-mono flex flex-col overflow-y-auto">
       {/* ================================================================== */}
       {/* TOP TOOLBAR                                                        */}
       {/* ================================================================== */}

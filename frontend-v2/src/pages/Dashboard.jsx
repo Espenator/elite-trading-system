@@ -1023,13 +1023,14 @@ export default function Dashboard() {
     data: signalsData,
     loading: sigLoading,
     error: sigErr,
+    isStale: sigStale,
   } = useApi("signals", { pollIntervalMs: 15000 });
-  const { data: kellyData } = useApi("kellyRanked", { pollIntervalMs: 30000 });
-  const { data: portfolioData } = useApi("portfolio", { pollIntervalMs: 15000 });
-  const { data: indicesData } = useApi("marketIndices", {
+  const { data: kellyData, error: kellyErr } = useApi("kellyRanked", { pollIntervalMs: 30000 });
+  const { data: portfolioData, error: portfolioErr } = useApi("portfolio", { pollIntervalMs: 15000 });
+  const { data: indicesData, error: indicesErr } = useApi("marketIndices", {
     pollIntervalMs: 15000,
   });
-  const { data: openclawData } = useApi("openclaw", { pollIntervalMs: 30000 });
+  const { data: openclawData, error: openclawErr } = useApi("openclaw", { pollIntervalMs: 30000 });
   const { data: performanceData } = useApi("performance", {
     pollIntervalMs: 60000,
   });
@@ -1321,8 +1322,23 @@ export default function Dashboard() {
   /* sigErr no longer blocks the entire page — we show a banner instead
      so that non-signal panels (portfolio, risk, etc.) remain usable. */
 
+  // Aggregate critical API errors for visibility
+  const criticalErrors = [
+    portfolioErr && 'Portfolio',
+    sigErr && 'Signals',
+    indicesErr && 'Market Data',
+    openclawErr && 'OpenClaw',
+  ].filter(Boolean);
+
   return (
-    <div className="flex flex-col h-screen w-full bg-[#0B0E14] text-[#e5e7eb] font-sans text-[9px] leading-tight overflow-hidden selection:bg-[#00D9FF]/30">
+    <div className="flex flex-col h-screen w-full bg-[#0B0E14] text-[#e5e7eb] font-sans text-[9px] leading-tight overflow-y-auto selection:bg-[#00D9FF]/30">
+      {/* API ERROR BANNER */}
+      {criticalErrors.length > 0 && (
+        <div className="px-4 py-1.5 bg-red-500/10 border-b border-red-500/30 text-red-400 text-[10px] flex items-center gap-2 shrink-0">
+          <span className="font-bold">API OFFLINE:</span>
+          <span>{criticalErrors.join(', ')} — data may be stale or unavailable</span>
+        </div>
+      )}
       {/* TOP HEADER BAR */}
       <header className="flex items-center justify-between px-4 py-1.5 border-b border-[rgba(42,52,68,0.5)] bg-[#111827] shrink-0">
         <div className="flex items-center gap-4">

@@ -332,7 +332,7 @@ export default function MLBrainFlywheel() {
   ];
 
   return (
-    <div className="flex flex-col h-screen w-full bg-[#0B0E14] text-gray-200 font-sans overflow-hidden selection:bg-cyan-500/30">
+    <div className="flex flex-col min-h-screen w-full bg-[#0B0E14] text-gray-200 font-sans overflow-y-auto selection:bg-cyan-500/30">
       <div className="flex flex-col flex-1 min-h-0 p-4 gap-4">
 
         {/* HEADER */}

@@ -5,6 +5,7 @@
  * Endpoints: portfolio (positions+fills), orders (active orders), risk, dataSources
  */
 import React, { useState, useCallback, useEffect } from "react";
+import { toast } from "react-toastify";
 import log from "@/utils/logger";
 import {
   TrendingUp,
@@ -86,16 +87,19 @@ export default function Trades() {
   });
 
   // ── Keyboard shortcut: Ctrl+Enter to submit order ──
+  const handleSubmitRef = React.useRef(null);
+  handleSubmitRef.current = { orderForm, submitting, handleSubmitOrder: null }; // set below after definition
   useEffect(() => {
     const handleKeyDown = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
         e.preventDefault();
-        if (orderForm.symbol && orderForm.qty && !submitting) handleSubmitOrder();
+        const ctx = handleSubmitRef.current;
+        if (ctx?.orderForm?.symbol && ctx?.orderForm?.qty && !ctx?.submitting && ctx?.handleSubmitOrder) ctx.handleSubmitOrder();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  });
+  }, []);
 
   // ── Actions ──
   const handleRefresh = () => { refetchPortfolio(); refetchOrders(); };
@@ -105,7 +109,7 @@ export default function Trades() {
       const res = await fetch(getApiUrl("orders"), { method: "DELETE", headers: getAuthHeaders() });
       if (!res.ok) throw new Error('Failed');
       refetchOrders();
-    } catch (e) { log.error("Cancel all failed:", e); }
+    } catch (e) { log.error("Cancel all failed:", e); toast.error(`Cancel all failed: ${e.message}`); }
   };
 
   const handleCancelAll = async () => {
@@ -119,7 +123,7 @@ export default function Trades() {
       const res = await fetch(getApiUrl("orders") + `/close?symbol=${encodeURIComponent(symbol)}${qty}`, { method: "POST", headers: getAuthHeaders() });
       if (!res.ok) throw new Error('Failed');
       refetchPortfolio();
-    } catch (e) { log.error("Close position failed:", e); }
+    } catch (e) { log.error("Close position failed:", e); toast.error(`Close ${symbol} failed: ${e.message}`); }
   };
 
   const handleCloseLosers = async () => {
@@ -176,6 +180,8 @@ export default function Trades() {
     }
     setSubmitting(false);
   };
+  // Keep ref in sync for keyboard handler
+  handleSubmitRef.current = { orderForm, submitting, handleSubmitOrder };
 
   const handleCancelOrder = async (orderId) => {
     try {
@@ -211,8 +217,8 @@ export default function Trades() {
           <span className="text-[16px] font-bold font-mono tracking-wide">ACTIVE_TRADES_V3</span>
           <div className="flex items-center gap-2 ml-2">
             <span className="px-2 py-0.5 bg-black/10 border border-black/20 rounded text-[9px] font-bold">OC_CORE_v5.2.1</span>
-            <span className="px-2 py-0.5 bg-black/10 border border-black/20 rounded text-[9px] font-bold">WS_LATENCY: --ms</span>
-            <span className="px-2 py-0.5 bg-black/10 border border-black/20 rounded text-[9px] font-bold">API_LIMIT: 95%</span>
+            <span className="px-2 py-0.5 bg-black/10 border border-black/20 rounded text-[9px] font-bold">WS_LATENCY: {systemData?.ws_latency_ms != null ? `${systemData.ws_latency_ms}ms` : '--ms'}</span>
+            <span className="px-2 py-0.5 bg-black/10 border border-black/20 rounded text-[9px] font-bold">API_LIMIT: {systemData?.api_rate_limit_pct != null ? `${systemData.api_rate_limit_pct}%` : '--'}</span>
           </div>
         </div>
 

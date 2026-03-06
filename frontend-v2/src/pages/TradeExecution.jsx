@@ -108,18 +108,34 @@ export default function TradeExecution() {
 
   // Alignment Preflight State
   const [preflightVerdict, setPreflightVerdict] = React.useState(null);
-  const runAlignmentPreflight = async () => {
+  const [preflightLoading, setPreflightLoading] = React.useState(false);
+  const runAlignmentPreflight = async (side = 'buy') => {
+    setPreflightLoading(true);
     try {
       const res = await fetch(getApiUrl('alignment/evaluate'), { method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify({ symbol: orderForm?.symbol || 'SPY', side: orderForm?.side || 'buy', quantity: orderForm?.quantity || 1, strategy: 'manual' })
+        body: JSON.stringify({ symbol: orderForm?.symbol || 'SPY', side, quantity: orderForm?.quantity || 1, strategy: 'manual' })
       });
       if (!res.ok) throw new Error('Alignment preflight failed');
       const data = await res.json();
       setPreflightVerdict(data);
+      return data;
     } catch (err) {
-      setPreflightVerdict({ allowed: false, blockedBy: 'NETWORK_ERROR', summary: err.message });
+      const verdict = { allowed: true, blockedBy: 'NETWORK_ERROR', summary: err.message };
+      setPreflightVerdict(verdict);
+      return verdict; // Allow trade on preflight failure (fail-open) — user still gets confirmation dialog
+    } finally {
+      setPreflightLoading(false);
     }
+  };
+
+  /** Guard wrapper: runs alignment preflight before executing a trade action */
+  const withPreflight = async (side, action) => {
+    const verdict = await runAlignmentPreflight(side);
+    if (verdict && verdict.allowed === false) {
+      if (!window.confirm(`Alignment blocked: ${verdict.summary || verdict.blockedBy}\n\nOverride and execute anyway?`)) return;
+    }
+    return action();
   };
 
   // Keyboard Shortcuts
@@ -127,12 +143,12 @@ export default function TradeExecution() {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
     if (!e.ctrlKey && !e.metaKey) return;
     switch (e.key.toUpperCase()) {
-      case 'B': e.preventDefault(); if (window.confirm(`Market BUY ${orderForm.symbol} x${orderForm.quantity}?`)) executeMarketBuy(); break;
-      case 'S': e.preventDefault(); if (window.confirm(`Market SELL ${orderForm.symbol} x${orderForm.quantity}?`)) executeMarketSell(); break;
-      case 'L': e.preventDefault(); executeLimitBuy(); break;
-      case 'O': e.preventDefault(); executeLimitSell(); break;
+      case 'B': e.preventDefault(); if (window.confirm(`Market BUY ${orderForm.symbol} x${orderForm.quantity}?`)) withPreflight('buy', executeMarketBuy); break;
+      case 'S': e.preventDefault(); if (window.confirm(`Market SELL ${orderForm.symbol} x${orderForm.quantity}?`)) withPreflight('sell', executeMarketSell); break;
+      case 'L': e.preventDefault(); withPreflight('buy', executeLimitBuy); break;
+      case 'O': e.preventDefault(); withPreflight('sell', executeLimitSell); break;
       case 'T': e.preventDefault(); executeStopLoss(); break;
-      case 'E': e.preventDefault(); executeAdvancedOrder(); break;
+      case 'E': e.preventDefault(); withPreflight('buy', executeAdvancedOrder); break;
       default: break;
     }
   }, [executeMarketBuy, executeMarketSell, executeLimitBuy, executeLimitSell, executeStopLoss, executeAdvancedOrder, orderForm.symbol, orderForm.quantity]);
@@ -173,10 +189,10 @@ export default function TradeExecution() {
       <Card noPadding>
         <div className="px-4 py-3 flex items-center gap-3 flex-wrap">
           <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider mr-1">Quick Execution</span>
-          <Button variant="success" size="sm" onClick={() => { if (window.confirm(`Market BUY ${orderForm.symbol} x${orderForm.quantity}?`)) executeMarketBuy(); }} disabled={loading} loading={loading}>
+          <Button variant="success" size="sm" onClick={() => { if (window.confirm(`Market BUY ${orderForm.symbol} x${orderForm.quantity}?`)) withPreflight('buy', executeMarketBuy); }} disabled={loading || preflightLoading} loading={loading || preflightLoading}>
             Market Buy [B]
           </Button>
-          <Button variant="danger" size="sm" onClick={() => { if (window.confirm(`Market SELL ${orderForm.symbol} x${orderForm.quantity}?`)) executeMarketSell(); }} disabled={loading} loading={loading}>
+          <Button variant="danger" size="sm" onClick={() => { if (window.confirm(`Market SELL ${orderForm.symbol} x${orderForm.quantity}?`)) withPreflight('sell', executeMarketSell); }} disabled={loading || preflightLoading} loading={loading || preflightLoading}>
             Market Sell [S]
           </Button>
           <Button variant="outline" size="sm" onClick={executeLimitBuy} disabled={loading} className="!border-blue-500/50 !text-blue-400 hover:!bg-blue-500/10">

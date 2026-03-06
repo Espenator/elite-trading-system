@@ -2,6 +2,7 @@
 // Production V6 -- Exact mirror of Nano Banana Pro mockup 08-backtesting-lab.png
 // ALL data from real API -- zero mock/fake data
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { toast } from "react-toastify";
 import log from "@/utils/logger";
 import { Play, Square, Download, RotateCcw, Settings, Plus, Minus, Copy, Trash2, TrendingUp, TrendingDown, Activity, Zap, Shield, Brain, Users, GitBranch, Layers, BarChart3, Target, AlertTriangle, ChevronDown, ChevronRight, RefreshCw, Eye, EyeOff, Lock, Unlock, Cpu, Network, Clock } from "lucide-react";
 import Card from "../components/ui/Card";
@@ -380,11 +381,19 @@ export default function Backtesting() {
         body: JSON.stringify({ strategy, startDate, endDate, assets, capital: parseFloat(capital), benchmark, txCost: parseFloat(txCost), useKellySizing, kellyFraction: parseFloat(kellyFraction), paramA, paramBMin, paramBMax, posSize, slippage, stopLossPct, takeProfitPct, sweepMode, commission, trailingStop, volatilityTarget, correlationFilter, regimeFilter, riskPerTrade, maxPositions, warmUpPeriod, walkForwardWindow, outOfSamplePct, monteCarloIter, confidenceLevel, rebalanceFreq, timeframe }),
       });
       refetch();
-    } catch (err) { log.error("Backtest failed:", err); }
+    } catch (err) {
+      log.error("Backtest failed:", err);
+      toast.error(`Backtest failed: ${err.message}`);
+    }
     finally { setIsRunning(false); }
   };
 
-  const handleStop = () => setIsRunning(false);
+  const handleStop = async () => {
+    try {
+      await fetch(getApiUrl("backtest") + "/cancel", { method: "POST", headers: getAuthHeaders() });
+    } catch { /* cancel endpoint may not exist yet — still update UI */ }
+    setIsRunning(false);
+  };
 
   // === JSX RETURN (exact mirror of mockup 08-backtesting-lab.png) ===
   return (

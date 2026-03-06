@@ -182,6 +182,7 @@ export default function SettingsPage() {
   };
 
   const onReset = async (cat) => {
+    if (!window.confirm(`Reset all ${cat} settings to defaults? This cannot be undone.`)) return;
     try {
       await resetCategory(cat);
       toast.success(`${cat} reset to defaults`, TOAST_CFG);
@@ -189,6 +190,14 @@ export default function SettingsPage() {
       toast.error(`Failed to reset ${cat}`, TOAST_CFG);
     }
   };
+
+  // Warn on unsaved changes when leaving
+  useEffect(() => {
+    if (!dirty) return;
+    const handler = (e) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [dirty]);
 
   const onTestConn = async (source) => {
     const r = await testConnection(source);
