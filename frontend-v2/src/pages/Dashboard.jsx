@@ -1099,10 +1099,6 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col h-screen w-full bg-[#0B0E14] text-[#e5e7eb] font-sans text-[9px] leading-tight overflow-y-auto selection:bg-[#00D9FF]/30">
-      {/* VERSION CHECK - if you see this, the new code is loaded */}
-      <div style={{background:'#ff0000',color:'#fff',padding:'12px 20px',fontSize:'18px',fontWeight:'bold',textAlign:'center',zIndex:9999}}>
-        NEW DASHBOARD v2 LOADED - Chart removed - {new Date().toISOString().slice(0,19)}
-      </div>
       {/* API ERROR BANNER */}
       {criticalErrors.length > 0 && (
         <div className="px-4 py-1.5 bg-red-500/10 border-b border-red-500/30 text-red-400 text-[10px] flex items-center gap-2 shrink-0">
