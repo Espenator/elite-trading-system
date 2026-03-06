@@ -35,15 +35,12 @@ const AgentCommandCenter = lazy(() => import("./pages/AgentCommandCenter"));
 const SentimentIntelligence = lazy(() => import("./pages/SentimentIntelligence"));
   const DataSourcesMonitor = lazy(() => import("./pages/DataSourcesMonitor"));
 const SignalIntelligenceV3 = lazy(() => import("./pages/SignalIntelligenceV3"));
-const SwarmIntelligence = lazy(() => import("./pages/SwarmIntelligence"));
-
 // ML & ANALYSIS section (5 pages)
 const MLBrainFlywheel = lazy(() => import("./pages/MLBrainFlywheel"));
 const Patterns = lazy(() => import("./pages/Patterns"));
 const Backtesting = lazy(() => import("./pages/Backtesting"));
 const PerformanceAnalytics = lazy(() => import("./pages/PerformanceAnalytics"));
 const MarketRegime = lazy(() => import("./pages/MarketRegime"));
-const CognitiveDashboard = lazy(() => import("./pages/CognitiveDashboard"));
 
 // EXECUTION section (3 pages)
 const Trades = lazy(() => import("./pages/Trades"));
@@ -127,7 +124,6 @@ function App() {
             <Route path="sentiment" element={<P><SentimentIntelligence /></P>} />
             <Route path="data-sources" element={<P><DataSourcesMonitor /></P>} />
             <Route path="signal-intelligence-v3" element={<P><SignalIntelligenceV3 /></P>} />
-            <Route path="swarm-intelligence" element={<P><SwarmIntelligence /></P>} />
 
             {/* ML & ANALYSIS */}
             <Route path="ml-brain" element={<P><MLBrainFlywheel /></P>} />
@@ -135,7 +131,6 @@ function App() {
             <Route path="backtest" element={<P><Backtesting /></P>} />
             <Route path="performance" element={<P><PerformanceAnalytics /></P>} />
             <Route path="market-regime" element={<P><MarketRegime /></P>} />
-            <Route path="cognitive-dashboard" element={<P><CognitiveDashboard /></P>} />
 
             {/* EXECUTION */}
             <Route path="trades" element={<P><Trades /></P>} />
