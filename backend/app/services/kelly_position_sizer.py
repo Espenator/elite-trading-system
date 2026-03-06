@@ -38,6 +38,17 @@ _REGIME_MULTIPLIERS: Dict[str, float] = {
     "UNKNOWN": 0.80,
 }
 
+# Short-side regime multipliers (inverted: bearish boosts shorts)
+_SHORT_REGIME_MULTIPLIERS: Dict[str, float] = {
+    "BULLISH": 0.50,
+    "RISK_ON": 0.70,
+    "NEUTRAL": 1.00,
+    "RISK_OFF": 1.05,
+    "BEARISH": 1.10,
+    "CRISIS": 1.15,
+    "UNKNOWN": 0.80,
+}
+
 
 @dataclass
 class PositionSize:
@@ -98,6 +109,7 @@ class KellyPositionSizer:
         avg_win_pct: float,
         avg_loss_pct: float,
         regime: str = "NEUTRAL",
+        side: str = "buy",
         trade_count: int = 100,
     ) -> PositionSize:
         """Compute optimal position size.
@@ -159,13 +171,14 @@ class KellyPositionSizer:
         half_kelly = raw_kelly * 0.5 if self.use_half_kelly else raw_kelly
 
         # Apply OpenClaw regime multiplier
-        regime_mult = _REGIME_MULTIPLIERS.get(regime.upper(), 0.80)
+        mult_table = _SHORT_REGIME_MULTIPLIERS if side.lower() in ("sell", "short") else _REGIME_MULTIPLIERS
+        regime_mult = mult_table.get(regime.upper(), 0.80)
         regime_adjusted = half_kelly * regime_mult
 
         # Cap at max allocation
         final_pct = min(regime_adjusted, self.max_allocation)
 
-        action = "BUY" if final_pct > 0 else "HOLD"
+        action = ("SELL" if side.lower() in ("sell", "short") else "BUY") if final_pct > 0 else "HOLD"
 
         result = PositionSize(
             raw_kelly=round(raw_kelly, 4),
