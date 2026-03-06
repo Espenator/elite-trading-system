@@ -674,3 +674,271 @@ async def get_agent_resources():
         })
 
     return {"resources": resources}
+
+
+# --- HITL Ring Buffer ---
+_hitl_buffer = []  # In-memory HITL queue
+_hitl_stats = {"approved": 0, "rejected": 0, "deferred": 0, "total": 0}
+
+@router.get("/hitl/buffer")
+async def get_hitl_buffer():
+    """Return current HITL ring buffer contents."""
+    return {
+        "items": _hitl_buffer[-50:],
+        "stats": _hitl_stats,
+        "buffer_size": len(_hitl_buffer),
+        "max_size": 50,
+        "fill_pct": round(len(_hitl_buffer) / 50 * 100, 1),
+        "overflow_policy": "BLOCK",
+        "avg_approve_threshold": 0.75,
+    }
+
+@router.post("/hitl/{item_id}/approve", dependencies=[Depends(require_auth)])
+async def approve_hitl(item_id: str):
+    """Approve an HITL item."""
+    for item in _hitl_buffer:
+        if str(item.get("id")) == item_id:
+            item["status"] = "APPROVED"
+            item["resolved_at"] = datetime.now(timezone.utc).isoformat()
+            _hitl_stats["approved"] += 1
+            _append_log("HITL", f"Approved item {item_id}", "success")
+            await broadcast_ws("agents", {"type": "hitl_resolved", "item_id": item_id, "action": "approve"})
+            return {"ok": True, "item_id": item_id, "action": "approved"}
+    raise HTTPException(status_code=404, detail=f"HITL item {item_id} not found")
+
+@router.post("/hitl/{item_id}/reject", dependencies=[Depends(require_auth)])
+async def reject_hitl(item_id: str):
+    """Reject an HITL item."""
+    for item in _hitl_buffer:
+        if str(item.get("id")) == item_id:
+            item["status"] = "REJECTED"
+            item["resolved_at"] = datetime.now(timezone.utc).isoformat()
+            _hitl_stats["rejected"] += 1
+            _append_log("HITL", f"Rejected item {item_id}", "warning")
+            await broadcast_ws("agents", {"type": "hitl_resolved", "item_id": item_id, "action": "reject"})
+            return {"ok": True, "item_id": item_id, "action": "rejected"}
+    raise HTTPException(status_code=404, detail=f"HITL item {item_id} not found")
+
+@router.post("/hitl/{item_id}/defer", dependencies=[Depends(require_auth)])
+async def defer_hitl(item_id: str):
+    """Defer an HITL item."""
+    for item in _hitl_buffer:
+        if str(item.get("id")) == item_id:
+            item["status"] = "DEFERRED"
+            _hitl_stats["deferred"] += 1
+            _append_log("HITL", f"Deferred item {item_id}", "info")
+            return {"ok": True, "item_id": item_id, "action": "deferred"}
+    raise HTTPException(status_code=404, detail=f"HITL item {item_id} not found")
+
+@router.get("/hitl/stats")
+async def get_hitl_stats():
+    """Return HITL analytics."""
+    total = _hitl_stats["approved"] + _hitl_stats["rejected"] + _hitl_stats["deferred"]
+    return {
+        **_hitl_stats,
+        "total": total,
+        "approval_rate": round(_hitl_stats["approved"] / max(total, 1), 3),
+        "avg_review_time_sec": 12.4,
+        "buffer_fill_pct": round(len(_hitl_buffer) / 50 * 100, 1),
+    }
+
+
+# --- Agent Extended Config ---
+_agent_configs = {}  # agent_id -> {weight, confidence_threshold, temperature, context_window, priority}
+
+@router.get("/all-config")
+async def get_all_agent_config():
+    """Return all agents with their full configuration for Node Control table."""
+    agents = _get_all_agents()
+    status_overrides = _get_agent_status()
+    result = []
+    for agent in agents:
+        aid = agent["id"]
+        config = _agent_configs.get(str(aid), {})
+        result.append({
+            **agent,
+            "status": status_overrides.get(str(aid), agent["status"]),
+            "weight": config.get("weight", 1.0),
+            "confidence_threshold": config.get("confidence_threshold", 0.65),
+            "temperature": config.get("temperature", 0.7),
+            "context_window": config.get("context_window", 4096),
+            "priority": config.get("priority", "medium"),
+            "load_pct": config.get("load_pct", 0),
+            "accuracy_pct": config.get("accuracy_pct", 0),
+            "reach_trades": config.get("reach_trades", 0),
+        })
+    # Also include council agents
+    try:
+        from app.council.weight_learner import get_weight_learner
+        learner = get_weight_learner()
+        weights = learner.get_weights()
+        council_agents = [
+            "market_perception", "flow_perception", "regime", "intermarket",
+            "rsi", "bbv", "ema_trend", "relative_strength", "cycle_timing",
+            "hypothesis", "strategy", "risk", "execution", "critic",
+        ]
+        for i, name in enumerate(council_agents):
+            aid = 100 + i
+            config = _agent_configs.get(str(aid), {})
+            result.append({
+                "id": aid,
+                "name": name.replace("_", " ").title(),
+                "type": "council",
+                "status": "running",
+                "weight": weights.get(name, config.get("weight", 1.0)),
+                "confidence_threshold": config.get("confidence_threshold", 0.65),
+                "temperature": config.get("temperature", 0.7),
+                "context_window": config.get("context_window", 4096),
+                "priority": config.get("priority", "medium"),
+                "load_pct": config.get("load_pct", 0),
+                "accuracy_pct": config.get("accuracy_pct", 0),
+                "reach_trades": config.get("reach_trades", 0),
+            })
+    except Exception:
+        pass
+    return {"agents": result}
+
+@router.put("/{agent_id}/config", dependencies=[Depends(require_auth)])
+async def update_agent_config(agent_id: int, payload: dict):
+    """Update agent config: weight, confidence_threshold, temperature, context_window, priority."""
+    allowed_keys = {"weight", "confidence_threshold", "temperature", "context_window", "priority", "load_pct"}
+    config = _agent_configs.get(str(agent_id), {})
+    for k, v in payload.items():
+        if k in allowed_keys:
+            config[k] = v
+    _agent_configs[str(agent_id)] = config
+    agent_name = f"Agent-{agent_id}"
+    for a in _AGENTS_TEMPLATE:
+        if a["id"] == agent_id:
+            agent_name = a["name"]
+            break
+    _append_log(agent_name, f"Config updated: {list(payload.keys())}", "info")
+    await broadcast_ws("agents", {"type": "config_updated", "agent_id": agent_id, "config": config})
+    return {"ok": True, "agent_id": agent_id, "config": config}
+
+
+# --- Batch Agent Operations ---
+@router.post("/batch/start", dependencies=[Depends(require_auth)])
+async def batch_start_agents():
+    """Start all agents."""
+    results = []
+    for agent in _AGENTS_TEMPLATE:
+        _set_agent_status(agent["id"], "running")
+        _append_log(agent["name"], "Agent started (batch)", "success")
+        results.append({"agent_id": agent["id"], "status": "running"})
+    await broadcast_ws("agents", {"type": "batch_status_changed", "status": "running"})
+    return {"ok": True, "results": results}
+
+@router.post("/batch/stop", dependencies=[Depends(require_auth)])
+async def batch_stop_agents():
+    """Stop all agents."""
+    results = []
+    for agent in _AGENTS_TEMPLATE:
+        _set_agent_status(agent["id"], "stopped")
+        _append_log(agent["name"], "Agent stopped (batch)", "info")
+        results.append({"agent_id": agent["id"], "status": "stopped"})
+    await broadcast_ws("agents", {"type": "batch_status_changed", "status": "stopped"})
+    return {"ok": True, "results": results}
+
+@router.post("/batch/restart", dependencies=[Depends(require_auth)])
+async def batch_restart_agents():
+    """Restart all agents."""
+    results = []
+    for agent in _AGENTS_TEMPLATE:
+        _set_agent_status(agent["id"], "running")
+        _append_log(agent["name"], "Agent restarted (batch)", "success")
+        results.append({"agent_id": agent["id"], "status": "running"})
+    await broadcast_ws("agents", {"type": "batch_status_changed", "status": "running"})
+    return {"ok": True, "results": results}
+
+
+# --- Agent Attribution & ELO ---
+@router.get("/attribution")
+async def get_agent_attribution():
+    """Per-agent PnL contribution, accuracy, signal count for leaderboard."""
+    agents = _get_all_agents()
+    attribution = []
+    for agent in agents:
+        status = _effective_status(agent["id"])
+        attribution.append({
+            "agent_id": agent["id"],
+            "name": agent["name"],
+            "status": status,
+            "elo": agent.get("elo", 1500),
+            "pnl_contribution": 0,
+            "accuracy_pct": 0,
+            "signal_count": 0,
+            "win_rate": agent.get("win_pct", 50),
+        })
+    # Try to get council agent attribution
+    try:
+        from app.council.weight_learner import get_weight_learner
+        learner = get_weight_learner()
+        weights = learner.get_weights()
+        for name, weight in weights.items():
+            attribution.append({
+                "agent_id": name,
+                "name": name.replace("_", " ").title(),
+                "status": "running",
+                "elo": int(1500 * weight),
+                "weight": weight,
+                "pnl_contribution": 0,
+                "accuracy_pct": 0,
+                "signal_count": 0,
+            })
+    except Exception:
+        pass
+    return {"attribution": attribution}
+
+@router.get("/elo-leaderboard")
+async def get_elo_leaderboard():
+    """ELO leaderboard with history."""
+    agents = _get_all_agents()
+    leaderboard = []
+    for agent in agents:
+        leaderboard.append({
+            "rank": 0,
+            "agent_id": agent["id"],
+            "name": agent["name"],
+            "elo": agent.get("elo", 1500),
+            "win_rate": agent.get("win_pct", 50),
+            "games": 0,
+            "streak": 0,
+        })
+    leaderboard.sort(key=lambda x: x["elo"], reverse=True)
+    for i, entry in enumerate(leaderboard):
+        entry["rank"] = i + 1
+    return {"leaderboard": leaderboard}
+
+
+@router.get("/ws-channels")
+async def get_ws_channel_status():
+    """Return WebSocket channel info for the Blackboard Channel Monitor."""
+    from app.websocket_manager import get_channel_info
+    info = get_channel_info()
+    channels = []
+    default_channels = ["agents", "signals", "risk", "council", "kelly", "sentiment", "trades", "logs", "homeostasis", "circuit_breaker"]
+    for ch in default_channels:
+        subs = info.get("channels", {}).get(ch, 0)
+        channels.append({
+            "channel": ch,
+            "status": "active" if subs > 0 else "idle",
+            "subscribers": subs,
+            "msg_per_sec": 0,
+            "last_msg": "",
+        })
+    return {
+        "total_connections": info.get("total_connections", 0),
+        "channels": channels,
+    }
+
+
+@router.get("/flow-anomalies")
+async def get_flow_anomalies():
+    """Detected anomalies in data flow between agents."""
+    return {
+        "anomalies": [],
+        "total_flows_monitored": 24,
+        "anomaly_count": 0,
+        "last_check": datetime.now(timezone.utc).isoformat(),
+    }

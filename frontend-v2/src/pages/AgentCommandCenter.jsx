@@ -25,7 +25,7 @@ import SymbolIcon from "../components/ui/SymbolIcon";
 import Slider from "../components/ui/Slider";
 const AGENT_MOCKS = import.meta.env.VITE_ENABLE_AGENT_MOCKS === "true";
 import { useApi } from "../hooks/useApi";
-import { getApiUrl } from "../config/api";
+import { getApiUrl, getAuthHeaders } from "../config/api";
 import ws from "../services/websocket";
 import * as openclaw from "../services/openclawService";
 // --- V3 Decomposed Agent Components ---
@@ -487,11 +487,25 @@ export default function AgentCommandCenter() {
   const [nlpSpawnLoading, setNlpSpawnLoading] = useState(false);
   const [inspectedAgent, setInspectedAgent] = useState(null);
   const [agentSearch, setAgentSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState(new Set(["running", "paused", "degraded", "spawning"]));
+  const [sortBy, setSortBy] = useState("elo");
   const filteredAgents = useMemo(() => {
-    if (!agentSearch) return agents;
-    const q = agentSearch.toLowerCase();
-    return agents.filter(a => (a.name || "").toLowerCase().includes(q) || (a.type || "").toLowerCase().includes(q) || (a.team_id || "").toLowerCase().includes(q));
-  }, [agents, agentSearch]);
+    let result = agents;
+    if (agentSearch) {
+      const q = agentSearch.toLowerCase();
+      result = result.filter(a => (a.name || "").toLowerCase().includes(q) || (a.type || "").toLowerCase().includes(q) || (a.team_id || "").toLowerCase().includes(q));
+    }
+    if (statusFilter.size < 4) {
+      result = result.filter(a => statusFilter.has(a.status));
+    }
+    // Sort
+    if (sortBy === "elo") result = [...result].sort((a, b) => (b.elo || 1500) - (a.elo || 1500));
+    else if (sortBy === "win_rate") result = [...result].sort((a, b) => (b.win_rate || 50) - (a.win_rate || 50));
+    else if (sortBy === "pnl") result = [...result].sort((a, b) => (b.pnl_impact || 0) - (a.pnl_impact || 0));
+    return result;
+  }, [agents, agentSearch, statusFilter, sortBy]);
+  // --- Conference data for Brain Map tab ---
+  const { data: conferenceData } = useApi("conference", { pollIntervalMs: 15000 });
   // --- URL sync ---
   useEffect(() => { if (activeTab) navigate(`/agents/${activeTab}`, { replace: true }); }, [activeTab]);
   // --- Loaders ---
@@ -555,7 +569,27 @@ export default function AgentCommandCenter() {
   // --- Handlers ---
   const handleAgentToggle = async (agent) => {
     const action = agent.status === "running" ? "stop" : "start";
-    try { await fetch(`${getApiUrl("agents")}/${agent.id}/${action}`, { method: "POST" }); toast.success(`${agent.name} ${action}ed`); refetchAgents(); } catch { toast.error(`Failed to ${action} ${agent.name}`); }
+    try { await fetch(`${getApiUrl("agents")}/${agent.id}/${action}`, { method: "POST", headers: getAuthHeaders() }); toast.success(`${agent.name} ${action}ed`); refetchAgents(); } catch { toast.error(`Failed to ${action} ${agent.name}`); }
+  };
+  const handleAgentAction = async (agentId, action) => {
+    try { await fetch(`${getApiUrl("agents")}/${agentId}/${action}`, { method: "POST", headers: getAuthHeaders() }); toast.success(`Agent ${action}ed`); refetchAgents(); } catch { toast.error(`Failed to ${action} agent`); }
+  };
+  const handleBatchAction = async (action) => {
+    try { await fetch(`${getApiUrl("agents")}/batch/${action}`, { method: "POST", headers: getAuthHeaders() }); toast.success(`All agents ${action}ed`); refetchAgents(); } catch { toast.error(`Batch ${action} failed`); }
+  };
+  const handleConfigUpdate = async (agentId, key, value) => {
+    try { await fetch(`${getApiUrl("agents")}/${agentId}/config`, { method: "PUT", headers: { "Content-Type": "application/json", ...getAuthHeaders() }, body: JSON.stringify({ [key]: value }) }); } catch { toast.error("Config update failed"); }
+  };
+  const handleHitlAction = async (itemId, action) => {
+    try { await fetch(`${getApiUrl("agents")}/hitl/${itemId}/${action}`, { method: "POST", headers: getAuthHeaders() }); toast.success(`HITL item ${action}ed`); } catch { toast.error(`HITL ${action} failed`); }
+  };
+  const handlePowerToggle = async (agentId, currentStatus) => {
+    const action = currentStatus === "running" ? "stop" : "start";
+    try {
+      await fetch(`${getApiUrl("agents")}/${agentId}/${action}`, { method: "POST", headers: { ...getAuthHeaders() } });
+      toast.success(`Agent ${action}ed`);
+      refetchAgents();
+    } catch { toast.error(`Failed to ${action} agent`); }
   };
   const handleBiasChange = (value) => { setBias(value); setBiasOverrideSent(false); };
   const handleBiasSubmit = async () => { try { await openclaw.setBiasOverride(bias); setBiasOverrideSent(true); toast.success(`Bias override set to ${bias.toFixed(1)}x`); } catch { toast.error("Bias override failed"); } };
@@ -594,30 +628,48 @@ export default function AgentCommandCenter() {
           </Badge>
         </div>
         <div className="flex items-center gap-5 text-[11px] text-secondary">
-          <span>Uptime: <span className="text-white font-mono">47d 12h 33m</span></span>
+          <span>Uptime: <span className="text-white font-mono">{agentsRaw?.process?.uptime || agentsRaw?.agents?.[0]?.uptime || "—"}</span></span>
           <span><span className="text-emerald-400 font-bold">{runningAgents}/{totalAgents}</span> ONLINE</span>
         </div>
         <div className="flex items-center gap-4">
           {/* CPU bar */}
-          <div className="flex items-center gap-1.5 text-[11px]">
-            <Cpu className="w-3 h-3 text-secondary" />
-            <span className="text-secondary">CPU:</span>
-            <div className="w-14 h-1.5 bg-gray-800 rounded-full overflow-hidden"><div className="h-full bg-emerald-500 rounded-full" style={{ width: '47%' }} /></div>
-            <span className="text-white font-mono w-7 text-right">47%</span>
-          </div>
-          {/* RAM bar */}
-          <div className="flex items-center gap-1.5 text-[11px]">
-            <span className="text-secondary">RAM:</span>
-            <div className="w-14 h-1.5 bg-gray-800 rounded-full overflow-hidden"><div className="h-full bg-amber-500 rounded-full" style={{ width: '31%' }} /></div>
-            <span className="text-white font-mono w-7 text-right">31%</span>
-          </div>
-          {/* GPU bar */}
-          <div className="flex items-center gap-1.5 text-[11px]">
-            <span className="text-secondary">GPU:</span>
-            <div className="w-14 h-1.5 bg-gray-800 rounded-full overflow-hidden"><div className="h-full bg-cyan-500 rounded-full" style={{ width: '61%' }} /></div>
-            <span className="text-white font-mono w-7 text-right">61%</span>
-          </div>
-          <Button size="sm" className="bg-red-500/20 text-red-400 border border-red-500/50 hover:bg-red-500/40 font-bold text-[11px] px-3 py-1" onClick={() => toast.error("KILL SWITCH activated")}>
+          {(() => {
+            const processMetrics = agentsRaw?.process || agentsRaw?.agents?.[0] || {};
+            const cpuPct = processMetrics.cpuPercent || processMetrics.cpu_pct || 0;
+            const memMb = processMetrics.memoryMb || processMetrics.mem_mb || 0;
+            const memPct = memMb > 0 ? Math.min(Math.round(memMb / 160), 100) : 0;
+            const gpuPct = processMetrics.gpuPercent || processMetrics.gpu_pct || 0;
+            return (<>
+              <div className="flex items-center gap-1.5 text-[11px]">
+                <Cpu className="w-3 h-3 text-secondary" />
+                <span className="text-secondary">CPU:</span>
+                <div className="w-14 h-1.5 bg-gray-800 rounded-full overflow-hidden"><div className="h-full bg-emerald-500 rounded-full" style={{ width: `${cpuPct}%` }} /></div>
+                <span className="text-white font-mono w-7 text-right">{Math.round(cpuPct)}%</span>
+              </div>
+              {/* RAM bar */}
+              <div className="flex items-center gap-1.5 text-[11px]">
+                <span className="text-secondary">RAM:</span>
+                <div className="w-14 h-1.5 bg-gray-800 rounded-full overflow-hidden"><div className="h-full bg-amber-500 rounded-full" style={{ width: `${memPct}%` }} /></div>
+                <span className="text-white font-mono w-7 text-right">{memMb > 0 ? `${Math.round(memMb)}M` : `${memPct}%`}</span>
+              </div>
+              {/* GPU bar */}
+              <div className="flex items-center gap-1.5 text-[11px]">
+                <span className="text-secondary">GPU:</span>
+                <div className="w-14 h-1.5 bg-gray-800 rounded-full overflow-hidden"><div className="h-full bg-cyan-500 rounded-full" style={{ width: `${gpuPct}%` }} /></div>
+                <span className="text-white font-mono w-7 text-right">{Math.round(gpuPct)}%</span>
+              </div>
+            </>);
+          })()}
+          <Button size="sm" className="bg-red-500/20 text-red-400 border border-red-500/50 hover:bg-red-500/40 font-bold text-[11px] px-3 py-1" onClick={async () => {
+            if (window.confirm("EMERGENCY: Stop all trading and halt all agents?")) {
+              try {
+                await fetch(getApiUrl("risk") + "/emergency/halt", { method: "POST", headers: getAuthHeaders() });
+                await fetch(getApiUrl("agents") + "/batch/stop", { method: "POST", headers: getAuthHeaders() });
+                toast.error("KILL SWITCH ACTIVATED — All agents stopped");
+                refetchAgents();
+              } catch { toast.error("Kill switch failed"); }
+            }
+          }}>
             KILL SWITCH
           </Button>
         </div>
@@ -639,28 +691,10 @@ export default function AgentCommandCenter() {
 
         {/* ============ TAB 1: SWARM OVERVIEW (mockup v3 - filter bar + 4-col agent grid + footer) ============ */}
         {activeTab === "swarm-overview" && (() => {
-          const statusFilters = ["Running", "Paused", "Degraded", "Spawning"];
-          const fallbackAgents = filteredAgents.length > 0 ? filteredAgents : Array.from({ length: 16 }, (_, i) => ({
-            id: `fallback-${i}`, name: ["Market Data Agent", "ML Inference Agent", "Signal Generation Agent", "Sentiment Agent",
-              "Sector Rotation Agent", "Risk Resolver Agent", "Pattern Scanner Agent", "Momentum Tracker Agent",
-              "Options Flow Agent", "News Processor Agent", "Social Listener Agent", "Macro Analyzer Agent",
-              "Bias Generator Agent", "Volume Profiler Agent", "Correlation Agent", "Arbitrage Spotter"][i],
-            status: i < 12 ? "running" : "paused", health: i < 10 ? "healthy" : "degraded",
-            elo: 1500 + Math.floor(Math.random() * 500), win_rate: 60 + Math.random() * 25,
-            pnl_impact: (Math.random() * 8 - 2).toFixed(2), expectancy: (Math.random() * 2).toFixed(2),
-            profit_factor: (1 + Math.random() * 2).toFixed(2), confidence: (60 + Math.random() * 35).toFixed(1),
-            star_rating: 3 + Math.floor(Math.random() * 3),
-            recent_signals: [`${["aapl", "tsla", "spy", "nvda", "msft"][i % 5]}_breakout_signal: ${(0.5 + Math.random() * 0.4).toFixed(2)}`,
-              `${["goog", "amzn", "meta", "amd", "crm"][i % 5]}_momentum: ${(0.4 + Math.random() * 0.5).toFixed(2)}`,
-              `${["nflx", "baba", "shop", "sq", "coin"][i % 5]}_reversal: ${(0.3 + Math.random() * 0.6).toFixed(2)}`],
-            tags: [["momentum", "large-cap"], ["ml", "inference"], ["signals", "breakout"], ["nlp", "sentiment"],
-              ["sector", "rotation"], ["risk", "resolver"], ["pattern", "scanner"], ["momentum", "tracker"],
-              ["options", "flow"], ["news", "nlp"], ["social", "listener"], ["macro", "econ"],
-              ["bias", "generator"], ["volume", "profiler"], ["correlation", "mapper"], ["arbitrage", "pairs"]][i],
-          }));
-          const swarmHealth = agents.length > 0 ? ((agents.filter(a => a.status === "running").length / agents.length) * 100).toFixed(1) : "87";
-          const totalElo = fallbackAgents.reduce((sum, a) => sum + (a.elo ?? (1500 + Math.floor(Math.random() * 500))), 0);
-          const avgConf = (fallbackAgents.reduce((sum, a) => sum + parseFloat(a.confidence ?? (60 + Math.random() * 35).toFixed(1)), 0) / fallbackAgents.length).toFixed(1);
+          const statusFiltersArr = ["Running", "Paused", "Degraded", "Spawning"];
+          const swarmHealth = agents.length > 0 ? Math.round(agents.filter(a => a.status === "running").length / agents.length * 100) : 0;
+          const totalElo = agents.reduce((sum, a) => sum + (a.elo || 1500), 0);
+          const avgConf = agents.length > 0 ? Math.round(agents.reduce((sum, a) => sum + (a.confidence || 75), 0) / agents.length) : 0;
           return (
           <div className="space-y-3">
             {/* Filter Bar */}
@@ -672,10 +706,20 @@ export default function AgentCommandCenter() {
                 </select>
               ))}
               <div className="flex gap-1 ml-2">
-                {statusFilters.map(s => (
-                  <button key={s} className={`px-2 py-1 rounded text-[10px] font-medium transition-all cursor-pointer ${s === "Running" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" : s === "Degraded" ? "bg-amber-500/20 text-amber-400 border border-amber-500/40" : "bg-[#0d1117] text-secondary border border-cyan-500/10 hover:border-cyan-500/30"}`}
-                    onClick={() => toast.info(`Filter: ${s}`)}>{s}</button>
-                ))}
+                {statusFiltersArr.map(s => {
+                  const key = s.toLowerCase();
+                  const isActive = statusFilter.has(key);
+                  return (
+                  <button key={s} className={`px-2 py-1 rounded text-[10px] font-medium transition-all cursor-pointer ${isActive ? (s === "Running" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" : s === "Degraded" ? "bg-amber-500/20 text-amber-400 border border-amber-500/40" : s === "Paused" ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/40" : "bg-purple-500/20 text-purple-400 border border-purple-500/40") : "bg-[#0d1117] text-secondary/40 border border-cyan-500/10 hover:border-cyan-500/30 line-through"}`}
+                    onClick={() => {
+                      setStatusFilter(prev => {
+                        const next = new Set(prev);
+                        if (next.has(key)) next.delete(key); else next.add(key);
+                        return next;
+                      });
+                    }}>{s}</button>
+                  );
+                })}
               </div>
               <div className="flex items-center gap-1.5 ml-2 flex-1">
                 <Search className="w-3 h-3 text-secondary" />
@@ -683,14 +727,14 @@ export default function AgentCommandCenter() {
               </div>
               <div className="flex items-center gap-2 text-[10px] text-secondary ml-auto shrink-0">
                 <span>Sort by:</span>
-                {["Phase A1", "Team K1", "Campus Selected"].map(s => (
-                  <button key={s} className="px-1.5 py-0.5 rounded bg-[#0d1117] border border-cyan-500/10 text-cyan-400 text-[9px] cursor-pointer hover:border-cyan-500/30" onClick={() => toast.info(`Sorting by ${s}`)}>{s}</button>
+                {[{ key: "elo", label: "ELO" }, { key: "win_rate", label: "Win Rate" }, { key: "pnl", label: "PnL" }].map(s => (
+                  <button key={s.key} className={`px-1.5 py-0.5 rounded text-[9px] cursor-pointer transition-all ${sortBy === s.key ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/40" : "bg-[#0d1117] border border-cyan-500/10 text-secondary hover:border-cyan-500/30"}`} onClick={() => setSortBy(s.key)}>{s.label}</button>
                 ))}
               </div>
             </div>
             {/* Agent Cards Grid - 4 columns */}
             <div className="grid grid-cols-4 gap-3">
-              {fallbackAgents.map((a, idx) => {
+              {filteredAgents.map((a, idx) => {
                 const elo = a.elo ?? (1500 + ((idx * 73 + 41) % 500));
                 const wr = a.win_rate ?? (60 + ((idx * 17 + 3) % 25));
                 const pnlImpact = a.pnl_impact ?? ((idx * 1.3 - 2) % 8).toFixed(2);
@@ -752,7 +796,7 @@ export default function AgentCommandCenter() {
                 <span className="text-secondary">Swarm Health: <span className="text-emerald-400 font-bold">{swarmHealth}%</span></span>
                 <span className="text-secondary">Total ELO Pool: <span className="text-cyan-400 font-bold font-mono">{totalElo.toLocaleString()}</span></span>
                 <span className="text-secondary">Avg Confidence: <span className="text-white font-bold">{avgConf}%</span></span>
-                <span className="text-secondary">Consensus Agreement: <span className="text-emerald-400 font-bold">82%</span></span>
+                <span className="text-secondary">Agents Shown: <span className="text-emerald-400 font-bold">{filteredAgents.length}/{agents.length}</span></span>
               </div>
               <div className="flex items-center gap-5">
                 <span className="text-secondary">SNAP Coverage: <span className="text-cyan-400">80 futures across 15 agents</span></span>
@@ -1255,7 +1299,7 @@ export default function AgentCommandCenter() {
             { id: 11, time: "09:41:18.556", agent: "sentiment_agent", action: 'publish', detail: '"news_catalyst", {symbol: "TSLA", headline: "Q4 earnings beat", impact: 0.91}' },
             { id: 12, time: "09:41:17.923", agent: "ml_inference", action: 'publish', detail: '"feature_drift", {model: "SignalNet-v3", drift: 0.023, status: "nominal"}' },
           ];
-          const wsChannels = [
+          const defaultWsChannels = [
             { name: "agents", status: "connected", subs: 8, rate: 3.4, lastMsg: "2s ago" },
             { name: "council", status: "connected", subs: 5, rate: 1.7, lastMsg: "5s ago" },
             { name: "signal", status: "connected", subs: 12, rate: 8.2, lastMsg: "1s ago" },
@@ -1263,6 +1307,7 @@ export default function AgentCommandCenter() {
             { name: "order", status: "connected", subs: 3, rate: 0.4, lastMsg: "12s ago" },
             { name: "llm-flow", status: "degraded", subs: 4, rate: 2.1, lastMsg: "8s ago" },
           ];
+          const wsChannels = (Array.isArray(agentsRaw?.channels) ? agentsRaw.channels : defaultWsChannels);
           const fallbackHitl = hitlBuffer.length > 0 ? hitlBuffer : [
             { id: 1, time: "09:41:23", agent: "signal_generator", action: "BUY_ORDER", symbol: "TSLA", confidence: "0.87", reasoning: "Breakout signal above resistance with strong volume confirmation", impact: "HIGH", urgency: "45s", status: "PENDING" },
             { id: 2, time: "09:41:18", agent: "ml_inference", action: "POSITION_SIZE", symbol: "AAPL", confidence: "0.78", reasoning: "Model prediction confidence above threshold, suggested 2.5% allocation", impact: "MED", urgency: "120s", status: "PENDING" },
@@ -1347,9 +1392,9 @@ export default function AgentCommandCenter() {
                       <div className="flex items-center gap-1.5">
                         <span className="text-[8px] text-amber-400">Urgency: {item.urgency || "60s"}</span>
                         <span className="flex-1" />
-                        <Button size="xs" className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-[8px] px-2 py-0 h-5 cursor-pointer" onClick={() => toast.success("Approved")}>Approve</Button>
-                        <Button size="xs" className="bg-red-500/20 text-red-400 border-red-500/40 text-[8px] px-2 py-0 h-5 cursor-pointer" onClick={() => toast.error("Rejected")}>Reject</Button>
-                        <Button size="xs" className="bg-gray-500/20 text-secondary border-gray-500/40 text-[8px] px-2 py-0 h-5 cursor-pointer" onClick={() => toast.info("Deferred")}>Defer</Button>
+                        <Button size="xs" className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-[8px] px-2 py-0 h-5 cursor-pointer" onClick={() => { handleHitlAction(item.id, "approve"); toast.success("Approved"); }}>Approve</Button>
+                        <Button size="xs" className="bg-red-500/20 text-red-400 border-red-500/40 text-[8px] px-2 py-0 h-5 cursor-pointer" onClick={() => { handleHitlAction(item.id, "reject"); toast.error("Rejected"); }}>Reject</Button>
+                        <Button size="xs" className="bg-gray-500/20 text-secondary border-gray-500/40 text-[8px] px-2 py-0 h-5 cursor-pointer" onClick={() => { handleHitlAction(item.id, "defer"); toast.info("Deferred"); }}>Defer</Button>
                       </div>
                     </div>
                   ))}
@@ -1359,13 +1404,13 @@ export default function AgentCommandCenter() {
               {/* Agent Lifecycle Controls */}
               <Card title="AGENT LIFECYCLE CONTROLS" className="bg-[#111827]">
                 <div className="flex gap-2 mb-2">
-                  <Button size="sm" className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-[10px] px-3 py-1 flex-1 cursor-pointer" onClick={() => { refetchAgents(); toast.success("All agents started"); }}>
+                  <Button size="sm" className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-[10px] px-3 py-1 flex-1 cursor-pointer" onClick={() => handleBatchAction("start")}>
                     <Play className="w-3 h-3 mr-1 inline" />Start All
                   </Button>
-                  <Button size="sm" className="bg-red-500/20 text-red-400 border-red-500/40 text-[10px] px-3 py-1 flex-1 cursor-pointer" onClick={() => toast.error("All agents stopped")}>
+                  <Button size="sm" className="bg-red-500/20 text-red-400 border-red-500/40 text-[10px] px-3 py-1 flex-1 cursor-pointer" onClick={() => handleBatchAction("stop")}>
                     <Square className="w-3 h-3 mr-1 inline" />Stop All
                   </Button>
-                  <Button size="sm" className="bg-amber-500/20 text-amber-400 border-amber-500/40 text-[10px] px-3 py-1 flex-1 cursor-pointer" onClick={() => toast.info("Restarting all agents...")}>
+                  <Button size="sm" className="bg-amber-500/20 text-amber-400 border-amber-500/40 text-[10px] px-3 py-1 flex-1 cursor-pointer" onClick={() => handleBatchAction("restart")}>
                     <RefreshCw className="w-3 h-3 mr-1 inline" />Restart All
                   </Button>
                 </div>
@@ -1534,13 +1579,21 @@ export default function AgentCommandCenter() {
             { label: "Discord", y: 390, latency: "28ms" },
             { label: "YouTube", y: 440, latency: "55ms" },
           ];
-          const agentLayer = [
+          const defaultAgentLayer = [
             { label: "Market Data Agent", y: 80, confidence: "94.2%", status: "running", lastAction: "12s ago" },
             { label: "ML Inference Agent", y: 170, confidence: "89.7%", status: "running", lastAction: "5s ago" },
             { label: "Signal Generation Agent", y: 260, confidence: "91.3%", status: "running", lastAction: "2s ago" },
             { label: "Sentiment Agent", y: 330, confidence: "87.1%", status: "degraded", lastAction: "18s ago" },
             { label: "Outcome Resolver Agent", y: 420, confidence: "92.8%", status: "running", lastAction: "8s ago" },
           ];
+          const yPositions = [80, 170, 260, 330, 420];
+          const agentLayer = agents.length > 0 ? agents.slice(0, 5).map((a, i) => ({
+            label: a.name || `Agent-${i}`,
+            y: yPositions[i] || (80 + i * 85),
+            confidence: `${(a.confidence || 75).toFixed(1)}%`,
+            status: a.status || "unknown",
+            lastAction: a.last_tick ? `${Math.round((Date.now() - new Date(a.last_tick).getTime()) / 1000)}s ago` : "—",
+          })) : defaultAgentLayer;
           const processing = [
             { label: "Consensus Engine", y: 40 }, { label: "EV Calculator", y: 90 },
             { label: "Risk Sentinel", y: 140 }, { label: "Pattern Scanner", y: 190 },
@@ -1553,13 +1606,19 @@ export default function AgentCommandCenter() {
             { label: "Config Store", y: 400 },
           ];
           const cols = [90, 280, 480, 680, 870];
-          const conferenceSessions = [
+          const defaultConferenceSessions = [
             { id: "#947", time: "09:41:23", agents: "SigGen, ML, Risk, Sentiment", result: "LONG SPY 82%" },
             { id: "#946", time: "09:38:12", agents: "SigGen, ML, Consensus", result: "HOLD TSLA 71%" },
             { id: "#945", time: "09:35:01", agents: "Risk, Sentiment, ML", result: "SHORT QQQ 67%" },
             { id: "#944", time: "09:31:45", agents: "SigGen, Risk, Brain", result: "LONG NVDA 89%" },
             { id: "#943", time: "09:28:33", agents: "ML, Sentiment, Consensus", result: "HOLD AAPL 74%" },
           ];
+          const conferenceSessions = Array.isArray(conferenceData?.sessions) ? conferenceData.sessions.slice(0, 5).map((s, i) => ({
+            id: `#${s.id || s.conference_id || (947 - i)}`,
+            time: s.timestamp ? new Date(s.timestamp).toLocaleTimeString("en-US", { hour12: false }) : s.time || "",
+            agents: s.participants?.join(", ") || s.agents || "",
+            result: s.result || s.decision || "",
+          })) : defaultConferenceSessions;
           const anomalies = [
             { anomaly: "Latency Spike", source: "Finnhub", type: "Network", severity: "Medium", recovery: "Auto-retry" },
             { anomaly: "Data Gap", source: "FRED", type: "Data Quality", severity: "Low", recovery: "Cache fallback" },
@@ -1815,24 +1874,22 @@ export default function AgentCommandCenter() {
                         </td>
                         <td className="px-2">
                           <button className={`w-8 h-4 rounded-full relative transition-all cursor-pointer ${isRunning ? "bg-emerald-500" : "bg-gray-600"}`}
-                            onClick={() => { handleAgentToggle(a); }}>
+                            onClick={() => { handlePowerToggle(a.id, a.status); }}>
                             <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${isRunning ? "left-4.5 right-0.5" : "left-0.5"}`}
                               style={{ left: isRunning ? "16px" : "2px" }} />
                           </button>
                         </td>
                         <td className="px-2">
                           <div className="flex items-center gap-1">
-                            <div className="w-16 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                              <div className="h-full bg-cyan-500 rounded-full" style={{ width: `${(parseFloat(weight) / 2.0) * 100}%` }} />
-                            </div>
+                            <input type="range" min="0" max="2" step="0.05" defaultValue={weight} className="w-16 h-1.5 accent-cyan-500 cursor-pointer"
+                              onMouseUp={(e) => handleConfigUpdate(a.id, "weight", parseFloat(e.target.value))} />
                             <span className="text-cyan-400 font-mono text-[9px] w-6">{weight}</span>
                           </div>
                         </td>
                         <td className="px-2">
                           <div className="flex items-center gap-1">
-                            <div className="w-14 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                              <div className="h-full bg-amber-500 rounded-full" style={{ width: `${parseFloat(confThreshold) * 100}%` }} />
-                            </div>
+                            <input type="range" min="0" max="1" step="0.01" defaultValue={confThreshold} className="w-14 h-1.5 accent-amber-500 cursor-pointer"
+                              onMouseUp={(e) => handleConfigUpdate(a.id, "confidence_threshold", parseFloat(e.target.value))} />
                             <span className="text-amber-400 font-mono text-[9px] w-6">{confThreshold}</span>
                           </div>
                         </td>
@@ -1843,18 +1900,17 @@ export default function AgentCommandCenter() {
                         </td>
                         <td className="px-2">
                           <div className="flex items-center gap-1">
-                            <div className="w-12 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                              <div className="h-full bg-purple-500 rounded-full" style={{ width: `${(parseFloat(temp) / 3.0) * 100}%` }} />
-                            </div>
+                            <input type="range" min="0" max="3" step="0.1" defaultValue={temp} className="w-12 h-1.5 accent-purple-500 cursor-pointer"
+                              onMouseUp={(e) => handleConfigUpdate(a.id, "temperature", parseFloat(e.target.value))} />
                             <span className="text-purple-400 font-mono text-[9px] w-5">{temp}</span>
                           </div>
                         </td>
                         <td className="px-2 text-white font-mono">{ctxWin.toLocaleString()}</td>
                         <td className="px-2">
                           <div className="flex gap-1">
-                            <button className="p-0.5 text-secondary hover:text-cyan-400 cursor-pointer" onClick={() => toast.info(`Restarting ${a.name}`)}><RefreshCw className="w-3 h-3" /></button>
-                            <button className="p-0.5 text-secondary hover:text-amber-400 cursor-pointer" onClick={() => toast.info(`Pausing ${a.name}`)}><Pause className="w-3 h-3" /></button>
-                            <button className="p-0.5 text-secondary hover:text-red-400 cursor-pointer" onClick={() => toast.error(`Killed ${a.name}`)}><XCircle className="w-3 h-3" /></button>
+                            <button className="p-0.5 text-secondary hover:text-cyan-400 cursor-pointer" onClick={() => handleAgentAction(a.id, "restart")}><RefreshCw className="w-3 h-3" /></button>
+                            <button className="p-0.5 text-secondary hover:text-amber-400 cursor-pointer" onClick={() => handleAgentAction(a.id, "pause")}><Pause className="w-3 h-3" /></button>
+                            <button className="p-0.5 text-secondary hover:text-red-400 cursor-pointer" onClick={() => handleAgentAction(a.id, "kill")}><XCircle className="w-3 h-3" /></button>
                           </div>
                         </td>
                         <td className="px-2">

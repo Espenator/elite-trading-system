@@ -203,6 +203,31 @@ export function useBlackboardFeed(pollMs = 5000) {
   return useApi('blackboard', { pollIntervalMs: pollMs });
 }
 
+// ---- Agent Extended Hooks ----
+export function useAgentAllConfig(pollMs = 15000) {
+  return useApi('agentAllConfig', { pollIntervalMs: pollMs });
+}
+
+export function useHitlBuffer(pollMs = 5000) {
+  return useApi('agentHitlBuffer', { pollIntervalMs: pollMs });
+}
+
+export function useHitlStats(pollMs = 10000) {
+  return useApi('agentHitlStats', { pollIntervalMs: pollMs });
+}
+
+export function useAgentAttribution(pollMs = 30000) {
+  return useApi('agentAttribution', { pollIntervalMs: pollMs });
+}
+
+export function useEloLeaderboard(pollMs = 30000) {
+  return useApi('agentEloLeaderboard', { pollIntervalMs: pollMs });
+}
+
+export function useWsChannels(pollMs = 10000) {
+  return useApi('agentWsChannels', { pollIntervalMs: pollMs });
+}
+
 // ---- Backtesting Enhanced Hooks ----
 
 export function useBacktestResults(pollMs = 30000) {

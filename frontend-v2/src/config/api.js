@@ -149,6 +149,15 @@ const API_CONFIG = {
     swarmOutcomesKelly: "/swarm/outcomes/kelly",
     swarmPositionsManaged: "/swarm/positions/managed",
     swarmMlScorerStatus: "/swarm/ml/scorer/status",
+
+    // ---- Agent Extended Endpoints ----
+    agentAllConfig: "/agents/all-config",
+    agentHitlBuffer: "/agents/hitl/buffer",
+    agentHitlStats: "/agents/hitl/stats",
+    agentAttribution: "/agents/attribution",
+    agentEloLeaderboard: "/agents/elo-leaderboard",
+    agentWsChannels: "/agents/ws-channels",
+    agentFlowAnomalies: "/agents/flow-anomalies",
   },
 };
 

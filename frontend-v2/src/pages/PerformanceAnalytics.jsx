@@ -147,11 +147,13 @@ const PerformanceAnalytics = () => {
   const { data: summary } = useApi("performance", { endpoint: "/performance/summary", pollIntervalMs: 60000 });
   const { data: equityData } = useApi("performance", { endpoint: "/performance/equity" });
   const { data: tradesData } = useApi("performance", { endpoint: "/performance/trades" });
-  const { data: riskMetrics } = useApi("performance", { endpoint: "/performance/risk-metrics" });
+  const { data: riskMetrics } = useApi("performance", { endpoint: "/performance/risk-metrics", pollIntervalMs: 60000 });
   const { data: flywheel } = useApi("flywheel");
   const { data: agents } = useApi("agents", { endpoint: "/agents/consensus" });
+  const { data: agentAttribution } = useApi("agentAttribution", { pollIntervalMs: 30000 });
   const { data: riskStatus } = useApi("risk");
   const { data: strategyData } = useApi("strategy");
+  const { data: kellyData } = useApi("kellySizer", { pollIntervalMs: 30000 });
 
   // --- REFS & STATE ---
   const chartContainerRef = useRef(null);
@@ -300,9 +302,24 @@ const PerformanceAnalytics = () => {
 
   // --- Merge API data with demo fallbacks ---
   const agentList = useMemo(() => {
+    // Prefer real attribution data from /agents/attribution
+    const attrAgents = agentAttribution?.attribution || [];
+    if (attrAgents.length > 0) {
+      const colors = ['#06b6d4', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#3b82f6', '#ef4444'];
+      return attrAgents.map((a, i) => ({
+        name: a.name,
+        elo: a.elo || 1500,
+        trades: a.signal_count || 0,
+        pnl: a.pnl_contribution || 0,
+        winRate: (a.win_rate || 50) / 100,
+        change: 0,
+        color: colors[i % colors.length],
+      }));
+    }
+    // Fall back to consensus votes
     const apiAgents = agents?.votes || [];
     return apiAgents.length > 0 ? apiAgents.map((a, i) => ({ ...DEMO_AGENTS[i % DEMO_AGENTS.length], ...a })) : DEMO_AGENTS;
-  }, [agents]);
+  }, [agents, agentAttribution]);
 
   const enhancedTrades = useMemo(() => {
     const apiTrades = filteredTrades || [];
@@ -332,21 +349,21 @@ const PerformanceAnalytics = () => {
   // Derived stats with demo fallbacks
   const totalTrades = summary?.metrics?.totalTrades ?? 247;
   const netPnl = summary?.metrics?.netPnl ?? 32147.32;
-  const winRate = summary?.metrics?.winRate ?? 68.4;
+  const winRate = summary?.metrics?.winRate != null ? summary.metrics.winRate * (summary.metrics.winRate <= 1 ? 100 : 1) : 68.4;
   const avgWin = summary?.metrics?.avgWin ?? 312.50;
   const avgLoss = summary?.metrics?.avgLoss ?? -187.20;
   const profitFactor = summary?.metrics?.profitFactor ?? 2.14;
-  const maxDD = riskMetrics?.maxDrawdown ?? -4238;
-  const maxDDPct = riskMetrics?.maxDrawdownPct ?? 4.1;
+  const maxDD = riskMetrics?.max_drawdown ?? riskMetrics?.maxDrawdown ?? -4238;
+  const maxDDPct = riskMetrics?.max_drawdown_pct ?? riskMetrics?.maxDrawdownPct ?? 4.1;
   const sharpe = riskMetrics?.sharpe ?? 1.87;
   const expectancy = riskMetrics?.expectancy ?? 89.40;
   const rrRatio = riskMetrics?.risk_reward_ratio ?? 1.67;
   const tradingGrade = riskMetrics?.trading_grade || 'A';
-  const gradeLabel = riskMetrics?.gradeLabel || 'Excellent';
+  const gradeLabel = tradingGrade === 'A' ? 'Excellent' : tradingGrade === 'B' ? 'Good' : tradingGrade === 'C' ? 'Average' : 'Poor';
   const sortino = riskMetrics?.sortino ?? 1.85;
   const calmar = riskMetrics?.calmar ?? 1.87;
-  const kellyPct = riskMetrics?.kellyPct ?? 24.3;
-  const kellyDollar = riskMetrics?.kellyDollar ?? 12228.50;
+  const kellyPct = riskMetrics?.kelly_optimal_fraction ? riskMetrics.kelly_optimal_fraction * 100 : (kellyData?.kelly_pct ?? 24.3);
+  const kellyDollar = kellyData?.kelly_dollar ?? (riskMetrics?.kelly_optimal_fraction ? riskMetrics.kelly_optimal_fraction * (summary?.metrics?.netPnl || 50000) : 12228.50);
 
   return (
     <div className="min-h-screen bg-[#0B0E14] text-gray-100 p-3 space-y-3">
