@@ -806,21 +806,27 @@ class TurboScanner:
         """Publish signal to MessageBus for swarm processing + unified scoring."""
         self._stats["swarms_triggered"] += 1
         if self._bus:
+            # Only publish swarm.idea when LLM pipeline is active — otherwise
+            # SwarmSpawner triggers synchronous DuckDB ingest that deadlocks the server.
+            import os as _os
+            _llm_on = _os.getenv("LLM_ENABLED", "true").lower() == "true"
             priority = SIGNAL_TYPES.get(signal.signal_type, {}).get("priority", 5)
-            await self._bus.publish("swarm.idea", {
-                "source": f"turbo_scanner:{signal.signal_type}",
-                "symbols": [signal.symbol],
-                "direction": signal.direction,
-                "reasoning": signal.reasoning,
-                "priority": priority,
-                "metadata": {
-                    "signal_type": signal.signal_type,
-                    "score": signal.score,
-                    "data": signal.data,
-                },
-            })
+            if _llm_on:
+                await self._bus.publish("swarm.idea", {
+                    "source": f"turbo_scanner:{signal.signal_type}",
+                    "symbols": [signal.symbol],
+                    "direction": signal.direction,
+                    "reasoning": signal.reasoning,
+                    "priority": priority,
+                    "metadata": {
+                        "signal_type": signal.signal_type,
+                        "score": signal.score,
+                        "data": signal.data,
+                    },
+                })
             # Also publish as signal.generated so UnifiedProfitEngine can score it
-            if signal.score >= 60:
+            # (only when LLM pipeline active — UnifiedProfitEngine does sync DuckDB queries)
+            if _llm_on and signal.score >= 60:
                 await self._bus.publish("signal.generated", {
                     "symbol": signal.symbol,
                     "score": signal.score,
