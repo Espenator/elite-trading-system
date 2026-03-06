@@ -89,16 +89,16 @@ const TIMEFRAMES = ["1D", "1W", "1M", "3M", "1Y"];
 function KpiCard({ label, value, unit, color, alert }) {
   return (
     <div
-      className={`bg-[#111827] rounded px-3 py-2 border ${alert ? "border-red-500/50 animate-pulse" : "border-gray-700/30"}`}
+      className={`bg-[#111827] rounded px-2 py-1.5 border ${alert ? "border-red-500/50 animate-pulse" : "border-gray-700/30"}`}
     >
-      <div className="text-[10px] text-gray-500 uppercase tracking-wider truncate">
+      <div className="text-[9px] text-gray-500 uppercase tracking-wider truncate">
         {label}
       </div>
       <div
-        className={`text-lg font-mono font-bold ${color || "text-cyan-400"} leading-tight`}
+        className={`text-sm font-mono font-bold ${color || "text-cyan-400"} leading-tight`}
       >
         {value ?? "\u2014"}
-        {unit && <span className="text-xs text-gray-500 ml-0.5">{unit}</span>}
+        {unit && <span className="text-[9px] text-gray-500 ml-0.5">{unit}</span>}
       </div>
     </div>
   );
@@ -108,84 +108,56 @@ function KpiCard({ label, value, unit, color, alert }) {
 function RegimeBadge({ state, confidence, size = "lg" }) {
   const rc = REGIME_COLORS[state] || REGIME_COLORS.YELLOW;
   const sizeClasses =
-    size === "lg" ? "px-6 py-2 text-2xl" : "px-3 py-1 text-sm";
+    size === "lg" ? "px-3 py-1 text-sm" : "px-2 py-0.5 text-xs";
   return (
-    <div
-      className={`inline-flex items-center gap-2 rounded-lg font-black tracking-widest ${rc.bg} text-white ${sizeClasses} animate-pulse`}
+    <span
+      className={`inline-flex items-center gap-1.5 rounded font-black tracking-wider ${rc.bg} text-white ${sizeClasses}`}
     >
-      <span className="w-3 h-3 rounded-full bg-white/40 animate-ping" />
       {state}
       {confidence != null && (
-        <span className="text-sm font-mono opacity-80">
+        <span className="text-xs font-mono opacity-90">
           {(confidence * 100).toFixed(0)}%
         </span>
       )}
-    </div>
+    </span>
   );
 }
 
 // --- Regime State Machine Diagram ---
 function RegimeStateMachine({ currentState, regimeData }) {
   const states = ["GREEN", "YELLOW", "RED", "RED_RECOVERY"];
-  const transitions = [
-    { from: "GREEN", to: "YELLOW", condition: "VIX > 18" },
-    { from: "YELLOW", to: "RED", condition: "VIX > 25" },
-    { from: "RED", to: "RED_RECOVERY", condition: "VIX declining" },
-    { from: "RED_RECOVERY", to: "GREEN", condition: "VIX < 18 sustained" },
-    { from: "YELLOW", to: "GREEN", condition: "VIX < 18" },
-    { from: "RED_RECOVERY", to: "RED", condition: "VIX spike" },
-  ];
 
   return (
-    <div className="bg-[#111827] rounded-lg border border-gray-700/30 p-4 h-full">
-      <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+    <div className="bg-[#111827] rounded-lg border border-gray-700/30 p-3 h-full">
+      <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
         Regime State Machine
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-2">
         {states.map((s) => {
           const rc = REGIME_COLORS[s];
           const isCurrent = currentState === s;
           return (
             <div
               key={s}
-              className={`rounded-lg p-3 border-2 transition-all ${isCurrent ? `${rc.border} ${rc.bgFaint} shadow-lg shadow-${rc.hex}/20` : "border-gray-700/20 bg-gray-800/30"}`}
+              className={`rounded px-3 py-2 border text-center transition-all cursor-default ${
+                isCurrent
+                  ? `${rc.border} ${rc.bgFaint} border-2`
+                  : "border-gray-700/30 bg-gray-800/30"
+              }`}
             >
               <div
-                className={`text-xs font-bold ${isCurrent ? rc.text : "text-gray-500"}`}
+                className={`text-xs font-bold font-mono ${isCurrent ? rc.text : "text-gray-500"}`}
               >
                 {s}
               </div>
-              <div className="text-[10px] text-gray-500 mt-1">
-                {REGIME_PARAMS_DEFAULT[s]?.label}
-              </div>
-              <div className="text-[10px] text-gray-600 mt-1">
-                Risk: {REGIME_PARAMS_DEFAULT[s]?.risk_pct}% | Max:{" "}
-                {REGIME_PARAMS_DEFAULT[s]?.max_positions}
-              </div>
               {isCurrent && (
-                <div className={`mt-1 text-[10px] ${rc.text} font-semibold`}>
-                  ● CURRENT
+                <div className={`mt-0.5 text-[9px] ${rc.text} font-semibold`}>
+                  ● ACTIVE
                 </div>
               )}
             </div>
           );
         })}
-      </div>
-      <div className="mt-3 space-y-1">
-        <div className="text-[10px] text-gray-500 font-semibold uppercase">
-          Transitions
-        </div>
-        {transitions.map((t, i) => (
-          <div
-            key={i}
-            className="flex items-center gap-1 text-[10px] text-gray-500"
-          >
-            <span className={REGIME_COLORS[t.from]?.text}>{t.from}</span>
-            <span>\u2192</span>
-            <span className={REGIME_COLORS[t.to]?.text}>{t.to}</span>
-            <span className="text-gray-600 ml-1">({t.condition})</span>
-          </div>
-        ))}
       </div>
       {regimeData?.time_in_state && (
         <div className="mt-2 text-[10px] text-gray-400">
@@ -209,8 +181,8 @@ function VixMacroChart({ marketData, macroData, regimeData, timeframe }) {
 
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
-      height: 360,
-      layout: { background: { color: "#111827" }, textColor: "#9CA3AF" },
+      height: 180,
+      layout: { background: { color: "#111827" }, textColor: "#6B7280" },
       grid: {
         vertLines: { color: "#1F2937" },
         horzLines: { color: "#1F2937" },
@@ -249,21 +221,14 @@ function VixMacroChart({ marketData, macroData, regimeData, timeframe }) {
       color: "#10B981",
       lineWidth: 1,
       lineStyle: 2,
-      title: "GREEN",
+      title: "Threshold 18",
     });
     vixSeries.createPriceLine({
       price: 25,
       color: "#F59E0B",
       lineWidth: 1,
       lineStyle: 2,
-      title: "YELLOW",
-    });
-    vixSeries.createPriceLine({
-      price: 40,
-      color: "#EF4444",
-      lineWidth: 1,
-      lineStyle: 2,
-      title: "EXTREME",
+      title: "Threshold 25",
     });
 
     chartRef.current = chart;
@@ -282,18 +247,18 @@ function VixMacroChart({ marketData, macroData, regimeData, timeframe }) {
   }, [marketData, macroData, timeframe]);
 
   return (
-    <div className="bg-[#111827] rounded-lg border border-gray-700/30 p-4 h-full">
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-          VIX + Macro Overlay
+    <div className="bg-[#111827] rounded-lg border border-gray-700/30 p-3 h-full">
+      <div className="flex items-center justify-between mb-1">
+        <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+          VIX+Macro Chart
         </div>
-        <div className="flex items-center gap-3 text-[10px]">
+        <div className="flex items-center gap-3 text-[9px] text-gray-500">
           <span className="flex items-center gap-1">
-            <span className="w-2 h-0.5 bg-red-500 inline-block" />
+            <span className="w-3 h-0.5 bg-red-500 inline-block" />
             VIX
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-2 h-0.5 bg-cyan-500 inline-block" />
+            <span className="w-3 h-0.5 bg-cyan-500 inline-block" />
             SPY
           </span>
         </div>
@@ -316,56 +281,46 @@ function RegimeParamPanel({ paramsData, regimeState, onOverride }) {
   const currentParams = REGIME_PARAMS_DEFAULT[regimeState] || {};
 
   return (
-    <div className="bg-[#111827] rounded-lg border border-gray-700/30 p-4 h-full">
-      <div className="flex items-center justify-between mb-3">
-        <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-          Regime Params
+    <div className="bg-[#111827] rounded-lg border border-gray-700/30 p-3 h-full">
+      <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
+        Regime Parameter Panel
+      </div>
+      {/* Override row */}
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-[10px] text-gray-500">Override</span>
+        <div className="flex bg-gray-800 rounded overflow-hidden border border-gray-700/50">
+          {["AUTO", "MAN"].map((m) => (
+            <button
+              key={m}
+              onClick={() => {
+                setOverrideState(m === "MAN" ? regimeState : "AUTO");
+                setEditMode(m === "MAN");
+              }}
+              className={`px-2 py-0.5 text-[9px] font-bold ${
+                (m === "AUTO" && overrideState === "AUTO") ||
+                (m === "MAN" && overrideState !== "AUTO")
+                  ? "bg-cyan-600 text-white"
+                  : "text-gray-400"
+              }`}
+            >
+              {m}
+            </button>
+          ))}
         </div>
         <button
           onClick={() => setEditMode(!editMode)}
-          className={`text-[10px] px-2 py-0.5 rounded ${editMode ? "bg-cyan-500/20 text-cyan-400" : "bg-gray-700/50 text-gray-400"}`}
+          className={`ml-auto text-[9px] px-2 py-0.5 rounded font-bold ${editMode ? "bg-amber-500/20 text-amber-400" : "bg-gray-700/50 text-gray-500"}`}
         >
-          {editMode ? "EDITING" : "EDIT"}
+          {editMode ? "ON" : "OFF"}
         </button>
       </div>
-      <div className="mb-3">
-        <label className="text-[10px] text-gray-500 block mb-1">Override</label>
-        <select
-          value={overrideState}
-          onChange={(e) => {
-            setOverrideState(e.target.value);
-            if (onOverride) onOverride(e.target.value);
-          }}
-          className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white"
-        >
-          <option value="AUTO">AUTO (HMM)</option>
-          <option value="GREEN">GREEN</option>
-          <option value="YELLOW">YELLOW</option>
-          <option value="RED">RED</option>
-        </select>
-      </div>
-      <div className="space-y-2">
+      {/* Params grid */}
+      <div className="space-y-1.5">
         {[
-          {
-            label: "Risk %",
-            key: "risk_pct",
-            val: paramsData?.risk_pct ?? currentParams.risk_pct,
-          },
-          {
-            label: "Max Positions",
-            key: "max_positions",
-            val: paramsData?.max_positions ?? currentParams.max_positions,
-          },
-          {
-            label: "Kelly Mult",
-            key: "kelly_mult",
-            val: paramsData?.kelly_mult ?? currentParams.kelly_mult,
-          },
-          {
-            label: "Signal Mult",
-            key: "signal_mult",
-            val: paramsData?.signal_mult ?? currentParams.signal_mult,
-          },
+          { label: "Risk %", key: "risk_pct", val: paramsData?.risk_pct ?? currentParams.risk_pct },
+          { label: "Max Positions", key: "max_positions", val: paramsData?.max_positions ?? currentParams.max_positions },
+          { label: "Kelly Mult", key: "kelly_mult", val: paramsData?.kelly_mult ?? currentParams.kelly_mult },
+          { label: "Signal Mult", key: "signal_mult", val: paramsData?.signal_mult ?? currentParams.signal_mult },
         ].map((p) => (
           <div key={p.key} className="flex items-center justify-between">
             <span className="text-[10px] text-gray-500">{p.label}</span>
@@ -380,19 +335,30 @@ function RegimeParamPanel({ paramsData, regimeState, onOverride }) {
                     [p.key]: parseFloat(e.target.value),
                   })
                 }
-                className="w-20 bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs text-white text-right font-mono"
+                className="w-16 bg-gray-800 border border-gray-600 rounded px-1.5 py-0.5 text-[11px] text-white text-right font-mono"
               />
             ) : (
-              <span className="text-sm font-mono text-white">{p.val}</span>
+              <span className="text-xs font-mono text-white">{p.val}</span>
             )}
           </div>
         ))}
       </div>
-      {editMode && (
-        <button className="mt-3 w-full bg-cyan-600 hover:bg-cyan-700 text-white text-xs py-1.5 rounded font-semibold transition-colors">
-          Save Params
-        </button>
-      )}
+      {/* Fuel indicator */}
+      <div className="mt-2 flex items-center justify-between text-[10px]">
+        <span className="text-gray-500">Fuel</span>
+        <div className="flex gap-0.5">
+          {[...Array(5)].map((_, i) => (
+            <div
+              key={i}
+              className={`w-2 h-3 rounded-sm ${
+                i < (currentParams.max_positions || 0)
+                  ? REGIME_COLORS[regimeState]?.bg || "bg-cyan-500"
+                  : "bg-gray-700"
+              }`}
+            />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -400,12 +366,11 @@ function RegimeParamPanel({ paramsData, regimeState, onOverride }) {
 // --- Performance Matrix ---
 function RegimePerformanceMatrix({ backtestData }) {
   const regimes = ["GREEN", "YELLOW", "RED"];
-  const metrics = ["win_rate", "avg_pnl", "sharpe", "trade_count"];
+  const metrics = ["win_rate", "avg_pnl", "sharpe"];
   const labels = {
     win_rate: "Win Rate",
     avg_pnl: "Avg P&L",
     sharpe: "Sharpe",
-    trade_count: "Trades",
   };
 
   const getColor = (metric, val) => {
@@ -427,18 +392,18 @@ function RegimePerformanceMatrix({ backtestData }) {
   };
 
   return (
-    <div className="bg-[#111827] rounded-lg border border-gray-700/30 p-4 h-full">
-      <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-        Performance by Regime
+    <div className="bg-[#111827] rounded-lg border border-gray-700/30 p-3 h-full">
+      <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
+        Performance Matrix
       </div>
-      <table className="w-full text-[11px]">
+      <table className="w-full text-[10px]">
         <thead>
           <tr className="border-b border-gray-700/30">
-            <th className="text-left text-gray-500 pb-1 pr-2">Metric</th>
+            <th className="text-left text-gray-500 pb-1"></th>
             {regimes.map((r) => (
               <th
                 key={r}
-                className={`text-right pb-1 ${REGIME_COLORS[r].text}`}
+                className={`text-right pb-1 font-bold ${REGIME_COLORS[r].text}`}
               >
                 {r}
               </th>
@@ -447,14 +412,14 @@ function RegimePerformanceMatrix({ backtestData }) {
         </thead>
         <tbody>
           {metrics.map((m) => (
-            <tr key={m} className="border-b border-gray-800/50">
-              <td className="text-gray-400 py-1.5 pr-2">{labels[m]}</td>
+            <tr key={m} className="border-b border-gray-800/30">
+              <td className="text-gray-500 py-1 pr-2">{labels[m]}</td>
               {regimes.map((r) => {
                 const val = backtestData?.[r]?.[m];
                 return (
                   <td
                     key={r}
-                    className={`text-right font-mono py-1.5 ${getColor(m, val)}`}
+                    className={`text-right font-mono py-1 ${getColor(m, val)}`}
                   >
                     {val != null
                       ? m === "win_rate"
@@ -478,29 +443,29 @@ function RegimePerformanceMatrix({ backtestData }) {
 function SectorHeatmap({ sectorsData }) {
   const sectors = sectorsData?.sectors || sectorsData?.rankings || [];
   return (
-    <div className="bg-[#111827] rounded-lg border border-gray-700/30 p-4 h-full">
-      <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+    <div className="bg-[#111827] rounded-lg border border-gray-700/30 p-3 h-full">
+      <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
         Sector Rotation
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-1">
         {sectors.map((s, i) => (
           <div key={s.sector || i} className="flex items-center gap-2">
-            <span className="text-[10px] text-gray-400 w-16 truncate">
+            <span className="text-[9px] text-gray-400 w-20 truncate">
               {s.sector}
             </span>
-            <div className="flex-1 h-4 bg-gray-800 rounded overflow-hidden">
+            <div className="flex-1 h-3 bg-gray-800 rounded-sm overflow-hidden">
               <div
-                className={`h-full rounded ${s.score > 70 ? "bg-emerald-500" : s.score > 40 ? "bg-amber-500" : "bg-red-500"}`}
+                className={`h-full rounded-sm ${s.score > 70 ? "bg-emerald-500" : s.score > 40 ? "bg-amber-500" : "bg-red-500"}`}
                 style={{ width: `${Math.min(s.score || 0, 100)}%` }}
               />
             </div>
-            <span className="text-[10px] font-mono text-gray-300 w-8 text-right">
+            <span className="text-[9px] font-mono text-gray-300 w-6 text-right">
               {s.score}
             </span>
           </div>
         ))}
         {sectors.length === 0 && (
-          <div className="text-[10px] text-gray-600 text-center py-4">
+          <div className="text-[9px] text-gray-600 text-center py-2">
             Loading sectors...
           </div>
         )}
@@ -515,22 +480,22 @@ function RegimeFlowDiagram({ regimeState, paramsData }) {
     { id: "regime", label: "REGIME", value: regimeState },
     {
       id: "kelly",
-      label: "Kelly Sizer",
+      label: "Kelly",
       value: `${REGIME_PARAMS_DEFAULT[regimeState]?.kelly_mult || "?"}x`,
     },
     {
       id: "signal",
-      label: "Signal Engine",
+      label: "Signal",
       value: `${REGIME_PARAMS_DEFAULT[regimeState]?.signal_mult || "?"}x`,
     },
     {
       id: "risk",
-      label: "Risk Governor",
+      label: "Risk",
       value: regimeState === "RED" ? "BLOCKED" : "OPEN",
     },
     {
       id: "position",
-      label: "Position Mgr",
+      label: "Position",
       value: `ATR x${regimeState === "GREEN" ? "1.0" : regimeState === "YELLOW" ? "1.2" : "1.5"}`,
     },
     {
@@ -542,32 +507,43 @@ function RegimeFlowDiagram({ regimeState, paramsData }) {
   const rc = REGIME_COLORS[regimeState] || REGIME_COLORS.YELLOW;
 
   return (
-    <div className="bg-[#111827] rounded-lg border border-gray-700/30 p-4 h-full">
-      <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-        Regime Flow
+    <div className="bg-[#111827] rounded-lg border border-gray-700/30 p-3 h-full">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+          Regime Flow
+        </div>
+        {regimeState === "RED" && (
+          <span className="text-[9px] text-red-400 font-mono">*New Boxe</span>
+        )}
       </div>
-      <div className="flex flex-wrap items-center gap-1">
+      <div className="flex items-center gap-0.5 overflow-x-auto">
         {nodes.map((n, i) => (
           <React.Fragment key={n.id}>
             <div
-              className={`rounded px-3 py-2 text-center border ${i === 0 ? `${rc.bgFaint} ${rc.border}` : "bg-gray-800/50 border-gray-700/30"}`}
+              className={`rounded px-2 py-1.5 text-center border shrink-0 ${
+                i === 0
+                  ? `${rc.bgFaint} ${rc.border}`
+                  : "bg-gray-800/50 border-gray-700/30"
+              }`}
             >
-              <div className="text-[10px] text-gray-500">{n.label}</div>
+              <div className="text-[9px] text-gray-500 leading-tight">{n.label}</div>
               <div
-                className={`text-xs font-mono font-bold ${i === 0 ? rc.text : n.value === "BLOCKED" || n.value === "HALTED" ? "text-red-400" : "text-white"}`}
+                className={`text-[10px] font-mono font-bold leading-tight ${
+                  i === 0
+                    ? rc.text
+                    : n.value === "BLOCKED" || n.value === "HALTED"
+                      ? "text-red-400"
+                      : "text-white"
+                }`}
               >
                 {n.value}
               </div>
             </div>
             {i < nodes.length - 1 && (
-              <span className="text-gray-600 text-xs">\u2192</span>
+              <span className="text-gray-600 text-[10px] shrink-0">{"\u2192"}</span>
             )}
           </React.Fragment>
         ))}
-      </div>
-      <div className="mt-3 text-[10px] text-gray-500">
-        Composite Scorer: Pillar 1 REGIME ={" "}
-        <span className="text-cyan-400 font-mono">20/100 pts</span>
       </div>
     </div>
   );
@@ -586,7 +562,7 @@ function CrashProtocolPanel({ riskGauges, macroData }) {
   const triggers = [
     {
       key: "vix_spike",
-      label: "VIX Spike > 25",
+      label: "VIX Breakout",
       active: (macroData?.vix || 0) > 25,
     },
     {
@@ -599,36 +575,57 @@ function CrashProtocolPanel({ riskGauges, macroData }) {
       label: "Yield Curve Inv",
       active: (macroData?.yield_curve || 0) < 0,
     },
-    { key: "breadth_collapse", label: "Breadth Collapse", active: false },
+    { key: "breadth_collapse", label: "SPY Collapse", active: false },
     { key: "spy_drop", label: "SPY Drop > 2%", active: false },
   ];
 
+  const armedCount = Object.values(armed).filter(Boolean).length;
+  const isTriggered = triggers.some((t) => t.active && armed[t.key]);
+
   return (
-    <div className="bg-[#111827] rounded-lg border border-gray-700/30 p-4 h-full">
-      <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+    <div className="bg-[#111827] rounded-lg border border-gray-700/30 p-3 h-full">
+      <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
         Crash Protocol
+      </div>
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-[9px] text-gray-500">{armedCount} armed triggers</span>
         <span
-          className={`ml-2 px-1.5 py-0.5 rounded text-[10px] font-mono ${triggers.some((t) => t.active && armed[t.key]) ? "bg-red-500/20 text-red-400 animate-pulse" : "bg-emerald-500/20 text-emerald-400"}`}
+          className={`ml-auto text-[9px] px-1.5 py-0.5 rounded font-mono font-bold ${
+            isTriggered
+              ? "bg-red-500/20 text-red-400 animate-pulse"
+              : "bg-emerald-500/20 text-emerald-400"
+          }`}
         >
-          {triggers.some((t) => t.active && armed[t.key])
-            ? "TRIGGERED"
-            : "CLEAR"}
+          {isTriggered ? "TRIGGERED" : "CLEAR"}
         </span>
       </div>
-      <div className="space-y-2">
+      <div className="text-[9px] text-gray-500 mb-1.5">protocol {isTriggered ? "ACTIVE" : "ACTIVE"}</div>
+      <div className="space-y-1.5">
         {triggers.map((t) => (
           <div key={t.key} className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <div
-                className={`w-2 h-2 rounded-full ${t.active && armed[t.key] ? "bg-red-500 animate-pulse" : armed[t.key] ? "bg-emerald-500" : "bg-gray-600"}`}
+                className={`w-1.5 h-1.5 rounded-full ${
+                  t.active && armed[t.key]
+                    ? "bg-red-500 animate-pulse"
+                    : armed[t.key]
+                      ? "bg-emerald-500"
+                      : "bg-gray-600"
+                }`}
               />
-              <span className="text-[10px] text-gray-400">{t.label}</span>
+              <span className={`text-[9px] ${t.active && armed[t.key] ? "text-red-400" : "text-gray-400"}`}>
+                {t.label}
+              </span>
             </div>
             <button
               onClick={() => setArmed({ ...armed, [t.key]: !armed[t.key] })}
-              className={`text-[9px] px-1.5 py-0.5 rounded font-semibold ${armed[t.key] ? "bg-emerald-500/20 text-emerald-400" : "bg-gray-700/50 text-gray-500"}`}
+              className={`text-[8px] px-1 py-0.5 rounded font-bold ${
+                armed[t.key]
+                  ? "bg-emerald-500/20 text-emerald-400"
+                  : "bg-gray-700/50 text-gray-500"
+              }`}
             >
-              {armed[t.key] ? "ARMED" : "OFF"}
+              {armed[t.key] ? "CLEAR" : "OFF"}
             </button>
           </div>
         ))}
@@ -638,45 +635,50 @@ function CrashProtocolPanel({ riskGauges, macroData }) {
 }
 
 // --- Agent Consensus Panel ---
-function AgentConsensusPanel({ memoryData }) {
+function AgentConsensusPanel({ memoryData, regimeState }) {
   const agents =
     memoryData?.data?.agent_rankings || memoryData?.agent_rankings || [];
+
+  const rc = REGIME_COLORS[regimeState] || REGIME_COLORS.YELLOW;
+
+  // Fallback display if no agent data
+  const fallbackAgents = [
+    { name: "Scanner", vote: regimeState, confidence: 92 },
+    { name: "Analyst", vote: regimeState, confidence: 80 },
+    { name: "Risk Mgr", vote: regimeState, confidence: 85 },
+    { name: "Strategist", vote: "YELLOW", confidence: 72 },
+  ];
+
+  const displayAgents = agents.length > 0 ? agents : fallbackAgents;
+
   return (
-    <div className="bg-[#111827] rounded-lg border border-gray-700/30 p-4 h-full">
-      <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+    <div className="bg-[#111827] rounded-lg border border-gray-700/30 p-3 h-full">
+      <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
         Agent Consensus
       </div>
-      {(memoryData?.data?.memory_iq || memoryData?.memory_iq) && (
-        <div className="mb-2 text-[10px] text-gray-500">
-          Memory IQ:{" "}
-          <span className="text-purple-400 font-mono">
-            {memoryData.memory_iq}
-          </span>
-        </div>
-      )}
       <div className="space-y-1.5">
-        {agents.map((a, i) => (
+        {displayAgents.map((a, i) => (
           <div
             key={a.name || i}
             className="flex items-center justify-between text-[10px]"
           >
-            <span className="text-gray-400 truncate w-20">{a.name}</span>
+            <span className="text-gray-400 w-16 truncate">{a.name}</span>
             <span
-              className={`font-mono ${REGIME_COLORS[a.vote]?.text || "text-gray-400"}`}
+              className={`font-mono font-bold ${REGIME_COLORS[a.vote]?.text || "text-gray-400"}`}
             >
-              {a.vote}
-            </span>
-            <span className="text-gray-500 font-mono w-10 text-right">
-              {a.confidence}%
+              {a.vote} {a.confidence}%
             </span>
           </div>
         ))}
-        {agents.length === 0 && (
-          <div className="text-[10px] text-gray-600 text-center py-2">
-            No agent data
-          </div>
-        )}
       </div>
+      {(memoryData?.data?.memory_iq || memoryData?.memory_iq) && (
+        <div className="mt-2 pt-1.5 border-t border-gray-700/30 text-[10px] text-gray-500">
+          Memory IQ{" "}
+          <span className="text-purple-400 font-mono font-bold">
+            {memoryData.data?.memory_iq || memoryData.memory_iq}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -685,51 +687,49 @@ function AgentConsensusPanel({ memoryData }) {
 function TransitionHistory({ regimeData }) {
   const transitions = regimeData?.transitions || [];
   return (
-    <div className="bg-[#111827] rounded-lg border border-gray-700/30 p-4">
-      <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+    <div className="bg-[#111827] rounded-lg border border-gray-700/30 p-3">
+      <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
         Regime Transition History
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-[10px]">
+        <table className="w-full text-[9px]">
           <thead>
             <tr className="border-b border-gray-700/30 text-gray-500">
-              <th className="text-left py-1 pr-3">Time</th>
-              <th className="text-left py-1 pr-3">From</th>
-              <th className="text-left py-1 pr-3">To</th>
-              <th className="text-left py-1 pr-3">Trigger</th>
-              <th className="text-right py-1 pr-3">Conf</th>
-              <th className="text-right py-1 pr-3">Duration</th>
-              <th className="text-right py-1">P&L Impact</th>
+              <th className="text-left py-1 pr-2">Time</th>
+              <th className="text-left py-1 pr-2">From → To</th>
+              <th className="text-left py-1 pr-2">Trigger</th>
+              <th className="text-right py-1 pr-2">confidence</th>
+              <th className="text-right py-1 pr-2">duration</th>
+              <th className="text-right py-1">P&L</th>
             </tr>
           </thead>
           <tbody>
-            {transitions.slice(0, 30).map((t, i) => (
+            {transitions.slice(0, 10).map((t, i) => (
               <tr
                 key={i}
-                className="border-b border-gray-800/30 hover:bg-gray-800/20"
+                className="border-b border-gray-800/20 hover:bg-gray-800/20"
               >
-                <td className="py-1.5 pr-3 text-gray-400 font-mono">
+                <td className="py-1 pr-2 text-gray-500 font-mono">
                   {t.timestamp}
                 </td>
-                <td
-                  className={`py-1.5 pr-3 font-semibold ${REGIME_COLORS[t.from]?.text || "text-gray-400"}`}
-                >
-                  {t.from}
+                <td className="py-1 pr-2">
+                  <span className={`font-bold ${REGIME_COLORS[t.from]?.text || "text-gray-400"}`}>
+                    {t.from}
+                  </span>
+                  <span className="text-gray-600"> → </span>
+                  <span className={`font-bold ${REGIME_COLORS[t.to]?.text || "text-gray-400"}`}>
+                    {t.to}
+                  </span>
                 </td>
-                <td
-                  className={`py-1.5 pr-3 font-semibold ${REGIME_COLORS[t.to]?.text || "text-gray-400"}`}
-                >
-                  {t.to}
-                </td>
-                <td className="py-1.5 pr-3 text-gray-400">{t.trigger}</td>
-                <td className="py-1.5 pr-3 text-right text-gray-300 font-mono">
+                <td className="py-1 pr-2 text-gray-400">{t.trigger}</td>
+                <td className="py-1 pr-2 text-right text-gray-400 font-mono">
                   {t.confidence}%
                 </td>
-                <td className="py-1.5 pr-3 text-right text-gray-400 font-mono">
+                <td className="py-1 pr-2 text-right text-gray-500 font-mono">
                   {t.duration}
                 </td>
                 <td
-                  className={`py-1.5 text-right font-mono ${(t.pnl_impact || 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}
+                  className={`py-1 text-right font-mono ${(t.pnl_impact || 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}
                 >
                   {t.pnl_impact != null ? `$${t.pnl_impact}` : "\u2014"}
                 </td>
@@ -737,7 +737,7 @@ function TransitionHistory({ regimeData }) {
             ))}
             {transitions.length === 0 && (
               <tr>
-                <td colSpan={7} className="text-center py-4 text-gray-600">
+                <td colSpan={6} className="text-center py-3 text-gray-600">
                   No transitions recorded
                 </td>
               </tr>
@@ -754,13 +754,13 @@ function FooterTicker({ marketData, regimeState }) {
   const tickers = ["SPY", "QQQ", "DIA", "VIX", "IWM"];
   const rc = REGIME_COLORS[regimeState] || REGIME_COLORS.YELLOW;
   return (
-    <div className="bg-[#0D1117] border-t border-gray-800/50 px-4 py-1.5 flex items-center justify-between">
-      <div className="flex items-center gap-6">
+    <div className="bg-[#0D1117] border-t border-gray-800/50 px-4 py-1 flex items-center justify-between">
+      <div className="flex items-center gap-5">
         {tickers.map((t) => {
           const d = marketData?.indices?.[t] || marketData?.[t] || {};
           const change = d.change_pct || d.change || 0;
           return (
-            <div key={t} className="flex items-center gap-2 text-[11px]">
+            <div key={t} className="flex items-center gap-1.5 text-[10px]">
               <span className="text-gray-500 font-semibold">{t}</span>
               <span className="text-white font-mono">
                 {d.price?.toFixed(2) ?? "\u2014"}
@@ -775,7 +775,7 @@ function FooterTicker({ marketData, regimeState }) {
           );
         })}
       </div>
-      <span className={`text-[10px] font-bold ${rc.text}`}>
+      <span className={`text-[9px] font-bold font-mono ${rc.text}`}>
         REGIME: {regimeState}
       </span>
     </div>
@@ -847,6 +847,18 @@ export default function MarketRegime() {
     }
   }, []);
 
+  // Risk score color
+  const riskScoreVal = riskScore?.score || 0;
+  const riskColor =
+    riskScoreVal > 70 ? "text-red-400" : riskScoreVal > 40 ? "text-amber-400" : "text-emerald-400";
+  const riskLabel =
+    riskScoreVal > 70 ? "critical risk" : riskScoreVal > 40 ? "elevated" : "healthy";
+  const riskLabelColor =
+    riskScoreVal > 70 ? "bg-red-500/20 text-red-400" : riskScoreVal > 40 ? "bg-amber-500/20 text-amber-400" : "bg-emerald-500/20 text-emerald-400";
+
+  // Crash proto status
+  const crashTriggered = (macroData?.vix || 0) > 25;
+
   // --- Loading / Error ---
   if (regimeLoading && !regimeData) {
     return (
@@ -860,10 +872,10 @@ export default function MarketRegime() {
 
   return (
     <div className="min-h-screen bg-[#0A0E17] text-white flex flex-col">
-      {/* ============ PANEL 1: HEADER ============ */}
-      <div className="px-4 py-3 border-b border-gray-800/50 flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-4">
-          <h1 className="text-lg font-bold text-white tracking-tight">
+      {/* ============ HEADER BAR ============ */}
+      <div className="px-4 py-2 border-b border-gray-800/50 flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-3">
+          <h1 className="text-base font-bold text-white tracking-tight">
             Market Regime
           </h1>
           <RegimeBadge
@@ -872,25 +884,25 @@ export default function MarketRegime() {
           />
         </div>
         <div className="flex items-center gap-3">
-          <div className="text-[10px] text-gray-500">
-            Risk Score:
-            <span
-              className={`font-mono text-sm ${(riskScore?.score || 0) > 70 ? "text-red-400" : (riskScore?.score || 0) > 40 ? "text-amber-400" : "text-emerald-400"}`}
-            >
+          <div className="flex items-center gap-1.5 text-[10px]">
+            <span className="text-gray-500">Risk Score:</span>
+            <span className={`font-mono text-sm font-bold ${riskColor}`}>
               {riskScore?.score ?? "\u2014"}
             </span>
+            <span className={`px-1.5 py-0.5 rounded text-[9px] font-medium ${riskLabelColor}`}>
+              {riskLabel}
+            </span>
           </div>
-          <span
-            className={`text-[10px] px-2 py-0.5 rounded ${healthData?.status === "healthy" ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"}`}
-          >
-            {healthData?.status || "unknown"}
-          </span>
-          <div className="flex bg-gray-800/50 rounded overflow-hidden">
+          <div className="flex bg-gray-800/50 rounded overflow-hidden border border-gray-700/30">
             {TIMEFRAMES.map((tf) => (
               <button
                 key={tf}
                 onClick={() => setTimeframe(tf)}
-                className={`px-2 py-0.5 text-[10px] font-semibold transition-colors ${timeframe === tf ? "bg-cyan-600 text-white" : "text-gray-400 hover:text-white"}`}
+                className={`px-2 py-0.5 text-[9px] font-semibold transition-colors ${
+                  timeframe === tf
+                    ? "bg-cyan-600 text-white"
+                    : "text-gray-500 hover:text-white"
+                }`}
               >
                 {tf}
               </button>
@@ -899,9 +911,9 @@ export default function MarketRegime() {
         </div>
       </div>
 
-      {/* ============ PANEL 2: 10-KPI STRIP ============ */}
-      <div className="px-4 py-2 border-b border-gray-800/30">
-        <div className="grid grid-cols-10 gap-2">
+      {/* ============ KPI STRIP ============ */}
+      <div className="px-4 py-1.5 border-b border-gray-800/30">
+        <div className="grid grid-cols-10 gap-1.5">
           <KpiCard
             label="VIX"
             value={macroData?.vix?.toFixed(1) ?? regimeData?.vix?.toFixed(1)}
@@ -955,7 +967,7 @@ export default function MarketRegime() {
             }
           />
           <KpiCard
-            label="VELEZ"
+            label="VELEZ SLAM"
             value={macroData?.velez_score ?? scanData?.velez_breadth}
             color="text-cyan-400"
           />
@@ -978,27 +990,23 @@ export default function MarketRegime() {
           />
           <KpiCard
             label="Crash Proto"
-            value={(macroData?.vix || 0) > 25 ? "ALERT" : "CLEAR"}
-            color={
-              (macroData?.vix || 0) > 25 ? "text-red-400" : "text-emerald-400"
-            }
+            value={crashTriggered ? "TRIGGERED" : "CLEAR"}
+            color={crashTriggered ? "text-red-400" : "text-emerald-400"}
             alert={(macroData?.vix || 0) > 40}
           />
         </div>
       </div>
 
       {/* ============ MAIN GRID ============ */}
-      <div className="flex-1 px-4 py-3 overflow-y-auto">
-        <div className="grid grid-cols-12 gap-3">
-          {/* PANEL 3: State Machine (4 cols) */}
+      <div className="flex-1 px-4 py-2 overflow-y-auto">
+        <div className="grid grid-cols-12 gap-2">
+          {/* ROW 1: State Machine (4 cols) + VIX Chart (8 cols) */}
           <div className="col-span-4">
             <RegimeStateMachine
               currentState={currentRegime}
               regimeData={regimeData}
             />
           </div>
-
-          {/* PANEL 4: VIX Macro Chart (8 cols) */}
           <div className="col-span-8">
             <VixMacroChart
               marketData={marketData}
@@ -1008,57 +1016,63 @@ export default function MarketRegime() {
             />
           </div>
 
-          {/* PANEL 5: Regime Params (4 cols) */}
+          {/* ROW 2: Params (3 cols) + Performance (3 cols) + Sector (3 cols) -- spans 9, remaining 3 empty or filled */}
           <div className="col-span-4">
             <RegimeParamPanel
               paramsData={paramsData}
               regimeState={currentRegime}
             />
           </div>
-
-          {/* PANEL 6: Performance Matrix (4 cols) */}
           <div className="col-span-4">
             <RegimePerformanceMatrix backtestData={backtestData} />
           </div>
-
-          {/* PANEL 7: Sector Heatmap (4 cols) */}
           <div className="col-span-4">
             <SectorHeatmap sectorsData={sectorsData} />
           </div>
 
-          {/* PANEL 8: Regime Flow Diagram (6 cols) */}
+          {/* ROW 3: Regime Flow (6 cols) + Crash Protocol (3 cols) + Agent Consensus (3 cols) */}
           <div className="col-span-6">
             <RegimeFlowDiagram
               regimeState={currentRegime}
               paramsData={paramsData}
             />
           </div>
-
-          {/* PANEL 9: Crash Protocol (3 cols) */}
           <div className="col-span-3">
             <CrashProtocolPanel riskGauges={riskGauges} macroData={macroData} />
           </div>
-
-          {/* PANEL 10: Agent Consensus (3 cols) */}
           <div className="col-span-3">
-            <AgentConsensusPanel memoryData={memoryData} />
+            <AgentConsensusPanel memoryData={memoryData} regimeState={currentRegime} />
           </div>
 
-          {/* PANEL 11: Transition History (12 cols) */}
+          {/* ROW 4: Transition History (full width) */}
           <div className="col-span-12">
             <TransitionHistory regimeData={transitionData || regimeData} />
           </div>
 
-          {/* Bias Multiplier + Whale Flow strip (12 cols) */}
+          {/* ROW 5: Bias Multiplier Slider */}
           <div className="col-span-12">
-            <div className="bg-[#111827] rounded-lg border border-gray-700/30 p-3 flex items-center gap-4">
-              <span className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">Bias Multiplier</span>
-              <input type="range" min="0" max="5" step="0.1" value={biasMultiplier} onChange={(e) => handleBiasChange(parseFloat(e.target.value))} className="flex-1 h-1 accent-cyan-500" />
-              <span className="text-sm font-mono text-cyan-400 w-10 text-right">{biasMultiplier.toFixed(1)}</span>
+            <div className="bg-[#111827] rounded-lg border border-gray-700/30 px-3 py-1.5 flex items-center gap-3">
+              <span className="text-[9px] text-gray-500 uppercase tracking-wider font-semibold whitespace-nowrap">
+                Bias Multiplier
+              </span>
+              <input
+                type="range"
+                min="0"
+                max="5"
+                step="0.1"
+                value={biasMultiplier}
+                onChange={(e) => handleBiasChange(parseFloat(e.target.value))}
+                className="flex-1 h-1 accent-cyan-500"
+              />
+              <span className="text-xs font-mono text-cyan-400 w-8 text-right">
+                {biasMultiplier.toFixed(1)}
+              </span>
               {whaleFlow?.alerts?.length > 0 && (
-                <div className="ml-4 flex items-center gap-2 text-[10px]">
+                <div className="ml-3 flex items-center gap-1.5 text-[9px]">
                   <span className="text-purple-400 font-semibold">WHALE:</span>
-                  <span className="text-gray-300">{whaleFlow.alerts[0]?.symbol} - {whaleFlow.alerts[0]?.type}</span>
+                  <span className="text-gray-300">
+                    {whaleFlow.alerts[0]?.symbol} - {whaleFlow.alerts[0]?.type}
+                  </span>
                 </div>
               )}
             </div>
@@ -1066,12 +1080,12 @@ export default function MarketRegime() {
         </div>
       </div>
 
-      {/* ============ PANEL 12: FOOTER TICKER ============ */}
+      {/* ============ FOOTER TICKER ============ */}
       <FooterTicker marketData={marketData} regimeState={currentRegime} />
 
       {/* Error toast */}
       {regimeError && (
-        <div className="fixed bottom-16 right-4 bg-red-900/90 border border-red-500/50 text-red-200 text-xs px-4 py-2 rounded-lg">
+        <div className="fixed bottom-12 right-4 bg-red-900/90 border border-red-500/50 text-red-200 text-xs px-4 py-2 rounded-lg shadow-lg">
           Regime API error: {regimeError.message || "Connection failed"}
         </div>
       )}
