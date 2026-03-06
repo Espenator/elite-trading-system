@@ -104,6 +104,7 @@ async def get_signals(as_of: date | None = None):
                 continue
             if sym not in seen or ss.get("score", 0) > seen[sym].get("score", 0):
                 seen[sym] = ss
+
         for sym, ss in seen.items():
             raw_score = ss.get("score", 0)
             score_100 = round(raw_score * 100) if raw_score <= 1.0 else round(raw_score)
@@ -136,8 +137,8 @@ async def get_signals(as_of: date | None = None):
                 "stop": stop,
                 "rMultiple": r_mult,
                 "kellyPercent": round(kelly.final_pct * 100, 1),
-                "momentum": ss.get("data", {}).get("momentum", 0),
-                "volSpike": ss.get("data", {}).get("vol_ratio", 0),
+                "momentum": ss.get("data", {}).get("momentum", 0) or round(ss.get("data", {}).get("ret_5d", 0) * 100, 1),
+                "volSpike": ss.get("data", {}).get("vol_ratio", 0) or round(ss.get("data", {}).get("gap_pct", 0) * 100, 1),
                 "sector": ss.get("data", {}).get("sector", ""),
                 "pattern": ss.get("signal_type", ""),
                 "leadAgent": ss.get("source", "turbo_scanner"),

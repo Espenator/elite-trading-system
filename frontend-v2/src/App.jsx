@@ -7,6 +7,7 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import Layout from "./components/layout/Layout";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { CNSProvider } from "./hooks/useCNS";
 
 // Per-page error boundary that preserves navigation chrome
 class PageBoundary extends Component {
@@ -113,12 +114,12 @@ function App() {
     >
       <ErrorBoundary>
         <Routes>
+          {/* Dashboard has its own full-page layout (header, sidebar, footer) — render outside Layout */}
+          <Route path="/dashboard" element={<CNSProvider><P><Dashboard /></P></CNSProvider>} />
+
           <Route path="/" element={<Layout />}>
             {/* Default redirect */}
             <Route index element={<Navigate to="/dashboard" replace />} />
-
-            {/* COMMAND */}
-            <Route path="dashboard" element={<P><Dashboard /></P>} />
             <Route path="agents" element={<P><AgentCommandCenter /></P>} />
             <Route path="agents/:tab" element={<P><AgentCommandCenter /></P>} />
 
