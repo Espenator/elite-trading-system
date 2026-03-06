@@ -100,12 +100,17 @@ export default function Trades() {
   // ── Actions ──
   const handleRefresh = () => { refetchPortfolio(); refetchOrders(); };
 
-  const handleCancelAll = async () => {
+  const cancelAllOrders = async () => {
     try {
       const res = await fetch(getApiUrl("orders"), { method: "DELETE", headers: getAuthHeaders() });
       if (!res.ok) throw new Error('Failed');
       refetchOrders();
     } catch (e) { log.error("Cancel all failed:", e); }
+  };
+
+  const handleCancelAll = async () => {
+    if (!window.confirm("Cancel ALL open orders? This cannot be undone.")) return;
+    await cancelAllOrders();
   };
 
   const handleClosePosition = async (symbol, pct = 100) => {
@@ -119,13 +124,16 @@ export default function Trades() {
 
   const handleCloseLosers = async () => {
     const losers = positions.filter((p) => (p.unrealizedPnL || p.pnl || 0) < 0);
+    if (losers.length === 0) return;
+    if (!window.confirm(`Close ${losers.length} losing position(s)? This will execute market orders.`)) return;
     for (const p of losers) {
       await handleClosePosition(p.symbol || p.ticker);
     }
   };
 
   const handleFlattenAll = async () => {
-    await handleCancelAll();
+    if (!window.confirm("FLATTEN ALL: Cancel all orders and close all positions? This cannot be undone.")) return;
+    await cancelAllOrders();
     for (const p of positions) {
       await handleClosePosition(p.symbol || p.ticker);
     }

@@ -17,15 +17,19 @@ const sizeStyles = {
   lg: 'px-6 py-3 text-base rounded-xl',
 };
 
+function Spinner({ className }) {
+  return <svg className={clsx("animate-spin shrink-0", className)} viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity=".25" /><path d="M14 8a6 6 0 00-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>;
+}
+
 const Button = forwardRef(function Button(
-  { variant = 'primary', size = 'md', type = 'button', disabled = false, className, children, leftIcon: LeftIcon, rightIcon: RightIcon, fullWidth, ...props },
+  { variant = 'primary', size = 'md', type = 'button', disabled = false, loading = false, className, children, leftIcon: LeftIcon, rightIcon: RightIcon, fullWidth, ...props },
   ref
 ) {
   return (
     <button
       ref={ref}
       type={type}
-      disabled={disabled}
+      disabled={disabled || loading}
       className={clsx(
         'inline-flex items-center justify-center gap-2 font-medium transition-colors outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-dark border disabled:opacity-50 disabled:pointer-events-none',
         variantStyles[variant] ?? variantStyles.primary,
@@ -35,9 +39,9 @@ const Button = forwardRef(function Button(
       )}
       {...props}
     >
-      {LeftIcon && <LeftIcon className="w-4 h-4 shrink-0" />}
+      {loading ? <Spinner className="w-4 h-4" /> : LeftIcon && <LeftIcon className="w-4 h-4 shrink-0" />}
       {children}
-      {RightIcon && <RightIcon className="w-4 h-4 shrink-0" />}
+      {!loading && RightIcon && <RightIcon className="w-4 h-4 shrink-0" />}
     </button>
   );
 });

@@ -3,11 +3,16 @@
  * Uses config/api.js getApiUrl(endpoint).
  * Optional polling when pollIntervalMs > 0.
  */
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { getApiUrl, getAuthHeaders } from "../config/api";
+
+// Default fetch timeout (15 seconds)
+const DEFAULT_TIMEOUT_MS = 15000;
 
 // Simple in-memory cache for API responses (stale-while-revalidate)
 const _apiCache = new Map();
+const CACHE_MAX_SIZE = 200;
+const CACHE_STALE_MS = 300000; // 5 min
 
 // Global concurrency limiter — prevents browser connection exhaustion
 let _activeRequests = 0;
@@ -41,7 +46,7 @@ const _inflight = new Map();
 /**
  * @param {string} endpoint - Key from api.js endpoints (e.g. 'agents', 'dataSources')
  * @param {{ pollIntervalMs?: number, enabled?: boolean, endpoint?: string }} options
- * @returns {{ data: T | null, loading: boolean, error: Error | null, refetch: () => Promise<void> }}
+ * @returns {{ data: T | null, loading: boolean, error: Error | null, isStale: boolean, lastUpdated: number | null, refetch: () => Promise<void> }}
  */
 export function useApi(endpoint, options = {}) {
   const {
@@ -52,8 +57,11 @@ export function useApi(endpoint, options = {}) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState(null);
+  const [isStale, setIsStale] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const abortRef = useRef(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (signal) => {
     let url = getApiUrl(endpoint);
     if (endpointOverride) {
       const base = import.meta.env.VITE_API_URL ?? '';
@@ -69,24 +77,47 @@ export function useApi(endpoint, options = {}) {
     if (_inflight.has(url)) {
       try {
         const json = await _inflight.get(url);
-        setData(json);
-        setError(null);
+        if (!signal?.aborted) {
+          setData(json);
+          setError(null);
+          setIsStale(false);
+          setLastUpdated(Date.now());
+        }
         return;
       } catch (err) {
+        if (signal?.aborted) return;
         // fall through to cache check below
       } finally {
-        setLoading(false);
+        if (!signal?.aborted) setLoading(false);
       }
     }
 
     const fetchPromise = (async () => {
       await _acquireSlot();
       try {
-        const res = await fetch(url, { cache: "no-store", headers: getAuthHeaders() });
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-        const json = await res.json();
-        _apiCache.set(url, { data: json, ts: Date.now() });
-        return json;
+        // Timeout via AbortController
+        const timeoutCtrl = new AbortController();
+        const timeoutId = setTimeout(() => timeoutCtrl.abort(), DEFAULT_TIMEOUT_MS);
+
+        // Combine user abort + timeout signals
+        const combinedSignal = signal
+          ? AbortSignal.any ? AbortSignal.any([signal, timeoutCtrl.signal]) : timeoutCtrl.signal
+          : timeoutCtrl.signal;
+
+        try {
+          const res = await fetch(url, { cache: "no-store", headers: getAuthHeaders(), signal: combinedSignal });
+          if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+          const json = await res.json();
+          // Evict oldest if cache is full
+          if (_apiCache.size >= CACHE_MAX_SIZE) {
+            const oldest = _apiCache.keys().next().value;
+            _apiCache.delete(oldest);
+          }
+          _apiCache.set(url, { data: json, ts: Date.now() });
+          return json;
+        } finally {
+          clearTimeout(timeoutId);
+        }
       } finally {
         _releaseSlot();
       }
@@ -96,18 +127,25 @@ export function useApi(endpoint, options = {}) {
     try {
       setError(null);
       const json = await fetchPromise;
-      setData(json);
+      if (!signal?.aborted) {
+        setData(json);
+        setIsStale(false);
+        setLastUpdated(Date.now());
+      }
     } catch (err) {
-      // Use cached data as fallback
+      if (signal?.aborted) return;
+      // Use cached data as fallback — but flag as stale
       const cached = _apiCache.get(url);
-      if (cached && Date.now() - cached.ts < 300000) {
+      if (cached && Date.now() - cached.ts < CACHE_STALE_MS) {
         setData(cached.data);
+        setIsStale(true);
+        setLastUpdated(cached.ts);
       } else {
         setError(err);
       }
     } finally {
       _inflight.delete(url);
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, [endpoint, endpointOverride]);
 
@@ -116,17 +154,31 @@ export function useApi(endpoint, options = {}) {
       setLoading(false);
       return;
     }
+    // Cancel previous in-flight request
+    if (abortRef.current) abortRef.current.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+
     setLoading(true);
-    fetchData();
+    fetchData(ctrl.signal);
+
+    return () => ctrl.abort();
   }, [enabled, fetchData]);
 
   useEffect(() => {
     if (!enabled || pollIntervalMs <= 0) return;
-    const id = setInterval(fetchData, pollIntervalMs);
+    const id = setInterval(() => fetchData(abortRef.current?.signal), pollIntervalMs);
     return () => clearInterval(id);
   }, [enabled, pollIntervalMs, fetchData]);
 
-  return { data, loading, error, refetch: fetchData };
+  const refetch = useCallback(() => {
+    if (abortRef.current) abortRef.current.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    return fetchData(ctrl.signal);
+  }, [fetchData]);
+
+  return { data, loading, error, isStale, lastUpdated, refetch };
 }
 
 export default useApi;
@@ -146,16 +198,35 @@ export function useKellyRanked(enabled = true) {
   return useApi('kellyRanked', { enabled });
 }
 
+/**
+ * Shared fetch wrapper with timeout + AbortController support.
+ * All POST/PUT helpers use this to prevent indefinite hangs.
+ */
+async function apiFetch(url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders(), ...options.headers },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    return res.json();
+  } catch (err) {
+    if (err.name === 'AbortError') throw new Error(`Request timeout after ${timeoutMs}ms`);
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 /** POST helper for dynamic stop-loss calculation */
 export async function fetchDynamicStopLoss(symbol, entryPrice, side = 'buy') {
-  const url = getApiUrl('dynamicStopLoss');
-  const res = await fetch(url, {
+  return apiFetch(getApiUrl('dynamicStopLoss'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify({ symbol, entry_price: entryPrice, side }),
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
 }
 
 /** POST helper for pre-trade risk check
@@ -163,14 +234,10 @@ export async function fetchDynamicStopLoss(symbol, entryPrice, side = 'buy') {
  *  Symbol must be in the URL path, not just the JSON body.
  */
 export async function fetchPreTradeCheck(symbol, side = 'buy') {
-  const url = `${getApiUrl('preTradeCheck')}/${encodeURIComponent(symbol)}`;
-  const res = await fetch(url, {
+  return apiFetch(`${getApiUrl('preTradeCheck')}/${encodeURIComponent(symbol)}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify({ symbol, side }),
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
 }
 
 // --- Agent Command Center Specialized Hooks ---
@@ -308,14 +375,10 @@ export function useCouncilLatest(pollMs = 15000) {
 
 /** POST helper to run a council evaluation */
 export async function fetchCouncilEvaluate(symbol, timeframe = '1d', context = '') {
-  const url = getApiUrl('councilEvaluate');
-  const res = await fetch(url, {
+  return apiFetch(getApiUrl('councilEvaluate'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify({ symbol, timeframe, context }),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  }, 30000); // Council evaluations may take longer
 }
 
 // ---- Feature Store Hooks ----
@@ -329,14 +392,10 @@ export function useFeaturesLatest(symbol, timeframe = '1d', enabled = true) {
 
 /** POST helper to compute + persist a feature vector */
 export async function fetchFeaturesCompute(symbol, timeframe = '1d') {
-  const url = getApiUrl('featuresCompute');
-  const res = await fetch(url, {
+  return apiFetch(getApiUrl('featuresCompute'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify({ symbol, timeframe }),
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
 }
 
 // ---- Flywheel Scheduler Hook ----
@@ -347,14 +406,10 @@ export function useSchedulerStatus(pollMs = 60000) {
 
 /** POST helper for bias multiplier override */
 export async function postBiasOverride(biasMultiplier) {
-  const url = getApiUrl('openclaw/macro/override');
-  const res = await fetch(url, {
+  return apiFetch(getApiUrl('openclaw/macro/override'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify({ bias_multiplier: biasMultiplier }),
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
 }
 
 // ---- CNS (Central Nervous System) Hooks ----
@@ -435,36 +490,24 @@ export function useSwarmMlScorer(pollMs = 10000) {
 
 /** POST helper to override agent streak status */
 export async function postAgentOverrideStatus(agentName, action) {
-  const url = `${getApiUrl('cnsAgentsHealth').replace('/health', '')}/${encodeURIComponent(agentName)}/override-status`;
-  const res = await fetch(url, {
+  return apiFetch(`${getApiUrl('cnsAgentsHealth').replace('/health', '')}/${encodeURIComponent(agentName)}/override-status`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify({ action }),
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
 }
 
 /** POST helper to override agent Bayesian weight */
 export async function postAgentOverrideWeight(agentName, alpha, beta) {
-  const url = `${getApiUrl('cnsAgentsHealth').replace('/health', '')}/${encodeURIComponent(agentName)}/override-weight`;
-  const res = await fetch(url, {
+  return apiFetch(`${getApiUrl('cnsAgentsHealth').replace('/health', '')}/${encodeURIComponent(agentName)}/override-weight`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify({ alpha, beta }),
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
 }
 
 /** PUT helper to update a directive file */
 export async function putDirective(filename, content) {
-  const url = `${getApiUrl('cnsDirectives')}/${encodeURIComponent(filename)}`;
-  const res = await fetch(url, {
+  return apiFetch(`${getApiUrl('cnsDirectives')}/${encodeURIComponent(filename)}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify({ content }),
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
 }

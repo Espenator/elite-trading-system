@@ -2,6 +2,8 @@ import clsx from 'clsx';
 
 /**
  * Reusable card. Optional title, optional padding control.
+ * loading: shows shimmer skeleton overlay
+ * error: shows inline error with optional retry
  */
 export default function Card({
   title,
@@ -11,11 +13,14 @@ export default function Card({
   className,
   bodyClassName,
   noPadding,
+  loading,
+  error,
+  onRetry,
 }) {
   return (
     <div
       className={clsx(
-        'bg-surface border border-secondary/20 rounded-xl overflow-hidden',
+        'bg-surface border border-secondary/20 rounded-xl overflow-hidden relative',
         className
       )}
     >
@@ -28,7 +33,20 @@ export default function Card({
           {action && <div className="shrink-0">{action}</div>}
         </div>
       )}
-      <div className={clsx(!noPadding && 'p-4', bodyClassName)}>{children}</div>
+      <div className={clsx(!noPadding && 'p-4', bodyClassName)}>
+        {loading ? (
+          <div className="space-y-3 animate-pulse">
+            <div className="h-4 bg-secondary/20 rounded w-3/4" />
+            <div className="h-4 bg-secondary/20 rounded w-1/2" />
+            <div className="h-4 bg-secondary/20 rounded w-5/6" />
+          </div>
+        ) : error ? (
+          <div className="text-center py-4">
+            <p className="text-sm text-red-400 mb-2">{typeof error === 'string' ? error : error.message || 'Failed to load'}</p>
+            {onRetry && <button type="button" onClick={onRetry} className="text-xs text-cyan-400 hover:text-cyan-300 underline">Retry</button>}
+          </div>
+        ) : children}
+      </div>
     </div>
   );
 }

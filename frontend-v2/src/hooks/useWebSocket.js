@@ -36,6 +36,7 @@ export default function useWebSocket(channel, options = {}) {
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState(null);
   const [reconnectCount, setReconnectCount] = useState(0);
+  const reconnectCountRef = useRef(0);
 
   const wsRef = useRef(null);
   const heartbeatRef = useRef(null);
@@ -71,6 +72,7 @@ export default function useWebSocket(channel, options = {}) {
         setConnected(true);
         setError(null);
         setReconnectCount(0);
+        reconnectCountRef.current = 0;
         log.info(`[WS:${channel}] Connected to ${wsUrl}`);
 
         // Start heartbeat
@@ -110,11 +112,13 @@ export default function useWebSocket(channel, options = {}) {
         log.info(`[WS:${channel}] Closed (code: ${event.code})`);
         onClose?.(event);
 
-        // Auto-reconnect with exponential backoff
+        // Auto-reconnect with exponential backoff (use ref to avoid stale closure)
         if (event.code !== 1000 && mountedRef.current) {
-          setReconnectCount(prev => prev + 1);
-          const delay = Math.min(1000 * Math.pow(2, reconnectCount), reconnectMaxDelay);
-          log.info(`[WS:${channel}] Reconnecting in ${delay}ms (attempt ${reconnectCount + 1})`);
+          const count = reconnectCountRef.current;
+          reconnectCountRef.current = count + 1;
+          setReconnectCount(count + 1);
+          const delay = Math.min(1000 * Math.pow(2, count), reconnectMaxDelay);
+          log.info(`[WS:${channel}] Reconnecting in ${delay}ms (attempt ${count + 1})`);
           reconnectRef.current = setTimeout(connect, delay);
         }
       };
@@ -128,7 +132,7 @@ export default function useWebSocket(channel, options = {}) {
     } catch (err) {
       setError(err.message);
     }
-  }, [channel, cleanup, heartbeatInterval, maxBufferSize, onClose, onError, onMessage, onOpen, reconnectCount, reconnectMaxDelay]);
+  }, [channel, cleanup, heartbeatInterval, maxBufferSize, onClose, onError, onMessage, onOpen, reconnectMaxDelay]);
 
   const send = useCallback((payload) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {

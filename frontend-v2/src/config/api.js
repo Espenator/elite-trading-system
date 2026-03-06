@@ -191,6 +191,9 @@ export const getApiUrl = (endpoint) => {
     return `${API_CONFIG.BASE_URL}${API_CONFIG.API_PREFIX}${mapped}`;
   }
   // Fallback: treat endpoint as raw path, ensure leading slash
+  if (import.meta.env.DEV) {
+    console.warn(`[api] Unmapped endpoint "${ep}" — using fallback path. Add to api.js endpoints for explicit mapping.`);
+  }
   const path = ep.startsWith('/') ? ep : `/${ep}`;
   return `${API_CONFIG.BASE_URL}${API_CONFIG.API_PREFIX}${path}`;
 };

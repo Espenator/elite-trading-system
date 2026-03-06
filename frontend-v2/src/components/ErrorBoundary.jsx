@@ -22,13 +22,22 @@ export default class ErrorBoundary extends Component {
             <p className="text-secondary text-sm mb-4">
               {this.state.error?.message || "An error occurred."}
             </p>
-            <button
-              type="button"
-              onClick={() => this.setState({ hasError: false, error: null })}
-              className="px-4 py-2 rounded-lg bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30"
-            >
-              Try again
-            </button>
+            <div className="flex gap-3 justify-center">
+              <button
+                type="button"
+                onClick={() => this.setState({ hasError: false, error: null })}
+                className="px-4 py-2 rounded-lg bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30"
+              >
+                Try again
+              </button>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 rounded-lg bg-secondary/20 text-white border border-secondary/40 hover:bg-secondary/30"
+              >
+                Reload page
+              </button>
+            </div>
           </div>
         </div>
       );

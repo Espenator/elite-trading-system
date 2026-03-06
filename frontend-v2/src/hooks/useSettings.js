@@ -31,11 +31,14 @@ export function useSettings() {
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
-      const res = await fetch(BASE(), { cache: "no-store", signal: controller.signal, headers: getAuthHeaders() });
-      clearTimeout(timeout);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      setSettings(json);
+      try {
+        const res = await fetch(BASE(), { cache: "no-store", signal: controller.signal, headers: getAuthHeaders() });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        setSettings(json);
+      } finally {
+        clearTimeout(timeout);
+      }
     } catch (err) {
       setError(err);
     } finally {

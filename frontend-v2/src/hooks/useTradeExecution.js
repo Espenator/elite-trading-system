@@ -117,6 +117,7 @@ export default function useTradeExecution() {
   // ─── Order Execution Actions ───────────────────────────
   const executeMarketBuy = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const result = await tradeExecutionService.marketBuy(orderForm.symbol, orderForm.quantity);
       setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `Market Buy executed: ${orderForm.symbol} x${orderForm.quantity}`, type: 'success' }, ...prev]);
@@ -132,6 +133,7 @@ export default function useTradeExecution() {
 
   const executeMarketSell = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const result = await tradeExecutionService.marketSell(orderForm.symbol, orderForm.quantity);
       setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `Market Sell executed: ${orderForm.symbol} x${orderForm.quantity}`, type: 'success' }, ...prev]);
@@ -147,6 +149,7 @@ export default function useTradeExecution() {
 
   const executeLimitBuy = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const result = await tradeExecutionService.limitBuy(orderForm.symbol, orderForm.quantity, orderForm.limitPrice);
       setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `Limit Buy placed: ${orderForm.symbol} x${orderForm.quantity} @ $${orderForm.limitPrice}`, type: 'success' }, ...prev]);
@@ -162,6 +165,7 @@ export default function useTradeExecution() {
 
   const executeLimitSell = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const result = await tradeExecutionService.limitSell(orderForm.symbol, orderForm.quantity, orderForm.limitPrice);
       setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `Limit Sell placed: ${orderForm.symbol} x${orderForm.quantity} @ $${orderForm.limitPrice}`, type: 'success' }, ...prev]);
@@ -177,6 +181,7 @@ export default function useTradeExecution() {
 
   const executeStopLoss = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const result = await tradeExecutionService.stopLoss(orderForm.symbol, orderForm.quantity, orderForm.stopPrice);
       setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `Stop Loss placed: ${orderForm.symbol} x${orderForm.quantity} @ $${orderForm.stopPrice}`, type: 'success' }, ...prev]);
@@ -192,6 +197,7 @@ export default function useTradeExecution() {
 
   const executeAdvancedOrder = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const result = await tradeExecutionService.executeAdvancedOrder({
         symbol: orderForm.symbol,
@@ -215,6 +221,7 @@ export default function useTradeExecution() {
 
   const closePositionAction = useCallback(async (symbol, side) => {
     setLoading(true);
+    setError(null);
     try {
       await tradeExecutionService.closePosition(symbol, side);
       setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `Position closed: ${symbol} ${side}`, type: 'success' }, ...prev]);
@@ -228,6 +235,7 @@ export default function useTradeExecution() {
 
   const adjustPositionAction = useCallback(async (symbol, side) => {
     setLoading(true);
+    setError(null);
     setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `Adjusting position: ${symbol} ${side}`, type: 'info' }, ...prev]);
     try {
       await tradeExecutionService.adjustPosition(symbol, side, { action: 'scale' });

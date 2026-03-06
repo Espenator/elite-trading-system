@@ -24,6 +24,7 @@ export default function Toggle({
         type="button"
         role="switch"
         aria-checked={checked}
+        aria-label={typeof label === 'string' ? label : undefined}
         disabled={disabled}
         onClick={() => onChange?.(!checked)}
         className={clsx(

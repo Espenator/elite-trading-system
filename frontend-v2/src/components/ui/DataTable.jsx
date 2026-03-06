@@ -9,6 +9,7 @@ export default function DataTable({
   data = [],
   onRowClick,
   emptyMessage = "No data",
+  loading = false,
   rowKey,
   className,
   headerClassName,
@@ -44,7 +45,17 @@ export default function DataTable({
           </tr>
         </thead>
         <tbody className={clsx("divide-y divide-cyan-500/10", bodyClassName)}>
-          {data.length === 0 ? (
+          {loading ? (
+            Array.from({ length: 5 }).map((_, i) => (
+              <tr key={`skel-${i}`}>
+                {columns.map((col) => (
+                  <td key={col.key} className="px-4 py-3">
+                    <div className="h-4 bg-secondary/20 rounded animate-pulse" style={{ width: `${60 + Math.random() * 30}%` }} />
+                  </td>
+                ))}
+              </tr>
+            ))
+          ) : data.length === 0 ? (
             <tr>
               <td
                 colSpan={columns.length}
@@ -62,9 +73,12 @@ export default function DataTable({
                     : (row.key ?? rowIndex)
                 }
                 onClick={() => onRowClick?.(row, rowIndex)}
+                onKeyDown={onRowClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onRowClick(row, rowIndex); } } : undefined}
+                tabIndex={onRowClick ? 0 : undefined}
+                role={onRowClick ? "button" : undefined}
                 className={clsx(
                   "transition-colors",
-                  onRowClick && "cursor-pointer hover:bg-cyan-500/10",
+                  onRowClick && "cursor-pointer hover:bg-cyan-500/10 focus:bg-cyan-500/10 focus:outline-none",
                   typeof rowClassName === "function"
                     ? rowClassName(row, rowIndex)
                     : rowClassName,

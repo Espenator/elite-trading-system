@@ -127,15 +127,15 @@ export default function TradeExecution() {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
     if (!e.ctrlKey && !e.metaKey) return;
     switch (e.key.toUpperCase()) {
-      case 'B': e.preventDefault(); executeMarketBuy(); break;
-      case 'S': e.preventDefault(); executeMarketSell(); break;
+      case 'B': e.preventDefault(); if (window.confirm(`Market BUY ${orderForm.symbol} x${orderForm.quantity}?`)) executeMarketBuy(); break;
+      case 'S': e.preventDefault(); if (window.confirm(`Market SELL ${orderForm.symbol} x${orderForm.quantity}?`)) executeMarketSell(); break;
       case 'L': e.preventDefault(); executeLimitBuy(); break;
       case 'O': e.preventDefault(); executeLimitSell(); break;
       case 'T': e.preventDefault(); executeStopLoss(); break;
       case 'E': e.preventDefault(); executeAdvancedOrder(); break;
       default: break;
     }
-  }, [executeMarketBuy, executeMarketSell, executeLimitBuy, executeLimitSell, executeStopLoss, executeAdvancedOrder]);
+  }, [executeMarketBuy, executeMarketSell, executeLimitBuy, executeLimitSell, executeStopLoss, executeAdvancedOrder, orderForm.symbol, orderForm.quantity]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
@@ -173,10 +173,10 @@ export default function TradeExecution() {
       <Card noPadding>
         <div className="px-4 py-3 flex items-center gap-3 flex-wrap">
           <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider mr-1">Quick Execution</span>
-          <Button variant="success" size="sm" onClick={executeMarketBuy} disabled={loading}>
+          <Button variant="success" size="sm" onClick={() => { if (window.confirm(`Market BUY ${orderForm.symbol} x${orderForm.quantity}?`)) executeMarketBuy(); }} disabled={loading} loading={loading}>
             Market Buy [B]
           </Button>
-          <Button variant="danger" size="sm" onClick={executeMarketSell} disabled={loading}>
+          <Button variant="danger" size="sm" onClick={() => { if (window.confirm(`Market SELL ${orderForm.symbol} x${orderForm.quantity}?`)) executeMarketSell(); }} disabled={loading} loading={loading}>
             Market Sell [S]
           </Button>
           <Button variant="outline" size="sm" onClick={executeLimitBuy} disabled={loading} className="!border-blue-500/50 !text-blue-400 hover:!bg-blue-500/10">
