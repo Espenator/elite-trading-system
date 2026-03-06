@@ -316,7 +316,14 @@ class AlpacaStreamService:
             await self._run_snapshot_poll_loop()
             return
 
-        feed = os.getenv("ALPACA_FEED", "sip")
+        feed_str = os.getenv("ALPACA_FEED", "sip")
+        # StockDataStream expects the DataFeed enum, not a plain string
+        try:
+            from alpaca.data.enums import DataFeed
+            feed = DataFeed(feed_str)
+        except Exception:
+            from alpaca.data.enums import DataFeed
+            feed = DataFeed.SIP
         self._stream = StockDataStream(
             api_key=api_key,
             secret_key=secret_key,

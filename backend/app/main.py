@@ -174,8 +174,11 @@ async def _market_data_tick_loop():
     MessageBus + AlpacaStreamService provides <1s latency for symbols
     covered by the WebSocket. This loop remains for symbols/data sources
     not yet on the event bus (e.g. Finviz scraping, FRED data).
+
+    First tick delayed 45s so API server is responsive before heavy
+    DuckDB ingestion starts.
     """
-    await asyncio.sleep(2)
+    await asyncio.sleep(45)
     try:
         from app.api.v1 import agents as _agents_mod
         await _agents_mod.run_market_data_tick_if_running()
@@ -248,6 +251,10 @@ async def _start_event_driven_pipeline():
     log.info("\U0001f680 Starting Event-Driven Pipeline (Council-Controlled)")
     log.info("=" * 60)
 
+    # Feature flags — disable heavy LLM/swarm services when Ollama isn't running
+    _llm_enabled = os.getenv("LLM_ENABLED", "true").lower() == "true"
+    _council_enabled = os.getenv("COUNCIL_ENABLED", "true").lower() == "true"
+
     # 1. MessageBus
     from app.core.message_bus import get_message_bus
     _message_bus = get_message_bus()
@@ -255,13 +262,22 @@ async def _start_event_driven_pipeline():
     log.info("\u2705 MessageBus started")
 
     # 2. EventDrivenSignalEngine (subscribes to market_data.bar)
-    from app.services.signal_engine import EventDrivenSignalEngine
-    _event_signal_engine = EventDrivenSignalEngine(_message_bus)
-    await _event_signal_engine.start()
-    log.info("\u2705 EventDrivenSignalEngine started")
+    # Publishes signal.generated which triggers sync DuckDB queries in downstream services.
+    if _llm_enabled:
+        from app.services.signal_engine import EventDrivenSignalEngine
+        _event_signal_engine = EventDrivenSignalEngine(_message_bus)
+        await _event_signal_engine.start()
+        log.info("\u2705 EventDrivenSignalEngine started")
+    else:
+        log.info("\u26A0\uFE0F EventDrivenSignalEngine skipped (LLM_ENABLED=false)")
 
     # 3. CouncilGate (subscribes to signal.generated, invokes council)
-    council_gate_enabled = os.getenv("COUNCIL_GATE_ENABLED", "true").lower() == "true"
+    # Disable when LLM or council is off — council calls LLM which blocks when Ollama is down.
+    council_gate_enabled = (
+        os.getenv("COUNCIL_GATE_ENABLED", "true").lower() == "true"
+        and _llm_enabled
+        and _council_enabled
+    )
     if council_gate_enabled:
         from app.council.council_gate import CouncilGate
         _council_gate = CouncilGate(
@@ -347,11 +363,16 @@ async def _start_event_driven_pipeline():
         log.info("\u2705 AlpacaStreamService launched for %d symbols", len(symbols))
 
     # 8. SwarmSpawner — spawns analysis swarms from ideas
-    from app.services.swarm_spawner import get_swarm_spawner
-    _swarm_spawner = get_swarm_spawner()
-    _swarm_spawner._bus = _message_bus
-    await _swarm_spawner.start()
-    log.info("\u2705 SwarmSpawner started (%d workers)", _swarm_spawner.MAX_CONCURRENT_SWARMS)
+    # Skip when LLM disabled — _run_swarm does synchronous DuckDB ingest + LLM council
+    # which blocks the entire async event loop and deadlocks the server.
+    if _llm_enabled:
+        from app.services.swarm_spawner import get_swarm_spawner
+        _swarm_spawner = get_swarm_spawner()
+        _swarm_spawner._bus = _message_bus
+        await _swarm_spawner.start()
+        log.info("\u2705 SwarmSpawner started (%d workers)", _swarm_spawner.MAX_CONCURRENT_SWARMS)
+    else:
+        log.info("\u26A0\uFE0F SwarmSpawner skipped (LLM_ENABLED=false)")
 
     # 9. KnowledgeIngestionService — connect to message bus
     from app.services.knowledge_ingest import knowledge_ingest
@@ -359,25 +380,34 @@ async def _start_event_driven_pipeline():
     log.info("\u2705 KnowledgeIngestionService connected to MessageBus")
 
     # 10. AutonomousScoutService — proactive opportunity discovery
-    from app.services.autonomous_scout import get_scout_service
-    _scout_service = get_scout_service()
-    _scout_service._bus = _message_bus
-    await _scout_service.start()
-    log.info("\u2705 AutonomousScoutService started (%d scouts)", len(_scout_service._tasks))
+    if _llm_enabled:
+        from app.services.autonomous_scout import get_scout_service
+        _scout_service = get_scout_service()
+        _scout_service._bus = _message_bus
+        await _scout_service.start()
+        log.info("\u2705 AutonomousScoutService started (%d scouts)", len(_scout_service._tasks))
+    else:
+        log.info("\u26A0\uFE0F AutonomousScoutService skipped (LLM_ENABLED=false)")
 
     # 11. DiscordSwarmBridge — Discord channels -> swarm analysis
-    from app.services.discord_swarm_bridge import get_discord_bridge
-    _discord_bridge = get_discord_bridge()
-    _discord_bridge._bus = _message_bus
-    await _discord_bridge.start()
-    log.info("\u2705 DiscordSwarmBridge started (%d channels)", len(_discord_bridge._channels))
+    if _llm_enabled:
+        from app.services.discord_swarm_bridge import get_discord_bridge
+        _discord_bridge = get_discord_bridge()
+        _discord_bridge._bus = _message_bus
+        await _discord_bridge.start()
+        log.info("\u2705 DiscordSwarmBridge started (%d channels)", len(_discord_bridge._channels))
+    else:
+        log.info("\u26A0\uFE0F DiscordSwarmBridge skipped (LLM_ENABLED=false)")
 
     # 12. GeopoliticalRadar — continuous macro event detection
-    from app.services.geopolitical_radar import get_geopolitical_radar
-    _geo_radar = get_geopolitical_radar()
-    _geo_radar._bus = _message_bus
-    await _geo_radar.start()
-    log.info("\u2705 GeopoliticalRadar started (alert_level=%s)", _geo_radar._alert_level)
+    if _llm_enabled:
+        from app.services.geopolitical_radar import get_geopolitical_radar
+        _geo_radar = get_geopolitical_radar()
+        _geo_radar._bus = _message_bus
+        await _geo_radar.start()
+        log.info("\u2705 GeopoliticalRadar started (alert_level=%s)", _geo_radar._alert_level)
+    else:
+        log.info("\u26A0\uFE0F GeopoliticalRadar skipped (LLM_ENABLED=false)")
 
     # 13. Swarm result -> WebSocket bridge
     async def _bridge_swarm_to_ws(result_data):
@@ -402,25 +432,35 @@ async def _start_event_driven_pipeline():
     log.info("\u2705 MacroEvent->WebSocket bridge active")
 
     # 15. CorrelationRadar — cross-asset correlation breaks + sector rotation
-    from app.services.correlation_radar import get_correlation_radar, KEY_PAIRS
-    _corr_radar = get_correlation_radar()
-    _corr_radar._bus = _message_bus
-    await _corr_radar.start()
-    log.info("\u2705 CorrelationRadar started (%d key pairs)", len(KEY_PAIRS))
+    # Uses sync DuckDB queries — skip when LLM pipeline is off.
+    if _llm_enabled:
+        from app.services.correlation_radar import get_correlation_radar, KEY_PAIRS
+        _corr_radar = get_correlation_radar()
+        _corr_radar._bus = _message_bus
+        await _corr_radar.start()
+        log.info("\u2705 CorrelationRadar started (%d key pairs)", len(KEY_PAIRS))
+    else:
+        log.info("\u26A0\uFE0F CorrelationRadar skipped (LLM_ENABLED=false)")
 
     # 16. PatternLibrary — discovers and validates recurring patterns
-    from app.services.pattern_library import get_pattern_library
-    _pattern_lib = get_pattern_library()
-    _pattern_lib._bus = _message_bus
-    await _pattern_lib.start()
-    log.info("\u2705 PatternLibrary started (%d patterns)", len(_pattern_lib._patterns))
+    if _llm_enabled:
+        from app.services.pattern_library import get_pattern_library
+        _pattern_lib = get_pattern_library()
+        _pattern_lib._bus = _message_bus
+        await _pattern_lib.start()
+        log.info("\u2705 PatternLibrary started (%d patterns)", len(_pattern_lib._patterns))
+    else:
+        log.info("\u26A0\uFE0F PatternLibrary skipped (LLM_ENABLED=false)")
 
     # 17. ExpectedMoveService — options-derived reversal zones
-    from app.services.expected_move_service import get_expected_move_service
-    _em_service = get_expected_move_service()
-    _em_service._bus = _message_bus
-    await _em_service.start()
-    log.info("\u2705 ExpectedMoveService started (%d symbols)", len(get_expected_move_service()._levels) or 18)
+    if _llm_enabled:
+        from app.services.expected_move_service import get_expected_move_service
+        _em_service = get_expected_move_service()
+        _em_service._bus = _message_bus
+        await _em_service.start()
+        log.info("\u2705 ExpectedMoveService started (%d symbols)", len(get_expected_move_service()._levels) or 18)
+    else:
+        log.info("\u26A0\uFE0F ExpectedMoveService skipped (LLM_ENABLED=false)")
 
     # 18. TurboScanner — parallel multi-source 60s scanner (10 concurrent DuckDB screens)
     from app.services.turbo_scanner import get_turbo_scanner
@@ -430,48 +470,70 @@ async def _start_event_driven_pipeline():
     log.info("\u2705 TurboScanner started (interval=%ds)", _turbo_scanner._scan_interval)
 
     # 19. HyperSwarm — 50+ concurrent micro-swarms via local Ollama
-    from app.services.hyper_swarm import get_hyper_swarm
-    _hyper_swarm = get_hyper_swarm()
-    _hyper_swarm._bus = _message_bus
-    await _hyper_swarm.start()
-    log.info("\u2705 HyperSwarm started (%d workers, %d Ollama nodes)", len(_hyper_swarm._workers), len(_hyper_swarm._ollama_urls))
+    if _llm_enabled:
+        from app.services.hyper_swarm import get_hyper_swarm
+        _hyper_swarm = get_hyper_swarm()
+        _hyper_swarm._bus = _message_bus
+        await _hyper_swarm.start()
+        log.info("\u2705 HyperSwarm started (%d workers, %d Ollama nodes)", len(_hyper_swarm._workers), len(_hyper_swarm._ollama_urls))
+    else:
+        log.info("\u26A0\uFE0F HyperSwarm skipped (LLM_ENABLED=false)")
 
     # 20. NewsAggregator — 8+ RSS/API news sources every 60s
-    from app.services.news_aggregator import get_news_aggregator
-    _news_agg = get_news_aggregator()
-    _news_agg._bus = _message_bus
-    await _news_agg.start()
-    log.info("\u2705 NewsAggregator started (%d RSS feeds)", 9)
+    # Publishes swarm.idea + signal.generated events → sync DuckDB processing.
+    if _llm_enabled:
+        from app.services.news_aggregator import get_news_aggregator
+        _news_agg = get_news_aggregator()
+        _news_agg._bus = _message_bus
+        await _news_agg.start()
+        log.info("\u2705 NewsAggregator started (%d RSS feeds)", 9)
+    else:
+        log.info("\u26A0\uFE0F NewsAggregator skipped (LLM_ENABLED=false)")
 
     # 21. MarketWideSweep — batch Alpaca ingest + 10 SQL screens across full market
-    from app.services.market_wide_sweep import get_market_sweep
-    _market_sweep = get_market_sweep()
-    _market_sweep._bus = _message_bus
-    await _market_sweep.start()
-    log.info("\u2705 MarketWideSweep started (universe=%d symbols)", len(_market_sweep._universe))
+    # Heavy sync DuckDB writes — skip when pipeline is off.
+    if _llm_enabled:
+        from app.services.market_wide_sweep import get_market_sweep
+        _market_sweep = get_market_sweep()
+        _market_sweep._bus = _message_bus
+        await _market_sweep.start()
+        log.info("\u2705 MarketWideSweep started (universe=%d symbols)", len(_market_sweep._universe))
+    else:
+        log.info("\u26A0\uFE0F MarketWideSweep skipped (LLM_ENABLED=false)")
 
     # 22. UnifiedProfitEngine — single adaptive scorer replacing 5 competing brains
-    from app.services.unified_profit_engine import get_unified_engine
-    _unified = get_unified_engine()
-    _unified._bus = _message_bus
-    await _unified.start()
-    log.info("\u2705 UnifiedProfitEngine started — weights: %s",
-             {k: f"{v:.2f}" for k, v in _unified._weights.items()})
+    # Subscribes to signal.generated and does synchronous DuckDB queries for ML scoring.
+    # Skip when LLM is off to avoid blocking the event loop.
+    if _llm_enabled:
+        from app.services.unified_profit_engine import get_unified_engine
+        _unified = get_unified_engine()
+        _unified._bus = _message_bus
+        await _unified.start()
+        log.info("\u2705 UnifiedProfitEngine started — weights: %s",
+                 {k: f"{v:.2f}" for k, v in _unified._weights.items()})
+    else:
+        log.info("\u26A0\uFE0F UnifiedProfitEngine skipped (LLM_ENABLED=false)")
 
     # 23. PositionManager — automated exits (trailing stops, time exits, partial profits)
-    from app.services.position_manager import get_position_manager
-    _position_mgr = get_position_manager()
-    _position_mgr._bus = _message_bus
-    await _position_mgr.start()
-    log.info("\u2705 PositionManager started (trailing stops + time exits)")
+    if _llm_enabled:
+        from app.services.position_manager import get_position_manager
+        _position_mgr = get_position_manager()
+        _position_mgr._bus = _message_bus
+        await _position_mgr.start()
+        log.info("\u2705 PositionManager started (trailing stops + time exits)")
+    else:
+        log.info("\u26A0\uFE0F PositionManager skipped (LLM_ENABLED=false)")
 
     # 23. OutcomeTracker — closes the feedback loop (real PnL → Kelly calibration + agent weights)
-    from app.services.outcome_tracker import get_outcome_tracker
-    _outcome_tracker = get_outcome_tracker()
-    _outcome_tracker._bus = _message_bus
-    await _outcome_tracker.start()
-    log.info("\u2705 OutcomeTracker started (win_rate=%.2f, resolved=%d)",
-             _outcome_tracker._stats["win_rate"], _outcome_tracker._stats["total_resolved"])
+    if _llm_enabled:
+        from app.services.outcome_tracker import get_outcome_tracker
+        _outcome_tracker = get_outcome_tracker()
+        _outcome_tracker._bus = _message_bus
+        await _outcome_tracker.start()
+        log.info("\u2705 OutcomeTracker started (win_rate=%.2f, resolved=%d)",
+                 _outcome_tracker._stats["win_rate"], _outcome_tracker._stats["total_resolved"])
+    else:
+        log.info("\u26A0\uFE0F OutcomeTracker skipped (LLM_ENABLED=false)")
 
     log.info("=" * 60)
     log.info("\u2705 Event-Driven Pipeline ONLINE (Council-Controlled)")
@@ -630,8 +692,10 @@ async def lifespan(app: FastAPI):
         log.debug("Flywheel scheduler not started: %s", e)
 
     # 4-6. Background tasks (legacy + monitoring)
-    tick_task = asyncio.create_task(_market_data_tick_loop())
-    drift_task = asyncio.create_task(_drift_check_loop())
+    # market_data_tick_loop does heavy sync DuckDB ingestion — skip when LLM is off
+    _llm_on = os.getenv("LLM_ENABLED", "true").lower() == "true"
+    tick_task = asyncio.create_task(_market_data_tick_loop()) if _llm_on else None
+    drift_task = asyncio.create_task(_drift_check_loop()) if _llm_on else None
     heartbeat_task = asyncio.create_task(heartbeat_loop())
     risk_monitor_task = asyncio.create_task(_risk_monitor_loop())
 
@@ -651,15 +715,15 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass
         await _stop_event_driven_pipeline()
-        tick_task.cancel()
-        drift_task.cancel()
-        heartbeat_task.cancel()
-        risk_monitor_task.cancel()
         for task in [tick_task, drift_task, heartbeat_task, risk_monitor_task]:
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
+            if task is not None:
+                task.cancel()
+        for task in [tick_task, drift_task, heartbeat_task, risk_monitor_task]:
+            if task is not None:
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
         # Stop intelligence cache background loop
         try:
             from app.services.intelligence_cache import get_intelligence_cache
