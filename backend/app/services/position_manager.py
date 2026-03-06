@@ -124,7 +124,7 @@ class PositionManager:
             is_shadow=is_shadow,
             opened_at=data.get("timestamp", time.time()),
             initial_stop=stop_loss,
-            trailing_stop=stop_loss if stop_loss else entry_price - atr * self.ATR_TRAIL_MULT,
+            trailing_stop=stop_loss if stop_loss else (entry_price - atr * self.ATR_TRAIL_MULT if data.get("side", "buy") == "buy" else entry_price + atr * self.ATR_TRAIL_MULT),
             take_profit=take_profit,
             atr=atr,
         )
@@ -239,7 +239,7 @@ class PositionManager:
         self._stats["partial_exits"] += 1
 
         # Move stop to breakeven after partial
-        pos.trailing_stop = max(pos.trailing_stop, pos.entry_price)
+        pos.trailing_stop = max(pos.trailing_stop, pos.entry_price) if pos.side == "buy" else min(pos.trailing_stop, pos.entry_price)
 
         logger.info(
             "Partial exit: %s sold %d/%d @ $%.2f (stop moved to breakeven $%.2f)",
