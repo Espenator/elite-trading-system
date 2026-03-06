@@ -239,7 +239,7 @@ class OrderExecutor:
             return
 
         # -- Gate 6: Kelly position sizing (from REAL trade stats) --
-        kelly_result = self._compute_kelly_size(symbol, score, regime, price)
+        kelly_result = self._compute_kelly_size(symbol, score, regime, price, direction)
         if kelly_result["action"] == "HOLD" or kelly_result["kelly_pct"] <= 0:
             self._reject(
                 symbol, score,
@@ -490,7 +490,7 @@ class OrderExecutor:
 
     # -- Risk Checks --
     def _compute_kelly_size(
-        self, symbol: str, score: float, regime: str, price: float
+        self, symbol: str, score: float, regime: str, price: floa, direction: str = "buy"t
     ) -> Dict[str, Any]:
         """Compute Kelly-optimal position size using REAL trade statistics."""
         sizer = self._get_kelly_sizer()
@@ -563,7 +563,7 @@ class OrderExecutor:
         stop_data = sizer.calculate_trailing_stop(
             entry_price=price,
             atr=atr_estimate,
-            side="buy",
+            side=direction,,
             atr_multiplier=2.0,
             trailing_pct=0.03,
         )
@@ -660,7 +660,7 @@ class OrderExecutor:
         # Legacy outcome_resolver
         try:
             from app.modules.ml_engine.outcome_resolver import record_outcome
-            outcome = 1 if record.side == "buy" else 0
+            outcome = 1  # Entry recorded; actual outcome determined on position close
             prediction = 1 if record.signal_score >= 0.5 else 0
             signal_date = datetime.fromtimestamp(
                 record.timestamp, tz=timezone.utc
