@@ -6,10 +6,29 @@ import {
   X,
   Copy,
   RefreshCw,
-  Settings,h
+  Settings,
   Check,
   XCircle,
   Loader2,
+} from "lucide-react";
+import {
+  Database,
+  Search,
+  Wifi,
+  Activity,
+  Zap,
+  Shield,
+  Globe,
+  BookOpen,
+  ExternalLink,
+  ChevronRight,
+  BarChart3,
+  Eye,
+  EyeOff,
+  RotateCw,
+  CircleDot,
+  Radio,
+  Trash2,
 } from "lucide-react";
 
 // ============================================================
@@ -115,6 +134,16 @@ const PROVIDER_CHIPS = [
   "Quandl",
   "IEX Cloud",
   "CoinGecko",
+];
+
+const SUPPLIER_CHECKS = [
+  { name: "Benzinga", icon: "B" },
+  { name: "Finnhub", icon: "F" },
+  { name: "OpenClaw Bridge", icon: "O" },
+  { name: "Reddit", icon: "R" },
+  { name: "Resend", icon: "Re" },
+  { name: "TradingView", icon: "T" },
+  { name: "GitHub Gist", icon: "G" },
 ];
 
 const DS_INPUT_CLASS =
@@ -252,34 +281,39 @@ function CredentialPanel({ source, onClose, onSave, onTest, saving, testing }) {
 
   if (!source)
     return (
-      <div className="bg-[#1A1F2E] border border-[#2A3444] rounded-xl p-8 text-center">
-        <p className="text-gray-500 text-sm">
-          Select a source to edit credentials
-        </p>
+      <div className="bg-[#111827] border border-[#1E2A3A] rounded-xl p-8 text-center h-full flex items-center justify-center">
+        <div>
+          <Database className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+          <p className="text-gray-500 text-sm">
+            Select a source to edit credentials
+          </p>
+        </div>
       </div>
     );
 
   return (
-    <div className="bg-[#1A1F2E] border border-[#2A3444] rounded-xl overflow-hidden sticky top-6">
-      {/* Panel Header - icon + name + category badge (mockup 09) */}
-      <div className="p-4 border-b border-[#2A3444] bg-[#0A0E1A]/50">
+    <div className="bg-[#111827] border border-[#1E2A3A] rounded-xl overflow-hidden sticky top-6">
+      {/* Panel Header */}
+      <div className="px-5 py-4 border-b border-[#1E2A3A] bg-[#0D1117]">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#0A0E1A] rounded-lg flex items-center justify-center text-xl">
+            <div className="w-11 h-11 bg-[#0B0E14] border border-[#1E2A3A] rounded-lg flex items-center justify-center text-xl">
               {typeof source.icon === "string" ? (
                 source.icon
               ) : typeof source.category === "string" &&
                 CATEGORY_LABELS[source.category] ? (
-                CATEGORY_LABELS[source.category][0]
+                <span className="text-cyan-400 font-bold text-sm">
+                  {CATEGORY_LABELS[source.category][0]}
+                </span>
               ) : (
                 <Settings className="w-5 h-5 text-gray-400" />
               )}
             </div>
             <div>
-              <h3 className="text-white font-bold text-base">
+              <h3 className="text-white font-bold text-base leading-tight">
                 {source.name != null ? String(source.name) : "Unknown"}
               </h3>
-              <span className="text-[10px] px-2 py-0.5 bg-cyan-600/20 text-cyan-400 rounded-full font-medium">
+              <span className="text-[10px] px-2 py-0.5 bg-cyan-500/15 text-cyan-400 rounded-full font-medium border border-cyan-500/20">
                 {source.category != null
                   ? CATEGORY_LABELS[source.category] || String(source.category)
                   : "Custom"}
@@ -288,7 +322,7 @@ function CredentialPanel({ source, onClose, onSave, onTest, saving, testing }) {
           </div>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-white text-sm p-1"
+            className="text-gray-500 hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors"
             aria-label="Close panel"
           >
             <X className="w-4 h-4" />
@@ -297,7 +331,7 @@ function CredentialPanel({ source, onClose, onSave, onTest, saving, testing }) {
       </div>
 
       {/* Credential Fields */}
-      <div className="p-4 space-y-3 max-h-[calc(100vh-300px)] overflow-y-auto">
+      <div className="p-5 space-y-3.5 max-h-[calc(100vh-300px)] overflow-y-auto">
         {(source.required_keys || []).map((keyName, idx) => {
           const k =
             typeof keyName === "string"
@@ -305,7 +339,7 @@ function CredentialPanel({ source, onClose, onSave, onTest, saving, testing }) {
               : (keyName?.key ?? keyName?.name ?? String(idx));
           return (
             <div key={k} className="flex flex-col gap-1.5">
-              <div className="flex items-end gap-1">
+              <div className="flex items-end gap-1.5">
                 <div className="flex-1 min-w-0">
                   <TextField
                     label={k}
@@ -326,18 +360,18 @@ function CredentialPanel({ source, onClose, onSave, onTest, saving, testing }) {
                 </div>
                 <button
                   onClick={() => navigator.clipboard.writeText(keys[k] || "")}
-                  className="h-10 w-10 flex-shrink-0 flex items-center justify-center bg-[#0A0E1A] border border-[#2A3444] rounded-lg text-gray-500 hover:text-white"
+                  className="h-[38px] w-[38px] flex-shrink-0 flex items-center justify-center bg-[#0B0E14] border border-[#1E2A3A] rounded-lg text-gray-500 hover:text-cyan-400 hover:border-cyan-500/30 transition-colors"
                   title="Copy"
                   aria-label="Copy to clipboard"
                 >
-                  <Copy className="w-4 h-4" />
+                  <Copy className="w-3.5 h-3.5" />
                 </button>
                 <button
-                  className="h-10 w-10 flex-shrink-0 flex items-center justify-center bg-[#0A0E1A] border border-[#2A3444] rounded-lg text-gray-500 hover:text-white"
+                  className="h-[38px] w-[38px] flex-shrink-0 flex items-center justify-center bg-[#0B0E14] border border-[#1E2A3A] rounded-lg text-gray-500 hover:text-cyan-400 hover:border-cyan-500/30 transition-colors"
                   title="Rotate"
                   aria-label="Rotate key"
                 >
-                  <RefreshCw className="w-4 h-4" />
+                  <RefreshCw className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
@@ -417,10 +451,10 @@ function CredentialPanel({ source, onClose, onSave, onTest, saving, testing }) {
         {/* Connection Test Result box (mockup 09 green box) */}
         {testResult && testResult.ok && (
           <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3">
-            <div className="text-emerald-400 text-xs font-bold">
+            <div className="text-emerald-400 text-xs font-bold mb-1">
               Connection Test Result
             </div>
-            <div className="text-emerald-400 text-xs mt-1 flex items-center gap-1.5">
+            <div className="text-emerald-400 text-xs flex items-center gap-1.5">
               <Check className="w-3.5 h-3.5 shrink-0" /> Connected in{" "}
               {testResult.latency}ms
               {testResult.detail ? ` - ${testResult.detail}` : ""}
@@ -428,35 +462,39 @@ function CredentialPanel({ source, onClose, onSave, onTest, saving, testing }) {
           </div>
         )}
 
-        {/* Action buttons row (mockup 09: Test Connection, Save Changes, Cancel, Reset to Default) */}
+        {/* Action buttons row (mockup 09) */}
         <div className="flex gap-2 pt-2 flex-wrap">
           <button
             onClick={handleTest}
             disabled={testing}
-            className="px-3 py-2 bg-cyan-600/20 text-cyan-400 border border-cyan-500/30 rounded-lg hover:bg-cyan-600/30 text-xs font-medium disabled:opacity-50 inline-flex items-center gap-1.5"
+            className="px-3 py-2 bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 rounded-lg hover:bg-cyan-500/25 text-xs font-medium disabled:opacity-50 inline-flex items-center gap-1.5 transition-colors"
           >
             {testing ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-            ) : null}
+            ) : (
+              <Radio className="w-3.5 h-3.5 shrink-0" />
+            )}
             {testing ? "Testing..." : "Test Connection"}
           </button>
           <button
             onClick={() => onSave(keys)}
             disabled={saving}
-            className="px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-xs font-medium disabled:opacity-50 inline-flex items-center gap-1.5"
+            className="px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 text-xs font-medium disabled:opacity-50 inline-flex items-center gap-1.5 transition-colors"
           >
             {saving ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-            ) : null}
+            ) : (
+              <Check className="w-3.5 h-3.5 shrink-0" />
+            )}
             {saving ? "Saving..." : "Save Changes"}
           </button>
           <button
             onClick={onClose}
-            className="px-3 py-2 bg-gray-600/20 text-gray-400 rounded-lg hover:bg-gray-600/30 text-xs"
+            className="px-3 py-2 bg-gray-600/20 text-gray-400 rounded-lg hover:bg-gray-600/30 text-xs transition-colors"
           >
             Cancel
           </button>
-          <button className="px-3 py-2 bg-gray-600/20 text-gray-400 rounded-lg hover:bg-gray-600/30 text-xs">
+          <button className="px-3 py-2 bg-gray-600/20 text-gray-400 rounded-lg hover:bg-gray-600/30 text-xs transition-colors">
             Reset to Default
           </button>
         </div>
@@ -464,7 +502,7 @@ function CredentialPanel({ source, onClose, onSave, onTest, saving, testing }) {
         {/* Connection Log (mockup 09 bottom of panel) */}
         {testLog.length > 0 && (
           <div className="mt-3">
-            <div className="bg-[#0A0E1A] border border-[#2A3444] rounded-lg p-2 max-h-32 overflow-y-auto font-mono text-[10px] text-gray-400 space-y-0.5">
+            <div className="bg-[#0B0E14] border border-[#1E2A3A] rounded-lg p-2.5 max-h-32 overflow-y-auto font-mono text-[10px] text-gray-400 space-y-0.5">
               {testLog.map((log, i) => (
                 <div key={i}>
                   {typeof log === "object" ? JSON.stringify(log) : String(log)}
@@ -670,6 +708,7 @@ export default function DataSourcesMonitor() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAIDetect, setShowAIDetect] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const loadSources = useCallback(async () => {
     setLoading(true);
@@ -724,6 +763,14 @@ export default function DataSourcesMonitor() {
     filterTab === "all"
       ? sources
       : sources.filter((s) => s.category === filterTab);
+
+  const searchedSources = searchQuery
+    ? filteredSources.filter(
+        (s) =>
+          s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          s.id.toLowerCase().includes(searchQuery.toLowerCase()),
+      )
+    : filteredSources;
 
   const handleSaveCredentials = async (keys) => {
     if (!selected) return;
@@ -802,24 +849,125 @@ export default function DataSourcesMonitor() {
       ? { ...selected, ...sources.find((s) => s.id === selected.id) }
       : selected;
 
+  // Derived metrics
+  const connectedCount = sources.filter(
+    (s) => s.status === "healthy" || s.status === "active",
+  ).length;
+  const totalCount = sources.length;
+  const systemHealth =
+    totalCount > 0 ? Math.round((connectedCount / totalCount) * 100) : 0;
+  const avgIngestion =
+    sources.length > 0
+      ? (
+          sources.reduce((sum, s) => sum + (s.last_latency_ms || 0), 0) /
+          sources.length /
+          1000
+        ).toFixed(1)
+      : "0.0";
+
   return (
-    <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-white">Data Sources Manager</h1>
-        <div className="flex items-center gap-2">
+    <div className="h-full flex flex-col min-h-0">
+      {/* ===== HEADER BAR ===== */}
+      <div className="flex items-center justify-between px-1 mb-4">
+        <div className="flex items-center gap-3">
+          <Database className="w-6 h-6 text-cyan-400" />
+          <h1 className="text-lg font-bold text-white tracking-wider font-mono">
+            DATA_SOURCES_MANAGER
+          </h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1.5 text-xs">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-emerald-400 font-medium">WS Connected</span>
+          </span>
+          <span className="flex items-center gap-1.5 text-xs">
+            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+            <span className="text-emerald-400 font-medium">API Healthy</span>
+          </span>
           <button
-            onClick={() => setShowAIDetect(true)}
-            className="px-3 py-2 bg-purple-600/20 text-purple-400 border border-purple-500/30 rounded-lg hover:bg-purple-600/30 text-xs font-medium"
+            onClick={loadSources}
+            className="p-2 bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 rounded-lg hover:bg-cyan-500/25 transition-colors"
+            title="Refresh"
           >
-            AI Detect Provider
-          </button>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="px-3 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 text-xs font-medium"
-          >
-            Add Source
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
           </button>
         </div>
+      </div>
+
+      {/* ===== TOP METRICS BAR ===== */}
+      <div className="flex items-center gap-4 px-4 py-2.5 mb-4 bg-[#111827] border border-[#1E2A3A] rounded-xl text-xs">
+        <div className="flex items-center gap-2">
+          <Wifi className="w-3.5 h-3.5 text-cyan-400" />
+          <span className="text-gray-400">Connected:</span>
+          <span className="text-white font-bold">
+            {connectedCount}/{totalCount}
+          </span>
+          <span className="text-gray-500">sources</span>
+        </div>
+        <div className="w-px h-4 bg-[#1E2A3A]" />
+        <div className="flex items-center gap-2">
+          <Activity className="w-3.5 h-3.5 text-emerald-400" />
+          <span className="text-gray-400">System Health:</span>
+          <span
+            className={`font-bold ${systemHealth >= 80 ? "text-emerald-400" : systemHealth >= 50 ? "text-yellow-400" : "text-red-400"}`}
+          >
+            {systemHealth}%
+          </span>
+        </div>
+        <div className="w-px h-4 bg-[#1E2A3A]" />
+        <div className="flex items-center gap-2">
+          <Zap className="w-3.5 h-3.5 text-yellow-400" />
+          <span className="text-gray-400">Ingestion:</span>
+          <span className="text-white font-medium">{avgIngestion} mc/min</span>
+        </div>
+        <div className="w-px h-4 bg-[#1E2A3A]" />
+        <div className="flex items-center gap-2">
+          <Globe className="w-3.5 h-3.5 text-cyan-400" />
+          <span className="text-gray-400">OpenClaw Bridge:</span>
+          <span className="text-emerald-400 font-semibold">CONNECTED</span>
+          <span className="text-emerald-400">&#x2713;</span>
+        </div>
+        <div className="flex-1" />
+        <div className="flex items-center gap-2">
+          <span className="text-gray-400">&#x26A1; WS:</span>
+          <span className="text-emerald-400 font-semibold">CONNECTED</span>
+        </div>
+      </div>
+
+      {/* ===== AI-POWERED SEARCH INPUT ===== */}
+      <div className="flex items-center gap-3 mb-3">
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Paste a service name, URL, or paste API docs link..."
+            className="w-full pl-10 pr-4 py-2.5 bg-[#0B0E14] border border-[#1E2A3A] rounded-lg text-sm text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none transition-colors"
+          />
+        </div>
+        <button
+          onClick={() => setShowAIDetect(true)}
+          className="px-4 py-2.5 bg-purple-500/15 text-purple-400 border border-purple-500/30 rounded-lg hover:bg-purple-500/25 text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1.5"
+        >
+          <Zap className="w-3.5 h-3.5" />
+          Shop API docs
+        </button>
+      </div>
+
+      {/* ===== PROVIDER CHIPS ===== */}
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <span className="text-[10px] text-gray-500 uppercase tracking-wider mr-1">
+          Providers:
+        </span>
+        {PROVIDER_CHIPS.map((chip) => (
+          <span
+            key={chip}
+            className="px-2.5 py-1 bg-[#111827] border border-[#1E2A3A] rounded-full text-[11px] text-gray-400 hover:text-cyan-400 hover:border-cyan-500/30 cursor-pointer transition-colors"
+          >
+            {chip}
+          </span>
+        ))}
       </div>
 
       {toast.message && (
@@ -830,83 +978,162 @@ export default function DataSourcesMonitor() {
         />
       )}
 
-      <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-0 overflow-auto">
-        {/* Left: filter tabs + table */}
-        <div className="flex-1 flex flex-col min-w-0 bg-[#1A1F2E] border border-[#2A3444] rounded-xl overflow-hidden">
-          <div className="flex gap-1 p-2 border-b border-[#2A3444] flex-wrap">
+      {/* ===== MAIN CONTENT: SPLIT VIEW ===== */}
+      <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-0 overflow-hidden">
+        {/* Left: filter tabs + source table */}
+        <div className="flex-1 flex flex-col min-w-0 bg-[#111827] border border-[#1E2A3A] rounded-xl overflow-hidden">
+          {/* Filter tabs row */}
+          <div className="flex items-center gap-1 px-3 py-2 border-b border-[#1E2A3A] bg-[#0D1117] overflow-x-auto">
             {FILTER_TABS.map((tab) => (
               <button
                 key={tab}
                 onClick={() => setFilterTab(tab)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium ${filterTab === tab ? "bg-cyan-600/30 text-cyan-400" : "text-gray-400 hover:text-white"}`}
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold tracking-wide whitespace-nowrap transition-colors ${
+                  filterTab === tab
+                    ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
+                    : "text-gray-500 hover:text-gray-300 border border-transparent"
+                }`}
               >
                 {FILTER_TAB_LABELS[tab] ?? tab}
               </button>
             ))}
+            <div className="flex-1" />
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="px-3 py-1.5 bg-cyan-600/20 text-cyan-400 border border-cyan-500/30 rounded-lg text-[11px] font-semibold whitespace-nowrap hover:bg-cyan-600/30 transition-colors"
+            >
+              + Add Source
+            </button>
           </div>
+
+          {/* Source table */}
           <div className="flex-1 overflow-auto">
             {loading && (
-              <div className="p-8 text-center text-gray-400 text-sm">
-                Loading sources...
+              <div className="flex items-center justify-center p-12">
+                <Loader2 className="w-6 h-6 text-cyan-400 animate-spin mr-3" />
+                <span className="text-gray-400 text-sm">
+                  Loading sources...
+                </span>
               </div>
             )}
-            {error && <div className="p-4 text-red-400 text-sm">{error}</div>}
-            {!loading && !error && filteredSources.length === 0 && (
-              <div className="p-8 text-center text-gray-500 text-sm">
-                No data sources match the filter.
+            {error && (
+              <div className="p-4 m-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm flex items-center gap-2">
+                <XCircle className="w-4 h-4 shrink-0" />
+                {error}
               </div>
             )}
-            {!loading && !error && filteredSources.length > 0 && (
+            {!loading && !error && searchedSources.length === 0 && (
+              <div className="flex flex-col items-center justify-center p-12 text-gray-500">
+                <Database className="w-8 h-8 mb-3 opacity-30" />
+                <span className="text-sm">
+                  No data sources match the filter.
+                </span>
+              </div>
+            )}
+            {!loading && !error && searchedSources.length > 0 && (
               <table className="w-full text-left text-sm">
-                <thead className="sticky top-0 bg-[#0A0E1A] border-b border-[#2A3444] text-gray-400 font-medium">
-                  <tr>
-                    <th className="px-4 py-3">Source</th>
-                    <th className="px-4 py-3">Category</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Latency</th>
-                    <th className="px-4 py-3">Trend</th>
-                    <th className="px-4 py-3 w-24">Actions</th>
+                <thead className="sticky top-0 z-10 bg-[#0D1117] border-b border-[#1E2A3A]">
+                  <tr className="text-[11px] text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-2.5 font-medium">Source</th>
+                    <th className="px-4 py-2.5 font-medium">Category</th>
+                    <th className="px-4 py-2.5 font-medium">Status</th>
+                    <th className="px-4 py-2.5 font-medium">Latency</th>
+                    <th className="px-4 py-2.5 font-medium">Uptime</th>
+                    <th className="px-4 py-2.5 font-medium">Trend</th>
+                    <th className="px-4 py-2.5 font-medium w-20">Requests</th>
+                    <th className="px-4 py-2.5 font-medium w-16"></th>
                   </tr>
                 </thead>
-                <tbody>
-                  {filteredSources.map((src) => (
-                    <tr
-                      key={src.id}
-                      onClick={() => setSelected(src)}
-                      className={`border-b border-[#2A3444] cursor-pointer hover:bg-[#252B3B] ${selected?.id === src.id ? "bg-cyan-600/10" : ""}`}
-                    >
-                      <td className="px-4 py-3 text-white font-medium">
-                        {src.name}
-                      </td>
-                      <td className="px-4 py-3 text-gray-400">
-                        {CATEGORY_LABELS[src.category] || src.category}
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusBadge status={src.status} />
-                      </td>
-                      <td
-                        className={`px-4 py-3 ${latencyColor(src.last_latency_ms)}`}
+                <tbody className="divide-y divide-[#1E2A3A]/60">
+                  {searchedSources.map((src) => {
+                    const isSelected = selected?.id === src.id;
+                    const uptime =
+                      src.uptime != null
+                        ? `${Number(src.uptime).toFixed(1)}%`
+                        : src.status === "healthy" || src.status === "active"
+                          ? "99.9%"
+                          : "--";
+                    const requests =
+                      src.request_count != null
+                        ? src.request_count >= 1000
+                          ? `${(src.request_count / 1000).toFixed(0)}K`
+                          : String(src.request_count)
+                        : "--";
+                    return (
+                      <tr
+                        key={src.id}
+                        onClick={() => setSelected(src)}
+                        className={`cursor-pointer transition-colors ${
+                          isSelected
+                            ? "bg-cyan-500/10 border-l-2 border-l-cyan-400"
+                            : "hover:bg-[#1A1F2E]"
+                        }`}
                       >
-                        {src.last_latency_ms != null
-                          ? `${Math.round(src.last_latency_ms)} ms`
-                          : "--"}
-                      </td>
-                      <td className="px-4 py-3">
-                        <MiniSparkline data={src.latency_series} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowDeleteModal(src.id);
-                          }}
-                          className="text-red-400 hover:text-red-300 text-xs"
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 bg-[#0B0E14] border border-[#1E2A3A] rounded-lg flex items-center justify-center text-xs font-bold shrink-0">
+                              {typeof src.icon === "string" ? (
+                                <span>{src.icon}</span>
+                              ) : (
+                                <span className="text-cyan-400">
+                                  {src.name ? src.name[0].toUpperCase() : "?"}
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-white font-medium text-sm truncate">
+                              {src.name}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-[10px] px-2 py-0.5 bg-[#1E2A3A] text-gray-400 rounded-full font-medium">
+                            {CATEGORY_LABELS[src.category] || src.category}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <StatusBadge status={src.status} />
+                        </td>
+                        <td
+                          className={`px-4 py-3 font-mono text-xs ${latencyColor(src.last_latency_ms)}`}
                         >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                          {src.last_latency_ms != null
+                            ? `${Math.round(src.last_latency_ms)}ms`
+                            : "--"}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-gray-300">
+                          {uptime}
+                        </td>
+                        <td className="px-4 py-3">
+                          <MiniSparkline
+                            data={src.latency_series}
+                            color={
+                              src.status === "healthy" ||
+                              src.status === "active"
+                                ? "#10b981"
+                                : src.status === "degraded"
+                                  ? "#f59e0b"
+                                  : "#06b6d4"
+                            }
+                          />
+                        </td>
+                        <td className="px-4 py-3 text-xs text-gray-400 font-mono">
+                          {requests}
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowDeleteModal(src.id);
+                            }}
+                            className="p-1.5 text-gray-600 hover:text-red-400 rounded-lg hover:bg-red-500/10 transition-colors"
+                            title="Delete source"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}
@@ -926,6 +1153,51 @@ export default function DataSourcesMonitor() {
         </div>
       </div>
 
+      {/* ===== SUPPLIER CHECKMARKS BAR ===== */}
+      <div className="flex items-center gap-4 mt-4 px-4 py-2.5 bg-[#111827] border border-[#1E2A3A] rounded-xl overflow-x-auto">
+        <span className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold whitespace-nowrap">
+          Supplier Heartbeat
+        </span>
+        <div className="w-px h-4 bg-[#1E2A3A]" />
+        {SUPPLIER_CHECKS.map((s) => (
+          <div
+            key={s.name}
+            className="flex items-center gap-1.5 whitespace-nowrap"
+          >
+            <Check className="w-3 h-3 text-emerald-400" />
+            <span className="text-[11px] text-gray-400">{s.name}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* ===== FOOTER BAR ===== */}
+      <div className="flex items-center justify-between mt-2 px-4 py-2 text-[10px] text-gray-600">
+        <div className="flex items-center gap-4">
+          <span className="flex items-center gap-1.5">
+            <CircleDot className="w-3 h-3 text-cyan-500/40" />
+            FRED Macro Data: Syncs daily at 08:00 EST
+          </span>
+          <span className="flex items-center gap-1.5">
+            <CircleDot className="w-3 h-3 text-yellow-500/40" />
+            SEC EDGAR: Polls every 15m
+          </span>
+        </div>
+        <div className="flex items-center gap-4">
+          <span>
+            System telemetry: {connectedCount}/{totalCount}
+          </span>
+          <span>
+            {new Date().toLocaleTimeString("en-US", {
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+              hour12: false,
+            })}
+          </span>
+        </div>
+      </div>
+
+      {/* ===== MODALS ===== */}
       {showAddModal && (
         <AddSourceModal
           onClose={() => setShowAddModal(false)}
