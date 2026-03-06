@@ -1409,14 +1409,9 @@ export default function Dashboard() {
               />
             ))}
             {(!swarm.agents || swarm.agents.length === 0) && (
-              <>
-                <ConsensusBar label="Insight" buyPct={72} sellPct={28} />
-                <ConsensusBar label="Scout" buyPct={65} sellPct={35} />
-                <ConsensusBar label="Sentinel" buyPct={80} sellPct={20} />
-                <ConsensusBar label="Analyst" buyPct={55} sellPct={45} />
-                <ConsensusBar label="Quant" buyPct={68} sellPct={32} />
-                <ConsensusBar label="Flow" buyPct={74} sellPct={26} />
-              </>
+              <div className="text-[8px] text-[#64748b] font-mono py-2 text-center">
+                Awaiting swarm agent data...
+              </div>
             )}
           </div>
 
