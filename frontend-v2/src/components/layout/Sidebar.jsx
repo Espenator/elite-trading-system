@@ -1,7 +1,7 @@
 // This is the main navigation for all 15 sidebar pages
 // Organized by section: Command, Intelligence, ML & Analysis, Execution, System
 // Every page maps 1:1 to a backend module per the architecture doc
-// V3 CONSOLIDATION: 15 sidebar pages (see V3-ARCHITECTURE.md)
+// V3 CONSOLIDATION: 16 sidebar pages (see V3-ARCHITECTURE.md)
 
 import { NavLink } from "react-router-dom";
 import {
@@ -22,6 +22,7 @@ import {
   Sparkles,
   BarChart3,
     Radar,
+  Activity,
 } from "lucide-react";
 import { useApi } from "../../hooks/useApi";
 
@@ -60,6 +61,7 @@ const navSections = [
       { to: "/backtest", icon: RotateCcw, label: "Backtesting Lab" },
       { to: "/performance", icon: TrendingUp, label: "Performance Analytics" },
       { to: "/market-regime", icon: BarChart3, label: "Market Regime" },
+      { to: "/cognitive-dashboard", icon: Activity, label: "Cognitive Telemetry" },
     ],
   },
   {

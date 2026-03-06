@@ -533,6 +533,9 @@ export default function AgentCommandCenter() {
   const { data: hitlStatsData } = useApi("agentHitlStats", { pollIntervalMs: 10000 });
   // --- WebSocket channels info ---
   const { data: wsChannelsData } = useApi("agentWsChannels", { pollIntervalMs: 15000 });
+  // --- Cognitive Telemetry (ETBI) ---
+  const { data: cognitiveData } = useApi("cognitiveDashboard", { pollIntervalMs: 15000 });
+  const { data: cognitiveSnapshotsData } = useApi("cognitiveSnapshots", { pollIntervalMs: 30000 });
   // --- URL sync ---
   useEffect(() => { if (activeTab) navigate(`/agents/${activeTab}`, { replace: true }); }, [activeTab]);
   // --- Loaders ---
@@ -639,6 +642,7 @@ export default function AgentCommandCenter() {
     { id: "logs", label: "Logs & Telemetry", icon: Terminal },
     { id: "brain-map", label: "Brain Map", icon: Network },
     { id: "node-control", label: "Node Control & HITL", icon: Sliders },
+    { id: "cognitive", label: "Cognitive Intel", icon: Gauge },
   ];
   // =============================================
   // RENDER
@@ -2092,6 +2096,182 @@ export default function AgentCommandCenter() {
           );
         })()}
       </div>
+
+        {activeTab === "cognitive" && (() => {
+          const cog = cognitiveData || {};
+          const metrics = cog.metrics || {};
+          const recentSnaps = cog.recent_snapshots || [];
+          const lastSnap = recentSnaps.length > 0 ? recentSnaps[recentSnaps.length - 1] : {};
+          const snaps = Array.isArray(cognitiveSnapshotsData?.snapshots) ? cognitiveSnapshotsData.snapshots : Array.isArray(cognitiveSnapshotsData) ? cognitiveSnapshotsData : [];
+          const mode = (lastSnap.mode || Object.keys(cog.mode_distribution || {})[0] || "—").toUpperCase();
+          const diversity = metrics.avg_hypothesis_diversity;
+          const agreement = metrics.avg_agent_agreement;
+          const memPrec = metrics.avg_memory_precision;
+          const latencyMs = metrics.avg_latency_ms;
+          const circuitOk = latencyMs == null || latencyMs < 800;
+          const latencies = cog.latency_profile || {};
+          const modeColor = mode === "EXPLOIT" ? "text-emerald-400" : mode === "EXPLORE" ? "text-amber-400" : mode === "DEFENSIVE" ? "text-red-400" : "text-secondary";
+          const modeBg = mode === "EXPLOIT" ? "bg-emerald-500/20 border-emerald-500/40" : mode === "EXPLORE" ? "bg-amber-500/20 border-amber-500/40" : mode === "DEFENSIVE" ? "bg-red-500/20 border-red-500/40" : "bg-gray-500/20 border-gray-500/20";
+          return (
+          <div className="space-y-3">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Gauge className="w-4 h-4 text-cyan-400" />
+                <span className="text-sm font-bold text-white tracking-wider">Cognitive Intelligence (ETBI)</span>
+                <Badge className={`${modeBg} ${modeColor} border`}>{mode}</Badge>
+              </div>
+              <Button size="sm" className="text-[10px]" onClick={() => navigate("/cognitive-dashboard")}>Full Dashboard →</Button>
+            </div>
+
+            {/* Top Metrics Row */}
+            <div className="grid grid-cols-5 gap-3">
+              {[
+                { label: "Cognitive Mode", value: mode, color: modeColor },
+                { label: "Hypothesis Diversity", value: diversity != null ? Number(diversity).toFixed(3) : "—", color: "text-cyan-400" },
+                { label: "Agent Agreement", value: agreement != null ? `${(Number(agreement) * 100).toFixed(1)}%` : "—", color: "text-emerald-400" },
+                { label: "Memory Precision", value: memPrec != null ? `${(Number(memPrec) * 100).toFixed(1)}%` : "—", color: "text-purple-400" },
+                { label: "Circuit Breaker", value: circuitOk ? "OK" : "TRIPPED", color: circuitOk ? "text-emerald-400" : "text-red-400" },
+              ].map((m) => (
+                <Card key={m.label} className="bg-[#111827] border border-cyan-500/20 text-center py-3">
+                  <div className={`text-xl font-bold font-mono ${m.color}`}>{m.value}</div>
+                  <div className="text-[9px] text-secondary mt-1">{m.label}</div>
+                </Card>
+              ))}
+            </div>
+
+            {/* Stage Latencies + Snapshot History */}
+            <div className="grid grid-cols-12 gap-3">
+              {/* Stage Latency Bars */}
+              <div className="col-span-5">
+                <Card title="COUNCIL STAGE LATENCIES" className="bg-[#111827] border border-cyan-500/20">
+                  <div className="space-y-1.5">
+                    {Object.entries(latencies).length > 0 ? Object.entries(latencies).map(([stage, ms]) => {
+                      const val = Number(ms) || 0;
+                      const maxMs = 2000;
+                      const pct = Math.min((val / maxMs) * 100, 100);
+                      const color = val > 800 ? "bg-red-500" : val > 400 ? "bg-amber-500" : "bg-emerald-500";
+                      return (
+                        <div key={stage} className="flex items-center gap-2 text-[10px]">
+                          <span className="text-secondary w-16 truncate">{stage}</span>
+                          <div className="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="text-white font-mono w-12 text-right">{val.toFixed(0)}ms</span>
+                        </div>
+                      );
+                    }) : (
+                      <div className="text-[10px] text-secondary text-center py-4">No latency data yet — awaiting council run</div>
+                    )}
+                  </div>
+                </Card>
+              </div>
+
+              {/* Cognitive Snapshot History */}
+              <div className="col-span-7">
+                <Card title="COGNITIVE SNAPSHOT HISTORY" className="bg-[#111827] border border-cyan-500/20">
+                  {snaps.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-[9px]">
+                        <thead><tr className="text-secondary/70 border-b border-cyan-500/20">
+                          <th className="text-left py-1 px-2 font-medium">Time</th>
+                          <th className="text-left px-2 font-medium">Mode</th>
+                          <th className="text-left px-2 font-medium">Diversity</th>
+                          <th className="text-left px-2 font-medium">Agreement</th>
+                          <th className="text-left px-2 font-medium">Mem Prec</th>
+                          <th className="text-left px-2 font-medium">Hypothesis</th>
+                        </tr></thead>
+                        <tbody>{snaps.slice(0, 15).map((s, i) => {
+                          const sm = s.cognitive_mode || s.mode || "—";
+                          const sc = sm === "EXPLOIT" ? "text-emerald-400" : sm === "EXPLORE" ? "text-amber-400" : "text-red-400";
+                          return (
+                            <tr key={i} className="border-b border-gray-800/20 hover:bg-cyan-500/5">
+                              <td className="py-1 px-2 text-secondary font-mono">{s.timestamp ? new Date(s.timestamp).toLocaleTimeString("en-US", { hour12: false }) : "—"}</td>
+                              <td className={`px-2 font-bold ${sc}`}>{sm}</td>
+                              <td className="px-2 text-cyan-400 font-mono">{s.hypothesis_diversity != null ? Number(s.hypothesis_diversity).toFixed(3) : "—"}</td>
+                              <td className="px-2 text-white font-mono">{s.agent_agreement != null ? `${(Number(s.agent_agreement) * 100).toFixed(0)}%` : "—"}</td>
+                              <td className="px-2 text-purple-400 font-mono">{s.memory_precision != null ? `${(Number(s.memory_precision) * 100).toFixed(0)}%` : "—"}</td>
+                              <td className="px-2 text-white truncate max-w-[160px]">{s.active_hypothesis || "—"}</td>
+                            </tr>
+                          );
+                        })}</tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="text-[10px] text-secondary text-center py-6">No cognitive snapshots recorded yet</div>
+                  )}
+                </Card>
+              </div>
+            </div>
+
+            {/* Controls Row */}
+            <div className="grid grid-cols-3 gap-3">
+              <Card title="LLM HYPOTHESIS TOGGLE" className="bg-[#111827] border border-cyan-500/20">
+                <div className="flex items-center justify-between py-2">
+                  <div>
+                    <div className="text-[11px] text-white font-medium">USE_LLM_HYPOTHESIS</div>
+                    <div className="text-[9px] text-secondary mt-0.5">Enable LLM-driven hypothesis generation in council</div>
+                  </div>
+                  <button className={`w-10 h-5 rounded-full relative transition-all cursor-pointer ${cog.llm_hypothesis_enabled ? "bg-emerald-500" : "bg-gray-600"}`}
+                    onClick={async () => {
+                      try {
+                        await fetch(getApiUrl("cognitive/dashboard"), {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+                          body: JSON.stringify({ llm_hypothesis_enabled: !cog.llm_hypothesis_enabled }),
+                        });
+                        toast.success(`LLM Hypothesis ${!cog.llm_hypothesis_enabled ? "enabled" : "disabled"}`);
+                      } catch (e) { toast.error("Failed to toggle LLM hypothesis"); }
+                    }}>
+                    <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all" style={{ left: cog.llm_hypothesis_enabled ? "22px" : "2px" }} />
+                  </button>
+                </div>
+              </Card>
+
+              <Card title="MEMORY DECAY" className="bg-[#111827] border border-cyan-500/20">
+                <div className="py-2">
+                  <div className="flex items-center justify-between text-[10px] mb-2">
+                    <span className="text-secondary">Decay Rate</span>
+                    <span className="text-cyan-400 font-mono font-bold">{cog.memory_decay_rate ?? "0.02"}</span>
+                  </div>
+                  <div className="text-[9px] text-secondary">exp(-{cog.memory_decay_rate ?? "0.02"} x days) weighting</div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <div className="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-cyan-500 to-purple-500 rounded-full" style={{ width: `${Math.min((cog.memory_decay_rate ?? 0.02) * 2500, 100)}%` }} />
+                    </div>
+                  </div>
+                </div>
+              </Card>
+
+              <Card title="CIRCUIT BREAKER STATUS" className="bg-[#111827] border border-cyan-500/20">
+                <div className="py-2">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className={`flex items-center gap-2 ${circuitOk ? "text-emerald-400" : "text-red-400"}`}>
+                      <div className={`w-3 h-3 rounded-full ${circuitOk ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]"}`} />
+                      <span className="text-sm font-bold">{circuitOk ? "ARMED" : "TRIPPED"}</span>
+                    </div>
+                    {!circuitOk && (
+                      <Button size="sm" className="bg-red-500/20 text-red-400 border border-red-500/40 text-[9px] px-2 py-0.5"
+                        onClick={async () => {
+                          try {
+                            await fetch(getApiUrl("cognitive/dashboard"), {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+                              body: JSON.stringify({ reset_circuit_breaker: true }),
+                            });
+                            toast.success("Circuit breaker reset");
+                          } catch { toast.error("Reset failed"); }
+                        }}>Reset</Button>
+                    )}
+                  </div>
+                  <div className="text-[9px] text-secondary">Auto-disables LLM after 3x 800ms+ latencies</div>
+                  <div className="text-[9px] text-secondary mt-1">Consecutive slow: <span className="text-white font-mono">{cog.consecutive_slow ?? 0}/3</span></div>
+                </div>
+              </Card>
+            </div>
+          </div>
+          );
+        })()}
 
       {/* === FOOTER BAR (mockup 01 style) === */}
       <div className="flex items-center justify-between px-5 py-1.5 border-t border-cyan-500/20 bg-[#0B0E14] text-[10px] text-secondary">

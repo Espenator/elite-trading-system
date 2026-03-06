@@ -1044,6 +1044,7 @@ export default function Dashboard() {
   const { data: sentimentData } = useApi("sentiment", {
     pollIntervalMs: 30000,
   });
+  const { data: cognitiveData } = useApi("cognitiveDashboard", { pollIntervalMs: 30000 });
 
   // Right Panel specific APIs based on selectedSymbol
   const { data: techsData } = useApi("signals", {
@@ -1821,6 +1822,55 @@ export default function Dashboard() {
               </div>
             </div>
           )}
+
+          {/* Cognitive Intelligence Status (ETBI) */}
+          {(() => {
+            const cog = cognitiveData || {};
+            const metrics = cog.metrics || {};
+            const recentSnaps = cog.recent_snapshots || [];
+            const lastSnap = recentSnaps.length > 0 ? recentSnaps[recentSnaps.length - 1] : {};
+            const mode = (lastSnap.mode || Object.keys(cog.mode_distribution || {})[0] || "—").toUpperCase();
+            const diversity = metrics.avg_hypothesis_diversity;
+            const agreement = metrics.avg_agent_agreement;
+            const memPrec = metrics.avg_memory_precision;
+            const latencyMs = metrics.avg_latency_ms;
+            const circuitOk = latencyMs == null || latencyMs < 800;
+            const modeColor = mode === "EXPLOIT" ? "text-green-400" : mode === "EXPLORE" ? "text-amber-400" : mode === "DEFENSIVE" ? "text-red-400" : "text-[#94a3b8]";
+            return (
+              <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-[8px] text-[#00D9FF] font-bold uppercase tracking-wider">Cognitive Intelligence</h3>
+                  <button onClick={() => { window.location.href = "/cognitive-dashboard"; }} className="text-[7px] text-[#00D9FF] hover:text-white transition-colors">View Full →</button>
+                </div>
+                <div className="grid grid-cols-2 gap-1 font-mono text-[8px]">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[#64748b]">Mode:</span>
+                    <span className={`font-bold ${modeColor}`}>{mode}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[#64748b]">Circuit:</span>
+                    <div className={`w-1.5 h-1.5 rounded-full ${circuitOk ? "bg-green-500" : "bg-red-500 animate-pulse"}`} />
+                    <span className={circuitOk ? "text-green-400" : "text-red-400"}>{circuitOk ? "OK" : "TRIP"}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[#64748b]">Diversity:</span>
+                    <span className="text-white">{diversity != null ? Number(diversity).toFixed(2) : "—"}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[#64748b]">Agreement:</span>
+                    <span className="text-white">{agreement != null ? `${(Number(agreement) * 100).toFixed(0)}%` : "—"}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 col-span-2">
+                    <span className="text-[#64748b]">Memory Precision:</span>
+                    <div className="flex-1 h-1.5 bg-[#1e293b] rounded-full overflow-hidden">
+                      <div className="h-full bg-[#00D9FF] rounded-full transition-all" style={{ width: `${(memPrec ?? 0) * 100}%` }} />
+                    </div>
+                    <span className="text-white w-8 text-right">{memPrec != null ? `${(Number(memPrec) * 100).toFixed(0)}%` : "—"}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Equity Curve + Flywheel (bottom of right panel) */}
           <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5">
