@@ -47,6 +47,7 @@ const FALLBACK_AGENTS = [
   { name: 'Risk Guardian', score: 79, elo: 1798, pnl: 14200, trades: 63, winRate: 68.3, color: '#06b6d4' },
   { name: 'Meta Architect', score: 71, elo: 1756, pnl: 8400, trades: 55, winRate: 65.5, color: '#8b5cf6' },
   { name: 'Meta Guardian', score: 63, elo: 1710, pnl: 2247, trades: 45, winRate: 60.0, color: '#f59e0b' },
+  { name: 'Delta Scalper', score: 55, elo: 1685, pnl: 1810, trades: 38, winRate: 57.9, color: '#ec4899' },
 ];
 
 const FALLBACK_TRADES = [
@@ -144,23 +145,43 @@ const KpiPill = ({ label, value, sub, positive, icon: Icon }) => (
 );
 
 const GradeCircle = ({ grade, label, size = 'lg' }) => {
-  const sz = size === 'lg' ? 'w-16 h-16 text-2xl' : 'w-10 h-10 text-base';
-  const colors = {
-    A: 'from-emerald-500 to-emerald-700 shadow-emerald-500/30',
-    B: 'from-cyan-500 to-cyan-700 shadow-cyan-500/30',
-    C: 'from-yellow-500 to-yellow-700 shadow-yellow-500/30',
-    D: 'from-orange-500 to-orange-700 shadow-orange-500/30',
-    F: 'from-red-500 to-red-700 shadow-red-500/30',
+  const dim = size === 'lg' ? 60 : 40;
+  const stroke = size === 'lg' ? 5 : 4;
+  const r = (dim - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const colorMap = {
+    A: { ring: '#10b981', glow: '#10b981' },
+    B: { ring: '#06b6d4', glow: '#06b6d4' },
+    C: { ring: '#eab308', glow: '#eab308' },
+    D: { ring: '#f97316', glow: '#f97316' },
+    F: { ring: '#ef4444', glow: '#ef4444' },
   };
+  const c = colorMap[grade] || colorMap.A;
+  const fontSize = size === 'lg' ? 22 : 14;
   return (
     <div className="flex flex-col items-center gap-1">
-      <div className={clsx(
-        'rounded-full flex items-center justify-center font-bold bg-gradient-to-br shadow-lg',
-        sz,
-        colors[grade] || colors.A
-      )}>
-        {grade}
-      </div>
+      <svg width={dim} height={dim} viewBox={`0 0 ${dim} ${dim}`}>
+        <defs>
+          <linearGradient id={`gradeGrad-${grade}`} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor={c.ring} stopOpacity={1} />
+            <stop offset="100%" stopColor={c.ring} stopOpacity={0.5} />
+          </linearGradient>
+        </defs>
+        <circle cx={dim / 2} cy={dim / 2} r={r} fill="none" stroke="#1e3a5f" strokeWidth={stroke} opacity={0.3} />
+        <circle
+          cx={dim / 2} cy={dim / 2} r={r}
+          fill="none"
+          stroke={`url(#gradeGrad-${grade})`}
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={circ}
+          strokeDashoffset={circ * 0.1}
+          transform={`rotate(-90 ${dim / 2} ${dim / 2})`}
+          style={{ filter: `drop-shadow(0 0 4px ${c.glow}40)` }}
+        />
+        <text x={dim / 2} y={dim / 2} textAnchor="middle" dominantBaseline="central"
+          fill="white" fontSize={fontSize} fontWeight="bold">{grade}</text>
+      </svg>
       {label && <span className="text-xs text-emerald-400 font-medium">{label}</span>}
     </div>
   );
@@ -244,12 +265,19 @@ export default function PerformanceAnalytics() {
     }));
   };
 
-  // Returns Heatmap Calendar placeholder
+  // Returns Heatmap Calendar - day-level grid for Jan-Mar (YTD)
   const returnsCalendar = useMemo(() => {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const months = [
+      { name: 'Jan', days: 31 },
+      { name: 'Feb', days: 28 },
+      { name: 'Mar', days: 10 },
+    ];
     return months.map(m => ({
-      month: m,
-      value: (Math.random() * 8 - 2).toFixed(1),
+      month: m.name,
+      days: Array.from({ length: m.days }, (_, i) => ({
+        day: i + 1,
+        value: parseFloat((Math.random() * 4 - 1.2).toFixed(2)),
+      })),
     }));
   }, []);
 
@@ -259,12 +287,8 @@ export default function PerformanceAnalytics() {
       <div className="px-4 py-3 flex items-center justify-between border-b border-[#1e3a5f]/30 shrink-0">
         <h1 className="text-lg font-bold text-white tracking-tight">Performance Analytics</h1>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-[#0a1628] border border-emerald-500/30 rounded-full px-3 py-1">
-            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-[10px] font-bold text-white">
-              {kpi.grade}
-            </div>
-            <span className="text-xs text-emerald-400 font-medium">Trading Grade</span>
-          </div>
+          <span className="text-xs text-gray-400 font-medium">Trading Grade</span>
+          <GradeCircle grade={kpi.grade} label={kpi.gradeLabel} size="lg" />
         </div>
       </div>
 
@@ -322,24 +346,24 @@ export default function PerformanceAnalytics() {
                   color="bg-emerald-500"
                 />
               </div>
-              {/* Returns Heatmap Calendar */}
+              {/* Risk/Reward + Expectancy mini donut */}
               <div className="w-full mt-1">
-                <div className="text-[10px] text-gray-500 mb-1">Returns Heatmap Calendar</div>
-                <div className="grid grid-cols-6 gap-1">
-                  {returnsCalendar.map((m) => (
-                    <div
-                      key={m.month}
-                      className={clsx(
-                        'text-center rounded px-1 py-0.5 text-[9px] font-medium',
-                        parseFloat(m.value) >= 3 ? 'bg-emerald-600/50 text-emerald-300' :
-                        parseFloat(m.value) >= 0 ? 'bg-emerald-900/30 text-emerald-400' :
-                        'bg-red-900/30 text-red-400'
-                      )}
-                    >
-                      <div>{m.month}</div>
-                      <div>{m.value}%</div>
-                    </div>
-                  ))}
+                <div className="text-[10px] text-gray-500 mb-1">Risk/Reward + Expectancy</div>
+                <div className="flex items-center justify-center gap-3">
+                  <svg width={48} height={48} viewBox="0 0 48 48">
+                    <circle cx={24} cy={24} r={18} fill="none" stroke="#1e3a5f" strokeWidth={6} opacity={0.3} />
+                    <circle cx={24} cy={24} r={18} fill="none" stroke="#10b981" strokeWidth={6}
+                      strokeDasharray={`${2 * Math.PI * 18 * 0.63} ${2 * Math.PI * 18 * 0.37}`}
+                      strokeLinecap="round" transform="rotate(-90 24 24)" />
+                    <text x={24} y={22} textAnchor="middle" dominantBaseline="central"
+                      fill="white" fontSize={9} fontWeight="bold">{kpi.riskReward}</text>
+                    <text x={24} y={32} textAnchor="middle" dominantBaseline="central"
+                      fill="#9ca3af" fontSize={6}>R:R</text>
+                  </svg>
+                  <div className="text-center">
+                    <div className="text-sm font-bold text-emerald-400">${kpi.expectancy}</div>
+                    <div className="text-[9px] text-gray-500">Expectancy</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -374,33 +398,117 @@ export default function PerformanceAnalytics() {
           <div className="col-span-4 flex flex-col gap-3">
             {/* AI + Rolling Risk */}
             <Panel title="AI + Rolling Risk" icon={Brain} className="flex-1">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={rollingRisk} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(30,58,95,0.2)" />
-                  <XAxis dataKey="date" tick={{ fontSize: 8, fill: '#6b7280' }} interval={4} />
-                  <YAxis tick={{ fontSize: 8, fill: '#6b7280' }} />
-                  <Tooltip {...chartTooltipStyle} />
-                  <Bar dataKey="rollingVol" fill="#06b6d4" opacity={0.4} radius={[2, 2, 0, 0]} />
-                  <Line type="monotone" dataKey="rollingSharpe" stroke="#f59e0b" strokeWidth={1.5} dot={false} />
-                </ComposedChart>
-              </ResponsiveContainer>
+              <div className="flex h-full gap-2">
+                {/* Nested Concentric AI Dial */}
+                <div className="flex flex-col items-center justify-center shrink-0" style={{ width: 90 }}>
+                  <svg width={80} height={80} viewBox="0 0 80 80">
+                    <defs>
+                      <linearGradient id="aiOuterGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#06b6d4" />
+                        <stop offset="100%" stopColor="#0891b2" />
+                      </linearGradient>
+                      <linearGradient id="aiInnerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#8b5cf6" />
+                        <stop offset="100%" stopColor="#7c3aed" />
+                      </linearGradient>
+                    </defs>
+                    {/* Outer ring track */}
+                    <circle cx={40} cy={40} r={35} fill="none" stroke="#1e3a5f" strokeWidth={5} opacity={0.3} />
+                    {/* Outer ring - Agent confidence 67% */}
+                    <circle cx={40} cy={40} r={35} fill="none" stroke="url(#aiOuterGrad)" strokeWidth={5}
+                      strokeLinecap="round"
+                      strokeDasharray={`${2 * Math.PI * 35 * 0.67} ${2 * Math.PI * 35 * 0.33}`}
+                      transform="rotate(-90 40 40)"
+                      style={{ filter: 'drop-shadow(0 0 3px #06b6d440)' }} />
+                    {/* Inner ring track */}
+                    <circle cx={40} cy={40} r={26} fill="none" stroke="#1e3a5f" strokeWidth={4} opacity={0.3} />
+                    {/* Inner ring - Model accuracy 85% */}
+                    <circle cx={40} cy={40} r={26} fill="none" stroke="url(#aiInnerGrad)" strokeWidth={4}
+                      strokeLinecap="round"
+                      strokeDasharray={`${2 * Math.PI * 26 * 0.85} ${2 * Math.PI * 26 * 0.15}`}
+                      transform="rotate(-90 40 40)"
+                      style={{ filter: 'drop-shadow(0 0 3px #8b5cf640)' }} />
+                    {/* Center text */}
+                    <text x={40} y={36} textAnchor="middle" dominantBaseline="central"
+                      fill="white" fontSize={14} fontWeight="bold">67%</text>
+                    <text x={40} y={50} textAnchor="middle" dominantBaseline="central"
+                      fill="#9ca3af" fontSize={8}>Agent</text>
+                  </svg>
+                  <div className="flex gap-2 mt-1">
+                    <div className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-500" />
+                      <span className="text-[8px] text-gray-500">Agent</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-violet-500" />
+                      <span className="text-[8px] text-gray-500">Model</span>
+                    </div>
+                  </div>
+                </div>
+                {/* Rolling Risk Chart */}
+                <div className="flex-1 min-w-0">
+                  <div className="text-[10px] text-gray-500 mb-1">Rolling Risk Sharpe</div>
+                  <ResponsiveContainer width="100%" height="85%">
+                    <ComposedChart data={rollingRisk} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(30,58,95,0.2)" />
+                      <XAxis dataKey="date" tick={{ fontSize: 8, fill: '#6b7280' }} interval={4} />
+                      <YAxis tick={{ fontSize: 8, fill: '#6b7280' }} />
+                      <Tooltip {...chartTooltipStyle} />
+                      <Bar dataKey="rollingVol" fill="#06b6d4" opacity={0.4} radius={[2, 2, 0, 0]} />
+                      <Line type="monotone" dataKey="rollingSharpe" stroke="#f59e0b" strokeWidth={1.5} dot={false} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
             </Panel>
 
             {/* Attribution + Agent ELO */}
             <Panel title="Attribution + Agent ELO" icon={Award} className="flex-1">
-              <div className="space-y-1.5">
-                {agents.slice(0, 4).map((a) => (
-                  <div key={a.name} className="flex items-center gap-2">
-                    <span className="text-[10px] text-gray-400 w-20 truncate">{a.name}</span>
-                    <div className="flex-1 h-3 bg-gray-800/60 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full"
-                        style={{ width: `${a.score}%`, backgroundColor: a.color }}
-                      />
+              <div className="flex gap-2 h-full">
+                {/* Agent ELO bars */}
+                <div className="flex-1 space-y-1.5">
+                  <div className="text-[10px] text-gray-500 mb-0.5">P&L By Symbol</div>
+                  {agents.slice(0, 4).map((a) => (
+                    <div key={a.name} className="flex items-center gap-2">
+                      <span className="text-[10px] text-gray-400 w-20 truncate">{a.name}</span>
+                      <div className="flex-1 h-3 bg-gray-800/60 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full"
+                          style={{ width: `${a.score}%`, backgroundColor: a.color }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-gray-300 w-6 text-right">{a.score}</span>
                     </div>
-                    <span className="text-[10px] text-gray-300 w-6 text-right">{a.score}</span>
+                  ))}
+                </div>
+                {/* Returns Heatmap Calendar */}
+                <div className="shrink-0" style={{ width: 130 }}>
+                  <div className="text-[10px] text-gray-500 mb-1">Returns Heatmap Calendar</div>
+                  <div className="flex gap-1">
+                    {returnsCalendar.map((m) => (
+                      <div key={m.month} className="flex flex-col gap-px">
+                        <div className="text-[7px] text-gray-500 text-center mb-px">{m.month}</div>
+                        {m.days.map((d) => (
+                          <div
+                            key={d.day}
+                            title={`${m.month} ${d.day}: ${d.value > 0 ? '+' : ''}${d.value}%`}
+                            className="rounded-[1px]"
+                            style={{
+                              width: 5,
+                              height: 5,
+                              backgroundColor: d.value >= 1.5 ? '#10b981' :
+                                d.value >= 0.5 ? '#059669' :
+                                d.value >= 0 ? '#064e3b' :
+                                d.value >= -0.5 ? '#7f1d1d' :
+                                '#ef4444',
+                              opacity: Math.min(0.3 + Math.abs(d.value) * 0.25, 1),
+                            }}
+                          />
+                        ))}
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </div>
               </div>
             </Panel>
           </div>
@@ -411,31 +519,34 @@ export default function PerformanceAnalytics() {
 
           {/* Agent Attribution Leaderboard */}
           <Panel title="Agent Attribution Leaderboard" icon={Star} className="col-span-3">
-            <div className="space-y-2">
-              {agents.map((a) => (
-                <div key={a.name}>
-                  <div className="flex items-center justify-between mb-0.5">
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: a.color }} />
-                      <span className="text-[11px] text-gray-300">{a.name}</span>
-                    </div>
-                    <span className="text-[10px] text-gray-400">{a.elo} ELO</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-2 bg-gray-800/60 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{ width: `${(a.pnl / 30000) * 100}%`, backgroundColor: a.color }}
-                      />
-                    </div>
-                    <span className="text-[10px] text-emerald-400 w-14 text-right">${(a.pnl / 1000).toFixed(1)}k</span>
-                  </div>
-                  <div className="flex gap-3 mt-0.5">
-                    <span className="text-[9px] text-gray-500">{a.trades} trades</span>
-                    <span className="text-[9px] text-gray-500">{a.winRate}% win</span>
-                  </div>
-                </div>
-              ))}
+            <div className="overflow-auto h-full">
+              <table className="w-full text-[10px]">
+                <thead>
+                  <tr className="border-b border-[#1e3a5f]/30">
+                    <th className="text-left py-1 px-1 text-gray-500 uppercase">#</th>
+                    <th className="text-left py-1 px-1 text-gray-500 uppercase">Agent</th>
+                    <th className="text-right py-1 px-1 text-gray-500 uppercase">ELO</th>
+                    <th className="text-right py-1 px-1 text-gray-500 uppercase">P&L</th>
+                    <th className="text-right py-1 px-1 text-gray-500 uppercase">Win%</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {agents.map((a, i) => (
+                    <tr key={a.name} className="border-b border-[#1e3a5f]/15 hover:bg-[#0d1f35]/50 transition-colors">
+                      <td className="py-1.5 px-1 text-gray-500">{i + 1}</td>
+                      <td className="py-1.5 px-1">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: a.color }} />
+                          <span className="text-gray-300 truncate">{a.name}</span>
+                        </div>
+                      </td>
+                      <td className="py-1.5 px-1 text-right text-cyan-400 font-medium">{a.elo}</td>
+                      <td className="py-1.5 px-1 text-right text-emerald-400 font-medium">${(a.pnl / 1000).toFixed(1)}k</td>
+                      <td className="py-1.5 px-1 text-right text-gray-300">{a.winRate}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </Panel>
 
@@ -642,22 +753,56 @@ export default function PerformanceAnalytics() {
               {/* Market Sentiment & Regime */}
               <div className="space-y-2">
                 <div className="text-[10px] text-gray-500">Market Sentiment & Regime</div>
-                <div className="bg-[#0d1b2a] rounded-lg p-2 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-gray-400">Sentiment</span>
-                    <span className={clsx(
-                      'text-xs font-semibold px-2 py-0.5 rounded',
-                      strategy.sentiment === 'Bullish' ? 'bg-emerald-500/15 text-emerald-400' :
-                      strategy.sentiment === 'Bearish' ? 'bg-red-500/15 text-red-400' :
-                      'bg-yellow-500/15 text-yellow-400'
-                    )}>
-                      {strategy.sentiment}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-gray-400">Regime</span>
-                    <span className="text-xs font-semibold text-cyan-400">{strategy.regime}</span>
-                  </div>
+                {/* Speedometer-style arc gauge */}
+                <div className="flex flex-col items-center">
+                  <svg width={100} height={60} viewBox="0 0 100 60">
+                    <defs>
+                      <linearGradient id="sentimentArc" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#ef4444" />
+                        <stop offset="30%" stopColor="#f59e0b" />
+                        <stop offset="60%" stopColor="#eab308" />
+                        <stop offset="100%" stopColor="#10b981" />
+                      </linearGradient>
+                    </defs>
+                    {/* Background arc */}
+                    <path
+                      d="M 10 55 A 40 40 0 0 1 90 55"
+                      fill="none" stroke="#1e3a5f" strokeWidth={6} strokeLinecap="round" opacity={0.3}
+                    />
+                    {/* Colored arc */}
+                    <path
+                      d="M 10 55 A 40 40 0 0 1 90 55"
+                      fill="none" stroke="url(#sentimentArc)" strokeWidth={6} strokeLinecap="round"
+                      strokeDasharray={`${Math.PI * 40 * 0.72} ${Math.PI * 40}`}
+                    />
+                    {/* Needle */}
+                    {(() => {
+                      const sentimentVal = strategy.sentiment === 'Bullish' ? 72 : strategy.sentiment === 'Bearish' ? 25 : 50;
+                      const angle = -180 + (sentimentVal / 100) * 180;
+                      const rad = (angle * Math.PI) / 180;
+                      const nx = 50 + 30 * Math.cos(rad);
+                      const ny = 55 + 30 * Math.sin(rad);
+                      return (
+                        <line x1={50} y1={55} x2={nx} y2={ny}
+                          stroke="white" strokeWidth={1.5} strokeLinecap="round" />
+                      );
+                    })()}
+                    {/* Center dot */}
+                    <circle cx={50} cy={55} r={3} fill="white" />
+                    {/* Labels */}
+                    <text x={10} y={58} fill="#6b7280" fontSize={6} textAnchor="middle">0</text>
+                    <text x={50} y={10} fill="#6b7280" fontSize={6} textAnchor="middle">50</text>
+                    <text x={90} y={58} fill="#6b7280" fontSize={6} textAnchor="middle">100</text>
+                  </svg>
+                  <span className={clsx(
+                    'text-xs font-semibold mt-0.5',
+                    strategy.sentiment === 'Bullish' ? 'text-emerald-400' :
+                    strategy.sentiment === 'Bearish' ? 'text-red-400' :
+                    'text-yellow-400'
+                  )}>
+                    {strategy.sentiment}
+                  </span>
+                  <span className="text-[9px] text-gray-500">Regime: <span className="text-cyan-400">{strategy.regime}</span></span>
                 </div>
               </div>
 

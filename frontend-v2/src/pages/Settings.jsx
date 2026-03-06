@@ -283,12 +283,14 @@ export default function SettingsPage() {
             { value: "UTC", label: "UTC" },
             { value: "Europe/Oslo", label: "CET" },
           ]} onChange={(e) => updateField("user", "timezone", e.target.value)} />
-          <MiniSelect label="Language" value={get("user", "language", "en")} options={[
-            { value: "en", label: "English" },
-            { value: "no", label: "Norwegian" },
-          ]} onChange={(e) => updateField("user", "language", e.target.value)} />
-          <MiniSelect label="Timeframe" value={get("appearance", "chartTimeframe", "1h")} options={["1m", "5m", "15m", "1h", "4h", "1d"]} onChange={(e) => updateField("appearance", "chartTimeframe", e.target.value)} />
-          <MiniField label="# Stocks" value={get("scanning", "maxStocks", 15)} type="number" onChange={(e) => updateField("scanning", "maxStocks", Number(e.target.value))} />
+          <MiniField label="Email" value={get("user", "email", "")} onChange={(e) => updateField("user", "email", e.target.value)} className="w-28" />
+          <MiniSelect label="Currency" value={get("user", "currency", "USD")} options={["USD", "EUR", "GBP", "NOK", "CHF"]} onChange={(e) => updateField("user", "currency", e.target.value)} />
+          <div className="flex items-center justify-between py-[1px]">
+            <span className="text-[10px] text-gray-400">Avatar</span>
+            <button className="text-[9px] bg-[#0a0d13] border border-gray-700/50 rounded px-2 py-0.5 text-gray-400 hover:text-cyan-400 transition-colors">
+              Choose File
+            </button>
+          </div>
           <MiniCheckbox label="Show Fill" checked={!!get("appearance", "showFill", true)} onChange={(v) => updateField("appearance", "showFill", v)} />
         </SectionCard>
 
@@ -320,6 +322,20 @@ export default function SettingsPage() {
             { value: "live", label: "Live Trading" },
           ]} onChange={(e) => updateField("trading", "accountType", e.target.value)} />
           <MiniField label="Portfolio Size" value={get("trading", "portfolioSize", "")} onChange={(e) => updateField("trading", "portfolioSize", e.target.value)} />
+          <div className="mt-1 pt-1 border-t border-gray-800/50 space-y-0.5">
+            <div className="flex items-center justify-between py-[1px]">
+              <span className="text-[9px] text-gray-500">Broker</span>
+              <span className="text-[9px] text-white font-mono">Alpaca Markets</span>
+            </div>
+            <div className="flex items-center justify-between py-[1px]">
+              <span className="text-[9px] text-gray-500">Status</span>
+              <span className="text-[9px] text-green-400 font-mono">Connected</span>
+            </div>
+            <div className="flex items-center justify-between py-[1px]">
+              <span className="text-[9px] text-gray-500">Sync</span>
+              <span className="text-[9px] text-gray-400 font-mono">2026-03-01 06:50</span>
+            </div>
+          </div>
         </SectionCard>
 
         {/* POSITION & LIMITS */}
@@ -449,45 +465,32 @@ export default function SettingsPage() {
 
         {/* LEARNING LOOP */}
         <SectionCard title="Learning Loop">
-          <MiniToggle label="Bull Detection" checked={!!get("ml", "bullDetection", true)} onChange={(v) => updateField("ml", "bullDetection", v)} />
-          <MiniToggle label="Sell Detection" checked={!!get("ml", "sellDetection", true)} onChange={(v) => updateField("ml", "sellDetection", v)} />
-          <MiniSelect label="Priority Queue" value={get("ml", "priorityQueue", "auto")} options={["auto", "manual", "hybrid"]} onChange={(e) => updateField("ml", "priorityQueue", e.target.value)} />
-          <MiniField label="Confidence" value={get("ml", "confidenceThreshold", 0.7)} type="number" step="0.01" onChange={(e) => updateField("ml", "confidenceThreshold", parseFloat(e.target.value))} />
-          <MiniField label="Min Score" value={get("ml", "minCompositeScore", 60)} type="number" suffix="pts" onChange={(e) => updateField("ml", "minCompositeScore", Number(e.target.value))} />
-          <MiniField label="Signal Weight" value={get("ml", "signalWeight", 1.0)} type="number" step="0.1" onChange={(e) => updateField("ml", "signalWeight", parseFloat(e.target.value))} />
-          <MiniField label="ML Weight" value={get("ml", "mlWeight", 1.0)} type="number" step="0.1" onChange={(e) => updateField("ml", "mlWeight", parseFloat(e.target.value))} />
+          <MiniToggle label="Auto-Retrain" checked={!!get("ml", "autoRetrain", true)} onChange={(v) => updateField("ml", "autoRetrain", v)} />
+          <MiniToggle label="Drift Detection" checked={!!get("ml", "driftDetection", true)} onChange={(v) => updateField("ml", "driftDetection", v)} />
+          <MiniSelect label="Schedule" value={get("ml", "retrainSchedule", "weekly")} options={["daily", "weekly", "monthly", "on-drift"]} onChange={(e) => updateField("ml", "retrainSchedule", e.target.value)} />
+          <MiniToggle label="Walk-Forward" checked={!!get("ml", "walkForwardEnabled", true)} onChange={(v) => updateField("ml", "walkForwardEnabled", v)} />
+          <MiniSelect label="Validation" value={get("ml", "validationMethod", "time_series")} options={[
+            { value: "time_series", label: "Time Series CV" },
+            { value: "expanding", label: "Expanding Window" },
+            { value: "kfold", label: "K-Fold" },
+          ]} onChange={(e) => updateField("ml", "validationMethod", e.target.value)} />
+          <MiniField label="Min Samples" value={get("ml", "minSamples", 500)} type="number" onChange={(e) => updateField("ml", "minSamples", Number(e.target.value))} />
+          <MiniToggle label="Feature Tracking" checked={!!get("ml", "featureTracking", true)} onChange={(v) => updateField("ml", "featureTracking", v)} />
         </SectionCard>
 
-        {/* PIPELINE GUARD AGENTS */}
-        <SectionCard title="Pipeline Guard Agents">
-          <div className="space-y-0.5">
-            {[
-              { key: "marketScanner", label: "Market Scanner" },
-              { key: "momentumAgent", label: "Momentum Agent" },
-              { key: "marketRegime", label: "Market Regime" },
-              { key: "optionsScanner", label: "Options Scanner" },
-              { key: "riskAgent", label: "Risk Agent" },
-              { key: "signalEngine", label: "Signal Engine" },
-            ].map((agent) => (
-              <div key={agent.key} className="flex items-center justify-between py-[1px]">
-                <div className="flex items-center gap-1">
-                  <MiniToggle
-                    label=""
-                    checked={!!get("agents", agent.key, true)}
-                    onChange={(v) => updateField("agents", agent.key, v)}
-                  />
-                  <span className="text-[10px] text-gray-400">{agent.label}</span>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={10}
-                  value={get("agents", `${agent.key}Priority`, 5)}
-                  onChange={(e) => updateField("agents", `${agent.key}Priority`, Number(e.target.value))}
-                  className="w-12 h-1 accent-cyan-500 cursor-pointer"
-                />
-              </div>
-            ))}
+        {/* OPENCLAW AGENTS */}
+        <SectionCard title="OpenClaw Agents">
+          <div className="space-y-0.5 mb-1.5">
+            <MiniToggle label="Swarm Mode" checked={!!get("agents", "swarmMode", true)} onChange={(v) => updateField("agents", "swarmMode", v)} />
+            <MiniToggle label="Voting" checked={!!get("agents", "votingEnabled", true)} onChange={(v) => updateField("agents", "votingEnabled", v)} />
+            <MiniToggle label="Closure" checked={!!get("agents", "closureEnabled", true)} onChange={(v) => updateField("agents", "closureEnabled", v)} />
+            <MiniToggle label="Blackboard" checked={!!get("agents", "blackboardEnabled", true)} onChange={(v) => updateField("agents", "blackboardEnabled", v)} />
+          </div>
+          <div className="pt-1 border-t border-gray-800/50 space-y-0.5">
+            <MiniCheckbox label="Market Scanner" checked={!!get("agents", "marketScanner", true)} onChange={(v) => updateField("agents", "marketScanner", v)} />
+            <MiniCheckbox label="Risk Assessment" checked={!!get("agents", "riskAssessment", true)} onChange={(v) => updateField("agents", "riskAssessment", v)} />
+            <MiniCheckbox label="Sentiment" checked={!!get("agents", "sentimentAgent", true)} onChange={(v) => updateField("agents", "sentimentAgent", v)} />
+            <MiniCheckbox label="YouTube" checked={!!get("agents", "youtubeAgent", false)} onChange={(v) => updateField("agents", "youtubeAgent", v)} />
           </div>
         </SectionCard>
 
@@ -527,8 +530,17 @@ export default function SettingsPage() {
 
         {/* NOTIFICATIONS */}
         <SectionCard title="Notifications">
-          <div className="mb-0.5">
-            <span className="text-[9px] text-gray-500 uppercase font-bold">PMS / Email / Push</span>
+          <div className="mb-1">
+            <span className="text-[9px] text-gray-500 uppercase font-bold">Channels</span>
+            <div className="flex gap-2 mt-0.5">
+              <MiniCheckbox label="Discord" checked={!!get("notifications", "discordEnabled", true)} onChange={(v) => updateField("notifications", "discordEnabled", v)} />
+              <MiniCheckbox label="SMS" checked={!!get("notifications", "smsEnabled", true)} onChange={(v) => updateField("notifications", "smsEnabled", v)} />
+              <MiniCheckbox label="Email" checked={!!get("notifications", "emailEnabled", true)} onChange={(v) => updateField("notifications", "emailEnabled", v)} />
+              <MiniCheckbox label="Slack" checked={!!get("notifications", "slackEnabled", false)} onChange={(v) => updateField("notifications", "slackEnabled", v)} />
+            </div>
+          </div>
+          <div className="pt-0.5 border-t border-gray-800/50">
+            <span className="text-[9px] text-gray-500 uppercase font-bold mb-0.5 block">PMS / Email / Push</span>
           </div>
           <MiniToggle label="Trade Execution" checked={!!get("notifications", "tradeAlerts", false)} onChange={(v) => updateField("notifications", "tradeAlerts", v)} />
           <MiniToggle label="EOD Summary" checked={!!get("notifications", "dailySummary", false)} onChange={(v) => updateField("notifications", "dailySummary", v)} />
@@ -538,17 +550,23 @@ export default function SettingsPage() {
           <MiniToggle label="Daily PnL" checked={!!get("notifications", "dailyPnl", false)} onChange={(v) => updateField("notifications", "dailyPnl", v)} />
         </SectionCard>
 
-        {/* SECURITY & SAFETY */}
-        <SectionCard title="Security & Safety">
+        {/* SECURITY & AUTH */}
+        <SectionCard title="Security & Auth">
           <MiniToggle label="2FA Enabled" checked={!!get("user", "twoFactorEnabled", false)} onChange={(v) => updateField("user", "twoFactorEnabled", v)} />
-          <MiniField label="API Key Rotation" value={get("user", "apiKeyRotationDays", 90)} type="number" suffix="days" onChange={(e) => updateField("user", "apiKeyRotationDays", Number(e.target.value))} />
           <MiniToggle label="SSL/TLS" checked={!!get("user", "sslEnabled", true)} onChange={(v) => updateField("user", "sslEnabled", v)} />
           <MiniToggle label="IP Whitelisting" checked={!!get("user", "ipWhitelisting", false)} onChange={(v) => updateField("user", "ipWhitelisting", v)} />
-          <MiniField label="Session Timeout" value={get("user", "sessionTimeoutMinutes", 30)} type="number" suffix="min" onChange={(e) => updateField("user", "sessionTimeoutMinutes", Number(e.target.value))} />
-          <div className="text-[9px] text-gray-600 mt-0.5 pt-0.5 border-t border-gray-800/50">
-            <div>AES-256 on disk</div>
-            <div>Keys hashed (bcrypt)</div>
+          <div className="mt-1 pt-1 border-t border-gray-800/50 space-y-0.5">
+            <MiniField label="New Password" value="" type="password" onChange={() => {}} className="w-24" />
+            <MiniField label="Confirm" value="" type="password" onChange={() => {}} className="w-24" />
           </div>
+          <div className="mt-1 pt-1 border-t border-gray-800/50 text-[9px] text-gray-600 space-y-0.5">
+            <div>Encryption: <span className="text-gray-400">AES-256</span></div>
+            <div>Session: <span className="text-gray-400">{get("user", "sessionTimeoutMinutes", 24)}h timeout</span></div>
+            <div>Last Login: <span className="text-gray-400">{new Date().toISOString().slice(0, 10)}</span></div>
+          </div>
+          <button className="mt-1 w-full text-[9px] bg-red-900/20 border border-red-800/30 rounded px-2 py-0.5 text-red-400 hover:bg-red-900/30">
+            Revoke All Sessions
+          </button>
         </SectionCard>
       </div>
 
@@ -557,35 +575,43 @@ export default function SettingsPage() {
 
         {/* APPEARANCE */}
         <SectionCard title="Appearance">
-          {/* Color theme swatches */}
+          {/* Theme preview thumbnails */}
           <div className="mb-1.5">
-            <div className="flex gap-1 mb-1">
+            <div className="flex gap-1.5 mb-1">
               {[
-                { key: "midnight", color: "#1a1a2e", label: "Midnight Neuromorph" },
-                { key: "ocean", color: "#0a2e4a", label: "Ocean Dark" },
-                { key: "emerald", color: "#0a2e1a", label: "Emerald" },
-                { key: "crimson", color: "#2e0a0a", label: "Crimson" },
-                { key: "amber", color: "#2e1a0a", label: "Amber" },
+                { key: "midnight_bloomberg", gradient: "linear-gradient(135deg, #0a0a1a 0%, #1a1a2e 50%, #0d1117 100%)", label: "Midnight Bloomberg" },
+                { key: "classic_dark", gradient: "linear-gradient(135deg, #111827 0%, #1f2937 50%, #0f172a 100%)", label: "Classic Dark" },
+                { key: "oled_black", gradient: "linear-gradient(135deg, #000000 0%, #0a0a0a 50%, #050505 100%)", label: "OLED Black" },
               ].map((t) => (
                 <button
                   key={t.key}
                   onClick={() => updateField("appearance", "theme", t.key)}
-                  title={t.label}
-                  className={`w-5 h-5 rounded border-2 transition-all ${
-                    get("appearance", "theme", "midnight") === t.key
+                  className={`relative flex-1 h-10 rounded border-2 transition-all overflow-hidden ${
+                    get("appearance", "theme", "midnight_bloomberg") === t.key
                       ? "border-cyan-400 ring-1 ring-cyan-400/50"
                       : "border-gray-700 hover:border-gray-500"
                   }`}
-                  style={{ background: t.color }}
-                />
+                  style={{ background: t.gradient }}
+                >
+                  {/* Mini preview lines */}
+                  <div className="absolute inset-1 flex flex-col gap-0.5 opacity-40">
+                    <div className="h-1 w-3/4 rounded-full bg-cyan-500/50" />
+                    <div className="h-0.5 w-full rounded-full bg-gray-500/30" />
+                    <div className="h-0.5 w-2/3 rounded-full bg-gray-500/20" />
+                  </div>
+                  {/* Radio dot */}
+                  <div className={`absolute bottom-0.5 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full border ${
+                    get("appearance", "theme", "midnight_bloomberg") === t.key
+                      ? "border-cyan-400 bg-cyan-400"
+                      : "border-gray-600 bg-transparent"
+                  }`} />
+                </button>
               ))}
             </div>
             <span className="text-[9px] text-gray-500">
-              {get("appearance", "theme", "midnight") === "midnight" ? "Midnight Neuromorph" :
-               get("appearance", "theme") === "ocean" ? "Ocean Dark" :
-               get("appearance", "theme") === "emerald" ? "Emerald" :
-               get("appearance", "theme") === "crimson" ? "Crimson" :
-               get("appearance", "theme") === "amber" ? "Amber" : "Midnight Neuromorph"}
+              {get("appearance", "theme", "midnight_bloomberg") === "midnight_bloomberg" ? "Midnight Bloomberg" :
+               get("appearance", "theme") === "classic_dark" ? "Classic Dark" :
+               get("appearance", "theme") === "oled_black" ? "OLED Black" : "Midnight Bloomberg"}
             </span>
           </div>
           <MiniSelect label="Density" value={get("appearance", "density", "ultra_dense")} options={[
@@ -609,34 +635,19 @@ export default function SettingsPage() {
           <MiniSelect label="Export" value={get("dataSources", "exportFormat", "json")} options={["json", "csv"]} onChange={(e) => updateField("dataSources", "exportFormat", e.target.value)} />
         </SectionCard>
 
-        {/* NOTIFICATION CHANNELS */}
-        <SectionCard title="Notification Channels">
-          <div className="space-y-0.5">
-            {[
-              { label: "Track PnL", key: "trackPnl" },
-              { label: "Metrics", key: "metrics" },
-              { label: "Sharpe, Sortino", key: "sharpeSortino" },
-              { label: "Max DD", key: "maxDrawdown" },
-            ].map((item) => (
-              <MiniToggle
-                key={item.key}
-                label={item.label}
-                checked={!!get("notifications", item.key, false)}
-                onChange={(v) => updateField("notifications", item.key, v)}
-              />
-            ))}
-            <div className="flex items-center justify-between py-0.5">
-              <span className="text-[10px] text-gray-400">Discord</span>
-              <ConnBadge status={get("notifications", "discordWebhookUrl") ? "connected" : "not_set"} label={get("notifications", "discordWebhookUrl") ? "Active" : "Setup"} />
-            </div>
-            <div className="flex items-center justify-between py-0.5">
-              <span className="text-[10px] text-gray-400">Slack</span>
-              <ConnBadge status={get("notifications", "slackWebhookUrl") ? "connected" : "not_set"} label={get("notifications", "slackWebhookUrl") ? "Active" : "Setup"} />
-            </div>
-            <div className="flex items-center justify-between py-0.5">
-              <span className="text-[10px] text-gray-400">Telegram</span>
-              <ConnBadge status={get("notifications", "telegramBotToken") ? "connected" : "not_set"} label={get("notifications", "telegramBotToken") ? "Active" : "Setup"} />
-            </div>
+        {/* STRATEGY */}
+        <SectionCard title="Strategy">
+          <MiniToggle label="Adaptive" checked={!!get("trading", "adaptiveStrategy", true)} onChange={(v) => updateField("trading", "adaptiveStrategy", v)} />
+          <MiniToggle label="Regime Switch" checked={!!get("trading", "regimeSwitch", true)} onChange={(v) => updateField("trading", "regimeSwitch", v)} />
+          <div className="mt-1 pt-1 border-t border-gray-800/50 space-y-0.5">
+            <MiniSelect label="Bull" value={get("trading", "bullStrategy", "momentum")} options={["momentum", "breakout", "mean_reversion"]} onChange={(e) => updateField("trading", "bullStrategy", e.target.value)} />
+            <MiniSelect label="Bear" value={get("trading", "bearStrategy", "defensive")} options={["defensive", "short_bias", "hedge"]} onChange={(e) => updateField("trading", "bearStrategy", e.target.value)} />
+            <MiniSelect label="Neutral" value={get("trading", "neutralStrategy", "range_bound")} options={["range_bound", "pairs", "stat_arb"]} onChange={(e) => updateField("trading", "neutralStrategy", e.target.value)} />
+            <MiniSelect label="Range" value={get("trading", "rangeStrategy", "mean_reversion")} options={["mean_reversion", "scalping", "grid"]} onChange={(e) => updateField("trading", "rangeStrategy", e.target.value)} />
+          </div>
+          <div className="mt-1 pt-1 border-t border-gray-800/50 space-y-0.5">
+            <MiniField label="Min Prob" value={get("trading", "minProbability", 0.65)} type="number" step="0.01" onChange={(e) => updateField("trading", "minProbability", parseFloat(e.target.value))} />
+            <MiniToggle label="Override" checked={!!get("trading", "manualOverride", false)} onChange={(v) => updateField("trading", "manualOverride", v)} />
           </div>
         </SectionCard>
 
@@ -646,9 +657,13 @@ export default function SettingsPage() {
             <div className="text-[9px] text-gray-500 font-mono">
               {new Date().toISOString().replace("T", " ").slice(0, 19)} (Jmesca)
             </div>
-            <div className="text-[9px] text-gray-600">
-              <div>AES-256 on disk</div>
-              <div>Auto-backup: daily</div>
+            <div className="text-[9px] text-gray-600 space-y-0.5">
+              <div>System: <span className="text-gray-400">v0.3-alpha</span></div>
+              <div>DB: <span className="text-gray-400">DuckDB 0.9.x</span></div>
+              <div>CPU: <span className="text-gray-400">12 cores</span></div>
+              <div>RAM: <span className="text-gray-400">32 GB</span></div>
+              <div>GPU: <span className="text-green-400">RTX 4090 ✓ Detected</span></div>
+              <div>AES-256 on disk &middot; Auto-backup: daily</div>
             </div>
             <div className="flex gap-1">
               <button onClick={onExport} className="flex-1 text-[9px] bg-[#0B0E14] border border-gray-700/50 rounded px-2 py-1 text-cyan-400 hover:bg-gray-800 flex items-center gap-1 justify-center">

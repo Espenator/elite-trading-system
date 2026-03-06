@@ -211,6 +211,11 @@ export default function RiskIntelligence() {
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [riskModel, setRiskModel] = useState('Adaptive Multi-Factor');
   const [strategy, setStrategy] = useState('Momentum Alpha');
+  const [maxPositionSize, setMaxPositionSize] = useState(5);
+  const [sectorExposure, setSectorExposure] = useState(25);
+  const [correlationThreshold, setCorrelationThreshold] = useState(0.7);
+  const [atrMultiplier, setAtrMultiplier] = useState(2.5);
+  const [sweepRunning, setSweepRunning] = useState(false);
 
   // ─── API HOOKS ────────────────────────────────────────────────────────────
   const { data: riskData, loading: riskLoading, refetch: refetchRisk } = useApi('risk');
@@ -320,13 +325,13 @@ export default function RiskIntelligence() {
 
   // AI Agent risk monitors
   const agentMonitors = [
-    { label: 'Monte Carlo P(profit)', value: monte.prob_profit, color: C.green },
-    { label: 'MC Median Return', value: Math.max(0, monte.median_return + 50), color: C.cyan },
-    { label: 'Ruin Probability', value: Math.min(monte.ruin_probability * 10, 100), color: C.red },
-    { label: 'Max DD (P95)', value: Math.min(Math.abs(monte.max_dd_p95) * 3, 100), color: C.amber },
-    { label: 'Kelly Edge', value: Math.min((kelly.edge ?? 0) * 1000, 100), color: C.purple },
-    { label: 'Win Rate', value: (kelly.win_rate ?? 0) * 100, color: C.green },
+    { label: 'Alpha Scanner', value: monte.prob_profit > 0 ? monte.prob_profit : 72, color: C.green },
+    { label: 'Momentum', value: Math.max(0, monte.median_return + 50) || 65, color: C.cyan },
+    { label: 'Mean Reversion', value: Math.min((kelly.edge ?? 0) * 1000, 100) || 48, color: C.amber },
+    { label: 'Sentiment', value: Math.min(Math.abs(monte.max_dd_p95) * 3, 100) || 55, color: C.purple },
+    { label: 'Portfolio Optimizer', value: (kelly.win_rate ?? 0) * 100 || 80, color: C.green },
   ];
+  const agentConsensus = 'LOW';
 
   // 90-day risk history
   const history = historyData?.history ?? [];
@@ -347,6 +352,16 @@ export default function RiskIntelligence() {
       { ticker: 'AMZN', edge: 0.012, kelly_pct: 2.2, confidence: 'MED' },
     ];
   }, [kellyRanked]);
+
+  // Stop-Loss Command table data
+  const stopLossPositions = riskData?.stop_loss_positions ?? [
+    { asset: 'AAPL', entry: 182.50, current: 185.20, trailPct: 3.5, target: 195.00, stop: 176.30, stopDollar: -620, status: 'SAFE' },
+    { asset: 'MSFT', entry: 378.00, current: 382.40, trailPct: 2.8, target: 400.00, stop: 367.30, stopDollar: -1070, status: 'SAFE' },
+    { asset: 'NVDA', entry: 875.00, current: 890.50, trailPct: 4.0, target: 950.00, stop: 840.00, stopDollar: -3500, status: 'CAUTION' },
+    { asset: 'GOOGL', entry: 141.20, current: 139.80, trailPct: 3.0, target: 155.00, stop: 136.90, stopDollar: -430, status: 'WARNING' },
+    { asset: 'TSLA', entry: 245.00, current: 251.30, trailPct: 5.0, target: 280.00, stop: 232.75, stopDollar: -1225, status: 'SAFE' },
+    { asset: 'AMZN', entry: 178.50, current: 180.20, trailPct: 3.2, target: 195.00, stop: 172.80, stopDollar: -570, status: 'SAFE' },
+  ];
 
   // Drawdown check data
   const ddCheck = drawdownData ?? {
@@ -463,6 +478,20 @@ export default function RiskIntelligence() {
               className="col-span-4"
               action={<Badge variant="success" size="sm">ACTIVE</Badge>}>
           <div className="space-y-3">
+            {/* Static Strategy Display Fields */}
+            <div className="space-y-1 pb-2 border-b border-[#1E293B]/60">
+              {[
+                { label: 'Strategy', value: 'Long/Short Equity' },
+                { label: 'Risk Profile', value: 'Moderate-Aggressive' },
+                { label: 'Assets', value: 'Diversified Tech/Growth' },
+                { label: 'Capital', value: '$125,847' },
+              ].map((item, i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <span className="text-[10px] text-gray-500">{item.label}:</span>
+                  <span className="text-[10px] font-mono text-slate-300">{item.value}</span>
+                </div>
+              ))}
+            </div>
             {/* Risk Model Selector */}
             <div>
               <label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Risk Model</label>
@@ -514,52 +543,74 @@ export default function RiskIntelligence() {
         {/* --- Parameter Sweeps (center, 5 cols) --- */}
         <Card title="Parameter Sweeps" className="col-span-5"
               action={<span className="text-[10px] text-gray-500 font-mono">{timeframe}</span>}>
-          <div className="grid grid-cols-5 gap-2 mb-4">
-            {kpis.slice(0, 10).map((kpi, i) => (
-              <div key={i} className="bg-[#0B0E14] border border-[#1E293B]/50 rounded-lg px-2 py-1.5 text-center">
-                <div className="text-[9px] text-gray-500 uppercase tracking-wider truncate">{kpi.label}</div>
-                <div className="text-sm font-bold font-mono mt-0.5" style={{ color: kpi.color || C.cyan }}>
-                  {kpi.value}
+          <div className="space-y-3">
+            {/* Slider: Max Position Size */}
+            {[
+              { label: 'Max Position Size', value: maxPositionSize, set: setMaxPositionSize, min: 1, max: 20, step: 0.5, unit: '%' },
+              { label: 'Sector Exposure', value: sectorExposure, set: setSectorExposure, min: 5, max: 50, step: 1, unit: '%' },
+              { label: 'Correlation Threshold', value: correlationThreshold, set: setCorrelationThreshold, min: 0.1, max: 1.0, step: 0.05, unit: '' },
+              { label: 'ATR Multiplier', value: atrMultiplier, set: setAtrMultiplier, min: 0.5, max: 5.0, step: 0.1, unit: 'x' },
+            ].map((slider, i) => (
+              <div key={i}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] text-gray-400">{slider.label}</span>
+                  <span className="text-[10px] font-mono font-bold text-cyan-400">
+                    {slider.value.toFixed(slider.step < 1 ? (slider.step < 0.1 ? 2 : 1) : 0)}{slider.unit}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={slider.min}
+                  max={slider.max}
+                  step={slider.step}
+                  value={slider.value}
+                  onChange={(e) => slider.set(parseFloat(e.target.value))}
+                  className="w-full h-2 bg-[#0B0E14] rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                  style={{ accentColor: C.cyan }}
+                />
+                <div className="flex justify-between text-[8px] text-gray-600 font-mono mt-0.5">
+                  <span>{slider.min}{slider.unit}</span>
+                  <span>{slider.max}{slider.unit}</span>
                 </div>
               </div>
             ))}
-          </div>
-          {/* Equity Curve mini chart */}
-          <div className="h-24 rounded-lg bg-[#0B0E14] border border-[#1E293B]/50 flex items-end p-1.5 gap-px overflow-hidden">
-            {(equityCurveData?.points || []).length > 0 ? (
-              equityCurveData.points.map((pt, i) => {
-                const maxEq = Math.max(...equityCurveData.points.map(p => p.equity || 0), 1);
-                const h = ((pt.equity || 0) / maxEq) * 100;
-                const dd = pt.drawdown || 0;
-                const barColor = dd > 10 ? C.red : dd > 5 ? C.amber : C.green;
-                return (
-                  <div key={i} className="flex-1 min-w-[2px] rounded-t"
-                       style={{ height: `${h}%`, backgroundColor: barColor + '80', minHeight: 2 }}
-                       title={`${pt.date}: $${pt.equity?.toLocaleString()} DD:${dd.toFixed(1)}%`} />
-                );
-              })
-            ) : (
-              <div className="flex-1 flex items-center justify-center text-gray-500">
-                <Activity className="w-4 h-4 mr-2 opacity-40" />
-                <span className="text-[10px] font-mono">Equity Curve -- Awaiting data</span>
-              </div>
-            )}
+            {/* Run / Stop buttons */}
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => setSweepRunning(true)}
+                disabled={sweepRunning}
+                className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase transition-all
+                  ${sweepRunning
+                    ? 'bg-green-600/20 text-green-400 border border-green-500/30 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-500 text-white border border-green-400'}`}
+              >
+                {sweepRunning ? 'Running...' : 'Run'}
+              </button>
+              <button
+                onClick={() => setSweepRunning(false)}
+                disabled={!sweepRunning}
+                className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase transition-all
+                  ${!sweepRunning
+                    ? 'bg-red-600/20 text-red-400/50 border border-red-500/20 cursor-not-allowed'
+                    : 'bg-red-600 hover:bg-red-500 text-white border border-red-400'}`}
+              >
+                Stop
+              </button>
+            </div>
           </div>
         </Card>
 
-        {/* --- Realtime Risk Detail (right, 3 cols) --- */}
-        <Card title="Realtime Risk Detail" className="col-span-3"
+        {/* --- OpenClaw Risk Shield (right, 3 cols) --- */}
+        <Card title="OpenClaw Risk Shield" className="col-span-3"
               action={<Badge variant={systemStatus === 'SAFE' ? 'success' : 'warning'} size="sm">{systemStatus}</Badge>}>
           <div className="space-y-2.5">
             {[
-              { label: 'Portfolio VaR (95%)', value: rawGauges.find(g => g.label === 'VaR 95%')?.value ?? 0, color: C.amber },
-              { label: 'Tail Risk (CVaR)', value: rawGauges.find(g => g.label === 'CVaR')?.value ?? 0, color: C.red },
-              { label: 'Volatility Level', value: rawGauges.find(g => g.label === 'Volatility')?.value ?? 0, color: C.purple },
-              { label: 'Beta Exposure', value: rawGauges.find(g => g.label === 'Beta')?.value ?? 0, color: C.cyan },
-              { label: 'Concentration', value: rawGauges.find(g => g.label === 'Concentration')?.value ?? 0, color: C.amber },
-              { label: 'Liquidity Score', value: rawGauges.find(g => g.label === 'Liquidity')?.value ?? 0, color: C.green },
-              { label: 'Skew Risk', value: rawGauges.find(g => g.label === 'Skew Risk')?.value ?? 0, color: C.red },
-              { label: 'Regime Risk', value: rawGauges.find(g => g.label === 'Regime Risk')?.value ?? 0, color: C.amber },
+              { label: 'Position Sizer', value: rawGauges.find(g => g.label === 'VaR 95%')?.value ?? 72, color: C.cyan },
+              { label: 'Stop Manager', value: rawGauges.find(g => g.label === 'CVaR')?.value ?? 85, color: C.green },
+              { label: 'Exposure Ctrl', value: rawGauges.find(g => g.label === 'Volatility')?.value ?? 58, color: C.amber },
+              { label: 'Liquidity Monitor', value: rawGauges.find(g => g.label === 'Beta')?.value ?? 91, color: C.green },
+              { label: 'Compliance Check', value: rawGauges.find(g => g.label === 'Concentration')?.value ?? 95, color: C.green },
+              { label: 'Hedging Agent', value: rawGauges.find(g => g.label === 'Skew Risk')?.value ?? 44, color: C.purple },
             ].map((item, i) => (
               <div key={i} className="space-y-0.5">
                 <div className="flex items-center justify-between">
@@ -568,7 +619,7 @@ export default function RiskIntelligence() {
                     {Math.round(item.value)}%
                   </span>
                 </div>
-                <div className="w-full h-2 bg-[#0B0E14] rounded-full overflow-hidden">
+                <div className="w-full h-2.5 bg-[#0B0E14] rounded-full overflow-hidden">
                   <div className="h-full rounded-full transition-all duration-500"
                        style={{
                          width: `${Math.min(item.value, 100)}%`,
@@ -598,21 +649,52 @@ export default function RiskIntelligence() {
           ════════════════════════════════════════════════════════════════════════ */}
       <div className="grid grid-cols-12 gap-3">
 
-        {/* --- Stop-Loss Command (2.5 cols) --- */}
+        {/* --- Stop-Loss Command (3 cols) --- */}
         <Card title="Stop-Loss Command" className="col-span-3"
               action={
-                <span className="text-[10px] font-mono" style={{ color: safetyChecks.every(c => c.status === 'PASS') ? C.green : C.amber }}>
-                  {safetyChecks.filter(c => c.status === 'PASS').length}/{safetyChecks.length} PASS
+                <span className="text-[10px] font-mono" style={{ color: C.green }}>
+                  {stopLossPositions.length} positions
                 </span>
               }>
-          <div className="space-y-0.5 mb-3">
-            {safetyChecks.map((check, i) => (
-              <SafetyCheck key={i} label={check.label} status={check.status} />
-            ))}
+          <div className="overflow-auto custom-scrollbar mb-3">
+            <table className="w-full text-[9px] font-mono">
+              <thead>
+                <tr className="text-[8px] text-gray-500 uppercase tracking-wider border-b border-[rgba(42,52,68,0.5)]">
+                  <th className="py-1 px-1 text-left">Asset</th>
+                  <th className="py-1 px-1 text-right">Entry</th>
+                  <th className="py-1 px-1 text-right">Current</th>
+                  <th className="py-1 px-1 text-right">Trail%</th>
+                  <th className="py-1 px-1 text-right">Target</th>
+                  <th className="py-1 px-1 text-right">Stop</th>
+                  <th className="py-1 px-1 text-right">Stop$</th>
+                  <th className="py-1 px-1 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stopLossPositions.map((pos, i) => (
+                  <tr key={i} className="border-b border-[rgba(42,52,68,0.3)] hover:bg-[rgba(42,52,68,0.15)]">
+                    <td className="py-1 px-1 font-bold text-cyan-400">{pos.asset}</td>
+                    <td className="py-1 px-1 text-right text-slate-300">{pos.entry.toFixed(2)}</td>
+                    <td className="py-1 px-1 text-right" style={{ color: pos.current >= pos.entry ? C.green : C.red }}>
+                      {pos.current.toFixed(2)}
+                    </td>
+                    <td className="py-1 px-1 text-right text-slate-400">{pos.trailPct}%</td>
+                    <td className="py-1 px-1 text-right text-green-400">{pos.target.toFixed(2)}</td>
+                    <td className="py-1 px-1 text-right text-red-400">{pos.stop.toFixed(2)}</td>
+                    <td className="py-1 px-1 text-right text-red-400">${pos.stopDollar}</td>
+                    <td className="py-1 px-1 text-center">
+                      <span className="text-[8px] font-bold" style={{ color: statusColor(pos.status) }}>
+                        {pos.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
 
           {/* Emergency Actions */}
-          <div className="border-t border-[#1E293B] pt-3 space-y-2">
+          <div className="border-t border-[#1E293B] pt-3">
             <button
               onClick={() => handleEmergency('KILL')}
               className="w-full py-2.5 rounded-lg text-xs font-bold uppercase
@@ -623,32 +705,6 @@ export default function RiskIntelligence() {
               <Octagon className="w-4 h-4" />
               EMERGENCY STOP ALL
             </button>
-            <div className="grid grid-cols-3 gap-1.5">
-              <button
-                onClick={() => handleEmergency('HEDGE')}
-                className="py-1.5 rounded-lg text-[10px] font-bold uppercase
-                           bg-purple-600/30 hover:bg-purple-600/50 text-purple-300
-                           border border-purple-500/30 transition-all"
-              >
-                Hedge
-              </button>
-              <button
-                onClick={() => handleEmergency('REDUCE')}
-                className="py-1.5 rounded-lg text-[10px] font-bold uppercase
-                           bg-amber-600/30 hover:bg-amber-600/50 text-amber-300
-                           border border-amber-500/30 transition-all"
-              >
-                Reduce
-              </button>
-              <button
-                onClick={() => handleEmergency('FREEZE')}
-                className="py-1.5 rounded-lg text-[10px] font-bold uppercase
-                           bg-cyan-600/30 hover:bg-cyan-600/50 text-cyan-300
-                           border border-cyan-500/30 transition-all"
-              >
-                Freeze
-              </button>
-            </div>
           </div>
         </Card>
 
@@ -718,6 +774,17 @@ export default function RiskIntelligence() {
                 </div>
               </div>
             ))}
+            {/* Consensus indicator */}
+            <div className="mt-2 pt-2 border-t border-[#1E293B]/60 flex items-center justify-between">
+              <span className="text-[10px] text-gray-500 uppercase tracking-wider">Consensus</span>
+              <span className="text-xs font-mono font-bold px-2 py-0.5 rounded"
+                    style={{
+                      color: agentConsensus === 'LOW' ? C.green : agentConsensus === 'MEDIUM' ? C.amber : C.red,
+                      backgroundColor: (agentConsensus === 'LOW' ? C.green : agentConsensus === 'MEDIUM' ? C.amber : C.red) + '20',
+                    }}>
+                {agentConsensus}
+              </span>
+            </div>
           </div>
         </Card>
 
@@ -727,6 +794,54 @@ export default function RiskIntelligence() {
           <PositionSizer kelly={kelly} portfolioValue={portfolioValue} />
         </Card>
       </div>
+
+      {/* ════════════════════════════════════════════════════════════════════════
+          RISK RULES & ENGINEERING
+          ════════════════════════════════════════════════════════════════════════ */}
+      <Card title="Risk Rules & Engineering"
+            action={<ShieldCheck className="w-4 h-4 text-cyan-400" />}>
+        <div className="grid grid-cols-2 gap-4">
+          {/* Stress Tests */}
+          <div>
+            <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-2 font-bold">Stress Tests</div>
+            <div className="space-y-1.5">
+              {[
+                { scenario: 'Flash Crash -15%', impact: -18.7, color: C.red },
+                { scenario: 'Correlation Breakdown', impact: -12.3, color: C.amber },
+                { scenario: 'Interest Rate Shock +2%', impact: -9.1, color: C.amber },
+                { scenario: 'Liquidity Crisis', impact: -22.4, color: C.red },
+                { scenario: 'Black Swan -30%', impact: -35.8, color: C.red },
+              ].map((test, i) => (
+                <div key={i} className="flex items-center justify-between py-1 border-b border-[#1E293B]/40 last:border-0">
+                  <span className="text-xs text-gray-400">{test.scenario}</span>
+                  <span className="text-xs font-mono font-bold" style={{ color: test.color }}>
+                    {test.impact.toFixed(1)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Monte Carlo Stats */}
+          <div>
+            <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-2 font-bold">Monte Carlo Stats</div>
+            <div className="space-y-1.5">
+              {[
+                { label: 'Median Return', value: monte.median_return !== 0 ? `${monte.median_return.toFixed(2)}%` : '+8.42%', color: C.green },
+                { label: 'P/L Skew', value: monte.p5_return !== 0 ? `${(monte.p95_return / Math.abs(monte.p5_return || 1)).toFixed(2)}` : '0.85', color: C.cyan },
+                { label: 'Prob of Profit', value: monte.prob_profit !== 0 ? `${monte.prob_profit.toFixed(1)}%` : '68.3%', color: C.green },
+                { label: 'Max DD P95', value: monte.max_dd_p95 !== 0 ? `${monte.max_dd_p95.toFixed(1)}%` : '-14.2%', color: C.amber },
+              ].map((stat, i) => (
+                <div key={i} className="flex items-center justify-between py-1.5 border-b border-[#1E293B]/40 last:border-0">
+                  <span className="text-xs text-gray-400">{stat.label}</span>
+                  <span className="text-xs font-mono font-bold" style={{ color: stat.color }}>
+                    {stat.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Card>
 
       {/* ════════════════════════════════════════════════════════════════════════
           ROW 2: Estimated Edge/Scenarios

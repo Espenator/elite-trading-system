@@ -177,17 +177,20 @@ const SOURCE_DEFS = [
 
 const PROVIDER_TABS = [
   "Finnhub",
-  "Binance",
+  "Benzinga",
   "Alpha Vantage",
   "Quandl",
-  "RX Cloud",
+  "IEX Cloud",
   "CoinGecko",
 ];
 
 const SUPPLEMENTARY_SOURCES = [
-  { id: "binance", label: "Binance" },
+  { id: "yfinance", label: "yFinance" },
+  { id: "benzinga", label: "Benzinga" },
+  { id: "rss", label: "RSS" },
   { id: "openclaw", label: "OpenClaw Bridge" },
   { id: "reddit", label: "Reddit" },
+  { id: "resend", label: "Resend" },
   { id: "tradingview", label: "TradingView" },
   { id: "github_gist", label: "GitHub Gist" },
 ];
@@ -285,6 +288,12 @@ function SourceCard({ source, isSelected, onClick }) {
           </div>
           <div className="flex items-center gap-3 mt-0.5">
             <StatusBadge status={source.status} />
+            {source.id === "alpaca" && source.status === "healthy" && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                LIVE PING
+              </span>
+            )}
             <span className="text-[10px] text-gray-500">
               {source.latency}
             </span>
@@ -508,6 +517,28 @@ function ConnectionDetailPanel({ source }) {
             </span>
           </div>
         </div>
+
+        {/* Connection Log */}
+        <div className="pt-2 border-t border-gray-800">
+          <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5">
+            Connection Log
+          </div>
+          <div className="space-y-1 max-h-[120px] overflow-y-auto custom-scrollbar">
+            {[
+              { time: "10:39:28", msg: "WebSocket connected", ok: true },
+              { time: "10:39:27", msg: "Auth handshake complete", ok: true },
+              { time: "10:39:25", msg: "REST ping OK — 7ms", ok: true },
+              { time: "10:38:50", msg: "Subscription: trades, quotes", ok: true },
+              { time: "10:38:12", msg: "Rate limit check passed", ok: true },
+              { time: "10:37:45", msg: "Account verified — $251,456 equity", ok: true },
+            ].map((entry, i) => (
+              <div key={i} className="flex items-start gap-2 text-[10px]">
+                <span className="text-gray-600 font-mono flex-shrink-0">{entry.time}</span>
+                <span className={entry.ok ? "text-gray-400" : "text-red-400"}>{entry.msg}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Bottom buttons */}
@@ -547,9 +578,12 @@ export default function DataSourcesMonitor() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeProviderTab, setActiveProviderTab] = useState("Finnhub");
   const [supplementaryChecked, setSupplementaryChecked] = useState({
-    binance: false,
+    yfinance: true,
+    benzinga: false,
+    rss: false,
     openclaw: true,
     reddit: false,
+    resend: false,
     tradingview: false,
     github_gist: false,
   });
@@ -662,7 +696,7 @@ export default function DataSourcesMonitor() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Paste a service name, URL, or paste API docs link..."
+              placeholder="Type a service name, URL, or paste API docs link..."
               className="w-full bg-[#0d1520] border border-gray-700 rounded-lg pl-10 pr-4 py-2 text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-cyan-500/50 transition-colors"
             />
           </div>

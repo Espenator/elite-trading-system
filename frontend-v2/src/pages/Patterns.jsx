@@ -358,7 +358,7 @@ function ScreeningEngine() {
           </div>
 
           <div className="space-y-1">
-            <MetricRow label="Beta Threshold 0-3">
+            <MetricRow label="RSI Threshold 0-3">
               <Slider min={0} max={3} step={0.1} value={betaThreshold} onChange={setBetaThreshold}
                 suffix="" showValue className="flex-1" inputClassName="h-1.5" />
               <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{betaThreshold.toFixed(1)}</span>
@@ -619,7 +619,7 @@ function PatternIntelligence() {
             />
           </div>
           <div>
-            <label className="text-[9px] text-gray-500 block mb-0.5">LLM Model / Type</label>
+            <label className="text-[9px] text-gray-500 block mb-0.5">LLM Model</label>
             <select
               value={patternType}
               onChange={e => setPatternType(e.target.value)}
@@ -629,7 +629,7 @@ function PatternIntelligence() {
             </select>
           </div>
           <div>
-            <label className="text-[9px] text-gray-500 block mb-0.5">Architecture</label>
+            <label className="text-[9px] text-gray-500 block mb-0.5">M. Architecture</label>
             <select
               value={architecture}
               onChange={e => setArchitecture(e.target.value)}

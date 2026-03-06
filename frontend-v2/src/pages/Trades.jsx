@@ -100,8 +100,8 @@ function StatusBadge({ status }) {
   if (s === "new" || s === "accepted" || s === "working") bg = "bg-cyan-500/20 text-cyan-400";
   if (s === "filled") bg = "bg-emerald-500/20 text-emerald-400";
   if (s === "partially_filled") bg = "bg-yellow-500/20 text-yellow-400";
-  if (s === "canceled" || s === "cancelled") bg = "bg-red-500/20 text-red-400";
-  if (s === "rejected") bg = "bg-red-600/30 text-red-500";
+  if (s === "canceled" || s === "cancelled") bg = "bg-slate-500/20 text-slate-400";
+  if (s === "rejected") bg = "bg-red-600/30 text-red-400";
   return (
     <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${bg}`}>
       {status || "--"}
@@ -301,17 +301,19 @@ export default function Trades() {
     { key: "qty", label: "Qty", align: "right" },
     { key: "avg_entry_price", label: "Avg Price", align: "right" },
     { key: "current_price", label: "Mkt Price (C)", align: "right" },
-    { key: "day_pnl_pct", label: "Day P&L (%)", align: "right" },
-    { key: "unrealized_pl", label: "Unrealized P&L", align: "right" },
-    { key: "realized_pl", label: "Realized P&L", align: "right" },
+    { key: "day_pnl_dollar", label: "Day P&L($)", align: "right" },
+    { key: "day_pnl_pct", label: "Day P&L(%)", align: "right" },
+    { key: "unrealized_pl", label: "Unrealized", align: "right" },
+    { key: "realized_pl", label: "Realized", align: "right" },
     { key: "cost_basis", label: "Cost Basis", align: "right" },
-    { key: "market_value", label: "Price", align: "right" },
+    { key: "market_value", label: "Mkt Value", align: "right" },
     { key: "delta", label: "Delta", align: "right" },
     { key: "gamma", label: "Gamma", align: "right" },
     { key: "theta", label: "Theta", align: "right" },
     { key: "vega", label: "Vega", align: "right" },
     { key: "iv", label: "IV", align: "right" },
-    { key: "daily_range_vol", label: "Daily Range Vol", align: "right" },
+    { key: "daily_range", label: "Daily Range", align: "right" },
+    { key: "vol", label: "Vol", align: "right" },
     { key: "sparkline", label: "SparkLine", align: "center" },
     { key: "actions", label: "", align: "center" },
   ];
@@ -530,7 +532,8 @@ export default function Trades() {
                   const theta = p.theta ?? "--";
                   const vega = p.vega ?? "--";
                   const iv = p.iv ?? "--";
-                  const dailyRangeVol = p.daily_range_vol || p.dailyRangeVol || "--";
+                  const dailyRange = p.daily_range || p.dailyRange || "--";
+                  const vol = p.vol || p.volume || "--";
 
                   // Sparkline data
                   const sparkData = p.sparkline || p.price_history || null;
@@ -570,14 +573,13 @@ export default function Trades() {
                       <td className="px-2 py-[4px] text-right font-mono text-white font-semibold">
                         {fmtM(mktPrice)}
                       </td>
+                      {/* Day P&L ($) */}
+                      <td className={`px-2 py-[4px] text-right font-mono font-semibold ${clr(dayPnlVal)}`}>
+                        {dayPnlVal !== 0 ? fmtPnl(dayPnlVal) : "--"}
+                      </td>
                       {/* Day P&L (%) */}
                       <td className={`px-2 py-[4px] text-right font-mono font-semibold ${clr(dayPnlPctVal)}`}>
-                        {dayPnlVal !== 0 ? fmtPnl(dayPnlVal) : "--"}
-                        {dayPnlPctVal !== 0 && (
-                          <span className="text-[9px] ml-1 opacity-70">
-                            ({fmtPct(dayPnlPctVal)})
-                          </span>
-                        )}
+                        {dayPnlPctVal !== 0 ? fmtPct(dayPnlPctVal) : "--"}
                       </td>
                       {/* Unrealized P&L */}
                       <td className={`px-2 py-[4px] text-right font-mono font-bold ${clr(unrealPnl)}`}>
@@ -615,9 +617,13 @@ export default function Trades() {
                       <td className="px-2 py-[4px] text-right font-mono text-slate-500 text-[10px]">
                         {iv}
                       </td>
-                      {/* Daily Range Vol */}
+                      {/* Daily Range */}
                       <td className="px-2 py-[4px] text-right font-mono text-slate-500 text-[10px]">
-                        {dailyRangeVol}
+                        {dailyRange}
+                      </td>
+                      {/* Vol */}
+                      <td className="px-2 py-[4px] text-right font-mono text-slate-500 text-[10px]">
+                        {vol}
                       </td>
                       {/* Sparkline */}
                       <td className="px-2 py-[4px] text-center">
@@ -881,8 +887,14 @@ export default function Trades() {
                               <td className="px-2 py-[3px] text-right font-mono text-slate-400 text-[10px]">
                                 {leg.qty || qty}
                               </td>
-                              <td className="px-2 py-[3px] text-right font-mono text-slate-400 text-[10px]">
-                                {legLimitPx ? fmtM(legLimitPx) : "--"}
+                              <td className={`px-2 py-[3px] text-right font-mono text-[10px] ${
+                                legLabel2 === "Profit Target"
+                                  ? "text-emerald-400"
+                                  : legLabel2 === "Stop Loss"
+                                  ? "text-red-400"
+                                  : "text-slate-400"
+                              }`}>
+                                {legLimitPx ? fmtM(legLimitPx) : legStopPx ? fmtM(legStopPx) : "--"}
                               </td>
                               <td className="px-2 py-[3px] text-right font-mono text-slate-400 text-[10px]">
                                 {legFilledPx ? fmtM(legFilledPx) : "--"}
@@ -898,7 +910,13 @@ export default function Trades() {
                               <td className="px-2 py-[3px] text-right font-mono text-slate-400 text-[10px]">
                                 {legStopPx ? fmtM(legStopPx) : legFilledPx ? fmtM(legFilledPx) : "--"}
                               </td>
-                              <td className="px-2 py-[3px] text-left text-[9px] text-yellow-400">
+                              <td className={`px-2 py-[3px] text-left text-[9px] font-bold ${
+                                legLabel2 === "Profit Target"
+                                  ? "text-emerald-400"
+                                  : legLabel2 === "Stop Loss"
+                                  ? "text-red-400"
+                                  : "text-yellow-400"
+                              }`}>
                                 {legLabel2}
                               </td>
                               <td className="px-2 py-[3px] text-center">

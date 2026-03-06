@@ -38,10 +38,12 @@ export default function TradeExecution() {
     pollIntervalMs: 60000,
     enabled: !!orderForm?.symbol,
   });
-  const callStrikes = (chainData?.calls || []).map(c => c.strike).filter(Boolean).slice(0, 5);
-  const putStrikes = (chainData?.puts || []).map(p => p.strike).filter(Boolean).slice(0, 5);
-  const FALLBACK_CALL_STRIKES = [4450, 4455, 4460, 4465, 4470];
-  const FALLBACK_PUT_STRIKES = [4440, 4435, 4430, 4425, 4420];
+  const callStrikes = (chainData?.calls || []).map(c => c.strike).filter(Boolean).slice(0, 4);
+  const putStrikes = (chainData?.puts || []).map(p => p.strike).filter(Boolean).slice(0, 4);
+  const FALLBACK_CALL_STRIKES = [4450, 4455, 4460, 4465];
+  const FALLBACK_PUT_STRIKES = [4440, 4435, 4430, 4425];
+  const FALLBACK_CALL_PRICES = [12.50, 10.25, 8.75, 6.40];
+  const FALLBACK_PUT_PRICES = [11.80, 9.60, 7.90, 5.50];
   const displayCallStrikes = callStrikes.length > 0 ? callStrikes : FALLBACK_CALL_STRIKES;
   const displayPutStrikes = putStrikes.length > 0 ? putStrikes : FALLBACK_PUT_STRIKES;
 
@@ -243,10 +245,10 @@ export default function TradeExecution() {
             Market Sell [S]
           </Button>
           <Button variant="outline" size="sm" onClick={() => withPreflight('buy', executeLimitBuy)} disabled={loading} className="!border-blue-500/50 !text-blue-400 hover:!bg-blue-500/10">
-            Limit Buy [$]
+            Limit Buy [L]
           </Button>
           <Button variant="outline" size="sm" onClick={() => withPreflight('sell', executeLimitSell)} disabled={loading} className="!border-amber-500/50 !text-amber-400 hover:!bg-amber-500/10">
-            Limit Sell [$]
+            Limit Sell [O]
           </Button>
           <Button variant="outline" size="sm" onClick={executeStopLoss} disabled={loading} className="!border-red-500/50 !text-red-400 hover:!bg-red-500/10">
             Stop Loss [T]
@@ -348,23 +350,33 @@ export default function TradeExecution() {
                   <TrendingUp className="w-3 h-3 text-emerald-500" />
                   <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">Call</span>
                 </div>
-                <div className="flex gap-1.5 flex-wrap">
-                  {displayCallStrikes.map((v, i) => {
-                    const selected = orderForm.callStrikes?.call?.includes(v);
-                    return (
-                      <span
-                        key={i}
-                        onClick={() => updateOrderForm({ callStrikes: { ...orderForm.callStrikes, call: selected ? orderForm.callStrikes.call.filter(s => s !== v) : [...(orderForm.callStrikes?.call || []), v] } })}
-                        className={clsx(
-                          'px-2 py-1 rounded text-[11px] font-mono cursor-pointer border transition-colors',
-                          selected
-                            ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                            : 'bg-transparent text-gray-500 border-secondary/30 hover:border-secondary/50'
-                        )}
-                      >{v}</span>
-                    );
-                  })}
-                </div>
+                <table className="w-full text-[11px] font-mono">
+                  <thead>
+                    <tr className="border-b border-secondary/20">
+                      <th className="px-1.5 py-1 text-left text-[9px] text-gray-500 font-medium">Strike</th>
+                      <th className="px-1.5 py-1 text-right text-[9px] text-gray-500 font-medium">Price</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayCallStrikes.map((strike, i) => {
+                      const selected = orderForm.callStrikes?.call?.includes(strike);
+                      const price = (chainData?.calls || [])[i]?.price ?? FALLBACK_CALL_PRICES[i] ?? 0;
+                      return (
+                        <tr
+                          key={i}
+                          onClick={() => updateOrderForm({ callStrikes: { ...orderForm.callStrikes, call: selected ? orderForm.callStrikes.call.filter(s => s !== strike) : [...(orderForm.callStrikes?.call || []), strike] } })}
+                          className={clsx(
+                            'cursor-pointer transition-colors',
+                            selected ? 'bg-emerald-500/15' : 'hover:bg-white/[0.02]'
+                          )}
+                        >
+                          <td className={clsx('px-1.5 py-1', selected ? 'text-emerald-400' : 'text-gray-400')}>{strike}</td>
+                          <td className={clsx('px-1.5 py-1 text-right', selected ? 'text-emerald-400' : 'text-gray-500')}>{price.toFixed(2)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
 
               {/* Put strike section */}
@@ -373,23 +385,33 @@ export default function TradeExecution() {
                   <TrendingDown className="w-3 h-3 text-red-500" />
                   <span className="text-[10px] font-semibold text-red-400 uppercase tracking-wider">Put</span>
                 </div>
-                <div className="flex gap-1.5 flex-wrap">
-                  {displayPutStrikes.map((v, i) => {
-                    const selected = orderForm.putStrikes?.put?.includes(v);
-                    return (
-                      <span
-                        key={i}
-                        onClick={() => updateOrderForm({ putStrikes: { ...orderForm.putStrikes, put: selected ? orderForm.putStrikes.put.filter(s => s !== v) : [...(orderForm.putStrikes?.put || []), v] } })}
-                        className={clsx(
-                          'px-2 py-1 rounded text-[11px] font-mono cursor-pointer border transition-colors',
-                          selected
-                            ? 'bg-red-500/15 text-red-400 border-red-500/30'
-                            : 'bg-transparent text-gray-500 border-secondary/30 hover:border-secondary/50'
-                        )}
-                      >{v}</span>
-                    );
-                  })}
-                </div>
+                <table className="w-full text-[11px] font-mono">
+                  <thead>
+                    <tr className="border-b border-secondary/20">
+                      <th className="px-1.5 py-1 text-left text-[9px] text-gray-500 font-medium">Strike</th>
+                      <th className="px-1.5 py-1 text-right text-[9px] text-gray-500 font-medium">Price</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayPutStrikes.map((strike, i) => {
+                      const selected = orderForm.putStrikes?.put?.includes(strike);
+                      const price = (chainData?.puts || [])[i]?.price ?? FALLBACK_PUT_PRICES[i] ?? 0;
+                      return (
+                        <tr
+                          key={i}
+                          onClick={() => updateOrderForm({ putStrikes: { ...orderForm.putStrikes, put: selected ? orderForm.putStrikes.put.filter(s => s !== strike) : [...(orderForm.putStrikes?.put || []), strike] } })}
+                          className={clsx(
+                            'cursor-pointer transition-colors',
+                            selected ? 'bg-red-500/15' : 'hover:bg-white/[0.02]'
+                          )}
+                        >
+                          <td className={clsx('px-1.5 py-1', selected ? 'text-red-400' : 'text-gray-400')}>{strike}</td>
+                          <td className={clsx('px-1.5 py-1 text-right', selected ? 'text-red-400' : 'text-gray-500')}>{price.toFixed(2)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
 
               {/* Quantity + Limit */}
@@ -431,7 +453,7 @@ export default function TradeExecution() {
                 disabled={loading}
                 className="w-full py-2 rounded font-bold text-xs font-mono tracking-wide text-white bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 disabled:opacity-50 disabled:cursor-wait transition-all hover:shadow-[0_0_20px_rgba(16,185,129,0.3)]"
               >
-                {loading ? 'Executing...' : 'Execute Order [!]'}
+                {loading ? 'Executing...' : 'Execute Order [E]'}
               </button>
             </div>
           </Card>

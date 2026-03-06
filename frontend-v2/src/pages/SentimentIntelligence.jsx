@@ -531,11 +531,16 @@ export default function SentimentIntelligence() {
               <h3 className="text-sm font-semibold text-white">Trade Signals</h3>
             </div>
             <div className="p-3">
-              <p className="text-[10px] text-gray-400 leading-relaxed mb-3">
+              <p className="text-[10px] text-gray-400 leading-relaxed">
                 {tradeSignalText}
               </p>
+            </div>
+          </div>
 
-              {/* Radar Chart */}
+          {/* Radar Chart + Prediction Markets Row */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Radar Chart */}
+            <div className="bg-surface border border-secondary/20 rounded-xl overflow-hidden p-3">
               <div className="h-52 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <RadarChart data={radarData} outerRadius="70%">
@@ -554,10 +559,9 @@ export default function SentimentIntelligence() {
                 </ResponsiveContainer>
               </div>
             </div>
-          </div>
 
-          {/* Prediction Markets Row */}
-          <div className="grid grid-cols-2 gap-3">
+            {/* Prediction Markets Column */}
+            <div className="space-y-3">
             {/* Prediction Market 1 */}
             <div className="bg-surface border border-secondary/20 rounded-xl overflow-hidden">
               <div className="px-3 py-2 border-b border-secondary/20">
@@ -635,42 +639,8 @@ export default function SentimentIntelligence() {
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* Alert Boxes */}
-          <div className="space-y-2">
-            {/* Divergence Alert */}
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 relative overflow-hidden">
-              <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500" />
-              <div className="flex items-start gap-2.5 pl-2">
-                <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                <div className="min-w-0 flex-1">
-                  <div className="font-bold text-amber-400 text-xs mb-0.5">Divergence Alert</div>
-                  <p className="text-[10px] text-slate-300 leading-relaxed">
-                    {divergences.length > 0
-                      ? `${divergences[0].ticker}: ${divergences[0].conflict} (Spread: ${divergences[0].spread})`
-                      : 'Cross-source sentiment divergence detected. Social vs news sentiment misalignment may indicate reversal opportunity.'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Emergency Alert */}
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 relative overflow-hidden">
-              <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500" />
-              <div className="flex items-start gap-2.5 pl-2">
-                <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                <div className="min-w-0 flex-1">
-                  <div className="font-bold text-amber-400 text-xs mb-0.5">Emergency Alert</div>
-                  <p className="text-[10px] text-slate-300 leading-relaxed">
-                    {divergences.length > 1
-                      ? `${divergences[1].ticker}: ${divergences[1].conflict}`
-                      : 'Elevated volatility regime detected. Risk management protocols are active and monitoring all positions.'}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
+            </div>{/* end Prediction Markets Column */}
+          </div>{/* end Radar + Prediction Markets grid */}
 
           {/* Scanner Status Matrix */}
           <div className="bg-surface border border-secondary/20 rounded-xl overflow-hidden">
@@ -694,6 +664,41 @@ export default function SentimentIntelligence() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Alert Boxes */}
+          <div className="space-y-2">
+            {/* Divergence Alert */}
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 relative overflow-hidden">
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500" />
+              <div className="flex items-start gap-2.5 pl-2">
+                <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <div className="font-bold text-amber-400 text-xs mb-0.5">Divergence Alert</div>
+                  <p className="text-[10px] text-slate-300 leading-relaxed">
+                    {divergences.length > 0
+                      ? `${divergences[0].ticker}: ${divergences[0].conflict} (Spread: ${divergences[0].spread})`
+                      : 'Cross-source sentiment divergence detected. Social vs news sentiment misalignment may indicate reversal opportunity.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Emergence Alert */}
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 relative overflow-hidden">
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500" />
+              <div className="flex items-start gap-2.5 pl-2">
+                <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <div className="font-bold text-amber-400 text-xs mb-0.5">Emergence Alert</div>
+                  <p className="text-[10px] text-slate-300 leading-relaxed">
+                    {divergences.length > 1
+                      ? `${divergences[1].ticker}: ${divergences[1].conflict}`
+                      : 'Elevated volatility regime detected. Risk management protocols are active and monitoring all positions.'}
+                  </p>
+                </div>
               </div>
             </div>
           </div>

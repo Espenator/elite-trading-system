@@ -195,12 +195,12 @@ function LiveActivityFeed({ agents }) {
 // --- Agent Resource Monitor ---
 function ResourceMonitor({ agents }) {
   const rows = [
-    { name: "MLTrain-01", cpu: 45, mem: "1200MB", gpu: 61, status: "Training" },
-    { name: "Scanner-03", cpu: 88, mem: "560MB", gpu: 0, status: "Scanning" },
-    { name: "RegimeDetector", cpu: 23, mem: "450MB", gpu: 12, status: "Idle" },
-    { name: "Sentiment-02", cpu: 72, mem: "890MB", gpu: 0, status: "Processing" },
-    { name: "LLMGate", cpu: 34, mem: "1.8GB", gpu: 89, status: "Inference" },
-    { name: "Execution-01", cpu: 15, mem: "320MB", gpu: 0, status: "Ready" },
+    { name: "MLTrain-01", cpu: 45, mem: "1200MB", gpu: 61, telemetry: "100%", status: "Training" },
+    { name: "Scanner-03", cpu: 88, mem: "560MB", gpu: 0, telemetry: "100%", status: "Scanning" },
+    { name: "RegimeDetector", cpu: 23, mem: "450MB", gpu: 12, telemetry: "100%", status: "Idle" },
+    { name: "Sentiment-02", cpu: 72, mem: "890MB", gpu: 0, telemetry: "100%", status: "Processing" },
+    { name: "LLMGate", cpu: 34, mem: "1.8GB", gpu: 89, telemetry: "100%", status: "Inference" },
+    { name: "Execution-01", cpu: 15, mem: "320MB", gpu: 0, telemetry: "100%", status: "Ready" },
   ];
   return (
     <div className="aurora-card p-3">
@@ -211,6 +211,7 @@ function ResourceMonitor({ agents }) {
           <th className="text-right font-medium">CPU</th>
           <th className="text-right font-medium">MEM</th>
           <th className="text-right font-medium">GPU</th>
+          <th className="text-right font-medium">Telemetry</th>
           <th className="text-right font-medium">Status</th>
         </tr></thead>
         <tbody>{rows.map(r => (
@@ -219,6 +220,7 @@ function ResourceMonitor({ agents }) {
             <td className="text-right"><span className={r.cpu > 80 ? "text-red-400" : r.cpu > 50 ? "text-amber-400" : "text-emerald-400"}>{r.cpu}%</span></td>
             <td className="text-right text-white">{r.mem}</td>
             <td className="text-right"><span className={r.gpu > 80 ? "text-red-400" : r.gpu > 50 ? "text-amber-400" : "text-emerald-400"}>{r.gpu}%</span></td>
+            <td className="text-right text-gray-400">{r.telemetry}</td>
             <td className="text-right text-gray-400">{r.status}</td>
           </tr>
         ))}</tbody>

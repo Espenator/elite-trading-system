@@ -162,22 +162,22 @@ function RegimeStateMachine({ currentState, regimeData }) {
             <div
               key={s}
               className={clsx(
-                "rounded px-3 py-2 border text-center transition-all",
+                "rounded-md px-4 py-3 border-2 text-center transition-all min-h-[48px] flex flex-col items-center justify-center",
                 isCurrent
-                  ? `${rc.border} ${rc.bgFaint} border-2`
-                  : "border-gray-700/30 bg-gray-800/30"
+                  ? `${rc.border} ${rc.bg}/25 shadow-lg shadow-${rc.hex}/10`
+                  : "border-gray-700/30 bg-gray-800/40"
               )}
             >
               <div
                 className={clsx(
-                  "text-xs font-bold font-mono",
-                  isCurrent ? rc.text : "text-gray-500"
+                  "text-sm font-black font-mono tracking-wide",
+                  isCurrent ? rc.text : "text-gray-600"
                 )}
               >
                 {s}
               </div>
               {isCurrent && (
-                <div className={clsx("mt-0.5 text-[9px] font-semibold", rc.text)}>
+                <div className={clsx("mt-1 text-[10px] font-bold", rc.text)}>
                   ● ACTIVE
                 </div>
               )}
@@ -467,12 +467,14 @@ function RegimeFlowDiagram({ regimeState, paramsData }) {
   const riskPct = paramsData?.risk_pct ?? defaults.risk_pct;
   const isRed = regimeState === "RED";
 
+  const atrVal = isRed ? "1.5" : regimeState === "YELLOW" ? "1.2" : "1.0";
   const nodes = [
     { id: "regime", label: "REGIME", value: regimeState },
     { id: "kelly", label: "Kelly", value: `${kellyMult}x` },
-    { id: "signal", label: "Signal", value: `${signalMult}x` },
-    { id: "risk", label: "Risk", value: riskPct === 0 ? "BLOCKED" : "OPEN" },
-    { id: "position", label: "Position", value: `ATR x${isRed ? "1.5" : regimeState === "YELLOW" ? "1.2" : "1.0"}` },
+    { id: "signal", label: "Signal", value: "Engine" },
+    { id: "risk", label: "Risk", value: "Governor" },
+    { id: "position", label: "Position", value: riskPct === 0 ? "BLOCKED" : "OPEN" },
+    { id: "atr", label: "ATR", value: `${atrVal}` },
     { id: "exec", label: "Execution", value: riskPct === 0 ? "HALTED" : "ACTIVE" },
   ];
 
@@ -613,19 +615,19 @@ function SectorRotation({ sectorsData }) {
 // ============================================================
 function CrashProtocol({ macroData }) {
   const [armed, setArmed] = useState({
+    flash_crash: true,
+    correlation_break: true,
     vix_spike: true,
-    hy_spread: true,
-    yield_curve: true,
-    breadth_collapse: true,
-    spy_drop: true,
+    liquidity_dry: true,
+    black_swan: true,
   });
 
   const triggers = [
-    { key: "vix_spike", label: "VIX Breakout", active: (macroData?.vix || 0) > 25 },
-    { key: "hy_spread", label: "HY Spread Wide", active: (macroData?.hy_spread || 0) > 5 },
-    { key: "yield_curve", label: "Yield Curve Inv", active: (macroData?.yield_curve || 0) < 0 },
-    { key: "breadth_collapse", label: "SPY Collapse", active: false },
-    { key: "spy_drop", label: "SPY Drop > 2%", active: false },
+    { key: "flash_crash", label: "Flash Crash", active: false },
+    { key: "correlation_break", label: "Correlation Break", active: false },
+    { key: "vix_spike", label: "VIX Spike", active: (macroData?.vix || 0) > 25 },
+    { key: "liquidity_dry", label: "Liquidity Dry", active: false },
+    { key: "black_swan", label: "Black Swan", active: false },
   ];
 
   const armedCount = Object.values(armed).filter(Boolean).length;
@@ -689,12 +691,9 @@ function CrashProtocol({ macroData }) {
             </div>
             <button
               onClick={() => handleToggle(t.key)}
-              className={clsx(
-                "text-[8px] px-1 py-0.5 rounded font-bold",
-                armed[t.key] ? "bg-emerald-500/20 text-emerald-400" : "bg-gray-700/50 text-gray-500"
-              )}
+              className="text-[8px] px-1.5 py-0.5 rounded font-bold bg-gray-700/50 text-gray-400 hover:bg-gray-600/50 hover:text-white transition-colors"
             >
-              {armed[t.key] ? "ARMED" : "OFF"}
+              CLEAR
             </button>
           </div>
         ))}

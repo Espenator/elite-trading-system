@@ -594,9 +594,12 @@ export default function SignalIntelligenceV3() {
             <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: regimeBanner.color }} />
             {regimeBanner.label === 'BULL' && <TrendingUp className="w-3 h-3" style={{ color: regimeBanner.text }} />}
             {regimeBanner.label === 'BEAR' && <TrendingDown className="w-3 h-3" style={{ color: regimeBanner.text }} />}
-            <span className="text-[10px] font-bold tracking-wider" style={{ color: regimeBanner.text }}>
-              {regimeData.state || 'BULL_TREND'} REGIME
-            </span>
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold tracking-wider" style={{ color: regimeBanner.text }}>
+                {regimeData.state || 'BULL_TREND'} REGIME
+              </span>
+              <span className="text-[7px] text-gray-500">Hidden Markov Model (Layer 1)</span>
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -616,6 +619,11 @@ export default function SignalIntelligenceV3() {
           >
             {timeframes.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
+          {/* Sample Size */}
+          <div className="flex items-center gap-1">
+            <span className="text-[9px] text-gray-500">SAMPLE_SIZE:</span>
+            <span className="text-[10px] font-bold text-white">100</span>
+          </div>
           {/* Confidence */}
           <div className="flex items-center gap-1">
             <span className="text-[9px] text-gray-500">Confidence</span>
@@ -697,10 +705,8 @@ export default function SignalIntelligenceV3() {
                 <span className="text-[10px] font-bold text-white">{selectedSymbol}</span>
                 <span className="text-[8px] text-gray-500">OHLCV</span>
                 <div className="flex items-center gap-1.5 ml-2">
-                  <span className="flex items-center gap-0.5"><span className="w-2 h-0.5 bg-cyan-400 inline-block rounded" /><span className="text-[7px] text-cyan-400">SMA20</span></span>
-                  <span className="flex items-center gap-0.5"><span className="w-2 h-0.5 bg-purple-400 inline-block rounded" /><span className="text-[7px] text-purple-400">SMA50</span></span>
-                  <span className="flex items-center gap-0.5"><span className="w-2 h-0.5 bg-orange-400 inline-block rounded" /><span className="text-[7px] text-orange-400">SMA200</span></span>
-                  <span className="flex items-center gap-0.5"><span className="w-2 h-0.5 bg-white inline-block rounded" /><span className="text-[7px] text-gray-300">VWAP</span></span>
+                  <span className="flex items-center gap-0.5"><span className="w-2 h-0.5 bg-cyan-400 inline-block rounded" /><span className="text-[7px] text-cyan-400">SMACR</span></span>
+                  <span className="flex items-center gap-0.5"><span className="w-2 h-0.5 bg-orange-400 inline-block rounded" /><span className="text-[7px] text-orange-400">VWAP</span></span>
                 </div>
               </div>
               <div className="flex items-center gap-0.5">

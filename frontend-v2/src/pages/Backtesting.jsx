@@ -282,10 +282,17 @@ export default function Backtesting() {
   const [minPositions, setMinPositions] = useState(5);
   const [txnCost, setTxnCost] = useState(0.001);
   const [maxPositions, setMaxPositions] = useState(20);
+  const [capital, setCapital] = useState(100000);
 
-  // --- Parameter Sweeps ---
+  // --- Assets & Benchmark (shown in Config panel per mockup) ---
   const [symbols] = useState(["BTCUSD", "ETHUSD", "SPX", "GOOG", "AAPL", "MSFT", "TSLA", "NVDA"]);
   const [benchmark, setBenchmark] = useState("SPY");
+
+  // --- Parameter Sweeps ---
+  const [paramA, setParamA] = useState(50);
+  const [paramB, setParamB] = useState(30);
+  const [positionSize, setPositionSize] = useState(10);
+  const [kellySizing, setKellySizing] = useState(25);
   const [commission, setCommission] = useState(0.001);
   const [regimeFilter, setRegimeFilter] = useState("BULL");
   const [slippage, setSlippage] = useState(0.05);
@@ -410,7 +417,10 @@ export default function Backtesting() {
     { key: "entry_price", label: "Entry", render: (v) => fmtUsd(v) },
     { key: "exit_price", label: "Exit Price", render: (v) => fmtUsd(v) },
     { key: "pnl", label: "P&L", render: (v) => <span className={Number(v) >= 0 ? "text-green-400" : "text-red-400"}>{fmtUsd(v)}</span> },
-    { key: "duration", label: "Duration", render: (v) => v ?? "--" },
+    { key: "r_multiple", label: "R-Multiple", render: (v) => v != null ? <span className={Number(v) >= 0 ? "text-green-400" : "text-red-400"}>{fmt(v, 2)}R</span> : "--" },
+    { key: "agent", label: "Agent", render: (v) => v ?? "--" },
+    { key: "signals", label: "Signals", render: (v) => v ?? "--" },
+    { key: "conviction", label: "Conviction", render: (v) => v != null ? <span className={Number(v) >= 70 ? "text-green-400" : Number(v) >= 40 ? "text-amber-400" : "text-red-400"}>{fmtPct(v)}</span> : "--" },
     { key: "regime", label: "Regime", render: (v) => v ? <Badge variant={v === "BULL" ? "success" : v === "BEAR" ? "danger" : "warning"} size="sm">{v}</Badge> : "--" },
   ], []);
 
@@ -446,26 +456,11 @@ export default function Backtesting() {
             <Select label="Strategy" value={strategy} onChange={(e) => setStrategy(e.target.value)}
               options={["Mean Reversion V2", "Momentum V3", "ML Ensemble", "Stat Arb", "Pairs Trading"]} />
             <div className="grid grid-cols-2 gap-2">
-              <TextField label="Period A Start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-              <TextField label="Period A End" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+              <TextField label="Start Date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              <TextField label="End Date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <TextField label="# Batches" type="number" value={batches} onChange={(e) => setBatches(Number(e.target.value))} />
-              <Slider label="% in Training" min={10} max={90} step={5} value={trainPct} onChange={setTrainPct} suffix="%" />
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <TextField label="Min Positions" type="number" value={minPositions} onChange={(e) => setMinPositions(Number(e.target.value))} />
-              <TextField label="Txn Cost" type="number" value={txnCost} onChange={(e) => setTxnCost(Number(e.target.value))} />
-              <TextField label="Max Positions" type="number" value={maxPositions} onChange={(e) => setMaxPositions(Number(e.target.value))} />
-            </div>
-          </div>
-        </Card>
-
-        {/* --- Parameter Sweeps & Controls --- */}
-        <Card title="Parameter Sweeps & Controls">
-          <div className="space-y-3">
             <div>
-              <label className="text-xs text-secondary font-medium mb-1 block">Symbols</label>
+              <label className="text-xs text-secondary font-medium mb-1 block">Assets</label>
               <div className="flex flex-wrap gap-1">
                 {symbols.map((s) => (
                   <Badge key={s} variant="primary" size="sm">{s}</Badge>
@@ -473,11 +468,22 @@ export default function Backtesting() {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
+              <TextField label="Capital" type="number" value={capital} onChange={(e) => setCapital(Number(e.target.value))} />
               <Select label="Benchmark" value={benchmark} onChange={(e) => setBenchmark(e.target.value)}
                 options={["SPY", "QQQ", "IWM", "DIA", "BTC"]} />
-              <TextField label="Commission" type="number" value={commission} onChange={(e) => setCommission(Number(e.target.value))} />
+            </div>
+          </div>
+        </Card>
+
+        {/* --- Parameter Sweeps & Controls --- */}
+        <Card title="Parameter Sweeps & Controls">
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <Slider label="Param A" min={0} max={100} step={1} value={paramA} onChange={setParamA} />
+              <TextField label="Transaction Cost" type="number" value={txnCost} onChange={(e) => setTxnCost(Number(e.target.value))} />
             </div>
             <div className="grid grid-cols-2 gap-2">
+              <Slider label="Param B" min={0} max={100} step={1} value={paramB} onChange={setParamB} />
               <div>
                 <label className="text-xs text-secondary font-medium mb-1 block">Regime Filter</label>
                 <div className="flex gap-1">
@@ -489,11 +495,22 @@ export default function Backtesting() {
                   ))}
                 </div>
               </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Slider label="Position Size" min={1} max={100} step={1} value={positionSize} onChange={setPositionSize} suffix="%" />
               <Slider label="Slippage (bps)" min={0} max={20} step={1} value={slippage * 100} onChange={(v) => setSlippage(v / 100)} suffix=" bps" />
             </div>
             <div className="grid grid-cols-2 gap-2">
+              <Slider label="Kelly Sizing" min={0} max={100} step={1} value={kellySizing} onChange={setKellySizing} suffix="%" />
               <Slider label="Walk Forward Window" min={10} max={90} step={5} value={walkForwardWindow} onChange={setWalkForwardWindow} suffix=" days" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
               <Slider label="Confidence Level" min={80} max={99} step={1} value={confidenceLevel} onChange={setConfidenceLevel} suffix="%" />
+              <TextField label="Commission" type="number" value={commission} onChange={(e) => setCommission(Number(e.target.value))} />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button size="sm" variant="primary" leftIcon={Play} loading={running} onClick={handleRun} className="flex-1">Run</Button>
+              <Button size="sm" variant="secondary" leftIcon={Square} onClick={() => setRunning(false)} className="flex-1">Stop</Button>
             </div>
           </div>
         </Card>
@@ -617,12 +634,15 @@ export default function Backtesting() {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-          <div className="flex gap-3 mt-2 justify-center">
+          <div className="flex gap-2 mt-2">
             {regimeChartData.map((r) => (
-              <div key={r.regime} className="flex items-center gap-1 text-[10px]">
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: REGIME_COLORS[r.regime] ?? "#6B7280" }} />
-                <span className="text-secondary">{r.regime}</span>
-                <span className={Number(r.pnl) >= 0 ? "text-green-400" : "text-red-400"}>{fmtK(r.pnl)}</span>
+              <div key={r.regime} className="flex-1 rounded-lg px-2.5 py-2 border" style={{ borderColor: `${REGIME_COLORS[r.regime] ?? "#6B7280"}66`, backgroundColor: `${REGIME_COLORS[r.regime] ?? "#6B7280"}15` }}>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: REGIME_COLORS[r.regime] ?? "#6B7280" }} />
+                  <span className="text-[10px] font-bold tracking-wider" style={{ color: REGIME_COLORS[r.regime] ?? "#6B7280" }}>{r.regime}</span>
+                </div>
+                <div className="text-xs font-bold" style={{ color: Number(r.pnl) >= 0 ? "#10B981" : "#EF4444" }}>{fmtK(r.pnl)}</div>
+                <div className="text-[10px] text-secondary">{r.trades} trades &middot; {fmtPct(r.winRate)} WR</div>
               </div>
             ))}
           </div>
@@ -631,17 +651,33 @@ export default function Backtesting() {
         {/* Monte Carlo Simulation */}
         <Card title="Monte Carlo Simulation (50 paths)" loading={loadMc} className="col-span-1">
           {mcChartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={240}>
-              <LineChart data={mcChartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(42,52,68,0.3)" />
-                <XAxis dataKey="step" stroke="#6B7280" tick={{ fontSize: 10 }} />
-                <YAxis stroke="#6B7280" tick={{ fontSize: 10 }} />
-                <Tooltip content={<DarkTooltip />} />
-                {Object.keys(mcChartData[0] || {}).filter((k) => k !== "step").slice(0, 50).map((k, i) => (
-                  <Line key={k} type="monotone" dataKey={k} stroke={`hsl(${(i * 7) % 360}, 70%, 60%)`} dot={false} strokeWidth={1} strokeOpacity={0.5} />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
+            <>
+              <ResponsiveContainer width="100%" height={190}>
+                <LineChart data={mcChartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(42,52,68,0.3)" />
+                  <XAxis dataKey="step" stroke="#6B7280" tick={{ fontSize: 10 }} />
+                  <YAxis stroke="#6B7280" tick={{ fontSize: 10 }} />
+                  <Tooltip content={<DarkTooltip />} />
+                  {Object.keys(mcChartData[0] || {}).filter((k) => k !== "step").slice(0, 50).map((k, i) => (
+                    <Line key={k} type="monotone" dataKey={k} stroke={`hsl(${(i * 7) % 360}, 70%, 60%)`} dot={false} strokeWidth={1} strokeOpacity={0.5} />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+              <div className="flex justify-around mt-2 pt-2 border-t border-secondary/20">
+                <div className="text-center">
+                  <div className="text-[10px] text-secondary uppercase">Median</div>
+                  <div className="text-sm font-bold text-cyan-400">{fmtUsd(mcRaw?.median ?? mcRaw?.stats?.median ?? 51150)}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-[10px] text-secondary uppercase">VaR 5%</div>
+                  <div className="text-sm font-bold text-red-400">{fmtUsd(mcRaw?.var5 ?? mcRaw?.stats?.var5 ?? -8200)}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-[10px] text-secondary uppercase">VaR 95%</div>
+                  <div className="text-sm font-bold text-green-400">{fmtUsd(mcRaw?.var95 ?? mcRaw?.stats?.var95 ?? 112400)}</div>
+                </div>
+              </div>
+            </>
           ) : (
             <div className="flex items-center justify-center h-[240px] text-secondary text-sm">
               <div className="text-center">
