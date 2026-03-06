@@ -72,6 +72,74 @@ async def get_activities(limit: int = 30, activity_type: str = "FILL"):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+@router.get("/clock")
+async def get_clock():
+    """GET /v2/clock — market open/close status and times."""
+    try:
+        result = await alpaca_service.get_clock()
+        if result is None:
+            return {"is_open": False, "error": "Could not fetch clock"}
+        return result
+    except Exception as e:
+        logger.error("alpaca/clock failed: %s", e)
+        return {"is_open": False, "error": str(e)}
+
+
+@router.get("/snapshots")
+async def get_snapshots(symbols: str = "SPY,QQQ,AAPL,MSFT,NVDA,TSLA,META,GOOGL,AMZN,IWM"):
+    """GET /v2/stocks/snapshots — latest trade, quote, daily bar, prev daily bar.
+
+    Works 24/7. Returns real prices for all sessions:
+    pre-market, regular, after-hours, and overnight (last close).
+
+    Args:
+        symbols: Comma-separated ticker symbols (default: top 10 watchlist)
+    """
+    try:
+        symbol_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+        result = await alpaca_service.get_snapshots(symbol_list)
+        if result is None:
+            return {}
+        return result
+    except Exception as e:
+        logger.error("alpaca/snapshots failed: %s", e)
+        return {}
+
+
+@router.get("/latest-trades")
+async def get_latest_trades(symbols: str = "SPY,QQQ,AAPL,MSFT,NVDA"):
+    """GET /v2/stocks/trades/latest — most recent trade per symbol.
+
+    Works 24/7. Shows last traded price from any session.
+    """
+    try:
+        symbol_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+        result = await alpaca_service.get_latest_trades(symbol_list)
+        if result is None:
+            return {}
+        return result
+    except Exception as e:
+        logger.error("alpaca/latest-trades failed: %s", e)
+        return {}
+
+
+@router.get("/latest-quotes")
+async def get_latest_quotes(symbols: str = "SPY,QQQ,AAPL,MSFT,NVDA"):
+    """GET /v2/stocks/quotes/latest — most recent NBBO quote per symbol.
+
+    Works 24/7. Shows current bid/ask spread.
+    """
+    try:
+        symbol_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+        result = await alpaca_service.get_latest_quotes(symbol_list)
+        if result is None:
+            return {}
+        return result
+    except Exception as e:
+        logger.error("alpaca/latest-quotes failed: %s", e)
+        return {}
+
+
 @router.delete("/positions/{symbol}", dependencies=[Depends(require_auth)])
 async def close_position(symbol: str, qty: Optional[str] = None, percentage: Optional[str] = None):
     """DELETE /v2/positions/{symbol} — close or reduce position."""
