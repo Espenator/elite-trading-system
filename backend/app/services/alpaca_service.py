@@ -1,5 +1,8 @@
 """Alpaca Markets API service — account, positions, orders, activities, portfolio history.
 Real data only. No mock data, no fabricated numbers.
+
+Supports both Trading API (paper-api.alpaca.markets/v2) and
+Market Data API (data.alpaca.markets/v2) for 24/7 price coverage.
 """
 import httpx
 import logging
@@ -439,6 +442,114 @@ class AlpacaService:
         except Exception as exc:
             logger.warning("Alpaca get_asset_exchange_map failed: %s", exc)
         return out
+
+    # ── Market Data API (data.alpaca.markets) ────────────────────────────────
+    # Separate base URL for market data endpoints (works 24/7, not just trading hours)
+    DATA_BASE_URL = "https://data.alpaca.markets/v2"
+
+    async def _data_request(
+        self,
+        method: str,
+        path: str,
+        params: Optional[Dict] = None,
+        timeout: float = _TIMEOUT,
+    ) -> Optional[Any]:
+        """HTTP caller for Alpaca Market Data API (data.alpaca.markets).
+
+        Separate from _request() which targets the Trading API.
+        Market Data API works 24/7 and returns real prices at all times.
+        """
+        if not self._is_configured():
+            logger.warning("Alpaca API keys not configured")
+            return None
+        url = f"{self.DATA_BASE_URL}{path}"
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.request(
+                    method,
+                    url,
+                    headers=self._get_headers(),
+                    params=params,
+                    timeout=timeout,
+                )
+            if resp.status_code == 200:
+                return resp.json()
+            logger.error("Alpaca Data API %s %s -> %s", method, path, resp.status_code)
+            return None
+        except Exception as exc:
+            logger.error("Alpaca Data API error %s %s: %s", method, path, exc)
+            return None
+
+    async def get_clock(self) -> Optional[Dict]:
+        """GET /v2/clock — market open/close status and times.
+
+        Returns: {is_open, timestamp, next_open, next_close}
+        Works 24/7. Used by AlpacaStreamService for session detection.
+        """
+        return await self._request("GET", "/clock")
+
+    async def get_snapshots(self, symbols: List[str]) -> Optional[Dict]:
+        """GET /v2/stocks/snapshots — latest trade, quote, minute bar, daily bar.
+
+        Works 24/7. Returns real prices for all sessions:
+        pre-market, regular, after-hours, and overnight (last close).
+
+        Returns dict keyed by symbol with:
+        - latestTrade (price, size, timestamp)
+        - latestQuote (bid/ask)
+        - minuteBar (last completed 1-min bar)
+        - dailyBar (current/last trading day OHLCV)
+        - prevDailyBar (previous trading day OHLCV)
+        """
+        if not symbols:
+            return None
+        return await self._data_request(
+            "GET",
+            "/stocks/snapshots",
+            params={"symbols": ",".join(symbols), "feed": "sip"},
+        )
+
+    async def get_latest_bars(
+        self, symbols: List[str], feed: str = "sip"
+    ) -> Optional[Dict]:
+        """GET /v2/stocks/bars/latest — most recent bar per symbol."""
+        if not symbols:
+            return None
+        return await self._data_request(
+            "GET",
+            "/stocks/bars/latest",
+            params={"symbols": ",".join(symbols), "feed": feed},
+        )
+
+    async def get_latest_trades(
+        self, symbols: List[str], feed: str = "sip"
+    ) -> Optional[Dict]:
+        """GET /v2/stocks/trades/latest — most recent trade per symbol.
+
+        Works 24/7. Shows last traded price from any session.
+        """
+        if not symbols:
+            return None
+        return await self._data_request(
+            "GET",
+            "/stocks/trades/latest",
+            params={"symbols": ",".join(symbols), "feed": feed},
+        )
+
+    async def get_latest_quotes(
+        self, symbols: List[str], feed: str = "sip"
+    ) -> Optional[Dict]:
+        """GET /v2/stocks/quotes/latest — most recent NBBO quote per symbol.
+
+        Works 24/7. Shows current bid/ask spread.
+        """
+        if not symbols:
+            return None
+        return await self._data_request(
+            "GET",
+            "/stocks/quotes/latest",
+            params={"symbols": ",".join(symbols), "feed": feed},
+        )
 
     # ── bars (OHLCV) ──────────────────────────────────────────────────────────
     async def get_bars(
