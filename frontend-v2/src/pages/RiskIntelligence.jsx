@@ -14,7 +14,7 @@ import PageHeader from "../components/ui/PageHeader";
 import {
   Shield, RefreshCw, AlertTriangle, Activity, TrendingDown,
   Zap, Target, BarChart3, Grid3X3, Gauge, Brain, DollarSign,
-  Clock, Eye, Flame, OctagonX, Snowflake, ChevronDown, Lock,
+  Clock, Eye, Flame, Octagon, Snowflake, ChevronDown, Lock,
   ArrowDownRight, ArrowUpRight, Crosshair, Layers, Radio,
   ShieldAlert, ShieldCheck, CircleDot, TriangleAlert, Ban
 } from 'lucide-react';
@@ -945,7 +945,7 @@ export default function RiskIntelligence() {
                          border-2 border-red-400 shadow-lg shadow-red-500/20
                          transition-all active:scale-95 flex items-center justify-center gap-2"
             >
-              <OctagonX className="w-4 h-4" />
+              <Octagon className="w-4 h-4" />
               EMERGENCY STOP ALL
             </button>
             <div className="grid grid-cols-3 gap-1.5">
