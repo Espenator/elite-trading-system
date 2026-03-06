@@ -6,7 +6,7 @@ import {
   X,
   Copy,
   RefreshCw,
-  Settings,
+  Settings,h
   Check,
   XCircle,
   Loader2,
@@ -830,7 +830,7 @@ export default function DataSourcesMonitor() {
         />
       )}
 
-      <div className="flex gap-4 flex-1 min-h-0">
+      <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-0 overflow-auto">
         {/* Left: filter tabs + table */}
         <div className="flex-1 flex flex-col min-w-0 bg-[#1A1F2E] border border-[#2A3444] rounded-xl overflow-hidden">
           <div className="flex gap-1 p-2 border-b border-[#2A3444] flex-wrap">
@@ -914,7 +914,7 @@ export default function DataSourcesMonitor() {
         </div>
 
         {/* Right: credential panel */}
-        <div className="w-[380px] flex-shrink-0">
+        <div className="w-full lg:w-[380px] lg:flex-shrink-0">
           <CredentialPanel
             source={selectedDetail}
             onClose={() => setSelected(null)}
