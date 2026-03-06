@@ -114,9 +114,12 @@ const API_CONFIG = {
     "alignment/metacognition": "/alignment/metacognition", // GET metacognition flags + trends
     "alignment/critique": "/alignment/critique", // GET swarm critique role stats
 
-    // ---- COUNCIL (11-Agent Debate Council) ----
-    councilEvaluate: "/council/evaluate", // POST: run 11-agent council evaluation
+    // ---- COUNCIL (20-Agent Debate Council) ----
+    councilEvaluate: "/council/evaluate", // POST: run 20-agent council evaluation
     councilLatest: "/council/latest", // GET: latest council DecisionPacket
+    councilAgentHealth: "/council/agent-health", // GET: per-agent health + weight + performance
+    councilStatus: "/council/status", // GET: council configuration (20 agents, 7+1 stages)
+    councilWeights: "/council/weights", // GET: current Bayesian-updated agent weights
 
     // ---- FEATURE STORE ----
     featuresLatest: "/features/latest", // GET: latest feature vector for symbol

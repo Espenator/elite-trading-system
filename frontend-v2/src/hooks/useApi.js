@@ -488,6 +488,20 @@ export function useSwarmMlScorer(pollMs = 10000) {
   return useApi('swarmMlScorerStatus', { pollIntervalMs: pollMs });
 }
 
+// ---- Glass-Box Intelligence Cockpit Hooks ----
+
+export function useCouncilAgentHealth(pollMs = 15000) {
+  return useApi('councilAgentHealth', { pollIntervalMs: pollMs });
+}
+
+export function useCouncilStatus() {
+  return useApi('councilStatus');
+}
+
+export function useCouncilWeights(pollMs = 30000) {
+  return useApi('councilWeights', { pollIntervalMs: pollMs });
+}
+
 /** POST helper to override agent streak status */
 export async function postAgentOverrideStatus(agentName, action) {
   return apiFetch(`${getApiUrl('cnsAgentsHealth').replace('/health', '')}/${encodeURIComponent(agentName)}/override-status`, {
