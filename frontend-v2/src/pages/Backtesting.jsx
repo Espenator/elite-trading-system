@@ -252,13 +252,13 @@ const REGIME_COLORS = { BULL: "#10b981", BEAR: "#ef4444", SIDEWAYS: "#3b82f6", H
 const INIT_NODES = [];
 const INIT_EDGES = [];
 
-// KPI stat helper (matches mockup 2-row mega strip)
-function KPI({ label, value, color = "text-slate-300", sub }) {
+// KPI stat helper - colored box style matching mockup mega strip
+function KPIBox({ label, value, bg = "bg-slate-800", color = "text-white", sub }) {
   return (
-    <div className="text-center px-1">
-      <div className="text-[9px] text-slate-500 uppercase tracking-wide">{label}</div>
-      <div className={`text-sm font-bold ${color}`}>{value}</div>
-      {sub && <div className="text-[8px] text-slate-600">{sub}</div>}
+    <div className={`${bg} rounded px-2 py-1.5 text-center min-w-0`}>
+      <div className="text-[8px] text-slate-400 uppercase tracking-wider truncate">{label}</div>
+      <div className={`text-sm font-bold ${color} truncate`}>{value ?? "--"}</div>
+      {sub && <div className="text-[8px] text-slate-500 truncate">{sub}</div>}
     </div>
   );
 }
@@ -390,7 +390,7 @@ export default function Backtesting() {
   return (
     <div className="space-y-2">
       {/* TOP BAR: System status (mockup: OC_CORE_v3.2.1 bar) */}
-      <div className="flex items-center justify-between text-[9px] text-slate-500 px-1">
+      <div className="flex items-center justify-between text-[9px] text-slate-500 px-2 py-1 bg-slate-900/40 rounded border border-slate-800/50">
         <span className="flex items-center gap-2">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
           OC_CORE_v3.2.1
@@ -398,12 +398,16 @@ export default function Backtesting() {
         <span>WS:LATENCY: {swarmMetrics.latency || "--"}ms | SWARM_SIZE: {swarmMetrics.totalAgents || "--"} | {new Date().toLocaleTimeString()}</span>
       </div>
 
-      <PageHeader title="BACKTESTING_LAB" badge={isRunning ? "RUNNING" : runs.length > 0 ? "COMPLETE" : "READY"} />
+      <PageHeader title="BACKTESTING_LAB" icon={BarChart3} description="Backtest Iterations &amp; Intelligence">
+        <Badge variant={isRunning ? "warning" : runs.length > 0 ? "success" : "secondary"} size="sm">
+          {isRunning ? "RUNNING" : runs.length > 0 ? "COMPLETE" : "READY"}
+        </Badge>
+      </PageHeader>
 
-      {/* ROW 1: Config + Param Sweeps + Run/Stop + OpenClaw Swarm (mockup top row) */}
+      {/* ROW 1: Config + Param Sweeps + OpenClaw Swarm (mockup top row, 3 panels) */}
       <div className="grid grid-cols-12 gap-2">
-        {/* Backtest Configuration (mockup left) */}
-        <div className="col-span-2">
+        {/* Backtest Configuration (mockup left ~2 cols) */}
+        <div className="col-span-3">
           <Card title="Backtest Configuration">
             <div className="space-y-2">
               <Select label="Strategy" value={strategy} onChange={(e) => setStrategy(e.target.value)} options={STRATEGIES.map(s => ({ value: s, label: s }))} />
@@ -412,38 +416,51 @@ export default function Backtesting() {
                 <TextField label="End" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
               </div>
               <TextField label="Assets" value={assets} onChange={(e) => setAssets(e.target.value)} />
-              <TextField label="Capital" value={capital} onChange={(e) => setCapital(e.target.value)} />
+              <div className="grid grid-cols-2 gap-1">
+                <TextField label="Capital" value={capital} onChange={(e) => setCapital(e.target.value)} />
+                <Select label="Timeframe" value={timeframe} onChange={(e) => setTimeframe(e.target.value)} options={TIMEFRAMES.map(t => ({ value: t, label: t }))} />
+              </div>
               <TextField label="Benchmark" value={benchmark} onChange={(e) => setBenchmark(e.target.value)} />
             </div>
           </Card>
         </div>
 
-        {/* Parameter Sweeps & Controls (mockup center - wide) */}
-        <div className="col-span-6">
+        {/* Parameter Sweeps & Controls (mockup center ~5 cols) */}
+        <div className="col-span-5">
           <Card title="Parameter Sweeps & Controls">
-            <div className="grid grid-cols-4 gap-x-4 gap-y-2">
+            <div className="grid grid-cols-4 gap-x-3 gap-y-2">
               <Slider label={`Param A: ${paramA}`} min={0} max={100} value={paramA} onChange={(v) => setParamA(v)} />
-              <TextField label="B Min/Max" value={`${paramBMin}`} onChange={(e) => setParamBMin(e.target.value)} />
-              <TextField label="" value={`${paramBMax}`} onChange={(e) => setParamBMax(e.target.value)} />
+              <TextField label="B Min" value={`${paramBMin}`} onChange={(e) => setParamBMin(e.target.value)} />
+              <TextField label="B Max" value={`${paramBMax}`} onChange={(e) => setParamBMax(e.target.value)} />
+              <TextField label="Transaction Cost" value={txCost} onChange={(e) => setTxCost(e.target.value)} />
+
               <TextField label="Max Positions" value={maxPositions} onChange={(e) => setMaxPositions(e.target.value)} />
               <Slider label={`Position Size: ${posSize}%`} min={1} max={100} value={posSize} onChange={(v) => setPosSize(v)} />
               <Select label="Rebalance Freq" value={rebalanceFreq} onChange={(e) => setRebalanceFreq(e.target.value)} options={["Daily","Weekly","Monthly"].map(r => ({ value: r, label: r }))} />
+              <TextField label="Slippage (bps)" value={slippage} onChange={(e) => setSlippage(e.target.value)} />
+
               <TextField label="Stop Loss %" value={stopLossPct} onChange={(e) => setStopLossPct(e.target.value)} />
               <TextField label="Take Profit %" value={takeProfitPct} onChange={(e) => setTakeProfitPct(e.target.value)} />
-              <TextField label="Transaction Cost" value={txCost} onChange={(e) => setTxCost(e.target.value)} />
+              <TextField label="Trailing Stop" value={trailingStop} onChange={(e) => setTrailingStop(e.target.value)} />
               <div className="flex items-center gap-2">
-                <label className="flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={useKellySizing} onChange={() => setUseKellySizing(!useKellySizing)} /><span className="text-[10px] text-emerald-400 font-bold">Kelly Sizing</span></label>
-                {useKellySizing && <Slider label={`${kellyFraction}`} min={0.1} max={1} step={0.05} value={kellyFraction} onChange={(v) => setKellyFraction(v)} />}
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <input type="checkbox" checked={useKellySizing} onChange={() => setUseKellySizing(!useKellySizing)} className="accent-emerald-400" />
+                  <span className="text-[10px] text-emerald-400 font-bold">Kelly Sizing</span>
+                </label>
               </div>
-              <div className="flex gap-1">
-                {["Single","Sweep"].map(m => <button key={m} onClick={() => setSweepMode(m)} className={`px-2 py-0.5 text-[9px] rounded ${sweepMode===m?"bg-blue-600 text-white":"bg-slate-800 text-slate-400"}`}>{m}</button>)}
+
+              <div className="flex gap-1 items-end">
+                {["Single","Sweep"].map(m => (
+                  <button key={m} onClick={() => setSweepMode(m)} className={`px-2 py-1 text-[9px] rounded ${sweepMode===m?"bg-cyan-600 text-white":"bg-slate-800 text-slate-400 hover:bg-slate-700"}`}>{m}</button>
+                ))}
               </div>
               <TextField label="Commission" value={commission} onChange={(e) => setCommission(e.target.value)} />
-              <TextField label="Trailing Stop" value={trailingStop} onChange={(e) => setTrailingStop(e.target.value)} />
               <Slider label={`Vol Target: ${volatilityTarget}`} min={0} max={1} step={0.05} value={volatilityTarget} onChange={(v) => setVolatilityTarget(v)} />
               <Slider label={`Corr Filter: ${correlationFilter}`} min={0} max={1} step={0.05} value={correlationFilter} onChange={(v) => setCorrelationFilter(v)} />
             </div>
-            <div className="grid grid-cols-6 gap-2 mt-2 pt-2 border-t border-slate-800">
+
+            {/* Regime & advanced controls row */}
+            <div className="grid grid-cols-6 gap-2 mt-2 pt-2 border-t border-slate-700/50">
               <Select label="Regime Filter" value={regimeFilter} onChange={(e) => setRegimeFilter(e.target.value)} options={REGIME_TYPES.map(r => ({ value: r, label: r }))} />
               <TextField label="Risk/Trade %" value={riskPerTrade} onChange={(e) => setRiskPerTrade(e.target.value)} />
               <TextField label="Warm-Up" value={warmUpPeriod} onChange={(e) => setWarmUpPeriod(e.target.value)} />
@@ -451,28 +468,33 @@ export default function Backtesting() {
               <TextField label="MC Iterations" value={monteCarloIter} onChange={(e) => setMonteCarloIter(e.target.value)} />
               <TextField label={`Confidence ${confidenceLevel}%`} value={confidenceLevel} onChange={(e) => setConfidenceLevel(e.target.value)} />
             </div>
+
+            {/* Run / Stop buttons */}
+            <div className="flex gap-2 mt-3">
+              <Button onClick={handleRunBacktest} disabled={isRunning} leftIcon={Play} size="sm" variant="success" className="flex-1">
+                {isRunning ? "Running..." : "Run Backtest"}
+              </Button>
+              <Button onClick={handleStop} leftIcon={Square} size="sm" variant="danger" className="flex-1">Stop</Button>
+            </div>
           </Card>
-          {/* Run / Stop buttons */}
-          <div className="flex gap-2 mt-2">
-            <Button onClick={handleRunBacktest} disabled={isRunning} leftIcon={Play} className="bg-emerald-600 hover:bg-emerald-700 flex-1 text-xs">Run</Button>
-            <Button onClick={handleStop} leftIcon={Square} variant="danger" className="flex-1 text-xs">Stop</Button>
-          </div>
         </div>
 
-        {/* OpenClaw Swarm Backtest Integration (mockup right) */}
+        {/* OpenClaw Swarm Backtest Integration (mockup right ~4 cols) */}
         <div className="col-span-4">
           <Card title={<span className="flex items-center gap-1.5"><Network size={14} className="text-purple-400" /> OpenClaw Swarm Backtest Integration</span>}>
             <div className="grid grid-cols-2 gap-3">
               {/* 7 Core Agents */}
               <div>
-                <div className="text-[10px] text-slate-500 font-bold mb-1">7 Core Agents</div>
-                <div className="space-y-1">
-                  {swarmAgents.slice(0,7).map((a, i) => (
+                <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1.5">7 Core Agents</div>
+                <div className="space-y-1.5">
+                  {swarmAgents.slice(0, 7).map((a, i) => (
                     <div key={a.id || i} className="flex items-center justify-between text-[9px]">
-                      <span className="text-slate-300">{a.role || a.name}</span>
-                      <div className="flex items-center gap-1">
-                        <div className="w-16 bg-slate-800 rounded-full h-1"><div className="h-1 rounded-full" style={{width:`${a.health || a.cpu || 80}%`, background: (a.health || a.cpu || 80) > 70 ? "#10b981" : "#f59e0b"}} /></div>
-                        <span className="text-slate-500 w-6 text-right">{a.health || a.cpu || 80}%</span>
+                      <span className="text-slate-300 truncate mr-2">{a.role || a.name}</span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <div className="w-14 bg-slate-800 rounded-full h-1.5">
+                          <div className="h-1.5 rounded-full transition-all" style={{ width: `${a.health || a.cpu || 80}%`, background: (a.health || a.cpu || 80) > 70 ? "#10b981" : "#f59e0b" }} />
+                        </div>
+                        <span className="text-slate-500 w-7 text-right">{a.health || a.cpu || 80}%</span>
                       </div>
                     </div>
                   ))}
@@ -480,14 +502,26 @@ export default function Backtesting() {
               </div>
               {/* Swarm Status */}
               <div>
-                <div className="text-[10px] text-slate-500 font-bold mb-1">Swarm Status</div>
-                <div className="p-2 bg-purple-500/10 border border-purple-500/20 rounded text-[9px] text-purple-300 space-y-1">
+                <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1.5">Swarm Status</div>
+                <div className="p-2.5 bg-purple-500/10 border border-purple-500/20 rounded-lg text-[9px] text-purple-300 space-y-1.5">
                   <div>EXTENDED SWARM: <span className="font-bold text-emerald-400">{swarmMetrics.subAgentCount || swarmMetrics.activeAgents || "--"} sub-agents active</span></div>
-                  <div className="border-t border-purple-500/20 pt-1 mt-1 text-[8px] text-slate-400">
-                    <div>Team Alpha: {swarmMetrics.teamAlpha || "--"} agents</div>
-                    <div>Team Beta: {swarmMetrics.teamBeta || "--"} agents</div>
-                    <div>Team Gamma: {swarmMetrics.teamGamma || "--"} agents</div>
-                    <div>Team Delta: {swarmMetrics.teamDelta || "--"} agents</div>
+                  <div className="border-t border-purple-500/20 pt-1.5 mt-1.5 space-y-1 text-[8px] text-slate-400">
+                    <div className="flex justify-between">
+                      <span>Short Basket</span>
+                      <span className="text-rose-400">{swarmMetrics.teamAlpha || "--"} agents</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Long Basket</span>
+                      <span className="text-emerald-400">{swarmMetrics.teamBeta || "--"} agents</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Hedge Engine</span>
+                      <span className="text-amber-400">{swarmMetrics.teamGamma || "--"} agents</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Signal Engine</span>
+                      <span className="text-cyan-400">{swarmMetrics.teamDelta || "--"} agents</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -496,115 +530,156 @@ export default function Backtesting() {
         </div>
       </div>
 
-      {/* ROW 2: Performance KPI Mega Strip (mockup: 2 rows of KPIs) */}
-      <div className="bg-slate-900/50 rounded-lg p-2 border border-slate-800">
-        <div className="text-[9px] text-slate-500 font-bold uppercase mb-1">Performance KPI Mega Strip</div>
-        <div className="grid grid-cols-14 gap-1">
-          <KPI label="Net P&L" value={results.total_pnl != null ? `$${(results.total_pnl/1000).toFixed(0)}K` : "--"} color={results.total_pnl >= 0 ? "text-emerald-400" : "text-rose-400"} />
-          <KPI label="Sharpe" value={results.sharpe?.toFixed(2) || "--"} color={results.sharpe >= 2 ? "text-emerald-400" : results.sharpe >= 1 ? "text-amber-400" : "text-rose-400"} />
-          <KPI label="Sortino" value={results.sortino?.toFixed(2) || "--"} color="text-cyan-400" />
-          <KPI label="Calmar" value={results.calmar?.toFixed(2) || "--"} color="text-purple-400" />
-          <KPI label="Max DD" value={results.maxdd != null ? `${(results.maxdd * 100).toFixed(1)}%` : "--"} color="text-rose-400" />
-          <KPI label="Win Rate" value={results.winrate != null ? `${(results.winrate * 100).toFixed(1)}%` : "--"} color={results.winrate >= 0.6 ? "text-emerald-400" : "text-amber-400"} />
-          <KPI label="Profit Factor" value={results.profit_factor?.toFixed(2) || "--"} color="text-blue-400" />
-          <KPI label="Avg Trade" value={results.avg_r != null ? `$${results.avg_r?.toFixed(0)}` : "--"} />
-          <KPI label="Total Trades" value={results.trades?.toLocaleString() || "--"} />
-          <KPI label="Expectancy" value={results.avg_r?.toFixed(4) || "--"} color="text-cyan-400" />
-          <KPI label="Kelly Efficiency" value={results.kelly_efficiency != null ? `${(results.kelly_efficiency * 100).toFixed(0)}%` : "--"} color="text-purple-400" />
-          <KPI label="Trading Grade" value={results.sharpe >= 2 ? "A+" : results.sharpe >= 1.5 ? "A" : results.sharpe >= 1 ? "B+" : "C"} color="text-amber-400" />
-          <KPI label="CAGR" value={results.total_pnl != null ? `${((results.total_pnl / (results.initial_equity || 100000)) * 100).toFixed(1)}%` : "--"} color="text-emerald-400" />
-          <KPI label="Beta" value={results.beta?.toFixed(2) || "--"} />
+      {/* ROW 2: Performance KPI Mega Strip (mockup: 2 rows of colored KPI boxes) */}
+      <div className="bg-slate-900/60 rounded-lg p-2.5 border border-slate-800/60">
+        <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-2">Performance KPI Mega Strip</div>
+        {/* Top row - primary metrics with colored backgrounds */}
+        <div className="grid grid-cols-14 gap-1.5">
+          <KPIBox label="Net P&L" value={results.total_pnl != null ? `$${(results.total_pnl / 1000).toFixed(0)}K` : "--"} bg={results.total_pnl >= 0 ? "bg-emerald-500/20" : "bg-rose-500/20"} color={results.total_pnl >= 0 ? "text-emerald-400" : "text-rose-400"} />
+          <KPIBox label="Sharpe" value={results.sharpe?.toFixed(2) || "--"} bg="bg-purple-500/20" color={results.sharpe >= 2 ? "text-emerald-400" : results.sharpe >= 1 ? "text-amber-400" : "text-rose-400"} />
+          <KPIBox label="Sortino" value={results.sortino?.toFixed(2) || "--"} bg="bg-cyan-500/20" color="text-cyan-400" />
+          <KPIBox label="Calmar" value={results.calmar?.toFixed(2) || "--"} bg="bg-purple-500/20" color="text-purple-400" />
+          <KPIBox label="Max DD" value={results.maxdd != null ? `${(results.maxdd * 100).toFixed(1)}%` : "--"} bg="bg-rose-500/20" color="text-rose-400" />
+          <KPIBox label="Win Rate" value={results.winrate != null ? `${(results.winrate * 100).toFixed(1)}%` : "--"} bg="bg-emerald-500/20" color={results.winrate >= 0.6 ? "text-emerald-400" : "text-amber-400"} />
+          <KPIBox label="Avg Trade" value={results.avg_r != null ? `$${results.avg_r?.toFixed(0)}` : "--"} bg="bg-blue-500/20" color="text-blue-400" />
+          <KPIBox label="$Profit" value={results.total_pnl != null ? `$${(results.total_pnl / 1000).toFixed(0)}K` : "--"} bg="bg-emerald-500/20" color="text-emerald-400" />
+          <KPIBox label="Total Trades" value={results.trades?.toLocaleString() || "--"} bg="bg-slate-700/40" color="text-slate-200" />
+          <KPIBox label="Expectancy" value={results.avg_r?.toFixed(4) || "--"} bg="bg-amber-500/20" color="text-amber-400" />
+          <KPIBox label="CAGR" value={results.total_pnl != null ? `${((results.total_pnl / (results.initial_equity || 100000)) * 100).toFixed(1)}%` : "--"} bg="bg-emerald-500/20" color="text-emerald-400" />
+          <KPIBox label="Volatility" value={results.volatility?.toFixed(1) || "--"} bg="bg-amber-500/15" color="text-amber-400" />
+          <KPIBox label="Kelly Efficiency" value={results.kelly_efficiency != null ? `${(results.kelly_efficiency * 100).toFixed(0)}%` : "--"} bg="bg-purple-500/20" color="text-purple-400" />
+          <KPIBox label="Grade" value={results.sharpe >= 2 ? "A+" : results.sharpe >= 1.5 ? "A" : results.sharpe >= 1 ? "B+" : "C"} bg="bg-cyan-500/20" color="text-cyan-400" />
         </div>
-        <div className="grid grid-cols-14 gap-1 mt-1 pt-1 border-t border-slate-800">
-          <KPI label="Net P&L%" value={results.total_pnl != null ? `${((results.total_pnl / (results.initial_equity || 100000)) * 100).toFixed(2)}%` : "--"} />
-          <KPI label="Avg Trade" value={results.avg_r?.toFixed(2) || "--"} />
-          <KPI label="Win Rate" value={results.winrate != null ? `${(results.winrate * 100).toFixed(1)}%` : "--"} />
-          <KPI label="Total Trades" value={results.trades?.toLocaleString() || "--"} />
-          <KPI label="Expectancy" value={results.avg_r?.toFixed(2) || "--"} />
-          <KPI label="R:R Ratio" value={results.profit_factor?.toFixed(2) || "--"} color="text-cyan-400" />
-          <KPI label="Kelly Advantage" value={results.kelly_advantage?.toFixed(2) || "--"} color="text-emerald-400" />
-          <KPI label="Trading Grade" value={results.sharpe >= 2 ? "A+" : "--"} color="text-amber-400" />
-          <KPI label="CAGR" value={results.total_pnl != null ? `${((results.total_pnl / (results.initial_equity || 100000)) * 100).toFixed(1)}%` : "--"} />
-          <KPI label="Volatility" value={results.volatility?.toFixed(1) || "--"} />
-          <KPI label="Alpha" value={results.alpha?.toFixed(1) || "--"} color="text-emerald-400" />
-          <KPI label="Beta" value={results.beta?.toFixed(2) || "--"} />
-          <KPI label="Info Ratio" value={results.info_ratio?.toFixed(2) || "--"} />
-          <KPI label="Omega" value={results.omega?.toFixed(2) || "--"} />
+        {/* Bottom row - secondary metrics */}
+        <div className="grid grid-cols-14 gap-1.5 mt-1.5 pt-1.5 border-t border-slate-800/50">
+          <KPIBox label="Net P&L%" value={results.total_pnl != null ? `${((results.total_pnl / (results.initial_equity || 100000)) * 100).toFixed(2)}%` : "--"} color="text-slate-300" />
+          <KPIBox label="Profit Factor" value={results.profit_factor?.toFixed(2) || "--"} color="text-blue-400" />
+          <KPIBox label="Avg Trade" value={results.avg_r?.toFixed(2) || "--"} color="text-slate-300" />
+          <KPIBox label="Total Trades" value={results.trades?.toLocaleString() || "--"} color="text-slate-300" />
+          <KPIBox label="Expectancy" value={results.avg_r?.toFixed(2) || "--"} color="text-cyan-400" />
+          <KPIBox label="R:R Ratio" value={results.profit_factor?.toFixed(2) || "--"} color="text-cyan-400" />
+          <KPIBox label="Kelly Adv" value={results.kelly_advantage?.toFixed(2) || "--"} color="text-emerald-400" />
+          <KPIBox label="Trading Grade" value={results.sharpe >= 2 ? "A+" : "--"} color="text-amber-400" />
+          <KPIBox label="CAGR" value={results.total_pnl != null ? `${((results.total_pnl / (results.initial_equity || 100000)) * 100).toFixed(1)}%` : "--"} color="text-emerald-400" />
+          <KPIBox label="Volatility" value={results.volatility?.toFixed(1) || "--"} color="text-amber-400" />
+          <KPIBox label="Alpha" value={results.alpha?.toFixed(1) || "--"} color="text-emerald-400" />
+          <KPIBox label="Beta" value={results.beta?.toFixed(2) || "--"} color="text-slate-300" />
+          <KPIBox label="Info Ratio" value={results.info_ratio?.toFixed(2) || "--"} color="text-cyan-400" />
+          <KPIBox label="Omega" value={results.omega?.toFixed(2) || "--"} color="text-purple-400" />
         </div>
       </div>
 
       {/* ROW 3: Equity Curve + Parallel Run Manager + Trade Dist + Rolling Sharpe + Walk-Forward */}
       <div className="grid grid-cols-12 gap-2">
-        <div className="col-span-4">
+        <div className="col-span-3">
           <Card title="Equity Curve - Lightweight Charts" noPadding>
-            <div className="p-2"><EquityCurveLC data={results.equityCurve || results.equity_curve || []} height={180} /></div>
+            <div className="p-2">
+              <EquityCurveLC data={results.equityCurve || results.equity_curve || []} height={170} />
+            </div>
           </Card>
         </div>
         <div className="col-span-2">
-          <Card title="Parallel Run Manager">
+          <Card title="Parallel Run Manager" noPadding>
             <DataTable columns={[
-              { key: "id", label: "#", render: (v) => <span className="text-xs">{v}</span> },
-              { key: "strategy", label: "Strategy", render: (v) => <span className="text-xs">{v}</span> },
-              { key: "status", label: "Status", render: (v) => <Badge variant={v==="Running"?"warning":v==="Complete"?"success":"danger"} className="text-[8px]">{v}</Badge> },
-              { key: "trades", label: "Trades", cellClassName: "text-right text-xs" },
+              { key: "id", label: "#", render: (v) => <span className="text-[9px] text-slate-400">{v}</span> },
+              { key: "strategy", label: "Strategy", render: (v) => <span className="text-[9px] font-medium">{v}</span> },
+              { key: "status", label: "Status", render: (v) => <Badge variant={v === "Running" ? "warning" : v === "Complete" ? "success" : "danger"} size="sm">{v}</Badge> },
+              { key: "trades", label: "Trades", cellClassName: "text-right text-[9px]" },
             ]} data={runs} />
           </Card>
         </div>
         <div className="col-span-2">
           <Card title="Trade P&L Distribution" noPadding>
-            <TradePnlDistLC data={tradeDist} />
+            <div className="p-1">
+              <TradePnlDistLC data={tradeDist} height={170} />
+            </div>
           </Card>
         </div>
-        <div className="col-span-2">
+        <div className="col-span-3">
           <Card title="Rolling Sharpe Ratio (24M)" noPadding>
-            <RollingSharpeLC data={rollingSharpe} />
+            <div className="p-1">
+              <RollingSharpeLC data={rollingSharpe} height={170} />
+            </div>
           </Card>
         </div>
         <div className="col-span-2">
           <Card title="Walk-Forward Analysis" noPadding>
-            <WalkForwardLC data={wfSeries} />
+            <div className="p-1">
+              <WalkForwardLC data={wfSeries} height={170} />
+            </div>
           </Card>
         </div>
       </div>
 
-      {/* ROW 4: Market Regime (donut) + Monte Carlo + Optimization + Strategy Builder */}
+      {/* ROW 4: Market Regime + Monte Carlo + Optimization Heatmap + Strategy Builder */}
       <div className="grid grid-cols-12 gap-2">
+        {/* Market Regime Performance */}
         <div className="col-span-2">
           <Card title="Market Regime Performance">
-            <RegimePerformanceLC data={regimes} height={140} />
-            <div className="space-y-0.5 mt-1">
+            <RegimePerformanceLC data={regimes} height={120} />
+            <div className="space-y-1 mt-2 pt-2 border-t border-slate-800/50">
               {regimes.map(r => (
-                <div key={r.name} className="flex justify-between text-[9px]">
-                  <span style={{color: REGIME_COLORS[r.name]}}>{r.name}</span>
+                <div key={r.name} className="flex justify-between items-center text-[9px]">
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-sm" style={{ background: REGIME_COLORS[r.name] }} />
+                    <span style={{ color: REGIME_COLORS[r.name] }}>{r.name}</span>
+                  </span>
                   <span className="text-slate-400">{r.winRate?.toFixed(1) || "--"}%</span>
                 </div>
               ))}
             </div>
           </Card>
         </div>
+
+        {/* Monte Carlo Simulation */}
         <div className="col-span-3">
-                    <Card title="Monte Carlo Simulation" noPadding>
-<MonteCarloLC data={mcPaths} />
-            <div className="grid grid-cols-3 gap-1 p-1">
-              <KPI label="5th %ile" value={mcStats.equity_p5 != null ? `$${(mcStats.equity_p5/1000).toFixed(0)}K` : "--"} color="text-rose-400" />
-              <KPI label="Median" value={mcStats.equity_median != null ? `$${(mcStats.equity_median/1000).toFixed(0)}K` : "--"} color="text-emerald-400" />
-              <KPI label="95th %ile" value={mcStats.equity_p95 != null ? `$${(mcStats.equity_p95/1000).toFixed(0)}K` : "--"} color="text-cyan-400" />
+          <Card title={<span>Monte Carlo Simulation <span className="text-slate-500 text-[9px] font-normal">(50 paths)</span></span>} noPadding>
+            <div className="p-1">
+              <MonteCarloLC data={mcPaths} height={160} />
+            </div>
+            <div className="grid grid-cols-3 gap-1 p-2 border-t border-slate-800/50">
+              <div className="text-center">
+                <div className="text-[8px] text-slate-500 uppercase">5th %ile</div>
+                <div className="text-xs font-bold text-rose-400">{mcStats.equity_p5 != null ? `$${(mcStats.equity_p5 / 1000).toFixed(0)}K` : "--"}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-[8px] text-slate-500 uppercase">Median</div>
+                <div className="text-xs font-bold text-emerald-400">{mcStats.equity_median != null ? `$${(mcStats.equity_median / 1000).toFixed(0)}K` : "--"}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-[8px] text-slate-500 uppercase">95th %ile</div>
+                <div className="text-xs font-bold text-cyan-400">{mcStats.equity_p95 != null ? `$${(mcStats.equity_p95 / 1000).toFixed(0)}K` : "--"}</div>
+              </div>
             </div>
           </Card>
         </div>
+
+        {/* Parameter Optimization Heatmap */}
         <div className="col-span-3">
           <Card title="Parameter Optimization Heatmap" noPadding>
             <div className="p-2">
               <div className="grid gap-0.5" style={{ gridTemplateColumns: `repeat(${optHeatmap[0]?.cells?.length || 6}, 1fr)` }}>
                 {optHeatmap.flatMap((row) => row.cells.map((cell) => (
-                  <div key={`${row.row}-${cell.col}`} className="aspect-square rounded-sm flex items-center justify-center text-[7px] font-bold" style={{ background: cell.value > 2 ? "#10b981" : cell.value > 1 ? "#22d3ee" : cell.value > 0 ? "#3b82f6" : cell.value > -0.5 ? "#f59e0b" : "#f43f5e", color: "#020617" }}>
+                  <div
+                    key={`${row.row}-${cell.col}`}
+                    className="aspect-square rounded-sm flex items-center justify-center text-[7px] font-bold"
+                    style={{
+                      background: cell.value > 2 ? "#10b981" : cell.value > 1 ? "#22d3ee" : cell.value > 0 ? "#3b82f6" : cell.value > -0.5 ? "#f59e0b" : "#f43f5e",
+                      color: "#020617"
+                    }}
+                  >
                     {cell.value?.toFixed(1)}
                   </div>
                 )))}
               </div>
+              {optHeatmap.length === 0 && (
+                <div className="h-[160px] flex items-center justify-center text-[10px] text-slate-600">Run backtest to generate heatmap</div>
+              )}
             </div>
           </Card>
         </div>
+
+        {/* Strategy Builder - ReactFlow */}
         <div className="col-span-4">
           <Card title="Strategy Builder - ReactFlow" noPadding>
             <div style={{ height: 220 }}>
@@ -617,51 +692,67 @@ export default function Backtesting() {
         </div>
       </div>
 
-      {/* ROW 5: Trade Log (full columns) + Run History + OpenClaw Swarm Consensus */}
+      {/* ROW 5: Trade Log + Run History + OpenClaw Swarm Consensus */}
       <div className="grid grid-cols-12 gap-2">
+        {/* Trade-by-Trade Log */}
         <div className="col-span-7">
           <Card title="Trade-by-Trade Log" noPadding>
             <DataTable columns={[
-              { key: "received_at", label: "Date", render: (v) => <span className="text-slate-400 text-[9px]">{v?.slice(0,10)}</span> },
+              { key: "received_at", label: "Date", render: (v) => <span className="text-slate-400 text-[9px]">{v?.slice(0, 10)}</span> },
               { key: "symbol", label: "Asset", render: (v) => <span className="font-bold text-[9px]">{v}</span> },
-              { key: "direction", label: "Side", render: (v) => <Badge variant={v==="LONG"?"success":"danger"} className="text-[7px]">{v}</Badge> },
-              { key: "shares", label: "QTY", cellClassName: "text-right text-[9px]" },
+              { key: "direction", label: "Side", render: (v) => <Badge variant={v === "LONG" ? "success" : "danger"} size="sm">{v}</Badge> },
+              { key: "shares", label: "Qty", cellClassName: "text-right text-[9px]" },
               { key: "entry", label: "Entry", cellClassName: "text-right text-[9px]", render: (v) => `$${Number(v)?.toFixed(2)}` },
-              { key: "target", label: "Exit", cellClassName: "text-right text-[9px]", render: (v) => `$${Number(v)?.toFixed(2)}` },
-              { key: "pnl_dollars", label: "P&L", cellClassName: "text-right", render: (v) => <span className={Number(v)>=0?"text-emerald-400":"text-rose-400"}>${Number(v)?.toFixed(0)}</span> },
-              { key: "pnl_r", label: "R-Mult", cellClassName: "text-right text-[9px]", render: (v) => <span className={Number(v)>=0?"text-emerald-400":"text-rose-400"}>{Number(v)?.toFixed(2)}R</span> },
-              { key: "score", label: "Agent", cellClassName: "text-right text-[9px]", render: (v) => v ? `OC:${Number(v)?.toFixed(0)}` : "--" },
-              { key: "kelly_sized", label: "Kelly", render: (v) => <Badge variant={v?"success":"default"} className="text-[7px]">{v?"Y":"N"}</Badge> },
+              { key: "target", label: "Exit Price", cellClassName: "text-right text-[9px]", render: (v) => `$${Number(v)?.toFixed(2)}` },
+              { key: "pnl_dollars", label: "P&L", cellClassName: "text-right", render: (v) => <span className={`text-[9px] font-medium ${Number(v) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>${Number(v)?.toFixed(0)}</span> },
+              { key: "pnl_r", label: "R-Mult", cellClassName: "text-right text-[9px]", render: (v) => <span className={Number(v) >= 0 ? "text-emerald-400" : "text-rose-400"}>{Number(v)?.toFixed(2)}R</span> },
+              { key: "score", label: "Agent", cellClassName: "text-right text-[9px]", render: (v) => v ? <span className="text-purple-400">OC:{Number(v)?.toFixed(0)}</span> : <span className="text-slate-600">--</span> },
+              { key: "kelly_sized", label: "Kelly", render: (v) => <Badge variant={v ? "success" : "secondary"} size="sm">{v ? "Y" : "N"}</Badge> },
             ]} data={trades} />
           </Card>
         </div>
+
+        {/* Run History & Export */}
         <div className="col-span-2">
           <Card title="Run History & Export" noPadding>
             <DataTable columns={[
               { key: "date", label: "Date", render: (v) => <span className="text-[9px] text-slate-400">{v}</span> },
               { key: "strategy", label: "Strategy", render: (v) => <span className="text-[9px]">{v}</span> },
-              { key: "pnl", label: "Revenue", cellClassName: "text-right", render: (v) => <span className={Number(v)>=0?"text-emerald-400":"text-rose-400"}>${v}</span> },
+              { key: "pnl", label: "Revenue", cellClassName: "text-right", render: (v) => <span className={`text-[9px] ${Number(v) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>${v}</span> },
             ]} data={runHistory} />
-            <div className="p-2">
-              <Button variant="secondary" fullWidth leftIcon={Download} className="text-[9px]">Export All Results (CSV/JSON)</Button>
+            <div className="p-2 border-t border-slate-800/50">
+              <Button variant="secondary" fullWidth leftIcon={Download} size="sm">
+                Export All Results (CSV)
+              </Button>
             </div>
           </Card>
         </div>
+
+        {/* OpenClaw Swarm Consensus */}
         <div className="col-span-3">
           <Card title={<span className="flex items-center gap-1.5"><Brain size={12} className="text-purple-400" /> OpenClaw Swarm Consensus</span>}>
-            <div className="space-y-2">
-              <div className="text-center">
-                <div className="text-[10px] text-slate-500">Agent Agreement</div>
-                <div className="text-2xl font-bold text-emerald-400">{swarmMetrics.consensusScore != null ? `${(swarmMetrics.consensusScore * 100).toFixed(0)}%` : "--"}</div>
+            <div className="space-y-3">
+              {/* Agent Agreement score */}
+              <div className="text-center py-1">
+                <div className="text-[10px] text-slate-500 uppercase tracking-wider">Agent Agreement</div>
+                <div className="text-3xl font-bold text-emerald-400">{swarmMetrics.consensusScore != null ? `${(swarmMetrics.consensusScore * 100).toFixed(0)}%` : "--"}</div>
               </div>
-              <div className="space-y-1">
-                {[{team:"Alpha",count:swarmMetrics.teamAlpha,color:"#3b82f6"},{team:"Beta",count:swarmMetrics.teamBeta,color:"#10b981"},{team:"Gamma",count:swarmMetrics.teamGamma,color:"#f59e0b"},{team:"Delta",count:swarmMetrics.teamDelta,color:"#8b5cf6"}].map(t => (
-                  <div key={t.team} className="flex items-center justify-between text-[9px]">
-                    <span className="text-slate-300">{t.team}</span>
-                    <div className="flex items-center gap-1">
-                      <div className="w-20 bg-slate-800 rounded-full h-1.5"><div className="h-1.5 rounded-full" style={{width:`${((t.count||0)/30)*100}%`, background: t.color}} /></div>
-                      <span className="text-slate-500 w-5 text-right">{t.count || "--"}</span>
+              {/* Team breakdown */}
+              <div className="space-y-2">
+                {[
+                  { team: "Alpha", count: swarmMetrics.teamAlpha, color: "#3b82f6" },
+                  { team: "Beta", count: swarmMetrics.teamBeta, color: "#10b981" },
+                  { team: "Gamma", count: swarmMetrics.teamGamma, color: "#f59e0b" },
+                  { team: "Delta", count: swarmMetrics.teamDelta, color: "#8b5cf6" },
+                ].map(t => (
+                  <div key={t.team} className="flex items-center justify-between text-[10px]">
+                    <span className="text-slate-300 w-12">{t.team}</span>
+                    <div className="flex-1 mx-2">
+                      <div className="w-full bg-slate-800 rounded-full h-1.5">
+                        <div className="h-1.5 rounded-full transition-all" style={{ width: `${((t.count || 0) / 30) * 100}%`, background: t.color }} />
+                      </div>
                     </div>
+                    <span className="text-slate-500 w-6 text-right text-[9px]">{t.count || "--"}</span>
                   </div>
                 ))}
               </div>
@@ -670,72 +761,15 @@ export default function Backtesting() {
         </div>
       </div>
 
-              {/* ROW 6: OpenClaw Swarm Agents + Strategy Builder */}
-        <div className="grid grid-cols-12 gap-3">
-          <div className="col-span-8">
-            <Card title={`OpenClaw Swarm (${swarmAgents.length} Agents)`}>
-              <div style={{ height: 320 }}>
-                <ReactFlow
-                  nodes={swarmAgents.map((a, i) => ({
-                    id: String(a.id),
-                    position: { x: 80 + (i % 4) * 200, y: 40 + Math.floor(i / 4) * 120 },
-                    data: { label: `${a.role}\nTasks: ${a.tasksCompleted || 0}\nP&L: $${Number(a.pnl || 0).toLocaleString()}` },
-                    style: {
-                      background: a.status === 'active' ? '#064e3b' : '#1e293b',
-                      color: '#e2e8f0', border: '1px solid #334155',
-                      borderRadius: 8, padding: 10, fontSize: 11, whiteSpace: 'pre-line',
-                      width: 160
-                    }
-                  }))}
-                  edges={swarmAgents.slice(1).map((a, i) => ({
-                    id: `e${i}`, source: '1', target: String(a.id),
-                    animated: true, style: { stroke: '#10b981' }
-                  }))}
-                  fitView
-                >
-                  <Background color="#334155" gap={16} />
-                  <Controls />
-                </ReactFlow>
-              </div>
-              <div className="grid grid-cols-4 gap-2 mt-2">
-                <ResultStat label="Active" value={swarmMetrics.activeAgents} color="text-emerald-400" />
-                <ResultStat label="Tasks Done" value={swarmMetrics.tasksCompleted} />
-                <ResultStat label="Swarm P&L" value={`$${(swarmMetrics.totalPnl || 0).toLocaleString()}`} color="text-emerald-400" />
-                <ResultStat label="Consensus" value={`${swarmMetrics.consensusScore || 0}%`} />
-              </div>
-            </Card>
-          </div>
-
-                    <div className="col-span-4">
-            <Card title="Sub-Agent Details">
-              <div className="space-y-1 max-h-[360px] overflow-y-auto">
-                {swarmAgents.map((a) => (
-                  <div key={a.id} className="flex items-center justify-between p-2 rounded bg-slate-800/60 border border-slate-700">
-                    <div>
-                      <span className="text-slate-300 font-medium text-xs">{a.role}</span>
-                      <div className="text-[10px] text-slate-500">ID: {a.id} | Tasks: {a.tasksCompleted || 0}</div>
-                    </div>
-                    <div className="text-right">
-                      <Badge variant={a.status === 'active' ? 'success' : 'secondary'} className="text-[9px]">{a.status}</Badge>
-                      <div className={`text-xs font-mono ${(a.pnl || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        ${(a.pnl || 0).toLocaleString()}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          </div>
-
-        </div>
-
       {/* BOTTOM BAR (mockup: 7 Agents OK, EXTENDED SWARM) */}
-      <div className="flex items-center justify-between text-[8px] text-slate-600 px-2 py-1 bg-slate-900/30 rounded border border-slate-800">
-        <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />{swarmAgents.filter(a => a.status === "active").length || "--"} Agents OK</span>
+      <div className="flex items-center justify-between text-[8px] text-slate-600 px-3 py-1.5 bg-slate-900/40 rounded border border-slate-800/50">
+        <span className="flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+          <span className="text-emerald-500">{swarmAgents.filter(a => a.status === "active").length || "--"} Agents OK</span>
+        </span>
         <span>EXTENDED SWARM ({swarmMetrics.subAgentCount || swarmMetrics.activeAgents || "--"})</span>
         <span>{new Date().toLocaleTimeString()}</span>
       </div>
-
     </div>
   );
 }
