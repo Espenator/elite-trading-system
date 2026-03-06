@@ -576,6 +576,8 @@ export default function AgentCommandCenter() {
     { id: "conference", label: "Conference & Consensus", icon: Users },
     { id: "ml-ops", label: "ML Ops", icon: Brain },
     { id: "logs", label: "Logs & Telemetry", icon: Terminal },
+    { id: "brain-map", label: "Brain Map", icon: Network },
+    { id: "node-control", label: "Node Control & HITL", icon: Sliders },
   ];
   // =============================================
   // RENDER
