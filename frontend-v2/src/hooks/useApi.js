@@ -82,7 +82,7 @@ export function useApi(endpoint, options = {}) {
     const fetchPromise = (async () => {
       await _acquireSlot();
       try {
-        const res = await fetch(url, { cache: "no-store" });
+        const res = await fetch(url, { cache: "no-store", headers: getAuthHeaders() });
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         const json = await res.json();
         _apiCache.set(url, { data: json, ts: Date.now() });

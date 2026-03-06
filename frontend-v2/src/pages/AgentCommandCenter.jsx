@@ -506,6 +506,19 @@ export default function AgentCommandCenter() {
   }, [agents, agentSearch, statusFilter, sortBy]);
   // --- Conference data for Brain Map tab ---
   const { data: conferenceData } = useApi("conference", { pollIntervalMs: 15000 });
+  // --- ML / Flywheel data for Spawn & Scale + ML Ops tabs ---
+  const { data: flywheelData } = useApi("flywheel", { pollIntervalMs: 30000 });
+  const { data: mlBrainData } = useApi("mlBrain", { pollIntervalMs: 30000 });
+  // --- Agent resource metrics for Telemetry tab ---
+  const { data: agentResourcesData } = useApi("agentResources", { pollIntervalMs: 15000 });
+  // --- System logs for Logs tab ---
+  const { data: logsData } = useApi("logs", { pollIntervalMs: 10000 });
+  // --- Flow anomalies for Brain Map tab ---
+  const { data: flowAnomaliesData } = useApi("agentFlowAnomalies", { pollIntervalMs: 15000 });
+  // --- HITL stats for Node Control tab ---
+  const { data: hitlStatsData } = useApi("agentHitlStats", { pollIntervalMs: 10000 });
+  // --- WebSocket channels info ---
+  const { data: wsChannelsData } = useApi("agentWsChannels", { pollIntervalMs: 15000 });
   // --- URL sync ---
   useEffect(() => { if (activeTab) navigate(`/agents/${activeTab}`, { replace: true }); }, [activeTab]);
   // --- Loaders ---
@@ -853,8 +866,8 @@ export default function AgentCommandCenter() {
                         <td className="px-1">
                           <div className="flex gap-1">
                             <button className="p-0.5 hover:text-cyan-400" onClick={(e) => { e.stopPropagation(); handleAgentToggle(a); }}>{a.status === 'running' ? <Square className="w-3 h-3" /> : <Play className="w-3 h-3" />}</button>
-                            <button className="p-0.5 hover:text-amber-400" onClick={(e) => { e.stopPropagation(); toast.success(`SIGTERM ${a.name}`); }}><RefreshCw className="w-3 h-3" /></button>
-                            <button className="p-0.5 hover:text-red-400" onClick={(e) => { e.stopPropagation(); toast.error(`Killed ${a.name}`); }}><XCircle className="w-3 h-3" /></button>
+                            <button className="p-0.5 hover:text-amber-400" onClick={(e) => { e.stopPropagation(); handleAgentAction(a.id, "restart"); }}><RefreshCw className="w-3 h-3" /></button>
+                            <button className="p-0.5 hover:text-red-400" onClick={(e) => { e.stopPropagation(); handleAgentAction(a.id, "kill"); }}><XCircle className="w-3 h-3" /></button>
                           </div>
                         </td>
                       </tr>
@@ -947,13 +960,13 @@ export default function AgentCommandCenter() {
               <Card title="ML Engine & Flywheel" className="col-span-1">
                 <div className="space-y-2 text-[10px]">
                   {[
-                    { label: "Walk-Forward Accuracy", val: "94.2%", color: "text-emerald-400" },
-                    { label: "Active Models", val: "4", color: "text-cyan-400" },
-                    { label: "Training Queue", val: "2", color: "text-amber-400" },
-                    { label: "Flywheel Cycles", val: "847", color: "text-white" },
-                    { label: "Last Retrain", val: "2h ago", color: "text-secondary" },
-                    { label: "Feature Drift", val: "0.023", color: "text-emerald-400" },
-                    { label: "Sharpe (Live)", val: "2.41", color: "text-cyan-400" },
+                    { label: "Walk-Forward Accuracy", val: flywheelData?.walk_forward_accuracy != null ? `${flywheelData.walk_forward_accuracy}%` : "—", color: "text-emerald-400" },
+                    { label: "Active Models", val: flywheelData?.active_models ?? "—", color: "text-cyan-400" },
+                    { label: "Training Queue", val: flywheelData?.training_queue ?? "—", color: "text-amber-400" },
+                    { label: "Flywheel Cycles", val: flywheelData?.cycles ?? "—", color: "text-white" },
+                    { label: "Last Retrain", val: flywheelData?.last_retrain || "—", color: "text-secondary" },
+                    { label: "Feature Drift", val: flywheelData?.feature_drift ?? "—", color: "text-emerald-400" },
+                    { label: "Sharpe (Live)", val: flywheelData?.sharpe_live ?? "—", color: "text-cyan-400" },
                   ].map(r => (
                     <div key={r.label} className="flex items-center justify-between">
                       <span className="text-secondary">{r.label}</span>
@@ -967,13 +980,13 @@ export default function AgentCommandCenter() {
               <Card title="Trading Conference & Auto-Scale" className="col-span-1">
                 <div className="space-y-2 text-[10px]">
                   {[
-                    { label: "Conference Status", val: "IDLE", color: "text-secondary" },
-                    { label: "Last Conference", val: "#941", color: "text-cyan-400" },
-                    { label: "Consensus Rate", val: "88%", color: "text-emerald-400" },
-                    { label: "Auto-Scale", val: "ENABLED", color: "text-emerald-400" },
-                    { label: "Scale Factor", val: "1.5x", color: "text-white" },
-                    { label: "Min Agents", val: "5", color: "text-secondary" },
-                    { label: "Max Agents", val: "50", color: "text-secondary" },
+                    { label: "Conference Status", val: conferenceData?.status || "IDLE", color: conferenceData?.status === "RUNNING" ? "text-emerald-400" : "text-secondary" },
+                    { label: "Last Conference", val: conferenceData?.last_id ? `#${conferenceData.last_id}` : "—", color: "text-cyan-400" },
+                    { label: "Consensus Rate", val: conferenceData?.consensus_rate != null ? `${conferenceData.consensus_rate}%` : "—", color: "text-emerald-400" },
+                    { label: "Auto-Scale", val: conferenceData?.auto_scale ? "ENABLED" : "DISABLED", color: conferenceData?.auto_scale ? "text-emerald-400" : "text-red-400" },
+                    { label: "Scale Factor", val: conferenceData?.scale_factor ? `${conferenceData.scale_factor}x` : "—", color: "text-white" },
+                    { label: "Min Agents", val: conferenceData?.min_agents ?? "—", color: "text-secondary" },
+                    { label: "Max Agents", val: conferenceData?.max_agents ?? "—", color: "text-secondary" },
                   ].map(r => (
                     <div key={r.label} className="flex items-center justify-between">
                       <span className="text-secondary">{r.label}</span>
@@ -1087,9 +1100,9 @@ export default function AgentCommandCenter() {
                         <td className="px-2 text-secondary">{a.uptime || '12h'}</td>
                         <td className="px-2">
                           <div className="flex gap-1">
-                            <button className="p-0.5 hover:text-amber-400" onClick={(e) => { e.stopPropagation(); toast.info('Paused'); }}><Pause className="w-3 h-3" /></button>
+                            <button className="p-0.5 hover:text-amber-400" onClick={(e) => { e.stopPropagation(); handleAgentAction(a.id, "pause"); }}><Pause className="w-3 h-3" /></button>
                             <button className="p-0.5 hover:text-red-400" onClick={(e) => { e.stopPropagation(); handleSpawnTeam(a.name, 'kill'); }}><XCircle className="w-3 h-3" /></button>
-                            <button className="p-0.5 hover:text-cyan-400" onClick={(e) => { e.stopPropagation(); toast.info('Cloned'); }}><Copy className="w-3 h-3" /></button>
+                            <button className="p-0.5 hover:text-cyan-400" onClick={(e) => { e.stopPropagation(); handleSpawnTeam(a.name.toLowerCase().replace(/\s/g, '_') + '_clone', 'spawn'); }}><Copy className="w-3 h-3" /></button>
                           </div>
                         </td>
                       </tr>
@@ -1307,7 +1320,7 @@ export default function AgentCommandCenter() {
             { name: "order", status: "connected", subs: 3, rate: 0.4, lastMsg: "12s ago" },
             { name: "llm-flow", status: "degraded", subs: 4, rate: 2.1, lastMsg: "8s ago" },
           ];
-          const wsChannels = (Array.isArray(agentsRaw?.channels) ? agentsRaw.channels : defaultWsChannels);
+          const wsChannels = Array.isArray(wsChannelsData?.channels) ? wsChannelsData.channels : (Array.isArray(agentsRaw?.channels) ? agentsRaw.channels : defaultWsChannels);
           const fallbackHitl = hitlBuffer.length > 0 ? hitlBuffer : [
             { id: 1, time: "09:41:23", agent: "signal_generator", action: "BUY_ORDER", symbol: "TSLA", confidence: "0.87", reasoning: "Breakout signal above resistance with strong volume confirmation", impact: "HIGH", urgency: "45s", status: "PENDING" },
             { id: 2, time: "09:41:18", agent: "ml_inference", action: "POSITION_SIZE", symbol: "AAPL", confidence: "0.78", reasoning: "Model prediction confidence above threshold, suggested 2.5% allocation", impact: "MED", urgency: "120s", status: "PENDING" },
@@ -1512,17 +1525,17 @@ export default function AgentCommandCenter() {
                 <thead><tr className="text-secondary border-b border-cyan-500/20">
                   {["Model", "Version", "Accuracy", "Val Loss", "Sharpe", "Epochs", "Status"].map(h => <th key={h} className="text-left py-1">{h}</th>)}
                 </tr></thead>
-                <tbody>{[{m:'SignalNet-v3',v:'3.2.1',acc:'94.2%',vl:'0.0023',sh:'2.41',ep:'847/1000',st:'Training'},
-                  {m:'RiskPredictor',v:'2.1.0',acc:'89.7%',vl:'0.0089',sh:'1.87',ep:'1000/1000',st:'Production'},
-                  {m:'SentimentBERT',v:'1.5.2',acc:'91.3%',vl:'0.0045',sh:'2.12',ep:'500/500',st:'Production'},
-                  {m:'RegimeHMM',v:'4.0.0',acc:'87.1%',vl:'0.0112',sh:'1.55',ep:'200/200',st:'Staging'}].map(r => (
-                  <tr key={r.m} className="border-b border-gray-800/30 hover:bg-cyan-500/5 cursor-pointer" onClick={() => toast.info(`Model: ${r.m}`)}>
-                    <td className="py-1.5 text-white font-medium">{r.m}</td><td className="text-secondary">{r.v}</td>
-                    <td className="text-emerald-400">{r.acc}</td><td className="text-amber-400">{r.vl}</td>
-                    <td className="text-cyan-400">{r.sh}</td><td className="text-secondary">{r.ep}</td>
-                    <td><Badge className={r.st === 'Training' ? 'bg-amber-500/20 text-amber-400' : r.st === 'Production' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-cyan-500/20 text-cyan-400'}>{r.st}</Badge></td>
+                <tbody>{(Array.isArray(mlBrainData?.models) ? mlBrainData.models : []).map(r => (
+                  <tr key={r.name || r.model} className="border-b border-gray-800/30 hover:bg-cyan-500/5 cursor-pointer" onClick={() => toast.info(`Model: ${r.name || r.model}`)}>
+                    <td className="py-1.5 text-white font-medium">{r.name || r.model}</td><td className="text-secondary">{r.version || "—"}</td>
+                    <td className="text-emerald-400">{r.accuracy != null ? `${r.accuracy}%` : "—"}</td><td className="text-amber-400">{r.val_loss ?? "—"}</td>
+                    <td className="text-cyan-400">{r.sharpe ?? "—"}</td><td className="text-secondary">{r.epochs || "—"}</td>
+                    <td><Badge className={r.status === 'Training' || r.status === 'training' ? 'bg-amber-500/20 text-amber-400' : r.status === 'Production' || r.status === 'production' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-cyan-500/20 text-cyan-400'}>{r.status || "unknown"}</Badge></td>
                   </tr>
-                ))}</tbody>
+                ))}
+                {(!mlBrainData?.models || mlBrainData.models.length === 0) && (
+                  <tr><td colSpan={7} className="text-center py-6 text-secondary">No model data available. Awaiting ML Brain API...</td></tr>
+                )}</tbody>
               </table>
             </Card>
           </div>
@@ -1539,11 +1552,11 @@ export default function AgentCommandCenter() {
             </Card>
             <Card title="System Telemetry">
               <div className="space-y-3">
-                {[{label: 'CPU Usage', value: 47, color: 'bg-emerald-500'}, {label: 'Memory', value: 31, color: 'bg-amber-500'},
-                  {label: 'GPU', value: 61, color: 'bg-cyan-500'}, {label: 'Disk I/O', value: 23, color: 'bg-purple-500'},
-                  {label: 'Network', value: 15, color: 'bg-blue-500'}].map(m => (
+                {[{label: 'CPU Usage', value: agentResourcesData?.cpu_pct ?? 0, color: 'bg-emerald-500'}, {label: 'Memory', value: agentResourcesData?.mem_pct ?? 0, color: 'bg-amber-500'},
+                  {label: 'GPU', value: agentResourcesData?.gpu_pct ?? 0, color: 'bg-cyan-500'}, {label: 'Disk I/O', value: agentResourcesData?.disk_io_pct ?? 0, color: 'bg-purple-500'},
+                  {label: 'Network', value: agentResourcesData?.net_pct ?? 0, color: 'bg-blue-500'}].map(m => (
                   <div key={m.label} className="cursor-pointer hover:bg-cyan-500/5 rounded p-1" onClick={() => toast.info(`${m.label}: ${m.value}%`)}>
-                    <div className="flex justify-between text-xs mb-1"><span className="text-secondary">{m.label}</span><span className="text-white font-mono">{m.value}%</span></div>
+                    <div className="flex justify-between text-xs mb-1"><span className="text-secondary">{m.label}</span><span className="text-white font-mono">{Math.round(m.value)}%</span></div>
                     <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden"><div className={`h-full ${m.color} rounded-full transition-all`} style={{ width: `${m.value}%` }} /></div>
                   </div>
                 ))}
@@ -1551,13 +1564,16 @@ export default function AgentCommandCenter() {
             </Card>
             <Card title="Service Logs" className="col-span-3">
               <div className="space-y-0.5 max-h-[200px] overflow-y-auto font-mono text-[11px]">
-                {["[09:41:23] INFO orchestrator: Heartbeat OK", "[09:41:20] INFO ml-worker: Epoch 847 complete",
-                  "[09:41:18] WARN risk-shield: Volatility spike detected", "[09:41:15] INFO signal-engine: 3 signals generated",
-                  "[09:41:12] INFO consensus: Conference #941 complete", "[09:41:10] DEBUG agent-bus: 12 messages dispatched",
-                  "[09:41:08] INFO sentiment: Twitter stream connected", "[09:41:05] ERROR ml-worker: GPU memory near limit (89%)"].map((log, i) => (
-                  <div key={i} className={`px-2 py-0.5 rounded cursor-pointer hover:bg-cyan-500/10 ${log.includes('ERROR') ? 'text-red-400' : log.includes('WARN') ? 'text-amber-400' : 'text-white/70'}`}
-                    onClick={() => toast.info(log)}>{log}</div>
-                ))}
+                {(Array.isArray(logsData?.entries) ? logsData.entries.slice(0, 20) : []).map((entry, i) => {
+                  const line = typeof entry === "string" ? entry : `[${entry.timestamp || ""}] ${entry.level || "INFO"} ${entry.source || ""}: ${entry.message || ""}`;
+                  return (
+                    <div key={i} className={`px-2 py-0.5 rounded cursor-pointer hover:bg-cyan-500/10 ${line.includes('ERROR') ? 'text-red-400' : line.includes('WARN') ? 'text-amber-400' : 'text-white/70'}`}
+                      onClick={() => toast.info(line)}>{line}</div>
+                  );
+                })}
+                {(!logsData?.entries || logsData.entries.length === 0) && (
+                  <p className="text-secondary text-xs text-center py-4">No log entries available. Awaiting backend connection...</p>
+                )}
               </div>
             </Card>
           </div>
@@ -1619,12 +1635,13 @@ export default function AgentCommandCenter() {
             agents: s.participants?.join(", ") || s.agents || "",
             result: s.result || s.decision || "",
           })) : defaultConferenceSessions;
-          const anomalies = [
+          const defaultAnomalies = [
             { anomaly: "Latency Spike", source: "Finnhub", type: "Network", severity: "Medium", recovery: "Auto-retry" },
             { anomaly: "Data Gap", source: "FRED", type: "Data Quality", severity: "Low", recovery: "Cache fallback" },
             { anomaly: "Model Drift", source: "ML Inference", type: "Model", severity: "High", recovery: "Retrain queued" },
             { anomaly: "Rate Limit", source: "XTwitter", type: "API", severity: "Medium", recovery: "Backoff 60s" },
           ];
+          const anomalies = Array.isArray(flowAnomaliesData?.anomalies) ? flowAnomaliesData.anomalies : defaultAnomalies;
           return (
           <div className="space-y-3">
             {/* Toolbar */}
@@ -1805,30 +1822,21 @@ export default function AgentCommandCenter() {
 
         {/* ============ TAB 10: NODE CONTROL & HITL (mockup v3) ============ */}
         {activeTab === "node-control" && (() => {
-          const agentRows = (agents.length > 0 ? agents : Array.from({ length: 15 }, (_, i) => ({
-            id: `nc-${i}`, name: ["Market Data Agent", "ML Inference Agent", "Signal Generation Agent", "Sentiment Agent",
-              "Risk Resolver Agent", "Sector Rotation Agent", "Pattern Scanner Agent", "Momentum Tracker Agent",
-              "Options Flow Agent", "News Processor Agent", "Social Listener Agent", "Macro Analyzer Agent",
-              "Volume Profiler Agent", "Correlation Agent", "Arbitrage Spotter"][i],
-            status: i < 11 ? "running" : i < 13 ? "paused" : "degraded",
-            type: ["scanner", "ml", "signal", "sentiment", "risk", "sector", "pattern", "momentum", "options", "news", "social", "macro", "volume", "correlation", "arbitrage"][i],
-          }))).slice(0, 15);
+          const agentRows = agents.slice(0, 15);
           const agentIconColors = ["text-cyan-400", "text-emerald-400", "text-amber-400", "text-purple-400", "text-red-400", "text-blue-400", "text-pink-400", "text-teal-400", "text-indigo-400", "text-orange-400", "text-lime-400", "text-violet-400", "text-rose-400", "text-sky-400", "text-fuchsia-400"];
           const priorities = ["High", "High", "High", "Medium", "High", "Medium", "Medium", "Low", "Medium", "Low", "Low", "Medium", "Low", "Low", "Low"];
-          const hitlPending = hitlBuffer.filter(h => h.status === "PENDING").length || 8;
-          const hitlApproved = 4;
-          const hitlReviewed = 10;
-          const hitlEmpty = 1;
-          const hitlTotal = 23;
+          const hitlPending = hitlStatsData?.pending ?? hitlBuffer.filter(h => h.status === "PENDING").length;
+          const hitlApproved = hitlStatsData?.approved ?? 0;
+          const hitlReviewed = hitlStatsData?.reviewed ?? 0;
+          const hitlEmpty = hitlStatsData?.empty ?? 0;
+          const hitlTotal = hitlStatsData?.total ?? Math.max(hitlPending + hitlApproved + hitlReviewed + hitlEmpty, 1);
           const bufferFill = ((hitlPending + hitlApproved + hitlReviewed) / hitlTotal * 100).toFixed(1);
-          const overdueHistory = [
-            { time: "09:41:23", action: "AUTO_APPROVE", agent: "signal_gen", result: "Success" },
-            { time: "09:38:12", action: "TIMEOUT_REJECT", agent: "risk_mgr", result: "Expired" },
-            { time: "09:35:01", action: "MANUAL_APPROVE", agent: "ml_inference", result: "Success" },
-            { time: "09:31:45", action: "AUTO_DEFER", agent: "sentiment", result: "Deferred" },
-            { time: "09:28:33", action: "MANUAL_REJECT", agent: "consensus", result: "Rejected" },
-            { time: "09:25:18", action: "AUTO_APPROVE", agent: "brain_coord", result: "Success" },
+          const defaultOverdueHistory = [
+            { time: "—", action: "AUTO_APPROVE", agent: "signal_gen", result: "Success" },
+            { time: "—", action: "TIMEOUT_REJECT", agent: "risk_mgr", result: "Expired" },
+            { time: "—", action: "MANUAL_APPROVE", agent: "ml_inference", result: "Success" },
           ];
+          const overdueHistory = Array.isArray(hitlStatsData?.overdue_history) ? hitlStatsData.overdue_history : defaultOverdueHistory;
           return (
           <div className="space-y-3">
             {/* Header */}

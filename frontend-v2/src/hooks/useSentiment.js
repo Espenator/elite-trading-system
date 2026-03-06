@@ -4,7 +4,7 @@
  * and /history (rolling timeline), with 30s polling + WebSocket live updates.
  */
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getApiUrl } from "../config/api";
+import { getApiUrl, getAuthHeaders } from "../config/api";
 import ws from "../services/websocket";
 import log from "@/utils/logger";
 
@@ -21,7 +21,7 @@ export function useSentiment() {
   const fetchSummary = useCallback(async () => {
     try {
       const url = getApiUrl("sentiment") + "/summary";
-      const res = await fetch(url);
+      const res = await fetch(url, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`Summary ${res.status}`);
       const data = await res.json();
       if (mountedRef.current) {
@@ -37,7 +37,7 @@ export function useSentiment() {
   const fetchHistory = useCallback(async (hours = 24) => {
     try {
       const url = getApiUrl("sentiment") + `/history?hours=${hours}`;
-      const res = await fetch(url);
+      const res = await fetch(url, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`History ${res.status}`);
       const data = await res.json();
       if (mountedRef.current) setHistory(data.points || []);

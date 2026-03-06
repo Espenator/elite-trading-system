@@ -1,7 +1,8 @@
 // SENTIMENT INTELLIGENCE - Production-ready multi-source sentiment fusion
 // Uses useSentiment hook -> GET /api/v1/sentiment/summary + /history + WebSocket
 // Aurora Design System - 100% mockup fidelity (04-sentiment-intelligence.png)
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
+import { getApiUrl, getAuthHeaders } from '../config/api';
 import SentimentTimelineLC from '../components/charts/SentimentTimelineLC';
 import {
   Activity, TrendingUp, TrendingDown, AlertTriangle, Target,
@@ -90,6 +91,24 @@ export default function SentimentIntelligence() {
     loading, error, lastUpdated, refetch,
     mood, sourceHealth, divergences, heatmap, signals, stats, history,
   } = useSentiment();
+
+  const [discovering, setDiscovering] = useState(false);
+
+  const handleAutoDiscover = useCallback(async () => {
+    setDiscovering(true);
+    try {
+      const res = await fetch(getApiUrl('sentiment/discover'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      refetch();
+    } catch (err) {
+      console.error('Auto Discover failed:', err);
+    } finally {
+      setDiscovering(false);
+    }
+  }, [refetch]);
 
   // Aggregate history into hourly buckets for the timeline chart
   const timelineData = useMemo(() => {
@@ -256,23 +275,34 @@ export default function SentimentIntelligence() {
                   { label: 'Signal Weight', key: 'signal' },
                   { label: 'Recency Weight', key: 'recency' },
                   { label: 'Market Weight', key: 'market' },
-                ].map(item => (
-                  <div key={item.key} className="flex items-center justify-between text-[10px] px-2">
-                    <span className="text-slate-500">{item.label}</span>
-                    <div className="flex items-center gap-2">
-                      <div className="w-16 bg-slate-800 rounded-full h-1">
-                        <div className="h-1 rounded-full bg-cyan-600/60" style={{ width: '65%' }} />
+                ].map(item => {
+                  const weightVal = stats?.weights?.[item.key]
+                    ?? (item.key === 'composite' && sourceHealth.length > 0
+                      ? Math.round(sourceHealth.reduce((sum, s) => sum + (s.weight ?? 0), 0) / sourceHealth.length * 100)
+                      : 0);
+                  const pct = typeof weightVal === 'number' ? Math.round(weightVal) : 0;
+                  return (
+                    <div key={item.key} className="flex items-center justify-between text-[10px] px-2">
+                      <span className="text-slate-500">{item.label}</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 bg-slate-800 rounded-full h-1">
+                          <div className="h-1 rounded-full bg-cyan-600/60" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-slate-500 font-mono w-6 text-right">{pct}</span>
                       </div>
-                      <span className="text-slate-500 font-mono w-6 text-right">65</span>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Auto Discover Button */}
-              <button className="w-full mt-3 py-2 rounded-lg bg-cyan-500/20 border border-cyan-500/40 text-cyan-400 text-xs font-semibold hover:bg-cyan-500/30 transition-colors flex items-center justify-center gap-2">
-                <Zap className="w-3.5 h-3.5" />
-                Auto Discover
+              <button
+                disabled={discovering}
+                onClick={handleAutoDiscover}
+                className="w-full mt-3 py-2 rounded-lg bg-cyan-500/20 border border-cyan-500/40 text-cyan-400 text-xs font-semibold hover:bg-cyan-500/30 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                <Zap className={`w-3.5 h-3.5 ${discovering ? 'animate-spin' : ''}`} />
+                {discovering ? 'Discovering...' : 'Auto Discover'}
               </button>
             </div>
           </Card>

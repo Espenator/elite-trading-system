@@ -1443,15 +1443,16 @@ export default function Dashboard() {
         {/* LEFT SIDEBAR NAV */}
         <aside className="w-[52px] shrink-0 bg-[#0B0E14] border-r border-[rgba(42,52,68,0.5)] flex flex-col items-center py-3 gap-3">
           {[
-            { label: "Dash", icon: "\u25A3", active: true },
-            { label: "Signals", icon: "\u26A1" },
-            { label: "Port", icon: "\u2637" },
-            { label: "Risk", icon: "\u26D4" },
-            { label: "Agents", icon: "\u2699" },
-            { label: "ML", icon: "\u2B22" },
+            { label: "Dash", icon: "\u25A3", active: true, path: "/" },
+            { label: "Signals", icon: "\u26A1", path: "/signals" },
+            { label: "Port", icon: "\u2637", path: "/trades" },
+            { label: "Risk", icon: "\u26D4", path: "/risk" },
+            { label: "Agents", icon: "\u2699", path: "/agents" },
+            { label: "ML", icon: "\u2B22", path: "/ml-brain" },
           ].map((nav) => (
             <button
               key={nav.label}
+              onClick={() => { if (!nav.active) window.location.href = nav.path; }}
               className={`w-9 h-9 rounded flex flex-col items-center justify-center gap-0.5 transition-colors ${nav.active ? "bg-[#00D9FF]/15 text-[#00D9FF] border border-[#00D9FF]/30" : "text-[#64748b] hover:text-[#94a3b8] hover:bg-[#1e293b]/50 border border-transparent"}`}
             >
               <span className="text-sm leading-none">{nav.icon}</span>
@@ -1781,9 +1782,42 @@ export default function Dashboard() {
                 </button>
               </div>
               <div className="grid grid-cols-3 gap-1">
-                <button className="bg-[#1e293b] hover:bg-cyan-900 text-[#00D9FF] py-1 rounded text-[8px]">Limit</button>
-                <button className="bg-[#1e293b] hover:bg-cyan-900 text-[#00D9FF] py-1 rounded text-[8px]">Stop Limit</button>
-                <button className="bg-[#1e293b] hover:bg-amber-900 text-[#f59e0b] py-1 rounded text-[8px]">Modify</button>
+                <button onClick={() => {
+                  const body = {
+                    symbol: selectedSymbol,
+                    side: selectedSignal?.direction === "SHORT" ? "sell" : "buy",
+                    type: "limit",
+                    time_in_force: "day",
+                    qty: String(riskData?.proposal?.proposedSize || 100),
+                    limit_price: String(selectedSignal?.entry ?? selectedSignal?.price ?? riskData?.proposal?.limitPrice ?? 0),
+                  };
+                  fetch(getApiUrl("orders/advanced"), {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+                    body: JSON.stringify(body),
+                  }).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+                    .then(() => alert(`Limit order placed: ${selectedSymbol}`))
+                    .catch(e => alert(`Limit order failed: ${e.message}`));
+                }} className="bg-[#1e293b] hover:bg-cyan-900 text-[#00D9FF] py-1 rounded text-[8px]">Limit</button>
+                <button onClick={() => {
+                  const body = {
+                    symbol: selectedSymbol,
+                    side: selectedSignal?.direction === "SHORT" ? "sell" : "buy",
+                    type: "stop_limit",
+                    time_in_force: "day",
+                    qty: String(riskData?.proposal?.proposedSize || 100),
+                    limit_price: String(selectedSignal?.entry ?? selectedSignal?.price ?? riskData?.proposal?.limitPrice ?? 0),
+                    stop_price: String(selectedSignal?.stop ?? riskData?.proposal?.stopLoss ?? 0),
+                  };
+                  fetch(getApiUrl("orders/advanced"), {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+                    body: JSON.stringify(body),
+                  }).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+                    .then(() => alert(`Stop Limit order placed: ${selectedSymbol}`))
+                    .catch(e => alert(`Stop Limit order failed: ${e.message}`));
+                }} className="bg-[#1e293b] hover:bg-cyan-900 text-[#00D9FF] py-1 rounded text-[8px]">Stop Limit</button>
+                <button onClick={() => { window.location.href = "/trade-execution"; }} className="bg-[#1e293b] hover:bg-amber-900 text-[#f59e0b] py-1 rounded text-[8px]">Modify</button>
               </div>
             </div>
           )}

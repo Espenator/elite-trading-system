@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { createChart } from 'lightweight-charts';
 import { useApi } from '../hooks/useApi';
-import { getApiUrl } from '../config/api';
+import { getApiUrl, getAuthHeaders } from '../config/api';
 import log from "@/utils/logger";
 import { Brain, Activity, Zap, RotateCcw, Server, ChevronRight, TrendingUp, BarChart3, Radio } from 'lucide-react';
 import Card from '../components/ui/Card';
@@ -314,7 +314,7 @@ export default function MLBrainFlywheel() {
   const handleRetrain = async () => {
     setIsRetraining(true);
     try {
-      await fetch(getApiUrl('training') + '/runs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'retrain' }) });
+      await fetch(getApiUrl('training') + '/runs', { method: 'POST', headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, body: JSON.stringify({ type: 'retrain' }) });
       // In a real app, this would trigger a toast or update logs
     } catch (e) {
       log.error("Retrain failed", e);

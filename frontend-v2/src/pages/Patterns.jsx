@@ -32,7 +32,7 @@ import Checkbox from "../components/ui/Checkbox";
 import TextField from "../components/ui/TextField";
 import DataTable from "../components/ui/DataTable";
 import MiniChart from "../components/charts/MiniChart";
-import { getApiUrl } from "../config/api";
+import { getApiUrl, getAuthHeaders } from "../config/api";
 import log from "@/utils/logger";
 
 // ═══════════════════════════════════════════════════
@@ -202,7 +202,7 @@ export default function Patterns() {
     const fetchStocks = async () => {
       setLoading(true);
       try {
-        const res = await fetch(getApiUrl("/api/v1/stocks/list"));
+        const res = await fetch(getApiUrl("/api/v1/stocks/list"), { headers: getAuthHeaders() });
         if (!res.ok) throw new Error(`Stocks API ${res.status}`);
         const json = await res.json();
         const rows = json.data || json.stocks || json || [];
@@ -225,7 +225,7 @@ export default function Patterns() {
   useEffect(() => {
     const fetchPatterns = async () => {
       try {
-        const res = await fetch(getApiUrl("/api/v1/patterns"));
+        const res = await fetch(getApiUrl("/api/v1/patterns"), { headers: getAuthHeaders() });
         if (!res.ok) throw new Error(`Patterns API ${res.status}`);
         const json = await res.json();
         setPatterns(json.patterns || []);

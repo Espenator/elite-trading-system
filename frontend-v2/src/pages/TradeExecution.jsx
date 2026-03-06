@@ -1,8 +1,9 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useRef } from 'react';
 import useTradeExecution from '../hooks/useTradeExecution';
 import AlignmentEngine from "../components/settings/AlignmentEngine";
 import CouncilVerdictPanel from "../components/dashboard/CouncilVerdictPanel";
-import { getApiUrl } from '../config/api';
+import { getApiUrl, getAuthHeaders } from '../config/api';
+import { useApi } from '../hooks/useApi';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
 import Button from '../components/ui/Button';
@@ -21,12 +22,72 @@ export default function TradeExecution() {
     executeStopLoss, executeAdvancedOrder, closePosition, adjustPosition,
   } = useTradeExecution();
 
+  // Candle data for price chart
+  const { data: candleData } = useApi('quotes', {
+    endpoint: `/quotes/${orderForm?.symbol || 'SPY'}/candles?timeframe=1h`,
+    pollIntervalMs: 30000,
+    enabled: !!orderForm?.symbol,
+  });
+
+  const chartRef = useRef(null);
+  const chartInstanceRef = useRef(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const initChart = async () => {
+      if (!chartRef.current) return;
+      try {
+        const { createChart } = await import('lightweight-charts');
+        if (cancelled) return;
+        const chart = createChart(chartRef.current, {
+          width: chartRef.current.clientWidth,
+          height: 160,
+          layout: { background: { color: '#0B0E14' }, textColor: '#94a3b8', fontSize: 9, fontFamily: "'JetBrains Mono', monospace" },
+          grid: { vertLines: { color: 'rgba(42,52,68,0.3)' }, horzLines: { color: 'rgba(42,52,68,0.3)' } },
+          crosshair: { mode: 0 },
+          rightPriceScale: { borderColor: 'rgba(42,52,68,0.5)' },
+          timeScale: { borderColor: 'rgba(42,52,68,0.5)', timeVisible: true },
+        });
+        const series = chart.addCandlestickSeries({
+          upColor: '#10b981', downColor: '#ef4444',
+          borderUpColor: '#10b981', borderDownColor: '#ef4444',
+          wickUpColor: '#10b981', wickDownColor: '#ef4444',
+        });
+        chartInstanceRef.current = { chart, series };
+        const handleResize = () => { if (chartRef.current) chart.applyOptions({ width: chartRef.current.clientWidth }); };
+        window.addEventListener('resize', handleResize);
+        chartInstanceRef.current.cleanup = () => { window.removeEventListener('resize', handleResize); chart.remove(); };
+      } catch (err) { /* lightweight-charts not available */ }
+    };
+    initChart();
+    return () => { cancelled = true; if (chartInstanceRef.current?.cleanup) chartInstanceRef.current.cleanup(); chartInstanceRef.current = null; };
+  }, []);
+
+  useEffect(() => {
+    const inst = chartInstanceRef.current;
+    if (!inst?.series || !candleData) return;
+    const candles = candleData.candles || candleData.bars || candleData.ohlcv || [];
+    if (!candles.length) return;
+    const mapped = candles
+      .map(c => {
+        const time = c.time || c.timestamp || c.t;
+        if (!time) return null;
+        const tStr = typeof time === 'string' ? time.slice(0, 10) : time;
+        return { time: tStr, open: c.open ?? c.o, high: c.high ?? c.h, low: c.low ?? c.l, close: c.close ?? c.c };
+      })
+      .filter(c => c && c.open != null)
+      .sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
+    const seen = new Set();
+    const unique = mapped.filter(c => { if (seen.has(c.time)) return false; seen.add(c.time); return true; });
+    if (unique.length) inst.series.setData(unique);
+  }, [candleData]);
+
   // Alignment Preflight State
   const [preflightVerdict, setPreflightVerdict] = React.useState(null);
   const runAlignmentPreflight = async () => {
     try {
       const res = await fetch(getApiUrl('alignment/evaluate'), { method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({ symbol: orderForm?.symbol || 'SPY', side: orderForm?.side || 'buy', quantity: orderForm?.quantity || 1, strategy: 'manual' })
       });
       if (!res.ok) throw new Error('Alignment preflight failed');
@@ -317,16 +378,16 @@ export default function TradeExecution() {
           >
             <div className="p-4">
               <div className="text-lg font-bold text-white font-mono">
-                -- <span className="text-xs text-gray-500 font-normal ml-2">Awaiting data</span>
+                {orderForm?.symbol || 'SPY'} <span className="text-xs text-gray-500 font-normal ml-2">1H</span>
               </div>
-              <div className="mt-3 h-40 rounded-lg bg-dark/50 border border-secondary/10 flex items-center justify-center">
-                <div className="text-center">
-                  <BarChart3 className="w-8 h-8 text-gray-700 mx-auto mb-2" />
-                  <span className="text-xs text-gray-600">Awaiting market data...</span>
-                </div>
+              <div className="mt-3 h-40 rounded-lg bg-dark/50 border border-secondary/10 overflow-hidden">
+                <div ref={chartRef} className="w-full h-full" />
               </div>
               <div className="flex justify-end mt-2">
-                <span className="text-[10px] text-gray-600 bg-dark/80 px-2 py-0.5 rounded cursor-pointer hover:text-cyan-400 transition-colors border border-secondary/20">TV</span>
+                <span
+                  className="text-[10px] text-gray-600 bg-dark/80 px-2 py-0.5 rounded cursor-pointer hover:text-cyan-400 transition-colors border border-secondary/20"
+                  onClick={() => window.open(`https://www.tradingview.com/chart/?symbol=${orderForm?.symbol || 'SPY'}`, '_blank')}
+                >TV</span>
               </div>
             </div>
           </Card>

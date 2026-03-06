@@ -11,7 +11,8 @@ import React, {
 } from "react";
 import { createChart } from "lightweight-charts";
 import { useApi } from "../hooks/useApi";
-import { getApiUrl } from "../config/api";
+import { getApiUrl, getAuthHeaders } from "../config/api";
+import { postBiasOverride } from "../hooks/useApi";
 import log from "@/utils/logger";
 
 // ============================================================
@@ -273,12 +274,44 @@ function RegimeParamPanel({ paramsData, regimeState, onOverride }) {
   const [editMode, setEditMode] = useState(false);
   const [localParams, setLocalParams] = useState({});
   const [overrideState, setOverrideState] = useState("AUTO");
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(null); // "ok" | "err" | null
 
   useEffect(() => {
     if (paramsData) setLocalParams(paramsData);
   }, [paramsData]);
 
   const currentParams = REGIME_PARAMS_DEFAULT[regimeState] || {};
+
+  const handleSaveParams = async () => {
+    setSaving(true);
+    setSaveStatus(null);
+    const payload = {
+      regime: regimeState,
+      risk_pct: localParams.risk_pct ?? currentParams.risk_pct,
+      max_positions: localParams.max_positions ?? currentParams.max_positions,
+      kelly_mult: localParams.kelly_mult ?? currentParams.kelly_mult,
+      signal_mult: localParams.signal_mult ?? currentParams.signal_mult,
+      override: overrideState !== "AUTO",
+    };
+    try {
+      const res = await fetch(getApiUrl("strategy/regime-params"), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setSaveStatus("ok");
+      if (onOverride) onOverride(payload);
+      log.info("Regime params saved", payload);
+    } catch (e) {
+      setSaveStatus("err");
+      log.error("Failed to save regime params:", e);
+    } finally {
+      setSaving(false);
+      setTimeout(() => setSaveStatus(null), 3000);
+    }
+  };
 
   return (
     <div className="bg-[#111827] rounded-lg border border-gray-700/30 p-3 h-full">
@@ -343,6 +376,28 @@ function RegimeParamPanel({ paramsData, regimeState, onOverride }) {
           </div>
         ))}
       </div>
+      {/* Save button (visible in edit mode) */}
+      {editMode && (
+        <div className="mt-2 flex items-center gap-2">
+          <button
+            onClick={handleSaveParams}
+            disabled={saving}
+            className={`flex-1 text-[9px] font-bold py-1 rounded transition-colors ${
+              saving
+                ? "bg-gray-700 text-gray-500 cursor-wait"
+                : "bg-cyan-600 hover:bg-cyan-500 text-white"
+            }`}
+          >
+            {saving ? "SAVING..." : "SAVE PARAMS"}
+          </button>
+          {saveStatus === "ok" && (
+            <span className="text-[9px] text-emerald-400 font-bold">SAVED</span>
+          )}
+          {saveStatus === "err" && (
+            <span className="text-[9px] text-red-400 font-bold">FAILED</span>
+          )}
+        </div>
+      )}
       {/* Fuel indicator */}
       <div className="mt-2 flex items-center justify-between text-[10px]">
         <span className="text-gray-500">Fuel</span>
@@ -351,7 +406,7 @@ function RegimeParamPanel({ paramsData, regimeState, onOverride }) {
             <div
               key={i}
               className={`w-2 h-3 rounded-sm ${
-                i < (currentParams.max_positions || 0)
+                i < (localParams.max_positions ?? currentParams.max_positions ?? 0)
                   ? REGIME_COLORS[regimeState]?.bg || "bg-cyan-500"
                   : "bg-gray-700"
               }`}
@@ -476,22 +531,27 @@ function SectorHeatmap({ sectorsData }) {
 
 // --- Regime Flow Diagram ---
 function RegimeFlowDiagram({ regimeState, paramsData }) {
+  const defaults = REGIME_PARAMS_DEFAULT[regimeState] || {};
+  const kellyMult = paramsData?.kelly_mult ?? defaults.kelly_mult ?? "?";
+  const signalMult = paramsData?.signal_mult ?? defaults.signal_mult ?? "?";
+  const riskPct = paramsData?.risk_pct ?? defaults.risk_pct;
+
   const nodes = [
     { id: "regime", label: "REGIME", value: regimeState },
     {
       id: "kelly",
       label: "Kelly",
-      value: `${REGIME_PARAMS_DEFAULT[regimeState]?.kelly_mult || "?"}x`,
+      value: `${kellyMult}x`,
     },
     {
       id: "signal",
       label: "Signal",
-      value: `${REGIME_PARAMS_DEFAULT[regimeState]?.signal_mult || "?"}x`,
+      value: `${signalMult}x`,
     },
     {
       id: "risk",
       label: "Risk",
-      value: regimeState === "RED" ? "BLOCKED" : "OPEN",
+      value: riskPct === 0 ? "BLOCKED" : "OPEN",
     },
     {
       id: "position",
@@ -501,7 +561,7 @@ function RegimeFlowDiagram({ regimeState, paramsData }) {
     {
       id: "exec",
       label: "Execution",
-      value: regimeState === "RED" ? "HALTED" : "ACTIVE",
+      value: riskPct === 0 ? "HALTED" : "ACTIVE",
     },
   ];
   const rc = REGIME_COLORS[regimeState] || REGIME_COLORS.YELLOW;
@@ -582,6 +642,20 @@ function CrashProtocolPanel({ riskGauges, macroData }) {
   const armedCount = Object.values(armed).filter(Boolean).length;
   const isTriggered = triggers.some((t) => t.active && armed[t.key]);
 
+  const handleToggleTrigger = async (key) => {
+    const updated = { ...armed, [key]: !armed[key] };
+    setArmed(updated);
+    try {
+      await fetch(getApiUrl("risk/config"), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ crash_triggers: updated }),
+      });
+    } catch (e) {
+      log.error("Failed to update crash trigger config:", e);
+    }
+  };
+
   return (
     <div className="bg-[#111827] rounded-lg border border-gray-700/30 p-3 h-full">
       <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
@@ -599,7 +673,7 @@ function CrashProtocolPanel({ riskGauges, macroData }) {
           {isTriggered ? "TRIGGERED" : "CLEAR"}
         </span>
       </div>
-      <div className="text-[9px] text-gray-500 mb-1.5">protocol {isTriggered ? "ACTIVE" : "ACTIVE"}</div>
+      <div className="text-[9px] text-gray-500 mb-1.5">protocol {isTriggered ? "ACTIVE" : "STANDBY"}</div>
       <div className="space-y-1.5">
         {triggers.map((t) => (
           <div key={t.key} className="flex items-center justify-between">
@@ -618,14 +692,14 @@ function CrashProtocolPanel({ riskGauges, macroData }) {
               </span>
             </div>
             <button
-              onClick={() => setArmed({ ...armed, [t.key]: !armed[t.key] })}
+              onClick={() => handleToggleTrigger(t.key)}
               className={`text-[8px] px-1 py-0.5 rounded font-bold ${
                 armed[t.key]
                   ? "bg-emerald-500/20 text-emerald-400"
                   : "bg-gray-700/50 text-gray-500"
               }`}
             >
-              {armed[t.key] ? "CLEAR" : "OFF"}
+              {armed[t.key] ? "ARMED" : "OFF"}
             </button>
           </div>
         ))}
@@ -641,15 +715,7 @@ function AgentConsensusPanel({ memoryData, regimeState }) {
 
   const rc = REGIME_COLORS[regimeState] || REGIME_COLORS.YELLOW;
 
-  // Fallback display if no agent data
-  const fallbackAgents = [
-    { name: "Scanner", vote: regimeState, confidence: 92 },
-    { name: "Analyst", vote: regimeState, confidence: 80 },
-    { name: "Risk Mgr", vote: regimeState, confidence: 85 },
-    { name: "Strategist", vote: "YELLOW", confidence: 72 },
-  ];
-
-  const displayAgents = agents.length > 0 ? agents : fallbackAgents;
+  const displayAgents = agents;
 
   return (
     <div className="bg-[#111827] rounded-lg border border-gray-700/30 p-3 h-full">
@@ -670,6 +736,11 @@ function AgentConsensusPanel({ memoryData, regimeState }) {
             </span>
           </div>
         ))}
+        {displayAgents.length === 0 && (
+          <div className="text-[9px] text-gray-600 text-center py-2">
+            Awaiting agent consensus...
+          </div>
+        )}
       </div>
       {(memoryData?.data?.memory_iq || memoryData?.memory_iq) && (
         <div className="mt-2 pt-1.5 border-t border-gray-700/30 text-[10px] text-gray-500">
@@ -795,7 +866,7 @@ export default function MarketRegime() {
   const { data: macroData, loading: macroLoading } = useApi("openclaw/macro", {
     pollIntervalMs: 10000,
   });
-  const { data: paramsData } = useApi("strategy/regime-params", {
+  const { data: paramsData, refetch: refetchParams } = useApi("strategy/regime-params", {
     pollIntervalMs: 30000,
   });
   const { data: backtestData } = useApi("backtest/regime", {
@@ -837,11 +908,7 @@ export default function MarketRegime() {
   const handleBiasChange = useCallback(async (val) => {
     setBiasMultiplier(val);
     try {
-      await fetch(getApiUrl("openclaw/macro/override"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bias_multiplier: val }),
-      });
+      await postBiasOverride(val);
     } catch (e) {
       log.error("Failed to POST bias override:", e);
     }
@@ -1021,6 +1088,7 @@ export default function MarketRegime() {
             <RegimeParamPanel
               paramsData={paramsData}
               regimeState={currentRegime}
+              onOverride={() => refetchParams()}
             />
           </div>
           <div className="col-span-4">

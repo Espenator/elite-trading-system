@@ -13,7 +13,7 @@ import DataTable from "../components/ui/DataTable";
 import PageHeader from "../components/ui/PageHeader";
 import Slider from "../components/ui/Slider";
 import { useApi } from "../hooks/useApi";
-import { getApiUrl } from "../config/api";
+import { getApiUrl, getAuthHeaders } from "../config/api";
 import { createChart, ColorType, CrosshairMode } from "lightweight-charts";
 import ReactFlow, { Background, Controls, applyNodeChanges, applyEdgeChanges } from "reactflow";
 import "reactflow/dist/style.css";
@@ -376,7 +376,7 @@ export default function Backtesting() {
     setIsRunning(true);
     try {
       await fetch(getApiUrl("backtest"), {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ strategy, startDate, endDate, assets, capital: parseFloat(capital), benchmark, txCost: parseFloat(txCost), useKellySizing, kellyFraction: parseFloat(kellyFraction), paramA, paramBMin, paramBMax, posSize, slippage, stopLossPct, takeProfitPct, sweepMode, commission, trailingStop, volatilityTarget, correlationFilter, regimeFilter, riskPerTrade, maxPositions, warmUpPeriod, walkForwardWindow, outOfSamplePct, monteCarloIter, confidenceLevel, rebalanceFreq, timeframe }),
       });
       refetch();

@@ -7,7 +7,7 @@
  * In dev: Vite proxy forwards to backend. In prod: uses VITE_API_URL.
  */
 
-import { getApiUrl } from '../config/api';
+import { getApiUrl, getAuthHeaders } from '../config/api';
 
 const BASE = getApiUrl('dataSources');
 const REQUEST_TIMEOUT_MS = 15000;
@@ -47,7 +47,7 @@ async function request(method, path, body = null) {
 
   const opts = {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         credentials: 'include',
         signal: controller.signal,
   };

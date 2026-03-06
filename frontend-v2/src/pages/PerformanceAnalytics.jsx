@@ -146,7 +146,7 @@ const PerformanceAnalytics = () => {
   // --- API DATA FETCHING (all real endpoints, zero fake data) ---
   const { data: summary } = useApi("performance", { endpoint: "/performance/summary", pollIntervalMs: 60000 });
   const { data: equityData } = useApi("performance", { endpoint: "/performance/equity" });
-  const { data: tradesData } = useApi("performance", { endpoint: "/performance/trades" });
+  const { data: tradesData } = useApi("performanceTrades", { pollIntervalMs: 60000 });
   const { data: riskMetrics } = useApi("performance", { endpoint: "/performance/risk-metrics", pollIntervalMs: 60000 });
   const { data: flywheel } = useApi("flywheel");
   const { data: agents } = useApi("agents", { endpoint: "/agents/consensus" });
@@ -244,11 +244,12 @@ const PerformanceAnalytics = () => {
     return Object.entries(byMonth).map(([k, v]) => ({ month: k, pnl: v }));
   }, [tradesData]);
 
-  // Filtered trades for search
+  // Filtered trades for search — null means "API not loaded yet", [] means "loaded but no matches"
   const filteredTrades = useMemo(() => {
-    if (!tradesData?.trades) return [];
-    if (!tradeSearch) return tradesData.trades;
-    return tradesData.trades.filter(t =>
+    const apiTrades = tradesData?.trades;
+    if (!apiTrades || !Array.isArray(apiTrades)) return null;
+    if (!tradeSearch) return apiTrades;
+    return apiTrades.filter(t =>
       t.symbol?.toLowerCase().includes(tradeSearch.toLowerCase())
     );
   }, [tradesData, tradeSearch]);
@@ -302,49 +303,88 @@ const PerformanceAnalytics = () => {
 
   // --- Merge API data with demo fallbacks ---
   const agentList = useMemo(() => {
+    const colors = ['#06b6d4', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#3b82f6', '#ef4444'];
     // Prefer real attribution data from /agents/attribution
     const attrAgents = agentAttribution?.attribution || [];
     if (attrAgents.length > 0) {
-      const colors = ['#06b6d4', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#3b82f6', '#ef4444'];
       return attrAgents.map((a, i) => ({
-        name: a.name,
+        name: a.name || `Agent ${i + 1}`,
         elo: a.elo || 1500,
         trades: a.signal_count || 0,
         pnl: a.pnl_contribution || 0,
         winRate: (a.win_rate || 50) / 100,
-        change: 0,
+        change: a.elo_change || 0,
+        contributions: a.contributions || 0,
         color: colors[i % colors.length],
       }));
     }
     // Fall back to consensus votes
     const apiAgents = agents?.votes || [];
-    return apiAgents.length > 0 ? apiAgents.map((a, i) => ({ ...DEMO_AGENTS[i % DEMO_AGENTS.length], ...a })) : DEMO_AGENTS;
+    if (apiAgents.length > 0) {
+      return apiAgents.map((a, i) => {
+        const demo = DEMO_AGENTS[i % DEMO_AGENTS.length];
+        return {
+          name: a.name || demo.name,
+          elo: a.elo ?? demo.elo,
+          trades: a.trades ?? demo.trades,
+          pnl: a.pnl ?? demo.pnl,
+          winRate: a.winRate ?? demo.winRate,
+          change: a.change ?? demo.change,
+          contributions: a.contributions || demo.winRate * 0.3,
+          color: a.color || colors[i % colors.length],
+        };
+      });
+    }
+    return DEMO_AGENTS.map((d, i) => ({ ...d, contributions: d.winRate * 0.3 }));
   }, [agents, agentAttribution]);
 
   const enhancedTrades = useMemo(() => {
-    const apiTrades = filteredTrades || [];
-    if (apiTrades.length > 0) {
-      return apiTrades.map((t, i) => ({
-        ...DEMO_TRADES_TABLE[i % DEMO_TRADES_TABLE.length],
-        ...t,
-      }));
-    }
-    return DEMO_TRADES_TABLE;
+    // filteredTrades is null when API hasn't loaded yet — use DEMO as fallback
+    if (filteredTrades === null) return DEMO_TRADES_TABLE;
+    // API loaded: map trades (may be empty array if search found nothing)
+    return filteredTrades.map((t) => ({
+      date: t.date || '--',
+      symbol: t.symbol || '???',
+      side: t.side || 'LONG',
+      entry: t.entry ?? 0,
+      exit: t.exit ?? 0,
+      pnl: t.pnl ?? 0,
+      duration: t.duration || '--',
+      strategy: t.strategy || '--',
+      grade: t.grade || '--',
+      ...t,
+    }));
   }, [filteredTrades]);
 
   const symbolPnlData = useMemo(() => {
-    const computed = tradesData?.symbolPnl || tradesData?.trades?.reduce((acc, t) => {
-      if (!acc.find(a => a.symbol === t.symbol)) acc.push({ symbol: t.symbol, pnl: 0 });
-      const item = acc.find(a => a.symbol === t.symbol);
-      if (item) item.pnl += t.pnl || 0;
-      return acc;
-    }, []);
-    return computed?.length ? computed.slice(0, 8) : DEMO_SYMBOL_PNL;
+    // Prefer pre-computed symbolPnl from API
+    if (tradesData?.symbolPnl?.length) return tradesData.symbolPnl.slice(0, 8);
+    // Compute from individual trades if available
+    const trades = tradesData?.trades;
+    if (Array.isArray(trades) && trades.length > 0) {
+      const bySymbol = {};
+      trades.forEach(t => {
+        if (!t.symbol) return;
+        bySymbol[t.symbol] = (bySymbol[t.symbol] || 0) + (t.pnl || 0);
+      });
+      const computed = Object.entries(bySymbol).map(([symbol, pnl]) => ({ symbol, pnl }));
+      if (computed.length) return computed.sort((a, b) => Math.abs(b.pnl) - Math.abs(a.pnl)).slice(0, 8);
+    }
+    // Fallback to demo data
+    return DEMO_SYMBOL_PNL;
   }, [tradesData]);
 
-  const rollingSharpeBars = riskMetrics?.rollingRiskSharpe?.length ? riskMetrics.rollingRiskSharpe : DEMO_ROLLING_SHARPE;
-  const mlAccuracyData = flywheel?.accuracyHistory?.length ? flywheel.accuracyHistory : DEMO_ML_ACCURACY;
-  const riskHistoryData = riskMetrics?.riskHistory?.length ? riskMetrics.riskHistory : DEMO_RISK_HISTORY;
+  const rollingSharpeBars = useMemo(() => {
+    return riskMetrics?.rollingRiskSharpe?.length ? riskMetrics.rollingRiskSharpe : DEMO_ROLLING_SHARPE;
+  }, [riskMetrics]);
+
+  const mlAccuracyData = useMemo(() => {
+    return flywheel?.accuracyHistory?.length ? flywheel.accuracyHistory : DEMO_ML_ACCURACY;
+  }, [flywheel]);
+
+  const riskHistoryData = useMemo(() => {
+    return riskMetrics?.riskHistory?.length ? riskMetrics.riskHistory : DEMO_RISK_HISTORY;
+  }, [riskMetrics]);
 
   // Derived stats with demo fallbacks
   const totalTrades = summary?.metrics?.totalTrades ?? 247;
@@ -494,18 +534,18 @@ const PerformanceAnalytics = () => {
                 {agentList.slice(0, 5).map((agent, i) => (
                   <div key={i} className="flex items-center gap-2 py-1 px-1.5 rounded hover:bg-cyan-500/5 transition-colors">
                     <div className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-bold text-white shrink-0"
-                      style={{ backgroundColor: agent.color || DEMO_AGENTS[i % DEMO_AGENTS.length].color }}>
+                      style={{ backgroundColor: agent.color }}>
                       {(agent.name || '?')[0]}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-[9px] text-white font-medium truncate">{agent.name}</div>
-                      <div className="text-[8px] text-gray-500">{agent.trades ?? DEMO_AGENTS[i % DEMO_AGENTS.length].trades} trades</div>
+                      <div className="text-[8px] text-gray-500">{agent.trades} trades</div>
                     </div>
                     <div className="text-right shrink-0">
-                      <div className={`text-[9px] font-bold ${(agent.pnl ?? DEMO_AGENTS[i % DEMO_AGENTS.length].pnl) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {fmt(agent.pnl ?? DEMO_AGENTS[i % DEMO_AGENTS.length].pnl)}
+                      <div className={`text-[9px] font-bold ${agent.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {fmt(agent.pnl)}
                       </div>
-                      <div className="text-[8px] text-gray-500">{pct((agent.winRate ?? DEMO_AGENTS[i % DEMO_AGENTS.length].winRate) * 100)}</div>
+                      <div className="text-[8px] text-gray-500">{pct(agent.winRate * 100)}</div>
                     </div>
                   </div>
                 ))}
@@ -770,31 +810,28 @@ const PerformanceAnalytics = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {agentList.slice(0, 5).map((agent, i) => {
-                      const fallback = DEMO_AGENTS[i % DEMO_AGENTS.length];
-                      return (
+                    {agentList.slice(0, 5).map((agent, i) => (
                         <tr key={i} className="border-b border-gray-800/20 hover:bg-cyan-500/5 transition-colors">
                           <td className="py-1 text-gray-500">{i + 1}</td>
                           <td className="py-1">
                             <div className="flex items-center gap-1.5">
-                              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: agent.color || fallback.color }} />
+                              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: agent.color }} />
                               <span className="text-white font-medium">{agent.name}</span>
                             </div>
                           </td>
-                          <td className="py-1 text-right text-gray-300 font-mono">{(agent.elo ?? fallback.elo).toLocaleString()}</td>
+                          <td className="py-1 text-right text-gray-300 font-mono">{agent.elo.toLocaleString()}</td>
                           <td className="py-1 text-right">
-                            <span className={`font-medium ${(agent.change ?? fallback.change) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                              {(agent.change ?? fallback.change) >= 0 ? '+' : ''}{agent.change ?? fallback.change}
+                            <span className={`font-medium ${agent.change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                              {agent.change >= 0 ? '+' : ''}{agent.change}
                             </span>
                           </td>
-                          <td className={`py-1 text-right font-mono ${(agent.pnl ?? fallback.pnl) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                            {fmt(agent.pnl ?? fallback.pnl)}
+                          <td className={`py-1 text-right font-mono ${agent.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {fmt(agent.pnl)}
                           </td>
-                          <td className="py-1 text-right text-gray-300">{pct((agent.winRate ?? fallback.winRate) * 100)}</td>
-                          <td className="py-1 text-right text-gray-400">{((agent.contributions || fallback.winRate * 0.3) * 100).toFixed(1)}%</td>
+                          <td className="py-1 text-right text-gray-300">{pct(agent.winRate * 100)}</td>
+                          <td className="py-1 text-right text-gray-400">{((agent.contributions || 0) * 100).toFixed(1)}%</td>
                         </tr>
-                      );
-                    })}
+                    ))}
                   </tbody>
                 </table>
               </div>

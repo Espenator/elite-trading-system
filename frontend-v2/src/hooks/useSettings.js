@@ -31,7 +31,7 @@ export function useSettings() {
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
-      const res = await fetch(BASE(), { cache: "no-store", signal: controller.signal });
+      const res = await fetch(BASE(), { cache: "no-store", signal: controller.signal, headers: getAuthHeaders() });
       clearTimeout(timeout);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
@@ -155,7 +155,7 @@ export function useSettings() {
 
   // ── Export settings ────────────────────────────────────────
   const exportSettings = useCallback(async () => {
-    const res = await fetch(`${BASE()}/export`);
+    const res = await fetch(`${BASE()}/export`, { headers: getAuthHeaders() });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   }, []);

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useApi } from '../hooks/useApi';
-import { getApiUrl, getWsUrl, WS_CHANNELS } from '../config/api';
+import { getApiUrl, getAuthHeaders, getWsUrl, WS_CHANNELS } from '../config/api';
 import log from "@/utils/logger";
 import { createChart, CrosshairMode, LineStyle } from 'lightweight-charts';
 import {
@@ -14,10 +14,10 @@ import ReactFlow, { Background, Controls, MarkerType, Handle } from 'reactflow';
 import 'reactflow/dist/style.css';
 import ws from '../services/websocket';
 // ============================================================================
-// CONSTANTS & INITIAL DATA
+// CONSTANTS & INITIAL DATA (fallbacks when API is unavailable)
 // ============================================================================
 
-const CORE_AGENTS = [
+const FALLBACK_CORE_AGENTS = [
   { id: 'apex', name: 'Apex Orchestrator', type: 'Core', defaultWeight: 100 },
   { id: 'rel_weak', name: 'Relative Weakness', type: 'Core', defaultWeight: 85 },
   { id: 'short_basket', name: 'Short Basket', type: 'Core', defaultWeight: 75 },
@@ -27,11 +27,33 @@ const CORE_AGENTS = [
   { id: 'sig_engine', name: 'Signal Engine', type: 'Engine', defaultWeight: 95 }
 ];
 
-const EXTENDED_AGENTS = Array.from({ length: 93 }, (_, i) => ({
+const FALLBACK_EXTENDED_AGENTS = Array.from({ length: 93 }, (_, i) => ({
   id: `agent_${i + 8}`, name: `Agent #${i + 8} (Swarm)`, type: 'Swarm', defaultWeight: 25
 }));
 
-const ALL_AGENTS = [...CORE_AGENTS, ...EXTENDED_AGENTS];
+const FALLBACK_ALL_AGENTS = [...FALLBACK_CORE_AGENTS, ...FALLBACK_EXTENDED_AGENTS];
+
+/** Parse API agents response into { core, extended, all } using fallbacks */
+function parseAgentsFromApi(apiData) {
+  if (!apiData) return null;
+  const list = Array.isArray(apiData) ? apiData
+    : apiData?.agents ? apiData.agents
+    : apiData?.data ? apiData.data
+    : null;
+  if (!list || list.length === 0) return null;
+  const normalize = (a) => ({
+    id: a.id || a.agent_id || a.name?.toLowerCase().replace(/\s+/g, '_'),
+    name: a.name || a.label || a.id,
+    type: a.type || a.role || 'Swarm',
+    defaultWeight: a.weight ?? a.defaultWeight ?? a.default_weight ?? 50,
+    status: a.status || a.state || null,
+  });
+  const all = list.map(normalize);
+  const coreTypes = new Set(['Core', 'Risk', 'Engine', 'Orchestrator']);
+  const core = all.filter(a => coreTypes.has(a.type));
+  const extended = all.filter(a => !coreTypes.has(a.type));
+  return { core, extended, all };
+}
 
 const SCANNERS = [
   { id: 'scan_daily', name: 'Daily Scanner', defaultWeight: 100 },
@@ -178,6 +200,7 @@ export default function SignalIntelligenceV3() {
   const { data: apiSentiment } = useApi('sentiment', { pollIntervalMs: 30000 });
   const { data: apiYoutube } = useApi('youtubeKnowledge', { pollIntervalMs: 60000 });
   const { data: apiTraining } = useApi('training', { pollIntervalMs: 30000 });
+  const { data: apiMlBrain } = useApi('mlBrain', { pollIntervalMs: 15000 });
   // flywheel hook moved to derived data section with 15s polling for ML Controls
   const { data: apiPatterns } = useApi('patterns', { pollIntervalMs: 10000 });
   const { data: apiRisk } = useApi('risk', { pollIntervalMs: 10000 });
@@ -188,9 +211,15 @@ export default function SignalIntelligenceV3() {
   const { data: apiPortfolio } = useApi('portfolio', { pollIntervalMs: 10000 });
   const { data: apiStrategy } = useApi('strategy', { pollIntervalMs: 30000 });
 
+  // --- DERIVE AGENT LISTS FROM API (with hardcoded fallbacks) ---
+  const parsedAgents = useMemo(() => parseAgentsFromApi(apiAgents), [apiAgents]);
+  const CORE_AGENTS = useMemo(() => parsedAgents?.core ?? FALLBACK_CORE_AGENTS, [parsedAgents]);
+  const EXTENDED_AGENTS = useMemo(() => parsedAgents?.extended ?? FALLBACK_EXTENDED_AGENTS, [parsedAgents]);
+  const ALL_AGENTS = useMemo(() => parsedAgents?.all ?? FALLBACK_ALL_AGENTS, [parsedAgents]);
+
   // --- LOCAL STATE ---
   const [agentStates, setAgentStates] = useState(() =>
-    ALL_AGENTS.reduce((acc, agent) => ({ ...acc, [agent.id]: { active: true, weight: agent.defaultWeight, status: 'green' } }), {})
+    FALLBACK_ALL_AGENTS.reduce((acc, agent) => ({ ...acc, [agent.id]: { active: true, weight: agent.defaultWeight, status: 'green' } }), {})
   );
   const [scannerStates, setScannerStates] = useState(() =>
     SCANNERS.reduce((acc, scan) => ({ ...acc, [scan.id]: { active: true, weight: scan.defaultWeight, status: 'green', runs: 0 } }), {})
@@ -237,6 +266,65 @@ export default function SignalIntelligenceV3() {
     return () => { unsubSignals(); unsubLatency(); };
   }, [refetchSignals]);
 
+  // --- SYNC API AGENTS INTO LOCAL agentStates ---
+  useEffect(() => {
+    if (!ALL_AGENTS || ALL_AGENTS.length === 0) return;
+    setAgentStates(prev => {
+      const next = { ...prev };
+      for (const agent of ALL_AGENTS) {
+        const existing = prev[agent.id];
+        const apiStatus = agent.status;
+        const statusColor = apiStatus === 'active' || apiStatus === 'running' ? 'green'
+          : apiStatus === 'degraded' || apiStatus === 'warming' ? 'yellow'
+          : apiStatus === 'error' || apiStatus === 'stopped' ? 'red'
+          : existing?.status || 'green';
+        if (existing) {
+          next[agent.id] = { ...existing, status: statusColor };
+        } else {
+          next[agent.id] = { active: true, weight: agent.defaultWeight, status: statusColor };
+        }
+      }
+      return next;
+    });
+  }, [ALL_AGENTS]);
+
+  // --- SYNC API DATA SOURCES INTO LOCAL dataSourceStates ---
+  useEffect(() => {
+    if (!apiDataSources) return;
+    const sources = Array.isArray(apiDataSources) ? apiDataSources
+      : apiDataSources?.sources || apiDataSources?.data || [];
+    if (sources.length === 0) return;
+    setDataSourceStates(prev => {
+      const next = { ...prev };
+      for (const src of sources) {
+        const id = src.id || src.source_id;
+        if (!id) continue;
+        const isActive = src.active !== false && src.status !== 'down' && src.status !== 'error';
+        next[id] = { active: isActive, weight: src.weight ?? prev[id]?.weight ?? 100 };
+      }
+      return next;
+    });
+  }, [apiDataSources]);
+
+  // --- SYNC ML BRAIN / TRAINING STATUS INTO LOCAL mlStates ---
+  useEffect(() => {
+    const models = apiMlBrain?.models || apiTraining?.models || null;
+    if (!models || !Array.isArray(models)) return;
+    setMlStates(prev => {
+      const next = { ...prev };
+      for (const m of models) {
+        const id = m.id || m.model_id;
+        if (!id || !prev[id]) continue;
+        next[id] = {
+          ...prev[id],
+          status: m.status || m.state || prev[id].status,
+          confThreshold: m.confidence_threshold ?? m.confThreshold ?? prev[id].confThreshold,
+        };
+      }
+      return next;
+    });
+  }, [apiMlBrain, apiTraining]);
+
   // --- LIGHTWEIGHT CHARTS SETUP ---
   useEffect(() => {
     if (!chartContainerRef.current || chartRef.current) return;
@@ -262,7 +350,7 @@ export default function SignalIntelligenceV3() {
         // Fetch real OHLCV data from backend quotes API
     const fetchChart = async () => {
       try {
-        const url = getApiUrl ? getApiUrl('quotes') + `/${selectedSymbol}?timeframe=${chartTimeframe}` : `/api/v1/quotes/${selectedSymbol}?timeframe=${chartTimeframe}`;
+        const url = getApiUrl('quotes') + `/${selectedSymbol}?timeframe=${chartTimeframe}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error('Quote fetch failed');
         const json = await res.json();
@@ -350,8 +438,8 @@ export default function SignalIntelligenceV3() {
     else if (category === 'intel') setIntelStates(p => ({ ...p, [id]: { ...p[id], weight: value } }));
     else if (category === 'shap') { setShapWeights(p => ({ ...p, [id]: value })); return; }
     try {
-      const url = getApiUrl ? getApiUrl(`/api/v1/${category}s/${id}/weight`) : `/api/v1/${category}s/${id}/weight`;
-      await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ weight: value }) });
+      const url = getApiUrl(`${category}s`) + `/${id}/weight`;
+      await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, body: JSON.stringify({ weight: value }) });
     } catch (err) { log.error(`Failed to update ${category} weight:`, err); }
   }, []);
 
@@ -361,16 +449,16 @@ export default function SignalIntelligenceV3() {
     else if (category === 'scanner') setScannerStates(p => ({ ...p, [id]: { ...p[id], active: newState } }));
     else if (category === 'intel') setIntelStates(p => ({ ...p, [id]: { ...p[id], active: newState } }));
     try {
-      const url = getApiUrl ? getApiUrl(`/api/v1/${category}s/${id}/toggle`) : `/api/v1/${category}s/${id}/toggle`;
-      await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active: newState }) });
+      const url = getApiUrl(`${category}s`) + `/${id}/toggle`;
+      await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, body: JSON.stringify({ active: newState }) });
     } catch (err) { log.error(`Failed to toggle ${category}:`, err); }
   }, []);
 
   const triggerScan = useCallback(async (id) => {
     try {
       setScannerStates(p => ({ ...p, [id]: { ...p[id], status: 'yellow' } }));
-      const url = getApiUrl ? getApiUrl('openclaw') + '/scan' : '/api/v1/openclaw/scan';
-      await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scannerId: id }) });
+      const url = getApiUrl('openclaw/scan');
+      await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, body: JSON.stringify({ scannerId: id }) });
       setTimeout(() => { setScannerStates(p => ({ ...p, [id]: { ...p[id], status: 'green', runs: p[id].runs + 1 } })); }, 1500);
     } catch (e) { setScannerStates(p => ({ ...p, [id]: { ...p[id], status: 'red' } })); }
   }, []);
@@ -378,9 +466,60 @@ export default function SignalIntelligenceV3() {
   const triggerRetrain = useCallback(async (id) => {
     try {
       setMlStates(p => ({ ...p, [id]: { ...p[id], status: 'Training' } }));
-      const url = getApiUrl ? getApiUrl('training') + '/retrain' : '/api/v1/training/retrain';
-      await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modelId: id }) });
+      const url = getApiUrl('training') + '/retrain';
+      // POST to /api/v1/training/retrain with model ID
+      await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, body: JSON.stringify({ modelId: id }) });
     } catch (e) { log.error(e); }
+  }, []);
+
+  // --- SAVE PROFILE (persist all weights/toggles to backend settings) ---
+  const handleSaveProfile = useCallback(async () => {
+    try {
+      const payload = {
+        agentStates,
+        scannerStates,
+        intelStates,
+        mlStates,
+        dataSourceStates,
+        scoringFormula,
+        shapWeights,
+        regimeLock,
+        autoExecute,
+        maxHeat,
+        lossLimit,
+      };
+      const url = getApiUrl('settings');
+      const res = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({ page: 'signal_intelligence_v3', profile: payload }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      log.info('Profile saved successfully');
+    } catch (err) {
+      log.error('Failed to save profile:', err);
+    }
+  }, [agentStates, scannerStates, intelStates, mlStates, dataSourceStates, scoringFormula, shapWeights, regimeLock, autoExecute, maxHeat, lossLimit]);
+
+  // --- SIGNAL ACTIONS: Stage for execution via orders endpoint ---
+  const handleStageSignal = useCallback(async (signal) => {
+    try {
+      const url = getApiUrl('orders');
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({
+          symbol: signal.symbol || signal.ticker,
+          side: (signal.dir === 'LONG' || signal.action === 'BUY') ? 'buy' : 'sell',
+          type: 'limit',
+          limit_price: signal.price,
+          source: 'signal_intelligence_v3',
+          signal_id: signal.id,
+        }),
+      });
+    } catch (err) {
+      log.error('Failed to stage signal:', err);
+    }
   }, []);
 
   // --- ML Controls State ---
@@ -446,8 +585,8 @@ export default function SignalIntelligenceV3() {
         <div className="flex items-center gap-3 text-[9px] text-gray-500">
           <Badge color="cyan">OC_CORE_v5.2.1</Badge>
           <Badge color={wsLatency < 100 ? 'emerald' : 'amber'}>WS_LATENCY: {wsLatency}ms</Badge>
-          <Badge color="purple">SWARM_SIZE: {ALL_AGENTS.length}</Badge>
-          <button className="flex items-center gap-1 px-2 py-1 bg-[#00D9FF]/10 border border-[#00D9FF]/30 rounded-aurora text-[#00D9FF] hover:bg-[#00D9FF]/20 hover:shadow-glow transition-all duration-200">
+          <Badge color="purple">SWARM_SIZE: {ALL_AGENTS?.length ?? 0}</Badge>
+          <button onClick={handleSaveProfile} className="flex items-center gap-1 px-2 py-1 bg-[#00D9FF]/10 border border-[#00D9FF]/30 rounded-aurora text-[#00D9FF] hover:bg-[#00D9FF]/20 hover:shadow-glow transition-all duration-200">
             <Save className="w-3 h-3" /> Save Profile
           </button>
         </div>
@@ -512,14 +651,15 @@ export default function SignalIntelligenceV3() {
 
           {/* OpenClaw Score (Layer 4) */}
           <Panel title="OpenClaw Score (Layer 4)" icon={Cpu} className="flex-[5] min-h-0"
-            headerAction={<span className="text-[8px] text-gray-500">7 CORE AGENTS</span>}>
+            headerAction={<span className="text-[8px] text-gray-500">{CORE_AGENTS.length} CORE AGENTS</span>}>
             <div className="text-[8px] text-gray-500 mb-0.5 uppercase tracking-widest">CORE AGENTS</div>
             {CORE_AGENTS.map(agent => (
               <ControlRow key={agent.id} title={agent.name}
-                isActive={agentStates[agent.id].active}
+                isActive={agentStates[agent.id]?.active ?? true}
                 onToggle={(v) => handleToggleState('agent', agent.id, !v)}
-                weight={agentStates[agent.id].weight}
-                onWeightChange={(v) => handleUpdateWeight('agent', agent.id, v)} />
+                weight={agentStates[agent.id]?.weight ?? agent.defaultWeight}
+                onWeightChange={(v) => handleUpdateWeight('agent', agent.id, v)}
+                statusColor={agentStates[agent.id]?.status || 'green'} />
             ))}
             <div className="flex items-center justify-between mt-1.5 mb-0.5">
               <span className="text-[8px] text-gray-500 uppercase tracking-widest">EXTENDED SWARM ({EXTENDED_AGENTS.length})</span>
@@ -528,10 +668,11 @@ export default function SignalIntelligenceV3() {
             <div className="flex-1 overflow-y-auto min-h-0">
               {EXTENDED_AGENTS.map(agent => (
                 <ControlRow key={agent.id} title={agent.name}
-                  isActive={agentStates[agent.id].active}
+                  isActive={agentStates[agent.id]?.active ?? true}
                   onToggle={(v) => handleToggleState('agent', agent.id, !v)}
-                  weight={agentStates[agent.id].weight}
-                  onWeightChange={(v) => handleUpdateWeight('agent', agent.id, v)} />
+                  weight={agentStates[agent.id]?.weight ?? agent.defaultWeight}
+                  onWeightChange={(v) => handleUpdateWeight('agent', agent.id, v)}
+                  statusColor={agentStates[agent.id]?.status || 'green'} />
               ))}
             </div>
           </Panel>
@@ -605,8 +746,10 @@ export default function SignalIntelligenceV3() {
                       </td>
                       <td className="py-1 px-1">
                         <div className="flex items-center gap-1">
-                          <button className="text-[#00D9FF] hover:text-white transition-colors"><Eye className="w-2.5 h-2.5" /></button>
-                          <button className="text-emerald-400 hover:text-white transition-colors"><Play className="w-2.5 h-2.5" /></button>
+                          <button onClick={(e) => { e.stopPropagation(); setSelectedSymbol(sig.symbol || sig.ticker); }}
+                            className="text-[#00D9FF] hover:text-white transition-colors" title="View chart"><Eye className="w-2.5 h-2.5" /></button>
+                          <button onClick={(e) => { e.stopPropagation(); handleStageSignal(sig); }}
+                            className="text-emerald-400 hover:text-white transition-colors" title="Stage order"><Play className="w-2.5 h-2.5" /></button>
                         </div>
                       </td>
                     </tr>
