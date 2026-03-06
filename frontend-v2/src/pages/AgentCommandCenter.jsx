@@ -1,16 +1,19 @@
 // AGENT COMMAND CENTER — Embodier.ai
-// Mockups: 01-agent-command-center-final.png, 05-agent-command-center.png,
-//          05b-agent-command-center-spawn.png, 05c-agent-registry.png
-// Header bar + 8 tabs, each in its own component file
+// Glass Box Intelligence Cockpit + Swarm Management
+// Header bar + 12 tabs: 4 Glass Box + 8 Swarm
 import React, { useState, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  Activity, Cpu, Shield, Zap, AlertTriangle, Power,
+  Activity, Cpu, Shield, Zap, AlertTriangle, Power, Eye, Settings,
+  Radio, BookOpen, Brain,
 } from "lucide-react";
 import { useApi } from "../hooks/useApi";
 import { toast } from "react-toastify";
 
-// Tab components (split for manageable file sizes)
+// Glass Box cockpit tabs
+import { CouncilTransparencyTab, OperatorControlsTab, LiveEventFeedTab, LearningSummaryTab, DecisionReplayTab } from "./agent-tabs/GlassBoxTabs";
+
+// Swarm management tabs
 import SwarmOverviewTab from "./agent-tabs/SwarmOverviewTab";
 import AgentRegistryTab from "./agent-tabs/AgentRegistryTab";
 import SpawnScaleTab from "./agent-tabs/SpawnScaleTab";
@@ -18,14 +21,21 @@ import LiveWiringTab from "./agent-tabs/LiveWiringTab";
 import { BlackboardCommsTab, ConferenceConsensusTab, MlOpsTab, LogsTelemetryTab } from "./agent-tabs/RemainingTabs";
 
 const TABS = [
-  { key: "overview", label: "Swarm Overview" },
-  { key: "registry", label: "Agent Registry" },
-  { key: "spawn", label: "Spawn & Scale" },
-  { key: "wiring", label: "Live Wiring Map" },
-  { key: "blackboard", label: "Blackboard & Comms" },
-  { key: "conference", label: "Conference & Consensus" },
-  { key: "mlops", label: "ML Ops" },
-  { key: "logs", label: "Logs & Telemetry" },
+  // Glass Box Intelligence Cockpit
+  { key: "council", label: "Council", icon: "eye", group: "glass-box" },
+  { key: "controls", label: "Operator Controls", icon: "settings", group: "glass-box" },
+  { key: "events", label: "Event Feed", icon: "radio", group: "glass-box" },
+  { key: "learning", label: "Learning", icon: "brain", group: "glass-box" },
+  { key: "replay", label: "Decision Replay", icon: "book", group: "glass-box" },
+  // Swarm Management
+  { key: "overview", label: "Swarm Overview", group: "swarm" },
+  { key: "registry", label: "Agent Registry", group: "swarm" },
+  { key: "spawn", label: "Spawn & Scale", group: "swarm" },
+  { key: "wiring", label: "Live Wiring Map", group: "swarm" },
+  { key: "blackboard", label: "Blackboard & Comms", group: "swarm" },
+  { key: "conference", label: "Conference & Consensus", group: "swarm" },
+  { key: "mlops", label: "ML Ops", group: "swarm" },
+  { key: "logs", label: "Logs & Telemetry", group: "swarm" },
 ];
 
 export default function AgentCommandCenter() {
@@ -48,6 +58,9 @@ export default function AgentCommandCenter() {
   const uptime = systemStatus?.uptime || "47h 12m 33s";
 
   const setTab = (key) => setSearchParams({ tab: key });
+
+  const glassBoxTabs = TABS.filter(t => t.group === "glass-box");
+  const swarmTabs = TABS.filter(t => t.group === "swarm");
 
   return (
     <div className="min-h-screen bg-[#0B0E14] text-white">
@@ -82,25 +95,53 @@ export default function AgentCommandCenter() {
         </div>
       </div>
 
-      {/* ========== TAB BAR ========== */}
+      {/* ========== TAB BAR (Glass Box + Swarm groups) ========== */}
       <div className="flex items-center gap-0 px-4 border-b border-gray-800 bg-[#111827]/40">
-        {TABS.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`px-4 py-2 text-[11px] font-medium border-b-2 transition-all ${
-              activeTab === t.key
-                ? "text-cyan-400 border-cyan-400 bg-cyan-500/5"
-                : "text-gray-500 border-transparent hover:text-gray-300 hover:bg-gray-800/30"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+        {/* Glass Box section */}
+        <div className="flex items-center gap-0 border-r border-gray-700 pr-1 mr-1">
+          <span className="text-[8px] text-gray-600 uppercase tracking-widest px-2 py-2">Glass Box</span>
+          {glassBoxTabs.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`px-3 py-2 text-[11px] font-medium border-b-2 transition-all ${
+                activeTab === t.key
+                  ? "text-cyan-400 border-cyan-400 bg-cyan-500/5"
+                  : "text-gray-500 border-transparent hover:text-gray-300 hover:bg-gray-800/30"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {/* Swarm section */}
+        <div className="flex items-center gap-0">
+          <span className="text-[8px] text-gray-600 uppercase tracking-widest px-2 py-2">Swarm</span>
+          {swarmTabs.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`px-3 py-2 text-[11px] font-medium border-b-2 transition-all ${
+                activeTab === t.key
+                  ? "text-cyan-400 border-cyan-400 bg-cyan-500/5"
+                  : "text-gray-500 border-transparent hover:text-gray-300 hover:bg-gray-800/30"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ========== TAB CONTENT ========== */}
       <div className="p-4">
+        {/* Glass Box tabs */}
+        {activeTab === "council" && <CouncilTransparencyTab />}
+        {activeTab === "controls" && <OperatorControlsTab />}
+        {activeTab === "events" && <LiveEventFeedTab />}
+        {activeTab === "learning" && <LearningSummaryTab />}
+        {activeTab === "replay" && <DecisionReplayTab />}
+        {/* Swarm tabs */}
         {activeTab === "overview" && <SwarmOverviewTab agents={agents} />}
         {activeTab === "registry" && <AgentRegistryTab agents={agents} />}
         {activeTab === "spawn" && <SpawnScaleTab />}

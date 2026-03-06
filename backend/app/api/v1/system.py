@@ -186,6 +186,66 @@ async def event_bus_status():
         return {"running": False, "topics": []}
 
 
+# ---------------------------------------------------------------------------
+# Glass Box: Master system mode toggle
+# ---------------------------------------------------------------------------
+@router.post("/mode")
+async def set_system_mode(payload: Dict[str, Any]):
+    """Set master system mode: AUTO / SHADOW / PAUSED / LEARNING-ONLY.
+
+    Body: { "mode": "AUTO" | "SHADOW" | "PAUSED" | "LEARNING_ONLY" }
+
+    - AUTO: full autonomous trading
+    - SHADOW: signals + council run but no real orders
+    - PAUSED: pipeline halted, monitoring only
+    - LEARNING_ONLY: council runs for learning, no execution
+    """
+    import os
+
+    valid_modes = {"AUTO", "SHADOW", "PAUSED", "LEARNING_ONLY"}
+    mode = (payload.get("mode") or "").upper().replace("-", "_")
+    if mode not in valid_modes:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=f"Invalid mode: {mode}. Must be one of {valid_modes}")
+
+    os.environ["SYSTEM_MODE"] = mode
+
+    # Apply to order executor
+    applied = {}
+    try:
+        import app.main as main_mod
+        executor = getattr(main_mod, "_order_executor", None)
+        if executor:
+            executor.auto_execute = (mode == "AUTO")
+            applied["auto_execute"] = executor.auto_execute
+    except Exception:
+        pass
+
+    # Apply to council gate
+    try:
+        import app.main as main_mod
+        gate = getattr(main_mod, "_council_gate", None)
+        if gate and mode == "PAUSED":
+            gate._paused = True
+            applied["council_gate_paused"] = True
+        elif gate:
+            gate._paused = False
+            applied["council_gate_paused"] = False
+    except Exception:
+        pass
+
+    log.info("System mode changed to: %s", mode)
+    return {"status": "ok", "mode": mode, "applied": applied}
+
+
+@router.get("/mode")
+async def get_system_mode():
+    """Return current system mode."""
+    import os
+    mode = os.environ.get("SYSTEM_MODE", "SHADOW")
+    return {"mode": mode}
+
+
 @router.get("/gpu")
 async def gpu_status():
     """

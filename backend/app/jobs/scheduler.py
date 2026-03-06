@@ -45,6 +45,38 @@ def _run_weekly_eval():
         log.exception("Scheduled champion_challenger_eval failed: %s", e)
 
 
+def _run_hourly_reflection():
+    """Wrapper for hourly reflection job (Glass Box)."""
+    from app.jobs.hourly_reflection import run
+    try:
+        result = run()
+        log.info("Scheduled hourly_reflection: decayed=%s active=%s",
+                 result.get("decayed"), result.get("active_heuristics"))
+    except Exception as e:
+        log.exception("Scheduled hourly_reflection failed: %s", e)
+
+
+def _run_memory_consolidation():
+    """Wrapper for memory consolidation job (Glass Box)."""
+    from app.jobs.memory_consolidation import run
+    try:
+        result = run()
+        log.info("Scheduled memory_consolidation: new=%s scanned=%s",
+                 result.get("new_heuristics"), result.get("agents_scanned"))
+    except Exception as e:
+        log.exception("Scheduled memory_consolidation failed: %s", e)
+
+
+def _run_governance_logger():
+    """Wrapper for governance logger job (Glass Box)."""
+    from app.jobs.governance_logger import run
+    try:
+        result = run()
+        log.info("Scheduled governance_logger: mode=%s", result.get("system_mode"))
+    except Exception as e:
+        log.exception("Scheduled governance_logger failed: %s", e)
+
+
 def start_scheduler() -> Optional[object]:
     """Start the APScheduler with flywheel jobs.
 
@@ -95,8 +127,37 @@ def start_scheduler() -> Optional[object]:
         replace_existing=True,
     )
 
+    # ── Glass Box Cockpit Jobs ──
+
+    # Hourly — heuristic decay + cognitive reflection
+    _scheduler.add_job(
+        _run_hourly_reflection,
+        CronTrigger(minute=0, timezone="UTC"),
+        id="hourly_reflection",
+        name="Hourly Reflection",
+        replace_existing=True,
+    )
+
+    # Every 6 hours — extract new heuristics from memory bank
+    _scheduler.add_job(
+        _run_memory_consolidation,
+        CronTrigger(hour="0,6,12,18", minute=30, timezone="UTC"),
+        id="memory_consolidation",
+        name="Memory Consolidation",
+        replace_existing=True,
+    )
+
+    # Every 15 minutes — governance audit trail
+    _scheduler.add_job(
+        _run_governance_logger,
+        CronTrigger(minute="0,15,30,45", timezone="UTC"),
+        id="governance_logger",
+        name="Governance Logger",
+        replace_existing=True,
+    )
+
     _scheduler.start()
-    log.info("Flywheel scheduler started with 3 jobs")
+    log.info("Flywheel scheduler started with 6 jobs (3 flywheel + 3 glass-box)")
 
     return _scheduler
 

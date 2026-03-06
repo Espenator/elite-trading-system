@@ -343,6 +343,26 @@ async def _start_event_driven_pipeline():
     await _message_bus.subscribe("council.verdict", _bridge_council_to_ws)
     log.info("\u2705 Council->WebSocket bridge active")
 
+    # 5b. Glass Box event bridges (circuit breaker, HITL, risk alerts)
+    async def _bridge_risk_alert_to_ws(alert_data):
+        try:
+            from app.websocket_manager import broadcast_ws
+            await broadcast_ws("risk", {"type": "circuit_breaker_fired", "alert": alert_data})
+        except Exception as e:
+            log.debug("WS risk alert broadcast failed: %s", e)
+
+    await _message_bus.subscribe("risk.alert", _bridge_risk_alert_to_ws)
+
+    async def _bridge_hitl_to_ws(hitl_data):
+        try:
+            from app.websocket_manager import broadcast_ws
+            await broadcast_ws("council", {"type": "hitl_requested", "hitl": hitl_data})
+        except Exception as e:
+            log.debug("WS HITL broadcast failed: %s", e)
+
+    await _message_bus.subscribe("hitl.approval_needed", _bridge_hitl_to_ws)
+    log.info("\u2705 Glass Box WS bridges active (risk.alert, hitl)")
+
     # 6. AlpacaStreamService (publishes market_data.bar events)
     if os.getenv("DISABLE_ALPACA_DATA_STREAM", "").strip().lower() in ("1", "true", "yes"):
         log.info("AlpacaStreamService skipped (DISABLE_ALPACA_DATA_STREAM=1)")

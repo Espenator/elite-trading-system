@@ -114,9 +114,15 @@ const API_CONFIG = {
     "alignment/metacognition": "/alignment/metacognition", // GET metacognition flags + trends
     "alignment/critique": "/alignment/critique", // GET swarm critique role stats
 
-    // ---- COUNCIL (11-Agent Debate Council) ----
-    councilEvaluate: "/council/evaluate", // POST: run 11-agent council evaluation
+    // ---- COUNCIL (17-Agent Debate Council) ----
+    councilEvaluate: "/council/evaluate", // POST: run 17-agent council evaluation
     councilLatest: "/council/latest", // GET: latest council DecisionPacket
+    "council/latest-decision": "/council/latest-decision", // GET: Decision Header summary
+    "council/agent-health": "/council/agent-health", // GET: Agent Consensus Matrix
+    "council/decisions": "/council/decisions", // GET: decision history list
+    "council/agent-config": "/council/agent-config", // GET/POST: agent enable/disable
+    "council/gate-status": "/council/gate-status", // GET: CouncilGate metrics
+    "council/weights": "/council/weights", // GET: Bayesian agent weights
 
     // ---- FEATURE STORE ----
     featuresLatest: "/features/latest", // GET: latest feature vector for symbol
@@ -149,6 +155,18 @@ const API_CONFIG = {
     cognitiveDashboard: "/cognitive/dashboard",
     cognitiveSnapshots: "/cognitive/snapshots",
     cognitiveCalibration: "/cognitive/calibration",
+    "cognitive/mode": "/cognitive/mode", // GET: current cognitive mode
+    "cognitive/brain-health": "/cognitive/brain-health", // GET: brain service health
+    "cognitive/heuristics": "/cognitive/heuristics", // GET: active heuristics
+    "cognitive/similar-cases": "/cognitive/similar-cases", // GET: similar past cases
+    "cognitive/drift-status": "/cognitive/drift-status", // GET: drift detection
+
+    // ---- OPERATOR CONTROLS (Glass Box) ----
+    "system/mode": "/system/mode", // GET/POST: system mode (AUTO/SHADOW/PAUSED/LEARNING)
+    "settings/risk-limits": "/settings/risk-limits", // POST: risk cap sliders
+    "settings/learning": "/settings/learning", // POST: learning config
+    "settings/data-sources": "/settings/data-sources", // POST: data source weights
+    "settings/risk": "/settings/risk", // GET: risk settings category
 
     // ---- SWARM INTELLIGENCE ----
     swarmTurboStatus: "/swarm/turbo/status",

@@ -130,6 +130,41 @@ const TickerStrip = ({ indices, signals }) => {
   );
 };
 
+// --- COUNCIL DECISION HEADER STRIP (Glass Box cockpit integration) ---
+const CouncilDecisionStrip = () => {
+  const { data } = useApi("council/latest-decision", { pollIntervalMs: 10000 });
+  const decision = data?.decision;
+  if (!decision) return null;
+
+  const dirColors = { buy: "#10b981", sell: "#ef4444", hold: "#f59e0b" };
+  const color = dirColors[decision.final_direction] || "#64748b";
+  const conf = ((decision.final_confidence || 0) * 100).toFixed(0);
+  const vs = decision.vote_summary || {};
+
+  return (
+    <div className="bg-[#111827]/80 border-b border-[rgba(42,52,68,0.5)] px-4 py-1 flex items-center gap-4 text-[10px] font-mono shrink-0">
+      <span className="text-[#64748b] uppercase tracking-wider text-[9px]">Council</span>
+      <span className="text-white font-bold">{decision.symbol}</span>
+      <span style={{ color }} className="font-black uppercase">{decision.final_direction}</span>
+      <span className="text-white">{conf}%</span>
+      <span className="text-[#64748b]">|</span>
+      <span className="text-[#10b981]">B:{vs.buy || 0}</span>
+      <span className="text-[#ef4444]">S:{vs.sell || 0}</span>
+      <span className="text-[#f59e0b]">H:{vs.hold || 0}</span>
+      <span className="text-[#64748b]">|</span>
+      <span className={decision.execution_ready ? "text-[#10b981]" : "text-[#64748b]"}>
+        {decision.execution_ready ? "EXEC" : "NO-EXEC"}
+      </span>
+      {decision.vetoed && <span className="text-[#ef4444] font-bold">VETOED</span>}
+      <span className="text-[#64748b]">|</span>
+      <span className="text-[#a78bfa]">{decision.cognitive_mode}</span>
+      {decision.total_latency_ms > 0 && (
+        <span className="text-[#64748b]">{Math.round(decision.total_latency_ms)}ms</span>
+      )}
+    </div>
+  );
+};
+
 // --- ICONS ---
 const HexagonLogo = () => (
   <svg
@@ -1212,6 +1247,9 @@ export default function Dashboard() {
 
       {/* SCROLLING TICKER STRIP */}
       <TickerStrip indices={indices} signals={processedSignals} />
+
+      {/* COUNCIL DECISION HEADER STRIP */}
+      <CouncilDecisionStrip />
 
       {/* Signal-error banner (non-blocking) */}
       {sigErr && (
