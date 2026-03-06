@@ -2,10 +2,12 @@
 
 DAG execution order (parallel within stages):
   Stage 1: [market_perception, flow_perception, regime, social_perception, news_catalyst, youtube_knowledge, intermarket]
+  Stage 1.5: Bayesian regime update + directive loading (uses S1 regime output)
   Stage 2: [rsi, bbv, ema_trend, relative_strength, cycle_timing]
   Stage 3: [hypothesis]
   Stage 4: [strategy]
   Stage 5: [risk, execution]
+  Stage 5.5: [debate_engine, red_team] (parallel)
   Stage 6: [critic]
   Stage 7: arbiter (deterministic)
 
@@ -14,8 +16,12 @@ Uses BlackboardState as shared context and TaskSpawner for agent execution.
 import asyncio
 import logging
 import time
+import types
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+
+# Overall council wall-clock budget (seconds)
+COUNCIL_TIMEOUT_S = 30.0
 
 from app.council.blackboard import BlackboardState
 from app.council.schemas import AgentVote, DecisionPacket, CognitiveMeta
@@ -36,6 +42,9 @@ async def run_council(
 ) -> DecisionPacket:
     """Run the full 17-agent council and return a DecisionPacket.
 
+    Enforces an overall wall-clock timeout of COUNCIL_TIMEOUT_S seconds
+    to guarantee the decision-expiry invariant.
+
     Args:
         symbol: Ticker symbol to evaluate
         timeframe: Timeframe (default "1d")
@@ -45,6 +54,38 @@ async def run_council(
     Returns:
         DecisionPacket with all votes and final decision
     """
+    try:
+        return await asyncio.wait_for(
+            _run_council_inner(symbol, timeframe, features, context),
+            timeout=COUNCIL_TIMEOUT_S,
+        )
+    except asyncio.TimeoutError:
+        logger.error(
+            "Council TIMEOUT for %s after %.0fs — returning hold/veto",
+            symbol, COUNCIL_TIMEOUT_S,
+        )
+        return DecisionPacket(
+            symbol=symbol,
+            timeframe=timeframe,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            votes=[],
+            final_direction="hold",
+            final_confidence=0.0,
+            vetoed=True,
+            veto_reasons=[f"Council wall-clock timeout ({COUNCIL_TIMEOUT_S}s)"],
+            risk_limits={},
+            execution_ready=False,
+            council_reasoning=f"HALTED: council exceeded {COUNCIL_TIMEOUT_S}s budget",
+        )
+
+
+async def _run_council_inner(
+    symbol: str,
+    timeframe: str = "1d",
+    features: Optional[Dict[str, Any]] = None,
+    context: Optional[Dict[str, Any]] = None,
+) -> DecisionPacket:
+    """Core council logic — called by run_council() under a timeout guard."""
     if context is None:
         context = {}
 
@@ -197,10 +238,18 @@ async def run_council(
             if sa.should_skip_agent(agent_name):
                 logger.warning("Skipping hibernated/unhealthy agent: %s", agent_name)
                 spawner._registry.pop(agent_name, None)
-    except Exception:
-        pass  # Self-awareness unavailable, proceed with all agents
+    except Exception as e:
+        logger.warning("Self-awareness filter failed (proceeding with all agents): %s", e)
 
     all_votes: List[AgentVote] = []
+
+    def _freeze_context(ctx: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a shallow-frozen snapshot of context for downstream stages."""
+        snapshot = dict(ctx)
+        for key in ("stage1", "stage2", "stage3", "stage4", "stage5"):
+            if key in snapshot and isinstance(snapshot[key], dict):
+                snapshot[key] = types.MappingProxyType(snapshot[key])
+        return snapshot
 
     # Stage 1: Perception + Data Sources + Intermarket (parallel — 7 agents)
     _stage_start = time.monotonic() * 1000
@@ -219,6 +268,55 @@ async def run_council(
         blackboard.perceptions[v.agent_name] = v.to_dict()
     blackboard.stage_latencies["stage1"] = time.monotonic() * 1000 - _stage_start
 
+    # ── Stage 1.5: Bayesian Regime Update (before S2 so downstream agents use fresh beliefs) ──
+    try:
+        from app.council.regime.bayesian_regime import (
+            get_bayesian_regime, compute_likelihoods,
+        )
+        bayes_regime = get_bayesian_regime()
+        f = features.get("features", features)
+        likelihoods = compute_likelihoods(
+            vix=float(f.get("vix_close", 20)),
+            trend_strength=float(f.get("adx_14", 25)) / 50.0 - 0.5,
+            breadth_ratio=float(f.get("breadth_ratio", 0.5)),
+            volatility_ratio=float(f.get("atr_14", 1)) / float(f.get("atr_21", 1)) if f.get("atr_21") else 1.0,
+        )
+        bayes_regime.update(likelihoods)
+        blackboard.regime_belief = bayes_regime.get_beliefs()
+        blackboard.metadata["regime_entropy"] = bayes_regime.entropy()
+        blackboard.metadata["regime_position_modifier"] = bayes_regime.position_size_modifier()
+        dom_regime, dom_prob = bayes_regime.dominant_regime()
+        context["regime_belief"] = bayes_regime.get_beliefs()
+        logger.info(
+            "Bayesian regime for %s: %s (%.0f%%), entropy=%.3f, position_mod=%.2f",
+            symbol, dom_regime, dom_prob * 100,
+            bayes_regime.entropy(), bayes_regime.position_size_modifier(),
+        )
+    except Exception as e:
+        logger.debug("Bayesian regime update failed (proceeding): %s", e)
+
+    # ── Stage 1.5b: Load regime-specific directives into blackboard ──
+    try:
+        from app.council.directives.loader import directive_loader
+        regime_for_directives = blackboard.metadata.get("regime_entropy", None)
+        # Use the dominant regime from Bayesian update or S1 regime agent
+        regime_label = "unknown"
+        if blackboard.regime_belief:
+            regime_label = max(blackboard.regime_belief, key=blackboard.regime_belief.get)
+        elif "regime" in blackboard.perceptions:
+            regime_label = blackboard.perceptions["regime"].get("direction", "unknown")
+
+        directive_text = directive_loader.load(regime_label)
+        if directive_text:
+            blackboard.metadata["active_directives"] = directive_text
+            blackboard.metadata["directive_regime"] = regime_label
+            logger.info("Loaded directives for regime '%s' (%d chars)", regime_label, len(directive_text))
+    except Exception as e:
+        logger.debug("Directive loading failed (proceeding): %s", e)
+
+    # Freeze S1 context before passing to S2
+    context = _freeze_context(context)
+
     # Stage 2: Technical Analysis (parallel — 5 agents)
     _stage_start = time.monotonic() * 1000
     stage2 = await spawner.spawn_parallel([
@@ -233,6 +331,7 @@ async def run_council(
     for v in stage2:
         blackboard.perceptions[v.agent_name] = v.to_dict()
     blackboard.stage_latencies["stage2"] = time.monotonic() * 1000 - _stage_start
+    context = _freeze_context(context)
 
     # Stage 3: Hypothesis (deep model tier for LLM)
     _stage_start = time.monotonic() * 1000
@@ -241,6 +340,7 @@ async def run_council(
     context["stage3"] = {stage3.agent_name: stage3.to_dict()}
     blackboard.hypothesis = stage3.to_dict()
     blackboard.stage_latencies["stage3"] = time.monotonic() * 1000 - _stage_start
+    context = _freeze_context(context)
 
     # Stage 4: Strategy
     _stage_start = time.monotonic() * 1000
@@ -249,6 +349,7 @@ async def run_council(
     context["stage4"] = {stage4.agent_name: stage4.to_dict()}
     blackboard.strategy = stage4.to_dict()
     blackboard.stage_latencies["stage4"] = time.monotonic() * 1000 - _stage_start
+    context = _freeze_context(context)
 
     # Stage 5: Risk + Execution (parallel)
     _stage_start = time.monotonic() * 1000
@@ -264,32 +365,7 @@ async def run_council(
         elif v.agent_name == "execution":
             blackboard.execution_plan = v.to_dict()
     blackboard.stage_latencies["stage5"] = time.monotonic() * 1000 - _stage_start
-
-    # ── Bayesian Regime Update ────────────────────────────────────────────
-    try:
-        from app.council.regime.bayesian_regime import (
-            get_bayesian_regime, compute_likelihoods,
-        )
-        bayes_regime = get_bayesian_regime()
-        f = features.get("features", features)
-        likelihoods = compute_likelihoods(
-            vix=float(f.get("vix_close", 20)),
-            trend_strength=float(f.get("adx_14", 25)) / 50.0 - 0.5,  # normalize to [-0.5, 0.5]
-            breadth_ratio=float(f.get("breadth_ratio", 0.5)),
-            volatility_ratio=float(f.get("atr_14", 1)) / float(f.get("atr_21", 1)) if f.get("atr_21") else 1.0,
-        )
-        bayes_regime.update(likelihoods)
-        blackboard.regime_belief = bayes_regime.get_beliefs()
-        blackboard.metadata["regime_entropy"] = bayes_regime.entropy()
-        blackboard.metadata["regime_position_modifier"] = bayes_regime.position_size_modifier()
-        dom_regime, dom_prob = bayes_regime.dominant_regime()
-        logger.info(
-            "Bayesian regime for %s: %s (%.0f%%), entropy=%.3f, position_mod=%.2f",
-            symbol, dom_regime, dom_prob * 100,
-            bayes_regime.entropy(), bayes_regime.position_size_modifier(),
-        )
-    except Exception as e:
-        logger.debug("Bayesian regime update failed (proceeding): %s", e)
+    context = _freeze_context(context)
 
     # ── ETBI: Determine cognitive mode ──────────────────────────────────
     try:
@@ -364,11 +440,13 @@ async def run_council(
                 )
                 # If debate says veto, create a veto vote
                 if debate_result.action_modifier == "veto":
+                    # Derive veto confidence from debate quality rather than hardcoded 0.9
+                    veto_confidence = max(0.5, min(0.95, debate_result.quality_score))
                     veto_vote = AgentVote(
                         agent_name="debate_engine",
                         direction="hold",
-                        confidence=0.9,
-                        reasoning=f"Debate VETO: {debate_result.judge_summary[:200]}",
+                        confidence=veto_confidence,
+                        reasoning=f"Debate VETO (quality={debate_result.quality_score:.2f}): {debate_result.judge_summary[:200]}",
                         veto=True,
                         veto_reason="Debate engine veto: bear case overwhelmingly stronger",
                         metadata={"debate_score": debate_result.quality_score},
@@ -383,12 +461,19 @@ async def run_council(
                 blackboard.red_team_report = red_team_report.to_dict()
                 context["red_team"] = red_team_report.to_dict()
                 # Create red team vote
+                # Derive red team confidence from survival ratio instead of binary 0.7/0.4
+                survival_ratio = (
+                    red_team_report.scenarios_survived / red_team_report.total_scenarios
+                    if red_team_report.total_scenarios > 0 else 0.5
+                )
+                red_team_confidence = round(0.3 + 0.6 * survival_ratio, 3)  # maps [0,1] → [0.3, 0.9]
                 red_team_vote = AgentVote(
                     agent_name="red_team",
                     direction="hold" if red_team_report.overall_recommendation == "REJECT" else proposed_direction,
-                    confidence=0.7 if red_team_report.overall_recommendation == "PROCEED" else 0.4,
+                    confidence=red_team_confidence,
                     reasoning=f"Red team: {red_team_report.overall_recommendation} "
-                              f"(survived={red_team_report.scenarios_survived}/{red_team_report.total_scenarios})",
+                              f"(survived={red_team_report.scenarios_survived}/{red_team_report.total_scenarios}, "
+                              f"confidence={red_team_confidence:.2f})",
                     veto=(red_team_report.overall_recommendation == "REJECT"),
                     veto_reason=f"Stress test REJECT: worst_case={red_team_report.worst_case_loss_pct:.1%}"
                                 if red_team_report.overall_recommendation == "REJECT" else "",
@@ -560,19 +645,33 @@ async def run_council(
                 "cognitive": cognitive.to_dict(),
             }
             await bus.publish("council.verdict", verdict_payload)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Message bus publish failed for %s: %s", symbol, e)
 
     return decision
 
 
 def _compute_memory_precision(knowledge_context: dict) -> float:
-    """Compute relevance score of recalled heuristics (0-1)."""
+    """Compute relevance score of recalled heuristics (0-1).
+
+    Weights by recency (newer heuristics weighted higher) and relevance
+    rather than flat averaging Bayesian confidence.
+    """
     if not knowledge_context:
         return 0.0
     heuristics = knowledge_context.get("active_heuristics", [])
     if not heuristics:
         return 0.0
-    # Average Bayesian confidence of recalled heuristics
-    confs = [h.get("bayesian_confidence", 0.5) for h in heuristics]
-    return sum(confs) / len(confs) if confs else 0.0
+    # Recency-weighted average: most recent heuristic gets weight=1.0,
+    # oldest gets weight=0.5, linearly interpolated
+    n = len(heuristics)
+    weighted_sum = 0.0
+    weight_sum = 0.0
+    for i, h in enumerate(heuristics):
+        recency_weight = 0.5 + 0.5 * (i + 1) / n  # 0.5→1.0 (assumes ordered oldest→newest)
+        relevance = h.get("relevance_score", 1.0)  # use relevance if available
+        conf = h.get("bayesian_confidence", 0.5)
+        w = recency_weight * relevance
+        weighted_sum += conf * w
+        weight_sum += w
+    return round(weighted_sum / weight_sum, 4) if weight_sum > 0 else 0.0

@@ -21,6 +21,34 @@ from app.council.schemas import AgentVote
 
 logger = logging.getLogger(__name__)
 
+# Per-agent timeout defaults (seconds) — tuned by stage complexity
+AGENT_TIMEOUTS: Dict[str, float] = {
+    # S1: Perception agents — fast, mostly data lookups
+    "market_perception": 5.0,
+    "flow_perception": 5.0,
+    "regime": 5.0,
+    "social_perception": 8.0,   # external API calls
+    "news_catalyst": 8.0,       # external API calls
+    "youtube_knowledge": 8.0,   # external API calls
+    "intermarket": 5.0,
+    # S2: Technical agents — pure computation
+    "rsi": 3.0,
+    "bbv": 3.0,
+    "ema_trend": 3.0,
+    "relative_strength": 3.0,
+    "cycle_timing": 3.0,
+    # S3: Hypothesis — LLM deep model, needs more time
+    "hypothesis": 15.0,
+    # S4: Strategy — moderate complexity
+    "strategy": 10.0,
+    # S5: Risk + Execution — moderate
+    "risk": 5.0,
+    "execution": 5.0,
+    # S6: Critic — needs to review all prior votes
+    "critic": 10.0,
+}
+DEFAULT_AGENT_TIMEOUT = 10.0
+
 
 class TaskSpawner:
     """Dynamic agent spawner with registry, parallel execution, and background tasks."""
@@ -119,12 +147,14 @@ class TaskSpawner:
         context["blackboard"] = self.blackboard
         context["model_tier"] = model_tier
 
+        agent_timeout = AGENT_TIMEOUTS.get(agent_type, DEFAULT_AGENT_TIMEOUT)
+
         if background:
-            task = asyncio.create_task(self._run_agent(module, symbol, timeframe, features, context))
+            task = asyncio.create_task(self._run_agent(module, symbol, timeframe, features, context, timeout=agent_timeout))
             self._background.append(task)
             return None
 
-        return await self._run_agent(module, symbol, timeframe, features, context)
+        return await self._run_agent(module, symbol, timeframe, features, context, timeout=agent_timeout)
 
     async def spawn_parallel(
         self,
@@ -156,7 +186,8 @@ class TaskSpawner:
             context["blackboard"] = self.blackboard
             context["model_tier"] = cfg.get("model_tier", "fast")
 
-            tasks.append(self._run_agent(module, symbol, timeframe, features, context))
+            agent_timeout = AGENT_TIMEOUTS.get(agent_type, DEFAULT_AGENT_TIMEOUT)
+            tasks.append(self._run_agent(module, symbol, timeframe, features, context, timeout=agent_timeout))
 
         return list(await asyncio.gather(*tasks))
 
