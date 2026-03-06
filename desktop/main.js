@@ -183,7 +183,7 @@ function createMainWindow() {
 
   if (isDev) {
     // In dev, load from Vite dev server
-    mainWindow.loadURL("http://localhost:5173");
+    mainWindow.loadURL("http://localhost:3000");
   } else {
     // In production, serve the built frontend through the backend
     const frontendPath = path.join(process.resourcesPath || __dirname, "frontend", "index.html");
