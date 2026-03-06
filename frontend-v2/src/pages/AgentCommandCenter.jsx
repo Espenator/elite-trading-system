@@ -44,7 +44,7 @@ export default function AgentCommandCenter() {
     ? Math.round(agents.reduce((s, a) => s + (a.cpu_usage || 0), 0) / agents.length)
     : 47;
   const ramPct = systemStatus?.memory_percent || 31;
-  const gpuPct = systemStatus?.gpu_percent || 61;
+  const gpuPct = systemStatus?.gpu_percent || 67;
   const uptime = systemStatus?.uptime || "47h 12m 33s";
 
   const setTab = (key) => setSearchParams({ tab: key });
@@ -56,6 +56,9 @@ export default function AgentCommandCenter() {
         <div className="flex items-center gap-3">
           <Activity className="w-5 h-5 text-cyan-400" />
           <h1 className="text-base font-bold tracking-wide">AGENT COMMAND CENTER</h1>
+          <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+            OPERATIONAL
+          </span>
           <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
             GREEN
           </span>

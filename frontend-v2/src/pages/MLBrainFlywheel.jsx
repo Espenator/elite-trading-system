@@ -1,6 +1,5 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
-import { createChart } from 'lightweight-charts';
-import { AreaChart, Area, LineChart, Line, ResponsiveContainer, Tooltip } from 'recharts';
+import { useState, useMemo } from 'react';
+import { LineChart, Line, ResponsiveContainer, Tooltip } from 'recharts';
 import { useApi } from '../hooks/useApi';
 import { getApiUrl, getAuthHeaders } from '../config/api';
 import log from "@/utils/logger";
@@ -45,39 +44,40 @@ const FALLBACK_PERFORMANCE = (() => {
 })();
 
 const FALLBACK_SIGNALS = [
-  { symbol: 'NVDA', probs: { '1d': 0.92, '5d': 0.88, '1w': 0.85, '2w': 0.79, '1m': 0.72, '3m': 0.68 } },
-  { symbol: 'META', probs: { '1d': 0.87, '5d': 0.84, '1w': 0.80, '2w': 0.76, '1m': 0.69, '3m': 0.63 } },
-  { symbol: 'TSLA', probs: { '1d': 0.81, '5d': 0.75, '1w': 0.71, '2w': 0.65, '1m': 0.58, '3m': 0.52 } },
-  { symbol: 'AAPL', probs: { '1d': 0.78, '5d': 0.73, '1w': 0.68, '2w': 0.62, '1m': 0.55, '3m': 0.50 } },
-  { symbol: 'AMZN', probs: { '1d': 0.76, '5d': 0.71, '1w': 0.66, '2w': 0.60, '1m': 0.53, '3m': 0.48 } },
-  { symbol: 'MSFT', probs: { '1d': 0.73, '5d': 0.69, '1w': 0.64, '2w': 0.58, '1m': 0.51, '3m': 0.45 } },
-  { symbol: 'GOOG', probs: { '1d': 0.70, '5d': 0.66, '1w': 0.61, '2w': 0.55, '1m': 0.49, '3m': 0.42 } },
-  { symbol: 'AMD', probs: { '1d': 0.68, '5d': 0.63, '1w': 0.58, '2w': 0.52, '1m': 0.46, '3m': 0.39 } },
-  { symbol: 'CRWD', probs: { '1d': 0.65, '5d': 0.60, '1w': 0.55, '2w': 0.49, '1m': 0.43, '3m': 0.37 } },
+  { symbol: 'NVDA', change24h: +3.2, winProb: 92, compression: 87, velezScore: 9.4, yieldScore: 8.8, days: 3 },
+  { symbol: 'MSTR', change24h: +5.1, winProb: 89, compression: 91, velezScore: 9.1, yieldScore: 8.5, days: 2 },
+  { symbol: 'AAPL', change24h: +1.4, winProb: 85, compression: 72, velezScore: 8.7, yieldScore: 7.9, days: 5 },
+  { symbol: 'TSLA', change24h: -0.8, winProb: 81, compression: 68, velezScore: 8.2, yieldScore: 7.4, days: 4 },
+  { symbol: 'AMD', change24h: +2.6, winProb: 78, compression: 65, velezScore: 7.8, yieldScore: 7.1, days: 6 },
+  { symbol: 'SMCI', change24h: +4.3, winProb: 76, compression: 82, velezScore: 7.5, yieldScore: 6.9, days: 1 },
+  { symbol: 'COIN', change24h: +1.9, winProb: 73, compression: 59, velezScore: 7.2, yieldScore: 6.5, days: 7 },
+  { symbol: 'PLTR', change24h: +0.7, winProb: 70, compression: 54, velezScore: 6.9, yieldScore: 6.2, days: 8 },
+  { symbol: 'META', change24h: +1.1, winProb: 68, compression: 48, velezScore: 6.5, yieldScore: 5.8, days: 3 },
+  { symbol: 'CRWD', change24h: -0.3, winProb: 65, compression: 42, velezScore: 6.2, yieldScore: 5.5, days: 10 },
 ];
 
 const FALLBACK_MODELS = [
-  { name: 'XGBoost Classifier', status: 'PRODUCTION', score1: 0.924, score2: 0.891, uptime: '21d 16hrs', lookback: '252 days', sparkline: null },
-  { name: 'RF Ensemble Model', status: 'PRODUCTION', score1: 0.885, score2: 0.862, uptime: '18d 4hrs', lookback: '89 days', sparkline: null },
-  { name: 'Votes Engine v2.0', status: 'PRODUCTION', score1: 0.865, score2: 0.840, uptime: '14d 7hrs', lookback: 'N/A (hybrid)', sparkline: null },
-  { name: 'Compression Detector', status: 'PRODUCTION', score1: 0.841, score2: 0.812, uptime: '10d 2hrs', lookback: '63 days', sparkline: null },
-  { name: 'Ignition Detector', status: 'PRODUCTION', score1: 0.812, score2: 0.800, uptime: '7d 11hrs', lookback: '1 Year', sparkline: null },
-  { name: 'Regime Manager (VXY)', status: 'PRODUCTION', score1: 0.890, score2: 0.865, uptime: '28d 3hrs', lookback: '1 Year', sparkline: null },
+  { name: 'XGBoost Classifier', status: 'Production', score1: 0.924, score2: 0.891, uptime: '21d 16hrs', lookback: '210 days', sparkline: null },
+  { name: 'RF Ensemble Model', status: 'Production', score1: 0.885, score2: 0.862, uptime: '18d 4hrs', lookback: '89 days', sparkline: null },
+  { name: 'Velez Engine v2.0', status: 'Production', score1: 0.865, score2: 0.840, uptime: '14d 7hrs', lookback: 'Not disabled', sparkline: null },
+  { name: 'Compression Detector', status: 'Staging', score1: 0.941, score2: 0.912, uptime: '10d 2hrs', lookback: '63 days', sparkline: null },
+  { name: 'Ignition Detector', status: 'Staging', score1: 0.870, score2: 0.850, uptime: '7d 11hrs', lookback: '1 Year', sparkline: null },
+  { name: 'Regime Manager (VIX)', status: 'Production', score1: 0.990, score2: 0.885, uptime: '28d 3hrs', lookback: '1 Year', sparkline: null },
 ];
 
 const FALLBACK_LOGS = [
-  { ts: '09:31:02', msg: 'NVDA long +2.4% hit TP1 — flywheel confirms XGBoost prediction correct, model weight +0.02' },
-  { ts: '09:31:15', msg: 'META short -0.8% stopped — RF Ensemble prediction incorrect, reducing confidence -0.01' },
-  { ts: '09:31:28', msg: 'TSLA long +1.1% partial fill — Votes Engine v2.0 signal validated, adding to training set' },
-  { ts: '09:31:42', msg: 'Feature recalc triggered: VIX regime shift detected, re-scoring all active models' },
-  { ts: '09:31:55', msg: 'Compression Detector flagged AMD — entering stage-3 watchlist for ignition' },
-  { ts: '09:32:08', msg: 'Walk-forward validation complete: 91.4% accuracy across 252-day rolling window' },
-  { ts: '09:32:21', msg: 'CRWD position closed +3.2% — Ignition Detector accuracy now 81.2% (7d rolling)' },
-  { ts: '09:32:34', msg: 'Regime Manager (VXY) switched to RISK-OFF mode — adjusting position sizing -20%' },
-  { ts: '09:32:47', msg: 'Flywheel cycle #12 complete — all models retrained on latest 500 trade outcomes' },
-  { ts: '09:33:01', msg: 'New feature added: options_skew_30d — feature store now at 24 total inputs' },
-  { ts: '09:33:14', msg: 'GOOG long +0.5% trailing — model ensemble agrees on continuation, holding' },
-  { ts: '09:33:27', msg: 'AMZN short signal rejected — win probability 48% below 70% threshold' },
+  { ts: '09:31:02', tag: 'RETRAIN', msg: 'NVDA long +2.4% hit TP1 — flywheel confirms XGBoost prediction correct, model weight +0.02' },
+  { ts: '09:31:15', tag: 'EVAL', msg: 'META short -0.8% stopped — RF Ensemble prediction incorrect, reducing confidence -0.01' },
+  { ts: '09:31:28', tag: 'RETRAIN', msg: 'TSLA long +1.1% partial fill — Velez Engine v2.0 signal validated, adding to training set' },
+  { ts: '09:31:42', tag: 'WARNING', msg: 'Feature recalc triggered: VIX regime shift detected, re-scoring all active models' },
+  { ts: '09:31:55', tag: 'RETRAIN', msg: 'Compression Detector flagged AMD — entering stage-3 watchlist for ignition' },
+  { ts: '09:32:08', tag: 'EVAL', msg: 'Walk-forward validation complete: 91.4% accuracy across 252-day rolling window' },
+  { ts: '09:32:21', tag: 'RETRAIN', msg: 'CRWD position closed +3.2% — Ignition Detector accuracy now 87.0% (7d rolling)' },
+  { ts: '09:32:34', tag: 'WARNING', msg: 'Regime Manager (VIX) switched to RISK-OFF mode — adjusting position sizing -20%' },
+  { ts: '09:32:47', tag: 'RETRAIN', msg: 'Flywheel cycle #12 complete — all models retrained on latest 500 trade outcomes' },
+  { ts: '09:33:01', tag: 'EVAL', msg: 'New feature added: options_skew_30d — feature store now at 24 total inputs' },
+  { ts: '09:33:14', tag: 'RETRAIN', msg: 'GOOG long +0.5% trailing — model ensemble agrees on continuation, holding' },
+  { ts: '09:33:27', tag: 'WARNING', msg: 'AMZN short signal rejected — win probability 48% below 70% threshold' },
 ];
 
 // ============================================================================
@@ -217,9 +217,6 @@ export default function MLBrainFlywheel() {
     }
     setTimeout(() => setIsRetraining(false), 2000);
   };
-
-  // Probability table timeframes
-  const timeframes = ['1d', '5d', '1w', '2w', '1m', '3m'];
 
   // KPI items matching mockup exactly
   const kpiItems = [
@@ -364,25 +361,42 @@ export default function MLBrainFlywheel() {
                 <thead className="sticky top-0 bg-[#0d1117] text-gray-500 border-b border-gray-800/40 z-10">
                   <tr>
                     <th className="px-3 py-2 font-medium text-left">SYMBOL</th>
-                    {timeframes.map(tf => (
-                      <th key={tf} className="px-2 py-2 font-medium text-center">{tf}</th>
-                    ))}
+                    <th className="px-2 py-2 font-medium text-right">24H %</th>
+                    <th className="px-2 py-2 font-medium text-left" style={{ minWidth: 120 }}>WIN PROB %</th>
+                    <th className="px-2 py-2 font-medium text-right">COMPR %</th>
+                    <th className="px-2 py-2 font-medium text-right">VELEZ</th>
+                    <th className="px-2 py-2 font-medium text-right">YIELD</th>
+                    <th className="px-2 py-2 font-medium text-right">DAYS</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800/20">
                   {signalsData.length > 0 ? signalsData.map((row, idx) => {
-                    const probs = row.probs || {};
+                    const wp = row.winProb ?? 0;
+                    const barColor = wp >= 80 ? 'bg-emerald-500' : wp >= 70 ? 'bg-cyan-500' : wp >= 60 ? 'bg-amber-500' : 'bg-red-500';
+                    const changeColor = (row.change24h ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400';
                     return (
                       <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
                         <td className="px-3 py-1.5 text-white font-bold text-[11px]">{row.symbol}</td>
-                        {timeframes.map(tf => (
-                          <ProbCell key={tf} value={probs[tf] ?? row[tf]} />
-                        ))}
+                        <td className={clsx('px-2 py-1.5 text-right font-bold', changeColor)}>
+                          {(row.change24h ?? 0) >= 0 ? '+' : ''}{(row.change24h ?? 0).toFixed(1)}%
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-2.5 bg-gray-800 rounded-full overflow-hidden">
+                              <div className={clsx('h-full rounded-full', barColor)} style={{ width: `${wp}%` }} />
+                            </div>
+                            <span className="text-white text-[10px] w-8 text-right">{wp}%</span>
+                          </div>
+                        </td>
+                        <td className="px-2 py-1.5 text-right text-gray-300">{row.compression ?? '--'}%</td>
+                        <td className="px-2 py-1.5 text-right text-cyan-400">{(row.velezScore ?? 0).toFixed(1)}</td>
+                        <td className="px-2 py-1.5 text-right text-gray-300">{(row.yieldScore ?? 0).toFixed(1)}</td>
+                        <td className="px-2 py-1.5 text-right text-gray-400">{row.days ?? '--'}</td>
                       </tr>
                     );
                   }) : (
                     <tr>
-                      <td colSpan={timeframes.length + 1} className="px-4 py-8 text-center text-gray-500">
+                      <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                         No probability data available
                       </td>
                     </tr>
@@ -407,41 +421,58 @@ export default function MLBrainFlywheel() {
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-3">
               <div className="grid grid-cols-3 gap-3">
-                {modelsData.length > 0 ? modelsData.map((model, idx) => (
-                  <div
-                    key={idx}
-                    className="bg-[#0B0E14] border border-gray-800/50 rounded-lg p-3 flex flex-col gap-2 hover:border-cyan-500/30 transition-colors"
-                  >
-                    {/* Model name */}
-                    <div className="flex items-start justify-between gap-1">
-                      <span className="text-[11px] font-bold text-white leading-tight">{model.name}</span>
-                    </div>
+                {modelsData.length > 0 ? modelsData.map((model, idx) => {
+                  const isProd = (model.status || '').toLowerCase().includes('prod');
+                  return (
+                    <div
+                      key={idx}
+                      className="bg-[#0B0E14] border border-gray-800/50 rounded-lg p-3 flex flex-col gap-2 hover:border-cyan-500/30 transition-colors"
+                    >
+                      {/* Model name + badge */}
+                      <div className="flex items-start justify-between gap-1">
+                        <span className="text-[11px] font-bold text-white leading-tight">{model.name}</span>
+                        <span className={clsx(
+                          'px-1.5 py-0.5 text-[8px] font-bold rounded shrink-0',
+                          isProd
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                            : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                        )}>
+                          {isProd ? 'Production' : 'Staging'}
+                        </span>
+                      </div>
 
-                    {/* Accuracy scores */}
-                    <div className="flex items-baseline gap-4 mt-1">
-                      <span className="text-lg font-mono font-bold text-cyan-400">
-                        {(Number(model.score1) || 0).toFixed(3)}
-                      </span>
-                      <span className="text-lg font-mono font-bold text-gray-400">
-                        {(Number(model.score2) || 0).toFixed(3)}
-                      </span>
-                    </div>
+                      {/* Precision / F1 scores */}
+                      <div className="flex items-baseline gap-3 mt-1">
+                        <div className="flex flex-col">
+                          <span className="text-[8px] text-gray-500 uppercase">Precision</span>
+                          <span className="text-lg font-mono font-bold text-cyan-400">
+                            {(Number(model.score1) || 0).toFixed(3)}
+                          </span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[8px] text-gray-500 uppercase">F1</span>
+                          <span className="text-lg font-mono font-bold text-gray-400">
+                            {(Number(model.score2) || 0).toFixed(3)}
+                          </span>
+                        </div>
+                      </div>
 
-                    {/* Mini sparkline */}
-                    <div className="h-7 mt-1">
-                      <MiniSparkline
-                        color={idx % 2 === 0 ? '#10b981' : '#00D9FF'}
-                        height={28}
-                      />
-                    </div>
+                      {/* Mini sparkline */}
+                      <div className="h-7 mt-1">
+                        <MiniSparkline
+                          color={idx % 2 === 0 ? '#10b981' : '#00D9FF'}
+                          height={28}
+                        />
+                      </div>
 
-                    {/* Bottom info */}
-                    <div className="flex items-center justify-between text-[9px] font-mono text-gray-500 mt-auto">
-                      <span>{model.uptime || 'N/A'}</span>
-                      <span>{model.lookback || 'N/A'}</span>
+                      {/* Bottom info */}
+                      <div className="flex items-center justify-between text-[9px] font-mono text-gray-500 mt-auto">
+                        <span>{model.uptime || 'N/A'}</span>
+                        <span>{model.lookback || 'N/A'}</span>
+                      </div>
                     </div>
-                  </div>
-                )) : (
+                  );
+                }) : (
                   <div className="col-span-3 text-center text-gray-500 text-xs font-mono py-8">
                     No deployed models
                   </div>
@@ -464,12 +495,23 @@ export default function MLBrainFlywheel() {
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-3">
               <div className="font-mono text-[10px] space-y-1.5">
-                {logsData.map((logEntry, idx) => (
-                  <div key={idx} className="flex gap-2 hover:bg-white/[0.02] px-2 py-0.5 rounded">
-                    <span className="text-gray-500 shrink-0 whitespace-nowrap">[{logEntry.ts}]</span>
-                    <span className="text-emerald-400/90 break-words leading-relaxed">{logEntry.msg}</span>
-                  </div>
-                ))}
+                {logsData.map((logEntry, idx) => {
+                  const tagColors = {
+                    RETRAIN: 'text-emerald-400',
+                    EVAL: 'text-red-400',
+                    WARNING: 'text-amber-400',
+                  };
+                  const tagColor = tagColors[logEntry.tag] || 'text-cyan-400';
+                  return (
+                    <div key={idx} className="flex gap-2 hover:bg-white/[0.02] px-2 py-0.5 rounded">
+                      <span className="text-gray-500 shrink-0 whitespace-nowrap">[{logEntry.ts}]</span>
+                      {logEntry.tag && (
+                        <span className={clsx('shrink-0 font-bold', tagColor)}>[{logEntry.tag}]</span>
+                      )}
+                      <span className="text-cyan-400/80 break-words leading-relaxed">{logEntry.msg}</span>
+                    </div>
+                  );
+                })}
                 {logsData.length === 0 && (
                   <div className="text-gray-500 text-center py-8">Awaiting log entries...</div>
                 )}

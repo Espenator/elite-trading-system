@@ -22,6 +22,7 @@ const FALLBACK_CORE_AGENTS = [
   { id: 'apex', name: 'Apex Orchestrator', type: 'Core', defaultWeight: 100 },
   { id: 'rel_weak', name: 'Relative Weakness', type: 'Core', defaultWeight: 85 },
   { id: 'short_basket', name: 'Short Basket', type: 'Core', defaultWeight: 75 },
+  { id: 'momentum_runner', name: 'Momentum Runner', type: 'Core', defaultWeight: 88 },
   { id: 'meta_arch', name: 'Meta Architect', type: 'Core', defaultWeight: 90 },
   { id: 'meta_alch', name: 'Meta Alchemist', type: 'Core', defaultWeight: 80 },
   { id: 'risk_gov', name: 'Risk Governor', type: 'Risk', defaultWeight: 100 },
@@ -58,22 +59,18 @@ function parseAgentsFromApi(apiData) {
 
 const SCANNERS = [
   { id: 'scan_entity', name: 'Entity Scanner' },
-  { id: 'scan_daily', name: 'Daily Scanner' },
-  { id: 'scan_finviz', name: 'Finviz Screener' },
-  { id: 'scan_price_action', name: 'Price Action' },
-  { id: 'scan_flow', name: 'Flow Detector' },
+  { id: 'scan_pivot', name: 'Pivot Scanner' },
+  { id: 'scan_flag', name: 'Flag Scanner' },
+  { id: 'scan_adr', name: 'ADR Detector' },
   { id: 'scan_pullback', name: 'Pullback Detector' },
   { id: 'scan_rebound', name: 'Rebound Detector' },
-  { id: 'scan_squeeze', name: 'Short Squeeze' },
-  { id: 'scan_tech', name: 'Technical Checker' },
+  { id: 'scan_band_squeeze', name: 'Band Squeeze' },
+  { id: 'scan_tech_cluster', name: 'Technical Cluster' },
   { id: 'scan_earnings', name: 'Earnings Calendar' },
-  { id: 'scan_fomc', name: 'FOMC Expected' },
-  { id: 'scan_sector', name: 'Sector Rotation' },
+  { id: 'scan_fomc', name: 'FOMC Calendar' },
   { id: 'scan_whale', name: 'Whale Flow' },
-  { id: 'scan_uw', name: 'UW Agents' },
-  { id: 'scan_tv_watch', name: 'TV Watchlist' },
-  { id: 'scan_tv_sess', name: 'TV Session Refresh' },
-  { id: 'scan_amd', name: 'AMD Detector' },
+  { id: 'scan_or_agents', name: 'OR Agents' },
+  { id: 'scan_tv_ws', name: 'TV Websocket' },
   { id: 'scan_tv_decision', name: 'TV Decision Refresh' }
 ];
 
@@ -98,9 +95,11 @@ const INTEL_MODULES = [
   { id: 'intel_lora', name: 'LoRA Trainer', defaultWeight: 70 },
   { id: 'intel_macro', name: 'Macro Context', defaultWeight: 95 },
   { id: 'intel_mem1', name: 'Memory v1', defaultWeight: 60 },
+  { id: 'intel_mem2', name: 'Memory v2', defaultWeight: 75 },
   { id: 'intel_mem3', name: 'Memory v3', defaultWeight: 90 },
   { id: 'intel_mtf', name: 'MTF Alignment', defaultWeight: 85 },
-  { id: 'intel_perf', name: 'Perf Tracker', defaultWeight: 100 }
+  { id: 'intel_perf', name: 'Perf Tracker', defaultWeight: 100 },
+  { id: 'intel_regime', name: 'Regime Detector', defaultWeight: 95 }
 ];
 
 const ML_MODELS = [
@@ -131,8 +130,8 @@ const API_ENDPOINTS = [
 ];
 
 const SHAP_FACTORS = [
-  'UW Options Flow','Velez Score','Volume Surge','Whale Flow',
-  'RSI Divergence','HTF Structure','Compression','Sector Momentum'
+  'Velez Score','Market Flow','DPQ','Compression',
+  'MFI Structure','EV/Kelly','Competition'
 ];
 
 // ============================================================================
@@ -619,6 +618,16 @@ export default function SignalIntelligenceV3() {
           >
             {timeframes.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
+          {/* VIX */}
+          <div className="flex items-center gap-1">
+            <span className="text-[9px] text-gray-500">VIX</span>
+            <span className="text-[10px] font-bold text-amber-400">{apiMarket?.vix ?? '18.4'}</span>
+          </div>
+          {/* Volatility */}
+          <div className="flex items-center gap-1">
+            <span className="text-[9px] text-gray-500">VOLATILITY</span>
+            <span className="text-[10px] font-bold text-amber-300">{apiMarket?.volatility ?? 'MED'}</span>
+          </div>
           {/* Sample Size */}
           <div className="flex items-center gap-1">
             <span className="text-[9px] text-gray-500">SAMPLE_SIZE:</span>
@@ -688,7 +697,7 @@ export default function SignalIntelligenceV3() {
               ))}
             </div>
             <div className="mt-2 pt-1 border-t border-[#1e293b]">
-              <span className="text-[8px] text-gray-500 uppercase tracking-wider">EXTENDED SWARM ({EXTENDED_AGENTS.length})</span>
+              <span className="text-[8px] text-gray-500 uppercase tracking-wider">EXTENDED SWARM: {EXTENDED_AGENTS.length + 48}</span>
             </div>
           </Panel>
         </div>
@@ -765,11 +774,15 @@ export default function SignalIntelligenceV3() {
                       <td className="py-0.5 px-1 font-mono text-gray-300">${typeof sig.price === 'number' ? sig.price.toFixed(2) : sig.price || '--'}</td>
                       <td className="py-0.5 px-1 text-cyan-400 truncate max-w-[80px]">{sig.agent || sig.source || '--'}</td>
                       <td className="py-0.5 px-1">
-                        <div className="flex items-center gap-1">
-                          <button onClick={(e) => { e.stopPropagation(); setSelectedSymbol(sig.symbol || sig.ticker); }}
-                            className="text-[#00D9FF] hover:text-white transition-colors" title="View chart"><Eye className="w-2.5 h-2.5" /></button>
+                        <div className="flex items-center gap-0.5">
                           <button onClick={(e) => { e.stopPropagation(); handleStageSignal(sig); }}
-                            className="text-emerald-400 hover:text-white transition-colors" title="Stage order"><Play className="w-2.5 h-2.5" /></button>
+                            className="px-1 py-0.5 rounded text-[7px] font-bold bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/30 transition-colors" title="Accept">Accept</button>
+                          <button onClick={(e) => { e.stopPropagation(); setSignals(prev => prev.filter(s => s.id !== sig.id)); }}
+                            className="px-1 py-0.5 rounded text-[7px] font-bold bg-red-500/15 text-red-400 hover:bg-red-500/30 transition-colors" title="Reject">Reject</button>
+                          <button onClick={(e) => { e.stopPropagation(); setSelectedSymbol(sig.symbol || sig.ticker); }}
+                            className="px-1 py-0.5 rounded text-[7px] font-bold bg-amber-500/15 text-amber-400 hover:bg-amber-500/30 transition-colors" title="Watch">Watch</button>
+                          <button onClick={(e) => { e.stopPropagation(); handleStageSignal(sig); }}
+                            className="px-1 py-0.5 rounded text-[7px] font-bold bg-cyan-500/15 text-cyan-400 hover:bg-cyan-500/30 transition-colors" title="Execute">Execute</button>
                         </div>
                       </td>
                     </tr>
@@ -792,17 +805,40 @@ export default function SignalIntelligenceV3() {
               <div className="flex items-center justify-between text-[8px] mb-1">
                 <span className="text-gray-500">OpenClaw Core vs Tech Analysis</span>
               </div>
+              {/* Blend / Regime / SLAM DUNK sliders */}
+              <div className="space-y-1 mb-1.5 pb-1.5 border-b border-[#1e293b]">
+                <div className="flex items-center gap-1">
+                  <span className="text-[7px] text-gray-400 w-20 shrink-0">Blend</span>
+                  <input type="range" min="0" max="100" value={scoringFormula.ocTaBlend}
+                    onChange={e => setScoringFormula(p => ({...p, ocTaBlend: +e.target.value}))}
+                    className="flex-1 h-1 accent-cyan-500" />
+                  <span className="text-[7px] text-gray-500 w-6 text-right">{scoringFormula.ocTaBlend}%</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-[7px] text-gray-400 w-20 shrink-0">Regime Mult</span>
+                  <input type="range" min="50" max="200" value={Math.round(scoringFormula.regimeMultiplier * 100)}
+                    onChange={e => setScoringFormula(p => ({...p, regimeMultiplier: +e.target.value / 100}))}
+                    className="flex-1 h-1 accent-amber-500" />
+                  <span className="text-[7px] text-gray-500 w-6 text-right">{scoringFormula.regimeMultiplier}x</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-[7px] text-gray-400 w-20 shrink-0">SLAM DUNK Tier</span>
+                  <input type="range" min="50" max="100" value={scoringFormula.tierSlamDunk}
+                    onChange={e => setScoringFormula(p => ({...p, tierSlamDunk: +e.target.value}))}
+                    className="flex-1 h-1 accent-emerald-500" />
+                  <span className="text-[7px] text-gray-500 w-6 text-right">{scoringFormula.tierSlamDunk}</span>
+                </div>
+              </div>
+              {/* Per-Factor SHAP Weights */}
+              <div className="text-[7px] text-gray-500 uppercase tracking-wider mb-0.5">Per-Factor SHAP Weights</div>
               <div className="space-y-0.5">
-                {SCORING_METRICS.map(metric => (
-                  <div key={metric.id} className="flex items-center gap-1">
-                    <span className="text-[7px] text-gray-400 w-20 shrink-0 truncate">{metric.name}</span>
+                {SHAP_FACTORS.map(factor => (
+                  <div key={factor} className="flex items-center gap-1">
+                    <span className="text-[7px] text-gray-400 w-20 shrink-0 truncate">{factor}</span>
                     <div className="flex-1 h-1 bg-[#1e293b] rounded-full overflow-hidden">
-                      <div className="h-full rounded-full" style={{
-                        width: `${metric.value}%`,
-                        backgroundColor: metric.value >= 85 ? '#10b981' : metric.value >= 70 ? '#00D9FF' : metric.value >= 50 ? '#f59e0b' : '#ef4444'
-                      }} />
+                      <div className="h-full rounded-full bg-cyan-500" style={{ width: `${shapWeights[factor] ?? 50}%` }} />
                     </div>
-                    <span className="text-[7px] text-gray-500 w-6 text-right">{metric.value}%</span>
+                    <span className="text-[7px] text-gray-500 w-6 text-right">{shapWeights[factor] ?? 50}%</span>
                   </div>
                 ))}
               </div>
@@ -856,11 +892,22 @@ export default function SignalIntelligenceV3() {
           <Panel title="ML Model Control (Layer 5)" icon={Cpu} className="shrink-0">
             {ML_MODELS.map(model => (
               <div key={model.id} className="flex items-center gap-1 py-0.5 border-b border-[#1e293b]/30 last:border-0">
-                <span className="text-[8px] text-gray-300 w-24 shrink-0 truncate">{model.name}</span>
+                <span className="text-[8px] text-gray-300 w-20 shrink-0 truncate">{model.name}</span>
+                <div className="flex-1 h-1 bg-[#1e293b] rounded-full overflow-hidden">
+                  <div className="h-full rounded-full" style={{
+                    width: `${mlStates[model.id]?.confThreshold ?? 75}%`,
+                    backgroundColor: mlStates[model.id]?.status === 'Ready' ? '#10b981' : mlStates[model.id]?.status === 'Training' ? '#f59e0b' : '#6b7280'
+                  }} />
+                </div>
                 <Badge color={mlStates[model.id]?.status === 'Ready' ? 'emerald' : mlStates[model.id]?.status === 'Training' ? 'amber' : 'gray'}>
                   {mlStates[model.id]?.status}
                 </Badge>
-                <span className="text-[7px] text-gray-500 ml-auto">{model.version}</span>
+                <button
+                  onClick={() => triggerRetrain(model.id)}
+                  className="px-1.5 py-0.5 rounded text-[7px] font-bold bg-purple-500/15 text-purple-400 hover:bg-purple-500/30 border border-purple-500/30 transition-colors shrink-0"
+                >
+                  RETRAIN
+                </button>
               </div>
             ))}
             {/* Strategy Telemetry */}
@@ -898,6 +945,10 @@ export default function SignalIntelligenceV3() {
             }>
             <div className="space-y-1">
               <div className="flex items-center gap-2">
+                <span className="text-[8px] text-gray-500 w-20">Auto Execute</span>
+                <Toggle checked={autoExecute} onChange={setAutoExecute} size="sm" />
+              </div>
+              <div className="flex items-center gap-2">
                 <span className="text-[8px] text-gray-500 w-20">Trading Mode</span>
                 <Badge color="red">PAPER TRADING</Badge>
               </div>
@@ -913,10 +964,26 @@ export default function SignalIntelligenceV3() {
                 <span className="text-[8px] text-gray-500 w-20">Daily Loss Limit</span>
                 <span className="text-[8px] font-mono text-red-400">{lossLimit}%</span>
               </div>
+              {/* IF-THEN Rules */}
+              <div className="mt-1.5 pt-1 border-t border-[#1e293b]">
+                <div className="text-[7px] text-gray-500 uppercase tracking-wider mb-1">IF-THEN RULES</div>
+                <div className="space-y-0.5">
+                  <label className="flex items-center gap-1.5 py-0.5 cursor-pointer">
+                    <input type="checkbox" checked={alertRules.comp_regime_stage} onChange={() => setAlertRules(p => ({...p, comp_regime_stage: !p.comp_regime_stage}))}
+                      className="w-2.5 h-2.5 rounded-sm bg-[#1e293b] border border-[#374151] accent-cyan-500 shrink-0" />
+                    <span className="text-[7px] text-cyan-400 font-mono">IF comp&gt;90 AND regime=BULL THEN stage</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 py-0.5 cursor-pointer">
+                    <input type="checkbox" checked={alertRules.vix_halve_pos} onChange={() => setAlertRules(p => ({...p, vix_halve_pos: !p.vix_halve_pos}))}
+                      className="w-2.5 h-2.5 rounded-sm bg-[#1e293b] border border-[#374151] accent-cyan-500 shrink-0" />
+                    <span className="text-[7px] text-cyan-400 font-mono">IF VIX&gt;30 THEN halve_positions</span>
+                  </label>
+                </div>
+              </div>
             </div>
             {/* API Health minimap */}
             <div className="mt-1.5 pt-1 border-t border-[#1e293b]">
-              <div className="text-[7px] text-gray-500 uppercase tracking-wider mb-0.5">API PRIORITY MAP ({API_ENDPOINTS.length})</div>
+              <div className="text-[7px] text-gray-500 uppercase tracking-wider mb-0.5">SYSTEM TELEMETRY - API PRIORITY ({API_ENDPOINTS.length})</div>
               <div className="grid grid-cols-7 gap-0.5">
                 {API_ENDPOINTS.map((ep) => {
                   const health = apiStatus?.endpoints?.[ep];

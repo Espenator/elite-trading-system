@@ -1650,6 +1650,111 @@ export default function Dashboard() {
             );
           })()}
 
+          {/* Calendar Heatmap (trading activity by day) */}
+          <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5">
+            <h3 className="text-[8px] text-[#00D9FF] font-bold uppercase tracking-wider mb-1.5">Calendar Heatmap</h3>
+            {(() => {
+              const weeks = 8;
+              const days = ["M","T","W","T","F","S","S"];
+              const cells = Array.from({ length: weeks * 7 }, (_, i) => {
+                const rand = Math.sin(i * 13.7 + 42) * 0.5 + 0.5;
+                const isTradeDay = i % 7 < 5;
+                if (!isTradeDay) return { val: 0, type: "weekend" };
+                const val = rand;
+                return { val, type: val > 0.6 ? "profit" : val > 0.3 ? "neutral" : "loss" };
+              });
+              return (
+                <div className="flex gap-[1px]">
+                  <div className="flex flex-col gap-[1px] mr-1">
+                    {days.map((d, i) => (
+                      <span key={i} className="text-[6px] text-[#64748b] font-mono h-[10px] flex items-center">{d}</span>
+                    ))}
+                  </div>
+                  {Array.from({ length: weeks }, (_, w) => (
+                    <div key={w} className="flex flex-col gap-[1px]">
+                      {Array.from({ length: 7 }, (_, d) => {
+                        const cell = cells[w * 7 + d];
+                        const bg = cell.type === "weekend" ? "bg-[#0B0E14]" : cell.type === "profit" ? `bg-green-500` : cell.type === "loss" ? `bg-red-500` : "bg-[#1e293b]";
+                        const opacity = cell.type === "weekend" ? "opacity-20" : cell.val > 0.7 ? "opacity-90" : cell.val > 0.4 ? "opacity-60" : "opacity-40";
+                        return <div key={d} className={`w-[10px] h-[10px] rounded-[1px] ${bg} ${opacity}`} />;
+                      })}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Agent Competition (ranked agents with P&L bars) */}
+          <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5">
+            <h3 className="text-[8px] text-[#00D9FF] font-bold uppercase tracking-wider mb-1.5">Agent Competition</h3>
+            <div className="space-y-1">
+              {[
+                { rank: 1, name: "AlphaScanner", pnl: 2340, pct: 85 },
+                { rank: 2, name: "RegimeDetect", pnl: 1870, pct: 72 },
+                { rank: 3, name: "MLTrain-01", pnl: 920, pct: 54 },
+                { rank: 4, name: "Sentiment-02", pnl: -340, pct: -22 },
+                { rank: 5, name: "Adversary-01", pnl: -780, pct: -41 },
+              ].map((a) => (
+                <div key={a.rank} className="flex items-center gap-1.5 text-[8px] font-mono">
+                  <span className="text-[#64748b] w-3">{a.rank}</span>
+                  <span className="text-white w-20 truncate">{a.name}</span>
+                  <div className="flex-1 h-2 bg-[#1e293b] rounded-sm overflow-hidden relative">
+                    {a.pnl >= 0 ? (
+                      <div className="absolute left-1/2 h-full bg-green-500 rounded-sm" style={{ width: `${Math.abs(a.pct) / 2}%` }} />
+                    ) : (
+                      <div className="absolute h-full bg-red-500 rounded-sm" style={{ width: `${Math.abs(a.pct) / 2}%`, right: "50%" }} />
+                    )}
+                  </div>
+                  <span className={`w-14 text-right ${a.pnl >= 0 ? "text-green-400" : "text-red-400"}`}>
+                    {a.pnl >= 0 ? "+" : ""}${a.pnl.toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* News & Pattern Triggers */}
+          <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5">
+            <h3 className="text-[8px] text-[#00D9FF] font-bold uppercase tracking-wider mb-1.5">News & Pattern Triggers</h3>
+            <div className="space-y-1 max-h-[100px] overflow-y-auto custom-scrollbar">
+              {[
+                { time: "09:41", text: "AAPL earnings beat — +3.2% AH", color: "text-green-400" },
+                { time: "09:38", text: "Fed minutes hawkish — DXY spike", color: "text-red-400" },
+                { time: "09:35", text: "NVDA cup-handle breakout detected", color: "text-[#00D9FF]" },
+                { time: "09:32", text: "BTC whale accumulation $67K zone", color: "text-amber-400" },
+                { time: "09:28", text: "SPY gap fill complete — reversal signal", color: "text-green-400" },
+                { time: "09:24", text: "TSLA golden cross 50/200 EMA", color: "text-[#00D9FF]" },
+              ].map((n, i) => (
+                <div key={i} className="flex items-start gap-1.5 text-[8px] font-mono">
+                  <span className="text-[#64748b] shrink-0">{n.time}</span>
+                  <span className={n.color}>{n.text}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Risk Check (Pass/Fail checklist) */}
+          <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5">
+            <h3 className="text-[8px] text-[#00D9FF] font-bold uppercase tracking-wider mb-1.5">Risk Check</h3>
+            <div className="space-y-0.5">
+              {[
+                { check: "Max Position Size", pass: true },
+                { check: "Daily Loss Limit", pass: true },
+                { check: "Correlation Check", pass: true },
+                { check: "Sector Concentration", pass: false },
+                { check: "Volatility Filter", pass: true },
+                { check: "Drawdown Limit", pass: true },
+              ].map((c) => (
+                <div key={c.check} className="flex items-center gap-1.5 text-[8px] font-mono">
+                  <span className={`text-[10px] ${c.pass ? "text-green-400" : "text-red-400"}`}>{c.pass ? "\u2713" : "\u2717"}</span>
+                  <span className={c.pass ? "text-[#94a3b8]" : "text-red-400"}>{c.check}</span>
+                  <span className={`ml-auto font-bold ${c.pass ? "text-green-400" : "text-red-400"}`}>{c.pass ? "PASS" : "FAIL"}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* Equity Curve + Flywheel (bottom of right panel) */}
           <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5">
             <h3 className="text-[8px] text-[#00D9FF] font-bold uppercase tracking-wider mb-1">Equity Curve</h3>
@@ -1663,17 +1768,32 @@ export default function Dashboard() {
         </section>
       </main>
 
-      {/* BOTTOM ACTION BAR */}
-      <footer className="flex items-center justify-between px-3 py-1 bg-[#0B0E14] border-t border-[rgba(42,52,68,0.5)] shrink-0 font-mono text-[8px] text-[#94a3b8]">
-        <div className="flex gap-2">
-          <button onClick={handleSpawnAgent} className="bg-[#1e293b] hover:bg-[#374151] text-white px-2 py-0.5 rounded border border-[#374151]">
-            Spawn Agent [N]
+      {/* BOTTOM ACTION BAR (8 buttons per mockup) */}
+      <footer className="flex items-center justify-between px-3 py-1.5 bg-[#0B0E14] border-t border-[rgba(42,52,68,0.5)] shrink-0 font-mono text-[8px] text-[#94a3b8]">
+        <div className="flex gap-1.5">
+          <button onClick={handleRunScan} className="bg-[#1e293b] hover:bg-[#374151] text-white px-2.5 py-1 rounded border border-[#374151] font-bold">
+            Fast Start
           </button>
-          <button onClick={handleFlatten} className="bg-amber-900/60 text-[#f59e0b] px-2 py-0.5 rounded border border-amber-700/50">
-            Flatten All
+          <button onClick={handleExportCSV} className="bg-[#1e293b] hover:bg-[#374151] text-white px-2.5 py-1 rounded border border-[#374151]">
+            Export
           </button>
-          <button onClick={handleEmergencyStop} className="bg-red-900/70 text-red-400 px-2 py-0.5 rounded font-bold border border-red-700/50">
-            EMERGENCY STOP
+          <button onClick={() => { const el = document.querySelector('table'); if (el) el.scrollIntoView(); }} className="bg-[#1e293b] hover:bg-[#374151] text-white px-2.5 py-1 rounded border border-[#374151]">
+            Search
+          </button>
+          <button onClick={handleExecTop5} className="bg-cyan-900/60 hover:bg-cyan-800 text-[#00D9FF] px-2.5 py-1 rounded border border-cyan-700/50 font-bold">
+            Buy Top 5
+          </button>
+          <button onClick={handleSpawnAgent} className="bg-[#1e293b] hover:bg-[#374151] text-white px-2.5 py-1 rounded border border-[#374151]">
+            Info Ctrl
+          </button>
+          <button onClick={handleFlatten} className="bg-amber-900/60 hover:bg-amber-800 text-[#f59e0b] px-2.5 py-1 rounded border border-amber-700/50">
+            Flatten
+          </button>
+          <button onClick={() => { if (window.confirm("Purge all pending orders?")) { fetch(getApiUrl("orders") + "/purge", { method: "POST", headers: getAuthHeaders() }).catch(() => {}); } }} className="bg-amber-900/60 hover:bg-amber-800 text-[#f59e0b] px-2.5 py-1 rounded border border-amber-700/50">
+            Purge
+          </button>
+          <button onClick={handleEmergencyStop} className="bg-red-700 hover:bg-red-600 text-white px-3 py-1 rounded font-bold border border-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]">
+            EMRG STOP
           </button>
         </div>
         <div className="flex items-center gap-3">

@@ -236,16 +236,13 @@ export default function SentimentIntelligence() {
     const liveCount = sourceHealth.filter(s => s.status === 'LIVE').length;
     const totalSources = sourceHealth.length || 1;
     return [
-      { factor: 'Bullish', value: stats.bullish ? (stats.bullish / (stats.bullish + stats.bearish + (stats.neutral || 0))) * 100 : 72 },
-      { factor: 'Momentum', value: mood?.value ?? 65 },
-      { factor: 'Coverage', value: sourceHealth.length > 0 ? (liveCount / Math.max(totalSources, 1)) * 100 : 80 },
-      { factor: 'Signals', value: signals.length > 0 ? Math.min(100, signals.length * 10) : 55 },
-      { factor: 'Volume', value: stats.totalTickers ? Math.min(100, stats.totalTickers * 8) : 70 },
-      { factor: 'Confidence', value: mood?.value ? Math.min(100, Math.abs(mood.value - 50) * 2 + 50) : 60 },
-      { factor: 'Sentiment', value: heatmap.length > 0 ? Math.min(100, heatmap.reduce((a, h) => a + Math.abs(h.score), 0) / heatmap.length * 100) : 75 },
-      { factor: 'Divergence', value: divergences.length > 0 ? Math.min(100, divergences.length * 20) : 40 },
+      { factor: 'Faucet', value: stats.bullish ? (stats.bullish / (stats.bullish + stats.bearish + (stats.neutral || 0))) * 100 : 72 },
+      { factor: 'Multi Factor', value: mood?.value ?? 65 },
+      { factor: 'Greed Factor', value: sourceHealth.length > 0 ? (liveCount / Math.max(totalSources, 1)) * 100 : 80 },
+      { factor: 'Alert Factor', value: signals.length > 0 ? Math.min(100, signals.length * 10) : 55 },
+      { factor: 'Momentum', value: stats.totalTickers ? Math.min(100, stats.totalTickers * 8) : 70 },
     ];
-  }, [stats, mood, sourceHealth, signals, heatmap, divergences]);
+  }, [stats, mood, sourceHealth, signals]);
 
   // Trade signals text
   const tradeSignalText = useMemo(() => {
@@ -485,9 +482,12 @@ export default function SentimentIntelligence() {
             </span>
           </div>
 
-          {/* Symbol Heatmap Grid */}
-          <div className="bg-surface border border-secondary/20 rounded-xl p-3">
-            <div className="grid grid-cols-4 gap-1.5">
+          {/* Sentiment Heatmap */}
+          <div className="bg-surface border border-secondary/20 rounded-xl overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-secondary/20">
+              <h3 className="text-sm font-semibold text-white">Sentiment Heatmap</h3>
+            </div>
+            <div className="p-3 grid grid-cols-4 gap-1.5">
               {heatmapGrid.map((item) => {
                 const isPositive = item.pct >= 0;
                 return (

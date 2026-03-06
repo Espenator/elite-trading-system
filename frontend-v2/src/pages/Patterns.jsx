@@ -12,7 +12,7 @@ import {
   Radio, Radar, Crosshair, Boxes, Network, Gauge, Shield, RefreshCw,
   Clock, Terminal, Power, Skull, Sparkles, GitBranch, Waves,
 } from "lucide-react";
-import { LineChart, Line, AreaChart, Area, BarChart, Bar, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
+import { LineChart, Line, AreaChart, Area, BarChart, Bar, ComposedChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
 import clsx from "clsx";
 import { format } from "date-fns";
 import { useApi } from "../hooks/useApi";
@@ -279,31 +279,8 @@ function ScreeningEngine() {
   const [institutionalAccum, setInstitutionalAccum] = useState(true);
   const [sectorMomentum, setSectorMomentum] = useState(true);
 
-  // Live feed
-  const [feedEntries, setFeedEntries] = useState(() =>
-    Array.from({ length: 20 }, (_, i) => generateFeedEntry(i))
-  );
-  const feedRef = useRef(null);
-
   // API data (graceful fallback)
   const { data: signalsData } = useApi("signals", { pollIntervalMs: 30000 });
-
-  // Auto-scroll feed
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setFeedEntries(prev => {
-        const newEntry = generateFeedEntry(0);
-        return [newEntry, ...prev.slice(0, 49)];
-      });
-    }, 4000);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    if (feedRef.current) {
-      feedRef.current.scrollTop = 0;
-    }
-  }, [feedEntries]);
 
   return (
     <div className="flex flex-col gap-2 h-full">
@@ -488,34 +465,6 @@ function ScreeningEngine() {
         </div>
       </SectionBox>
 
-      {/* CONSOLIDATED LIVE FEED */}
-      <SectionBox title="Consolidated Live Feed" icon={Radio} className="flex-1 min-h-0 flex flex-col">
-        <div ref={feedRef} className="flex-1 overflow-y-auto scrollbar-thin space-y-0 min-h-0 max-h-[220px]">
-          {feedEntries.map(entry => (
-            <div key={entry.id} className="flex items-start gap-2 py-[3px] border-b border-gray-800/30 hover:bg-cyan-950/20 px-1 text-[10px]">
-              <span className="text-gray-600 font-mono whitespace-nowrap">{entry.timestamp}</span>
-              <span className={clsx(
-                "font-bold min-w-[36px]",
-                ["AAPL", "NVDA", "MSFT", "GOOGL"].includes(entry.symbol) ? "text-cyan-400" : "text-emerald-400"
-              )}>{entry.symbol}</span>
-              <span className="text-gray-500">{entry.agent}</span>
-              <span className="text-gray-300 truncate">{entry.action}</span>
-            </div>
-          ))}
-        </div>
-      </SectionBox>
-
-      {/* Bottom status bar */}
-      <div className="flex items-center justify-between px-2 py-1 bg-cyan-950/20 border border-cyan-900/30 rounded text-[9px] text-gray-500">
-        <div className="flex items-center gap-3">
-          <span>Agents: <span className="text-cyan-400">{MOCK_SCANNER_AGENTS.length}</span></span>
-          <span>Active: <span className="text-emerald-400">{MOCK_SCANNER_AGENTS.filter(a => a.status === "active").length}</span></span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span>Live Scanning</span>
-        </div>
-      </div>
     </div>
   );
 }
@@ -588,16 +537,34 @@ function FormingDetectionCard({ pattern }) {
   return (
     <div className="border border-gray-800/50 rounded bg-gray-900/40 p-1.5">
       <div className="flex items-center justify-between mb-1">
-        <span className="text-[9px] font-semibold text-amber-300 truncate">{pattern.name}</span>
-        <span className="text-[9px] text-gray-400">{pattern.symbol}</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[9px] font-semibold text-amber-300 truncate">{pattern.name}</span>
+          <span className="text-[8px] text-gray-500">{pattern.timeframe}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[9px] font-bold text-cyan-300">{pattern.symbol}</span>
+          {pattern.confidence && (
+            <span className={clsx(
+              "text-[9px] font-bold px-1 rounded",
+              pattern.confidence >= 80 ? "text-emerald-400 bg-emerald-900/30" : "text-amber-400 bg-amber-900/30"
+            )}>{pattern.confidence}%</span>
+          )}
+        </div>
       </div>
       <ProgressBar value={pattern.progress} color="bg-amber-500" className="mb-1" />
-      <div className="flex items-center justify-between">
-        <span className="text-[8px] text-gray-500">{pattern.timeframe}</span>
+      <div className="flex items-center justify-between mb-0.5">
+        <span className="text-[8px] text-gray-500">Formation progress</span>
         <span className="text-[8px] text-amber-400">{pattern.progress}% formed</span>
       </div>
-      <ResponsiveContainer width="100%" height={36}>
-        <AreaChart data={pattern.data}>
+      {/* Mini candlestick-style chart */}
+      <ResponsiveContainer width="100%" height={40}>
+        <BarChart data={pattern.data.slice(-20)} barSize={3}>
+          <Bar dataKey="v" fill="#f59e0b" opacity={0.3} />
+          <Line type="monotone" dataKey="y" stroke="#f59e0b" strokeWidth={1} dot={false} />
+        </BarChart>
+      </ResponsiveContainer>
+      <ResponsiveContainer width="100%" height={28}>
+        <AreaChart data={pattern.data.slice(-20)}>
           <defs>
             <linearGradient id={`fd-${pattern.id}`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.3} />
@@ -614,19 +581,20 @@ function FormingDetectionCard({ pattern }) {
 function PatternIntelligence() {
   const [selectedPattern, setSelectedPattern] = useState("p1");
   const [patternName, setPatternName] = useState("Fractal_Prophet_G4");
-  const [patternType, setPatternType] = useState("BPT-L");
+  const [llmModel, setLlmModel] = useState("GPT-4");
   const [architecture, setArchitecture] = useState("Transformer");
 
   // ML Metric Controls
   const [recursiveSelfImprove, setRecursiveSelfImprove] = useState(true);
-  const [anomalyScore, setAnomalyScore] = useState(82);
+  const [academicValidation, setAcademicValidation] = useState(82);
+  const [sharpeRatio, setSharpeRatio] = useState(2.1);
   const [profitFactor, setProfitFactor] = useState(2.8);
   const [maxDrawdown, setMaxDrawdown] = useState(12);
   const [walkForwardEff, setWalkForwardEff] = useState(78);
   const [outOfSampleAcc, setOutOfSampleAcc] = useState(74);
-  const [monteCarloCI, setMonteCarloCI] = useState(85);
   const [monteCarloPct, setMonteCarloPct] = useState("95%");
-  const [patternComplexity, setPatternComplexity] = useState(7);
+  const [patternComplexity, setPatternComplexity] = useState("Complex");
+  const [subAgentSwarmSize, setSubAgentSwarmSize] = useState(8);
 
   // API data
   const { data: patternsData } = useApi("patterns", { pollIntervalMs: 30000 });
@@ -643,21 +611,34 @@ function PatternIntelligence() {
 
       {/* PATTERN AGENT FLEET */}
       <SectionBox title="Pattern Agent Fleet" icon={Cpu} className="flex-shrink-0">
-        {/* Pattern Agent Cards */}
+        {/* Pattern Agent Cards - stacked with z-index offset */}
         <div className="mb-2">
           <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
             <Layers size={10} />
             Pattern Agent Cards
           </div>
-          <div className="flex flex-col gap-1 max-h-[90px] overflow-y-auto scrollbar-thin">
-            {MOCK_PATTERN_AGENTS.map(a => (
-              <PatternAgentCard
-                key={a.id}
-                agent={a}
-                selected={a.id === selectedPattern}
-                onSelect={setSelectedPattern}
-              />
-            ))}
+          <div className="relative" style={{ height: `${70 + (MOCK_PATTERN_AGENTS.length - 1) * 18}px` }}>
+            {MOCK_PATTERN_AGENTS.slice().reverse().map((a, idx, arr) => {
+              const stackIdx = arr.length - 1 - idx;
+              const isSelected = a.id === selectedPattern;
+              return (
+                <div
+                  key={a.id}
+                  className="absolute left-0 right-0 transition-all"
+                  style={{
+                    top: `${stackIdx * 18}px`,
+                    zIndex: isSelected ? 20 : stackIdx + 1,
+                    transform: isSelected ? "scale(1.01)" : "scale(1)",
+                  }}
+                >
+                  <PatternAgentCard
+                    agent={a}
+                    selected={isSelected}
+                    onSelect={setSelectedPattern}
+                  />
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -675,11 +656,11 @@ function PatternIntelligence() {
           <div>
             <label className="text-[9px] text-gray-500 block mb-0.5">LLM Model</label>
             <select
-              value={patternType}
-              onChange={e => setPatternType(e.target.value)}
+              value={llmModel}
+              onChange={e => setLlmModel(e.target.value)}
               className="w-full bg-gray-900/80 border border-cyan-900/40 rounded px-1 py-0.5 text-[10px] text-cyan-200 focus:outline-none focus:border-cyan-600/60 appearance-none"
             >
-              {PATTERN_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              {LLM_MODELS.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
           <div>
@@ -703,17 +684,35 @@ function PatternIntelligence() {
 
           <div className="space-y-1">
             <MetricRow label="Recursive Self-Improvement">
-              <Toggle value={recursiveSelfImprove} onChange={setRecursiveSelfImprove} />
-              <span className="text-[9px] text-cyan-400 min-w-[28px] text-right">
-                {recursiveSelfImprove ? "Gen 4" : "Off"}
-              </span>
-              <MiniSparkline data={generatePatternChartData(15)} width={44} height={16} color="#a78bfa" />
+              <div className="flex items-center gap-1.5">
+                <Toggle value={recursiveSelfImprove} onChange={setRecursiveSelfImprove} />
+                <span className={clsx(
+                  "text-[9px] font-semibold px-1.5 py-0.5 rounded",
+                  recursiveSelfImprove
+                    ? "bg-emerald-900/40 text-emerald-400 border border-emerald-700/40"
+                    : "bg-gray-800/40 text-gray-500 border border-gray-700/40"
+                )}>
+                  {recursiveSelfImprove ? "ON" : "OFF"}
+                </span>
+              </div>
+              {recursiveSelfImprove && (
+                <div className="w-12 h-1.5 rounded-full bg-emerald-500/60 overflow-hidden">
+                  <div className="h-full w-full bg-emerald-400 animate-pulse rounded-full" />
+                </div>
+              )}
             </MetricRow>
 
-            <MetricRow label="Anomaly Validation Score">
-              <Slider min={0} max={100} step={1} value={anomalyScore} onChange={setAnomalyScore}
+            <MetricRow label="Academic Validation Score">
+              <Slider min={0} max={100} step={1} value={academicValidation} onChange={setAcademicValidation}
                 showValue={false} className="flex-1" inputClassName="h-1.5" />
-              <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{anomalyScore}</span>
+              <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{academicValidation}</span>
+              <MiniSparkline data={generatePatternChartData(15)} width={44} height={16} />
+            </MetricRow>
+
+            <MetricRow label="Sharpe Ratio">
+              <Slider min={0} max={5} step={0.1} value={sharpeRatio} onChange={setSharpeRatio}
+                showValue={false} className="flex-1" inputClassName="h-1.5" />
+              <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{sharpeRatio.toFixed(1)}</span>
               <MiniSparkline data={generatePatternChartData(15)} width={44} height={16} />
             </MetricRow>
 
@@ -745,31 +744,30 @@ function PatternIntelligence() {
               <MiniSparkline data={generatePatternChartData(15)} width={44} height={16} />
             </MetricRow>
 
-            <MetricRow label={`Monte Carlo CI (${monteCarloPct})`}>
-              <div className="flex gap-0.5 mr-1">
-                {MONTE_CARLO_OPTS.map(opt => (
-                  <button
-                    key={opt}
-                    onClick={() => setMonteCarloPct(opt)}
-                    className={clsx(
-                      "px-1 py-0 rounded text-[8px] font-medium transition-colors",
-                      monteCarloPct === opt
-                        ? "bg-cyan-600 text-white"
-                        : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-                    )}
-                  >
-                    {opt.replace("%", "")}
-                  </button>
-                ))}
-              </div>
-              <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{monteCarloCI}%</span>
-              <MiniSparkline data={generatePatternChartData(15)} width={44} height={16} />
+            <MetricRow label="Monte Carlo CI">
+              <select
+                value={monteCarloPct}
+                onChange={e => setMonteCarloPct(e.target.value)}
+                className="bg-gray-900/80 border border-cyan-900/40 rounded px-1 py-0 text-[10px] text-cyan-300 focus:outline-none"
+              >
+                {MONTE_CARLO_OPTS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+              </select>
             </MetricRow>
 
             <MetricRow label="Pattern Complexity">
-              <Slider min={1} max={10} step={1} value={patternComplexity} onChange={setPatternComplexity}
+              <select
+                value={patternComplexity}
+                onChange={e => setPatternComplexity(e.target.value)}
+                className="bg-gray-900/80 border border-cyan-900/40 rounded px-1 py-0 text-[10px] text-cyan-300 focus:outline-none"
+              >
+                {PATTERN_COMPLEXITY_OPTS.map(v => <option key={v} value={v}>{v}</option>)}
+              </select>
+            </MetricRow>
+
+            <MetricRow label="Sub-Agent Swarm Size">
+              <Slider min={1} max={20} step={1} value={subAgentSwarmSize} onChange={setSubAgentSwarmSize}
                 showValue={false} className="flex-1" inputClassName="h-1.5" />
-              <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{patternComplexity}/10</span>
+              <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{subAgentSwarmSize}</span>
               <MiniSparkline data={generatePatternChartData(15)} width={44} height={16} />
             </MetricRow>
           </div>
@@ -784,45 +782,6 @@ function PatternIntelligence() {
         </div>
       </SectionBox>
 
-      {/* PATTERN ARSENAL + FORMING DETECTIONS */}
-      <div className="flex-1 min-h-0 grid grid-cols-2 gap-2">
-        {/* Pattern Arsenal */}
-        <SectionBox title="Pattern Arsenal" icon={Target} className="flex flex-col min-h-0">
-          <div className="flex-1 overflow-y-auto scrollbar-thin space-y-1.5 max-h-[200px]">
-            {MOCK_PATTERNS_ARSENAL.map(p => (
-              <PatternMiniChart
-                key={p.id}
-                data={p.data}
-                name={`${p.name} (${p.symbol} ${p.timeframe})`}
-                confidence={p.confidence}
-                type={p.type}
-              />
-            ))}
-          </div>
-        </SectionBox>
-
-        {/* Forming Detections */}
-        <SectionBox title="Forming Detections" icon={Crosshair} className="flex flex-col min-h-0">
-          <div className="flex-1 overflow-y-auto scrollbar-thin space-y-1.5 max-h-[200px]">
-            {MOCK_FORMING.map(f => (
-              <FormingDetectionCard key={f.id} pattern={f} />
-            ))}
-          </div>
-        </SectionBox>
-      </div>
-
-      {/* Bottom status bar */}
-      <div className="flex items-center justify-between px-2 py-1 bg-cyan-950/20 border border-cyan-900/30 rounded text-[9px] text-gray-500">
-        <div className="flex items-center gap-3">
-          <span>Pattern Agents: <span className="text-cyan-400">{MOCK_PATTERN_AGENTS.length}</span></span>
-          <span>Arsenal: <span className="text-emerald-400">{MOCK_PATTERNS_ARSENAL.length}</span></span>
-          <span>Forming: <span className="text-amber-400">{MOCK_FORMING.length}</span></span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
-          <span>ML Active</span>
-        </div>
-      </div>
     </div>
   );
 }
@@ -830,6 +789,46 @@ function PatternIntelligence() {
 // ═══════════════════════════════════════════════════
 // MAIN PAGE
 // ═══════════════════════════════════════════════════
+
+/** Consolidated Live Feed bottom section */
+function ConsolidatedLiveFeed() {
+  const [feedEntries, setFeedEntries] = useState(() =>
+    Array.from({ length: 20 }, (_, i) => generateFeedEntry(i))
+  );
+  const feedRef = useRef(null);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setFeedEntries(prev => {
+        const newEntry = generateFeedEntry(0);
+        return [newEntry, ...prev.slice(0, 49)];
+      });
+    }, 4000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (feedRef.current) feedRef.current.scrollTop = 0;
+  }, [feedEntries]);
+
+  return (
+    <SectionBox title="Consolidated Live Feed" icon={Radio} className="flex flex-col">
+      <div ref={feedRef} className="overflow-y-auto scrollbar-thin space-y-0 max-h-[140px] bg-[#040d1a] rounded p-1">
+        {feedEntries.map(entry => (
+          <div key={entry.id} className="flex items-start gap-2 py-[3px] border-b border-gray-800/30 hover:bg-cyan-950/20 px-1 text-[10px] font-mono">
+            <span className="text-gray-600 whitespace-nowrap">{entry.timestamp}</span>
+            <span className={clsx(
+              "font-bold min-w-[36px]",
+              ["AAPL", "NVDA", "MSFT", "GOOGL"].includes(entry.symbol) ? "text-cyan-400" : "text-emerald-400"
+            )}>{entry.symbol}</span>
+            <span className="text-gray-500">{entry.agent}:</span>
+            <span className="text-emerald-300 truncate">{entry.action}</span>
+          </div>
+        ))}
+      </div>
+    </SectionBox>
+  );
+}
 
 export default function Patterns() {
   return (
@@ -841,7 +840,7 @@ export default function Patterns() {
         description="Scan Agent Fleet management, trading metric controls, pattern intelligence, and ML-powered detection"
       />
 
-      {/* Two-column layout */}
+      {/* Two-column layout: Screening Engine (left ~50%) + Pattern Intelligence (right ~50%) */}
       <div className="flex-1 min-h-0 grid grid-cols-2 gap-3">
         {/* LEFT - Screening Engine */}
         <div className="min-h-0 overflow-y-auto scrollbar-thin pr-1">
@@ -851,6 +850,64 @@ export default function Patterns() {
         {/* RIGHT - Pattern Intelligence */}
         <div className="min-h-0 overflow-y-auto scrollbar-thin pr-1">
           <PatternIntelligence />
+        </div>
+      </div>
+
+      {/* BOTTOM SECTION */}
+      <div className="flex flex-col gap-2 flex-shrink-0">
+        {/* Consolidated Live Feed */}
+        <ConsolidatedLiveFeed />
+
+        {/* Pattern Arsenal + Forming Detections side by side */}
+        <div className="grid grid-cols-2 gap-2">
+          {/* Pattern Arsenal - thumbnail previews of chart patterns */}
+          <SectionBox title="Pattern Arsenal" icon={Target}>
+            <div className="grid grid-cols-2 gap-1.5 max-h-[180px] overflow-y-auto scrollbar-thin">
+              {MOCK_PATTERNS_ARSENAL.map(p => (
+                <PatternMiniChart
+                  key={p.id}
+                  data={p.data}
+                  name={`${p.name} (${p.symbol} ${p.timeframe})`}
+                  confidence={p.confidence}
+                  type={p.type}
+                />
+              ))}
+            </div>
+          </SectionBox>
+
+          {/* Forming Detections - real-time pattern detection cards */}
+          <SectionBox title="Forming Detections" icon={Crosshair}>
+            <div className="space-y-1.5 max-h-[180px] overflow-y-auto scrollbar-thin">
+              {MOCK_FORMING.map(f => (
+                <FormingDetectionCard key={f.id} pattern={f} />
+              ))}
+            </div>
+          </SectionBox>
+        </div>
+      </div>
+
+      {/* FOOTER - Agent count, status indicators */}
+      <div className="flex items-center justify-between px-3 py-1.5 bg-cyan-950/20 border border-cyan-900/30 rounded text-[9px] text-gray-500 flex-shrink-0">
+        <div className="flex items-center gap-4">
+          <span>Scanner Agents: <span className="text-cyan-400">{MOCK_SCANNER_AGENTS.length}</span></span>
+          <span>Pattern Agents: <span className="text-cyan-400">{MOCK_PATTERN_AGENTS.length}</span></span>
+          <span>Total Active: <span className="text-emerald-400">{MOCK_SCANNER_AGENTS.filter(a => a.status === "active").length + MOCK_PATTERN_AGENTS.filter(a => a.status === "active").length}</span></span>
+          <span>Arsenal: <span className="text-emerald-400">{MOCK_PATTERNS_ARSENAL.length}</span></span>
+          <span>Forming: <span className="text-amber-400">{MOCK_FORMING.length}</span></span>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span>Live Scanning</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
+            <span>ML Active</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+            <span>Feed Connected</span>
+          </div>
         </div>
       </div>
     </div>

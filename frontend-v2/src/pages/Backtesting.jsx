@@ -194,7 +194,7 @@ function kpiBadge(val, thresholds) {
   return n >= (thresholds?.good ?? 0) ? "success" : n >= (thresholds?.warn ?? 0) ? "warning" : "danger";
 }
 
-const REGIME_COLORS = { BULL: "#10B981", BEAR: "#EF4444", RECOVERY: "#F59E0B", SIDEWAYS: "#6366F1", VOLATILE: "#EC4899" };
+const REGIME_COLORS = { BULL: "#10B981", BEAR: "#EF4444", RECOVERY: "#F59E0B", SIDEWAYS: "#F59E0B", VOLATILE: "#EC4899" };
 
 /* ------------------------------------------------------------------ */
 /*  Strategy Builder ReactFlow nodes/edges                            */
@@ -678,12 +678,53 @@ export default function Backtesting() {
       </div>
 
       {/* ============================================================ */}
-      {/*  CHARTS ROW 2: Regime | Monte Carlo | Heatmap | Strategy     */}
+      {/*  CHARTS ROW 2: Walk-Forward | Regime | Monte Carlo | Heatmap | Strategy */}
       {/* ============================================================ */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
+        {/* Walk-Forward Analysis */}
+        <Card title="Walk-Forward Analysis" loading={loadWf} className="col-span-1">
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={wfChartData} barGap={2}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(42,52,68,0.3)" />
+              <XAxis dataKey="period" stroke="#6B7280" tick={{ fontSize: 10 }} />
+              <YAxis stroke="#6B7280" tick={{ fontSize: 10 }} />
+              <Tooltip content={<DarkTooltip />} />
+              <Legend wrapperStyle={{ fontSize: 10 }} />
+              <Bar dataKey="inSample" name="In-Sample" fill="#06b6d4" radius={[3, 3, 0, 0]} barSize={14} />
+              <Bar dataKey="outSample" name="Out-of-Sample" fill="#A78BFA" radius={[3, 3, 0, 0]} barSize={14} />
+            </BarChart>
+          </ResponsiveContainer>
+          <div className="flex justify-around mt-2 pt-2 border-t border-secondary/20 text-center">
+            <div>
+              <div className="text-[10px] text-secondary uppercase">Avg IS Sharpe</div>
+              <div className="text-sm font-bold text-cyan-400">{fmt(wfChartData.reduce((a, d) => a + d.inSample, 0) / (wfChartData.length || 1), 2)}</div>
+            </div>
+            <div>
+              <div className="text-[10px] text-secondary uppercase">Avg OOS Sharpe</div>
+              <div className="text-sm font-bold text-purple-400">{fmt(wfChartData.reduce((a, d) => a + d.outSample, 0) / (wfChartData.length || 1), 2)}</div>
+            </div>
+            <div>
+              <div className="text-[10px] text-secondary uppercase">Robustness</div>
+              <div className="text-sm font-bold text-green-400">{fmt((wfChartData.reduce((a, d) => a + d.outSample, 0) / (wfChartData.reduce((a, d) => a + d.inSample, 0) || 1)) * 100, 1)}%</div>
+            </div>
+          </div>
+        </Card>
+
         {/* Market Regime Performance */}
         <Card title="Market Regime Performance" loading={loadRegime} className="col-span-1">
-          <ResponsiveContainer width="100%" height={220}>
+          <div className="flex gap-2 mb-3">
+            {regimeChartData.map((r) => (
+              <div key={r.regime} className="flex-1 rounded-lg px-2.5 py-2 border" style={{ borderColor: `${REGIME_COLORS[r.regime] ?? "#6B7280"}66`, backgroundColor: `${REGIME_COLORS[r.regime] ?? "#6B7280"}15` }}>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: REGIME_COLORS[r.regime] ?? "#6B7280" }} />
+                  <span className="text-[10px] font-bold tracking-wider" style={{ color: REGIME_COLORS[r.regime] ?? "#6B7280" }}>{r.regime}</span>
+                </div>
+                <div className="text-xs font-bold" style={{ color: Number(r.pnl) >= 0 ? "#10B981" : "#EF4444" }}>{fmtK(r.pnl)}</div>
+                <div className="text-[10px] text-secondary">{r.trades} trades &middot; {fmtPct(r.winRate)} WR</div>
+              </div>
+            ))}
+          </div>
+          <ResponsiveContainer width="100%" height={180}>
             <BarChart data={regimeChartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(42,52,68,0.3)" />
               <XAxis dataKey="regime" stroke="#6B7280" tick={{ fontSize: 10 }} />
@@ -696,18 +737,6 @@ export default function Backtesting() {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-          <div className="flex gap-2 mt-2">
-            {regimeChartData.map((r) => (
-              <div key={r.regime} className="flex-1 rounded-lg px-2.5 py-2 border" style={{ borderColor: `${REGIME_COLORS[r.regime] ?? "#6B7280"}66`, backgroundColor: `${REGIME_COLORS[r.regime] ?? "#6B7280"}15` }}>
-                <div className="flex items-center gap-1.5 mb-1">
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: REGIME_COLORS[r.regime] ?? "#6B7280" }} />
-                  <span className="text-[10px] font-bold tracking-wider" style={{ color: REGIME_COLORS[r.regime] ?? "#6B7280" }}>{r.regime}</span>
-                </div>
-                <div className="text-xs font-bold" style={{ color: Number(r.pnl) >= 0 ? "#10B981" : "#EF4444" }}>{fmtK(r.pnl)}</div>
-                <div className="text-[10px] text-secondary">{r.trades} trades &middot; {fmtPct(r.winRate)} WR</div>
-              </div>
-            ))}
-          </div>
         </Card>
 
         {/* Monte Carlo Simulation */}
