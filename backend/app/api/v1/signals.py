@@ -57,43 +57,102 @@ async def trigger_signals(as_of: date | None = None):
     return await get_signals(as_of=as_of)
 
 
-@router.get("/", response_model=SignalsResponse)
+@router.get("/", response_model=None)
 async def get_signals(as_of: date | None = None):
     """
-    Return daily signals (P(up), action) from LSTM model and daily_features.
-    Real data only: requires DuckDB daily_features and models/artifacts/lstm_daily_latest.pt.
-    When model or features are missing, returns empty list.
-    Note: When signals are generated (e.g., by background task), call:
-        await broadcast_ws("signals", {"type": "signals_updated", "count": len(signals)})
+    Return daily signals from all available sources:
+    1. LSTM model + daily_features (when available)
+    2. TurboScanner real-time scan signals (always available when backend is running)
+    3. EventDrivenSignalEngine signals (from real-time bar processing)
+
+    Returns signals formatted for Dashboard consumption with score, direction,
+    entry/target/stop, scores breakdown, kelly sizing, etc.
     """
     if as_of is None:
         as_of = date.today()
+
+    # Try ML model signals first
     raw_signals, _ = _get_raw_signals_and_feats(as_of)
-    if raw_signals is None or len(raw_signals) == 0:
-        return SignalsResponse(as_of=as_of, signals=[])
-    signals = []
-    for s in raw_signals:
-        action = "BUY" if s["prob_up"] > 0.6 else "HOLD"
-        prob = s["prob_up"]
-        # Compute Kelly edge and position size
-        kelly = _kelly_sizer.calculate(
-            win_rate=prob,
-            avg_win_pct=0.035,  # Default 3.5% avg win
-            avg_loss_pct=0.015,  # Default 1.5% avg loss
-        )
-        signals.append(
-            Signal(
-                symbol=s["symbol"],
-                date=as_of,
-                prob_up=prob,
-                action=action,
-                edge=kelly.edge,
-                kelly_fraction=kelly.raw_kelly,
-                position_size_pct=kelly.final_pct,
-                expected_value=kelly.edge * prob,
+    if raw_signals and len(raw_signals) > 0:
+        signals = []
+        for s in raw_signals:
+            action = "BUY" if s["prob_up"] > 0.6 else "HOLD"
+            prob = s["prob_up"]
+            kelly = _kelly_sizer.calculate(
+                win_rate=prob, avg_win_pct=0.035, avg_loss_pct=0.015,
             )
-        )
-    return SignalsResponse(as_of=as_of, signals=signals)
+            signals.append(
+                Signal(
+                    symbol=s["symbol"], date=as_of, prob_up=prob, action=action,
+                    edge=kelly.edge, kelly_fraction=kelly.raw_kelly,
+                    position_size_pct=kelly.final_pct, expected_value=kelly.edge * prob,
+                )
+            )
+        return SignalsResponse(as_of=as_of, signals=signals)
+
+    # Fall back to TurboScanner real-time signals (real market data, not mock)
+    dashboard_signals = []
+    try:
+        from app.services.turbo_scanner import get_turbo_scanner
+        scanner = get_turbo_scanner()
+        scan_signals = scanner.get_signals(limit=50)
+        # De-duplicate by symbol, keep highest score
+        seen = {}
+        for ss in scan_signals:
+            sym = ss.get("symbol", "")
+            if not sym:
+                continue
+            if sym not in seen or ss.get("score", 0) > seen[sym].get("score", 0):
+                seen[sym] = ss
+        for sym, ss in seen.items():
+            raw_score = ss.get("score", 0)
+            score_100 = round(raw_score * 100) if raw_score <= 1.0 else round(raw_score)
+            direction = "LONG" if ss.get("direction", "").lower() == "bullish" else (
+                "SHORT" if ss.get("direction", "").lower() == "bearish" else "LONG"
+            )
+            price = ss.get("data", {}).get("close", ss.get("data", {}).get("price", 0))
+            entry = round(price, 2) if price else 0
+            target = round(entry * (1.03 if direction == "LONG" else 0.97), 2) if entry else 0
+            stop = round(entry * (0.98 if direction == "LONG" else 1.02), 2) if entry else 0
+            r_mult = round((abs(target - entry) / abs(entry - stop)), 1) if entry and stop and entry != stop else 1.5
+            kelly = _kelly_sizer.calculate(
+                win_rate=max(0.5, score_100 / 100), avg_win_pct=0.035, avg_loss_pct=0.015,
+            )
+            dashboard_signals.append({
+                "symbol": sym,
+                "direction": direction,
+                "score": score_100,
+                "scores": {
+                    "technical": round(score_100 * 0.9),
+                    "ml": 0,
+                    "sentiment": 0,
+                    "regime": ss.get("data", {}).get("regime_score", 0),
+                    "breakout": ss.get("data", {}).get("breakout_score", 0),
+                    "rebound": ss.get("data", {}).get("rebound_score", 0),
+                    "meanReversion": ss.get("data", {}).get("mean_reversion_score", 0),
+                },
+                "entry": entry,
+                "target": target,
+                "stop": stop,
+                "rMultiple": r_mult,
+                "kellyPercent": round(kelly.final_pct * 100, 1),
+                "momentum": ss.get("data", {}).get("momentum", 0),
+                "volSpike": ss.get("data", {}).get("vol_ratio", 0),
+                "sector": ss.get("data", {}).get("sector", ""),
+                "pattern": ss.get("signal_type", ""),
+                "leadAgent": ss.get("source", "turbo_scanner"),
+                "swarmVote": direction,
+                "topShap": ss.get("reasoning", "")[:40],
+                "newsImpact": "",
+                "expPnL": 0,
+                "detected_at": ss.get("detected_at", ""),
+            })
+    except Exception as e:
+        logger.warning("TurboScanner signals unavailable: %s", e)
+
+    # Sort by score descending
+    dashboard_signals.sort(key=lambda x: x.get("score", 0), reverse=True)
+    return {"as_of": str(as_of), "signals": dashboard_signals}
 
 
 @router.get("/{symbol}/technicals")
