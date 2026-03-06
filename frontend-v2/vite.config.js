@@ -1,10 +1,10 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 
-// Allow backend port override (e.g. VITE_BACKEND_URL=http://localhost:8000)
+// Allow backend port override (e.g. VITE_BACKEND_URL=http://localhost:8080)
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "VITE_");
-  const backendUrl = env.VITE_BACKEND_URL || "http://localhost:8000";
+  const backendUrl = env.VITE_BACKEND_URL || "http://localhost:8080";
   const wsBackend = backendUrl.replace(/^http/, "ws");
 
   return {
