@@ -1,13 +1,24 @@
-"""Council Runner — orchestrates the 17-agent DAG and arbiter.
+"""Council Runner — orchestrates the 35-agent DAG and arbiter.
 
 DAG execution order (parallel within stages):
-  Stage 1: [market_perception, flow_perception, regime, social_perception, news_catalyst, youtube_knowledge, intermarket]
-  Stage 2: [rsi, bbv, ema_trend, relative_strength, cycle_timing]
-  Stage 3: [hypothesis]
-  Stage 4: [strategy]
-  Stage 5: [risk, execution]
-  Stage 6: [critic]
-  Stage 7: arbiter (deterministic)
+  Stage 1: Perception + Academic Edge P0/P1/P2 (parallel — 13 agents)
+    [market_perception, flow_perception, regime, social_perception,
+     news_catalyst, youtube_knowledge, intermarket,
+     gex_agent, insider_agent, finbert_sentiment_agent,
+     earnings_tone_agent, dark_pool_agent, macro_regime_agent]
+  Stage 2: Technical Analysis + Data Enrichment (parallel — 8 agents)
+    [rsi, bbv, ema_trend, relative_strength, cycle_timing,
+     supply_chain_agent, institutional_flow_agent, congressional_agent]
+  Stage 3: Hypothesis + Memory (parallel — 2 agents)
+    [hypothesis, layered_memory_agent]
+  Stage 4: Strategy
+    [strategy]
+  Stage 5: Risk + Execution + Portfolio Optimization (parallel — 3 agents)
+    [risk, execution, portfolio_optimizer_agent]
+  Stage 5.5: Debate + Red Team (existing)
+  Stage 6: Critic
+  Stage 7: Arbiter (deterministic)
+  Post-arbiter: [alt_data_agent] (background enrichment)
 
 Uses BlackboardState as shared context and TaskSpawner for agent execution.
 """
@@ -34,7 +45,7 @@ async def run_council(
     features: Optional[Dict[str, Any]] = None,
     context: Optional[Dict[str, Any]] = None,
 ) -> DecisionPacket:
-    """Run the full 17-agent council and return a DecisionPacket.
+    """Run the full 35-agent council and return a DecisionPacket.
 
     Args:
         symbol: Ticker symbol to evaluate
@@ -246,7 +257,18 @@ async def run_council(
         {"agent_type": "news_catalyst", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "youtube_knowledge", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "intermarket", "symbol": symbol, "timeframe": timeframe, "context": context},
-    ])
+        # Academic Edge P0 agents
+        {"agent_type": "gex_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
+        {"agent_type": "insider_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
+        # Academic Edge P1 agents
+        {"agent_type": "finbert_sentiment_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
+        {"agent_type": "earnings_tone_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
+        # Academic Edge P2 agents
+        {"agent_type": "dark_pool_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
+        # Academic Edge P4 agents (macro runs early to inform regime)
+        {"agent_type": "macro_regime_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
+    ]
+    stage1 = await spawner.spawn_parallel(stage1_configs)
     all_votes.extend(stage1)
     context["stage1"] = {v.agent_name: v.to_dict() for v in stage1}
     for v in stage1:
@@ -261,7 +283,12 @@ async def run_council(
         {"agent_type": "ema_trend", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "relative_strength", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "cycle_timing", "symbol": symbol, "timeframe": timeframe, "context": context},
-    ])
+        # Academic Edge P1/P2 data enrichment agents
+        {"agent_type": "supply_chain_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
+        {"agent_type": "institutional_flow_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
+        {"agent_type": "congressional_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
+    ]
+    stage2 = await spawner.spawn_parallel(stage2_configs)
     all_votes.extend(stage2)
     context["stage2"] = {v.agent_name: v.to_dict() for v in stage2}
     for v in stage2:
@@ -289,6 +316,7 @@ async def run_council(
     stage5 = await spawner.spawn_parallel([
         {"agent_type": "risk", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "execution", "symbol": symbol, "timeframe": timeframe, "context": context},
+        {"agent_type": "portfolio_optimizer_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
     ])
     all_votes.extend(stage5)
     context["stage5"] = {v.agent_name: v.to_dict() for v in stage5}
@@ -596,6 +624,14 @@ async def run_council(
             await bus.publish("council.verdict", verdict_payload)
     except Exception:
         pass
+
+    # Post-arbiter: Alt Data Agent (background enrichment — low priority P4)
+    try:
+        await spawner.spawn(
+            "alt_data_agent", symbol, timeframe, context=context, background=True,
+        )
+    except Exception:
+        pass  # Alt data is purely supplementary
 
     return decision
 
