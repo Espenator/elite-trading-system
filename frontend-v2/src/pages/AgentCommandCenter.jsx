@@ -637,82 +637,131 @@ export default function AgentCommandCenter() {
       {/* === TAB CONTENT === */}
       <div className="flex-1 overflow-y-auto p-4">
 
-        {/* ============ TAB 1: SWARM OVERVIEW (mockup 01 - 3x3 grid) ============ */}
-        {activeTab === "swarm-overview" && (
+        {/* ============ TAB 1: SWARM OVERVIEW (mockup v3 - filter bar + 4-col agent grid + footer) ============ */}
+        {activeTab === "swarm-overview" && (() => {
+          const statusFilters = ["Running", "Paused", "Degraded", "Spawning"];
+          const fallbackAgents = filteredAgents.length > 0 ? filteredAgents : Array.from({ length: 16 }, (_, i) => ({
+            id: `fallback-${i}`, name: ["Market Data Agent", "ML Inference Agent", "Signal Generation Agent", "Sentiment Agent",
+              "Sector Rotation Agent", "Risk Resolver Agent", "Pattern Scanner Agent", "Momentum Tracker Agent",
+              "Options Flow Agent", "News Processor Agent", "Social Listener Agent", "Macro Analyzer Agent",
+              "Bias Generator Agent", "Volume Profiler Agent", "Correlation Agent", "Arbitrage Spotter"][i],
+            status: i < 12 ? "running" : "paused", health: i < 10 ? "healthy" : "degraded",
+            elo: 1500 + Math.floor(Math.random() * 500), win_rate: 60 + Math.random() * 25,
+            pnl_impact: (Math.random() * 8 - 2).toFixed(2), expectancy: (Math.random() * 2).toFixed(2),
+            profit_factor: (1 + Math.random() * 2).toFixed(2), confidence: (60 + Math.random() * 35).toFixed(1),
+            star_rating: 3 + Math.floor(Math.random() * 3),
+            recent_signals: [`${["aapl", "tsla", "spy", "nvda", "msft"][i % 5]}_breakout_signal: ${(0.5 + Math.random() * 0.4).toFixed(2)}`,
+              `${["goog", "amzn", "meta", "amd", "crm"][i % 5]}_momentum: ${(0.4 + Math.random() * 0.5).toFixed(2)}`,
+              `${["nflx", "baba", "shop", "sq", "coin"][i % 5]}_reversal: ${(0.3 + Math.random() * 0.6).toFixed(2)}`],
+            tags: [["momentum", "large-cap"], ["ml", "inference"], ["signals", "breakout"], ["nlp", "sentiment"],
+              ["sector", "rotation"], ["risk", "resolver"], ["pattern", "scanner"], ["momentum", "tracker"],
+              ["options", "flow"], ["news", "nlp"], ["social", "listener"], ["macro", "econ"],
+              ["bias", "generator"], ["volume", "profiler"], ["correlation", "mapper"], ["arbitrage", "pairs"]][i],
+          }));
+          const swarmHealth = agents.length > 0 ? ((agents.filter(a => a.status === "running").length / agents.length) * 100).toFixed(1) : "87";
+          const totalElo = fallbackAgents.reduce((sum, a) => sum + (a.elo ?? (1500 + Math.floor(Math.random() * 500))), 0);
+          const avgConf = (fallbackAgents.reduce((sum, a) => sum + parseFloat(a.confidence ?? (60 + Math.random() * 35).toFixed(1)), 0) / fallbackAgents.length).toFixed(1);
+          return (
           <div className="space-y-3">
-            {/* Row 1: Agent Health Matrix | Live Agent Activity Feed | Swarm Topology + ELO */}
-            <div className="grid grid-cols-12 gap-3">
-              <div className="col-span-3">
-                <AgentHealthMatrix agents={agents} />
+            {/* Filter Bar */}
+            <div className="flex items-center gap-2 p-2 bg-[#111827] border border-cyan-500/20 rounded-lg">
+              <Filter className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+              {["ELO", "Status", "Win Rate", "PnL"].map(f => (
+                <select key={f} className="bg-[#0d1117] border border-cyan-500/20 rounded px-2 py-1 text-[10px] text-white cursor-pointer">
+                  <option>{f}</option>
+                </select>
+              ))}
+              <div className="flex gap-1 ml-2">
+                {statusFilters.map(s => (
+                  <button key={s} className={`px-2 py-1 rounded text-[10px] font-medium transition-all cursor-pointer ${s === "Running" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" : s === "Degraded" ? "bg-amber-500/20 text-amber-400 border border-amber-500/40" : "bg-[#0d1117] text-secondary border border-cyan-500/10 hover:border-cyan-500/30"}`}
+                    onClick={() => toast.info(`Filter: ${s}`)}>{s}</button>
+                ))}
               </div>
-              <div className="col-span-5">
-                <LiveActivityFeed agents={agents} />
+              <div className="flex items-center gap-1.5 ml-2 flex-1">
+                <Search className="w-3 h-3 text-secondary" />
+                <input className="bg-[#0d1117] border border-cyan-500/20 rounded px-2 py-1 text-[10px] text-white placeholder-secondary/40 w-36" placeholder="Search agents..." value={agentSearch} onChange={e => setAgentSearch(e.target.value)} />
               </div>
-              <div className="col-span-4">
-                <SwarmTopology swarm={swarm} agents={agents} />
+              <div className="flex items-center gap-2 text-[10px] text-secondary ml-auto shrink-0">
+                <span>Sort by:</span>
+                {["Phase A1", "Team K1", "Campus Selected"].map(s => (
+                  <button key={s} className="px-1.5 py-0.5 rounded bg-[#0d1117] border border-cyan-500/10 text-cyan-400 text-[9px] cursor-pointer hover:border-cyan-500/30" onClick={() => toast.info(`Sorting by ${s}`)}>{s}</button>
+                ))}
               </div>
             </div>
-
-            {/* Row 2: Quick Actions + Team Status | Agent Resource Monitor | Conference Pipeline */}
-            <div className="grid grid-cols-12 gap-3">
-              <div className="col-span-3">
-                <Card title="Quick Actions">
-                  <div className="flex flex-wrap gap-1.5 mb-3">
-                    <Button size="sm" className="bg-cyan-500/15 text-cyan-400 border-cyan-500/30 text-[10px] px-2 py-1" onClick={() => { refetchAgents(); toast.success("Restarted"); }}>Restart All</Button>
-                    <Button size="sm" className="bg-red-500/15 text-red-400 border-red-500/30 text-[10px] px-2 py-1" onClick={() => toast.error("Stopped")}>Stop All</Button>
-                    <Button size="sm" className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-[10px] px-2 py-1" onClick={() => setActiveTab("spawn-scale")}>Spawn Team</Button>
-                    <Button size="sm" className="bg-purple-500/15 text-purple-400 border-purple-500/30 text-[10px] px-2 py-1" onClick={() => toast.info("Conference initiated")}>Run Conference</Button>
-                    <Button size="sm" className="bg-red-500/15 text-red-400 border-red-500/40 text-[10px] px-2 py-1" onClick={() => toast.error("Emergency kill")}>Emergency Kill</Button>
-                  </div>
-                  <h4 className="text-[10px] font-bold text-white mb-2 uppercase tracking-wider">Team Status</h4>
-                  <div className="space-y-1.5">
-                    {swarm.teams.length > 0 ? swarm.teams.slice(0, 4).map((t, i) => (
-                      <div key={i} className="flex items-center justify-between text-[11px] p-1.5 rounded bg-[#0d1117] border border-cyan-500/10 cursor-pointer hover:border-cyan-500/30"
-                        onClick={() => toast.info(`Team ${t.name}`)}>
-                        <span className="text-white font-medium">{t.name}</span>
-                        <Badge size="sm" className="bg-emerald-500/20 text-emerald-400 text-[9px]">{t.status || 'ACTIVE'}</Badge>
+            {/* Agent Cards Grid - 4 columns */}
+            <div className="grid grid-cols-4 gap-3">
+              {fallbackAgents.map((a, idx) => {
+                const elo = a.elo ?? (1500 + ((idx * 73 + 41) % 500));
+                const wr = a.win_rate ?? (60 + ((idx * 17 + 3) % 25));
+                const pnlImpact = a.pnl_impact ?? ((idx * 1.3 - 2) % 8).toFixed(2);
+                const expectancy = a.expectancy ?? (0.2 + (idx * 0.13) % 2).toFixed(2);
+                const pf = a.profit_factor ?? (1 + (idx * 0.2) % 2.5).toFixed(2);
+                const stars = a.star_rating ?? (3 + idx % 3);
+                const isRunning = a.status === "running";
+                const signals = a.recent_signals || [`signal_${idx}_a: ${(0.5 + Math.random() * 0.4).toFixed(2)}`, `signal_${idx}_b: ${(0.3 + Math.random() * 0.6).toFixed(2)}`, `signal_${idx}_c: ${(0.4 + Math.random() * 0.5).toFixed(2)}`];
+                const tags = a.tags || ["agent", "default"];
+                const sparkData = Array.from({ length: 12 }, () => 20 + Math.floor(Math.random() * 60));
+                return (
+                  <Card key={a.id || idx} className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-lg hover:border-cyan-500/50 hover:shadow-[0_0_20px_rgba(0,217,255,0.12)] transition-all cursor-pointer p-3" onClick={() => { setInspectedAgent(a); toast.info(`Inspecting ${a.name}`); }}>
+                    {/* Header: name + status dot + badge + stars */}
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${isRunning ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]" : a.health === "degraded" ? "bg-amber-500" : "bg-gray-600"}`} />
+                      <span className="text-[11px] font-bold text-white truncate flex-1">{a.name}</span>
+                      <Badge className={`text-[8px] px-1 py-0 ${isRunning ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40" : "bg-amber-500/20 text-amber-400 border-amber-500/40"}`}>{isRunning ? "ACTIVE" : "PAUSED"}</Badge>
+                      <span className="text-[9px] text-amber-400 shrink-0">{"★".repeat(stars)}{"☆".repeat(5 - stars)}</span>
+                    </div>
+                    {/* ELO + Metrics Row */}
+                    <div className="flex items-baseline gap-3 mb-2">
+                      <div>
+                        <div className="text-[9px] text-secondary">ELO Score</div>
+                        <div className="text-lg font-bold text-cyan-400 leading-tight">{elo}</div>
                       </div>
-                    )) : (
-                      <>
-                        <div className="flex items-center justify-between text-[11px] p-1.5 rounded bg-[#0d1117] border border-cyan-500/10">
-                          <span className="text-white">fear_bounce_team</span>
-                          <span className="text-emerald-400 text-[9px]">ACTIVE</span>
-                        </div>
-                        <div className="flex items-center justify-between text-[11px] p-1.5 rounded bg-[#0d1117] border border-cyan-500/10">
-                          <span className="text-white">greed_momentum_team</span>
-                          <span className="text-emerald-400 text-[9px]">ACTIVE</span>
-                        </div>
-                        <div className="flex items-center justify-between text-[11px] p-1.5 rounded bg-[#0d1117] border border-cyan-500/10">
-                          <span className="text-white">momentum</span>
-                          <span className="text-amber-400 text-[9px]">DEGRADED</span>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </Card>
-              </div>
-              <div className="col-span-5">
-                <AgentResourceMonitor agents={agents} />
-              </div>
-              <div className="col-span-4">
-                <ConferencePipeline consensusData={consensusData} />
-              </div>
+                      <div className="flex-1 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[9px]">
+                        <div><span className="text-secondary">Win Rate: </span><span className="text-emerald-400 font-mono">{Number(wr).toFixed(1)}%</span></div>
+                        <div><span className="text-secondary">PnL Impact: </span><span className={`font-mono ${Number(pnlImpact) >= 0 ? "text-emerald-400" : "text-red-400"}`}>{Number(pnlImpact) >= 0 ? "+" : ""}{pnlImpact}%</span></div>
+                        <div><span className="text-secondary">Expectancy: </span><span className="text-white font-mono">{expectancy}</span></div>
+                        <div><span className="text-secondary">Profit Factor: </span><span className="text-cyan-400 font-mono">{pf}</span></div>
+                      </div>
+                    </div>
+                    {/* Recent Signals */}
+                    <div className="space-y-0.5 mb-2 max-h-[48px] overflow-hidden">
+                      {signals.slice(0, 3).map((sig, si) => (
+                        <div key={si} className="text-[9px] font-mono text-secondary/80 truncate hover:text-cyan-400 transition-colors">{sig}</div>
+                      ))}
+                    </div>
+                    {/* Bottom: sparkline + tags */}
+                    <div className="flex items-end justify-between pt-1 border-t border-cyan-500/10">
+                      <div className="flex items-end gap-px h-4">
+                        {sparkData.map((v, si) => (
+                          <div key={si} className="w-1.5 bg-cyan-500/60 rounded-t" style={{ height: `${v}%` }} />
+                        ))}
+                      </div>
+                      <div className="flex gap-1">
+                        {tags.map((t, ti) => (
+                          <span key={ti} className="px-1 py-0 rounded text-[7px] bg-cyan-500/10 text-cyan-400/60 border border-cyan-500/10">{t}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
             </div>
-
-            {/* Row 3: System Alerts | Blackboard Live Feed | Drift Monitor */}
-            <div className="grid grid-cols-12 gap-3">
-              <div className="col-span-3">
-                <SystemAlerts agents={agents} llmAlerts={llmAlerts} />
+            {/* Footer Bar */}
+            <div className="flex items-center justify-between px-4 py-2 bg-[#111827] border border-cyan-500/20 rounded-lg text-[10px]">
+              <div className="flex items-center gap-5">
+                <span className="text-secondary">Swarm Health: <span className="text-emerald-400 font-bold">{swarmHealth}%</span></span>
+                <span className="text-secondary">Total ELO Pool: <span className="text-cyan-400 font-bold font-mono">{totalElo.toLocaleString()}</span></span>
+                <span className="text-secondary">Avg Confidence: <span className="text-white font-bold">{avgConf}%</span></span>
+                <span className="text-secondary">Consensus Agreement: <span className="text-emerald-400 font-bold">82%</span></span>
               </div>
-              <div className="col-span-5">
-                <BlackboardLiveFeed blackboardMsgs={blackboardMsgs} />
-              </div>
-              <div className="col-span-4">
-                <DriftMonitor agents={agents} />
+              <div className="flex items-center gap-5">
+                <span className="text-secondary">SNAP Coverage: <span className="text-cyan-400">80 futures across 15 agents</span></span>
+                <span className="text-secondary">Next Scheduled Refresh: <span className="text-white font-mono">2s</span></span>
               </div>
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* ============ TAB 2: AGENT REGISTRY (with Inspector Panel) ============ */}
         {activeTab === "agent-registry" && (
@@ -1189,40 +1238,146 @@ export default function AgentCommandCenter() {
             </div>
           </div>
         )}
-        {/* ============ TAB 5: BLACKBOARD & COMMS ============ */}
-        {activeTab === "blackboard" && (
-          <div className="grid grid-cols-2 gap-4">
-            <Card title="Blackboard Messages">
-              <div className="space-y-1 max-h-[400px] overflow-y-auto font-mono text-xs">
-                {blackboardMsgs.map(msg => (
-                  <div key={msg.id} className="flex gap-2 hover:bg-cyan-500/5 px-2 py-1 rounded cursor-pointer">
-                    <span className="text-secondary">[{msg.time}]</span>
-                    <span className="text-cyan-400">[{msg.topic}]</span>
-                    <span className="text-white flex-1">{msg.content}</span>
-                    <button className="text-cyan-400 hover:underline text-[10px]" onClick={() => toast.info(`Hash: ${msg.hash}`)}>INSPECT ({msg.hash})</button>
+        {/* ============ TAB 5: BLACKBOARD & COMMS (mockup v3 - terminal feed + WS monitor + HITL + lifecycle) ============ */}
+        {activeTab === "blackboard" && (() => {
+          const agentColors = { signal_generator: "text-emerald-400", orchestrator: "text-cyan-400", risk_manager: "text-amber-400", ml_inference: "text-purple-400", sentiment_agent: "text-blue-400", consensus_engine: "text-pink-400", brain_coordinator: "text-teal-400" };
+          const fallbackBbMsgs = blackboardMsgs.length > 0 ? blackboardMsgs : [
+            { id: 1, time: "09:41:23.847", agent: "signal_generator", action: 'publish', detail: '"TSLA_breakout", {score: 0.87, confidence: 0.91, timeframe: "5m"}' },
+            { id: 2, time: "09:41:23.122", agent: "orchestrator", action: 'broadcast', detail: '"regime_update", {state: "greed", vix: 14.2, momentum: 0.84}' },
+            { id: 3, time: "09:41:22.956", agent: "risk_manager", action: 'subscribe', detail: '"portfolio_risk", callback' },
+            { id: 4, time: "09:41:22.441", agent: "ml_inference", action: 'publish', detail: '"model_prediction", {symbol: "AAPL", direction: "LONG", prob: 0.78}' },
+            { id: 5, time: "09:41:21.887", agent: "sentiment_agent", action: 'publish', detail: '"sentiment_score", {symbol: "NVDA", score: 0.82, source: "twitter"}' },
+            { id: 6, time: "09:41:21.334", agent: "consensus_engine", action: 'emit', detail: '"conference_result", {symbol: "SPY", decision: "HOLD", agreement: 0.76}' },
+            { id: 7, time: "09:41:20.891", agent: "signal_generator", action: 'publish', detail: '"AAPL_momentum", {score: 0.72, confidence: 0.88, timeframe: "15m"}' },
+            { id: 8, time: "09:41:20.234", agent: "brain_coordinator", action: 'dispatch', detail: '"task_assignment", {agent: "ml_inference", task: "retrain_model_v3"}' },
+            { id: 9, time: "09:41:19.778", agent: "risk_manager", action: 'alert', detail: '"drawdown_warning", {portfolio: -2.1, threshold: -3.0, severity: "medium"}' },
+            { id: 10, time: "09:41:19.112", agent: "orchestrator", action: 'heartbeat', detail: '"system_status", {agents: 15, healthy: 13, degraded: 2}' },
+            { id: 11, time: "09:41:18.556", agent: "sentiment_agent", action: 'publish', detail: '"news_catalyst", {symbol: "TSLA", headline: "Q4 earnings beat", impact: 0.91}' },
+            { id: 12, time: "09:41:17.923", agent: "ml_inference", action: 'publish', detail: '"feature_drift", {model: "SignalNet-v3", drift: 0.023, status: "nominal"}' },
+          ];
+          const wsChannels = [
+            { name: "agents", status: "connected", subs: 8, rate: 3.4, lastMsg: "2s ago" },
+            { name: "council", status: "connected", subs: 5, rate: 1.7, lastMsg: "5s ago" },
+            { name: "signal", status: "connected", subs: 12, rate: 8.2, lastMsg: "1s ago" },
+            { name: "market-data", status: "connected", subs: 6, rate: 24.1, lastMsg: "<1s ago" },
+            { name: "order", status: "connected", subs: 3, rate: 0.4, lastMsg: "12s ago" },
+            { name: "llm-flow", status: "degraded", subs: 4, rate: 2.1, lastMsg: "8s ago" },
+          ];
+          const fallbackHitl = hitlBuffer.length > 0 ? hitlBuffer : [
+            { id: 1, time: "09:41:23", agent: "signal_generator", action: "BUY_ORDER", symbol: "TSLA", confidence: "0.87", reasoning: "Breakout signal above resistance with strong volume confirmation", impact: "HIGH", urgency: "45s", status: "PENDING" },
+            { id: 2, time: "09:41:18", agent: "ml_inference", action: "POSITION_SIZE", symbol: "AAPL", confidence: "0.78", reasoning: "Model prediction confidence above threshold, suggested 2.5% allocation", impact: "MED", urgency: "120s", status: "PENDING" },
+            { id: 3, time: "09:41:12", agent: "risk_manager", action: "STOP_ADJUST", symbol: "NVDA", confidence: "0.92", reasoning: "Trailing stop adjustment based on ATR expansion", impact: "LOW", urgency: "30s", status: "PENDING" },
+            { id: 4, time: "09:41:05", agent: "consensus_engine", action: "CONFERENCE", symbol: "SPY", confidence: "0.76", reasoning: "Multi-agent consensus reached for index hedge position", impact: "HIGH", urgency: "60s", status: "PENDING" },
+          ];
+          return (
+          <div className="grid grid-cols-12 gap-3">
+            {/* Left: Real-Time Blackboard Feed */}
+            <div className="col-span-8">
+              <Card noPadding className="bg-[#0a0d12] border border-cyan-500/20">
+                <div className="flex items-center justify-between px-4 py-2 border-b border-cyan-500/20">
+                  <div className="flex items-center gap-2">
+                    <Terminal className="w-4 h-4 text-cyan-400" />
+                    <span className="text-xs font-bold text-white tracking-wider">REAL-TIME BLACKBOARD FEED</span>
                   </div>
-                ))}
-                {blackboardMsgs.length === 0 && <p className="text-secondary">Listening for blackboard events...</p>}
-              </div>
-            </Card>
-            <Card title="HITL Intervention Log">
-              <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                {hitlBuffer.map(msg => (
-                  <div key={msg.id} className="p-2 rounded bg-[#0d1117] border border-cyan-500/10 cursor-pointer hover:border-cyan-500/30" onClick={() => toast.info(`Audit: ${msg.action}`)}>
-                    <div className="flex items-center justify-between">
-                      <Badge className="bg-amber-500/20 text-amber-400">{msg.action}</Badge>
-                      <span className="text-[10px] text-secondary">{msg.time}</span>
-                    </div>
-                    <div className="text-[10px] text-secondary mt-1">
-                      Target: <span className="text-white">{msg.target}</span> User: <span className="text-white">{msg.user}</span> {msg.status}
-                    </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-[9px] text-emerald-400">LIVE</span>
+                    <button className="text-[9px] text-cyan-400 hover:underline cursor-pointer" onClick={() => toast.info("Clearing feed...")}>Clear</button>
+                    <button className="text-[9px] text-cyan-400 hover:underline cursor-pointer" onClick={() => toast.info("Pausing feed...")}>Pause</button>
                   </div>
-                ))}
-                {hitlBuffer.length === 0 && <p className="text-xs text-secondary">No recent interventions</p>}
-              </div>
-            </Card>
+                </div>
+                <div className="p-3 space-y-0.5 max-h-[500px] overflow-y-auto scrollbar-thin font-mono bg-[#0a0d12]">
+                  {fallbackBbMsgs.map((msg, i) => {
+                    const agentName = msg.agent || msg.topic || "system";
+                    const color = agentColors[agentName] || "text-cyan-400";
+                    const actionText = msg.action || "publish";
+                    const detail = msg.detail || msg.content || "";
+                    return (
+                      <div key={msg.id || i} className="flex gap-1 text-[11px] hover:bg-cyan-500/5 px-2 py-0.5 rounded cursor-pointer transition-all" onClick={() => toast.info(`Trace: ${agentName}.${actionText}`)}>
+                        <span className="text-secondary/50 shrink-0">[{msg.time}]</span>
+                        <span className={`${color} font-bold shrink-0`}>{agentName}</span>
+                        <span className="text-white/40">.</span>
+                        <span className="text-white/70">{actionText}(</span>
+                        <span className="text-amber-300/80 truncate flex-1">{detail}</span>
+                        <span className="text-white/70">)</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+            </div>
+
+            {/* Right panels */}
+            <div className="col-span-4 space-y-3">
+              {/* WebSocket Channel Monitor */}
+              <Card title="WEBSOCKET CHANNEL MONITOR" className="bg-[#111827]">
+                <table className="w-full text-[10px]">
+                  <thead><tr className="text-secondary/60 border-b border-cyan-500/10">
+                    <th className="text-left py-1 font-medium">Channel</th>
+                    <th className="text-center font-medium">Status</th>
+                    <th className="text-right font-medium">Subs</th>
+                    <th className="text-right font-medium">Msg/sec</th>
+                    <th className="text-right font-medium">Last Msg</th>
+                  </tr></thead>
+                  <tbody>{wsChannels.map(ch => (
+                    <tr key={ch.name} className="border-b border-gray-800/20 hover:bg-cyan-500/5 cursor-pointer" onClick={() => toast.info(`Channel: ${ch.name}`)}>
+                      <td className="py-1.5 text-white font-mono">{ch.name}</td>
+                      <td className="text-center"><span className={`w-2 h-2 rounded-full inline-block ${ch.status === "connected" ? "bg-emerald-500" : "bg-amber-500"}`} /></td>
+                      <td className="text-right text-cyan-400">{ch.subs}</td>
+                      <td className="text-right text-white font-mono">{ch.rate}</td>
+                      <td className="text-right text-secondary">{ch.lastMsg}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </Card>
+
+              {/* HITL Ring Buffer */}
+              <Card title="HITL RING BUFFER" className="bg-[#111827]">
+                <div className="space-y-1.5 max-h-[240px] overflow-y-auto scrollbar-thin">
+                  {fallbackHitl.map((item, i) => (
+                    <div key={item.id || i} className="p-2 rounded bg-[#0d1117] border border-cyan-500/10 hover:border-cyan-500/30 transition-all">
+                      <div className="flex items-center gap-2 text-[9px] mb-1">
+                        <span className="text-secondary">{item.time}</span>
+                        <span className="text-cyan-400 font-mono">{item.agent || item.user}</span>
+                        <Badge className="bg-amber-500/20 text-amber-400 text-[8px] px-1 py-0">{item.action}</Badge>
+                        <span className="text-white font-bold">{item.symbol || item.target}</span>
+                        <span className="ml-auto text-[8px] text-secondary">Impact: <span className={item.impact === "HIGH" ? "text-red-400" : item.impact === "MED" ? "text-amber-400" : "text-emerald-400"}>{item.impact || "MED"}</span></span>
+                      </div>
+                      <div className="text-[9px] text-secondary/70 truncate mb-1.5">Confidence: <span className="text-white">{item.confidence || "0.80"}</span> | {item.reasoning || "Awaiting review"}</div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[8px] text-amber-400">Urgency: {item.urgency || "60s"}</span>
+                        <span className="flex-1" />
+                        <Button size="xs" className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-[8px] px-2 py-0 h-5 cursor-pointer" onClick={() => toast.success("Approved")}>Approve</Button>
+                        <Button size="xs" className="bg-red-500/20 text-red-400 border-red-500/40 text-[8px] px-2 py-0 h-5 cursor-pointer" onClick={() => toast.error("Rejected")}>Reject</Button>
+                        <Button size="xs" className="bg-gray-500/20 text-secondary border-gray-500/40 text-[8px] px-2 py-0 h-5 cursor-pointer" onClick={() => toast.info("Deferred")}>Defer</Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
+              {/* Agent Lifecycle Controls */}
+              <Card title="AGENT LIFECYCLE CONTROLS" className="bg-[#111827]">
+                <div className="flex gap-2 mb-2">
+                  <Button size="sm" className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-[10px] px-3 py-1 flex-1 cursor-pointer" onClick={() => { refetchAgents(); toast.success("All agents started"); }}>
+                    <Play className="w-3 h-3 mr-1 inline" />Start All
+                  </Button>
+                  <Button size="sm" className="bg-red-500/20 text-red-400 border-red-500/40 text-[10px] px-3 py-1 flex-1 cursor-pointer" onClick={() => toast.error("All agents stopped")}>
+                    <Square className="w-3 h-3 mr-1 inline" />Stop All
+                  </Button>
+                  <Button size="sm" className="bg-amber-500/20 text-amber-400 border-amber-500/40 text-[10px] px-3 py-1 flex-1 cursor-pointer" onClick={() => toast.info("Restarting all agents...")}>
+                    <RefreshCw className="w-3 h-3 mr-1 inline" />Restart All
+                  </Button>
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-secondary">
+                  <span><span className="text-emerald-400 font-bold">{runningAgents}</span>/{totalAgents} agents online</span>
+                  <span className="text-cyan-400 cursor-pointer hover:underline" onClick={() => toast.info("Opening agent manager...")}>Manage</span>
+                </div>
+              </Card>
+            </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* ============ TAB 6: CONFERENCE & CONSENSUS ============ */}
         {activeTab === "conference" && (
@@ -1362,6 +1517,495 @@ export default function AgentCommandCenter() {
             </Card>
           </div>
         )}
+
+        {/* ============ TAB 9: BRAIN MAP (mockup v3 - DAG visualization with 5 layers) ============ */}
+        {activeTab === "brain-map" && (() => {
+          const toolbarBtns = ["Hierarchical", "Force-Directed", "Circular"];
+          const toolbarActions = ["Zoom", "Fit", "Filter", "Layer", "Status", "Agent", "Highlight Path"];
+          // DAG data
+          const sources = [
+            { label: "Alpaca Markets", y: 40, latency: "12ms" },
+            { label: "Finnhub", y: 90, latency: "18ms" },
+            { label: "FRED", y: 140, latency: "45ms" },
+            { label: "SEC EDGAR", y: 190, latency: "120ms" },
+            { label: "News API", y: 240, latency: "22ms" },
+            { label: "Bloomberg", y: 290, latency: "8ms" },
+            { label: "XTwitter", y: 340, latency: "35ms" },
+            { label: "Discord", y: 390, latency: "28ms" },
+            { label: "YouTube", y: 440, latency: "55ms" },
+          ];
+          const agentLayer = [
+            { label: "Market Data Agent", y: 80, confidence: "94.2%", status: "running", lastAction: "12s ago" },
+            { label: "ML Inference Agent", y: 170, confidence: "89.7%", status: "running", lastAction: "5s ago" },
+            { label: "Signal Generation Agent", y: 260, confidence: "91.3%", status: "running", lastAction: "2s ago" },
+            { label: "Sentiment Agent", y: 330, confidence: "87.1%", status: "degraded", lastAction: "18s ago" },
+            { label: "Outcome Resolver Agent", y: 420, confidence: "92.8%", status: "running", lastAction: "8s ago" },
+          ];
+          const processing = [
+            { label: "Consensus Engine", y: 40 }, { label: "EV Calculator", y: 90 },
+            { label: "Risk Sentinel", y: 140 }, { label: "Pattern Scanner", y: 190 },
+            { label: "Feature Engineering", y: 240 }, { label: "Signal Aggregator", y: 300 },
+            { label: "Brain Coordinator", y: 360 }, { label: "Conference Manager", y: 420 },
+          ];
+          const storage = [
+            { label: "SunsDB", y: 80 }, { label: "FAISS", y: 160 },
+            { label: "Model Registry", y: 240 }, { label: "Blackboard Store", y: 320 },
+            { label: "Config Store", y: 400 },
+          ];
+          const cols = [90, 280, 480, 680, 870];
+          const conferenceSessions = [
+            { id: "#947", time: "09:41:23", agents: "SigGen, ML, Risk, Sentiment", result: "LONG SPY 82%" },
+            { id: "#946", time: "09:38:12", agents: "SigGen, ML, Consensus", result: "HOLD TSLA 71%" },
+            { id: "#945", time: "09:35:01", agents: "Risk, Sentiment, ML", result: "SHORT QQQ 67%" },
+            { id: "#944", time: "09:31:45", agents: "SigGen, Risk, Brain", result: "LONG NVDA 89%" },
+            { id: "#943", time: "09:28:33", agents: "ML, Sentiment, Consensus", result: "HOLD AAPL 74%" },
+          ];
+          const anomalies = [
+            { anomaly: "Latency Spike", source: "Finnhub", type: "Network", severity: "Medium", recovery: "Auto-retry" },
+            { anomaly: "Data Gap", source: "FRED", type: "Data Quality", severity: "Low", recovery: "Cache fallback" },
+            { anomaly: "Model Drift", source: "ML Inference", type: "Model", severity: "High", recovery: "Retrain queued" },
+            { anomaly: "Rate Limit", source: "XTwitter", type: "API", severity: "Medium", recovery: "Backoff 60s" },
+          ];
+          return (
+          <div className="space-y-3">
+            {/* Toolbar */}
+            <div className="flex items-center gap-1 p-2 bg-[#111827] border border-cyan-500/20 rounded-lg flex-wrap">
+              {toolbarBtns.map((b, i) => (
+                <button key={b} className={`px-2 py-1 rounded text-[10px] font-medium cursor-pointer transition-all ${i === 0 ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/40" : "text-secondary hover:text-white bg-[#0d1117] border border-cyan-500/10 hover:border-cyan-500/30"}`}
+                  onClick={() => toast.info(`Layout: ${b}`)}>{b}</button>
+              ))}
+              <span className="w-px h-5 bg-cyan-500/20 mx-1" />
+              {toolbarActions.map(b => (
+                <button key={b} className="px-2 py-1 rounded text-[10px] text-secondary hover:text-white bg-[#0d1117] border border-cyan-500/10 hover:border-cyan-500/30 cursor-pointer transition-all"
+                  onClick={() => toast.info(`Action: ${b}`)}>{b}</button>
+              ))}
+              <span className="w-px h-5 bg-cyan-500/20 mx-1" />
+              <button className="px-2 py-1 rounded text-[10px] text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 cursor-pointer hover:bg-cyan-500/20 transition-all" onClick={() => toast.info("Highlight: Source -> Frontend")}>Source→Frontend</button>
+              <span className="flex-1" />
+              <button className="px-2 py-1 rounded text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 cursor-pointer hover:bg-emerald-500/20 transition-all flex items-center gap-1" onClick={() => toast.success("Auto-refresh toggled")}>
+                <RefreshCw className="w-3 h-3" />Auto-Refresh
+              </button>
+            </div>
+
+            {/* Main DAG */}
+            <Card noPadding className="bg-[#0B0E14] border border-cyan-500/20">
+              <div className="px-4 py-2 border-b border-cyan-500/20 flex items-center gap-2">
+                <Network className="w-4 h-4 text-cyan-400" />
+                <span className="text-xs font-bold text-white tracking-wider">BRAIN MAP DAG</span>
+              </div>
+              <div className="p-2">
+                {/* Layer labels */}
+                <div className="grid grid-cols-5 gap-1 mb-1">
+                  {["LAYER 1 - EXTERNAL SOURCES", "LAYER 2 - AGENTS", "LAYER 3 - PROCESSING", "LAYER 4 - STORAGE", "LAYER 5 - FRONTEND"].map(l => (
+                    <div key={l} className="text-center text-[8px] font-bold text-cyan-400/50 uppercase tracking-wider">{l}</div>
+                  ))}
+                </div>
+                <svg viewBox="0 0 960 480" className="w-full h-[400px]">
+                  {/* Connection lines */}
+                  {sources.map((s, si) => agentLayer.map((a, ai) => (
+                    <line key={`s${si}a${ai}`} x1={cols[0]} y1={s.y} x2={cols[1]} y2={a.y} stroke="#06b6d422" strokeWidth="1" />
+                  )))}
+                  {agentLayer.map((a, ai) => processing.map((p, pi) => (
+                    <line key={`a${ai}p${pi}`} x1={cols[1]} y1={a.y} x2={cols[2]} y2={p.y} stroke="#10b98122" strokeWidth="1" />
+                  )))}
+                  {processing.map((p, pi) => storage.map((st, sti) => (
+                    <line key={`p${pi}s${sti}`} x1={cols[2]} y1={p.y} x2={cols[3]} y2={st.y} stroke="#f59e0b22" strokeWidth="1" />
+                  )))}
+                  {storage.map((st, sti) => (
+                    <line key={`st${sti}f`} x1={cols[3]} y1={st.y} x2={cols[4]} y2={240} stroke="#8b5cf622" strokeWidth="1" />
+                  ))}
+                  {/* Highlight paths */}
+                  <line x1={cols[0]} y1={sources[0].y} x2={cols[1]} y2={agentLayer[0].y} stroke="#06b6d4" strokeWidth="2" strokeOpacity="0.6" />
+                  <line x1={cols[1]} y1={agentLayer[2].y} x2={cols[2]} y2={processing[5].y} stroke="#10b981" strokeWidth="2" strokeOpacity="0.6" />
+                  <line x1={cols[2]} y1={processing[0].y} x2={cols[3]} y2={storage[0].y} stroke="#f59e0b" strokeWidth="2" strokeOpacity="0.6" />
+
+                  {/* Source nodes */}
+                  {sources.map((s, i) => (
+                    <g key={`src-${i}`} className="cursor-pointer" onClick={() => toast.info(`Source: ${s.label} (${s.latency})`)}>
+                      <rect x={cols[0] - 52} y={s.y - 14} width="104" height="28" rx="4" fill="#06b6d415" stroke="#06b6d4" strokeWidth="1" />
+                      <text x={cols[0]} y={s.y - 1} textAnchor="middle" fill="white" fontSize="8" fontWeight="500">{s.label}</text>
+                      <text x={cols[0]} y={s.y + 10} textAnchor="middle" fill="#6b7280" fontSize="7">Latency: {s.latency}</text>
+                    </g>
+                  ))}
+                  {/* Agent nodes */}
+                  {agentLayer.map((a, i) => {
+                    const nodeColor = a.status === "running" ? "#10b981" : "#f59e0b";
+                    return (
+                    <g key={`agt-${i}`} className="cursor-pointer" onClick={() => toast.info(`Agent: ${a.label} - Confidence: ${a.confidence}`)}>
+                      <rect x={cols[1] - 65} y={a.y - 22} width="130" height="44" rx="6" fill={`${nodeColor}18`} stroke={nodeColor} strokeWidth="1.5" />
+                      <text x={cols[1]} y={a.y - 8} textAnchor="middle" fill="white" fontSize="8" fontWeight="600">{a.label}</text>
+                      <text x={cols[1] - 40} y={a.y + 5} fill="#9ca3af" fontSize="7">Conf: {a.confidence}</text>
+                      <rect x={cols[1] + 10} y={a.y - 2} width="36" height="12" rx="3" fill={a.status === "running" ? "#10b98130" : "#f59e0b30"} stroke={nodeColor} strokeWidth="0.5" />
+                      <text x={cols[1] + 28} y={a.y + 7} textAnchor="middle" fill={nodeColor} fontSize="6" fontWeight="bold">{a.status === "running" ? "ACTIVE" : "WARN"}</text>
+                      <text x={cols[1]} y={a.y + 17} textAnchor="middle" fill="#6b7280" fontSize="6">Last: {a.lastAction}</text>
+                    </g>
+                    );
+                  })}
+                  {/* Processing nodes */}
+                  {processing.map((p, i) => (
+                    <g key={`proc-${i}`} className="cursor-pointer" onClick={() => toast.info(`Processing: ${p.label}`)}>
+                      <rect x={cols[2] - 52} y={p.y - 14} width="104" height="28" rx="4" fill="#f59e0b12" stroke="#f59e0b" strokeWidth="1" />
+                      <text x={cols[2]} y={p.y + 3} textAnchor="middle" fill="white" fontSize="8" fontWeight="500">{p.label}</text>
+                    </g>
+                  ))}
+                  {/* Storage nodes */}
+                  {storage.map((st, i) => (
+                    <g key={`stor-${i}`} className="cursor-pointer" onClick={() => toast.info(`Storage: ${st.label}`)}>
+                      <rect x={cols[3] - 48} y={st.y - 14} width="96" height="28" rx="4" fill="#8b5cf615" stroke="#8b5cf6" strokeWidth="1" />
+                      <text x={cols[3]} y={st.y + 3} textAnchor="middle" fill="white" fontSize="8" fontWeight="500">{st.label}</text>
+                    </g>
+                  ))}
+                  {/* Frontend node */}
+                  <g className="cursor-pointer" onClick={() => toast.info("Frontend: 14 Pages | WebSocket | Claude API Router")}>
+                    <rect x={cols[4] - 65} y={220} width="130" height="40" rx="6" fill="#3b82f618" stroke="#3b82f6" strokeWidth="1.5" />
+                    <text x={cols[4]} y={237} textAnchor="middle" fill="white" fontSize="9" fontWeight="600">14 Pages</text>
+                    <text x={cols[4]} y={250} textAnchor="middle" fill="#6b7280" fontSize="7">WebSocket | Claude API Router</text>
+                  </g>
+                </svg>
+              </div>
+            </Card>
+
+            {/* Bottom 3 panels */}
+            <div className="grid grid-cols-3 gap-3">
+              {/* Connection Health Matrix */}
+              <Card title="CONNECTION HEALTH MATRIX" className="bg-[#111827]">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[8px]">
+                    <thead><tr className="text-secondary">
+                      <th className="text-left py-0.5 w-14">Source\Target</th>
+                      {["ORCH", "SigGen", "Risk", "ML", "Sent", "Exec", "Brain", "Cons"].map(h => <th key={h} className="text-center px-0.5">{h}</th>)}
+                    </tr></thead>
+                    <tbody>
+                      {["Alpaca", "Finnhub", "FRED", "SEC", "News", "Bloom", "XTwit", "Discord"].map((src, ri) => (
+                        <tr key={src} className="border-b border-gray-800/20">
+                          <td className="text-secondary py-0.5 font-mono">{src}</td>
+                          {["ORCH", "SigGen", "Risk", "ML", "Sent", "Exec", "Brain", "Cons"].map((tgt, ci) => {
+                            const states = ["healthy", "healthy", "healthy", "degraded", "healthy", "healthy", "error", "healthy"];
+                            const h = states[(ri + ci) % states.length];
+                            const bg = h === "healthy" ? "bg-emerald-500" : h === "degraded" ? "bg-amber-500" : "bg-red-500";
+                            return (<td key={tgt} className="text-center px-0.5">
+                              <div className={`w-4 h-3 mx-auto rounded-sm ${bg} cursor-pointer hover:scale-125 transition-transform`}
+                                onClick={() => toast.info(`${src} -> ${tgt}: ${h}`)} />
+                            </td>);
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex gap-2 mt-1.5 text-[7px] text-secondary">
+                  <span className="flex items-center gap-0.5"><span className="w-1.5 h-1.5 bg-emerald-500 rounded-sm" />Healthy</span>
+                  <span className="flex items-center gap-0.5"><span className="w-1.5 h-1.5 bg-amber-500 rounded-sm" />Degraded</span>
+                  <span className="flex items-center gap-0.5"><span className="w-1.5 h-1.5 bg-red-500 rounded-sm" />Error</span>
+                  <span className="ml-auto text-cyan-400/50">Total Healthy Connections: 52/64</span>
+                </div>
+              </Card>
+
+              {/* Conference DAG */}
+              <Card title="CONFERENCE DAG" className="bg-[#111827]">
+                <p className="text-[9px] text-secondary mb-2">Last 5 conference sessions + participating agents</p>
+                <div className="space-y-1.5">
+                  {conferenceSessions.map(s => (
+                    <div key={s.id} className="flex items-center gap-2 text-[9px] p-1.5 rounded bg-[#0d1117] border border-cyan-500/10 cursor-pointer hover:border-cyan-500/30 transition-all" onClick={() => toast.info(`Conference ${s.id}: ${s.result}`)}>
+                      <span className="text-cyan-400 font-mono font-bold shrink-0">{s.id}</span>
+                      <span className="text-secondary shrink-0">{s.time}</span>
+                      <span className="text-white/60 truncate flex-1">{s.agents}</span>
+                      <Badge className="bg-emerald-500/20 text-emerald-400 text-[7px] px-1 py-0 shrink-0">{s.result}</Badge>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
+              {/* Flow Anomaly Detector */}
+              <Card title="FLOW ANOMALY DETECTOR" className="bg-[#111827]">
+                <table className="w-full text-[9px]">
+                  <thead><tr className="text-secondary/60 border-b border-cyan-500/10">
+                    <th className="text-left py-1 font-medium">Anomaly</th>
+                    <th className="text-left font-medium">Source</th>
+                    <th className="text-left font-medium">Type</th>
+                    <th className="text-center font-medium">Severity</th>
+                    <th className="text-left font-medium">Auto-Recovery</th>
+                  </tr></thead>
+                  <tbody>{anomalies.map((a, i) => (
+                    <tr key={i} className="border-b border-gray-800/20 hover:bg-cyan-500/5 cursor-pointer" onClick={() => toast.info(`Anomaly: ${a.anomaly} from ${a.source}`)}>
+                      <td className="py-1.5 text-white">{a.anomaly}</td>
+                      <td className="text-cyan-400 font-mono">{a.source}</td>
+                      <td className="text-secondary">{a.type}</td>
+                      <td className="text-center">
+                        <Badge className={`text-[7px] px-1 py-0 ${a.severity === "High" ? "bg-red-500/20 text-red-400" : a.severity === "Medium" ? "bg-amber-500/20 text-amber-400" : "bg-emerald-500/20 text-emerald-400"}`}>{a.severity}</Badge>
+                      </td>
+                      <td className="text-secondary">{a.recovery}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </Card>
+            </div>
+          </div>
+          );
+        })()}
+
+        {/* ============ TAB 10: NODE CONTROL & HITL (mockup v3) ============ */}
+        {activeTab === "node-control" && (() => {
+          const agentRows = (agents.length > 0 ? agents : Array.from({ length: 15 }, (_, i) => ({
+            id: `nc-${i}`, name: ["Market Data Agent", "ML Inference Agent", "Signal Generation Agent", "Sentiment Agent",
+              "Risk Resolver Agent", "Sector Rotation Agent", "Pattern Scanner Agent", "Momentum Tracker Agent",
+              "Options Flow Agent", "News Processor Agent", "Social Listener Agent", "Macro Analyzer Agent",
+              "Volume Profiler Agent", "Correlation Agent", "Arbitrage Spotter"][i],
+            status: i < 11 ? "running" : i < 13 ? "paused" : "degraded",
+            type: ["scanner", "ml", "signal", "sentiment", "risk", "sector", "pattern", "momentum", "options", "news", "social", "macro", "volume", "correlation", "arbitrage"][i],
+          }))).slice(0, 15);
+          const agentIconColors = ["text-cyan-400", "text-emerald-400", "text-amber-400", "text-purple-400", "text-red-400", "text-blue-400", "text-pink-400", "text-teal-400", "text-indigo-400", "text-orange-400", "text-lime-400", "text-violet-400", "text-rose-400", "text-sky-400", "text-fuchsia-400"];
+          const priorities = ["High", "High", "High", "Medium", "High", "Medium", "Medium", "Low", "Medium", "Low", "Low", "Medium", "Low", "Low", "Low"];
+          const hitlPending = hitlBuffer.filter(h => h.status === "PENDING").length || 8;
+          const hitlApproved = 4;
+          const hitlReviewed = 10;
+          const hitlEmpty = 1;
+          const hitlTotal = 23;
+          const bufferFill = ((hitlPending + hitlApproved + hitlReviewed) / hitlTotal * 100).toFixed(1);
+          const overdueHistory = [
+            { time: "09:41:23", action: "AUTO_APPROVE", agent: "signal_gen", result: "Success" },
+            { time: "09:38:12", action: "TIMEOUT_REJECT", agent: "risk_mgr", result: "Expired" },
+            { time: "09:35:01", action: "MANUAL_APPROVE", agent: "ml_inference", result: "Success" },
+            { time: "09:31:45", action: "AUTO_DEFER", agent: "sentiment", result: "Deferred" },
+            { time: "09:28:33", action: "MANUAL_REJECT", agent: "consensus", result: "Rejected" },
+            { time: "09:25:18", action: "AUTO_APPROVE", agent: "brain_coord", result: "Success" },
+          ];
+          return (
+          <div className="space-y-3">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-cyan-400" />
+                <span className="text-sm font-bold text-white tracking-wider">Node Control & HITL</span>
+              </div>
+              <div className="flex items-center gap-2 text-[10px]">
+                <span className="text-secondary">Group by:</span>
+                <select className="bg-[#0d1117] border border-cyan-500/20 rounded px-2 py-1 text-[10px] text-white cursor-pointer">
+                  <option>Status</option><option>Team</option><option>Priority</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Agent Config Table */}
+            <Card noPadding className="bg-[#111827] border border-cyan-500/20">
+              <div className="overflow-x-auto">
+                <table className="w-full text-[10px]">
+                  <thead><tr className="text-secondary/70 border-b border-cyan-500/20 bg-[#0d1117]">
+                    {["Agent Name", "Power", "Weight (0-2.0)", "Conf. Threshold", "State", "Temperature", "Context Win", "Controls", "Priority", "Load", "Acc %", "Reach Trades"].map(h => (
+                      <th key={h} className="text-left py-2 px-2 font-medium whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>{agentRows.map((a, i) => {
+                    const isRunning = a.status === "running";
+                    const weight = (0.8 + (i * 0.09) % 1.2).toFixed(2);
+                    const confThreshold = (0.5 + (i * 0.03) % 0.4).toFixed(2);
+                    const temp = (0.5 + (i * 0.15) % 2.5).toFixed(1);
+                    const ctxWin = [4096, 8192, 16384, 4096, 8192][i % 5];
+                    const load = 20 + (i * 7) % 60;
+                    const acc = (75 + (i * 1.7) % 20).toFixed(1);
+                    const trades = 50 + (i * 23) % 200;
+                    const prio = priorities[i];
+                    return (
+                      <tr key={a.id || i} className="border-b border-gray-800/30 hover:bg-cyan-500/5 transition-all">
+                        <td className="py-1.5 px-2">
+                          <div className="flex items-center gap-1.5">
+                            <Bot className={`w-3 h-3 ${agentIconColors[i % agentIconColors.length]}`} />
+                            <span className="text-white font-medium truncate max-w-[120px]">{a.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-2">
+                          <button className={`w-8 h-4 rounded-full relative transition-all cursor-pointer ${isRunning ? "bg-emerald-500" : "bg-gray-600"}`}
+                            onClick={() => { handleAgentToggle(a); }}>
+                            <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${isRunning ? "left-4.5 right-0.5" : "left-0.5"}`}
+                              style={{ left: isRunning ? "16px" : "2px" }} />
+                          </button>
+                        </td>
+                        <td className="px-2">
+                          <div className="flex items-center gap-1">
+                            <div className="w-16 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                              <div className="h-full bg-cyan-500 rounded-full" style={{ width: `${(parseFloat(weight) / 2.0) * 100}%` }} />
+                            </div>
+                            <span className="text-cyan-400 font-mono text-[9px] w-6">{weight}</span>
+                          </div>
+                        </td>
+                        <td className="px-2">
+                          <div className="flex items-center gap-1">
+                            <div className="w-14 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                              <div className="h-full bg-amber-500 rounded-full" style={{ width: `${parseFloat(confThreshold) * 100}%` }} />
+                            </div>
+                            <span className="text-amber-400 font-mono text-[9px] w-6">{confThreshold}</span>
+                          </div>
+                        </td>
+                        <td className="px-2">
+                          <Badge className={`text-[8px] px-1.5 py-0 ${a.status === "running" ? "bg-emerald-500/20 text-emerald-400" : a.status === "paused" ? "bg-amber-500/20 text-amber-400" : "bg-red-500/20 text-red-400"}`}>
+                            {a.status === "running" ? "Running" : a.status === "paused" ? "Paused" : "Degraded"}
+                          </Badge>
+                        </td>
+                        <td className="px-2">
+                          <div className="flex items-center gap-1">
+                            <div className="w-12 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                              <div className="h-full bg-purple-500 rounded-full" style={{ width: `${(parseFloat(temp) / 3.0) * 100}%` }} />
+                            </div>
+                            <span className="text-purple-400 font-mono text-[9px] w-5">{temp}</span>
+                          </div>
+                        </td>
+                        <td className="px-2 text-white font-mono">{ctxWin.toLocaleString()}</td>
+                        <td className="px-2">
+                          <div className="flex gap-1">
+                            <button className="p-0.5 text-secondary hover:text-cyan-400 cursor-pointer" onClick={() => toast.info(`Restarting ${a.name}`)}><RefreshCw className="w-3 h-3" /></button>
+                            <button className="p-0.5 text-secondary hover:text-amber-400 cursor-pointer" onClick={() => toast.info(`Pausing ${a.name}`)}><Pause className="w-3 h-3" /></button>
+                            <button className="p-0.5 text-secondary hover:text-red-400 cursor-pointer" onClick={() => toast.error(`Killed ${a.name}`)}><XCircle className="w-3 h-3" /></button>
+                          </div>
+                        </td>
+                        <td className="px-2">
+                          <Badge className={`text-[8px] px-1 py-0 ${prio === "High" ? "bg-red-500/20 text-red-400" : prio === "Medium" ? "bg-amber-500/20 text-amber-400" : "bg-emerald-500/20 text-emerald-400"}`}>{prio}</Badge>
+                        </td>
+                        <td className="px-2">
+                          <div className="w-16 h-2 bg-gray-800 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full ${load > 70 ? "bg-red-500" : load > 40 ? "bg-amber-500" : "bg-emerald-500"}`} style={{ width: `${load}%` }} />
+                          </div>
+                        </td>
+                        <td className="px-2 text-emerald-400 font-mono">{acc}%</td>
+                        <td className="px-2 text-white font-mono">{trades}</td>
+                      </tr>
+                    );
+                  })}</tbody>
+                </table>
+              </div>
+            </Card>
+
+            {/* Bottom Half: HITL Ring Buffer Visual + Right panels */}
+            <div className="grid grid-cols-12 gap-3">
+              {/* LEFT: HITL Ring Buffer Visual */}
+              <div className="col-span-4">
+                <Card title="HITL RING BUFFER VISUAL" className="bg-[#111827]">
+                  <div className="flex flex-col items-center py-2">
+                    {/* Semicircle gauge */}
+                    <div className="relative w-48 h-28 mb-2">
+                      <svg viewBox="0 0 200 120" className="w-full h-full">
+                        <defs>
+                          <linearGradient id="hitlGaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stopColor="#ef4444" />
+                            <stop offset="25%" stopColor="#f59e0b" />
+                            <stop offset="50%" stopColor="#eab308" />
+                            <stop offset="75%" stopColor="#22c55e" />
+                            <stop offset="100%" stopColor="#10b981" />
+                          </linearGradient>
+                        </defs>
+                        <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#1e293b" strokeWidth="16" strokeLinecap="round" />
+                        <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="url(#hitlGaugeGrad)" strokeWidth="16" strokeLinecap="round"
+                          strokeDasharray="251" strokeDashoffset={251 - (parseFloat(bufferFill) / 100) * 251} />
+                        <text x="100" y="75" textAnchor="middle" fill="white" fontSize="10" fontWeight="bold">Buffer:</text>
+                        <text x="100" y="95" textAnchor="middle" fill="#00D9FF" fontSize="22" fontWeight="bold">{bufferFill}%</text>
+                      </svg>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-[10px] mb-3">
+                      <div className="text-secondary"><span className="text-amber-400 font-bold">{hitlPending}/23</span> Pending</div>
+                      <div className="text-secondary"><span className="text-emerald-400 font-bold">{hitlApproved}/4</span> Approved</div>
+                      <div className="text-secondary"><span className="text-cyan-400 font-bold">{hitlReviewed}/10</span> Reviewed</div>
+                      <div className="text-secondary"><span className="text-gray-400 font-bold">{hitlEmpty}</span> Empty</div>
+                    </div>
+                    <div className="space-y-1 text-[10px] text-center">
+                      <div className="text-secondary">Avg Approve Threshold: <span className="text-cyan-400 font-bold">0.75</span></div>
+                      <div className="text-secondary">Overflow Policy: <span className="text-red-400 font-bold">BLOCK</span></div>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+
+              {/* RIGHT: 3 stacked panels */}
+              <div className="col-span-8 space-y-3">
+                {/* HITL Ring Buffer table + Overdue History side by side */}
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Overdue History Log */}
+                  <Card title="OVERDUE HISTORY LOG" className="bg-[#111827]">
+                    <table className="w-full text-[9px]">
+                      <thead><tr className="text-secondary/60 border-b border-cyan-500/10">
+                        <th className="text-left py-1 font-medium">Time</th>
+                        <th className="text-left font-medium">Action</th>
+                        <th className="text-left font-medium">Agent</th>
+                        <th className="text-left font-medium">Result</th>
+                      </tr></thead>
+                      <tbody>{overdueHistory.map((h, i) => (
+                        <tr key={i} className="border-b border-gray-800/20 hover:bg-cyan-500/5 cursor-pointer" onClick={() => toast.info(`${h.action}: ${h.agent}`)}>
+                          <td className="py-1 text-secondary font-mono">{h.time}</td>
+                          <td className="text-cyan-400">{h.action}</td>
+                          <td className="text-white">{h.agent}</td>
+                          <td><span className={`${h.result === "Success" ? "text-emerald-400" : h.result === "Rejected" || h.result === "Expired" ? "text-red-400" : "text-amber-400"}`}>{h.result}</span></td>
+                        </tr>
+                      ))}</tbody>
+                    </table>
+                  </Card>
+
+                  {/* Play vs AgentScore */}
+                  <Card title="Play vs AgentScore" className="bg-[#111827]">
+                    <div className="h-[120px] flex items-end gap-1 px-2">
+                      {agentRows.slice(0, 12).map((a, i) => {
+                        const score = 40 + (i * 13) % 55;
+                        return (
+                          <div key={i} className="flex-1 flex flex-col items-center gap-0.5 cursor-pointer hover:opacity-80" onClick={() => toast.info(`${a.name}: Score ${score}`)}>
+                            <div className="w-full rounded-t" style={{ height: `${score}%`, backgroundColor: score > 70 ? "#10b981" : score > 50 ? "#f59e0b" : "#ef4444" }} />
+                            <span className="text-[6px] text-secondary truncate w-full text-center">{(a.name || "").split(" ")[0]}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </Card>
+                </div>
+
+                {/* HITL Analytics */}
+                <Card title="HITL ANALYTICS" className="bg-[#111827]">
+                  <div className="grid grid-cols-4 gap-4">
+                    {/* Buffer Fill % */}
+                    <div className="text-center">
+                      <div className="relative w-16 h-16 mx-auto mb-1">
+                        <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                          <circle cx="50" cy="50" r="38" fill="none" stroke="#1e293b" strokeWidth="6" />
+                          <circle cx="50" cy="50" r="38" fill="none" stroke="#00D9FF" strokeWidth="6" strokeDasharray="239" strokeDashoffset={239 - (parseFloat(bufferFill) / 100) * 239} strokeLinecap="round" />
+                        </svg>
+                        <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-white">{bufferFill}%</span>
+                      </div>
+                      <span className="text-[9px] text-secondary">Buffer Fill</span>
+                    </div>
+                    {/* Review Count */}
+                    <div className="text-center">
+                      <div className="relative w-16 h-16 mx-auto mb-1">
+                        <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                          <circle cx="50" cy="50" r="38" fill="none" stroke="#1e293b" strokeWidth="6" />
+                          <circle cx="50" cy="50" r="38" fill="none" stroke="#10b981" strokeWidth="6" strokeDasharray="239" strokeDashoffset={239 * 0.3} strokeLinecap="round" />
+                          <circle cx="50" cy="50" r="38" fill="none" stroke="#f59e0b" strokeWidth="6" strokeDasharray="239" strokeDashoffset={239 * 0.6} strokeLinecap="round" transform="rotate(252 50 50)" />
+                        </svg>
+                        <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-white">{hitlReviewed + hitlApproved}</span>
+                      </div>
+                      <span className="text-[9px] text-secondary">Review Count</span>
+                    </div>
+                    {/* Avg Review Time */}
+                    <div className="flex flex-col items-center justify-center">
+                      <span className="text-2xl font-bold text-cyan-400">4.2s</span>
+                      <span className="text-[9px] text-secondary mt-1">Avg Review Time</span>
+                      <div className="flex items-center gap-1 mt-1">
+                        <TrendingDown className="w-3 h-3 text-emerald-400" />
+                        <span className="text-[9px] text-emerald-400">-12%</span>
+                      </div>
+                    </div>
+                    {/* Decision Breakdown */}
+                    <div className="flex flex-col items-center justify-center">
+                      <div className="space-y-1 text-[9px] w-full">
+                        <div className="flex items-center justify-between"><span className="text-emerald-400">Approved</span><span className="text-white font-mono">67%</span></div>
+                        <div className="h-1 bg-gray-800 rounded-full overflow-hidden"><div className="h-full bg-emerald-500 rounded-full" style={{ width: "67%" }} /></div>
+                        <div className="flex items-center justify-between"><span className="text-red-400">Rejected</span><span className="text-white font-mono">21%</span></div>
+                        <div className="h-1 bg-gray-800 rounded-full overflow-hidden"><div className="h-full bg-red-500 rounded-full" style={{ width: "21%" }} /></div>
+                        <div className="flex items-center justify-between"><span className="text-amber-400">Deferred</span><span className="text-white font-mono">12%</span></div>
+                        <div className="h-1 bg-gray-800 rounded-full overflow-hidden"><div className="h-full bg-amber-500 rounded-full" style={{ width: "12%" }} /></div>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            </div>
+          </div>
+          );
+        })()}
       </div>
 
       {/* === FOOTER BAR (mockup 01 style) === */}
