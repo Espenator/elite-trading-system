@@ -54,6 +54,11 @@ class BlackboardState:
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     ttl_seconds: int = 30  # decision expires after 30s
 
+    # ── ETBI Cognitive Telemetry ──────────────────────────────────────────
+    cognitive_mode: str = "exploit"  # "explore" | "exploit" | "defensive"
+    stage_latencies: Dict[str, float] = field(default_factory=dict)  # stage→ms
+    council_start_ms: float = 0.0  # monotonic start time for total latency
+
     # Extensible metadata (circuit breaker results, directives, etc.)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
@@ -85,6 +90,8 @@ class BlackboardState:
             "debate": self.debate,
             "red_team_report": self.red_team_report,
             "knowledge_context": self.knowledge_context,
+            "cognitive_mode": self.cognitive_mode,
+            "stage_latencies": {k: round(v, 1) for k, v in self.stage_latencies.items()},
             "ttl_seconds": self.ttl_seconds,
             "metadata": self.metadata,
         }

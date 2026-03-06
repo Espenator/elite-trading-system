@@ -145,6 +145,11 @@ const API_CONFIG = {
     cnsLastVerdict: "/cns/council/last-verdict",
     cnsProfitBrain: "/cns/profit-brain",
 
+    // ---- COGNITIVE TELEMETRY (ETBI Research Dashboard) ----
+    cognitiveDashboard: "/cognitive/dashboard",
+    cognitiveSnapshots: "/cognitive/snapshots",
+    cognitiveCalibration: "/cognitive/calibration",
+
     // ---- SWARM INTELLIGENCE ----
     swarmTurboStatus: "/swarm/turbo/status",
     swarmHyperStatus: "/swarm/hyper/status",

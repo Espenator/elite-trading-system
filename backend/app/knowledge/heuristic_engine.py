@@ -82,8 +82,18 @@ class HeuristicEngine:
     MIN_SAMPLE = 25
     MIN_WIN_RATE = 0.55
     CONFIDENCE_THRESHOLD = 0.65
-    DECAY_FACTOR = 0.995  # per-day decay for unused heuristics
     DEACTIVATION_THRESHOLD = 0.3
+
+    # ETBI adaptive memory decay: exp(-λ × days_since_last_use)
+    # λ = 0.02 → half-life ≈ 35 days (recent outcomes weighted ~2x vs 35-day-old)
+    # In exploration mode, decay is slower (λ=0.01) to preserve experimental learnings
+    # In defensive mode, decay is faster (λ=0.04) to shed uncertain heuristics
+    DECAY_LAMBDA = {
+        "exploit": 0.02,   # standard decay
+        "explore": 0.01,   # slower — preserve exploration learnings
+        "defensive": 0.04, # faster — shed uncertainty in crisis
+    }
+    DECAY_FACTOR = 0.995  # legacy per-day decay (used when mode unavailable)
 
     def __init__(self):
         self._heuristics: Dict[str, Heuristic] = {}  # heuristic_id -> Heuristic
@@ -193,25 +203,42 @@ class HeuristicEngine:
 
         return new_heuristics
 
-    def apply_temporal_decay(self) -> int:
-        """Apply neuromorphic-inspired temporal decay to all heuristics.
+    def apply_temporal_decay(self, cognitive_mode: str = "exploit") -> int:
+        """Apply ETBI adaptive temporal decay to all heuristics.
 
-        Unused heuristics fade (decay_factor *= 0.995).
+        Uses exponential decay: decay_factor *= exp(-λ) where λ depends on
+        the current cognitive mode:
+          - exploit: λ=0.02 (standard, half-life ~35 days)
+          - explore: λ=0.01 (slower, preserve experimental learnings)
+          - defensive: λ=0.04 (faster, shed uncertain heuristics in crisis)
+
         Deactivate when decay < 0.3.
 
         Returns:
             Number of heuristics deactivated
         """
+        lam = self.DECAY_LAMBDA.get(cognitive_mode, 0.02)
+        decay_multiplier = math.exp(-lam)
+
         deactivated = 0
         for h in self._heuristics.values():
             if not h.active:
                 continue
-            h.decay_factor *= self.DECAY_FACTOR
+            h.decay_factor *= decay_multiplier
             if h.decay_factor < self.DEACTIVATION_THRESHOLD:
                 h.active = False
                 deactivated += 1
-                logger.info("Deactivated heuristic: %s (decay=%.3f)", h.pattern_name, h.decay_factor)
+                logger.info(
+                    "Deactivated heuristic: %s (decay=%.3f, mode=%s)",
+                    h.pattern_name, h.decay_factor, cognitive_mode,
+                )
             self._persist_heuristic(h)
+
+        if deactivated:
+            logger.info(
+                "Temporal decay (mode=%s, λ=%.3f): %d heuristics deactivated",
+                cognitive_mode, lam, deactivated,
+            )
         return deactivated
 
     def reinforce_heuristic(self, heuristic_id: str) -> None:

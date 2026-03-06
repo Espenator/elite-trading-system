@@ -13,13 +13,17 @@ Uses BlackboardState as shared context and TaskSpawner for agent execution.
 """
 import asyncio
 import logging
+import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from app.council.blackboard import BlackboardState
-from app.council.schemas import AgentVote, DecisionPacket
+from app.council.schemas import AgentVote, DecisionPacket, CognitiveMeta
 from app.council.arbiter import arbitrate
 from app.council.task_spawner import TaskSpawner
+from app.services.cognitive_telemetry import (
+    record_cognitive_snapshot, determine_cognitive_mode, get_cognitive_dashboard
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +63,7 @@ async def run_council(
         symbol=symbol,
         raw_features=features,
     )
+    blackboard.council_start_ms = time.monotonic() * 1000
     context["blackboard"] = blackboard
 
     timestamp = datetime.now(timezone.utc).isoformat()
@@ -198,6 +203,7 @@ async def run_council(
     all_votes: List[AgentVote] = []
 
     # Stage 1: Perception + Data Sources + Intermarket (parallel — 7 agents)
+    _stage_start = time.monotonic() * 1000
     stage1 = await spawner.spawn_parallel([
         {"agent_type": "market_perception", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "flow_perception", "symbol": symbol, "timeframe": timeframe, "context": context},
@@ -211,8 +217,10 @@ async def run_council(
     context["stage1"] = {v.agent_name: v.to_dict() for v in stage1}
     for v in stage1:
         blackboard.perceptions[v.agent_name] = v.to_dict()
+    blackboard.stage_latencies["stage1"] = time.monotonic() * 1000 - _stage_start
 
     # Stage 2: Technical Analysis (parallel — 5 agents)
+    _stage_start = time.monotonic() * 1000
     stage2 = await spawner.spawn_parallel([
         {"agent_type": "rsi", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "bbv", "symbol": symbol, "timeframe": timeframe, "context": context},
@@ -224,20 +232,26 @@ async def run_council(
     context["stage2"] = {v.agent_name: v.to_dict() for v in stage2}
     for v in stage2:
         blackboard.perceptions[v.agent_name] = v.to_dict()
+    blackboard.stage_latencies["stage2"] = time.monotonic() * 1000 - _stage_start
 
     # Stage 3: Hypothesis (deep model tier for LLM)
+    _stage_start = time.monotonic() * 1000
     stage3 = await spawner.spawn("hypothesis", symbol, timeframe, context=context, model_tier="deep")
     all_votes.append(stage3)
     context["stage3"] = {stage3.agent_name: stage3.to_dict()}
     blackboard.hypothesis = stage3.to_dict()
+    blackboard.stage_latencies["stage3"] = time.monotonic() * 1000 - _stage_start
 
     # Stage 4: Strategy
+    _stage_start = time.monotonic() * 1000
     stage4 = await spawner.spawn("strategy", symbol, timeframe, context=context)
     all_votes.append(stage4)
     context["stage4"] = {stage4.agent_name: stage4.to_dict()}
     blackboard.strategy = stage4.to_dict()
+    blackboard.stage_latencies["stage4"] = time.monotonic() * 1000 - _stage_start
 
     # Stage 5: Risk + Execution (parallel)
+    _stage_start = time.monotonic() * 1000
     stage5 = await spawner.spawn_parallel([
         {"agent_type": "risk", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "execution", "symbol": symbol, "timeframe": timeframe, "context": context},
@@ -249,6 +263,7 @@ async def run_council(
             blackboard.risk_assessment = v.to_dict()
         elif v.agent_name == "execution":
             blackboard.execution_plan = v.to_dict()
+    blackboard.stage_latencies["stage5"] = time.monotonic() * 1000 - _stage_start
 
     # ── Bayesian Regime Update ────────────────────────────────────────────
     try:
@@ -276,8 +291,30 @@ async def run_council(
     except Exception as e:
         logger.debug("Bayesian regime update failed (proceeding): %s", e)
 
+    # ── ETBI: Determine cognitive mode ──────────────────────────────────
+    try:
+        regime_entropy = blackboard.metadata.get("regime_entropy", 0)
+        homeostasis_mode = blackboard.metadata.get("homeostasis_mode", "NORMAL")
+        # Get recent exploration win rate from telemetry
+        from app.services.cognitive_telemetry import get_cognitive_dashboard
+        dashboard = get_cognitive_dashboard()
+        recent_explore_wr = dashboard.get("exploration_outcomes", {}).get("explore_win_rate")
+        diversity = CognitiveMeta.compute_diversity(all_votes)
+
+        blackboard.cognitive_mode = determine_cognitive_mode(
+            regime_entropy=regime_entropy,
+            homeostasis_mode=homeostasis_mode,
+            recent_explore_win_rate=recent_explore_wr,
+            hypothesis_diversity=diversity,
+        )
+        logger.info("Cognitive mode for %s: %s (entropy=%.3f, diversity=%.3f)",
+                     symbol, blackboard.cognitive_mode, regime_entropy, diversity)
+    except Exception as e:
+        logger.debug("Cognitive mode determination failed: %s", e)
+
     # ── Stage 5.5: Debate + Red Team (parallel) ──────────────────────────
     # Only run if debate is enabled and we have a non-hold direction
+    _stage_start = time.monotonic() * 1000
     try:
         from app.core.config import settings as app_settings
         proposed_direction = "hold"
@@ -362,16 +399,33 @@ async def run_council(
 
     except Exception as e:
         logger.debug("Stage 5.5 (debate/red-team) failed (proceeding): %s", e)
+    blackboard.stage_latencies["stage5.5"] = time.monotonic() * 1000 - _stage_start
 
     # Stage 6: Critic
+    _stage_start = time.monotonic() * 1000
     stage6 = await spawner.spawn("critic", symbol, timeframe, context=context)
     all_votes.append(stage6)
     context["stage6"] = {stage6.agent_name: stage6.to_dict()}
     blackboard.critic_review = stage6.to_dict()
+    blackboard.stage_latencies["stage6"] = time.monotonic() * 1000 - _stage_start
 
     # Stage 7: Arbiter
     decision = arbitrate(symbol, timeframe, timestamp, all_votes)
     decision.council_decision_id = blackboard.council_decision_id
+
+    # ── ETBI: Populate cognitive telemetry on DecisionPacket ────────────
+    total_latency = time.monotonic() * 1000 - blackboard.council_start_ms
+    cognitive = CognitiveMeta(
+        mode=blackboard.cognitive_mode,
+        hypothesis_diversity=CognitiveMeta.compute_diversity(all_votes),
+        agent_agreement=CognitiveMeta.compute_agreement(all_votes, decision.final_direction),
+        memory_precision=_compute_memory_precision(blackboard.knowledge_context),
+        total_latency_ms=total_latency,
+        stage_latencies=blackboard.stage_latencies,
+    )
+    decision.cognitive = cognitive
+    decision.active_hypothesis = blackboard.hypothesis
+    decision.semantic_context = blackboard.knowledge_context
 
     logger.info(
         "Council decision for %s [%s]: %s @ %.0f%% confidence (vetoed=%s, agents=%d)",
@@ -419,6 +473,20 @@ async def run_council(
         )
     except Exception as e:
         logger.debug("Feedback loop record failed: %s", e)
+
+    # Record cognitive telemetry
+    try:
+        record_cognitive_snapshot(
+            council_decision_id=blackboard.council_decision_id,
+            symbol=symbol,
+            final_direction=decision.final_direction,
+            final_confidence=decision.final_confidence,
+            cognitive_meta=cognitive.to_dict(),
+            active_hypothesis=blackboard.hypothesis,
+            semantic_context=blackboard.knowledge_context,
+        )
+    except Exception as e:
+        logger.debug("Cognitive telemetry record failed: %s", e)
 
     # ── Knowledge System: store agent memories for compound learning ──
     # Batch embedding generation to avoid 17 serial GPU calls on the hot path
@@ -489,9 +557,22 @@ async def run_council(
                 "vetoed": decision.vetoed,
                 "execution_ready": decision.execution_ready,
                 "council_reasoning": decision.council_reasoning,
+                "cognitive": cognitive.to_dict(),
             }
             await bus.publish("council.verdict", verdict_payload)
     except Exception:
         pass
 
     return decision
+
+
+def _compute_memory_precision(knowledge_context: dict) -> float:
+    """Compute relevance score of recalled heuristics (0-1)."""
+    if not knowledge_context:
+        return 0.0
+    heuristics = knowledge_context.get("active_heuristics", [])
+    if not heuristics:
+        return 0.0
+    # Average Bayesian confidence of recalled heuristics
+    confs = [h.get("bayesian_confidence", 0.5) for h in heuristics]
+    return sum(confs) / len(confs) if confs else 0.0
