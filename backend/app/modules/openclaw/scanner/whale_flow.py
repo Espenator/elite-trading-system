@@ -60,12 +60,12 @@ MIN_PREMIUM = int(os.getenv('MIN_PREMIUM', '100000'))       # Minimum $100K prem
 MIN_OI_RATIO = float(os.getenv('MIN_OI_RATIO', '2.0'))     # Volume/OI ratio
 MAX_DTE = int(os.getenv('MAX_DTE', '60'))                   # Max days to expiry
 MIN_DTE = int(os.getenv('MIN_DTE', '7'))                    # Min DTE to filter 0DTE
-POLL_INTERVAL = int(os.getenv('WHALE_POLL_INTERVAL', '120'))  # Seconds between polls
+POLL_INTERVAL = int(os.getenv('WHALE_POLL_INTERVAL', '30'))  # Seconds between polls (paid plan allows faster)
 API_RATE_LIMIT_DELAY = float(os.getenv('API_RATE_LIMIT_DELAY', '1.0'))
 MAX_RETRIES = int(os.getenv('API_MAX_RETRIES', '3'))
 
 # Cache TTL in seconds (10 minutes)
-_CACHE_TTL = 600
+_CACHE_TTL = 60  # 1 min cache for faster discovery
 
 
 class WhaleFlowScanner:
