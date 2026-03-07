@@ -32,7 +32,7 @@ COPY --chown=appuser:appuser . .
 ENV PATH="/home/appuser/.local/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
-    TRADING_MODE=live \
+    TRADING_MODE=paper \  # Audit Task 4: default paper, never default to live
     ENVIRONMENT=production
 
 # Switch to non-root user
@@ -41,7 +41,7 @@ USER appuser
 EXPOSE 8000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=15s \
+HEALTHCHECK --interval=30s --timeout=10s --retries=5 --start-period=120s  # Audit Task 20: 23+ services need time \
     CMD curl -f http://localhost:8000/health || exit 1
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

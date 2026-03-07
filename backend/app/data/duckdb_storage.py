@@ -11,9 +11,11 @@ Usage:
 Fixes Issue #25 — DuckDB query engine for feature pipeline.
 """
 
+import asyncio
 import logging
 import threading
 from datetime import date, datetime
+from functools import partial
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -42,22 +44,71 @@ def _get_duckdb():
 
 
 class DuckDBStorage:
-    """Analytics database for ML training and backtesting."""
+    """Analytics database for ML training and backtesting.
+
+    AUDIT FIX (Task 5): Uses asyncio.Lock for async contexts and runs
+    blocking DuckDB operations via asyncio.to_thread() to avoid blocking
+    the FastAPI event loop. The threading.Lock is kept for sync callers
+    (startup, tests) while async callers use the async-safe path.
+    """
 
     def __init__(self, db_path: str = None):
         self._db_path = str(db_path or DUCKDB_PATH)
         self._conn = None
-        self._lock = threading.Lock()
+        self._lock = threading.Lock()  # For sync callers (startup, tests)
+        self._async_lock = None  # Lazily created asyncio.Lock
         self._init_schema()
 
+    def _get_async_lock(self) -> asyncio.Lock:
+        """Get or create the asyncio.Lock (must be created in running loop)."""
+        if self._async_lock is None:
+            self._async_lock = asyncio.Lock()
+        return self._async_lock
+
     def _get_conn(self):
-        """Thread-safe connection with WAL mode."""
+        """Thread-safe connection (sync callers)."""
         with self._lock:
             if self._conn is None:
                 duckdb = _get_duckdb()
                 self._conn = duckdb.connect(self._db_path)
                 self._conn.execute("SET enable_progress_bar = true")
             return self._conn
+
+    async def async_execute(self, query: str, params=None):
+        """Execute a DuckDB query without blocking the event loop.
+
+        Wraps the blocking DuckDB call in asyncio.to_thread() so it runs
+        in the thread pool, preventing event loop stalls when 23+ services
+        are all doing concurrent reads/writes.
+        """
+        def _run():
+            conn = self._get_conn()
+            with self._lock:
+                if params:
+                    return conn.execute(query, params).fetchall()
+                return conn.execute(query).fetchall()
+        return await asyncio.to_thread(_run)
+
+    async def async_execute_df(self, query: str, params=None):
+        """Execute a DuckDB query and return a DataFrame without blocking the event loop."""
+        def _run():
+            conn = self._get_conn()
+            with self._lock:
+                if params:
+                    return conn.execute(query, params).fetchdf()
+                return conn.execute(query).fetchdf()
+        return await asyncio.to_thread(_run)
+
+    async def async_insert(self, query: str, params=None):
+        """Execute an INSERT/UPDATE without blocking the event loop."""
+        def _run():
+            conn = self._get_conn()
+            with self._lock:
+                if params:
+                    conn.execute(query, params)
+                else:
+                    conn.execute(query)
+        return await asyncio.to_thread(_run)
 
     def _init_schema(self):
         """Create analytics tables if they don't exist."""

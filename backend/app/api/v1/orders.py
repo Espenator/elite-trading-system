@@ -56,6 +56,45 @@ class ReplaceOrderRequest(BaseModel):
     client_order_id: Optional[str] = None
 
 
+
+# ── Input Validation Models (Audit Task 13) ──────────────────────────────
+import re
+
+# Valid stock symbol pattern: 1-10 uppercase letters, optionally with dots (BRK.A)
+_SYMBOL_PATTERN = re.compile(r'^[A-Z]{1,10}(\.[A-Z]{1,2})?$')
+
+def _validate_symbol(symbol: str) -> str:
+    """Validate and normalize a stock symbol."""
+    if not symbol or not isinstance(symbol, str):
+        raise HTTPException(status_code=422, detail="Symbol is required")
+    symbol = symbol.strip().upper()
+    if not _SYMBOL_PATTERN.match(symbol):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid symbol format: '{symbol}'. Expected 1-10 uppercase letters."
+        )
+    return symbol
+
+def _validate_order_status(status: str) -> str:
+    """Validate order status parameter before forwarding to Alpaca."""
+    valid = {"open", "closed", "all", "new", "filled", "partially_filled",
+             "canceled", "expired", "pending_new", "accepted", "replaced"}
+    if status and status.lower() not in valid:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid order status: '{status}'. Valid: {sorted(valid)}"
+        )
+    return status.lower() if status else "open"
+
+def _validate_limit(limit: int) -> int:
+    """Validate order list limit parameter."""
+    if limit < 1 or limit > 500:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Limit must be between 1 and 500, got {limit}"
+        )
+    return limit
+
 # ── Advanced order creation ─────────────────────────────────────────────
 @router.post("/advanced", response_model=Dict, dependencies=[Depends(require_auth)])
 # Rate limited by app-level limiter (200/min) in main.py

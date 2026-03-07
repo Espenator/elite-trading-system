@@ -2,6 +2,8 @@
  * Generic fetch hook for API calls.
  * Uses config/api.js getApiUrl(endpoint).
  * Optional polling when pollIntervalMs > 0.
+ * AUDIT FIX (Task 18): Reduced aggressive polling intervals (5-10s -> 15-30s)
+ * and added page visibility pause. Use WebSocket subscriptions for real-time updates.
  */
 import { useState, useEffect, useCallback, useRef } from "react";
 import { getApiUrl, getAuthHeaders } from "../config/api";
@@ -258,7 +260,7 @@ export function useDriftMetrics(pollMs = 60000) {
   return useApi('drift', { pollIntervalMs: pollMs });
 }
 
-export function useSystemAlerts(pollMs = 10000) {
+export function useSystemAlerts(pollMs = 30000) {
   return useApi('systemAlerts', { pollIntervalMs: pollMs });
 }
 
@@ -266,7 +268,7 @@ export function useAgentResources(pollMs = 15000) {
   return useApi('agentResources', { pollIntervalMs: pollMs });
 }
 
-export function useBlackboardFeed(pollMs = 5000) {
+export function useBlackboardFeed(pollMs = 15000) {
   return useApi('blackboard', { pollIntervalMs: pollMs });
 }
 
@@ -275,11 +277,11 @@ export function useAgentAllConfig(pollMs = 15000) {
   return useApi('agentAllConfig', { pollIntervalMs: pollMs });
 }
 
-export function useHitlBuffer(pollMs = 5000) {
+export function useHitlBuffer(pollMs = 15000) {
   return useApi('agentHitlBuffer', { pollIntervalMs: pollMs });
 }
 
-export function useHitlStats(pollMs = 10000) {
+export function useHitlStats(pollMs = 30000) {
   return useApi('agentHitlStats', { pollIntervalMs: pollMs });
 }
 
@@ -291,7 +293,7 @@ export function useEloLeaderboard(pollMs = 30000) {
   return useApi('agentEloLeaderboard', { pollIntervalMs: pollMs });
 }
 
-export function useWsChannels(pollMs = 10000) {
+export function useWsChannels(pollMs = 30000) {
   return useApi('agentWsChannels', { pollIntervalMs: pollMs });
 }
 
@@ -327,11 +329,11 @@ export function useBacktestDrawdownAnalysis(pollMs = 60000) {
 
 // ---- Market Regime Page (10/15) Specialized Hooks ----
 
-export function useRegimeState(pollMs = 10000) {
+export function useRegimeState(pollMs = 30000) {
   return useApi('openclaw/regime', { pollIntervalMs: pollMs });
 }
 
-export function useMacroState(pollMs = 10000) {
+export function useMacroState(pollMs = 30000) {
   return useApi('openclaw/macro', { pollIntervalMs: pollMs });
 }
 
@@ -355,7 +357,7 @@ export function useMemoryIntelligence(pollMs = 30000) {
   return useApi('openclaw/memory', { pollIntervalMs: pollMs });
 }
 
-export function useWhaleFlow(pollMs = 20000) {
+export function useWhaleFlow(pollMs = 30000) {
   return useApi('openclaw/whale-flow', { pollIntervalMs: pollMs });
 }
 
@@ -414,7 +416,7 @@ export async function postBiasOverride(biasMultiplier) {
 
 // ---- CNS (Central Nervous System) Hooks ----
 
-export function useHomeostasis(pollMs = 10000) {
+export function useHomeostasis(pollMs = 30000) {
   return useApi('cnsHomeostasis', { pollIntervalMs: pollMs });
 }
 
@@ -426,7 +428,7 @@ export function useCnsAgentsHealth(pollMs = 15000) {
   return useApi('cnsAgentsHealth', { pollIntervalMs: pollMs });
 }
 
-export function useCnsBlackboard(pollMs = 10000) {
+export function useCnsBlackboard(pollMs = 30000) {
   return useApi('cnsBlackboard', { pollIntervalMs: pollMs });
 }
 
@@ -442,49 +444,49 @@ export function useCnsDirectives() {
   return useApi('cnsDirectives');
 }
 
-export function useCnsLastVerdict(pollMs = 10000) {
+export function useCnsLastVerdict(pollMs = 30000) {
   return useApi('cnsLastVerdict', { pollIntervalMs: pollMs });
 }
 
-export function useProfitBrain(pollMs = 10000) {
+export function useProfitBrain(pollMs = 30000) {
   return useApi('cnsProfitBrain', { pollIntervalMs: pollMs });
 }
 
 // ---- Swarm Intelligence Hooks ----
 
-export function useSwarmTurbo(pollMs = 10000) {
+export function useSwarmTurbo(pollMs = 30000) {
   return useApi('swarmTurboStatus', { pollIntervalMs: pollMs });
 }
 
-export function useSwarmHyper(pollMs = 10000) {
+export function useSwarmHyper(pollMs = 30000) {
   return useApi('swarmHyperStatus', { pollIntervalMs: pollMs });
 }
 
-export function useSwarmNews(pollMs = 10000) {
+export function useSwarmNews(pollMs = 30000) {
   return useApi('swarmNewsStatus', { pollIntervalMs: pollMs });
 }
 
-export function useSwarmSweep(pollMs = 10000) {
+export function useSwarmSweep(pollMs = 30000) {
   return useApi('swarmSweepStatus', { pollIntervalMs: pollMs });
 }
 
-export function useSwarmUnified(pollMs = 10000) {
+export function useSwarmUnified(pollMs = 30000) {
   return useApi('swarmUnifiedStatus', { pollIntervalMs: pollMs });
 }
 
-export function useSwarmOutcomes(pollMs = 10000) {
+export function useSwarmOutcomes(pollMs = 30000) {
   return useApi('swarmOutcomesStatus', { pollIntervalMs: pollMs });
 }
 
-export function useSwarmKelly(pollMs = 10000) {
+export function useSwarmKelly(pollMs = 30000) {
   return useApi('swarmOutcomesKelly', { pollIntervalMs: pollMs });
 }
 
-export function useSwarmPositions(pollMs = 10000) {
+export function useSwarmPositions(pollMs = 30000) {
   return useApi('swarmPositionsManaged', { pollIntervalMs: pollMs });
 }
 
-export function useSwarmMlScorer(pollMs = 10000) {
+export function useSwarmMlScorer(pollMs = 30000) {
   return useApi('swarmMlScorerStatus', { pollIntervalMs: pollMs });
 }
 

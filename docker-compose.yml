@@ -22,7 +22,7 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      - TRADING_MODE=${TRADING_MODE:-live}
+      - TRADING_MODE=${TRADING_MODE:-paper}  # Audit Task 4: default to paper, require explicit opt-in for live
       - ENVIRONMENT=production
     volumes:
       - duckdb_data:/app/data
@@ -35,7 +35,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 15s
+      start_period: 120s  # Audit Task 20: 23+ services with built-in delays need time
     deploy:
       resources:
         limits:

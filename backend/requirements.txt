@@ -1,25 +1,44 @@
+# ── Core Framework ──
 fastapi==0.104.0
 uvicorn[standard]==0.24.0
 slowapi>=0.1.9,<1.0.0
 pydantic>=2.0.0,<3.0.0
 pydantic-settings>=2.0.0
+
+# ── HTTP & Networking ──
 httpx==0.27.0
-python-dotenv==1.0.0
+aiohttp>=3.9.0,<4.0.0
+websockets>=10.4,<14  # 14+ breaks alpaca-py (extra_headers)
+
+# ── Data & ML ──
 pandas==2.2.3
 numpy==2.1.3
 duckdb==1.1.3
-alpaca-py==0.30.1
-websockets>=10.4,<14  # 14+ breaks alpaca-py (extra_headers). Pin to 13.x: pip install "websockets==13.1"
-psutil==6.1.0
-aiohttp>=3.9.0,<4.0.0
 xgboost==2.1.3
-youtube-transcript-api==0.6.0
-resend>=2.5.0
 scikit-learn==1.6.1
+hmmlearn>=0.3.0  # Audit Task 17: required by Bayesian regime engine / HMM code
+
+# ── Trading ──
+alpaca-py==0.30.1
+
+# ── Utilities ──
+python-dotenv==1.0.0
+psutil==6.1.0
 cryptography>=41.0.7
+apscheduler==3.10.4
+resend>=2.5.0
+
+# ── External APIs ──
+youtube-transcript-api==0.6.0
+
+# ── gRPC (Brain Service) ──
 grpcio>=1.60.1
 grpcio-tools>=1.60.1
-apscheduler==3.10.4
+
+# ── Testing ──
 pytest>=7.0.0
 pytest-asyncio>=0.23.0
 pytest-cov>=4.0.0
+
+# ── Optional: PyTorch for LSTM models (large, install separately if needed) ──
+# torch>=2.0.0  # Uncomment to enable LSTM inference (see Audit Task 11)

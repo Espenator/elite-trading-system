@@ -700,7 +700,7 @@ async def lifespan(app: FastAPI):
     risk_monitor_task = asyncio.create_task(_risk_monitor_loop())
 
     log.info("=" * 60)
-    log.info("Embodier Trader v3.2.0 ONLINE — PRODUCTION (Council-Controlled Intelligence)")
+    log.info("Embodier Trader v%s ONLINE — PRODUCTION (Council-Controlled Intelligence)", settings.APP_VERSION)
     _port = settings.effective_port; log.info("  API: http://localhost:%s/docs", _port)
     log.info("  Health: http://localhost:%s/health", _port)
     log.info("  WS: ws://localhost:%s/ws", _port)
@@ -755,7 +755,7 @@ app = FastAPI(
         if hasattr(settings, "PROJECT_NAME")
         else "Embodier Trader"
     ),
-    version="3.2.0",
+    version=settings.APP_VERSION,  # Audit Task 19: single source from config.py
     lifespan=lifespan,
 )
 app.state.limiter = limiter
@@ -771,7 +771,7 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()],
+    allow_origins=[o.strip() for o in settings.effective_cors_origins.split(",") if o.strip()],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
@@ -836,34 +836,81 @@ async def consensus_alias():
     return await get_consensus()
 
 
+# --- Valid WebSocket channels (server-side only publishing) ---
+_VALID_WS_CHANNELS = frozenset({
+    "signal", "order", "council", "risk", "swarm", "kelly",
+    "market", "macro", "blackboard", "alerts", "performance",
+})
+
+# --- WebSocket rate limiting (Audit Task 15) ---
+_WS_MSG_RATE: dict = {}  # websocket -> list of timestamps
+_WS_MAX_MSGS_PER_MIN = 120
+_WS_MAX_CONNECTIONS = 50
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket endpoint for real-time updates."""
+    """WebSocket endpoint for real-time updates.
+
+    SECURITY (Audit Task 2): Clients can only subscribe/unsubscribe/pong.
+    All data publishing to channels originates from server-side services
+    via broadcast_ws(). Client-to-channel relay has been removed to prevent
+    UI spoofing (fake council_verdict, risk_update, order_update messages).
+
+    RATE LIMITING (Audit Task 15): Max 120 messages/min per connection,
+    max 50 simultaneous connections.
+    """
+    import time as _time
+
+    # Enforce max connections (Task 15)
+    from app.websocket_manager import get_connection_count
+    if get_connection_count() >= _WS_MAX_CONNECTIONS:
+        await websocket.close(code=1013, reason="Max connections reached")
+        return
+
     await websocket.accept()
     add_connection(websocket)
+    _WS_MSG_RATE[websocket] = []
     try:
         while True:
             raw = await websocket.receive_text()
+
+            # Rate limiting (Task 15): max 120 msgs/min per connection
+            now = _time.time()
+            timestamps = _WS_MSG_RATE.get(websocket, [])
+            timestamps = [t for t in timestamps if now - t < 60]
+            if len(timestamps) >= _WS_MAX_MSGS_PER_MIN:
+                await websocket.send_json({
+                    "type": "error",
+                    "detail": "Rate limit exceeded. Max 120 messages/minute.",
+                })
+                continue
+            timestamps.append(now)
+            _WS_MSG_RATE[websocket] = timestamps
+
             try:
                 msg = json.loads(raw)
             except (json.JSONDecodeError, TypeError):
                 continue
+
             msg_type = msg.get("type", "")
+
             if msg_type == "pong":
                 handle_pong(websocket)
             elif msg_type == "subscribe":
                 ch = msg.get("channel")
-                if ch:
+                if ch and ch in _VALID_WS_CHANNELS:
                     subscribe(websocket, ch)
             elif msg_type == "unsubscribe":
                 ch = msg.get("channel")
                 if ch:
                     unsubscribe(websocket, ch)
-            elif msg.get("channel"):
-                await broadcast_ws(msg["channel"], msg.get("data", {}))
+            # SECURITY: No client-to-channel relay. Clients cannot broadcast.
+            # Commands (e.g., trigger council evaluation) go through REST endpoints.
     except Exception:
         pass
     finally:
+        _WS_MSG_RATE.pop(websocket, None)
         remove_connection(websocket)
 
 
@@ -882,8 +929,11 @@ async def readiness():
     """Readiness probe — confirms the app can serve real traffic.
 
     Kubernetes uses this to decide whether to route traffic to this pod.
-    Checks critical dependencies: DuckDB, Alpaca connectivity.
+    Checks critical dependencies: DuckDB, Alpaca connectivity, service health.
     Returns 503 if any critical dependency is down.
+
+    AUDIT FIX (Task 8): Includes per-service health from the service registry
+    so operators and the HITL gate know which intelligence layers are active.
     """
     checks = {}
     ready = True
@@ -903,6 +953,16 @@ async def readiness():
 
     # Event pipeline running
     checks["message_bus"] = "ok" if _message_bus else "not_started"
+
+    # Per-service health (Audit Task 8)
+    try:
+        from app.core.service_registry import get_health_summary
+        svc_health = get_health_summary()
+        checks["services"] = svc_health
+        if svc_health.get("failed", 0) > 0:
+            checks["intelligence_degraded"] = True
+    except Exception:
+        checks["services"] = "registry_unavailable"
 
     status_code = 200 if ready else 503
     return JSONResponse(
@@ -971,7 +1031,7 @@ async def health_check():
 
         return {
             "status": "healthy",
-            "version": "3.2.0",
+            "version": settings.APP_VERSION,  # Audit Task 19: single source
             "brand": "Embodier Trader",
             "architecture": "council-controlled",
             "ml_engine": ml_status,

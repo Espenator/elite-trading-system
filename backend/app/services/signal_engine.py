@@ -121,7 +121,25 @@ def _detect_divergence(closes: List[float], rsi_values: List[float]) -> Tuple[fl
 
 
 def _compute_composite_score(quotes: List[dict]) -> Tuple[float, str]:
-    """Compute composite signal score 0-100 from quote rows."""
+    """Compute composite signal score 0-100 from quote rows.
+
+    AUDIT NOTE (Task 14): These weights are heuristic, not calibrated against
+    historical trade outcomes. The signal engine should cast a wide net — the
+    17-agent council is the real intelligence layer. Consider:
+    - Lowering the gate threshold (currently 65) to ~55 to avoid filtering out
+      opportunities the council would have approved
+    - Running a backtest sweep over thresholds 45-75 to find optimal gate
+    - Normalizing scores so they have consistent statistical properties
+    - Eventually replacing additive weights with a trained classifier
+
+    Current weight breakdown (additive from base 50.0):
+      momentum:  ±25 (50% of max movement)
+      pattern:   ±15 (bullish/bearish candle)
+      range:     ±5  (volatility)
+      RSI:       ±10 (oversold/overbought)
+      MACD:      ±5  (trend confirmation)
+      volume:    ±10 (participation)
+    """
     if not quotes or not isinstance(quotes, list):
         return 50.0, "No data"
 

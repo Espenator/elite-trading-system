@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     # ── App ─────────────────────────────────────────────────
     APP_NAME: str = "Elite Trading System"
     PROJECT_NAME: str = "Elite Trading System"
-    APP_VERSION: str = "4.0.0"
+    APP_VERSION: str = "4.0.0"  # Single source of truth for version
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
     ENVIRONMENT: str = "production"
@@ -37,7 +37,22 @@ class Settings(BaseSettings):
     PORT: int = Field(default=8000, alias="PORT")
     BACKEND_PORT: Optional[int] = None
     FRONTEND_PORT: int = 3000
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost:3002,http://localhost:8501"
+    # CORS: In production, set CORS_ORIGINS env var to your real frontend URL.
+    # Localhost origins are for development only.
+    CORS_ORIGINS: str = ""
+
+    @property
+    def effective_cors_origins(self) -> str:
+        """Return CORS origins based on environment.
+        Production: requires explicit CORS_ORIGINS env var.
+        Development: falls back to localhost origins.
+        """
+        if self.CORS_ORIGINS:
+            return self.CORS_ORIGINS
+        if self.ENVIRONMENT == "production":
+            return ""  # No CORS in production without explicit config
+        # Development defaults
+        return "http://localhost:5173,http://localhost:3000,http://localhost:3002,http://localhost:8501"
 
     @property
     def effective_port(self) -> int:

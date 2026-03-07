@@ -530,15 +530,38 @@ class OrderExecutor:
                 "stats_source": stats_source,
             }
 
-        # Get account equity for $ sizing
-        equity = 100_000.0
+        # Get account equity for $ sizing — NEVER use phantom equity (Audit Task 7)
+        equity = None
         try:
             alpaca = self._get_alpaca_service()
             cached = alpaca._cache_get("account", 60)
-            if cached:
-                equity = float(cached.get("equity", 100_000))
+            if cached and cached.get("equity"):
+                equity = float(cached["equity"])
+            if equity is None or equity <= 0:
+                # Try fresh fetch if cache is empty
+                import asyncio
+                try:
+                    loop = asyncio.get_running_loop()
+                    # Can't await in sync context; use cached only
+                except RuntimeError:
+                    pass
         except Exception:
-            pass
+            equity = None
+
+        if equity is None or equity <= 0:
+            logger.error(
+                "REJECTED signal for %s: cannot fetch account equity from Alpaca. "
+                "Refusing to size orders against phantom equity.",
+                symbol,
+            )
+            return {
+                "action": "REJECT",
+                "kelly_pct": 0.0,
+                "qty": 0,
+                "edge": pos.edge,
+                "stats_source": stats_source,
+                "reject_reason": "equity_unavailable",
+            }
 
         dollar_amount = equity * pos.final_pct
         qty = max(0, int(dollar_amount / price))

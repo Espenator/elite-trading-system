@@ -1,9 +1,14 @@
-"""OpenClaw Intelligence Engine - Absorbed from Espenator/openclaw.
-
-This package contains all OpenClaw Python modules migrated into
-elite-trading-system as part of the one-repo consolidation.
-See: https://github.com/Espenator/elite-trading-system/issues/6
 """
+OpenClaw Module — DEPRECATED.
 
-__version__ = "5.0.0"
-__origin__ = "Espenator/openclaw"
+The OpenClaw multi-agent swarm intelligence has been superseded by:
+- Bayesian regime engine (backend/app/services/regime_engine.py)
+- 17-agent council DAG (backend/app/council/)
+- Debate engine + Red Team adversarial layer
+
+This module is preserved ONLY for the /api/v1/openclaw/regime endpoint
+that the frontend currently hits. All other OpenClaw code is dead.
+
+TODO: Migrate the frontend to use /api/v1/cns/regime or /api/v1/market/regime
+      and then delete this entire module.
+"""

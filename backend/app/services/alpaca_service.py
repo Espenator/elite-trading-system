@@ -58,15 +58,14 @@ class AlpacaService:
         self.api_key = settings.ALPACA_API_KEY
         self.secret_key = settings.ALPACA_SECRET_KEY
 
-        # Fallback: if .env keys are empty, try stored settings DB_CONFIG_KEY
+        # AUDIT FIX (Task 6): Removed plaintext settings DB fallback for brokerage keys.
+        # API keys must come exclusively from environment variables (.env / secrets).
+        # Storing brokerage credentials unencrypted in DuckDB/SQLite is a liability.
         if not self.api_key or not self.secret_key:
-                try:
-                    from app.services.settings_service import get_settings_by_category
-                    ds = get_settings_by_category("dataSources")
-                    self.api_key = ds.get("alpacaApiKey", "") or self.api_key
-                    self.secret_key = ds.get("alpacaSecretKey", "") or self.secret_key
-                except Exception:
-                    pass
+            logger.warning(
+                "Alpaca API keys not configured via environment variables. "
+                "Set ALPACA_API_KEY and ALPACA_SECRET_KEY in .env"
+            )
             
         self._cache: Dict[str, Any] = {}  # key -> (timestamp, data)
 

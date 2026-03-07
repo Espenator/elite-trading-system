@@ -1,4 +1,19 @@
 """Inference: load model and generate daily signals (research doc)."""
+
+# AUDIT FIX (Task 11): Safe import guard — PyTorch was removed from requirements.txt
+# but LSTM inference code remains. Guard prevents ImportError crashes.
+try:
+    import torch
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+    import logging as _log
+    _log.getLogger(__name__).warning(
+        "PyTorch not installed — LSTM inference unavailable. "
+        "Install torch or remove backend/app/models/ if not needed."
+    )
+
+
 from datetime import date
 from pathlib import Path
 from typing import List, Dict, Any
@@ -12,7 +27,8 @@ FEATURE_COLS = ["return_1d", "ma_10_dist", "ma_20_dist", "vol_20", "vol_rel"]
 def load_model(path: str, num_features: int):
     """Load trained LSTM from .pt file."""
     try:
-        import torch
+        if not TORCH_AVAILABLE:
+            raise ImportError('PyTorch not installed. Add torch to requirements.txt or remove LSTM code.')
     except ImportError:
         return None
     from app.models.lstm_daily import DailyLSTM
@@ -33,7 +49,8 @@ def make_signals_for_date(
     if model is None or feats is None or feats.empty:
         return []
     try:
-        import torch
+        if not TORCH_AVAILABLE:
+            raise ImportError('PyTorch not installed. Add torch to requirements.txt or remove LSTM code.')
     except ImportError:
         return []
 
