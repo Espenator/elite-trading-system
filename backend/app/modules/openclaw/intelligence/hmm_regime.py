@@ -329,7 +329,7 @@ def _apply_regime_smoothing(new_label: str) -> str:
 def _vix_fallback_regime(result: Dict) -> Dict:
     """Fallback regime detection using VIX when HMM data unavailable."""
     try:
-        from regime import regime_detector
+        from app.modules.openclaw.intelligence.regime import regime_detector
         regime_name, regime_config = regime_detector.get_regime()
         vix = regime_detector.get_vix()
         # Map VIX-based regime to HMM-style labels

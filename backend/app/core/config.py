@@ -1,8 +1,10 @@
-﻿"""
+"""
 Elite Trading System - Application Configuration
 All fields match EXACTLY what services reference via settings.FIELD_NAME
 """
 from pathlib import Path
+from typing import Optional
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Resolve .env relative to backend/ root (parent of app/core/)
@@ -24,7 +26,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
     ENVIRONMENT: str = "production"
-    TRADING_MODE: str = "live"
+    TRADING_MODE: str = "paper"
     SCAN_INTERVAL_MINUTES: int = 5
 
     # ── API Authentication ────────────────────────────────
@@ -32,9 +34,15 @@ class Settings(BaseSettings):
 
     # ── Server ──────────────────────────────────────────────
     HOST: str = "0.0.0.0"
-    BACKEND_PORT: int = 8080
+    PORT: int = Field(default=8000, alias="PORT")
+    BACKEND_PORT: Optional[int] = None
     FRONTEND_PORT: int = 3000
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost:8501"
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost:3002,http://localhost:8501"
+
+    @property
+    def effective_port(self) -> int:
+        """Return the port the backend should listen on."""
+        return self.BACKEND_PORT if self.BACKEND_PORT is not None else self.PORT
 
     # ── Alpaca Markets ──────────────────────────────────────
     ALPACA_API_KEY: str = ""
@@ -213,7 +221,6 @@ if settings.TRADING_MODE.lower() == "live":
     if not settings.API_AUTH_TOKEN:
         _missing.append("API_AUTH_TOKEN")
     if _missing:
-        raise ValueError(
-            f"Live trading mode requires these env vars: {', '.join(_missing)}. "
-            "Set them in .env or switch TRADING_MODE=paper."
-        )
+        import logging as _log
+        _log.warning("Live trading requires: %s. Falling back to paper.", ", ".join(_missing))
+        settings.TRADING_MODE = "paper"

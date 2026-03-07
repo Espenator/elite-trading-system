@@ -1,181 +1,35 @@
-# ============================================================================
-# Embodier Trader - One-Click Launcher (Windows PowerShell)
-#
-# Usage: Right-click > "Run with PowerShell"
-#   or:  .\start-embodier.ps1
-#   or:  .\start-embodier.ps1 -SkipFrontend   (backend only)
-#   or:  .\start-embodier.ps1 -Desktop         (launch Electron app)
-# ============================================================================
-param(
-    [switch]$SkipFrontend,
-    [switch]$Desktop,
-    [int]$BackendPort = 8002
-)
-
-$ErrorActionPreference = "Stop"
-$RootDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$BackendDir = Join-Path $RootDir "backend"
-$FrontendDir = Join-Path $RootDir "frontend-v2"
-$DesktopDir = Join-Path $RootDir "desktop"
-
-function Log($msg) { Write-Host "[EMBODIER] $msg" -ForegroundColor Cyan }
-function Ok($msg)  { Write-Host "[OK] $msg" -ForegroundColor Green }
-function Warn($msg){ Write-Host "[WARN] $msg" -ForegroundColor Yellow }
-function Err($msg) { Write-Host "[ERROR] $msg" -ForegroundColor Red }
-
-Write-Host ""
-Write-Host "============================================================" -ForegroundColor Magenta
-Write-Host "  EMBODIER TRADER v3.2.0 - AI-Powered Elite Trading" -ForegroundColor Magenta
-Write-Host "  13-Agent Council | Event-Driven Pipeline" -ForegroundColor Magenta
-Write-Host "============================================================" -ForegroundColor Magenta
-Write-Host ""
-
-# -- Prerequisite checks --
-Log "Checking prerequisites..."
-
-$pyVersion = python --version 2>&1
-if ($LASTEXITCODE -ne 0) { Err "Python not found. Install from python.org"; exit 1 }
-Ok "Python: $pyVersion"
-
-$nodeVersion = node --version 2>&1
-if ($LASTEXITCODE -ne 0) { Err "Node.js not found. Install from nodejs.org"; exit 1 }
-Ok "Node.js: $nodeVersion"
-
-# -- Step 1: Backend setup --
-Log "Step 1/3: Setting up backend..."
-Set-Location $BackendDir
-
-if (-not (Test-Path "venv")) {
-    Log "Creating Python virtual environment..."
-    python -m venv venv
-}
-
+﻿param([switch]$SkipFrontend,[int]$BackendPort=0,[int]$FrontendPort=0,[int]$MaxRestarts=5)
+$ErrorActionPreference="Continue"
+$R=Split-Path -Parent $MyInvocation.MyCommand.Path;$BD="$R\backend";$FD="$R\frontend-v2";$LD="$R\logs"
+if(!(Test-Path $LD)){New-Item -ItemType Directory $LD -Force|Out-Null}
+$ef="$BD\.env"
+function GE($k,$d){if(Test-Path $ef){$l=Get-Content $ef|?{$_ -match "^$k="};if($l){return($l -split "=",2)[1].Trim()}};$d}
+if($BackendPort -eq 0){$BackendPort=[int](GE "PORT" "8000")}
+if($FrontendPort -eq 0){$FrontendPort=[int](GE "FRONTEND_PORT" "3000")}
+Write-Host "`n  EMBODIER TRADER â€” Backend::$BackendPort | Frontend::$FrontendPort`n" -ForegroundColor Magenta
+# Fix .env BOM
+if(Test-Path $ef){$rb=[IO.File]::ReadAllBytes($ef);if($rb.Length -ge 3 -and $rb[0]-eq 0xEF -and $rb[1]-eq 0xBB -and $rb[2]-eq 0xBF){[IO.File]::WriteAllText($ef,[IO.File]::ReadAllText($ef,[Text.Encoding]::UTF8),(New-Object Text.UTF8Encoding($false)))}}
+elseif(Test-Path "$BD\.env.example"){Copy-Item "$BD\.env.example" $ef}
+# Kill stale
+@($BackendPort,$FrontendPort)|%{Get-NetTCPConnection -LocalPort $_ -EA SilentlyContinue|%{Stop-Process -Id $_.OwningProcess -Force -EA SilentlyContinue}};Start-Sleep 1
+# Backend
+Set-Location $BD
+if(!(Test-Path venv)){python -m venv venv}
 & .\venv\Scripts\Activate.ps1
-
-try { $fastapiCheck = pip show fastapi 2>&1 } catch {}
-if ($LASTEXITCODE -ne 0) {
-    Log "Installing Python dependencies (first run)..."
-    pip install -r requirements.txt
-    if ($LASTEXITCODE -ne 0) { Err "pip install failed"; exit 1 }
-}
-
-if (-not (Test-Path ".env")) {
-    Log "Creating .env from template..."
-    Copy-Item "..\.env.example" ".env"
-    (Get-Content .env) -replace "PORT=\d+", "PORT=$BackendPort" | Set-Content .env
-    Ok "Created .env with port $BackendPort (edit to add API keys)"
-} else {
-    (Get-Content .env) -replace "PORT=\d+", "PORT=$BackendPort" | Set-Content .env
-}
-
-$existing = Get-NetTCPConnection -LocalPort $BackendPort -ErrorAction SilentlyContinue
-if ($existing) {
-    Warn "Port $BackendPort in use - attempting to free it..."
-    $existing | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
-    Start-Sleep -Seconds 1
-}
-
-Log "Starting FastAPI backend on port $BackendPort..."
-$backendJob = Start-Job -ScriptBlock {
-    param($dir)
-    Set-Location $dir
-    & .\venv\Scripts\Activate.ps1
-    python start_server.py
-} -ArgumentList $BackendDir
-
-Log "Waiting for backend to be ready..."
-$ready = $false
-for ($i = 0; $i -lt 30; $i++) {
-    Start-Sleep -Seconds 1
-    try {
-        $response = Invoke-WebRequest -Uri "http://localhost:$BackendPort/healthz" -TimeoutSec 2 -ErrorAction SilentlyContinue
-        if ($response.StatusCode -eq 200) {
-            $ready = $true
-            break
-        }
-    } catch { }
-    Write-Host "." -NoNewline
-}
-Write-Host ""
-
-if ($ready) {
-    Ok "Backend is ONLINE at http://localhost:$BackendPort"
-    Ok "  API Docs: http://localhost:$BackendPort/docs"
-    Ok "  Health:   http://localhost:$BackendPort/health"
-} else {
-    Warn "Backend may still be starting... check http://localhost:$BackendPort/healthz"
-}
-
-# -- Step 2: Frontend --
-if (-not $SkipFrontend -and -not $Desktop) {
-    Log "Step 2/3: Starting React frontend..."
-    Set-Location $FrontendDir
-
-    if (-not (Test-Path "node_modules")) {
-        Log "Installing frontend dependencies (first run)..."
-        npm install
-    }
-
-    $env:VITE_BACKEND_URL = "http://localhost:$BackendPort"
-
-    $frontendJob = Start-Job -ScriptBlock {
-        param($dir, $port)
-        Set-Location $dir
-        $env:VITE_BACKEND_URL = "http://localhost:$port"
-        npm run dev
-    } -ArgumentList $FrontendDir, $BackendPort
-
-    Start-Sleep -Seconds 3
-    Ok "Frontend starting at http://localhost:3000"
-}
-
-# -- Step 3: Desktop (optional) --
-if ($Desktop) {
-    Log "Step 3/3: Starting Electron desktop app..."
-    Set-Location $DesktopDir
-
-    if (-not (Test-Path "node_modules")) {
-        Log "Installing desktop dependencies (first run)..."
-        npm install
-    }
-
-    npm run dev
-} else {
-    Log "Step 3/3: Skipping desktop (use -Desktop flag to launch)"
-}
-
-# -- Summary --
-Write-Host ""
-Write-Host "============================================================" -ForegroundColor Green
-Write-Host "  Embodier Trader is RUNNING!" -ForegroundColor Green
-Write-Host "" -ForegroundColor Green
-Write-Host "  Backend API:  http://localhost:$BackendPort" -ForegroundColor Green
-Write-Host "  Swagger Docs: http://localhost:$BackendPort/docs" -ForegroundColor Green
-if (-not $SkipFrontend -and -not $Desktop) {
-    Write-Host "  Dashboard:    http://localhost:3000" -ForegroundColor Green
-}
-Write-Host "" -ForegroundColor Green
-Write-Host "  Press Ctrl+C to stop all services" -ForegroundColor Yellow
-Write-Host "============================================================" -ForegroundColor Green
-Write-Host ""
-
-if (-not $SkipFrontend -and -not $Desktop) {
-    Start-Sleep -Seconds 2
-    Start-Process "http://localhost:3000"
-}
-
-try {
-    while ($true) {
-        Start-Sleep -Seconds 5
-        if ($backendJob.State -eq "Failed") {
-            Err "Backend crashed! Check logs above."
-            Receive-Job $backendJob
-            break
-        }
-    }
-} finally {
-    Log "Shutting down..."
-    if ($backendJob) { Stop-Job $backendJob -ErrorAction SilentlyContinue; Remove-Job $backendJob -ErrorAction SilentlyContinue }
-    if ($frontendJob) { Stop-Job $frontendJob -ErrorAction SilentlyContinue; Remove-Job $frontendJob -ErrorAction SilentlyContinue }
-    Ok "All services stopped."
-}
+try{python -c "import fastapi" 2>&1|Out-Null}catch{};if($LASTEXITCODE-ne 0){pip install -r requirements.txt --quiet}
+try{python -c "import aiohttp" 2>&1|Out-Null}catch{};if($LASTEXITCODE-ne 0){pip install aiohttp --quiet}
+$bj=Start-Job -ScriptBlock{param($d,$p,$l,$m);Set-Location $d;&.\venv\Scripts\Activate.ps1;$env:PORT=$p;$env:PYTHONIOENCODING="utf-8";$env:PYTHONUNBUFFERED="1";$r=0;while($r-le$m){if($r-gt 0){"$(Get-Date -F 'HH:mm:ss') RESTART $r"|Tee-Object $l -Append;Start-Sleep 5};try{python start_server.py 2>&1|Tee-Object $l -Append}catch{"$_"|Tee-Object $l -Append};$r++}} -Arg $BD,$BackendPort,"$LD\backend.log",$MaxRestarts
+Write-Host "Waiting for backend..." -ForegroundColor Cyan -NoNewline
+$ok=$false;for($i=0;$i-lt 45;$i++){Start-Sleep 1;try{if((Invoke-WebRequest "http://localhost:$BackendPort/healthz" -TimeoutSec 2 -EA SilentlyContinue).StatusCode-eq 200){$ok=$true;break}}catch{};Write-Host "." -NoNewline}
+Write-Host "";if($ok){Write-Host "[OK] Backend http://localhost:$BackendPort" -ForegroundColor Green}else{Write-Host "[WARN] Check $LD\backend.log" -ForegroundColor Yellow}
+$fj=$null
+if(!$SkipFrontend){Set-Location $FD;if(!(Test-Path node_modules)){npm install --silent}
+$fj=Start-Job -ScriptBlock{param($d,$bp,$fp,$l,$m);Set-Location $d;$env:VITE_BACKEND_URL="http://localhost:$bp";$r=0;while($r-le$m){if($r-gt 0){"$(Get-Date -F 'HH:mm:ss') RESTART FE $r"|Tee-Object $l -Append;Start-Sleep 3};try{npx vite --port $fp --host 2>&1|Tee-Object $l -Append}catch{"$_"|Tee-Object $l -Append};$r++}} -Arg $FD,$BackendPort,$FrontendPort,"$LD\frontend.log",$MaxRestarts
+Start-Sleep 3;Write-Host "[OK] Frontend http://localhost:$FrontendPort" -ForegroundColor Green
+Start-Sleep 2;Start-Process "http://localhost:$FrontendPort"}
+Write-Host "`n  RUNNING | Ctrl+C to stop`n" -ForegroundColor Green
+try{while($true){Start-Sleep 10;if($bj.State-eq"Failed"){Write-Host "Backend FAILED"-ForegroundColor Red;Receive-Job $bj;break}}}finally{
+if($bj){Stop-Job $bj -EA SilentlyContinue;Remove-Job $bj -EA SilentlyContinue}
+if($fj){Stop-Job $fj -EA SilentlyContinue;Remove-Job $fj -EA SilentlyContinue}
+@($BackendPort,$FrontendPort)|%{Get-NetTCPConnection -LocalPort $_ -EA SilentlyContinue|%{Stop-Process -Id $_.OwningProcess -Force -EA SilentlyContinue}}
+Write-Host "[OK] Stopped." -ForegroundColor Green}

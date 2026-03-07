@@ -11,7 +11,8 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     server: {
       host: true,
-      port: 3000,
+      port: parseInt(env.VITE_PORT || "3000"),
+      strictPort: false,
       proxy: {
         "/api": {
           target: backendUrl,

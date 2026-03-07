@@ -701,9 +701,9 @@ async def lifespan(app: FastAPI):
 
     log.info("=" * 60)
     log.info("Embodier Trader v3.2.0 ONLINE — PRODUCTION (Council-Controlled Intelligence)")
-    log.info("  API: http://localhost:8000/docs")
-    log.info("  Health: http://localhost:8000/health")
-    log.info("  WS: ws://localhost:8000/ws")
+    _port = settings.effective_port; log.info("  API: http://localhost:%s/docs", _port)
+    log.info("  Health: http://localhost:%s/health", _port)
+    log.info("  WS: ws://localhost:%s/ws", _port)
     log.info("=" * 60)
 
     try:
