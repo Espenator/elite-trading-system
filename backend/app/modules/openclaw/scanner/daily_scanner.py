@@ -21,13 +21,13 @@ import logging
 import json
 import time
 from datetime import datetime, date
-from finviz_scanner import finviz_scanner
-from whale_flow import whale_flow_scanner
-from regime import regime_detector
-from config import *
-from fom_expected_moves import run_fom_em_scrape, run_fom_em_post
-from macro_context import get_macro_snapshot
-from tradingview_watchlist import tv_watchlist
+from .finviz_scanner import finviz_scanner
+from .whale_flow import whale_flow_scanner
+from ..intelligence.regime import regime_detector
+from ..config import *
+from .fom_expected_moves import run_fom_em_scrape, run_fom_em_post
+from ..intelligence.macro_context import get_macro_snapshot
+from .tradingview_watchlist import tv_watchlist
 try:
     from memory import trade_memory
 except ImportError:

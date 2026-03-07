@@ -18,12 +18,12 @@ import asyncio
 import logging
 from typing import Dict, List, Any
 
-from streaming_engine import Blackboard, get_blackboard
+from ..streaming.streaming_engine import Blackboard, get_blackboard
 
-from clawbots.agent_apex_orchestrator import ApexOrchestratorAgent
-from clawbots.agent_relative_weakness import RelativeWeaknessAgent
-from clawbots.agent_short_basket_compiler import ShortBasketCompilerAgent
-from clawbots.meta_agent_architect import MetaAgentArchitect
+from .agent_apex_orchestrator import ApexOrchestratorAgent
+from .agent_relative_weakness import RelativeWeaknessAgent
+from .agent_short_basket_compiler import ShortBasketCompilerAgent
+from .meta_agent_architect import MetaAgentArchitect
 
 logger = logging.getLogger(__name__)
 

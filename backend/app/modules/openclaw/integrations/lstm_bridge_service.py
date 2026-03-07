@@ -29,7 +29,7 @@ try:
 except ImportError:
     aioredis = None
 
-from streaming_engine import (
+from ..streaming.streaming_engine import (
     Blackboard,
     BlackboardMessage,
     Topic,
@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 
 # ============================================================
 
-from config import ELITE_API_URL, ELITE_API_PREFIX
+from ..config import ELITE_API_URL, ELITE_API_PREFIX
 # Configuration
 # ============================================================
 ELITE_BASE_URL = ELITE_API_URL  # From config.py, uses ELITE_API_URL env var

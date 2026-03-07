@@ -17,7 +17,7 @@ import io
 import logging
 import requests
 from datetime import datetime, date
-from config import FINVIZ_EXPORT_BASE_URL, FINVIZ_API_KEY
+from ..config import FINVIZ_EXPORT_BASE_URL, FINVIZ_API_KEY
 
 logger = logging.getLogger(__name__)
 

@@ -1,11 +1,22 @@
 import argparse
-from datasets import load_dataset
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
-from peft import LoraConfig, prepare_model_for_kbit_training, get_peft_model
-from trl import DPOTrainer, DPOConfig
+import logging
+
+logger = logging.getLogger(__name__)
+
+_HAS_TORCH = False
+try:
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+    from peft import LoraConfig, prepare_model_for_kbit_training, get_peft_model
+    from trl import DPOTrainer, DPOConfig
+    from datasets import load_dataset
+    _HAS_TORCH = True
+except ImportError as _e:
+    logger.info(f"LoRA trainer dependencies not available ({_e}); training disabled.")
 
 def train_dpo(dataset_path: str, model_id="meta-llama/Meta-Llama-3-8B-Instruct"):
+    if not _HAS_TORCH:
+        raise RuntimeError("LoRA training requires torch, transformers, peft, trl, and datasets.")
     # 1. 4-bit Quantization to fit 24GB RTX VRAM
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,

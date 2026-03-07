@@ -8,10 +8,11 @@ import asyncio
 import os
 import logging
 import time
+from datetime import datetime
 from typing import Dict, List
 
 try:
-    from app.modules.openclaw.streaming_engine import get_blackboard, BlackboardMessage, Topic
+    from app.modules.openclaw.streaming.streaming_engine import get_blackboard, BlackboardMessage, Topic
 except ImportError:
     get_blackboard = None; BlackboardMessage = None; Topic = None
 
@@ -20,6 +21,18 @@ logger = logging.getLogger(__name__)
 # --- CONTROLS ---
 MIN_PROBABILITY_SHIFT = float(os.getenv('MIN_PROBABILITY_SHIFT', '0.10')) # 10%
 POLL_INTERVAL = int(os.getenv('PREDICTION_POLL_INTERVAL', '600')) # 10 mins
+
+
+async def fetch_prediction_markets() -> List[Dict]:
+    """Fetch from Polymarket / Kalshi APIs. Returns list of market dicts."""
+    # TODO: wire real Polymarket Gamma API
+    return []
+
+
+def normalize_odds(odds: float) -> float:
+    """Normalize probability odds to a [-1, 1] sentiment scale."""
+    return round((odds - 0.5) * 2, 4)
+
 
 class PredictionMarketScanner:
     def __init__(self, blackboard=None):

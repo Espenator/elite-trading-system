@@ -12,7 +12,7 @@ Components:
     - LLMThemeExtractor: Theme synthesis from raw intel
 """
 
-from world_intel.sensorium import (
+from .sensorium import (
     WorldIntelSensorium,
     NewsAggregator,
     XScanner,

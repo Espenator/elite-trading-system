@@ -175,6 +175,54 @@ def _compute_volatility_features(ohlcv_rows: list) -> Dict[str, float]:
     }
 
 
+def _compute_extended_indicators(ohlcv_rows: list) -> Dict[str, float]:
+    """Compute extended indicators (EMAs, RSI, MACD) from OHLCV rows."""
+    if not ohlcv_rows:
+        return {}
+    closes = [_safe_float(r.get("close")) for r in ohlcv_rows if r.get("close")]
+    if len(closes) < 5:
+        return {}
+
+    features: Dict[str, float] = {}
+
+    # Exponential Moving Averages
+    for period in (5, 10, 20, 50):
+        if len(closes) >= period:
+            multiplier = 2 / (period + 1)
+            ema = sum(closes[:period]) / period
+            for price in closes[period:]:
+                ema = (price - ema) * multiplier + ema
+            features[f"ema_{period}"] = ema
+
+    # Simple RSI (14-period)
+    if len(closes) >= 15:
+        gains, losses = [], []
+        for i in range(1, len(closes)):
+            delta = closes[i] - closes[i - 1]
+            gains.append(max(delta, 0))
+            losses.append(max(-delta, 0))
+        period = 14
+        avg_gain = sum(gains[-period:]) / period
+        avg_loss = sum(losses[-period:]) / period
+        if avg_loss > 0:
+            rs = avg_gain / avg_loss
+            features["rsi_14"] = 100 - (100 / (1 + rs))
+        else:
+            features["rsi_14"] = 100.0
+
+    # MACD (12, 26, 9)
+    if len(closes) >= 26:
+        ema12 = sum(closes[:12]) / 12
+        for p in closes[12:]:
+            ema12 = (p - ema12) * (2 / 13) + ema12
+        ema26 = sum(closes[:26]) / 26
+        for p in closes[26:]:
+            ema26 = (p - ema26) * (2 / 27) + ema26
+        features["macd"] = ema12 - ema26
+
+    return features
+
+
 def _get_regime_snapshot() -> Dict[str, Any]:
     """Get current market regime from regime service if available."""
     try:

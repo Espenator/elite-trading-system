@@ -22,7 +22,7 @@ from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame
 from alpaca.data.enums import DataFeed
-from config import ALPACA_API_KEY, ALPACA_SECRET_KEY
+from ..config import ALPACA_API_KEY, ALPACA_SECRET_KEY
 
 logger = logging.getLogger(__name__)
 

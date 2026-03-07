@@ -449,4 +449,22 @@ def place_order(symbol, qty, side="buy", order_type="market"):
 
 
 # Module-level instance
-alpaca_client = AlpacaClient()
+# Lazy singleton - instantiate on first use, not at import time
+_alpaca_client = None
+
+
+def get_alpaca_client():
+    """Get or create the AlpacaClient singleton."""
+    global _alpaca_client
+    if _alpaca_client is None:
+        _alpaca_client = AlpacaClient()
+    return _alpaca_client
+
+
+# Backwards compat: alias for code that reads `alpaca_client` directly
+class _LazyClient:
+    def __getattr__(self, name):
+        return getattr(get_alpaca_client(), name)
+
+
+alpaca_client = _LazyClient()

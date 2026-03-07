@@ -41,7 +41,7 @@ try:
 except ImportError:
     HAS_AIOHTTP = False
 
-from config import ALPACA_API_KEY, ALPACA_SECRET_KEY, ALPACA_FEED
+from ..config import ALPACA_API_KEY, ALPACA_SECRET_KEY, ALPACA_FEED
 
 try:
     from config import UNUSUALWHALES_API_KEY, UNUSUALWHALES_BASE_URL

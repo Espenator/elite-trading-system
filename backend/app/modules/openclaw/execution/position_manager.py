@@ -35,7 +35,7 @@ from alpaca.trading.enums import OrderSide, TimeInForce, OrderType
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest, StockLatestQuoteRequest
 from alpaca.data.timeframe import TimeFrame
-from config import ALPACA_API_KEY, ALPACA_SECRET_KEY, MAX_DAILY_LOSS_PCT
+from ..config import ALPACA_API_KEY, ALPACA_SECRET_KEY, MAX_DAILY_LOSS_PCT
 
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")

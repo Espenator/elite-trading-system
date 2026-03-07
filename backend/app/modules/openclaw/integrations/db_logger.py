@@ -7,7 +7,7 @@ import os
 import logging
 from datetime import datetime
 from pathlib import Path
-from config import BASE_DIR
+from ..config import BASE_DIR
 
 logger = logging.getLogger(__name__)
 

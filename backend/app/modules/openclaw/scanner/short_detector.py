@@ -14,22 +14,22 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 
 try:
-    from technical_checker import check_technicals
+    from .technical_checker import check_technicals
 except ImportError:
     check_technicals = None
 
 try:
-    from whale_flow import whale_flow_scanner
+    from .whale_flow import whale_flow_scanner
 except ImportError:
     whale_flow_scanner = None
 
 try:
-    from fom_expected_moves import get_expected_move
+    from .fom_expected_moves import get_expected_move
 except ImportError:
     get_expected_move = None
 
 try:
-    from sector_rotation import get_sector_rankings
+    from .sector_rotation import get_sector_rankings
 except ImportError:
     get_sector_rankings = None
 
@@ -48,6 +48,78 @@ BEARISH_WILLIAMS_THRESHOLD = -20  # W%R > -20 is overbought
 SHORT_PULLBACK_RSI_MIN = 55  # RSI for bearish pullback entry
 SHORT_PULLBACK_RSI_MAX = 70  # RSI ceiling for entry
 PUT_PREMIUM_MIN = 50000  # Min put premium for whale signal
+SHORT_SCORE_THRESHOLD = 50  # Minimum composite score to trigger short signal
+
+
+# ============================================================
+# SCORING
+# ============================================================
+
+def score_short_setup(
+    patterns: Dict = None,
+    bearish_indicators: Dict = None,
+    whale_flow: Dict = None,
+    sector_weakness: float = 0,
+    short_pullback: Dict = None,
+    em_pct: float = 0,
+) -> Dict:
+    """Score a short setup on 0-100 scale.
+
+    Weights:
+        Patterns          30%
+        Bearish indicators 25%
+        Whale flow         20%
+        Sector weakness    15%
+        Expected move      10%
+    """
+    score = 0.0
+    breakdown = {}
+
+    # Patterns (up to 30)
+    p = patterns or {}
+    pat_score = 0
+    if p.get("head_and_shoulders"): pat_score += 15
+    if p.get("distribution"): pat_score += 10
+    if p.get("descending_channel"): pat_score += 10
+    if p.get("breakdown"): pat_score += 10
+    pat_score = min(pat_score, 30)
+    breakdown["patterns"] = pat_score
+    score += pat_score
+
+    # Bearish indicators (up to 25)
+    bi = bearish_indicators or {}
+    ind_score = 0
+    if bi.get("overbought_rsi"): ind_score += 8
+    if bi.get("bearish_macd"): ind_score += 8
+    if bi.get("overbought_williams"): ind_score += 5
+    if bi.get("below_ema20"): ind_score += 4
+    ind_score = min(ind_score, 25)
+    breakdown["indicators"] = ind_score
+    score += ind_score
+
+    # Whale flow (up to 20)
+    wf = whale_flow or {}
+    wf_score = 20 if wf.get("has_bearish_flow") else 0
+    breakdown["whale_flow"] = wf_score
+    score += wf_score
+
+    # Sector weakness (up to 15)
+    sw_score = min(sector_weakness * 15, 15)
+    breakdown["sector_weakness"] = round(sw_score, 1)
+    score += sw_score
+
+    # Expected move (up to 10)
+    em_score = min(em_pct * 2, 10) if em_pct > 0 else 0
+    breakdown["expected_move"] = round(em_score, 1)
+    score += em_score
+
+    # Short pullback bonus
+    if short_pullback:
+        bonus = 5
+        score += bonus
+        breakdown["pullback_bonus"] = bonus
+
+    return {"total": round(score, 1), "breakdown": breakdown}
 
 
 # ============================================================

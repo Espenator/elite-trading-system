@@ -1,7 +1,7 @@
 import logging
-from config import REGIME_CONFIG, REGIME_GREEN_VIX, REGIME_YELLOW_VIX, REGIME_RED_VIX, VELEZ_SLAM, VELEZ_GO, VELEZ_WATCH
-from config import CRASH_HY_SPREAD, CRASH_VIX_SINGLE_DAY, CRASH_BREADTH_MIN, CRASH_SPY_DROP, CRASH_VIX_SPIKE
-from macro_context import macro_context
+from ..config import REGIME_CONFIG, REGIME_GREEN_VIX, REGIME_YELLOW_VIX, REGIME_RED_VIX, VELEZ_SLAM, VELEZ_GO, VELEZ_WATCH
+from ..config import CRASH_HY_SPREAD, CRASH_VIX_SINGLE_DAY, CRASH_BREADTH_MIN, CRASH_SPY_DROP, CRASH_VIX_SPIKE
+from .macro_context import macro_context
 
 logger = logging.getLogger(__name__)
 

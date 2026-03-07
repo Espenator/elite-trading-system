@@ -2,7 +2,7 @@ import json
 import asyncio
 from typing import Dict, Any
 
-class ApexOrchestrator:
+class ApexOrchestratorAgent:
     def __init__(self, llm_client, redis_pubsub):
         self.llm = llm_client
         self.redis = redis_pubsub

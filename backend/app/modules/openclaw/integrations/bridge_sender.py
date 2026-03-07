@@ -26,7 +26,7 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-from config import ELITE_API_URL, ELITE_API_PREFIX
+from ..config import ELITE_API_URL, ELITE_API_PREFIX
 
 logger = logging.getLogger(__name__)
 

@@ -19,7 +19,7 @@ from collections import deque
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 
-from streaming_engine import (
+from ..streaming.streaming_engine import (
     Blackboard, BlackboardMessage, Topic, get_blackboard,
 )
 

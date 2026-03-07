@@ -38,7 +38,10 @@ if not DISCORD_USER_TOKEN:
         "3. Value: paste your token "
         "4. Click 'Add secret'"
     )
-    sys.exit(1)
+    # Don't crash on import — just flag as disabled
+    _DISCORD_ENABLED = False
+else:
+    _DISCORD_ENABLED = True
 
 # Slack webhooks - per source routing, fallback to generic
 SLACK_WEBHOOK_UW  = os.getenv('SLACK_WEBHOOK_UW',  os.getenv('SLACK_WEBHOOK_URL', ''))

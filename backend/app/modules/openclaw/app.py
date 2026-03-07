@@ -10,35 +10,63 @@ import json
 import time
 from flask import Flask, request, jsonify
 import threading
-from slack_bolt import App
-from slack_bolt.adapter.socket_mode import SocketModeHandler
+try:
+    from slack_bolt import App
+    from slack_bolt.adapter.socket_mode import SocketModeHandler
+except ImportError:
+    App = None
+    SocketModeHandler = None
 from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import MarketOrderRequest
 from alpaca.trading.enums import OrderSide, TimeInForce
 
-from config import *
-from regime import regime_detector
-from signal_parser import signal_parser
-from db_logger import DbLogger
-from daily_scanner import DailyScanner, run_daily_scan
-from finviz_scanner import finviz_scanner
-from whale_flow import whale_flow_scanner
-from fom_expected_moves import run_fom_em_scrape, run_fom_em_post
-from memory import trade_memory
-from llm_client import llm_router
+from .config import *
+from .intelligence.regime import regime_detector
+from .integrations.signal_parser import signal_parser
+from .integrations.db_logger import DBLogger as DbLogger
+from .scanner.daily_scanner import DailyScanner, run_daily_scan
+from .scanner.finviz_scanner import finviz_scanner
+from .scanner.whale_flow import whale_flow_scanner
+from .scanner.fom_expected_moves import run_fom_em_scrape, run_fom_em_post
+from .intelligence.memory import trade_memory
+from .intelligence.llm_client import get_llm as llm_router
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize Slack app
-app = App(token=SLACK_BOT_TOKEN)
+# Initialize Slack app (optional — slack_bolt may not be installed)
+if App is not None:
+    try:
+        app = App(token=SLACK_BOT_TOKEN)
+    except Exception as _e:
+        app = None
+        logger.warning(f"Slack App init failed: {_e}")
+else:
+    app = None
+    logger.warning("slack_bolt not installed — Slack bot disabled")
+
+# Null-pattern fallback so @app.command / @app.action decorators don't crash at import
+if app is None:
+    class _NullSlackApp:
+        """No-op stand-in so decorated functions still get defined."""
+        def command(self, *a, **kw):
+            return lambda fn: fn
+        def action(self, *a, **kw):
+            return lambda fn: fn
+        def event(self, *a, **kw):
+            return lambda fn: fn
+    app = _NullSlackApp()
 
 # Initialize Flask for webhooks
 flask_app = Flask(__name__)
 
-# Initialize Alpaca client
-alpaca_client = TradingClient(ALPACA_API_KEY, ALPACA_SECRET_KEY, paper=True)
+# Initialize Alpaca client (lazy — may not have credentials at import time)
+try:
+    alpaca_client = TradingClient(ALPACA_API_KEY, ALPACA_SECRET_KEY, paper=True)
+except (ValueError, Exception) as _e:
+    alpaca_client = None
+    logger.warning(f"Alpaca client init deferred: {_e}")
 
 # Initialize database logger
 db_logger = DbLogger()

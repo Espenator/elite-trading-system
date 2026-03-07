@@ -945,6 +945,7 @@ async def drawdown_episodes():
     history = db_service.get_config("risk_history") or []
     episodes = []
     peak = 0
+    min_eq = 0
     ep_start = None
     for entry in history:
         eq = entry.get("equity", 0)
