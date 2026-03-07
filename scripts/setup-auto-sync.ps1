@@ -216,13 +216,17 @@ try {
 # DONE
 # ─────────────────────────────────────────────
 Write-Host ""
-Write-Host "╔══════════════════════════════════════════════╗" -ForegroundColor Green
-Write-Host "║  AUTO-SYNC SETUP COMPLETE                    ║" -ForegroundColor Green
-Write-Host "║  Both PCs will auto-pull every $PollMinutes minutes     ║" -ForegroundColor Green
-Write-Host "║  Push to main -> both PCs update in <$PollMinutes min   ║" -ForegroundColor Green
-Write-Host "╚══════════════════════════════════════════════╝" -ForegroundColor Green
-Write-Host ""
-Write-Host 'To verify: Get-ScheduledTask -TaskName "EmbodierTrader-GitAutoSync"' -ForegroundColor Gray
-Write-Host 'To run now: Start-ScheduledTask -TaskName "EmbodierTrader-GitAutoSync"' -ForegroundColor Gray
-Write-Host 'To remove: Unregister-ScheduledTask -TaskName "EmbodierTrader-GitAutoSync" -Confirm:$false' -ForegroundColor Gray
-Write-Host 'Logs: C:\Windows\Temp\embodier-auto-sync.log' -ForegroundColor Gray
+Write-Host '=============================================' -ForegroundColor Green
+Write-Host '  AUTO-SYNC SETUP COMPLETE' -ForegroundColor Green
+Write-Host "  Both PCs will auto-pull every $PollMinutes minutes" -ForegroundColor Green
+Write-Host "  Push to main -> both PCs update in <$PollMinutes min" -ForegroundColor Green
+Write-Host '=============================================' -ForegroundColor Green
+Write-Host ''
+$verifyCmd = 'Get-ScheduledTask -TaskName "EmbodierTrader-GitAutoSync"'
+$runCmd = 'Start-ScheduledTask -TaskName "EmbodierTrader-GitAutoSync"'
+$removeCmd = 'Unregister-ScheduledTask -TaskName "EmbodierTrader-GitAutoSync" -Confirm:' + '$false'
+$logPath = 'C:\Windows\Temp\embodier-auto-sync.log'
+Write-Host "To verify: $verifyCmd" -ForegroundColor Gray
+Write-Host "To run now: $runCmd" -ForegroundColor Gray
+Write-Host "To remove: $removeCmd" -ForegroundColor Gray
+Write-Host "Logs: $logPath" -ForegroundColor Gray
