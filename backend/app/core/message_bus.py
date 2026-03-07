@@ -49,6 +49,8 @@ class MessageBus:
         "swarm.result",         # Swarm analysis complete
         "knowledge.ingested",   # New knowledge fed into the system
         "scout.discovery",      # Scout found an opportunity
+        # Outcome tracking
+        "outcome.resolved",     # Position outcome resolved (win/loss/scratch)
     }
 
     def __init__(self, max_queue_size: int = 10_000):

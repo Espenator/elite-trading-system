@@ -174,56 +174,33 @@ def _update_agent_stats(
 
 
 def update_agent_weights() -> Dict[str, float]:
-    """Recompute agent weights from accuracy history and persist to settings.
+    """Delegate weight updates to WeightLearner (single source of truth).
 
-    Weight adjustment formula:
-      new_weight = base_weight * (0.5 + accuracy)
+    DEPRECATED: Previously computed weights independently using a simpler
+    0.5 + accuracy multiplier and persisted to settings_service. This
+    conflicted with WeightLearner which uses multiplicative Bayesian
+    updates (with debate/red-team auxiliary learning) and persists to
+    DuckDB agent_weights table. Both running simultaneously caused
+    oscillating weights as the last writer wins.
 
-    This means:
-      - 50% accuracy (random) -> weight stays at base * 1.0
-      - 70% accuracy -> weight becomes base * 1.2
-      - 30% accuracy -> weight becomes base * 0.8
-      - Minimum 10 decisions before adjusting
+    Now delegates entirely to WeightLearner. Kept as a thin wrapper
+    for backward compatibility with any callers.
 
     Returns:
-        Dict of {agent_name: new_weight}
+        Dict of {agent_name: weight}
     """
-    store = _get_store()
-    stats = store.get("agent_stats", {})
-
-    # Need minimum sample size before adjusting
-    MIN_DECISIONS = 10
-
-    from app.council.agent_config import get_agent_thresholds, _DEFAULTS
-    current_cfg = get_agent_thresholds()
-    new_weights = {}
-
-    for agent_name, agent_stats in stats.items():
-        weight_key = f"weight_{agent_name}"
-        base_weight = _DEFAULTS.get(weight_key, 1.0)
-
-        if agent_stats["total"] < MIN_DECISIONS:
-            new_weights[weight_key] = base_weight
-            continue
-
-        accuracy = agent_stats["accuracy"]
-        # Scale: 0.5 + accuracy maps [0,1] -> [0.5, 1.5] multiplier
-        multiplier = 0.5 + accuracy
-        new_weight = round(base_weight * multiplier, 2)
-        # Clamp to [0.1, 3.0] to prevent extreme weights
-        new_weight = max(0.1, min(3.0, new_weight))
-        new_weights[weight_key] = new_weight
-
-    # Persist to settings service
-    if new_weights:
-        try:
-            from app.services.settings_service import update_settings_by_category
-            update_settings_by_category("council", new_weights)
-            logger.info("Feedback loop: updated agent weights: %s", new_weights)
-        except Exception as e:
-            logger.warning("Feedback loop: failed to persist weights: %s", e)
-
-    return new_weights
+    try:
+        from app.council.weight_learner import get_weight_learner
+        learner = get_weight_learner()
+        weights = learner.get_weights()
+        logger.info(
+            "Feedback loop: delegated to WeightLearner (%d agents, %d updates)",
+            len(weights), learner.update_count,
+        )
+        return weights
+    except Exception as e:
+        logger.warning("WeightLearner unavailable, returning empty: %s", e)
+        return {}
 
 
 def get_agent_performance() -> Dict[str, Any]:
