@@ -38,6 +38,29 @@ from app.websocket_manager import (
 )
 import json
 
+import numpy as np
+import pandas as pd
+
+
+class _NumpySafeEncoder(json.JSONEncoder):
+    """JSON encoder that handles numpy/pandas types from DuckDB queries."""
+
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.bool_):
+            return bool(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        if isinstance(obj, (pd.Timestamp,)):
+            return obj.isoformat()
+        if pd.isna(obj):
+            return None
+        return super().default(obj)
+
+
 from app.core.config import settings
 from app.api.v1 import (
     stocks,
@@ -765,6 +788,18 @@ async def lifespan(app: FastAPI):
 # Rate limiter: 200/min general, 20/min for order endpoints
 limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 
+
+class _NumpySafeJSONResponse(JSONResponse):
+    """JSONResponse that handles numpy/pandas types from DuckDB queries."""
+
+    def render(self, content) -> bytes:
+        return json.dumps(
+            content,
+            cls=_NumpySafeEncoder,
+            ensure_ascii=False,
+        ).encode("utf-8")
+
+
 app = FastAPI(
     title=(
         settings.PROJECT_NAME
@@ -773,6 +808,7 @@ app = FastAPI(
     ),
     version=settings.APP_VERSION,  # Audit Task 19: single source from config.py
     lifespan=lifespan,
+    default_response_class=_NumpySafeJSONResponse,
 )
 app.state.limiter = limiter
 
