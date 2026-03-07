@@ -211,7 +211,7 @@ class TradeStatsService:
         entry_price: float,
         exit_price: float,
         qty: int,
-        regime: str = "NEUTRAL", side: Optional[str] = None,
+        regime: str = "NEUTRAL",
         signal_score: float = 0.0,
         kelly_pct: float = 0.0,
     ) -> None:
