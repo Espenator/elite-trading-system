@@ -75,6 +75,9 @@ export default function useWebSocket(channel, options = {}) {
         reconnectCountRef.current = 0;
         log.info(`[WS:${channel}] Connected to ${wsUrl}`);
 
+        // Auto-subscribe to the requested channel
+        ws.send(JSON.stringify({ type: 'subscribe', channel }));
+
         // Start heartbeat
         heartbeatRef.current = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {

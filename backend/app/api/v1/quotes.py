@@ -11,12 +11,17 @@ logger = logging.getLogger(__name__)
 finviz_service = FinvizService()
 
 
-@router.get("")
-async def quotes_root():
-    """Root endpoint — lists available quote sub-endpoints."""
+@router.get("/")
+async def get_quotes_root():
+    """Root endpoint — returns available quote endpoints info for frontend useApi('quotes')."""
     return {
-        "service": "quotes",
-        "endpoints": ["/{ticker}", "/{ticker}/candles", "/{ticker}/book"],
+        "available": True,
+        "endpoints": [
+            "/{ticker} - Get quote data for a symbol",
+            "/{ticker}/candles - Get OHLCV candle data",
+            "/{ticker}/book - Get order book",
+        ],
+        "message": "Use /{ticker} to get quote data for a specific symbol",
     }
 
 

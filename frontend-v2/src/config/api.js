@@ -25,13 +25,13 @@ const API_CONFIG = {
   // Format: frontend_key -> backend_route_path
   endpoints: {
     // ---- EXISTING (already in backend/app/api/v1/) ----
-    stocks: "/stocks", // Stock universe data
-    quotes: "/quotes", // Real-time price quotes
-    orders: "/orders", // Order execution (Alpaca)
+    stocks: "/stocks/", // Stock universe data (trailing slash to avoid 307 redirect)
+    quotes: "/quotes/", // Real-time price quotes (trailing slash to avoid 307 redirect)
+    orders: "/orders/", // Order execution (Alpaca) (trailing slash to avoid 307)
     system: "/system", // System status + config
     "system/event-bus/status": "/system/event-bus/status", // Event-bus topics for Agent Command Center
     signals: "/signals/", // Generated trading signals (trailing slash required by FastAPI)
-    backtest: "/backtest", // Backtesting engine
+    backtest: "/backtest/", // Backtesting engine (trailing slash to avoid 307)
     backtestRuns: "/backtest/runs", // Recent backtest runs (for Backtesting page)
         backtestResults: "/backtest/results", // Full backtest results + equity curve
     backtestOptimization: "/backtest/optimization", // Parameter optimization heatmap
@@ -67,7 +67,7 @@ const API_CONFIG = {
     market: "/market", // Market indices (SPY, QQQ, DIA) for Dashboard
     marketIndices: "/market/indices", // GET indices snapshot for Dashboard top bar
     openclawRegime: "/openclaw/regime", // Regime state for Signal Intelligence / Market Regime
-    mlBrain: "/ml-brain", // ML brain model status + predictions
+    mlBrain: "/ml-brain/", // ML brain model status + predictions (trailing slash to avoid 307 redirect)
     "ml-brain/models": "/ml-brain/registry/status", // ML model registry status
     riskShield: "/risk-shield", // RiskShield emergency controls + safety checks
         kellySizer: "/risk/kelly-sizer", // Bug #19 fix: was /kelly-sizer, needs /risk prefix
@@ -121,12 +121,18 @@ const API_CONFIG = {
     // ---- COUNCIL (11-Agent Debate Council) ----
     councilEvaluate: "/council/evaluate", // POST: run 11-agent council evaluation
     councilLatest: "/council/latest", // GET: latest council DecisionPacket
+    "council/status": "/council/status", // GET: council pipeline status
+    councilWeights: "/council/weights", // GET: agent weights
 
     // ---- FEATURE STORE ----
     featuresLatest: "/features/latest", // GET: latest feature vector for symbol
     featuresCompute: "/features/compute", // POST: compute + persist feature vector
 
+    // ---- TRAINING ----
+    training: "/training/", // GET: ML training status + history
+
     // ---- DEVICE & SYSTEM ----
+    "system/health": "/system", // GET: system health (maps to root system endpoint)
     deviceInfo: "/system/device", // GET: device identity for multi-PC setups
 
     // ---- FLYWHEEL SCHEDULER ----
@@ -153,6 +159,9 @@ const API_CONFIG = {
     cognitiveDashboard: "/cognitive/dashboard",
     cognitiveSnapshots: "/cognitive/snapshots",
     cognitiveCalibration: "/cognitive/calibration",
+
+    // ---- LOGS ----
+    "logs/system": "/logs", // GET: system logs (maps to root logs endpoint)
 
     // ---- SWARM INTELLIGENCE ----
     swarmTurboStatus: "/swarm/turbo/status",
@@ -225,10 +234,14 @@ export const getWsBaseUrl = () =>
     : "ws://localhost:3000/ws");
 
 /**
- * Get WebSocket URL for a channel
- * Usage: getWsUrl('agents') => '/ws/agents' (via proxy in dev) or 'ws://host/ws/agents'
+ * Get WebSocket URL for a channel.
+ * Backend uses a single /ws endpoint with channel subscriptions via messages.
+ * The channel param is appended for Vite proxy routing but the backend
+ * ignores the path suffix — the client subscribes by sending:
+ *   { type: 'subscribe', channel: 'agents' }
+ * Usage: getWsUrl('agents') => '/ws' (all channels use same endpoint)
  */
-export const getWsUrl = (channel) => `${getWsBaseUrl()}/${channel}`;
+export const getWsUrl = (channel) => getWsBaseUrl();
 
 /** WebSocket channel names for real-time updates (backend must expose these). */
 export const WS_CHANNELS = {

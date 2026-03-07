@@ -12,14 +12,15 @@ router = APIRouter()
 finviz_service = FinvizService()
 
 
-@router.get("")
-async def stocks_root():
-    """Root endpoint — returns tracked symbols + list summary."""
+@router.get("/")
+async def get_stocks_root():
+    """Root endpoint — returns tracked symbols summary for frontend useApi('stocks')."""
     symbols = get_tracked_symbols()
+    metadata = {s: get_symbol_metadata(s) for s in symbols}
     return {
+        "symbols": symbols,
+        "metadata": metadata,
         "count": len(symbols),
-        "symbols": symbols[:20],
-        "endpoints": ["/tracked", "/list"],
     }
 
 

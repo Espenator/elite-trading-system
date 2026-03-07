@@ -41,24 +41,45 @@ def _get_ml_data(key: str, default=None):
 # ---------------------------------------------------------------------------
 
 
-@router.get("")
-async def ml_brain_overview():
-    """ML Brain status overview."""
+@router.get("/")
+async def get_ml_brain_root():
+    """Root ML Brain endpoint — returns aggregate status for frontend useApi('mlBrain')."""
+    status: Dict[str, Any] = {
+        "version": "2.0",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+    # Performance data
+    perf = _get_ml_data("ml_brain_performance", [])
+    status["performance_entries"] = len(perf) if isinstance(perf, list) else 0
+
+    # Staged signals
+    staged = _get_ml_data("ml_brain_staged_signals", [])
+    status["staged_signals"] = len(staged) if isinstance(staged, list) else 0
+
+    # Registry
     try:
         from app.modules.ml_engine.model_registry import get_registry
-        registry_status = get_registry().get_status()
+        registry = get_registry()
+        reg_status = registry.get_status() if hasattr(registry, "get_status") else {}
+        status["registry"] = reg_status
+    except ImportError:
+        status["registry"] = {"status": "not_installed"}
     except Exception:
-        registry_status = {"status": "unavailable"}
+        status["registry"] = {"status": "error"}
+
+    # Drift
     try:
         from app.modules.ml_engine.drift_detector import get_drift_monitor
-        drift_status = get_drift_monitor().get_status()
+        monitor = get_drift_monitor()
+        drift_stat = monitor.get_status() if hasattr(monitor, "get_status") else {}
+        status["drift_monitor"] = drift_stat
+    except ImportError:
+        status["drift_monitor"] = {"status": "not_installed"}
     except Exception:
-        drift_status = {"status": "unavailable"}
-    return {
-        "service": "ml-brain",
-        "model_registry": registry_status,
-        "drift_monitor": drift_status,
-    }
+        status["drift_monitor"] = {"status": "error"}
+
+    return status
 
 
 @router.get("/performance")

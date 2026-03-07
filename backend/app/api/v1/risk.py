@@ -334,6 +334,20 @@ async def kelly_calculate(req: KellyRequest):
     }
 
 
+@router.get("/position-sizing")
+async def get_position_sizing_config():
+    """GET: Return current position sizing configuration and limits."""
+    config = _get_risk_config()
+    return {
+        "max_sector_pct": settings.MAX_SECTOR_CONCENTRATION,
+        "max_portfolio_heat": settings.MAX_PORTFOLIO_HEAT,
+        "use_half_kelly": config.get("useHalfKelly", True),
+        "max_position_pct": _safe_float(config.get("positionSizeLimit"), 5.0),
+        "positions": [],
+        "total_allocation_pct": 0,
+    }
+
+
 @router.post("/position-sizing", dependencies=[Depends(require_auth)])
 async def portfolio_position_sizing(positions: List[dict]):
     """Apply Kelly + sector correlation caps to a list of positions.
