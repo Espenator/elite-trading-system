@@ -41,8 +41,10 @@ class AlpacaStreamService:
         os.getenv("ALPACA_STREAM_FALLBACK_AFTER_LIMIT", "1")
     )
 
-    def __init__(self, message_bus, symbols: Optional[List[str]] = None):
+    def __init__(self, message_bus, symbols: Optional[List[str]] = None, api_key: str = None, secret_key: str = None):
         self.message_bus = message_bus
+        self._api_key = api_key
+        self._secret_key = secret_key
         self.symbols = symbols or [
             "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA",
             "TSLA", "META", "SPY", "QQQ", "IWM",
@@ -72,8 +74,8 @@ class AlpacaStreamService:
         # Try settings first (pydantic), fall back to os.environ
         try:
             from app.core.config import settings as _settings
-            api_key = getattr(_settings, "ALPACA_API_KEY", "") or os.getenv("ALPACA_API_KEY", "")
-            secret_key = getattr(_settings, "ALPACA_SECRET_KEY", "") or os.getenv("ALPACA_SECRET_KEY", "")
+            api_key = self._api_key or getattr(_settings, "ALPACA_API_KEY", "") or os.getenv("ALPACA_API_KEY", "")
+            secret_key = self._secret_key or getattr(_settings, "ALPACA_SECRET_KEY", "") or os.getenv("ALPACA_SECRET_KEY", "")
         except Exception:
             api_key = os.getenv("ALPACA_API_KEY", "")
             secret_key = os.getenv("ALPACA_SECRET_KEY", "")

@@ -245,7 +245,7 @@ async def _start_event_driven_pipeline():
     3. CouncilGate -- signal.generated -> council evaluation -> council.verdict
     4. OrderExecutor -- council.verdict -> order.submitted (council-controlled)
     5. WebSocket bridges -- forward events to frontend dashboard
-    6. AlpacaStreamService -- WebSocket bars -> market_data.bar events
+    6. AlpacaStreamManager -- multi-key WebSocket bars -> market_data.bar events
     """
     global _message_bus, _alpaca_stream, _event_signal_engine
     global _council_gate, _order_executor, _alpaca_stream_task
@@ -359,11 +359,12 @@ async def _start_event_driven_pipeline():
     await _message_bus.subscribe("council.verdict", _bridge_council_to_ws)
     log.info("\u2705 Council->WebSocket bridge active")
 
-    # 6. AlpacaStreamService (publishes market_data.bar events)
+    # 6. AlpacaStreamManager (replaces single AlpacaStreamService)
+    global _stream_manager
     if os.getenv("DISABLE_ALPACA_DATA_STREAM", "").strip().lower() in ("1", "true", "yes"):
-        log.info("AlpacaStreamService skipped (DISABLE_ALPACA_DATA_STREAM=1)")
+        log.info("AlpacaStreamManager skipped (DISABLE_ALPACA_DATA_STREAM=1)")
     else:
-        from app.services.alpaca_stream_service import AlpacaStreamService
+        from app.services.alpaca_stream_manager import AlpacaStreamManager
         try:
             from app.modules.symbol_universe import get_tracked_symbols
             tracked = get_tracked_symbols()
@@ -374,9 +375,11 @@ async def _start_event_driven_pipeline():
             "TSLA", "META", "SPY", "QQQ", "IWM",
         ]
         symbols = list(set(tracked or default_symbols))
-        _alpaca_stream = AlpacaStreamService(_message_bus, symbols)
-        _alpaca_stream_task = asyncio.create_task(_alpaca_stream.start())
-        log.info("\u2705 AlpacaStreamService launched for %d symbols", len(symbols))
+        _stream_manager = AlpacaStreamManager(_message_bus, symbols)
+        _alpaca_stream_task = asyncio.create_task(_stream_manager.start())
+        # Keep _alpaca_stream reference for backward compat in health checks
+        _alpaca_stream = _stream_manager
+        log.info("\u2705 AlpacaStreamManager launched for %d symbols", len(symbols))
 
     # 8. SwarmSpawner — spawns analysis swarms from ideas
     # Skip when LLM disabled — _run_swarm does synchronous DuckDB ingest + LLM council
