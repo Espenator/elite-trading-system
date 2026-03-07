@@ -670,6 +670,22 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         log.warning("DuckDB init skipped: %s", e)
 
+    # 1b. Reset stale agent heartbeats so dashboard doesn't show "unresponsive"
+    try:
+        from app.data.storage import get_conn as _get_sqlite_conn
+        from datetime import datetime as _dt, timezone as _tz
+        _now_iso = _dt.now(_tz.utc).isoformat()
+        _sconn = _get_sqlite_conn()
+        for _aid in range(1, 6):
+            _sconn.execute(
+                "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
+                (f"agent_{_aid}_last_tick_at", _now_iso),
+            )
+        _sconn.commit()
+        log.info("Agent heartbeats reset to current time on startup")
+    except Exception as e:
+        log.warning("Agent heartbeat reset skipped: %s", e)
+
     # 2. ML Flywheel singletons
     try:
         _init_ml_singletons()
