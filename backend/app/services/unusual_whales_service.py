@@ -66,3 +66,30 @@ class UnusualWhalesService:
             return 0
         except Exception:
             return 0
+
+    async def get_congress_trades(self) -> Any:
+        """Fetch congress trading activity (paid plan)."""
+        self._validate_api_key()
+        url = f"{self.base_url}/congress/trading"
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            r = await client.get(url, headers=self._headers())
+        r.raise_for_status()
+        return r.json() if r.content else []
+
+    async def get_insider_trades(self) -> Any:
+        """Fetch insider trading activity (paid plan)."""
+        self._validate_api_key()
+        url = f"{self.base_url}/insider/trading"
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            r = await client.get(url, headers=self._headers())
+        r.raise_for_status()
+        return r.json() if r.content else []
+
+    async def get_darkpool_flow(self) -> Any:
+        """Fetch dark pool transaction data (paid plan)."""
+        self._validate_api_key()
+        url = f"{self.base_url}/darkpool/recent"
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            r = await client.get(url, headers=self._headers())
+        r.raise_for_status()
+        return r.json() if r.content else []
