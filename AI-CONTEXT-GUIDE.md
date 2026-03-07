@@ -1,7 +1,7 @@
 # AI Context Guide - Embodier Trader (Elite Trading System)
 > Strategies for managing AI context limits when working with this codebase.
 > This repo has 100+ files. Feeding everything at once causes "lost in the middle" problems.
-> Last updated: March 5, 2026 — v3.2.0
+> Last updated: March 7, 2026 — v3.5.0-dev (Continuous Discovery Architecture)
 
 ## Quick Start for AI Sessions
 
@@ -29,6 +29,9 @@ Load context in layers based on the task:
 | Backend fix | project_state.md | The route .py | service .py, schema |
 | Council fix | project_state.md | The agent .py | arbiter.py, schemas.py, runner.py |
 | Pipeline fix | project_state.md | council_gate.py | signal_engine.py, order_executor.py |
+| Discovery/Scanner | project_state.md | turbo_scanner.py, hyper_swarm.py | autonomous_scout.py, message_bus.py |
+| Scout agents | project_state.md | The scout .py | uw_agents.py, unusual_whales_service.py |
+| Knowledge layer | project_state.md | knowledge/ files | outcome_tracker.py, weight_learner.py |
 | New feature | project_state.md + README | Mockup image | Related page + API |
 | Bug fix | project_state.md | Error log | Failing file(s) |
 | CI fix | project_state.md | ci.yml | test_api.py, conftest |
@@ -49,12 +52,14 @@ Paste this at the start of every AI session:
 
 ```
 PROJECT: Embodier Trader (Elite Trading System)
-VERSION: 3.2.0
+VERSION: 3.5.0-dev (Continuous Discovery Architecture)
 STATUS: CI GREEN (151 tests passing)
 STACK: FastAPI + React (Vite) + DuckDB
 DATA: Alpaca Markets, Unusual Whales, FinViz, FRED, SEC EDGAR (NO yfinance)
-COUNCIL: 13-agent DAG in 7 stages with Bayesian weight learning
-PIPELINE: AlpacaStream -> SignalEngine -> CouncilGate -> 13-Agent Council -> OrderExecutor -> Alpaca
+COUNCIL: 17-agent DAG in 7 stages with Bayesian weight learning
+DISCOVERY: TurboScanner + HyperSwarm + 12 Scout Agents (Issue #38 — transitioning to streaming)
+PIPELINE: AlpacaStream -> SignalEngine -> CouncilGate -> Council -> OrderExecutor -> Alpaca
+KNOWLEDGE: MemoryBank + HeuristicEngine + KnowledgeGraph (wired to OutcomeTracker)
 BRANCH: main
 LAST UPDATE: [date]
 RULES:
@@ -66,6 +71,7 @@ RULES:
   - VETO_AGENTS = {"risk", "execution"} only
   - CouncilGate bridges signals to council — do NOT bypass
   - ONE repo: Espenator/elite-trading-system
+  - Discovery should be CONTINUOUS, not periodic — Issue #38
 CURRENT TASK: [describe what you want to do]
 FILES TO MODIFY: [list specific files]
 ```
@@ -91,6 +97,22 @@ The codebase has clear boundaries. Stay within one domain per session:
 - `backend/app/council/council_gate.py` - Pipeline bridge (signal -> council -> order)
 - `backend/app/council/weight_learner.py` - Bayesian self-learning weights
 - `backend/app/council/schemas.py` - AgentVote + DecisionPacket
+
+**Discovery & Scanning** (Issue #38 — transitioning to continuous):
+- `backend/app/services/turbo_scanner.py` - 10 parallel DuckDB screens, 8000+ symbols
+- `backend/app/services/hyper_swarm.py` - 50 micro-swarm workers, Ollama triage
+- `backend/app/services/autonomous_scout.py` - 4 scout loops (flow, screener, watchlist, backtest)
+- `backend/app/services/market_wide_sweep.py` - Full universe batch scan
+- `backend/app/services/swarm_spawner.py` - Council evaluation spawner (20 concurrent)
+- `backend/app/services/unified_profit_engine.py` - Multi-brain weighted ensemble scoring
+- `backend/app/modules/openclaw/scanner/uw_agents.py` - 6 Unusual Whales agents
+- `backend/app/services/scouts/` - 12 dedicated scout agents (PLANNED)
+
+**Knowledge Layer** (learning from outcomes):
+- `backend/app/services/knowledge/memory_bank.py` - Agent observation embeddings
+- `backend/app/services/knowledge/heuristic_engine.py` - Bayesian pattern extraction
+- `backend/app/services/knowledge/knowledge_graph.py` - Cross-agent synergy edges
+- `backend/app/services/outcome_tracker.py` - Trade resolution + feedback loop
 
 **Event Pipeline** (real-time trading):
 - `backend/app/core/message_bus.py` - Pub/sub event bus
@@ -131,6 +153,9 @@ The codebase has clear boundaries. Stay within one domain per session:
 7. **Emoji in JSX** - Use BMP unicode only (e.g. `\u21BB` not `\u{1F504}`)
 8. **WebSocket** - Keep catch blocks on single lines to avoid parse errors
 9. **GitHub editor** - Use clipboard paste method for multi-line edits to avoid auto-indent issues
+10. **Discovery must be continuous** - No new polling-based scanners. All new discovery should use streaming or event-driven patterns (Issue #38)
+11. **Scouts publish to swarm.idea** - All discovery agents must publish to MessageBus `swarm.idea` topic
+12. **Don't starve the brain** - The council can handle 40+ signals/second. Feed it continuously, not in bursts
 
 ---
 

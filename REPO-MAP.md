@@ -1,11 +1,14 @@
 # Embodier Trader - Repository Map
-> Auto-generated reference for AI coding assistants. Last updated: March 5, 2026 (v3.2.0).
+> Auto-generated reference for AI coding assistants. Last updated: March 7, 2026 (v3.5.0-dev).
 > Run `python map_repo.py` to regenerate, or `python bundle_files.py` to bundle key files.
+> **Current Focus**: Continuous Discovery Architecture (Issue #38)
 
 ## Tech Stack
 - **Backend**: Python 3.11, FastAPI, DuckDB
 - **Frontend**: React 18 (Vite), Lightweight Charts, Tailwind CSS
-- **Council**: 13-agent DAG with Bayesian-weighted arbiter (7 stages)
+- **Council**: 17-agent DAG with Bayesian-weighted arbiter (7 stages)
+- **Discovery**: TurboScanner + HyperSwarm + 12 Scout Agents (Issue #38 — streaming transition)
+- **Knowledge**: MemoryBank + HeuristicEngine + KnowledgeGraph (outcome-driven learning)
 - **Data Sources**: Alpaca Markets, Unusual Whales, FinViz, FRED, SEC EDGAR (NO yfinance)
 - **Event Pipeline**: MessageBus -> CouncilGate -> Council -> OrderExecutor
 - **Brain Service**: gRPC + Ollama (local LLM on RTX GPU)
@@ -308,19 +311,36 @@ elite-trading-system/
 1. **No yfinance** - All market data via Alpaca, Unusual Whales, FinViz, FRED, SEC EDGAR
 2. **Real API only** - No mock data in production components
 3. **useApi hook** - Central data fetching: `useApi('endpoint')` returns `{ data, loading, error }`
-4. **Council-controlled trading** - All signals pass through 13-agent council via CouncilGate before execution
+4. **Council-controlled trading** - All signals pass through 17-agent council via CouncilGate before execution
 5. **Bayesian weight learning** - WeightLearner adjusts agent influence based on trade outcomes
 6. **DuckDB** - Primary analytics database (WAL mode, connection pooling)
-7. **OpenClaw** - Legacy dead code, scheduled for cleanup (P4)
+7. **OpenClaw** - Legacy code with useful scanner/agent pieces, scheduled for cleanup (P4)
 8. **CI** - 151 tests passing, GitHub Actions on every push
 9. **Brain Service** - gRPC + Ollama on PC2 for LLM inference (not yet wired to council)
+10. **Discovery** - Transitioning from periodic polling to continuous streaming (Issue #38)
+11. **Knowledge Layer** - MemoryBank + HeuristicEngine + KnowledgeGraph learn from trade outcomes
 
-## Trade Pipeline (v3.2.0)
+## Discovery + Trade Pipeline (v3.5.0-dev)
 
 ```
-AlpacaStreamService -> market_data.bar -> SignalEngine -> signal.generated (score >= 65)
-  -> CouncilGate -> 13-Agent Council (7 stages) -> council.verdict
-  -> OrderExecutor (real DuckDB stats, real ATR, mock-source guard) -> Alpaca
+DISCOVERY (continuous — Issue #38):
+  StreamingDiscoveryEngine (Alpaca * stream) -> volume/price anomalies
+  12 Scout Agents (UW flow, insider, news, sentiment, etc.) -> discoveries
+  TurboScanner (60s, 10 DuckDB screens, 8000+ symbols) -> signals
+  MarketWideSweep (4hr full, 30min incremental) -> signals
+  All -> swarm.idea (MessageBus)
+
+TRIAGE:
+  swarm.idea -> HyperSwarm (50 workers, Ollama <500ms) -> score >= 65 escalated
+
+EVALUATION:
+  Escalated -> SwarmSpawner -> 17-Agent Council (7 stages) -> council.verdict
+
+EXECUTION:
+  council.verdict -> OrderExecutor (real DuckDB stats, real ATR, mock guard) -> Alpaca
+
+LEARNING:
+  order.filled -> OutcomeTracker -> MemoryBank + HeuristicEngine + KnowledgeGraph + WeightLearner
 ```
 
 ## Quick Reference: API Endpoints

@@ -8,20 +8,29 @@
 - **Repo**: github.com/Espenator/elite-trading-system (PUBLIC — this is the ONE repo for all code)
 - **Legacy Repo**: github.com/Espenator/Embodier-Trader — forked HTML site + orphaned JS agents. TO BE ARCHIVED. Do NOT build here.
 - **Owner**: Espenator (Asheville, NC)
-- **Status**: Active development, Phase 1 implementation — v3.4.0
+- **Status**: Active development, Phase 2 — v3.5.0-dev (Continuous Discovery Architecture)
 - **Philosophy**: Embodied Intelligence — the system IS profit, not seeking it. It operates as a conscious profit-seeking being with a Central Nervous System (CNS) architecture.
+- **Current Focus**: Shifting from periodic scanning to continuous real-time discovery firehose (Issue #38)
 
-## LATEST CHANGES (March 6, 2026) — v3.4.0
+## LATEST CHANGES (March 7, 2026) — v3.5.0-dev
 
-### ALL 14 Frontend Pages Complete — Pixel-Fidelity Mockup Match
-Every frontend page now matches its mockup image from `docs/mockups-v3/images/`. AgentCommandCenter was rebuilt into 5 component files with 8 tabs. Two duplicate pages deleted. 20 orphaned files cleaned up. Build passes clean. Zero orphaned imports.
+### Architecture Pivot: Continuous Discovery (Issue #38)
+Full codebase audit revealed the system is 73% analyst, 27% scout. The 17-agent council brain is starved of ideas. HyperSwarm processes 40 signals/sec but is fed bursts every 60s. All discovery is polling-based (60-900s intervals). No streaming discovery exists.
 
-**Frontend file counts:**
-- 14 page files in `pages/` (was 17 — deleted 2 duplicates + 1 hidden route)
-- 5 agent-tab files in `pages/agent-tabs/`
-- 12 shared components in `components/`
-- 6 hook files, 1 config, 1 util, 1 service
-- Total: ~850KB of JSX, all wired to `useApi()` hooks
+**Decision**: Invert the ratio. Build continuous discovery firehose. 8-enhancement plan over 8 weeks:
+1. **E1**: Streaming Discovery Engine (Alpaca `*` trade stream + news stream)
+2. **E2**: 12 Dedicated Scout Agents (always-running, all data sources active)
+3. **E3**: HyperSwarm Continuous Triage (priority queue, adaptive threshold)
+4. **E4**: Multi-Tier Council (Fast 5-agent <200ms + Deep 17-agent <2s)
+5. **E5**: Dynamic Universe (500-2000 symbols, self-healing)
+6. **E6**: Dual-Mode Agents (every analyst gets background scout mode)
+7. **E7**: Feedback-Driven Signal Amplification (scouts learn from outcomes)
+8. **E8**: Multi-Timeframe Scanning (5min/15min/1hr/daily/weekly)
+
+**Also completed**: Integration sprint — wired knowledge layer (MemoryBank, HeuristicEngine, KnowledgeGraph) into startup + feedback loop.
+
+### Previous: v3.4.0 (March 6, 2026) — ALL 14 Frontend Pages Complete
+Every frontend page matches its mockup. ACC rebuilt into 5 files with 8 tabs. 20 orphaned files cleaned up.
 
 ## Previous: v3.2.0 (March 5, 2026)
 
@@ -99,7 +108,17 @@ The codebase had five separate agent/decision systems. As of v3.2.0, Systems 2 a
 - [x] **P8**: Agent Self-Awareness — Bayesian WeightLearner with trade outcome learning
 - [x] Fix stale docstrings in council files and status endpoint
 
-### REMAINING
+### NEW PRIORITY: Continuous Discovery Architecture (Issue #38)
+- [ ] **E1**: Streaming Discovery Engine — Alpaca `*` trade/news streams, dynamic universe
+- [ ] **E2**: 12 Dedicated Scout Agents — all data sources active, always running
+- [ ] **E3**: HyperSwarm Continuous Triage — priority queue, adaptive threshold
+- [ ] **E4**: Multi-Tier Council — Fast (5 agents <200ms) + Deep (17 agents <2s)
+- [ ] **E5**: Dynamic Universe — 500-2000 symbols, self-healing, sector-aware
+- [ ] **E6**: Dual-Mode Agents — every analyst gets scout() background mode
+- [ ] **E7**: Feedback-Driven Amplification — signal DNA, win registry, scout priming
+- [ ] **E8**: Multi-Timeframe Scanning — 5min to weekly parallel scan loops
+
+### REMAINING (Lower Priority — After Discovery Architecture)
 - [ ] **P1**: Build BlackboardState — shared state across DAG stages, later stages read earlier conclusions
 - [ ] **P3**: Build CircuitBreaker Reflexes (brainstem <50ms) — flash crash, VIX spike, drawdown limits
 - [ ] **P4**: Clean Up OpenClaw — extract useful logic, delete dead Flask app
@@ -166,7 +185,8 @@ Agent Schema: `AgentVote(agent_name, direction, confidence, reasoning, veto, vet
 - **Cortex** (300-800ms): hypothesis + critic via brain_service gRPC [NOT WIRED - P7]
 - **Thalamus**: BlackboardState shared memory [TO BUILD - P1]
 - **Autonomic**: Bayesian WeightLearner [BUILT - P8] — learns from trade outcomes
-- **PNS Sensory**: Alpaca WS, Unusual Whales, FinViz, FRED, EDGAR [BUILT]
+- **PNS Sensory**: Alpaca WS, Unusual Whales, FinViz, FRED, EDGAR [BUILT — transitioning to streaming]
+- **Discovery Layer**: StreamingDiscoveryEngine + 12 Scout Agents + Dynamic Universe [PLANNED — Issue #38]
 - **PNS Motor**: OrderExecutor -> Alpaca Orders (via council.verdict) [BUILT]
 - **Event Bus**: MessageBus pub/sub [BUILT]
 - **Council Gate**: SignalEngine → Council → OrderExecutor bridge [BUILT - P0]
@@ -205,16 +225,19 @@ AlpacaStreamService
 6. Council Gate: signal.generated -> CouncilGate -> run_council() -> council.verdict -> OrderExecutor
 7. Weight Learning: WeightLearner.update(agent, won) adjusts Bayesian alpha/beta -> arbiter uses learned weights
 
-## Current State (Mar 6, 2026 — v3.2.0)
+## Current State (Mar 7, 2026 — v3.5.0-dev)
 - CI: 151 tests passing (Run #452 GREEN)
-- Version: 3.2.0
-- Frontend: 17 pages (15 original + SwarmIntelligence + CognitiveDashboard), all wired to real API hooks
-- Backend: 29 API routes, 24 service files
-- Council: 13 agents + arbiter + runner + CouncilGate + WeightLearner (fully connected to pipeline)
+- Version: 3.5.0-dev (Continuous Discovery Architecture in progress)
+- Frontend: 14 pages, all pixel-matched to mockups, wired to real API hooks
+- Backend: 29 API routes, 24+ service files, knowledge layer wired
+- Council: 17 agents + arbiter + runner + CouncilGate + WeightLearner (fully connected)
+- Discovery: TurboScanner (10 screens) + HyperSwarm (50 workers) + AutonomousScout (4 scouts) + 6 UW agents — ALL POLLING, transitioning to streaming (Issue #38)
+- Knowledge: MemoryBank + HeuristicEngine + KnowledgeGraph (wired to outcome tracker)
 - Brain Service: gRPC + Ollama ready (not yet connected to council)
 - Event Pipeline: MessageBus + CouncilGate + SignalEngine + OrderExecutor running
 - Kelly Sizing: Real DuckDB stats (no hardcoded values)
 - Mock Guard: OrderExecutor rejects trades from mock data sources
+- **Next milestone**: E1 + E2 (streaming discovery + 12 scout agents)
 
 ## UI MOCKUP FIDELITY AUDIT (Mar 6, 2026)
 
@@ -286,6 +309,9 @@ A comprehensive pixel-by-pixel audit was performed comparing all 23 mockup image
 11. REQUIRED_AGENTS = {"regime", "risk", "strategy"} — must vote non-hold for trade
 12. New agents should NOT have veto power
 13. CouncilGate is the bridge — signals go through council before OrderExecutor
+14. Discovery must be CONTINUOUS, not periodic — new scouts use streaming/event patterns (Issue #38)
+15. All discovery agents publish to MessageBus `swarm.idea` topic
+16. The council brain can handle 40+ signals/sec — feed it continuously, not in bursts
 
 - Layer 1: Pattern Discovery Engine — mines historical data, stores in DuckDB
 - Layer 2: Strategy Evolution — Mind Evolution search, 4 strategy islands
