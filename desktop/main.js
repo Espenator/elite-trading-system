@@ -227,7 +227,7 @@ function showAbout() {
       `Memory: ${sys.totalMemoryGB} GB`,
       sys.isAppleSilicon ? "Apple Silicon: Yes" : "",
       "",
-      "AI-Powered Elite Trading Platform",
+      "AI-Powered Trading Platform",
       "11-Agent Council | Event-Driven Pipeline",
       "",
       "© 2026 Embodier.ai",

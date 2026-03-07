@@ -1,6 +1,6 @@
 """Settings service — DuckDB-backed, migration-safe, real validation.
 
-Manages all settings for the Elite Trading System across 7 categories:
+Manages all settings for the Embodier Trader across 7 categories:
 trading, risk, dataSources, notifications, ml, agents, system.
 Persisted in DuckDB settings table with auto-creation.
 """

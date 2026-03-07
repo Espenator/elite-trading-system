@@ -72,7 +72,7 @@ def _load_audit(limit: int = 500) -> list:
 # ---------------------------------------------------------------------------
 _constitution = {
     "version": "1.0.0",
-    "text": """CONSTITUTION — Elite Trading System Alignment\n\n1. POSITION LIMITS: No single position > 5% of portfolio.\n2. DRAWDOWN GATE: Halt all new trades if drawdown > 10%.\n3. CORRELATION CAP: Max 3 correlated positions simultaneously.\n4. VOLATILITY FILTER: No entries when VIX > 35 unless hedged.\n5. STRATEGY MANDATE: Every trade must map to a registered strategy.\n6. AUDIT REQUIREMENT: All decisions logged immutably.""",
+    "text": """CONSTITUTION — Embodier Trader Alignment\n\n1. POSITION LIMITS: No single position > 5% of portfolio.\n2. DRAWDOWN GATE: Halt all new trades if drawdown > 10%.\n3. CORRELATION CAP: Max 3 correlated positions simultaneously.\n4. VOLATILITY FILTER: No entries when VIX > 35 unless hedged.\n5. STRATEGY MANDATE: Every trade must map to a registered strategy.\n6. AUDIT REQUIREMENT: All decisions logged immutably.""",
     "lastUpdated": datetime.now(timezone.utc).isoformat(),
 }
 

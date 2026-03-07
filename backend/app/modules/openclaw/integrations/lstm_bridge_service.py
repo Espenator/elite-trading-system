@@ -3,7 +3,7 @@
 lstm_bridge_service.py - Elite LSTM -> OpenClaw Redis Bridge
 Apex Predator Convergence: Fusion Layer
 
-Standalone async daemon that continuously polls the Elite Trading System
+Standalone async daemon that continuously polls the Embodier Trader
 FastAPI backend for real-time LSTM predictions, publishes structured JSON
 to the Redis Blackboard channel `signals.ml_predictions`, and injects
 them into the ApexOrchestrator's ToT prompt context.
@@ -101,7 +101,7 @@ def _build_prediction_payload(signal: Dict) -> Dict:
 
 class LSTMBridgeService:
     """
-    Async daemon bridging Elite Trading System LSTM predictions
+    Async daemon bridging Embodier Trader LSTM predictions
     to the OpenClaw swarm via Redis pub/sub and the local Blackboard.
     """
 
@@ -356,7 +356,7 @@ class LSTMBridgeService:
         if not self._latest_predictions:
             return "LSTM PREDICTIONS: No predictions available from Elite system."
 
-        lines = ["LSTM PREDICTIONS (from Elite Trading System PyTorch model):"]
+        lines = ["LSTM PREDICTIONS (from Embodier Trader PyTorch model):"]
         for p in self._latest_predictions:
             lines.append(
                 f"  {p['ticker']}: direction={p['predicted_direction']} "

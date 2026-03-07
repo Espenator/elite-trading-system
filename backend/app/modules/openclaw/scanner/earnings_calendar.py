@@ -1,5 +1,5 @@
 """
-Earnings Calendar Scanner - Elite Trading System
+Earnings Calendar Scanner - Embodier Trader
 Replaces yfinance earnings lookups with Finviz + SEC EDGAR.
 Uses finviz_service.py (already in stack) for earnings date data.
 """

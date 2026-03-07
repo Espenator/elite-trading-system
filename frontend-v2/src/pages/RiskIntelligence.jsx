@@ -1,5 +1,5 @@
 // =============================================================================
-// RiskIntelligence.jsx — Elite Trading System
+// RiskIntelligence.jsx — Embodier Trader
 // Route: /risk | Section: Execution | Page 10
 // Rebuilt to match mockup 13-risk-intelligence.png
 // =============================================================================
@@ -869,7 +869,7 @@ export default function RiskIntelligence() {
         <span className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
           <Radio className="w-3 h-3 text-[#00D9FF]" />
-          Elite Trading System -- Risk Intelligence v2.0
+          Embodier Trader -- Risk Intelligence v2.0
         </span>
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-1.5">

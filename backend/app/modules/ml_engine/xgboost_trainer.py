@@ -1,4 +1,4 @@
-"""XGBoost GPU trainer for Elite Trading System.
+"""XGBoost GPU trainer for Embodier Trader.
 
 APEX Phase 2 – XGBoost companion model:
 - GPU-accelerated training via tree_method='gpu_hist' (falls back to 'hist' on CPU)
