@@ -1099,8 +1099,14 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col h-screen w-full bg-[#0B0E14] text-[#e5e7eb] font-sans text-[9px] leading-tight overflow-y-auto selection:bg-[#00D9FF]/30">
-      {/* API ERROR BANNER */}
-      {criticalErrors.length > 0 && (
+      {/* API ERROR BANNER — show degraded (amber) instead of offline (red) for partial failures */}
+      {criticalErrors.length > 0 && criticalErrors.length < 4 && (
+        <div className="px-4 py-1.5 bg-amber-500/10 border-b border-amber-500/30 text-amber-400 text-[10px] flex items-center gap-2 shrink-0">
+          <span className="font-bold">API DEGRADED:</span>
+          <span>{criticalErrors.join(', ')} — some data may be stale</span>
+        </div>
+      )}
+      {criticalErrors.length >= 4 && (
         <div className="px-4 py-1.5 bg-red-500/10 border-b border-red-500/30 text-red-400 text-[10px] flex items-center gap-2 shrink-0">
           <span className="font-bold">API OFFLINE:</span>
           <span>{criticalErrors.join(', ')} — data may be stale or unavailable</span>
@@ -1213,11 +1219,11 @@ export default function Dashboard() {
       {/* SCROLLING TICKER STRIP */}
       <TickerStrip indices={indices} signals={processedSignals} />
 
-      {/* Signal-error banner (non-blocking) */}
+      {/* Signal-error banner (non-blocking, amber degraded instead of red offline) */}
       {sigErr && (
-        <div className="mx-4 mt-1 px-3 py-1 rounded bg-red-500/10 border border-red-500/30 text-red-400 text-[10px] font-mono flex items-center gap-2 shrink-0">
-          <span className="font-bold">SIGNAL API OFFLINE</span>
-          <span className="text-red-400/70">{sigErr.message}</span>
+        <div className="mx-4 mt-1 px-3 py-1 rounded bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[10px] font-mono flex items-center gap-2 shrink-0">
+          <span className="font-bold">SIGNAL API DEGRADED</span>
+          <span className="text-amber-400/70">{sigErr.message}</span>
         </div>
       )}
 
