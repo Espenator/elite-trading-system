@@ -62,15 +62,6 @@ async def _system_summary_impl():
 # ---------------------------------------------------------------------------
 # /status
 # ---------------------------------------------------------------------------
-@router.get("/event-bus/status")
-async def event_bus_status():
-    """
-    Event-bus / MessageBus status for Agent Command Center Blackboard Live Feed.
-    Returns topic list and subscriber counts when available; stub when no event-bus.
-    """
-    return {"topics": [], "subscribers": 0}
-
-
 @router.get("/status")
 async def system_status():
     """

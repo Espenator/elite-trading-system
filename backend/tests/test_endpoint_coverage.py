@@ -65,7 +65,7 @@ EXPECTED_FRONTEND_ENDPOINTS = [
     "/api/v1/risk/dynamic-stop-loss",
     "/api/v1/risk/risk-score",
     "/api/v1/signals/kelly-ranked",
-    "/api/v1/strategy/pre-trade-check",
+    "/api/v1/strategy/pre-trade-check/{symbol}",  # path param
     "/api/v1/agents/swarm-topology",
     "/api/v1/agents/conference",
     "/api/v1/agents/teams",
