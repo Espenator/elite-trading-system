@@ -1,9 +1,9 @@
-"""NodeDiscovery — Lightweight service that discovers PC2 at startup.
+"""NodeDiscovery — Auto-discovery + telemetry-aware cluster management.
 
 Discovers PC2 capabilities (Ollama, Brain gRPC) and registers them
 with the appropriate pools. Fire-and-forget — NEVER blocks startup.
 
-Features:
+E0.5 features:
     - Read CLUSTER_PC2_HOST from config (empty = single-PC mode)
     - Ping PC2 health endpoints on startup
     - If PC2 Ollama responds: add URL to OllamaNodePool
@@ -11,7 +11,14 @@ Features:
     - Background re-check every CLUSTER_HEALTH_INTERVAL seconds
     - get_cluster_status() for /api/v1/cluster/status endpoint
 
-Part of #39 — E0.5
+E1.6 additions:
+    - Subscribe to cluster.telemetry MessageBus topic
+    - Feed telemetry into GPUTelemetryDaemon + LLMDispatcher
+    - Register new nodes with ModelPinningRegistry + LLMDispatcher
+    - mDNS-style network scan for auto-discovering Ollama instances
+    - Collect PC2 telemetry via HTTP (when PC2 runs a telemetry daemon)
+
+Part of #39 — E0.5 + E1.6
 """
 import asyncio
 import logging
@@ -178,6 +185,93 @@ class NodeDiscovery:
                 logger.warning("NodeDiscovery: PC2 Brain Service went OFFLINE: %s", e)
             self._pc2_brain_available = False
 
+        # 3. Register with dispatcher + collect telemetry (E1.6)
+        await self._register_with_dispatcher()
+        await self._collect_pc2_telemetry()
+
+    # -- Telemetry integration (E1.6) -----------------------------------------
+
+    async def handle_telemetry_event(self, data: Dict[str, Any]) -> None:
+        """MessageBus callback for cluster.telemetry events.
+
+        Feeds incoming telemetry into GPUTelemetryDaemon (for caching)
+        and LLMDispatcher (for routing decisions).
+        """
+        try:
+            from app.services.gpu_telemetry import get_gpu_telemetry
+            get_gpu_telemetry().update_remote_telemetry(data)
+        except Exception as e:
+            logger.debug("Failed to update GPU telemetry cache: %s", e)
+
+        try:
+            from app.services.llm_dispatcher import get_llm_dispatcher
+            get_llm_dispatcher().ingest_telemetry(data)
+        except Exception as e:
+            logger.debug("Failed to update LLM dispatcher: %s", e)
+
+    async def _collect_pc2_telemetry(self) -> None:
+        """Actively fetch telemetry from PC2 if it's running a telemetry daemon.
+
+        This supplements MessageBus-based telemetry for cases where PC2
+        is not yet publishing to the bus (e.g., during startup).
+        """
+        if not self._pc2_ollama_available:
+            return
+
+        import httpx
+
+        ollama_url = f"http://{self._pc2_host}:11434"
+        try:
+            # Fetch Ollama /api/ps for loaded models
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                r = await client.get(f"{ollama_url}/api/ps")
+                r.raise_for_status()
+                ps_data = r.json()
+
+            # Build synthetic telemetry event
+            loaded_models = []
+            for entry in ps_data.get("models", []):
+                loaded_models.append({
+                    "model": entry.get("name", entry.get("model", "")),
+                    "size_mb": int(entry.get("size", 0) / (1024 * 1024)),
+                    "vram_mb": int(entry.get("size_vram", 0) / (1024 * 1024)),
+                    "until": str(entry.get("expires_at", "")),
+                })
+
+            telemetry = {
+                "node_url": ollama_url,
+                "hostname": self._pc2_host,
+                "gpu": None,  # No pynvml access on remote — use heartbeat data
+                "loaded_models": loaded_models,
+                "ollama_responsive": True,
+                "timestamp": time.time(),
+            }
+
+            await self.handle_telemetry_event(telemetry)
+
+        except Exception as e:
+            logger.debug("Failed to collect PC2 telemetry: %s", e)
+
+    async def _register_with_dispatcher(self) -> None:
+        """Register discovered nodes with LLMDispatcher and ModelPinning."""
+        if not self._pc2_ollama_available:
+            return
+
+        ollama_url = f"http://{self._pc2_host}:11434"
+
+        try:
+            from app.services.llm_dispatcher import get_llm_dispatcher
+            get_llm_dispatcher().register_node(ollama_url)
+        except Exception as e:
+            logger.debug("Failed to register node with dispatcher: %s", e)
+
+        try:
+            from app.services.model_pinning import get_model_pinning, NodeRole
+            registry = get_model_pinning()
+            registry.update_node_url(NodeRole.PC2, ollama_url)
+        except Exception as e:
+            logger.debug("Failed to update model pinning registry: %s", e)
+
     def get_cluster_status(self) -> Dict[str, Any]:
         """Return cluster health for /api/v1/cluster/status."""
         status: Dict[str, Any] = {
@@ -214,6 +308,27 @@ class NodeDiscovery:
         try:
             from app.services.alpaca_key_pool import get_alpaca_key_pool
             status["alpaca_key_pool"] = get_alpaca_key_pool().get_status()
+        except Exception:
+            pass
+
+        # Include GPU telemetry if available
+        try:
+            from app.services.gpu_telemetry import get_gpu_telemetry
+            status["gpu_telemetry"] = get_gpu_telemetry().get_status()
+        except Exception:
+            pass
+
+        # Include LLM dispatcher status if available
+        try:
+            from app.services.llm_dispatcher import get_llm_dispatcher
+            status["llm_dispatcher"] = get_llm_dispatcher().get_status()
+        except Exception:
+            pass
+
+        # Include model pinning status if available
+        try:
+            from app.services.model_pinning import get_model_pinning
+            status["model_pinning"] = get_model_pinning().get_status()
         except Exception:
             pass
 
