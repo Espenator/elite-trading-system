@@ -49,6 +49,9 @@ class MessageBus:
         "swarm.result",         # Swarm analysis complete
         "knowledge.ingested",   # New knowledge fed into the system
         "scout.discovery",      # Scout found an opportunity
+        # Cluster telemetry topics
+        "cluster.telemetry",    # GPU/VRAM/Ollama stats from cluster nodes
+        "cluster.node_status",  # Node online/offline/degraded transitions
     }
 
     def __init__(self, max_queue_size: int = 10_000):

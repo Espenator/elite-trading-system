@@ -234,6 +234,8 @@ _order_executor = None
 _council_evaluator = None
 _node_discovery = None
 _stream_manager = None
+_gpu_telemetry_daemon = None
+_llm_dispatcher = None
 
 
 async def _start_event_driven_pipeline():
@@ -250,6 +252,7 @@ async def _start_event_driven_pipeline():
     global _message_bus, _alpaca_stream, _event_signal_engine
     global _council_gate, _order_executor, _alpaca_stream_task
     global _node_discovery, _stream_manager
+    global _gpu_telemetry_daemon, _llm_dispatcher
 
     log.info("=" * 60)
     log.info("\U0001f680 Starting Event-Driven Pipeline (Council-Controlled)")
@@ -276,6 +279,25 @@ async def _start_event_driven_pipeline():
     _message_bus = get_message_bus()
     await _message_bus.start()
     log.info("\u2705 MessageBus started")
+
+    # 1b. GPU Telemetry Daemon — broadcasts to cluster.telemetry
+    from app.services.gpu_telemetry import GPUTelemetryDaemon
+    _gpu_telemetry_daemon = GPUTelemetryDaemon(message_bus=_message_bus)
+    asyncio.create_task(_gpu_telemetry_daemon.start())
+    log.info("\u2705 GPUTelemetryDaemon started (interval=%.1fs)", settings.GPU_TELEMETRY_INTERVAL)
+
+    # 1c. LLM Dispatcher — telemetry-aware workload routing
+    from app.services.llm_dispatcher import LLMDispatcher, get_llm_dispatcher
+    _llm_dispatcher = get_llm_dispatcher()
+    log.info("\u2705 LLMDispatcher initialized (enabled=%s)", _llm_dispatcher._enabled)
+
+    # 1d. Subscribe NodeDiscovery to cluster.telemetry events
+    if _node_discovery:
+        await _message_bus.subscribe(
+            "cluster.telemetry",
+            _node_discovery.handle_telemetry_event,
+        )
+        log.info("\u2705 NodeDiscovery subscribed to cluster.telemetry")
 
     # 2. EventDrivenSignalEngine (subscribes to market_data.bar)
     # Publishes signal.generated which triggers sync DuckDB queries in downstream services.
@@ -613,7 +635,15 @@ async def _stop_event_driven_pipeline():
     global _message_bus, _alpaca_stream, _alpaca_stream_task
     global _event_signal_engine, _council_gate, _order_executor
     global _node_discovery, _stream_manager
+    global _gpu_telemetry_daemon, _llm_dispatcher
     log.info("Shutting down event-driven pipeline...")
+
+    # Stop GPU Telemetry Daemon
+    if _gpu_telemetry_daemon:
+        try:
+            await _gpu_telemetry_daemon.stop()
+        except Exception:
+            pass
 
     # Stop NodeDiscovery
     if _node_discovery:
