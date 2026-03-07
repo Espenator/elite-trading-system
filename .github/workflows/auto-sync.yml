@@ -1,0 +1,87 @@
+# Auto-Sync: Pull latest code to both PCs on push to main
+# This workflow runs on self-hosted runners installed on ESPENMAIN and ProfitTrader.
+# If self-hosted runners are not installed yet, the polling scripts/auto-pull.ps1
+# handles sync via Windows Task Scheduler instead.
+#
+# To install self-hosted runners:
+#   1. Go to repo Settings > Actions > Runners > New self-hosted runner
+#   2. Follow the Windows x64 instructions on EACH PC
+#   3. Label ESPENMAIN runner with 'espenmain' and ProfitTrader with 'profittrader'
+#   4. Install as Windows service on each PC
+#
+# Once runners are active, this workflow auto-triggers on every push to main
+# and pulls the code instantly (no polling delay).
+
+name: Auto-Sync PCs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # Allow manual trigger from GitHub UI
+
+jobs:
+  sync-espenmain:
+    name: Sync ESPENMAIN (PC1)
+    runs-on: [self-hosted, Windows, espenmain]
+    if: "!contains(github.event.head_commit.message, '[skip-sync]')"
+    timeout-minutes: 5
+    steps:
+      - name: Pull latest code
+        shell: powershell
+        run: |
+          $repo = "C:\Users\Espen\elite-trading-system"
+          Set-Location $repo
+          Write-Host "Current branch: $(git branch --show-current)"
+          Write-Host "Current commit: $(git rev-parse --short HEAD)"
+          git pull origin main
+          Write-Host "Updated to: $(git rev-parse --short HEAD)"
+          Write-Host "Sync complete on ESPENMAIN at $(Get-Date)"
+
+      - name: Update dependencies if changed
+        shell: powershell
+        run: |
+          $repo = "C:\Users\Espen\elite-trading-system"
+          Set-Location $repo
+          $changed = git diff --name-only HEAD~1 HEAD 2>$null
+          if ($changed -match "requirements\.txt") {
+            Write-Host "requirements.txt changed - updating pip..."
+            & "$repo\backend\.venv\Scripts\pip.exe" install -r "$repo\backend\requirements.txt" --quiet
+          }
+          if ($changed -match "frontend-v2/package\.json") {
+            Write-Host "package.json changed - updating npm..."
+            Set-Location "$repo\frontend-v2"
+            npm install --silent
+          }
+
+  sync-profittrader:
+    name: Sync ProfitTrader (PC2)
+    runs-on: [self-hosted, Windows, profittrader]
+    if: "!contains(github.event.head_commit.message, '[skip-sync]')"
+    timeout-minutes: 5
+    steps:
+      - name: Pull latest code
+        shell: powershell
+        run: |
+          $repo = "C:\Users\ProfitTrader\elite-trading-system"
+          Set-Location $repo
+          Write-Host "Current branch: $(git branch --show-current)"
+          Write-Host "Current commit: $(git rev-parse --short HEAD)"
+          git pull origin main
+          Write-Host "Updated to: $(git rev-parse --short HEAD)"
+          Write-Host "Sync complete on ProfitTrader at $(Get-Date)"
+
+      - name: Update dependencies if changed
+        shell: powershell
+        run: |
+          $repo = "C:\Users\ProfitTrader\elite-trading-system"
+          Set-Location $repo
+          $changed = git diff --name-only HEAD~1 HEAD 2>$null
+          if ($changed -match "requirements\.txt") {
+            Write-Host "requirements.txt changed - updating pip..."
+            & "$repo\backend\.venv\Scripts\pip.exe" install -r "$repo\backend\requirements.txt" --quiet
+          }
+          if ($changed -match "frontend-v2/package\.json") {
+            Write-Host "package.json changed - updating npm..."
+            Set-Location "$repo\frontend-v2"
+            npm install --silent
+          }
