@@ -222,8 +222,7 @@ Write-Host "║  Both PCs will auto-pull every $PollMinutes minutes     ║" -Fo
 Write-Host "║  Push to main -> both PCs update in <$PollMinutes min   ║" -ForegroundColor Green
 Write-Host "╚══════════════════════════════════════════════╝" -ForegroundColor Green
 Write-Host ""
-Write-Host "To verify: Get-ScheduledTask -TaskName '$TaskName'" -ForegroundColor Gray
-Write-Host "To run now: Start-ScheduledTask -TaskName '$TaskName'" -ForegroundColor Gray
-Write-Host "To remove: Unregister-ScheduledTask -TaskName '$TaskName' -Confirm:`$false" -ForegroundColor Gray
-Write-Host "Logs: C:\Windows\Temp\embodier-auto-sync.log" -ForegroundColor Gray
-Write-Host ""
+Write-Host 'To verify: Get-ScheduledTask -TaskName "EmbodierTrader-GitAutoSync"' -ForegroundColor Gray
+Write-Host 'To run now: Start-ScheduledTask -TaskName "EmbodierTrader-GitAutoSync"' -ForegroundColor Gray
+Write-Host 'To remove: Unregister-ScheduledTask -TaskName "EmbodierTrader-GitAutoSync" -Confirm:$false' -ForegroundColor Gray
+Write-Host 'Logs: C:\Windows\Temp\embodier-auto-sync.log' -ForegroundColor Gray
