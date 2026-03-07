@@ -171,7 +171,7 @@ class TurboScanner:
 
                 # Trigger swarms for top signals
                 for signal in actionable:
-                    dedup_key = f"{signal.symbol}:{signal.signal_type}"
+                    dedup_key = f"{signal.symbol}:{signal.signal_type}:{signal.direction}"
                     if dedup_key in self._seen_today:
                         continue
                     self._seen_today.add(dedup_key)

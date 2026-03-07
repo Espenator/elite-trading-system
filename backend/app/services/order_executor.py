@@ -239,7 +239,7 @@ class OrderExecutor:
             return
 
         # -- Gate 6: Kelly position sizing (from REAL trade stats) --
-        kelly_result = self._compute_kelly_size(symbol, score, regime, price)
+        kelly_result = await self._compute_kelly_size(symbol, score, regime, price)
         if kelly_result["action"] == "HOLD" or kelly_result["kelly_pct"] <= 0:
             self._reject(
                 symbol, score,
@@ -489,7 +489,7 @@ class OrderExecutor:
         )
 
     # -- Risk Checks --
-    def _compute_kelly_size(
+    async def _compute_kelly_size(
         self, symbol: str, score: float, regime: str, price: float
     ) -> Dict[str, Any]:
         """Compute Kelly-optimal position size using REAL trade statistics."""
@@ -534,17 +534,18 @@ class OrderExecutor:
         equity = None
         try:
             alpaca = self._get_alpaca_service()
+            # Try cache first (fast path)
             cached = alpaca._cache_get("account", 60)
             if cached and cached.get("equity"):
                 equity = float(cached["equity"])
+            # Cache miss: await fresh fetch from Alpaca (now possible since method is async)
             if equity is None or equity <= 0:
-                # Try fresh fetch if cache is empty
-                import asyncio
                 try:
-                    loop = asyncio.get_running_loop()
-                    # Can't await in sync context; use cached only
-                except RuntimeError:
-                    pass
+                    account = await alpaca.get_account()
+                    if account and account.get("equity"):
+                        equity = float(account["equity"])
+                except Exception as e:
+                    logger.warning("Fresh Alpaca account fetch failed: %s", e)
         except Exception:
             equity = None
 
