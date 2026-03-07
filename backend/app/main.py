@@ -72,6 +72,7 @@ from app.api.v1 import (
     youtube_knowledge,
     swarm,
     cognitive,
+    cluster,
 )
 from app.api import ingestion
 
@@ -231,6 +232,8 @@ _event_signal_engine = None
 _council_gate = None
 _order_executor = None
 _council_evaluator = None
+_node_discovery = None
+_stream_manager = None
 
 
 async def _start_event_driven_pipeline():
@@ -246,6 +249,7 @@ async def _start_event_driven_pipeline():
     """
     global _message_bus, _alpaca_stream, _event_signal_engine
     global _council_gate, _order_executor, _alpaca_stream_task
+    global _node_discovery, _stream_manager
 
     log.info("=" * 60)
     log.info("\U0001f680 Starting Event-Driven Pipeline (Council-Controlled)")
@@ -254,6 +258,18 @@ async def _start_event_driven_pipeline():
     # Feature flags — disable heavy LLM/swarm services when Ollama isn't running
     _llm_enabled = os.getenv("LLM_ENABLED", "true").lower() == "true"
     _council_enabled = os.getenv("COUNCIL_ENABLED", "true").lower() == "true"
+
+    # 0. Node Discovery (non-blocking) — must run before other services
+    from app.services.node_discovery import NodeDiscovery
+    _node_discovery = NodeDiscovery()
+    asyncio.create_task(_node_discovery.start())  # Fire and forget
+    log.info("NodeDiscovery started (PC2: %s)", settings.CLUSTER_PC2_HOST or "disabled")
+
+    # 0b. OllamaNodePool health checks
+    from app.services.ollama_node_pool import get_ollama_pool
+    _ollama_pool = get_ollama_pool()
+    asyncio.create_task(_ollama_pool.start_health_checks())
+    log.info("\u2705 OllamaNodePool health checks started (%d nodes)", len(_ollama_pool.urls))
 
     # 1. MessageBus
     from app.core.message_bus import get_message_bus
@@ -593,7 +609,29 @@ async def _stop_event_driven_pipeline():
     """Graceful shutdown of event-driven components (reverse order)."""
     global _message_bus, _alpaca_stream, _alpaca_stream_task
     global _event_signal_engine, _council_gate, _order_executor
+    global _node_discovery, _stream_manager
     log.info("Shutting down event-driven pipeline...")
+
+    # Stop NodeDiscovery
+    if _node_discovery:
+        try:
+            await _node_discovery.stop()
+        except Exception:
+            pass
+
+    # Stop OllamaNodePool health checks
+    try:
+        from app.services.ollama_node_pool import get_ollama_pool
+        await get_ollama_pool().stop_health_checks()
+    except Exception:
+        pass
+
+    # Stop AlpacaStreamManager (handles all sub-streams)
+    if _stream_manager:
+        try:
+            await _stream_manager.stop()
+        except Exception:
+            pass
 
     # Stop swarm intelligence components first (reverse startup order)
     try:
@@ -871,6 +909,7 @@ app.include_router(swarm.router, prefix="/api/v1/swarm", tags=["swarm"])
 app.include_router(cognitive.router, prefix="/api/v1/cognitive", tags=["cognitive"])
 app.include_router(youtube_knowledge.router, prefix="/api/v1/youtube-knowledge", tags=["youtube_knowledge"])
 app.include_router(ingestion.router, tags=["ingestion"])
+app.include_router(cluster.router, prefix="/api/v1/cluster", tags=["cluster"])
 
 @app.get("/api/v1/consensus", tags=["agents"])
 async def consensus_alias():
