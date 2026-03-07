@@ -449,6 +449,9 @@ async def expected_move_status():
 @router.get("/intelligence/status")
 async def intelligence_status():
     """Get combined status of ALL intelligence systems."""
+    import logging as _logging
+    _logger = _logging.getLogger(__name__)
+
     from app.services.swarm_spawner import get_swarm_spawner
     from app.services.autonomous_scout import get_scout_service
     from app.services.discord_swarm_bridge import get_discord_bridge
@@ -463,19 +466,26 @@ async def intelligence_status():
     from app.services.news_aggregator import get_news_aggregator
     from app.services.market_wide_sweep import get_market_sweep
 
+    def _safe_status(name, fn):
+        try:
+            return fn()
+        except Exception as e:
+            _logger.warning("intelligence_status: %s failed: %s", name, e)
+            return {"error": str(e)}
+
     return {
-        "swarm": get_swarm_spawner().get_status(),
-        "hyper_swarm": get_hyper_swarm().get_status(),
-        "turbo_scanner": get_turbo_scanner().get_status(),
-        "news_aggregator": get_news_aggregator().get_status(),
-        "market_sweep": get_market_sweep().get_status(),
-        "scout": get_scout_service().get_status(),
-        "discord": get_discord_bridge().get_status(),
-        "radar": get_geopolitical_radar().get_status(),
-        "correlations": get_correlation_radar().get_status(),
-        "patterns": get_pattern_library().get_status(),
-        "expected_moves": get_expected_move_service().get_status(),
-        "ingestion": knowledge_ingest.get_stats(),
+        "swarm": _safe_status("swarm", get_swarm_spawner().get_status),
+        "hyper_swarm": _safe_status("hyper_swarm", get_hyper_swarm().get_status),
+        "turbo_scanner": _safe_status("turbo_scanner", get_turbo_scanner().get_status),
+        "news_aggregator": _safe_status("news_aggregator", get_news_aggregator().get_status),
+        "market_sweep": _safe_status("market_sweep", get_market_sweep().get_status),
+        "scout": _safe_status("scout", get_scout_service().get_status),
+        "discord": _safe_status("discord", get_discord_bridge().get_status),
+        "radar": _safe_status("radar", get_geopolitical_radar().get_status),
+        "correlations": _safe_status("correlations", get_correlation_radar().get_status),
+        "patterns": _safe_status("patterns", get_pattern_library().get_status),
+        "expected_moves": _safe_status("expected_moves", get_expected_move_service().get_status),
+        "ingestion": _safe_status("ingestion", knowledge_ingest.get_stats),
     }
 
 
@@ -486,7 +496,12 @@ async def intelligence_status():
 async def turbo_scanner_status():
     """Get TurboScanner status: scan rate, signals found, volatile mode."""
     from app.services.turbo_scanner import get_turbo_scanner
-    return get_turbo_scanner().get_status()
+    try:
+        return get_turbo_scanner().get_status()
+    except Exception as e:
+        import logging as _logging
+        _logging.getLogger(__name__).error("turbo/status error: %s", e, exc_info=True)
+        return {"error": str(e), "running": False}
 
 
 @router.get("/turbo/signals")
@@ -498,7 +513,12 @@ async def turbo_signals(signal_type: str = None, limit: int = 50):
     unusual_flow, mean_reversion
     """
     from app.services.turbo_scanner import get_turbo_scanner
-    return {"signals": get_turbo_scanner().get_signals(signal_type, limit)}
+    try:
+        return {"signals": get_turbo_scanner().get_signals(signal_type, limit)}
+    except Exception as e:
+        import logging as _logging
+        _logging.getLogger(__name__).error("turbo/signals error: %s", e, exc_info=True)
+        return {"signals": [], "error": str(e)}
 
 
 @router.post("/turbo/reset-daily", dependencies=[Depends(require_auth)])

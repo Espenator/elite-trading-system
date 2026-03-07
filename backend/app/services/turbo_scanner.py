@@ -36,6 +36,25 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
+def _sanitize_for_json(obj):
+    """Convert numpy/pandas types to native Python types for JSON serialization."""
+    if isinstance(obj, dict):
+        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize_for_json(v) for v in obj]
+    if isinstance(obj, (np.integer,)):
+        return int(obj)
+    if isinstance(obj, (np.floating,)):
+        return float(obj)
+    if isinstance(obj, (np.bool_,)):
+        return bool(obj)
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if pd.isna(obj):
+        return None
+    return obj
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Configuration — Tunable for your 2-PC setup
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -99,9 +118,9 @@ class ScanSignal:
             "symbol": self.symbol,
             "signal_type": self.signal_type,
             "direction": self.direction,
-            "score": round(self.score, 3),
+            "score": round(float(self.score), 3),
             "reasoning": self.reasoning,
-            "data": self.data,
+            "data": _sanitize_for_json(self.data),
             "source": self.source,
             "detected_at": self.detected_at,
         }
@@ -844,7 +863,7 @@ class TurboScanner:
     # Status / API
     # ──────────────────────────────────────────────────────────────────────
     def get_status(self) -> Dict[str, Any]:
-        return {
+        return _sanitize_for_json({
             "running": self._running,
             "scan_interval": self._scan_interval,
             "volatile_mode": self._volatile_mode,
@@ -853,7 +872,7 @@ class TurboScanner:
             "signals_today": len(self._seen_today),
             "stats": {k: (dict(v) if isinstance(v, defaultdict) else v) for k, v in self._stats.items()},
             "recent_signals": [s.to_dict() for s in self._signals_history[-20:]],
-        }
+        })
 
     def get_signals(self, signal_type: str = None, limit: int = 50) -> List[Dict]:
         signals = self._signals_history
