@@ -52,11 +52,10 @@ def start_scheduler() -> Optional[object]:
         The scheduler instance, or None if disabled/unavailable.
     """
     global _scheduler
-    import os
+    from app.core.config import settings
 
-    enabled = os.getenv("SCHEDULER_ENABLED", "false").lower() == "true"
-    if not enabled:
-        log.info("Scheduler disabled (SCHEDULER_ENABLED != true)")
+    if not settings.SCHEDULER_ENABLED:
+        log.info("Scheduler disabled (SCHEDULER_ENABLED=false in config)")
         return None
 
     try:
