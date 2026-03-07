@@ -48,10 +48,48 @@ if (Test-Path $EnvFile) {
     Write-Host "  [setup] Created .env from .env.example - edit with your API keys" -ForegroundColor Yellow
 }
 
-# Kill any stale processes on our ports
-@($BackendPort, $FrontendPort) | ForEach-Object {
-    Get-NetTCPConnection -LocalPort $_ -ErrorAction SilentlyContinue | ForEach-Object {
-        Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue
+# ── Robust port cleanup (netstat catches orphans that Get-NetTCPConnection misses) ──
+function Kill-PortProcesses([int]$Port) {
+    $pids = netstat -ano 2>$null |
+        Select-String "\s+0\.0\.0\.0:$Port\s+|\s+127\.0\.0\.1:$Port\s+|\s+\[::]:$Port\s+" |
+        ForEach-Object { ($_ -split '\s+')[-1] } |
+        Where-Object { $_ -match '^\d+$' -and [int]$_ -ne 0 } |
+        Sort-Object -Unique
+    foreach ($pid in $pids) {
+        $proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
+        if ($proc) {
+            Write-Host "  [cleanup] Killing PID $pid ($($proc.ProcessName)) on port $Port" -ForegroundColor Yellow
+            taskkill /F /PID $pid 2>$null | Out-Null
+        }
+    }
+}
+
+Write-Host "  Checking for stale processes..." -ForegroundColor Cyan
+Kill-PortProcesses $BackendPort
+Kill-PortProcesses $FrontendPort
+
+# ── DuckDB lock file cleanup ──
+$DuckDbFile = "$BackendDir\data\analytics.duckdb"
+$DuckDbWal  = "$DuckDbFile.wal"
+$DuckDbTmp  = "$DuckDbFile.tmp"
+if (Test-Path $DuckDbWal) {
+    # Kill any orphan Python/uvicorn processes that might hold the lock
+    $lockHolders = Get-Process python*, uvicorn* -ErrorAction SilentlyContinue |
+        Where-Object { $_.Id -ne $PID }
+    if ($lockHolders) {
+        Write-Host "  [cleanup] Killing stale Python processes holding DuckDB lock:" -ForegroundColor Yellow
+        $lockHolders | ForEach-Object {
+            Write-Host "            PID $($_.Id) ($($_.ProcessName))" -ForegroundColor Yellow
+            taskkill /F /PID $($_.Id) 2>$null | Out-Null
+        }
+        Start-Sleep 1
+    }
+    # Remove stale WAL/tmp files if they survived
+    @($DuckDbWal, $DuckDbTmp) | ForEach-Object {
+        if (Test-Path $_) {
+            Remove-Item $_ -Force -ErrorAction SilentlyContinue
+            Write-Host "  [cleanup] Removed stale lock: $(Split-Path $_ -Leaf)" -ForegroundColor Yellow
+        }
     }
 }
 Start-Sleep 1
@@ -106,15 +144,21 @@ $backendJob = Start-Job -ScriptBlock {
     "$(Get-Date -Format 'HH:mm:ss') [FATAL] Backend exceeded $maxRestarts restarts" | Tee-Object $logFile -Append
 } -ArgumentList $BackendDir, $BackendPort, "$LogDir\backend.log", $MaxRestarts
 
-# Wait for backend health
+# Wait for backend health (90s timeout with diagnostics on failure)
 Write-Host "  Waiting for backend" -ForegroundColor Cyan -NoNewline
 $healthy = $false
-for ($i = 0; $i -lt 60; $i++) {
+for ($i = 0; $i -lt 90; $i++) {
     Start-Sleep 1
     try {
         $response = Invoke-WebRequest "http://localhost:$BackendPort/health" -TimeoutSec 2 -ErrorAction SilentlyContinue
         if ($response.StatusCode -eq 200) { $healthy = $true; break }
     } catch { }
+    # Detect early crash — don't wait the full 90s if the job died
+    if ($backendJob.State -eq "Failed" -or $backendJob.State -eq "Completed") {
+        Write-Host ""
+        Write-Host "  [ERROR] Backend process exited unexpectedly" -ForegroundColor Red
+        break
+    }
     Write-Host "." -NoNewline
 }
 Write-Host ""
@@ -122,7 +166,14 @@ if ($healthy) {
     Write-Host "  [OK] Backend   http://localhost:$BackendPort" -ForegroundColor Green
     Write-Host "       API Docs  http://localhost:$BackendPort/docs" -ForegroundColor DarkGray
 } else {
-    Write-Host "  [WARN] Backend may not be ready yet. Check logs\backend.log" -ForegroundColor Yellow
+    Write-Host "  [WARN] Backend failed to become healthy." -ForegroundColor Yellow
+    Write-Host "  --- Last 25 lines of backend.log ---" -ForegroundColor Yellow
+    if (Test-Path "$LogDir\backend.log") {
+        Get-Content "$LogDir\backend.log" -Tail 25 | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
+    } else {
+        Write-Host "  (no log file found)" -ForegroundColor DarkGray
+    }
+    Write-Host "  ------------------------------------" -ForegroundColor Yellow
 }
 
 # Start frontend (unless skipped)
@@ -186,10 +237,11 @@ try {
     Write-Host "  Shutting down..." -ForegroundColor Yellow
     if ($backendJob) { Stop-Job $backendJob -ErrorAction SilentlyContinue; Remove-Job $backendJob -ErrorAction SilentlyContinue }
     if ($frontendJob) { Stop-Job $frontendJob -ErrorAction SilentlyContinue; Remove-Job $frontendJob -ErrorAction SilentlyContinue }
-    @($BackendPort, $FrontendPort) | ForEach-Object {
-        Get-NetTCPConnection -LocalPort $_ -ErrorAction SilentlyContinue | ForEach-Object {
-            Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue
-        }
+    Kill-PortProcesses $BackendPort
+    Kill-PortProcesses $FrontendPort
+    # Clean up DuckDB lock files on shutdown
+    @($DuckDbWal, $DuckDbTmp) | ForEach-Object {
+        if (Test-Path $_) { Remove-Item $_ -Force -ErrorAction SilentlyContinue }
     }
     Write-Host "  [OK] Stopped." -ForegroundColor Green
 }
