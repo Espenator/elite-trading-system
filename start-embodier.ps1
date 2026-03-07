@@ -9,7 +9,7 @@
 param(
     [switch]$SkipFrontend,
     [switch]$Desktop,
-    [int]$BackendPort = 8002
+        [int]$BackendPort = 8000
 )
 
 $ErrorActionPreference = "Stop"
