@@ -523,12 +523,16 @@ class OrderExecutor:
         if not isinstance(avg_loss_pct, (int, float)):
             avg_loss_pct = 0.018
 
+        min_trades = getattr(sizer, "min_trades", 0)
+        if not isinstance(min_trades, (int, float)):
+            min_trades = 0
+
         pos = sizer.calculate(
             win_rate=win_rate,
             avg_win_pct=avg_win_pct,
             avg_loss_pct=avg_loss_pct,
             regime=regime,
-            trade_count=max(trade_count, sizer.min_trades),
+            trade_count=max(trade_count, min_trades),
         )
 
         if pos.action == "HOLD" or pos.final_pct <= 0:
