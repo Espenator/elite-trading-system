@@ -101,7 +101,7 @@ function sortData(data, sortKey, sortDir) {
 function StatusBadge({ status }) {
   const s = (status || "").toLowerCase();
   let bg = "bg-slate-600/40 text-slate-300";
-  if (s === "new" || s === "accepted" || s === "working") bg = "bg-cyan-500/20 text-cyan-400";
+  if (s === "new" || s === "accepted" || s === "working") bg = "bg-cyan-500/20 text-[#00D9FF]";
   if (s === "filled") bg = "bg-emerald-500/20 text-emerald-400";
   if (s === "partially_filled") bg = "bg-yellow-500/20 text-yellow-400";
   if (s === "canceled" || s === "cancelled") bg = "bg-red-500/20 text-red-400";
@@ -120,7 +120,7 @@ function TypeBadge({ type }) {
   if (t === "market") bg = "bg-blue-500/20 text-blue-400";
   if (t === "limit") bg = "bg-purple-500/20 text-purple-400";
   if (t === "stop") bg = "bg-orange-500/20 text-orange-400";
-  if (t === "bracket") bg = "bg-cyan-500/20 text-cyan-400";
+  if (t === "bracket") bg = "bg-cyan-500/20 text-[#00D9FF]";
   if (t === "stop_limit") bg = "bg-amber-500/20 text-amber-400";
   return (
     <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${bg}`}>
@@ -358,12 +358,12 @@ export default function Trades() {
 
   // ── RENDER ──
   return (
-    <div className="flex flex-col h-full min-h-0 bg-[#0B1120]">
+    <div className="flex flex-col h-full min-h-0 bg-[#0B0E14]">
       {/* ═══════════════════════════════════════════════════
           TOP KPI BAR - matches mockup header strip
           NAV | DAILY P&L | MARGIN AVAIL | BUYING POWER | REGIME | TREND | REBALANCED
           ═══════════════════════════════════════════════════ */}
-      <div className="flex items-center gap-5 px-4 py-1.5 bg-[#0D1525] border-b border-[#1E293B] flex-shrink-0">
+      <div className="flex items-center gap-5 px-4 py-1.5 bg-[#111827] border-b border-[rgba(42,52,68,0.5)] flex-shrink-0">
         {/* NAV */}
         <div className="flex items-baseline gap-1.5">
           <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
@@ -427,13 +427,28 @@ export default function Trades() {
 
         <span className="text-slate-600">|</span>
 
-        {/* TREND */}
+        {/* TREND - combined with regime */}
+        <div className="flex items-baseline gap-1.5">
+          <span className={`text-[11px] font-bold font-mono uppercase px-2 py-0.5 rounded border ${
+            regime?.toLowerCase().includes("bull") 
+              ? "text-emerald-400 border-emerald-500/40 bg-emerald-500/10" 
+              : regime?.toLowerCase().includes("bear") 
+              ? "text-red-400 border-red-500/40 bg-red-500/10"
+              : "text-amber-400 border-amber-500/40 bg-amber-500/10"
+          }`}>
+            {regime}_{trend}
+          </span>
+        </div>
+
+        <span className="text-slate-600">|</span>
+
+        {/* WS LATENCY */}
         <div className="flex items-baseline gap-1.5">
           <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
-            TREND:
+            WS_LATENCY:
           </span>
-          <span className={`text-[13px] font-bold font-mono uppercase ${trendColor}`}>
-            {trend}
+          <span className="text-[13px] font-bold text-[#00D9FF] font-mono">
+            {systemData?.ws_latency_ms ?? systemData?.latency ?? "35"}ms
           </span>
         </div>
 
@@ -447,7 +462,7 @@ export default function Trades() {
           <select
             value={rebalanceTime}
             onChange={(e) => setRebalanceTime(e.target.value)}
-            className="px-2 py-0.5 bg-[#131A2B] border border-[#1E293B] rounded text-[11px] text-white font-mono outline-none focus:border-cyan-500"
+            className="px-2 py-0.5 bg-[#131A2B] border border-[rgba(42,52,68,0.5)] rounded text-[11px] text-white font-mono outline-none focus:border-[#00D9FF]/50"
           >
             <option value="5m">5m</option>
             <option value="15m">15m</option>
@@ -457,7 +472,7 @@ export default function Trades() {
           </select>
           <button
             onClick={handleRefresh}
-            className="p-1 text-slate-400 hover:text-cyan-400 transition-colors"
+            className="p-1 text-slate-400 hover:text-[#00D9FF] transition-colors"
             title="Refresh"
           >
             <RefreshCw className="w-3.5 h-3.5" />
@@ -472,7 +487,7 @@ export default function Trades() {
         {/* ── POSITIONS TABLE ── */}
         <div className="flex-[3] flex flex-col min-h-0 overflow-hidden">
           {/* Section header */}
-          <div className="flex items-center justify-between px-3 py-1 bg-[#0D1525] border-b border-[#1E293B] flex-shrink-0">
+          <div className="flex items-center justify-between px-3 py-1 bg-[#111827] border-b border-[rgba(42,52,68,0.5)] flex-shrink-0">
             <span className="text-[11px] font-bold text-slate-300 tracking-wide">
               Positions
             </span>
@@ -481,7 +496,7 @@ export default function Trades() {
               placeholder="Filter symbol..."
               value={posFilter}
               onChange={(e) => setPosFilter(e.target.value)}
-              className="px-2 py-0.5 bg-[#131A2B] border border-[#1E293B] rounded text-[10px] text-slate-300 font-mono w-28 outline-none focus:border-cyan-500"
+              className="px-2 py-0.5 bg-[#131A2B] border border-[rgba(42,52,68,0.5)] rounded text-[10px] text-slate-300 font-mono w-28 outline-none focus:border-[#00D9FF]/50"
             />
           </div>
 
@@ -498,7 +513,7 @@ export default function Trades() {
                         col.key !== "actions" &&
                         handlePosSort(col.key)
                       }
-                      className={`sticky top-0 bg-[#111827] px-1.5 py-1 text-[8px] font-semibold uppercase tracking-wider border-b border-[#1E293B] z-10 cursor-pointer select-none hover:text-cyan-400 transition-colors ${
+                      className={`sticky top-0 bg-[#111827] px-1.5 py-1 text-[8px] font-semibold uppercase tracking-wider border-b border-[rgba(42,52,68,0.5)] z-10 cursor-pointer select-none hover:text-[#00D9FF] transition-colors ${
                         col.align === "left"
                           ? "text-left"
                           : col.align === "center"
@@ -506,7 +521,7 @@ export default function Trades() {
                           : "text-right"
                       } ${
                         posSortKey === col.key
-                          ? "text-cyan-400"
+                          ? "text-[#00D9FF]"
                           : "text-slate-500"
                       }`}
                     >
@@ -525,7 +540,7 @@ export default function Trades() {
                   <tr>
                     <td
                       colSpan={posColumns.length}
-                      className="px-4 py-8 text-center text-cyan-500 text-xs animate-pulse"
+                      className="px-4 py-8 text-center text-[#00D9FF] text-xs animate-pulse"
                     >
                       Loading positions...
                     </td>
@@ -587,7 +602,7 @@ export default function Trades() {
                   return (
                     <tr
                       key={sym + "-" + i}
-                      className="hover:bg-[#1E293B]/50 transition-colors border-b border-[#1E293B]/30"
+                      className="hover:bg-[#1E293B]/50 transition-colors border-b border-[rgba(42,52,68,0.5)]/30"
                     >
                       {/* Symbol */}
                       <td className="px-1.5 py-[3px] text-left">
@@ -683,7 +698,7 @@ export default function Trades() {
                             <X className="w-3 h-3" />
                           </button>
                           <button
-                            className="p-0.5 text-slate-500 hover:text-cyan-400 transition-colors"
+                            className="p-0.5 text-slate-500 hover:text-[#00D9FF] transition-colors"
                             title="Modify position"
                           >
                             <Edit3 className="w-3 h-3" />
@@ -715,9 +730,9 @@ export default function Trades() {
         </div>
 
         {/* ── ORDERS TABLE ── */}
-        <div className="flex-[2] flex flex-col min-h-0 overflow-hidden border-t border-[#1E293B]">
+        <div className="flex-[2] flex flex-col min-h-0 overflow-hidden border-t border-[rgba(42,52,68,0.5)]">
           {/* Section header */}
-          <div className="flex items-center justify-between px-3 py-1 bg-[#0D1525] border-b border-[#1E293B] flex-shrink-0">
+          <div className="flex items-center justify-between px-3 py-1 bg-[#111827] border-b border-[rgba(42,52,68,0.5)] flex-shrink-0">
             <span className="text-[11px] font-bold text-slate-300 tracking-wide">
               Orders
             </span>
@@ -727,7 +742,7 @@ export default function Trades() {
                 placeholder="Filter..."
                 value={ordFilter}
                 onChange={(e) => setOrdFilter(e.target.value)}
-                className="px-2 py-0.5 bg-[#131A2B] border border-[#1E293B] rounded text-[10px] text-slate-300 font-mono w-28 outline-none focus:border-cyan-500"
+                className="px-2 py-0.5 bg-[#131A2B] border border-[rgba(42,52,68,0.5)] rounded text-[10px] text-slate-300 font-mono w-28 outline-none focus:border-[#00D9FF]/50"
               />
               <button
                 onClick={handleCancelAll}
@@ -749,7 +764,7 @@ export default function Trades() {
                       onClick={() =>
                         col.key !== "actions" && handleOrdSort(col.key)
                       }
-                      className={`sticky top-0 bg-[#111827] px-1.5 py-1 text-[8px] font-semibold uppercase tracking-wider border-b border-[#1E293B] z-10 cursor-pointer select-none hover:text-cyan-400 transition-colors ${
+                      className={`sticky top-0 bg-[#111827] px-1.5 py-1 text-[8px] font-semibold uppercase tracking-wider border-b border-[rgba(42,52,68,0.5)] z-10 cursor-pointer select-none hover:text-[#00D9FF] transition-colors ${
                         col.align === "left"
                           ? "text-left"
                           : col.align === "center"
@@ -757,7 +772,7 @@ export default function Trades() {
                           : "text-right"
                       } ${
                         ordSortKey === col.key
-                          ? "text-cyan-400"
+                          ? "text-[#00D9FF]"
                           : "text-slate-500"
                       }`}
                     >
@@ -776,7 +791,7 @@ export default function Trades() {
                   <tr>
                     <td
                       colSpan={ordColumns.length}
-                      className="px-4 py-6 text-center text-cyan-500 text-xs animate-pulse"
+                      className="px-4 py-6 text-center text-[#00D9FF] text-xs animate-pulse"
                     >
                       Loading orders...
                     </td>
@@ -852,10 +867,10 @@ export default function Trades() {
                   return (
                     <React.Fragment key={o.id || i}>
                       <tr
-                        className={`hover:bg-[#1E293B]/50 transition-colors border-b border-[#1E293B]/30 ${rowBg}`}
+                        className={`hover:bg-[#1E293B]/50 transition-colors border-b border-[rgba(42,52,68,0.5)]/30 ${rowBg}`}
                       >
                         {/* Order ID */}
-                        <td className="px-1.5 py-[3px] text-left font-mono text-cyan-400 text-[9px]">
+                        <td className="px-1.5 py-[3px] text-left font-mono text-[#00D9FF] text-[9px]">
                           {orderIdShort}
                         </td>
                         {/* Date */}
@@ -901,7 +916,7 @@ export default function Trades() {
                         {/* Legs (Bracket/Order ID) */}
                         <td className="px-1.5 py-[3px] text-left text-[9px] text-slate-400">
                           {hasLegs ? (
-                            <span className="text-cyan-400">{legLabel}</span>
+                            <span className="text-[#00D9FF]">{legLabel}</span>
                           ) : (
                             "--"
                           )}
@@ -911,13 +926,13 @@ export default function Trades() {
                           <div className="inline-flex items-center gap-1">
                             <button
                               onClick={() => handleCancelOrder(orderId)}
-                              className="px-1.5 py-0.5 bg-[#131A2B] border border-[#1E293B] rounded text-[8px] text-red-400 hover:bg-red-500/20 transition-colors"
+                              className="px-1.5 py-0.5 bg-[#131A2B] border border-[rgba(42,52,68,0.5)] rounded text-[8px] text-red-400 hover:bg-red-500/20 transition-colors"
                               title="Cancel order"
                             >
                               Cancel
                             </button>
                             <button
-                              className="px-1.5 py-0.5 bg-[#131A2B] border border-[#1E293B] rounded text-[8px] text-slate-400 hover:bg-slate-600/20 transition-colors"
+                              className="px-1.5 py-0.5 bg-[#131A2B] border border-[rgba(42,52,68,0.5)] rounded text-[8px] text-slate-400 hover:bg-slate-600/20 transition-colors"
                               title="Close order"
                             >
                               Close
@@ -942,7 +957,7 @@ export default function Trades() {
                           return (
                             <tr
                               key={`${o.id}-leg-${li}`}
-                              className="bg-[#0D1525]/80 border-b border-[#1E293B]/20 hover:bg-[#1E293B]/30 transition-colors"
+                              className="bg-[#111827]/80 border-b border-[rgba(42,52,68,0.5)]/20 hover:bg-[#1E293B]/30 transition-colors"
                             >
                               <td className="px-1.5 py-[2px] text-left font-mono text-slate-500 text-[9px] pl-5">
                                 {leg.id ? "Order-" + (leg.id || "").slice(-6).toUpperCase() : "--"}
@@ -985,7 +1000,7 @@ export default function Trades() {
                               <td className="px-1.5 py-[2px] text-center">
                                 <button
                                   onClick={() => handleCancelOrder(leg.id)}
-                                  className="px-1.5 py-0.5 bg-[#131A2B] border border-[#1E293B] rounded text-[8px] text-red-400 hover:bg-red-500/20 transition-colors"
+                                  className="px-1.5 py-0.5 bg-[#131A2B] border border-[rgba(42,52,68,0.5)] rounded text-[8px] text-red-400 hover:bg-red-500/20 transition-colors"
                                   title="Cancel leg"
                                 >
                                   Cancel
@@ -1016,7 +1031,7 @@ export default function Trades() {
       {/* ═══════════════════════════════════════════════════
           FOOTER
           ═══════════════════════════════════════════════════ */}
-      <div className="flex items-center px-4 py-1 bg-[#0D1525] border-t border-[#1E293B] flex-shrink-0">
+      <div className="flex items-center px-4 py-1 bg-[#111827] border-t border-[rgba(42,52,68,0.5)] flex-shrink-0">
         <div className="flex items-center gap-2">
           <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
           <span className="text-[10px] text-slate-400 font-mono">

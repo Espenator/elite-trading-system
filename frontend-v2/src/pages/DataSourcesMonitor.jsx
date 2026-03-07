@@ -51,7 +51,7 @@ const SOURCE_DEFS = [
     id: "unusual_whales",
     name: "Unusual Whales",
     type: "Options Flow",
-    typeBadgeColor: "bg-cyan-500/20 text-cyan-400",
+    typeBadgeColor: "bg-cyan-500/20 text-[#00D9FF]",
     icon: "UW",
     iconBg: "bg-indigo-600",
     status: "healthy",
@@ -247,7 +247,7 @@ function LatencySparkline({ points = [] }) {
   if (!points || points.length < 2) {
     return (
       <svg width={w} height={h} className="inline-block ml-2">
-        <line x1={0} y1={h} x2={w} y2={h} stroke="#06B6D4" strokeWidth="1.5" strokeLinecap="round" />
+        <line x1={0} y1={h} x2={w} y2={h} stroke="#00D9FF" strokeWidth="1.5" strokeLinecap="round" />
       </svg>
     );
   }
@@ -256,7 +256,7 @@ function LatencySparkline({ points = [] }) {
   const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${(i / (points.length - 1)) * w},${h - (p / safeMax) * h}`).join(' ');
   return (
     <svg width={w} height={h} className="inline-block ml-2">
-      <polyline points={path.replace(/[ML]/g, '')} fill="none" stroke="#06B6D4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline points={path.replace(/[ML]/g, '')} fill="none" stroke="#00D9FF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -273,8 +273,8 @@ function SourceCard({ source, isSelected, onClick }) {
       className={clsx(
         "w-full text-left px-3 py-2.5 rounded-lg border transition-all duration-150 group",
         isSelected
-          ? "bg-cyan-500/10 border-cyan-500/50"
-          : "bg-[#0d1520] border-gray-800 hover:border-gray-600"
+          ? "bg-cyan-500/10 border-[#00D9FF]/50/50"
+          : "bg-[#0B0E14] border-gray-800 hover:border-gray-600"
       )}
     >
       <div className="flex items-center gap-3">
@@ -425,7 +425,7 @@ function ConnectionDetailPanel({ source }) {
         {/* API Key */}
         <FieldRow label="API Key">
           <div className="flex items-center gap-1.5">
-            <code className="text-xs text-gray-300 bg-[#0d1520] px-2 py-1 rounded flex-1 font-mono truncate">
+            <code className="text-xs text-gray-300 bg-[#0B0E14] px-2 py-1 rounded flex-1 font-mono truncate">
               {showApiKey ? "ak-7f3a9b2c4d5e6f7a8b9c0d1e2f3a4b5c3f7d" : detail.apiKey}
             </code>
             <button
@@ -441,7 +441,7 @@ function ConnectionDetailPanel({ source }) {
             </button>
             <button
               onClick={() => handleCopy("apiKey")}
-              className="p-1 text-gray-500 hover:text-cyan-400 transition-colors"
+              className="p-1 text-gray-500 hover:text-[#00D9FF] transition-colors"
               title="Copy"
             >
               {copied === "apiKey" ? (
@@ -466,7 +466,7 @@ function ConnectionDetailPanel({ source }) {
         {/* API Secret */}
         <FieldRow label="API Secret">
           <div className="flex items-center gap-1.5">
-            <code className="text-xs text-gray-300 bg-[#0d1520] px-2 py-1 rounded flex-1 font-mono truncate">
+            <code className="text-xs text-gray-300 bg-[#0B0E14] px-2 py-1 rounded flex-1 font-mono truncate">
               {showApiSecret ? "sk-8a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d9a2b" : detail.apiSecret}
             </code>
             <button
@@ -484,14 +484,14 @@ function ConnectionDetailPanel({ source }) {
 
         {/* Base URL */}
         <FieldRow label="Base URL">
-          <code className="text-xs text-cyan-400 font-mono">
+          <code className="text-xs text-[#00D9FF] font-mono">
             {detail.baseUrl}
           </code>
         </FieldRow>
 
         {/* WebSocket URL */}
         <FieldRow label="WebSocket URL">
-          <code className="text-xs text-cyan-400 font-mono">
+          <code className="text-xs text-[#00D9FF] font-mono">
             {detail.wsUrl}
           </code>
         </FieldRow>
@@ -512,7 +512,7 @@ function ConnectionDetailPanel({ source }) {
         <FieldRow label="Trading Type">
           <div className="relative">
             <select
-              className="w-full bg-[#0d1520] border border-gray-700 rounded px-2 py-1.5 text-xs text-gray-300 appearance-none pr-7 focus:outline-none focus:border-cyan-500/50 transition-colors"
+              className="w-full bg-[#0B0E14] border border-gray-700 rounded px-2 py-1.5 text-xs text-gray-300 appearance-none pr-7 focus:outline-none focus:border-[#00D9FF]/50/50 transition-colors"
               defaultValue={detail.tradingType}
             >
               <option value="Paper Trading">Paper Trading</option>
@@ -538,7 +538,7 @@ function ConnectionDetailPanel({ source }) {
 
       {/* Bottom buttons */}
       <div className="px-4 py-3 border-t border-gray-800 flex items-center gap-2">
-        <button className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium py-2 px-4 rounded transition-colors flex items-center justify-center gap-1.5">
+        <button className="flex-1 bg-[#00D9FF]/20 hover:bg-[#00D9FF]/30 border border-[#00D9FF]/40 text-[#00D9FF] text-white text-xs font-medium py-2 px-4 rounded transition-colors flex items-center justify-center gap-1.5">
           <Wifi className="w-3.5 h-3.5" />
           Connect
         </button>
@@ -629,11 +629,11 @@ export default function DataSourcesMonitor() {
   return (
     <div className="h-full flex flex-col gap-0 -m-6">
       {/* ===== HEADER BAR ===== */}
-      <div className="px-5 py-3 border-b border-gray-800 bg-[#0a0f1a] flex items-center justify-between">
+      <div className="px-5 py-3 border-b border-gray-800 bg-[#111827] flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Database className="w-4 h-4 text-cyan-400" />
+          <Database className="w-4 h-4 text-[#00D9FF]" />
           <h1 className="text-sm font-bold text-white tracking-wider uppercase">
-            Data_Sources_Manager
+            DATA_SOURCES_MANAGER
           </h1>
         </div>
         <div className="flex items-center gap-3">
@@ -650,7 +650,7 @@ export default function DataSourcesMonitor() {
           {/* Refresh button */}
           <button
             onClick={refetch}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium rounded transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#00D9FF]/20 hover:bg-[#00D9FF]/30 border border-[#00D9FF]/40 text-[#00D9FF] text-white text-xs font-medium rounded transition-colors"
           >
             <RefreshCw className="w-3 h-3" />
             Refresh
@@ -659,7 +659,7 @@ export default function DataSourcesMonitor() {
       </div>
 
       {/* ===== TOP METRICS BAR ===== */}
-      <div className="px-5 py-2.5 border-b border-gray-800 bg-[#0b1120] flex items-center gap-6 text-xs">
+      <div className="px-5 py-2.5 border-b border-gray-800 bg-[#0B0E14] flex items-center gap-6 text-xs">
         <MetricPill
           label="Connected"
           value={`${connectedCount}/${sources.length} sources`}
@@ -685,7 +685,7 @@ export default function DataSourcesMonitor() {
       </div>
 
       {/* ===== AI-POWERED ADD SOURCE INPUT ===== */}
-      <div className="px-5 py-3 border-b border-gray-800 bg-[#0b1120]">
+      <div className="px-5 py-3 border-b border-gray-800 bg-[#0B0E14]">
         <div className="aurora-card p-3 mb-3">
           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-2">AI-POWERED ADD SOURCE</h3>
           <div className="flex items-center gap-2">
@@ -694,9 +694,9 @@ export default function DataSourcesMonitor() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search for data source to add..."
-              className="flex-1 bg-[#0B0E14] border border-gray-700 rounded-md px-3 py-1.5 text-sm text-white placeholder-gray-600 focus:border-cyan-500 focus:outline-none"
+              className="flex-1 bg-[#0B0E14] border border-gray-700 rounded-md px-3 py-1.5 text-sm text-white placeholder-gray-600 focus:border-[#00D9FF]/50 focus:outline-none"
             />
-            <button className="px-3 py-1.5 bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded-md text-xs font-bold hover:bg-cyan-500/30">Add</button>
+            <button className="px-3 py-1.5 bg-cyan-500/20 text-[#00D9FF] border border-[#00D9FF]/50/30 rounded-md text-xs font-bold hover:bg-cyan-500/30">Add</button>
             <button className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-700 rounded-md text-xs text-gray-400 hover:text-gray-200 hover:border-gray-500 transition-colors whitespace-nowrap">
               <ShoppingBag className="w-3.5 h-3.5" />
               Shop API store
@@ -704,7 +704,7 @@ export default function DataSourcesMonitor() {
           </div>
           <div className="flex gap-2 mt-2">
             {['Polygon.io', 'Benzinga', 'Quandl', 'Alpha Vantage', 'IEX Cloud'].map(s => (
-              <button key={s} className="px-2 py-0.5 text-[9px] font-mono text-gray-500 border border-gray-700 rounded-md hover:border-cyan-500 hover:text-cyan-400">
+              <button key={s} className="px-2 py-0.5 text-[9px] font-mono text-gray-500 border border-gray-700 rounded-md hover:border-[#00D9FF]/50 hover:text-[#00D9FF]">
                 {s}
               </button>
             ))}
@@ -721,7 +721,7 @@ export default function DataSourcesMonitor() {
                 className={clsx(
                   "px-3 py-1 rounded text-[11px] font-medium transition-colors",
                   activeFilterChip === chip
-                    ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/40"
+                    ? "bg-cyan-500/20 text-[#00D9FF] border border-[#00D9FF]/50/40"
                     : "text-gray-500 hover:text-gray-300 border border-transparent hover:border-gray-700"
                 )}
               >
@@ -766,7 +766,7 @@ export default function DataSourcesMonitor() {
                     type="checkbox"
                     checked={supplyChainChecked[sup.id] || false}
                     onChange={() => toggleSupplyChain(sup.id)}
-                    className="w-3 h-3 rounded border-gray-600 bg-[#0d1520] text-cyan-500 focus:ring-0 focus:ring-offset-0 accent-cyan-500"
+                    className="w-3 h-3 rounded border-gray-600 bg-[#0B0E14] text-[#00D9FF] focus:ring-0 focus:ring-offset-0 accent-cyan-500"
                   />
                   <span className="text-[11px] text-gray-400 group-hover:text-gray-200 transition-colors">
                     {sup.label}
@@ -778,7 +778,7 @@ export default function DataSourcesMonitor() {
         </div>
 
         {/* Right column - Credential / Config Panel */}
-        <div className="w-[42%] bg-[#0a0f1a] overflow-hidden flex flex-col">
+        <div className="w-[42%] bg-[#111827] overflow-hidden flex flex-col">
           <ConnectionDetailPanel source={selectedSource} />
         </div>
       </div>

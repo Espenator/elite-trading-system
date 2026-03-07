@@ -44,7 +44,7 @@ function MiniField({ label, value, onChange, type = "text", suffix, className = 
           type={type}
           value={value}
           onChange={onChange}
-          className={`w-20 bg-[#0a0d13] border border-gray-700/50 rounded px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-cyan-500/50 ${className}`}
+          className={`w-20 bg-[#0B0E14] border border-gray-700/50 rounded px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-[#00D9FF]/50/50 ${className}`}
           {...props}
         />
         {suffix && <span className="text-[9px] text-gray-600">{suffix}</span>}
@@ -60,7 +60,7 @@ function MiniSelect({ label, value, options, onChange }) {
       <select
         value={value}
         onChange={onChange}
-        className="bg-[#0a0d13] border border-gray-700/50 rounded px-1 py-0.5 text-[10px] text-white outline-none focus:border-cyan-500/50 appearance-none cursor-pointer pr-4"
+        className="bg-[#0B0E14] border border-gray-700/50 rounded px-1 py-0.5 text-[10px] text-white outline-none focus:border-[#00D9FF]/50/50 appearance-none cursor-pointer pr-4"
       >
         {options.map((o) => (
           <option key={typeof o === "string" ? o : o.value} value={typeof o === "string" ? o : o.value}>
@@ -79,12 +79,12 @@ function MiniToggle({ label, checked, onChange }) {
       <button
         onClick={() => onChange(!checked)}
         className={`w-7 h-3.5 rounded-full border transition-colors flex items-center ${
-          checked ? "bg-cyan-500/30 border-cyan-500/50" : "bg-gray-700/30 border-gray-600/50"
+          checked ? "bg-cyan-500/30 border-[#00D9FF]/50/50" : "bg-gray-700/30 border-gray-600/50"
         }`}
       >
         <span
           className={`block w-2.5 h-2.5 rounded-full transition-transform ${
-            checked ? "translate-x-3.5 bg-cyan-400" : "translate-x-0.5 bg-gray-500"
+            checked ? "translate-x-3.5 bg-[#00D9FF]" : "translate-x-0.5 bg-gray-500"
           }`}
         />
       </button>
@@ -99,7 +99,7 @@ function MiniCheckbox({ label, checked, onChange }) {
         onClick={() => onChange(!checked)}
         className={`w-3 h-3 rounded-sm border flex items-center justify-center text-[8px] ${
           checked
-            ? "bg-cyan-500/30 border-cyan-500/50 text-cyan-400"
+            ? "bg-cyan-500/30 border-[#00D9FF]/50/50 text-[#00D9FF]"
             : "bg-transparent border-gray-600/50"
         }`}
       >
@@ -119,7 +119,7 @@ function ConnBadge({ status, label }) {
         isConnected
           ? "bg-[#10b981]/20 text-[#10b981] border border-[#10b981]/30"
           : isAggregated
-          ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/30"
+          ? "bg-cyan-500/15 text-[#00D9FF] border border-[#00D9FF]/50/30"
           : "bg-gray-700/30 text-gray-500 border border-gray-600/30"
       }`}
     >
@@ -141,7 +141,7 @@ function PrioritySlider({ label, value, onChange, max = 10 }) {
           onChange={onChange}
           className="w-14 h-1 accent-cyan-500 cursor-pointer"
         />
-        <span className="text-[9px] text-cyan-400 w-4 text-right">{value}</span>
+        <span className="text-[9px] text-[#00D9FF] w-4 text-right">{value}</span>
       </div>
     </div>
   );
@@ -239,7 +239,7 @@ export default function SettingsPage() {
       <div className="min-h-screen bg-[#0B0E14] flex flex-col items-center justify-center gap-3">
         <AlertTriangle className="w-6 h-6 text-red-400" />
         <span className="text-gray-400 text-sm">Failed to load settings: {error.message}</span>
-        <button onClick={refetch} className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1">
+        <button onClick={refetch} className="text-xs text-[#00D9FF] hover:text-cyan-300 flex items-center gap-1">
           <RefreshCw className="w-3 h-3" /> Retry
         </button>
       </div>
@@ -256,19 +256,22 @@ export default function SettingsPage() {
       <input ref={importRef} type="file" accept=".json" className="hidden" onChange={onImport} />
 
       {/* HEADER */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <div className="w-5 h-5 rounded bg-gradient-to-br from-cyan-400 to-green-400 flex items-center justify-center text-[8px] text-black font-bold">E</div>
-          <span className="text-[11px] font-bold text-white uppercase tracking-wider">Elite</span>
-          <span className="text-[11px] font-bold text-cyan-400 uppercase tracking-wider">Trading</span>
-          <Settings className="w-4 h-4 text-cyan-400 ml-2" />
-          <h1 className="text-sm font-bold text-white uppercase tracking-wider">System Configuration</h1>
+      <div className="flex items-center justify-between mb-3 pb-2 border-b border-[rgba(42,52,68,0.5)]">
+        <div className="flex items-center gap-3">
+          <Settings className="w-5 h-5 text-[#00D9FF]" />
+          <h1 className="text-base font-bold text-white uppercase tracking-widest font-mono">SYSTEM CONFIGURATION</h1>
+          {dirty && (
+            <span className="px-2 py-0.5 text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded uppercase animate-pulse">
+              UNSAVED CHANGES
+            </span>
+          )}
         </div>
         <button
           onClick={saveAllSettings}
           disabled={saving}
-          className="bg-cyan-500 hover:bg-cyan-600 text-black font-bold text-[10px] px-4 py-1.5 rounded uppercase tracking-wider disabled:opacity-50"
+          className="bg-[#00D9FF] hover:bg-[#00D9FF]/80 text-black font-bold text-[11px] px-5 py-1.5 rounded uppercase tracking-wider disabled:opacity-50 flex items-center gap-1.5 transition-all hover:shadow-[0_0_12px_rgba(0,217,255,0.4)]"
         >
+          <Save className="w-3.5 h-3.5" />
           {saving ? "Saving..." : "SAVE ALL"}
         </button>
       </div>
@@ -298,7 +301,7 @@ export default function SettingsPage() {
         {/* 2. TRADING MODE */}
         <SectionCard title="Trading Mode">
           <div className="flex items-center gap-4 mb-1">
-            <span className={`text-sm font-bold ${get("dataSources", "alpacaBaseUrl", "paper") === "paper" ? "text-cyan-400" : "text-gray-500"}`}>PAPER</span>
+            <span className={`text-sm font-bold ${get("dataSources", "alpacaBaseUrl", "paper") === "paper" ? "text-[#00D9FF]" : "text-gray-500"}`}>PAPER</span>
             <button
               onClick={() => updateField("dataSources", "alpacaBaseUrl", get("dataSources", "alpacaBaseUrl", "paper") === "paper" ? "live" : "paper")}
               className={`relative w-14 h-7 rounded-full transition-colors ${get("dataSources", "alpacaBaseUrl", "paper") === "live" ? "bg-red-500" : "bg-cyan-500"}`}
@@ -373,7 +376,7 @@ export default function SettingsPage() {
             <ConnBadge status="not_configured" label="Not Connected" />
           </div>
           <div className="mt-1.5 pt-1 border-t border-gray-800/50">
-            <button className="text-[9px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1">
+            <button className="text-[9px] text-[#00D9FF] hover:text-cyan-300 flex items-center gap-1">
               + Add Broker
             </button>
           </div>
@@ -423,11 +426,11 @@ export default function SettingsPage() {
         <SectionCard title="Global Local LLM">
           <div className="flex items-center justify-between gap-2 py-[1px]">
             <span className="text-[10px] text-gray-400 whitespace-nowrap">Endpoint<span className="text-amber-500 text-[10px] ml-1">★</span></span>
-            <input type="text" value={get("ollama", "ollamaHostUrl", "http://localhost:11434")} onChange={(e) => updateField("ollama", "ollamaHostUrl", e.target.value)} className="w-28 bg-[#0a0d13] border border-gray-700/50 rounded px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-cyan-500/50" />
+            <input type="text" value={get("ollama", "ollamaHostUrl", "http://localhost:11434")} onChange={(e) => updateField("ollama", "ollamaHostUrl", e.target.value)} className="w-28 bg-[#0B0E14] border border-gray-700/50 rounded px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-[#00D9FF]/50/50" />
           </div>
           <div className="flex items-center justify-between gap-2 py-[1px]">
             <span className="text-[10px] text-gray-400 whitespace-nowrap">Model<span className="text-amber-500 text-[10px] ml-1">★</span></span>
-            <input type="text" value={get("ollama", "ollamaDefaultModel", "llama3")} onChange={(e) => updateField("ollama", "ollamaDefaultModel", e.target.value)} className="w-20 bg-[#0a0d13] border border-gray-700/50 rounded px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-cyan-500/50" />
+            <input type="text" value={get("ollama", "ollamaDefaultModel", "llama3")} onChange={(e) => updateField("ollama", "ollamaDefaultModel", e.target.value)} className="w-20 bg-[#0B0E14] border border-gray-700/50 rounded px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-[#00D9FF]/50/50" />
           </div>
           <MiniField label="GPT-4" value={get("ollama", "gpt4oStatus", "disabled")} onChange={(e) => updateField("ollama", "gpt4oStatus", e.target.value)} />
           <MiniField label="Context" value={get("ollama", "ollamaContextLength", 8192)} type="number" suffix="tok" onChange={(e) => updateField("ollama", "ollamaContextLength", Number(e.target.value))} />
@@ -444,27 +447,27 @@ export default function SettingsPage() {
         <SectionCard title="Inference Models">
           <div className="flex items-center justify-between gap-2 py-[1px]">
             <span className="text-[10px] text-gray-400 whitespace-nowrap">GPT-4o<span className="text-amber-500 text-[10px] ml-1">★</span></span>
-            <input type="text" value={get("ollama", "gpt4Status", "disabled")} onChange={(e) => updateField("ollama", "gpt4Status", e.target.value)} className="w-20 bg-[#0a0d13] border border-gray-700/50 rounded px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-cyan-500/50" />
+            <input type="text" value={get("ollama", "gpt4Status", "disabled")} onChange={(e) => updateField("ollama", "gpt4Status", e.target.value)} className="w-20 bg-[#0B0E14] border border-gray-700/50 rounded px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-[#00D9FF]/50/50" />
           </div>
           <div className="flex items-center justify-between py-[1px]">
             <span className="text-[10px] text-gray-400">GPU/CPU</span>
-            <span className="text-[9px] text-cyan-400">auto</span>
+            <span className="text-[9px] text-[#00D9FF]">auto</span>
           </div>
           <div className="flex items-center justify-between gap-2 py-[1px]">
             <span className="text-[10px] text-gray-400 whitespace-nowrap">Signal Model<span className="text-amber-500 text-[10px] ml-1">★</span></span>
-            <input type="text" value={get("ollama", "signalAnalysisModel", "Signal Analysis")} onChange={(e) => updateField("ollama", "signalAnalysisModel", e.target.value)} className="w-20 bg-[#0a0d13] border border-gray-700/50 rounded px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-cyan-500/50" />
+            <input type="text" value={get("ollama", "signalAnalysisModel", "Signal Analysis")} onChange={(e) => updateField("ollama", "signalAnalysisModel", e.target.value)} className="w-20 bg-[#0B0E14] border border-gray-700/50 rounded px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-[#00D9FF]/50/50" />
           </div>
           <div className="flex items-center justify-between gap-2 py-[1px]">
             <span className="text-[10px] text-gray-400 whitespace-nowrap">Pattern Model<span className="text-amber-500 text-[10px] ml-1">★</span></span>
-            <input type="text" value={get("ollama", "patternAnalysisModel", "Pattern Analysis")} onChange={(e) => updateField("ollama", "patternAnalysisModel", e.target.value)} className="w-20 bg-[#0a0d13] border border-gray-700/50 rounded px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-cyan-500/50" />
+            <input type="text" value={get("ollama", "patternAnalysisModel", "Pattern Analysis")} onChange={(e) => updateField("ollama", "patternAnalysisModel", e.target.value)} className="w-20 bg-[#0B0E14] border border-gray-700/50 rounded px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-[#00D9FF]/50/50" />
           </div>
           <div className="flex items-center justify-between gap-2 py-[1px]">
             <span className="text-[10px] text-gray-400 whitespace-nowrap">Gen Model<span className="text-amber-500 text-[10px] ml-1">★</span></span>
-            <input type="text" value={get("ollama", "signalGenerationModel", "Signal Generation")} onChange={(e) => updateField("ollama", "signalGenerationModel", e.target.value)} className="w-20 bg-[#0a0d13] border border-gray-700/50 rounded px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-cyan-500/50" />
+            <input type="text" value={get("ollama", "signalGenerationModel", "Signal Generation")} onChange={(e) => updateField("ollama", "signalGenerationModel", e.target.value)} className="w-20 bg-[#0B0E14] border border-gray-700/50 rounded px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-[#00D9FF]/50/50" />
           </div>
           <div className="flex items-center justify-between gap-2 py-[1px]">
             <span className="text-[10px] text-gray-400 whitespace-nowrap">Fallback<span className="text-amber-500 text-[10px] ml-1">★</span></span>
-            <input type="text" value={get("ollama", "fallbackModel", "llama3")} onChange={(e) => updateField("ollama", "fallbackModel", e.target.value)} className="w-20 bg-[#0a0d13] border border-gray-700/50 rounded px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-cyan-500/50" />
+            <input type="text" value={get("ollama", "fallbackModel", "llama3")} onChange={(e) => updateField("ollama", "fallbackModel", e.target.value)} className="w-20 bg-[#0B0E14] border border-gray-700/50 rounded px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-[#00D9FF]/50/50" />
           </div>
           <MiniField label="Max Tokens" value={get("ollama", "maxTokens", "500K+")} onChange={(e) => updateField("ollama", "maxTokens", e.target.value)} />
         </SectionCard>
@@ -635,18 +638,18 @@ export default function SettingsPage() {
           <div className="mb-1.5">
             <div className="grid grid-cols-3 gap-3 mb-1">
               {[
-                { name: 'Midnight Bloomberg', bg: '#0B0E14', surface: '#111827', accent: '#06B6D4' },
+                { name: 'Midnight Bloomberg', bg: '#0B0E14', surface: '#111827', accent: '#00D9FF' },
                 { name: 'Classic Dark', bg: '#1a1a2e', surface: '#16213e', accent: '#0f3460' },
-                { name: 'OLED Black', bg: '#000000', surface: '#0a0a0a', accent: '#06B6D4' },
+                { name: 'OLED Black', bg: '#000000', surface: '#0a0a0a', accent: '#00D9FF' },
               ].map(theme => (
-                <button key={theme.name} className="flex flex-col items-center gap-1.5 p-2 border border-gray-700 rounded-md hover:border-cyan-500 group">
+                <button key={theme.name} className="flex flex-col items-center gap-1.5 p-2 border border-gray-700 rounded-md hover:border-[#00D9FF]/50 group">
                   <div className="w-full h-12 rounded-sm flex gap-0.5" style={{ background: theme.bg }}>
                     <div className="w-1/4 h-full rounded-sm" style={{ background: theme.surface }} />
                     <div className="flex-1 h-full rounded-sm" style={{ background: theme.surface }}>
                       <div className="w-3/4 h-1 mt-2 mx-auto rounded" style={{ background: theme.accent }} />
                     </div>
                   </div>
-                  <span className="text-[9px] text-gray-500 group-hover:text-cyan-400">{theme.name}</span>
+                  <span className="text-[9px] text-gray-500 group-hover:text-[#00D9FF]">{theme.name}</span>
                 </button>
               ))}
             </div>
@@ -665,7 +668,7 @@ export default function SettingsPage() {
                   title={t.label}
                   className={`w-5 h-5 rounded border-2 transition-all ${
                     get("appearance", "theme", "midnight") === t.key
-                      ? "border-cyan-400 ring-1 ring-cyan-400/50"
+                      ? "border-[#00D9FF] ring-1 ring-cyan-400/50"
                       : "border-gray-700 hover:border-gray-500"
                   }`}
                   style={{ background: t.color }}
@@ -745,7 +748,7 @@ export default function SettingsPage() {
           <MiniToggle label="Agent Decision Log" checked={!!get("system", "agentDecisionLog", true)} onChange={(v) => updateField("system", "agentDecisionLog", v)} />
           <button
             onClick={() => setShowFullLog(!showFullLog)}
-            className="mt-1 w-full text-[9px] bg-cyan-500/10 border border-cyan-500/20 rounded px-2 py-1 text-cyan-400 hover:bg-cyan-500/20 flex items-center gap-1 justify-center"
+            className="mt-1 w-full text-[9px] bg-cyan-500/10 border border-[#00D9FF]/50/20 rounded px-2 py-1 text-[#00D9FF] hover:bg-cyan-500/20 flex items-center gap-1 justify-center"
           >
             <FileText className="w-2.5 h-2.5" /> {showFullLog ? "Hide" : "View"} Full Log
           </button>
@@ -771,13 +774,13 @@ export default function SettingsPage() {
         <div className="flex gap-2">
           <button
             onClick={onExport}
-            className="text-[10px] text-gray-500 hover:text-cyan-400 flex items-center gap-1 px-3 py-1 border border-gray-800/50 rounded"
+            className="text-[10px] text-gray-500 hover:text-[#00D9FF] flex items-center gap-1 px-3 py-1 border border-gray-800/50 rounded"
           >
             Export Settings
           </button>
           <button
             onClick={() => importRef.current?.click()}
-            className="text-[10px] text-gray-500 hover:text-cyan-400 flex items-center gap-1 px-3 py-1 border border-gray-800/50 rounded"
+            className="text-[10px] text-gray-500 hover:text-[#00D9FF] flex items-center gap-1 px-3 py-1 border border-gray-800/50 rounded"
           >
             Import Settings
           </button>
@@ -844,7 +847,7 @@ function AuditLogPanel() {
             a.download = "audit-log.json";
             a.click();
           }}
-          className="text-[9px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+          className="text-[9px] text-[#00D9FF] hover:text-cyan-300 flex items-center gap-1"
         >
           <Download className="w-2.5 h-2.5" /> Export Log
         </button>

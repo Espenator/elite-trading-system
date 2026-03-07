@@ -288,23 +288,23 @@ export default function SentimentIntelligence() {
     <div className="space-y-3">
       {/* ========== HEADER ========== */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            <div className="w-7 h-7 rounded bg-cyan-500/20 flex items-center justify-center">
-              <span className="text-cyan-400 font-black text-sm">E</span>
-            </div>
-            Embodier Trader
-          </h1>
-          <p className="text-xs text-gray-500 mt-0.5">Multi-Source Sentiment Fusion & Intelligence</p>
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded bg-[#00D9FF]/10 border border-[#00D9FF]/30 flex items-center justify-center">
+            <span className="text-[#00D9FF] font-black text-sm font-mono">E</span>
+          </div>
+          <div>
+            <h1 className="text-lg font-bold text-white">Sentiment Intelligence</h1>
+            <p className="text-[10px] text-gray-500 font-mono">Multi-Source Sentiment Fusion & Intelligence</p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           {lastUpdated && (
-            <span className="text-[10px] text-gray-500">Updated {lastUpdated.toLocaleTimeString()}</span>
+            <span className="text-[10px] text-gray-500 font-mono">Updated {lastUpdated.toLocaleTimeString()}</span>
           )}
           <button
             onClick={refetch}
             disabled={loading}
-            className="px-3 py-1.5 rounded-lg bg-surface border border-secondary/20 text-xs text-gray-400 hover:text-white transition-colors flex items-center gap-1.5"
+            className="px-3 py-1.5 rounded-lg bg-[#111827] border border-[rgba(42,52,68,0.5)] text-xs text-gray-400 hover:text-white hover:border-[#00D9FF]/40 transition-all flex items-center gap-1.5"
           >
             <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
             Refresh
@@ -325,7 +325,7 @@ export default function SentimentIntelligence() {
         {/* ===== LEFT COLUMN: OpenClaw Agent Swarm + Sentiment Sources ===== */}
         <div className="col-span-12 xl:col-span-2 space-y-3">
           {/* Agent Swarm Panel */}
-          <div className="bg-surface border border-secondary/20 rounded-md overflow-hidden">
+          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-md overflow-hidden">
             <div className="px-3 py-2.5 border-b border-secondary/20">
               <h3 className="text-xs font-semibold text-white">OpenClaw Agent Swarm</h3>
               <p className="text-[9px] text-gray-500 mt-0.5">
@@ -345,7 +345,7 @@ export default function SentimentIntelligence() {
                       isLive ? 'bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.6)]'
                         : isDegraded ? 'bg-yellow-400' : 'bg-slate-600'
                     }`} />
-                    <span className={`text-[10px] flex-1 min-w-0 truncate ${isLive ? 'text-cyan-400' : 'text-slate-500'}`}>
+                    <span className={`text-[10px] flex-1 min-w-0 truncate ${isLive ? 'text-[#00D9FF]' : 'text-slate-500'}`}>
                       {agent.name}
                     </span>
                     <div className="w-10 bg-slate-800 rounded-full h-1 shrink-0">
@@ -380,7 +380,7 @@ export default function SentimentIntelligence() {
               <button
                 disabled={discovering}
                 onClick={handleAutoDiscover}
-                className="w-full mt-2 py-1.5 rounded-lg bg-cyan-500/20 border border-cyan-500/40 text-cyan-400 text-[10px] font-semibold hover:bg-cyan-500/30 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+                className="w-full mt-2 py-1.5 rounded-lg bg-cyan-500/20 border border-[#00D9FF]/50/40 text-[#00D9FF] text-[10px] font-semibold hover:bg-cyan-500/30 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
               >
                 <Plus className={`w-3 h-3 ${discovering ? 'animate-spin' : ''}`} />
                 {discovering ? 'Discovering...' : '+ Auto Discover'}
@@ -389,7 +389,7 @@ export default function SentimentIntelligence() {
           </div>
 
           {/* Sentiment Sources Panel */}
-          <div className="bg-surface border border-secondary/20 rounded-md overflow-hidden">
+          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-md overflow-hidden">
             <div className="px-3 py-2.5 border-b border-secondary/20">
               <h3 className="text-xs font-semibold text-white">Sentiment Sources</h3>
             </div>
@@ -406,7 +406,7 @@ export default function SentimentIntelligence() {
                     <defs>
                       <linearGradient id="sourceSentGrad" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.5} />
-                        <stop offset="50%" stopColor="#06b6d4" stopOpacity={0.3} />
+                        <stop offset="50%" stopColor="#00D9FF" stopOpacity={0.3} />
                         <stop offset="95%" stopColor="#0891b2" stopOpacity={0.0} />
                       </linearGradient>
                     </defs>
@@ -429,7 +429,7 @@ export default function SentimentIntelligence() {
                 <div className="flex-1 bg-yellow-400" />
                 <div className="flex-1 bg-lime-400" />
                 <div className="flex-1 bg-green-400" />
-                <div className="flex-1 bg-cyan-400" />
+                <div className="flex-1 bg-[#00D9FF]" />
                 <div className="flex-1 bg-violet-500" />
                 <div className="flex-1 bg-fuchsia-500" />
               </div>
@@ -463,7 +463,7 @@ export default function SentimentIntelligence() {
           </div>
 
           {/* Symbol Heatmap Grid - 3 columns x 4 rows matching mockup */}
-          <div className="bg-surface border border-secondary/20 rounded-md p-3">
+          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-md p-3">
             <SectorTreemap />
             <div className="grid grid-cols-3 gap-1.5 mt-3">
               {heatmapGrid.map((item) => {
@@ -485,7 +485,7 @@ export default function SentimentIntelligence() {
           </div>
 
           {/* 30-Day Sentiment Area Chart - green/cyan gradient per mockup */}
-          <div className="bg-surface border border-secondary/20 rounded-md overflow-hidden">
+          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-md overflow-hidden">
             <div className="px-4 py-2.5 border-b border-secondary/20">
               <h3 className="text-sm font-semibold text-white">30-Day Sentiment</h3>
             </div>
@@ -497,10 +497,10 @@ export default function SentimentIntelligence() {
                       <linearGradient id="sentGradient" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#34d399" stopOpacity={0.6} />
                         <stop offset="40%" stopColor="#22d3ee" stopOpacity={0.35} />
-                        <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.0} />
+                        <stop offset="95%" stopColor="#00D9FF" stopOpacity={0.0} />
                       </linearGradient>
                       <linearGradient id="sentGradient2" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4} />
+                        <stop offset="5%" stopColor="#00D9FF" stopOpacity={0.4} />
                         <stop offset="95%" stopColor="#0891b2" stopOpacity={0.0} />
                       </linearGradient>
                     </defs>
@@ -524,7 +524,7 @@ export default function SentimentIntelligence() {
         <div className="col-span-12 xl:col-span-3 space-y-3">
 
           {/* Trade Signals */}
-          <div className="bg-surface border border-secondary/20 rounded-md overflow-hidden">
+          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-md overflow-hidden">
             <div className="px-4 py-2 border-b border-secondary/20">
               <h3 className="text-xs font-semibold text-white">Trade Signals</h3>
             </div>
@@ -538,7 +538,7 @@ export default function SentimentIntelligence() {
           {/* Prediction Markets Row */}
           <div className="grid grid-cols-2 gap-2">
             {/* Prediction Market 1 */}
-            <div className="bg-surface border border-secondary/20 rounded-md overflow-hidden">
+            <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-md overflow-hidden">
               <div className="px-2.5 py-1.5 border-b border-secondary/20">
                 <h3 className="text-[10px] font-semibold text-white">Prediction Market</h3>
               </div>
@@ -548,19 +548,19 @@ export default function SentimentIntelligence() {
                   <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
                     <circle cx="18" cy="18" r="15.9" fill="none" stroke="rgba(51,65,85,0.3)" strokeWidth="2.5" />
                     <circle
-                      cx="18" cy="18" r="15.9" fill="none" stroke="#06b6d4" strokeWidth="2.5"
+                      cx="18" cy="18" r="15.9" fill="none" stroke="#00D9FF" strokeWidth="2.5"
                       strokeDasharray={`${predMarket1.probability} ${100 - predMarket1.probability}`}
                       strokeLinecap="round"
                     />
                   </svg>
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-[10px] font-bold text-cyan-400 font-mono">{predMarket1.probability}%</span>
+                    <span className="text-[10px] font-bold text-[#00D9FF] font-mono">{predMarket1.probability}%</span>
                   </div>
                 </div>
                 <div className="w-full space-y-1 mt-0.5">
                   <div className="flex justify-between text-[8px]">
                     <span className="text-gray-500">Probability</span>
-                    <span className="text-cyan-400 font-bold font-mono">{predMarket1.probability}%</span>
+                    <span className="text-[#00D9FF] font-bold font-mono">{predMarket1.probability}%</span>
                   </div>
                   <div className="w-full bg-slate-800 rounded-full h-1">
                     <div className="h-1 rounded-full bg-cyan-500 transition-all" style={{ width: `${predMarket1.probability}%` }} />
@@ -577,7 +577,7 @@ export default function SentimentIntelligence() {
             </div>
 
             {/* Prediction Market 2 */}
-            <div className="bg-surface border border-secondary/20 rounded-md overflow-hidden">
+            <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-md overflow-hidden">
               <div className="px-2.5 py-1.5 border-b border-secondary/20">
                 <h3 className="text-[10px] font-semibold text-white">Prediction Market</h3>
               </div>
@@ -587,19 +587,19 @@ export default function SentimentIntelligence() {
                   <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
                     <circle cx="18" cy="18" r="15.9" fill="none" stroke="rgba(51,65,85,0.3)" strokeWidth="2.5" />
                     <circle
-                      cx="18" cy="18" r="15.9" fill="none" stroke="#06b6d4" strokeWidth="2.5"
+                      cx="18" cy="18" r="15.9" fill="none" stroke="#00D9FF" strokeWidth="2.5"
                       strokeDasharray={`${predMarket2.probability} ${100 - predMarket2.probability}`}
                       strokeLinecap="round"
                     />
                   </svg>
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-[10px] font-bold text-cyan-400 font-mono">{predMarket2.probability}%</span>
+                    <span className="text-[10px] font-bold text-[#00D9FF] font-mono">{predMarket2.probability}%</span>
                   </div>
                 </div>
                 <div className="w-full space-y-1 mt-0.5">
                   <div className="flex justify-between text-[8px]">
                     <span className="text-gray-500">Probability</span>
-                    <span className="text-cyan-400 font-bold font-mono">{predMarket2.probability}%</span>
+                    <span className="text-[#00D9FF] font-bold font-mono">{predMarket2.probability}%</span>
                   </div>
                   <div className="w-full bg-slate-800 rounded-full h-1">
                     <div className="h-1 rounded-full bg-cyan-500 transition-all" style={{ width: `${predMarket2.probability}%` }} />
@@ -617,7 +617,7 @@ export default function SentimentIntelligence() {
           </div>
 
           {/* Radar Chart - Large, prominent with TWO overlapping polygons per mockup */}
-          <div className="bg-surface border border-secondary/20 rounded-md overflow-hidden">
+          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-md overflow-hidden">
             <div className="p-3">
               <MultiFactorRadar />
               <div className="h-56 w-full">
@@ -699,7 +699,7 @@ export default function SentimentIntelligence() {
         <div className="col-span-12 xl:col-span-3 space-y-3">
 
           {/* Scanner Status Matrix - Dense dot grid */}
-          <div className="bg-surface border border-secondary/20 rounded-md overflow-hidden h-full">
+          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-md overflow-hidden h-full">
             <div className="px-3 py-2 border-b border-secondary/20 flex items-center justify-between">
               <h3 className="text-xs font-semibold text-white">Scanner Status Matrix</h3>
               <span className="text-[9px] text-gray-500 font-mono">{scannerData.length} symbols</span>

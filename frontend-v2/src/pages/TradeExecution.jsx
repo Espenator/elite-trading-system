@@ -10,8 +10,8 @@ import { VisualPriceLadder, CouncilDecisionPanel } from '../components/dashboard
    Shared tiny components used only in this page
    ──────────────────────────────────────────────────────────── */
 const PanelHead = ({ children }) => (
-  <div className="px-3 py-[7px] border-b border-[#1a2744] flex items-center justify-between bg-[#070d18] shrink-0">
-    <span className="font-mono text-[9px] font-semibold text-[#5a6f8a] uppercase tracking-[0.5px]">{children}</span>
+  <div className="px-3 py-[7px] border-b border-[rgba(42,52,68,0.5)] flex items-center justify-between bg-[#111827] shrink-0">
+    <span className="font-mono text-[9px] font-semibold text-gray-500 uppercase tracking-[0.5px]">{children}</span>
     <div className="flex gap-[3px]">
       <span className="w-[3px] h-[3px] rounded-full bg-[#5a6f8a]" />
       <span className="w-[3px] h-[3px] rounded-full bg-[#5a6f8a]" />
@@ -22,7 +22,7 @@ const PanelHead = ({ children }) => (
 
 const FormField = ({ label, children }) => (
   <div className="flex items-center mb-2.5">
-    <label className="w-[90px] text-[10px] text-[#5a6f8a] shrink-0">{label}</label>
+    <label className="w-[90px] text-[10px] text-gray-500 shrink-0">{label}</label>
     {children}
   </div>
 );
@@ -32,8 +32,8 @@ const FormSelect = ({ value, onChange, children, className }) => (
     value={value}
     onChange={onChange}
     className={clsx(
-      'flex-1 bg-[#111b2e] border border-[#1a2744] text-[#e8f0fe] px-2.5 py-1.5 font-mono text-[10px] rounded-[3px] outline-none',
-      'focus:border-cyan-400 focus:shadow-[0_0_8px_rgba(0,212,232,0.15)]',
+      'flex-1 bg-[#0B0E14] border border-[rgba(42,52,68,0.5)] text-white px-2.5 py-1.5 font-mono text-[10px] rounded-[3px] outline-none',
+      'focus:border-[#00D9FF] focus:shadow-[0_0_8px_rgba(0,212,232,0.15)]',
       'appearance-none cursor-pointer',
       className
     )}
@@ -50,8 +50,8 @@ const FormInput = ({ value, onChange, type = 'text', step, readOnly, className, 
     onChange={onChange}
     readOnly={readOnly}
     className={clsx(
-      'bg-[#111b2e] border border-[#1a2744] text-[#e8f0fe] px-2.5 py-1.5 font-mono text-[10px] rounded-[3px] outline-none',
-      'focus:border-cyan-400 focus:shadow-[0_0_8px_rgba(0,212,232,0.15)]',
+      'bg-[#0B0E14] border border-[rgba(42,52,68,0.5)] text-white px-2.5 py-1.5 font-mono text-[10px] rounded-[3px] outline-none',
+      'focus:border-[#00D9FF] focus:shadow-[0_0_8px_rgba(0,212,232,0.15)]',
       className
     )}
     {...rest}
@@ -303,23 +303,23 @@ export default function TradeExecution() {
     <div className="flex flex-col overflow-hidden -m-6" style={{ height: 'calc(100vh - 64px)' }}>
 
       {/* ═══════ HEADER BAR ═══════ */}
-      <div className="h-[42px] bg-[#070d18] border-b border-[#1a2744] flex items-center px-5 gap-5 shrink-0 relative">
+      <div className="h-[42px] bg-[#111827] border-b border-[rgba(42,52,68,0.5)] flex items-center px-5 gap-5 shrink-0 relative">
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-400 to-transparent" />
-        <span className="font-mono text-xs font-semibold text-cyan-400 uppercase tracking-wider">Trade Execution</span>
+        <span className="font-mono text-sm font-bold text-white uppercase tracking-widest">TRADE EXECUTION</span>
         <div className="flex items-center gap-5 ml-auto font-mono text-[10px]">
-          <span><span className="text-[#5a6f8a] mr-1">Portfolio:</span><span className="text-[#e8f0fe]">{fmtUsd(portfolio.value || 1580430.55)}</span></span>
-          <span className="text-[#243352]">|</span>
-          <span><span className="text-[#5a6f8a] mr-1">Daily P/L:</span><span className="text-[#00e676]">+{fmtUsd(portfolio.dailyPnl || 12500.80)}</span></span>
-          <span className="text-[#243352]">|</span>
-          <span><span className="text-[#5a6f8a] mr-1">Status:</span><span className="text-cyan-400 font-semibold">{portfolio.status || 'ELITE'}</span></span>
-          <span className="text-[#243352]">|</span>
-          <span><span className="text-[#5a6f8a] mr-1">Latency:</span><span className="text-[#e8f0fe]">{portfolio.latency || 8}ms</span></span>
+          <span><span className="text-gray-500 mr-1">Portfolio:</span><span className="text-white">{fmtUsd(portfolio.value || 1580430.55)}</span></span>
+          <span className="text-gray-700">|</span>
+          <span><span className="text-gray-500 mr-1">Daily P/L:</span><span className="text-[#00e676]">+{fmtUsd(portfolio.dailyPnl || 12500.80)}</span></span>
+          <span className="text-gray-700">|</span>
+          <span><span className="text-gray-500 mr-1">Status:</span><span className="text-[#00D9FF] font-semibold">{portfolio.status || 'ELITE'}</span></span>
+          <span className="text-gray-700">|</span>
+          <span><span className="text-gray-500 mr-1">Latency:</span><span className="text-white">{portfolio.latency || 8}ms</span></span>
         </div>
       </div>
 
       {/* ═══════ QUICK EXECUTION BAR ═══════ */}
-      <div className="h-10 bg-[#0a1020] border-b border-[#1a2744] flex items-center px-4 gap-2 shrink-0">
-        <span className="font-mono text-[9px] text-[#5a6f8a] uppercase tracking-[1px] mr-2">Quick Execution</span>
+      <div className="h-10 bg-[#111827]/80 border-b border-[rgba(42,52,68,0.5)] flex items-center px-4 gap-2 shrink-0">
+        <span className="font-mono text-[9px] text-gray-500 uppercase tracking-[1px] mr-2">Quick Execution</span>
         {/* Market Buy */}
         <button
           onClick={() => { if (window.confirm(`Market BUY ${orderForm.symbol} x${orderForm.quantity}?`)) withPreflight('buy', executeMarketBuy); }}
@@ -365,12 +365,12 @@ export default function TradeExecution() {
           gridTemplateColumns: '240px 1fr 240px 300px',
           gridTemplateRows: '1fr 200px',
           gap: '1px',
-          background: '#1a2744',
+          background: 'rgba(42,52,68,0.5)',
         }}
       >
 
         {/* ═══ COL 1 ROW 1: MULTI-PRICE LADDER ═══ */}
-        <div className="bg-[#0a1020] flex flex-col overflow-hidden">
+        <div className="bg-[#111827]/80 flex flex-col overflow-hidden">
           <PanelHead>Multi-Price Ladder</PanelHead>
           <div className="flex-1 overflow-y-auto">
             {displayLadder.map((row, i) => {
@@ -403,7 +403,7 @@ export default function TradeExecution() {
                   {/* Price */}
                   <div className={clsx(
                     'text-center font-semibold text-[9px]',
-                    isCurrent && 'bg-cyan-400 text-black rounded-sm py-px',
+                    isCurrent && 'bg-[#00D9FF] text-black rounded-sm py-px',
                     isAbove && !isCurrent && 'text-[#00e676]',
                     isBelow && !isCurrent && 'text-[#ff3860]',
                   )}>{price.toFixed(2)}</div>
@@ -420,19 +420,19 @@ export default function TradeExecution() {
         </div>
 
         {/* ═══ COL 2 ROW 1: ADVANCED ORDER BUILDER + VISUAL PRICE LADDER ═══ */}
-        <div className="bg-[#1a2744] flex flex-row overflow-hidden" style={{ gap: '1px' }}>
-        <div className="bg-[#0a1020] flex flex-col overflow-hidden" style={{ flex: '3 1 0%' }}>
+        <div className="bg-[rgba(42,52,68,0.5)] flex flex-row overflow-hidden" style={{ gap: '1px' }}>
+        <div className="bg-[#111827]/80 flex flex-col overflow-hidden" style={{ flex: '3 1 0%' }}>
           <PanelHead>Advanced Order Builder</PanelHead>
           <div className="flex-1 overflow-y-auto p-3.5">
             {/* Tabs */}
-            <div className="flex gap-0 mb-3.5 border-b border-[#1a2744]">
+            <div className="flex gap-0 mb-3.5 border-b border-[rgba(42,52,68,0.5)]">
               {['Advanced', 'Strategy', 'News'].map(tab => (
                 <button
                   key={tab}
                   onClick={() => setBuilderTab(tab)}
                   className={clsx(
                     'px-3.5 py-[5px] text-[10px] border-b-2 transition-colors cursor-pointer',
-                    builderTab === tab ? 'text-cyan-400 border-cyan-400' : 'text-[#5a6f8a] border-transparent hover:text-[#c8d6e5]',
+                    builderTab === tab ? 'text-[#00D9FF] border-[#00D9FF]' : 'text-gray-500 border-transparent hover:text-[#c8d6e5]',
                   )}
                 >{tab}</button>
               ))}
@@ -453,25 +453,25 @@ export default function TradeExecution() {
             {/* Call with +/- stepper */}
             <FormField label="Call:">
               <div className="flex-1 flex items-center gap-1">
-                <button onClick={() => updateOrderForm({ callStrikeIdx: Math.max(callIdx - 1, 0) })} className="w-6 h-6 flex items-center justify-center bg-[#111b2e] border border-[#1a2744] rounded-[3px] text-[#5a6f8a] hover:border-cyan-400 hover:text-cyan-400 transition-colors shrink-0"><Minus className="w-3 h-3" /></button>
+                <button onClick={() => updateOrderForm({ callStrikeIdx: Math.max(callIdx - 1, 0) })} className="w-6 h-6 flex items-center justify-center bg-[#0B0E14] border border-[rgba(42,52,68,0.5)] rounded-[3px] text-gray-500 hover:border-[#00D9FF] hover:text-[#00D9FF] transition-colors shrink-0"><Minus className="w-3 h-3" /></button>
                 <FormInput readOnly value={curCall} className="flex-1 text-center" />
-                <button onClick={() => updateOrderForm({ callStrikeIdx: Math.min(callIdx + 1, displayCallStrikes.length - 1) })} className="w-6 h-6 flex items-center justify-center bg-[#111b2e] border border-[#1a2744] rounded-[3px] text-[#5a6f8a] hover:border-cyan-400 hover:text-cyan-400 transition-colors shrink-0"><Plus className="w-3 h-3" /></button>
+                <button onClick={() => updateOrderForm({ callStrikeIdx: Math.min(callIdx + 1, displayCallStrikes.length - 1) })} className="w-6 h-6 flex items-center justify-center bg-[#0B0E14] border border-[rgba(42,52,68,0.5)] rounded-[3px] text-gray-500 hover:border-[#00D9FF] hover:text-[#00D9FF] transition-colors shrink-0"><Plus className="w-3 h-3" /></button>
               </div>
             </FormField>
 
             {/* Put with +/- stepper */}
             <FormField label="Put:">
               <div className="flex-1 flex items-center gap-1">
-                <button onClick={() => updateOrderForm({ putStrikeIdx: Math.max(putIdx - 1, 0) })} className="w-6 h-6 flex items-center justify-center bg-[#111b2e] border border-[#1a2744] rounded-[3px] text-[#5a6f8a] hover:border-cyan-400 hover:text-cyan-400 transition-colors shrink-0"><Minus className="w-3 h-3" /></button>
+                <button onClick={() => updateOrderForm({ putStrikeIdx: Math.max(putIdx - 1, 0) })} className="w-6 h-6 flex items-center justify-center bg-[#0B0E14] border border-[rgba(42,52,68,0.5)] rounded-[3px] text-gray-500 hover:border-[#00D9FF] hover:text-[#00D9FF] transition-colors shrink-0"><Minus className="w-3 h-3" /></button>
                 <FormInput readOnly value={curPut} className="flex-1 text-center" />
-                <button onClick={() => updateOrderForm({ putStrikeIdx: Math.min(putIdx + 1, displayPutStrikes.length - 1) })} className="w-6 h-6 flex items-center justify-center bg-[#111b2e] border border-[#1a2744] rounded-[3px] text-[#5a6f8a] hover:border-cyan-400 hover:text-cyan-400 transition-colors shrink-0"><Plus className="w-3 h-3" /></button>
+                <button onClick={() => updateOrderForm({ putStrikeIdx: Math.min(putIdx + 1, displayPutStrikes.length - 1) })} className="w-6 h-6 flex items-center justify-center bg-[#0B0E14] border border-[rgba(42,52,68,0.5)] rounded-[3px] text-gray-500 hover:border-[#00D9FF] hover:text-[#00D9FF] transition-colors shrink-0"><Plus className="w-3 h-3" /></button>
               </div>
             </FormField>
 
             <FormField label="Quantity:">
               <div className="flex-1 flex items-center gap-1.5">
                 <FormInput type="number" value={orderForm.quantity} onChange={e => updateOrderForm({ quantity: parseInt(e.target.value) || 0 })} className="flex-1" />
-                <span className="text-[9px] text-[#5a6f8a] shrink-0">Contracts</span>
+                <span className="text-[9px] text-gray-500 shrink-0">Contracts</span>
               </div>
             </FormField>
 
@@ -488,7 +488,7 @@ export default function TradeExecution() {
           </div>
         </div>
         {/* VisualPriceLadder — narrow adjacent column (~1/4 width) */}
-        <div className="bg-[#0a1020] flex flex-col overflow-hidden" style={{ flex: '1 1 0%', minWidth: 180 }}>
+        <div className="bg-[#111827]/80 flex flex-col overflow-hidden" style={{ flex: '1 1 0%', minWidth: 180 }}>
           <VisualPriceLadder
             entry={0}
             stop={0}
@@ -500,23 +500,23 @@ export default function TradeExecution() {
         </div>{/* /col2-flex-row */}
 
         {/* ═══ COL 3 ROW 1: LIVE ORDER BOOK ═══ */}
-        <div className="bg-[#0a1020] flex flex-col overflow-hidden">
+        <div className="bg-[#111827]/80 flex flex-col overflow-hidden">
           <PanelHead>Live Order Book</PanelHead>
           <div className="flex-1 overflow-y-auto">
             {/* Top asks */}
             <table className="w-full border-collapse">
               <thead>
                 <tr>
-                  <th className="px-1.5 py-1 font-mono text-[8px] text-[#5a6f8a] uppercase text-left border-b border-[#1a2744] sticky top-0 bg-[#070d18] z-[2]">Asset</th>
-                  <th className="px-1.5 py-1 font-mono text-[8px] text-[#5a6f8a] uppercase text-right border-b border-[#1a2744] sticky top-0 bg-[#070d18] z-[2]">Bid</th>
-                  <th className="px-1.5 py-1 font-mono text-[8px] text-[#5a6f8a] uppercase text-right border-b border-[#1a2744] sticky top-0 bg-[#070d18] z-[2]">Ask</th>
-                  <th className="px-1.5 py-1 font-mono text-[8px] text-[#5a6f8a] uppercase text-right border-b border-[#1a2744] sticky top-0 bg-[#070d18] z-[2]">Value</th>
+                  <th className="px-1.5 py-1 font-mono text-[8px] text-gray-500 uppercase text-left border-b border-[rgba(42,52,68,0.5)] sticky top-0 bg-[#111827] z-[2]">Asset</th>
+                  <th className="px-1.5 py-1 font-mono text-[8px] text-gray-500 uppercase text-right border-b border-[rgba(42,52,68,0.5)] sticky top-0 bg-[#111827] z-[2]">Bid</th>
+                  <th className="px-1.5 py-1 font-mono text-[8px] text-gray-500 uppercase text-right border-b border-[rgba(42,52,68,0.5)] sticky top-0 bg-[#111827] z-[2]">Ask</th>
+                  <th className="px-1.5 py-1 font-mono text-[8px] text-gray-500 uppercase text-right border-b border-[rgba(42,52,68,0.5)] sticky top-0 bg-[#111827] z-[2]">Value</th>
                 </tr>
               </thead>
               <tbody>
                 {displayBookTop.map((r, i) => (
                   <tr key={i} className="hover:bg-[rgba(0,212,232,0.03)]">
-                    <td className="px-1.5 py-[3px] font-mono text-[9px] text-[#5a6f8a] border-b border-[rgba(26,39,68,0.3)]">{r.asset || '-'}</td>
+                    <td className="px-1.5 py-[3px] font-mono text-[9px] text-gray-500 border-b border-[rgba(26,39,68,0.3)]">{r.asset || '-'}</td>
                     <td className="px-1.5 py-[3px] font-mono text-[9px] text-[#00e676] text-right border-b border-[rgba(26,39,68,0.3)]">{parseFloat(r.bid || r.price || 0).toFixed(3)}</td>
                     <td className="px-1.5 py-[3px] font-mono text-[9px] text-[#ff3860] text-right border-b border-[rgba(26,39,68,0.3)]">{parseFloat(r.ask || 0).toFixed(3)}</td>
                     <td className="px-1.5 py-[3px] font-mono text-[9px] text-[#c8d6e5] text-right border-b border-[rgba(26,39,68,0.3)]">{r.value || r.total || '-'}</td>
@@ -524,15 +524,15 @@ export default function TradeExecution() {
                 ))}
               </tbody>
             </table>
-            <div className="border-t border-[#1a2744]" />
+            <div className="border-t border-[rgba(42,52,68,0.5)]" />
             {/* Bottom bids */}
             <table className="w-full border-collapse">
               <thead>
                 <tr>
-                  <th className="px-1.5 py-1 font-mono text-[8px] text-[#5a6f8a] uppercase text-left border-b border-[#1a2744] bg-[#070d18]">Asset $</th>
-                  <th className="px-1.5 py-1 font-mono text-[8px] text-[#5a6f8a] uppercase text-right border-b border-[#1a2744] bg-[#070d18]">Bid</th>
-                  <th className="px-1.5 py-1 font-mono text-[8px] text-[#5a6f8a] uppercase text-right border-b border-[#1a2744] bg-[#070d18]">Ask</th>
-                  <th className="px-1.5 py-1 font-mono text-[8px] text-[#5a6f8a] uppercase text-right border-b border-[#1a2744] bg-[#070d18]">Volume</th>
+                  <th className="px-1.5 py-1 font-mono text-[8px] text-gray-500 uppercase text-left border-b border-[rgba(42,52,68,0.5)] bg-[#111827]">Asset $</th>
+                  <th className="px-1.5 py-1 font-mono text-[8px] text-gray-500 uppercase text-right border-b border-[rgba(42,52,68,0.5)] bg-[#111827]">Bid</th>
+                  <th className="px-1.5 py-1 font-mono text-[8px] text-gray-500 uppercase text-right border-b border-[rgba(42,52,68,0.5)] bg-[#111827]">Ask</th>
+                  <th className="px-1.5 py-1 font-mono text-[8px] text-gray-500 uppercase text-right border-b border-[rgba(42,52,68,0.5)] bg-[#111827]">Volume</th>
                 </tr>
               </thead>
               <tbody>
@@ -550,12 +550,12 @@ export default function TradeExecution() {
         </div>
 
         {/* ═══ COL 4 ROW 1: PRICE CHARTS + NEWS FEED ═══ */}
-        <div className="flex flex-col overflow-hidden" style={{ background: '#1a2744' }}>
+        <div className="flex flex-col overflow-hidden" style={{ background: 'rgba(42,52,68,0.5)' }}>
           {/* Price Charts */}
-          <div className="flex-1 bg-[#0a1020] flex flex-col overflow-hidden min-h-0">
+          <div className="flex-1 bg-[#111827]/80 flex flex-col overflow-hidden min-h-0">
             <PanelHead>Price Charts</PanelHead>
-            <div className="px-2.5 py-1 font-mono text-[8px] text-[#5a6f8a] flex items-center gap-2 border-b border-[#1a2744] shrink-0">
-              <span className="text-[#e8f0fe] font-semibold">{orderForm.symbol || 'SPY'}</span>
+            <div className="px-2.5 py-1 font-mono text-[8px] text-gray-500 flex items-center gap-2 border-b border-[rgba(42,52,68,0.5)] shrink-0">
+              <span className="text-white font-semibold">{orderForm.symbol || 'SPY'}</span>
               <span>-</span>
               <span>S&P 500 Index</span>
               <div className="ml-auto flex gap-1">
@@ -565,7 +565,7 @@ export default function TradeExecution() {
                     onClick={() => setChartTimeframe(tf)}
                     className={clsx(
                       'px-1.5 py-0.5 rounded-sm text-[7px] font-mono font-semibold transition-colors',
-                      chartTimeframe === tf ? 'bg-cyan-400/20 text-cyan-400' : 'text-[#5a6f8a] hover:text-[#c8d6e5]',
+                      chartTimeframe === tf ? 'bg-[#00D9FF]/20 text-[#00D9FF]' : 'text-gray-500 hover:text-[#c8d6e5]',
                     )}
                   >{tf}</button>
                 ))}
@@ -576,9 +576,9 @@ export default function TradeExecution() {
             </div>
           </div>
           {/* 1px gap */}
-          <div className="h-px bg-[#1a2744] shrink-0" />
+          <div className="h-px bg-[rgba(42,52,68,0.5)] shrink-0" />
           {/* News Feed */}
-          <div className="flex-1 bg-[#0a1020] flex flex-col overflow-hidden min-h-0">
+          <div className="flex-1 bg-[#111827]/80 flex flex-col overflow-hidden min-h-0">
             <PanelHead>News Feed</PanelHead>
             <div className="flex-1 overflow-y-auto">
               {displayNews.map((item, i) => {
@@ -586,13 +586,13 @@ export default function TradeExecution() {
                   item.type === 'negative' || item.type === 'error' ? 'bg-[#ff3860]' :
                   item.type === 'warning' ? 'bg-[#ffab00]' :
                   item.type === 'positive' || item.type === 'success' ? 'bg-[#00e676]' :
-                  'bg-cyan-400';
+                  'bg-[#00D9FF]';
                 return (
                   <div key={i} className="px-2.5 py-1.5 border-b border-[rgba(26,39,68,0.3)] flex gap-1.5 items-start">
                     <span className={clsx('w-1 h-1 rounded-full mt-1.5 shrink-0', dotColor)} />
                     <div className="min-w-0">
-                      <div className="text-[9px] text-[#5a6f8a] leading-snug">{item.text}</div>
-                      <div className="text-[7px] text-[#5a6f8a] opacity-60 mt-0.5">{item.time}</div>
+                      <div className="text-[9px] text-gray-500 leading-snug">{item.text}</div>
+                      <div className="text-[7px] text-gray-500 opacity-60 mt-0.5">{item.time}</div>
                     </div>
                   </div>
                 );
@@ -602,17 +602,17 @@ export default function TradeExecution() {
         </div>
 
         {/* ═══ BOTTOM LEFT (cols 1-3): LIVE POSITIONS ═══ */}
-        <div className="bg-[#0a1020] flex flex-col overflow-hidden" style={{ gridColumn: '1 / 4' }}>
-          <div className="flex gap-0 bg-[#070d18] border-b border-[#1a2744] shrink-0">
-            <button className="px-3.5 py-1.5 font-mono text-[9px] text-cyan-400 border-b-2 border-cyan-400 cursor-pointer">Live Positions</button>
-            <button className="px-3.5 py-1.5 font-mono text-[9px] text-[#5a6f8a] border-b-2 border-transparent cursor-pointer hover:text-[#c8d6e5]">Order History</button>
+        <div className="bg-[#111827]/80 flex flex-col overflow-hidden" style={{ gridColumn: '1 / 4' }}>
+          <div className="flex gap-0 bg-[#111827] border-b border-[rgba(42,52,68,0.5)] shrink-0">
+            <button className="px-3.5 py-1.5 font-mono text-[9px] text-[#00D9FF] border-b-2 border-[#00D9FF] cursor-pointer">Live Positions</button>
+            <button className="px-3.5 py-1.5 font-mono text-[9px] text-gray-500 border-b-2 border-transparent cursor-pointer hover:text-[#c8d6e5]">Order History</button>
           </div>
           <div className="flex-1 overflow-y-auto">
             <table className="w-full border-collapse">
               <thead>
                 <tr>
                   {['Asset', 'Order Name', 'Order Type', 'Quantity', 'Limit', 'Order Log', 'Legs'].map(h => (
-                    <th key={h} className="px-2 py-1.5 font-mono text-[8px] text-[#5a6f8a] uppercase text-left border-b border-[#1a2744] sticky top-0 bg-[#0a1020] z-[2]">{h}</th>
+                    <th key={h} className="px-2 py-1.5 font-mono text-[8px] text-gray-500 uppercase text-left border-b border-[rgba(42,52,68,0.5)] sticky top-0 bg-[#111827]/80 z-[2]">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -621,7 +621,7 @@ export default function TradeExecution() {
                   const sc = pos.status === 'FILLED' || pos.status === 'ACCEPTED' ? 'text-[#00e676]' : pos.status === 'PENDING' || pos.status === 'PARTIAL' ? 'text-[#ffab00]' : 'text-[#c8d6e5]';
                   return (
                     <tr key={i} className="hover:bg-[rgba(0,212,232,0.03)]">
-                      <td className="px-2 py-1 font-mono text-[9px] text-cyan-400 border-b border-[rgba(26,39,68,0.3)]">{pos.symbol}</td>
+                      <td className="px-2 py-1 font-mono text-[9px] text-[#00D9FF] border-b border-[rgba(26,39,68,0.3)]">{pos.symbol}</td>
                       <td className="px-2 py-1 font-mono text-[9px] text-[#c8d6e5] border-b border-[rgba(26,39,68,0.3)]">{pos.orderName || `${pos.side || ''} ${pos.symbol}`}</td>
                       <td className="px-2 py-1 font-mono text-[9px] text-[#c8d6e5] border-b border-[rgba(26,39,68,0.3)]">{pos.orderType || 'Market'}</td>
                       <td className="px-2 py-1 font-mono text-[9px] text-[#c8d6e5] border-b border-[rgba(26,39,68,0.3)]">{pos.quantity || pos.qty || 0}</td>
@@ -637,19 +637,19 @@ export default function TradeExecution() {
         </div>
 
         {/* ═══ BOTTOM RIGHT (col 4): SYSTEM STATUS LOG ═══ */}
-        <div className="bg-[#0a1020] flex flex-col overflow-hidden">
+        <div className="bg-[#111827]/80 flex flex-col overflow-hidden">
           <PanelHead>System Status Log</PanelHead>
           <div className="flex-1 overflow-y-auto px-2.5 py-1.5 font-mono text-[8px]">
             {displayStatus.map((item, i) => {
               const tc =
                 item.type === 'success' ? 'text-[#00e676]' :
                 item.type === 'warning' ? 'text-[#ffab00]' :
-                item.type === 'info'    ? 'text-cyan-400' :
+                item.type === 'info'    ? 'text-[#00D9FF]' :
                 item.type === 'error'   ? 'text-[#ff3860]' :
                 'text-[#00e676]';
               return (
                 <div key={i} className="mb-px leading-relaxed">
-                  <span className="text-[#5a6f8a]">[{item.time}]</span>{' '}
+                  <span className="text-gray-500">[{item.time}]</span>{' '}
                   <span className={tc}>{item.text}</span>
                 </div>
               );
@@ -660,7 +660,7 @@ export default function TradeExecution() {
       </div>{/* /main-grid */}
 
       {/* ═══ COUNCIL DECISION PANEL ═══ */}
-      <div className="shrink-0 border-t border-[#1a2744] bg-[#0a1020] p-3">
+      <div className="shrink-0 border-t border-[rgba(42,52,68,0.5)] bg-[#111827]/80 p-3">
         <CouncilDecisionPanel
           onExecute={(data) => { console.log('Execute:', data); }}
           onOverride={() => { console.log('Override'); }}

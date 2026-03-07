@@ -1,26 +1,70 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ─────────────────────────────────────────────
+   Aurora Design System — CSS Variables
+   Matches mockup values exactly.
+────────────────────────────────────────────── */
 :root {
-  font-family:
-    "Inter",
-    system-ui,
-    -apple-system,
-    sans-serif;
+  /* Backgrounds */
+  --bg-primary:   #0B0E1A;
+  --bg-surface:   #111827;
+  --bg-surface-alt: #1F2937;
+
+  /* Card */
+  --card-bg:      linear-gradient(145deg, #111827, #1F2937);
+  --card-border:  rgba(42, 52, 68, 0.5);
+  --card-radius:  8px;
+
+  /* Accent */
+  --color-primary: #00D9FF;
+  --color-success: #10B981;
+  --color-danger:  #EF4444;
+  --color-warning: #F59E0B;
+
+  /* Text */
+  --text-primary: #F9FAFB;
+  --text-sub:     #9CA3AF;
+  --text-muted:   #6B7280;
+
+  /* Glows */
+  --glow-primary:  0 0 20px rgba(0, 217, 255, 0.3);
+  --glow-hover:    0 0 20px rgba(0, 217, 255, 0.5);
+  --glow-success:  0 0 12px rgba(16, 185, 129, 0.3);
+  --glow-danger:   0 0 12px rgba(239, 68, 68, 0.3);
+
+  /* Shadows */
+  --shadow-glass:  0 8px 32px rgba(0, 0, 0, 0.3);
+
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom scrollbar - use .custom-scrollbar on scrollable elements */
+/* ─────────────────────────────────────────────
+   Base
+────────────────────────────────────────────── */
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* ─────────────────────────────────────────────
+   Custom Scrollbar
+────────────────────────────────────────────── */
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: #6b7280 transparent;
+  scrollbar-color: #374151 transparent;
 }
 
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -28,50 +72,232 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #6b7280;
-  border-radius: 4px;
+  background: #374151;
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #131E2B;
+  background: #4B5563;
 }
 
-input[type="number"] {
-  -moz-appearance: textfield;
-  appearance: textfield;
+/* ─────────────────────────────────────────────
+   Aurora Card — the flagship surface component
+   gradient + backdrop-blur + glow on hover
+────────────────────────────────────────────── */
+.aurora-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--card-radius);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: var(--shadow-glass);
+  transition: box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Card hover effects */
+.aurora-card:hover {
+  box-shadow: var(--glow-hover);
+  border-color: rgba(0, 217, 255, 0.2);
+}
+
+/* ─────────────────────────────────────────────
+   Aurora Utility Classes
+────────────────────────────────────────────── */
+
+/* KPI value — monospace, dominant */
+.aurora-kpi {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #F9FAFB;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Label beneath KPI value */
+.aurora-label {
+  font-size: 0.625rem;  /* 10px */
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-sub);
+}
+
+/* Generic badge */
+.aurora-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* Regime status badges */
+.badge-regime-green {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #10B981;
+}
+
+.badge-regime-yellow {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #F59E0B;
+}
+
+.badge-regime-red {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #EF4444;
+}
+
+/* Signal / status badges */
+.badge-bullish  { @apply aurora-badge; background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.35); color: #10B981; }
+.badge-bearish  { @apply aurora-badge; background: rgba(239,68,68,0.12);  border: 1px solid rgba(239,68,68,0.35);  color: #EF4444; }
+.badge-neutral  { @apply aurora-badge; background: rgba(100,116,139,0.12); border: 1px solid rgba(100,116,139,0.35); color: #94A3B8; }
+.badge-warning  { @apply aurora-badge; background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.35); color: #F59E0B; }
+
+/* Connection / live indicator dot */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.status-dot-green  { background: #10B981; box-shadow: 0 0 6px rgba(16,185,129,0.5); }
+.status-dot-amber  { background: #F59E0B; box-shadow: 0 0 6px rgba(245,158,11,0.5); }
+.status-dot-red    { background: #EF4444; box-shadow: 0 0 6px rgba(239,68,68,0.5); }
+.status-dot-muted  { background: #4B5563; }
+
+/* ─────────────────────────────────────────────
+   Section Header — shared across all pages
+────────────────────────────────────────────── */
+.section-header {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #64748B;
+}
+
+/* ─────────────────────────────────────────────
+   KPI utility classes (used by KPICard & pages)
+────────────────────────────────────────────── */
+.kpi-value {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #F9FAFB;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi-label {
+  font-size: 0.625rem;  /* 10px */
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #6B7280;
+  margin-top: 0.125rem;
+}
+
+/* ─────────────────────────────────────────────
+   Table
+────────────────────────────────────────────── */
+.table-row-hover {
+  transition: background-color 0.15s;
+  cursor: pointer;
+}
+.table-row-hover:hover {
+  background: rgba(0, 217, 255, 0.04);
+}
+
+/* Card hover for list items */
 .card-hover {
-  @apply transition-all duration-200 hover:bg-secondary/20 hover:border-secondary;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+.card-hover:hover {
+  background: rgba(0, 217, 255, 0.05);
+  border-color: rgba(0, 217, 255, 0.2);
 }
 
-/* Pulse animation for live indicators */
+/* ─────────────────────────────────────────────
+   Monospace numbers
+────────────────────────────────────────────── */
+.num {
+  font-family: "JetBrains Mono", monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─────────────────────────────────────────────
+   Score bar gradient
+────────────────────────────────────────────── */
+.score-bar {
+  background: linear-gradient(90deg, #EF4444 0%, #F59E0B 50%, #10B981 100%);
+}
+
+/* ─────────────────────────────────────────────
+   Ticker Strip Animation
+────────────────────────────────────────────── */
+@keyframes ticker-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.ticker-strip {
+  animation: ticker-scroll 60s linear infinite;
+  white-space: nowrap;
+}
+
+.ticker-strip:hover {
+  animation-play-state: paused;
+}
+
+/* ─────────────────────────────────────────────
+   Pulse / Live indicator
+────────────────────────────────────────────── */
 .pulse-live {
   animation: pulse-live 2s infinite;
 }
 
 @keyframes pulse-live {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
 }
 
-/* Score bar gradient - danger, warning, success */
-.score-bar {
-  background: linear-gradient(90deg, #ef4444 0%, #eab308 50%, #22c55e 100%);
+/* ─────────────────────────────────────────────
+   Slide-in toast animation
+────────────────────────────────────────────── */
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(100px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
-/* Table row hover */
-.table-row-hover {
-  @apply transition-colors hover:bg-secondary/20 cursor-pointer;
+.animate-slide-in {
+  animation: slide-in 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Hide number input spin buttons (Chrome, Safari, Edge, Firefox) */
+/* ─────────────────────────────────────────────
+   Toast font override
+────────────────────────────────────────────── */
+.Toastify__toast,
+.Toastify__toast-body,
+.Toastify__toast-container {
+  font-family: "Inter", sans-serif !important;
+}
+
+/* ─────────────────────────────────────────────
+   Number input — hide spin buttons
+────────────────────────────────────────────── */
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button {
   -webkit-appearance: none;
@@ -84,75 +310,33 @@ input[type="number"]::-webkit-inner-spin-button {
   position: absolute;
 }
 
-/* Aurora Design System Utilities */
-:root {
-  --bg-primary: #0B0E1A;
-  --card-bg: linear-gradient(145deg, #111827, #1F2937);
-  --glow-hover: 0 0 20px rgba(0,217,255,0.5);
+/* ─────────────────────────────────────────────
+   Glow text utility
+────────────────────────────────────────────── */
+.text-glow-cyan {
+  text-shadow: 0 0 8px rgba(0, 217, 255, 0.6);
 }
 
-.aurora-card {
-  @apply bg-aurora-card border border-aurora-border rounded-aurora p-4 backdrop-blur-glass shadow-glass;
-  transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
-}
-.aurora-card:hover { box-shadow: var(--glow-hover); }
-.aurora-kpi { @apply font-mono text-sm font-bold text-aurora-primary; }
-.aurora-label { @apply text-xs uppercase tracking-wider text-aurora-subtext font-semibold; }
-.aurora-badge {
-  @apply px-2 py-1 text-xs font-semibold rounded-full uppercase;
+.text-glow-green {
+  text-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
 }
 
-/* Toast font family */
-.Toastify__toast,
-.Toastify__toast-body,
-.Toastify__toast-container {
-  font-family: "Inter", sans-serif !important;
+/* ─────────────────────────────────────────────
+   Sidebar active indicator — left cyan bar
+────────────────────────────────────────────── */
+.nav-item-active {
+  position: relative;
 }
 
-/* Slide-in animation for toast notifications */
-@keyframes slide-in {
-  from {
-    opacity: 0;
-    transform: translateX(100px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-.animate-slide-in {
-  animation: slide-in 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Section header style — shared across all pages */
-.section-header {
-  @apply text-xs font-bold uppercase tracking-wider text-slate-400 font-mono;
-}
-
-/* KPI value style */
-.kpi-value {
-  @apply text-lg font-bold font-mono text-white leading-tight;
-}
-
-/* KPI label style */
-.kpi-label {
-  @apply text-[10px] uppercase tracking-wider text-slate-500 mt-0.5;
-}
-
-/* Monospace numbers — apply to all numeric data */
-.num {
-  @apply font-mono tabular-nums;
-}
-
-/* Ticker strip animation */
-@keyframes ticker-scroll {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
-}
-.ticker-strip {
-  animation: ticker-scroll 60s linear infinite;
-}
-.ticker-strip:hover {
-  animation-play-state: paused;
+.nav-item-active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  background: #00D9FF;
+  border-radius: 0 2px 2px 0;
+  box-shadow: 0 0 8px rgba(0, 217, 255, 0.6);
 }

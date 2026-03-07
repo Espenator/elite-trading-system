@@ -28,6 +28,22 @@ const TABS = [
   { key: "logs", label: "Logs & Telemetry" },
 ];
 
+// Progress bar component for system metrics
+function MetricBar({ value, max = 100, color = "#00D9FF" }) {
+  const pct = Math.min(100, Math.max(0, (value / max) * 100));
+  const barColor = value > 80 ? "#ef4444" : value > 60 ? "#f59e0b" : color;
+  return (
+    <div className="inline-flex items-center gap-1">
+      <div className="w-12 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+        <div
+          className="h-full rounded-full transition-all duration-500"
+          style={{ width: `${pct}%`, backgroundColor: barColor }}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function AgentCommandCenter() {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") || "overview";
@@ -45,62 +61,86 @@ export default function AgentCommandCenter() {
     : 47;
   const ramPct = systemStatus?.memory_percent || 31;
   const gpuPct = systemStatus?.gpu_percent || 61;
-  const uptime = systemStatus?.uptime || "47h 12m 33s";
+  const uptime = systemStatus?.uptime || "47d 12h 33m";
 
   const setTab = (key) => setSearchParams({ tab: key });
 
   return (
-    <div className="min-h-screen bg-[#0B0E14] text-white">
+    <div className="min-h-screen bg-[#0B0E14] text-white flex flex-col">
       {/* ========== HEADER BAR ========== */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-800 bg-[#111827]/80">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-800 bg-[#111827]/90 shrink-0">
+        {/* Left: Title + Status */}
         <div className="flex items-center gap-3">
-          <Activity className="w-5 h-5 text-cyan-400" />
-          <h1 className="text-base font-bold tracking-wide">AGENT COMMAND CENTER</h1>
-          <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+          <Activity className="w-5 h-5 text-[#00D9FF]" />
+          <h1 className="text-sm font-bold tracking-widest text-white font-mono">AGENT COMMAND CENTER</h1>
+          <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 tracking-wider">
             GREEN
           </span>
         </div>
 
-        <div className="flex items-center gap-4 text-[10px]">
-          <span className="text-gray-500">Uptime: <span className="text-white font-mono">{uptime}</span></span>
-          <span className="text-gray-500">{onlineCount}/{totalCount} <span className="text-emerald-400">ONLINE</span></span>
-          <div className="flex items-center gap-1">
-            <Cpu className="w-3 h-3 text-gray-500" />
-            <span className="text-gray-500">CPU:</span>
-            <span className={cpuAvg > 80 ? "text-red-400" : cpuAvg > 60 ? "text-amber-400" : "text-white"}>{cpuAvg}%</span>
+        {/* Center: System Metrics */}
+        <div className="flex items-center gap-5 text-[10px] font-mono">
+          <div className="flex items-center gap-1.5">
+            <span className="text-gray-500">Uptime:</span>
+            <span className="text-white font-bold">{uptime}</span>
           </div>
-          <span className="text-gray-500">RAM: <span className={ramPct > 80 ? "text-red-400" : "text-white"}>{ramPct}%</span></span>
-          <span className="text-gray-500">GPU: <span className={gpuPct > 80 ? "text-red-400" : gpuPct > 60 ? "text-amber-400" : "text-white"}>{gpuPct}%</span></span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-white font-bold">{totalCount}/{totalCount}</span>
+            <span className="text-emerald-400 font-bold">ONLINE</span>
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-gray-500">CPU:</span>
+            <span className={cpuAvg > 80 ? "text-red-400 font-bold" : cpuAvg > 60 ? "text-amber-400 font-bold" : "text-white font-bold"}>{cpuAvg}%</span>
+            <MetricBar value={cpuAvg} />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-gray-500">RAM:</span>
+            <span className={ramPct > 80 ? "text-red-400 font-bold" : "text-white font-bold"}>{ramPct}%</span>
+            <MetricBar value={ramPct} color="#00D9FF" />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-gray-500">GPU:</span>
+            <span className={gpuPct > 80 ? "text-red-400 font-bold" : gpuPct > 60 ? "text-amber-400 font-bold" : "text-white font-bold"}>{gpuPct}%</span>
+            <MetricBar value={gpuPct} color="#a855f7" />
+          </div>
+        </div>
+
+        {/* Right: Kill Switch + Branding */}
+        <div className="flex items-center gap-4">
           <button
-            className="px-3 py-1 text-[10px] font-bold bg-red-600/30 text-red-300 border border-red-500/50 rounded hover:bg-red-600/50 transition-all flex items-center gap-1"
+            className="px-3 py-1.5 text-[11px] font-bold bg-red-600/20 text-red-400 border border-red-500/50 rounded hover:bg-red-600/40 hover:shadow-[0_0_12px_rgba(239,68,68,0.3)] transition-all flex items-center gap-1.5 tracking-wider"
             onClick={() => toast.error("KILL SWITCH activated — all agents halting!")}
           >
             <Power className="w-3 h-3" />
             KILL SWITCH
           </button>
-          <span className="text-gray-600 text-[9px]">ELITE TRADING SYSTEM</span>
+          <span className="text-[10px] text-gray-500 font-mono tracking-[0.2em] uppercase">ELITE TRADING SYSTEM</span>
         </div>
       </div>
 
       {/* ========== TAB BAR ========== */}
-      <div className="flex items-center gap-0 px-4 border-b border-gray-800 bg-[#111827]/40">
+      <div className="flex items-center px-4 border-b border-gray-800 bg-[#111827]/40 shrink-0">
         {TABS.map(t => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`px-4 py-2 text-[11px] font-medium border-b-2 transition-all ${
+            className={`px-4 py-2.5 text-[11px] font-medium border-b-2 transition-all whitespace-nowrap ${
               activeTab === t.key
-                ? "text-cyan-400 border-cyan-400 bg-cyan-500/5"
+                ? "text-[#00D9FF] border-[#00D9FF] bg-[#00D9FF]/5"
                 : "text-gray-500 border-transparent hover:text-gray-300 hover:bg-gray-800/30"
             }`}
           >
             {t.label}
+            {activeTab === t.key && (
+              <span className="ml-1.5 text-[9px] text-[#00D9FF]/60 uppercase tracking-wider">ACTIVE</span>
+            )}
           </button>
         ))}
       </div>
 
       {/* ========== TAB CONTENT ========== */}
-      <div className="p-4">
+      <div className="flex-1 p-3 overflow-y-auto">
         {activeTab === "overview" && <SwarmOverviewTab agents={agents} />}
         {activeTab === "registry" && <AgentRegistryTab agents={agents} />}
         {activeTab === "spawn" && <SpawnScaleTab />}
@@ -112,22 +152,31 @@ export default function AgentCommandCenter() {
       </div>
 
       {/* ========== FOOTER BAR ========== */}
-      <div className="flex items-center justify-between px-4 py-1.5 border-t border-gray-800 bg-[#111827]/60 text-[9px] text-gray-600">
-        <div className="flex items-center gap-3">
-          <span>WebSocket: <span className="text-emerald-400">Connected</span></span>
-          <span>•</span>
-          <span>{totalCount} Agents</span>
-          <span>•</span>
-          <span>Live Files: 847</span>
-          <span>•</span>
-          <span>Council: {onlineCount}/{totalCount}</span>
+      <div className="flex items-center justify-between px-4 py-1 border-t border-gray-800 bg-[#111827]/80 text-[9px] font-mono shrink-0">
+        <div className="flex items-center gap-3 text-gray-600">
+          <span className="flex items-center gap-1">
+            WebSocket <span className="text-emerald-400 ml-0.5">Connected</span>
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-0.5" />
+          </span>
+          <span className="text-gray-700">|</span>
+          <span>API <span className="text-emerald-400">Healthy</span>
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block ml-0.5" />
+          </span>
+          <span className="text-gray-700">|</span>
+          <span><span className="text-white">{totalCount}</span> agents</span>
+          <span className="text-gray-700">|</span>
+          <span>LLM Flow <span className="text-white">847</span></span>
+          <span className="text-gray-700">|</span>
+          <span>Conference <span className="text-white">8/12</span></span>
+          <span className="text-gray-700">|</span>
+          <span>Last Refresh <span className="text-[#00D9FF]">{new Date().toLocaleTimeString("en-US", { hour12: false })}</span></span>
+          <span className="text-gray-700">|</span>
+          <span>Load <span className="text-white">2.4/4.0</span></span>
+          <span className="text-gray-700">|</span>
+          <span>Uptime <span className="text-white">{uptime}</span></span>
         </div>
-        <div className="flex items-center gap-3">
-          <span>{new Date().toLocaleTimeString()}</span>
-          <span>•</span>
-          <span>{onlineCount} active</span>
-          <span>•</span>
-          <span>{totalCount - onlineCount} idle</span>
+        <div className="text-gray-700">
+          Embodier.ai v2.0
         </div>
       </div>
     </div>

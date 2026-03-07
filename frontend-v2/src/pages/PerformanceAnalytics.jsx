@@ -63,10 +63,10 @@ const FALLBACK_STRATEGY = {
 
 const Panel = ({ title, icon: Icon, className, children, action }) => (
   <div className={clsx(
-    'bg-[#0a1628] border border-[#1e3a5f]/40 rounded-lg overflow-hidden flex flex-col',
+    'bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-lg overflow-hidden flex flex-col',
     className
   )}>
-    <div className="px-3 py-2 border-b border-[#1e3a5f]/30 flex items-center justify-between gap-2 shrink-0">
+    <div className="px-3 py-2 border-b border-gray-800/50 flex items-center justify-between gap-2 shrink-0">
       <div className="flex items-center gap-2 min-w-0">
         {Icon && <Icon size={14} className="text-cyan-400 shrink-0" />}
         <span className="text-xs font-semibold text-white truncate">{title}</span>
@@ -189,7 +189,7 @@ const chartTooltipStyle = {
     fontSize: 11,
     color: '#e2e8f0',
   },
-  cursor: { stroke: 'rgba(6,182,212,0.3)' },
+  cursor: { stroke: 'rgba(0,217,255,0.3)' },
 };
 
 /* Rank badge colors */
@@ -243,12 +243,12 @@ export default function PerformanceAnalytics() {
   }, []);
 
   return (
-    <div className="h-full flex flex-col overflow-auto bg-[#060e1a]">
+    <div className="h-full flex flex-col overflow-auto bg-[#0B0E14]">
       {/* ─── HEADER ────────────────────────────────────────────── */}
-      <div className="px-4 py-3 flex items-center justify-between border-b border-[#1e3a5f]/30 shrink-0">
-        <h1 className="text-lg font-bold text-white tracking-tight">Performance Analytics</h1>
+      <div className="px-4 py-3 flex items-center justify-between border-b border-gray-800/50 shrink-0">
+        <h1 className="text-xl font-bold text-white tracking-tight">Performance Analytics</h1>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-[#0a1628] border border-emerald-500/30 rounded-full px-3 py-1.5">
+          <div className="flex items-center gap-2 bg-[#111827] border border-emerald-500/30 rounded-full px-3 py-1.5">
             <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-xs font-bold text-white shadow-lg shadow-emerald-500/20">
               {kpi.grade}
             </div>
@@ -258,7 +258,7 @@ export default function PerformanceAnalytics() {
       </div>
 
       {/* ─── KPI STRIP ─────────────────────────────────────────── */}
-      <div className="px-4 py-2 flex items-center gap-1 overflow-x-auto border-b border-[#1e3a5f]/20 shrink-0 bg-[#070f1c]">
+      <div className="px-4 py-2 flex items-center gap-1 overflow-x-auto border-b border-gray-800/30 shrink-0 bg-[#0B0E14]">
         <KpiPill label="Total Trades" value={kpi.totalTrades} icon={BarChart3} />
         <div className="w-px h-8 bg-[#1e3a5f]/30" />
         <KpiPill label="Net P&L" value={`+$${kpi.netPnl.toLocaleString()}`} positive={kpi.netPnl > 0} icon={TrendingUp} />
@@ -329,7 +329,7 @@ export default function PerformanceAnalytics() {
                       <XAxis dataKey="name" tick={{ fontSize: 8, fill: '#6b7280' }} />
                       <YAxis tick={{ fontSize: 8, fill: '#6b7280' }} />
                       <Tooltip {...chartTooltipStyle} />
-                      <Bar dataKey="rr" fill="#06b6d4" radius={[2, 2, 0, 0]} opacity={0.7} name="R:R" />
+                      <Bar dataKey="rr" fill="#00D9FF" radius={[2, 2, 0, 0]} opacity={0.7} name="R:R" />
                       <Line type="monotone" dataKey="expectancy" stroke="#10b981" strokeWidth={1.5} dot={false} name="Expectancy" yAxisId={0} />
                     </ComposedChart>
                   </ResponsiveContainer>
@@ -386,7 +386,7 @@ export default function PerformanceAnalytics() {
                       <XAxis type="number" dataKey="x" tick={{ fontSize: 8, fill: '#6b7280' }} name="Return" />
                       <YAxis type="number" dataKey="y" tick={{ fontSize: 8, fill: '#6b7280' }} name="Convexity" />
                       <Tooltip {...chartTooltipStyle} />
-                      <Scatter data={convexityData} fill="#06b6d4" opacity={0.6}>
+                      <Scatter data={convexityData} fill="#00D9FF" opacity={0.6}>
                         {convexityData.map((entry, i) => (
                           <Cell key={i} fill={entry.y > 0 ? '#10b981' : '#ef4444'} opacity={0.6} />
                         ))}
@@ -405,7 +405,7 @@ export default function PerformanceAnalytics() {
                       <XAxis dataKey="date" tick={{ fontSize: 7, fill: '#6b7280' }} interval={5} />
                       <YAxis tick={{ fontSize: 8, fill: '#6b7280' }} />
                       <Tooltip {...chartTooltipStyle} />
-                      <Bar dataKey="rollingVol" fill="#06b6d4" opacity={0.3} radius={[2, 2, 0, 0]} />
+                      <Bar dataKey="rollingVol" fill="#00D9FF" opacity={0.3} radius={[2, 2, 0, 0]} />
                       <Line type="monotone" dataKey="rollingSharpe" stroke="#f59e0b" strokeWidth={1.5} dot={false} />
                     </ComposedChart>
                   </ResponsiveContainer>
@@ -422,7 +422,7 @@ export default function PerformanceAnalytics() {
                 <div className="text-[9px] text-gray-500 mb-1">Agent Attribution Leaderboard</div>
                 <table className="w-full text-[9px]">
                   <thead>
-                    <tr className="border-b border-[#1e3a5f]/30">
+                    <tr className="border-b border-gray-800/50">
                       <th className="text-left py-0.5 text-gray-500 font-normal">#</th>
                       <th className="text-left py-0.5 text-gray-500 font-normal">Agent</th>
                       <th className="text-right py-0.5 text-gray-500 font-normal">Signals</th>
@@ -431,7 +431,7 @@ export default function PerformanceAnalytics() {
                   </thead>
                   <tbody>
                     {agents.slice(0, 4).map((a, idx) => (
-                      <tr key={a.name} className="border-b border-[#1e3a5f]/15">
+                      <tr key={a.name} className="border-b border-gray-800/20">
                         <td className="py-0.5">
                           <span className={clsx(
                             'inline-flex items-center justify-center w-4 h-4 rounded text-[8px] font-bold text-white',
@@ -528,7 +528,7 @@ export default function PerformanceAnalytics() {
                 <YAxis yAxisId="rr" tick={{ fontSize: 9, fill: '#6b7280' }} />
                 <YAxis yAxisId="exp" orientation="right" tick={{ fontSize: 9, fill: '#6b7280' }} />
                 <Tooltip {...chartTooltipStyle} />
-                <Bar yAxisId="rr" dataKey="rr" fill="#06b6d4" radius={[3, 3, 0, 0]} opacity={0.7} name="R:R" />
+                <Bar yAxisId="rr" dataKey="rr" fill="#00D9FF" radius={[3, 3, 0, 0]} opacity={0.7} name="R:R" />
                 <Line yAxisId="exp" type="monotone" dataKey="expectancy" stroke="#10b981" strokeWidth={2} dot={{ r: 3, fill: '#10b981' }} name="Expectancy" />
               </ComposedChart>
             </ResponsiveContainer>
@@ -539,7 +539,7 @@ export default function PerformanceAnalytics() {
             <div className="overflow-auto h-full">
               <table className="w-full text-[10px]">
                 <thead>
-                  <tr className="border-b border-[#1e3a5f]/30">
+                  <tr className="border-b border-gray-800/50">
                     {['date', 'symbol', 'side', 'entry', 'exit', 'pnl', 'rr', 'status'].map((col) => (
                       <th
                         key={col}
@@ -562,7 +562,7 @@ export default function PerformanceAnalytics() {
                 </thead>
                 <tbody>
                   {trades.map((t) => (
-                    <tr key={t.id} className="border-b border-[#1e3a5f]/15 hover:bg-[#0d1f35]/50 transition-colors">
+                    <tr key={t.id} className="border-b border-gray-800/20 hover:bg-gray-900/30 transition-colors">
                       <td className="py-1 px-1.5 text-gray-400">{t.date}</td>
                       <td className="py-1 px-1.5 text-white font-medium">{t.symbol}</td>
                       <td className="py-1 px-1.5">
@@ -624,11 +624,11 @@ export default function PerformanceAnalytics() {
               </div>
               {/* Staged Inferences & Flywheel Pipeline Health */}
               <div className="grid grid-cols-2 gap-2">
-                <div className="bg-[#0d1b2a] rounded p-1.5 text-center">
+                <div className="bg-[#0B0E14] rounded p-1.5 text-center">
                   <div className="text-[9px] text-gray-500">Staged Inferences</div>
                   <div className="text-sm font-bold text-violet-400">{ml.stagedInferences}</div>
                 </div>
-                <div className="bg-[#0d1b2a] rounded p-1.5 text-center">
+                <div className="bg-[#0B0E14] rounded p-1.5 text-center">
                   <div className="text-[9px] text-gray-500">Total Inferences</div>
                   <div className="text-sm font-bold text-gray-300">{ml.totalInferences}</div>
                 </div>
@@ -720,7 +720,7 @@ export default function PerformanceAnalytics() {
               {/* Market Sentiment & Regime */}
               <div className="space-y-2">
                 <div className="text-[10px] text-gray-500">Market Sentiment & Regime</div>
-                <div className="bg-[#0d1b2a] rounded-lg p-2 space-y-2">
+                <div className="bg-[#0B0E14] rounded-lg p-2 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] text-gray-400">Sentiment</span>
                     <span className={clsx(
@@ -744,7 +744,7 @@ export default function PerformanceAnalytics() {
                 <div className="text-[10px] text-gray-500">Active Strategies</div>
                 <div className="space-y-1.5">
                   {strategy.activeStrategies.map((s) => (
-                    <div key={s} className="flex items-center gap-2 bg-[#0d1b2a] rounded px-2 py-1.5">
+                    <div key={s} className="flex items-center gap-2 bg-[#0B0E14] rounded px-2 py-1.5">
                       <CheckCircle size={10} className="text-emerald-400 shrink-0" />
                       <span className="text-[10px] text-gray-300 truncate">{s}</span>
                     </div>
@@ -757,7 +757,7 @@ export default function PerformanceAnalytics() {
       </div>
 
       {/* ─── FOOTER ────────────────────────────────────────────── */}
-      <div className="px-4 py-2 border-t border-[#1e3a5f]/30 flex items-center justify-between text-[10px] text-gray-600 shrink-0 bg-[#060e1a]">
+      <div className="px-4 py-2 border-t border-gray-800/50 flex items-center justify-between text-[10px] text-gray-600 shrink-0 bg-[#0B0E14]">
         <span>Embodier Trader &gt; Performance Analytics v2.1</span>
         <div className="flex items-center gap-4">
           <span>Performance Analytics v2.1</span>
