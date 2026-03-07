@@ -20,6 +20,18 @@ Python:    C:\Users\Espen\elite-trading-system\backend\.venv
 Repo:      C:\Users\ProfitTrader\elite-trading-system  (clone if missing)
 ```
 
+
+## Network (Two-PC LAN)
+
+| Machine | Hostname | LAN IP | Role |
+|---------|----------|--------|------|
+| PC1 | ESPENMAIN | 192.168.1.105 | Primary - backend, frontend, DB |
+| PC2 | ProfitTrader | 192.168.1.116 | Secondary - GPU training, ML |
+
+Both IPs are DHCP-reserved (fixed) on the AT&T BGW320-505 router (192.168.1.254).
+
+> **Full details:** [docs/NETWORK_TWO_PC_SETUP.md](docs/NETWORK_TWO_PC_SETUP.md)
+> **AI/Coding rules:** [docs/AI_TWO_PC_CODING_GUIDE.md](docs/AI_TWO_PC_CODING_GUIDE.md)
 ## Ports
 | Service       | Port  | URL                          |
 |--------------|-------|------------------------------|
