@@ -249,7 +249,7 @@ async def run_council(
 
     # Stage 1: Perception + Data Sources + Intermarket (parallel — 7 agents)
     _stage_start = time.monotonic() * 1000
-    stage1 = await spawner.spawn_parallel([
+    stage1_configs = [
         {"agent_type": "market_perception", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "flow_perception", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "regime", "symbol": symbol, "timeframe": timeframe, "context": context},
@@ -277,7 +277,7 @@ async def run_council(
 
     # Stage 2: Technical Analysis (parallel — 5 agents)
     _stage_start = time.monotonic() * 1000
-    stage2 = await spawner.spawn_parallel([
+    stage2_configs = [
         {"agent_type": "rsi", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "bbv", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "ema_trend", "symbol": symbol, "timeframe": timeframe, "context": context},

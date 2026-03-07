@@ -111,7 +111,7 @@ def calculate_em_based_targets(entry_price: float, expected_move_pct: float, sid
     if not expected_move_pct or expected_move_pct <= 0:
         return None, None
     em_dollars = entry_price * (expected_move_pct / 100.0)
-        direction = 1 if side.lower() == "buy" else -1
+    direction = 1 if side.lower() == "buy" else -1
     target1 = round(entry_price + direction * em_dollars * 0.5, 2)
     target2 = round(entry_price + direction * em_dollars, 2)
     return target1, target2
@@ -163,7 +163,7 @@ def execute_signal(signal: Dict, alpaca: 'AlpacaClient',
     atr = float(signal.get("atr", entry_price * 0.02))
     regime = signal.get("regime", "YELLOW")
     trigger = signal.get("trigger", "unknown")
-        side = signal.get("side", "buy").lower()
+    side = signal.get("side", "buy").lower()
     # Normalize metadata for memory/performance tracking
     source = (signal.get("source") or signal.get("session") or "auto_executor").lower()
     setup = (signal.get("setup") or signal.get("setup_type") or trigger or "unknown").lower()

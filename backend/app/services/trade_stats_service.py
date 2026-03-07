@@ -107,7 +107,7 @@ class TradeStatsService:
                 where_clauses.append("regime = ?")
                 params.append(regime.upper())
 
-                        if side:
+            if side:
                 where_clauses.append("side = ?")
                 params.append(side.lower())
 

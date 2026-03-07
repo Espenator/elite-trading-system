@@ -10,8 +10,38 @@ networks:
 volumes:
   duckdb_data:
   model_artifacts:
+  redis_data:
 
 services:
+  # ── Redis (Cross-PC Message Broker) ─────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: elite-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - trading
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # ── Backend ─────────────────────────────────────────────
   backend:
     build:
       context: ./backend
@@ -24,12 +54,16 @@ services:
     environment:
       - TRADING_MODE=${TRADING_MODE:-paper}  # Audit Task 4: default to paper, require explicit opt-in for live
       - ENVIRONMENT=production
+      - REDIS_URL=redis://redis:6379/0  # Auto-connect to cluster Redis
     volumes:
       - duckdb_data:/app/data
       - model_artifacts:/app/models/artifacts
     networks:
       - trading
     restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s

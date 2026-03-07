@@ -35,6 +35,9 @@ youtube-transcript-api==0.6.0
 grpcio>=1.60.1
 grpcio-tools>=1.60.1
 
+# ── Redis (Cross-PC MessageBus Bridge) ──
+redis>=5.0.0  # Includes redis.asyncio for async pub/sub
+
 # ── Testing ──
 pytest>=7.0.0
 pytest-asyncio>=0.23.0

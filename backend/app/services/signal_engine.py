@@ -398,8 +398,8 @@ class EventDrivenSignalEngine:
         self._claw_scores: Dict[str, Dict[str, float]] = {}
         self._last_regime_refresh: float = 0
         self._regime_refresh_interval = 300  # Refresh OpenClaw every 5 min
+        self._bear_regime_mult = 1.0
 
-            self._bear_regime_mult = 1.0
     async def start(self) -> None:
         """Subscribe to MessageBus events and start processing."""
         self._running = True
@@ -550,7 +550,7 @@ class EventDrivenSignalEngine:
         try:
             self._regime_state, self._claw_scores = await _get_openclaw_context()
             self._regime_mult = _REGIME_MULTIPLIERS.get(self._regime_state, 1.0)
-                        self._bear_regime_mult = _BEAR_REGIME_MULTIPLIERS.get(self._regime_state, 1.0)
+            self._bear_regime_mult = _BEAR_REGIME_MULTIPLIERS.get(self._regime_state, 1.0)
             if self._claw_scores:
                 logger.debug(
                     "Regime refreshed: %s (mult=%.2f, %d candidates)",

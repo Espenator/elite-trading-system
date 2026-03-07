@@ -587,7 +587,7 @@ class OrderExecutor:
         stop_data = sizer.calculate_trailing_stop(
             entry_price=price,
             atr=atr_estimate,
-            side=direction,,
+            side=direction,
             atr_multiplier=2.0,
             trailing_pct=0.03,
         )

@@ -208,9 +208,9 @@ def calculate_limit_price(price: float, atr: float, vwap: float = 0, side: str =
     # No VWAP - bid slightly below current price
     limit_price = round(price - atr * 0.1, 2)
 
-  # Stop loss: 1.5 ATR below entry
-  stop_loss = round(limit_price - atr * 1.5, 2) if side == "buy" else round(limit_price + atr * 1.5, 2)
-    d = 1 if side == "buy" else -1
+  # Stop loss and direction
+  d = 1 if side == "buy" else -1
+  stop_loss = round(limit_price - d * atr * 1.5, 2)
 
   # Take profit targets
   take_profit_1 = round(limit_price + d * atr * 1.5, 2)

@@ -191,6 +191,11 @@ class Settings(BaseSettings):
     CLUSTER_PC2_HOST: str = ""  # Empty = single-PC mode
     CLUSTER_HEALTH_INTERVAL: int = 60  # Seconds between health checks
 
+    # ── Redis (Cross-PC MessageBus Bridge) ────────────────
+    # Set to enable real-time pub/sub between PC1 and PC2.
+    # Leave empty for local-only MessageBus (single-PC mode).
+    REDIS_URL: str = ""  # e.g., redis://192.168.1.105:6379/0
+
     # ── GPU Telemetry ─────────────────────────────────────
     GPU_TELEMETRY_ENABLED: bool = True
     GPU_TELEMETRY_INTERVAL: float = 3.0  # Seconds between telemetry broadcasts
