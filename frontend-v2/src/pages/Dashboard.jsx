@@ -4,6 +4,7 @@ import { useApi } from "../hooks/useApi";
 import { getApiUrl, getAuthHeaders } from "../config/api";
 import CNSVitals from "../components/dashboard/CNSVitals";
 import ProfitBrainBar from "../components/dashboard/ProfitBrainBar";
+import ws from "../services/websocket";
 
 // --- TOP TICKER STRIP (scrolling market tickers) ---
 const TickerStrip = ({ indices, signals }) => {
@@ -772,6 +773,12 @@ export default function Dashboard() {
   const [selectedSymbol, setSelectedSymbol] = useState("SPY"); // default so Price Action chart loads
   const [activeTimeframe, setActiveTimeframe] = useState("1h");
   const [autoExec, setAutoExec] = useState(false);
+
+  // --- WebSocket connection (Dashboard renders outside Layout, so must connect here) ---
+  useEffect(() => {
+    ws.connect();
+    return () => ws.disconnect();
+  }, []);
 
   // --- API HOOKS (Real-time polling) ---
   // Intervals tuned to prevent request flooding (max ~2 req/s combined)
@@ -1690,6 +1697,9 @@ export default function Dashboard() {
         .custom-scrollbar::-webkit-scrollbar-track { background: #0B0E14; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 2px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #00D9FF; }
+        @keyframes ticker-scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+        .ticker-strip { animation: ticker-scroll 40s linear infinite; }
+        .ticker-strip:hover { animation-play-state: paused; }
         @keyframes ticker-glow { 0%,100% { opacity: 0.7; } 50% { opacity: 1; } }
         .ticker-glow { animation: ticker-glow 2s ease-in-out infinite; }
       `,
