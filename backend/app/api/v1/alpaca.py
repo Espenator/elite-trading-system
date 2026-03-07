@@ -14,6 +14,21 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+@router.get("")
+async def alpaca_root():
+    """Root endpoint — Alpaca connection status."""
+    try:
+        data = await alpaca_service.get_account()
+        return {
+            "connected": True,
+            "status": data.get("status", "unknown"),
+            "buying_power": data.get("buying_power"),
+            "equity": data.get("equity"),
+        }
+    except Exception as e:
+        return {"connected": False, "error": str(e)}
+
+
 @router.get("/account")
 async def get_account():
     """GET /v2/account — full account details."""

@@ -13,12 +13,12 @@ finviz_service = FinvizService()
 
 
 @router.get("")
-async def stocks_overview():
-    """Stock universe overview — tracked symbols + count."""
+async def stocks_root():
+    """Root endpoint — returns tracked symbols + list summary."""
     symbols = get_tracked_symbols()
     return {
-        "tracked_count": len(symbols),
-        "symbols": symbols[:20],  # First 20 for overview
+        "count": len(symbols),
+        "symbols": symbols[:20],
         "endpoints": ["/tracked", "/list"],
     }
 
