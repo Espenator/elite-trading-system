@@ -3,7 +3,7 @@ OpenClaw Bridge Service v2.1 — Real-time Signal Ingestion + Memory Intelligenc
 
 Architecture (2026.2.24):
   PC1 (OpenClaw scanner)
-    └─ bridge_sender.py  ──POST──►  PC2 (Elite Trading System)
+    └─ bridge_sender.py  ──POST──►  PC2 (Embodier Trader)
                                       └─ this file: openclaw_bridge_service.py
                                            ├─ Ring buffer (sub-second hot path)
                                            ├─ WebSocket broadcast → Agent Command Center

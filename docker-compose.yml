@@ -1,7 +1,5 @@
-# Elite Trading System - Docker Compose
+# Embodier Trader — Docker Compose
 # Run: docker-compose up -d
-
-version: '3.8'
 
 networks:
   trading:
@@ -16,7 +14,7 @@ services:
   # ── Redis (Cross-PC Message Broker) ─────────────────────
   redis:
     image: redis:7-alpine
-    container_name: elite-redis
+    container_name: embodier-redis
     ports:
       - "6379:6379"
     volumes:
@@ -46,15 +44,15 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: elite-backend
+    container_name: embodier-backend
     ports:
       - "8000:8000"
     env_file:
       - ./backend/.env
     environment:
-      - TRADING_MODE=${TRADING_MODE:-paper}  # Audit Task 4: default to paper, require explicit opt-in for live
+      - TRADING_MODE=${TRADING_MODE:-paper}
       - ENVIRONMENT=production
-      - REDIS_URL=redis://redis:6379/0  # Auto-connect to cluster Redis
+      - REDIS_URL=redis://redis:6379/0
     volumes:
       - duckdb_data:/app/data
       - model_artifacts:/app/models/artifacts
@@ -69,7 +67,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 120s  # Audit Task 20: 23+ services with built-in delays need time
+      start_period: 120s
     deploy:
       resources:
         limits:
@@ -84,13 +82,14 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # ── Frontend ────────────────────────────────────────────
   frontend:
     build:
       context: ./frontend-v2
       dockerfile: Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-}
-    container_name: elite-frontend
+    container_name: embodier-frontend
     ports:
       - "3000:80"
     depends_on:

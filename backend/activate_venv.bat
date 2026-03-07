@@ -1,12 +1,9 @@
 @echo off
-echo Activating virtual environment...
+echo Activating Embodier Trader virtual environment...
 call venv\Scripts\activate.bat
-echo Virtual environment activated!
 echo.
-echo You can now run:
+echo Ready. You can now run:
 echo   python start_server.py
-echo   or
-echo   python tools/test_api.py
+echo   pytest tests/ -v
 echo.
 cmd /k
-

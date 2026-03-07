@@ -1,5 +1,5 @@
 """
-Modular components for the Elite Trading System.
+Modular components for the Embodier Trader.
 
 See MODULAR_ARCHITECTURE.md at repo root for the full design.
 - symbol_universe: Stock/symbol database and watchlists

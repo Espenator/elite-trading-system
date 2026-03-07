@@ -1,4 +1,4 @@
-"""Shared pytest fixtures for Elite Trading System tests."""
+"""Shared pytest fixtures for Embodier Trader tests."""
 import os
 import pytest
 from httpx import AsyncClient, ASGITransport

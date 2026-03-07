@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-bridge_sender.py - OpenClaw -> Elite Trading System Signal Sender
+bridge_sender.py - OpenClaw -> Embodier Trader Signal Sender
 
 Sends scored OpenClaw signals TO Elite's POST /openclaw/signals endpoint.
 This is the PC1 -> PC2 direction (complementing lstm_bridge_service.py
@@ -44,7 +44,7 @@ async def send_signals_to_elite(
     universe: Optional[Dict[str, Any]] = None,
     run_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Send a batch of scored signals to Elite Trading System."""
+    """Send a batch of scored signals to Embodier Trader."""
     if not signals:
         return {"run_id": None, "accepted": 0, "error": "No signals provided"}
 
@@ -75,7 +75,7 @@ async def send_signals_to_elite(
 
 
 async def check_elite_health() -> Dict[str, Any]:
-    """Check if Elite Trading System API is reachable."""
+    """Check if Embodier Trader API is reachable."""
     health_url = f"{ELITE_API_URL}{ELITE_API_PREFIX}/openclaw/health"
     async with httpx.AsyncClient(timeout=HTTPX_TIMEOUT) as client:
         resp = await client.get(health_url)

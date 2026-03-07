@@ -1,4 +1,4 @@
-"""First 22 tests for Elite Trading System API.
+"""First 22 tests for Embodier Trader API.
 Covers: health checks, signal engine, Kelly sizer, config, CORS.
 """
 import pytest
@@ -10,7 +10,7 @@ from app.core.config import settings
 # --- Test 1: App instance exists ---
 def test_app_exists():
     assert app is not None
-    assert app.title == settings.APP_NAME or app.title in ("Elite Trading System", "Embodier Trader")
+    assert app.title == settings.APP_NAME or app.title in ("Embodier Trader", "Embodier Trader")
 
 
 # --- Test 2: API version matches config ---

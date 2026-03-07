@@ -1,4 +1,4 @@
-# migrate_openclaw.ps1 - Phase 1: Copy + Namespace OpenClaw into Elite Trading System (Windows)
+# migrate_openclaw.ps1 - Phase 1: Copy + Namespace OpenClaw into Embodier Trader (Windows)
 # Usage: Run from elite-trading-system root after cloning openclaw as sibling
 #   git clone https://github.com/Espenator/openclaw.git ..\openclaw
 #   git checkout feat/absorb-openclaw
@@ -16,7 +16,7 @@ if (-not (Test-Path $OpenClawDir)) {
     exit 1
 }
 
-Write-Host "=== Phase 1: Absorb OpenClaw into Elite Trading System ===" -ForegroundColor Green
+Write-Host "=== Phase 1: Absorb OpenClaw into Embodier Trader ===" -ForegroundColor Green
 Write-Host "Source: $OpenClawDir"
 Write-Host "Target: $Target"
 Write-Host ""

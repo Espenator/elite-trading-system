@@ -1,5 +1,5 @@
 """
-Data Sources Manager - Elite Trading System
+Data Sources Manager - Embodier Trader
 backend/app/api/v1/data_sources.py
 
 Full CRUD, encrypted credentials, live connection testing,

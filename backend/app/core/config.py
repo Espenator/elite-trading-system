@@ -1,5 +1,5 @@
 """
-Elite Trading System - Application Configuration
+Embodier Trader - Application Configuration
 All fields match EXACTLY what services reference via settings.FIELD_NAME
 """
 from pathlib import Path
@@ -20,8 +20,8 @@ class Settings(BaseSettings):
     )
 
     # ── App ─────────────────────────────────────────────────
-    APP_NAME: str = "Elite Trading System"
-    PROJECT_NAME: str = "Elite Trading System"
+    APP_NAME: str = "Embodier Trader"
+    PROJECT_NAME: str = "Embodier Trader"
     APP_VERSION: str = "4.0.0"  # Single source of truth for version
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
@@ -43,16 +43,15 @@ class Settings(BaseSettings):
 
     @property
     def effective_cors_origins(self) -> str:
-        """Return CORS origins based on environment.
-        Production: requires explicit CORS_ORIGINS env var.
-        Development: falls back to localhost origins.
+        """Return CORS origins.
+
+        Always includes localhost dev origins so the app works out of the box.
+        Add your production domain via CORS_ORIGINS env var.
         """
+        defaults = "http://localhost:5173,http://localhost:3000,http://localhost:3002,http://localhost:8501"
         if self.CORS_ORIGINS:
-            return self.CORS_ORIGINS
-        if self.ENVIRONMENT == "production":
-            return ""  # No CORS in production without explicit config
-        # Development defaults
-        return "http://localhost:5173,http://localhost:3000,http://localhost:3002,http://localhost:8501"
+            return f"{self.CORS_ORIGINS},{defaults}"
+        return defaults
 
     @property
     def effective_port(self) -> int:

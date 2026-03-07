@@ -1,2 +1,2 @@
-# Elite Trading System Backend
+# Embodier Trader Backend
 

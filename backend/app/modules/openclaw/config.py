@@ -6,7 +6,7 @@ account data, order execution).  All agents read from / write to
 the in-process Blackboard via Pub/Sub topics.
 
 v6.0 additions:
-- Elite Trading System Bridge (PC2 GPU training integration)
+- Embodier Trader Bridge (PC2 GPU training integration)
 - 4-Agent Options Flow Pipeline (institutional sweep detection)
 - Darwinian Swarm meta-layer (self-evolving agent architecture)
 - Hunter-Killer Short Swarm (bear-side relative weakness)
@@ -276,7 +276,7 @@ WORLD_INTEL_CACHE_HOURS = int(os.getenv("WORLD_INTEL_CACHE_HOURS", "12"))
 
 # ============================================================
 #  ELITE TRADING SYSTEM BRIDGE (PC2 GPU Training)
-#  Connects OpenClaw swarm to the Elite Trading System on PC2
+#  Connects OpenClaw swarm to the Embodier Trader on PC2
 #  for GPU-accelerated model training and inference.
 # ============================================================
 ELITE_API_URL = os.getenv("ELITE_API_URL", "http://PC2_IP:8000")
@@ -450,7 +450,7 @@ _OPTIONAL_KEYS = [
     ("DISCORD_BOT_TOKEN",      DISCORD_BOT_TOKEN,      "Discord listener disabled"),
     ("GIST_TOKEN",             GIST_TOKEN,             "AI Bridge disabled"),
     ("OPENCLAW_DB_PATH", OPENCLAW_DB_PATH, "Database trade logging uses default path"),
-    ("ELITE_API_URL",           ELITE_API_URL,           "Elite Trading System bridge disabled"),
+    ("ELITE_API_URL",           ELITE_API_URL,           "Embodier Trader bridge disabled"),
   ("STOCKGEIST_TOKEN",        STOCKGEIST_TOKEN,        "StockGeist sentiment disabled"),
   ("NEWS_API_KEY",            NEWS_API_KEY,            "News API disabled"),
   ("X_BEARER_TOKEN",          X_BEARER_TOKEN,          "X/Twitter sentiment disabled"),
