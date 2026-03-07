@@ -65,6 +65,20 @@ A full codebase audit revealed the system is 73% analyst, 27% scout. The 17-agen
 
 ---
 
+## ROADMAP: Multi-PC Compute Infrastructure (Issue #39) — PREREQUISITE
+
+### Phase 0: Compute Infrastructure (Week 0-1)
+- [ ] **E0.1**: AlpacaKeyPool — Multi-key management with role assignment (trading, discovery_a, discovery_b)
+- [ ] **E0.2**: AlpacaStreamManager — Multi-WebSocket orchestrator (1 stream per key, 1000+ symbols)
+- [ ] **E0.3**: OllamaNodePool — Shared Ollama pool extracted from HyperSwarm (2-node, health checks)
+- [ ] **E0.4**: Enable Brain Service — Fix config, activate gRPC on PC2
+- [ ] **E0.5**: NodeDiscovery — Auto-detect PC2, graceful 1-PC fallback
+- [ ] **E0.6**: Unusual Whales Optimization — 30s polling, congress/insider/darkpool endpoints
+- [ ] **E0.7**: Finviz Elite Optimization — Intraday timeframes, parallel presets, retry logic
+- [ ] **E0.8**: Config Updates — Multi-key env vars, cluster settings
+
+---
+
 ## ROADMAP: Continuous Discovery Architecture (Issue #38)
 
 ### Phase 1: Foundation — Continuous Feed (Week 1-2)

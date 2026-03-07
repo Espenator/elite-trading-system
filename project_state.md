@@ -10,14 +10,19 @@
 - **Owner**: Espenator (Asheville, NC)
 - **Status**: Active development, Phase 2 — v3.5.0-dev (Continuous Discovery Architecture)
 - **Philosophy**: Embodied Intelligence — the system IS profit, not seeking it. It operates as a conscious profit-seeking being with a Central Nervous System (CNS) architecture.
-- **Current Focus**: Shifting from periodic scanning to continuous real-time discovery firehose (Issue #38)
+- **Current Focus**: Multi-PC compute infrastructure (Issue #39) + continuous real-time discovery firehose (Issue #38)
 
 ## LATEST CHANGES (March 7, 2026) — v3.5.0-dev
 
 ### Architecture Pivot: Continuous Discovery (Issue #38)
 Full codebase audit revealed the system is 73% analyst, 27% scout. The 17-agent council brain is starved of ideas. HyperSwarm processes 40 signals/sec but is fed bursts every 60s. All discovery is polling-based (60-900s intervals). No streaming discovery exists.
 
-**Decision**: Invert the ratio. Build continuous discovery firehose. 8-enhancement plan over 8 weeks:
+**Decision**: Invert the ratio. Build continuous discovery firehose. First: compute infrastructure (Issue #39), then: discovery enhancements (Issue #38).
+
+**Issue #39 — Multi-PC Compute Architecture (prerequisite)**:
+- E0.1-E0.8: AlpacaKeyPool (3 keys, 3 WebSocket streams, 1000+ symbols), OllamaNodePool (shared across services), NodeDiscovery (auto-detect PC2), AlpacaStreamManager (multi-stream orchestrator), Brain Service enablement, UW/Finviz optimization
+
+**Issue #38 — Continuous Discovery (8-enhancement plan)**:
 1. **E1**: Streaming Discovery Engine (Alpaca `*` trade stream + news stream)
 2. **E2**: 12 Dedicated Scout Agents (always-running, all data sources active)
 3. **E3**: HyperSwarm Continuous Triage (priority queue, adaptive threshold)
