@@ -140,7 +140,7 @@ class TestLLMRouterRouting:
         router = LLMRouter()
         call_count = 0
 
-        async def mock_call(tier, messages, temp, max_tok, json_mode, timeout):
+        async def mock_call(tier, messages, temp, max_tok, json_mode, timeout, task="general"):
             nonlocal call_count
             call_count += 1
             if tier == Tier.BRAINSTEM:

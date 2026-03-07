@@ -10,6 +10,16 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 finviz_service = FinvizService()
 
+
+@router.get("")
+async def quotes_overview():
+    """Quotes API overview."""
+    return {
+        "service": "quotes",
+        "endpoints": ["/{ticker}", "/{ticker}/candles", "/{ticker}/book"],
+    }
+
+
 def _date_to_yyyy_mm_dd(t: Any) -> Optional[str]:
     """Normalize date string to yyyy-mm-dd (lightweight-charts / frontend expect this)."""
     if t is None:

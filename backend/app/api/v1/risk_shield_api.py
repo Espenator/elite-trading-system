@@ -25,6 +25,18 @@ except ImportError as e:
 router = APIRouter(tags=["RiskShield"])
 
 
+@router.get("")
+async def risk_shield_overview():
+    """RiskShield status overview."""
+    frozen = is_entries_frozen()
+    governor_ok = risk_gov is not None
+    return {
+        "service": "risk-shield",
+        "governor_available": governor_ok,
+        "entries_frozen": frozen,
+    }
+
+
 class EmergencyActionReq(BaseModel):
     action: str  # 'kill_switch', 'hedge_all', 'reduce_50', 'freeze_entries'
     value: Optional[bool] = None

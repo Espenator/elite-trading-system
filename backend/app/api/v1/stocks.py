@@ -12,6 +12,17 @@ router = APIRouter()
 finviz_service = FinvizService()
 
 
+@router.get("")
+async def stocks_overview():
+    """Stock universe overview — tracked symbols + count."""
+    symbols = get_tracked_symbols()
+    return {
+        "tracked_count": len(symbols),
+        "symbols": symbols[:20],  # First 20 for overview
+        "endpoints": ["/tracked", "/list"],
+    }
+
+
 @router.get("/tracked")
 async def get_tracked():
     """

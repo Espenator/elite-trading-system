@@ -40,6 +40,27 @@ def _get_ml_data(key: str, default=None):
 # Core ML Brain Endpoints (preserved from v1)
 # ---------------------------------------------------------------------------
 
+
+@router.get("")
+async def ml_brain_overview():
+    """ML Brain status overview."""
+    try:
+        from app.modules.ml_engine.model_registry import get_registry
+        registry_status = get_registry().get_status()
+    except Exception:
+        registry_status = {"status": "unavailable"}
+    try:
+        from app.modules.ml_engine.drift_detector import get_drift_monitor
+        drift_status = get_drift_monitor().get_status()
+    except Exception:
+        drift_status = {"status": "unavailable"}
+    return {
+        "service": "ml-brain",
+        "model_registry": registry_status,
+        "drift_monitor": drift_status,
+    }
+
+
 @router.get("/performance")
 async def get_ml_performance():
     """

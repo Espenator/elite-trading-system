@@ -145,11 +145,16 @@ def test_service_registry():
 # ── Test: CORS config (Task 3) ──
 
 def test_cors_production_empty_by_default():
-    """Verify production environment returns empty CORS when not configured."""
+    """Verify production environment includes localhost dev origins by default.
+
+    Config.effective_cors_origins always includes localhost entries so the
+    app works out of the box on dev machines. Custom domains are additive.
+    """
     from app.core.config import Settings
 
     s = Settings(ENVIRONMENT="production", CORS_ORIGINS="")
-    assert s.effective_cors_origins == ""
+    assert "localhost:3000" in s.effective_cors_origins
+    assert "localhost:5173" in s.effective_cors_origins
 
 
 def test_cors_development_has_localhost():
