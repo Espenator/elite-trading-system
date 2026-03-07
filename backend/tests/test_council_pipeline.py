@@ -82,6 +82,7 @@ async def test_kelly_rejects_when_equity_unavailable():
             mock_pos.final_pct = 0.05
             mock_pos.edge = 0.1
             mock_ks.return_value.calculate.return_value = mock_pos
+            mock_ks.return_value.min_trades = 20  # Needed for max() comparison
 
             with patch("app.services.order_executor.OrderExecutor._get_trade_stats") as mock_ts:
                 mock_stats = MagicMock()
