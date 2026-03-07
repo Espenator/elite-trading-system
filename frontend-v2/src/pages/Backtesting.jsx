@@ -201,12 +201,12 @@ const REGIME_COLORS = { BULL: "#10B981", BEAR: "#EF4444", RECOVERY: "#F59E0B", S
 /* ------------------------------------------------------------------ */
 const MONO_FONT = "JetBrains Mono, monospace";
 const defaultStratNodes = [
-  { id: "1", data: { label: "Data Feed" }, position: { x: 0, y: 40 }, style: { background: "#0f172a", color: "#06B6D4", border: "1px solid #1e293b", borderRadius: "6px", padding: "8px 12px", fontSize: "10px", fontFamily: MONO_FONT } },
-  { id: "2", data: { label: "Feature Eng" }, position: { x: 160, y: 0 }, style: { background: "#0f172a", color: "#06B6D4", border: "1px solid #1e293b", borderRadius: "6px", padding: "8px 12px", fontSize: "10px", fontFamily: MONO_FONT } },
-  { id: "3", data: { label: "Signal Gen" }, position: { x: 160, y: 90 }, style: { background: "#0f172a", color: "#06B6D4", border: "1px solid #1e293b", borderRadius: "6px", padding: "8px 12px", fontSize: "10px", fontFamily: MONO_FONT } },
-  { id: "4", data: { label: "Risk Filter" }, position: { x: 320, y: 0 }, style: { background: "#0f172a", color: "#06B6D4", border: "1px solid #1e293b", borderRadius: "6px", padding: "8px 12px", fontSize: "10px", fontFamily: MONO_FONT } },
-  { id: "5", data: { label: "Position Sizer" }, position: { x: 320, y: 90 }, style: { background: "#0f172a", color: "#06B6D4", border: "1px solid #1e293b", borderRadius: "6px", padding: "8px 12px", fontSize: "10px", fontFamily: MONO_FONT } },
-  { id: "6", data: { label: "Execution" }, position: { x: 480, y: 45 }, style: { background: "#0f172a", color: "#06B6D4", border: "1px solid #1e293b", borderRadius: "6px", padding: "8px 12px", fontSize: "10px", fontFamily: MONO_FONT } },
+  { id: "1", data: { label: "Data Feed" }, position: { x: 0, y: 40 }, style: { background: "#0f172a", color: "#00D9FF", border: "1px solid #1e293b", borderRadius: "6px", padding: "8px 12px", fontSize: "10px", fontFamily: MONO_FONT } },
+  { id: "2", data: { label: "Feature Eng" }, position: { x: 160, y: 0 }, style: { background: "#0f172a", color: "#00D9FF", border: "1px solid #1e293b", borderRadius: "6px", padding: "8px 12px", fontSize: "10px", fontFamily: MONO_FONT } },
+  { id: "3", data: { label: "Signal Gen" }, position: { x: 160, y: 90 }, style: { background: "#0f172a", color: "#00D9FF", border: "1px solid #1e293b", borderRadius: "6px", padding: "8px 12px", fontSize: "10px", fontFamily: MONO_FONT } },
+  { id: "4", data: { label: "Risk Filter" }, position: { x: 320, y: 0 }, style: { background: "#0f172a", color: "#00D9FF", border: "1px solid #1e293b", borderRadius: "6px", padding: "8px 12px", fontSize: "10px", fontFamily: MONO_FONT } },
+  { id: "5", data: { label: "Position Sizer" }, position: { x: 320, y: 90 }, style: { background: "#0f172a", color: "#00D9FF", border: "1px solid #1e293b", borderRadius: "6px", padding: "8px 12px", fontSize: "10px", fontFamily: MONO_FONT } },
+  { id: "6", data: { label: "Execution" }, position: { x: 480, y: 45 }, style: { background: "#0f172a", color: "#00D9FF", border: "1px solid #1e293b", borderRadius: "6px", padding: "8px 12px", fontSize: "10px", fontFamily: MONO_FONT } },
 ];
 const defaultStratEdges = [
   { id: "e1-2", source: "1", target: "2", animated: true, style: { stroke: "#334155" } },
@@ -236,7 +236,7 @@ const SWARM_AGENTS = [
 function DarkTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-gray-900/95 border border-cyan-500/30 rounded-lg px-3 py-2 text-xs shadow-xl">
+    <div className="bg-gray-900/95 border border-[#00D9FF]/50/30 rounded-lg px-3 py-2 text-xs shadow-xl">
       <p className="text-gray-400 mb-1">{label}</p>
       {payload.map((p, i) => (
         <p key={i} style={{ color: p.color || "#00D9FF" }}>
@@ -426,7 +426,7 @@ export default function Backtesting() {
     { key: "pnl", label: "P&L", render: (v) => <span className={Number(v) >= 0 ? "text-green-400" : "text-red-400"}>{fmtUsd(v)}</span> },
     { key: "r_multiple", label: "R:1", render: (v, row) => <span className={Number(v ?? row.r_ratio ?? 0) >= 0 ? "text-green-400" : "text-red-400"}>{fmt(v ?? row.r_ratio, 1)}</span> },
     { key: "multiple", label: "Multiple", render: (v, row) => fmt(v ?? row.lot_multiple ?? row.size, 2) },
-    { key: "agent", label: "Agent", render: (v, row) => <span className="text-cyan-400 text-[10px]">{v ?? row.agent_name ?? "--"}</span> },
+    { key: "agent", label: "Agent", render: (v, row) => <span className="text-[#00D9FF] text-[10px]">{v ?? row.agent_name ?? "--"}</span> },
     { key: "signals", label: "Signals", render: (v, row) => <span className="text-purple-400 text-[10px] truncate max-w-[80px] inline-block">{v ?? row.signal ?? "--"}</span> },
     { key: "comment", label: "Comment", render: (v) => <span className="text-secondary text-[10px] truncate max-w-[100px] inline-block">{v ?? "--"}</span> },
   ], []);
@@ -498,7 +498,7 @@ export default function Backtesting() {
                   {["BULL", "BEAR", "ALL"].map((r) => (
                     <button key={r} onClick={() => setRegimeFilter(r)}
                       className={clsx("px-2 py-1 text-xs rounded border transition-colors",
-                        regimeFilter === r ? "bg-cyan-500/20 border-cyan-500 text-cyan-400" : "border-secondary/30 text-secondary hover:text-white")}
+                        regimeFilter === r ? "bg-cyan-500/20 border-[#00D9FF]/50 text-[#00D9FF]" : "border-secondary/30 text-secondary hover:text-white")}
                     >{r}</button>
                   ))}
                 </div>
@@ -694,7 +694,7 @@ export default function Backtesting() {
                 {Object.keys(mcChartData[0] || {}).filter((k) => k !== "step" && k !== "mean").slice(0, 50).map((k, i) => (
                   <Line key={k} type="monotone" dataKey={k} stroke="#94a3b8" dot={false} strokeWidth={1} strokeOpacity={0.15} isAnimationActive={false} />
                 ))}
-                <Line key="mean" type="monotone" dataKey="mean" stroke="#06B6D4" dot={false} strokeWidth={2} strokeOpacity={1} name="Mean" />
+                <Line key="mean" type="monotone" dataKey="mean" stroke="#00D9FF" dot={false} strokeWidth={2} strokeOpacity={1} name="Mean" />
               </LineChart>
             </ResponsiveContainer>
           ) : (
@@ -826,7 +826,7 @@ export default function Backtesting() {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs text-secondary">Confidence</span>
-              <span className="text-sm font-bold text-cyan-400">{fmtPct(kpis.confidence ?? kpis.swarm_confidence ?? 78.5)}</span>
+              <span className="text-sm font-bold text-[#00D9FF]">{fmtPct(kpis.confidence ?? kpis.swarm_confidence ?? 78.5)}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs text-secondary">Agents Agreeing</span>
@@ -847,7 +847,7 @@ export default function Backtesting() {
           <span className="text-secondary/60 mx-1">|</span>
           <span>EXTENDED SWARM (R1)</span>
           <span className="text-secondary/60 mx-1">|</span>
-          <span className="text-cyan-400">10 sub-agents active</span>
+          <span className="text-[#00D9FF]">10 sub-agents active</span>
         </div>
         <div className="flex items-center gap-4 text-xs text-secondary">
           <span>Last run: {kpis.last_run ?? kpis.lastRun ?? "--"}</span>

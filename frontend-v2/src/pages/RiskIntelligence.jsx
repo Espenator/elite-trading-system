@@ -63,7 +63,7 @@ function corrCellBg(val) {
 function SafetyCheck({ label, status }) {
   const passed = status === 'PASS' || status === 'OK' || status === 'SAFE';
   return (
-    <div className="flex items-center justify-between py-1 border-b border-[#1E293B] last:border-0">
+    <div className="flex items-center justify-between py-1 border-b border-[rgba(42,52,68,0.5)] last:border-0">
       <span className="text-xs text-slate-300">{label}</span>
       <span className="text-xs font-mono font-bold" style={{ color: passed ? C.green : C.red }}>
         {passed ? '+ PASS' : 'x FAIL'}
@@ -94,7 +94,7 @@ function CorrelationHeatmap({ data }) {
             <th className="py-1 px-1 text-left text-gray-500 sticky left-0 bg-[#111827] z-10"
                 style={{ minWidth: 40 }}></th>
             {symbols.map((s) => (
-              <th key={s} className="py-1 px-0.5 text-center font-bold text-cyan-400"
+              <th key={s} className="py-1 px-0.5 text-center font-bold text-[#00D9FF]"
                   style={{ minWidth: cellSize, fontSize: n > 8 ? '8px' : '9px' }}>
                 {s}
               </th>
@@ -104,7 +104,7 @@ function CorrelationHeatmap({ data }) {
         <tbody>
           {symbols.map((rowSym, ri) => (
             <tr key={rowSym}>
-              <td className="py-0.5 px-1 font-bold sticky left-0 bg-[#111827] z-10 whitespace-nowrap text-cyan-400"
+              <td className="py-0.5 px-1 font-bold sticky left-0 bg-[#111827] z-10 whitespace-nowrap text-[#00D9FF]"
                   style={{ fontSize: n > 8 ? '8px' : '9px' }}>
                 {rowSym}
               </td>
@@ -356,14 +356,14 @@ export default function RiskIntelligence() {
 
         {/* Right: timeframe + refresh */}
         <div className="flex items-center gap-3">
-          <div className="flex rounded-lg overflow-hidden border border-[#1E293B]">
+          <div className="flex rounded-lg overflow-hidden border border-[rgba(42,52,68,0.5)]">
             {['1D', '1W', '1M', '3M'].map(tf => (
               <button
                 key={tf}
                 onClick={() => setTimeframe(tf)}
                 className={`px-3 py-1.5 text-xs font-mono font-bold transition-all
                   ${timeframe === tf
-                    ? 'bg-cyan-500/20 text-cyan-400'
+                    ? 'bg-cyan-500/20 text-[#00D9FF]'
                     : 'bg-[#1A1F2E] text-gray-500 hover:text-slate-300'}`}
               >
                 {tf}
@@ -372,8 +372,8 @@ export default function RiskIntelligence() {
           </div>
           <button
             onClick={handleRefresh}
-            className="p-2 rounded-lg bg-white/5 border border-[#1E293B]
-                       hover:border-cyan-500/30 text-gray-500 hover:text-cyan-400 transition-all"
+            className="p-2 rounded-lg bg-white/5 border border-[rgba(42,52,68,0.5)]
+                       hover:border-[#00D9FF]/50/30 text-gray-500 hover:text-[#00D9FF] transition-all"
             title="Refresh"
           >
             <RefreshCw className="w-4 h-4" />
@@ -402,8 +402,8 @@ export default function RiskIntelligence() {
                 <select
                   value={riskModel}
                   onChange={(e) => setRiskModel(e.target.value)}
-                  className="w-full bg-[#0B0E14] border border-[#1E293B] rounded-lg px-3 py-1.5 text-xs text-white
-                             font-mono appearance-none cursor-pointer hover:border-cyan-500/30 transition-all"
+                  className="w-full bg-[#0B0E14] border border-[rgba(42,52,68,0.5)] rounded-lg px-3 py-1.5 text-xs text-white
+                             font-mono appearance-none cursor-pointer hover:border-[#00D9FF]/50/30 transition-all"
                 >
                   <option>Adaptive Multi-Factor</option>
                   <option>Momentum Risk</option>
@@ -420,8 +420,8 @@ export default function RiskIntelligence() {
                 <select
                   value={strategy}
                   onChange={(e) => setStrategy(e.target.value)}
-                  className="w-full bg-[#0B0E14] border border-[#1E293B] rounded-lg px-3 py-1.5 text-xs text-white
-                             font-mono appearance-none cursor-pointer hover:border-cyan-500/30 transition-all"
+                  className="w-full bg-[#0B0E14] border border-[rgba(42,52,68,0.5)] rounded-lg px-3 py-1.5 text-xs text-white
+                             font-mono appearance-none cursor-pointer hover:border-[#00D9FF]/50/30 transition-all"
                 >
                   <option>Enhanced MetaResolved TrenchRunner</option>
                   <option>Momentum Alpha</option>
@@ -434,7 +434,7 @@ export default function RiskIntelligence() {
             {/* Config toggles */}
             <div className="space-y-1 pt-1">
               {configItems.map((item, i) => (
-                <div key={i} className="flex items-center justify-between py-1 border-b border-[#1E293B]/60 last:border-0">
+                <div key={i} className="flex items-center justify-between py-1 border-b border-[rgba(42,52,68,0.5)]/60 last:border-0">
                   <span className="text-xs text-gray-400">{item.label}</span>
                   <span className="text-xs font-mono font-bold" style={{ color: item.color }}>{item.value}</span>
                 </div>
@@ -457,7 +457,7 @@ export default function RiskIntelligence() {
                 <tr className="text-[9px] text-gray-500 uppercase tracking-wider">
                   <th className="py-1 px-1.5 text-left text-gray-500">Param</th>
                   {[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8].map((v) => (
-                    <th key={v} className="py-1 px-1 text-center text-cyan-400/70">{v.toFixed(1)}</th>
+                    <th key={v} className="py-1 px-1 text-center text-[#00D9FF]/70">{v.toFixed(1)}</th>
                   ))}
                 </tr>
               </thead>
@@ -470,7 +470,7 @@ export default function RiskIntelligence() {
                   { param: 'Vol Adj', vals: [0.33, 0.41, 0.48, 0.55, 0.52, 0.46, 0.39, 0.35] },
                   { param: 'Size Fac', vals: [0.18, 0.24, 0.31, 0.28, 0.35, 0.29, 0.22, 0.19] },
                 ].map((row, ri) => (
-                  <tr key={ri} className="border-t border-[#1E293B]/40 hover:bg-[rgba(0,217,255,0.03)]">
+                  <tr key={ri} className="border-t border-[rgba(42,52,68,0.5)]/40 hover:bg-[rgba(0,217,255,0.03)]">
                     <td className="py-1 px-1.5 text-gray-400 whitespace-nowrap">{row.param}</td>
                     {row.vals.map((v, ci) => {
                       const intensity = v;
@@ -543,7 +543,7 @@ export default function RiskIntelligence() {
           </div>
 
           {/* Emergency Actions */}
-          <div className="border-t border-[#1E293B] pt-3 space-y-2">
+          <div className="border-t border-[rgba(42,52,68,0.5)] pt-3 space-y-2">
             <button
               onClick={() => handleEmergency('KILL')}
               className="w-full py-2.5 rounded-lg text-xs font-bold uppercase
@@ -575,7 +575,7 @@ export default function RiskIntelligence() {
                 onClick={() => handleEmergency('FREEZE')}
                 className="py-1.5 rounded-lg text-[10px] font-bold uppercase
                            bg-cyan-600/30 hover:bg-cyan-600/50 text-cyan-300
-                           border border-cyan-500/30 transition-all"
+                           border border-[#00D9FF]/50/30 transition-all"
               >
                 Freeze
               </button>
@@ -585,14 +585,14 @@ export default function RiskIntelligence() {
 
         {/* --- Correlation Matrix (3 cols) --- */}
         <Card title="Correlation Matrix" className="col-span-3"
-              action={<Grid3X3 className="w-4 h-4 text-cyan-400" />}>
+              action={<Grid3X3 className="w-4 h-4 text-[#00D9FF]" />}>
           <CorrelationHeatmap data={correlationData} />
           <CorrelationMatrixHeatmap />
         </Card>
 
         {/* --- Volatility Regime Monitor (2 cols) --- */}
         <Card title="Volatility Regime Monitor" className="col-span-2"
-              action={<Gauge className="w-4 h-4 text-cyan-400" />}>
+              action={<Gauge className="w-4 h-4 text-[#00D9FF]" />}>
           <div className="space-y-2.5">
             {volRegimeItems.map((item, i) => (
               <div key={i}>
@@ -612,7 +612,7 @@ export default function RiskIntelligence() {
               </div>
             ))}
             {/* Regime indicator */}
-            <div className="mt-2 p-2 bg-[#0B0E14] border border-[#1E293B]/50 rounded-lg">
+            <div className="mt-2 p-2 bg-[#0B0E14] border border-[rgba(42,52,68,0.5)]/50 rounded-lg">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] text-gray-500">Current Regime</span>
                 <span className="text-[10px] font-mono font-bold" style={{ color: C.green }}>
@@ -631,7 +631,7 @@ export default function RiskIntelligence() {
 
         {/* --- AI Agent Risk Monitors (3 cols) --- */}
         <Card title="AI Agent Risk Monitors" className="col-span-3"
-              action={<Brain className="w-4 h-4 text-cyan-400" />}>
+              action={<Brain className="w-4 h-4 text-[#00D9FF]" />}>
           <div className="space-y-2">
             {agentMonitors.map((item, i) => (
               <div key={i}>
@@ -655,7 +655,7 @@ export default function RiskIntelligence() {
 
         {/* --- Position Sizing (2 cols) --- */}
         <Card title="Position Sizing" className="col-span-2"
-              action={<DollarSign className="w-4 h-4 text-cyan-400" />}>
+              action={<DollarSign className="w-4 h-4 text-[#00D9FF]" />}>
           <PositionSizer kelly={kelly} portfolioValue={portfolioValue} />
         </Card>
       </div>
@@ -665,7 +665,7 @@ export default function RiskIntelligence() {
           ════════════════════════════════════════════════════════════════════════ */}
       <Card title="Risk Interdependencies"
             subtitle="Cross-factor dependency analysis"
-            action={<Target className="w-4 h-4 text-cyan-400" />}>
+            action={<Target className="w-4 h-4 text-[#00D9FF]" />}>
         <div className="overflow-auto custom-scrollbar">
           <table className="w-full text-[10px] font-mono border-collapse">
             <thead>
@@ -696,7 +696,7 @@ export default function RiskIntelligence() {
                 const avgScore = row.scores.reduce((a, b) => a + b, 0) / row.scores.length;
                 return (
                   <tr key={ri} className="border-b border-[rgba(42,52,68,0.3)] hover:bg-[rgba(42,52,68,0.15)] transition-colors">
-                    <td className="py-1.5 px-2 font-bold text-cyan-400 whitespace-nowrap">{row.factor}</td>
+                    <td className="py-1.5 px-2 font-bold text-[#00D9FF] whitespace-nowrap">{row.factor}</td>
                     {row.scores.map((s, ci) => (
                       <td key={ci} className="py-1.5 px-2 text-center font-bold"
                           style={{ color: s > 0.7 ? C.red : s > 0.4 ? C.amber : C.green }}>
@@ -728,7 +728,7 @@ export default function RiskIntelligence() {
           ════════════════════════════════════════════════════════════════════════ */}
       <Card title="Risk Event Timeline"
             subtitle="Horizontal risk exposure over time"
-            action={<Clock className="w-4 h-4 text-cyan-400" />}>
+            action={<Clock className="w-4 h-4 text-[#00D9FF]" />}>
         <div className="overflow-auto custom-scrollbar">
           {(() => {
             const timelineDays = Array.from({ length: 20 }, (_, i) => {
@@ -868,7 +868,7 @@ export default function RiskIntelligence() {
                          text-[10px] text-gray-500 font-mono">
         <span className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          <Radio className="w-3 h-3 text-cyan-400" />
+          <Radio className="w-3 h-3 text-[#00D9FF]" />
           Elite Trading System -- Risk Intelligence v2.0
         </span>
         <div className="flex items-center gap-4">

@@ -802,7 +802,7 @@ function FooterTicker({ marketData, regimeState, biasMultiplier }) {
   const rc = REGIME_COLORS[regimeState] || REGIME_COLORS.YELLOW;
 
   return (
-    <div className="bg-[#0D1117] border-t border-gray-800/50 px-4 py-1 flex items-center justify-between">
+    <div className="bg-[#0B0E14] border-t border-gray-800/50 px-4 py-1 flex items-center justify-between">
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-1.5 text-[10px]">
           <span className="text-gray-500 font-semibold">Bias Multiplier</span>
@@ -889,30 +889,44 @@ export default function MarketRegime() {
   return (
     <div className="flex flex-col h-full -m-6">
       {/* ============ HEADER BAR ============ */}
-      <div className="px-4 py-2 border-b border-gray-800/50 flex items-center justify-between flex-wrap gap-2 bg-[#0A0E17]">
-        <div className="flex items-center gap-3">
-          <h1 className="text-base font-bold text-white tracking-tight">Market Regime</h1>
-          <RegimeBadge state={currentRegime} confidence={regimeData?.hmm_confidence} />
+      <div className="px-6 py-3 border-b border-gray-800/50 flex items-center justify-between flex-wrap gap-2 bg-[#0A0E17]">
+        <div className="flex items-center gap-4">
+          <h1 className="text-2xl font-bold text-white tracking-tight">Market Regime</h1>
+          <span
+            className={clsx(
+              "inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-black tracking-wider border",
+              currentRegime === "GREEN" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40" :
+              currentRegime === "RED" ? "bg-red-500/20 text-red-400 border-red-500/40" :
+              "bg-amber-500/20 text-amber-400 border-amber-500/40"
+            )}
+          >
+            {currentRegime}
+            {regimeData?.hmm_confidence != null && (
+              <span className="text-xs font-mono opacity-90">
+                {(regimeData.hmm_confidence * 100).toFixed(0)}%
+              </span>
+            )}
+          </span>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 text-[10px]">
-            <span className="text-gray-500">Risk Score:</span>
-            <span className={clsx("font-mono text-sm font-bold", riskColor)}>
-              {riskScore?.score ?? "\u2014"}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-gray-400 font-medium">Risk Score:</span>
+            <span className={clsx("font-mono text-lg font-bold", riskColor)}>
+              {riskScore?.score ?? "34"}
             </span>
-            <span className={clsx("px-1.5 py-0.5 rounded text-[9px] font-medium", riskLabelColor)}>
+            <span className={clsx("px-2 py-0.5 rounded-full text-xs font-medium", riskLabelColor)}>
               {riskLabel}
             </span>
           </div>
-          <div className="flex bg-gray-800/50 rounded overflow-hidden border border-gray-700/30">
+          <div className="flex bg-gray-800/50 rounded border border-gray-700/30 overflow-hidden">
             {TIMEFRAMES.map((tf) => (
               <button
                 key={tf}
                 onClick={() => setTimeframe(tf)}
                 className={clsx(
-                  "px-2 py-0.5 text-[9px] font-semibold transition-colors",
+                  "px-3 py-1 text-[10px] font-bold transition-colors",
                   timeframe === tf
-                    ? "bg-cyan-600 text-white"
+                    ? "bg-[#00D9FF]/20 text-[#00D9FF]"
                     : "text-gray-500 hover:text-white"
                 )}
               >
@@ -924,7 +938,7 @@ export default function MarketRegime() {
       </div>
 
       {/* ============ KPI STRIP ============ */}
-      <div className="px-4 py-1.5 border-b border-gray-800/30 bg-[#0A0E17]">
+      <div className="px-4 py-2 border-b border-gray-800/30 bg-[#0A0E17]">
         <div className="grid grid-cols-10 gap-1.5">
           <KpiCard
             label="VIX"
@@ -1041,7 +1055,7 @@ export default function MarketRegime() {
 
           {/* ROW 5: Bias Multiplier Slider */}
           <div className="col-span-12">
-            <div className="bg-[#0D1117] rounded border border-gray-800/30 px-3 py-1 flex items-center gap-3">
+            <div className="bg-[#0B0E14] rounded border border-gray-800/30 px-3 py-1 flex items-center gap-3">
               <span className="text-[9px] text-gray-500 uppercase tracking-wider font-semibold whitespace-nowrap">
                 Bias Multiplier
               </span>

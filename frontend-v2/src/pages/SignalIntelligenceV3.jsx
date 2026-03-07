@@ -117,8 +117,8 @@ const SHAP_FACTORS = [
 // ============================================================================
 
 const Panel = ({ title, icon: Icon, children, className = '', headerAction = null }) => (
-  <div className={`bg-[#111827] border border-[#1e293b] rounded overflow-hidden flex flex-col ${className}`}>
-    <div className="px-2.5 py-1.5 border-b border-[#1e293b] flex justify-between items-center bg-[#0d1117] shrink-0">
+  <div className={`bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded overflow-hidden flex flex-col ${className}`}>
+    <div className="px-2.5 py-1.5 border-b border-[rgba(42,52,68,0.5)] flex justify-between items-center bg-[#0B0E14] shrink-0">
       <div className="flex items-center gap-1.5">
         {Icon && <Icon className="w-3 h-3 text-[#00D9FF] shrink-0" />}
         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">{title}</h3>
@@ -146,7 +146,7 @@ const Toggle = ({ checked, onChange, size = 'md' }) => {
 
 const Badge = ({ children, color = 'cyan' }) => {
   const colors = {
-    cyan: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30',
+    cyan: 'bg-cyan-500/10 text-[#00D9FF] border-[#00D9FF]/50/30',
     emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
     amber: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
     red: 'bg-red-500/10 text-red-400 border-red-500/30',
@@ -325,7 +325,7 @@ export default function SignalIntelligenceV3() {
       color: '#26a69a', priceFormat: { type: 'volume' },
       priceScaleId: '', scaleMargins: { top: 0.8, bottom: 0 }
     });
-    const sma20 = chart.addLineSeries({ color: '#06b6d4', lineWidth: 1, title: 'SMA20' });
+    const sma20 = chart.addLineSeries({ color: '#00D9FF', lineWidth: 1, title: 'SMA20' });
     const sma50 = chart.addLineSeries({ color: '#a855f7', lineWidth: 1, title: 'SMA50' });
     const sma200 = chart.addLineSeries({ color: '#F97316', lineWidth: 1, lineStyle: LineStyle.Dashed, title: 'SMA200' });
     const vwap = chart.addLineSeries({ color: '#ffffff', lineWidth: 1, lineStyle: LineStyle.Dotted, title: 'VWAP' });
@@ -377,7 +377,7 @@ export default function SignalIntelligenceV3() {
         candleSeries.setData(data); volSeries.setData(volData);
         sma20.setData(s20); sma50.setData(s50); sma200.setData(s200); vwap.setData(vwapData);
         const lastPrice = data[data.length - 1].close;
-        candleSeries.createPriceLine({ price: lastPrice, color: '#06b6d4', lineWidth: 2, lineStyle: LineStyle.Solid, title: 'ENTRY' });
+        candleSeries.createPriceLine({ price: lastPrice, color: '#00D9FF', lineWidth: 2, lineStyle: LineStyle.Solid, title: 'ENTRY' });
         candleSeries.createPriceLine({ price: lastPrice * 1.05, color: '#10b981', lineWidth: 2, lineStyle: LineStyle.Dashed, title: 'TARGET' });
         candleSeries.createPriceLine({ price: lastPrice * 0.98, color: '#ef4444', lineWidth: 2, lineStyle: LineStyle.Dotted, title: 'STOP' });
       } catch (err) { log.warn('Chart data fetch (expected if no quotes endpoint):', err.message); }
@@ -555,7 +555,7 @@ export default function SignalIntelligenceV3() {
       {/* ================================================================== */}
       {/* TOP HEADER BAR                                                     */}
       {/* ================================================================== */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-[#0d1117] border-b border-[#1e293b] shrink-0">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-[#0B0E14] border-b border-[rgba(42,52,68,0.5)] shrink-0">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5">
             {/* Green hexagon icon */}
@@ -644,7 +644,7 @@ export default function SignalIntelligenceV3() {
                 />
               ))}
             </div>
-            <div className="mt-2 pt-1 border-t border-[#1e293b]">
+            <div className="mt-2 pt-1 border-t border-[rgba(42,52,68,0.5)]">
               <span className="text-[8px] text-gray-500 uppercase tracking-wider">EXTENDED SWARM ({EXTENDED_AGENTS.length})</span>
             </div>
           </Panel>
@@ -655,14 +655,14 @@ export default function SignalIntelligenceV3() {
         {/* ============================================================== */}
         <div className="flex flex-col gap-1 overflow-hidden min-h-0">
           {/* Chart */}
-          <div className="bg-[#111827] border border-[#1e293b] rounded flex-[6] min-h-0 flex flex-col overflow-hidden">
+          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded flex-[6] min-h-0 flex flex-col overflow-hidden">
             {/* Chart header */}
-            <div className="px-2.5 py-1 border-b border-[#1e293b] flex items-center justify-between bg-[#0d1117] shrink-0">
+            <div className="px-2.5 py-1 border-b border-[rgba(42,52,68,0.5)] flex items-center justify-between bg-[#0B0E14] shrink-0">
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-bold text-white">{selectedSymbol}</span>
                 <span className="text-[8px] text-gray-500">OHLCV</span>
                 <div className="flex items-center gap-1.5 ml-2">
-                  <span className="flex items-center gap-0.5"><span className="w-2 h-0.5 bg-cyan-400 inline-block rounded" /><span className="text-[7px] text-cyan-400">SMAC200</span></span>
+                  <span className="flex items-center gap-0.5"><span className="w-2 h-0.5 bg-[#00D9FF] inline-block rounded" /><span className="text-[7px] text-[#00D9FF]">SMAC200</span></span>
                   <span className="flex items-center gap-0.5"><span className="w-2 h-0.5 bg-white inline-block rounded" /><span className="text-[7px] text-gray-300">VWAP</span></span>
                 </div>
               </div>
@@ -671,7 +671,7 @@ export default function SignalIntelligenceV3() {
                   <button key={t} onClick={() => setChartTimeframe(t)}
                     className={`text-[10px] uppercase tracking-wider font-bold rounded-md px-3 py-1 transition-all ${
                       chartTimeframe === t
-                        ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                        ? 'bg-cyan-500/20 text-[#00D9FF] border border-[#00D9FF]/50/30'
                         : 'bg-transparent text-gray-500 border border-gray-700'
                     }`}>{t}</button>
                 ))}
@@ -693,7 +693,7 @@ export default function SignalIntelligenceV3() {
             <div className="overflow-auto flex-1 min-h-0">
               <table className="w-full text-[8px]">
                 <thead className="sticky top-0 bg-[#111827] z-10">
-                  <tr className="text-gray-500 border-b border-[#1e293b] uppercase tracking-wider">
+                  <tr className="text-gray-500 border-b border-[rgba(42,52,68,0.5)] uppercase tracking-wider">
                     <th className="text-left py-1 px-1">Symbol</th>
                     <th className="text-left py-1 px-1">Score</th>
                     <th className="text-left py-1 px-1">Dir</th>
@@ -704,7 +704,7 @@ export default function SignalIntelligenceV3() {
                 </thead>
                 <tbody>
                   {signals.map((sig, idx) => (
-                    <tr key={sig.id || idx} className="border-b border-[#1e293b]/30 hover:bg-[#00D9FF]/5 cursor-pointer transition-colors"
+                    <tr key={sig.id || idx} className="border-b border-[rgba(42,52,68,0.5)]/30 hover:bg-[#00D9FF]/5 cursor-pointer transition-colors"
                       onClick={() => setSelectedSymbol(sig.symbol || sig.ticker)}>
                       <td className="py-0.5 px-1 font-bold font-mono text-[#00D9FF]">
                         {sig.symbol || sig.ticker}
@@ -729,7 +729,7 @@ export default function SignalIntelligenceV3() {
                         </span>
                       </td>
                       <td className="py-0.5 px-1 font-mono text-gray-300"><span className="font-mono">${typeof sig.price === 'number' ? sig.price.toFixed(2) : sig.price || '--'}</span></td>
-                      <td className="py-0.5 px-1 text-cyan-400 truncate max-w-[80px]">{sig.agent || sig.source || '--'}</td>
+                      <td className="py-0.5 px-1 text-[#00D9FF] truncate max-w-[80px]">{sig.agent || sig.source || '--'}</td>
                       <td className="py-0.5 px-1">
                         <div className="flex items-center gap-1">
                           <button onClick={(e) => { e.stopPropagation(); setSelectedSymbol(sig.symbol || sig.ticker); }}
@@ -851,7 +851,7 @@ export default function SignalIntelligenceV3() {
           {/* ML Model Control (Layer 5) */}
           <Panel title="ML Model Control (Layer 5)" icon={Cpu} className="shrink-0">
             {ML_MODELS.map(model => (
-              <div key={model.id} className="flex items-center gap-1 py-0.5 border-b border-[#1e293b]/30 last:border-0">
+              <div key={model.id} className="flex items-center gap-1 py-0.5 border-b border-[rgba(42,52,68,0.5)]/30 last:border-0">
                 <span className="text-[8px] text-gray-300 w-20 shrink-0 truncate">{model.name}</span>
                 <div className="flex-1 h-1 bg-[#1e293b] rounded-full overflow-hidden">
                   <div className="h-full rounded-full" style={{
@@ -910,7 +910,7 @@ export default function SignalIntelligenceV3() {
       {/* ================================================================== */}
       {/* BOTTOM STATUS BAR                                                  */}
       {/* ================================================================== */}
-      <div className="flex items-center justify-between px-3 py-1 bg-[#0d1117] border-t border-[#1e293b] shrink-0 text-[8px] text-gray-500">
+      <div className="flex items-center justify-between px-3 py-1 bg-[#0B0E14] border-t border-[rgba(42,52,68,0.5)] shrink-0 text-[8px] text-gray-500">
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)]" />
@@ -970,8 +970,8 @@ export const AgentPipelineFlow = () => {
     { id: 'exec1', type: 'custom', position: { x: 150, y: 450 }, data: { label: 'Risk Governor', subLabel: 'Position Sizing', status: 'red' } }
   ];
   const initialEdges = [
-    { id: 'e1', source: 'scan1', target: 'intel1', animated: true, style: { stroke: '#06b6d4' }, markerEnd: { type: MarkerType.ArrowClosed, color: '#06b6d4' } },
-    { id: 'e2', source: 'scan2', target: 'intel1', animated: true, style: { stroke: '#06b6d4' }, markerEnd: { type: MarkerType.ArrowClosed, color: '#06b6d4' } },
+    { id: 'e1', source: 'scan1', target: 'intel1', animated: true, style: { stroke: '#00D9FF' }, markerEnd: { type: MarkerType.ArrowClosed, color: '#00D9FF' } },
+    { id: 'e2', source: 'scan2', target: 'intel1', animated: true, style: { stroke: '#00D9FF' }, markerEnd: { type: MarkerType.ArrowClosed, color: '#00D9FF' } },
     { id: 'e3', source: 'intel1', target: 'agent1', animated: true, style: { stroke: '#10b981' } },
     { id: 'e4', source: 'intel1', target: 'agent2', animated: true, style: { stroke: '#10b981' } },
     { id: 'e5', source: 'agent1', target: 'score1', animated: true, style: { stroke: '#a855f7' } },
@@ -979,7 +979,7 @@ export const AgentPipelineFlow = () => {
     { id: 'e7', source: 'score1', target: 'exec1', animated: true, style: { stroke: '#f59e0b' } }
   ];
   return (
-    <div className="bg-[#111827] border border-[#1e293b] rounded-md p-3">
+    <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-md p-3">
       <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-2">Agent Swarm Data Flow Pipeline</h3>
       <div style={{ height: 520 }}>
         <ReactFlow nodes={initialNodes} edges={initialEdges} nodeTypes={nodeTypes} fitView
@@ -1003,9 +1003,9 @@ export const AnalyticsDashboards = () => {
     return (
         <div className="grid grid-cols-4 gap-2">
             {chartTitles.map((title, i) => (
-                <div key={i} className="bg-[#111827] border border-[#1e293b] rounded-md p-3">
+                <div key={i} className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-md p-3">
                     <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-2">{title}</h3>
-                    <div className="h-[200px] flex items-center justify-center text-gray-500 text-xs border border-dashed border-[#1e293b] rounded">
+                    <div className="h-[200px] flex items-center justify-center text-gray-500 text-xs border border-dashed border-[rgba(42,52,68,0.5)] rounded">
                         <span>LW Charts pending</span>
                     </div>
                 </div>

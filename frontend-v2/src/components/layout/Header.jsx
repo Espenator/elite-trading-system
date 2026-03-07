@@ -1,6 +1,12 @@
-// EMBODIER TRADER - Enhanced Header with CNS Status
-// Shows: connection status, homeostasis mode badge, circuit breaker icon,
-// latest verdict summary, notification bell with live count.
+// EMBODIER TRADER — Header (Aurora Design System)
+//
+// Visual spec (matches mockups):
+//   - bg-surface (#111827), 64px height, border-bottom rgba(42,52,68,0.5)
+//   - Left:   search bar with ⌘K shortcut
+//   - Center: CNS status (WS/API health dots + LIVE/OFFLINE) · Mode badge · Circuit-breaker icon · Latest verdict
+//   - Right:  Regime badge (GREEN/YELLOW/RED + %) · Notification bell · User profile
+//
+// All accent colour references use #00D9FF (primary) — NOT #06b6d4.
 
 import { useState } from "react";
 import {
@@ -10,249 +16,477 @@ import {
   User,
   ChevronDown,
   Activity,
-  Zap,
-  TrendingUp,
   Brain,
   Shield,
   ShieldAlert,
   Wifi,
   WifiOff,
+  TrendingUp,
   Gauge,
 } from "lucide-react";
 import { useCNS, CNS_EVENTS } from "../../hooks/useCNS";
 
+// ── Mode badge colours ────────────────────────────────────────────────────────
 const MODE_COLORS = {
-  AGGRESSIVE: { bg: "bg-green-500/20", text: "text-green-400", border: "border-green-500/50", dot: "bg-green-400" },
-  NORMAL: { bg: "bg-cyan-500/20", text: "text-cyan-400", border: "border-cyan-500/50", dot: "bg-cyan-400" },
-  DEFENSIVE: { bg: "bg-amber-500/20", text: "text-amber-400", border: "border-amber-500/50", dot: "bg-amber-400" },
-  HALTED: { bg: "bg-red-500/20", text: "text-red-400", border: "border-red-500/50", dot: "bg-red-400" },
+  AGGRESSIVE: {
+    bg:     "rgba(16,185,129,0.12)",
+    border: "rgba(16,185,129,0.35)",
+    text:   "#10B981",
+    dot:    "#10B981",
+  },
+  NORMAL: {
+    bg:     "rgba(0,217,255,0.10)",
+    border: "rgba(0,217,255,0.30)",
+    text:   "#00D9FF",
+    dot:    "#00D9FF",
+  },
+  DEFENSIVE: {
+    bg:     "rgba(245,158,11,0.12)",
+    border: "rgba(245,158,11,0.35)",
+    text:   "#F59E0B",
+    dot:    "#F59E0B",
+  },
+  HALTED: {
+    bg:     "rgba(239,68,68,0.12)",
+    border: "rgba(239,68,68,0.35)",
+    text:   "#EF4444",
+    dot:    "#EF4444",
+  },
 };
 
+// ── Regime badge colours ──────────────────────────────────────────────────────
+const REGIME_COLORS = {
+  GREEN:  { bg: "rgba(16,185,129,0.15)",  border: "rgba(16,185,129,0.4)",  text: "#10B981" },
+  YELLOW: { bg: "rgba(245,158,11,0.15)",  border: "rgba(245,158,11,0.4)",  text: "#F59E0B" },
+  RED:    { bg: "rgba(239,68,68,0.15)",   border: "rgba(239,68,68,0.4)",   text: "#EF4444" },
+};
+
+// ── Notification event icon map ───────────────────────────────────────────────
 const EVENT_ICONS = {
-  [CNS_EVENTS.COUNCIL_VERDICT]: { icon: Brain, color: "text-primary" },
-  [CNS_EVENTS.MODE_CHANGE]: { icon: Gauge, color: "text-amber-400" },
-  [CNS_EVENTS.CIRCUIT_BREAKER_FIRE]: { icon: ShieldAlert, color: "text-red-400" },
-  [CNS_EVENTS.TRADE_EXECUTED]: { icon: TrendingUp, color: "text-green-400" },
-  [CNS_EVENTS.RISK_ALERT]: { icon: Activity, color: "text-amber-400" },
+  [CNS_EVENTS?.COUNCIL_VERDICT]:      { icon: Brain,     color: "#00D9FF" },
+  [CNS_EVENTS?.MODE_CHANGE]:          { icon: Gauge,     color: "#F59E0B" },
+  [CNS_EVENTS?.CIRCUIT_BREAKER_FIRE]: { icon: ShieldAlert, color: "#EF4444" },
+  [CNS_EVENTS?.TRADE_EXECUTED]:       { icon: TrendingUp, color: "#10B981" },
+  [CNS_EVENTS?.RISK_ALERT]:           { icon: Activity,  color: "#F59E0B" },
 };
 
+// ── Pill component — reused for WS/API indicators ────────────────────────────
+function StatusPill({ children, bg, border }) {
+  return (
+    <div
+      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium"
+      style={{ background: bg, border: `1px solid ${border}` }}
+    >
+      {children}
+    </div>
+  );
+}
+
+// ── Regime badge ─────────────────────────────────────────────────────────────
+function RegimeBadge({ regime = "GREEN", pct }) {
+  const c = REGIME_COLORS[regime] ?? REGIME_COLORS.GREEN;
+  return (
+    <div
+      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg"
+      style={{ background: c.bg, border: `1px solid ${c.border}` }}
+    >
+      <div
+        className="w-2 h-2 rounded-full"
+        style={{ background: c.text, boxShadow: `0 0 6px ${c.text}` }}
+      />
+      <span className="text-xs font-bold tracking-wider" style={{ color: c.text }}>
+        {regime}
+      </span>
+      {pct != null && (
+        <span className="text-xs font-mono text-[#9CA3AF]">{pct}%</span>
+      )}
+    </div>
+  );
+}
+
+// ── Main ─────────────────────────────────────────────────────────────────────
 export default function Header() {
   const {
-    mode, positionScale, circuitBreakerArmed, circuitBreakerFired,
-    latestVerdict, wsConnected, notifications, unreadCount,
-    markRead, clearNotifications,
+    mode,
+    positionScale,
+    circuitBreakerArmed,
+    circuitBreakerFired,
+    latestVerdict,
+    wsConnected,
+    notifications = [],
+    unreadCount = 0,
+    markRead,
+    clearNotifications,
+    marketRegime,
+    regimePct,
   } = useCNS();
 
   const [showNotifications, setShowNotifications] = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false);
-  const [searchFocused, setSearchFocused] = useState(false);
+  const [showUserMenu, setShowUserMenu]           = useState(false);
+  const [searchFocused, setSearchFocused]         = useState(false);
 
-  const modeStyle = MODE_COLORS[mode] || MODE_COLORS.NORMAL;
+  const modeStyle = MODE_COLORS[mode] ?? MODE_COLORS.NORMAL;
 
   return (
-    <header className="sticky top-0 z-10 border-b border-secondary/30 h-16 flex items-center justify-between gap-4 px-6 bg-surface">
-      {/* Left: Search */}
-      <div className="flex items-center gap-3 flex-1 min-w-0">
-        <div className="relative flex-1 min-w-0 max-w-md">
-          <div
-            className={`
-              relative rounded-md border transition-all duration-300
-              ${searchFocused
-                ? "border-primary/50 bg-secondary/20 shadow-lg shadow-primary/10"
-                : "border-secondary/30 bg-secondary/10 hover:border-secondary/50"
-              }
-            `}
+    <header
+      className="sticky top-0 z-10 h-16 flex items-center justify-between gap-4 px-6"
+      style={{
+        background:   "#111827",
+        borderBottom: "1px solid rgba(42,52,68,0.5)",
+      }}
+    >
+      {/* ── Left: Search ────────────────────────────────────────────────── */}
+      <div className="flex items-center flex-1 min-w-0 max-w-xs">
+        <div
+          className="relative w-full rounded-[8px] transition-all duration-200"
+          style={{
+            background:   searchFocused ? "rgba(0,217,255,0.05)" : "rgba(255,255,255,0.04)",
+            border:       `1px solid ${searchFocused ? "rgba(0,217,255,0.4)" : "rgba(42,52,68,0.6)"}`,
+            boxShadow:    searchFocused ? "0 0 0 1px rgba(0,217,255,0.15)" : "none",
+          }}
+        >
+          <Search
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5"
+            style={{ color: searchFocused ? "#00D9FF" : "#6B7280" }}
+          />
+          <input
+            type="text"
+            placeholder="Search tickers, signals…"
+            className="w-full pl-9 pr-12 py-2 bg-transparent text-sm text-white placeholder-[#6B7280] outline-none"
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
+          />
+          <kbd
+            className="absolute right-3 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[10px] font-medium rounded"
+            style={{
+              color:       "#6B7280",
+              background:  "rgba(255,255,255,0.05)",
+              border:      "1px solid rgba(42,52,68,0.6)",
+            }}
           >
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-secondary" />
-            <input
-              type="text"
-              placeholder="Search tickers, signals..."
-              className="w-full pl-11 pr-4 py-2 bg-transparent text-sm text-white placeholder-secondary outline-none"
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setSearchFocused(false)}
-            />
-            <kbd className="absolute right-3 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-xs font-medium text-secondary bg-secondary/20 rounded border border-secondary/30">
-              ⌘K
-            </kbd>
-          </div>
+            ⌘K
+          </kbd>
         </div>
       </div>
 
-      {/* Center: CNS Status Bar */}
-      <div className="flex items-center gap-3">
-        {/* Connection Status */}
-        <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border ${wsConnected ? 'border-green-500/30 bg-green-500/10' : 'border-red-500/30 bg-red-500/10'}`}>
+      {/* ── Center: CNS Status ──────────────────────────────────────────── */}
+      <div className="flex items-center gap-2">
+        {/* WS Connection */}
+        <StatusPill
+          bg={wsConnected ? "rgba(16,185,129,0.10)" : "rgba(239,68,68,0.10)"}
+          border={wsConnected ? "rgba(16,185,129,0.35)" : "rgba(239,68,68,0.35)"}
+        >
           {wsConnected ? (
-            <Wifi className="w-3.5 h-3.5 text-green-400" />
+            <Wifi className="w-3.5 h-3.5" style={{ color: "#10B981" }} />
           ) : (
-            <WifiOff className="w-3.5 h-3.5 text-red-400 animate-pulse" />
+            <WifiOff className="w-3.5 h-3.5 animate-pulse" style={{ color: "#EF4444" }} />
           )}
-          <span className={`text-xs font-medium ${wsConnected ? 'text-green-400' : 'text-red-400'}`}>
-            {wsConnected ? 'LIVE' : 'OFFLINE'}
+          <span
+            className="text-xs font-bold tracking-wider"
+            style={{ color: wsConnected ? "#10B981" : "#EF4444" }}
+          >
+            {wsConnected ? "WS" : "WS"}
           </span>
-        </div>
+          <span
+            className="text-[10px]"
+            style={{ color: wsConnected ? "#10B981" : "#EF4444", opacity: 0.8 }}
+          >
+            {wsConnected ? "LIVE" : "DOWN"}
+          </span>
+        </StatusPill>
 
         {/* Homeostasis Mode Badge */}
-        <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border ${modeStyle.border} ${modeStyle.bg}`}>
-          <div className={`w-2 h-2 rounded-full ${modeStyle.dot} ${mode === 'HALTED' ? 'animate-pulse' : ''}`} />
-          <span className={`text-xs font-bold tracking-wider ${modeStyle.text}`}>
-            {mode}
+        <div
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg"
+          style={{
+            background: modeStyle.bg,
+            border:     `1px solid ${modeStyle.border}`,
+          }}
+        >
+          <div
+            className={`w-2 h-2 rounded-full ${mode === "HALTED" ? "animate-pulse" : ""}`}
+            style={{
+              background: modeStyle.dot,
+              boxShadow:  `0 0 6px ${modeStyle.dot}80`,
+            }}
+          />
+          <span
+            className="text-xs font-bold tracking-wider"
+            style={{ color: modeStyle.text }}
+          >
+            {mode ?? "NORMAL"}
           </span>
-          <span className="text-xs text-secondary/70">
-            {positionScale}x
-          </span>
+          {positionScale != null && (
+            <span className="text-xs text-[#9CA3AF]">{positionScale}x</span>
+          )}
         </div>
 
         {/* Circuit Breaker Icon */}
         <div
-          className={`p-1.5 rounded-lg border transition-all ${
-            circuitBreakerFired
-              ? 'border-red-500/50 bg-red-500/20'
+          className="p-1.5 rounded-lg transition-all duration-200"
+          style={{
+            background: circuitBreakerFired
+              ? "rgba(239,68,68,0.15)"
               : circuitBreakerArmed
-                ? 'border-green-500/30 bg-green-500/10'
-                : 'border-secondary/30 bg-secondary/10'
-          }`}
-          title={circuitBreakerFired ? `CB fired: ${circuitBreakerFired}` : circuitBreakerArmed ? 'Circuit breaker armed' : 'Circuit breaker disarmed'}
+              ? "rgba(16,185,129,0.10)"
+              : "rgba(255,255,255,0.04)",
+            border: circuitBreakerFired
+              ? "1px solid rgba(239,68,68,0.4)"
+              : circuitBreakerArmed
+              ? "1px solid rgba(16,185,129,0.3)"
+              : "1px solid rgba(42,52,68,0.5)",
+          }}
+          title={
+            circuitBreakerFired
+              ? `CB fired: ${circuitBreakerFired}`
+              : circuitBreakerArmed
+              ? "Circuit breaker armed"
+              : "Circuit breaker disarmed"
+          }
         >
           {circuitBreakerFired ? (
-            <ShieldAlert className="w-4 h-4 text-red-400 animate-pulse" />
+            <ShieldAlert
+              className="w-4 h-4 animate-pulse"
+              style={{ color: "#EF4444" }}
+            />
           ) : (
-            <Shield className={`w-4 h-4 ${circuitBreakerArmed ? 'text-green-400' : 'text-secondary'}`} />
+            <Shield
+              className="w-4 h-4"
+              style={{ color: circuitBreakerArmed ? "#10B981" : "#6B7280" }}
+            />
           )}
         </div>
 
-        {/* Latest Verdict Mini */}
+        {/* Latest Verdict — desktop only */}
         {latestVerdict && (
-          <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-secondary/30 bg-secondary/10">
-            <Brain className="w-3.5 h-3.5 text-primary" />
-            <span className="text-xs text-white font-medium">
+          <div
+            className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg"
+            style={{
+              background: "rgba(255,255,255,0.03)",
+              border:     "1px solid rgba(42,52,68,0.5)",
+            }}
+          >
+            <Brain className="w-3.5 h-3.5" style={{ color: "#00D9FF" }} />
+            <span className="text-xs text-white font-medium font-mono">
               {latestVerdict.symbol}
             </span>
-            <span className={`text-xs font-bold ${
-              latestVerdict.final_direction === 'buy' ? 'text-green-400' :
-              latestVerdict.final_direction === 'sell' ? 'text-red-400' :
-              'text-secondary'
-            }`}>
-              {(latestVerdict.final_direction || 'hold').toUpperCase()}
+            <span
+              className="text-xs font-bold font-mono"
+              style={{
+                color:
+                  latestVerdict.final_direction === "buy"
+                    ? "#10B981"
+                    : latestVerdict.final_direction === "sell"
+                    ? "#EF4444"
+                    : "#9CA3AF",
+              }}
+            >
+              {(latestVerdict.final_direction ?? "hold").toUpperCase()}
             </span>
-            <span className="text-xs text-secondary">
-              {((latestVerdict.final_confidence || 0) * 100).toFixed(0)}%
+            <span className="text-xs text-[#9CA3AF] font-mono">
+              {((latestVerdict.final_confidence ?? 0) * 100).toFixed(0)}%
             </span>
           </div>
         )}
       </div>
 
-      {/* Right: Notifications + User */}
-      <div className="flex items-center gap-3">
-        {/* Notifications */}
+      {/* ── Right: Regime + Bell + User ─────────────────────────────────── */}
+      <div className="flex items-center gap-2">
+        {/* Regime Badge */}
+        <RegimeBadge
+          regime={marketRegime ?? "GREEN"}
+          pct={regimePct}
+        />
+
+        {/* Notification Bell */}
         <div className="relative">
           <button
-            onClick={() => setShowNotifications(!showNotifications)}
-            className="relative p-2.5 rounded-md bg-secondary/10 border border-secondary/30 hover:bg-secondary/20 hover:border-white/20 transition-all"
+            type="button"
+            onClick={() => {
+              setShowNotifications(!showNotifications);
+              setShowUserMenu(false);
+            }}
+            className="relative p-2 rounded-lg transition-all duration-200"
+            style={{
+              background:   "rgba(255,255,255,0.04)",
+              border:       "1px solid rgba(42,52,68,0.5)",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(0,217,255,0.3)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(42,52,68,0.5)"; }}
           >
-            <Bell className="w-5 h-5 text-secondary" />
+            <Bell className="w-4 h-4 text-[#9CA3AF]" />
             {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-xs font-bold text-white flex items-center justify-center">
-                {unreadCount > 9 ? '9+' : unreadCount}
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#EF4444] rounded-full text-[9px] font-bold text-white flex items-center justify-center leading-none">
+                {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             )}
           </button>
 
-          {/* Notifications dropdown */}
+          {/* Notification dropdown */}
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-96 rounded-md bg-dark backdrop-blur-xl border border-secondary/30 shadow-2xl shadow-black/50 overflow-hidden z-50">
-              <div className="px-4 py-3 border-b border-secondary/30">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-white">
-                    Notifications {unreadCount > 0 && <span className="text-primary">({unreadCount})</span>}
-                  </h3>
-                  <button
-                    onClick={clearNotifications}
-                    className="text-xs text-primary hover:text-primary/80"
-                  >
-                    Clear all
-                  </button>
-                </div>
+            <div
+              className="absolute right-0 mt-2 w-96 rounded-[8px] overflow-hidden z-50"
+              style={{
+                background:   "#111827",
+                border:       "1px solid rgba(42,52,68,0.8)",
+                backdropFilter: "blur(16px)",
+                boxShadow:    "0 20px 40px rgba(0,0,0,0.5)",
+              }}
+            >
+              <div
+                className="px-4 py-3 flex items-center justify-between"
+                style={{ borderBottom: "1px solid rgba(42,52,68,0.5)" }}
+              >
+                <h3 className="text-sm font-semibold text-white">
+                  Notifications{" "}
+                  {unreadCount > 0 && (
+                    <span style={{ color: "#00D9FF" }}>({unreadCount})</span>
+                  )}
+                </h3>
+                <button
+                  type="button"
+                  onClick={clearNotifications}
+                  className="text-xs transition-colors"
+                  style={{ color: "#00D9FF" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.opacity = "0.7"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
+                >
+                  Clear all
+                </button>
               </div>
-              <div className="max-h-96 overflow-y-auto custom-scrollbar">
-                {notifications.length === 0 && (
-                  <div className="px-4 py-8 text-center text-sm text-secondary">
+
+              <div className="max-h-80 overflow-y-auto custom-scrollbar">
+                {notifications.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-sm text-[#6B7280]">
                     No notifications yet
                   </div>
-                )}
-                {notifications.map((notif) => {
-                  const evInfo = EVENT_ICONS[notif.type] || { icon: Activity, color: "text-secondary" };
-                  const Icon = evInfo.icon;
-                  return (
-                    <div
-                      key={notif.id}
-                      onClick={() => markRead(notif.id)}
-                      className={`px-4 py-3 hover:bg-white/5 border-b border-white/5 cursor-pointer transition-colors ${!notif.read ? 'bg-primary/5' : ''}`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className={`w-8 h-8 rounded-lg ${!notif.read ? 'bg-primary/10' : 'bg-secondary/10'} flex items-center justify-center flex-shrink-0`}>
-                          <Icon className={`w-4 h-4 ${evInfo.color}`} />
+                ) : (
+                  notifications.map((notif) => {
+                    const evInfo = EVENT_ICONS[notif.type] ?? {
+                      icon: Activity,
+                      color: "#6B7280",
+                    };
+                    const Icon = evInfo.icon;
+                    return (
+                      <div
+                        key={notif.id}
+                        onClick={() => markRead?.(notif.id)}
+                        className="px-4 py-3 cursor-pointer transition-colors hover:bg-white/5"
+                        style={{
+                          borderBottom: "1px solid rgba(42,52,68,0.3)",
+                          background:   !notif.read ? "rgba(0,217,255,0.03)" : "transparent",
+                        }}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div
+                            className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                            style={{ background: !notif.read ? "rgba(0,217,255,0.08)" : "rgba(255,255,255,0.05)" }}
+                          >
+                            <Icon className="w-4 h-4" style={{ color: evInfo.color }} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-white leading-snug">
+                              {notif.payload?.message ?? notif.type}
+                            </p>
+                            <p className="text-xs text-[#6B7280] mt-1 font-mono">
+                              {formatTimeAgo(notif.timestamp)}
+                            </p>
+                          </div>
+                          {!notif.read && (
+                            <div
+                              className="w-2 h-2 rounded-full flex-shrink-0 mt-2"
+                              style={{ background: "#00D9FF", boxShadow: "0 0 6px rgba(0,217,255,0.5)" }}
+                            />
+                          )}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-white leading-snug">
-                            {notif.payload?.message || notif.type}
-                          </p>
-                          <p className="text-xs text-secondary mt-1">
-                            {formatTimeAgo(notif.timestamp)}
-                          </p>
-                        </div>
-                        {!notif.read && (
-                          <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0 mt-2" />
-                        )}
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
             </div>
           )}
         </div>
 
-        {/* User menu */}
+        {/* User Menu */}
         <div className="relative">
           <button
-            onClick={() => setShowUserMenu(!showUserMenu)}
-            className="flex items-center gap-2 pl-3 pr-3 py-2 rounded-md bg-secondary/10 border border-secondary/30 hover:bg-secondary/20 hover:border-white/20 transition-all"
+            type="button"
+            onClick={() => {
+              setShowUserMenu(!showUserMenu);
+              setShowNotifications(false);
+            }}
+            className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-lg transition-all duration-200"
+            style={{
+              background: "rgba(255,255,255,0.04)",
+              border:     "1px solid rgba(42,52,68,0.5)",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(0,217,255,0.3)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(42,52,68,0.5)"; }}
           >
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br bg-primary flex items-center justify-center">
-              <User className="w-3.5 h-3.5 text-white" />
+            {/* Avatar */}
+            <div
+              className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-white"
+              style={{ background: "linear-gradient(135deg, #00D9FF 0%, #10B981 100%)" }}
+            >
+              <User className="w-3.5 h-3.5" />
             </div>
             <div className="hidden md:block text-left">
-              <div className="text-sm font-medium text-white leading-tight">
+              <div className="text-xs font-semibold text-white leading-tight">
                 Embodier
               </div>
+              <div className="text-[9px] text-[#6B7280] leading-tight font-mono">
+                espen@embodier.ai
+              </div>
             </div>
-            <ChevronDown className="w-3.5 h-3.5 text-secondary" />
+            <ChevronDown className="w-3 h-3 text-[#6B7280]" />
           </button>
 
           {showUserMenu && (
-            <div className="absolute right-0 mt-2 w-56 rounded-md bg-dark backdrop-blur-xl border border-secondary/30 shadow-2xl shadow-black/50 overflow-hidden z-50">
-              <div className="px-4 py-3 border-b border-secondary/30">
-                <div className="font-medium text-white">espen@embodier.ai</div>
-                <div className="text-xs text-secondary mt-0.5">Pro Account</div>
+            <div
+              className="absolute right-0 mt-2 w-56 rounded-[8px] overflow-hidden z-50"
+              style={{
+                background:     "#111827",
+                border:         "1px solid rgba(42,52,68,0.8)",
+                backdropFilter: "blur(16px)",
+                boxShadow:      "0 20px 40px rgba(0,0,0,0.5)",
+              }}
+            >
+              <div
+                className="px-4 py-3"
+                style={{ borderBottom: "1px solid rgba(42,52,68,0.5)" }}
+              >
+                <div className="font-semibold text-white text-sm">espen@embodier.ai</div>
+                <div className="text-xs text-[#9CA3AF] mt-0.5">Pro Account</div>
               </div>
-              <div className="py-2">
-                <a href="#" className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 transition-colors">
-                  <User className="w-4 h-4 text-secondary" />
-                  <span className="text-sm text-white">Profile</span>
-                </a>
-                <a href="#" className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 transition-colors">
-                  <Settings className="w-4 h-4 text-secondary" />
-                  <span className="text-sm text-white">Settings</span>
-                </a>
-                <a href="#" className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 transition-colors">
-                  <Activity className="w-4 h-4 text-secondary" />
-                  <span className="text-sm text-white">API Status</span>
-                </a>
+              <div className="py-1">
+                {[
+                  { icon: User,     label: "Profile" },
+                  { icon: Settings, label: "Settings" },
+                  { icon: Activity, label: "API Status" },
+                ].map(({ icon: ItemIcon, label }) => (
+                  <a
+                    key={label}
+                    href="#"
+                    className="flex items-center gap-3 px-4 py-2.5 text-sm text-white transition-colors hover:bg-white/5"
+                  >
+                    <ItemIcon className="w-4 h-4 text-[#6B7280]" />
+                    {label}
+                  </a>
+                ))}
               </div>
-              <div className="border-t border-secondary/30 py-2">
-                <a href="#" className="flex items-center gap-3 px-4 py-2.5 text-danger hover:bg-danger/10 transition-colors">
-                  <span className="text-sm font-medium">Sign out</span>
+              <div
+                className="py-1"
+                style={{ borderTop: "1px solid rgba(42,52,68,0.5)" }}
+              >
+                <a
+                  href="#"
+                  className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors"
+                  style={{ color: "#EF4444" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(239,68,68,0.08)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                >
+                  Sign out
                 </a>
               </div>
             </div>
@@ -263,10 +497,11 @@ export default function Header() {
   );
 }
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
 function formatTimeAgo(ts) {
   const diff = Date.now() - ts;
-  if (diff < 60000) return 'just now';
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-  return `${Math.floor(diff / 86400000)}d ago`;
+  if (diff < 60_000)    return "just now";
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+  return `${Math.floor(diff / 86_400_000)}d ago`;
 }

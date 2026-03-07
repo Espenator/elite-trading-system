@@ -68,12 +68,12 @@ const FORMING_PATTERNS = [];
 function SectionBox({ title, icon: Icon, children, className, headerRight }) {
   return (
     <div className={clsx(
-      "border border-cyan-900/50 rounded bg-[#0a1628]/80 overflow-hidden",
+      "border border-cyan-900/50 rounded bg-[#111827]/80 overflow-hidden",
       className
     )}>
       <div className="flex items-center justify-between px-3 py-1.5 bg-cyan-950/40 border-b border-cyan-900/40">
         <div className="flex items-center gap-2">
-          {Icon && <Icon size={13} className="text-cyan-400" />}
+          {Icon && <Icon size={13} className="text-[#00D9FF]" />}
           <span className="text-[11px] font-semibold text-cyan-300 uppercase tracking-wider">{title}</span>
         </div>
         {headerRight}
@@ -123,7 +123,7 @@ function Toggle({ value, onChange, label }) {
 function TealButton({ children, onClick, variant = "primary", className, icon: Icon, disabled }) {
   const base = "flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-all whitespace-nowrap disabled:opacity-40";
   const variants = {
-    primary: "bg-cyan-600/80 hover:bg-cyan-500/90 text-white border border-cyan-500/40",
+    primary: "bg-cyan-600/80 hover:bg-cyan-500/90 text-white border border-[#00D9FF]/50/40",
     secondary: "bg-gray-800/80 hover:bg-gray-700/90 text-cyan-300 border border-cyan-800/40",
     danger: "bg-red-900/60 hover:bg-red-800/80 text-red-300 border border-red-700/40",
   };
@@ -178,7 +178,7 @@ function ScannerAgentCard({ agent, selected, onSelect }) {
       className={clsx(
         "w-full text-left p-2 rounded border transition-all",
         selected
-          ? "border-cyan-500/60 bg-cyan-950/40 shadow-[0_0_8px_rgba(6,182,212,0.15)]"
+          ? "border-[#00D9FF]/50/60 bg-cyan-950/40 shadow-[0_0_8px_rgba(6,182,212,0.15)]"
           : "border-gray-800/60 bg-gray-900/40 hover:border-cyan-800/40"
       )}
     >
@@ -190,7 +190,7 @@ function ScannerAgentCard({ agent, selected, onSelect }) {
         <span className="text-[9px] text-gray-500">{agent.uptime}</span>
       </div>
       <div className="flex items-center gap-3 text-[9px] text-gray-400">
-        <span>Type: <span className="text-cyan-400">{agent.type}</span></span>
+        <span>Type: <span className="text-[#00D9FF]">{agent.type}</span></span>
         <span>Hits: <span className="text-emerald-400">{agent.hits}</span></span>
       </div>
     </button>
@@ -227,7 +227,7 @@ function ScreeningEngine() {
     <div className="flex flex-col gap-2 h-full">
       {/* Section Title */}
       <div className="flex items-center gap-2 px-1">
-        <Radar size={15} className="text-cyan-400" />
+        <Radar size={15} className="text-[#00D9FF]" />
         <span className="text-xs font-bold text-cyan-300 uppercase tracking-wider">Screening Engine</span>
       </div>
 
@@ -306,21 +306,21 @@ function ScreeningEngine() {
             <MetricRow label="Beta Threshold 0-3">
               <Slider min={0} max={3} step={0.1} value={betaThreshold} onChange={setBetaThreshold}
                 suffix="" showValue={false} className="flex-1" inputClassName="h-1.5" />
-              <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{betaThreshold.toFixed(1)}</span>
+              <span className="text-[10px] text-[#00D9FF] min-w-[28px] text-right">{betaThreshold.toFixed(1)}</span>
               <MiniSparkline data={generatePatternChartData(15)} width={44} height={16} />
             </MetricRow>
 
             <MetricRow label="MFI 0-50">
               <Slider min={0} max={50} step={1} value={mfi} onChange={setMfi}
                 showValue={false} className="flex-1" inputClassName="h-1.5" />
-              <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{mfi}</span>
+              <span className="text-[10px] text-[#00D9FF] min-w-[28px] text-right">{mfi}</span>
               <MiniSparkline data={generatePatternChartData(15)} width={44} height={16} />
             </MetricRow>
 
             <MetricRow label="Short Interest">
               <Slider min={0} max={100} step={1} value={shortInterest} onChange={setShortInterest}
                 suffix="%" showValue={false} className="flex-1" inputClassName="h-1.5" />
-              <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{shortInterest}%</span>
+              <span className="text-[10px] text-[#00D9FF] min-w-[28px] text-right">{shortInterest}%</span>
               <MiniSparkline data={generatePatternChartData(15)} width={44} height={16} />
             </MetricRow>
 
@@ -337,14 +337,14 @@ function ScreeningEngine() {
             <MetricRow label="Relative Value vs SPX">
               <Slider min={0} max={100} step={1} value={relativeValue} onChange={setRelativeValue}
                 showValue={false} className="flex-1" inputClassName="h-1.5" />
-              <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{relativeValue}</span>
+              <span className="text-[10px] text-[#00D9FF] min-w-[28px] text-right">{relativeValue}</span>
               <MiniSparkline data={generatePatternChartData(15)} width={44} height={16} />
             </MetricRow>
 
             <MetricRow label="Options Flow Filter">
               <Slider min={0} max={100} step={1} value={optionsFlowFilter} onChange={setOptionsFlowFilter}
                 showValue={false} className="flex-1" inputClassName="h-1.5" />
-              <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{optionsFlowFilter}</span>
+              <span className="text-[10px] text-[#00D9FF] min-w-[28px] text-right">{optionsFlowFilter}</span>
               <MiniSparkline data={generatePatternChartData(15)} width={44} height={16} />
             </MetricRow>
 
@@ -371,19 +371,19 @@ function ScreeningEngine() {
             <MetricRow label="Dark Pool Activity">
               <Slider min={0} max={100} step={1} value={darkPoolActivity} onChange={setDarkPoolActivity}
                 showValue={false} className="flex-1" inputClassName="h-1.5" />
-              <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{darkPoolActivity}</span>
+              <span className="text-[10px] text-[#00D9FF] min-w-[28px] text-right">{darkPoolActivity}</span>
             </MetricRow>
 
             <MetricRow label="Institutional Accumulation">
               <Slider min={0} max={100} step={1} value={institutionalAccum} onChange={setInstitutionalAccum}
                 showValue={false} className="flex-1" inputClassName="h-1.5" />
-              <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{institutionalAccum}</span>
+              <span className="text-[10px] text-[#00D9FF] min-w-[28px] text-right">{institutionalAccum}</span>
             </MetricRow>
 
             <MetricRow label="Sector Momentum">
               <Slider min={0} max={100} step={1} value={sectorMomentum} onChange={setSectorMomentum}
                 showValue={false} className="flex-1" inputClassName="h-1.5" />
-              <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{sectorMomentum}</span>
+              <span className="text-[10px] text-[#00D9FF] min-w-[28px] text-right">{sectorMomentum}</span>
             </MetricRow>
           </div>
         </div>
@@ -412,7 +412,7 @@ function PatternAgentCard({ agent, selected, onSelect }) {
       className={clsx(
         "w-full text-left p-2 rounded border transition-all",
         selected
-          ? "border-cyan-500/60 bg-cyan-950/40 shadow-[0_0_8px_rgba(6,182,212,0.15)]"
+          ? "border-[#00D9FF]/50/60 bg-cyan-950/40 shadow-[0_0_8px_rgba(6,182,212,0.15)]"
           : "border-gray-800/60 bg-gray-900/40 hover:border-cyan-800/40"
       )}
     >
@@ -424,7 +424,7 @@ function PatternAgentCard({ agent, selected, onSelect }) {
         <span className="text-[9px] text-emerald-400">{agent.accuracy}%</span>
       </div>
       <div className="flex items-center gap-3 text-[9px] text-gray-400">
-        <span>Type: <span className="text-cyan-400">{agent.type}</span></span>
+        <span>Type: <span className="text-[#00D9FF]">{agent.type}</span></span>
         <span>Arch: <span className="text-purple-400">{agent.architecture}</span></span>
         <span>Found: <span className="text-emerald-400">{agent.patternsFound}</span></span>
       </div>
@@ -462,7 +462,7 @@ function PatternIntelligence() {
     <div className="flex flex-col gap-2 h-full">
       {/* Section Title */}
       <div className="flex items-center gap-2 px-1">
-        <Brain size={15} className="text-cyan-400" />
+        <Brain size={15} className="text-[#00D9FF]" />
         <span className="text-xs font-bold text-cyan-300 uppercase tracking-wider">Pattern Intelligence</span>
       </div>
 
@@ -532,21 +532,21 @@ function PatternIntelligence() {
             <MetricRow label="Recursive Self-Improvement">
               <Slider min={0} max={100} step={1} value={recursiveSelfImprove} onChange={setRecursiveSelfImprove}
                 showValue={false} className="flex-1" inputClassName="h-1.5" />
-              <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{recursiveSelfImprove}</span>
+              <span className="text-[10px] text-[#00D9FF] min-w-[28px] text-right">{recursiveSelfImprove}</span>
               <MiniSparkline data={generatePatternChartData(15)} width={44} height={16} color="#a78bfa" />
             </MetricRow>
 
             <MetricRow label="Accuracy Validation Score %">
               <Slider min={0} max={100} step={1} value={accuracyValidation} onChange={setAccuracyValidation}
                 showValue={false} className="flex-1" inputClassName="h-1.5" />
-              <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{accuracyValidation}%</span>
+              <span className="text-[10px] text-[#00D9FF] min-w-[28px] text-right">{accuracyValidation}%</span>
               <MiniSparkline data={generatePatternChartData(15)} width={44} height={16} />
             </MetricRow>
 
             <MetricRow label="Profit Factor">
               <Slider min={0} max={5} step={0.1} value={profitFactor} onChange={setProfitFactor}
                 showValue={false} className="flex-1" inputClassName="h-1.5" />
-              <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{profitFactor.toFixed(1)}</span>
+              <span className="text-[10px] text-[#00D9FF] min-w-[28px] text-right">{profitFactor.toFixed(1)}</span>
               <MiniSparkline data={generatePatternChartData(15)} width={44} height={16} />
             </MetricRow>
 
@@ -560,14 +560,14 @@ function PatternIntelligence() {
             <MetricRow label="Walk-Forward Efficiency">
               <Slider min={0} max={100} step={1} value={walkForwardEff} onChange={setWalkForwardEff}
                 showValue={false} className="flex-1" inputClassName="h-1.5" />
-              <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{walkForwardEff}%</span>
+              <span className="text-[10px] text-[#00D9FF] min-w-[28px] text-right">{walkForwardEff}%</span>
               <MiniSparkline data={generatePatternChartData(15)} width={44} height={16} />
             </MetricRow>
 
             <MetricRow label="Out-of-Sample Accuracy">
               <Slider min={0} max={100} step={1} value={outOfSampleAcc} onChange={setOutOfSampleAcc}
                 showValue={false} className="flex-1" inputClassName="h-1.5" />
-              <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{outOfSampleAcc}%</span>
+              <span className="text-[10px] text-[#00D9FF] min-w-[28px] text-right">{outOfSampleAcc}%</span>
               <MiniSparkline data={generatePatternChartData(15)} width={44} height={16} />
             </MetricRow>
 
@@ -588,14 +588,14 @@ function PatternIntelligence() {
                   </button>
                 ))}
               </div>
-              <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{monteCarloCI}%</span>
+              <span className="text-[10px] text-[#00D9FF] min-w-[28px] text-right">{monteCarloCI}%</span>
               <MiniSparkline data={generatePatternChartData(15)} width={44} height={16} />
             </MetricRow>
 
             <MetricRow label="Pattern Complexity">
               <Slider min={1} max={10} step={1} value={patternComplexity} onChange={setPatternComplexity}
                 showValue={false} className="flex-1" inputClassName="h-1.5" />
-              <span className="text-[10px] text-cyan-400 min-w-[28px] text-right">{patternComplexity}/10</span>
+              <span className="text-[10px] text-[#00D9FF] min-w-[28px] text-right">{patternComplexity}/10</span>
               <MiniSparkline data={generatePatternChartData(15)} width={44} height={16} />
             </MetricRow>
           </div>
@@ -624,7 +624,7 @@ function PatternMiniChart({ data, name, confidence, type }) {
         <span className="text-[9px] font-semibold text-cyan-200 truncate">{name}</span>
         <span className={clsx(
           "text-[9px] font-bold",
-          confidence >= 90 ? "text-emerald-400" : confidence >= 80 ? "text-cyan-400" : "text-amber-400"
+          confidence >= 90 ? "text-emerald-400" : confidence >= 80 ? "text-[#00D9FF]" : "text-amber-400"
         )}>{confidence}%</span>
       </div>
       <ResponsiveContainer width="100%" height={48}>
@@ -686,7 +686,7 @@ function ConsolidatedLiveFeed() {
             <span className="text-gray-600 font-mono whitespace-nowrap">{entry.timestamp}</span>
             <span className={clsx(
               "font-bold min-w-[36px]",
-              ["AAPL", "NVDA", "MSFT", "GOOGL"].includes(entry.symbol) ? "text-cyan-400" : "text-emerald-400"
+              ["AAPL", "NVDA", "MSFT", "GOOGL"].includes(entry.symbol) ? "text-[#00D9FF]" : "text-emerald-400"
             )}>{entry.symbol}</span>
             <span className="text-gray-500">{entry.agent}</span>
             <span className="text-gray-300 truncate">{entry.action}</span>
@@ -743,11 +743,15 @@ export default function Patterns() {
   return (
     <div className="flex flex-col h-full min-h-0 p-4 gap-3">
       {/* Page Title */}
-      <PageHeader
-        icon={Radar}
-        title="Screener and Patterns"
-        description="Scan Agent Fleet management, trading metric controls, pattern intelligence, and ML-powered detection"
-      />
+      <div className="flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-3">
+          <Radar className="w-6 h-6 text-[#00D9FF]" />
+          <h1 className="text-xl font-bold text-white tracking-widest uppercase font-mono">SCREENER AND PATTERNS</h1>
+        </div>
+        <div className="text-[10px] text-gray-500 font-mono">
+          Scan Agent Fleet management, trading metric controls, pattern intelligence, and ML-powered detection
+        </div>
+      </div>
 
       {/* Two-column layout - top section */}
       <div className="flex-1 min-h-0 grid grid-cols-2 gap-3">
@@ -772,12 +776,16 @@ export default function Patterns() {
       {/* Footer status bar */}
       <div className="flex-shrink-0 flex items-center justify-between px-3 py-1.5 bg-cyan-950/20 border border-cyan-900/30 rounded text-[9px] text-gray-500">
         <div className="flex items-center gap-4">
-          <span>Patterns <span className="text-cyan-400">4541</span></span>
+          <span>Connections: <span className="text-[#00D9FF]">47</span></span>
           <span className="text-gray-600">|</span>
-          <span>5 agents: <span className="text-cyan-400">42</span></span>
+          <span>Agents <span className="text-[#00D9FF]">42</span></span>
+          <span className="text-gray-600">|</span>
+          <span>Patterns <span className="text-[#00D9FF]">4847</span></span>
+          <span className="text-gray-600">|</span>
+          <span>Scans <span className="text-[#00D9FF]">156000</span></span>
         </div>
         <div className="flex items-center gap-4">
-          <span>Status <span className="text-emerald-400">150000</span></span>
+          <span>GPU <span className="text-emerald-400">78%</span></span>
           <div className="flex items-center gap-1">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             <span>Live</span>

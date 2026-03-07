@@ -140,7 +140,7 @@ function ModelPerformanceLC({ data }) {
       handleScale: false,
     });
 
-    // Primary series: Brain Model (green area)
+    // Primary series: XGBoost v3.2 (green area)
     const areaSeries1 = chart.addAreaSeries({
       lineColor: '#10b981',
       lineWidth: 2,
@@ -153,7 +153,7 @@ function ModelPerformanceLC({ data }) {
       },
     });
 
-    // Secondary series: RF Ensemble (purple line)
+    // Secondary series: Random Forest (purple/dashed)
     const areaSeries2 = chart.addAreaSeries({
       lineColor: '#8B5CF6',
       lineWidth: 1.5,
@@ -225,35 +225,22 @@ function ModelPerformanceLC({ data }) {
 }
 
 // ============================================================================
-// PROBABILITY HEATMAP CELL with gradient bar
+// WIN PROB BAR CELL — matching mockup's colored bar with percentage
 // ============================================================================
-function ProbCell({ value }) {
-  if (value == null) return <td className="px-2 py-1.5 text-center text-gray-600 text-[10px] font-mono">--</td>;
+function WinProbBar({ value, dir }) {
+  if (value == null) return <td className="px-2 py-1.5 text-gray-600 text-[10px] font-mono">--</td>;
   const v = typeof value === 'number' ? value : parseFloat(value);
   const pct = v > 1 ? v : v * 100;
-
-  // Color gradient: red (<50%) -> orange (50-60%) -> yellow (60-70%) -> green (70-85%) -> bright green (>85%)
-  let barColor, textColor;
-  if (pct >= 85) { barColor = 'rgba(16,185,129,0.7)'; textColor = 'text-white'; }
-  else if (pct >= 75) { barColor = 'rgba(16,185,129,0.5)'; textColor = 'text-emerald-100'; }
-  else if (pct >= 65) { barColor = 'rgba(20,184,166,0.4)'; textColor = 'text-teal-100'; }
-  else if (pct >= 55) { barColor = 'rgba(245,158,11,0.4)'; textColor = 'text-amber-100'; }
-  else if (pct >= 45) { barColor = 'rgba(249,115,22,0.4)'; textColor = 'text-orange-100'; }
-  else { barColor = 'rgba(239,68,68,0.4)'; textColor = 'text-red-100'; }
+  const isLong = dir === 'LONG' || dir === 'long';
+  const barColor = isLong ? '#10b981' : '#ef4444';
 
   return (
-    <td className="px-1 py-1">
-      <div className="relative rounded overflow-hidden">
-        {/* Background gradient bar */}
-        <div
-          className="absolute inset-0 rounded"
-          style={{
-            background: `linear-gradient(90deg, ${barColor} ${pct}%, transparent ${pct}%)`,
-          }}
-        />
-        <div className={clsx('relative rounded px-1.5 py-1 text-center text-[10px] font-mono font-bold', textColor)}>
-          {pct.toFixed(0)}%
+    <td className="px-2 py-1.5">
+      <div className="flex items-center gap-1.5">
+        <div className="w-20 h-2 bg-gray-800 rounded-full overflow-hidden">
+          <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: barColor }} />
         </div>
+        <span className="text-[10px] font-mono font-bold" style={{ color: barColor }}>{pct.toFixed(0)}%</span>
       </div>
     </td>
   );
@@ -263,7 +250,7 @@ function ProbCell({ value }) {
 // LOG SPARKLINES (colored mini sparklines at bottom of learning log)
 // ============================================================================
 function LogSparklines() {
-  const colors = ['#10b981', '#06b6d4', '#f59e0b', '#10b981'];
+  const colors = ['#10b981', '#00D9FF', '#f59e0b', '#10b981'];
   return (
     <div className="grid grid-cols-4 gap-2 mt-3 pt-3 border-t border-gray-800/30">
       {colors.map((color, i) => (
@@ -312,154 +299,171 @@ export default function MLBrainFlywheel() {
     setTimeout(() => setIsRetraining(false), 2000);
   };
 
-  // Probability table timeframes - matching mockup columns
-  const timeframes = ['1d', '3d', '5d', '1w', '2w', '1m'];
-
-  // KPI items matching mockup exactly: 7 cards
+  // KPI items matching mockup exactly: Stage 4 Active Models, Walk-Forward Accuracy, Stage 3 Ignitions, Flywheel Cycles, Feature Store Sync, Win Prob Threshold
   const kpiItems = [
     {
-      icon: Brain,
-      label: 'Active Models',
-      val: kpis.activeModels ?? 3,
-      badge: { text: 'LIVE', variant: 'success' },
+      label: 'Stage 4 Active Models',
+      val: kpis.active_models ?? kpis.activeModels ?? 3,
+      sub: 'XGBoost + RF Ensemble',
       color: 'text-white',
+      iconColor: '#8B5CF6',
+      sparkColor: '#8B5CF6',
       hasSparkline: true,
-      sparkColor: '#10b981',
     },
     {
-      icon: Target,
-      label: 'Head Model Accuracy',
-      val: `${kpis.headModelAcc ?? kpis.walkForwardAcc ?? 91.4}%`,
+      label: 'Walk-Forward Accuracy',
+      val: kpis.walk_forward ?? kpis.walkForwardAcc ? `${kpis.walk_forward ?? kpis.walkForwardAcc}%` : '91.4%',
+      sub: '252-day Rolling Window',
       color: 'text-emerald-400',
-      hasSparkline: true,
+      iconColor: '#10b981',
       sparkColor: '#10b981',
+      hasSparkline: true,
     },
     {
-      icon: Zap,
-      label: 'Training Sessions (24h)',
-      val: kpis.trainingSessions ?? kpis.totalFeatures ?? 24,
-      color: 'text-emerald-400',
+      label: 'Stage 3 Ignitions',
+      val: kpis.ignitions_total ?? kpis.trainingSessions ?? 24,
+      sub: 'Fresh Breakouts Today',
+      color: 'text-amber-400',
+      iconColor: '#f59e0b',
       hasSparkline: false,
     },
     {
-      icon: Crosshair,
-      label: 'Signals Resolved',
-      val: kpis.signalsResolved ?? 142,
+      label: 'Flywheel Cycles',
+      val: kpis.flywheel_cycles ?? kpis.flywheelCycles ?? 12,
+      sub: 'Continuous Trade Sync',
       color: 'text-white',
-      hasSparkline: true,
-      sparkColor: '#10b981',
-    },
-    {
-      icon: Server,
-      label: 'Inference Fleet',
-      val: kpis.inferenceFleet ?? kpis.flywheelCycles ?? 12,
-      color: 'text-white',
+      iconColor: '#00D9FF',
       hasSparkline: false,
     },
     {
-      icon: Shield,
-      label: 'Circuit Breaker',
-      val: kpis.circuitBreaker ?? kpis.featureStore ?? 'OK',
+      label: 'Feature Store Sync',
+      val: kpis.feature_store_sync ?? kpis.featureStore ?? 'OK',
+      sub: 'TimescaleDB Connected',
       color: 'text-emerald-400',
+      iconColor: '#00D9FF',
       hasSparkline: false,
     },
     {
-      icon: Gauge,
-      label: 'Accuracy Threshold',
-      val: kpis.accuracyThreshold ?? kpis.winRateThresh ?? '>70%',
+      label: 'Win Prob Threshold',
+      val: kpis.win_prob_threshold ?? kpis.winRateThresh ?? '>70%',
+      sub: 'High conviction only',
       color: 'text-white',
+      iconColor: '#10b981',
       hasSparkline: false,
     },
   ];
 
+  // Default signal rows matching mockup
+  const defaultSignals = [
+    { symbol: 'NVDA', dir: 'LONG', winProb: 94, compression: '5 Days', velezScore: '85% (Daily/4H)', volRatio: '2.1x Avg' },
+    { symbol: 'MSTR', dir: 'LONG', winProb: 89, compression: '3 Days', velezScore: '80% (Daily/4H)', volRatio: '1.8x Avg' },
+    { symbol: 'AAPL', dir: 'SHORT', winProb: 82, compression: '7 Days', velezScore: '20% (Daily/4H)', volRatio: '1.5x Avg' },
+    { symbol: 'TSLA', dir: 'LONG', winProb: 78, compression: '4 Days', velezScore: '75% (Daily/4H)', volRatio: '1.9x Avg' },
+    { symbol: 'AMD', dir: 'LONG', winProb: 76, compression: '2 Days', velezScore: '70% (Daily)', volRatio: '1.4x Avg' },
+    { symbol: 'SMCI', dir: 'SHORT', winProb: 88, compression: '6 Days', velezScore: '15% (Daily)', volRatio: '2.5x Avg' },
+    { symbol: 'COIN', dir: 'LONG', winProb: 91, compression: '5 Days', velezScore: '82% (Daily/4H)', volRatio: '2.0x Avg' },
+    { symbol: 'PLTR', dir: 'LONG', winProb: 85, compression: '8 Days', velezScore: '78% (Daily/4H)', volRatio: '1.7x Avg' },
+    { symbol: 'META', dir: 'SHORT', winProb: 72, compression: '3 Days', velezScore: '35% (Daily)', volRatio: '1.6x Avg' },
+    { symbol: 'CRWD', dir: 'LONG', winProb: 84, compression: '4 Days', velezScore: '72% (Daily/4H)', volRatio: '1.8x Avg' },
+  ];
+
+  const displaySignals = signalsData.length > 0 ? signalsData : defaultSignals;
+
+  // Default model data matching mockup
+  const defaultModels = [
+    { name: 'XGBoost Classifier', status: 'PRODUCTION', uptime: '42ms', precision: 0.924, f1: 0.891, lookback: '252 Days', sparkColor: '#10b981' },
+    { name: 'RF Ensemble Model', status: 'VALIDATION', uptime: '65ms', precision: 0.885, f1: 0.862, lookback: '63 Days', sparkColor: '#f59e0b' },
+    { name: 'Velez Engine v2.0', status: 'PRODUCTION', uptime: '15ms', precision: 0.865, f1: 0.840, lookback: 'N/A (Rules)', sparkColor: '#00D9FF' },
+    { name: 'Compression Detector', status: 'PRODUCTION', uptime: '8ms', precision: 0.941, f1: 0.912, lookback: '14 Days', sparkColor: '#10b981' },
+    { name: 'Ignition Detector', status: 'PRODUCTION', uptime: '12ms', precision: 0.880, f1: 0.860, lookback: '3 Days', sparkColor: '#10b981' },
+    { name: 'Regime Manager (VIX)', status: 'PRODUCTION', uptime: '2ms', precision: 0.990, f1: 0.985, lookback: '60 Days', sparkColor: '#a855f7' },
+  ];
+
+  const displayModels = modelsData.length > 0 ? modelsData : defaultModels;
+
   return (
-    <div className="flex flex-col min-h-screen w-full bg-[#0B0E14] text-gray-200 font-sans overflow-y-auto selection:bg-cyan-500/30">
+    <div className="flex flex-col min-h-screen w-full bg-[#0B0E14] text-gray-200 font-sans overflow-y-auto">
       <div className="flex flex-col flex-1 min-h-0 p-4 gap-4">
 
         {/* ================================================================ */}
         {/* HEADER */}
         {/* ================================================================ */}
-        <PageHeader
-          icon={Brain}
-          title="ML Brain & Flywheel"
-          description="Autonomous Model Training, Inference & Continuous Learning Pipeline"
-        >
-          <Button
-            variant="primary"
-            size="sm"
-            leftIcon={RotateCcw}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-1 h-6 bg-[#00D9FF] rounded-full" />
+            <h1 className="text-xl font-bold text-white tracking-tight">ML Brain &amp; Flywheel</h1>
+          </div>
+          <button
             onClick={handleRetrain}
             disabled={isRetraining}
+            className="flex items-center gap-2 px-4 py-2 bg-[#0B0E14] border border-[#00D9FF]/40 rounded-lg text-[#00D9FF] text-sm font-bold hover:bg-[#00D9FF]/10 hover:shadow-[0_0_12px_rgba(0,217,255,0.3)] transition-all disabled:opacity-50"
           >
-            {isRetraining ? 'Monitoring...' : 'Flywheel Monitor'}
-          </Button>
-        </PageHeader>
+            <RotateCcw className={`w-4 h-4 ${isRetraining ? 'animate-spin' : ''}`} />
+            {isRetraining ? 'Retraining...' : 'Retrain Models'}
+          </button>
+        </div>
 
         {/* ================================================================ */}
-        {/* KPI STRIP - 7 cards in a row matching mockup */}
+        {/* KPI STRIP - 6 cards matching mockup */}
         {/* ================================================================ */}
-        <div className="grid grid-cols-7 gap-3 shrink-0">
-          {kpiItems.map((kpi, i) => {
-            const IconComp = kpi.icon;
-            return (
-              <div
-                key={i}
-                className="bg-[#0d1117] border border-gray-800/60 rounded-lg p-3 flex flex-col justify-between min-h-[88px] relative overflow-hidden"
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-1.5">
-                    <IconComp className="w-3 h-3 text-gray-500" />
-                    <span className="text-[10px] text-gray-500 uppercase tracking-wider font-medium leading-tight">
-                      {kpi.label}
-                    </span>
-                  </div>
-                  {kpi.badge && (
-                    <Badge variant={kpi.badge.variant} size="sm">{kpi.badge.text}</Badge>
-                  )}
-                </div>
-                <div className="flex items-end justify-between gap-2">
-                  <span className={clsx('text-2xl font-mono font-bold', kpi.color)}>
-                    {kpi.val}
-                  </span>
-                  {kpi.hasSparkline && (
-                    <div className="w-16 h-6 opacity-60">
-                      <MiniSparkline color={kpi.sparkColor} height={24} />
-                    </div>
-                  )}
+        <div className="grid grid-cols-6 gap-3 shrink-0">
+          {kpiItems.map((kpi, i) => (
+            <div
+              key={i}
+              className="bg-[#0B0E14] border border-gray-800/60 rounded-lg p-3 flex flex-col justify-between min-h-[90px] relative overflow-hidden hover:border-[#00D9FF]/30 transition-colors"
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] text-gray-500 uppercase tracking-wider font-medium leading-tight">
+                  {kpi.label}
+                </span>
+                <div className="w-5 h-5 rounded flex items-center justify-center" style={{ backgroundColor: `${kpi.iconColor}20` }}>
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: kpi.iconColor }} />
                 </div>
               </div>
-            );
-          })}
+              <div className="flex items-end justify-between gap-2 mt-1">
+                <span className={clsx('text-2xl font-mono font-bold leading-none', kpi.color)}>
+                  {kpi.val}
+                </span>
+                {kpi.hasSparkline && (
+                  <div className="w-14 h-5 opacity-50">
+                    <MiniSparkline color={kpi.sparkColor} height={20} />
+                  </div>
+                )}
+              </div>
+              <div className="text-[9px] text-gray-600 mt-1">{kpi.sub}</div>
+            </div>
+          ))}
         </div>
 
         {/* ================================================================ */}
         {/* MIDDLE ROW: Performance Chart + Probability Ranking */}
         {/* ================================================================ */}
-        <div className="flex gap-4 min-h-0" style={{ flex: '1 1 45%' }}>
+        <div className="flex gap-4 min-h-0" style={{ flex: '1 1 45%', minHeight: 300 }}>
 
           {/* LEFT: Model Performance Tracking */}
-          <div className="w-[50%] flex flex-col bg-[#0d1117] border border-gray-800/60 rounded-lg overflow-hidden">
+          <div className="w-[50%] flex flex-col bg-[#0B0E14] border border-gray-800/60 rounded-lg overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-800/40 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-cyan-400" />
+                <div className="w-1 h-4 bg-[#00D9FF] rounded-full" />
                 <h3 className="text-sm font-semibold text-white">Model Performance Tracking</h3>
               </div>
               <div className="flex items-center gap-3">
-                {/* Legend items */}
                 <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-0.5 bg-emerald-500 rounded-full" />
-                  <span className="text-[10px] text-gray-400 font-mono">XGBOOST</span>
+                  <div className="w-8 h-0.5 bg-emerald-500 rounded-full" />
+                  <span className="text-[10px] text-gray-400 font-mono">XGBoost v3.2 (Prod)</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-0.5 rounded-full" style={{ backgroundColor: '#8B5CF6' }} />
-                  <span className="text-[10px] text-gray-400 font-mono">RF ENSEMBLE</span>
+                  <div className="w-8 h-0.5 rounded-full" style={{ backgroundColor: '#8B5CF6' }} />
+                  <span className="text-[10px] text-gray-400 font-mono">Random Forest Ensemble (Val)</span>
                 </div>
-                <Badge variant="success" size="sm">MEAN ACCURACY</Badge>
+                <button className="px-2 py-1 bg-[#00D9FF]/10 border border-[#00D9FF]/30 text-[#00D9FF] text-[9px] font-bold rounded hover:bg-[#00D9FF]/20 transition-colors">
+                  Model Matrix
+                </button>
               </div>
             </div>
             <div className="flex-1 min-h-0 p-2 relative">
-              <div className="absolute top-3 left-4 text-[10px] font-mono text-gray-500 z-10">
-                252-Day Walk-Forward Model Ensemble Accuracy
+              <div className="absolute top-3 left-4 text-[9px] font-mono text-gray-500 z-10 uppercase tracking-wider">
+                252-Day Walk-Forward Accuracy • XGBoost vs Ensemble
               </div>
               {performanceData && Array.isArray(performanceData) && performanceData.length > 0 ? (
                 <ModelPerformanceLC data={performanceData} />
@@ -472,42 +476,43 @@ export default function MLBrainFlywheel() {
           </div>
 
           {/* RIGHT: Stage 4: ML Probability Ranking */}
-          <div className="w-[50%] flex flex-col bg-[#0d1117] border border-gray-800/60 rounded-lg overflow-hidden">
+          <div className="w-[50%] flex flex-col bg-[#0B0E14] border border-gray-800/60 rounded-lg overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-800/40 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Radio className="w-4 h-4 text-cyan-400" />
+                <div className="w-1 h-4 bg-amber-500 rounded-full" />
                 <h3 className="text-sm font-semibold text-white">Stage 4: ML Probability Ranking</h3>
               </div>
-              <Badge variant="primary" size="sm">LIVE</Badge>
+              <button className="px-2 py-1 bg-gray-800 border border-gray-700 text-gray-400 text-[9px] font-bold rounded hover:border-gray-600 transition-colors">
+                Filter ↓
+              </button>
             </div>
-            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+            <div className="flex-1 min-h-0 overflow-y-auto">
               <table className="w-full text-left font-mono text-[10px]">
-                <thead className="sticky top-0 bg-[#0d1117] text-gray-500 border-b border-gray-800/40 z-10">
+                <thead className="sticky top-0 bg-[#0B0E14] text-gray-500 border-b border-gray-800/40 z-10">
                   <tr>
-                    <th className="px-3 py-2 font-medium text-left">SYMBOL</th>
-                    {timeframes.map(tf => (
-                      <th key={tf} className="px-2 py-2 font-medium text-center">{tf}</th>
-                    ))}
+                    <th className="px-3 py-2 font-medium">SYMBOL</th>
+                    <th className="px-2 py-2 font-medium">DIR</th>
+                    <th className="px-2 py-2 font-medium">WIN PROB</th>
+                    <th className="px-2 py-2 font-medium">COMPRESSION</th>
+                    <th className="px-2 py-2 font-medium">VELEZ SCORE</th>
+                    <th className="px-2 py-2 font-medium text-right">VOL RATIO</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800/20">
-                  {signalsData.length > 0 ? signalsData.map((row, idx) => {
-                    const probs = row.probs || {};
-                    return (
-                      <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="px-3 py-1.5 text-white font-bold text-[11px]">{row.symbol}</td>
-                        {timeframes.map(tf => (
-                          <ProbCell key={tf} value={probs[tf] ?? row[tf]} />
-                        ))}
-                      </tr>
-                    );
-                  }) : (
-                    <tr>
-                      <td colSpan={timeframes.length + 1} className="px-4 py-8 text-center text-gray-500">
-                        No probability data available
+                  {displaySignals.map((row, idx) => (
+                    <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
+                      <td className="px-3 py-1.5 text-white font-bold text-[11px]">{row.symbol}</td>
+                      <td className="px-2 py-1.5">
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${(row.dir === 'LONG' || row.dir === 'long') ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                          {row.dir?.toUpperCase()}
+                        </span>
                       </td>
+                      <WinProbBar value={row.winProb} dir={row.dir} />
+                      <td className="px-2 py-1.5 text-gray-300">{row.compression}</td>
+                      <td className="px-2 py-1.5 text-gray-300">{row.velezScore}</td>
+                      <td className="px-2 py-1.5 text-right text-[#00D9FF]">{row.volRatio}</td>
                     </tr>
-                  )}
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -517,87 +522,82 @@ export default function MLBrainFlywheel() {
         {/* ================================================================ */}
         {/* BOTTOM ROW: Deployed Fleet + Learning Log */}
         {/* ================================================================ */}
-        <div className="flex gap-4 min-h-0" style={{ flex: '1 1 40%' }}>
+        <div className="flex gap-4 min-h-0" style={{ flex: '1 1 40%', minHeight: 260 }}>
 
           {/* LEFT: Deployed Inference Fleet */}
-          <div className="w-1/2 flex flex-col bg-[#0d1117] border border-gray-800/60 rounded-lg overflow-hidden">
+          <div className="w-1/2 flex flex-col bg-[#0B0E14] border border-gray-800/60 rounded-lg overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-800/40 flex items-center gap-2">
-              <Server className="w-4 h-4 text-cyan-400" />
+              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <h3 className="text-sm font-semibold text-white">Deployed Inference Fleet</h3>
               <span className="text-gray-500 text-xs font-normal">(TimescaleDB Connected)</span>
             </div>
-            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-3">
+            <div className="flex-1 min-h-0 overflow-y-auto p-3">
               <div className="grid grid-cols-3 gap-3">
-                {modelsData.length > 0 ? modelsData.map((model, idx) => (
+                {displayModels.map((model, idx) => (
                   <div
                     key={idx}
-                    className="bg-[#0B0E14] border border-gray-800/50 rounded-lg p-3 flex flex-col gap-1.5 hover:border-cyan-500/30 transition-colors"
+                    className="bg-[#0B0E14] border border-gray-800/50 rounded-lg p-3 flex flex-col gap-1.5 hover:border-[#00D9FF]/30 transition-colors"
                   >
-                    {/* Model name + status */}
-                    <div className="flex items-start justify-between gap-1">
-                      <span className="text-[11px] font-bold text-white leading-tight">{model.name}</span>
-                      {model.status === 'PRODUCTION' || model.status === 'production' ? (
-                        <span className="px-2 py-0.5 text-[9px] font-bold rounded-full uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shrink-0">PRODUCTION</span>
-                      ) : model.status === 'VALIDATION' || model.status === 'validation' ? (
-                        <span className="px-2 py-0.5 text-[9px] font-bold rounded-full uppercase bg-amber-500/20 text-amber-400 border border-amber-500/30 shrink-0">VALIDATION</span>
-                      ) : model.status ? (
-                        <span className="px-2 py-0.5 text-[9px] font-bold rounded-full uppercase bg-gray-500/20 text-gray-400 border border-gray-500/30 shrink-0">{model.status}</span>
-                      ) : null}
-                    </div>
+                    {/* Model name */}
+                    <div className="text-[11px] font-bold text-white leading-tight">{model.name}</div>
+                    {/* Status badge */}
+                    {model.status === 'PRODUCTION' ? (
+                      <span className="self-start px-2 py-0.5 text-[8px] font-bold rounded-sm uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">PRODUCTION</span>
+                    ) : model.status === 'VALIDATION' ? (
+                      <span className="self-start px-2 py-0.5 text-[8px] font-bold rounded-sm uppercase bg-amber-500/20 text-amber-400 border border-amber-500/30">VALIDATION</span>
+                    ) : model.status ? (
+                      <span className="self-start px-2 py-0.5 text-[8px] font-bold rounded-sm uppercase bg-gray-500/20 text-gray-400 border border-gray-500/30">{model.status}</span>
+                    ) : null}
 
-                    {/* Train / Test labels + accuracy scores */}
-                    <div className="flex items-baseline gap-4 mt-1">
-                      <div className="flex flex-col items-start">
-                        <span className={clsx(
-                          'text-lg font-mono font-bold',
-                          idx % 2 === 0 ? 'text-cyan-400' : 'text-cyan-400'
-                        )}>
-                          {(Number(model.score1) || 0).toFixed(3)}
-                        </span>
+                    {/* Precision + F1 */}
+                    <div className="flex items-center gap-3 mt-1">
+                      <div>
+                        <div className="text-[8px] text-gray-500 uppercase">Precision (Acc)</div>
+                        <div className="text-base font-mono font-bold text-[#00D9FF]">
+                          {(Number(model.precision ?? model.score1) || 0).toFixed(3)}
+                        </div>
                       </div>
-                      <div className="flex flex-col items-start">
-                        <span className="text-lg font-mono font-bold text-gray-400">
-                          {(Number(model.score2) || 0).toFixed(3)}
-                        </span>
+                      <div>
+                        <div className="text-[8px] text-gray-500 uppercase">F1 Score</div>
+                        <div className="text-base font-mono font-bold text-gray-300">
+                          {(Number(model.f1 ?? model.score2) || 0).toFixed(3)}
+                        </div>
                       </div>
                     </div>
 
                     {/* Mini sparkline */}
                     <div className="h-7 mt-1">
                       <MiniLineSparkline
-                        color={idx % 3 === 0 ? '#10b981' : idx % 3 === 1 ? '#06b6d4' : '#f59e0b'}
+                        color={model.sparkColor || (idx % 3 === 0 ? '#10b981' : idx % 3 === 1 ? '#00D9FF' : '#f59e0b')}
                         height={28}
                       />
                     </div>
 
-                    {/* Bottom info: uptime + lookback */}
+                    {/* Lookback + uptime */}
                     <div className="flex items-center justify-between text-[9px] font-mono text-gray-500 mt-auto">
-                      <span>{model.uptime || 'N/A'}</span>
-                      <span>{model.lookback || 'N/A'}</span>
+                      <span>Lookback Window</span>
+                      <span className="text-gray-400">{model.uptime || 'N/A'}</span>
                     </div>
+                    <div className="text-[9px] font-mono text-gray-600">{model.lookback || 'N/A'}</div>
                   </div>
-                )) : (
-                  <div className="col-span-3 text-center text-gray-500 text-xs font-mono py-8">
-                    No deployed models
-                  </div>
-                )}
+                ))}
               </div>
             </div>
           </div>
 
           {/* RIGHT: Flywheel Learning Log */}
-          <div className="w-1/2 flex flex-col bg-[#0d1117] border border-gray-800/60 rounded-lg overflow-hidden">
+          <div className="w-1/2 flex flex-col bg-[#0B0E14] border border-gray-800/60 rounded-lg overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-800/40">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <div className="w-1 h-4 bg-[#00D9FF] rounded-full" />
                 <h3 className="text-sm font-semibold text-white">Flywheel Learning Log</h3>
                 <span className="text-gray-500 text-xs font-normal">(Trade Outcomes)</span>
               </div>
               <p className="text-[10px] text-gray-500 mt-1">
-                Continuous learning from trade results, failures, and market feedback for model improvement
+                Auto-retraining pipeline: reading exit reasons, R-multiples, and adjusting feature weights.
               </p>
             </div>
-            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-3">
+            <div className="flex-1 min-h-0 overflow-y-auto p-3">
               <div className="font-mono text-[10px] space-y-1.5">
                 {logsData.map((logEntry, idx) => (
                   <div key={idx} className="flex gap-2 hover:bg-white/[0.02] px-2 py-0.5 rounded">
@@ -615,7 +615,7 @@ export default function MLBrainFlywheel() {
                   </div>
                 ))}
                 {logsData.length === 0 && (
-                  <div className="text-gray-500 text-center py-8">Awaiting log entries...</div>
+                  <div className="text-gray-500 text-center py-4">Awaiting log entries...</div>
                 )}
                 {/* Blinking cursor */}
                 <div className="flex gap-2 px-2 py-0.5">
