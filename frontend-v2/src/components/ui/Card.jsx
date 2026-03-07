@@ -20,7 +20,7 @@ export default function Card({
   return (
     <div
       className={clsx(
-        'bg-surface border border-secondary/20 rounded-xl overflow-hidden relative',
+        'bg-surface border border-secondary/20 rounded-md overflow-hidden relative',
         className
       )}
     >

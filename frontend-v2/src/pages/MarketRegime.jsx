@@ -93,7 +93,7 @@ function Panel({ children, className }) {
 function PanelTitle({ children, right }) {
   return (
     <div className="flex items-center justify-between mb-2">
-      <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+      <div className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
         {children}
       </div>
       {right && <div>{right}</div>}
@@ -165,7 +165,13 @@ function RegimeStateMachine({ currentState, regimeData }) {
                 className={clsx(
                   "rounded px-3 py-2 border text-center transition-all",
                   isCurrent
-                    ? `${rc.border} ${rc.bgFaint} border-2`
+                    ? clsx(
+                        `${rc.border} ${rc.bgFaint} border-2`,
+                        s === "GREEN" && "shadow-[0_0_15px_rgba(16,185,129,0.4)]",
+                        s === "YELLOW" && "shadow-[0_0_15px_rgba(245,158,11,0.4)]",
+                        s === "RED" && "shadow-[0_0_15px_rgba(239,68,68,0.4)]",
+                        s === "RED_RECOVERY" && "shadow-[0_0_15px_rgba(249,115,22,0.4)]"
+                      )
                     : "border-gray-700/30 bg-gray-800/30"
                 )}
               >
@@ -509,14 +515,12 @@ function RegimeFlowDiagram({ regimeState, paramsData }) {
   const maxPos = paramsData?.max_positions ?? defaults.max_positions ?? 0;
 
   const nodes = [
-    { id: "regime", label: "REGIME", value: regimeState },
-    { id: "kelly", label: "Kelly", value: `${kellyMult}x` },
-    { id: "signal", label: "Signal", value: `${signalMult}x` },
-    { id: "engine", label: "Engine", value: maxPos === 0 ? "OFF" : "ON" },
-    { id: "risk", label: "Risk", value: riskPct === 0 || maxPos === 0 ? "BLOCKED" : "OPEN" },
-    { id: "governor", label: "Governor", value: isRed ? "HALT" : "PASS" },
-    { id: "position", label: "Position", value: `ATR x${isRed ? "1.0" : regimeState === "YELLOW" ? "1.2" : "1.0"}` },
-    { id: "exec", label: "Execution", value: maxPos === 0 ? "HALTED" : "ACTIVE" },
+    { id: "regime", label: "REGIME", value: regimeState, sub: regimeState },
+    { id: "kelly", label: "Kelly Sizer", value: `${kellyMult}x`, sub: `K=${kellyMult}` },
+    { id: "signal", label: "Signal Engine", value: `${signalMult}x`, sub: "12 signals" },
+    { id: "engine", label: "Risk Governor", value: maxPos === 0 ? "OFF" : "ON", sub: "VaR: $2,400" },
+    { id: "risk", label: "Position Mgr", value: riskPct === 0 || maxPos === 0 ? "BLOCKED" : "OPEN", sub: "5 pos" },
+    { id: "governor", label: "Execution", value: isRed ? "HALT" : "PASS", sub: "3 orders" },
   ];
 
   const rc = REGIME_COLORS[regimeState] || REGIME_COLORS.YELLOW;
@@ -524,7 +528,7 @@ function RegimeFlowDiagram({ regimeState, paramsData }) {
   return (
     <Panel className="h-full">
       <div className="flex items-center justify-between mb-2">
-        <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+        <div className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
           Regime Flow
         </div>
         {isRed && <span className="text-[9px] text-red-400 font-mono">*New Box+</span>}
@@ -553,6 +557,9 @@ function RegimeFlowDiagram({ regimeState, paramsData }) {
               >
                 {n.value}
               </div>
+              {n.sub && (
+                <div className="text-[8px] text-gray-500 font-mono mt-0.5">{n.sub}</div>
+              )}
             </div>
             {i < nodes.length - 1 && (
               <span className="text-gray-600 text-[9px] shrink-0">{"\u2192"}</span>

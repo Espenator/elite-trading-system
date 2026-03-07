@@ -4,6 +4,7 @@ import { getApiUrl, getAuthHeaders } from '../config/api';
 import { useApi } from '../hooks/useApi';
 import clsx from 'clsx';
 import { Minus, Plus } from 'lucide-react';
+import { VisualPriceLadder, CouncilDecisionPanel } from '../components/dashboard/TradeExecutionWidgets';
 
 /* ────────────────────────────────────────────────────────────
    Shared tiny components used only in this page
@@ -419,8 +420,9 @@ export default function TradeExecution() {
           </div>
         </div>
 
-        {/* ═══ COL 2 ROW 1: ADVANCED ORDER BUILDER ═══ */}
-        <div className="bg-[#0a1020] flex flex-col overflow-hidden">
+        {/* ═══ COL 2 ROW 1: ADVANCED ORDER BUILDER + VISUAL PRICE LADDER ═══ */}
+        <div className="bg-[#1a2744] flex flex-row overflow-hidden" style={{ gap: '1px' }}>
+        <div className="bg-[#0a1020] flex flex-col overflow-hidden" style={{ flex: '3 1 0%' }}>
           <PanelHead>Advanced Order Builder</PanelHead>
           <div className="flex-1 overflow-y-auto p-3.5">
             {/* Tabs */}
@@ -486,6 +488,17 @@ export default function TradeExecution() {
             >{loading ? 'Executing...' : 'Execute Order'}</button>
           </div>
         </div>
+        {/* VisualPriceLadder — narrow adjacent column (~1/4 width) */}
+        <div className="bg-[#0a1020] flex flex-col overflow-hidden" style={{ flex: '1 1 0%', minWidth: 180 }}>
+          <VisualPriceLadder
+            entry={185.50}
+            stop={182.00}
+            target={194.25}
+            currentPrice={186.20}
+            symbol="AAPL"
+          />
+        </div>
+        </div>{/* /col2-flex-row */}
 
         {/* ═══ COL 3 ROW 1: LIVE ORDER BOOK ═══ */}
         <div className="bg-[#0a1020] flex flex-col overflow-hidden">
@@ -646,6 +659,15 @@ export default function TradeExecution() {
         </div>
 
       </div>{/* /main-grid */}
+
+      {/* ═══ COUNCIL DECISION PANEL ═══ */}
+      <div className="shrink-0 border-t border-[#1a2744] bg-[#0a1020] p-3">
+        <CouncilDecisionPanel
+          onExecute={(data) => { console.log('Execute:', data); }}
+          onOverride={() => { console.log('Override'); }}
+          onDismiss={() => { console.log('Dismiss'); }}
+        />
+      </div>
     </div>
   );
 }

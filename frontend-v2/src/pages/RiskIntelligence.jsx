@@ -14,6 +14,7 @@ import {
   Clock, Octagon, ChevronDown, Radio
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { CorrelationMatrixHeatmap, ParameterSweepsPanel } from '../components/dashboard/RiskWidgets';
 
 // ─── COLOR PALETTE (dark theme) ─────────────────────────────────────────────
 const C = {
@@ -330,7 +331,7 @@ export default function RiskIntelligence() {
       {/* ════════════════════════════════════════════════════════════════════════
           HEADER BAR
           ════════════════════════════════════════════════════════════════════════ */}
-      <header className="bg-surface border border-secondary/20 rounded-xl px-5 py-3 flex items-center justify-between">
+      <header className="bg-surface border border-secondary/20 rounded-md px-5 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg flex items-center justify-center"
                style={{ backgroundColor: grade.color + '20' }}>
@@ -461,6 +462,10 @@ export default function RiskIntelligence() {
         {/* --- Parameter Sweeps (center, 5 cols) --- */}
         <Card title="Parameter Sweeps" className="col-span-5"
               action={<span className="text-[10px] text-gray-500 font-mono">{timeframe}</span>}>
+          <ParameterSweepsPanel
+            onRun={(values) => console.log('Sweep started:', values)}
+            onStop={() => console.log('Sweep stopped')}
+          />
           {/* Sweep parameter grid - numerical columns */}
           <div className="overflow-auto custom-scrollbar">
             <table className="w-full text-[10px] font-mono border-collapse">
@@ -598,6 +603,7 @@ export default function RiskIntelligence() {
         <Card title="Correlation Matrix" className="col-span-3"
               action={<Grid3X3 className="w-4 h-4 text-cyan-400" />}>
           <CorrelationHeatmap data={correlationData} />
+          <CorrelationMatrixHeatmap />
         </Card>
 
         {/* --- Volatility Regime Monitor (2 cols) --- */}
@@ -874,7 +880,7 @@ export default function RiskIntelligence() {
       {/* ════════════════════════════════════════════════════════════════════════
           FOOTER
           ════════════════════════════════════════════════════════════════════════ */}
-      <footer className="bg-surface border border-secondary/20 rounded-xl flex items-center justify-between px-4 py-2
+      <footer className="bg-surface border border-secondary/20 rounded-md flex items-center justify-between px-4 py-2
                          text-[10px] text-gray-500 font-mono">
         <span className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />

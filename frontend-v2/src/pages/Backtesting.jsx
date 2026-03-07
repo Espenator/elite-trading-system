@@ -199,21 +199,22 @@ const REGIME_COLORS = { BULL: "#10B981", BEAR: "#EF4444", RECOVERY: "#F59E0B", S
 /* ------------------------------------------------------------------ */
 /*  Strategy Builder ReactFlow nodes/edges                            */
 /* ------------------------------------------------------------------ */
+const MONO_FONT = "JetBrains Mono, monospace";
 const defaultStratNodes = [
-  { id: "1", data: { label: "Data Feed" }, position: { x: 0, y: 40 }, style: { background: "#1E293B", color: "#00D9FF", border: "1px solid #00D9FF", borderRadius: 8, padding: 8, fontSize: 10 } },
-  { id: "2", data: { label: "Feature Eng" }, position: { x: 140, y: 0 }, style: { background: "#1E293B", color: "#A78BFA", border: "1px solid #A78BFA", borderRadius: 8, padding: 8, fontSize: 10 } },
-  { id: "3", data: { label: "Signal Gen" }, position: { x: 140, y: 80 }, style: { background: "#1E293B", color: "#34D399", border: "1px solid #34D399", borderRadius: 8, padding: 8, fontSize: 10 } },
-  { id: "4", data: { label: "Risk Filter" }, position: { x: 280, y: 0 }, style: { background: "#1E293B", color: "#F59E0B", border: "1px solid #F59E0B", borderRadius: 8, padding: 8, fontSize: 10 } },
-  { id: "5", data: { label: "Position Sizer" }, position: { x: 280, y: 80 }, style: { background: "#1E293B", color: "#EC4899", border: "1px solid #EC4899", borderRadius: 8, padding: 8, fontSize: 10 } },
-  { id: "6", data: { label: "Execution" }, position: { x: 420, y: 40 }, style: { background: "#1E293B", color: "#10B981", border: "1px solid #10B981", borderRadius: 8, padding: 8, fontSize: 10 } },
+  { id: "1", data: { label: "Data Feed" }, position: { x: 0, y: 40 }, style: { background: "#0f172a", color: "#06B6D4", border: "1px solid #1e293b", borderRadius: "6px", padding: "8px 12px", fontSize: "10px", fontFamily: MONO_FONT } },
+  { id: "2", data: { label: "Feature Eng" }, position: { x: 160, y: 0 }, style: { background: "#0f172a", color: "#06B6D4", border: "1px solid #1e293b", borderRadius: "6px", padding: "8px 12px", fontSize: "10px", fontFamily: MONO_FONT } },
+  { id: "3", data: { label: "Signal Gen" }, position: { x: 160, y: 90 }, style: { background: "#0f172a", color: "#06B6D4", border: "1px solid #1e293b", borderRadius: "6px", padding: "8px 12px", fontSize: "10px", fontFamily: MONO_FONT } },
+  { id: "4", data: { label: "Risk Filter" }, position: { x: 320, y: 0 }, style: { background: "#0f172a", color: "#06B6D4", border: "1px solid #1e293b", borderRadius: "6px", padding: "8px 12px", fontSize: "10px", fontFamily: MONO_FONT } },
+  { id: "5", data: { label: "Position Sizer" }, position: { x: 320, y: 90 }, style: { background: "#0f172a", color: "#06B6D4", border: "1px solid #1e293b", borderRadius: "6px", padding: "8px 12px", fontSize: "10px", fontFamily: MONO_FONT } },
+  { id: "6", data: { label: "Execution" }, position: { x: 480, y: 45 }, style: { background: "#0f172a", color: "#06B6D4", border: "1px solid #1e293b", borderRadius: "6px", padding: "8px 12px", fontSize: "10px", fontFamily: MONO_FONT } },
 ];
 const defaultStratEdges = [
-  { id: "e1-2", source: "1", target: "2", animated: true, style: { stroke: "#00D9FF" } },
-  { id: "e1-3", source: "1", target: "3", animated: true, style: { stroke: "#00D9FF" } },
-  { id: "e2-4", source: "2", target: "4", animated: true, style: { stroke: "#A78BFA" } },
-  { id: "e3-5", source: "3", target: "5", animated: true, style: { stroke: "#34D399" } },
-  { id: "e4-6", source: "4", target: "6", animated: true, style: { stroke: "#F59E0B" } },
-  { id: "e5-6", source: "5", target: "6", animated: true, style: { stroke: "#EC4899" } },
+  { id: "e1-2", source: "1", target: "2", animated: true, style: { stroke: "#334155" } },
+  { id: "e1-3", source: "1", target: "3", animated: true, style: { stroke: "#334155" } },
+  { id: "e2-4", source: "2", target: "4", animated: true, style: { stroke: "#334155" } },
+  { id: "e3-5", source: "3", target: "5", animated: true, style: { stroke: "#334155" } },
+  { id: "e4-6", source: "4", target: "6", animated: true, style: { stroke: "#334155" } },
+  { id: "e5-6", source: "5", target: "6", animated: true, style: { stroke: "#334155" } },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -309,15 +310,19 @@ export default function Backtesting() {
   // --- Monte Carlo chart data ---
   const mcChartData = useMemo(() => {
     if (!Array.isArray(mcPaths) || !mcPaths.length) return [];
-    // Each path is array of equity values; transform to [{step, path0, path1, ...}]
+    // Each path is array of equity values; transform to [{step, p0, p1, ..., mean}]
     const maxLen = Math.max(...mcPaths.map((p) => (Array.isArray(p) ? p.length : (p?.values?.length ?? 0))));
     const out = [];
     for (let i = 0; i < maxLen; i++) {
       const row = { step: i };
+      const vals = [];
       mcPaths.forEach((p, j) => {
         const arr = Array.isArray(p) ? p : (p?.values ?? []);
-        row[`p${j}`] = arr[i] ?? null;
+        const v = arr[i] ?? null;
+        row[`p${j}`] = v;
+        if (v != null) vals.push(v);
       });
+      row.mean = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
       out.push(row);
     }
     return out;
@@ -557,7 +562,7 @@ export default function Backtesting() {
       {/* ============================================================ */}
       {/*  KPI MEGA STRIP                                               */}
       {/* ============================================================ */}
-      <Card title="Performance KPI Mega Strip" noPadding>
+      <Card title={<h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">PERFORMANCE KPI MEGA STRIP</h3>} noPadding>
         <div className="overflow-x-auto">
           <div className="flex divide-x divide-secondary/20 min-w-max">
             {kpiItems.map((k) => (
@@ -575,12 +580,12 @@ export default function Backtesting() {
       {/* ============================================================ */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
         {/* Equity Curve - slightly wider */}
-        <Card title="Equity Curve - Lightweight Charts" loading={loadResults} className="md:col-span-1">
+        <Card title={<h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">EQUITY CURVE</h3>} loading={loadResults} className="md:col-span-1">
           <EquityCurveLC data={Array.isArray(equity) ? equity : []} height={220} />
         </Card>
 
         {/* Parallel Run Manager */}
-        <Card title="Parallel Run Manager" className="xl:col-span-1">
+        <Card title={<h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">PARALLEL RUN MANAGER</h3>} className="xl:col-span-1">
           <div className="space-y-1.5 mb-2">
             {parallelRuns.map((r, i) => (
               <div key={i} className="flex items-center justify-between text-xs bg-dark/40 rounded px-2 py-1">
@@ -610,17 +615,17 @@ export default function Backtesting() {
         </Card>
 
         {/* Trade P&L Distribution */}
-        <Card title="Trade P&L Distribution" loading={loadTd} className="xl:col-span-1">
+        <Card title={<h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">TRADE P&L DISTRIBUTION</h3>} loading={loadTd} className="xl:col-span-1">
           <TradePnlDistLC data={Array.isArray(tdData) ? tdData : []} height={220} />
         </Card>
 
         {/* Rolling Sharpe Ratio (3M) */}
-        <Card title="Rolling Sharpe Ratio (3M)" loading={loadRs} className="xl:col-span-1">
+        <Card title={<h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">ROLLING SHARPE RATIO (3M)</h3>} loading={loadRs} className="xl:col-span-1">
           <RollingSharpeLC data={Array.isArray(rsData) ? rsData : []} height={220} />
         </Card>
 
         {/* Walk Forward Analysis */}
-        <Card title="Walk Forward Analysis" loading={loadWf} className="xl:col-span-1">
+        <Card title={<h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">WALK FORWARD ANALYSIS</h3>} loading={loadWf} className="xl:col-span-1">
           {Array.isArray(wfData) && wfData.length > 0 ? (
             <ResponsiveContainer width="100%" height={220}>
               <ComposedChart data={wfData}>
@@ -649,7 +654,7 @@ export default function Backtesting() {
       {/* ============================================================ */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
         {/* Market Regime Performance - Donut Charts */}
-        <Card title="Market Regime Performance" loading={loadRegime} className="col-span-1">
+        <Card title={<h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">MARKET REGIME PERFORMANCE</h3>} loading={loadRegime} className="col-span-1">
           <div className="flex justify-around items-center py-2">
             {regimeChartData.map((r) => {
               const pct = r.winRate ?? 50;
@@ -678,7 +683,7 @@ export default function Backtesting() {
         </Card>
 
         {/* Monte Carlo Simulation */}
-        <Card title="Monte Carlo Simulation (50 paths)" loading={loadMc} className="col-span-1">
+        <Card title={<h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">MONTE CARLO SIMULATION (50 PATHS)</h3>} loading={loadMc} className="col-span-1">
           {mcChartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={240}>
               <LineChart data={mcChartData}>
@@ -686,9 +691,10 @@ export default function Backtesting() {
                 <XAxis dataKey="step" stroke="#6B7280" tick={{ fontSize: 10 }} />
                 <YAxis stroke="#6B7280" tick={{ fontSize: 10 }} />
                 <Tooltip content={<DarkTooltip />} />
-                {Object.keys(mcChartData[0] || {}).filter((k) => k !== "step").slice(0, 50).map((k, i) => (
-                  <Line key={k} type="monotone" dataKey={k} stroke={`hsl(${(i * 7) % 360}, 70%, 60%)`} dot={false} strokeWidth={1} strokeOpacity={0.5} />
+                {Object.keys(mcChartData[0] || {}).filter((k) => k !== "step" && k !== "mean").slice(0, 50).map((k, i) => (
+                  <Line key={k} type="monotone" dataKey={k} stroke="#94a3b8" dot={false} strokeWidth={1} strokeOpacity={0.15} isAnimationActive={false} />
                 ))}
+                <Line key="mean" type="monotone" dataKey="mean" stroke="#06B6D4" dot={false} strokeWidth={2} strokeOpacity={1} name="Mean" />
               </LineChart>
             </ResponsiveContainer>
           ) : (
@@ -702,24 +708,47 @@ export default function Backtesting() {
         </Card>
 
         {/* Parameter Optimization Heatmap */}
-        <Card title="Parameter Optimization Heatmap" loading={loadOpt} className="col-span-1">
+        <Card title={<h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">PARAMETER OPTIMIZATION HEATMAP</h3>} loading={loadOpt} className="col-span-1">
           {Array.isArray(heatmapGrid) && heatmapGrid.length > 0 ? (
             <div className="overflow-auto" style={{ maxHeight: 250 }}>
-              <div className="grid gap-0.5" style={{ gridTemplateColumns: `repeat(${Math.min(heatmapGrid[0]?.values?.length ?? 10, 15)}, 1fr)` }}>
-                {heatmapGrid.flatMap((row, ri) =>
-                  (row.values ?? row).map((val, ci) => {
-                    const v = typeof val === "object" ? val.value ?? val.sharpe ?? 0 : Number(val) || 0;
-                    const maxV = 3;
-                    const norm = Math.max(0, Math.min(1, (v + 1) / maxV));
-                    const bg = v >= 1.5 ? `rgba(16,185,129,${0.3 + norm * 0.6})` : v >= 0 ? `rgba(245,158,11,${0.3 + norm * 0.5})` : `rgba(239,68,68,${0.3 + (1 - norm) * 0.5})`;
-                    return (
-                      <div key={`${ri}-${ci}`} className="aspect-square flex items-center justify-center text-[8px] text-white/80 rounded-sm cursor-default"
-                        style={{ backgroundColor: bg }} title={`Row ${ri}, Col ${ci}: ${v.toFixed(2)}`}>
-                        {v.toFixed(1)}
-                      </div>
-                    );
-                  })
-                )}
+              {/* Axis labels */}
+              <div className="mb-1 flex items-center gap-1">
+                <span className="text-[8px] text-slate-500 font-mono uppercase tracking-wider w-6 shrink-0">Param A ↓</span>
+                <span className="text-[8px] text-slate-500 font-mono uppercase tracking-wider">Param B →</span>
+              </div>
+              <div className="flex gap-0.5">
+                {/* Row labels */}
+                <div className="flex flex-col gap-0.5 shrink-0">
+                  {heatmapGrid.map((row, ri) => (
+                    <div key={ri} className="aspect-square flex items-center justify-center text-[7px] font-mono text-slate-500 w-5">
+                      {row.row_label ?? row.param_a ?? ri}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex-1">
+                  {/* Col labels row */}
+                  <div className="grid gap-0.5 mb-0.5" style={{ gridTemplateColumns: `repeat(${Math.min((heatmapGrid[0]?.values ?? heatmapGrid[0] ?? []).length, 15)}, 1fr)` }}>
+                    {(heatmapGrid[0]?.col_labels ?? Array.from({ length: Math.min((heatmapGrid[0]?.values ?? heatmapGrid[0] ?? []).length, 15) }, (_, i) => i)).map((lbl, ci) => (
+                      <div key={ci} className="text-center text-[7px] font-mono text-slate-500 truncate">{lbl}</div>
+                    ))}
+                  </div>
+                  <div className="grid gap-0.5" style={{ gridTemplateColumns: `repeat(${Math.min((heatmapGrid[0]?.values ?? heatmapGrid[0] ?? []).length, 15)}, 1fr)` }}>
+                    {heatmapGrid.flatMap((row, ri) =>
+                      (row.values ?? row).map((val, ci) => {
+                        const v = typeof val === "object" ? val.value ?? val.sharpe ?? 0 : Number(val) || 0;
+                        const maxV = 3;
+                        const norm = Math.max(0, Math.min(1, (v + 1) / maxV));
+                        const bg = v >= 1.5 ? `rgba(16,185,129,${0.3 + norm * 0.6})` : v >= 0 ? `rgba(245,158,11,${0.3 + norm * 0.5})` : `rgba(239,68,68,${0.3 + (1 - norm) * 0.5})`;
+                        return (
+                          <div key={`${ri}-${ci}`} className="aspect-square flex items-center justify-center font-mono text-[8px] text-white/80 rounded-sm cursor-default"
+                            style={{ backgroundColor: bg }} title={`Param A: ${ri}, Param B: ${ci} → ${v.toFixed(2)}`}>
+                            {v.toFixed(1)}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           ) : (
@@ -733,7 +762,7 @@ export default function Backtesting() {
         </Card>
 
         {/* Strategy Builder - ReactFlow */}
-        <Card title="Strategy Builder - ReactFlow" noPadding className="col-span-1">
+        <Card title={<h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">STRATEGY BUILDER</h3>} noPadding className="col-span-1">
           <div style={{ height: 260 }}>
             <ReactFlow
               nodes={nodes}
@@ -754,7 +783,7 @@ export default function Backtesting() {
       {/* ============================================================ */}
       {/*  TRADE-BY-TRADE LOG (full width)                              */}
       {/* ============================================================ */}
-      <Card title="Trade-by-Trade Log" action={
+      <Card title={<h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">TRADE-BY-TRADE LOG</h3>} action={
         <div className="flex gap-2">
           <Badge variant="secondary" size="sm">{Array.isArray(trades) ? trades.length : 0} trades</Badge>
           <Button size="sm" variant="ghost" leftIcon={Download}>CSV</Button>
@@ -775,7 +804,7 @@ export default function Backtesting() {
       {/*  BOTTOM ROW: Run History & Export | OpenClaw Swarm Consensus  */}
       {/* ============================================================ */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-        <Card title="Run History & Export" action={
+        <Card title={<h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">RUN HISTORY & EXPORT</h3>} action={
           <Button size="sm" variant="ghost" leftIcon={Upload}>Import</Button>
         }>
           <div className="max-h-[140px] overflow-auto">
@@ -789,7 +818,7 @@ export default function Backtesting() {
           </div>
         </Card>
 
-        <Card title="OpenClaw Swarm Consensus">
+        <Card title={<h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">OPENCLAW SWARM CONSENSUS</h3>}>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs text-secondary">Consensus Signal</span>
@@ -811,7 +840,7 @@ export default function Backtesting() {
       </div>
 
       {/* Footer: Agent status bar */}
-      <div className="flex items-center justify-between bg-surface border border-secondary/20 rounded-xl px-4 py-2">
+      <div className="flex items-center justify-between bg-surface border border-secondary/20 rounded-md px-4 py-2">
         <div className="flex items-center gap-2 text-xs text-secondary">
           <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
           <span className="text-green-400 font-medium">7 Agents ON</span>

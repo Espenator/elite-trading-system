@@ -28,7 +28,7 @@ function SectionCard({ title, children, className = "" }) {
   return (
     <div className={`bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-lg p-2 ${className}`}>
       <div className="flex items-center gap-1.5 mb-1.5 pb-1 border-b border-gray-800/50">
-        <span className="text-[10px] font-bold text-white uppercase tracking-wider">{title}</span>
+        <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">{title}</span>
       </div>
       <div className="space-y-0.5">{children}</div>
     </div>
@@ -297,27 +297,19 @@ export default function SettingsPage() {
 
         {/* 2. TRADING MODE */}
         <SectionCard title="Trading Mode">
-          <div className="flex gap-1 mb-1">
-            {["PAPER", "LIVE"].map((env) => (
-              <button
-                key={env}
-                onClick={() => updateField("dataSources", "alpacaBaseUrl", env.toLowerCase())}
-                className={`flex-1 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border transition-all ${
-                  get("dataSources", "alpacaBaseUrl", "paper") === env.toLowerCase()
-                    ? "bg-[rgba(0,217,255,0.15)] border-[rgba(0,217,255,0.3)] text-[#00D9FF]"
-                    : "bg-[#0B0E14] border-gray-700 text-gray-500 hover:border-gray-600"
-                }`}
-              >
-                {env}
-              </button>
-            ))}
+          <div className="flex items-center gap-4 mb-1">
+            <span className={`text-sm font-bold ${get("dataSources", "alpacaBaseUrl", "paper") === "paper" ? "text-cyan-400" : "text-gray-500"}`}>PAPER</span>
+            <button
+              onClick={() => updateField("dataSources", "alpacaBaseUrl", get("dataSources", "alpacaBaseUrl", "paper") === "paper" ? "live" : "paper")}
+              className={`relative w-14 h-7 rounded-full transition-colors ${get("dataSources", "alpacaBaseUrl", "paper") === "live" ? "bg-red-500" : "bg-cyan-500"}`}
+            >
+              <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full transition-transform ${get("dataSources", "alpacaBaseUrl", "paper") === "live" ? "translate-x-7" : "translate-x-0.5"}`} />
+            </button>
+            <span className={`text-sm font-bold ${get("dataSources", "alpacaBaseUrl", "paper") === "live" ? "text-red-400" : "text-gray-500"}`}>LIVE</span>
           </div>
-          <div className="flex items-center gap-1.5 mb-1">
-            <div className={`w-2 h-2 rounded-full ${get("dataSources", "alpacaBaseUrl") === "live" ? "bg-red-500 animate-pulse" : "bg-green-500"}`} />
-            <span className="text-[9px] text-yellow-400">
-              {get("dataSources", "alpacaBaseUrl") === "live" ? "Live mode + real money" : "Paper mode + simulated"}
-            </span>
-          </div>
+          {get("dataSources", "alpacaBaseUrl", "paper") === "live" && (
+            <p className="text-[10px] text-amber-400 mt-1">⚠ Live mode = real money</p>
+          )}
           <MiniSelect label="Broker" value={get("trading", "broker", "alpaca")} options={[
             { value: "alpaca", label: "Alpaca Markets" },
             { value: "ibkr", label: "Interactive Brokers" },
@@ -366,18 +358,18 @@ export default function SettingsPage() {
         {/* 6. BROKERAGE CONNECTIONS */}
         <SectionCard title="Brokerage Connections">
           <div className="flex items-center justify-between py-0.5">
-            <span className="text-[10px] text-gray-400">Alpaca Markets</span>
+            <span className="text-[10px] text-gray-400">Alpaca Markets<span className="text-amber-500 text-[10px] ml-1">★</span></span>
             <div className="flex items-center gap-1">
               <ConnBadge status="connected" label="Connected" />
               <span className="text-[8px] text-gray-600">[Test][Edit]</span>
             </div>
           </div>
           <div className="flex items-center justify-between py-0.5">
-            <span className="text-[10px] text-gray-400">Interactive Brokers</span>
+            <span className="text-[10px] text-gray-400">Interactive Brokers<span className="text-amber-500 text-[10px] ml-1">★</span></span>
             <ConnBadge status="not_configured" label="Not Connected" />
           </div>
           <div className="flex items-center justify-between py-0.5">
-            <span className="text-[10px] text-gray-400">TD Ameritrade</span>
+            <span className="text-[10px] text-gray-400">TD Ameritrade<span className="text-amber-500 text-[10px] ml-1">★</span></span>
             <ConnBadge status="not_configured" label="Not Connected" />
           </div>
           <div className="mt-1.5 pt-1 border-t border-gray-800/50">
@@ -390,14 +382,14 @@ export default function SettingsPage() {
         {/* 7. DATA FEED API KEYS */}
         <SectionCard title="Data Feed API Keys">
           <div className="flex items-center justify-between py-0.5">
-            <span className="text-[10px] text-gray-400">Unusual Whales</span>
+            <span className="text-[10px] text-gray-400">Unusual Whales<span className="text-amber-500 text-[10px] ml-1">★</span></span>
             <div className="flex items-center gap-1">
               <ConnBadge status="connected" label="Connected" />
               <span className="text-[8px] text-gray-600">[Test][Edit]</span>
             </div>
           </div>
           <div className="flex items-center justify-between py-0.5">
-            <span className="text-[10px] text-gray-400">Polygon.io</span>
+            <span className="text-[10px] text-gray-400">Polygon.io<span className="text-amber-500 text-[10px] ml-1">★</span></span>
             <div className="flex items-center gap-1">
               <ConnBadge status="aggregated" label="Aggregated" />
             </div>
@@ -407,7 +399,7 @@ export default function SettingsPage() {
             <span className="text-[9px] text-gray-500">N/A</span>
           </div>
           <div className="flex items-center justify-between py-0.5">
-            <span className="text-[10px] text-gray-400">FRED</span>
+            <span className="text-[10px] text-gray-400">FRED<span className="text-amber-500 text-[10px] ml-1">★</span></span>
             <span className="text-[9px] text-gray-500">Not set</span>
           </div>
           <div className="flex items-center justify-between py-0.5">
@@ -429,8 +421,14 @@ export default function SettingsPage() {
 
         {/* 9. GLOBAL LOCAL LLM */}
         <SectionCard title="Global Local LLM">
-          <MiniField label="Endpoint" value={get("ollama", "ollamaHostUrl", "http://localhost:11434")} onChange={(e) => updateField("ollama", "ollamaHostUrl", e.target.value)} className="w-28" />
-          <MiniField label="Model" value={get("ollama", "ollamaDefaultModel", "llama3")} onChange={(e) => updateField("ollama", "ollamaDefaultModel", e.target.value)} />
+          <div className="flex items-center justify-between gap-2 py-[1px]">
+            <span className="text-[10px] text-gray-400 whitespace-nowrap">Endpoint<span className="text-amber-500 text-[10px] ml-1">★</span></span>
+            <input type="text" value={get("ollama", "ollamaHostUrl", "http://localhost:11434")} onChange={(e) => updateField("ollama", "ollamaHostUrl", e.target.value)} className="w-28 bg-[#0a0d13] border border-gray-700/50 rounded px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-cyan-500/50" />
+          </div>
+          <div className="flex items-center justify-between gap-2 py-[1px]">
+            <span className="text-[10px] text-gray-400 whitespace-nowrap">Model<span className="text-amber-500 text-[10px] ml-1">★</span></span>
+            <input type="text" value={get("ollama", "ollamaDefaultModel", "llama3")} onChange={(e) => updateField("ollama", "ollamaDefaultModel", e.target.value)} className="w-20 bg-[#0a0d13] border border-gray-700/50 rounded px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-cyan-500/50" />
+          </div>
           <MiniField label="GPT-4" value={get("ollama", "gpt4oStatus", "disabled")} onChange={(e) => updateField("ollama", "gpt4oStatus", e.target.value)} />
           <MiniField label="Context" value={get("ollama", "ollamaContextLength", 8192)} type="number" suffix="tok" onChange={(e) => updateField("ollama", "ollamaContextLength", Number(e.target.value))} />
           <MiniToggle label="CUDA" checked={!!get("ollama", "ollamaCudaEnabled", false)} onChange={(v) => updateField("ollama", "ollamaCudaEnabled", v)} />
@@ -444,15 +442,30 @@ export default function SettingsPage() {
 
         {/* 10. INFERENCE MODELS */}
         <SectionCard title="Inference Models">
-          <MiniField label="GPT-4o" value={get("ollama", "gpt4Status", "disabled")} onChange={(e) => updateField("ollama", "gpt4Status", e.target.value)} />
+          <div className="flex items-center justify-between gap-2 py-[1px]">
+            <span className="text-[10px] text-gray-400 whitespace-nowrap">GPT-4o<span className="text-amber-500 text-[10px] ml-1">★</span></span>
+            <input type="text" value={get("ollama", "gpt4Status", "disabled")} onChange={(e) => updateField("ollama", "gpt4Status", e.target.value)} className="w-20 bg-[#0a0d13] border border-gray-700/50 rounded px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-cyan-500/50" />
+          </div>
           <div className="flex items-center justify-between py-[1px]">
             <span className="text-[10px] text-gray-400">GPU/CPU</span>
             <span className="text-[9px] text-cyan-400">auto</span>
           </div>
-          <MiniField label="Use for" value={get("ollama", "signalAnalysisModel", "Signal Analysis")} onChange={(e) => updateField("ollama", "signalAnalysisModel", e.target.value)} />
-          <MiniField label="Use for" value={get("ollama", "patternAnalysisModel", "Pattern Analysis")} onChange={(e) => updateField("ollama", "patternAnalysisModel", e.target.value)} />
-          <MiniField label="Use for" value={get("ollama", "signalGenerationModel", "Signal Generation")} onChange={(e) => updateField("ollama", "signalGenerationModel", e.target.value)} />
-          <MiniField label="Fallback" value={get("ollama", "fallbackModel", "llama3")} onChange={(e) => updateField("ollama", "fallbackModel", e.target.value)} />
+          <div className="flex items-center justify-between gap-2 py-[1px]">
+            <span className="text-[10px] text-gray-400 whitespace-nowrap">Signal Model<span className="text-amber-500 text-[10px] ml-1">★</span></span>
+            <input type="text" value={get("ollama", "signalAnalysisModel", "Signal Analysis")} onChange={(e) => updateField("ollama", "signalAnalysisModel", e.target.value)} className="w-20 bg-[#0a0d13] border border-gray-700/50 rounded px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-cyan-500/50" />
+          </div>
+          <div className="flex items-center justify-between gap-2 py-[1px]">
+            <span className="text-[10px] text-gray-400 whitespace-nowrap">Pattern Model<span className="text-amber-500 text-[10px] ml-1">★</span></span>
+            <input type="text" value={get("ollama", "patternAnalysisModel", "Pattern Analysis")} onChange={(e) => updateField("ollama", "patternAnalysisModel", e.target.value)} className="w-20 bg-[#0a0d13] border border-gray-700/50 rounded px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-cyan-500/50" />
+          </div>
+          <div className="flex items-center justify-between gap-2 py-[1px]">
+            <span className="text-[10px] text-gray-400 whitespace-nowrap">Gen Model<span className="text-amber-500 text-[10px] ml-1">★</span></span>
+            <input type="text" value={get("ollama", "signalGenerationModel", "Signal Generation")} onChange={(e) => updateField("ollama", "signalGenerationModel", e.target.value)} className="w-20 bg-[#0a0d13] border border-gray-700/50 rounded px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-cyan-500/50" />
+          </div>
+          <div className="flex items-center justify-between gap-2 py-[1px]">
+            <span className="text-[10px] text-gray-400 whitespace-nowrap">Fallback<span className="text-amber-500 text-[10px] ml-1">★</span></span>
+            <input type="text" value={get("ollama", "fallbackModel", "llama3")} onChange={(e) => updateField("ollama", "fallbackModel", e.target.value)} className="w-20 bg-[#0a0d13] border border-gray-700/50 rounded px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-cyan-500/50" />
+          </div>
           <MiniField label="Max Tokens" value={get("ollama", "maxTokens", "500K+")} onChange={(e) => updateField("ollama", "maxTokens", e.target.value)} />
         </SectionCard>
       </div>
@@ -618,8 +631,26 @@ export default function SettingsPage() {
 
         {/* 21. APPEARANCE */}
         <SectionCard title="Appearance">
-          {/* Color theme swatches */}
+          {/* Theme thumbnails */}
           <div className="mb-1.5">
+            <div className="grid grid-cols-3 gap-3 mb-1">
+              {[
+                { name: 'Midnight Bloomberg', bg: '#0B0E14', surface: '#111827', accent: '#06B6D4' },
+                { name: 'Classic Dark', bg: '#1a1a2e', surface: '#16213e', accent: '#0f3460' },
+                { name: 'OLED Black', bg: '#000000', surface: '#0a0a0a', accent: '#06B6D4' },
+              ].map(theme => (
+                <button key={theme.name} className="flex flex-col items-center gap-1.5 p-2 border border-gray-700 rounded-md hover:border-cyan-500 group">
+                  <div className="w-full h-12 rounded-sm flex gap-0.5" style={{ background: theme.bg }}>
+                    <div className="w-1/4 h-full rounded-sm" style={{ background: theme.surface }} />
+                    <div className="flex-1 h-full rounded-sm" style={{ background: theme.surface }}>
+                      <div className="w-3/4 h-1 mt-2 mx-auto rounded" style={{ background: theme.accent }} />
+                    </div>
+                  </div>
+                  <span className="text-[9px] text-gray-500 group-hover:text-cyan-400">{theme.name}</span>
+                </button>
+              ))}
+            </div>
+            {/* Color swatches */}
             <div className="flex gap-1 mb-1">
               {[
                 { key: "midnight", color: "#1a1a2e", label: "Midnight Illuminator" },

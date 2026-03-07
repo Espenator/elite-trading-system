@@ -133,7 +133,7 @@ const Panel = ({ title, icon: Icon, children, className = '', headerAction = nul
     <div className="px-2.5 py-1.5 border-b border-[#1e293b] flex justify-between items-center bg-[#0d1117] shrink-0">
       <div className="flex items-center gap-1.5">
         {Icon && <Icon className="w-3 h-3 text-[#00D9FF] shrink-0" />}
-        <h3 className="text-[10px] font-bold text-gray-300 uppercase tracking-wider">{title}</h3>
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">{title}</h3>
       </div>
       {headerAction && <div className="flex items-center gap-1">{headerAction}</div>}
     </div>
@@ -683,10 +683,10 @@ export default function SignalIntelligenceV3() {
               <div className="flex items-center gap-0.5">
                 {timeframes.map(t => (
                   <button key={t} onClick={() => setChartTimeframe(t)}
-                    className={`px-1.5 py-0.5 rounded text-[8px] font-mono transition-all ${
+                    className={`text-[10px] uppercase tracking-wider font-bold rounded-md px-3 py-1 transition-all ${
                       chartTimeframe === t
-                        ? 'bg-[#00D9FF]/20 text-[#00D9FF] border border-[#00D9FF]/40'
-                        : 'text-gray-500 hover:text-gray-300 border border-transparent'
+                        ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                        : 'bg-transparent text-gray-500 border border-gray-700'
                     }`}>{t}</button>
                 ))}
               </div>
@@ -742,7 +742,7 @@ export default function SignalIntelligenceV3() {
                           {sig.dir || sig.action || '--'}
                         </span>
                       </td>
-                      <td className="py-0.5 px-1 font-mono text-gray-300">${typeof sig.price === 'number' ? sig.price.toFixed(2) : sig.price || '--'}</td>
+                      <td className="py-0.5 px-1 font-mono text-gray-300"><span className="font-mono">${typeof sig.price === 'number' ? sig.price.toFixed(2) : sig.price || '--'}</span></td>
                       <td className="py-0.5 px-1 text-cyan-400 truncate max-w-[80px]">{sig.agent || sig.source || '--'}</td>
                       <td className="py-0.5 px-1">
                         <div className="flex items-center gap-1">
@@ -777,7 +777,7 @@ export default function SignalIntelligenceV3() {
                       backgroundColor: metric.value >= 85 ? '#10b981' : metric.value >= 70 ? '#00D9FF' : metric.value >= 50 ? '#f59e0b' : '#ef4444'
                     }} />
                   </div>
-                  <span className="text-[7px] text-gray-500 w-6 text-right">{metric.value}%</span>
+                  <span className="text-[7px] text-gray-500 w-6 text-right font-mono">{metric.value}%</span>
                 </div>
               ))}
             </div>
@@ -792,7 +792,7 @@ export default function SignalIntelligenceV3() {
                     intelStates[mod.id]?.active ? 'bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)]' : 'bg-gray-600'
                   }`} />
                   <span className="text-[8px] text-gray-300 flex-1 truncate">{mod.name}</span>
-                  <span className="text-[7px] text-gray-500 font-mono">{intelStates[mod.id]?.weight ?? mod.defaultWeight}%</span>
+                  <span className="text-[7px] text-gray-500 font-mono">{intelStates[mod.id]?.weight ?? mod.defaultWeight}<span className="font-mono">%</span></span>
                 </div>
               ))}
             </div>
@@ -803,7 +803,7 @@ export default function SignalIntelligenceV3() {
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full" style={{ backgroundColor: regimeBanner.color, boxShadow: `0 0 8px ${regimeBanner.color}` }} />
               <span className="text-[10px] font-bold font-mono" style={{ color: regimeBanner.text }}>{regimeData.state || 'BULL_TREND'}</span>
-              <Badge color={bannerColor}>{regimeData.conf ?? '--'}%</Badge>
+              <Badge color={bannerColor}><span className="font-mono">{regimeData.conf ?? '--'}%</span></Badge>
             </div>
             <div className="flex items-center gap-2 mt-1">
               <span className="text-[7px] text-gray-500">p-comp:90</span>
@@ -853,11 +853,11 @@ export default function SignalIntelligenceV3() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[8px] text-gray-500 w-20">Risk Portfolio</span>
-                <span className="text-[8px] font-mono text-amber-400">{maxHeat}%</span>
+                <span className="text-[8px] font-mono text-amber-400"><span className="font-mono">{maxHeat}%</span></span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[8px] text-gray-500 w-20">Daily Loss Limit</span>
-                <span className="text-[8px] font-mono text-red-400">{lossLimit}%</span>
+                <span className="text-[8px] font-mono text-red-400"><span className="font-mono">{lossLimit}%</span></span>
               </div>
             </div>
           </Panel>
@@ -873,7 +873,7 @@ export default function SignalIntelligenceV3() {
                     backgroundColor: mlStates[model.id]?.status === 'Ready' ? '#10b981' : mlStates[model.id]?.status === 'Training' ? '#f59e0b' : '#6b7280'
                   }} />
                 </div>
-                <span className="text-[7px] text-gray-500 w-6 text-right">{mlStates[model.id]?.confThreshold ?? 75}%</span>
+                <span className="text-[7px] text-gray-500 w-6 text-right font-mono">{mlStates[model.id]?.confThreshold ?? 75}%</span>
               </div>
             ))}
           </Panel>
@@ -883,7 +883,7 @@ export default function SignalIntelligenceV3() {
             <div className="space-y-0.5">
               <div className="flex items-center justify-between">
                 <span className="text-[7px] text-gray-500">Active Models</span>
-                <span className="text-[8px] font-bold font-mono text-emerald-400">{mlControlsData.activeModels}/{ML_MODELS.length}</span>
+                <span className="text-[8px] font-bold font-mono text-emerald-400"><span className="font-mono">{mlControlsData.activeModels}/{ML_MODELS.length}</span></span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-[7px] text-gray-500">Accuracy</span>
@@ -940,8 +940,8 @@ export default function SignalIntelligenceV3() {
           </span>
         </div>
         <div className="flex items-center gap-3">
-          <span>Signals: {scannerMetrics.signalsToday}</span>
-          <span>Hit Rate: {scannerMetrics.hitRate}%</span>
+          <span>Signals: <span className="font-mono">{scannerMetrics.signalsToday}</span></span>
+          <span>Hit Rate: <span className="font-mono">{scannerMetrics.hitRate}%</span></span>
           <span className="text-gray-600">{new Date().toLocaleTimeString()}</span>
         </div>
       </div>
@@ -962,7 +962,7 @@ const CustomFlowNode = ({ data }) => {
     red: 'border-red-500 bg-red-500/10 text-red-400'
   };
   return (
-    <div className={`px-3 py-2 rounded-lg border-2 ${colors[data.status] || colors.green} min-w-[140px] text-center`}>
+    <div className={`px-3 py-2 rounded-md border-2 ${colors[data.status] || colors.green} min-w-[140px] text-center`}>
       <Handle type="target" position="top" className="w-2 h-2" />
       <div className="text-[10px] font-bold">{data.label}</div>
       <div className="text-[8px] opacity-60">{data.subLabel}</div>
@@ -993,8 +993,8 @@ export const AgentPipelineFlow = () => {
     { id: 'e7', source: 'score1', target: 'exec1', animated: true, style: { stroke: '#f59e0b' } }
   ];
   return (
-    <div className="bg-[#111827] border border-[#1e293b] rounded-lg p-3">
-      <h3 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest mb-2">Agent Swarm Data Flow Pipeline</h3>
+    <div className="bg-[#111827] border border-[#1e293b] rounded-md p-3">
+      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-2">Agent Swarm Data Flow Pipeline</h3>
       <div style={{ height: 520 }}>
         <ReactFlow nodes={initialNodes} edges={initialEdges} nodeTypes={nodeTypes} fitView
           proOptions={{ hideAttribution: true }}>
@@ -1017,8 +1017,8 @@ export const AnalyticsDashboards = () => {
     return (
         <div className="grid grid-cols-4 gap-2">
             {chartTitles.map((title, i) => (
-                <div key={i} className="bg-[#111827] border border-[#1e293b] rounded-lg p-3">
-                    <h3 className="text-[10px] font-bold text-gray-300 uppercase tracking-widest mb-2">{title}</h3>
+                <div key={i} className="bg-[#111827] border border-[#1e293b] rounded-md p-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-2">{title}</h3>
                     <div className="h-[200px] flex items-center justify-center text-gray-500 text-xs border border-dashed border-[#1e293b] rounded">
                         <span>LW Charts pending</span>
                     </div>

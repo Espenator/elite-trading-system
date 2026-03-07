@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useSentiment } from '../hooks/useSentiment';
+import { SectorTreemap, MultiFactorRadar, ScannerStatusMatrix, PredictionMarketCard } from '../components/dashboard/SentimentWidgets';
 
 // ---- Constants ----
 const SOURCE_KEYS = ['stockgeist', 'news', 'discord', 'x', 'fred', 'sec'];
@@ -341,7 +342,7 @@ export default function SentimentIntelligence() {
         {/* ===== LEFT COLUMN: OpenClaw Agent Swarm + Sentiment Sources ===== */}
         <div className="col-span-12 xl:col-span-2 space-y-3">
           {/* Agent Swarm Panel */}
-          <div className="bg-surface border border-secondary/20 rounded-xl overflow-hidden">
+          <div className="bg-surface border border-secondary/20 rounded-md overflow-hidden">
             <div className="px-3 py-2.5 border-b border-secondary/20">
               <h3 className="text-xs font-semibold text-white">OpenClaw Agent Swarm</h3>
               <p className="text-[9px] text-gray-500 mt-0.5">
@@ -405,7 +406,7 @@ export default function SentimentIntelligence() {
           </div>
 
           {/* Sentiment Sources Panel */}
-          <div className="bg-surface border border-secondary/20 rounded-xl overflow-hidden">
+          <div className="bg-surface border border-secondary/20 rounded-md overflow-hidden">
             <div className="px-3 py-2.5 border-b border-secondary/20">
               <h3 className="text-xs font-semibold text-white">Sentiment Sources</h3>
             </div>
@@ -472,15 +473,16 @@ export default function SentimentIntelligence() {
         <div className="col-span-12 xl:col-span-4 space-y-3">
 
           {/* PAS v8 Regime Banner */}
-          <div className="bg-emerald-500/20 border border-emerald-500/50 rounded-xl p-3 text-center">
+          <div className="bg-emerald-500/20 border border-emerald-500/50 rounded-md p-3 text-center">
             <span className="text-emerald-400 font-black text-sm tracking-widest uppercase">
               PAS v8 Regime: BULL_TREND {moodValue}%
             </span>
           </div>
 
           {/* Symbol Heatmap Grid - 3 columns x 4 rows matching mockup */}
-          <div className="bg-surface border border-secondary/20 rounded-xl p-3">
-            <div className="grid grid-cols-3 gap-1.5">
+          <div className="bg-surface border border-secondary/20 rounded-md p-3">
+            <SectorTreemap />
+            <div className="grid grid-cols-3 gap-1.5 mt-3">
               {heatmapGrid.map((item) => {
                 const isPositive = item.pct >= 0;
                 return (
@@ -500,7 +502,7 @@ export default function SentimentIntelligence() {
           </div>
 
           {/* 30-Day Sentiment Area Chart - green/cyan gradient per mockup */}
-          <div className="bg-surface border border-secondary/20 rounded-xl overflow-hidden">
+          <div className="bg-surface border border-secondary/20 rounded-md overflow-hidden">
             <div className="px-4 py-2.5 border-b border-secondary/20">
               <h3 className="text-sm font-semibold text-white">30-Day Sentiment</h3>
             </div>
@@ -539,7 +541,7 @@ export default function SentimentIntelligence() {
         <div className="col-span-12 xl:col-span-3 space-y-3">
 
           {/* Trade Signals */}
-          <div className="bg-surface border border-secondary/20 rounded-xl overflow-hidden">
+          <div className="bg-surface border border-secondary/20 rounded-md overflow-hidden">
             <div className="px-4 py-2 border-b border-secondary/20">
               <h3 className="text-xs font-semibold text-white">Trade Signals</h3>
             </div>
@@ -553,7 +555,7 @@ export default function SentimentIntelligence() {
           {/* Prediction Markets Row */}
           <div className="grid grid-cols-2 gap-2">
             {/* Prediction Market 1 */}
-            <div className="bg-surface border border-secondary/20 rounded-xl overflow-hidden">
+            <div className="bg-surface border border-secondary/20 rounded-md overflow-hidden">
               <div className="px-2.5 py-1.5 border-b border-secondary/20">
                 <h3 className="text-[10px] font-semibold text-white">Prediction Market</h3>
               </div>
@@ -592,7 +594,7 @@ export default function SentimentIntelligence() {
             </div>
 
             {/* Prediction Market 2 */}
-            <div className="bg-surface border border-secondary/20 rounded-xl overflow-hidden">
+            <div className="bg-surface border border-secondary/20 rounded-md overflow-hidden">
               <div className="px-2.5 py-1.5 border-b border-secondary/20">
                 <h3 className="text-[10px] font-semibold text-white">Prediction Market</h3>
               </div>
@@ -632,8 +634,9 @@ export default function SentimentIntelligence() {
           </div>
 
           {/* Radar Chart - Large, prominent with TWO overlapping polygons per mockup */}
-          <div className="bg-surface border border-secondary/20 rounded-xl overflow-hidden">
+          <div className="bg-surface border border-secondary/20 rounded-md overflow-hidden">
             <div className="p-3">
+              <MultiFactorRadar />
               <div className="h-56 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <RadarChart data={radarData} outerRadius="75%">
@@ -665,10 +668,18 @@ export default function SentimentIntelligence() {
             </div>
           </div>
 
+          {/* Prediction Market Cards Grid */}
+          <div className="grid grid-cols-2 gap-3">
+            <PredictionMarketCard question="SPY closes above $500 by Friday?" probability={73} volume="2.4K" trend="up" />
+            <PredictionMarketCard question="Fed holds rates at March meeting?" probability={89} volume="8.1K" trend="flat" />
+            <PredictionMarketCard question="NVDA breaks ATH this week?" probability={61} volume="5.2K" trend="up" />
+            <PredictionMarketCard question="VIX stays below 15?" probability={44} volume="3.7K" trend="down" />
+          </div>
+
           {/* Emergency Alert Banners */}
           <div className="space-y-2">
             {/* Emergency Alert 1 */}
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-2.5 relative overflow-hidden">
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-2.5 relative overflow-hidden">
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500" />
               <div className="flex items-start gap-2 pl-2">
                 <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
@@ -684,7 +695,7 @@ export default function SentimentIntelligence() {
             </div>
 
             {/* Emergency Alert 2 */}
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-2.5 relative overflow-hidden">
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-2.5 relative overflow-hidden">
               <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500" />
               <div className="flex items-start gap-2 pl-2">
                 <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
@@ -705,10 +716,13 @@ export default function SentimentIntelligence() {
         <div className="col-span-12 xl:col-span-3 space-y-3">
 
           {/* Scanner Status Matrix - Dense dot grid */}
-          <div className="bg-surface border border-secondary/20 rounded-xl overflow-hidden h-full">
+          <div className="bg-surface border border-secondary/20 rounded-md overflow-hidden h-full">
             <div className="px-3 py-2 border-b border-secondary/20 flex items-center justify-between">
               <h3 className="text-xs font-semibold text-white">Scanner Status Matrix</h3>
               <span className="text-[9px] text-gray-500 font-mono">{scannerData.length} symbols</span>
+            </div>
+            <div className="p-2.5">
+              <ScannerStatusMatrix />
             </div>
             <div className="p-2.5 overflow-x-auto">
               <div className="grid gap-y-[3px]">

@@ -241,6 +241,17 @@ function MiniSparkline({ data, color = "#22d3ee" }) {
   );
 }
 
+function LatencySparkline({ points = [12, 15, 8, 23, 11, 9, 14, 18, 10, 13] }) {
+  const max = Math.max(...points);
+  const w = 40, h = 16;
+  const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${(i / (points.length - 1)) * w},${h - (p / max) * h}`).join(' ');
+  return (
+    <svg width={w} height={h} className="inline-block ml-2">
+      <polyline points={path.replace(/[ML]/g, '')} fill="none" stroke="#06B6D4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 // ---------- Source Card ----------
 
 function SourceCard({ source, isSelected, onClick }) {
@@ -285,16 +296,17 @@ function SourceCard({ source, isSelected, onClick }) {
           </div>
           <div className="flex items-center gap-3 mt-0.5">
             <StatusBadge status={source.status} />
-            <span className="text-[10px] text-gray-500">
+            <span className="text-[10px] text-gray-500 font-mono flex items-center">
               {source.latency}
+              <LatencySparkline />
             </span>
             {source.uptime && (
-              <span className="text-[10px] text-gray-500">
+              <span className="text-[10px] text-gray-500 font-mono">
                 {source.uptime}%
               </span>
             )}
             {source.dataRate && (
-              <span className="text-[10px] text-gray-500">
+              <span className="text-[10px] text-gray-500 font-mono">
                 {source.dataRate}
               </span>
             )}
@@ -313,7 +325,7 @@ function SourceCard({ source, isSelected, onClick }) {
         <div className="text-right flex-shrink-0 w-12">
           <div
             className={clsx(
-              "text-xs font-bold",
+              "text-xs font-bold font-mono",
               source.uptime >= 99
                 ? "text-emerald-400"
                 : source.uptime >= 95
@@ -377,7 +389,7 @@ function ConnectionDetailPanel({ source }) {
       {/* Panel Header */}
       <div className="px-4 py-3 border-b border-gray-800">
         <div className="flex items-center justify-between">
-          <div className="text-[10px] text-gray-500 uppercase tracking-widest font-medium">
+          <div className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
             Credential / Config Panel
           </div>
         </div>
@@ -484,12 +496,12 @@ function ConnectionDetailPanel({ source }) {
 
         {/* Rate Limit */}
         <FieldRow label="Rate Limit">
-          <span className="text-xs text-gray-300">{detail.rateLimit}</span>
+          <span className="text-xs text-gray-300 font-mono">{detail.rateLimit}</span>
         </FieldRow>
 
         {/* Polling Interval */}
         <FieldRow label="Polling Interval">
-          <span className="text-xs text-gray-300">
+          <span className="text-xs text-gray-300 font-mono">
             {detail.pollingInterval}
           </span>
         </FieldRow>
@@ -510,7 +522,7 @@ function ConnectionDetailPanel({ source }) {
 
         {/* Connection Test Result */}
         <div className="pt-2 border-t border-gray-800">
-          <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">
+          <div className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-1">
             Connection Test Result
           </div>
           <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 rounded px-3 py-2">
@@ -540,7 +552,7 @@ function ConnectionDetailPanel({ source }) {
 function FieldRow({ label, children }) {
   return (
     <div>
-      <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">
+      <div className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-1">
         {label}
       </div>
       {children}
@@ -672,25 +684,33 @@ export default function DataSourcesMonitor() {
 
       {/* ===== AI-POWERED ADD SOURCE INPUT ===== */}
       <div className="px-5 py-3 border-b border-gray-800 bg-[#0b1120]">
-        <div className="flex items-center gap-2">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+        <div className="aurora-card p-3 mb-3">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-2">AI-POWERED ADD SOURCE</h3>
+          <div className="flex items-center gap-2">
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Paste a service name, URL, or paste API docs link..."
-              className="w-full bg-[#0d1520] border border-gray-700 rounded-lg pl-10 pr-4 py-2 text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-cyan-500/50 transition-colors"
+              placeholder="Search for data source to add..."
+              className="flex-1 bg-[#0B0E14] border border-gray-700 rounded-md px-3 py-1.5 text-sm text-white placeholder-gray-600 focus:border-cyan-500 focus:outline-none"
             />
+            <button className="px-3 py-1.5 bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded-md text-xs font-bold hover:bg-cyan-500/30">Add</button>
+            <button className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-700 rounded-md text-xs text-gray-400 hover:text-gray-200 hover:border-gray-500 transition-colors whitespace-nowrap">
+              <ShoppingBag className="w-3.5 h-3.5" />
+              Shop API store
+            </button>
           </div>
-          <button className="flex items-center gap-1.5 px-3 py-2 border border-gray-700 rounded-lg text-xs text-gray-400 hover:text-gray-200 hover:border-gray-500 transition-colors whitespace-nowrap">
-            <ShoppingBag className="w-3.5 h-3.5" />
-            Shop API store
-          </button>
+          <div className="flex gap-2 mt-2">
+            {['Polygon.io', 'Benzinga', 'Quandl', 'Alpha Vantage', 'IEX Cloud'].map(s => (
+              <button key={s} className="px-2 py-0.5 text-[9px] font-mono text-gray-500 border border-gray-700 rounded-md hover:border-cyan-500 hover:text-cyan-400">
+                {s}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Filter chips + Stop API scan */}
-        <div className="flex items-center justify-between mt-2">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-1">
             {FILTER_CHIPS.map((chip) => (
               <button
@@ -731,7 +751,7 @@ export default function DataSourcesMonitor() {
 
           {/* SUPPLY CHAIN OVERVIEW */}
           <div className="px-4 py-3 border-t border-gray-800">
-            <div className="text-[10px] text-gray-500 uppercase tracking-widest font-medium mb-2">
+            <div className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-2">
               Supply Chain Overview
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">

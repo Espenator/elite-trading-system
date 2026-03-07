@@ -56,7 +56,7 @@ export default function Header() {
         <div className="relative flex-1 min-w-0 max-w-md">
           <div
             className={`
-              relative rounded-xl border transition-all duration-300
+              relative rounded-md border transition-all duration-300
               ${searchFocused
                 ? "border-primary/50 bg-secondary/20 shadow-lg shadow-primary/10"
                 : "border-secondary/30 bg-secondary/10 hover:border-secondary/50"
@@ -148,7 +148,7 @@ export default function Header() {
         <div className="relative">
           <button
             onClick={() => setShowNotifications(!showNotifications)}
-            className="relative p-2.5 rounded-xl bg-secondary/10 border border-secondary/30 hover:bg-secondary/20 hover:border-white/20 transition-all"
+            className="relative p-2.5 rounded-md bg-secondary/10 border border-secondary/30 hover:bg-secondary/20 hover:border-white/20 transition-all"
           >
             <Bell className="w-5 h-5 text-secondary" />
             {unreadCount > 0 && (
@@ -160,7 +160,7 @@ export default function Header() {
 
           {/* Notifications dropdown */}
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-96 rounded-xl bg-dark backdrop-blur-xl border border-secondary/30 shadow-2xl shadow-black/50 overflow-hidden z-50">
+            <div className="absolute right-0 mt-2 w-96 rounded-md bg-dark backdrop-blur-xl border border-secondary/30 shadow-2xl shadow-black/50 overflow-hidden z-50">
               <div className="px-4 py-3 border-b border-secondary/30">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-white">
@@ -217,7 +217,7 @@ export default function Header() {
         <div className="relative">
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
-            className="flex items-center gap-2 pl-3 pr-3 py-2 rounded-xl bg-secondary/10 border border-secondary/30 hover:bg-secondary/20 hover:border-white/20 transition-all"
+            className="flex items-center gap-2 pl-3 pr-3 py-2 rounded-md bg-secondary/10 border border-secondary/30 hover:bg-secondary/20 hover:border-white/20 transition-all"
           >
             <div className="w-7 h-7 rounded-lg bg-gradient-to-br bg-primary flex items-center justify-center">
               <User className="w-3.5 h-3.5 text-white" />
@@ -231,7 +231,7 @@ export default function Header() {
           </button>
 
           {showUserMenu && (
-            <div className="absolute right-0 mt-2 w-56 rounded-xl bg-dark backdrop-blur-xl border border-secondary/30 shadow-2xl shadow-black/50 overflow-hidden z-50">
+            <div className="absolute right-0 mt-2 w-56 rounded-md bg-dark backdrop-blur-xl border border-secondary/30 shadow-2xl shadow-black/50 overflow-hidden z-50">
               <div className="px-4 py-3 border-b border-secondary/30">
                 <div className="font-medium text-white">espen@embodier.ai</div>
                 <div className="text-xs text-secondary mt-0.5">Pro Account</div>

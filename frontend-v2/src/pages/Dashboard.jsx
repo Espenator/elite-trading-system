@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import log from "@/utils/logger";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl, getAuthHeaders } from "../config/api";
@@ -7,7 +7,6 @@ import ProfitBrainBar from "../components/dashboard/ProfitBrainBar";
 
 // --- TOP TICKER STRIP (scrolling market tickers) ---
 const TickerStrip = ({ indices, signals }) => {
-  const scrollRef = useRef(null);
   // indices is normalized in Dashboard to a symbol-keyed map: { SPX: { value, change }, ... }
   const tickers = useMemo(() => {
     const items = [];
@@ -68,31 +67,10 @@ const TickerStrip = ({ indices, signals }) => {
     return items;
   }, [indices, signals]);
 
-  // Auto-scroll effect
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    let animId;
-    let scrollPos = 0;
-    const speed = 0.5;
-    const scroll = () => {
-      scrollPos += speed;
-      if (scrollPos >= el.scrollWidth / 2) scrollPos = 0;
-      el.scrollLeft = scrollPos;
-      animId = requestAnimationFrame(scroll);
-    };
-    animId = requestAnimationFrame(scroll);
-    return () => cancelAnimationFrame(animId);
-  }, [tickers]);
-
   return (
     <div className="bg-[#111827] border-b border-[rgba(42,52,68,0.5)] shrink-0 overflow-hidden">
-      <div
-        ref={scrollRef}
-        className="flex items-center gap-6 px-3 py-1 overflow-hidden no-scrollbar whitespace-nowrap"
-        style={{ scrollBehavior: "auto" }}
-      >
-        {/* Double the items for seamless loop */}
+      <div className="ticker-strip flex items-center gap-6 px-3 py-1 whitespace-nowrap">
+        {/* First copy */}
         {[...tickers, ...tickers].map((t, i) => {
           const isPositive = (t.change ?? 0) >= 0;
           const changeColor =
@@ -311,9 +289,18 @@ const SignalBarChart = ({ signals, selectedSymbol, onSelect }) => {
   const maxScore = Math.max(...signals.map((s) => s.score || 0), 1);
   return (
     <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)]">
+      {/* Hidden SVG defs for aurora gradient */}
+      <svg width="0" height="0" style={{ position: "absolute" }}>
+        <defs>
+          <linearGradient id="auroraBar" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#06B6D4" stopOpacity={0.9} />
+            <stop offset="100%" stopColor="#10B981" stopOpacity={0.6} />
+          </linearGradient>
+        </defs>
+      </svg>
       <div className="flex items-center justify-between px-3 py-1 border-b border-[rgba(42,52,68,0.5)]">
-        <span className="text-[8px] font-bold text-[#00D9FF] uppercase tracking-wider">
-          Signal Strength
+        <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
+          SIGNAL STRENGTH
         </span>
         <div className="flex items-center gap-2 text-[7px] font-mono text-[#64748b]">
           <span className="flex items-center gap-1">
@@ -335,6 +322,8 @@ const SignalBarChart = ({ signals, selectedSymbol, onSelect }) => {
           const h = ((sig.score || 0) / maxScore) * 100;
           const isLong = sig.direction === "LONG";
           const isSelected = sig.symbol === selectedSymbol;
+          // Aurora gradient for high scores, fallback colors for lower scores
+          const useAurora = sig.score >= 70;
           const barColor =
             sig.score >= 85
               ? "#10b981"
@@ -354,16 +343,25 @@ const SignalBarChart = ({ signals, selectedSymbol, onSelect }) => {
               <span className="text-[7px] font-mono font-bold text-white opacity-0 group-hover:opacity-100 transition-opacity mb-0.5">
                 {sig.score}
               </span>
-              <div
-                className={`w-5 rounded-t-sm transition-all duration-200 ${isSelected ? "ring-2 ring-[#00D9FF] shadow-[0_0_8px_rgba(0,217,255,0.4)]" : "group-hover:opacity-100"}`}
-                style={{
-                  height: `${h}%`,
-                  backgroundColor: barColor,
-                  opacity: isSelected ? 1 : 0.7,
-                  minHeight: "4px",
-                }}
-                title={`${sig.symbol}: ${sig.score}`}
-              />
+              {/* Aurora bar rendered as inline SVG rect for gradient support */}
+              <svg
+                width="20"
+                height={`${Math.max(h * 1.1, 4)}px`}
+                style={{ minHeight: "4px", display: "block" }}
+                className={`rounded-t-sm transition-all duration-200 ${isSelected ? "ring-2 ring-[#00D9FF] shadow-[0_0_8px_rgba(0,217,255,0.4)]" : ""}`}
+              >
+                <defs>
+                  <linearGradient id={`auroraBar-${i}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#06B6D4" stopOpacity={useAurora ? 0.9 : 0.7} />
+                    <stop offset="100%" stopColor={useAurora ? "#10B981" : barColor} stopOpacity={useAurora ? 0.6 : 0.7} />
+                  </linearGradient>
+                </defs>
+                <rect
+                  x="0" y="0" width="20" height="100%"
+                  fill={`url(#auroraBar-${i})`}
+                  opacity={isSelected ? 1 : 0.8}
+                />
+              </svg>
               <span
                 className={`text-[7px] font-mono mt-0.5 ${isSelected ? "text-[#00D9FF] font-bold" : "text-[#94a3b8] group-hover:text-white"}`}
               >
@@ -701,8 +699,8 @@ const HeatmapGrid = ({ signals }) => {
   return (
     <div className="bg-[#111827] border-t border-[rgba(42,52,68,0.5)]">
       <div className="flex items-center justify-between px-3 py-1 border-b border-[rgba(42,52,68,0.5)]">
-        <span className="text-[8px] font-bold text-[#00D9FF] uppercase tracking-wider">
-          Sector Heatmap
+        <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
+          SECTOR HEATMAP
         </span>
         <div className="flex items-center gap-2 text-[7px] font-mono text-[#64748b]">
           <span>Score:</span>
@@ -1166,43 +1164,43 @@ export default function Dashboard() {
           <div className="flex gap-4">
             <span>
               Equity{" "}
-              <span className="text-white">
+              <span className="text-white font-mono">
                 ${Number(portfolio.totalEquity ?? 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
               </span>
             </span>
             <span>
               P&L{" "}
-              <span className={Number(portfolio.dayPnL ?? 0) >= 0 ? "text-green-400" : "text-red-400"}>
+              <span className={`font-mono ${Number(portfolio.dayPnL ?? 0) >= 0 ? "text-green-400" : "text-red-400"}`}>
                 {Number(portfolio.dayPnL ?? 0) >= 0 ? "+" : ""}${Number(portfolio.dayPnL ?? 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
               </span>
             </span>
             <span>
               Deployed{" "}
-              <span className="text-[#00D9FF]">
+              <span className="text-[#00D9FF] font-mono">
                 {Number(portfolio.deployedPercent ?? 0).toFixed(1)}%
               </span>
             </span>
             <span>
               Sharpe{" "}
-              <span className="text-[#00D9FF]">
+              <span className="text-[#00D9FF] font-mono">
                 {performance.sharpe != null && performance.sharpe !== "" ? Number(performance.sharpe) : "0"}
               </span>
             </span>
             <span>
               Alpha{" "}
-              <span className="text-green-400">
+              <span className="text-green-400 font-mono">
                 +{performance.alpha != null && performance.alpha !== "" ? Number(performance.alpha) : "0"}%
               </span>
             </span>
             <span>
               Win{" "}
-              <span className="text-green-400">
+              <span className="text-green-400 font-mono">
                 {performance.winRate != null && performance.winRate !== "" ? Number(performance.winRate) : "0"}%
               </span>
             </span>
             <span>
               MaxDD{" "}
-              <span className="text-red-400">
+              <span className="text-red-400 font-mono">
                 {performance.maxDrawdown != null && performance.maxDrawdown !== "" ? Number(performance.maxDrawdown) : "0"}%
               </span>
             </span>
@@ -1332,32 +1330,32 @@ export default function Dashboard() {
                       onClick={() => setSelectedSymbol(sig.symbol)}
                       className={`cursor-pointer hover:bg-[#1e293b]/30 transition-colors ${isSelected ? "bg-[#164e63]/30 border-l-2 border-[#00D9FF]" : "border-l-2 border-transparent"}`}
                     >
-                      <td className="px-1.5 py-1 text-white font-bold">{sig.symbol}</td>
-                      <td className={`px-1.5 py-1 ${dirColor}`}>{isLong ? "L" : "S"}</td>
+                      <td className="px-1.5 py-1 text-white font-bold font-mono">{sig.symbol}</td>
+                      <td className={`px-1.5 py-1 font-mono ${dirColor}`}>{isLong ? "L" : "S"}</td>
                       <td className="px-1.5 py-1">
                         <div className="flex items-center gap-1">
-                          <span className={sig.score >= 90 ? "text-green-400" : "text-[#00D9FF]"}>{sig.score}</span>
+                          <span className={`font-mono ${sig.score >= 90 ? "text-green-400" : "text-[#00D9FF]"}`}>{sig.score}</span>
                           <div className="w-12 h-1.5 bg-[#1e293b] rounded-full overflow-hidden">
                             <div className="h-full rounded-full" style={{ width: `${sig.score}%`, backgroundColor: sig.score >= 85 ? "#10b981" : sig.score >= 70 ? "#00D9FF" : sig.score >= 50 ? "#f59e0b" : "#ef4444" }} />
                           </div>
                         </div>
                       </td>
-                      <td className="px-1.5 py-1 text-[#94a3b8]">{sig.scores?.regime || "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-[#94a3b8]">{sig.scores?.ml || "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-[#94a3b8]">{sig.scores?.sentiment || "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-[#94a3b8]">{sig.scores?.technical || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[#94a3b8] font-mono">{sig.scores?.regime || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[#94a3b8] font-mono">{sig.scores?.ml || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[#94a3b8] font-mono">{sig.scores?.sentiment || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[#94a3b8] font-mono">{sig.scores?.technical || "\u2014"}</td>
                       <td className="px-1.5 py-1 text-[#00D9FF] truncate max-w-[80px]">{sig.leadAgent || "\u2014"}</td>
                       <td className="px-1.5 py-1 text-[#94a3b8]">{sig.swarmVote || "\u2014"}</td>
                       <td className="px-1.5 py-1 text-[#64748b] truncate max-w-[60px]">{sig.topShap || "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-[#00D9FF]">{sig.kellyPercent ?? 0}%</td>
-                      <td className="px-1.5 py-1 text-[#94a3b8]">{sig.entry != null ? `$${Number(sig.entry).toFixed(2)}` : "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-green-400">{sig.target != null ? `$${Number(sig.target).toFixed(2)}` : "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-red-400">{sig.stop != null ? `$${Number(sig.stop).toFixed(2)}` : "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-white">{sig.rMultiple != null ? `${Number(sig.rMultiple).toFixed(1)}:1` : "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-green-400">{sig.expPnL != null ? `+$${Number(sig.expPnL).toLocaleString()}` : "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[#00D9FF] font-mono">{sig.kellyPercent ?? 0}%</td>
+                      <td className="px-1.5 py-1 text-[#94a3b8] font-mono">{sig.entry != null ? `$${Number(sig.entry).toFixed(2)}` : "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-green-400 font-mono">{sig.target != null ? `$${Number(sig.target).toFixed(2)}` : "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-red-400 font-mono">{sig.stop != null ? `$${Number(sig.stop).toFixed(2)}` : "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-white font-mono">{sig.rMultiple != null ? `${Number(sig.rMultiple).toFixed(1)}:1` : "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-green-400 font-mono">{sig.expPnL != null ? `+$${Number(sig.expPnL).toLocaleString()}` : "\u2014"}</td>
                       <td className="px-1.5 py-1 text-[#64748b]">{sig.sector?.substring(0, 3) || "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-green-400">+{sig.momentum || "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-[#00D9FF]">{sig.volSpike || "\u2014"}x</td>
+                      <td className="px-1.5 py-1 text-green-400 font-mono">+{sig.momentum || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[#00D9FF] font-mono">{sig.volSpike || "\u2014"}x</td>
                       <td className="px-1.5 py-1 text-[#64748b] truncate max-w-[50px]">{sig.newsImpact || "\u2014"}</td>
                       <td className="px-1.5 py-1 text-[#00D9FF] truncate max-w-[60px]">{sig.pattern || "\u2014"}</td>
                     </tr>
@@ -1399,7 +1397,7 @@ export default function Dashboard() {
         <section className="flex flex-col w-[32%] bg-[#111827] overflow-y-auto custom-scrollbar">
           {/* Swarm Consensus Bars (prominent at top per mockup) */}
           <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5 space-y-1.5">
-            <h3 className="text-[8px] text-[#00D9FF] font-bold uppercase tracking-wider">Swarm Consensus</h3>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">SWARM CONSENSUS</h3>
             {(swarm.agents || []).slice(0, 6).map((agent, i) => (
               <ConsensusBar
                 key={i}
@@ -1427,11 +1425,11 @@ export default function Dashboard() {
           {/* Regime Donut + Trades Donut Row */}
           <div className="flex gap-2 border-b border-[rgba(42,52,68,0.5)] p-2.5">
             <div className="flex-1 flex flex-col items-center">
-              <span className="text-[7px] text-[#94a3b8] uppercase tracking-wider mb-1">REGIME</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-1">REGIME</span>
               <RegimeDonut regime={openclaw.regime} score={openclaw.compositeScore} />
             </div>
             <div className="flex-1 flex flex-col items-center">
-              <span className="text-[7px] text-[#94a3b8] uppercase tracking-wider mb-1">TOP TRADES</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-1">TOP TRADES</span>
               <TopTradesDonut
                 buyCount={swarm.buyCount || processedSignals.filter((s) => s.direction === "LONG").length}
                 sellCount={swarm.sellCount || processedSignals.filter((s) => s.direction === "SHORT").length}
@@ -1520,7 +1518,7 @@ export default function Dashboard() {
           {/* Risk & Order Proposal */}
           {selectedSignal && (
             <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5 space-y-2">
-              <h3 className="text-[8px] text-[#00D9FF] font-bold uppercase tracking-wider">Risk & Order Proposal</h3>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">RISK & ORDER PROPOSAL</h3>
               <div className="font-mono text-[8px]">
                 <div className="grid grid-cols-2 gap-1 mb-1.5 pb-1.5 border-b border-[rgba(42,52,68,0.3)]">
                   <span className="text-[#94a3b8]">Action: <span className="text-white">Limit Buy {risk.limitPrice || "\u2014"}</span></span>
@@ -1617,7 +1615,7 @@ export default function Dashboard() {
             return (
               <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5 space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-[8px] text-[#00D9FF] font-bold uppercase tracking-wider">Cognitive Intelligence</h3>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">COGNITIVE INTELLIGENCE</h3>
                   <button onClick={() => { window.location.href = "/cognitive-dashboard"; }} className="text-[7px] text-[#00D9FF] hover:text-white transition-colors">View Full →</button>
                 </div>
                 <div className="grid grid-cols-2 gap-1 font-mono text-[8px]">
@@ -1652,12 +1650,12 @@ export default function Dashboard() {
 
           {/* Equity Curve + Flywheel (bottom of right panel) */}
           <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5">
-            <h3 className="text-[8px] text-[#00D9FF] font-bold uppercase tracking-wider mb-1">Equity Curve</h3>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-1">EQUITY CURVE</h3>
             <MiniEquityCurve points={performance.equityCurve} />
           </div>
 
           <div className="p-2.5">
-            <h3 className="text-[8px] text-[#00D9FF] font-bold uppercase tracking-wider mb-2">ML Flywheel</h3>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-2">ML FLYWHEEL</h3>
             <FlywheelPipeline flywheel={flywheel} />
           </div>
         </section>

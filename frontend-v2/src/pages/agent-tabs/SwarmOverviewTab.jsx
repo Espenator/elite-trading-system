@@ -1,18 +1,19 @@
-// SwarmOverviewTab — matches mockup 01-agent-command-center-final.png
-// Layout: 3-column grid
-//   Left: Agent Health Matrix, Quick Actions, Team Status, System Alerts
-//   Center: Live Activity Feed, Agent Resource Monitor, Blackboard Live Feed
-//   Right: Swarm Topology, Conference Pipeline, Last Conference, Drift Monitor
-import React, { useState, useEffect, useRef } from "react";
+// SwarmOverviewTab — upgraded layout matching mockup
+// Row 1: Full-width Swarm Topology DAG
+// Row 2: [Health + Actions + Alerts (3)] [Activity + Resources (5)] [ELO + HITL (4)]
+// Row 3: [Conference Pipeline + Last Conference (6)] [Drift + Blackboard (3)] [Team Status (3)]
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Activity, Zap, Brain, MessageCircle, Shield, Target, Eye, Cpu,
   AlertTriangle, CheckCircle, XCircle, Play, Square, RefreshCw,
-  Users, Trophy, Radio, Server, Clock, TrendingUp,
+  Users, Trophy, Radio, Server, Clock, TrendingUp, TrendingDown,
+  ChevronUp, ChevronDown, Check, X, Minus,
 } from "lucide-react";
 import Card from "../../components/ui/Card";
-import { useApi } from "../../hooks/useApi";
+import { useApi, useEloLeaderboard, useHitlBuffer } from "../../hooks/useApi";
 import ws from "../../services/websocket";
 import { toast } from "react-toastify";
+import { getApiUrl, getAuthHeaders } from "../../config/api";
 
 const HEALTH_COLORS = {
   healthy: "bg-emerald-500 shadow-emerald-500/50",
@@ -31,7 +32,320 @@ const AGENT_CATEGORIES = [
   { name: "Conference", group: "Conference" }, { name: "Memory", group: "Memory" },
 ];
 
-// --- Agent Health Matrix (dot grid) ---
+// ─── DAG TOPOLOGY ─────────────────────────────────────────────────────────────
+
+const DAG_COLUMNS = [
+  {
+    id: "sources",
+    label: "EXTERNAL SOURCES",
+    color: "#10b981",      // emerald
+    borderColor: "#059669",
+    bgColor: "rgba(16,185,129,0.08)",
+    nodes: [
+      { id: "alpaca",  label: "Alpaca",  health: "healthy" },
+      { id: "finviz",  label: "Finviz",  health: "healthy" },
+      { id: "fred",    label: "FRED",    health: "healthy" },
+      { id: "edgar",   label: "EDGAR",   health: "degraded" },
+      { id: "twitter", label: "Twitter", health: "healthy" },
+      { id: "news",    label: "News",    health: "healthy" },
+    ],
+  },
+  {
+    id: "agents",
+    label: "AGENTS",
+    color: "#06b6d4",      // cyan
+    borderColor: "#0891b2",
+    bgColor: "rgba(6,182,212,0.08)",
+    nodes: [
+      { id: "scanner",   label: "Scanner",   health: "healthy" },
+      { id: "sentiment", label: "Sentiment",  health: "healthy" },
+      { id: "ml",        label: "ML",         health: "degraded" },
+      { id: "research",  label: "Research",   health: "healthy" },
+      { id: "adversary", label: "Adversary",  health: "healthy" },
+      { id: "memory",    label: "Memory",     health: "healthy" },
+    ],
+  },
+  {
+    id: "engines",
+    label: "PROCESSING ENGINES",
+    color: "#a855f7",      // purple
+    borderColor: "#9333ea",
+    bgColor: "rgba(168,85,247,0.08)",
+    nodes: [
+      { id: "signal_engine", label: "Signal Engine", health: "healthy" },
+      { id: "risk_engine",   label: "Risk Engine",   health: "healthy" },
+      { id: "council",       label: "Council",       health: "healthy" },
+      { id: "execution_eng", label: "Execution",     health: "healthy" },
+      { id: "ml_engine",     label: "ML Engine",     health: "degraded" },
+    ],
+  },
+  {
+    id: "storage",
+    label: "STORAGE",
+    color: "#f59e0b",      // amber
+    borderColor: "#d97706",
+    bgColor: "rgba(245,158,11,0.08)",
+    nodes: [
+      { id: "trading_db",    label: "trading_data.db", health: "healthy" },
+      { id: "feature_cache", label: "feature_cache",   health: "healthy" },
+      { id: "logs",          label: "logs",             health: "healthy" },
+    ],
+  },
+  {
+    id: "frontend",
+    label: "FRONTEND",
+    color: "#ef4444",      // red
+    borderColor: "#dc2626",
+    bgColor: "rgba(239,68,68,0.08)",
+    nodes: [
+      { id: "dashboard",  label: "Dashboard",  health: "healthy" },
+      { id: "acc",        label: "ACC",         health: "healthy" },
+      { id: "trade_exec", label: "Trade Exec",  health: "healthy" },
+      { id: "patterns",   label: "Patterns",   health: "healthy" },
+    ],
+  },
+];
+
+// Edges: [sourceColIdx, sourceNodeIdx, targetColIdx, targetNodeIdx]
+const DAG_EDGES = [
+  // Sources → Agents
+  [0,0,1,0], [0,0,1,1], // Alpaca → Scanner, Sentiment
+  [0,1,1,0], [0,1,1,3], // Finviz → Scanner, Research
+  [0,2,1,3],             // FRED → Research
+  [0,3,1,3],             // EDGAR → Research
+  [0,4,1,1],             // Twitter → Sentiment
+  [0,5,1,1], [0,5,1,3], // News → Sentiment, Research
+  // Agents → Engines
+  [1,0,2,0], [1,0,2,1], // Scanner → Signal, Risk
+  [1,1,2,0],             // Sentiment → Signal
+  [1,2,2,4],             // ML → ML Engine
+  [1,3,2,2], [1,3,2,1], // Research → Council, Risk
+  [1,4,2,2],             // Adversary → Council
+  [1,5,2,2],             // Memory → Council
+  // Engines → Storage
+  [2,0,3,0], [2,0,3,1], // Signal → db, cache
+  [2,1,3,0],             // Risk → db
+  [2,2,3,0],             // Council → db
+  [2,3,3,2],             // Execution → logs
+  [2,4,3,1],             // ML Engine → cache
+  // Engines → Frontend
+  [2,0,4,1],             // Signal → ACC
+  [2,1,4,1],             // Risk → ACC
+  [2,2,4,0], [2,2,4,1], // Council → Dashboard, ACC
+  [2,3,4,2],             // Execution → Trade Exec
+  // Storage → Frontend
+  [3,0,4,0], [3,0,4,3], // db → Dashboard, Patterns
+];
+
+function SwarmTopologyDAG() {
+  const SVG_W = 800;
+  const SVG_H = 400;
+  const COL_W = 130;
+  const NODE_W = 90;
+  const NODE_H = 22;
+  const NODE_RX = 4;
+  const COL_HEADER_H = 28;
+
+  // Compute column x positions (evenly spaced)
+  const numCols = DAG_COLUMNS.length;
+  const colXs = DAG_COLUMNS.map((_, i) => {
+    const span = SVG_W - COL_W;
+    return Math.round((span / (numCols - 1)) * i) + COL_W / 2 - NODE_W / 2;
+  });
+
+  // For each column, compute node y positions
+  const nodePositions = DAG_COLUMNS.map((col, ci) => {
+    const n = col.nodes.length;
+    const totalH = n * (NODE_H + 8) - 8;
+    const startY = COL_HEADER_H + Math.round((SVG_H - COL_HEADER_H - totalH) / 2);
+    return col.nodes.map((_, ni) => startY + ni * (NODE_H + 8));
+  });
+
+  // Center x of a node
+  const nodeCX = (ci) => colXs[ci] + NODE_W / 2;
+  const nodeCY = (ci, ni) => nodePositions[ci][ni] + NODE_H / 2;
+
+  const healthDotColor = (h) =>
+    h === "healthy" ? "#10b981" : h === "degraded" ? "#f59e0b" : h === "error" ? "#ef4444" : "#4b5563";
+
+  // Unique animation id per edge
+  const animId = (i) => `dash-anim-${i}`;
+
+  return (
+    <div className="aurora-card p-3">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-xs font-bold text-white uppercase tracking-wider">Swarm Topology</h3>
+        <div className="flex items-center gap-3 text-[9px]">
+          {[
+            { color: "#10b981", label: "External Sources" },
+            { color: "#06b6d4", label: "Agents" },
+            { color: "#a855f7", label: "Engines" },
+            { color: "#f59e0b", label: "Storage" },
+            { color: "#ef4444", label: "Frontend" },
+          ].map(({ color, label }) => (
+            <span key={label} className="flex items-center gap-1" style={{ color }}>
+              <span
+                style={{ width: 8, height: 8, borderRadius: 2, background: color, display: "inline-block" }}
+              />
+              {label}
+            </span>
+          ))}
+        </div>
+      </div>
+      <svg
+        viewBox={`0 0 ${SVG_W} ${SVG_H}`}
+        className="w-full"
+        style={{ height: 220 }}
+        aria-label="Swarm topology DAG"
+      >
+        <defs>
+          {/* Animated dash styles per column color */}
+          {["#10b981","#06b6d4","#a855f7","#f59e0b"].map((color, idx) => (
+            <style key={idx}>{`
+              .dash-${idx} {
+                stroke: ${color};
+                stroke-width: 0.8;
+                stroke-dasharray: 4 2;
+                fill: none;
+                opacity: 0.35;
+              }
+            `}</style>
+          ))}
+        </defs>
+
+        {/* Draw edges */}
+        {DAG_EDGES.map((edge, i) => {
+          const [sc, sn, tc, tn] = edge;
+          const x1 = nodeCX(sc) + NODE_W / 2;
+          const y1 = nodeCY(sc, sn);
+          const x2 = colXs[tc];
+          const y2 = nodeCY(tc, tn);
+          const mx = (x1 + x2) / 2;
+          const dashClass = `dash-${sc}`;
+          const strokeColor =
+            sc === 0 ? "#10b981" :
+            sc === 1 ? "#06b6d4" :
+            sc === 2 ? "#a855f7" : "#f59e0b";
+          return (
+            <path
+              key={i}
+              d={`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`}
+              stroke={strokeColor}
+              strokeWidth="0.7"
+              strokeDasharray="4 2"
+              fill="none"
+              opacity="0.3"
+            >
+              <animate
+                attributeName="stroke-dashoffset"
+                from="0"
+                to="-18"
+                dur={`${1.8 + (i % 5) * 0.3}s`}
+                repeatCount="indefinite"
+              />
+            </path>
+          );
+        })}
+
+        {/* Draw column header backgrounds */}
+        {DAG_COLUMNS.map((col, ci) => (
+          <g key={col.id}>
+            <rect
+              x={colXs[ci] - 4}
+              y={2}
+              width={NODE_W + 8}
+              height={COL_HEADER_H - 4}
+              rx={3}
+              fill={col.bgColor}
+              stroke={col.borderColor}
+              strokeWidth="0.5"
+              opacity="0.7"
+            />
+            <text
+              x={colXs[ci] + NODE_W / 2}
+              y={COL_HEADER_H - 10}
+              textAnchor="middle"
+              fill={col.color}
+              fontSize="7"
+              fontWeight="700"
+              letterSpacing="0.8"
+              fontFamily="monospace"
+            >
+              {col.label}
+            </text>
+          </g>
+        ))}
+
+        {/* Draw nodes */}
+        {DAG_COLUMNS.map((col, ci) =>
+          col.nodes.map((node, ni) => {
+            const nx = colXs[ci];
+            const ny = nodePositions[ci][ni];
+            const dotColor = healthDotColor(node.health);
+            return (
+              <g key={node.id}>
+                {/* Node background */}
+                <rect
+                  x={nx}
+                  y={ny}
+                  width={NODE_W}
+                  height={NODE_H}
+                  rx={NODE_RX}
+                  fill="rgba(15,23,42,0.85)"
+                  stroke={col.borderColor}
+                  strokeWidth="0.6"
+                  opacity="0.9"
+                />
+                {/* Left health border */}
+                <rect
+                  x={nx}
+                  y={ny}
+                  width={3}
+                  height={NODE_H}
+                  rx={NODE_RX}
+                  fill={dotColor}
+                  opacity="0.9"
+                />
+                {/* Health dot */}
+                <circle
+                  cx={nx + 10}
+                  cy={ny + NODE_H / 2}
+                  r={2.5}
+                  fill={dotColor}
+                  opacity="0.9"
+                >
+                  {node.health === "healthy" && (
+                    <animate
+                      attributeName="opacity"
+                      values="0.6;1;0.6"
+                      dur={`${1.5 + ni * 0.2}s`}
+                      repeatCount="indefinite"
+                    />
+                  )}
+                </circle>
+                {/* Label */}
+                <text
+                  x={nx + 18}
+                  y={ny + NODE_H / 2 + 3.5}
+                  fill={col.color}
+                  fontSize="7.5"
+                  fontFamily="monospace"
+                  fontWeight="500"
+                  letterSpacing="0.2"
+                >
+                  {node.label}
+                </text>
+              </g>
+            );
+          })
+        )}
+      </svg>
+    </div>
+  );
+}
+
+// ─── AGENT HEALTH MATRIX ──────────────────────────────────────────────────────
+
 function AgentHealthMatrix({ agents }) {
   const active = agents.filter(a => a.status === "running").length;
   const warning = agents.filter(a => a.health === "degraded").length;
@@ -66,7 +380,8 @@ function AgentHealthMatrix({ agents }) {
   );
 }
 
-// --- Quick Actions ---
+// ─── QUICK ACTIONS ────────────────────────────────────────────────────────────
+
 function QuickActions() {
   const actions = [
     { label: "Restart All", color: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30", action: "Restarting all agents..." },
@@ -90,33 +405,8 @@ function QuickActions() {
   );
 }
 
-// --- Team Status ---
-function TeamStatus({ agents }) {
-  const teams = [
-    { name: "fear_bounce_team", agents: 5, status: "ACTIVE", health: 87 },
-    { name: "greed_momentum_team", agents: 8, status: "ACTIVE", health: 92 },
-    { name: "momentum", agents: 3, status: "DEGRADED", health: 67 },
-  ];
-  return (
-    <div className="aurora-card p-3">
-      <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Team Status</h3>
-      <div className="space-y-1.5">
-        {teams.map(t => (
-          <div key={t.name} className="flex items-center justify-between text-[10px]">
-            <span className="text-white font-mono">{t.name}</span>
-            <div className="flex items-center gap-2">
-              <span className="text-gray-500">{t.agents} agents</span>
-              <span className={t.status === "ACTIVE" ? "text-cyan-400" : "text-amber-400"}>{t.status}</span>
-              <span className="text-white">{t.health}%</span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+// ─── SYSTEM ALERTS ────────────────────────────────────────────────────────────
 
-// --- System Alerts ---
 function SystemAlertsPanel({ agents }) {
   const alerts = [
     { level: "RED", icon: XCircle, color: "text-red-400", msg: "MLTrain-03 unresponsive — no heartbeat for 12m" },
@@ -141,7 +431,8 @@ function SystemAlertsPanel({ agents }) {
   );
 }
 
-// --- Live Agent Activity Feed ---
+// ─── LIVE ACTIVITY FEED ───────────────────────────────────────────────────────
+
 function LiveActivityFeed({ agents }) {
   const [items, setItems] = useState([]);
   const feedRef = useRef([]);
@@ -168,7 +459,9 @@ function LiveActivityFeed({ agents }) {
       const seed = agents.slice(0, 12).map((a, i) => ({
         id: i, time: a.last_tick ? new Date(a.last_tick).toLocaleTimeString().slice(0, 8) : "09:41:23",
         agent: a.name || a.agent_name || `Agent-${i}`,
-        action: a.status === "running" ? `${a.name || "Agent"} — ${["Market regime shifted to GREEN","Epoch B47/1000 val_loss 0.0023","Signal generated for AAPL","Twitter data stream processing","12 alerts dispatched to Stack","Consensus reaching for #841"][i % 6]}` : `Status: ${a.status || "idle"}`,
+        action: a.status === "running"
+          ? `${a.name || "Agent"} — ${["Market regime shifted to GREEN","Epoch B47/1000 val_loss 0.0023","Signal generated for AAPL","Twitter data stream processing","12 alerts dispatched to Stack","Consensus reaching for #841"][i % 6]}`
+          : `Status: ${a.status || "idle"}`,
         color: colors[i % colors.length],
       }));
       setItems(seed);
@@ -192,7 +485,8 @@ function LiveActivityFeed({ agents }) {
   );
 }
 
-// --- Agent Resource Monitor ---
+// ─── RESOURCE MONITOR ─────────────────────────────────────────────────────────
+
 function ResourceMonitor({ agents }) {
   const rows = [
     { name: "MLTrain-01", cpu: 45, mem: "1200MB", gpu: 61, status: "Training" },
@@ -227,89 +521,209 @@ function ResourceMonitor({ agents }) {
   );
 }
 
-// --- Blackboard Live Feed ---
-function BlackboardFeed() {
-  const topics = [
-    { topic: "SIG_GEN", subs: 3, rate: 3.4, last: "Signal generated for SPY" },
-    { topic: "RISK_EVA", subs: 8, rate: 1.7, last: "Risk assessment requested" },
-    { topic: "SENTIMENT", subs: 5, rate: 0.9, last: "News stream processing" },
-    { topic: "EXECUTION", subs: 4, rate: 4.2, last: "Macro data refresh" },
-  ];
-  return (
-    <div className="aurora-card p-3">
-      <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Blackboard Live Feed</h3>
-      <table className="w-full text-[10px]">
-        <thead><tr className="text-gray-500 border-b border-gray-800">
-          <th className="text-left py-1 font-medium">Topic</th>
-          <th className="text-right font-medium">Subs</th>
-          <th className="text-left pl-3 font-medium">Last Message</th>
-        </tr></thead>
-        <tbody>{topics.map(t => (
-          <tr key={t.topic} className="border-b border-gray-800/30 hover:bg-cyan-500/5">
-            <td className="py-1 text-cyan-400 font-mono">{t.topic}</td>
-            <td className="text-right text-white">{t.subs}</td>
-            <td className="pl-3 text-gray-400">{t.last}</td>
-          </tr>
-        ))}</tbody>
-      </table>
-    </div>
-  );
-}
+// ─── ELO LEADERBOARD (UPGRADED) ───────────────────────────────────────────────
 
-// --- Swarm Topology (node visualization) ---
-function SwarmTopologyViz({ agents }) {
-  const nodes = agents.length > 0 ? agents.slice(0, 15) : Array.from({ length: 15 }, (_, i) => ({ name: `Agent-${i}`, health: ["healthy","healthy","degraded","healthy","error"][i % 5] }));
-  const dotColor = h => h === "healthy" ? "fill-emerald-500" : h === "degraded" ? "fill-amber-500" : h === "error" ? "fill-red-500" : "fill-gray-600";
-  return (
-    <div className="aurora-card p-3">
-      <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Swarm Topology</h3>
-      <svg viewBox="0 0 200 120" className="w-full h-[120px]">
-        {nodes.map((n, i) => {
-          const angle = (i / nodes.length) * Math.PI * 2;
-          const r = 35 + (i % 3) * 12;
-          const cx = 100 + Math.cos(angle) * r;
-          const cy = 60 + Math.sin(angle) * r;
-          return <circle key={i} cx={cx} cy={cy} r={4} className={`${dotColor(n.health)} opacity-80`}>
-            {n.health === "healthy" && <animate attributeName="opacity" values="0.6;1;0.6" dur="2s" repeatCount="indefinite" />}
-          </circle>;
-        })}
-        {nodes.slice(0, 8).map((_, i) => {
-          const a1 = (i / nodes.length) * Math.PI * 2, a2 = ((i + 3) / nodes.length) * Math.PI * 2;
-          const r1 = 35 + (i % 3) * 12, r2 = 35 + ((i + 3) % 3) * 12;
-          return <line key={`l${i}`} x1={100 + Math.cos(a1) * r1} y1={60 + Math.sin(a1) * r1} x2={100 + Math.cos(a2) * r2} y2={60 + Math.sin(a2) * r2} stroke="rgba(6,182,212,0.15)" strokeWidth="0.5" />;
-        })}
-      </svg>
-    </div>
-  );
-}
+const ELO_FALLBACK = [
+  { rank: 1, name: "Researcher",      elo: 1985, delta7d: +18, winRate: 73.2, trades: 142 },
+  { rank: 2, name: "Scanner-01",      elo: 1972, delta7d: +6,  winRate: 71.8, trades: 218 },
+  { rank: 3, name: "RegimeDetector",  elo: 1847, delta7d: -11, winRate: 64.1, trades: 97  },
+  { rank: 4, name: "MLTrain-03",      elo: 1823, delta7d: +32, winRate: 68.5, trades: 184 },
+  { rank: 5, name: "Adversary",       elo: 1791, delta7d: -4,  winRate: 59.3, trades: 76  },
+  { rank: 6, name: "Sentiment-02",    elo: 1763, delta7d: +9,  winRate: 62.7, trades: 131 },
+];
 
-// --- ELO Leaderboard ---
-function EloLeaderboard({ agents }) {
-  const leaders = [
-    { rank: 1, name: "Researcher", elo: 1985, win: "+3" },
-    { rank: 2, name: "Scanner-01", elo: 1972, win: "+1" },
-    { rank: 3, name: "RegimeDetector", elo: 1847, win: "-2" },
-    { rank: 4, name: "MLTrain-03", elo: 1823, win: "+5" },
-  ];
+function EloLeaderboard() {
+  const { data, loading } = useEloLeaderboard(30000);
+
+  const leaders = React.useMemo(() => {
+    if (!data || !Array.isArray(data)) return ELO_FALLBACK;
+    return data.map((d, i) => ({
+      rank: i + 1,
+      name: d.agent_name || d.name || `Agent-${i}`,
+      elo: d.elo_rating ?? d.elo ?? 1500,
+      delta7d: d.delta_7d ?? d.change_7d ?? 0,
+      winRate: d.win_rate ?? d.winRate ?? 50,
+      trades: d.total_trades ?? d.trades ?? 0,
+    }));
+  }, [data]);
+
+  const maxElo = Math.max(...leaders.map(l => l.elo), 1);
+
   return (
     <div className="aurora-card p-3">
       <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Agent ELO Leaderboard</h3>
+      {loading && <div className="text-[10px] text-gray-500 mb-1">Loading...</div>}
       <table className="w-full text-[10px]">
-        <thead><tr className="text-gray-500"><th className="text-left">Rank</th><th className="text-left">Agent</th><th className="text-right">ELO</th><th className="text-right">W/L</th></tr></thead>
-        <tbody>{leaders.map(l => (
-          <tr key={l.rank} className="border-b border-gray-800/20">
-            <td className="py-1 text-gray-400">{l.rank}.</td>
-            <td className="text-cyan-400">{l.name}</td>
-            <td className="text-right text-white font-mono">{l.elo}</td>
-            <td className={`text-right ${l.win.startsWith("+") ? "text-emerald-400" : "text-red-400"}`}>{l.win}</td>
+        <thead>
+          <tr className="text-gray-500 border-b border-gray-800">
+            <th className="text-left py-1 font-medium w-4">#</th>
+            <th className="text-left font-medium">Agent</th>
+            <th className="text-right font-medium">ELO</th>
+            <th className="text-right font-medium">Δ7d</th>
+            <th className="text-right font-medium">Win%</th>
+            <th className="text-right font-medium">Trades</th>
           </tr>
-        ))}</tbody>
+        </thead>
+        <tbody>
+          {leaders.map(l => {
+            const barPct = Math.round((l.elo / maxElo) * 100);
+            const deltaColor = l.delta7d > 0 ? "text-emerald-400" : l.delta7d < 0 ? "text-red-400" : "text-gray-500";
+            const DeltaIcon = l.delta7d > 0 ? ChevronUp : l.delta7d < 0 ? ChevronDown : Minus;
+            return (
+              <tr key={l.rank} className="relative border-b border-gray-800/20 hover:bg-cyan-500/5">
+                {/* ELO sparkline bar behind the row */}
+                <td colSpan={6} className="p-0 absolute inset-0 pointer-events-none">
+                  <div
+                    className="h-full rounded opacity-[0.06] bg-cyan-400"
+                    style={{ width: `${barPct}%` }}
+                  />
+                </td>
+                <td className="py-1 text-gray-500 relative z-10">{l.rank}.</td>
+                <td className="text-cyan-400 relative z-10 font-mono">{l.name}</td>
+                <td className="text-right text-white font-mono relative z-10">{l.elo}</td>
+                <td className={`text-right font-mono relative z-10 ${deltaColor}`}>
+                  <span className="inline-flex items-center justify-end gap-0.5">
+                    <DeltaIcon className="w-2.5 h-2.5" />
+                    {Math.abs(l.delta7d)}
+                  </span>
+                </td>
+                <td className="text-right text-gray-300 relative z-10">{l.winRate.toFixed(1)}%</td>
+                <td className="text-right text-gray-400 relative z-10">{l.trades}</td>
+              </tr>
+            );
+          })}
+        </tbody>
       </table>
     </div>
   );
 }
 
-// --- Conference Pipeline ---
+// ─── HITL APPROVAL QUEUE ──────────────────────────────────────────────────────
+
+const HITL_FALLBACK = [
+  { id: "hitl-1", time: "09:41", symbol: "AAPL", direction: "BUY",  confidence: 87, agent: "Researcher" },
+  { id: "hitl-2", time: "09:43", symbol: "SPY",  direction: "SELL", confidence: 74, agent: "Scanner-01" },
+  { id: "hitl-3", time: "09:45", symbol: "TSLA", direction: "BUY",  confidence: 91, agent: "Adversary"  },
+];
+
+async function postHitlDecision(decisionId, action) {
+  const base = import.meta.env.VITE_API_URL ?? "";
+  const res = await fetch(`${base}/api/v1/agents/hitl/decision`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({ decision_id: decisionId, action }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+function HITLQueue() {
+  const { data, loading, refetch } = useHitlBuffer(15000);
+  const [decisions, setDecisions] = useState({});
+
+  const items = React.useMemo(() => {
+    if (!data) return HITL_FALLBACK;
+    const arr = Array.isArray(data) ? data : data.items ?? data.buffer ?? [];
+    if (arr.length === 0) return HITL_FALLBACK;
+    return arr.map(d => ({
+      id: d.id ?? d.decision_id ?? String(Math.random()),
+      time: d.time ?? d.timestamp
+        ? new Date(d.timestamp).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false })
+        : "09:41",
+      symbol: d.symbol ?? "—",
+      direction: d.direction ?? d.side ?? "BUY",
+      confidence: Math.round((d.confidence ?? 0.8) * (d.confidence <= 1 ? 100 : 1)),
+      agent: d.agent ?? d.agent_name ?? "Unknown",
+    }));
+  }, [data]);
+
+  const pending = items.filter(i => !decisions[i.id]);
+
+  const handleDecision = useCallback(async (id, action) => {
+    setDecisions(prev => ({ ...prev, [id]: action }));
+    try {
+      await postHitlDecision(id, action);
+      toast.success(`HITL: ${action.toUpperCase()} submitted`);
+      setTimeout(refetch, 1000);
+    } catch (e) {
+      toast.error(`HITL error: ${e.message}`);
+      setDecisions(prev => { const next = { ...prev }; delete next[id]; return next; });
+    }
+  }, [refetch]);
+
+  return (
+    <div className="aurora-card p-3">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-xs font-bold text-white uppercase tracking-wider">HITL Approval Queue</h3>
+        {pending.length > 0 && (
+          <span className="px-2 py-0.5 bg-amber-500/20 border border-amber-500/40 rounded text-[9px] font-bold text-amber-400 animate-pulse">
+            {pending.length} PENDING APPROVAL
+          </span>
+        )}
+      </div>
+      {loading && <div className="text-[10px] text-gray-500 mb-1">Loading queue...</div>}
+      {pending.length === 0 && !loading ? (
+        <div className="text-[10px] text-gray-500 text-center py-3">No pending approvals</div>
+      ) : (
+        <table className="w-full text-[10px]">
+          <thead>
+            <tr className="text-gray-500 border-b border-gray-800">
+              <th className="text-left py-1 font-medium">Time</th>
+              <th className="text-left font-medium">Symbol</th>
+              <th className="text-left font-medium">Dir</th>
+              <th className="text-right font-medium">Conf</th>
+              <th className="text-left pl-2 font-medium">Agent</th>
+              <th className="text-right font-medium">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map(item => {
+              const decided = decisions[item.id];
+              return (
+                <tr key={item.id} className={`border-b border-gray-800/20 ${decided ? "opacity-40" : "hover:bg-amber-500/5"}`}>
+                  <td className="py-1 text-gray-500 font-mono">{item.time}</td>
+                  <td className="text-white font-bold font-mono">{item.symbol}</td>
+                  <td className={`font-bold ${item.direction === "BUY" ? "text-emerald-400" : "text-red-400"}`}>
+                    {item.direction}
+                  </td>
+                  <td className="text-right text-cyan-400 font-mono">{item.confidence}%</td>
+                  <td className="pl-2 text-gray-400">{item.agent}</td>
+                  <td className="text-right">
+                    {decided ? (
+                      <span className={`text-[9px] font-bold ${decided === "approve" ? "text-emerald-400" : "text-red-400"}`}>
+                        {decided.toUpperCase()}D
+                      </span>
+                    ) : (
+                      <span className="inline-flex gap-1">
+                        <button
+                          onClick={() => handleDecision(item.id, "approve")}
+                          className="px-1.5 py-0.5 bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 rounded text-[9px] font-bold hover:bg-emerald-500/30 transition-all"
+                          title="Approve"
+                        >
+                          ✓
+                        </button>
+                        <button
+                          onClick={() => handleDecision(item.id, "reject")}
+                          className="px-1.5 py-0.5 bg-red-500/20 border border-red-500/40 text-red-400 rounded text-[9px] font-bold hover:bg-red-500/30 transition-all"
+                          title="Reject"
+                        >
+                          ✗
+                        </button>
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+// ─── CONFERENCE PIPELINE ──────────────────────────────────────────────────────
+
 function ConferencePipelineViz() {
   const stages = ["Researcher", "RiskOfficer", "Adversary", "Arbiter"];
   return (
@@ -327,7 +741,8 @@ function ConferencePipelineViz() {
   );
 }
 
-// --- Last Conference ---
+// ─── LAST CONFERENCE ──────────────────────────────────────────────────────────
+
 function LastConference() {
   const votes = [
     { agent: "Researcher", vote: 82 },
@@ -365,14 +780,15 @@ function LastConference() {
   );
 }
 
-// --- Drift Monitor ---
+// ─── DRIFT MONITOR ────────────────────────────────────────────────────────────
+
 function DriftMonitorPanel() {
   const metrics = [
-    { name: "model_drift", val: 0.12, status: "ok" },
-    { name: "input_histogram", val: 0.34, status: "warn" },
-    { name: "feature_importance", val: 0.08, status: "ok" },
-    { name: "prediction_calibration", val: 0.22, status: "ok" },
-    { name: "Mean PSI: 0.178", val: null, status: "info" },
+    { name: "model_drift",             val: 0.12, status: "ok"   },
+    { name: "input_histogram",         val: 0.34, status: "warn" },
+    { name: "feature_importance",      val: 0.08, status: "ok"   },
+    { name: "prediction_calibration",  val: 0.22, status: "ok"   },
+    { name: "Mean PSI: 0.178",         val: null, status: "info" },
   ];
   return (
     <div className="aurora-card p-3">
@@ -390,33 +806,114 @@ function DriftMonitorPanel() {
   );
 }
 
-// === MAIN TAB COMPONENT ===
+// ─── BLACKBOARD FEED ──────────────────────────────────────────────────────────
+
+function BlackboardFeed() {
+  const topics = [
+    { topic: "SIG_GEN",   subs: 3, rate: 3.4, last: "Signal generated for SPY"   },
+    { topic: "RISK_EVA",  subs: 8, rate: 1.7, last: "Risk assessment requested"   },
+    { topic: "SENTIMENT", subs: 5, rate: 0.9, last: "News stream processing"      },
+    { topic: "EXECUTION", subs: 4, rate: 4.2, last: "Macro data refresh"          },
+  ];
+  return (
+    <div className="aurora-card p-3">
+      <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Blackboard Live Feed</h3>
+      <table className="w-full text-[10px]">
+        <thead><tr className="text-gray-500 border-b border-gray-800">
+          <th className="text-left py-1 font-medium">Topic</th>
+          <th className="text-right font-medium">Subs</th>
+          <th className="text-left pl-3 font-medium">Last Message</th>
+        </tr></thead>
+        <tbody>{topics.map(t => (
+          <tr key={t.topic} className="border-b border-gray-800/30 hover:bg-cyan-500/5">
+            <td className="py-1 text-cyan-400 font-mono">{t.topic}</td>
+            <td className="text-right text-white">{t.subs}</td>
+            <td className="pl-3 text-gray-400">{t.last}</td>
+          </tr>
+        ))}</tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── TEAM STATUS ──────────────────────────────────────────────────────────────
+
+function TeamStatus({ agents }) {
+  const teams = [
+    { name: "fear_bounce_team",    agents: 5, status: "ACTIVE",   health: 87 },
+    { name: "greed_momentum_team", agents: 8, status: "ACTIVE",   health: 92 },
+    { name: "momentum",            agents: 3, status: "DEGRADED", health: 67 },
+  ];
+  return (
+    <div className="aurora-card p-3">
+      <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Team Status</h3>
+      <div className="space-y-1.5">
+        {teams.map(t => (
+          <div key={t.name} className="flex items-center justify-between text-[10px]">
+            <span className="text-white font-mono">{t.name}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500">{t.agents} agents</span>
+              <span className={t.status === "ACTIVE" ? "text-cyan-400" : "text-amber-400"}>{t.status}</span>
+              <span className="text-white">{t.health}%</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── MAIN TAB ─────────────────────────────────────────────────────────────────
+
 export default function SwarmOverviewTab({ agents }) {
   return (
     <div className="grid grid-cols-12 gap-3">
-      {/* LEFT COLUMN */}
+
+      {/* ── ROW 1: Full-width DAG Topology ── */}
+      <div className="col-span-12">
+        <SwarmTopologyDAG />
+      </div>
+
+      {/* ── ROW 2 ── */}
+
+      {/* Left: Health + Actions + Alerts */}
       <div className="col-span-3 space-y-3">
         <AgentHealthMatrix agents={agents} />
         <QuickActions />
-        <TeamStatus agents={agents} />
         <SystemAlertsPanel agents={agents} />
       </div>
-      {/* CENTER COLUMN */}
+
+      {/* Center: Activity + Resources */}
       <div className="col-span-5 space-y-3">
         <LiveActivityFeed agents={agents} />
         <ResourceMonitor agents={agents} />
-        <BlackboardFeed />
       </div>
-      {/* RIGHT COLUMN */}
+
+      {/* Right: ELO + HITL */}
       <div className="col-span-4 space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <SwarmTopologyViz agents={agents} />
-          <EloLeaderboard agents={agents} />
-        </div>
+        <EloLeaderboard />
+        <HITLQueue />
+      </div>
+
+      {/* ── ROW 3 ── */}
+
+      {/* Conference Pipeline + Last Conference */}
+      <div className="col-span-6 space-y-3">
         <ConferencePipelineViz />
         <LastConference />
-        <DriftMonitorPanel />
       </div>
+
+      {/* Drift + Blackboard */}
+      <div className="col-span-3 space-y-3">
+        <DriftMonitorPanel />
+        <BlackboardFeed />
+      </div>
+
+      {/* Team Status */}
+      <div className="col-span-3 space-y-3">
+        <TeamStatus agents={agents} />
+      </div>
+
     </div>
   );
 }

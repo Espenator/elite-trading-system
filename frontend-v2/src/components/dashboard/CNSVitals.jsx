@@ -31,7 +31,7 @@ export default function CNSVitals() {
   const thresholds = cbStatus.data?.thresholds || {};
 
   return (
-    <div className={`rounded-xl border ${modeConfig.border} ${modeConfig.bg} backdrop-blur-sm mb-4`}>
+    <div className={`rounded-md border ${modeConfig.border} ${modeConfig.bg} backdrop-blur-sm mb-4`}>
       {/* Compact bar */}
       <div
         className="flex items-center justify-between px-4 py-2.5 cursor-pointer hover:bg-white/5 transition-colors"

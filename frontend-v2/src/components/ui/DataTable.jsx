@@ -19,7 +19,7 @@ export default function DataTable({
   return (
     <div
       className={clsx(
-        "overflow-x-auto rounded-xl border border-secondary/30 bg-surface",
+        "overflow-x-auto rounded-md border border-secondary/30 bg-surface",
         className,
       )}
     >

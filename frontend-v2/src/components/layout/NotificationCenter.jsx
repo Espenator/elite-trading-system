@@ -56,7 +56,7 @@ export default function NotificationCenter() {
         return (
           <div
             key={toast.id}
-            className={`pointer-events-auto flex items-start gap-3 px-4 py-3 rounded-xl border ${config.color} backdrop-blur-xl shadow-2xl shadow-black/50 max-w-sm animate-slide-in`}
+            className={`pointer-events-auto flex items-start gap-3 px-4 py-3 rounded-md border ${config.color} backdrop-blur-xl shadow-2xl shadow-black/50 max-w-sm animate-slide-in`}
           >
             <Icon className={`w-5 h-5 ${config.iconColor} flex-shrink-0 mt-0.5`} />
             <div className="flex-1 min-w-0">

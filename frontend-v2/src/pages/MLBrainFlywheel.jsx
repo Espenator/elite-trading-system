@@ -203,13 +203,13 @@ function ModelPerformanceLC({ data }) {
       },
     });
 
-    // Secondary series: Head Model (cyan line)
+    // Secondary series: RF Ensemble (purple line)
     const areaSeries2 = chart.addAreaSeries({
-      lineColor: '#06b6d4',
+      lineColor: '#8B5CF6',
       lineWidth: 1.5,
-      topColor: 'rgba(6,182,212,0.08)',
-      bottomColor: 'rgba(6,182,212,0.0)',
-      crosshairMarkerBackgroundColor: '#06b6d4',
+      topColor: 'rgba(139,92,246,0.10)',
+      bottomColor: 'rgba(139,92,246,0.0)',
+      crosshairMarkerBackgroundColor: '#8B5CF6',
       priceFormat: {
         type: 'custom',
         formatter: (val) => `${val.toFixed(1)}%`,
@@ -495,14 +495,14 @@ export default function MLBrainFlywheel() {
                 <h3 className="text-sm font-semibold text-white">Model Performance Tracking</h3>
               </div>
               <div className="flex items-center gap-3">
-                {/* Legend items matching mockup */}
+                {/* Legend items */}
                 <div className="flex items-center gap-1.5">
                   <div className="w-3 h-0.5 bg-emerald-500 rounded-full" />
-                  <span className="text-[10px] text-gray-400 font-mono">BRAIN MODEL</span>
+                  <span className="text-[10px] text-gray-400 font-mono">XGBOOST</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-0.5 bg-cyan-400 rounded-full" />
-                  <span className="text-[10px] text-gray-400 font-mono">HEAD MODEL</span>
+                  <div className="w-3 h-0.5 rounded-full" style={{ backgroundColor: '#8B5CF6' }} />
+                  <span className="text-[10px] text-gray-400 font-mono">RF ENSEMBLE</span>
                 </div>
                 <Badge variant="success" size="sm">MEAN ACCURACY</Badge>
               </div>
@@ -586,6 +586,13 @@ export default function MLBrainFlywheel() {
                     {/* Model name + status */}
                     <div className="flex items-start justify-between gap-1">
                       <span className="text-[11px] font-bold text-white leading-tight">{model.name}</span>
+                      {model.status === 'PRODUCTION' || model.status === 'production' ? (
+                        <span className="px-2 py-0.5 text-[9px] font-bold rounded-full uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shrink-0">PRODUCTION</span>
+                      ) : model.status === 'VALIDATION' || model.status === 'validation' ? (
+                        <span className="px-2 py-0.5 text-[9px] font-bold rounded-full uppercase bg-amber-500/20 text-amber-400 border border-amber-500/30 shrink-0">VALIDATION</span>
+                      ) : model.status ? (
+                        <span className="px-2 py-0.5 text-[9px] font-bold rounded-full uppercase bg-gray-500/20 text-gray-400 border border-gray-500/30 shrink-0">{model.status}</span>
+                      ) : null}
                     </div>
 
                     {/* Train / Test labels + accuracy scores */}
@@ -644,8 +651,17 @@ export default function MLBrainFlywheel() {
               <div className="font-mono text-[10px] space-y-1.5">
                 {logsData.map((logEntry, idx) => (
                   <div key={idx} className="flex gap-2 hover:bg-white/[0.02] px-2 py-0.5 rounded">
-                    <span className="text-gray-500 shrink-0 whitespace-nowrap">[{logEntry.ts}]</span>
-                    <span className="text-emerald-400/90 break-words leading-relaxed">{logEntry.msg}</span>
+                    <span className="text-gray-500 shrink-0 whitespace-nowrap font-mono">[{logEntry.ts}]</span>
+                    <span
+                      className={`font-mono text-[10px] break-words leading-relaxed ${
+                        logEntry.msg?.includes('WIN') || logEntry.msg?.includes('PROFIT') ? 'text-emerald-400' :
+                        logEntry.msg?.includes('LOSS') ? 'text-red-400' :
+                        logEntry.msg?.includes('ADJUST') || logEntry.msg?.includes('RETRAIN') ? 'text-amber-400' :
+                        'text-gray-400'
+                      }`}
+                    >
+                      {logEntry.msg}
+                    </span>
                   </div>
                 ))}
                 {logsData.length === 0 && (

@@ -7,6 +7,7 @@ import { Outlet } from 'react-router-dom';
 import Header from './Header';
 import Sidebar from './Sidebar';
 import NotificationCenter from './NotificationCenter';
+import StatusFooter from './StatusFooter';
 import { CNSProvider, useCNS } from '../../hooks/useCNS';
 import ws from '../../services/websocket';
 
@@ -31,9 +32,10 @@ function LayoutInner() {
         <Header wsConnected={wsConnected} />
 
         {/* Page content - scrollable */}
-        <main className="flex-1 overflow-y-auto custom-scrollbar p-6">
+        <main className="flex-1 overflow-y-auto custom-scrollbar p-6 pb-10">
           <Outlet />
         </main>
+        <StatusFooter />
       </div>
 
       {/* Global notification overlay */}

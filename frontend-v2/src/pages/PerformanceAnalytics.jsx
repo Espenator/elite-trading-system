@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import { useApi } from '../hooks/useApi';
 import clsx from 'clsx';
+import { TradingGradeHero, ReturnsHeatmapCalendar, ConcentricAIDial } from '../components/dashboard/PerformanceWidgets';
 
 // ─── MOCK / FALLBACK DATA ────────────────────────────────────────────────────
 
@@ -345,7 +346,7 @@ export default function PerformanceAnalytics() {
               {/* Grade + Label */}
               <div className="flex flex-col items-center gap-1">
                 <div className="text-[9px] text-gray-500 italic">Trading Grade Rnkr</div>
-                <GradeCircle grade={kpi.grade} label={kpi.gradeLabel} />
+                <TradingGradeHero grade={kpi.grade} score={kpi.score ?? 87} size={100} />
               </div>
               {/* Sharpe / Sortino / Calmar */}
               <div className="grid grid-cols-3 gap-2 w-full">
@@ -422,6 +423,11 @@ export default function PerformanceAnalytics() {
           {/* ── 3. AI + Rolling Risk ──────────────────────────── */}
           <Panel title="AI + Rolling Risk" icon={Brain} className="col-span-3">
             <div className="flex flex-col gap-2 h-full">
+              {/* AI Performance Dial */}
+              <div className="aurora-card p-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-3">AI INFERENCE ENGINE</h3>
+                <ConcentricAIDial />
+              </div>
               {/* Reward Convexity vs Distribution - scatter plot */}
               <div className="flex-1 min-h-0">
                 <div className="text-[9px] text-gray-500 mb-0.5">Reward Convexity vs Dist</div>
@@ -516,6 +522,12 @@ export default function PerformanceAnalytics() {
               </div>
             </div>
           </Panel>
+        </div>
+
+        {/* Returns Heatmap Calendar */}
+        <div className="aurora-card p-4">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-3">RETURNS HEATMAP CALENDAR</h3>
+          <ReturnsHeatmapCalendar />
         </div>
 
         {/* ══ ROW 2 ═══════════════════════════════════════════════
