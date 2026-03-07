@@ -306,6 +306,27 @@ All pages in frontend-v2/src/pages/. All use useApi() hook. No mock data. **ALL 
 
 ## Quick Start
 
+### One-liner (Windows PowerShell — recommended)
+
+```powershell
+cd C:\Users\Espen\elite-trading-system; git fetch --all; git reset --hard origin/main; git pull origin main; .\start-embodier.ps1
+```
+
+This kills old processes, starts backend (port 8000) + frontend (port 3000), and opens browser.
+
+### Desktop Shortcut (Windows)
+
+```powershell
+$ws = New-Object -ComObject WScript.Shell
+$sc = $ws.CreateShortcut("$env:USERPROFILE\Desktop\Embodier Trader.lnk")
+$sc.TargetPath = "powershell.exe"
+$sc.Arguments = "-ExecutionPolicy Bypass -File `"C:\Users\Espen\elite-trading-system\start-embodier.ps1`""
+$sc.WorkingDirectory = "C:\Users\Espen\elite-trading-system"
+$sc.Save()
+```
+
+### Manual Setup
+
 ```bash
 # Clone
 git clone https://github.com/Espenator/elite-trading-system.git
@@ -322,6 +343,53 @@ cd frontend-v2
 npm install
 npm run dev
 ```
+
+### Required vs Optional .env Keys
+
+**Required** (app won't function without these):
+- `ALPACA_API_KEY` / `ALPACA_SECRET_KEY` — Broker API for trading + market data
+- `FINVIZ_API_KEY` — Stock screener data
+
+**Optional** (features degrade gracefully without these):
+- `FERNET_KEY` — Credential encryption (generate: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`)
+- `FRED_API_KEY` — Free at https://fred.stlouisfed.org/docs/api/api_key.html
+- `UNUSUAL_WHALES_API_KEY` — Options flow data
+- `PERPLEXITY_API_KEY` — AI cortex intelligence layer
+- `ANTHROPIC_API_KEY` — Deep reasoning layer
+- `DISCORD_USER_TOKEN` — Discord channel scraping
+- `OPENCLAW_GIST_ID` — Cross-PC state bridge
+- `SCHEDULER_ENABLED=true` — Enable flywheel scheduler
+
+## Working API Endpoints (16/19)
+
+| Endpoint | Status |
+|----------|--------|
+| `GET /healthz` | OK |
+| `GET /api/v1/status` | OK |
+| `GET /api/v1/signals/` | OK |
+| `GET /api/v1/signals/kelly-ranked` | OK |
+| `GET /api/v1/portfolio` | OK |
+| `GET /api/v1/market/indices` | OK |
+| `GET /api/v1/openclaw` | OK |
+| `GET /api/v1/performance` | OK |
+| `GET /api/v1/risk/risk-score` | OK |
+| `GET /api/v1/sentiment` | OK |
+| `GET /api/v1/agents` | OK |
+| `GET /api/v1/agents/alerts` | OK |
+| `GET /api/v1/flywheel` | OK |
+| `GET /api/v1/cognitive/dashboard` | OK |
+| `GET /api/v1/data-sources/` | OK |
+| `GET /api/v1/stocks` | OK |
+
+## Known Issues
+
+| Issue | Status | Details |
+|-------|--------|---------|
+| TurboScanner numpy serialization | **FIXED** | Numpy float64/int64 from DuckDB caused JSON serialization errors on 3 endpoints |
+| Zombie python processes on restart | **FIXED** | `start-embodier.ps1` now kills all python processes before starting |
+| Agent heartbeats stale after restart | **FIXED** | Heartbeats now reset to current time on startup |
+| Finviz 429 rate limiting | **FIXED** | Added 1.5s minimum delay between Finviz API requests |
+| Frontend "SIGNAL API OFFLINE" banner | **FIXED** | Changed to amber "DEGRADED" for partial failures |
 
 ## Open Issues (10)
 
