@@ -23,6 +23,10 @@ const FALLBACK_KPI = {
   max_drawdown: '0%', total_trades: 0, grade: '—', score: 0,
   deployed_pct: '0%', alpha: '0', expectancy: '$0', max_dd: '0%',
   kelly_fraction: '0%', sortino: '0', calmar: '0',
+  // camelCase aliases (used by JSX rendering)
+  netPnl: 0, maxDd: 0, totalTrades: 0, winRate: 0,
+  avgWin: 0, avgLoss: 0, profitFactor: 0,
+  riskReward: 0,
 };
 
 const FALLBACK_EQUITY = [];
@@ -261,7 +265,7 @@ export default function PerformanceAnalytics() {
       <div className="px-4 py-2 flex items-center gap-1 overflow-x-auto border-b border-gray-800/30 shrink-0 bg-[#0B0E14]">
         <KpiPill label="Total Trades" value={kpi.totalTrades} icon={BarChart3} />
         <div className="w-px h-8 bg-[#1e3a5f]/30" />
-        <KpiPill label="Net P&L" value={`+$${kpi.netPnl.toLocaleString()}`} positive={kpi.netPnl > 0} icon={TrendingUp} />
+        <KpiPill label="Net P&L" value={`+$${(kpi.netPnl ?? 0).toLocaleString()}`} positive={(kpi.netPnl ?? 0) > 0} icon={TrendingUp} />
         <div className="w-px h-8 bg-[#1e3a5f]/30" />
         <KpiPill label="Win Rate" value={`${kpi.winRate}%`} positive={kpi.winRate > 50} icon={Target} />
         <div className="w-px h-8 bg-[#1e3a5f]/30" />
@@ -271,7 +275,7 @@ export default function PerformanceAnalytics() {
         <div className="w-px h-8 bg-[#1e3a5f]/30" />
         <KpiPill label="Profit Factor" value={kpi.profitFactor} positive={kpi.profitFactor > 1} icon={Zap} />
         <div className="w-px h-8 bg-[#1e3a5f]/30" />
-        <KpiPill label="Max DD" value={`-$${Math.abs(kpi.maxDd).toLocaleString()}`} positive={false} icon={TrendingDown} />
+        <KpiPill label="Max DD" value={`-$${Math.abs(kpi.maxDd ?? 0).toLocaleString()}`} positive={false} icon={TrendingDown} />
         <div className="w-px h-8 bg-[#1e3a5f]/30" />
         <KpiPill label="Sharpe" value={kpi.sharpe} positive={kpi.sharpe > 1} icon={Activity} />
         <div className="w-px h-8 bg-[#1e3a5f]/30" />
@@ -575,8 +579,8 @@ export default function PerformanceAnalytics() {
                       </td>
                       <td className="py-1 px-1.5 text-gray-300">${t.entry}</td>
                       <td className="py-1 px-1.5 text-gray-300">${t.exit}</td>
-                      <td className={clsx('py-1 px-1.5 font-medium', t.pnl >= 0 ? 'text-emerald-400' : 'text-red-400')}>
-                        {t.pnl >= 0 ? '+' : ''}{t.pnl.toLocaleString()}
+                      <td className={clsx('py-1 px-1.5 font-medium', (t.pnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+                        {(t.pnl ?? 0) >= 0 ? '+' : ''}{(t.pnl ?? 0).toLocaleString()}
                       </td>
                       <td className="py-1 px-1.5 text-gray-300">{t.rr}</td>
                       <td className="py-1 px-1.5">

@@ -1,7 +1,7 @@
 // BACKTESTING_LAB -- Embodier.ai Glass House Intelligence System
 // Production V7 -- Exact mirror of Nano Banana Pro mockup 08-backtesting-lab.png
 // ALL data from real API -- zero mock/fake data
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, Component } from "react";
 import { toast } from "react-toastify";
 import log from "@/utils/logger";
 import {
@@ -24,12 +24,36 @@ import { getApiUrl, getAuthHeaders } from "../config/api";
 import { createChart, ColorType, CrosshairMode } from "lightweight-charts";
 import ReactFlow, { Background, Controls, applyNodeChanges, applyEdgeChanges } from "reactflow";
 import "reactflow/dist/style.css";
+
+// Ensure d3-transition side-effects are loaded (patches d3-selection with .interrupt())
+import "d3-transition";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, AreaChart, Area, Cell, Legend, ComposedChart, Scatter,
   ScatterChart, ReferenceLine
 } from "recharts";
 import clsx from "clsx";
+
+/* ------------------------------------------------------------------ */
+/*  Safe ReactFlow wrapper -- catches D3 transition errors gracefully */
+/* ------------------------------------------------------------------ */
+class SafeReactFlow extends Component {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex items-center justify-center h-full text-secondary text-sm">
+          <div className="text-center">
+            <GitBranch className="w-8 h-8 mx-auto mb-2 opacity-40" />
+            <p>Strategy builder unavailable</p>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /*  Lightweight Charts: Equity Curve (area)                           */
@@ -764,18 +788,20 @@ export default function Backtesting() {
         {/* Strategy Builder - ReactFlow */}
         <Card title={<h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">STRATEGY BUILDER</h3>} noPadding className="col-span-1">
           <div style={{ height: 260 }}>
-            <ReactFlow
-              nodes={nodes}
-              edges={edges}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              fitView
-              proOptions={{ hideAttribution: true }}
-              style={{ background: "transparent" }}
-            >
-              <Background color="#1E293B" gap={16} size={1} />
-              <Controls showZoom={false} showFitView={false} showInteractive={false} />
-            </ReactFlow>
+            <SafeReactFlow>
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                fitView
+                proOptions={{ hideAttribution: true }}
+                style={{ background: "transparent" }}
+              >
+                <Background color="#1E293B" gap={16} size={1} />
+                <Controls showZoom={false} showFitView={false} showInteractive={false} />
+              </ReactFlow>
+            </SafeReactFlow>
           </div>
         </Card>
       </div>
