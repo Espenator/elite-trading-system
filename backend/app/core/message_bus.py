@@ -52,6 +52,8 @@ class MessageBus:
         # Cluster telemetry topics
         "cluster.telemetry",    # GPU/VRAM/Ollama stats from cluster nodes
         "cluster.node_status",  # Node online/offline/degraded transitions
+        # Outcome tracking
+        "outcome.resolved",     # Position outcome resolved (win/loss/scratch)
     }
 
     def __init__(self, max_queue_size: int = 10_000):
