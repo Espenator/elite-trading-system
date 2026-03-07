@@ -8,9 +8,11 @@
  * OLEH: If an endpoint doesn't exist yet in backend, create the router file first.
  *
  * BACKEND REFERENCE:
- *   Existing routers: stocks, quotes, orders, system, training, signals, backtest, status
- *   NEW routers needed: agents, data-sources, sentiment, youtube-knowledge, flywheel,
- *                       portfolio, risk, strategy, performance, logs, alerts
+ *   Routers: stocks, quotes, orders, system, signals, backtest, status,
+ *            agents, data-sources, sentiment, youtube-knowledge, flywheel,
+ *            portfolio, risk, strategy, performance, logs, alerts, patterns,
+ *            settings, openclaw, market, ml-brain, risk-shield, alpaca,
+ *            alignment, council, features, swarm, cns, cognitive, flywheel
  */
 const API_CONFIG = {
   // Use empty string in dev so requests go to same origin → Vite proxy forwards to backend (port 8000).
@@ -46,7 +48,7 @@ const API_CONFIG = {
     openclawAgents: "/openclaw/candidates", // Individual agent status + tasks
     status: "/status", // System health check
 
-    // ---- NEW (Oleh needs to create these routers) ----
+    // ---- ADDITIONAL ROUTERS ----
     agents: "/agents", // Agent control: start/stop/pause/config
     dataSources: "/data-sources/", // Health of all 10 data feeds (trailing slash required by FastAPI)
     sentiment: "/sentiment", // Aggregated sentiment from 4 sources
@@ -66,6 +68,7 @@ const API_CONFIG = {
     marketIndices: "/market/indices", // GET indices snapshot for Dashboard top bar
     openclawRegime: "/openclaw/regime", // Regime state for Signal Intelligence / Market Regime
     mlBrain: "/ml-brain", // ML brain model status + predictions
+    "ml-brain/models": "/ml-brain/registry/status", // ML model registry status
     riskShield: "/risk-shield", // RiskShield emergency controls + safety checks
         kellySizer: "/risk/kelly-sizer", // Bug #19 fix: was /kelly-sizer, needs /risk prefix
     positionSizing: "/risk/position-sizing", // Bug #19 fix: was /position-sizing, needs /risk prefix
@@ -98,6 +101,7 @@ const API_CONFIG = {
     "openclaw/regime/transitions": "/openclaw/regime/transitions", // Last 30 regime changes
     
     // ---- ALPACA PROXY (Trade Execution page) ----
+    alpaca: "/alpaca", // Alpaca base proxy
     "alpaca/account": "/alpaca/account", // Alpaca account details
     "alpaca/positions": "/alpaca/positions", // Open positions
     "alpaca/orders": "/alpaca/orders", // Orders list with status filter
@@ -229,7 +233,7 @@ export const getWsUrl = (channel) => `${getWsBaseUrl()}/${channel}`;
 /** WebSocket channel names for real-time updates (backend must expose these). */
 export const WS_CHANNELS = {
   agents: "agents",
-  datasources: "datasources",
+  datasources: "data_sources",
   signals: "signals",
   trades: "trades",
   logs: "logs",

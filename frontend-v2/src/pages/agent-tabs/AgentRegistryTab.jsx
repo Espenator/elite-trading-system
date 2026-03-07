@@ -7,6 +7,62 @@ import {
   CheckCircle, XCircle, AlertTriangle, ChevronDown, Settings,
 } from "lucide-react";
 import { toast } from "react-toastify";
+import { getApiUrl, getAuthHeaders } from "../../config/api";
+
+// ── Agent lifecycle API helpers ──────────────────────────────
+const agentApi = {
+  async start(agentId) {
+    const res = await fetch(getApiUrl("agents") + `/${agentId}/start`, {
+      method: "POST", headers: { ...getAuthHeaders() },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  },
+  async stop(agentId) {
+    const res = await fetch(getApiUrl("agents") + `/${agentId}/stop`, {
+      method: "POST", headers: { ...getAuthHeaders() },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  },
+  async restart(agentId) {
+    const res = await fetch(getApiUrl("agents") + `/${agentId}/restart`, {
+      method: "POST", headers: { ...getAuthHeaders() },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  },
+  async updateConfig(agentId, config) {
+    const res = await fetch(getApiUrl("agents") + `/${agentId}/config`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      body: JSON.stringify(config),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  },
+  async batchStart() {
+    const res = await fetch(getApiUrl("agents") + "/batch/start", {
+      method: "POST", headers: { ...getAuthHeaders() },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  },
+  async batchStop() {
+    const res = await fetch(getApiUrl("agents") + "/batch/stop", {
+      method: "POST", headers: { ...getAuthHeaders() },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  },
+  async batchRestart() {
+    const res = await fetch(getApiUrl("agents") + "/batch/restart", {
+      method: "POST", headers: { ...getAuthHeaders() },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  },
+};
 
 const STATUS_COLORS = {
   Running: "text-emerald-400",
@@ -58,7 +114,7 @@ function AgentInspector({ agent }) {
             <div>gpu_allocation: <span className="text-white">0.5</span></div>
           </div>
           <div className="flex gap-2 mt-2">
-            <button className="px-2 py-1 text-[10px] bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded hover:brightness-125">Apply Changes</button>
+            <button className="px-2 py-1 text-[10px] bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded hover:brightness-125" onClick={async () => { if (!agent) return; try { await agentApi.updateConfig(agent.id, agent.config || {}); toast.success(`Config updated for ${agent.name}`); } catch (e) { toast.error(`Config update failed: ${e.message}`); } }}>Apply Changes</button>
             <button className="px-2 py-1 text-[10px] bg-gray-700 text-gray-300 border border-gray-600 rounded hover:brightness-125">Reset</button>
           </div>
         </div>
@@ -166,9 +222,9 @@ export default function AgentRegistryTab({ agents }) {
             ))}
           </div>
           <div className="flex gap-1">
-            <button className="p-1 text-emerald-400 hover:bg-emerald-500/20 rounded" title="Bulk Start" onClick={() => toast.success("Bulk start initiated")}><Play className="w-3.5 h-3.5" /></button>
-            <button className="p-1 text-red-400 hover:bg-red-500/20 rounded" title="Bulk Restart" onClick={() => toast.info("Bulk restart initiated")}><RefreshCw className="w-3.5 h-3.5" /></button>
-            <button className="p-1 text-amber-400 hover:bg-amber-500/20 rounded" title="Bulk Stop" onClick={() => toast.warning("Bulk stop initiated")}><Square className="w-3.5 h-3.5" /></button>
+            <button className="p-1 text-emerald-400 hover:bg-emerald-500/20 rounded" title="Bulk Start" onClick={async () => { try { await agentApi.batchStart(); toast.success("All agents starting"); } catch (e) { toast.error(`Bulk start failed: ${e.message}`); } }}><Play className="w-3.5 h-3.5" /></button>
+            <button className="p-1 text-red-400 hover:bg-red-500/20 rounded" title="Bulk Restart" onClick={async () => { try { await agentApi.batchRestart(); toast.info("All agents restarting"); } catch (e) { toast.error(`Bulk restart failed: ${e.message}`); } }}><RefreshCw className="w-3.5 h-3.5" /></button>
+            <button className="p-1 text-amber-400 hover:bg-amber-500/20 rounded" title="Bulk Stop" onClick={async () => { try { await agentApi.batchStop(); toast.warning("All agents stopping"); } catch (e) { toast.error(`Bulk stop failed: ${e.message}`); } }}><Square className="w-3.5 h-3.5" /></button>
           </div>
         </div>
 
@@ -212,7 +268,7 @@ export default function AgentRegistryTab({ agents }) {
                   <td className="text-right px-1">
                     <div className="flex gap-0.5 justify-end">
                       <button className="p-0.5 hover:text-cyan-400 text-gray-600" onClick={e => { e.stopPropagation(); setSelected(a); }}><Eye className="w-3 h-3" /></button>
-                      <button className="p-0.5 hover:text-emerald-400 text-gray-600" onClick={e => { e.stopPropagation(); toast.info(`Toggling ${a.name}`); }}><Play className="w-3 h-3" /></button>
+                      <button className="p-0.5 hover:text-emerald-400 text-gray-600" onClick={async e => { e.stopPropagation(); try { if (a.status === "Running") { await agentApi.stop(a.id); toast.info(`Stopping ${a.name}`); } else { await agentApi.start(a.id); toast.success(`Starting ${a.name}`); } } catch (err) { toast.error(`Toggle failed: ${err.message}`); } }}><Play className="w-3 h-3" /></button>
                     </div>
                   </td>
                 </tr>
@@ -263,9 +319,9 @@ export default function AgentRegistryTab({ agents }) {
               </div>
             </div>
             <button className="px-3 py-1.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded text-[10px] font-bold hover:brightness-125"
-              onClick={() => toast.success("Spawning agent...")}>Spawn</button>
+              onClick={async () => { try { await agentApi.batchStart(); toast.success("All agents spawning"); } catch (e) { toast.error(`Spawn failed: ${e.message}`); } }}>Spawn</button>
             <button className="px-3 py-1.5 bg-red-500/20 text-red-400 border border-red-500/30 rounded text-[10px] font-bold hover:brightness-125"
-              onClick={() => toast.warning("Retiring agent...")}>Retire</button>
+              onClick={async () => { try { await agentApi.batchStop(); toast.warning("All agents retiring"); } catch (e) { toast.error(`Retire failed: ${e.message}`); } }}>Retire</button>
           </div>
         </div>
       </div>

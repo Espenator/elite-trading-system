@@ -289,7 +289,7 @@ export default function Trades() {
 
   const handleCancelOrder = async (orderId) => {
     try {
-      await fetch(getApiUrl("alpaca/orders") + `/${orderId}`, {
+      await fetch(getApiUrl("orders") + `/${orderId}`, {
         method: "DELETE",
         headers: getAuthHeaders(),
       });
@@ -304,7 +304,7 @@ export default function Trades() {
   const handleCancelAll = async () => {
     if (!window.confirm("Cancel ALL open orders?")) return;
     try {
-      await fetch(getApiUrl("alpaca/orders"), {
+      await fetch(getApiUrl("orders"), {
         method: "DELETE",
         headers: getAuthHeaders(),
       });

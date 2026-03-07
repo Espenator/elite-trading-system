@@ -1,7 +1,7 @@
 /**
  * WebSocket client for real-time updates.
  * Uses getWsBaseUrl() so in dev it connects via current host (Vite proxy).
- * Channels: agents, datasources, signals, trades, logs, risk, kelly, sentiment.
+ * Channels: agents, data_sources, signals, trades, logs, risk, kelly, sentiment.
  * Auto-reconnects with exponential backoff.
  */
 

@@ -7,6 +7,7 @@
  */
 import { getApiUrl, getWsBaseUrl, getAuthHeaders } from '../config/api';
 import log from "@/utils/logger";
+import appWs from './websocket';
 
 // ─── Portfolio & Account ───────────────────────────────────
 export const getPortfolio = async () => {
@@ -147,26 +148,28 @@ export const getSystemStatus = async () => {
 };
 
 // ─── WebSocket ─────────────────────────────────────────────
-export const createTradeWebSocket = (onMessage, onError) => {
-  const wsUrl = getWsBaseUrl();
-  const ws = new WebSocket(wsUrl);
+// Use the singleton AppWebSocket from websocket.js instead of creating a standalone connection.
+// This avoids duplicate WS connections and leverages the shared reconnect/heartbeat logic.
 
-  ws.onopen = () => log.info('[TradeExecution WS] Connected');
-  ws.onmessage = (event) => {
+export const subscribeTradeUpdates = (onMessage, onError) => {
+  // Subscribe to the 'trades' channel on the shared WebSocket
+  const unsub = appWs.on('trades', (data) => {
     try {
-      const data = JSON.parse(event.data);
       onMessage(data);
     } catch (e) {
-      log.error('[TradeExecution WS] Parse error:', e);
+      log.error('[TradeExecution WS] Handler error:', e);
+      if (onError) onError(e);
     }
-  };
-  ws.onerror = (error) => {
-    log.error('[TradeExecution WS] Error:', error);
-    if (onError) onError(error);
-  };
-  ws.onclose = () => log.info('[TradeExecution WS] Disconnected');
+  });
+  // Ensure the shared WS is connected
+  if (!appWs.isConnected()) appWs.connect();
+  return unsub;
+};
 
-  return ws;
+// Backwards-compatible alias — returns an object with a .close() method
+export const createTradeWebSocket = (onMessage, onError) => {
+  const unsub = subscribeTradeUpdates(onMessage, onError);
+  return { close: unsub };
 };
 
 export default {
@@ -186,4 +189,5 @@ export default {
   getNewsFeed,
   getSystemStatus,
   createTradeWebSocket,
+  subscribeTradeUpdates,
 };

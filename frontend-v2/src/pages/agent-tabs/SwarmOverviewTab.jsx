@@ -637,10 +637,9 @@ function EloLeaderboard() {
 
 async function postHitlDecision(decisionId, action) {
   const base = import.meta.env.VITE_API_URL ?? "";
-  const res = await fetch(`${base}/api/v1/agents/hitl/decision`, {
+  const res = await fetch(`${base}/api/v1/agents/hitl/${decisionId}/${action}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-    body: JSON.stringify({ decision_id: decisionId, action }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();

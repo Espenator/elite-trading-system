@@ -88,7 +88,13 @@ async def get_signals(as_of: date | None = None):
                     position_size_pct=kelly.final_pct, expected_value=kelly.edge * prob,
                 )
             )
-        return SignalsResponse(as_of=as_of, signals=signals)
+        response = SignalsResponse(as_of=as_of, signals=signals)
+        await broadcast_ws("signals", {
+            "type": "signals_updated",
+            "count": len(signals),
+            "as_of": str(as_of),
+        })
+        return response
 
     # Fall back to TurboScanner real-time signals (real market data, not mock)
     dashboard_signals = []
@@ -153,7 +159,14 @@ async def get_signals(as_of: date | None = None):
 
     # Sort by score descending
     dashboard_signals.sort(key=lambda x: x.get("score", 0), reverse=True)
-    return {"as_of": str(as_of), "signals": dashboard_signals}
+    result = {"as_of": str(as_of), "signals": dashboard_signals}
+    if dashboard_signals:
+        await broadcast_ws("signals", {
+            "type": "signals_updated",
+            "count": len(dashboard_signals),
+            "as_of": str(as_of),
+        })
+    return result
 
 
 @router.get("/{symbol}/technicals")
