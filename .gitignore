@@ -5,6 +5,11 @@
 !.env.example
 backend/.env*
 !backend/.env.example
+APIFINAL*.env
+APIFINAL*.xlsx
+*-backend.env
+*-frontend*.env
+*-COMPLETE.env
 
 # ── Python ──
 __pycache__/
