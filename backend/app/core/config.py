@@ -191,6 +191,27 @@ class Settings(BaseSettings):
     CLUSTER_PC2_HOST: str = ""  # Empty = single-PC mode
     CLUSTER_HEALTH_INTERVAL: int = 60  # Seconds between health checks
 
+    # ── GPU Telemetry ─────────────────────────────────────
+    GPU_TELEMETRY_ENABLED: bool = True
+    GPU_TELEMETRY_INTERVAL: float = 3.0  # Seconds between telemetry broadcasts
+    GPU_VRAM_HEADROOM_MB: int = 512  # Reserve this much VRAM as buffer
+
+    # ── Model Pinning (Asymmetric Routing) ────────────────
+    # PC1 (Master / Rapid Responder): fast tactical models
+    MODEL_PIN_PC1: str = "llama3.2,mistral:7b"  # Comma-separated models pinned to PC1
+    # PC2 (Heavy Compute): deep thinking models
+    MODEL_PIN_PC2: str = "deepseek-r1:14b,mixtral:8x7b"  # Comma-separated models pinned to PC2
+    # Task → node affinity (task:node pairs, comma-separated)
+    # Tasks: regime_classification,signal_scoring,risk_check → pc1
+    # Tasks: trade_thesis,strategy_critic,deep_postmortem → pc2
+    MODEL_PIN_TASK_AFFINITY: str = "regime_classification:pc1,signal_scoring:pc1,risk_check:pc1,quick_hypothesis:pc1,feature_summary:pc1,trade_thesis:pc2,strategy_critic:pc2,deep_postmortem:pc2,strategy_evolution:pc2,overnight_analysis:pc2"
+
+    # ── LLM Dispatcher ────────────────────────────────────
+    LLM_DISPATCHER_ENABLED: bool = True
+    LLM_DISPATCHER_HEARTBEAT_TIMEOUT: int = 3  # Missed heartbeats before marking OFFLINE
+    LLM_DISPATCHER_FALLBACK_MODEL: str = "llama3.2"  # Downgrade to this when PC2 dies
+    LLM_DISPATCHER_GPU_UTIL_THRESHOLD: float = 85.0  # Route away if GPU util > this %
+
     # ── Adaptive Router Settings ──────────────────────────
     ADAPTIVE_ROUTING_ENABLED: bool = True
     ROUTING_ACCURACY_THRESHOLD: float = 0.45   # escalate if accuracy below this
