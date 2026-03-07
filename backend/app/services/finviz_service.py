@@ -1,14 +1,21 @@
 """Finviz API service for fetching stock screener and quote data."""
+import asyncio
 import httpx
 import csv
 import io
 import logging
 import re
+import time
 
 from typing import List, Dict, Optional, Any
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+# Rate limiter: minimum 1.5s between Finviz API requests to avoid 429s
+_FINVIZ_MIN_DELAY_SEC = 1.5
+_finviz_last_request_time = 0.0
+_finviz_lock = asyncio.Lock()
 
 
 def _parse_market_cap_num(value: Any) -> Optional[float]:
@@ -147,11 +154,16 @@ class FinvizService:
         if columns:
             params["c"] = columns
         
-        # Log request parameters (redact API key)
+        # Rate limit: wait between Finviz requests to avoid 429
+        global _finviz_last_request_time
+        async with _finviz_lock:
+            elapsed = time.monotonic() - _finviz_last_request_time
+            if elapsed < _FINVIZ_MIN_DELAY_SEC:
+                await asyncio.sleep(_FINVIZ_MIN_DELAY_SEC - elapsed)
+            _finviz_last_request_time = time.monotonic()
+
         logger.info("Fetching stock list from Finviz screener")
-        logger.info("URL: %s", url)
-        logger.info("Params: v=%s, f=%s, ft=%s, auth=***REDACTED***", version, filters, filter_type)
-        
+
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
                 response = await client.get(url, params=params)
@@ -216,11 +228,16 @@ class FinvizService:
         if duration:
             params["r"] = duration
 
-        # Log request parameters (redact API key)
+        # Rate limit: wait between Finviz requests to avoid 429
+        global _finviz_last_request_time
+        async with _finviz_lock:
+            elapsed = time.monotonic() - _finviz_last_request_time
+            if elapsed < _FINVIZ_MIN_DELAY_SEC:
+                await asyncio.sleep(_FINVIZ_MIN_DELAY_SEC - elapsed)
+            _finviz_last_request_time = time.monotonic()
+
         logger.info("Fetching quote data for %s", ticker)
-        logger.info("URL: %s", url)
-        logger.info("Params: t=%s, p=%s, auth=***REDACTED***", ticker.upper(), timeframe)
-        
+
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
                 response = await client.get(url, params=params)
