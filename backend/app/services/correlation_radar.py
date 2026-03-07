@@ -256,14 +256,16 @@ class CorrelationRadar:
     async def _load_price_data(self) -> Optional[pd.DataFrame]:
         """Load price data for all tracked symbols from DuckDB."""
         try:
-            from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
-            df = conn.execute("""
-                SELECT symbol, date, close, volume
-                FROM daily_ohlcv
-                WHERE date >= CURRENT_DATE - INTERVAL '90 days'
-                ORDER BY symbol, date
-            """).fetchdf()
+            def _sync():
+                from app.data.duckdb_storage import duckdb_store
+                conn = duckdb_store._get_conn()
+                return conn.execute("""
+                    SELECT symbol, date, close, volume
+                    FROM daily_ohlcv
+                    WHERE date >= CURRENT_DATE - INTERVAL '90 days'
+                    ORDER BY symbol, date
+                """).fetchdf()
+            df = await asyncio.to_thread(_sync)
             if df.empty:
                 return None
             return df
@@ -274,15 +276,17 @@ class CorrelationRadar:
     async def _load_indicator_data(self) -> Optional[pd.DataFrame]:
         """Load indicator data from DuckDB."""
         try:
-            from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
-            df = conn.execute("""
-                SELECT symbol, date, rsi_14, macd, bb_upper, bb_lower, bb_mid,
-                       sma_20, sma_50, adx_14
-                FROM technical_indicators
-                WHERE date >= CURRENT_DATE - INTERVAL '30 days'
-                ORDER BY symbol, date
-            """).fetchdf()
+            def _sync():
+                from app.data.duckdb_storage import duckdb_store
+                conn = duckdb_store._get_conn()
+                return conn.execute("""
+                    SELECT symbol, date, rsi_14, macd, bb_upper, bb_lower, bb_mid,
+                           sma_20, sma_50, adx_14
+                    FROM technical_indicators
+                    WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+                    ORDER BY symbol, date
+                """).fetchdf()
+            df = await asyncio.to_thread(_sync)
             return df if not df.empty else None
         except Exception as e:
             logger.debug("Indicator data load failed: %s", e)

@@ -185,6 +185,40 @@ async def run_council(
     except Exception as e:
         logger.debug("Knowledge system recall failed (proceeding): %s", e)
 
+    # ── Memory Bank: recall similar past observations for this symbol ──────
+    try:
+        from app.knowledge.memory_bank import get_memory_bank
+        memory_bank = get_memory_bank()
+        f = features.get("features", features)
+        regime = str(f.get("regime", "unknown")).lower()
+        market_context = {
+            "symbol": symbol,
+            "regime": regime,
+            "timeframe": timeframe,
+        }
+        relevant_memories = await asyncio.to_thread(
+            memory_bank.recall_similar,
+            agent_name="council",
+            current_context=market_context,
+            regime=regime,
+            top_k=5,
+        )
+        if relevant_memories:
+            if blackboard.knowledge_context is None:
+                blackboard.knowledge_context = {}
+            blackboard.knowledge_context["relevant_memories"] = relevant_memories
+            # Compute memory-based win rate for this regime
+            resolved = [m for m in relevant_memories if m.get("was_correct") is not None]
+            if resolved:
+                mem_win_rate = sum(1 for m in resolved if m["was_correct"]) / len(resolved)
+                blackboard.knowledge_context["memory_win_rate"] = round(mem_win_rate, 3)
+            logger.info(
+                "Memory recall for %s: %d relevant memories (regime=%s)",
+                symbol, len(relevant_memories), regime,
+            )
+    except Exception as e:
+        logger.debug("Memory bank recall failed (proceeding): %s", e)
+
     # Initialize TaskSpawner with all agents
     spawner = TaskSpawner(blackboard)
     spawner.register_all_agents()

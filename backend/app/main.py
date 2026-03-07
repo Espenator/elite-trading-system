@@ -535,6 +535,49 @@ async def _start_event_driven_pipeline():
     else:
         log.info("\u26A0\uFE0F OutcomeTracker skipped (LLM_ENABLED=false)")
 
+    # 24. Knowledge Layer — EmbeddingService + MemoryBank + HeuristicEngine + KnowledgeGraph
+    # Initialize singletons eagerly so they're warm when council calls them.
+    # No LLM requirement — these are local DuckDB + numpy/sentence-transformers.
+    try:
+        from app.knowledge.embedding_service import get_embedding_engine
+        _embedding_engine = get_embedding_engine()
+        log.info("\u2705 EmbeddingService initialized (model=%s, device=%s)",
+                 _embedding_engine._model_name, _embedding_engine._device or "lazy")
+    except Exception as e:
+        log.warning("\u26A0\uFE0F EmbeddingService init failed: %s", e)
+
+    try:
+        from app.knowledge.memory_bank import get_memory_bank
+        _memory_bank = get_memory_bank()
+        log.info("\u2705 MemoryBank initialized (%d agents cached)", len(_memory_bank._cache))
+    except Exception as e:
+        log.warning("\u26A0\uFE0F MemoryBank init failed: %s", e)
+
+    try:
+        from app.knowledge.heuristic_engine import get_heuristic_engine
+        _heuristic_engine = get_heuristic_engine()
+        log.info("\u2705 HeuristicEngine initialized (%d heuristics loaded)", len(_heuristic_engine._heuristics))
+    except Exception as e:
+        log.warning("\u26A0\uFE0F HeuristicEngine init failed: %s", e)
+
+    try:
+        from app.knowledge.knowledge_graph import get_knowledge_graph
+        _knowledge_graph = get_knowledge_graph()
+        log.info("\u2705 KnowledgeGraph initialized (%d edges)", len(_knowledge_graph._edges))
+    except Exception as e:
+        log.warning("\u26A0\uFE0F KnowledgeGraph init failed: %s", e)
+
+    # 25. IntelligenceOrchestrator — eagerly warm the singleton (used by council runner)
+    if _llm_enabled:
+        try:
+            from app.services.intelligence_orchestrator import get_intelligence_orchestrator
+            _intel_orchestrator = get_intelligence_orchestrator()
+            log.info("\u2705 IntelligenceOrchestrator initialized (pre-council multi-tier LLM)")
+        except Exception as e:
+            log.warning("\u26A0\uFE0F IntelligenceOrchestrator init failed: %s", e)
+    else:
+        log.info("\u26A0\uFE0F IntelligenceOrchestrator skipped (LLM_ENABLED=false)")
+
     log.info("=" * 60)
     log.info("\u2705 Event-Driven Pipeline ONLINE (Council-Controlled)")
     log.info("  Stream -> SignalEngine -> CouncilGate -> Council -> OrderExecutor")

@@ -89,6 +89,14 @@ class MarketWideSweep:
             "last_sweep_duration_ms": 0.0,
         }
 
+    async def _duckdb_query(self, query: str) -> pd.DataFrame:
+        """Run a synchronous DuckDB query off the event loop via to_thread."""
+        def _sync():
+            from app.data.duckdb_storage import duckdb_store
+            conn = duckdb_store._get_conn()
+            return conn.execute(query).fetchdf()
+        return await asyncio.to_thread(_sync)
+
     async def start(self):
         if self._running:
             return
@@ -163,14 +171,12 @@ class MarketWideSweep:
     async def _build_universe_from_duckdb(self):
         """Fallback: build universe from symbols already in DuckDB."""
         try:
-            from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
-            df = conn.execute("""
+            df = await self._duckdb_query("""
                 SELECT DISTINCT symbol
                 FROM daily_ohlcv
                 WHERE date >= CURRENT_DATE - INTERVAL '30 days'
                 ORDER BY symbol
-            """).fetchdf()
+            """)
             if not df.empty:
                 self._universe = df["symbol"].tolist()
                 self._stats["universe_size"] = len(self._universe)
@@ -304,9 +310,7 @@ class MarketWideSweep:
 
     async def _screen_momentum_leaders(self) -> List[Dict]:
         try:
-            from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
-            df = conn.execute("""
+            df = await self._duckdb_query("""
                 WITH rets AS (
                     SELECT symbol, date, close, volume,
                            close / NULLIF(FIRST_VALUE(close) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 5 PRECEDING AND 5 PRECEDING), 0) - 1 as ret_5d,
@@ -320,16 +324,14 @@ class MarketWideSweep:
                 QUALIFY ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) = 1
                 ORDER BY ret_5d + ret_20d DESC
                 LIMIT 50
-            """).fetchdf()
+            """)
             return [{"symbol": r["symbol"], "ret_5d": round(r["ret_5d"], 4), "ret_20d": round(r["ret_20d"], 4)} for _, r in df.iterrows()]
         except Exception:
             return []
 
     async def _screen_volume_anomalies(self) -> List[Dict]:
         try:
-            from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
-            df = conn.execute("""
+            df = await self._duckdb_query("""
                 WITH vol AS (
                     SELECT symbol, date, volume,
                            AVG(volume) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING) as avg_vol
@@ -344,16 +346,14 @@ class MarketWideSweep:
                 QUALIFY ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) = 1
                 ORDER BY ratio DESC
                 LIMIT 50
-            """).fetchdf()
+            """)
             return [{"symbol": r["symbol"], "vol_ratio": round(r["ratio"], 1)} for _, r in df.iterrows()]
         except Exception:
             return []
 
     async def _screen_rsi_extremes(self) -> List[Dict]:
         try:
-            from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
-            df = conn.execute("""
+            df = await self._duckdb_query("""
                 SELECT symbol, rsi_14
                 FROM technical_indicators
                 WHERE date >= CURRENT_DATE - INTERVAL '2 days'
@@ -361,7 +361,7 @@ class MarketWideSweep:
                 QUALIFY ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) = 1
                 ORDER BY ABS(rsi_14 - 50) DESC
                 LIMIT 50
-            """).fetchdf()
+            """)
             return [{"symbol": r["symbol"], "rsi": round(r["rsi_14"], 1)} for _, r in df.iterrows()]
         except Exception:
             return []
@@ -369,9 +369,7 @@ class MarketWideSweep:
     async def _screen_bollinger_squeeze(self) -> List[Dict]:
         """Find symbols where Bollinger bandwidth is at multi-week low (breakout imminent)."""
         try:
-            from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
-            df = conn.execute("""
+            df = await self._duckdb_query("""
                 WITH bb AS (
                     SELECT symbol, date,
                            (bb_upper - bb_lower) / NULLIF(bb_middle, 0) as bandwidth,
@@ -389,7 +387,7 @@ class MarketWideSweep:
                 QUALIFY ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) = 1
                 ORDER BY bandwidth ASC
                 LIMIT 30
-            """).fetchdf()
+            """)
             return [{"symbol": r["symbol"], "bandwidth": round(r["bandwidth"], 4)} for _, r in df.iterrows()]
         except Exception:
             return []
@@ -397,9 +395,7 @@ class MarketWideSweep:
     async def _screen_sma_crosses(self) -> List[Dict]:
         """Find recent golden/death crosses (SMA50 crossing SMA200)."""
         try:
-            from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
-            df = conn.execute("""
+            df = await self._duckdb_query("""
                 WITH crosses AS (
                     SELECT symbol, date, sma_50, sma_200,
                            LAG(sma_50) OVER w as prev_50,
@@ -418,7 +414,7 @@ class MarketWideSweep:
                   AND ((prev_50 < prev_200 AND sma_50 > sma_200)
                     OR (prev_50 > prev_200 AND sma_50 < sma_200))
                 QUALIFY ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) = 1
-            """).fetchdf()
+            """)
             return [{"symbol": r["symbol"], "cross_type": r["cross_type"]} for _, r in df.iterrows()]
         except Exception:
             return []
@@ -426,9 +422,7 @@ class MarketWideSweep:
     async def _screen_new_highs_lows(self) -> List[Dict]:
         """Find symbols at 52-week highs or lows."""
         try:
-            from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
-            df = conn.execute("""
+            df = await self._duckdb_query("""
                 WITH extremes AS (
                     SELECT symbol, date, close,
                            MAX(high) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 252 PRECEDING AND 1 PRECEDING) as high_52w,
@@ -454,9 +448,7 @@ class MarketWideSweep:
 
     async def _screen_mean_reversion(self) -> List[Dict]:
         try:
-            from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
-            df = conn.execute("""
+            df = await self._duckdb_query("""
                 WITH stats AS (
                     SELECT symbol, date, close,
                            close / NULLIF(LAG(close, 5) OVER w, 0) - 1 as ret_5d,
@@ -481,9 +473,7 @@ class MarketWideSweep:
     async def _screen_accumulation(self) -> List[Dict]:
         """Detect institutional accumulation: price up + volume up for 3+ days."""
         try:
-            from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
-            df = conn.execute("""
+            df = await self._duckdb_query("""
                 WITH daily AS (
                     SELECT symbol, date, close, volume,
                            close > LAG(close) OVER w as price_up,
@@ -508,11 +498,9 @@ class MarketWideSweep:
     async def _screen_sector_strength(self) -> List[Dict]:
         """Rank sectors by relative strength vs SPY."""
         try:
-            from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
             sectors = ["XLK", "XLF", "XLE", "XLV", "XLI", "XLP", "XLY", "XLU", "XLRE", "XLB", "XLC"]
             placeholders = ",".join([f"'{s}'" for s in sectors + ["SPY"]])
-            df = conn.execute(f"""
+            df = await self._duckdb_query(f"""
                 WITH rets AS (
                     SELECT symbol,
                            close / NULLIF(FIRST_VALUE(close) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 5 PRECEDING AND 5 PRECEDING), 0) - 1 as ret_5d
@@ -532,9 +520,7 @@ class MarketWideSweep:
     async def _screen_consecutive_moves(self) -> List[Dict]:
         """Find symbols with 3+ consecutive up or down days."""
         try:
-            from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
-            df = conn.execute("""
+            df = await self._duckdb_query("""
                 WITH daily AS (
                     SELECT symbol, date, close,
                            CASE WHEN close > LAG(close) OVER w THEN 1 ELSE -1 END as direction
@@ -571,10 +557,10 @@ class MarketWideSweep:
                 if self._universe:
                     await self._batch_ingest(self._universe, days=FULL_INGEST_DAYS)
 
-                # Phase 2: Compute indicators
+                # Phase 2: Compute indicators (off event loop)
                 try:
                     from app.services.data_ingestion import data_ingestion
-                    data_ingestion.compute_and_store_indicators()  # All symbols
+                    await asyncio.to_thread(data_ingestion.compute_and_store_indicators)
                 except Exception as e:
                     logger.debug("Indicator computation: %s", e)
 

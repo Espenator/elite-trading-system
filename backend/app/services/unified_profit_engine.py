@@ -127,8 +127,8 @@ class UnifiedProfitEngine:
             from app.services.ml_scorer import get_ml_scorer
             ml = get_ml_scorer()
             if ml.is_loaded:
-                # Try to get bars from context or DuckDB
-                ml_result = self._get_ml_score(symbol)
+                # Try to get bars from context or DuckDB (off event loop)
+                ml_result = await asyncio.to_thread(self._get_ml_score, symbol)
                 if ml_result:
                     brain_scores["ml_xgboost"] = (ml_result["ml_score"], ml_result["confidence"])
         except Exception:
@@ -214,15 +214,13 @@ class UnifiedProfitEngine:
     def _get_ml_score(self, symbol: str) -> Optional[Dict[str, Any]]:
         """Get ML score from DuckDB data."""
         try:
-            import duckdb
-            db_path = "/home/user/elite-trading-system/data/market_data.duckdb"
-            conn = duckdb.connect(db_path, read_only=True)
+            from app.data.duckdb_storage import duckdb_store
+            conn = duckdb_store._get_conn()
             rows = conn.execute(
-                "SELECT open, high, low, close, volume FROM daily_bars "
+                "SELECT open, high, low, close, volume FROM daily_ohlcv "
                 "WHERE symbol = ? ORDER BY date DESC LIMIT 50",
                 [symbol],
             ).fetchall()
-            conn.close()
 
             if len(rows) < 20:
                 return None
@@ -243,7 +241,7 @@ class UnifiedProfitEngine:
         while self._running:
             await asyncio.sleep(self.ADAPT_INTERVAL)
             try:
-                self._adapt_weights()
+                await asyncio.to_thread(self._adapt_weights)
             except Exception as e:
                 logger.debug("Weight adaptation error: %s", e)
 

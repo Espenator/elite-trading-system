@@ -2,6 +2,10 @@
 """
 memory.py - Agent Memory & Self-Learning Flywheel for OpenClaw v2.0
 
+DEPRECATED: This module is superseded by app.knowledge.memory_bank.MemoryBank.
+New data is forwarded to the canonical MemoryBank for unified knowledge layer access.
+All new code should use: from app.knowledge.memory_bank import get_memory_bank
+
 Persistent memory system that enables the clawbot agent architecture:
   - Tracks trade outcomes by ticker, source, setup type, and regime
   - Adjusts source weights based on historical accuracy (flywheel)
@@ -239,6 +243,22 @@ class TradeMemory:
         self.data['total_signals'] += 1
         self._save()
 
+        # Bridge to canonical MemoryBank (knowledge layer)
+        try:
+            from app.knowledge.memory_bank import get_memory_bank, AgentMemory
+            bank = get_memory_bank()
+            bank.store_observation(AgentMemory(
+                agent_name=f"legacy:{source}:{setup}",
+                symbol=ticker,
+                regime=regime.lower(),
+                market_context={"score": score, "setup": setup, "source": source},
+                agent_observation={"type": "signal", "score": score},
+                agent_vote="bullish" if score >= 50 else "hold",
+                confidence=min(1.0, score / 100.0),
+            ))
+        except Exception:
+            pass  # Bridge failure must not break legacy flow
+
     def record_outcome(self, ticker: str, source: str,
                        won: bool, pnl_pct: float = 0.0,
                        setup: str = 'unknown', regime: str = 'UNKNOWN'):
@@ -325,6 +345,19 @@ class TradeMemory:
         self._recalculate_weights()
         self._evaluate_agents()
         self._save()
+
+        # Bridge outcome to canonical MemoryBank
+        try:
+            from app.knowledge.memory_bank import get_memory_bank
+            bank = get_memory_bank()
+            r_multiple = pnl_pct / 2.0 if pnl_pct else 0.0  # Approximate 2% risk
+            bank.update_outcome(
+                trade_id=f"legacy:{ticker}:{source}",
+                r_multiple=r_multiple,
+                was_correct=won,
+            )
+        except Exception:
+            pass  # Bridge failure must not break legacy flow
 
         logger.info(f"[Memory] Outcome: {ticker} via {source}:{setup} "
                     f"{'WIN' if won else 'LOSS'} {pnl_pct:+.1f}% "

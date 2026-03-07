@@ -299,26 +299,28 @@ class NewsAggregator:
     async def _fetch_economic_calendar(self) -> List[NewsItem]:
         """Check for upcoming economic events from FRED data changes."""
         try:
-            from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            def _sync_query():
+                from app.data.duckdb_storage import duckdb_store
+                conn = duckdb_store._get_conn()
+                return conn.execute("""
+                    WITH changes AS (
+                        SELECT date,
+                               vix_close,
+                               LAG(vix_close) OVER (ORDER BY date) as prev_vix,
+                               fed_funds_rate,
+                               LAG(fed_funds_rate) OVER (ORDER BY date) as prev_ffr,
+                               us10y_yield,
+                               LAG(us10y_yield) OVER (ORDER BY date) as prev_10y
+                        FROM macro_data
+                        WHERE date >= CURRENT_DATE - INTERVAL '5 days'
+                        ORDER BY date DESC
+                        LIMIT 5
+                    )
+                    SELECT * FROM changes WHERE date >= CURRENT_DATE - INTERVAL '2 days'
+                """).fetchdf()
 
             # Detect recent macro data changes (rate moves, VIX spikes)
-            df = conn.execute("""
-                WITH changes AS (
-                    SELECT date,
-                           vix_close,
-                           LAG(vix_close) OVER (ORDER BY date) as prev_vix,
-                           fed_funds_rate,
-                           LAG(fed_funds_rate) OVER (ORDER BY date) as prev_ffr,
-                           us10y_yield,
-                           LAG(us10y_yield) OVER (ORDER BY date) as prev_10y
-                    FROM macro_data
-                    WHERE date >= CURRENT_DATE - INTERVAL '5 days'
-                    ORDER BY date DESC
-                    LIMIT 5
-                )
-                SELECT * FROM changes WHERE date >= CURRENT_DATE - INTERVAL '2 days'
-            """).fetchdf()
+            df = await asyncio.to_thread(_sync_query)
 
             items = []
             for _, row in df.iterrows():

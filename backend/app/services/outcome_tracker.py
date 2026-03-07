@@ -378,6 +378,33 @@ class OutcomeTracker:
         except Exception as e:
             logger.debug("Knowledge memory outcome update error: %s", e)
 
+        # Extract heuristics + rebuild knowledge graph every 10 resolved trades
+        if self._stats["total_resolved"] % 10 == 0 and self._stats["total_resolved"] >= 10:
+            try:
+                from app.knowledge.heuristic_engine import get_heuristic_engine
+                from app.knowledge.knowledge_graph import get_knowledge_graph
+                he = get_heuristic_engine()
+                kg = get_knowledge_graph()
+                # Extract heuristics from each agent's memory bank
+                new_heuristics = 0
+                for agent_name in [
+                    "market_perception", "regime", "rsi", "hypothesis",
+                    "strategy", "risk", "flow_perception",
+                ]:
+                    extracted = he.extract_heuristics(agent_name)
+                    new_heuristics += len(extracted)
+                # Apply temporal decay based on cognitive mode
+                he.apply_temporal_decay()
+                # Rebuild cross-agent knowledge graph edges
+                new_edges = kg.build_edges()
+                if new_heuristics or new_edges:
+                    logger.info(
+                        "Knowledge refresh after %d outcomes: %d new heuristics, %d new edges",
+                        self._stats["total_resolved"], new_heuristics, new_edges,
+                    )
+            except Exception as e:
+                logger.debug("Knowledge refresh error: %s", e)
+
         # Feed to council feedback loop + trigger weight update
         try:
             from app.council.feedback_loop import record_outcome as council_record, update_agent_weights

@@ -2,6 +2,10 @@
 """
 memory_v3.py - Enhanced Agent Memory System for OpenClaw v3.0
 
+DEPRECATED: This module is superseded by app.knowledge.memory_bank.MemoryBank.
+New data is forwarded to the canonical MemoryBank for unified knowledge layer access.
+All new code should use: from app.knowledge.memory_bank import get_memory_bank
+
 SQLite + ChromaDB Hybrid with Causal Graph, Vector Similarity, and Alpha Decay.
 
 Key capabilities:
@@ -894,6 +898,24 @@ class MemoryV3:
 
             logger.info(f"[MemoryV3] Signal #{signal_id}: {ticker} via {source}:{setup} "
                         f"score={score} regime={regime}")
+
+            # Bridge to canonical MemoryBank (knowledge layer)
+            try:
+                from app.knowledge.memory_bank import get_memory_bank, AgentMemory
+                bank = get_memory_bank()
+                bank.store_observation(AgentMemory(
+                    agent_name=f"legacy_v3:{source}:{setup}",
+                    symbol=ticker,
+                    regime=regime.lower(),
+                    market_context={"score": score, "setup": setup, "source": source,
+                                    "entry_price": entry_price},
+                    agent_observation={"type": "signal", "score": score},
+                    agent_vote="bullish" if score >= 50 else "hold",
+                    confidence=min(1.0, score / 100.0),
+                ))
+            except Exception:
+                pass  # Bridge failure must not break legacy flow
+
             return signal_id
         finally:
             conn.close()
@@ -992,6 +1014,20 @@ class MemoryV3:
 
             logger.info(f"[MemoryV3] Outcome #{outcome_id}: {ticker} "
                         f"{'WIN' if won else 'LOSS'} {pnl_pct:+.1f}%")
+
+            # Bridge outcome to canonical MemoryBank
+            try:
+                from app.knowledge.memory_bank import get_memory_bank
+                bank = get_memory_bank()
+                r_multiple = pnl_pct / 2.0 if pnl_pct else 0.0
+                bank.update_outcome(
+                    trade_id=f"legacy_v3:{ticker}:{source}:{signal_id}",
+                    r_multiple=r_multiple,
+                    was_correct=won,
+                )
+            except Exception:
+                pass  # Bridge failure must not break legacy flow
+
             return outcome_id
         finally:
             conn.close()
