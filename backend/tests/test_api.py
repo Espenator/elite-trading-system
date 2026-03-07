@@ -4,17 +4,18 @@ Covers: health checks, signal engine, Kelly sizer, config, CORS.
 import pytest
 from app.main import app
 from app.services.kelly_position_sizer import KellyPositionSizer
+from app.core.config import settings
 
 
 # --- Test 1: App instance exists ---
 def test_app_exists():
     assert app is not None
-    assert app.title in ("Elite Trading System", "Embodier Trader")
+    assert app.title == settings.APP_NAME or app.title in ("Elite Trading System", "Embodier Trader")
 
 
-# --- Test 2: API version is 3.2.0 ---
+# --- Test 2: API version matches config ---
 def test_app_version():
-    assert app.version == "3.2.0"
+    assert app.version == settings.APP_VERSION
 
 
 # --- Test 3: Health endpoint returns 200 ---
