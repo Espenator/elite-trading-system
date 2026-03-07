@@ -1,18 +1,3 @@
-<#
-.SYNOPSIS
-    Embodier Trader — One-click launcher for backend + frontend.
-.DESCRIPTION
-    Starts the FastAPI backend and Vite dev server, with auto-restart,
-    health checks, and clean shutdown on Ctrl+C.
-.PARAMETER SkipFrontend
-    Start backend only (useful for API-only work or ProfitTrader PC).
-.PARAMETER BackendPort
-    Override backend port (default: from .env PORT or 8000).
-.PARAMETER FrontendPort
-    Override frontend port (default: from .env FRONTEND_PORT or 3000).
-.PARAMETER MaxRestarts
-    Max restart attempts per service before giving up (default: 3).
-#>
 param(
     [switch]$SkipFrontend,
     [int]$BackendPort = 0,
@@ -27,10 +12,10 @@ $FrontendDir = "$Root\frontend-v2"
 $LogDir = "$Root\logs"
 $EnvFile = "$BackendDir\.env"
 
-# ── Ensure logs directory ──
+# Ensure logs directory
 if (!(Test-Path $LogDir)) { New-Item -ItemType Directory $LogDir -Force | Out-Null }
 
-# ── Helper: read value from .env ──
+# Helper: read value from .env
 function Get-EnvValue($Key, $Default) {
     if (Test-Path $EnvFile) {
         $line = Get-Content $EnvFile | Where-Object { $_ -match "^$Key=" }
@@ -39,19 +24,19 @@ function Get-EnvValue($Key, $Default) {
     return $Default
 }
 
-# ── Resolve ports ──
+# Resolve ports
 if ($BackendPort -eq 0) { $BackendPort = [int](Get-EnvValue "PORT" "8000") }
 if ($FrontendPort -eq 0) { $FrontendPort = [int](Get-EnvValue "FRONTEND_PORT" "3000") }
 
-# ── Banner ──
+# Banner
 Write-Host ""
-Write-Host "  ╔══════════════════════════════════════════╗" -ForegroundColor DarkCyan
-Write-Host "  ║        EMBODIER TRADER  v4.0.0           ║" -ForegroundColor DarkCyan
-Write-Host "  ║  Backend :$BackendPort  |  Frontend :$FrontendPort        ║" -ForegroundColor DarkCyan
-Write-Host "  ╚══════════════════════════════════════════╝" -ForegroundColor DarkCyan
+Write-Host "  ============================================" -ForegroundColor DarkCyan
+Write-Host "   EMBODIER TRADER  v4.0.0" -ForegroundColor DarkCyan
+Write-Host "   Backend :$BackendPort  |  Frontend :$FrontendPort" -ForegroundColor DarkCyan
+Write-Host "  ============================================" -ForegroundColor DarkCyan
 Write-Host ""
 
-# ── Fix .env encoding (remove BOM if present) ──
+# Fix .env encoding (remove BOM if present)
 if (Test-Path $EnvFile) {
     $bytes = [IO.File]::ReadAllBytes($EnvFile)
     if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
@@ -60,10 +45,10 @@ if (Test-Path $EnvFile) {
     }
 } elseif (Test-Path "$BackendDir\.env.example") {
     Copy-Item "$BackendDir\.env.example" $EnvFile
-    Write-Host "  [setup] Created .env from .env.example — edit with your API keys" -ForegroundColor Yellow
+    Write-Host "  [setup] Created .env from .env.example - edit with your API keys" -ForegroundColor Yellow
 }
 
-# ── Kill any stale processes on our ports ──
+# Kill any stale processes on our ports
 @($BackendPort, $FrontendPort) | ForEach-Object {
     Get-NetTCPConnection -LocalPort $_ -ErrorAction SilentlyContinue | ForEach-Object {
         Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue
@@ -71,7 +56,7 @@ if (Test-Path $EnvFile) {
 }
 Start-Sleep 1
 
-# ── Ensure Python venv exists ──
+# Ensure Python venv exists
 Set-Location $BackendDir
 if (!(Test-Path "venv")) {
     Write-Host "  [setup] Creating Python virtual environment..." -ForegroundColor Cyan
@@ -83,7 +68,7 @@ if (!(Test-Path "venv")) {
     }
 }
 
-# ── Activate venv and install deps if needed ──
+# Activate venv and install deps if needed
 & .\venv\Scripts\Activate.ps1
 $needInstall = $false
 try { python -c "import fastapi" 2>&1 | Out-Null } catch { $needInstall = $true }
@@ -97,7 +82,7 @@ if ($needInstall) {
     }
 }
 
-# ── Start backend (as a background job with restart loop) ──
+# Start backend as background job with restart loop
 $backendJob = Start-Job -ScriptBlock {
     param($dir, $port, $logFile, $maxRestarts)
     Set-Location $dir
@@ -121,7 +106,7 @@ $backendJob = Start-Job -ScriptBlock {
     "$(Get-Date -Format 'HH:mm:ss') [FATAL] Backend exceeded $maxRestarts restarts" | Tee-Object $logFile -Append
 } -ArgumentList $BackendDir, $BackendPort, "$LogDir\backend.log", $MaxRestarts
 
-# ── Wait for backend health ──
+# Wait for backend health
 Write-Host "  Waiting for backend" -ForegroundColor Cyan -NoNewline
 $healthy = $false
 for ($i = 0; $i -lt 60; $i++) {
@@ -138,15 +123,13 @@ if ($healthy) {
     Write-Host "       API Docs  http://localhost:$BackendPort/docs" -ForegroundColor DarkGray
 } else {
     Write-Host "  [WARN] Backend may not be ready yet. Check logs\backend.log" -ForegroundColor Yellow
-    # Don't exit — it might still come up (23+ services take time)
 }
 
-# ── Start frontend (unless skipped) ──
+# Start frontend (unless skipped)
 $frontendJob = $null
 if (!$SkipFrontend) {
     Set-Location $FrontendDir
 
-    # Ensure node_modules
     if (!(Test-Path "node_modules")) {
         Write-Host "  [setup] Installing frontend dependencies..." -ForegroundColor Cyan
         npm install --silent 2>&1 | Out-Null
@@ -178,18 +161,17 @@ if (!$SkipFrontend) {
     Start-Sleep 3
     Write-Host "  [OK] Frontend  http://localhost:$FrontendPort" -ForegroundColor Green
 
-    # Open browser
     Start-Sleep 2
     Start-Process "http://localhost:$FrontendPort"
 }
 
-# ── Running banner ──
+# Running banner
 Write-Host ""
 Write-Host "  RUNNING  |  Press Ctrl+C to stop" -ForegroundColor Green
 Write-Host "  Logs:  $LogDir\backend.log  /  frontend.log" -ForegroundColor DarkGray
 Write-Host ""
 
-# ── Monitor loop + clean shutdown ──
+# Monitor loop + clean shutdown
 try {
     while ($true) {
         Start-Sleep 10
