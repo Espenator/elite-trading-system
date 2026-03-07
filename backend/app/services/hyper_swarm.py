@@ -98,11 +98,9 @@ class HyperSwarm:
         self._workers: List[asyncio.Task] = []
         self._results: List[MicroSwarmResult] = []
         self._semaphore = asyncio.Semaphore(MAX_CONCURRENT_MICRO_SWARMS)
-        self._ollama_urls = self._load_ollama_pool()
-        self._ollama_semaphores: Dict[str, asyncio.Semaphore] = {
-            url: asyncio.Semaphore(MAX_CONCURRENT_PER_OLLAMA) for url in self._ollama_urls
-        }
-        self._node_index = 0  # Round-robin counter
+        from app.services.ollama_node_pool import get_ollama_pool
+        self._pool = get_ollama_pool()
+        self._ollama_urls = self._pool.urls
         self._stats = {
             "total_processed": 0,
             "total_escalated": 0,
@@ -114,13 +112,6 @@ class HyperSwarm:
             "by_direction": defaultdict(int),
             "scores_distribution": defaultdict(int),  # 0-10, 10-20, ..., 90-100
         }
-
-    def _load_ollama_pool(self) -> List[str]:
-        """Load Ollama node URLs from environment."""
-        env_urls = os.getenv("SCANNER_OLLAMA_URLS", "")
-        if env_urls:
-            return [u.strip() for u in env_urls.split(",") if u.strip()]
-        return list(DEFAULT_OLLAMA_URLS)
 
     async def start(self):
         if self._running:
@@ -314,16 +305,15 @@ REASON: [one sentence]"""
     # Ollama Pool Management
     # ──────────────────────────────────────────────────────────────────────
     def _get_next_ollama(self) -> str:
-        """Round-robin Ollama node selection."""
-        url = self._ollama_urls[self._node_index % len(self._ollama_urls)]
-        self._node_index += 1
-        return url
+        """Round-robin Ollama node selection via shared pool."""
+        url = self._pool.get_next_node()
+        return url or (self._pool.urls[0] if self._pool.urls else "http://localhost:11434")
 
     async def _call_ollama(self, base_url: str, prompt: str) -> str:
         """Call Ollama with per-node concurrency limiting."""
         import httpx
 
-        sem = self._ollama_semaphores.get(base_url)
+        sem = self._pool.get_semaphore(base_url)
         if sem:
             await sem.acquire()
 
@@ -466,7 +456,7 @@ REASON: [one sentence]"""
             "running": self._running,
             "queue_depth": self._queue.qsize(),
             "workers": len(self._workers),
-            "ollama_nodes": self._ollama_urls,
+            "ollama_nodes": self._pool.urls,
             "escalation_threshold": ESCALATION_THRESHOLD,
             "stats": {
                 k: (dict(v) if isinstance(v, defaultdict) else round(v, 1) if isinstance(v, float) else v)
