@@ -73,6 +73,14 @@ class Settings(BaseSettings):
     def APCA_API_SECRET_KEY(self) -> str:
         return self.ALPACA_SECRET_KEY
 
+    # ── Multi-Key Alpaca Pool ─────────────────────────────
+    ALPACA_KEY_1: str = ""
+    ALPACA_SECRET_1: str = ""
+    ALPACA_KEY_2: str = ""
+    ALPACA_SECRET_2: str = ""
+    ALPACA_KEY_3: str = ""
+    ALPACA_SECRET_3: str = ""
+
     # ── FinViz ──────────────────────────────────────────────
     FINVIZ_API_KEY: str = ""
     FINVIZ_BASE_URL: str = "https://elite.finviz.com"
@@ -178,6 +186,10 @@ class Settings(BaseSettings):
     OLLAMA_PC2_URL: str = "http://localhost:11434"  # PC-2 endpoint (set to PC-2 IP for dual-PC)
     OLLAMA_SMALL_MODEL: str = "mistral:7b"          # PC-1: fast, <200ms, ~4GB VRAM
     OLLAMA_LARGE_MODEL: str = "llama3:70b-q4_K_M"   # PC-2: complex, ~40GB VRAM
+
+    # ── Cluster / Multi-PC ────────────────────────────────
+    CLUSTER_PC2_HOST: str = ""  # Empty = single-PC mode
+    CLUSTER_HEALTH_INTERVAL: int = 60  # Seconds between health checks
 
     # ── Adaptive Router Settings ──────────────────────────
     ADAPTIVE_ROUTING_ENABLED: bool = True
