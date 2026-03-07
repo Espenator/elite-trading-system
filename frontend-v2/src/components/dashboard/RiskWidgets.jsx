@@ -26,16 +26,9 @@ const C = {
 // =============================================================================
 
 const DEFAULT_ASSETS = ['SPY', 'QQQ', 'AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'AMD'];
-const DEFAULT_CORR = [
-  [1.00, 0.92, 0.85, 0.87, 0.82, 0.64, 0.78, 0.71],
-  [0.92, 1.00, 0.89, 0.91, 0.88, 0.68, 0.85, 0.79],
-  [0.85, 0.89, 1.00, 0.78, 0.72, 0.55, 0.73, 0.65],
-  [0.87, 0.91, 0.78, 1.00, 0.81, 0.52, 0.76, 0.68],
-  [0.82, 0.88, 0.72, 0.81, 1.00, 0.48, 0.71, 0.62],
-  [0.64, 0.68, 0.55, 0.52, 0.48, 1.00, 0.61, 0.72],
-  [0.78, 0.85, 0.73, 0.76, 0.71, 0.61, 1.00, 0.84],
-  [0.71, 0.79, 0.65, 0.68, 0.62, 0.72, 0.84, 1.00],
-];
+const ZERO_CORR = Array.from({ length: 8 }, (_, i) =>
+  Array.from({ length: 8 }, (_, j) => i === j ? 1.00 : 0)
+);
 
 /**
  * Map a correlation value → background color string.
@@ -68,12 +61,12 @@ function getCorrColor(val) {
  *
  * Props:
  *   assets      – string[]          (default: 8 tech symbols)
- *   correlations – number[][]        (default: realistic tech correlations)
+ *   correlations – number[][]        (default: zero matrix, diagonal = 1)
  *   className   – string
  */
 export function CorrelationMatrixHeatmap({
   assets = DEFAULT_ASSETS,
-  correlations = DEFAULT_CORR,
+  correlations = ZERO_CORR,
   className = '',
 }) {
   // hoveredCell tracks {row, col} so we can highlight entire row + col
@@ -511,11 +504,7 @@ export function ParameterSweepsPanel({
   const initValues = Object.fromEntries(parameters.map((p) => [p.id, p.default]));
   const [values, setValues]       = useState(initValues);
   const [isRunning, setIsRunning] = useState(false);
-  const [lastResult, setLastResult] = useState({
-    sharpeFrom: 2.14,
-    sharpeTo:   2.38,
-    delta:      '+11.2%',
-  });
+  const [lastResult, setLastResult] = useState(null);
 
   const handleChange = useCallback((id, val) => {
     setValues((prev) => ({ ...prev, [id]: val }));
@@ -524,17 +513,6 @@ export function ParameterSweepsPanel({
   const handleRun = useCallback(() => {
     setIsRunning(true);
     onRun?.(values);
-    // Simulate a short sweep run for demo feedback
-    setTimeout(() => {
-      const delta = ((Math.random() * 0.3 - 0.05) * 100).toFixed(1);
-      const sign  = parseFloat(delta) >= 0 ? '+' : '';
-      setLastResult({
-        sharpeFrom: 2.14,
-        sharpeTo:   parseFloat((2.14 * (1 + parseFloat(delta) / 100)).toFixed(2)),
-        delta:      `${sign}${delta}%`,
-      });
-      setIsRunning(false);
-    }, 1800);
   }, [onRun, values]);
 
   const handleStop = useCallback(() => {
@@ -546,7 +524,7 @@ export function ParameterSweepsPanel({
     setValues(initValues);
   }, [initValues]);
 
-  const deltaPositive = parseFloat(lastResult.delta) >= 0;
+  const deltaPositive = lastResult ? parseFloat(lastResult.delta) >= 0 : false;
 
   return (
     <div className={`space-y-4 ${className}`}>
@@ -687,49 +665,68 @@ export function ParameterSweepsPanel({
       <div
         className="rounded-lg p-3 space-y-1"
         style={{
-          backgroundColor: deltaPositive ? 'rgba(16,185,129,0.07)' : 'rgba(239,68,68,0.07)',
-          border: `1px solid ${deltaPositive ? 'rgba(16,185,129,0.25)' : 'rgba(239,68,68,0.25)'}`,
+          backgroundColor: lastResult
+            ? (deltaPositive ? 'rgba(16,185,129,0.07)' : 'rgba(239,68,68,0.07)')
+            : 'rgba(100,116,139,0.07)',
+          border: `1px solid ${lastResult
+            ? (deltaPositive ? 'rgba(16,185,129,0.25)' : 'rgba(239,68,68,0.25)')
+            : 'rgba(100,116,139,0.20)'}`,
         }}
       >
         <div className="flex items-center justify-between">
           <span style={{ fontSize: 9, fontFamily: 'ui-monospace,monospace', color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
             Last Sweep
           </span>
-          <span
-            style={{
-              fontSize: 9,
-              fontFamily: 'ui-monospace,monospace',
-              fontWeight: 700,
-              color: deltaPositive ? C.green : C.red,
-              backgroundColor: deltaPositive ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
-              padding: '1px 6px',
-              borderRadius: 4,
-            }}
-          >
-            {lastResult.delta}
-          </span>
+          {lastResult && (
+            <span
+              style={{
+                fontSize: 9,
+                fontFamily: 'ui-monospace,monospace',
+                fontWeight: 700,
+                color: deltaPositive ? C.green : C.red,
+                backgroundColor: deltaPositive ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
+                padding: '1px 6px',
+                borderRadius: 4,
+              }}
+            >
+              {lastResult.delta}
+            </span>
+          )}
         </div>
 
-        <div
-          style={{
-            fontSize: 12,
-            fontFamily: 'ui-monospace,monospace',
-            fontWeight: 700,
-            color: C.text,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-          }}
-        >
-          <span style={{ color: C.muted }}>Sharpe</span>
-          <span style={{ color: C.dimText }}>{lastResult.sharpeFrom.toFixed(2)}</span>
-          <svg width="14" height="10" viewBox="0 0 14 10" fill="none" style={{ flexShrink: 0 }}>
-            <path d="M1 5H13M9 1L13 5L9 9" stroke={deltaPositive ? C.green : C.red} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          <span style={{ color: deltaPositive ? C.green : C.red }}>
-            {lastResult.sharpeTo.toFixed(2)}
-          </span>
-        </div>
+        {lastResult ? (
+          <div
+            style={{
+              fontSize: 12,
+              fontFamily: 'ui-monospace,monospace',
+              fontWeight: 700,
+              color: C.text,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <span style={{ color: C.muted }}>Sharpe</span>
+            <span style={{ color: C.dimText }}>{lastResult.sharpeFrom.toFixed(2)}</span>
+            <svg width="14" height="10" viewBox="0 0 14 10" fill="none" style={{ flexShrink: 0 }}>
+              <path d="M1 5H13M9 1L13 5L9 9" stroke={deltaPositive ? C.green : C.red} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span style={{ color: deltaPositive ? C.green : C.red }}>
+              {lastResult.sharpeTo.toFixed(2)}
+            </span>
+          </div>
+        ) : (
+          <div
+            style={{
+              fontSize: 12,
+              fontFamily: 'ui-monospace,monospace',
+              fontWeight: 700,
+              color: C.muted,
+            }}
+          >
+            No results yet
+          </div>
+        )}
 
         <div style={{ fontSize: 8, fontFamily: 'ui-monospace,monospace', color: C.muted, marginTop: 2 }}>
           {isRunning

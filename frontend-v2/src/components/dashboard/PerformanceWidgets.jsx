@@ -14,7 +14,7 @@ import React from 'react';
 //    Large circular badge with animated draw-on SVG ring showing the grade.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function TradingGradeHero({ grade = 'A', score = 87, size = 120 }) {
+export function TradingGradeHero({ grade = '—', score = 0, size = 120 }) {
   const gradeColors = {
     A: '#10B981',
     B: '#06B6D4',
@@ -23,7 +23,7 @@ export function TradingGradeHero({ grade = 'A', score = 87, size = 120 }) {
     F: '#EF4444',
   };
 
-  const color = gradeColors[grade] || gradeColors['C'];
+  const color = gradeColors[grade] || '#4b5563';
   const strokeWidth = 7;
   const r = (size - strokeWidth * 2) / 2;
   const circ = 2 * Math.PI * r;
@@ -114,39 +114,6 @@ export function TradingGradeHero({ grade = 'A', score = 87, size = 120 }) {
 //    Multi-year monthly returns heatmap grid.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const DEFAULT_HEATMAP_DATA = [
-  // 2024
-  { year: 2024, month: 1,  return_pct:  2.1 },
-  { year: 2024, month: 2,  return_pct:  4.7 },
-  { year: 2024, month: 3,  return_pct: -1.2 },
-  { year: 2024, month: 4,  return_pct:  6.3 },
-  { year: 2024, month: 5,  return_pct:  1.8 },
-  { year: 2024, month: 6,  return_pct: -3.4 },
-  { year: 2024, month: 7,  return_pct:  5.9 },
-  { year: 2024, month: 8,  return_pct:  3.1 },
-  { year: 2024, month: 9,  return_pct: -0.8 },
-  { year: 2024, month: 10, return_pct:  7.2 },
-  { year: 2024, month: 11, return_pct:  2.4 },
-  { year: 2024, month: 12, return_pct:  1.6 },
-  // 2025
-  { year: 2025, month: 1,  return_pct:  3.2 },
-  { year: 2025, month: 2,  return_pct: -1.4 },
-  { year: 2025, month: 3,  return_pct:  5.8 },
-  { year: 2025, month: 4,  return_pct:  0.9 },
-  { year: 2025, month: 5,  return_pct: -2.7 },
-  { year: 2025, month: 6,  return_pct:  4.4 },
-  { year: 2025, month: 7,  return_pct:  6.1 },
-  { year: 2025, month: 8,  return_pct: -5.2 },
-  { year: 2025, month: 9,  return_pct:  2.9 },
-  { year: 2025, month: 10, return_pct:  1.3 },
-  { year: 2025, month: 11, return_pct:  3.7 },
-  { year: 2025, month: 12, return_pct:  4.9 },
-  // 2026 — partial year
-  { year: 2026, month: 1,  return_pct:  2.6 },
-  { year: 2026, month: 2,  return_pct: -0.9 },
-  { year: 2026, month: 3,  return_pct:  1.4 },
-];
-
 const MONTH_ABBRS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function heatmapCellStyle(value) {
@@ -159,7 +126,7 @@ function heatmapCellStyle(value) {
   return             { bg: 'rgba(239,68,68,0.42)',  text: '#f87171', label: `${value.toFixed(1)}%` };
 }
 
-export function ReturnsHeatmapCalendar({ data = DEFAULT_HEATMAP_DATA, className = '' }) {
+export function ReturnsHeatmapCalendar({ data = [], className = '' }) {
   // Build lookup: { year: { month: return_pct } }
   const lookup = {};
   const yearsSet = new Set();
@@ -168,6 +135,12 @@ export function ReturnsHeatmapCalendar({ data = DEFAULT_HEATMAP_DATA, className 
     if (!lookup[row.year]) lookup[row.year] = {};
     lookup[row.year][row.month] = row.return_pct;
   }
+
+  // When no data, show current year as an empty placeholder row
+  if (yearsSet.size === 0) {
+    yearsSet.add(new Date().getFullYear());
+  }
+
   const years = Array.from(yearsSet).sort((a, b) => a - b);
 
   return (
@@ -256,13 +229,6 @@ export function ReturnsHeatmapCalendar({ data = DEFAULT_HEATMAP_DATA, className 
 //    Apple-fitness-style concentric rings for AI model metrics.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const DEFAULT_AI_METRICS = [
-  { name: 'Model Accuracy',        value: 87, color: '#06B6D4' },   // cyan   — outermost
-  { name: 'Signal Precision',      value: 73, color: '#10B981' },   // emerald
-  { name: 'Prediction Calibration',value: 91, color: '#8B5CF6' },   // purple
-  { name: 'Risk Adjustment',       value: 65, color: '#F59E0B' },   // amber  — innermost
-];
-
 function ConcentricRing({ cx, cy, r, trackColor, fillColor, value, strokeWidth, index }) {
   const circ = 2 * Math.PI * r;
   const dashoffset = circ * (1 - Math.max(0, Math.min(value / 100, 1)));
@@ -300,7 +266,7 @@ function ConcentricRing({ cx, cy, r, trackColor, fillColor, value, strokeWidth, 
   );
 }
 
-export function ConcentricAIDial({ metrics = DEFAULT_AI_METRICS }) {
+export function ConcentricAIDial({ metrics = [] }) {
   const svgSize = 180;
   const cx = svgSize / 2;
   const cy = svgSize / 2;
@@ -308,24 +274,31 @@ export function ConcentricAIDial({ metrics = DEFAULT_AI_METRICS }) {
   const strokeWidth = 10;
   const outerR = (svgSize / 2) - strokeWidth / 2 - 4;
 
-  // Overall AI score = weighted average of metric values
-  const overallScore = Math.round(
-    metrics.reduce((sum, m) => sum + m.value, 0) / metrics.length
-  );
+  // Overall AI score = weighted average of metric values; 0 when no metrics
+  const overallScore = metrics.length > 0
+    ? Math.round(metrics.reduce((sum, m) => sum + m.value, 0) / metrics.length)
+    : 0;
 
   // Grade label for the overall score
-  const overallGrade =
-    overallScore >= 90 ? 'A+'
+  const overallGrade = metrics.length === 0
+    ? 'N/A'
+    : overallScore >= 90 ? 'A+'
     : overallScore >= 80 ? 'A'
     : overallScore >= 70 ? 'B'
     : overallScore >= 60 ? 'C'
     : 'D';
 
-  // Rings from outside in: index 0 = outermost
-  const rings = metrics.map((m, i) => ({
-    ...m,
-    r: outerR - i * (strokeWidth + ringGap),
-  }));
+  // Rings from outside in: index 0 = outermost.
+  // When no metrics, render 4 empty placeholder tracks so the dial structure is visible.
+  const PLACEHOLDER_RING_COUNT = 4;
+  const rings = metrics.length > 0
+    ? metrics.map((m, i) => ({ ...m, r: outerR - i * (strokeWidth + ringGap) }))
+    : Array.from({ length: PLACEHOLDER_RING_COUNT }, (_, i) => ({
+        name: `ring-${i}`,
+        value: 0,
+        color: '#374151',
+        r: outerR - i * (strokeWidth + ringGap),
+      }));
 
   return (
     <div className="flex flex-col items-center gap-3">
@@ -374,7 +347,8 @@ export function ConcentricAIDial({ metrics = DEFAULT_AI_METRICS }) {
             className="font-mono text-xs font-bold mt-0.5"
             style={{
               color:
-                overallScore >= 80 ? '#10B981'
+                metrics.length === 0 ? '#6b7280'
+                : overallScore >= 80 ? '#10B981'
                 : overallScore >= 60 ? '#F59E0B'
                 : '#EF4444',
             }}

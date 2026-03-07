@@ -11,36 +11,6 @@ import React, { useMemo } from 'react';
 // Finviz-style sector/stock heatmap.
 // ─────────────────────────────────────────────
 
-const DEFAULT_TREEMAP_DATA = [
-  // Tech (8 stocks)
-  { sector: 'Tech',       symbol: 'NVDA',  change_pct:  4.8 },
-  { sector: 'Tech',       symbol: 'AAPL',  change_pct:  1.2 },
-  { sector: 'Tech',       symbol: 'MSFT',  change_pct:  0.9 },
-  { sector: 'Tech',       symbol: 'AMD',   change_pct:  3.1 },
-  { sector: 'Tech',       symbol: 'GOOG',  change_pct: -0.6 },
-  { sector: 'Tech',       symbol: 'META',  change_pct:  2.4 },
-  { sector: 'Tech',       symbol: 'INTC',  change_pct: -1.3 },
-  { sector: 'Tech',       symbol: 'CRM',   change_pct:  0.5 },
-  // Healthcare (4 stocks)
-  { sector: 'Healthcare', symbol: 'JNJ',   change_pct:  0.3 },
-  { sector: 'Healthcare', symbol: 'PFE',   change_pct: -0.8 },
-  { sector: 'Healthcare', symbol: 'UNH',   change_pct:  1.7 },
-  { sector: 'Healthcare', symbol: 'ABBV',  change_pct: -2.1 },
-  // Finance (4 stocks)
-  { sector: 'Finance',    symbol: 'JPM',   change_pct:  1.1 },
-  { sector: 'Finance',    symbol: 'GS',    change_pct:  2.3 },
-  { sector: 'Finance',    symbol: 'BAC',   change_pct: -0.4 },
-  { sector: 'Finance',    symbol: 'BRK',   change_pct:  0.7 },
-  // Energy (2 stocks)
-  { sector: 'Energy',     symbol: 'XOM',   change_pct: -1.9 },
-  { sector: 'Energy',     symbol: 'CVX',   change_pct:  0.2 },
-  // Consumer (4 stocks)
-  { sector: 'Consumer',   symbol: 'AMZN',  change_pct:  2.6 },
-  { sector: 'Consumer',   symbol: 'TSLA',  change_pct: -3.4 },
-  { sector: 'Consumer',   symbol: 'WMT',   change_pct:  0.8 },
-  { sector: 'Consumer',   symbol: 'COST',  change_pct:  1.4 },
-];
-
 /** Returns a CSS rgba color based on % change, matching the page's getHeatmapCellBg */
 function treemapCellColor(pct) {
   if (pct == null) return 'rgba(30,41,59,0.5)';
@@ -52,7 +22,7 @@ function treemapCellColor(pct) {
   return 'rgba(239,68,68,0.80)';                    // strong red
 }
 
-export function SectorTreemap({ data = DEFAULT_TREEMAP_DATA, width = '100%', height = 300 }) {
+export function SectorTreemap({ data = [], width = '100%', height = 300 }) {
   // Group stocks by sector
   const sectors = useMemo(() => {
     const map = {};
@@ -62,6 +32,34 @@ export function SectorTreemap({ data = DEFAULT_TREEMAP_DATA, width = '100%', hei
     });
     return Object.entries(map); // [ [sectorName, stocks[]] ]
   }, [data]);
+
+  // Empty state
+  if (data.length === 0) {
+    return (
+      <div
+        style={{
+          width,
+          minHeight: height,
+          backgroundColor: '#0B0E14',
+          borderRadius: '8px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <span
+          style={{
+            color: '#374151',
+            fontSize: '12px',
+            fontFamily: 'monospace',
+            letterSpacing: '0.05em',
+          }}
+        >
+          No sector data
+        </span>
+      </div>
+    );
+  }
 
   // Build grid-template-columns proportional to sector stock count
   const totalStocks = data.length;
@@ -169,15 +167,6 @@ export function SectorTreemap({ data = DEFAULT_TREEMAP_DATA, width = '100%', hei
 // Pure SVG spider/radar chart.
 // ─────────────────────────────────────────────
 
-const DEFAULT_RADAR_DATA = [
-  { axis: 'Technical',     value: 78 },
-  { axis: 'Fundamental',   value: 62 },
-  { axis: 'Sentiment',     value: 85 },
-  { axis: 'Momentum',      value: 70 },
-  { axis: 'Volume',        value: 55 },
-  { axis: 'Options Flow',  value: 90 },
-];
-
 /** Convert polar (angle in radians, radius) to Cartesian coords relative to a centre */
 function polarToCartesian(cx, cy, r, angleRad) {
   return {
@@ -191,21 +180,36 @@ function pointsString(pts) {
   return pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
 }
 
-export function MultiFactorRadar({ data = DEFAULT_RADAR_DATA, fillColor = '#06B6D4' }) {
+// Default axis structure shown when no data is provided
+const DEFAULT_RADAR_AXES = [
+  'Technical',
+  'Fundamental',
+  'Sentiment',
+  'Momentum',
+  'Volume',
+  'Options Flow',
+];
+
+export function MultiFactorRadar({ data = [], fillColor = '#06B6D4' }) {
   const cx = 150;
   const cy = 150;
   const maxR = 95; // outer radius in SVG units
 
-  const n = data.length;
+  // Determine axes: use data axes if available, otherwise fall back to default axis labels at value 0
+  const hasData = data.length > 0;
+  const axisLabels = hasData ? data.map((d) => d.axis) : DEFAULT_RADAR_AXES;
+  const n = axisLabels.length;
+
   // Start at top (-π/2) and go clockwise
-  const angles = data.map((_, i) => (2 * Math.PI * i) / n - Math.PI / 2);
+  const angles = axisLabels.map((_, i) => (2 * Math.PI * i) / n - Math.PI / 2);
 
   // Grid rings at 25%, 50%, 75%, 100%
   const gridLevels = [0.25, 0.5, 0.75, 1.0];
 
-  // Data polygon vertices
-  const dataPoints = data.map((d, i) => {
-    const r = (d.value / 100) * maxR;
+  // Data polygon vertices — zero radius when no data
+  const dataPoints = axisLabels.map((_, i) => {
+    const value = hasData ? data[i].value : 0;
+    const r = (value / 100) * maxR;
     return polarToCartesian(cx, cy, r, angles[i]);
   });
 
@@ -221,7 +225,7 @@ export function MultiFactorRadar({ data = DEFAULT_RADAR_DATA, fillColor = '#06B6
     let anchor = 'middle';
     if (cos < -0.3) anchor = 'end';
     else if (cos > 0.3) anchor = 'start';
-    return { ...pt, label: data[i].axis, anchor };
+    return { ...pt, label: axisLabels[i], anchor };
   });
 
   // Fill color with opacity
@@ -280,17 +284,19 @@ export function MultiFactorRadar({ data = DEFAULT_RADAR_DATA, fillColor = '#06B6
         />
       ))}
 
-      {/* ── Filled data polygon ── */}
-      <polygon
-        points={pointsString(dataPoints)}
-        fill={fillRgba}
-        stroke={fillColor}
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
+      {/* ── Filled data polygon (only when data is present) ── */}
+      {hasData && (
+        <polygon
+          points={pointsString(dataPoints)}
+          fill={fillRgba}
+          stroke={fillColor}
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+        />
+      )}
 
-      {/* ── Data point circles ── */}
-      {dataPoints.map((pt, i) => (
+      {/* ── Data point circles (only when data is present) ── */}
+      {hasData && dataPoints.map((pt, i) => (
         <circle key={`dot-${i}`} cx={pt.x} cy={pt.y} r="3.5" fill={fillColor} />
       ))}
 
@@ -309,8 +315,8 @@ export function MultiFactorRadar({ data = DEFAULT_RADAR_DATA, fillColor = '#06B6
         </text>
       ))}
 
-      {/* ── Value badges at data points ── */}
-      {dataPoints.map((pt, i) => (
+      {/* ── Value badges at data points (only when data is present) ── */}
+      {hasData && dataPoints.map((pt, i) => (
         <text
           key={`val-${i}`}
           x={pt.x}
@@ -335,29 +341,6 @@ export function MultiFactorRadar({ data = DEFAULT_RADAR_DATA, fillColor = '#06B6
 const DEFAULT_SYMBOLS = ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'META', 'AMZN', 'JPM'];
 const DEFAULT_SOURCES = ['Alpaca', 'Finviz', 'EDGAR', 'Whale', 'News', 'Social', 'Options'];
 
-// Build default mock statusMap: mostly 'ok' with scattered 'warn'/'error'/'off'
-function buildDefaultStatusMap(symbols, sources) {
-  const seed = [
-    'ok','ok','ok','warn','ok','ok','error',
-    'ok','ok','warn','ok','ok','ok','ok',
-    'ok','warn','ok','ok','ok','error','off',
-    'warn','ok','ok','ok','ok','ok','ok',
-    'ok','ok','ok','ok','warn','ok','ok',
-    'ok','ok','error','ok','ok','ok','ok',
-    'off','ok','ok','warn','ok','ok','ok',
-    'ok','ok','ok','ok','ok','warn','ok',
-  ];
-  const map = {};
-  let idx = 0;
-  symbols.forEach((sym) => {
-    sources.forEach((src) => {
-      map[`${sym}-${src}`] = seed[idx % seed.length];
-      idx++;
-    });
-  });
-  return map;
-}
-
 const STATUS_COLORS = {
   ok:    '#10B981',  // green
   warn:  '#F59E0B',  // amber
@@ -375,11 +358,11 @@ const STATUS_LABELS = {
 export function ScannerStatusMatrix({
   symbols = DEFAULT_SYMBOLS,
   sources = DEFAULT_SOURCES,
-  statusMap,
+  statusMap = {},
 }) {
   const resolvedMap = useMemo(
-    () => statusMap || buildDefaultStatusMap(symbols, sources),
-    [statusMap, symbols, sources],
+    () => statusMap,
+    [statusMap],
   );
 
   return (
@@ -530,14 +513,30 @@ export function ScannerStatusMatrix({
 // ─────────────────────────────────────────────
 
 /** Small sparkline rendered as a pure SVG polyline */
-function Sparkline({ trend = 'up', width = 48, height = 20 }) {
-  // Generate a plausible 10-point sparkline based on trend direction
-  const points = useMemo(() => {
-    const base = [40, 38, 42, 39, 44, 41, 46, 43, 47, 50];
-    if (trend === 'down') return base.map((v) => 90 - v);
-    if (trend === 'flat') return base.map(() => 50 + (Math.random() - 0.5) * 6);
-    return base;
-  }, [trend]);
+function Sparkline({ points = [], trend = 'flat', width = 48, height = 20 }) {
+  // When no real data is provided, draw a flat line at zero
+  const hasPoints = points.length >= 2;
+
+  const strokeColor =
+    trend === 'up' ? '#10B981' : trend === 'down' ? '#EF4444' : '#94a3b8';
+
+  if (!hasPoints) {
+    // Flat line at the vertical midpoint
+    const y = (height / 2).toFixed(1);
+    return (
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible' }}>
+        <line
+          x1="0"
+          y1={y}
+          x2={width}
+          y2={y}
+          stroke="#374151"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+      </svg>
+    );
+  }
 
   const minV = Math.min(...points);
   const maxV = Math.max(...points);
@@ -549,9 +548,6 @@ function Sparkline({ trend = 'up', width = 48, height = 20 }) {
     const y = height - ((v - minV) / range) * (height - 2) - 1;
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   });
-
-  const strokeColor =
-    trend === 'up' ? '#10B981' : trend === 'down' ? '#EF4444' : '#94a3b8';
 
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible' }}>
@@ -608,10 +604,11 @@ function TrendArrow({ trend }) {
 }
 
 export function PredictionMarketCard({
-  question = 'SPY closes above $500 by Friday?',
-  probability = 73,
-  volume = '$2.4M',
-  trend = 'up',
+  question = '',
+  probability = 0,
+  volume = '0',
+  trend = 'flat',
+  sparklinePoints = [],
   className = '',
 }) {
   const clamp = Math.max(0, Math.min(100, probability));
@@ -668,7 +665,7 @@ export function PredictionMarketCard({
         </div>
 
         {/* Sparkline */}
-        <Sparkline trend={trend} width={56} height={22} />
+        <Sparkline points={sparklinePoints} trend={trend} width={56} height={22} />
       </div>
 
       {/* Progress bar (cyan → green gradient) */}

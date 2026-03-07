@@ -279,28 +279,12 @@ export default function RiskIntelligence() {
     { label: 'Win Rate', value: (kelly.win_rate ?? 0) * 100, color: C.green },
   ];
 
-  // 90-day risk history
+  // 90-day risk history — show only real API data, no fabricated fallback
   const history = historyData?.history ?? [];
   const historyTableRows = useMemo(() => {
     if (history.length > 0) return history.slice(-20);
-    // Seeded pseudo-random fallback data (deterministic)
-    return Array.from({ length: 20 }, (_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() - (19 - i));
-      const seed = (i * 7 + 13) % 60;
-      const score = 15 + seed;
-      return {
-        date: format(d, 'MM/dd/yy'),
-        score,
-        var95: (2 + (seed % 7) * 0.8).toFixed(1),
-        drawdown: (0.5 + (seed % 9) * 0.9).toFixed(1),
-        vol: (8 + (seed % 19)).toFixed(1),
-        beta: (0.6 + ((seed % 8) * 0.1)).toFixed(2),
-        sharpe: (0.4 + ((seed % 12) * 0.18)).toFixed(2),
-        regime: ['LOW VOL', 'NORMAL', 'HIGH VOL', 'TRENDING'][seed % 4],
-        status: score <= 35 ? 'SAFE' : score <= 65 ? 'CAUTION' : 'DANGER',
-      };
-    });
+    // No real data — return empty array (table shows zero-state)
+    return [];
   }, [history]);
 
   // Portfolio value for sizer

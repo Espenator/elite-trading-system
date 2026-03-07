@@ -7,7 +7,7 @@
  *   - CouncilDecisionPanel — AI council verdict with agent vote breakdown
  */
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import clsx from 'clsx';
 
 /* ─────────────────────────────────────────────────────────────────
@@ -84,40 +84,23 @@ const DirectionBadge = ({ direction, size = 'sm' }) => {
  * VisualPriceLadder
  *
  * A vertical SVG price ladder showing entry, stop, and target levels
- * with a pulsing current-price line and risk/reward annotation.
+ * with a current-price line and risk/reward annotation.
  *
  * Props:
  *   entry        {number}  Entry price
  *   stop         {number}  Stop-loss price
  *   target       {number}  Target price
- *   currentPrice {number}  Live price (animated)
+ *   currentPrice {number}  Live price
  *   symbol       {string}  Ticker symbol
  */
 export function VisualPriceLadder({
-  entry        = 185.50,
-  stop         = 182.00,
-  target       = 194.25,
-  currentPrice = 186.20,
-  symbol       = 'AAPL',
+  entry        = 0,
+  stop         = 0,
+  target       = 0,
+  currentPrice = 0,
+  symbol       = '',
 }) {
-  /* ── Animate current price with a gentle drift for demo purposes ── */
-  const [livePrice, setLivePrice] = useState(currentPrice);
-  const livePriceRef = useRef(currentPrice);
-
-  useEffect(() => {
-    livePriceRef.current = currentPrice;
-    setLivePrice(currentPrice);
-  }, [currentPrice]);
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      // Small random walk ±0.05 around the prop value
-      const drift = (Math.random() - 0.5) * 0.10;
-      livePriceRef.current = parseFloat((livePriceRef.current + drift).toFixed(2));
-      setLivePrice(livePriceRef.current);
-    }, 1200);
-    return () => clearInterval(id);
-  }, []);
+  const livePrice = currentPrice;
 
   /* ── Pulse animation for current price line ── */
   const [pulse, setPulse] = useState(true);
@@ -133,6 +116,9 @@ export function VisualPriceLadder({
   const LABEL_X = AXIS_X + 6;
   const PAD_TOP    = 18;
   const PAD_BOTTOM = 18;
+
+  /* ── Zero-state: show empty ladder when no prices set ── */
+  const isEmpty = entry === 0 && stop === 0 && target === 0;
 
   const minP = stop   - 5;
   const maxP = target + 5;
@@ -193,6 +179,22 @@ export function VisualPriceLadder({
         Visual Price Ladder
       </PanelHead>
 
+      {isEmpty ? (
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '40px 16px',
+          color: C.textMuted,
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 10,
+          textAlign: 'center',
+          letterSpacing: '0.4px',
+        }}>
+          Set entry / stop / target to visualize
+        </div>
+      ) : (
       <div style={{ display: 'flex', gap: 0, flex: 1 }}>
         {/* SVG price strip */}
         <div style={{ flex: 1, display: 'flex', justifyContent: 'center', padding: '4px 0' }}>
@@ -416,6 +418,7 @@ export function VisualPriceLadder({
           </svg>
         </div>
       </div>
+      )}
     </div>
   );
 }
@@ -423,21 +426,6 @@ export function VisualPriceLadder({
 /* ═════════════════════════════════════════════════════════════════
    2. CouncilDecisionPanel
    ═════════════════════════════════════════════════════════════════ */
-
-const MOCK_COUNCIL = {
-  symbol:     'AAPL',
-  direction:  'BUY',
-  confidence: 87,
-  timestamp:  '2026-03-07T09:41:23Z',
-  reasoning:  'Strong technical breakout above 200 DMA with increasing volume. Sentiment shifted bullish after earnings beat.',
-  votes: [
-    { agent: 'Researcher',    direction: 'BUY',  confidence: 92, weight: 0.30, reasoning: 'Fundamental strength, analyst upgrades' },
-    { agent: 'RiskOfficer',   direction: 'BUY',  confidence: 74, weight: 0.25, reasoning: 'Within risk parameters, VaR acceptable' },
-    { agent: 'Adversary',     direction: 'HOLD', confidence: 45, weight: 0.15, reasoning: 'Overbought on RSI, potential pullback risk' },
-    { agent: 'TrendFollower', direction: 'BUY',  confidence: 91, weight: 0.20, reasoning: 'MACD crossover, above all MAs' },
-    { agent: 'Arbiter',       direction: 'BUY',  confidence: 88, weight: 0.10, reasoning: 'Consensus favors entry, risk-reward 2.5:1' },
-  ],
-};
 
 /* Circular confidence ring (SVG donut) */
 function ConfidenceRing({ value = 87, size = 72 }) {
@@ -520,7 +508,7 @@ function ConfBar({ value }) {
  * Displays the latest AI council verdict with agent vote breakdown.
  *
  * Props:
- *   councilData  {object}   Council response (falls back to mock)
+ *   councilData  {object}   Council response
  *   onExecute    {function} Called when "Execute Trade" is clicked
  *   onOverride   {function} Called when "Override" is clicked
  *   onDismiss    {function} Called when "Dismiss" is clicked
@@ -531,7 +519,7 @@ export function CouncilDecisionPanel({
   onOverride = () => {},
   onDismiss  = () => {},
 }) {
-  const [data, setData] = useState(councilData || MOCK_COUNCIL);
+  const [data, setData] = useState(councilData || null);
   const [fetching, setFetching] = useState(false);
   const [fetchError, setFetchError] = useState(null);
 
@@ -552,7 +540,7 @@ export function CouncilDecisionPanel({
       } catch (err) {
         if (!cancelled) {
           setFetchError(err.message);
-          setData(MOCK_COUNCIL); // graceful fallback
+          setData(null);
         }
       } finally {
         if (!cancelled) setFetching(false);
@@ -562,7 +550,7 @@ export function CouncilDecisionPanel({
     return () => { cancelled = true; };
   }, [councilData]);
 
-  const d = data || MOCK_COUNCIL;
+  const d = data;
 
   /* Format timestamp */
   const fmtTs = (ts) => {
@@ -574,13 +562,13 @@ export function CouncilDecisionPanel({
   };
 
   const dirColor =
-    d.direction === 'BUY'  ? C.green :
-    d.direction === 'SELL' ? C.red   :
+    d?.direction === 'BUY'  ? C.green :
+    d?.direction === 'SELL' ? C.red   :
     C.amber;
 
   const dirBg =
-    d.direction === 'BUY'  ? 'rgba(0,230,118,0.08)'  :
-    d.direction === 'SELL' ? 'rgba(255,56,96,0.08)'   :
+    d?.direction === 'BUY'  ? 'rgba(0,230,118,0.08)'  :
+    d?.direction === 'SELL' ? 'rgba(255,56,96,0.08)'   :
     'rgba(255,171,0,0.08)';
 
   return (
@@ -598,48 +586,82 @@ export function CouncilDecisionPanel({
       {/* ── Header ── */}
       <PanelHead right={
         <span className="font-mono text-[8px]" style={{ color: C.textMuted }}>
-          {fetching ? 'fetching...' : fetchError ? '⚠ mock' : fmtTs(d.timestamp)}
+          {fetching ? 'fetching...' : fetchError ? '⚠ no data' : d ? fmtTs(d.timestamp) : '—'}
         </span>
       }>
         Council Decision
       </PanelHead>
 
       {/* ── Verdict area ── */}
-      <div
-        style={{
-          background: dirBg,
-          borderBottom: `1px solid ${C.border}`,
-          padding: '12px 16px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 16,
-        }}
-      >
-        {/* Confidence ring */}
-        <ConfidenceRing value={d.confidence} size={68} />
-
-        {/* Direction + symbol */}
-        <div style={{ flex: 1 }}>
-          <div
-            className="font-mono font-black"
-            style={{
-              fontSize: 36,
-              lineHeight: 1,
-              color: dirColor,
-              letterSpacing: '-1px',
-              textShadow: `0 0 24px ${dirColor}55`,
-            }}
-          >
-            {d.direction}
-          </div>
-          <div
-            className="font-mono font-semibold"
-            style={{ fontSize: 11, color: C.textSub, marginTop: 4, letterSpacing: '0.3px' }}
-          >
-            {d.symbol} — <span style={{ color: dirColor }}>{d.confidence}% Confidence</span>
+      {!d ? (
+        <div
+          style={{
+            borderBottom: `1px solid ${C.border}`,
+            padding: '24px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 16,
+          }}
+        >
+          <ConfidenceRing value={0} size={68} />
+          <div style={{ flex: 1 }}>
+            <div
+              className="font-mono font-black"
+              style={{ fontSize: 36, lineHeight: 1, color: C.textMuted, letterSpacing: '-1px' }}
+            >
+              —
+            </div>
+            <div
+              className="font-mono"
+              style={{ fontSize: 10, color: C.textMuted, marginTop: 6 }}
+            >
+              No council decision available
+            </div>
+            <div
+              className="font-mono"
+              style={{ fontSize: 9, color: C.textMuted, marginTop: 2 }}
+            >
+              0% Confidence
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <div
+          style={{
+            background: dirBg,
+            borderBottom: `1px solid ${C.border}`,
+            padding: '12px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 16,
+          }}
+        >
+          {/* Confidence ring */}
+          <ConfidenceRing value={d.confidence} size={68} />
+
+          {/* Direction + symbol */}
+          <div style={{ flex: 1 }}>
+            <div
+              className="font-mono font-black"
+              style={{
+                fontSize: 36,
+                lineHeight: 1,
+                color: dirColor,
+                letterSpacing: '-1px',
+                textShadow: `0 0 24px ${dirColor}55`,
+              }}
+            >
+              {d.direction}
+            </div>
+            <div
+              className="font-mono font-semibold"
+              style={{ fontSize: 11, color: C.textSub, marginTop: 4, letterSpacing: '0.3px' }}
+            >
+              {d.symbol} — <span style={{ color: dirColor }}>{d.confidence}% Confidence</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Vote breakdown table ── */}
       <div style={{ overflowX: 'auto' }}>
@@ -667,7 +689,7 @@ export function CouncilDecisionPanel({
             </tr>
           </thead>
           <tbody>
-            {(d.votes || []).map((v, i) => (
+            {d ? (d.votes || []).map((v, i) => (
               <tr
                 key={v.agent}
                 style={{ background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)' }}
@@ -736,7 +758,23 @@ export function CouncilDecisionPanel({
                   {v.reasoning}
                 </td>
               </tr>
-            ))}
+            )) : (
+              <tr>
+                <td
+                  colSpan={5}
+                  className="font-mono"
+                  style={{
+                    padding: '14px 8px',
+                    fontSize: 9,
+                    color: C.textMuted,
+                    textAlign: 'center',
+                    borderBottom: `1px solid ${C.borderSub}`,
+                  }}
+                >
+                  No votes available
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -759,7 +797,7 @@ export function CouncilDecisionPanel({
           className="font-mono"
           style={{ fontSize: 9, color: C.textSub, lineHeight: 1.55, margin: 0 }}
         >
-          {d.reasoning}
+          {d ? d.reasoning : '—'}
         </p>
       </div>
 
@@ -775,41 +813,45 @@ export function CouncilDecisionPanel({
       >
         {/* Execute Trade */}
         <button
-          onClick={onExecute}
+          onClick={d ? onExecute : undefined}
+          disabled={!d}
           className="flex-1 font-mono font-bold uppercase transition-all"
           style={{
             padding: '7px 12px',
             fontSize: 10,
             letterSpacing: '0.6px',
-            background: `linear-gradient(135deg, #006b40, ${C.green})`,
-            color: '#000',
+            background: d ? `linear-gradient(135deg, #006b40, ${C.green})` : C.bg2,
+            color: d ? '#000' : C.textMuted,
             border: 'none',
             borderRadius: 3,
-            cursor: 'pointer',
-            boxShadow: `0 2px 12px rgba(0,230,118,0.2)`,
+            cursor: d ? 'pointer' : 'not-allowed',
+            boxShadow: d ? `0 2px 12px rgba(0,230,118,0.2)` : 'none',
+            opacity: d ? 1 : 0.45,
           }}
-          onMouseEnter={e => { e.currentTarget.style.filter = 'brightness(1.2)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-          onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)';   e.currentTarget.style.transform = 'translateY(0)'; }}
+          onMouseEnter={e => { if (d) { e.currentTarget.style.filter = 'brightness(1.2)'; e.currentTarget.style.transform = 'translateY(-1px)'; } }}
+          onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; e.currentTarget.style.transform = 'translateY(0)'; }}
         >
           Execute Trade
         </button>
 
         {/* Override */}
         <button
-          onClick={onOverride}
+          onClick={d ? onOverride : undefined}
+          disabled={!d}
           className="font-mono font-semibold uppercase transition-all"
           style={{
             padding: '7px 14px',
             fontSize: 10,
             letterSpacing: '0.6px',
             background: 'transparent',
-            color: C.amber,
-            border: `1px solid ${C.amber}`,
+            color: d ? C.amber : C.textMuted,
+            border: `1px solid ${d ? C.amber : C.border}`,
             borderRadius: 3,
-            cursor: 'pointer',
+            cursor: d ? 'pointer' : 'not-allowed',
+            opacity: d ? 1 : 0.45,
           }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,171,0,0.1)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'transparent';          e.currentTarget.style.transform = 'translateY(0)'; }}
+          onMouseEnter={e => { if (d) { e.currentTarget.style.background = 'rgba(255,171,0,0.1)'; e.currentTarget.style.transform = 'translateY(-1px)'; } }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.transform = 'translateY(0)'; }}
         >
           Override
         </button>

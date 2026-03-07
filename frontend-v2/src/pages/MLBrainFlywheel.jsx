@@ -19,68 +19,18 @@ import PageHeader from '../components/ui/PageHeader';
 // FALLBACK DATA
 // ============================================================================
 const FALLBACK_KPIS = {
-  activeModels: 3, activeModelsSub: "Stage 4 Active Models",
-  headModelAcc: 91.4, headModelSub: "Head Model Accuracy",
-  trainingSessions: 24, trainingSessionsSub: "Training Sessions (24h)",
-  signalsResolved: 142, signalsResolvedSub: "Signals Resolved",
-  inferenceFleet: 12, inferenceFleetSub: "Inference Fleet",
-  circuitBreaker: "OK", circuitBreakerSub: "Circuit Breaker",
-  accuracyThreshold: ">70%", accuracyThresholdSub: "Accuracy Threshold"
+  active_models: 0, walk_forward: '0%', ignitions_total: 0,
+  flywheel_cycles: 0, feature_store_sync: '—', win_prob_threshold: '0%',
+  avg_accuracy: '0%',
 };
 
-const FALLBACK_PERFORMANCE = (() => {
-  const pts = [];
-  const startDate = new Date('2024-01-01');
-  let val = 78;
-  let val2 = 74;
-  for (let i = 0; i < 252; i++) {
-    const d = new Date(startDate);
-    d.setDate(d.getDate() + i);
-    const dateStr = d.toISOString().slice(0, 10);
-    val += (Math.random() - 0.42) * 1.2;
-    val = Math.max(70, Math.min(97, val));
-    val2 += (Math.random() - 0.43) * 1.1;
-    val2 = Math.max(65, Math.min(94, val2));
-    pts.push({ time: dateStr, value: parseFloat(val.toFixed(1)), value2: parseFloat(val2.toFixed(1)) });
-  }
-  return pts;
-})();
+const FALLBACK_PERFORMANCE = [];
 
-const FALLBACK_SIGNALS = [
-  { symbol: 'NVDA', probs: { '1d': 0.92, '3d': 0.88, '5d': 0.85, '1w': 0.79, '2w': 0.72, '1m': 0.68 } },
-  { symbol: 'META', probs: { '1d': 0.87, '3d': 0.84, '5d': 0.80, '1w': 0.76, '2w': 0.69, '1m': 0.63 } },
-  { symbol: 'AAPL', probs: { '1d': 0.81, '3d': 0.75, '5d': 0.71, '1w': 0.65, '2w': 0.58, '1m': 0.52 } },
-  { symbol: 'TSLA', probs: { '1d': 0.78, '3d': 0.73, '5d': 0.68, '1w': 0.62, '2w': 0.55, '1m': 0.50 } },
-  { symbol: 'AMZN', probs: { '1d': 0.76, '3d': 0.71, '5d': 0.66, '1w': 0.60, '2w': 0.53, '1m': 0.48 } },
-  { symbol: 'MSFT', probs: { '1d': 0.73, '3d': 0.69, '5d': 0.64, '1w': 0.58, '2w': 0.51, '1m': 0.45 } },
-  { symbol: 'GOOG', probs: { '1d': 0.70, '3d': 0.66, '5d': 0.61, '1w': 0.55, '2w': 0.49, '1m': 0.42 } },
-  { symbol: 'AMD', probs: { '1d': 0.68, '3d': 0.63, '5d': 0.58, '1w': 0.52, '2w': 0.46, '1m': 0.39 } },
-  { symbol: 'CRWD', probs: { '1d': 0.65, '3d': 0.60, '5d': 0.55, '1w': 0.49, '2w': 0.43, '1m': 0.37 } },
-];
+const FALLBACK_SIGNALS = [];
 
-const FALLBACK_MODELS = [
-  { name: 'XGBoost Classifier', status: 'PRODUCTION', score1: 0.924, score2: 0.891, uptime: '21d 16hrs', lookback: '252 days', sparkline: null },
-  { name: 'RF Ensemble Model', status: 'PRODUCTION', score1: 0.885, score2: 0.862, uptime: '18d 4hrs', lookback: '89 days', sparkline: null },
-  { name: 'Votes Engine v2.0', status: 'PRODUCTION', score1: 0.865, score2: 0.840, uptime: '14d 7hrs', lookback: 'N/A (hybrid)', sparkline: null },
-  { name: 'Compression Detector', status: 'PRODUCTION', score1: 0.841, score2: 0.812, uptime: '10d 2hrs', lookback: '63 days', sparkline: null },
-  { name: 'Ignition Detector', status: 'PRODUCTION', score1: 0.812, score2: 0.800, uptime: '7d 11hrs', lookback: '1 Year', sparkline: null },
-  { name: 'Regime Manager (VXY)', status: 'PRODUCTION', score1: 0.890, score2: 0.865, uptime: '28d 3hrs', lookback: '1 Year', sparkline: null },
-];
+const FALLBACK_MODELS = [];
 
-const FALLBACK_LOGS = [
-  { ts: '09:31:02', msg: 'NVDA long +2.4% hit TP1 — flywheel confirms XGBoost prediction correct, model weight +0.02' },
-  { ts: '09:31:15', msg: 'META short -0.8% stopped — RF Ensemble prediction incorrect, reducing confidence -0.01' },
-  { ts: '09:31:28', msg: 'TSLA long +1.1% partial fill — Votes Engine v2.0 signal validated, adding to training set' },
-  { ts: '09:31:42', msg: 'Feature recalc triggered: VIX regime shift detected, re-scoring all active models' },
-  { ts: '09:31:55', msg: 'Compression Detector flagged AMD — entering stage-3 watchlist for ignition' },
-  { ts: '09:32:08', msg: 'Walk-forward validation complete: 91.4% accuracy across 252-day rolling window' },
-  { ts: '09:32:21', msg: 'CRWD position closed +3.2% — Ignition Detector accuracy now 81.2% (7d rolling)' },
-  { ts: '09:32:34', msg: 'Regime Manager (VXY) switched to RISK-OFF mode — adjusting position sizing -20%' },
-  { ts: '09:32:47', msg: 'Flywheel cycle #12 complete — all models retrained on latest 500 trade outcomes' },
-  { ts: '09:33:01', msg: 'New feature added: options_skew_30d — feature store now at 24 total inputs' },
-  { ts: '09:33:14', msg: 'GOOG long +0.5% trailing — model ensemble agrees on continuation, holding' },
-  { ts: '09:33:27', msg: 'AMZN short signal rejected — win probability 48% below 70% threshold' },
-];
+const FALLBACK_LOGS = [];
 
 // ============================================================================
 // MINI SPARKLINE COMPONENT (for KPI cards and model cards)
@@ -88,9 +38,9 @@ const FALLBACK_LOGS = [
 function MiniSparkline({ color = '#00D9FF', height = 28, width = '100%' }) {
   const data = useMemo(() => {
     const pts = [];
-    let v = 50 + Math.random() * 20;
+    let v = 50;
     for (let i = 0; i < 20; i++) {
-      v += (Math.random() - 0.45) * 6;
+      v += 0;
       v = Math.max(30, Math.min(95, v));
       pts.push({ x: i, y: v });
     }
@@ -124,9 +74,9 @@ function MiniSparkline({ color = '#00D9FF', height = 28, width = '100%' }) {
 function MiniLineSparkline({ color = '#00D9FF', height = 28 }) {
   const data = useMemo(() => {
     const pts = [];
-    let v = 50 + Math.random() * 20;
+    let v = 50;
     for (let i = 0; i < 20; i++) {
-      v += (Math.random() - 0.45) * 6;
+      v += 0;
       v = Math.max(30, Math.min(95, v));
       pts.push({ x: i, y: v });
     }
@@ -253,7 +203,7 @@ function ModelPerformanceLC({ data }) {
     const chartData2 = data
       .map((d) => {
         const time = d.time || d.date || d.timestamp;
-        const value = d.value2 ?? (d.value ? d.value - 3 - Math.random() * 2 : null);
+        const value = d.value2 ?? 0;
         if (!time || value == null) return null;
         return { time, value: Number(value) };
       })

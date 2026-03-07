@@ -227,12 +227,11 @@ function VixMacroChart({ macroData, regimeData, timeframe }) {
         spy: d.spy,
       }));
     }
-    // Fallback sample data for visual
     const now = Date.now();
     return Array.from({ length: 30 }, (_, i) => ({
       time: format(new Date(now - (29 - i) * 86400000), "MM/dd"),
-      vix: 14 + Math.random() * 12,
-      spy: 490 + Math.random() * 20,
+      vix: 0,
+      spy: 0,
     }));
   }, [macroData, timeframe]);
 
@@ -455,11 +454,11 @@ function PerformanceMatrix({ backtestData }) {
     { key: "sharpe", label: "Sharpe", fmt: (v) => v },
   ];
 
-  // Fallback data matching mockup values
+  // Fallback data — zeros until real API data arrives
   const fallbackData = {
-    GREEN: { win_rate: 58, avg_pnl: 245, sharpe: 2.1 },
-    YELLOW: { win_rate: 31, avg_pnl: 82, sharpe: 0.8 },
-    RED: { win_rate: 18, avg_pnl: -156, sharpe: -0.3 },
+    GREEN: { win_rate: 0, avg_pnl: 0, sharpe: 0 },
+    YELLOW: { win_rate: 0, avg_pnl: 0, sharpe: 0 },
+    RED: { win_rate: 0, avg_pnl: 0, sharpe: 0 },
   };
 
   const getColor = (key, val) => {
@@ -577,16 +576,8 @@ function RegimeFlowDiagram({ regimeState, paramsData }) {
 function TransitionHistory({ transitionData, regimeData }) {
   const transitions = transitionData?.transitions || regimeData?.transitions || [];
 
-  // Fallback transition data matching mockup
-  const fallbackTransitions = [
-    { timestamp: "23.03.23 08:33:00", from: "GREEN", to: "YELLOW", confidence: 72, duration: "10 min", pnl_impact: null },
-    { timestamp: "23.03.23 10:12:00", from: "YELLOW", to: "GREEN", confidence: 79, duration: "18 min", pnl_impact: null },
-    { timestamp: "23.03.23 10:33:00", from: "GREEN", to: "YELLOW", confidence: 72, duration: "15 min", pnl_impact: null },
-    { timestamp: "23.02.23 11:02:00", from: "YELLOW", to: "GREEN", confidence: 19, duration: "10 min", pnl_impact: null },
-    { timestamp: "23.02.23 12:07:00", from: "GREEN", to: "YELLOW", confidence: 15, duration: "15 min", pnl_impact: null },
-  ];
-
-  const displayTransitions = transitions.length > 0 ? transitions : fallbackTransitions;
+  // No fallback transition data — only real API data
+  const displayTransitions = transitions;
 
   return (
     <Panel>
@@ -637,13 +628,7 @@ function TransitionHistory({ transitionData, regimeData }) {
 // SECTOR ROTATION
 // ============================================================
 function SectorRotation({ sectorsData }) {
-  const fallbackSectors = [
-    { sector: "Tech", score: 85 },
-    { sector: "Healthcare", score: 72 },
-    { sector: "Energy", score: 45 },
-    { sector: "Financials", score: 38 },
-  ];
-  const sectors = sectorsData?.sectors || sectorsData?.rankings || fallbackSectors;
+  const sectors = sectorsData?.sectors || sectorsData?.rankings || [];
 
   return (
     <Panel className="h-full">
@@ -773,15 +758,8 @@ function CrashProtocol({ macroData }) {
 function AgentConsensus({ memoryData, regimeState }) {
   const agents = memoryData?.data?.agent_rankings || memoryData?.agent_rankings || [];
 
-  const fallbackAgents = [
-    { name: "Scanner", vote: regimeState, confidence: 92 },
-    { name: "Analyst", vote: regimeState === "RED" ? "RED" : "GREEN", confidence: 80 },
-    { name: "Risk Mgr", vote: regimeState === "RED" ? "RED" : "CLEAR", confidence: 93 },
-    { name: "Strategist", vote: regimeState === "RED" ? "RED" : "YELLOW", confidence: 72 },
-  ];
-
-  const displayAgents = agents.length > 0 ? agents : fallbackAgents;
-  const memoryIq = memoryData?.data?.memory_iq || memoryData?.memory_iq || 847;
+  const displayAgents = agents;
+  const memoryIq = memoryData?.data?.memory_iq || memoryData?.memory_iq || 0;
 
   return (
     <Panel className="h-full">
@@ -978,9 +956,9 @@ export default function MarketRegime() {
             label="Fear & Greed"
             value={macroData?.fear_greed_index}
             color={
-              (macroData?.fear_greed_index || 50) < 25
+              (macroData?.fear_greed_index || 0) < 25
                 ? "text-red-400"
-                : (macroData?.fear_greed_index || 50) > 75
+                : (macroData?.fear_greed_index || 0) > 75
                   ? "text-emerald-400"
                   : "text-amber-400"
             }

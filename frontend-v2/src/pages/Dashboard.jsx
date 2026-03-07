@@ -49,21 +49,7 @@ const TickerStrip = ({ indices, signals }) => {
         }
       });
     }
-    // Fallback tickers if no data yet
-    if (items.length === 0) {
-      [
-        "SPY",
-        "QQQ",
-        "AAPL",
-        "MSFT",
-        "TSLA",
-        "AMZN",
-        "NVDA",
-        "META",
-        "GOOGL",
-        "BTC",
-      ].forEach((s) => items.push({ symbol: s, price: null, change: null }));
-    }
+    // No fallback tickers — only show real API data
     return items;
   }, [indices, signals]);
 

@@ -15,25 +15,7 @@ const STATUS_COLORS = {
   Degraded: "text-amber-400",
 };
 
-const MOCK_AGENTS = Array.from({ length: 42 }, (_, i) => ({
-  id: i + 1,
-  name: ["Scanner-01","RegimeDetector","MLTrain-01","Sentiment-02","Researcher","Adversary","LLMGate","Execution-01","BridgeCreator","Streaming-01","Conference-01","Memory-01","Scanner-02","MLTrain-02","MLTrain-03","Sentiment-01","RiskOfficer","Arbiter","Cycle-01","Relative-01","EMA-Trend","RSI-Agent","BBV-Agent","Intermarket","FlowPerception","MarketPerception","Hypothesis","Strategy","Critic","Scanner-03","Scanner-04","Momentum-01","Momentum-02","DataIngestion","FeatureAggr","TradeStats","OrderExec","AlpacaStream","TurboScanner","WeightLearner","CouncilGate","SignalEngine"][i] || `Agent-${i + 1}`,
-  type: ["Scanner","Detector","ML","Sentiment","Research","Adversary","LLM","Execution","Bridge","Stream","Conference","Memory"][i % 12],
-  status: ["Running","Running","Running","Running","Stopped","Running","Error","Running","Running","Degraded","Running","Running"][i % 12],
-  cpu: Math.floor(Math.random() * 80 + 5),
-  mem: `${Math.floor(Math.random() * 1500 + 200)}MB`,
-  winRate: (Math.random() * 30 + 60).toFixed(1),
-  pnl: (Math.random() * 200 - 50).toFixed(0),
-  impact: (Math.random() * 15 + 1).toFixed(1),
-  elo: Math.floor(Math.random() * 400 + 1500),
-  subscribers: Math.floor(Math.random() * 10 + 1),
-  lastTick: new Date(Date.now() - Math.random() * 600000).toLocaleTimeString(),
-  uptime: `${Math.floor(Math.random() * 72)}h`,
-  errorRate: (Math.random() * 5).toFixed(1),
-  latency: `${Math.floor(Math.random() * 200 + 10)}ms`,
-  successRate: (Math.random() * 10 + 90).toFixed(1),
-  queueDepth: Math.floor(Math.random() * 10),
-}));
+const DEFAULT_AGENTS = [];
 
 function AgentInspector({ agent }) {
   if (!agent) return (
@@ -149,14 +131,17 @@ export default function AgentRegistryTab({ agents }) {
   const [page, setPage] = useState(0);
   const perPage = 20;
 
+  // Use real agents from props if provided, otherwise empty
+  const agentList = Array.isArray(agents) ? agents : DEFAULT_AGENTS;
+
   const filtered = useMemo(() => {
-    return MOCK_AGENTS.filter(a => {
+    return agentList.filter(a => {
       if (search && !a.name.toLowerCase().includes(search.toLowerCase())) return false;
       if (statusFilter !== "All" && a.status !== statusFilter) return false;
       if (typeFilter !== "All Types" && a.type !== typeFilter) return false;
       return true;
     });
-  }, [search, statusFilter, typeFilter]);
+  }, [agentList, search, statusFilter, typeFilter]);
 
   const paged = filtered.slice(page * perPage, (page + 1) * perPage);
   const totalPages = Math.ceil(filtered.length / perPage);
@@ -198,6 +183,13 @@ export default function AgentRegistryTab({ agents }) {
               </tr>
             </thead>
             <tbody>
+              {paged.length === 0 && (
+                <tr>
+                  <td colSpan={11} className="px-4 py-8 text-center text-gray-500 text-xs">
+                    No agents registered
+                  </td>
+                </tr>
+              )}
               {paged.map(a => (
                 <tr key={a.id}
                   className={`border-b border-gray-800/30 cursor-pointer transition-colors ${selected?.id === a.id ? "bg-cyan-500/10 border-l-2 border-l-cyan-500" : "hover:bg-cyan-500/5"}`}

@@ -109,7 +109,7 @@ const getHeatmapCellBg = (pct) => {
   return 'rgba(239, 68, 68, 0.75)';
 };
 
-// Generate mock 30-day sentiment data for the area chart
+// Build 30-day sentiment data from real history only
 const generate30DaySentiment = (history) => {
   if (history && history.length > 0) {
     const buckets = {};
@@ -125,21 +125,11 @@ const generate30DaySentiment = (history) => {
       volume: b.scores.length * 100,
     }));
   }
-  // Fallback: generate plausible data
-  const data = [];
-  for (let i = 30; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    data.push({
-      day: `${d.getMonth() + 1}/${d.getDate()}`,
-      sentiment: 0.3 + Math.sin(i / 5) * 0.4 + Math.random() * 0.2,
-      volume: 200 + Math.random() * 600,
-    });
-  }
-  return data;
+  // No real data — return empty array (chart shows blank/zero state)
+  return [];
 };
 
-// Generate timeline data for Sentiment Sources area chart
+// Build sources timeline from real history only
 const generateSourcesTimeline = (history) => {
   if (history && history.length > 0) {
     const buckets = {};
@@ -156,15 +146,8 @@ const generateSourcesTimeline = (history) => {
       volume: b.volumes.reduce((a, c) => a + c, 0),
     }));
   }
-  const data = [];
-  for (let i = 0; i < 24; i++) {
-    data.push({
-      time: `${i}:00`,
-      sentiment: 0.2 + Math.sin(i / 3) * 0.5 + Math.random() * 0.15,
-      volume: 100 + Math.random() * 500,
-    });
-  }
-  return data;
+  // No real data — return empty array (chart shows blank/zero state)
+  return [];
 };
 
 export default function SentimentIntelligence() {
@@ -201,7 +184,7 @@ export default function SentimentIntelligence() {
         key,
         name: AGENT_NAMES[i] || SOURCE_LABELS[key] || key,
         status: src?.status || 'LIVE',
-        weight: src?.weight ?? (0.5 + Math.random() * 0.4),
+        weight: src?.weight ?? 0,
         Icon: AGENT_ICONS[key] || Server,
       };
     });
@@ -211,7 +194,7 @@ export default function SentimentIntelligence() {
   const weightSliders = useMemo(() => {
     return WEIGHT_LABELS.map((label, i) => {
       const keys = ['composite', 'signal', 'reversal', 'market', 'macro'];
-      const val = stats?.weights?.[keys[i]] ?? (40 + Math.random() * 50);
+      const val = stats?.weights?.[keys[i]] ?? 0;
       return { label, value: Math.round(typeof val === 'number' ? val : 50) };
     });
   }, [stats]);
@@ -280,7 +263,7 @@ export default function SentimentIntelligence() {
     return syms.map((item, ri) => {
       const score = typeof item === 'object' ? (item.score ?? null) : null;
       const cols = Array.from({ length: 14 }, (_, ci) => {
-        const variation = score != null ? score + (ci - 7) * 0.04 : (Math.random() - 0.3);
+        const variation = score != null ? score + (ci - 7) * 0.04 : 0;
         let color;
         if (variation > 0.3) color = '#34d399';
         else if (variation > 0) color = '#22d3ee';
@@ -296,7 +279,7 @@ export default function SentimentIntelligence() {
   const sourceBarData = useMemo(() => {
     return SENTIMENT_SOURCE_BARS.map((bar, i) => {
       const src = sourceHealth[i];
-      const width = src ? Math.round((src.weight ?? 0.5) * 100) : 30 + Math.random() * 60;
+      const width = src ? Math.round((src.weight ?? 0.5) * 100) : 0;
       return { ...bar, width: Math.round(width) };
     });
   }, [sourceHealth]);
@@ -670,10 +653,10 @@ export default function SentimentIntelligence() {
 
           {/* Prediction Market Cards Grid */}
           <div className="grid grid-cols-2 gap-3">
-            <PredictionMarketCard question="SPY closes above $500 by Friday?" probability={73} volume="2.4K" trend="up" />
-            <PredictionMarketCard question="Fed holds rates at March meeting?" probability={89} volume="8.1K" trend="flat" />
-            <PredictionMarketCard question="NVDA breaks ATH this week?" probability={61} volume="5.2K" trend="up" />
-            <PredictionMarketCard question="VIX stays below 15?" probability={44} volume="3.7K" trend="down" />
+            <PredictionMarketCard question="" probability={0} volume="0" trend="flat" />
+            <PredictionMarketCard question="" probability={0} volume="0" trend="flat" />
+            <PredictionMarketCard question="" probability={0} volume="0" trend="flat" />
+            <PredictionMarketCard question="" probability={0} volume="0" trend="flat" />
           </div>
 
           {/* Emergency Alert Banners */}

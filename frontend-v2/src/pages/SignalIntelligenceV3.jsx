@@ -18,21 +18,9 @@ import ws from '../services/websocket';
 // CONSTANTS & INITIAL DATA (fallbacks when API is unavailable)
 // ============================================================================
 
-const FALLBACK_CORE_AGENTS = [
-  { id: 'apex', name: 'Apex Orchestrator', type: 'Core', defaultWeight: 100 },
-  { id: 'rel_weak', name: 'Relative Weakness', type: 'Core', defaultWeight: 85 },
-  { id: 'short_basket', name: 'Short Basket', type: 'Core', defaultWeight: 75 },
-  { id: 'meta_arch', name: 'Meta Architect', type: 'Core', defaultWeight: 90 },
-  { id: 'meta_alch', name: 'Meta Alchemist', type: 'Core', defaultWeight: 80 },
-  { id: 'risk_gov', name: 'Risk Governor', type: 'Risk', defaultWeight: 100 },
-  { id: 'sig_engine', name: 'Signal Engine', type: 'Engine', defaultWeight: 95 }
-];
-
-const FALLBACK_EXTENDED_AGENTS = Array.from({ length: 45 }, (_, i) => ({
-  id: `agent_${i + 8}`, name: `Agent #${i + 8} (Swarm)`, type: 'Swarm', defaultWeight: 25
-}));
-
-const FALLBACK_ALL_AGENTS = [...FALLBACK_CORE_AGENTS, ...FALLBACK_EXTENDED_AGENTS];
+const FALLBACK_CORE_AGENTS = [];
+const FALLBACK_EXTENDED_AGENTS = [];
+const FALLBACK_ALL_AGENTS = [];
 
 /** Parse API agents response into { core, extended, all } using fallbacks */
 function parseAgentsFromApi(apiData) {
@@ -74,32 +62,32 @@ const SCANNERS = [
 ];
 
 const SCORING_METRICS = [
-  { id: 'score_signal_rat', name: 'Signal Rationalization', value: 92 },
-  { id: 'score_lstm_shot', name: 'LSTM Shot Timer', value: 76 },
-  { id: 'score_slnm', name: 'SLNM Strength', value: 88 },
-  { id: 'score_velez', name: 'Velez Score', value: 94 },
-  { id: 'score_blake', name: 'Blake Flow', value: 81 },
-  { id: 'score_mada', name: 'Mada Flow', value: 67 },
-  { id: 'score_iwi', name: 'IWI Structure', value: 72 },
-  { id: 'score_rl_comp', name: 'R&L Compression', value: 85 },
-  { id: 'score_competition', name: 'Competition', value: 63 }
+  { id: 'score_signal_rat', name: 'Signal Rationalization', value: 0 },
+  { id: 'score_lstm_shot', name: 'LSTM Shot Timer', value: 0 },
+  { id: 'score_slnm', name: 'SLNM Strength', value: 0 },
+  { id: 'score_velez', name: 'Velez Score', value: 0 },
+  { id: 'score_blake', name: 'Blake Flow', value: 0 },
+  { id: 'score_mada', name: 'Mada Flow', value: 0 },
+  { id: 'score_iwi', name: 'IWI Structure', value: 0 },
+  { id: 'score_rl_comp', name: 'R&L Compression', value: 0 },
+  { id: 'score_competition', name: 'Competition', value: 0 }
 ];
 
 const INTEL_MODULES = [
-  { id: 'intel_hmm', name: 'HMM Regime', defaultWeight: 100 },
-  { id: 'intel_sentiment', name: 'Sentiment', defaultWeight: 85 },
-  { id: 'intel_lstm', name: 'LSTM Trainer', defaultWeight: 76 },
-  { id: 'intel_macro', name: 'Macro Context', defaultWeight: 95 },
-  { id: 'intel_monte', name: 'Monte Carlo', defaultWeight: 82 }
+  { id: 'intel_hmm', name: 'HMM Regime', defaultWeight: 0 },
+  { id: 'intel_sentiment', name: 'Sentiment', defaultWeight: 0 },
+  { id: 'intel_lstm', name: 'LSTM Trainer', defaultWeight: 0 },
+  { id: 'intel_macro', name: 'Macro Context', defaultWeight: 0 },
+  { id: 'intel_monte', name: 'Monte Carlo', defaultWeight: 0 }
 ];
 
 const ML_MODELS = [
-  { id: 'ml_lstm', name: 'LSTM Daily', version: 'v4.2.1', defaultStatus: 'Ready' },
-  { id: 'ml_xgb', name: 'XGBoost GPU', version: 'v2.8.0', defaultStatus: 'Ready' },
-  { id: 'ml_river', name: 'River Online', version: 'v1.1.5', defaultStatus: 'Training' },
-  { id: 'ml_infer', name: 'Inference Engine', version: 'v3.0.0', defaultStatus: 'Ready' },
-  { id: 'ml_wfv', name: 'Walk-Forward Val', version: 'v1.0.2', defaultStatus: 'Idle' },
-  { id: 'ml_pipe', name: 'ML Pipeline', version: 'v5.1.0', defaultStatus: 'Ready' }
+  { id: 'ml_lstm', name: 'LSTM Daily', version: '—', defaultStatus: '—' },
+  { id: 'ml_xgb', name: 'XGBoost GPU', version: '—', defaultStatus: '—' },
+  { id: 'ml_river', name: 'River Online', version: '—', defaultStatus: '—' },
+  { id: 'ml_infer', name: 'Inference Engine', version: '—', defaultStatus: '—' },
+  { id: 'ml_wfv', name: 'Walk-Forward Val', version: '—', defaultStatus: '—' },
+  { id: 'ml_pipe', name: 'ML Pipeline', version: '—', defaultStatus: '—' }
 ];
 
 const DATA_SOURCES = [
@@ -207,9 +195,7 @@ export default function SignalIntelligenceV3() {
   const ALL_AGENTS = useMemo(() => parsedAgents?.all ?? FALLBACK_ALL_AGENTS, [parsedAgents]);
 
   // --- LOCAL STATE ---
-  const [agentStates, setAgentStates] = useState(() =>
-    FALLBACK_ALL_AGENTS.reduce((acc, agent) => ({ ...acc, [agent.id]: { active: true, weight: agent.defaultWeight, status: 'green' } }), {})
-  );
+  const [agentStates, setAgentStates] = useState({});
   const [scannerStates, setScannerStates] = useState(() =>
     SCANNERS.reduce((acc, scan) => ({ ...acc, [scan.id]: { active: true, status: 'green', runs: 0 } }), {})
   );

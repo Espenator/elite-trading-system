@@ -15,100 +15,48 @@ import { useApi } from '../hooks/useApi';
 import clsx from 'clsx';
 import { TradingGradeHero, ReturnsHeatmapCalendar, ConcentricAIDial } from '../components/dashboard/PerformanceWidgets';
 
-// ─── MOCK / FALLBACK DATA ────────────────────────────────────────────────────
+// ─── FALLBACK DATA (zeros / empty until API provides real values) ────────────
 
 const FALLBACK_KPI = {
-  totalTrades: 247,
-  netPnl: 52147.32,
-  winRate: 68.4,
-  avgWin: 312.56,
-  avgLoss: -187.28,
-  profitFactor: 2.14,
-  maxDd: -4236,
-  maxDdPct: -4.1,
-  sharpe: 1.87,
-  expectancy: 89.40,
-  riskReward: 1.67,
-  sortino: 1.85,
-  calmar: 1.87,
-  kellyPct: 34.2,
-  grade: 'A',
-  gradeLabel: 'Excellent',
+  equity: '$0', daily_pnl: '$0', open_positions: 0, win_rate: '0%',
+  avg_win: '$0', avg_loss: '$0', profit_factor: '0', sharpe: '0',
+  max_drawdown: '0%', total_trades: 0, grade: '—', score: 0,
+  deployed_pct: '0%', alpha: '0', expectancy: '$0', max_dd: '0%',
+  kelly_fraction: '0%', sortino: '0', calmar: '0',
 };
 
-const FALLBACK_EQUITY = Array.from({ length: 60 }, (_, i) => ({
-  date: `2024-${String(Math.floor(i / 5) + 1).padStart(2, '0')}-${String((i % 28) + 1).padStart(2, '0')}`,
-  equity: 10000 + i * 850 + Math.sin(i * 0.4) * 2000 + Math.random() * 1500,
-  drawdown: -(Math.random() * 4 + (i % 10 === 0 ? 3 : 0.5)),
-}));
+const FALLBACK_EQUITY = [];
 
-const FALLBACK_AGENTS = [
-  { rank: 1, name: 'Alpha Scout', signals: 84, score: 87, elo: 1842, pnl: 27300, trades: 84, winRate: 72.1, color: '#10b981' },
-  { rank: 2, name: 'Risk Guardian', signals: 63, score: 79, elo: 1798, pnl: 14200, trades: 63, winRate: 68.3, color: '#06b6d4' },
-  { rank: 3, name: 'Meta Architect', signals: 55, score: 71, elo: 1756, pnl: 8400, trades: 55, winRate: 65.5, color: '#8b5cf6' },
-  { rank: 4, name: 'Meta Guardian', signals: 45, score: 63, elo: 1710, pnl: 2247, trades: 45, winRate: 60.0, color: '#f59e0b' },
-];
+const FALLBACK_AGENTS = [];
 
-const FALLBACK_TRADES = [
-  { id: 1, date: '2024-08-08', symbol: 'AAPL', side: 'Long', entry: 185.42, exit: 192.18, pnl: 676.00, rr: '2.3:1', status: 'Won' },
-  { id: 2, date: '2024-08-07', symbol: 'MSFT', side: 'Long', entry: 338.90, exit: 345.60, pnl: 670.00, rr: '1.8:1', status: 'Won' },
-  { id: 3, date: '2024-08-07', symbol: 'TSLA', side: 'Short', entry: 245.00, exit: 252.30, pnl: -730.00, rr: '-1.2:1', status: 'Lost' },
-  { id: 4, date: '2024-08-06', symbol: 'NVDA', side: 'Long', entry: 460.20, exit: 471.50, pnl: 1130.00, rr: '3.1:1', status: 'Won' },
-  { id: 5, date: '2024-08-06', symbol: 'AMZN', side: 'Long', entry: 178.50, exit: 176.20, pnl: -230.00, rr: '-0.8:1', status: 'Lost' },
-  { id: 6, date: '2024-08-05', symbol: 'SPY', side: 'Long', entry: 448.30, exit: 453.80, pnl: 550.00, rr: '1.9:1', status: 'Won' },
-  { id: 7, date: '2024-08-05', symbol: 'META', side: 'Long', entry: 475.10, exit: 482.40, pnl: 730.00, rr: '2.1:1', status: 'Won' },
-  { id: 8, date: '2024-08-04', symbol: 'GOOG', side: 'Short', entry: 172.80, exit: 168.50, pnl: 430.00, rr: '1.5:1', status: 'Won' },
-];
+const FALLBACK_TRADES = [];
 
-const FALLBACK_ROLLING_RISK = Array.from({ length: 30 }, (_, i) => ({
-  date: `Aug ${i + 1}`,
-  rollingVol: 12 + Math.sin(i * 0.3) * 4 + Math.random() * 2,
-  rollingSharpe: 1.5 + Math.sin(i * 0.2) * 0.5 + Math.random() * 0.3,
-}));
+const FALLBACK_ROLLING_RISK = [];
 
-const FALLBACK_CONVEXITY = Array.from({ length: 40 }, (_, i) => ({
-  x: Math.random() * 4 - 1,
-  y: Math.random() * 6 - 2,
-  z: Math.random() * 100 + 20,
-}));
+const FALLBACK_CONVEXITY = [];
 
-const FALLBACK_RR_EXPECT = [
-  { name: 'Watchlist', rr: 1.8, expectancy: 92 },
-  { name: 'Momentum', rr: 2.1, expectancy: 105 },
-  { name: 'Mean Rev', rr: 1.4, expectancy: 68 },
-  { name: 'Breakout', rr: 2.4, expectancy: 118 },
-  { name: 'Scalp', rr: 1.2, expectancy: 45 },
-];
+const FALLBACK_RR_EXPECT = [];
 
 const FALLBACK_ML = {
-  accuracyTrend: Array.from({ length: 20 }, (_, i) => ({
-    epoch: i + 1,
-    accuracy: 0.72 + Math.sin(i * 0.3) * 0.05 + i * 0.005,
-  })),
-  stagedInferences: 12,
-  totalInferences: 847,
-  pipelineHealth: 94,
-  flywheelCycles: 156,
+  flywheel_cycles: 0, models_active: 0, accuracy: '0%', last_retrain: '—',
+  drift_psi: 0, f1: '0', feature_store_sync: '—',
 };
 
 const FALLBACK_RISK_EXPANDED = {
-  shieldStatus: 'Active',
-  varDaily: 2.1,
-  varWeekly: 4.8,
-  currentExposure: 67,
-  maxExposure: 85,
-  riskHistory: Array.from({ length: 20 }, (_, i) => ({
-    day: i + 1,
-    score: 65 + Math.sin(i * 0.4) * 15 + Math.random() * 5,
-  })),
+  shieldStatus: '—',
+  varDaily: 0,
+  varWeekly: 0,
+  currentExposure: 0,
+  maxExposure: 0,
+  riskHistory: [],
 };
 
 const FALLBACK_STRATEGY = {
-  signalHitRate: 73.2,
-  totalSignals: 412,
-  activeStrategies: ['Momentum Alpha', 'Mean Reversion V2', 'Breakout Scanner'],
-  sentiment: 'Bullish',
-  regime: 'Trending',
+  signalHitRate: 0,
+  totalSignals: 0,
+  activeStrategies: [],
+  sentiment: '—',
+  regime: '—',
 };
 
 // ─── HELPER COMPONENTS ───────────────────────────────────────────────────────
@@ -290,7 +238,7 @@ export default function PerformanceAnalytics() {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return months.map(m => ({
       month: m,
-      value: (Math.random() * 8 - 2).toFixed(1),
+      value: '0',
     }));
   }, []);
 

@@ -51,18 +51,22 @@ function MiniSparkline({ data, width = 56, height = 18, color }) {
   // Generate data if not provided
   const pts = useMemo(() => {
     if (data && data.length >= 2) return data;
-    return Array.from({ length: 20 }, () => Math.random() * 10 + 2);
+    return [];
   }, [data]);
+
+  const baseColor = color || "#34d399";
+
+  if (pts.length === 0) {
+    return <svg width={width} height={height} className="inline-block align-middle" />;
+  }
 
   const max = Math.max(...pts);
   const barW = width / pts.length;
 
-  const baseColor = color || "#34d399";
-
   return (
     <svg width={width} height={height} className="inline-block align-middle">
       {pts.map((v, i) => {
-        const barH = (v / max) * (height - 1);
+        const barH = max > 0 ? (v / max) * (height - 1) : 0;
         return (
           <rect
             key={i}
@@ -71,7 +75,7 @@ function MiniSparkline({ data, width = 56, height = 18, color }) {
             width={Math.max(barW - 0.5, 1)}
             height={barH}
             fill={baseColor}
-            opacity={0.5 + (v / max) * 0.5}
+            opacity={0.5 + (max > 0 ? (v / max) * 0.5 : 0)}
           />
         );
       })}

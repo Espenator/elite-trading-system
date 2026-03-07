@@ -22,7 +22,7 @@ import Slider from "../components/ui/Slider";
 import log from "@/utils/logger";
 
 // ═══════════════════════════════════════════════════
-// MOCK DATA
+// CONFIG & CONSTANTS
 // ═══════════════════════════════════════════════════
 
 const TIMEFRAMES = ["1m", "5m", "15m", "1H", "4H", "D", "W"];
@@ -45,63 +45,20 @@ const VOLATILITY_REGIMES = ["Expansion", "Contraction", "Normal", "Extreme"];
 const VOLUME_PROFILES = ["Value Area High", "Value Area Low", "POC", "HVN", "LVN"];
 const BENCHMARK_OPTIONS = ["S&P", "NASDAQ", "DOW", "Russell 2000", "VIX"];
 
-const MOCK_SCANNER_AGENTS = [
-  { id: "s1", name: "AlphaHunter_V4", type: "Alpha Scanner", status: "active", timeframe: "1H", hits: 142, uptime: "4d 12h" },
-  { id: "s2", name: "MomentumSeeker_G2", type: "Momentum Scanner", status: "active", timeframe: "5m", hits: 89, uptime: "2d 8h" },
-  { id: "s3", name: "DarkPool_Sniffer", type: "Dark Pool Tracker", status: "idle", timeframe: "D", hits: 34, uptime: "7d 1h" },
-];
+const SCANNER_AGENTS = [];
 
-const MOCK_PATTERN_AGENTS = [
-  { id: "p1", name: "Fractal_Prophet_G4", type: "BPT-4", architecture: "Transformer", status: "active", patternsFound: 237, accuracy: 87.4 },
-  { id: "p2", name: "Harmonic_Oracle_V2", type: "Harmonic", architecture: "LSTM", status: "active", patternsFound: 156, accuracy: 82.1 },
-  { id: "p3", name: "Elliott_Mind_G3", type: "Elliott Wave", architecture: "CNN-LSTM", status: "idle", patternsFound: 98, accuracy: 79.8 },
-];
+const PATTERN_AGENTS = [];
 
-const SYMBOLS = ["AAPL", "TSLA", "NVDA", "MSFT", "AMZN", "SPY", "QQQ", "META", "GOOGL", "AMD"];
-const ACTIONS = [
-  "Dark Pool Buy 50k shares", "Volatility Spike, Sector Momentum + Tech",
-  "Unusual Options Activity - Call Sweep", "Breakout Detection - Channel Break",
-  "Volume Surge 3.2x average", "RSI Divergence Detected",
-  "VWAP Reclaim - Bullish", "Institutional Block Trade",
-];
+// Feed entries are populated only from real WebSocket messages — no fake generation
 
-function generateFeedEntry(idx) {
-  const now = new Date();
-  const ts = new Date(now.getTime() - idx * 12000);
-  const sym = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
-  const action = ACTIONS[Math.floor(Math.random() * ACTIONS.length)];
-  const agent = MOCK_SCANNER_AGENTS[Math.floor(Math.random() * MOCK_SCANNER_AGENTS.length)].name;
-  return {
-    id: `feed-${idx}-${Date.now()}`,
-    timestamp: format(ts, "HH:mm:ss"),
-    symbol: sym,
-    agent,
-    action,
-  };
+function generatePatternChartData() {
+  return [];
 }
 
-function generatePatternChartData(length = 30) {
-  let val = 50 + Math.random() * 50;
-  return Array.from({ length }, (_, i) => {
-    val += (Math.random() - 0.48) * 4;
-    return { x: i, y: Math.max(10, val), v: Math.random() * 100 };
-  });
-}
+// Pattern Arsenal: real pattern type names the system CAN detect; detection data comes from API only
+const PATTERNS_ARSENAL = [];
 
-const MOCK_PATTERNS_ARSENAL = [
-  { id: "pa1", name: "Inv. Head & Shoulders", type: "Reversal", confidence: 94, symbol: "AAPL", timeframe: "4H", data: generatePatternChartData() },
-  { id: "pa2", name: "Bull Flag", type: "Continuation", confidence: 88, symbol: "TSLA", timeframe: "1H", data: generatePatternChartData() },
-  { id: "pa3", name: "Ascending Triangle", type: "Continuation", confidence: 91, symbol: "NVDA", timeframe: "D", data: generatePatternChartData() },
-  { id: "pa4", name: "Double Bottom", type: "Reversal", confidence: 86, symbol: "AMD", timeframe: "4H", data: generatePatternChartData() },
-  { id: "pa5", name: "Descending Wedge", type: "Reversal", confidence: 82, symbol: "GOOGL", timeframe: "1H", data: generatePatternChartData() },
-  { id: "pa6", name: "Symmetrical Triangle", type: "Continuation", confidence: 79, symbol: "META", timeframe: "D", data: generatePatternChartData() },
-];
-
-const MOCK_FORMING = [
-  { id: "f1", name: "Cup & Handle", progress: 72, symbol: "MSFT", timeframe: "D", data: generatePatternChartData() },
-  { id: "f2", name: "Descending Wedge", progress: 58, symbol: "META", timeframe: "4H", data: generatePatternChartData() },
-  { id: "f3", name: "Triple Bottom", progress: 41, symbol: "SPY", timeframe: "1H", data: generatePatternChartData() },
-];
+const FORMING_PATTERNS = [];
 
 // ═══════════════════════════════════════════════════
 // STYLED SUB-COMPONENTS
@@ -283,7 +240,9 @@ function ScreeningEngine() {
             Scanner Agent Cards
           </div>
           <div className="flex flex-col gap-1 max-h-[90px] overflow-y-auto scrollbar-thin">
-            {MOCK_SCANNER_AGENTS.map(a => (
+            {SCANNER_AGENTS.length === 0 ? (
+              <div className="py-3 text-center text-[10px] text-gray-600">No scanners</div>
+            ) : SCANNER_AGENTS.map(a => (
               <ScannerAgentCard
                 key={a.id}
                 agent={a}
@@ -484,15 +443,15 @@ function PatternIntelligence() {
   const [architecture, setArchitecture] = useState("Transformer");
 
   // ML Metric Controls
-  const [recursiveSelfImprove, setRecursiveSelfImprove] = useState(72);
-  const [accuracyValidation, setAccuracyValidation] = useState(82);
-  const [profitFactor, setProfitFactor] = useState(2.8);
-  const [maxDrawdown, setMaxDrawdown] = useState(12);
-  const [walkForwardEff, setWalkForwardEff] = useState(78);
-  const [outOfSampleAcc, setOutOfSampleAcc] = useState(74);
-  const [monteCarloCI, setMonteCarloCI] = useState(85);
-  const [monteCarloPct, setMonteCarloPct] = useState("95%");
-  const [patternComplexity, setPatternComplexity] = useState(7);
+  const [recursiveSelfImprove, setRecursiveSelfImprove] = useState(0);
+  const [accuracyValidation, setAccuracyValidation] = useState(0);
+  const [profitFactor, setProfitFactor] = useState(0);
+  const [maxDrawdown, setMaxDrawdown] = useState(0);
+  const [walkForwardEff, setWalkForwardEff] = useState(0);
+  const [outOfSampleAcc, setOutOfSampleAcc] = useState(0);
+  const [monteCarloCI, setMonteCarloCI] = useState(0);
+  const [monteCarloPct, setMonteCarloPct] = useState("0%");
+  const [patternComplexity, setPatternComplexity] = useState(0);
 
   // API data
   const { data: patternsData } = useApi("patterns", { pollIntervalMs: 30000 });
@@ -516,7 +475,9 @@ function PatternIntelligence() {
             Pattern Agent Cards
           </div>
           <div className="flex flex-col gap-1 max-h-[90px] overflow-y-auto scrollbar-thin">
-            {MOCK_PATTERN_AGENTS.map(a => (
+            {PATTERN_AGENTS.length === 0 ? (
+              <div className="py-3 text-center text-[10px] text-gray-600">No agents</div>
+            ) : PATTERN_AGENTS.map(a => (
               <PatternAgentCard
                 key={a.id}
                 agent={a}
@@ -709,32 +670,18 @@ function FormingDetectionCard({ pattern }) {
 }
 
 function ConsolidatedLiveFeed() {
-  const [feedEntries, setFeedEntries] = useState(() =>
-    Array.from({ length: 20 }, (_, i) => generateFeedEntry(i))
-  );
+  // Feed is populated only from real WebSocket messages; starts empty
+  const [feedEntries] = useState([]);
   const feedRef = useRef(null);
-
-  // Auto-scroll feed
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setFeedEntries(prev => {
-        const newEntry = generateFeedEntry(0);
-        return [newEntry, ...prev.slice(0, 49)];
-      });
-    }, 4000);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    if (feedRef.current) {
-      feedRef.current.scrollTop = 0;
-    }
-  }, [feedEntries]);
 
   return (
     <SectionBox title="Consolidated Live Feed" icon={Radio} className="flex-1 min-h-0 flex flex-col">
       <div ref={feedRef} className="flex-1 overflow-y-auto scrollbar-thin space-y-0 min-h-0 max-h-[200px]">
-        {feedEntries.map(entry => (
+        {feedEntries.length === 0 ? (
+          <div className="flex items-center justify-center h-full py-6">
+            <span className="text-[10px] text-gray-600">No feed data</span>
+          </div>
+        ) : feedEntries.map(entry => (
           <div key={entry.id} className="flex items-start gap-2 py-[3px] border-b border-gray-800/30 hover:bg-cyan-950/20 px-1 text-[10px]">
             <span className="text-gray-600 font-mono whitespace-nowrap">{entry.timestamp}</span>
             <span className={clsx(
@@ -754,7 +701,11 @@ function PatternArsenalPanel() {
   return (
     <SectionBox title="Pattern Arsenal" icon={Target} className="flex-1 min-h-0 flex flex-col">
       <div className="flex-1 overflow-y-auto scrollbar-thin space-y-1.5 max-h-[200px]">
-        {MOCK_PATTERNS_ARSENAL.map(p => (
+        {PATTERNS_ARSENAL.length === 0 ? (
+          <div className="flex items-center justify-center h-full py-6">
+            <span className="text-[10px] text-gray-600">No patterns detected</span>
+          </div>
+        ) : PATTERNS_ARSENAL.map(p => (
           <PatternMiniChart
             key={p.id}
             data={p.data}
@@ -772,7 +723,11 @@ function FormingDetectionsPanel() {
   return (
     <SectionBox title="Forming Detections" icon={Crosshair} className="flex-1 min-h-0 flex flex-col">
       <div className="flex-1 overflow-y-auto scrollbar-thin space-y-1.5 max-h-[200px]">
-        {MOCK_FORMING.map(f => (
+        {FORMING_PATTERNS.length === 0 ? (
+          <div className="flex items-center justify-center h-full py-6">
+            <span className="text-[10px] text-gray-600">No forming detections</span>
+          </div>
+        ) : FORMING_PATTERNS.map(f => (
           <FormingDetectionCard key={f.id} pattern={f} />
         ))}
       </div>

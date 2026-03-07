@@ -196,7 +196,7 @@ const SUPPLY_CHAIN_SOURCES = [
 
 function genSparkline(min, max) {
   return Array.from({ length: 20 }, () => ({
-    v: min + Math.random() * (max - min),
+    v: 0,
   }));
 }
 
@@ -241,10 +241,19 @@ function MiniSparkline({ data, color = "#22d3ee" }) {
   );
 }
 
-function LatencySparkline({ points = [12, 15, 8, 23, 11, 9, 14, 18, 10, 13] }) {
-  const max = Math.max(...points);
+function LatencySparkline({ points = [] }) {
   const w = 40, h = 16;
-  const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${(i / (points.length - 1)) * w},${h - (p / max) * h}`).join(' ');
+  // Need at least 2 points to draw a line; otherwise draw a flat zero line
+  if (!points || points.length < 2) {
+    return (
+      <svg width={w} height={h} className="inline-block ml-2">
+        <line x1={0} y1={h} x2={w} y2={h} stroke="#06B6D4" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  const max = Math.max(...points);
+  const safeMax = max > 0 ? max : 1;
+  const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${(i / (points.length - 1)) * w},${h - (p / safeMax) * h}`).join(' ');
   return (
     <svg width={w} height={h} className="inline-block ml-2">
       <polyline points={path.replace(/[ML]/g, '')} fill="none" stroke="#06B6D4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -363,25 +372,18 @@ function ConnectionDetailPanel({ source }) {
     );
   }
 
-  // Static detail data for Alpaca (main detail view in mockup)
-  const isAlpaca = source.id === "alpaca";
+  // Detail data from source or API — no fabricated values
   const detail = {
-    name: isAlpaca ? "Alpaca Markets" : source.name,
-    type: isAlpaca ? "Market Data" : source.type,
-    apiKey: "ak-****************************3f7d",
-    apiSecret: "sk-****************************9a2b",
-    baseUrl: isAlpaca
-      ? "https://paper-api.alpaca.markets/v2"
-      : `https://api.${source.id}.com/v1`,
-    wsUrl: isAlpaca
-      ? "wss://stream.data.alpaca.markets/v2"
-      : `wss://stream.${source.id}.com`,
-    rateLimit: isAlpaca ? "200 req/min" : "100 req/min",
-    pollingInterval: isAlpaca ? "Real-time (WebSocket)" : "30s",
-    tradingType: isAlpaca ? "Paper Trading" : "Production",
-    testResult: isAlpaca
-      ? "Account: $251,456 equity"
-      : `Connected - ${source.latency} latency`,
+    name: source.name || '—',
+    type: source.type || '—',
+    apiKey: '—',
+    apiSecret: '—',
+    baseUrl: source.baseUrl || '—',
+    wsUrl: source.wsUrl || '—',
+    rateLimit: source.rateLimit || '—',
+    pollingInterval: source.pollingInterval || '—',
+    tradingType: source.tradingType || '—',
+    testResult: source.testResult || '—',
   };
 
   return (

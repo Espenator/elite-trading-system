@@ -28,9 +28,9 @@ function formatTime(date) {
 }
 
 export default function StatusFooter({
-  apiStatus  = 'green',
-  wsStatus   = 'green',
-  mlStatus   = 'amber',
+  apiStatus  = 'red',
+  wsStatus   = 'red',
+  mlStatus   = 'red',
 }) {
   const [lastRefresh, setLastRefresh] = useState(formatTime(new Date()));
 

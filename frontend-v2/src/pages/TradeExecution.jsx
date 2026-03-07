@@ -71,11 +71,10 @@ export default function TradeExecution() {
 
   // Symbol universe from API (fallback to common tickers)
   const { data: stocksData } = useApi('stocks', { pollIntervalMs: 120000 });
-  const FALLBACK_SYMBOLS = ['SPX', 'SPY', 'QQQ', 'AAPL', 'TSLA', 'NVDA', 'AMD', 'AMZN', 'MSFT', 'META'];
   const symbolList = (stocksData?.symbols || stocksData?.tickers || stocksData?.universe || [])
     .map(s => typeof s === 'string' ? s : (s.symbol || s.ticker))
     .filter(Boolean);
-  const symbols = symbolList.length > 0 ? symbolList : FALLBACK_SYMBOLS;
+  const symbols = symbolList;
 
   // Strategy list
   const STRATEGIES = ['Iron Condor', 'Bull Call Spread', 'Bear Put Spread', 'Straddle', 'Strangle', 'Butterfly', 'Calendar Spread', 'Single Option'];
@@ -88,8 +87,8 @@ export default function TradeExecution() {
   });
   const callStrikes = (chainData?.calls || []).map(c => c.strike).filter(Boolean).slice(0, 5);
   const putStrikes  = (chainData?.puts  || []).map(p => p.strike).filter(Boolean).slice(0, 5);
-  const FALLBACK_CALL = [4450, 4455, 4460, 4465, 4470];
-  const FALLBACK_PUT  = [4440, 4435, 4430, 4425, 4420];
+  const FALLBACK_CALL = [];
+  const FALLBACK_PUT  = [];
   const displayCallStrikes = callStrikes.length > 0 ? callStrikes : FALLBACK_CALL;
   const displayPutStrikes  = putStrikes.length  > 0 ? putStrikes  : FALLBACK_PUT;
 
@@ -227,8 +226,8 @@ export default function TradeExecution() {
       const isBid = i > mid;
       return {
         row: i + 1, price,
-        bidSize: isBid ? Math.floor(Math.random() * 55) + 5 : (isCurrent ? 3100000 : 0),
-        askSize: isAsk ? Math.floor(Math.random() * 55) + 5 : (isCurrent ? 3200000 : 0),
+        bidSize: isBid ? 0 : (isCurrent ? 3100000 : 0),
+        askSize: isAsk ? 0 : (isCurrent ? 3200000 : 0),
         side: isCurrent ? 'current' : (isBid ? 'bid' : 'ask'),
         isCurrent,
       };
@@ -239,10 +238,10 @@ export default function TradeExecution() {
 
   /* ── Fallback: Order Book (two halves) ── */
   const displayBookTop = bookArr.length > 0 ? bookArr.slice(0, Math.ceil(bookArr.length / 2)) : Array.from({ length: 10 }, () => ({
-    asset: '-', bid: (276 + Math.random() * 4).toFixed(3), ask: (273 + Math.random() * 13).toFixed(3), value: Math.floor(Math.random() * 1300) + 300,
+    asset: '-', bid: (0).toFixed(3), ask: (0).toFixed(3), value: 0,
   }));
   const displayBookBot = bookArr.length > 0 ? bookArr.slice(Math.ceil(bookArr.length / 2)) : Array.from({ length: 12 }, () => ({
-    asset: Math.floor(Math.random() * 9000) + 100, bid: (271 + Math.random() * 8).toFixed(3), ask: (271 + Math.random() * 6).toFixed(3), volume: '-',
+    asset: 0, bid: (0).toFixed(3), ask: (0).toFixed(3), volume: '-',
   }));
 
   /* ── Fallback: News Feed ── */
@@ -491,11 +490,11 @@ export default function TradeExecution() {
         {/* VisualPriceLadder — narrow adjacent column (~1/4 width) */}
         <div className="bg-[#0a1020] flex flex-col overflow-hidden" style={{ flex: '1 1 0%', minWidth: 180 }}>
           <VisualPriceLadder
-            entry={185.50}
-            stop={182.00}
-            target={194.25}
-            currentPrice={186.20}
-            symbol="AAPL"
+            entry={0}
+            stop={0}
+            target={0}
+            currentPrice={0}
+            symbol=""
           />
         </div>
         </div>{/* /col2-flex-row */}

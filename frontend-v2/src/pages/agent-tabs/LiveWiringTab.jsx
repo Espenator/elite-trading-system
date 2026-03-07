@@ -8,71 +8,73 @@ import {
   ArrowRight, CheckCircle, AlertTriangle, XCircle,
 } from "lucide-react";
 
+// Node names/icons define the architecture. All statuses default to "off" (disconnected).
+// Parent component or real API data should set status to "ok" when connected.
 const FLOW_COLUMNS = [
   {
     title: "EXTERNAL SOURCES",
     color: "border-emerald-500/30",
     nodes: [
-      { name: "Alpaca API", icon: Globe, status: "ok" },
-      { name: "Finviz", icon: Globe, status: "ok" },
-      { name: "Unusual Whales", icon: Globe, status: "ok" },
-      { name: "FRED Economic", icon: Database, status: "ok" },
-      { name: "SEC EDGAR", icon: Database, status: "warn" },
+      { name: "Alpaca API", icon: Globe, status: "off" },
+      { name: "Finviz", icon: Globe, status: "off" },
+      { name: "Unusual Whales", icon: Globe, status: "off" },
+      { name: "FRED Economic", icon: Database, status: "off" },
+      { name: "SEC EDGAR", icon: Database, status: "off" },
       { name: "Coingecko", icon: Globe, status: "off" },
-      { name: "News API", icon: Radio, status: "ok" },
-      { name: "Discord & Twitter", icon: Radio, status: "ok" },
-      { name: "YouTube Transcripts", icon: Globe, status: "ok" },
-      { name: "OpenClaw P2T", icon: Server, status: "ok" },
+      { name: "News API", icon: Radio, status: "off" },
+      { name: "Discord & Twitter", icon: Radio, status: "off" },
+      { name: "YouTube Transcripts", icon: Globe, status: "off" },
+      { name: "OpenClaw P2T", icon: Server, status: "off" },
     ],
   },
   {
     title: "AGENT",
     color: "border-cyan-500/30",
     nodes: [
-      { name: "signal_engine.py", icon: Cpu, status: "ok" },
-      { name: "Signal Generation Agent", icon: Activity, status: "ok" },
-      { name: "ML Learning Agent", icon: Cpu, status: "ok" },
-      { name: "Sentiment Agent", icon: Cpu, status: "ok" },
-      { name: "YouTube Knowledge Agent", icon: Cpu, status: "ok" },
+      { name: "signal_engine.py", icon: Cpu, status: "off" },
+      { name: "Signal Generation Agent", icon: Activity, status: "off" },
+      { name: "ML Learning Agent", icon: Cpu, status: "off" },
+      { name: "Sentiment Agent", icon: Cpu, status: "off" },
+      { name: "YouTube Knowledge Agent", icon: Cpu, status: "off" },
     ],
   },
   {
     title: "PROCESSING ENGINES",
     color: "border-purple-500/30",
     nodes: [
-      { name: "market_engine.py", icon: Server, status: "ok" },
-      { name: "execution_engine.py", icon: Server, status: "ok" },
-      { name: "risk_engine.py", icon: Server, status: "ok" },
-      { name: "ml_engine.py", icon: Server, status: "ok" },
-      { name: "council_runner.py", icon: Server, status: "ok" },
-      { name: "brain_service.py", icon: Cpu, status: "warn" },
-      { name: "feature_aggregator.py", icon: Server, status: "ok" },
-      { name: "kelly_position_sizer.py", icon: Server, status: "ok" },
-      { name: "openclaw_bridge", icon: Server, status: "ok" },
+      { name: "market_engine.py", icon: Server, status: "off" },
+      { name: "execution_engine.py", icon: Server, status: "off" },
+      { name: "risk_engine.py", icon: Server, status: "off" },
+      { name: "ml_engine.py", icon: Server, status: "off" },
+      { name: "council_runner.py", icon: Server, status: "off" },
+      { name: "brain_service.py", icon: Cpu, status: "off" },
+      { name: "feature_aggregator.py", icon: Server, status: "off" },
+      { name: "kelly_position_sizer.py", icon: Server, status: "off" },
+      { name: "openclaw_bridge", icon: Server, status: "off" },
     ],
   },
   {
     title: "STORAGE DATABASES",
     color: "border-amber-500/30",
     nodes: [
-      { name: "trading_data.db", icon: Database, status: "ok" },
-      { name: "training_store", icon: Database, status: "ok" },
-      { name: "logs_db", icon: Database, status: "ok" },
-      { name: "feature_cache", icon: Database, status: "ok" },
-      { name: "websocket_manager", icon: Server, status: "ok" },
+      { name: "trading_data.db", icon: Database, status: "off" },
+      { name: "training_store", icon: Database, status: "off" },
+      { name: "logs_db", icon: Database, status: "off" },
+      { name: "feature_cache", icon: Database, status: "off" },
+      { name: "websocket_manager", icon: Server, status: "off" },
     ],
   },
   {
     title: "FRONTEND INTERFACES",
     color: "border-red-500/30",
     nodes: [
-      { name: "AgentCommandCenter.jsx", icon: Monitor, status: "ok" },
-      { name: "Dashboard.jsx", icon: Monitor, status: "ok" },
-      { name: "Backtesting.jsx", icon: Monitor, status: "ok" },
-      { name: "MLBrainFlywheel.jsx", icon: Monitor, status: "ok" },
-      { name: "Patterns.jsx", icon: Monitor, status: "ok" },
-      { name: "SignalIntelligenceV3.jsx", icon: Monitor, status: "ok" },
-      { name: "RiskIntelligence.jsx", icon: Monitor, status: "ok" },
+      { name: "AgentCommandCenter.jsx", icon: Monitor, status: "off" },
+      { name: "Dashboard.jsx", icon: Monitor, status: "off" },
+      { name: "Backtesting.jsx", icon: Monitor, status: "off" },
+      { name: "MLBrainFlywheel.jsx", icon: Monitor, status: "off" },
+      { name: "Patterns.jsx", icon: Monitor, status: "off" },
+      { name: "SignalIntelligenceV3.jsx", icon: Monitor, status: "off" },
+      { name: "RiskIntelligence.jsx", icon: Monitor, status: "off" },
     ],
   },
 ];
@@ -83,7 +85,9 @@ function StatusDot({ status }) {
 }
 
 // --- Connection Health Matrix (heatmap) ---
-function ConnectionHealthMatrix() {
+// Accepts healthData prop: 2D array of cell color classes indexed [row][col].
+// Defaults all cells to bg-gray-700 (no data) when healthData is not provided.
+function ConnectionHealthMatrix({ healthData }) {
   const services = ["Alpaca","Finviz","FRED","EDGAR","WS","DB","ML","Council","Risk"];
   return (
     <div className="aurora-card p-3">
@@ -94,8 +98,7 @@ function ConnectionHealthMatrix() {
         ))}
         {services.map((s, i) =>
           services.map((_, j) => {
-            const val = Math.random();
-            const bg = val > 0.8 ? "bg-emerald-500" : val > 0.5 ? "bg-emerald-700" : val > 0.2 ? "bg-amber-700" : "bg-red-700";
+            const bg = (healthData && healthData[i] && healthData[i][j]) ? healthData[i][j] : "bg-gray-700";
             return <div key={`${i}-${j}`} className={`h-3 rounded-sm ${bg} opacity-70`} />;
           })
         )}
@@ -105,15 +108,20 @@ function ConnectionHealthMatrix() {
 }
 
 // --- Traffic Node Discovery ---
-function TrafficDiscovery() {
+// Accepts topology prop to override default "—" (unknown) values.
+// topology: { mesh: string, design: string, autoDiscovery: string }
+function TrafficDiscovery({ topology }) {
+  const mesh = (topology && topology.mesh) ? topology.mesh : "—";
+  const design = (topology && topology.design) ? topology.design : "—";
+  const autoDiscovery = (topology && topology.autoDiscovery) ? topology.autoDiscovery : "—";
   return (
     <div className="aurora-card p-3">
       <h3 className="text-[10px] font-bold text-white uppercase tracking-wider mb-2">Traffic Node Discovery</h3>
       <div className="space-y-1 text-[9px]">
         {[
-          ["Auto-Mesh vs WebSocket", "MESH", "text-cyan-400"],
-          ["DESIGN TOPOLOGY", "STAR", "text-amber-400"],
-          ["AUTO-DISCOVERY", "ON", "text-emerald-400"],
+          ["Auto-Mesh vs WebSocket", mesh, "text-cyan-400"],
+          ["DESIGN TOPOLOGY", design, "text-amber-400"],
+          ["AUTO-DISCOVERY", autoDiscovery, "text-emerald-400"],
         ].map(([k, v, c]) => (
           <div key={k} className="flex justify-between">
             <span className="text-gray-500">{k}</span>
@@ -126,57 +134,65 @@ function TrafficDiscovery() {
 }
 
 // --- WebSocket Channels ---
-function WsChannels() {
-  const channels = [
-    { name: "agents", status: "ok", msgs: 847 },
-    { name: "council", status: "ok", msgs: 234 },
-    { name: "signals", status: "ok", msgs: 1203 },
-    { name: "llm-flow", status: "warn", msgs: 56 },
-    { name: "market-data", status: "ok", msgs: 4521 },
-  ];
+// Accepts channels prop (array of { name, status, msgs }).
+// Defaults to [] (empty). Shows "No channels" when empty.
+function WsChannels({ channels = [] }) {
   return (
     <div className="aurora-card p-3">
       <h3 className="text-[10px] font-bold text-white uppercase tracking-wider mb-2">WebSocket Channels</h3>
       <div className="space-y-1">
-        {channels.map(ch => (
-          <div key={ch.name} className="flex items-center gap-2 text-[9px]">
-            <StatusDot status={ch.status} />
-            <span className="text-cyan-400 font-mono flex-1">{ch.name}</span>
-            <span className="text-gray-500">{ch.msgs} msg/s</span>
-          </div>
-        ))}
+        {channels.length === 0 ? (
+          <div className="text-[9px] text-gray-600 italic">No channels</div>
+        ) : (
+          channels.map(ch => (
+            <div key={ch.name} className="flex items-center gap-2 text-[9px]">
+              <StatusDot status={ch.status} />
+              <span className="text-cyan-400 font-mono flex-1">{ch.name}</span>
+              {ch.msgs != null && <span className="text-gray-500">{ch.msgs} msg/s</span>}
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
 }
 
 // --- API Route Status ---
-function ApiRouteStatus() {
-  const routes = [
-    { path: "/api/v1/agents", latency: "12ms", status: "ok" },
-    { path: "/api/v1/signals", latency: "8ms", status: "ok" },
-    { path: "/api/v1/council", latency: "45ms", status: "ok" },
-    { path: "/api/v1/risk", latency: "23ms", status: "warn" },
-    { path: "/api/v1/ml-brain", latency: "67ms", status: "ok" },
-  ];
+// Accepts routes prop (array of { path, latency, status }).
+// Defaults to [] (empty). Shows "No route data" when empty.
+function ApiRouteStatus({ routes = [] }) {
   return (
     <div className="aurora-card p-3">
       <h3 className="text-[10px] font-bold text-white uppercase tracking-wider mb-2">API Route Status</h3>
       <div className="space-y-1">
-        {routes.map(r => (
-          <div key={r.path} className="flex items-center gap-2 text-[9px]">
-            <StatusDot status={r.status} />
-            <span className="text-gray-400 font-mono flex-1">{r.path}</span>
-            <span className="text-white">{r.latency}</span>
-          </div>
-        ))}
+        {routes.length === 0 ? (
+          <div className="text-[9px] text-gray-600 italic">No route data</div>
+        ) : (
+          routes.map(r => (
+            <div key={r.path} className="flex items-center gap-2 text-[9px]">
+              <StatusDot status={r.status} />
+              <span className="text-gray-400 font-mono flex-1">{r.path}</span>
+              <span className="text-white">{r.latency}</span>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
 }
 
 // === MAIN TAB ===
-export default function LiveWiringTab() {
+// Accepts props: cpu, ram, latency, gpu, healthData, topology, channels, routes
+export default function LiveWiringTab({
+  cpu = "0%",
+  ram = "0",
+  latency = "0ms",
+  gpu = "0%",
+  healthData,
+  topology,
+  channels,
+  routes,
+} = {}) {
   return (
     <div className="space-y-3">
       {/* Architecture Flow Diagram — 5 columns */}
@@ -184,10 +200,10 @@ export default function LiveWiringTab() {
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-xs font-bold text-white uppercase tracking-wider">Live Wiring Map</h3>
           <div className="flex gap-3 text-[9px] text-gray-500">
-            <span>CPU: <span className="text-white">47%</span></span>
-            <span>RAM: <span className="text-white">3.1GB</span></span>
-            <span>Latency: <span className="text-emerald-400">12ms</span></span>
-            <span>GPU: <span className="text-amber-400">67%</span></span>
+            <span>CPU: <span className="text-white">{cpu}</span></span>
+            <span>RAM: <span className="text-white">{ram}</span></span>
+            <span>Latency: <span className="text-emerald-400">{latency}</span></span>
+            <span>GPU: <span className="text-amber-400">{gpu}</span></span>
           </div>
         </div>
 
@@ -220,10 +236,10 @@ export default function LiveWiringTab() {
 
       {/* Bottom panels */}
       <div className="grid grid-cols-4 gap-3">
-        <ConnectionHealthMatrix />
-        <TrafficDiscovery />
-        <WsChannels />
-        <ApiRouteStatus />
+        <ConnectionHealthMatrix healthData={healthData} />
+        <TrafficDiscovery topology={topology} />
+        <WsChannels channels={channels} />
+        <ApiRouteStatus routes={routes} />
       </div>
     </div>
   );
