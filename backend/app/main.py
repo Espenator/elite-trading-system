@@ -300,14 +300,12 @@ async def _start_event_driven_pipeline():
         log.info("\u2705 NodeDiscovery subscribed to cluster.telemetry")
 
     # 2. EventDrivenSignalEngine (subscribes to market_data.bar)
-    # Publishes signal.generated which triggers sync DuckDB queries in downstream services.
-    if _llm_enabled:
-        from app.services.signal_engine import EventDrivenSignalEngine
-        _event_signal_engine = EventDrivenSignalEngine(_message_bus)
-        await _event_signal_engine.start()
-        log.info("\u2705 EventDrivenSignalEngine started")
-    else:
-        log.info("\u26A0\uFE0F EventDrivenSignalEngine skipped (LLM_ENABLED=false)")
+    # BUG FIX 3: Always start — this does DuckDB queries + technical analysis, NOT LLM calls.
+    # Without it, no signals are generated from incoming market data.
+    from app.services.signal_engine import EventDrivenSignalEngine
+    _event_signal_engine = EventDrivenSignalEngine(_message_bus)
+    await _event_signal_engine.start()
+    log.info("\u2705 EventDrivenSignalEngine started")
 
     # 3. CouncilGate (subscribes to signal.generated, invokes council)
     # Disable when LLM or council is off — council calls LLM which blocks when Ollama is down.
@@ -380,6 +378,44 @@ async def _start_event_driven_pipeline():
 
     await _message_bus.subscribe("council.verdict", _bridge_council_to_ws)
     log.info("\u2705 Council->WebSocket bridge active")
+
+    # 5b. BUG FIX 5: Subscribe to market_data.bar to persist snapshot/stream data to DuckDB.
+    # Without this, snapshots published by AlpacaStreamService flow through the event pipeline
+    # but never reach the database — the data_ingestion.ingest_all path uses separate HTTP calls.
+    async def _persist_bar_to_duckdb(bar_data):
+        """Write a market_data.bar event to DuckDB daily_ohlcv table."""
+        try:
+            from app.data.duckdb_storage import duckdb_store
+            symbol = bar_data.get("symbol")
+            timestamp = bar_data.get("timestamp", "")
+            if not symbol or not timestamp:
+                return
+
+            # Extract date from timestamp (could be ISO format or date string)
+            date_str = str(timestamp)[:10]  # YYYY-MM-DD
+
+            conn = duckdb_store._get_conn()
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO daily_ohlcv (symbol, date, open, high, low, close, volume, source)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    symbol,
+                    date_str,
+                    float(bar_data.get("open") or 0),
+                    float(bar_data.get("high") or 0),
+                    float(bar_data.get("low") or 0),
+                    float(bar_data.get("close") or 0),
+                    int(bar_data.get("volume") or 0),
+                    bar_data.get("source", "stream"),
+                ],
+            )
+        except Exception as e:
+            log.debug("DuckDB bar persist failed: %s", e)
+
+    await _message_bus.subscribe("market_data.bar", _persist_bar_to_duckdb)
+    log.info("\u2705 market_data.bar -> DuckDB persistence subscriber active")
 
     # 6. AlpacaStreamManager (replaces single AlpacaStreamService)
     global _stream_manager
@@ -473,35 +509,28 @@ async def _start_event_driven_pipeline():
     log.info("\u2705 MacroEvent->WebSocket bridge active")
 
     # 15. CorrelationRadar — cross-asset correlation breaks + sector rotation
-    # Uses sync DuckDB queries — skip when LLM pipeline is off.
-    if _llm_enabled:
-        from app.services.correlation_radar import get_correlation_radar, KEY_PAIRS
-        _corr_radar = get_correlation_radar()
-        _corr_radar._bus = _message_bus
-        await _corr_radar.start()
-        log.info("\u2705 CorrelationRadar started (%d key pairs)", len(KEY_PAIRS))
-    else:
-        log.info("\u26A0\uFE0F CorrelationRadar skipped (LLM_ENABLED=false)")
+    # BUG FIX 3: Always start — uses sync DuckDB queries, no LLM dependency.
+    from app.services.correlation_radar import get_correlation_radar, KEY_PAIRS
+    _corr_radar = get_correlation_radar()
+    _corr_radar._bus = _message_bus
+    await _corr_radar.start()
+    log.info("\u2705 CorrelationRadar started (%d key pairs)", len(KEY_PAIRS))
 
     # 16. PatternLibrary — discovers and validates recurring patterns
-    if _llm_enabled:
-        from app.services.pattern_library import get_pattern_library
-        _pattern_lib = get_pattern_library()
-        _pattern_lib._bus = _message_bus
-        await _pattern_lib.start()
-        log.info("\u2705 PatternLibrary started (%d patterns)", len(_pattern_lib._patterns))
-    else:
-        log.info("\u26A0\uFE0F PatternLibrary skipped (LLM_ENABLED=false)")
+    # BUG FIX 3: Always start — DuckDB pattern discovery, no LLM dependency.
+    from app.services.pattern_library import get_pattern_library
+    _pattern_lib = get_pattern_library()
+    _pattern_lib._bus = _message_bus
+    await _pattern_lib.start()
+    log.info("\u2705 PatternLibrary started (%d patterns)", len(_pattern_lib._patterns))
 
     # 17. ExpectedMoveService — options-derived reversal zones
-    if _llm_enabled:
-        from app.services.expected_move_service import get_expected_move_service
-        _em_service = get_expected_move_service()
-        _em_service._bus = _message_bus
-        await _em_service.start()
-        log.info("\u2705 ExpectedMoveService started (%d symbols)", len(get_expected_move_service()._levels) or 18)
-    else:
-        log.info("\u26A0\uFE0F ExpectedMoveService skipped (LLM_ENABLED=false)")
+    # BUG FIX 3: Always start — options data processing, no LLM dependency.
+    from app.services.expected_move_service import get_expected_move_service
+    _em_service = get_expected_move_service()
+    _em_service._bus = _message_bus
+    await _em_service.start()
+    log.info("\u2705 ExpectedMoveService started (%d symbols)", len(get_expected_move_service()._levels) or 18)
 
     # 18. TurboScanner — parallel multi-source 60s scanner (10 concurrent DuckDB screens)
     from app.services.turbo_scanner import get_turbo_scanner
@@ -532,15 +561,13 @@ async def _start_event_driven_pipeline():
         log.info("\u26A0\uFE0F NewsAggregator skipped (LLM_ENABLED=false)")
 
     # 21. MarketWideSweep — batch Alpaca ingest + 10 SQL screens across full market
-    # Heavy sync DuckDB writes — skip when pipeline is off.
-    if _llm_enabled:
-        from app.services.market_wide_sweep import get_market_sweep
-        _market_sweep = get_market_sweep()
-        _market_sweep._bus = _message_bus
-        await _market_sweep.start()
-        log.info("\u2705 MarketWideSweep started (universe=%d symbols)", len(_market_sweep._universe))
-    else:
-        log.info("\u26A0\uFE0F MarketWideSweep skipped (LLM_ENABLED=false)")
+    # BUG FIX 3: Always start — batch Alpaca ingest + SQL screens, no LLM dependency.
+    # This is critical for populating DuckDB with market-wide data.
+    from app.services.market_wide_sweep import get_market_sweep
+    _market_sweep = get_market_sweep()
+    _market_sweep._bus = _message_bus
+    await _market_sweep.start()
+    log.info("\u2705 MarketWideSweep started (universe=%d symbols)", len(_market_sweep._universe))
 
     # 22. UnifiedProfitEngine — single adaptive scorer replacing 5 competing brains
     # Subscribes to signal.generated and does synchronous DuckDB queries for ML scoring.
@@ -556,25 +583,21 @@ async def _start_event_driven_pipeline():
         log.info("\u26A0\uFE0F UnifiedProfitEngine skipped (LLM_ENABLED=false)")
 
     # 23. PositionManager — automated exits (trailing stops, time exits, partial profits)
-    if _llm_enabled:
-        from app.services.position_manager import get_position_manager
-        _position_mgr = get_position_manager()
-        _position_mgr._bus = _message_bus
-        await _position_mgr.start()
-        log.info("\u2705 PositionManager started (trailing stops + time exits)")
-    else:
-        log.info("\u26A0\uFE0F PositionManager skipped (LLM_ENABLED=false)")
+    # BUG FIX 3: Always start — uses Alpaca API for position management, no LLM dependency.
+    from app.services.position_manager import get_position_manager
+    _position_mgr = get_position_manager()
+    _position_mgr._bus = _message_bus
+    await _position_mgr.start()
+    log.info("\u2705 PositionManager started (trailing stops + time exits)")
 
-    # 23. OutcomeTracker — closes the feedback loop (real PnL → Kelly calibration + agent weights)
-    if _llm_enabled:
-        from app.services.outcome_tracker import get_outcome_tracker
-        _outcome_tracker = get_outcome_tracker()
-        _outcome_tracker._bus = _message_bus
-        await _outcome_tracker.start()
-        log.info("\u2705 OutcomeTracker started (win_rate=%.2f, resolved=%d)",
-                 _outcome_tracker._stats["win_rate"], _outcome_tracker._stats["total_resolved"])
-    else:
-        log.info("\u26A0\uFE0F OutcomeTracker skipped (LLM_ENABLED=false)")
+    # 24. OutcomeTracker — closes the feedback loop (real PnL → Kelly calibration + agent weights)
+    # BUG FIX 3: Always start — tracks real PnL from Alpaca, no LLM dependency.
+    from app.services.outcome_tracker import get_outcome_tracker
+    _outcome_tracker = get_outcome_tracker()
+    _outcome_tracker._bus = _message_bus
+    await _outcome_tracker.start()
+    log.info("\u2705 OutcomeTracker started (win_rate=%.2f, resolved=%d)",
+             _outcome_tracker._stats["win_rate"], _outcome_tracker._stats["total_resolved"])
 
     # 24. Knowledge Layer — EmbeddingService + MemoryBank + HeuristicEngine + KnowledgeGraph
     # Initialize singletons eagerly so they're warm when council calls them.
@@ -806,9 +829,11 @@ async def lifespan(app: FastAPI):
         log.debug("Flywheel scheduler not started: %s", e)
 
     # 4-6. Background tasks (legacy + monitoring)
-    # market_data_tick_loop does heavy sync DuckDB ingestion — skip when LLM is off
+    # BUG FIX 2: tick_task must ALWAYS run — it does Alpaca data ingestion into DuckDB,
+    # NOT LLM work. Without it, no data flows into the database regardless of market hours.
+    # drift_task is ML-specific and can safely remain gated on LLM_ENABLED.
     _llm_on = os.getenv("LLM_ENABLED", "true").lower() == "true"
-    tick_task = asyncio.create_task(_market_data_tick_loop()) if _llm_on else None
+    tick_task = asyncio.create_task(_market_data_tick_loop())  # Always run
     drift_task = asyncio.create_task(_drift_check_loop()) if _llm_on else None
     heartbeat_task = asyncio.create_task(heartbeat_loop())
     risk_monitor_task = asyncio.create_task(_risk_monitor_loop())

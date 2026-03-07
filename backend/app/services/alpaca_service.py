@@ -55,21 +55,40 @@ class AlpacaService:
 
         # Ensure base URL includes /v2 for Alpaca API v2 endpoints
         self.base_url = raw_url.rstrip("/") + "/v2" if "/v2" not in raw_url else raw_url
+
+        # BUG FIX 1+7: Try direct settings first, then fall back to key pool's trading key.
+        # If user only configured ALPACA_KEY_1/ALPACA_SECRET_1 (pool keys) but not the
+        # legacy ALPACA_API_KEY/ALPACA_SECRET_KEY, the service would have empty credentials
+        # and ALL Alpaca calls would return None.
         self.api_key = settings.ALPACA_API_KEY
         self.secret_key = settings.ALPACA_SECRET_KEY
 
-        # AUDIT FIX (Task 6): Removed plaintext settings DB fallback for brokerage keys.
-        # API keys must come exclusively from environment variables (.env / secrets).
-        # Storing brokerage credentials unencrypted in DuckDB/SQLite is a liability.
+        if not self.api_key or not self.secret_key:
+            # Fall back to key pool's trading key
+            try:
+                from app.services.alpaca_key_pool import get_alpaca_key_pool
+                pool = get_alpaca_key_pool()
+                trading_key = pool.get_key("trading")
+                if trading_key and trading_key.api_key and trading_key.secret_key:
+                    self.api_key = trading_key.api_key
+                    self.secret_key = trading_key.secret_key
+                    logger.info(
+                        "AlpacaService: using key pool trading key (suffix: ...%s)",
+                        trading_key.api_key[-4:] if len(trading_key.api_key) >= 4 else "***",
+                    )
+            except Exception as e:
+                logger.warning("AlpacaService: key pool fallback failed: %s", e)
+
         if not self.api_key or not self.secret_key:
             logger.warning(
-                "Alpaca API keys not configured via environment variables. "
-                "Set ALPACA_API_KEY and ALPACA_SECRET_KEY in .env"
+                "Alpaca API keys not configured via environment variables or key pool. "
+                "Set ALPACA_API_KEY/ALPACA_SECRET_KEY or ALPACA_KEY_1/ALPACA_SECRET_1 in .env"
             )
             
         self._cache: Dict[str, Any] = {}  # key -> (timestamp, data)
 
-        logger.info("AlpacaService initialized: mode=%s, url=%s", self.trading_mode, self.base_url)
+        logger.info("AlpacaService initialized: mode=%s, url=%s, configured=%s",
+                    self.trading_mode, self.base_url, self._is_configured())
 
     # ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -443,8 +462,10 @@ class AlpacaService:
         return out
 
     # ── Market Data API (data.alpaca.markets) ────────────────────────────────
-    # Separate base URL for market data endpoints (works 24/7, not just trading hours)
-    DATA_BASE_URL = "https://data.alpaca.markets/v2"
+    # BUG FIX 6: Use settings.ALPACA_DATA_URL instead of hardcoded URL.
+    # This respects the user's .env configuration.
+    _data_url = getattr(settings, "ALPACA_DATA_URL", "https://data.alpaca.markets").rstrip("/")
+    DATA_BASE_URL = _data_url if _data_url.endswith("/v2") else _data_url + "/v2"
 
     async def _data_request(
         self,
