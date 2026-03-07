@@ -1,4 +1,5 @@
 """Finviz API service for fetching stock screener and quote data."""
+import asyncio
 import httpx
 import csv
 import io
@@ -93,6 +94,33 @@ def _enrich_stock_row(
         exchange = exchange_map.get(ticker) if ticker else None
     out["exchange"] = exchange
     return out
+
+
+MAX_RETRIES = 3
+RETRY_BASE_DELAY = 2.0  # seconds
+
+FINVIZ_PRESETS = {
+    "breakout": "ta_highlow52w_nh,sh_avgvol_o500,ta_sma20_pa,ta_sma200_pa",
+    "momentum": "ta_sma20_pa,ta_sma200_pa,sh_relvol_o1.5",
+    "swing_pullback": "ta_pattern_channelup,ta_sma20_cross20above,ta_sma200_pa",
+    "pas_gate": "ta_pattern_channelup,ta_sma20_pa,ta_sma200_pa",
+}
+
+
+async def _fetch_with_retry(url: str, params: dict, timeout: float = 30.0) -> httpx.Response:
+    """Fetch with exponential backoff retry."""
+    for attempt in range(MAX_RETRIES):
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                r = await client.get(url, params=params)
+                r.raise_for_status()
+                return r
+        except (httpx.HTTPStatusError, httpx.ConnectError) as e:
+            if attempt == MAX_RETRIES - 1:
+                raise
+            delay = RETRY_BASE_DELAY * (2 ** attempt)
+            logger.warning("Finviz retry %d/%d after %.1fs: %s", attempt + 1, MAX_RETRIES, delay, e)
+            await asyncio.sleep(delay)
 
 
 class FinvizService:
@@ -239,4 +267,47 @@ class FinvizService:
                 raise Exception(f"Finviz API error: {e.response.status_code} - {e.response.text}")
             except Exception as e:
                 raise Exception(f"Error fetching quote data: {str(e)}")
+
+    async def get_intraday_screen(self, timeframe: str = "i5", filters: str = None) -> List[Dict]:
+        """Run Finviz Elite intraday screener.
+
+        Args:
+            timeframe: i1, i3, i5, i15, i30, h (Elite plan required for intraday)
+            filters: Comma-separated Finviz filter string
+        """
+        self._validate_api_key()
+        filters = filters or settings.FINVIZ_SCREENER_FILTERS
+        url = f"{self.base_url}/export.ashx"
+        params = {
+            "v": settings.FINVIZ_SCREENER_VERSION,
+            "f": filters,
+            "ft": settings.FINVIZ_SCREENER_FILTER_TYPE,
+            "p": timeframe,
+            "auth": self.api_key,
+        }
+        r = await _fetch_with_retry(url, params)
+        csv_content = r.text
+        if csv_content.strip().startswith("<!") or csv_content.strip().startswith("<html"):
+            raise Exception("Finviz returned HTML error page instead of CSV data.")
+        csv_reader = csv.DictReader(io.StringIO(csv_content))
+        return [dict(row) for row in csv_reader]
+
+    async def get_screener(self, filters: str = None) -> List[Dict]:
+        """Alias for get_stock_list with retry support."""
+        return await self.get_stock_list(filters=filters)
+
+    async def run_all_presets(self) -> Dict[str, List[Dict]]:
+        """Run all 4 filter presets in parallel. Returns {preset_name: [results]}."""
+        tasks = {
+            name: self.get_stock_list(filters=filters)
+            for name, filters in FINVIZ_PRESETS.items()
+        }
+        results = {}
+        for name, coro in tasks.items():
+            try:
+                results[name] = await coro
+            except Exception as e:
+                logger.warning("Finviz preset %s failed: %s", name, e)
+                results[name] = []
+        return results
 
