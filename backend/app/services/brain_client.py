@@ -18,10 +18,16 @@ from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-# Config from environment
-BRAIN_ENABLED = os.getenv("BRAIN_ENABLED", "false").lower() == "true"
-BRAIN_HOST = os.getenv("BRAIN_HOST", "localhost")
-BRAIN_PORT = int(os.getenv("BRAIN_PORT", "50051"))
+# Config: read from pydantic settings first, fall back to env
+try:
+    from app.core.config import settings as _brain_settings
+    BRAIN_ENABLED = _brain_settings.BRAIN_ENABLED
+    BRAIN_HOST = _brain_settings.BRAIN_HOST
+    BRAIN_PORT = _brain_settings.BRAIN_PORT
+except Exception:
+    BRAIN_ENABLED = os.getenv("BRAIN_ENABLED", "false").lower() == "true"
+    BRAIN_HOST = os.getenv("BRAIN_HOST", "localhost")
+    BRAIN_PORT = int(os.getenv("BRAIN_PORT", "50051"))
 BRAIN_CONNECT_TIMEOUT = int(os.getenv("BRAIN_CONNECT_TIMEOUT", "5"))
 BRAIN_REQUEST_TIMEOUT = int(os.getenv("BRAIN_REQUEST_TIMEOUT", "15"))
 
