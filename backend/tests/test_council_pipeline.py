@@ -64,13 +64,16 @@ async def test_auth_passes_with_valid_token():
 
 # ── Test: Order rejection when equity unavailable (Task 7) ──
 
-def test_kelly_rejects_when_equity_unavailable():
+@pytest.mark.asyncio
+async def test_kelly_rejects_when_equity_unavailable():
     """Verify orders are rejected when account equity cannot be fetched."""
     from unittest.mock import PropertyMock
 
     with patch("app.services.order_executor.OrderExecutor._get_alpaca_service") as mock_alpaca:
         mock_svc = MagicMock()
         mock_svc._cache_get.return_value = None  # No cached account data
+        # get_account is awaited inside async _compute_kelly_size
+        mock_svc.get_account = AsyncMock(return_value=None)
         mock_alpaca.return_value = mock_svc
 
         with patch("app.services.order_executor.OrderExecutor._get_kelly_sizer") as mock_ks:
@@ -95,9 +98,10 @@ def test_kelly_rejects_when_equity_unavailable():
                 from app.services.order_executor import OrderExecutor
                 executor = OrderExecutor.__new__(OrderExecutor)
                 executor._kelly_sizer = mock_ks.return_value
-                executor._alpaca_service = mock_svc
+                executor._trade_stats = mock_stats
+                executor._alpaca_svc = mock_svc
 
-                result = executor._compute_kelly_size("AAPL", 85.0, "bull", 150.0)
+                result = await executor._compute_kelly_size("AAPL", 85.0, "bull", 150.0)
                 assert result["action"] == "REJECT"
                 assert result["reject_reason"] == "equity_unavailable"
 

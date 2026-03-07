@@ -12,9 +12,10 @@ def test_app_exists():
     assert app.title in ("Elite Trading System", "Embodier Trader")
 
 
-# --- Test 2: API version is 3.2.0 ---
+# --- Test 2: API version matches config ---
 def test_app_version():
-    assert app.version == "3.2.0"
+    from app.core.config import settings
+    assert app.version == settings.APP_VERSION
 
 
 # --- Test 3: Health endpoint returns 200 ---
