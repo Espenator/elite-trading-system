@@ -9,6 +9,22 @@ if($FrontendPort -eq 0){$FrontendPort=[int](GE "FRONTEND_PORT" "3000")}
 Write-Host ""
 Write-Host "  EMBODIER TRADER - Backend::$BackendPort | Frontend::$FrontendPort" -ForegroundColor Magenta
 Write-Host ""
+
+# ── Aggressive cleanup: kill zombie python processes and free ports ──
+Write-Host "  Cleaning up old processes..." -ForegroundColor Yellow
+# Kill ALL python.exe processes to release DuckDB file locks
+Get-Process -Name python -EA SilentlyContinue | Stop-Process -Force -EA SilentlyContinue
+Get-Process -Name python3 -EA SilentlyContinue | Stop-Process -Force -EA SilentlyContinue
+# Kill anything holding ports 8000 and 3000
+@($BackendPort,$FrontendPort)|ForEach-Object{
+    Get-NetTCPConnection -LocalPort $_ -EA SilentlyContinue | ForEach-Object {
+        Stop-Process -Id $_.OwningProcess -Force -EA SilentlyContinue
+    }
+}
+# Wait for DuckDB file lock release
+Start-Sleep 3
+Write-Host "  Cleanup done." -ForegroundColor Green
+
 if(Test-Path $ef){$rb=[IO.File]::ReadAllBytes($ef);if($rb.Length -ge 3 -and $rb[0]-eq 0xEF -and $rb[1]-eq 0xBB -and $rb[2]-eq 0xBF){[IO.File]::WriteAllText($ef,[IO.File]::ReadAllText($ef,[Text.Encoding]::UTF8),(New-Object Text.UTF8Encoding($false)))}}
 elseif(Test-Path "$BD\.env.example"){Copy-Item "$BD\.env.example" $ef}
 @($BackendPort,$FrontendPort)|ForEach-Object{Get-NetTCPConnection -LocalPort $_ -EA SilentlyContinue|ForEach-Object{Stop-Process -Id $_.OwningProcess -Force -EA SilentlyContinue}};Start-Sleep 1
