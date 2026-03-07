@@ -215,7 +215,7 @@ class LLMRouter:
         t0 = time.time()
         try:
             content, model, tokens_in, tokens_out, citations = await self._call_tier(
-                tier, messages, temperature, max_tokens, json_mode, timeout
+                tier, messages, temperature, max_tokens, json_mode, timeout, task=task
             )
             latency = (time.time() - t0) * 1000
             self._circuits[tier].record_success()
@@ -306,6 +306,7 @@ class LLMRouter:
         max_tokens: int,
         json_mode: bool,
         timeout: float | None,
+        task: str = "general",
     ) -> tuple:
         """Dispatch to the appropriate provider. Returns (content, model, in_tok, out_tok, citations)."""
         if self._circuits[tier].is_open():
@@ -315,7 +316,7 @@ class LLMRouter:
             raise RuntimeError(f"Rate limit exceeded for {tier.value}")
 
         if tier == Tier.BRAINSTEM:
-            return await self._call_ollama(messages, temperature, max_tokens, json_mode, timeout)
+            return await self._call_ollama(messages, temperature, max_tokens, json_mode, timeout, task=task)
         elif tier == Tier.CORTEX:
             return await self._call_perplexity(messages, temperature, max_tokens, timeout)
         elif tier == Tier.DEEP_CORTEX:
@@ -324,13 +325,38 @@ class LLMRouter:
             raise ValueError(f"Unknown tier: {tier}")
 
     async def _call_ollama(
-        self, messages, temperature, max_tokens, json_mode, timeout
+        self, messages, temperature, max_tokens, json_mode, timeout,
+        task: str = "general",
     ) -> tuple:
-        """Call local Ollama via OpenAI-compatible API."""
+        """Call Ollama via OpenAI-compatible API with telemetry-aware routing.
+
+        When LLMDispatcher is enabled, it determines the best node and model
+        based on GPU telemetry, model pinning, and task affinity. Falls back
+        to settings.OLLAMA_BASE_URL if the dispatcher is unavailable.
+        """
         import httpx
 
+        # Default: use settings
         base_url = settings.OLLAMA_BASE_URL.rstrip("/")
         model = settings.OLLAMA_MODEL
+
+        # Try LLMDispatcher for telemetry-aware routing
+        dispatch_decision = None
+        try:
+            from app.services.llm_dispatcher import get_llm_dispatcher
+            dispatcher = get_llm_dispatcher()
+            if dispatcher._enabled:
+                dispatch_decision = dispatcher.dispatch(model=model, task=task)
+                base_url = dispatch_decision.target_url or base_url
+                if dispatch_decision.degraded:
+                    model = dispatch_decision.model
+                logger.debug(
+                    "LLM dispatch: %s → %s model=%s reason=%s",
+                    task, base_url, model, dispatch_decision.reason,
+                )
+        except Exception as e:
+            logger.debug("LLMDispatcher unavailable, using default: %s", e)
+
         url = f"{base_url}/v1/chat/completions"
 
         payload = {
@@ -344,10 +370,30 @@ class LLMRouter:
             payload["response_format"] = {"type": "json_object"}
 
         effective_timeout = timeout or 30.0
-        async with httpx.AsyncClient(timeout=effective_timeout) as client:
-            resp = await client.post(url, json=payload)
-            resp.raise_for_status()
-            data = resp.json()
+        t0 = time.time()
+        try:
+            async with httpx.AsyncClient(timeout=effective_timeout) as client:
+                resp = await client.post(url, json=payload)
+                resp.raise_for_status()
+                data = resp.json()
+            latency_ms = (time.time() - t0) * 1000
+
+            # Report success to dispatcher
+            if dispatch_decision:
+                try:
+                    from app.services.llm_dispatcher import get_llm_dispatcher
+                    get_llm_dispatcher().report_success(base_url, latency_ms)
+                except Exception:
+                    pass
+        except Exception as e:
+            # Report error to dispatcher
+            if dispatch_decision:
+                try:
+                    from app.services.llm_dispatcher import get_llm_dispatcher
+                    get_llm_dispatcher().report_error(base_url)
+                except Exception:
+                    pass
+            raise
 
         content = data["choices"][0]["message"]["content"]
         usage = data.get("usage", {})
@@ -464,7 +510,7 @@ class LLMRouter:
     # ── Status ────────────────────────────────────────────────────────────────
 
     def get_status(self) -> Dict[str, Any]:
-        return {
+        status = {
             "enabled": settings.LLM_ROUTER_ENABLED,
             "tiers": {
                 "brainstem": {
@@ -485,6 +531,15 @@ class LLMRouter:
             },
             "stats": self._stats.copy(),
         }
+
+        # Include dispatcher status if available
+        try:
+            from app.services.llm_dispatcher import get_llm_dispatcher
+            status["dispatcher"] = get_llm_dispatcher().get_status()
+        except Exception:
+            pass
+
+        return status
 
 
 # ── Singleton ─────────────────────────────────────────────────────────────────
