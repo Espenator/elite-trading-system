@@ -1514,7 +1514,7 @@ export default function Dashboard() {
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">RISK & ORDER PROPOSAL</h3>
               <div className="font-mono text-[8px]">
                 <div className="grid grid-cols-2 gap-1 mb-1.5 pb-1.5 border-b border-[rgba(42,52,68,0.3)]">
-                  <span className="text-[#94a3b8]">Action: <span className="text-white">Limit Buy {risk.limitPrice || "\u2014"}</span></span>
+                  <span className="text-[#94a3b8]">Action: <span className="text-white">{selectedSignal?.direction === 'SHORT' ? 'Limit Sell' : 'Limit Buy'} {risk.limitPrice || "\u2014"}</span></span>
                   <span className="text-[#94a3b8]">Size: <span className="text-white">{risk.shares || "\u2014"} shs (${risk.notional || "\u2014"})</span></span>
                   <span className="text-[#94a3b8]">Stop Loss: <span className="text-red-400">{risk.stopLoss || "\u2014"}</span></span>
                   <span className="text-[#94a3b8]">Target 1: <span className="text-green-400">{risk.target1 || "\u2014"}</span></span>
