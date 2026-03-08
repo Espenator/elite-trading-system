@@ -258,6 +258,9 @@ export const WS_CHANNELS = {
   council_verdict: "council_verdict",
   homeostasis: "homeostasis",
   circuit_breaker: "circuit_breaker",
+  market: "market",  // BUG FIX 8: real-time price updates from AlpacaStreamService
+  swarm: "swarm",
+  macro: "macro",
 };
 
 export default API_CONFIG;

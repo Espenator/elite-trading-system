@@ -382,8 +382,9 @@ async def _start_event_driven_pipeline():
     # 5b. BUG FIX 5: Subscribe to market_data.bar to persist snapshot/stream data to DuckDB.
     # Without this, snapshots published by AlpacaStreamService flow through the event pipeline
     # but never reach the database — the data_ingestion.ingest_all path uses separate HTTP calls.
+    # BUG FIX 11: Uses async_insert() instead of sync conn.execute() to avoid blocking the event loop.
     async def _persist_bar_to_duckdb(bar_data):
-        """Write a market_data.bar event to DuckDB daily_ohlcv table."""
+        """Write a market_data.bar event to DuckDB daily_ohlcv table (non-blocking)."""
         try:
             from app.data.duckdb_storage import duckdb_store
             symbol = bar_data.get("symbol")
@@ -394,8 +395,7 @@ async def _start_event_driven_pipeline():
             # Extract date from timestamp (could be ISO format or date string)
             date_str = str(timestamp)[:10]  # YYYY-MM-DD
 
-            conn = duckdb_store._get_conn()
-            conn.execute(
+            await duckdb_store.async_insert(
                 """
                 INSERT OR REPLACE INTO daily_ohlcv (symbol, date, open, high, low, close, volume, source)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -416,6 +416,20 @@ async def _start_event_driven_pipeline():
 
     await _message_bus.subscribe("market_data.bar", _persist_bar_to_duckdb)
     log.info("\u2705 market_data.bar -> DuckDB persistence subscriber active")
+
+    # 5c. BUG FIX 8: Bridge market_data.bar events to WebSocket "market" channel.
+    # Without this, the frontend Dashboard gets NO real-time price updates through
+    # WebSocket — only through REST polling every 5-30s. This bridge pushes every
+    # bar/snapshot to all clients subscribed to the "market" channel.
+    async def _bridge_market_data_to_ws(bar_data):
+        try:
+            from app.websocket_manager import broadcast_ws
+            await broadcast_ws("market", {"type": "price_update", "bar": bar_data})
+        except Exception as e:
+            log.debug("WS market broadcast failed: %s", e)
+
+    await _message_bus.subscribe("market_data.bar", _bridge_market_data_to_ws)
+    log.info("\u2705 MarketData->WebSocket bridge active")
 
     # 6. AlpacaStreamManager (replaces single AlpacaStreamService)
     global _stream_manager
