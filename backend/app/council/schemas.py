@@ -1,14 +1,19 @@
-"""Council schemas — shared data structures for the 17-agent council.
+"""Council schemas — shared data structures for the 35-agent council.
 
-DAG: 7 stages, 17 agents + arbiter + debate stage 5.5.
-Stage 1: [market_perception, flow_perception, regime, social_perception, news_catalyst, youtube_knowledge, intermarket]
-Stage 2: [rsi, bbv, ema_trend, relative_strength, cycle_timing]
-Stage 3: [hypothesis]
+DAG: 7 stages, 27+ agents + arbiter + debate stage 5.5.
+Stage 1: [market_perception, flow_perception, regime, social_perception,
+          news_catalyst, youtube_knowledge, intermarket, gex_agent,
+          insider_agent, finbert_sentiment_agent, earnings_tone_agent,
+          dark_pool_agent, macro_regime_agent]
+Stage 2: [rsi, bbv, ema_trend, relative_strength, cycle_timing,
+          supply_chain_agent, institutional_flow_agent, congressional_agent]
+Stage 3: [hypothesis, layered_memory_agent]
 Stage 4: [strategy]
-Stage 5: [risk, execution]
+Stage 5: [risk, execution, portfolio_optimizer_agent]
 Stage 5.5: [debate_engine, bull_debater, bear_debater, red_team]
 Stage 6: [critic]
 Stage 7: arbiter (deterministic)
+Post-arbiter: [alt_data_agent] (background enrichment)
 
 Embodier Trader Being Intelligence (ETBI) cognitive extensions:
   - CognitiveMeta: tracks exploration/exploitation mode, hypothesis diversity,
@@ -165,6 +170,27 @@ class DecisionPacket:
     active_hypothesis: Optional[Dict[str, Any]] = None  # hypothesis agent's output
     semantic_context: Optional[Dict[str, Any]] = None  # recalled heuristics/memories
     experimental_history: List[Dict[str, Any]] = field(default_factory=list)  # recent explore outcomes
+
+    _VALID_DIRECTIONS = {"buy", "sell", "hold"}
+
+    def __post_init__(self):
+        if self.final_direction not in self._VALID_DIRECTIONS:
+            raise ValueError(
+                f"final_direction must be one of {self._VALID_DIRECTIONS}, "
+                f"got '{self.final_direction}'"
+            )
+        if not (0.0 <= self.final_confidence <= 1.0):
+            raise ValueError(
+                f"final_confidence must be in [0.0, 1.0], got {self.final_confidence}"
+            )
+        if not isinstance(self.votes, list):
+            raise ValueError(
+                f"votes must be a list, got {type(self.votes).__name__}"
+            )
+        if self.execution_ready and self.final_direction == "hold":
+            raise ValueError(
+                "execution_ready cannot be True when final_direction is 'hold'"
+            )
 
     def to_dict(self) -> Dict[str, Any]:
         d = {

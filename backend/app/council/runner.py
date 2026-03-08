@@ -79,7 +79,7 @@ async def run_council(
 
     timestamp = datetime.now(timezone.utc).isoformat()
 
-    # Homeostasis — check system vitals and set mode
+    # Homeostasis — check system vitals and set mode (fail-closed: exception blocks trade)
     try:
         from app.council.homeostasis import get_homeostasis
         homeostasis = get_homeostasis()
@@ -106,9 +106,23 @@ async def run_council(
                 council_decision_id=blackboard.council_decision_id,
             )
     except Exception as e:
-        logger.debug("Homeostasis check failed (proceeding): %s", e)
+        logger.error("Homeostasis check failed (fail-closed, blocking council): %s", e)
+        return DecisionPacket(
+            symbol=symbol,
+            timeframe=timeframe,
+            timestamp=timestamp,
+            votes=[],
+            final_direction="hold",
+            final_confidence=0.0,
+            vetoed=True,
+            veto_reasons=[f"Homeostasis unavailable: {e}"],
+            risk_limits={},
+            execution_ready=False,
+            council_reasoning=f"BLOCKED: homeostasis check failed — {e}",
+            council_decision_id=blackboard.council_decision_id,
+        )
 
-    # Circuit breaker — brainstem reflexes run BEFORE the DAG
+    # Circuit breaker — brainstem reflexes run BEFORE the DAG (fail-closed)
     try:
         from app.council.reflexes.circuit_breaker import circuit_breaker
         halt_reason = await circuit_breaker.check_all(blackboard)
@@ -130,7 +144,21 @@ async def run_council(
                 council_decision_id=blackboard.council_decision_id,
             )
     except Exception as e:
-        logger.debug("Circuit breaker check failed (proceeding): %s", e)
+        logger.error("Circuit breaker check failed (fail-closed, blocking council): %s", e)
+        return DecisionPacket(
+            symbol=symbol,
+            timeframe=timeframe,
+            timestamp=timestamp,
+            votes=[],
+            final_direction="hold",
+            final_confidence=0.0,
+            vetoed=True,
+            veto_reasons=[f"Circuit breaker unavailable: {e}"],
+            risk_limits={},
+            execution_ready=False,
+            council_reasoning=f"BLOCKED: circuit breaker check failed — {e}",
+            council_decision_id=blackboard.council_decision_id,
+        )
 
     # Intelligence gathering — pre-council multi-tier LLM package (with timeout)
     try:
@@ -499,7 +527,7 @@ async def run_council(
         len(all_votes),
     )
 
-    # HITL gate — check if human approval is required before execution
+    # HITL gate — check if human approval is required before execution (fail-closed)
     try:
         from app.council.hitl_gate import get_hitl_gate
         hitl = get_hitl_gate()
@@ -522,7 +550,9 @@ async def run_council(
             blackboard.metadata["hitl_pending"] = hitl_result.to_dict()
             await hitl.request_approval(hitl_result)
     except Exception as e:
-        logger.debug("HITL gate check failed (proceeding): %s", e)
+        logger.error("HITL gate check failed (fail-closed, blocking execution): %s", e)
+        decision.execution_ready = False
+        decision.council_reasoning += f" | HITL gate unavailable ({e}) — execution blocked"
 
     # Record decision in feedback loop for learning
     try:

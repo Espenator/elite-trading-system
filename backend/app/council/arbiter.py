@@ -5,10 +5,12 @@ Falls back to static agent weights if learner is unavailable.
 
 Rules:
 1. VETO from risk_agent or execution_agent -> hold, vetoed=True
-2. Requires: regime OK + risk OK + strategy OK for any trade
+2. Requires: regime, risk, strategy must be present AND must not oppose
+   the winning direction for the trade to be executable
 3. Weighted confidence aggregation for direction (Bayesian weights)
 4. Hypothesis contributes confidence but cannot override risk veto
 5. Final confidence = weighted average of non-vetoing agents
+6. Tie/deadlock between buy and sell yields a safe hold with explicit reasoning
 """
 import logging
 from typing import Dict, List
@@ -49,11 +51,21 @@ def arbitrate(
     Uses Bayesian-learned weights when available, otherwise falls back
     to each agent's static WEIGHT constant.
 
+    Rules applied in order:
+    1. Veto check: risk or execution agent veto → hold, vetoed=True
+    2. Required agent presence: regime, risk, strategy must all vote
+    3. Weighted voting: Bayesian-weighted sum for buy/sell/hold
+    4. Tie/deadlock: equal buy and sell weight → hold with explicit reasoning
+    5. Required agent alignment: regime, risk, strategy must not oppose
+       the winning direction for the trade to be marked executable
+    6. Execution readiness: direction ≠ hold, confidence > 0.4,
+       execution agent approval, and required agents aligned
+
     Args:
         symbol: Ticker symbol
         timeframe: Timeframe
         timestamp: ISO timestamp
-        votes: List of AgentVote from all 13 agents
+        votes: List of AgentVote from council agents
 
     Returns:
         DecisionPacket with final decision
@@ -90,7 +102,7 @@ def arbitrate(
             council_reasoning=f"VETOED by: {'; '.join(veto_reasons)}",
         )
 
-    # Check required agents voted non-hold
+    # Check required agents are present
     required_votes = {
         v.agent_name: v for v in votes if v.agent_name in REQUIRED_AGENTS
     }
@@ -132,24 +144,46 @@ def arbitrate(
     if total_weight == 0:
         final_direction = "hold"
         final_confidence = 0.0
+    elif buy_weight == sell_weight and buy_weight > 0:
+        # Directional deadlock: buy and sell are equally weighted.
+        # Conservative policy: refuse to trade when there is no consensus.
+        final_direction = "hold"
+        final_confidence = max(buy_weight / total_weight, 0.5)
+        logger.info(
+            "Arbiter deadlock for %s: buy=%.2f sell=%.2f — forcing safe hold",
+            symbol, buy_weight, sell_weight,
+        )
     else:
-        if buy_weight == sell_weight:
-            final_direction = "hold"
-            final_confidence = hold_weight / total_weight if hold_weight > 0 else 0.0
+        max_weight = max(buy_weight, sell_weight, hold_weight)
+        if max_weight == buy_weight:
+            final_direction = "buy"
+            final_confidence = buy_weight / total_weight
+        elif max_weight == sell_weight:
+            final_direction = "sell"
+            final_confidence = sell_weight / total_weight
         else:
-            max_weight = max(buy_weight, sell_weight, hold_weight)
-            if max_weight == buy_weight:
-                final_direction = "buy"
-                final_confidence = buy_weight / total_weight
-            elif max_weight == sell_weight:
-                final_direction = "sell"
-                final_confidence = sell_weight / total_weight
-            else:
-                final_direction = "hold"
-                final_confidence = hold_weight / total_weight
+            final_direction = "hold"
+            final_confidence = hold_weight / total_weight
+
+    # Required agent alignment check: for an executable trade (non-hold),
+    # regime, risk, and strategy must not oppose the final direction.
+    # An agent "opposes" if it voted the opposite direction (buy vs sell).
+    required_aligned = True
+    opposing_agents = []
+    if final_direction in ("buy", "sell"):
+        opposite = "sell" if final_direction == "buy" else "buy"
+        for agent_name in REQUIRED_AGENTS:
+            rv = required_votes.get(agent_name)
+            if rv and rv.direction == opposite:
+                opposing_agents.append(agent_name)
+                required_aligned = False
 
     # Execution readiness
-    execution_ready = final_direction != "hold" and final_confidence > 0.4
+    execution_ready = (
+        final_direction != "hold"
+        and final_confidence > 0.4
+        and required_aligned
+    )
     exec_vote = next((v for v in votes if v.agent_name == "execution"), None)
     if exec_vote:
         execution_ready = execution_ready and exec_vote.metadata.get(
@@ -174,6 +208,15 @@ def arbitrate(
         f"buy={buy_weight:.2f} sell={sell_weight:.2f} hold={hold_weight:.2f}. "
         f"Decision: {final_direction.upper()} @ {final_confidence:.0%} confidence."
     )
+
+    if buy_weight > 0 and buy_weight == sell_weight:
+        reasoning += " Directional deadlock (buy == sell) — safe hold."
+
+    if opposing_agents:
+        reasoning += (
+            f" Required agents opposing {final_direction}: "
+            f"{', '.join(opposing_agents)} — execution blocked."
+        )
 
     return DecisionPacket(
         symbol=symbol,

@@ -1,7 +1,7 @@
 """Event-Driven Order Executor — council-controlled trading.
 
 Subscribes to `council.verdict` on the MessageBus (published by CouncilGate
-after the 13-agent council approves a trade).  This ensures every trade
+after the 35-agent council approves a trade).  This ensures every trade
 passes through the full agent intelligence layer.
 
 Pipeline:
@@ -9,13 +9,15 @@ Pipeline:
   market_data.bar -> signal.generated -> council.verdict -> order.submitted
 
 Risk gates (all must pass before execution):
-  1. Council verdict is execution_ready with direction != hold
-  2. Mock source guard (never trade on fake/mock data)
-  3. Real Kelly position sizing from DuckDB trade stats (not hardcoded)
-  4. Portfolio heat check (total exposure < max_heat)
-  5. Drawdown check (not breached)
-  6. Per-symbol cooldown (no rapid-fire orders)
-  7. Daily trade limit not exceeded
+  1. Direction validation: only exact 'buy' or 'sell' (fail-closed)
+  2. Council verdict is execution_ready with direction != hold
+  3. Minimum score threshold enforcement
+  4. Mock source guard (never trade on fake/mock data)
+  5. Real Kelly position sizing from DuckDB trade stats (not hardcoded)
+  6. Portfolio heat check (total exposure < max_heat)
+  7. Drawdown check (not breached — fail-closed on errors)
+  8. Per-symbol cooldown (no rapid-fire orders)
+  9. Daily trade limit not exceeded
 
 Connects to:
   - trade_stats_service.py -> real historical stats for Kelly
@@ -63,9 +65,13 @@ class OrderRecord:
 class OrderExecutor:
     """Event-driven order executor subscribing to council.verdict.
 
-    Now listens to council.verdict (from CouncilGate) instead of raw
-    signal.generated, ensuring every trade is approved by the 13-agent
+    Listens to council.verdict (from CouncilGate) instead of raw
+    signal.generated, ensuring every trade is approved by the 35-agent
     council before execution.
+
+    All safety-critical risk checks (drawdown, portfolio heat) fail closed:
+    if the check throws an exception, the trade is rejected rather than
+    allowed through.
 
     Parameters
     ----------
@@ -87,6 +93,8 @@ class OrderExecutor:
     use_bracket_orders : bool
         If True, places bracket orders with take-profit and stop-loss.
     """
+
+    VALID_DIRECTIONS = {"buy", "sell", "hold"}
 
     def __init__(
         self,
@@ -198,11 +206,31 @@ class OrderExecutor:
         if not symbol or not price or price <= 0:
             return
 
-        # -- Gate 1: Council must approve --
+        # -- Gate 1: Direction validation (fail-closed) --
+        if direction not in self.VALID_DIRECTIONS:
+            self._reject(
+                symbol, score,
+                f"Malformed direction '{direction}' — only {self.VALID_DIRECTIONS} accepted"
+            )
+            logger.warning(
+                "MALFORMED direction '%s' for %s — rejecting (fail-closed)",
+                direction, symbol,
+            )
+            return
+
+        # -- Gate 2: Council must approve --
         if direction == "hold" or not execution_ready:
             return
 
-        # -- Gate 2: Mock source guard --
+        # -- Gate 3: Minimum score threshold --
+        if score < self.min_score:
+            self._reject(
+                symbol, score,
+                f"Below minimum score threshold ({score:.1f} < {self.min_score:.1f})"
+            )
+            return
+
+        # -- Gate 4: Mock source guard --
         source = signal_data.get("source", "")
         if source and "mock" in source.lower():
             self._reject(symbol, score, "Mock data source -- refusing to trade")
@@ -219,26 +247,26 @@ class OrderExecutor:
             price,
         )
 
-        # -- Gate 3: Daily trade limit --
+        # -- Gate 5: Daily trade limit --
         self._check_daily_reset()
         if self._daily_trade_count >= self.max_daily_trades:
             self._reject(symbol, score, "Daily trade limit reached")
             return
 
-        # -- Gate 4: Per-symbol cooldown --
+        # -- Gate 6: Per-symbol cooldown --
         last_trade = self._symbol_last_trade.get(symbol, 0)
         if time.time() - last_trade < self.cooldown_seconds:
             remaining = int(self.cooldown_seconds - (time.time() - last_trade))
             self._reject(symbol, score, f"Cooldown active ({remaining}s remaining)")
             return
 
-        # -- Gate 5: Drawdown check --
+        # -- Gate 7: Drawdown check (fail-closed) --
         drawdown_ok = await self._check_drawdown()
         if not drawdown_ok:
             self._reject(symbol, score, "Drawdown limit breached")
             return
 
-        # -- Gate 6: Kelly position sizing (from REAL trade stats) --
+        # -- Gate 8: Kelly position sizing (from REAL trade stats) --
         kelly_result = await self._compute_kelly_size(symbol, score, regime, price, direction)
         if kelly_result["action"] == "HOLD" or kelly_result["kelly_pct"] <= 0:
             self._reject(
@@ -248,7 +276,7 @@ class OrderExecutor:
             )
             return
 
-        # -- Gate 7: Portfolio heat --
+        # -- Gate 9: Portfolio heat (fail-closed) --
         heat_ok, heat_info = await self._check_portfolio_heat(kelly_result["kelly_pct"])
         if not heat_ok:
             self._reject(
@@ -267,7 +295,9 @@ class OrderExecutor:
             )
             return
 
-        side = "buy" if direction == "buy" else "sell"
+        # Direction is guaranteed to be "buy" or "sell" at this point
+        # (validated at Gate 1, "hold" rejected at Gate 2)
+        side = direction
         client_order_id = f"et-{symbol}-{uuid.uuid4().hex[:8]}"
 
         order_record = OrderRecord(
@@ -610,7 +640,11 @@ class OrderExecutor:
         }
 
     async def _check_drawdown(self) -> bool:
-        """Check if drawdown limits allow trading."""
+        """Check if drawdown limits allow trading.
+
+        Fail-closed: if the drawdown check throws an exception, trading
+        is blocked rather than allowed through.
+        """
         try:
             from app.api.v1.risk import drawdown_check_status as drawdown_check
             dd_data = await drawdown_check()
@@ -619,17 +653,21 @@ class OrderExecutor:
                 return False
             return True
         except Exception as e:
-            logger.debug("Drawdown check unavailable: %s", e)
-            return True
+            logger.error("Drawdown check failed (fail-closed, blocking trade): %s", e)
+            return False
 
     async def _check_portfolio_heat(self, new_position_pct: float) -> tuple:
-        """Check total portfolio heat."""
+        """Check total portfolio heat.
+
+        Fail-closed: if the heat check throws an exception, trading
+        is blocked rather than allowed through.
+        """
         try:
             alpaca = self._get_alpaca_service()
             account = await alpaca.get_account()
             positions = await alpaca.get_positions()
             if not account:
-                return True, {}
+                return False, {"reason": "Account data unavailable (fail-closed)"}
             equity = float(account.get("equity", 0))
             if equity <= 0:
                 return False, {"current_heat": 0, "reason": "Zero equity"}
@@ -646,8 +684,8 @@ class OrderExecutor:
                 "new_position": new_position_pct,
             }
         except Exception as e:
-            logger.debug("Portfolio heat check error: %s", e)
-            return True, {}
+            logger.error("Portfolio heat check failed (fail-closed, blocking trade): %s", e)
+            return False, {"reason": f"Heat check error: {e}"}
 
     def _check_daily_reset(self) -> None:
         """Reset daily trade count at market open (US/Eastern)."""
