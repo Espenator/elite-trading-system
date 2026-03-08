@@ -2,9 +2,11 @@ import React, { useEffect, useCallback, useRef, useState } from 'react';
 import useTradeExecution from '../hooks/useTradeExecution';
 import { getApiUrl, getAuthHeaders } from '../config/api';
 import { useApi } from '../hooks/useApi';
+import { useOperatorCockpit } from '../hooks/useOperatorCockpit';
 import clsx from 'clsx';
 import { Minus, Plus } from 'lucide-react';
 import { VisualPriceLadder, CouncilDecisionPanel } from '../components/dashboard/TradeExecutionWidgets';
+import { ModeBadge, ExecutionAuthorityBanner } from '../components/operator';
 
 /* ────────────────────────────────────────────────────────────
    Shared tiny components used only in this page
@@ -68,6 +70,14 @@ export default function TradeExecution() {
     executeMarketBuy, executeMarketSell, executeLimitBuy, executeLimitSell,
     executeStopLoss, executeAdvancedOrder, closePosition, adjustPosition,
   } = useTradeExecution();
+
+  // Operator cockpit integration
+  const {
+    tradingMode,
+    executionAuthority,
+    autoState,
+    alpacaStatus,
+  } = useOperatorCockpit();
 
   // Symbol universe from API (fallback to common tickers)
   const { data: stocksData } = useApi('stocks', { pollIntervalMs: 120000 });
@@ -306,12 +316,16 @@ export default function TradeExecution() {
       <div className="h-[42px] bg-[#111827] border-b border-[rgba(42,52,68,0.5)] flex items-center px-5 gap-5 shrink-0 relative">
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-400 to-transparent" />
         <span className="font-mono text-sm font-bold text-white uppercase tracking-widest">TRADE EXECUTION</span>
+        {/* Operator Mode Badge */}
+        <ModeBadge mode={tradingMode} size="md" />
         <div className="flex items-center gap-5 ml-auto font-mono text-[10px]">
           <span><span className="text-gray-500 mr-1">Portfolio:</span><span className="text-white">{fmtUsd(portfolio.value || 1580430.55)}</span></span>
           <span className="text-gray-700">|</span>
           <span><span className="text-gray-500 mr-1">Daily P/L:</span><span className="text-[#00e676]">+{fmtUsd(portfolio.dailyPnl || 12500.80)}</span></span>
           <span className="text-gray-700">|</span>
           <span><span className="text-gray-500 mr-1">Status:</span><span className="text-[#00D9FF] font-semibold">{portfolio.status || 'ELITE'}</span></span>
+          <span className="text-gray-700">|</span>
+          <span><span className="text-gray-500 mr-1">Authority:</span><span className={`font-semibold uppercase ${tradingMode === 'Auto' ? 'text-cyan-400' : 'text-gray-300'}`}>{executionAuthority === 'system' ? 'SYSTEM' : 'HUMAN'}</span></span>
           <span className="text-gray-700">|</span>
           <span><span className="text-gray-500 mr-1">Latency:</span><span className="text-white">{portfolio.latency || 8}ms</span></span>
         </div>
