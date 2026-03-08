@@ -42,22 +42,32 @@ Both IPs are DHCP-reserved on the AT&T BGW320-505 router (192.168.1.254).
 
 ## Quick Start (One Click)
 
+**Recommended for Windows users**:
+
 Double-click `start-embodier.bat` or run:
 ```powershell
 cd C:\Users\Espen\elite-trading-system
 .\start-embodier.ps1
 ```
 
-This will:
-1. Create a Python venv and install deps (first run only)
-2. Start the FastAPI backend on port 8000
-3. Install npm packages and start Vite on port 3000 (first run only)
-4. Open http://localhost:3000 in your browser
-5. Auto-restart if either service crashes (up to 3 times)
+This launcher will:
+1. ✅ Validate prerequisites (Python 3.10+, Node.js 18+)
+2. ✅ Create venv + install dependencies (first run)
+3. ✅ Fix .env encoding issues (Windows UTF-8 BOM)
+4. ✅ Validate Alpaca API keys
+5. ✅ Start backend on port 8000
+6. ✅ Start frontend on port 3000
+7. ✅ Open browser automatically
+8. ✅ Auto-restart on crash (up to 3 times)
 
-### Backend only (no frontend)
+**Backend only** (skip frontend):
 ```powershell
 .\start-embodier.ps1 -SkipFrontend
+```
+
+**Custom ports**:
+```powershell
+.\start-embodier.ps1 -BackendPort 8080 -FrontendPort 3001
 ```
 
 ## Manual Start (Step by Step)
@@ -131,6 +141,31 @@ cd ..; .\start-embodier.ps1
 Invoke-RestMethod http://localhost:8000/health
 Invoke-RestMethod http://localhost:8000/api/v1/status
 ```
+
+### Health Check Endpoints
+
+The backend exposes multiple health check endpoints:
+
+| Endpoint | Purpose | Response |
+|----------|---------|----------|
+| `GET /health` | Basic health check | `{"status": "ok"}` |
+| `GET /healthz` | Kubernetes liveness probe | `{"status": "ok"}` |
+| `GET /readyz` | Kubernetes readiness probe | `{"status": "ok"}` |
+| `GET /api/v1/status` | Full system status | `{"status": "ok", "db_path": "...", ...}` |
+| `GET /api/v1/status/data` | Data freshness check | `{"daily_bars_date": "...", ...}` |
+
+**Run comprehensive validation**:
+```powershell
+.\scripts\validate-startup.ps1
+```
+
+This script checks:
+- ✅ Backend health endpoint
+- ✅ Backend API status
+- ✅ Council agent count (31 expected)
+- ✅ Market data freshness
+- ✅ Frontend port availability
+- ⚠️ Brain service (optional)
 
 ### Check logs
 ```

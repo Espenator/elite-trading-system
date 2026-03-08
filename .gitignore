@@ -52,7 +52,13 @@ desktop.ini
 
 # ── Logs ──
 *.log
-logs/
+logs/*.log
+logs/backend.log
+logs/frontend.log
+logs/backend-error.log
+logs/frontend-error.log
+# Keep logs directory but ignore contents
+!logs/.gitkeep
 
 # ── Node/Frontend ──
 node_modules/

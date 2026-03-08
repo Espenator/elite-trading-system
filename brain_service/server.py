@@ -17,11 +17,39 @@ from pathlib import Path
 PROTO_DIR = Path(__file__).parent / "proto"
 sys.path.insert(0, str(PROTO_DIR))
 
+# Auto-compile proto if stubs missing
+_proto_stubs = [PROTO_DIR / "brain_pb2.py", PROTO_DIR / "brain_pb2_grpc.py"]
+if not all(stub.exists() for stub in _proto_stubs):
+    logging.basicConfig(level="INFO", format="%(message)s")
+    _logger = logging.getLogger("brain_service.setup")
+    _logger.info("Proto stubs missing — compiling...")
+    import subprocess
+
+    _compile_script = Path(__file__).parent / "compile_proto.py"
+    if not _compile_script.exists():
+        _logger.error("compile_proto.py not found at %s", _compile_script)
+        sys.exit(1)
+
+    _result = subprocess.run(
+        [sys.executable, str(_compile_script)],
+        capture_output=True,
+        text=True,
+        cwd=str(Path(__file__).parent)
+    )
+
+    if _result.returncode != 0:
+        _logger.error("Proto compilation failed:")
+        _logger.error(_result.stderr)
+        sys.exit(1)
+
+    _logger.info("Proto compilation complete")
+
 try:
     import grpc
     from proto import brain_pb2, brain_pb2_grpc
-except ImportError:
-    logging.error("gRPC stubs not found. Run: python compile_proto.py")
+except ImportError as e:
+    logging.error("Failed to import gRPC stubs: %s", e)
+    logging.error("Try manually running: python compile_proto.py")
     sys.exit(1)
 
 from ollama_client import infer_candidate_context, critic_postmortem

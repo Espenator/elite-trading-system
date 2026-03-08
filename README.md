@@ -4,7 +4,7 @@
 
 CI Status: GREEN — 151 tests passing
 Frontend: **ALL 14 PAGES COMPLETE** — pixel-fidelity match to 23 mockup images. Build clean.
-Backend: Ready to start (uvicorn never run yet).
+Backend: Operational — use `.\start-embodier.ps1` or `python start_server.py`
 Council: **31-agent DAG** in 7 stages — council-controlled trading via CouncilGate (v3.5.0)
 
 ---
@@ -338,21 +338,106 @@ All pages in frontend-v2/src/pages/. All use useApi() hook. No mock data. **ALL 
 
 ## Quick Start
 
-```bash
-# Clone
+### Prerequisites
+- Python 3.10+
+- Node.js 18+
+- Git
+- Windows 10/11 with PowerShell 5.1+ (for Windows users)
+
+### Option 1: One-Click Start (Windows - Recommended)
+
+```powershell
 git clone https://github.com/Espenator/elite-trading-system.git
 cd elite-trading-system
+.\start-embodier.ps1
+```
 
-# Backend setup
+This will:
+- Create Python venv and install backend dependencies (first run)
+- Install frontend dependencies (first run)
+- Start backend on port 8000
+- Start frontend on port 3000
+- Open browser to http://localhost:3000
+
+**Backend only** (no frontend):
+```powershell
+.\start-embodier.ps1 -SkipFrontend
+```
+
+### Option 2: Manual Start (Cross-Platform)
+
+```bash
+# Terminal 1 — Backend
 cd backend
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# or: venv\Scripts\Activate.ps1  # Windows
 pip install -r requirements.txt
-cp .env.example .env  # Edit .env with Alpaca API keys
+cp .env.example .env  # Edit with your Alpaca API keys
 python start_server.py
 
-# Frontend setup (new terminal)
+# Terminal 2 — Frontend
 cd frontend-v2
 npm install
 npm run dev
+```
+
+### Option 3: Docker (Production)
+
+```bash
+cp backend/.env.example backend/.env
+# Edit backend/.env with your API keys
+docker-compose up -d
+
+# Access:
+# Backend:  http://localhost:8000
+# Frontend: http://localhost:3000
+```
+
+### Optional: Brain Service (GPU Inference)
+
+The brain service provides LLM inference via Ollama for enhanced trading intelligence. It's optional — the system works without it.
+
+**Setup** (typically on PC2 with GPU):
+```bash
+cd brain_service
+pip install -r requirements.txt
+python server.py  # Port 50051
+```
+
+**Windows Launcher**:
+```powershell
+.\start-brain-service.ps1
+```
+
+**Configure backend** (PC1 backend/.env):
+```env
+BRAIN_ENABLED=true
+BRAIN_HOST=192.168.1.116  # PC2 IP address
+BRAIN_PORT=50051
+```
+
+**Firewall** (PC2 — Windows):
+```powershell
+netsh advfirewall firewall add rule name="Brain Service gRPC" dir=in action=allow protocol=TCP localport=50051
+```
+
+See [`brain_service/README.md`](brain_service/README.md) for full details.
+
+### Validation
+
+```powershell
+# Check backend health
+Invoke-RestMethod http://localhost:8000/health
+
+# Check API status
+Invoke-RestMethod http://localhost:8000/api/v1/status
+
+# Run full validation
+.\scripts\validate-startup.ps1
+
+# Access API docs
+Start-Process http://localhost:8000/docs
 ```
 
 ## License
