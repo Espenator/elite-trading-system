@@ -452,12 +452,11 @@ async def _start_event_driven_pipeline():
     await _message_bus.subscribe("market_data.bar", _bridge_market_data_to_ws)
     log.info("\u2705 MarketData->WebSocket bridge active")
 
-    # 6. AlpacaStreamManager (replaces single AlpacaStreamService)
+    # 6. AlpacaStreamManager — now managed via AlpacaStreamAdapter in the registry below
     global _stream_manager
-    if os.getenv("DISABLE_ALPACA_DATA_STREAM", "").strip().lower() in ("1", "true", "yes"):
-        log.info("AlpacaStreamManager skipped (DISABLE_ALPACA_DATA_STREAM=1)")
-    else:
-        from app.services.alpaca_stream_manager import AlpacaStreamManager
+    # Resolve the symbols list for AlpacaStreamAdapter
+    _alpaca_symbols = []
+    if os.getenv("DISABLE_ALPACA_DATA_STREAM", "").strip().lower() not in ("1", "true", "yes"):
         try:
             from app.modules.symbol_universe import get_tracked_symbols
             tracked = get_tracked_symbols()
@@ -467,12 +466,7 @@ async def _start_event_driven_pipeline():
             "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA",
             "TSLA", "META", "SPY", "QQQ", "IWM",
         ]
-        symbols = list(set(tracked or default_symbols))
-        _stream_manager = AlpacaStreamManager(_message_bus, symbols)
-        _alpaca_stream_task = asyncio.create_task(_stream_manager.start())
-        # Keep _alpaca_stream reference for backward compat in health checks
-        _alpaca_stream = _stream_manager
-        log.info("\u2705 AlpacaStreamManager launched for %d symbols", len(symbols))
+        _alpaca_symbols = list(set(tracked or default_symbols))
 
     # 7. Ingestion adapter registry — register and start all source adapters
     try:
@@ -482,8 +476,17 @@ async def _start_event_driven_pipeline():
         from app.services.ingestion.adapters.sec_edgar_adapter import SecEdgarAdapter
         from app.services.ingestion.adapters.unusual_whales_adapter import UnusualWhalesAdapter
         from app.services.ingestion.adapters.openclaw_adapter import OpenClawAdapter
+        from app.services.ingestion.adapters.alpaca_stream_adapter import AlpacaStreamAdapter
 
         _adapter_registry = get_adapter_registry()
+        if _alpaca_symbols:
+            _alpaca_adapter = AlpacaStreamAdapter(message_bus=_message_bus, symbols=_alpaca_symbols)
+            _adapter_registry.register(_alpaca_adapter)
+            # Keep backward-compat references for existing health checks
+            _stream_manager = None  # managed by adapter now
+            log.info("AlpacaStreamAdapter registered for %d symbols", len(_alpaca_symbols))
+        else:
+            log.info("AlpacaStreamAdapter skipped (DISABLE_ALPACA_DATA_STREAM=1)")
         _adapter_registry.register(FinvizAdapter(message_bus=_message_bus))
         _adapter_registry.register(FredAdapter(message_bus=_message_bus))
         _adapter_registry.register(SecEdgarAdapter(message_bus=_message_bus))
@@ -820,14 +823,7 @@ async def _stop_event_driven_pipeline():
     except Exception:
         pass
 
-    # Stop AlpacaStreamManager (handles all sub-streams)
-    if _stream_manager:
-        try:
-            await _stream_manager.stop()
-        except Exception:
-            pass
-
-    # Stop ingestion adapters
+    # Stop ingestion adapters (includes AlpacaStreamAdapter which manages AlpacaStreamManager)
     try:
         from app.services.ingestion.registry import get_adapter_registry
         await get_adapter_registry().stop_all()
@@ -1253,6 +1249,16 @@ async def readiness():
     except Exception:
         checks["services"] = "registry_unavailable"
 
+    # Ingestion adapter health
+    try:
+        from app.services.ingestion.registry import get_adapter_registry
+        ing_health = get_adapter_registry().health_summary()
+        checks["ingestion"] = ing_health.get("status", "unknown")
+        if ing_health.get("status") == "offline":
+            checks["ingestion_degraded"] = True
+    except Exception:
+        checks["ingestion"] = "unavailable"
+
     status_code = 200 if ready else 503
     return JSONResponse(
         status_code=status_code,
@@ -1289,8 +1295,14 @@ async def health_check():
         event_pipeline = {}
         if _message_bus:
             event_pipeline["message_bus"] = _message_bus.get_metrics()
-        if _alpaca_stream:
-            event_pipeline["alpaca_stream"] = _alpaca_stream.get_status()
+        # Alpaca stream status via adapter registry (unified)
+        try:
+            from app.services.ingestion.registry import get_adapter_registry
+            _alpaca_adapter = get_adapter_registry().get("alpaca_stream")
+            if _alpaca_adapter:
+                event_pipeline["alpaca_stream"] = _alpaca_adapter.health()
+        except Exception:
+            pass
         if _event_signal_engine:
             event_pipeline["signal_engine"] = _event_signal_engine.get_status()
         if _council_gate:
@@ -1318,6 +1330,14 @@ async def health_check():
         except Exception:
             duckdb_status = {"status": "unavailable"}
 
+        # Ingestion adapter health
+        ingestion_status = {}
+        try:
+            from app.services.ingestion.registry import get_adapter_registry
+            ingestion_status = get_adapter_registry().health_summary()
+        except Exception:
+            ingestion_status = {"status": "unavailable"}
+
         return {
             "status": "healthy",
             "version": settings.APP_VERSION,  # Audit Task 19: single source
@@ -1327,6 +1347,7 @@ async def health_check():
             "event_pipeline": event_pipeline,
             "agent_weights": agent_weights,
             "duckdb": duckdb_status,
+            "ingestion": ingestion_status,
         }
     except Exception as exc:
         log.exception("Health check failed")

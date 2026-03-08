@@ -639,3 +639,153 @@ class TestMarketDataAgentCompat:
             run_ingestion=False,
         )
         assert isinstance(entries, list)
+
+
+# ---------------------------------------------------------------------------
+# DuckDB ingestion_events table DDL
+# ---------------------------------------------------------------------------
+
+class TestIngestionEventsTable:
+    def test_ingestion_events_table_created(self):
+        """DuckDB schema must include the ingestion_events table."""
+        import tempfile, os
+        from app.data.duckdb_storage import DuckDBStorage
+        with tempfile.TemporaryDirectory() as td:
+            db_path = os.path.join(td, "test.duckdb")
+            store = DuckDBStorage(db_path=db_path)
+            conn = store._get_conn()
+            tables = conn.execute(
+                "SELECT table_name FROM information_schema.tables WHERE table_name = 'ingestion_events'"
+            ).fetchall()
+            assert len(tables) == 1, "ingestion_events table should exist"
+
+    def test_ingestion_events_columns_match_sink(self):
+        """All columns written by EventSink._persist must exist in the DDL."""
+        import tempfile, os
+        from app.data.duckdb_storage import DuckDBStorage
+        with tempfile.TemporaryDirectory() as td:
+            db_path = os.path.join(td, "test.duckdb")
+            store = DuckDBStorage(db_path=db_path)
+            conn = store._get_conn()
+            cols = conn.execute(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name = 'ingestion_events' ORDER BY ordinal_position"
+            ).fetchall()
+            col_names = [c[0] for c in cols]
+            expected = [
+                "event_id", "source", "source_kind", "topic", "symbol",
+                "entity_id", "occurred_at", "ingested_at", "sequence",
+                "dedupe_key", "schema_version", "payload_json", "trace_id",
+            ]
+            for col in expected:
+                assert col in col_names, f"Column '{col}' missing from ingestion_events"
+
+    def test_ingestion_events_indexes_created(self):
+        """Indexes on source, topic, symbol should be created."""
+        import tempfile, os
+        from app.data.duckdb_storage import DuckDBStorage
+        with tempfile.TemporaryDirectory() as td:
+            db_path = os.path.join(td, "test.duckdb")
+            store = DuckDBStorage(db_path=db_path)
+            conn = store._get_conn()
+            indexes = conn.execute(
+                "SELECT index_name FROM duckdb_indexes() WHERE table_name = 'ingestion_events'"
+            ).fetchall()
+            idx_names = [i[0] for i in indexes]
+            assert "idx_ingestion_source" in idx_names
+            assert "idx_ingestion_topic" in idx_names
+            assert "idx_ingestion_symbol" in idx_names
+
+    @pytest.mark.asyncio
+    async def test_event_sink_persists_to_ingestion_events(self):
+        """EventSink should successfully write to the ingestion_events table."""
+        import tempfile, os
+        from app.data.duckdb_storage import DuckDBStorage
+        from app.services.ingestion.sink import EventSink
+
+        with tempfile.TemporaryDirectory() as td:
+            db_path = os.path.join(td, "test.duckdb")
+            store = DuckDBStorage(db_path=db_path)
+            with patch("app.data.duckdb_storage.duckdb_store", store):
+                sink = EventSink()
+                event = {
+                    "event_id": "test-001",
+                    "source": "test_source",
+                    "source_kind": "snapshot",
+                    "topic": "test.topic",
+                    "symbol": "AAPL",
+                    "entity_id": "e1",
+                    "occurred_at": 1700000000.0,
+                    "ingested_at": 1700000001.0,
+                    "sequence": 1,
+                    "dedupe_key": "dk-001",
+                    "schema_version": 1,
+                    "payload": {"price": 150.0},
+                    "trace_id": "trace-001",
+                }
+                await sink._persist(event)
+                assert sink._persisted == 1
+                assert sink._errors == 0
+
+                # Verify the row is in DuckDB
+                conn = store._get_conn()
+                rows = conn.execute(
+                    "SELECT event_id, source, symbol, payload_json FROM ingestion_events"
+                ).fetchall()
+                assert len(rows) == 1
+                assert rows[0][0] == "test-001"
+                assert rows[0][1] == "test_source"
+                assert rows[0][2] == "AAPL"
+
+
+# ---------------------------------------------------------------------------
+# Health endpoint ingestion section
+# ---------------------------------------------------------------------------
+
+class TestHealthIngestion:
+    def test_health_summary_includes_adapters(self):
+        """AdapterRegistry.health_summary() must aggregate all adapter states."""
+        from app.services.ingestion.registry import AdapterRegistry
+        from app.services.ingestion.health import IngestionHealth
+
+        registry = AdapterRegistry()
+
+        # Create fake adapters
+        adapter1 = MagicMock()
+        adapter1.source_name = "test1"
+        adapter1.source_kind = MagicMock(value="snapshot")
+        adapter1.health.return_value = {
+            "source": "test1", "state": "healthy",
+            "events_published": 10, "errors": 0,
+        }
+        adapter2 = MagicMock()
+        adapter2.source_name = "test2"
+        adapter2.source_kind = MagicMock(value="incremental")
+        adapter2.health.return_value = {
+            "source": "test2", "state": "offline",
+            "events_published": 0, "errors": 5,
+        }
+
+        registry.register(adapter1)
+        registry.register(adapter2)
+
+        summary = registry.health_summary()
+        assert summary["adapter_count"] == 2
+        assert summary["total_events_published"] == 10
+        assert summary["total_errors"] == 5
+        assert summary["status"] == "degraded"  # one offline
+        assert "test2" in summary["offline_sources"]
+
+    def test_alpaca_adapter_in_registry(self):
+        """AlpacaStreamAdapter should be registerable and report health."""
+        from app.services.ingestion.adapters.alpaca_stream_adapter import AlpacaStreamAdapter
+        from app.services.ingestion.registry import AdapterRegistry
+
+        registry = AdapterRegistry()
+        adapter = AlpacaStreamAdapter(message_bus=None, symbols=["AAPL"])
+        registry.register(adapter)
+
+        assert registry.get("alpaca_stream") is adapter
+        health = adapter.health()
+        assert health["source"] == "alpaca_stream"
+        assert health["kind"] == "stream"

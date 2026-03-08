@@ -374,6 +374,25 @@ class DuckDBStorage:
             )
         """)
 
+        # Ingestion events — append-only log written by EventSink
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS ingestion_events (
+                event_id VARCHAR PRIMARY KEY,
+                source VARCHAR NOT NULL,
+                source_kind VARCHAR NOT NULL,
+                topic VARCHAR NOT NULL,
+                symbol VARCHAR DEFAULT '',
+                entity_id VARCHAR DEFAULT '',
+                occurred_at DOUBLE DEFAULT 0,
+                ingested_at DOUBLE DEFAULT 0,
+                sequence INTEGER DEFAULT 0,
+                dedupe_key VARCHAR DEFAULT '',
+                schema_version INTEGER DEFAULT 1,
+                payload_json VARCHAR DEFAULT '{}',
+                trace_id VARCHAR DEFAULT ''
+            )
+        """)
+
         # Indexes for new tables
         conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_calls_agent ON llm_calls (agent_name, ts)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_calls_decision ON llm_calls (council_decision_id)")
@@ -383,6 +402,9 @@ class DuckDBStorage:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_trade ON agent_memories (trade_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_heuristics_agent ON heuristics (agent_name, regime)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_knowledge_edges_src ON knowledge_edges (source_heuristic_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_ingestion_source ON ingestion_events (source, ingested_at)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_ingestion_topic ON ingestion_events (topic, ingested_at)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_ingestion_symbol ON ingestion_events (symbol, ingested_at)")
 
         logger.info("DuckDB analytics schema initialized at %s", self._db_path)
 
