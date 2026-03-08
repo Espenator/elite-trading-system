@@ -29,13 +29,16 @@ async def run_tick(
     run_edgar: bool = True,
     run_unusual_whales: bool = True,
     run_openclaw: bool = True,
-    run_ingestion: bool = True,
+    run_ingestion: bool = False,  # DISABLED: Real-time stream handles bar persistence
 ) -> List[Tuple[str, str]]:
     """
     Run one Market Data Agent tick. Returns list of (message, level) for activity log.
 
-    v2.0: Added run_ingestion flag. When True, persists all fetched data
-    to DuckDB via data_ingestion service after collection.
+    v3.0 CHANGE: run_ingestion now defaults to False to avoid duplicate
+    persistence with AlpacaStreamManager real-time flow. The event-driven
+    stream via market_data.bar -> DuckDB handles bar persistence automatically.
+    This polling loop now focuses on: Finviz symbol discovery, FRED macro,
+    SEC EDGAR filings, Unusual Whales flow, OpenClaw regime data.
     """
     entries: List[Tuple[str, str]] = []
 

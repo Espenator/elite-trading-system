@@ -367,112 +367,24 @@ async def _start_event_driven_pipeline():
         "AUTO" if auto_execute else "SHADOW",
     )
 
-    # 5. WebSocket bridges (forward events to frontend)
-    async def _bridge_signal_to_ws(signal_data):
-        try:
-            from app.websocket_manager import broadcast_ws
-            await broadcast_ws("signal", {"type": "new_signal", "signal": signal_data})
-        except Exception as e:
-            log.debug("WS broadcast failed: %s", e)
+    # 5. WebSocket bridges + market_data.bar persistence
+    # Centralized registration via startup module for clarity and maintainability
+    from app.startup.websocket_bridges import register_all_bridges, register_persistence_handler
 
-    await _message_bus.subscribe("signal.generated", _bridge_signal_to_ws)
-    log.info("\u2705 Signal->WebSocket bridge active")
+    await register_persistence_handler(_message_bus)
+    _ws_bridges = await register_all_bridges(_message_bus)
 
-    async def _bridge_order_to_ws(order_data):
-        try:
-            from app.websocket_manager import broadcast_ws
-            await broadcast_ws("order", {"type": "order_update", "order": order_data})
-        except Exception as e:
-            log.debug("WS order broadcast failed: %s", e)
+    # 6. AlpacaStreamManager (multi-key WebSocket orchestrator)
+    # Explicit initialization via startup module to clarify dependencies
+    global _stream_manager, _alpaca_stream_task, _alpaca_stream
 
-    await _message_bus.subscribe("order.submitted", _bridge_order_to_ws)
-    await _message_bus.subscribe("order.filled", _bridge_order_to_ws)
-    await _message_bus.subscribe("order.cancelled", _bridge_order_to_ws)
-    log.info("\u2705 Order->WebSocket bridges active")
+    from app.startup.adapters import create_alpaca_stream_manager, start_alpaca_stream_manager
 
-    async def _bridge_council_to_ws(verdict_data):
-        try:
-            from app.websocket_manager import broadcast_ws
-            await broadcast_ws("council", {"type": "council_verdict", "verdict": verdict_data})
-        except Exception as e:
-            log.debug("WS council broadcast failed: %s", e)
-
-    await _message_bus.subscribe("council.verdict", _bridge_council_to_ws)
-    log.info("\u2705 Council->WebSocket bridge active")
-
-    # 5b. BUG FIX 5: Subscribe to market_data.bar to persist snapshot/stream data to DuckDB.
-    # Without this, snapshots published by AlpacaStreamService flow through the event pipeline
-    # but never reach the database — the data_ingestion.ingest_all path uses separate HTTP calls.
-    # BUG FIX 11: Uses async_insert() instead of sync conn.execute() to avoid blocking the event loop.
-    async def _persist_bar_to_duckdb(bar_data):
-        """Write a market_data.bar event to DuckDB daily_ohlcv table (non-blocking)."""
-        try:
-            from app.data.duckdb_storage import duckdb_store
-            symbol = bar_data.get("symbol")
-            timestamp = bar_data.get("timestamp", "")
-            if not symbol or not timestamp:
-                return
-
-            # Extract date from timestamp (could be ISO format or date string)
-            date_str = str(timestamp)[:10]  # YYYY-MM-DD
-
-            await duckdb_store.async_insert(
-                """
-                INSERT OR REPLACE INTO daily_ohlcv (symbol, date, open, high, low, close, volume, source)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                [
-                    symbol,
-                    date_str,
-                    float(bar_data.get("open") or 0),
-                    float(bar_data.get("high") or 0),
-                    float(bar_data.get("low") or 0),
-                    float(bar_data.get("close") or 0),
-                    int(bar_data.get("volume") or 0),
-                    bar_data.get("source", "stream"),
-                ],
-            )
-        except Exception as e:
-            log.debug("DuckDB bar persist failed: %s", e)
-
-    await _message_bus.subscribe("market_data.bar", _persist_bar_to_duckdb)
-    log.info("\u2705 market_data.bar -> DuckDB persistence subscriber active")
-
-    # 5c. BUG FIX 8: Bridge market_data.bar events to WebSocket "market" channel.
-    # Without this, the frontend Dashboard gets NO real-time price updates through
-    # WebSocket — only through REST polling every 5-30s. This bridge pushes every
-    # bar/snapshot to all clients subscribed to the "market" channel.
-    async def _bridge_market_data_to_ws(bar_data):
-        try:
-            from app.websocket_manager import broadcast_ws
-            await broadcast_ws("market", {"type": "price_update", "bar": bar_data})
-        except Exception as e:
-            log.debug("WS market broadcast failed: %s", e)
-
-    await _message_bus.subscribe("market_data.bar", _bridge_market_data_to_ws)
-    log.info("\u2705 MarketData->WebSocket bridge active")
-
-    # 6. AlpacaStreamManager (replaces single AlpacaStreamService)
-    global _stream_manager
-    if os.getenv("DISABLE_ALPACA_DATA_STREAM", "").strip().lower() in ("1", "true", "yes"):
-        log.info("AlpacaStreamManager skipped (DISABLE_ALPACA_DATA_STREAM=1)")
-    else:
-        from app.services.alpaca_stream_manager import AlpacaStreamManager
-        try:
-            from app.modules.symbol_universe import get_tracked_symbols
-            tracked = get_tracked_symbols()
-        except Exception:
-            tracked = []
-        default_symbols = [
-            "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA",
-            "TSLA", "META", "SPY", "QQQ", "IWM",
-        ]
-        symbols = list(set(tracked or default_symbols))
-        _stream_manager = AlpacaStreamManager(_message_bus, symbols)
-        _alpaca_stream_task = asyncio.create_task(_stream_manager.start())
+    _stream_manager = await create_alpaca_stream_manager(_message_bus)
+    if _stream_manager:
+        _alpaca_stream_task = await start_alpaca_stream_manager(_stream_manager)
         # Keep _alpaca_stream reference for backward compat in health checks
         _alpaca_stream = _stream_manager
-        log.info("\u2705 AlpacaStreamManager launched for %d symbols", len(symbols))
 
     # 8. SwarmSpawner — spawns analysis swarms from ideas
     # Skip when LLM disabled — _run_swarm does synchronous DuckDB ingest + LLM council
@@ -520,28 +432,6 @@ async def _start_event_driven_pipeline():
         log.info("\u2705 GeopoliticalRadar started (alert_level=%s)", _geo_radar._alert_level)
     else:
         log.info("\u26A0\uFE0F GeopoliticalRadar skipped (LLM_ENABLED=false)")
-
-    # 13. Swarm result -> WebSocket bridge
-    async def _bridge_swarm_to_ws(result_data):
-        try:
-            from app.websocket_manager import broadcast_ws
-            await broadcast_ws("swarm", {"type": "swarm_result", "result": result_data})
-        except Exception as e:
-            log.debug("WS swarm broadcast failed: %s", e)
-
-    await _message_bus.subscribe("swarm.result", _bridge_swarm_to_ws)
-    log.info("\u2705 Swarm->WebSocket bridge active")
-
-    # 14. Macro event -> WebSocket bridge
-    async def _bridge_macro_to_ws(event_data):
-        try:
-            from app.websocket_manager import broadcast_ws
-            await broadcast_ws("risk", {"type": "macro_event", "event": event_data})
-        except Exception as e:
-            log.debug("WS macro broadcast failed: %s", e)
-
-    await _message_bus.subscribe("scout.discovery", _bridge_macro_to_ws)
-    log.info("\u2705 MacroEvent->WebSocket bridge active")
 
     # 15. CorrelationRadar — cross-asset correlation breaks + sector rotation
     # BUG FIX 3: Always start — uses sync DuckDB queries, no LLM dependency.
