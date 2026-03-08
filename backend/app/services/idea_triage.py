@@ -29,7 +29,6 @@ import asyncio
 import hashlib
 import logging
 import time
-from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -173,7 +172,11 @@ class IdeaTriageService:
     async def _on_idea(self, data: Dict[str, Any]) -> None:
         self._stats["total_received"] += 1
         now = time.time()
-        self._recent_arrivals.append(now)
+        # Guard against unbounded growth during event storms: keep at most
+        # MAX_QUEUE_SIZE timestamps (the adaptive threshold only looks at the
+        # last 60 s anyway, so older entries are pruned on the next call).
+        if len(self._recent_arrivals) < MAX_QUEUE_SIZE:
+            self._recent_arrivals.append(now)
 
         # Extract primary symbol
         symbols = data.get("symbols", [])

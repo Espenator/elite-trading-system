@@ -237,6 +237,9 @@ _node_discovery = None
 _stream_manager = None
 _gpu_telemetry_daemon = None
 _llm_dispatcher = None
+_streaming_discovery = None
+_idea_triage = None
+_scout_registry = None
 
 
 async def _start_event_driven_pipeline():
@@ -254,6 +257,7 @@ async def _start_event_driven_pipeline():
     global _council_gate, _order_executor, _alpaca_stream_task
     global _node_discovery, _stream_manager
     global _gpu_telemetry_daemon, _llm_dispatcher
+    global _streaming_discovery, _idea_triage, _scout_registry
 
     log.info("=" * 60)
     log.info("\U0001f680 Starting Event-Driven Pipeline (Council-Controlled)")

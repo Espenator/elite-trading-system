@@ -63,6 +63,7 @@ class MessageBus:
         "swarm.idea",           # New idea submitted for analysis
         "swarm.spawned",        # Swarm spawned and running
         "swarm.result",         # Swarm analysis complete
+        "swarm.prescreened",    # Pre-screened idea from HyperSwarm → SwarmSpawner (bypasses triage)
         "knowledge.ingested",   # New knowledge fed into the system
         "scout.discovery",      # Scout found an opportunity
         "scout.heartbeat",      # Scout agent health tick (E2)
@@ -112,6 +113,7 @@ class MessageBus:
         "cluster.node_status",
         "swarm.idea",
         "swarm.result",
+        "swarm.prescreened",
         "scout.discovery",
         "triage.escalated",
         "model.updated",

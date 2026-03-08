@@ -130,6 +130,9 @@ class SwarmSpawner:
         # Subscribe to idea events from MessageBus
         if self._bus:
             await self._bus.subscribe("swarm.idea", self._on_idea_event)
+            # swarm.prescreened: pre-scored ideas from HyperSwarm that bypass
+            # IdeaTriageService (avoids feedback loop) but still need full council.
+            await self._bus.subscribe("swarm.prescreened", self._on_idea_event)
         # Start worker tasks
         for i in range(self.MAX_CONCURRENT_SWARMS):
             task = asyncio.create_task(self._worker(i))

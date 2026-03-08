@@ -459,3 +459,51 @@ class TestNewsScout:
         await scout.start()
         assert scout._subscribed
         await scout.stop()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Audit-driven regression tests (PR #67 review fixes)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestNewsScoutBackpressure:
+    """_pending list must be capped at MAX_PENDING during news floods."""
+
+    @pytest.mark.anyio
+    async def test_pending_list_capped_at_max_pending(self):
+        from app.services.scouts.news import NewsScout, MAX_PENDING
+        scout = NewsScout()
+        # Flood with more events than the cap
+        for i in range(MAX_PENDING + 50):
+            await scout._on_news_event({
+                "headline": f"Headline {i}",
+                "symbols": ["AAPL"],
+            })
+        assert len(scout._pending) == MAX_PENDING
+
+    @pytest.mark.anyio
+    async def test_pending_cleared_on_scout_call(self):
+        from app.services.scouts.news import NewsScout
+        scout = NewsScout()
+        for i in range(5):
+            await scout._on_news_event({"headline": f"News {i}", "symbols": ["TSLA"]})
+        payloads = await scout.scout()  # drains pending
+        assert len(scout._pending) == 0
+
+    @pytest.mark.anyio
+    async def test_news_aggregator_uses_get_news_not_get_latest(self):
+        """Regression: scout() called agg.get_latest() which does not exist.
+        The correct method is get_news(). Verify at runtime via mock that
+        get_news() is called successfully and get_latest() is never called."""
+        from unittest.mock import MagicMock, patch
+        from app.services.scouts.news import NewsScout
+
+        mock_agg = MagicMock()
+        mock_agg.get_news.return_value = []
+        # Make get_latest raise to detect accidental calls
+        mock_agg.get_latest.side_effect = AttributeError("get_latest does not exist")
+
+        scout = NewsScout()
+        with patch("app.services.news_aggregator.get_news_aggregator", return_value=mock_agg):
+            # Should not raise — get_news() is called, not get_latest()
+            await scout.scout()
+        mock_agg.get_news.assert_called_once_with(limit=10)

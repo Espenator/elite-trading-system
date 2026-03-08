@@ -13,6 +13,10 @@ HIGH_PRIORITY_KEYWORDS = {
     "bankruptcy", "fraud", "recall", "lawsuit", "settlement",
 }
 
+# Maximum items held in _pending between 60-second scout() calls.
+# Prevents unbounded memory growth during high-volume news events (e.g. earnings season).
+MAX_PENDING = 200
+
 
 class NewsScout(BaseScout):
     """Subscribes to market news events and converts them to discoveries.
@@ -54,6 +58,11 @@ class NewsScout(BaseScout):
             return
         if isinstance(symbols, str):
             symbols = [symbols]
+        # Drop silently when the pending buffer is full to prevent memory growth
+        # during high-volume periods (e.g. market open, earnings season).
+        if len(self._pending) >= MAX_PENDING:
+            logger.debug("NewsScout: _pending full (%d), dropping event", MAX_PENDING)
+            return
         priority = self._score_headline(headline)
         payload = DiscoveryPayload(
             source=self.name,
@@ -81,7 +90,7 @@ class NewsScout(BaseScout):
         try:
             from app.services.news_aggregator import get_news_aggregator
             agg = get_news_aggregator()
-            items = await agg.get_latest(limit=10)
+            items = agg.get_news(limit=10)
             for item in items or []:
                 headline = item.get("headline", item.get("title", ""))
                 symbols = item.get("symbols", item.get("tickers", []))

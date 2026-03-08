@@ -443,3 +443,50 @@ class TestSingleton:
         a = get_idea_triage_service()
         b = get_idea_triage_service()
         assert a is b
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Audit-driven regression tests (PR #67 review fixes)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestRecentArrivalsStormGuard:
+    """_recent_arrivals must not grow beyond MAX_QUEUE_SIZE during event storms."""
+
+    @pytest.mark.anyio
+    async def test_recent_arrivals_capped_at_max_queue_size(self):
+        from app.services.idea_triage import MAX_QUEUE_SIZE
+        bus = FakeBus()
+        svc = IdeaTriageService(bus)
+        await svc.start()
+        # Flood with far more events than MAX_QUEUE_SIZE
+        for i in range(MAX_QUEUE_SIZE + 100):
+            await svc._on_idea(make_idea(symbols=[f"SYM{i % 500}"], direction="bullish"))
+        assert len(svc._recent_arrivals) <= MAX_QUEUE_SIZE
+        await svc.stop()
+
+    @pytest.mark.anyio
+    async def test_received_counter_still_increments_when_capped(self):
+        from app.services.idea_triage import MAX_QUEUE_SIZE
+        svc = IdeaTriageService()
+        await svc.start()
+        n = MAX_QUEUE_SIZE + 10
+        for i in range(n):
+            await svc._on_idea(make_idea(symbols=[f"SYM{i}"], direction="bullish"))
+        assert svc.get_stats()["total_received"] == n
+        await svc.stop()
+
+
+class TestNoFeedbackLoop:
+    """HyperSwarm._escalate must NOT re-enter IdeaTriageService via swarm.idea."""
+
+    @pytest.mark.anyio
+    async def test_hyper_swarm_escalate_publishes_to_prescreened_not_swarm_idea(self):
+        """_escalate() must publish to swarm.prescreened, never swarm.idea."""
+        # Verify the fix: no swarm.idea publication from _escalate
+        import inspect
+        from app.services.hyper_swarm import HyperSwarm
+        source = inspect.getsource(HyperSwarm._escalate)
+        # Must use swarm.prescreened topic
+        assert "swarm.prescreened" in source, "_escalate must publish to swarm.prescreened"
+        # Must NOT re-publish to swarm.idea (that would create a feedback loop)
+        assert '"swarm.idea"' not in source, "_escalate must not publish back to swarm.idea"
