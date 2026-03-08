@@ -96,6 +96,22 @@ Complete pixel-fidelity rebuild of ALL frontend pages to match `docs/mockups-v3/
 - Glass card effect: `bg-[#111827]/80 border border-[rgba(42,52,68,0.5)] rounded-lg backdrop-blur`
 - All pages wired to `useApi()` hooks — no hardcoded mock data
 
+### Brain Consciousness Audit (March 8, 2026)
+
+Full architecture audit covering ~250+ Python files across the entire system. Found 42 bugs (4 critical, 5 high, 6 medium) and identified that only 2 of 6 major data sources actually reach the brain's council for trading decisions.
+
+**Audit document:** [`docs/audits/brain_consciousness_audit_2026-03-08.pdf`](docs/audits/brain_consciousness_audit_2026-03-08.pdf)
+
+**Key findings:**
+- UnusualWhales options flow is fetched but never published to MessageBus — council is blind to it
+- OpenClaw scanner is completely isolated (Blackboard import fails silently) — all OpenClaw intelligence is dropped
+- TurboScanner scores 0.0–1.0 but CouncilGate threshold is 65.0 — TurboScanner signals never enter council
+- Double `council.verdict` publication (runner.py + council_gate.py) — potential duplicate orders
+- CorrelationRadar and PatternLibrary singletons have `_bus=None` — swarm.idea never published
+- SelfAwareness Bayesian tracking (286 lines) is fully implemented but never called — dead code
+- IntelligenceCache.start() never called — every council evaluation runs cold
+- 23-item priority fix roadmap organized in 4 phases (see PDF)
+
 ### v3.2.0 (March 5, 2026) — Council-Controlled Intelligence
 - **CouncilGate**: New bridge class that intercepts all signals (score >= 65) and auto-invokes the 13-agent council before any trade
 - **WeightLearner**: Bayesian self-learning agent weights — agents that vote correctly get higher weight over time
