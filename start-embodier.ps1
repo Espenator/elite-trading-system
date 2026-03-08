@@ -7,15 +7,15 @@ param(
 
 $ErrorActionPreference = "Continue"
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$BackendDir = "$Root\backend"
-$FrontendDir = "$Root\frontend-v2"
-$LogDir = "$Root\logs"
-$EnvFile = "$BackendDir\.env"
+$BackendDir = Join-Path $Root "backend"
+$FrontendDir = Join-Path $Root "frontend-v2"
+$LogDir = Join-Path $Root "logs"
+$EnvFile = Join-Path $BackendDir ".env"
 
 # Ensure logs directory
-if (!(Test-Path $LogDir)) { New-Item -ItemType Directory $LogDir -Force | Out-Null }
+if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory $LogDir -Force | Out-Null }
 
-# ── Timestamped log helper ──
+# Timestamped log helper
 function Log($msg, $color) {
     $ts = Get-Date -Format "HH:mm:ss"
     if ($color) { Write-Host "  [$ts] $msg" -ForegroundColor $color }
@@ -31,11 +31,12 @@ function Get-EnvValue($Key, $Default) {
     return $Default
 }
 
-# ── Pre-flight: Validate Python & Node are on PATH ──
+# Pre-flight: Validate Python and Node are on PATH
 function Test-Prerequisites {
     $ok = $true
     try {
-        $pyVer = & python --version 2>&1
+        $pyVer = (& python --version 2>&1) | Out-String
+        $pyVer = $pyVer.Trim()
         if ($pyVer -match "(\d+\.\d+)") {
             $v = [version]$Matches[1]
             if ($v -lt [version]"3.10") {
@@ -50,9 +51,10 @@ function Test-Prerequisites {
         $ok = $false
     }
 
-    if (!$SkipFrontend) {
+    if (-not $SkipFrontend) {
         try {
-            $nodeVer = & node --version 2>&1
+            $nodeVer = (& node --version 2>&1) | Out-String
+            $nodeVer = $nodeVer.Trim()
             if ($nodeVer -match "v(\d+)") {
                 if ([int]$Matches[1] -lt 18) {
                     Log "Node.js $nodeVer found but v18+ required" Red
@@ -67,8 +69,8 @@ function Test-Prerequisites {
         }
     }
 
-    if (!$ok) {
-        Log "Pre-flight check FAILED — install missing tools and retry" Red
+    if (-not $ok) {
+        Log "Pre-flight check FAILED - install missing tools and retry" Red
         return $false
     }
     return $true
@@ -87,7 +89,7 @@ Write-Host "  ============================================" -ForegroundColor Dar
 Write-Host ""
 
 # Pre-flight
-if (!(Test-Prerequisites)) {
+if (-not (Test-Prerequisites)) {
     Write-Host ""
     Write-Host "  Press any key to exit..." -ForegroundColor Yellow
     $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
@@ -101,9 +103,12 @@ if (Test-Path $EnvFile) {
         [IO.File]::WriteAllText($EnvFile, [IO.File]::ReadAllText($EnvFile, [Text.Encoding]::UTF8), (New-Object Text.UTF8Encoding($false)))
         Log "Removed BOM from .env" Yellow
     }
-} elseif (Test-Path "$BackendDir\.env.example") {
-    Copy-Item "$BackendDir\.env.example" $EnvFile
-    Log "Created .env from .env.example — EDIT backend\.env with your API keys!" Yellow
+} else {
+    $envExample = Join-Path $BackendDir ".env.example"
+    if (Test-Path $envExample) {
+        Copy-Item $envExample $EnvFile
+        Log "Created .env from .env.example - EDIT backend\.env with your API keys!" Yellow
+    }
 }
 
 # Validate .env has real Alpaca keys (not placeholders)
@@ -116,13 +121,18 @@ if (Test-Path $EnvFile) {
     }
 }
 
-# ── Robust port cleanup (netstat catches orphans that Get-NetTCPConnection misses) ──
+# Robust port cleanup
 function Kill-PortProcesses([int]$Port) {
-    $pids = netstat -ano 2>$null |
-        Select-String "\s+0\.0\.0\.0:$Port\s+|\s+127\.0\.0\.1:$Port\s+|\s+\[::]:$Port\s+" |
-        ForEach-Object { ($_ -split '\s+')[-1] } |
-        Where-Object { $_ -match '^\d+$' -and [int]$_ -ne 0 } |
-        Sort-Object -Unique
+    $lines = netstat -ano 2>$null | Select-String "\s+0\.0\.0\.0:$Port\s+|\s+127\.0\.0\.1:$Port\s+|\s+\[::]:$Port\s+"
+    $pids = @()
+    foreach ($line in $lines) {
+        $parts = "$line" -split '\s+'
+        $pidStr = $parts[$parts.Length - 1]
+        if ($pidStr -match '^\d+$' -and [int]$pidStr -ne 0) {
+            $pids += $pidStr
+        }
+    }
+    $pids = $pids | Sort-Object -Unique
     foreach ($pid in $pids) {
         $proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
         if ($proc) {
@@ -136,41 +146,23 @@ Log "Checking for stale processes..." Cyan
 Kill-PortProcesses $BackendPort
 Kill-PortProcesses $FrontendPort
 
-# ── DuckDB lock file cleanup (targeted — only kill processes for THIS app) ──
-$DuckDbFile = "$BackendDir\data\analytics.duckdb"
+# DuckDB lock file cleanup (targeted)
+$DuckDbFile = Join-Path $BackendDir "data\analytics.duckdb"
 $DuckDbWal  = "$DuckDbFile.wal"
 $DuckDbTmp  = "$DuckDbFile.tmp"
 if (Test-Path $DuckDbWal) {
-    # Only kill python processes that are running from the backend directory
-    $lockHolders = Get-Process python*, uvicorn* -ErrorAction SilentlyContinue |
-        Where-Object {
-            $_.Id -ne $PID -and (
-                $_.Path -like "*$BackendDir*" -or
-                $_.CommandLine -like "*$BackendDir*" -or
-                $_.MainWindowTitle -like "*Embodier*"
-            )
-        }
-    if ($lockHolders) {
-        Log "Killing stale Python processes holding DuckDB lock:" Yellow
-        $lockHolders | ForEach-Object {
-            Log "  PID $($_.Id) ($($_.ProcessName))" Yellow
-            taskkill /F /PID $($_.Id) 2>$null | Out-Null
-        }
-        Start-Sleep 1
-    }
-    # Remove stale WAL/tmp files if they survived
-    @($DuckDbWal, $DuckDbTmp) | ForEach-Object {
-        if (Test-Path $_) {
-            Remove-Item $_ -Force -ErrorAction SilentlyContinue
-            Log "Removed stale lock: $(Split-Path $_ -Leaf)" Yellow
+    foreach ($f in @($DuckDbWal, $DuckDbTmp)) {
+        if (Test-Path $f) {
+            Remove-Item $f -Force -ErrorAction SilentlyContinue
+            Log "Removed stale lock: $(Split-Path $f -Leaf)" Yellow
         }
     }
 }
 Start-Sleep 1
 
-# ── Ensure Python venv exists ──
+# Ensure Python venv exists
 Set-Location $BackendDir
-if (!(Test-Path "venv")) {
+if (-not (Test-Path "venv")) {
     Log "Creating Python virtual environment..." Cyan
     python -m venv venv
     if ($LASTEXITCODE -ne 0) {
@@ -180,52 +172,49 @@ if (!(Test-Path "venv")) {
     }
 }
 
-# ── Activate venv and install deps ──
-# Use the venv's python directly (more reliable than Activate.ps1 in Start-Job)
-$VenvPython = "$BackendDir\venv\Scripts\python.exe"
-$VenvPip = "$BackendDir\venv\Scripts\pip.exe"
+# Use the venv python directly (more reliable than Activate.ps1 in jobs)
+$VenvPython = Join-Path $BackendDir "venv\Scripts\python.exe"
+$VenvPip = Join-Path $BackendDir "venv\Scripts\pip.exe"
 
-if (!(Test-Path $VenvPython)) {
-    Log "venv/Scripts/python.exe not found — recreating venv..." Yellow
+if (-not (Test-Path $VenvPython)) {
+    Log "venv/Scripts/python.exe not found - recreating venv..." Yellow
     Remove-Item "venv" -Recurse -Force -ErrorAction SilentlyContinue
     python -m venv venv
 }
 
 # Check if fastapi is installed
 $needInstall = $false
-& $VenvPython -c "import fastapi" 2>&1 | Out-Null
+& $VenvPython -c "import fastapi" 2>$null
 if ($LASTEXITCODE -ne 0) { $needInstall = $true }
 if ($needInstall) {
     Log "Installing Python dependencies..." Cyan
-    & $VenvPip install -r requirements.txt --quiet 2>&1 | Out-Null
+    & $VenvPip install -r requirements.txt --quiet 2>$null
     if ($LASTEXITCODE -ne 0) {
-        Log "pip install failed — trying with verbose output:" Red
+        Log "pip install failed - trying with verbose output:" Red
         & $VenvPip install -r requirements.txt 2>&1 | Select-Object -Last 20
         exit 1
     }
     Log "Python dependencies installed" Green
 }
 
-# ── Start backend as background process (NOT Start-Job — avoids runspace issues) ──
-$backendLogFile = "$LogDir\backend.log"
-"" | Out-File $backendLogFile -Encoding utf8  # Clear log
+# Start backend as background process (Start-Process, NOT Start-Job)
+$backendLogFile = Join-Path $LogDir "backend.log"
+$backendErrFile = Join-Path $LogDir "backend-error.log"
+"" | Out-File $backendLogFile -Encoding utf8
 
-$backendProc = Start-Process -FilePath $VenvPython -ArgumentList @(
-    "-u",  # Unbuffered output
-    "start_server.py"
-) -WorkingDirectory $BackendDir -RedirectStandardOutput $backendLogFile -RedirectStandardError "$LogDir\backend-error.log" -PassThru -NoNewWindow:$false -WindowStyle Hidden
+$backendProc = Start-Process -FilePath $VenvPython -ArgumentList "-u", "start_server.py" `
+    -WorkingDirectory $BackendDir `
+    -RedirectStandardOutput $backendLogFile `
+    -RedirectStandardError $backendErrFile `
+    -PassThru -WindowStyle Hidden
 
-if (!$backendProc) {
+if (-not $backendProc) {
     Log "Failed to start backend process" Red
     exit 1
 }
 Log "Backend PID: $($backendProc.Id)" DarkGray
 
-# Set env vars for the backend process
-$env:PYTHONIOENCODING = "utf-8"
-$env:PYTHONUNBUFFERED = "1"
-
-# Wait for backend health (90s timeout with diagnostics on failure)
+# Wait for backend health (90s timeout)
 Log "Waiting for backend..." Cyan
 $healthy = $false
 for ($i = 0; $i -lt 90; $i++) {
@@ -252,38 +241,40 @@ if ($healthy) {
     if (Test-Path $backendLogFile) {
         Get-Content $backendLogFile -Tail 25 | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
     }
-    if (Test-Path "$LogDir\backend-error.log") {
+    if (Test-Path $backendErrFile) {
         Log "--- Last 25 lines of backend-error.log ---" Yellow
-        Get-Content "$LogDir\backend-error.log" -Tail 25 | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
+        Get-Content $backendErrFile -Tail 25 | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
     }
     Log "------------------------------------" Yellow
 }
 
-# ── Start frontend (unless skipped) ──
+# Start frontend (unless skipped)
 $frontendProc = $null
-if (!$SkipFrontend) {
+if (-not $SkipFrontend) {
     Set-Location $FrontendDir
 
-    if (!(Test-Path "node_modules")) {
+    if (-not (Test-Path "node_modules")) {
         Log "Installing frontend dependencies..." Cyan
-        npm install 2>&1 | Out-Null
+        npm install 2>$null
         if ($LASTEXITCODE -ne 0) {
-            Log "npm install failed — trying with verbose output:" Red
+            Log "npm install failed - trying with verbose output:" Red
             npm install 2>&1 | Select-Object -Last 20
         } else {
             Log "Frontend dependencies installed" Green
         }
     }
 
-    $frontendLogFile = "$LogDir\frontend.log"
+    $frontendLogFile = Join-Path $LogDir "frontend.log"
+    $frontendErrFile = Join-Path $LogDir "frontend-error.log"
     "" | Out-File $frontendLogFile -Encoding utf8
 
-    # Set VITE_BACKEND_URL for the frontend process
     $env:VITE_BACKEND_URL = "http://localhost:$BackendPort"
 
-    $frontendProc = Start-Process -FilePath "npx" -ArgumentList @(
-        "vite", "--port", $FrontendPort, "--host"
-    ) -WorkingDirectory $FrontendDir -RedirectStandardOutput $frontendLogFile -RedirectStandardError "$LogDir\frontend-error.log" -PassThru -WindowStyle Hidden
+    $frontendProc = Start-Process -FilePath "npx" -ArgumentList "vite", "--port", "$FrontendPort", "--host" `
+        -WorkingDirectory $FrontendDir `
+        -RedirectStandardOutput $frontendLogFile `
+        -RedirectStandardError $frontendErrFile `
+        -PassThru -WindowStyle Hidden
 
     Start-Sleep 3
     Log "Frontend  http://localhost:$FrontendPort" Green
@@ -300,7 +291,7 @@ if ($frontendProc) { Write-Host "  Frontend PID: $($frontendProc.Id)" -Foregroun
 Write-Host "  Logs: $LogDir" -ForegroundColor DarkGray
 Write-Host ""
 
-# ── Monitor loop + clean shutdown ──
+# Monitor loop + clean shutdown
 try {
     while ($true) {
         Start-Sleep 10
@@ -313,21 +304,18 @@ try {
     Write-Host ""
     Log "Shutting down..." Yellow
 
-    # Kill backend
-    if ($backendProc -and !$backendProc.HasExited) {
+    if ($backendProc -and (-not $backendProc.HasExited)) {
         try { $backendProc.Kill() } catch { }
     }
-    # Kill frontend
-    if ($frontendProc -and !$frontendProc.HasExited) {
+    if ($frontendProc -and (-not $frontendProc.HasExited)) {
         try { $frontendProc.Kill() } catch { }
     }
 
     Kill-PortProcesses $BackendPort
     Kill-PortProcesses $FrontendPort
 
-    # Clean up DuckDB lock files on shutdown
-    @($DuckDbWal, $DuckDbTmp) | ForEach-Object {
-        if (Test-Path $_) { Remove-Item $_ -Force -ErrorAction SilentlyContinue }
+    foreach ($f in @($DuckDbWal, $DuckDbTmp)) {
+        if (Test-Path $f) { Remove-Item $f -Force -ErrorAction SilentlyContinue }
     }
     Log "Stopped." Green
 }

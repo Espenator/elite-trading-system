@@ -14,43 +14,47 @@ Set-Location $Root
 
 Write-Host ""
 Write-Host "  ====================================================" -ForegroundColor DarkCyan
-Write-Host "   EMBODIER TRADER — Fresh Setup & Launch" -ForegroundColor DarkCyan
+Write-Host "   EMBODIER TRADER - Fresh Setup" -ForegroundColor DarkCyan
 Write-Host "  ====================================================" -ForegroundColor DarkCyan
 Write-Host ""
 
-# ── Step 1: Pull latest code ──
+# Step 1: Pull latest code
 Write-Host "  [1/6] Pulling latest code from GitHub..." -ForegroundColor Cyan
-git pull origin main 2>&1 | ForEach-Object { Write-Host "        $_" -ForegroundColor DarkGray }
+$pullOutput = git pull origin main 2>&1
+foreach ($line in $pullOutput) { Write-Host "        $line" -ForegroundColor DarkGray }
 Write-Host ""
 
-# ── Step 2: Validate prerequisites ──
+# Step 2: Validate prerequisites
 Write-Host "  [2/6] Checking prerequisites..." -ForegroundColor Cyan
 $ok = $true
 
 try {
-    $pyVer = & python --version 2>&1
+    $pyVer = (& python --version 2>&1) | Out-String
+    $pyVer = $pyVer.Trim()
     Write-Host "        Python: $pyVer" -ForegroundColor Green
 } catch {
-    Write-Host "        Python: NOT FOUND — install from https://python.org/downloads" -ForegroundColor Red
+    Write-Host "        Python: NOT FOUND - install from https://python.org/downloads" -ForegroundColor Red
     $ok = $false
 }
 
 try {
-    $nodeVer = & node --version 2>&1
+    $nodeVer = (& node --version 2>&1) | Out-String
+    $nodeVer = $nodeVer.Trim()
     Write-Host "        Node.js: $nodeVer" -ForegroundColor Green
 } catch {
-    Write-Host "        Node.js: NOT FOUND — install from https://nodejs.org" -ForegroundColor Red
+    Write-Host "        Node.js: NOT FOUND - install from https://nodejs.org" -ForegroundColor Red
     $ok = $false
 }
 
 try {
-    $gitVer = & git --version 2>&1
+    $gitVer = (& git --version 2>&1) | Out-String
+    $gitVer = $gitVer.Trim()
     Write-Host "        Git: $gitVer" -ForegroundColor Green
 } catch {
     Write-Host "        Git: NOT FOUND" -ForegroundColor Yellow
 }
 
-if (!$ok) {
+if (-not $ok) {
     Write-Host ""
     Write-Host "  [ERROR] Missing prerequisites. Install them and re-run." -ForegroundColor Red
     pause
@@ -58,10 +62,10 @@ if (!$ok) {
 }
 Write-Host ""
 
-# ── Step 3: Backend setup ──
+# Step 3: Backend setup
 Write-Host "  [3/6] Setting up backend..." -ForegroundColor Cyan
 
-$BackendDir = "$Root\backend"
+$BackendDir = Join-Path $Root "backend"
 Set-Location $BackendDir
 
 # Create/refresh venv
@@ -77,11 +81,13 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-$VenvPip = "$BackendDir\venv\Scripts\pip.exe"
+$VenvPip = Join-Path $BackendDir "venv\Scripts\pip.exe"
 Write-Host "        Installing Python dependencies (this may take 1-2 minutes)..." -ForegroundColor DarkGray
-& $VenvPip install --upgrade pip --quiet 2>&1 | Out-Null
-& $VenvPip install -r requirements.txt 2>&1 | ForEach-Object {
-    if ($_ -match "ERROR|error") { Write-Host "        $_" -ForegroundColor Red }
+& $VenvPip install --upgrade pip --quiet 2>$null
+$pipOutput = & $VenvPip install -r requirements.txt 2>&1
+foreach ($line in $pipOutput) {
+    $lineStr = "$line"
+    if ($lineStr -match "ERROR|error") { Write-Host "        $lineStr" -ForegroundColor Red }
 }
 if ($LASTEXITCODE -ne 0) {
     Write-Host "        [ERROR] pip install failed" -ForegroundColor Red
@@ -90,9 +96,10 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # .env setup
-$EnvFile = "$BackendDir\.env"
-if (!(Test-Path $EnvFile)) {
-    Copy-Item "$BackendDir\.env.example" $EnvFile
+$EnvFile = Join-Path $BackendDir ".env"
+$EnvExample = Join-Path $BackendDir ".env.example"
+if (-not (Test-Path $EnvFile)) {
+    Copy-Item $EnvExample $EnvFile
     Write-Host "        [IMPORTANT] Created backend\.env from template" -ForegroundColor Yellow
     Write-Host "        Edit backend\.env with your ALPACA_API_KEY and ALPACA_SECRET_KEY!" -ForegroundColor Yellow
 } else {
@@ -100,35 +107,40 @@ if (!(Test-Path $EnvFile)) {
     # Check for placeholder keys
     $content = Get-Content $EnvFile -Raw
     if ($content -match "your-alpaca") {
-        Write-Host "        [WARN] .env still has placeholder Alpaca keys — replace them!" -ForegroundColor Yellow
+        Write-Host "        [WARN] .env still has placeholder Alpaca keys - replace them!" -ForegroundColor Yellow
     }
 }
 
 # Generate FERNET_KEY if not set
 $fernetLine = Get-Content $EnvFile | Where-Object { $_ -match "^FERNET_KEY=" }
-$fernetVal = if ($fernetLine) { ($fernetLine -split "=", 2)[1].Trim() } else { "" }
-if (!$fernetVal) {
-    $VenvPython = "$BackendDir\venv\Scripts\python.exe"
+$fernetVal = ""
+if ($fernetLine) { $fernetVal = ($fernetLine -split "=", 2)[1].Trim() }
+if (-not $fernetVal) {
+    $VenvPython = Join-Path $BackendDir "venv\Scripts\python.exe"
     $fkey = & $VenvPython -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())" 2>&1
-    if ($fkey -and $fkey.Length -gt 10) {
+    $fkeyStr = "$fkey"
+    if ($fkeyStr -and $fkeyStr.Length -gt 10) {
         if ($fernetLine) {
-            (Get-Content $EnvFile) -replace "^FERNET_KEY=.*", "FERNET_KEY=$fkey" | Set-Content $EnvFile
+            $newContent = (Get-Content $EnvFile) -replace "^FERNET_KEY=.*", "FERNET_KEY=$fkeyStr"
+            $newContent | Set-Content $EnvFile
         } else {
-            Add-Content $EnvFile "`nFERNET_KEY=$fkey"
+            Add-Content $EnvFile "`nFERNET_KEY=$fkeyStr"
         }
         Write-Host "        [OK] Generated FERNET_KEY for credential encryption" -ForegroundColor Green
     }
 }
 
 # Ensure data directory exists
-New-Item -ItemType Directory -Path "$BackendDir\data" -Force | Out-Null
-New-Item -ItemType Directory -Path "$BackendDir\data\models" -Force | Out-Null
+$dataDir = Join-Path $BackendDir "data"
+$modelsDir = Join-Path $BackendDir "data\models"
+if (-not (Test-Path $dataDir)) { New-Item -ItemType Directory -Path $dataDir -Force | Out-Null }
+if (-not (Test-Path $modelsDir)) { New-Item -ItemType Directory -Path $modelsDir -Force | Out-Null }
 Write-Host ""
 
-# ── Step 4: Frontend setup ──
+# Step 4: Frontend setup
 Write-Host "  [4/6] Setting up frontend..." -ForegroundColor Cyan
 
-$FrontendDir = "$Root\frontend-v2"
+$FrontendDir = Join-Path $Root "frontend-v2"
 Set-Location $FrontendDir
 
 if (Test-Path "node_modules") {
@@ -137,8 +149,10 @@ if (Test-Path "node_modules") {
 }
 
 Write-Host "        Running npm install (this may take 1-2 minutes)..." -ForegroundColor DarkGray
-npm install 2>&1 | ForEach-Object {
-    if ($_ -match "ERR!|error") { Write-Host "        $_" -ForegroundColor Red }
+$npmOutput = npm install 2>&1
+foreach ($line in $npmOutput) {
+    $lineStr = "$line"
+    if ($lineStr -match "ERR!|error") { Write-Host "        $lineStr" -ForegroundColor Red }
 }
 if ($LASTEXITCODE -ne 0) {
     Write-Host "        [ERROR] npm install failed" -ForegroundColor Red
@@ -147,14 +161,20 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host ""
 
-# ── Step 5: Create desktop shortcut ──
+# Step 5: Create desktop shortcut
 Write-Host "  [5/6] Creating desktop shortcut..." -ForegroundColor Cyan
 Set-Location $Root
-& "$Root\scripts\create-shortcut.ps1"
+$shortcutScript = Join-Path $Root "scripts\create-shortcut.ps1"
+if (Test-Path $shortcutScript) {
+    & $shortcutScript
+} else {
+    Write-Host "        [WARN] create-shortcut.ps1 not found, skipping" -ForegroundColor Yellow
+}
 Write-Host ""
 
-# ── Step 6: Launch! ──
+# Step 6: Launch!
 Write-Host "  [6/6] Launching Embodier Trader..." -ForegroundColor Cyan
 Write-Host ""
 Set-Location $Root
-& "$Root\start-embodier.ps1"
+$launchScript = Join-Path $Root "start-embodier.ps1"
+& $launchScript
