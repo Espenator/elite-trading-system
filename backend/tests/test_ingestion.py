@@ -13,10 +13,22 @@ import os
 import tempfile
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+
+def _tmp_path(suffix: str) -> str:
+    """Return a safe temp file path that does NOT exist yet (required by DuckDB).
+
+    Uses TemporaryDirectory to get an OS-managed temp dir, then constructs a
+    unique child path.  The file is intentionally not created here — DuckDB
+    (and SQLite when called from CheckpointStore) will create it on first use.
+    """
+    d = tempfile.mkdtemp()
+    return str(Path(d) / f"test{suffix}")
 
 
 # ===========================================================================
@@ -344,7 +356,7 @@ class TestDuckDBIngestionEvents:
         from app.data.duckdb_storage import DuckDBStorage
         import tempfile
         # mktemp gives a path without creating the file (DuckDB requires non-existent or valid DB)
-        path = tempfile.mktemp(suffix=".duckdb")
+        path = _tmp_path(".duckdb")
         return DuckDBStorage(db_path=path)
 
     def _make_event(self, source="test", topic="ingestion.test", symbol=None, seq=0):
@@ -418,7 +430,7 @@ class TestIngestionEventSink:
         import tempfile
         from app.data.duckdb_storage import DuckDBStorage
         from app.services.ingestion.sink import IngestionEventSink
-        path = tempfile.mktemp(suffix=".duckdb")
+        path = _tmp_path(".duckdb")
         store = DuckDBStorage(db_path=path)
         return IngestionEventSink(store=store)
 
@@ -548,7 +560,7 @@ class TestFredAdapter:
         a = FredAdapter(lookback=5)
         # Use temp checkpoint store so tests don't pollute the global one
         a._checkpoint = CheckpointStore(
-            path=tempfile.mktemp(suffix=".db")
+            path=_tmp_path(".db")
         )
         return a
 
@@ -601,7 +613,7 @@ class TestUnusualWhalesAdapter:
         import tempfile
         from app.data.checkpoint_store import CheckpointStore
         a = UnusualWhalesAdapter()
-        a._checkpoint = CheckpointStore(path=tempfile.mktemp(suffix=".db"))
+        a._checkpoint = CheckpointStore(path=_tmp_path(".db"))
         return a
 
     async def test_returns_events_for_new_alerts(self):
@@ -651,7 +663,7 @@ class TestFinvizAdapter:
         import tempfile
         from app.data.checkpoint_store import CheckpointStore
         a = FinvizAdapter()
-        a._checkpoint = CheckpointStore(path=tempfile.mktemp(suffix=".db"))
+        a._checkpoint = CheckpointStore(path=_tmp_path(".db"))
         return a
 
     async def test_returns_events_on_first_fetch(self):
@@ -724,7 +736,7 @@ class TestIngestionRoundTrip:
         from app.data.duckdb_storage import DuckDBStorage
         from app.models.source_event import SourceEvent
 
-        store = DuckDBStorage(db_path=tempfile.mktemp(suffix=".duckdb"))
+        store = DuckDBStorage(db_path=_tmp_path(".duckdb"))
 
         event = SourceEvent(
             source="fred",
@@ -752,11 +764,11 @@ class TestIngestionRoundTrip:
         from app.services.ingestion.adapters.fred_adapter import FredAdapter
         from app.services.ingestion.sink import IngestionEventSink
 
-        store = DuckDBStorage(db_path=tempfile.mktemp(suffix=".duckdb"))
+        store = DuckDBStorage(db_path=_tmp_path(".duckdb"))
         sink = IngestionEventSink(store=store)
 
         adapter = FredAdapter(lookback=5)
-        adapter._checkpoint = CheckpointStore(path=tempfile.mktemp(suffix=".db"))
+        adapter._checkpoint = CheckpointStore(path=_tmp_path(".db"))
 
         fake_obs = [{"date": "2026-02-01", "value": "18.5"}]
         with patch(
