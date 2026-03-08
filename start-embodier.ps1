@@ -96,12 +96,21 @@ if (-not (Test-Prerequisites)) {
     exit 1
 }
 
-# Fix .env encoding - force UTF-8 without BOM (prevents cp1252 decode errors on Windows)
+# Fix .env encoding - strip non-ASCII bytes and write as clean ASCII/UTF-8 without BOM
+# Python on Windows uses cp1252 by default; slowapi/starlette reads .env with open() which
+# uses system encoding. Any non-ASCII byte (e.g. 0x90) will crash with UnicodeDecodeError.
 if (Test-Path $EnvFile) {
-    $rawText = [IO.File]::ReadAllText($EnvFile, [Text.Encoding]::UTF8)
+    $rawBytes = [IO.File]::ReadAllBytes($EnvFile)
+    $cleanBytes = $rawBytes | Where-Object { $_ -lt 0x80 }
+    $cleanText = [Text.Encoding]::ASCII.GetString($cleanBytes)
     $utf8NoBom = New-Object Text.UTF8Encoding($false)
-    [IO.File]::WriteAllText($EnvFile, $rawText, $utf8NoBom)
-    Log "Ensured .env is clean UTF-8 (no BOM)" DarkGray
+    [IO.File]::WriteAllText($EnvFile, $cleanText, $utf8NoBom)
+    $stripped = $rawBytes.Length - $cleanBytes.Length
+    if ($stripped -gt 0) {
+        Log "Stripped $stripped non-ASCII bytes from .env (fixes Windows encoding)" Yellow
+    } else {
+        Log ".env encoding OK" DarkGray
+    }
 } else {
     $envExample = Join-Path $BackendDir ".env.example"
     if (Test-Path $envExample) {
@@ -200,6 +209,9 @@ if ($needInstall) {
 $backendLogFile = Join-Path $LogDir "backend.log"
 $backendErrFile = Join-Path $LogDir "backend-error.log"
 "" | Out-File $backendLogFile -Encoding utf8
+
+# Force Python UTF-8 mode so starlette/slowapi never fall back to cp1252
+$env:PYTHONUTF8 = "1"
 
 $backendProc = Start-Process -FilePath $VenvPython -ArgumentList "-u", "start_server.py" `
     -WorkingDirectory $BackendDir `
