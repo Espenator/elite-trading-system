@@ -27,6 +27,7 @@ psutil==6.1.0
 cryptography>=41.0.7
 apscheduler==3.10.4
 resend>=2.5.0
+PyJWT>=2.7.0  # JWT token issuance and validation for live-trading auth
 
 # ── External APIs ──
 youtube-transcript-api==0.6.0

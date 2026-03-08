@@ -11,7 +11,7 @@ Endpoints:
 import json
 import logging
 from fastapi import APIRouter, HTTPException, Body, Depends, Request
-from app.core.security import require_auth
+from app.core.security import require_auth, require_role
 # slowapi rate limiting handled at app level (main.py)
 # from slowapi.util import get_remote_address  # moved to app-level
 
@@ -263,7 +263,7 @@ async def adjust_position(symbol: str = Body(...), qty: str = Body(None), side: 
 
 
 # ── Flatten all positions ─────────────────────────────────────────────
-@router.post("/flatten-all", dependencies=[Depends(require_auth)])
+@router.post("/flatten-all", dependencies=[Depends(require_role("admin"))])
 async def flatten_all():
     """Liquidate all open positions."""
     try:
@@ -275,7 +275,7 @@ async def flatten_all():
 
 
 # ── Emergency stop ────────────────────────────────────────────────────
-@router.post("/emergency-stop", dependencies=[Depends(require_auth)])
+@router.post("/emergency-stop", dependencies=[Depends(require_role("admin"))])
 async def emergency_stop():
     """Cancel all orders and close all positions immediately."""
     errors = []

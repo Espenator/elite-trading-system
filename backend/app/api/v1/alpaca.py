@@ -7,7 +7,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from typing import Dict, List, Optional
 
-from app.core.security import require_auth
+from app.core.security import require_auth, require_role
 from app.services.alpaca_service import alpaca_service
 
 logger = logging.getLogger(__name__)
@@ -166,7 +166,7 @@ async def close_position(symbol: str, qty: Optional[str] = None, percentage: Opt
         raise HTTPException(status_code=502, detail=f"Broker error: {e}")
 
 
-@router.delete("/positions", dependencies=[Depends(require_auth)])
+@router.delete("/positions", dependencies=[Depends(require_role("admin"))])
 async def close_all_positions():
     """DELETE /v2/positions — liquidate all."""
     try:

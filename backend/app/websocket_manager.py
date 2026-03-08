@@ -1,6 +1,6 @@
 """
 WebSocket connection manager for broadcasting to all connected clients.
-Enhanced with: token auth, channel subscriptions, heartbeat, reconnection.
+Enhanced with: JWT + legacy bearer auth, channel subscriptions, heartbeat, reconnection.
 Import broadcast_ws(channel, data) from here to push updates.
 """
 import asyncio
@@ -19,23 +19,31 @@ _last_heartbeat: Dict[WebSocket, float] = {}  # ws -> last ping time
 HEARTBEAT_INTERVAL = 30  # seconds
 HEARTBEAT_TIMEOUT = 60  # seconds before disconnect
 
-# --- Auth Token (simple shared secret for now, JWT upgrade in Phase 1) ---
-_WS_AUTH_TOKEN: Optional[str] = None
-
-
-def set_ws_auth_token(token: str):
-    """Set the WebSocket auth token from config on startup."""
-    global _WS_AUTH_TOKEN
-    _WS_AUTH_TOKEN = token
-
 
 def verify_ws_token(token: Optional[str]) -> bool:
-    """Verify WebSocket connection token."""
-    if _WS_AUTH_TOKEN is None:
-        # Allow in development, block in production
+    """Verify a WebSocket connection token.
+
+    Accepts either:
+    - A valid JWT access token (signed with JWT_SECRET_KEY), or
+    - The legacy API_AUTH_TOKEN bearer string.
+
+    Falls back to allowing unauthenticated connections only when
+    TRADING_MODE != "live" AND neither secret is configured (dev mode).
+    """
+    from app.core.security import verify_ws_jwt, _get_auth_token, _get_jwt_secret
+    if verify_ws_jwt(token):
+        return True
+
+    # No valid token provided.
+    # Allow anonymous connections only when running in non-live dev mode
+    # with NO secrets configured at all.  Once any secret is set, auth is required.
+    if not token:
+        if _get_auth_token() or _get_jwt_secret():
+            return False  # Secrets configured — require auth even in dev mode
         import os
         return os.getenv("TRADING_MODE", "live") != "live"
-    return token == _WS_AUTH_TOKEN
+
+    return False
 
 
 async def accept_connection(websocket: WebSocket, token: Optional[str] = None) -> bool:

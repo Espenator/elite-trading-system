@@ -14,6 +14,7 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Optional
 
 # Load .env into os.environ BEFORE any other imports
 from dotenv import load_dotenv
@@ -40,6 +41,7 @@ import json
 
 from app.core.config import settings
 from app.api.v1 import (
+    auth,
     stocks,
     quotes,
     orders,
@@ -1048,6 +1050,7 @@ async def add_security_and_correlation_headers(request, call_next):
         correlation_id.reset(token)
 
 # --- API Routers ---
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(stocks.router, prefix="/api/v1/stocks", tags=["stocks"])
 app.include_router(quotes.router, prefix="/api/v1/quotes", tags=["quotes"])
 app.include_router(orders.router, prefix="/api/v1/orders", tags=["orders"])
@@ -1107,7 +1110,7 @@ _WS_MAX_CONNECTIONS = 50
 
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket, token: Optional[str] = None):
     """WebSocket endpoint for real-time updates.
 
     SECURITY (Audit Task 2): Clients can only subscribe/unsubscribe/pong.
@@ -1115,15 +1118,25 @@ async def websocket_endpoint(websocket: WebSocket):
     via broadcast_ws(). Client-to-channel relay has been removed to prevent
     UI spoofing (fake council_verdict, risk_update, order_update messages).
 
+    AUTHENTICATION: Pass a valid JWT access token or legacy API_AUTH_TOKEN via
+    the `token` query parameter: ws://host/ws?token=<bearer_token>.
+    In non-live (dev) mode with no secrets configured, the token is optional.
+
     RATE LIMITING (Audit Task 15): Max 120 messages/min per connection,
     max 50 simultaneous connections.
     """
     import time as _time
+    from app.websocket_manager import get_connection_count, verify_ws_token
 
     # Enforce max connections (Task 15)
-    from app.websocket_manager import get_connection_count
     if get_connection_count() >= _WS_MAX_CONNECTIONS:
         await websocket.close(code=1013, reason="Max connections reached")
+        return
+
+    # Verify token before accepting the connection
+    if not verify_ws_token(token):
+        await websocket.close(code=4001, reason="Unauthorized")
+        log.warning("WebSocket connection rejected: invalid or missing token")
         return
 
     await websocket.accept()

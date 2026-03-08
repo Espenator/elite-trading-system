@@ -13,7 +13,7 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from app.core.security import require_auth
+from app.core.security import require_auth, require_role
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -141,7 +141,7 @@ async def council_weights():
         return {"status": "weight_learner_unavailable", "error": str(e)}
 
 
-@router.post("/weights/reset", dependencies=[Depends(require_auth)])
+@router.post("/weights/reset", dependencies=[Depends(require_role("admin"))])
 async def reset_weights():
     """Reset agent weights to defaults."""
     try:

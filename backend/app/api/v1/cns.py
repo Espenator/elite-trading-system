@@ -21,7 +21,7 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from app.core.security import require_auth
+from app.core.security import require_auth, require_role
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -126,7 +126,7 @@ class OverrideStatusRequest(BaseModel):
     action: str  # "reset" | "probation" | "hibernate"
 
 
-@router.post("/agents/{name}/override-status", dependencies=[Depends(require_auth)])
+@router.post("/agents/{name}/override-status", dependencies=[Depends(require_role("admin"))])
 async def override_agent_status(name: str, req: OverrideStatusRequest):
     """Override agent streak status (reset from hibernation, etc.)."""
     try:
@@ -156,7 +156,7 @@ class OverrideWeightRequest(BaseModel):
     beta: float
 
 
-@router.post("/agents/{name}/override-weight", dependencies=[Depends(require_auth)])
+@router.post("/agents/{name}/override-weight", dependencies=[Depends(require_role("admin"))])
 async def override_agent_weight(name: str, req: OverrideWeightRequest):
     """Override agent Bayesian weight distribution."""
     try:
@@ -276,7 +276,7 @@ class DirectiveUpdateRequest(BaseModel):
     content: str
 
 
-@router.put("/directives/{filename}", dependencies=[Depends(require_auth)])
+@router.put("/directives/{filename}", dependencies=[Depends(require_role("admin"))])
 async def update_directive(filename: str, req: DirectiveUpdateRequest):
     """Update a directive markdown file."""
     if not filename.endswith(".md"):

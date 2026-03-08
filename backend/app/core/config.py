@@ -32,6 +32,16 @@ class Settings(BaseSettings):
     # ── API Authentication ────────────────────────────────
     API_AUTH_TOKEN: str = ""  # Set to enable Bearer token auth on state-changing endpoints
 
+    # ── JWT Authentication ─────────────────────────────────
+    # JWT_SECRET_KEY must be a long random string (32+ bytes).  Generate one with:
+    #   python -c "import secrets; print(secrets.token_hex(32))"
+    # Leave empty to disable JWT issuance (legacy bearer token still works).
+    JWT_SECRET_KEY: str = ""
+    JWT_ALGORITHM: str = "HS256"
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    JWT_ISSUER: str = "embodier-trader"
+
     # ── Server ──────────────────────────────────────────────
     HOST: str = "0.0.0.0"
     PORT: int = Field(default=8000, alias="PORT")
@@ -352,6 +362,8 @@ if settings.TRADING_MODE.lower() == "live":
         _missing.append("ALPACA_SECRET_KEY")
     if not settings.API_AUTH_TOKEN:
         _missing.append("API_AUTH_TOKEN")
+    if not settings.JWT_SECRET_KEY:
+        _missing.append("JWT_SECRET_KEY")
     if _missing:
         import logging as _log
         _log.warning("Live trading requires: %s. Falling back to paper.", ", ".join(_missing))

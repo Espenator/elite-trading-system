@@ -15,7 +15,7 @@ Endpoints:
   POST /api/v1/settings/import            - Import settings from JSON
 """
 from fastapi import APIRouter, HTTPException, Depends
-from app.core.security import require_auth
+from app.core.security import require_auth, require_role
 from typing import Any, Dict, Optional
 
 from app.services.settings_service import (
@@ -50,8 +50,8 @@ async def get_settings() -> Dict[str, Any]:
     return get_all_settings()
 
 
-@router.put("", summary="Bulk update settings", dependencies=[Depends(require_auth)])
-@router.put("/", include_in_schema=False, dependencies=[Depends(require_auth)])
+@router.put("", summary="Bulk update settings", dependencies=[Depends(require_role("admin"))])
+@router.put("/", include_in_schema=False, dependencies=[Depends(require_role("admin"))])
 async def put_settings(payload: Dict[str, Any]) -> Dict[str, Any]:
     """Merge incoming category-keyed payload into stored settings."""
     return update_all_settings(payload)
@@ -84,7 +84,7 @@ async def get_category(category: str) -> Dict[str, Any]:
     return get_settings_by_category(category)
 
 
-@router.put("/{category}", summary="Update category settings", dependencies=[Depends(require_auth)])
+@router.put("/{category}", summary="Update category settings", dependencies=[Depends(require_role("admin"))])
 async def put_category(category: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     """Merge payload keys into the specified category settings."""
     _assert_category(category)
@@ -92,7 +92,7 @@ async def put_category(category: str, payload: Dict[str, Any]) -> Dict[str, Any]
 
 
 # ── Reset ─────────────────────────────────────────────────────
-@router.post("/reset/{category}", summary="Reset category to defaults", dependencies=[Depends(require_auth)])
+@router.post("/reset/{category}", summary="Reset category to defaults", dependencies=[Depends(require_role("admin"))])
 async def post_reset(category: str) -> Dict[str, Any]:
     """Reset a single settings category back to factory defaults."""
     _assert_category(category)
