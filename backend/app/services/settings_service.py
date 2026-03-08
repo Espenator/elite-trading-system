@@ -399,7 +399,7 @@ def validate_api_key(provider: str, api_key: str, secret_key: str = "") -> Dict[
         try:
             import httpx
             resp = httpx.get(
-                "https://api.unusualwhales.com/api/market/overview",
+                "https://api.unusualwhales.com/api/darkpool/recent",
                 headers={"Authorization": f"Bearer {api_key}"},
                 timeout=10,
             )

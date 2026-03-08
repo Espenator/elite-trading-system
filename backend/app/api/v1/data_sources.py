@@ -177,7 +177,7 @@ DEFAULT_SOURCES: Dict[str, Dict[str, Any]] = {
         "category": "options_flow",
         "base_url": "https://api.unusualwhales.com/api",
         "required_keys": ["api_key"],
-        "test_endpoint": "/market/overview",
+        "test_endpoint": "/darkpool/recent",
         "status": "active",
         "enabled": True,
     },
