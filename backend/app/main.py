@@ -230,6 +230,7 @@ _message_bus = None
 _alpaca_stream = None
 _alpaca_stream_task = None
 _event_signal_engine = None
+_streaming_discovery = None
 _council_gate = None
 _order_executor = None
 _council_evaluator = None
@@ -251,6 +252,7 @@ async def _start_event_driven_pipeline():
     6. AlpacaStreamManager -- multi-key WebSocket bars -> market_data.bar events
     """
     global _message_bus, _alpaca_stream, _event_signal_engine
+    global _streaming_discovery
     global _council_gate, _order_executor, _alpaca_stream_task
     global _node_discovery, _stream_manager
     global _gpu_telemetry_daemon, _llm_dispatcher
@@ -307,6 +309,15 @@ async def _start_event_driven_pipeline():
     _event_signal_engine = EventDrivenSignalEngine(_message_bus)
     await _event_signal_engine.start()
     log.info("\u2705 EventDrivenSignalEngine started")
+
+    # 2b. StreamingDiscoveryEngine (Issue #38, E1) — continuous swarm.idea feed
+    # Always start — pure technical anomaly detection, no LLM dependency.
+    # Subscribes to market_data.bar and publishes volume/price anomalies to
+    # swarm.idea for HyperSwarm triage, keeping the council continuously fed.
+    from app.services.streaming_discovery import get_streaming_discovery
+    _streaming_discovery = get_streaming_discovery(_message_bus)
+    await _streaming_discovery.start()
+    log.info("\u2705 StreamingDiscoveryEngine started (continuous swarm.idea feed)")
 
     # 3. CouncilGate (subscribes to signal.generated, invokes council)
     # Disable when LLM or council is off — council calls LLM which blocks when Ollama is down.
@@ -770,7 +781,7 @@ async def _start_event_driven_pipeline():
 async def _stop_event_driven_pipeline():
     """Graceful shutdown of event-driven components (reverse order)."""
     global _message_bus, _alpaca_stream, _alpaca_stream_task
-    global _event_signal_engine, _council_gate, _order_executor
+    global _event_signal_engine, _streaming_discovery, _council_gate, _order_executor
     global _node_discovery, _stream_manager
     global _gpu_telemetry_daemon, _llm_dispatcher
     log.info("Shutting down event-driven pipeline...")
@@ -890,6 +901,8 @@ async def _stop_event_driven_pipeline():
         await _order_executor.stop()
     if _council_gate:
         await _council_gate.stop()
+    if _streaming_discovery:
+        await _streaming_discovery.stop()
     if _event_signal_engine:
         await _event_signal_engine.stop()
     if _message_bus:
@@ -1262,6 +1275,8 @@ async def health_check():
             event_pipeline["alpaca_stream"] = _alpaca_stream.get_status()
         if _event_signal_engine:
             event_pipeline["signal_engine"] = _event_signal_engine.get_status()
+        if _streaming_discovery:
+            event_pipeline["streaming_discovery"] = _streaming_discovery.get_status()
         if _council_gate:
             event_pipeline["council_gate"] = _council_gate.get_status()
         if _order_executor:
