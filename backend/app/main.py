@@ -730,7 +730,22 @@ async def _start_event_driven_pipeline():
         from app.services.intelligence_cache import get_intelligence_cache
         _intelligence_cache = get_intelligence_cache()
         await _intelligence_cache.start()
-        log.info("\u2705 IntelligenceCache started (pre-warming council data)")
+        log.info("\u2705 IntelligenceCache started")
+
+        # Pre-warm with core symbols to avoid cold-start latency
+        core_symbols = [
+            "SPY", "QQQ", "IWM", "DIA",  # Market indices
+            "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META",  # Mega caps
+            "XLF", "XLE", "XLK", "XLV", "XLI",  # Sector ETFs
+        ]
+        try:
+            stats = await _intelligence_cache.pre_warm(core_symbols, timeout=5.0)
+            log.info(
+                "\u2705 IntelligenceCache pre-warmed: %d/%d symbols in %.1fms",
+                stats["success_count"], stats["symbol_count"], stats["duration_ms"]
+            )
+        except Exception as pre_warm_error:
+            log.warning("\u26A0\uFE0F IntelligenceCache pre-warm failed: %s", pre_warm_error)
     except Exception as e:
         log.warning("\u26A0\uFE0F IntelligenceCache start failed: %s", e)
 

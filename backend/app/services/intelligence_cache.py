@@ -153,6 +153,47 @@ class IntelligenceCache:
         else:
             await self._refresh_all()
 
+    async def pre_warm(self, symbols: List[str], timeout: float = 5.0) -> Dict[str, Any]:
+        """Pre-warm the cache with core symbols before first council evaluation.
+
+        Args:
+            symbols: List of symbols to pre-fetch intelligence for
+            timeout: Maximum time in seconds to spend pre-warming (default 5.0)
+
+        Returns:
+            Dict with pre-warm stats (symbol_count, success_count, duration_ms)
+        """
+        import time as time_module
+        t0 = time_module.time()
+
+        # Set watchlist
+        self.set_watchlist(symbols)
+
+        # Force immediate refresh with timeout
+        try:
+            await asyncio.wait_for(
+                self._refresh_all(),
+                timeout=timeout
+            )
+            success_count = len([s for s in symbols if s.upper() in self._symbol_cache])
+        except asyncio.TimeoutError:
+            logger.warning("IntelligenceCache pre-warm hit timeout after %.1fs", timeout)
+            success_count = len([s for s in symbols if s.upper() in self._symbol_cache])
+
+        duration_ms = (time_module.time() - t0) * 1000
+        stats = {
+            "symbol_count": len(symbols),
+            "success_count": success_count,
+            "duration_ms": round(duration_ms, 1),
+        }
+
+        logger.info(
+            "IntelligenceCache pre-warmed: %d/%d symbols in %.1fms",
+            success_count, len(symbols), duration_ms
+        )
+
+        return stats
+
     async def _refresh_loop(self):
         """Background loop: refresh intelligence on interval."""
         market_last_refresh = 0.0
