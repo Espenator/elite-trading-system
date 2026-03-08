@@ -160,41 +160,47 @@ export default function StatusFooter({
           height:      "100%",
         }}
       >
-        {/* Left fade mask */}
-        <div
-          className="absolute left-0 top-0 bottom-0 w-6 z-10 pointer-events-none"
-          style={{ background: "linear-gradient(to right, #0B0E14, transparent)" }}
-        />
-        {/* Right fade mask */}
-        <div
-          className="absolute right-0 top-0 bottom-0 w-6 z-10 pointer-events-none"
-          style={{ background: "linear-gradient(to left, #0B0E14, transparent)" }}
-        />
+        {tickers.length === 0 ? (
+          <div className="flex items-center h-full px-3 font-mono text-[10px] text-[#6B7280]">
+            No live market snapshot
+          </div>
+        ) : (
+          <>
+            {/* Left fade mask */}
+            <div
+              className="absolute left-0 top-0 bottom-0 w-6 z-10 pointer-events-none"
+              style={{ background: "linear-gradient(to right, #0B0E14, transparent)" }}
+            />
+            {/* Right fade mask */}
+            <div
+              className="absolute right-0 top-0 bottom-0 w-6 z-10 pointer-events-none"
+              style={{ background: "linear-gradient(to left, #0B0E14, transparent)" }}
+            />
 
-        <div
-          className="ticker-strip flex items-center h-full px-2"
-          style={{ width: "max-content" }}
-        >
-          {tickers.length === 0 ? (
-            <span className="mx-3 font-mono text-[10px] text-[#6B7280]">No live market snapshot</span>
-          ) : doubled.map((item, i) => (
-            <span key={`${item.symbol}-${i}`} className="flex items-center">
-              <TickerItem {...item} />
-              {i < doubled.length - 1 && <Pipe />}
-            </span>
-          ))}
-          {regime && (
-            <span className="flex items-center gap-1.5 mx-3 font-mono text-[10px] shrink-0">
-              <span className="text-[#9CA3AF] font-bold tracking-wider">REGIME:</span>
-              <span
-                className="font-bold tracking-wider"
-                style={{ color: REGIME_TEXT[regime] ?? "#10B981" }}
-              >
-                {regime}
-              </span>
-            </span>
-          )}
-        </div>
+            <div
+              className="ticker-strip flex items-center h-full px-2"
+              style={{ width: "max-content" }}
+            >
+              {doubled.map((item, i) => (
+                <span key={`${item.symbol}-${i}`} className="flex items-center">
+                  <TickerItem {...item} />
+                  {i < doubled.length - 1 && <Pipe />}
+                </span>
+              ))}
+              {regime && (
+                <span className="flex items-center gap-1.5 mx-3 font-mono text-[10px] shrink-0">
+                  <span className="text-[#9CA3AF] font-bold tracking-wider">REGIME:</span>
+                  <span
+                    className="font-bold tracking-wider"
+                    style={{ color: REGIME_TEXT[regime] ?? "#10B981" }}
+                  >
+                    {regime}
+                  </span>
+                </span>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* ── Center: System status ───────────────────────────────────── */}

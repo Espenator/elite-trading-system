@@ -77,10 +77,10 @@ export default function AgentCommandCenter() {
   }, []);
 
   // Derived metrics
-  const onlineCount = agents.filter(a => String(a.status).toLowerCase() === "running").length;
+  const onlineCount = agents.filter((agent) => String(agent.status).toLowerCase() === "running").length;
   const totalCount = agents.length;
   const cpuValues = agents
-    .map((a) => a.cpuPercent ?? a.cpu_usage)
+    .map((agent) => agent.cpuPercent ?? agent.cpu_usage)
     .filter((value) => typeof value === "number");
   const cpuAvg = cpuValues.length > 0
     ? Math.round(cpuValues.reduce((sum, value) => sum + value, 0) / cpuValues.length)
@@ -100,6 +100,20 @@ export default function AgentCommandCenter() {
     AMBER: "bg-amber-500/20 text-amber-400 border-amber-500/40",
     RED: "bg-red-500/20 text-red-400 border-red-500/40",
   };
+  const cpuClassName = cpuAvg == null
+    ? "text-gray-500 font-bold"
+    : cpuAvg > 80
+      ? "text-red-400 font-bold"
+      : cpuAvg > 60
+        ? "text-amber-400 font-bold"
+        : "text-white font-bold";
+  const gpuClassName = gpuPct == null
+    ? "text-gray-500 font-bold"
+    : gpuPct > 80
+      ? "text-red-400 font-bold"
+      : gpuPct > 60
+        ? "text-amber-400 font-bold"
+        : "text-white font-bold";
 
   const setTab = (key) => setSearchParams({ tab: key });
 
@@ -151,7 +165,7 @@ export default function AgentCommandCenter() {
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-gray-500">CPU:</span>
-            <span className={cpuAvg > 80 ? "text-red-400 font-bold" : cpuAvg > 60 ? "text-amber-400 font-bold" : "text-white font-bold"}>{cpuAvg != null ? `${cpuAvg}%` : "—"}</span>
+            <span className={cpuClassName}>{cpuAvg != null ? `${cpuAvg}%` : "—"}</span>
             {cpuAvg != null && <MetricBar value={cpuAvg} />}
           </div>
           <div className="flex items-center gap-1.5">
@@ -160,7 +174,7 @@ export default function AgentCommandCenter() {
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-gray-500">GPU:</span>
-            <span className={gpuPct > 80 ? "text-red-400 font-bold" : gpuPct > 60 ? "text-amber-400 font-bold" : "text-white font-bold"}>{gpuPct != null ? `${Math.round(gpuPct)}%` : "—"}</span>
+            <span className={gpuClassName}>{gpuPct != null ? `${Math.round(gpuPct)}%` : "—"}</span>
             {gpuPct != null && <MetricBar value={gpuPct} color="#a855f7" />}
           </div>
         </div>

@@ -12,6 +12,22 @@ import { CNSProvider, useCNS } from '../../hooks/useCNS';
 import { useApi } from '../../hooks/useApi';
 import ws from '../../services/websocket';
 
+function toTickerItem(symbol, data) {
+  if (!data) return null;
+  const priceValue = data.price ?? data.value ?? data.last;
+  const changeValue = data.change ?? data.changePct;
+  return {
+    symbol,
+    price: typeof priceValue === 'number'
+      ? priceValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : (priceValue ?? '—'),
+    change: typeof changeValue === 'number'
+      ? `${changeValue >= 0 ? '+' : ''}${changeValue.toFixed(2)}%`
+      : null,
+    changeColor: changeValue > 0 ? 'green' : changeValue < 0 ? 'red' : 'neutral',
+  };
+}
+
 function LayoutInner() {
   const { wsConnected } = useCNS();
   const { data: apiStatus } = useApi('status', { pollIntervalMs: 15000 });
@@ -45,20 +61,7 @@ function LayoutInner() {
           apiStatus={apiStatus?.connected ? 'green' : 'red'}
           agentCount={systemSummary?.activeAgents ?? null}
           regime={regimeState?.regime ?? regimeState?.state ?? null}
-          tickerItems={Object.entries(marketIndices ?? {}).flatMap(([symbol, data]) => (
-            data
-              ? [{
-                  symbol,
-                  price: typeof (data.price ?? data.value ?? data.last) === 'number'
-                    ? (data.price ?? data.value ?? data.last).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                    : (data.price ?? data.value ?? data.last ?? '—'),
-                  change: typeof (data.change ?? data.changePct) === 'number'
-                    ? `${(data.change ?? data.changePct) >= 0 ? '+' : ''}${(data.change ?? data.changePct).toFixed(2)}%`
-                    : null,
-                  changeColor: (data.change ?? data.changePct) > 0 ? 'green' : (data.change ?? data.changePct) < 0 ? 'red' : 'neutral',
-                }]
-              : []
-          ))}
+          tickerItems={Object.entries(marketIndices ?? {}).map(([symbol, data]) => toTickerItem(symbol, data)).filter(Boolean)}
         />
       </div>
 

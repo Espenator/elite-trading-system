@@ -10,6 +10,12 @@ import ws from "../../services/websocket";
 import { toast } from "react-toastify";
 import { getApiUrl, getAuthHeaders } from "../../config/api";
 
+function normalizePercentage(value) {
+  const numericValue = Number(value ?? 0);
+  if (!Number.isFinite(numericValue)) return 0;
+  return Math.min(Math.max(Math.round(numericValue * (numericValue <= 1 ? 100 : 1)), 0), 100);
+}
+
 function formatTimestamp(ts) {
   if (!ts) return "—";
   const date = new Date(ts);
@@ -19,14 +25,17 @@ function formatTimestamp(ts) {
 
 function normalizeHitlItems(data) {
   const raw = Array.isArray(data) ? data : data?.items ?? data?.buffer ?? [];
-  return raw.map((item, index) => ({
-    id: item.id ?? item.decision_id ?? `hitl-${index}`,
-    type: item.type ?? item.category ?? "REVIEW",
-    symbol: item.symbol ?? item.ticker ?? "—",
-    action: item.action ?? item.direction ?? item.side ?? "—",
-    confidence: Math.round((item.confidence ?? 0) * ((item.confidence ?? 0) <= 1 ? 100 : 1)),
-    status: String(item.status ?? "pending").toLowerCase(),
-  }));
+  return raw.map((item, index) => {
+    const confidenceValue = item.confidence ?? 0;
+    return {
+      id: item.id ?? item.decision_id ?? `hitl-${index}`,
+      type: item.type ?? item.category ?? "REVIEW",
+      symbol: item.symbol ?? item.ticker ?? "—",
+      action: item.action ?? item.direction ?? item.side ?? "—",
+      confidence: normalizePercentage(confidenceValue),
+      status: String(item.status ?? "pending").toLowerCase(),
+    };
+  });
 }
 
 async function postHitlDecision(itemId, action) {
@@ -318,7 +327,7 @@ export function MlOpsTab() {
                 <tr key={model.run_id || model.name || index} className="border-b border-gray-800/30 hover:bg-cyan-500/5">
                   <td className="py-1.5 text-cyan-400 font-mono">{model.model_name ?? model.name ?? "—"}</td>
                   <td className="text-gray-400 font-mono">{model.run_id ?? model.version ?? "—"}</td>
-                  <td className="text-right text-emerald-400">{typeof accuracy === "number" ? `${(accuracy * (accuracy <= 1 ? 100 : 1)).toFixed(1)}%` : "—"}</td>
+                  <td className="text-right text-emerald-400">{typeof accuracy === "number" ? `${normalizePercentage(accuracy)}%` : "—"}</td>
                   <td className="text-right">
                     <span className={`px-1.5 py-0.5 rounded text-[9px] ${stage === "champion" ? "bg-emerald-500/20 text-emerald-400" : stage === "training" ? "bg-purple-500/20 text-purple-400" : "bg-amber-500/20 text-amber-400"}`}>{stage}</span>
                   </td>
@@ -370,7 +379,7 @@ export function MlOpsTab() {
                   <span className={metric.status === "warn" ? "text-amber-400" : "text-emerald-400"}>{metric.value}</span>
                 </div>
                 <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full ${metric.status === "warn" ? "bg-amber-500" : "bg-emerald-500"}`} style={{ width: `${Math.min((metric.value ?? 0) * 100, 100)}%` }} />
+                  <div className={`h-full rounded-full ${metric.status === "warn" ? "bg-amber-500" : "bg-emerald-500"}`} style={{ width: `${normalizePercentage(metric.value)}%` }} />
                 </div>
               </div>
             ))}
@@ -405,6 +414,14 @@ export function LogsTelemetryTab() {
     if (search && !(l.msg || "").toLowerCase().includes(search.toLowerCase()) && !(l.source || "").toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
+  const logCounts = logEntries.reduce((counts, entry) => {
+    const level = String(entry.level || "").toLowerCase();
+    if (level === "error") counts.errors += 1;
+    if (level === "warning" || level === "warn") counts.warnings += 1;
+    if (entry.type === "signal") counts.signals += 1;
+    counts.sources.add(entry.source || "system");
+    return counts;
+  }, { errors: 0, warnings: 0, signals: 0, sources: new Set() });
 
   return (
     <div className="space-y-3">
@@ -437,14 +454,16 @@ export function LogsTelemetryTab() {
           </div>
         ) : (
           <div className="max-h-[450px] overflow-y-auto scrollbar-thin font-mono space-y-0">
-            {filtered.map((l, i) => (
+            {filtered.map((logEntry, i) => {
+              const logLevel = (logEntry.level || "INFO").toUpperCase();
+              return (
               <div key={i} className="flex gap-3 text-[10px] hover:bg-cyan-500/5 px-2 py-0.5 rounded cursor-pointer border-b border-gray-800/20">
-                <span className="text-gray-600 shrink-0 w-20">{formatTimestamp(l.ts)}</span>
-                <span className={`shrink-0 w-10 font-bold ${levelColors[(l.level || "INFO").toUpperCase()]}`}>{(l.level || "INFO").toUpperCase()}</span>
-                <span className="text-purple-400 shrink-0 w-24 truncate">{l.source || "system"}</span>
-                <span className="text-gray-300 flex-1">{l.msg || l.message || JSON.stringify(l).slice(0, 150)}</span>
+                <span className="text-gray-600 shrink-0 w-20">{formatTimestamp(logEntry.ts)}</span>
+                <span className={`shrink-0 w-10 font-bold ${levelColors[logLevel]}`}>{logLevel}</span>
+                <span className="text-purple-400 shrink-0 w-24 truncate">{logEntry.source || "system"}</span>
+                <span className="text-gray-300 flex-1">{logEntry.msg || logEntry.message || JSON.stringify(logEntry).slice(0, 150)}</span>
               </div>
-            ))}
+            )})}
           </div>
         )}
       </div>
@@ -453,11 +472,11 @@ export function LogsTelemetryTab() {
       <div className="grid grid-cols-6 gap-3">
         {[
           ["Entries", String(logEntries.length), "text-cyan-400"],
-          ["Errors", String(logEntries.filter((entry) => String(entry.level).toLowerCase() === "error").length), "text-red-400"],
-          ["Warnings", String(logEntries.filter((entry) => String(entry.level).toLowerCase() === "warning" || String(entry.level).toLowerCase() === "warn").length), "text-amber-400"],
-          ["Sources", String(new Set(logEntries.map((entry) => entry.source || "system")).size), "text-white"],
+          ["Errors", String(logCounts.errors), "text-red-400"],
+          ["Warnings", String(logCounts.warnings), "text-amber-400"],
+          ["Sources", String(logCounts.sources.size), "text-white"],
           ["Latest", logEntries[0]?.ts ? formatTimestamp(logEntries[0].ts) : "—", "text-white"],
-          ["Signals", String(logEntries.filter((entry) => entry.type === "signal").length), "text-emerald-400"],
+          ["Signals", String(logCounts.signals), "text-emerald-400"],
         ].map(([label, val, c]) => (
           <div key={label} className="aurora-card p-2 text-center">
             <div className={`text-sm font-bold ${c}`}>{val}</div>
