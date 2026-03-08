@@ -474,6 +474,19 @@ async def _start_event_driven_pipeline():
         _alpaca_stream = _stream_manager
         log.info("\u2705 AlpacaStreamManager launched for %d symbols", len(symbols))
 
+    # 7. StreamingDiscoveryEngine (Issue #38 — E1)
+    # Always start — pure in-memory anomaly detection on market_data.bar events.
+    # No LLM dependency; publishes swarm.idea for real-time discovery without
+    # waiting for the 60-second TurboScanner cycle.
+    from app.services.streaming_discovery_engine import get_streaming_discovery
+    _streaming_discovery = get_streaming_discovery(_message_bus)
+    await _streaming_discovery.start()
+    log.info(
+        "✅ StreamingDiscoveryEngine started (threshold=%.0f, cooldown=%ds)",
+        _streaming_discovery._publish_threshold,
+        _streaming_discovery._cooldown_seconds,
+    )
+
     # 8. SwarmSpawner — spawns analysis swarms from ideas
     # Skip when LLM disabled — _run_swarm does synchronous DuckDB ingest + LLM council
     # which blocks the entire async event loop and deadlocks the server.
@@ -837,6 +850,11 @@ async def _stop_event_driven_pipeline():
     try:
         from app.services.turbo_scanner import get_turbo_scanner
         await get_turbo_scanner().stop()
+    except Exception:
+        pass
+    try:
+        from app.services.streaming_discovery_engine import get_streaming_discovery
+        await get_streaming_discovery().stop()
     except Exception:
         pass
     try:
@@ -1266,6 +1284,11 @@ async def health_check():
             event_pipeline["council_gate"] = _council_gate.get_status()
         if _order_executor:
             event_pipeline["order_executor"] = _order_executor.get_status()
+        try:
+            from app.services.streaming_discovery_engine import get_streaming_discovery
+            event_pipeline["streaming_discovery"] = get_streaming_discovery().get_status()
+        except Exception:
+            pass
 
         # Agent weights
         agent_weights = {}

@@ -84,6 +84,7 @@ elite-trading-system/
 |   |   |   |-- arbiter.py             # Deterministic arbiter + Bayesian weights
 |   |   |   |-- schemas.py             # AgentVote + DecisionPacket dataclasses
 |   |   |   |-- council_gate.py        # Bridge: SignalEngine -> Council -> OrderExecutor (NEW v3.2.0)
+|   |   |   |-- fast_council.py        # 5-agent pre-screening tier <200ms (NEW v3.5.0-E4)
 |   |   |   |-- weight_learner.py      # Bayesian self-learning agent weights (NEW v3.2.0)
 |   |   |   |-- agents/
 |   |   |       |-- __init__.py
@@ -175,6 +176,7 @@ elite-trading-system/
 |   |   |   |-- sec_edgar_service.py       # SEC EDGAR filings
 |   |   |   |-- settings_service.py        # Settings CRUD service
 |   |   |   |-- signal_engine.py           # Signal scoring + EventDrivenSignalEngine
+|   |   |   |-- streaming_discovery_engine.py # Real-time bar anomaly detection → swarm.idea (NEW v3.5.0-E1)
 |   |   |   |-- trade_stats_service.py     # Real DuckDB trade stats (NEW v3.2.0)
 |   |   |   |-- training_store.py          # ML artifact storage
 |   |   |   |-- unusual_whales_service.py  # Options flow
@@ -324,7 +326,7 @@ elite-trading-system/
 
 ```
 DISCOVERY (continuous — Issue #38):
-  StreamingDiscoveryEngine (Alpaca * stream) -> volume/price anomalies
+  StreamingDiscoveryEngine (market_data.bar events) -> volume/price anomalies (BUILT — E1)
   12 Scout Agents (UW flow, insider, news, sentiment, etc.) -> discoveries
   TurboScanner (60s, 10 DuckDB screens, 8000+ symbols) -> signals
   MarketWideSweep (4hr full, 30min incremental) -> signals
@@ -334,7 +336,11 @@ TRIAGE:
   swarm.idea -> HyperSwarm (50 workers, Ollama <500ms) -> score >= 65 escalated
 
 EVALUATION:
-  Escalated -> SwarmSpawner -> 17-Agent Council (7 stages) -> council.verdict
+  Escalated -> CouncilGate
+    -> FastCouncil (5 agents, <200ms pre-screen — BUILT — E4)
+       If skip_deep=True: discard, saves full-council compute
+       If skip_deep=False: escalate to full council
+    -> Full Council (35 agents, 7 stages) -> council.verdict
 
 EXECUTION:
   council.verdict -> OrderExecutor (real DuckDB stats, real ATR, mock guard) -> Alpaca

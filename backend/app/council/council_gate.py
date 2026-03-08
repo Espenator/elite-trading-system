@@ -1,15 +1,21 @@
 """Council Gate — bridges SignalEngine → Council → OrderExecutor.
 
 Subscribes to signal.generated on the MessageBus.  When a signal arrives
-with score >= gate_threshold the full 13-agent council is invoked.
-If the council verdict is execution_ready the signal is re-published as
-council.verdict which the OrderExecutor listens on.
+with score >= gate_threshold the council pipeline is invoked.
 
-This replaces the old direct signal → order path with an intelligent
-agent-council-controlled decision layer.
+Two-tier council pipeline (Issue #38 — E4):
+    1. FastCouncil (5 agents, <200 ms) — quick pre-screening.
+       If FastCouncil says "hold" / veto, skip the full council entirely.
+    2. Full Council (35 agents, ~1 s) — invoked only for promising signals.
+
+Tier-1 can be disabled via ``FAST_COUNCIL_ENABLED=false`` to restore the
+original single-tier behaviour.
 
 Pipeline:
-  AlpacaStream → MessageBus → SignalEngine → **CouncilGate** → Council → OrderExecutor
+  AlpacaStream → MessageBus → SignalEngine → **CouncilGate**
+    → FastCouncil (pre-screen)  — skip if hold/veto
+    → Full Council (35 agents)  — emit council.verdict
+    → OrderExecutor
   market_data.bar → signal.generated → council evaluation → council.verdict → order
 """
 import asyncio
@@ -42,11 +48,19 @@ class CouncilGate:
         gate_threshold: float = 65.0,
         max_concurrent: int = 3,
         cooldown_seconds: int = 120,
+        fast_council_enabled: Optional[bool] = None,
     ):
         self.message_bus = message_bus
         self.gate_threshold = gate_threshold
         self.max_concurrent = max_concurrent
         self.cooldown_seconds = cooldown_seconds
+
+        # Fast council tier (E4) — enabled unless explicitly disabled
+        if fast_council_enabled is None:
+            fast_council_enabled = (
+                os.getenv("FAST_COUNCIL_ENABLED", "true").lower() != "false"
+            )
+        self.fast_council_enabled = fast_council_enabled
 
         self._running = False
         self._start_time: Optional[float] = None
@@ -57,6 +71,8 @@ class CouncilGate:
         self._councils_passed = 0
         self._councils_vetoed = 0
         self._councils_held = 0
+        # Fast-council specific counter
+        self._fast_skipped = 0  # Signals short-circuited by FastCouncil
 
     async def start(self) -> None:
         """Subscribe to signal.generated and begin gating."""
@@ -64,10 +80,11 @@ class CouncilGate:
         self._start_time = time.time()
         await self.message_bus.subscribe("signal.generated", self._on_signal)
         logger.info(
-            "CouncilGate started — threshold=%.0f, max_concurrent=%d, cooldown=%ds",
+            "CouncilGate started — threshold=%.0f, max_concurrent=%d, cooldown=%ds, fast_council=%s",
             self.gate_threshold,
             self.max_concurrent,
             self.cooldown_seconds,
+            self.fast_council_enabled,
         )
 
     async def stop(self) -> None:
@@ -125,28 +142,20 @@ class CouncilGate:
     async def _evaluate_with_council(
         self, symbol: str, signal_data: Dict[str, Any]
     ) -> None:
-        """Run the full 13-agent council for the symbol."""
+        """Run the two-tier council pipeline for the symbol.
+
+        Tier 1: FastCouncil (5 agents, <200 ms) — pre-screen.
+        Tier 2: Full Council (35 agents) — invoked only when Tier 1 passes.
+        """
         async with self._semaphore:
             self._symbol_last_eval[symbol] = time.time()
             self._councils_invoked += 1
 
             try:
-                from app.council.runner import run_council
-
                 score = signal_data.get("score", 0)
                 regime = signal_data.get("regime", "UNKNOWN")
                 price = signal_data.get("close", signal_data.get("price", 0))
 
-                logger.info(
-                    "\u2699 CouncilGate: invoking council for %s "
-                    "(signal=%.1f, regime=%s, price=$%.2f)",
-                    symbol,
-                    score,
-                    regime,
-                    price,
-                )
-
-                # Pass signal data as context for agents
                 context = {
                     "signal_score": score,
                     "signal_label": signal_data.get("label", ""),
@@ -156,6 +165,55 @@ class CouncilGate:
                     "signal_timestamp": signal_data.get("timestamp", ""),
                     "source": "council_gate",
                 }
+
+                # ── Tier 1: FastCouncil pre-screen (E4) ──────────────────
+                if self.fast_council_enabled:
+                    from app.council.fast_council import run_fast_council
+                    features = signal_data.get("features", {})
+                    fast_result = await run_fast_council(
+                        symbol=symbol,
+                        features=features,
+                        context=context,
+                    )
+                    if fast_result.skip_deep:
+                        self._fast_skipped += 1
+                        if fast_result.veto:
+                            self._councils_vetoed += 1
+                            logger.info(
+                                "⚡ FastCouncil VETO %s (%s) — skipping deep council",
+                                symbol,
+                                "; ".join(fast_result.veto_reasons),
+                            )
+                        else:
+                            self._councils_held += 1
+                            logger.debug(
+                                "⚡ FastCouncil HOLD %s (conf=%.2f, %.1fms) — skipping deep council",
+                                symbol,
+                                fast_result.confidence,
+                                fast_result.latency_ms,
+                            )
+                        return
+                    logger.debug(
+                        "⚡ FastCouncil PASS %s → %s (conf=%.2f, %.1fms) — escalating to full council",
+                        symbol,
+                        fast_result.direction,
+                        fast_result.confidence,
+                        fast_result.latency_ms,
+                    )
+                    # Enrich context with fast council result for full council agents
+                    context["fast_council"] = fast_result.to_dict()
+
+                # ── Tier 2: Full Council ──────────────────────────────────
+                from app.council.runner import run_council
+
+                logger.info(
+                    "⚙ CouncilGate: invoking full council for %s "
+                    "(signal=%.1f, regime=%s, price=$%.2f)",
+                    symbol,
+                    score,
+                    regime,
+                    price,
+                )
 
                 decision = await run_council(
                     symbol=symbol,
@@ -233,11 +291,13 @@ class CouncilGate:
             "gate_threshold": self.gate_threshold,
             "max_concurrent": self.max_concurrent,
             "cooldown_seconds": self.cooldown_seconds,
+            "fast_council_enabled": self.fast_council_enabled,
             "signals_received": self._signals_received,
             "councils_invoked": self._councils_invoked,
             "councils_passed": self._councils_passed,
             "councils_vetoed": self._councils_vetoed,
             "councils_held": self._councils_held,
+            "fast_skipped": self._fast_skipped,
             "pass_rate": (
                 round(self._councils_passed / max(self._councils_invoked, 1), 3)
             ),
