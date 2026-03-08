@@ -443,3 +443,43 @@ class TestSingleton:
         a = get_idea_triage_service()
         b = get_idea_triage_service()
         assert a is b
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Buffer cap enforcement (regression guards for fix 1 & 3)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestBufferCaps:
+    """Ensure MAX_QUEUE_SIZE and MAX_SEEN_SIZE hard caps are enforced."""
+
+    @pytest.mark.asyncio
+    async def test_recent_arrivals_capped_at_max_queue_size(self):
+        from app.services.idea_triage import MAX_QUEUE_SIZE
+        from collections import deque
+        import time
+        svc = IdeaTriageService()
+        now = time.time()
+        # Overfill the deque past its maxlen; deque(maxlen) auto-evicts oldest.
+        for _ in range(MAX_QUEUE_SIZE + 200):
+            svc._recent_arrivals.append(now)
+        assert len(svc._recent_arrivals) == MAX_QUEUE_SIZE
+
+        # One more event via the normal path should also stay within cap
+        bus = FakeBus()
+        svc._bus = bus
+        await svc._on_idea(make_idea())
+        assert len(svc._recent_arrivals) <= MAX_QUEUE_SIZE
+
+    @pytest.mark.asyncio
+    async def test_seen_dict_capped_at_max_seen_size(self):
+        from app.services.idea_triage import MAX_SEEN_SIZE
+        import time
+        svc = IdeaTriageService()
+        now = time.time()
+        # Pre-fill _seen to exactly the limit, then add one more
+        for i in range(MAX_SEEN_SIZE):
+            svc._seen[(f"SYM{i}", "bullish")] = now
+        assert len(svc._seen) == MAX_SEEN_SIZE
+        # One more call inserts a new key, then evicts one → stays at MAX_SEEN_SIZE
+        await svc._check_and_record("OVERFLOW", "bullish", now)
+        assert len(svc._seen) == MAX_SEEN_SIZE

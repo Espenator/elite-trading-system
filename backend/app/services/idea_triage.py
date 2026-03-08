@@ -29,10 +29,10 @@ import asyncio
 import hashlib
 import logging
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Deque, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,8 @@ THRESHOLD_ADJUST_STEP = 5   # How much to adjust per step
 MAX_AGE_PENALTY = 20        # Maximum age penalty points
 AGE_PENALTY_RATE = 1        # Points per second (capped at MAX_AGE_PENALTY)
 DUP_PENALTY = 15            # Penalty for recently-seen symbol
-MAX_QUEUE_SIZE = 5000       # Prevent unbounded memory usage
+MAX_QUEUE_SIZE = 5000       # Prevent unbounded memory usage (_recent_arrivals hard cap)
+MAX_SEEN_SIZE = 10_000      # Prevent unbounded dedup dict under a symbol storm
 
 SOURCE_BONUSES: Dict[str, int] = {
     "insider_scout": 30,
@@ -136,8 +137,10 @@ class IdeaTriageService:
             "queue_depth": 0,
         }
 
-        # Sliding window for throughput-based threshold adaptation
-        self._recent_arrivals: List[float] = []  # epoch timestamps
+        # Sliding window for throughput-based threshold adaptation.
+        # Bounded deque (maxlen=MAX_QUEUE_SIZE) gives automatic O(1) eviction
+        # of the oldest timestamp whenever the window is full — no manual trim needed.
+        self._recent_arrivals: Deque[float] = deque(maxlen=MAX_QUEUE_SIZE)
         self._heartbeat_task: Optional[asyncio.Task] = None
 
     # ──────────────────────────────────────────────────────────────────────
@@ -173,6 +176,8 @@ class IdeaTriageService:
     async def _on_idea(self, data: Dict[str, Any]) -> None:
         self._stats["total_received"] += 1
         now = time.time()
+        # deque(maxlen=MAX_QUEUE_SIZE) automatically drops the oldest entry when
+        # full, so no manual trim is needed — the cap is always enforced.
         self._recent_arrivals.append(now)
 
         # Extract primary symbol
@@ -259,8 +264,13 @@ class IdeaTriageService:
     def _adaptive_threshold(self) -> int:
         """Adjust threshold based on recent arrival rate."""
         now = time.time()
-        # Keep only arrivals in the last 60 s for rate estimation
-        self._recent_arrivals = [t for t in self._recent_arrivals if now - t < 60]
+        # Keep only arrivals in the last 60 s for rate estimation.
+        # Re-create as a new deque (same maxlen) so old entries are pruned
+        # while preserving the bounded-size guarantee.
+        self._recent_arrivals = deque(
+            (t for t in self._recent_arrivals if now - t < 60),
+            maxlen=MAX_QUEUE_SIZE,
+        )
         depth = len(self._recent_arrivals)
         self._stats["queue_depth"] = depth
 
@@ -287,6 +297,15 @@ class IdeaTriageService:
             last = self._seen.get(key, 0.0)
             is_dup = (now - last) < DEDUP_WINDOW_SECS
             self._seen[key] = now
+            # Hard cap: evict the first-inserted (oldest by insertion-order) entry
+            # when the dict exceeds MAX_SEEN_SIZE.  Python 3.7+ dicts maintain
+            # insertion order, and updates to existing keys don't move them, so
+            # next(iter(_seen)) is always the entry inserted longest ago.  The
+            # maintenance loop does bulk expiry every 60 s; this cap guards
+            # against a symbol-storm in between those cycles.
+            if len(self._seen) > MAX_SEEN_SIZE:
+                oldest_key = next(iter(self._seen))
+                del self._seen[oldest_key]
         return is_dup
 
     # ──────────────────────────────────────────────────────────────────────

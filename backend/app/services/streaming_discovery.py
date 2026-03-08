@@ -47,6 +47,7 @@ VOLATILITY_MULT = 2.0        # Bar range ≥ 2× rolling avg range → detector 
 MIN_GATES = 3                # Minimum detectors that must fire to emit
 MIN_PRICE = 1.0              # Skip penny stocks (price < $1)
 MIN_VOLUME = 100             # Skip illiquid bars
+MAX_TRACKED_SYMBOLS = 2000   # Evict LRU states above this to cap memory
 
 
 @dataclass
@@ -289,6 +290,15 @@ class StreamingDiscoveryEngine:
             return
 
         state = self._states.setdefault(symbol, BarState(symbol=symbol))
+
+        # Hard cap: evict the first-inserted (oldest by insertion order) symbol
+        # when the table exceeds MAX_TRACKED_SYMBOLS.  setdefault() always appends
+        # new symbols to the end, so next(iter(_states)) is the symbol seen
+        # least recently for the first time — suitable for FIFO eviction of
+        # delisted / one-off tickers that will never return.
+        if len(self._states) > MAX_TRACKED_SYMBOLS:
+            oldest = next(iter(self._states))
+            del self._states[oldest]
 
         results = self._run_detectors(state, data)
         state.update(data)

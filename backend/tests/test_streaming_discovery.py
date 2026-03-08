@@ -480,3 +480,99 @@ class TestStreamingDiscoveryEngine:
             for field in ("source", "symbols", "direction", "reasoning", "priority", "metadata"):
                 assert field in idea, f"Missing field: {field}"
         await engine.stop()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Symbol-state cap (regression guard for fix 2)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestSymbolStateCap:
+    """Ensure _states dict is evicted when MAX_TRACKED_SYMBOLS is exceeded."""
+
+    @pytest.mark.asyncio
+    async def test_symbol_state_capped_at_max_tracked_symbols(self):
+        from app.services.streaming_discovery import (
+            StreamingDiscoveryEngine,
+            MAX_TRACKED_SYMBOLS,
+            BarState,
+        )
+        engine = StreamingDiscoveryEngine()
+        # Pre-fill _states to exactly the limit
+        for i in range(MAX_TRACKED_SYMBOLS):
+            engine._states[f"SYM{i:04d}"] = BarState(symbol=f"SYM{i:04d}")
+        assert len(engine._states) == MAX_TRACKED_SYMBOLS
+
+        # Send one bar for a new symbol: setdefault adds it (→ MAX+1), then
+        # the eviction removes one oldest entry (→ MAX). The bar is below the
+        # baseline threshold so no swarm.idea is published, but the eviction
+        # still fires.
+        class FakeBus:
+            published = []
+            async def subscribe(self, t, h): pass
+            async def publish(self, t, d): self.published.append((t, d))
+
+        engine._bus = FakeBus()
+        bar = {"symbol": "NEWONE", "close": 100.0, "high": 101.0, "low": 99.0, "volume": 500_000}
+        await engine._on_bar(bar)
+        assert len(engine._states) == MAX_TRACKED_SYMBOLS
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# E1 → E3 pipeline integration test
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestE1ToE3Pipeline:
+    """E1 publishes to swarm.idea; E3 must escalate high-score events."""
+
+    @pytest.mark.asyncio
+    async def test_anomalous_bar_reaches_triage_escalated(self):
+        """An anomalous bar from E1 should be escalated by E3."""
+        from app.services.streaming_discovery import StreamingDiscoveryEngine, LOOKBACK_BARS
+        from app.services.idea_triage import IdeaTriageService
+
+        class CaptureBus:
+            """In-process bus that directly invokes registered handlers."""
+            def __init__(self):
+                self._handlers: dict = {}
+                self.published = []
+
+            async def subscribe(self, topic, handler):
+                self._handlers.setdefault(topic, []).append(handler)
+
+            async def publish(self, topic, data):
+                self.published.append((topic, data))
+                for h in self._handlers.get(topic, []):
+                    await h(data)
+
+        bus = CaptureBus()
+
+        # Wire E3 first so it is subscribed before E1 publishes
+        triage = IdeaTriageService(message_bus=bus)
+        await triage.start()
+
+        engine = StreamingDiscoveryEngine(message_bus=bus)
+        await engine.start()
+
+        # Build baseline history for AAPL
+        base = {"symbol": "AAPL", "close": 150.0, "high": 151.0, "low": 149.0, "volume": 100_000}
+        for _ in range(LOOKBACK_BARS):
+            await engine._on_bar(base)
+
+        # Send a strongly anomalous bar (all 5 detectors should fire)
+        anomaly = {
+            "symbol": "AAPL",
+            "close": 170.0,   # strong breakout
+            "high": 175.0,
+            "low": 165.0,
+            "volume": 10_000_000,  # massive volume
+        }
+        await engine._on_bar(anomaly)
+
+        escalated = [d for t, d in bus.published if t == "triage.escalated"]
+        assert len(escalated) >= 1, "Anomalous bar should produce at least one triage.escalated event"
+        payload = escalated[0]
+        assert "triage" in payload
+        assert payload["triage"]["escalated"] is True
+
+        await engine.stop()
+        await triage.stop()
