@@ -1,14 +1,25 @@
-"""Quote/chart data API endpoints."""
+"""Quote/chart data API endpoints.
+
+Data sources (in priority order):
+1. Finviz Elite API (requires FINVIZ_API_KEY)
+2. Alpaca Market Data API (uses trading keys, works 24/7 including weekends)
+
+If Finviz is unavailable, all endpoints automatically fall back to Alpaca.
+"""
 import logging
 from fastapi import APIRouter, HTTPException, Query, Path
 
 logger = logging.getLogger(__name__)
 from typing import Optional, List, Dict, Any
 from app.services.finviz_service import FinvizService
+from app.core.config import settings
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 finviz_service = FinvizService()
+
+# Whether Finviz is available (has API key)
+_finviz_available = bool(settings.FINVIZ_API_KEY)
 
 
 @router.get("/")
@@ -23,6 +34,56 @@ async def get_quotes_root():
         ],
         "message": "Use /{ticker} to get quote data for a specific symbol",
     }
+
+
+async def _alpaca_candles_fallback(
+    ticker: str,
+    timeframe: str = "1Day",
+    limit: int = 100,
+) -> List[Dict[str, Any]]:
+    """Fetch OHLCV candles from Alpaca Market Data API as fallback.
+
+    Works 24/7 including outside market hours and weekends.
+    Returns bars already normalized for the frontend chart.
+    """
+    try:
+        from app.services.alpaca_service import alpaca_service
+
+        # Map frontend/Finviz timeframes to Alpaca timeframes
+        tf_map = {
+            "1m": "1Min", "5m": "5Min", "15m": "15Min",
+            "1h": "1Hour", "4h": "4Hour", "1D": "1Day", "1W": "1Week",
+            "i1": "1Min", "i5": "5Min", "i15": "15Min",
+            "h": "1Hour", "d": "1Day", "w": "1Week",
+        }
+        alpaca_tf = tf_map.get(timeframe, "1Day")
+
+        bars = await alpaca_service.get_bars(
+            symbol=ticker,
+            timeframe=alpaca_tf,
+            limit=limit,
+        )
+        if not bars:
+            return []
+
+        result = []
+        for bar in bars:
+            t = bar.get("t", "")
+            time_val = str(t)[:10] if t else None
+            if not time_val:
+                continue
+            result.append({
+                "time": time_val,
+                "open": float(bar.get("o", 0)),
+                "high": float(bar.get("h", 0)),
+                "low": float(bar.get("l", 0)),
+                "close": float(bar.get("c", 0)),
+                "volume": int(bar.get("v", 0)),
+            })
+        return result
+    except Exception as e:
+        logger.warning("Alpaca candle fallback failed for %s: %s", ticker, e)
+        return []
 
 
 def _date_to_yyyy_mm_dd(t: Any) -> Optional[str]:
@@ -102,19 +163,24 @@ async def get_candles(
     r_map = {"1m": "d1", "5m": "d1", "15m": "d5", "1h": "d5", "4h": "m1", "1D": "m3", "1W": "y1"}
     p = p_map.get(timeframe, "h")
     r = r_map.get(timeframe, "d5")
-    try:
-        quotes = await finviz_service.get_quote_data(ticker=ticker, timeframe=p, duration=r)
-        if not quotes or not isinstance(quotes, list):
-            return {"candles": [], "bars": []}
-        normalized = []
-        for row in quotes:
-            n = _normalize_row(row)
-            if n:
-                normalized.append(n)
-        return {"candles": normalized, "bars": normalized}
-    except Exception as e:
-        logger.error("Candle fetch failed for %s: %s", ticker, e)
-        return {"candles": [], "bars": [], "error": str(e)}
+
+    # Try Finviz first (if API key is configured)
+    if _finviz_available:
+        try:
+            quotes = await finviz_service.get_quote_data(ticker=ticker, timeframe=p, duration=r)
+            if quotes and isinstance(quotes, list):
+                normalized = [n for row in quotes if (n := _normalize_row(row))]
+                if normalized:
+                    return {"candles": normalized, "bars": normalized}
+        except Exception as e:
+            logger.warning("Finviz candle fetch failed for %s, trying Alpaca: %s", ticker, e)
+
+    # Alpaca Market Data API fallback (works 24/7 including weekends)
+    alpaca_bars = await _alpaca_candles_fallback(ticker, timeframe=timeframe or "1h")
+    if alpaca_bars:
+        return {"candles": alpaca_bars, "bars": alpaca_bars, "source": "alpaca"}
+
+    return {"candles": [], "bars": []}
 
 
 @router.get("/{ticker}/book")
@@ -161,21 +227,27 @@ async def get_quote_data(
         r = r_map.get(timeframe, "d5")
     p = p or "i15"
     r = r or "d5"
-    try:
-        quotes = await finviz_service.get_quote_data(
-            ticker=ticker,
-            timeframe=p,
-            duration=r
-        )
-        if not quotes or not isinstance(quotes, list):
-            return {"bars": [], "data": []}
-        normalized = []
-        for row in quotes:
-            n = _normalize_row(row)
-            if n:
-                normalized.append(n)
-        return {"bars": normalized, "data": normalized}
-    except Exception as e:
-        logger.warning("Quote fetch failed for %s (timeframe=%s): %s", ticker, timeframe or p, e)
-        return {"bars": [], "data": []}
+
+    # Try Finviz first (if API key is configured)
+    if _finviz_available:
+        try:
+            quotes = await finviz_service.get_quote_data(
+                ticker=ticker,
+                timeframe=p,
+                duration=r
+            )
+            if quotes and isinstance(quotes, list):
+                normalized = [n for row in quotes if (n := _normalize_row(row))]
+                if normalized:
+                    return {"bars": normalized, "data": normalized}
+        except Exception as e:
+            logger.warning("Quote fetch failed for %s (timeframe=%s), trying Alpaca: %s", ticker, timeframe or p, e)
+
+    # Alpaca Market Data API fallback (works 24/7 including weekends)
+    effective_tf = timeframe or p or "1D"
+    alpaca_bars = await _alpaca_candles_fallback(ticker, timeframe=effective_tf)
+    if alpaca_bars:
+        return {"bars": alpaca_bars, "data": alpaca_bars, "source": "alpaca"}
+
+    return {"bars": [], "data": []}
 
