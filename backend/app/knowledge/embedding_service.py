@@ -6,6 +6,7 @@ generation. Falls back to CPU if CUDA unavailable.
 RTX Optimization: runs on PC-1 RTX GPU with ~4ms per embedding batch.
 """
 import logging
+import os
 from typing import List, Optional
 
 import numpy as np
@@ -30,7 +31,7 @@ class EmbeddingEngine:
             from sentence_transformers import SentenceTransformer
             import torch
 
-            device = "cuda:0" if torch.cuda.is_available() else "cpu"
+            device = os.getenv("GPU_DEVICE", "cuda:0") if torch.cuda.is_available() else "cpu"
             self._model = SentenceTransformer(self._model_name, device=device)
             self._device = device
             logger.info("EmbeddingEngine loaded %s on %s", self._model_name, device)

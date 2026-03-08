@@ -141,7 +141,7 @@ def get_daily_seq_dataset_class():
         Returns:
             Trained DailyLSTM wrapper, or None if training data is empty.
         """
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        device = torch.device(os.getenv("GPU_DEVICE", "cuda:0") if torch.cuda.is_available() else "cpu")
         use_amp = device.type == "cuda"  # AMP only meaningful on CUDA
         log.info("Training device: %s  AMP: %s", device, use_amp)
 

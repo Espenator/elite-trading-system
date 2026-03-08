@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -132,7 +133,7 @@ class LSTMTrainer:
         if not HAS_TORCH:
             return {"error": "PyTorch not installed"}
 
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        device = torch.device(os.getenv("GPU_DEVICE", "cuda:0") if torch.cuda.is_available() else "cpu")
         logger.info(f"Training {model_name} on {device}")
 
         conn = sqlite3.connect(str(DB_PATH))

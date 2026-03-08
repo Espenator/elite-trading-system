@@ -14,6 +14,7 @@ except ImportError:
     )
 
 
+import os
 from datetime import date
 from pathlib import Path
 from typing import List, Dict, Any
@@ -54,7 +55,7 @@ def make_signals_for_date(
     except ImportError:
         return []
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device(os.getenv("GPU_DEVICE", "cuda:0") if torch.cuda.is_available() else "cpu")
     model._module.to(device)
     signals = []
     feats = feats.copy()
