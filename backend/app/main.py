@@ -572,7 +572,18 @@ async def _start_event_driven_pipeline():
     _turbo_scanner = get_turbo_scanner()
     _turbo_scanner._bus = _message_bus
     await _turbo_scanner.start()
-    log.info("\u2705 TurboScanner started (interval=%ds)", _turbo_scanner._scan_interval)
+    log.info("✅ TurboScanner started (interval=%ds)", _turbo_scanner._scan_interval)
+
+    # 18b. IdeaTriageService (E3) — deduplicate, score, and priority-queue all
+    # swarm.idea events before they reach HyperSwarm.  Always start — no LLM dep.
+    from app.services.idea_triage import get_idea_triage
+    _idea_triage = get_idea_triage()
+    _idea_triage._bus = _message_bus
+    await _idea_triage.start()
+    log.info(
+        "✅ IdeaTriageService started (queue=%d, threshold=%.1f)",
+        _idea_triage._queue_size, _idea_triage._current_threshold,
+    )
 
     # 19. HyperSwarm — 50+ concurrent micro-swarms via local Ollama
     if _llm_enabled:
@@ -832,6 +843,11 @@ async def _stop_event_driven_pipeline():
     try:
         from app.services.hyper_swarm import get_hyper_swarm
         await get_hyper_swarm().stop()
+    except Exception:
+        pass
+    try:
+        from app.services.idea_triage import get_idea_triage
+        await get_idea_triage().stop()
     except Exception:
         pass
     try:

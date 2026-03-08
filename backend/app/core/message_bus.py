@@ -93,6 +93,9 @@ class MessageBus:
         "signal.openclaw.composite",    # OpenClaw composite scorer (0-100)
         "signal.openclaw.ensemble",     # OpenClaw ensemble scorer (ML)
         "signal.unified",               # UnifiedProfitEngine output
+        # E3 continuous triage topics
+        "triage.escalated",             # Ideas that passed triage → HyperSwarm
+        "triage.dropped",               # Ideas suppressed by triage (dedup / below threshold)
     }
 
     # Topics bridged through Redis when cluster mode is active.
@@ -109,6 +112,7 @@ class MessageBus:
         "swarm.idea",
         "swarm.result",
         "scout.discovery",
+        "triage.escalated",
         "model.updated",
         "knowledge.ingested",
         "outcome.resolved",

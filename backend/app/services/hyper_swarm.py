@@ -118,9 +118,10 @@ class HyperSwarm:
             return
         self._running = True
 
-        # Subscribe to turbo_scanner signals via MessageBus
+        # Subscribe to triage-escalated ideas (E3: IdeaTriageService filters swarm.idea
+        # and re-publishes only the highest-priority, deduplicated ideas here).
         if self._bus:
-            await self._bus.subscribe("swarm.idea", self._on_signal)
+            await self._bus.subscribe("triage.escalated", self._on_signal)
 
         # Start worker pool
         worker_count = min(MAX_CONCURRENT_MICRO_SWARMS, len(self._ollama_urls) * MAX_CONCURRENT_PER_OLLAMA)
