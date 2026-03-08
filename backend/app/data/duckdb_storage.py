@@ -384,6 +384,37 @@ class DuckDBStorage:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_heuristics_agent ON heuristics (agent_name, regime)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_knowledge_edges_src ON knowledge_edges (source_heuristic_id)")
 
+        # ── Firehose ingestion layer ──────────────────────────────────
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS source_events (
+                event_id        VARCHAR NOT NULL,
+                dedupe_key      VARCHAR NOT NULL,
+                schema_version  VARCHAR NOT NULL DEFAULT '1.0',
+                source          VARCHAR NOT NULL,
+                source_version  VARCHAR NOT NULL DEFAULT '1',
+                feed            VARCHAR NOT NULL DEFAULT '',
+                event_ts        TIMESTAMP NOT NULL,
+                ingested_at     TIMESTAMP NOT NULL,
+                symbols         VARCHAR NOT NULL DEFAULT '[]',
+                entity_id       VARCHAR NOT NULL DEFAULT '',
+                payload         VARCHAR NOT NULL DEFAULT '{}',
+                raw_payload     VARCHAR,
+                is_deleted      BOOLEAN NOT NULL DEFAULT FALSE,
+                PRIMARY KEY (dedupe_key)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS ingestion_checkpoints (
+                source   VARCHAR NOT NULL,
+                scope    VARCHAR NOT NULL,
+                data     VARCHAR NOT NULL,
+                saved_at TIMESTAMP NOT NULL,
+                PRIMARY KEY (source, scope)
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_se_source ON source_events (source)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_se_event_ts ON source_events (event_ts)")
+
         logger.info("DuckDB analytics schema initialized at %s", self._db_path)
 
     # ------------------------------------------------------------------

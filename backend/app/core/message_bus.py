@@ -93,6 +93,8 @@ class MessageBus:
         "signal.openclaw.composite",    # OpenClaw composite scorer (0-100)
         "signal.openclaw.ensemble",     # OpenClaw ensemble scorer (ML)
         "signal.unified",               # UnifiedProfitEngine output
+        # Firehose ingestion layer — all source adapters publish here
+        "source_event",                 # Normalized SourceEvent from any adapter
     }
 
     # Topics bridged through Redis when cluster mode is active.
