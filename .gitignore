@@ -28,6 +28,7 @@ build/
 *.sqlite3
 finviz_stocks.db
 *.duckdb
+ingestion_checkpoints.json
 *.duckdb.wal
 
 # ── ML Model artifacts ──
