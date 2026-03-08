@@ -371,17 +371,19 @@ const SignalBarChart = ({ signals, selectedSymbol, onSelect }) => {
 
 // --- MINI EQUITY CURVE (SVG Sparkline) ---
 const MiniEquityCurve = ({ points }) => {
-  if (!points || points.length < 2) {
-    return (
-      <div className="text-[8px] text-[#64748b] text-center py-4 font-mono">
-        No equity data yet
-      </div>
-    );
-  }
-  const w = 280,
-    h = 80,
-    pad = 4;
-  const values = points.map((p) => p.value ?? p.equity ?? 0);
+    if (!points || points.length < 2) {
+  
+      // Show flat line at initial equity when no trade data
+      const initEquity = points?.[0]?.value ?? points?.[0]?.equity ?? 100000;
+      return (
+        <div>
+          <div className="text-[8px] text-[#64748b] text-center font-mono mb-1">Initial: ${initEquity.toLocaleString()}</div>
+          <svg width="280" height="40" viewBox="0 0 280 40" className="w-full">
+            <line x1="4" y1="20" x2="276" y2="20" stroke="#10b981" strokeWidth="1.5" strokeDasharray="4 2" />
+          </svg>
+        </div>
+      );
+    }
   const minV = Math.min(...values);
   const maxV = Math.max(...values);
   const range = maxV - minV || 1;
