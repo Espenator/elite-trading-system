@@ -1,20 +1,32 @@
 """
-Market Data Agent — one tick of data collection.
-Scans: Finviz Elite, Alpaca, Unusual Whales, OpenClaw Bridge.
-Pulls: FRED economic data, SEC EDGAR filings.
+Market Data Agent — supervisor / coordinator for all external data sources.
 
-v2.0: Now persists all data to DuckDB via data_ingestion service.
-Run every 60s during market hours when agent is started.
+This file is a thin supervisor: it delegates each data-collection responsibility
+to an existing service adapter and formats the results as activity-log entries.
+It does NOT contain source-specific fetch logic.
 
-Fixes Issue #25 Task 5.
+Responsibilities that remain here:
+  - Orchestrating the per-tick sequence of adapter calls (run_tick)
+  - Extracting ticker strings from Finviz results and writing to symbol_universe
+  - Publishing SEC EDGAR filings to the MessageBus (SecEdgarService has no bus wiring)
+  - Formatting (message, level) log tuples for the Agent Command Center UI
+  - Optional legacy DuckDB ingestion shim (_run_ingestion, disabled by default because
+    real-time bar persistence is handled by AlpacaStreamManager via market_data.bar events)
+
+Delegates entirely to:
+  FinvizService      — screener results + symbol_universe population
+  AlpacaService      — market-open/closed clock check (get_clock)
+  UnusualWhalesService — options flow alerts
+  FredService        — macro series (CPI, etc.)
+  SecEdgarService    — recent form filings per ticker
+  openclaw_bridge    — regime, top candidates, whale flow
+  DataIngestionService — optional DuckDB OHLCV backfill (run_ingestion=False by default)
 """
 import logging
 import time
 from typing import List, Tuple
 
 import httpx
-
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -29,19 +41,25 @@ async def run_tick(
     run_edgar: bool = True,
     run_unusual_whales: bool = True,
     run_openclaw: bool = True,
-    run_ingestion: bool = True,
+    run_ingestion: bool = False,
 ) -> List[Tuple[str, str]]:
-    """
-    Run one Market Data Agent tick. Returns list of (message, level) for activity log.
+    """Run one Market Data Agent tick.
 
-    v2.0: Added run_ingestion flag. When True, persists all fetched data
-    to DuckDB via data_ingestion service after collection.
+    Returns list of (message, level) tuples for the activity log.
+
+    Each source is independently gated by its flag so callers can selectively
+    disable sources without modifying this file.  All actual fetch logic lives
+    inside the respective service adapters.
+
+    run_ingestion is False by default: real-time OHLCV bar persistence is
+    handled by AlpacaStreamManager (market_data.bar events).  Set True only
+    for explicit DuckDB backfill ticks.
     """
     entries: List[Tuple[str, str]] = []
 
     tracked_symbols: list = []
 
-    # --- Finviz Elite -> symbol_universe (client link) ---
+    # --- Finviz Elite -> symbol_universe (via FinvizService) ---
     if run_finviz:
         try:
             from app.services.finviz_service import FinvizService
@@ -69,24 +87,17 @@ async def run_tick(
             logger.exception("Finviz tick failed")
             entries.append((f"Finviz: {str(e)[:80]}", "warning"))
 
-    # --- Alpaca (market data / connection check) ---
+    # --- Alpaca clock check (via AlpacaService.get_clock) ---
     if run_alpaca:
         try:
             from app.services.alpaca_service import alpaca_service
-            import httpx
 
-            url = f"{alpaca_service.base_url.rstrip('/')}/clock"
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                r = await client.get(
-                    url,
-                    headers=alpaca_service._get_headers(),
-                )
-            if r.status_code == 200:
-                data = r.json()
+            data = await alpaca_service.get_clock()
+            if data is not None:
                 is_open = data.get("is_open", False)
                 entries.append((f"Alpaca: connected, market_open={is_open}", "success"))
             else:
-                entries.append((f"Alpaca: HTTP {r.status_code}", "warning"))
+                entries.append(("Alpaca: clock returned no data (check API keys)", "warning"))
         except Exception as e:
             logger.exception("Alpaca tick failed")
             entries.append((f"Alpaca: {str(e)[:80]}", "warning"))
