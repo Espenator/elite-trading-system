@@ -384,6 +384,37 @@ class DuckDBStorage:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_heuristics_agent ON heuristics (agent_name, regime)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_knowledge_edges_src ON knowledge_edges (source_heuristic_id)")
 
+        # ── Ingestion events (source adapter layer) ───────────────────
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS ingestion_events (
+                event_id       VARCHAR  PRIMARY KEY,
+                source         VARCHAR  NOT NULL,
+                source_kind    VARCHAR  NOT NULL,
+                topic          VARCHAR  NOT NULL,
+                symbol         VARCHAR,
+                entity_id      VARCHAR,
+                occurred_at    TIMESTAMP NOT NULL,
+                ingested_at    TIMESTAMP NOT NULL,
+                sequence       INTEGER  DEFAULT 0,
+                dedupe_key     VARCHAR  NOT NULL UNIQUE,
+                schema_version VARCHAR  DEFAULT '1.0',
+                payload_json   VARCHAR  NOT NULL,
+                trace_id       VARCHAR
+            )
+        """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ingestion_source "
+            "ON ingestion_events (source, ingested_at)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ingestion_topic "
+            "ON ingestion_events (topic, ingested_at)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ingestion_symbol "
+            "ON ingestion_events (symbol, ingested_at)"
+        )
+
         logger.info("DuckDB analytics schema initialized at %s", self._db_path)
 
     # ------------------------------------------------------------------
@@ -653,6 +684,138 @@ class DuckDBStorage:
         conn = self._get_conn()
         result = conn.execute("SELECT COUNT(*) FROM postmortems").fetchone()
         return result[0] if result else 0
+
+    # ------------------------------------------------------------------
+    # Ingestion events — SourceEvent sink
+    # ------------------------------------------------------------------
+
+    def write_ingestion_event(self, event) -> bool:
+        """Persist a single :class:`~app.models.source_event.SourceEvent`.
+
+        Uses ``INSERT OR IGNORE`` so duplicate ``dedupe_key`` values are
+        silently dropped.  Returns ``True`` if the row was inserted, ``False``
+        if it was a duplicate and was skipped.
+        """
+        row = event.to_row()
+        conn = self._get_conn()
+        with self._lock:
+            # Count before insert to detect whether the row is new (DuckDB
+            # rowcount is always -1 so we use a count delta instead).
+            before = conn.execute(
+                "SELECT COUNT(*) FROM ingestion_events WHERE dedupe_key = ?",
+                [row["dedupe_key"]],
+            ).fetchone()[0]
+            if before > 0:
+                return False  # Duplicate — skip
+
+            conn.execute(
+                """
+                INSERT INTO ingestion_events
+                    (event_id, source, source_kind, topic, symbol, entity_id,
+                     occurred_at, ingested_at, sequence, dedupe_key,
+                     schema_version, payload_json, trace_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    row["event_id"],
+                    row["source"],
+                    row["source_kind"],
+                    row["topic"],
+                    row["symbol"],
+                    row["entity_id"],
+                    row["occurred_at"],
+                    row["ingested_at"],
+                    row["sequence"],
+                    row["dedupe_key"],
+                    row["schema_version"],
+                    row["payload_json"],
+                    row["trace_id"],
+                ],
+            )
+        logger.debug(
+            "ingestion_event written: source=%s topic=%s sym=%s id=%s",
+            row["source"], row["topic"], row["symbol"], row["event_id"][:8],
+        )
+        return True
+
+    def write_ingestion_events(self, events) -> int:
+        """Persist a batch of :class:`~app.models.source_event.SourceEvent` objects.
+
+        Returns the number of events that were actually inserted (duplicates
+        are silently ignored via ``INSERT OR IGNORE``).
+        """
+        if not events:
+            return 0
+        inserted = 0
+        for event in events:
+            if self.write_ingestion_event(event):
+                inserted += 1
+        logger.info(
+            "write_ingestion_events: %d/%d written (rest were duplicates)",
+            inserted, len(events),
+        )
+        return inserted
+
+    async def write_ingestion_events_async(self, events) -> int:
+        """Async wrapper around :meth:`write_ingestion_events`.
+
+        Runs the batch write in a thread-pool so the FastAPI event loop
+        is not blocked by DuckDB I/O.
+        """
+        import asyncio
+        return await asyncio.to_thread(self.write_ingestion_events, events)
+
+    def get_ingestion_events(
+        self,
+        source: Optional[str] = None,
+        topic: Optional[str] = None,
+        symbol: Optional[str] = None,
+        limit: int = 100,
+    ) -> "pd.DataFrame":
+        """Query recent ingestion events with optional filters.
+
+        Args:
+            source:  Filter to a specific adapter name (e.g. ``"fred"``).
+            topic:   Filter to a specific topic (e.g. ``"ingestion.macro"``).
+            symbol:  Filter to a specific ticker.
+            limit:   Max rows to return (default 100).
+
+        Returns:
+            DataFrame with all ``ingestion_events`` columns.
+        """
+        conn = self._get_conn()
+        conditions = []
+        params: List = []
+        if source:
+            conditions.append("source = ?")
+            params.append(source)
+        if topic:
+            conditions.append("topic = ?")
+            params.append(topic)
+        if symbol:
+            conditions.append("symbol = ?")
+            params.append(symbol)
+
+        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+        params.append(limit)
+        return conn.execute(
+            f"SELECT * FROM ingestion_events {where} ORDER BY ingested_at DESC LIMIT ?",
+            params,
+        ).fetchdf()
+
+    def get_ingestion_event_count(
+        self,
+        source: Optional[str] = None,
+    ) -> int:
+        """Count ingestion events, optionally scoped to one source."""
+        conn = self._get_conn()
+        if source:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM ingestion_events WHERE source = ?", [source]
+            ).fetchone()
+        else:
+            row = conn.execute("SELECT COUNT(*) FROM ingestion_events").fetchone()
+        return row[0] if row else 0
 
     def health_check(self) -> Dict:
         """Return storage health metrics."""
