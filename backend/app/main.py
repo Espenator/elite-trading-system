@@ -474,6 +474,13 @@ async def _start_event_driven_pipeline():
         _alpaca_stream = _stream_manager
         log.info("\u2705 AlpacaStreamManager launched for %d symbols", len(symbols))
 
+    # 7. StreamingDiscoveryEngine (E1 — Issue #38) — real-time anomaly detection
+    # Always start: pure in-process, zero new connections, subscribes to market_data.bar.
+    from app.services.streaming_discovery import get_streaming_discovery
+    _streaming_discovery = get_streaming_discovery(message_bus=_message_bus)
+    await _streaming_discovery.start()
+    log.info("\u2705 StreamingDiscoveryEngine started (volume/price/gap anomaly detection)")
+
     # 8. SwarmSpawner — spawns analysis swarms from ideas
     # Skip when LLM disabled — _run_swarm does synchronous DuckDB ingest + LLM council
     # which blocks the entire async event loop and deadlocks the server.
@@ -491,15 +498,15 @@ async def _start_event_driven_pipeline():
     knowledge_ingest.set_message_bus(_message_bus)
     log.info("\u2705 KnowledgeIngestionService connected to MessageBus")
 
-    # 10. AutonomousScoutService — proactive opportunity discovery
-    if _llm_enabled:
-        from app.services.autonomous_scout import get_scout_service
-        _scout_service = get_scout_service()
-        _scout_service._bus = _message_bus
-        await _scout_service.start()
-        log.info("\u2705 AutonomousScoutService started (%d scouts)", len(_scout_service._tasks))
-    else:
-        log.info("\u26A0\uFE0F AutonomousScoutService skipped (LLM_ENABLED=false)")
+    # 10. AutonomousScoutService — 12 dedicated scouts (E2 — Issue #38)
+    # Always start: data-source scouts (insider, congress, earnings, sector, etc.)
+    # don't require LLM. The swarm.idea events they publish will be processed by
+    # HyperSwarm (which is LLM-gated separately below).
+    from app.services.autonomous_scout import get_scout_service
+    _scout_service = get_scout_service()
+    _scout_service._bus = _message_bus
+    await _scout_service.start()
+    log.info("\u2705 AutonomousScoutService started (%d scouts)", len(_scout_service._tasks))
 
     # 11. DiscordSwarmBridge — Discord channels -> swarm analysis
     if _llm_enabled:
