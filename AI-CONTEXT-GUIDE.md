@@ -1,7 +1,7 @@
 # AI Context Guide - Embodier Trader (Elite Trading System)
 > Strategies for managing AI context limits when working with this codebase.
 > This repo has 100+ files. Feeding everything at once causes "lost in the middle" problems.
-> Last updated: March 7, 2026 — v3.5.0-dev (Continuous Discovery Architecture)
+> Last updated: March 8, 2026 — v4.0.0 (Continuous Discovery Architecture)
 
 ## Quick Start for AI Sessions
 
@@ -52,11 +52,11 @@ Paste this at the start of every AI session:
 
 ```
 PROJECT: Embodier Trader (Elite Trading System)
-VERSION: 3.5.0-dev (Continuous Discovery Architecture)
+VERSION: 4.0.0 (Continuous Discovery Architecture)
 STATUS: CI GREEN (151 tests passing)
 STACK: FastAPI + React (Vite) + DuckDB
 DATA: Alpaca Markets, Unusual Whales, FinViz, FRED, SEC EDGAR (NO yfinance)
-COUNCIL: 17-agent DAG in 7 stages with Bayesian weight learning
+COUNCIL: 32-agent DAG in 7 stages with Bayesian weight learning
 DISCOVERY: TurboScanner + HyperSwarm + 12 Scout Agents (Issue #38 — transitioning to streaming)
 PIPELINE: AlpacaStream -> SignalEngine -> CouncilGate -> Council -> OrderExecutor -> Alpaca
 KNOWLEDGE: MemoryBank + HeuristicEngine + KnowledgeGraph (wired to OutcomeTracker)
@@ -90,8 +90,8 @@ The codebase has clear boundaries. Stay within one domain per session:
 - `backend/app/services/*.py` - Business logic
 - Pattern: route calls service, service calls external API
 
-**Council** (13-agent DAG + intelligence layer):
-- `backend/app/council/agents/*.py` - 13 agent modules
+**Council** (32-agent DAG + intelligence layer):
+- `backend/app/council/agents/*.py` - 32 agent modules
 - `backend/app/council/runner.py` - 7-stage DAG orchestrator
 - `backend/app/council/arbiter.py` - Deterministic arbiter with Bayesian weights
 - `backend/app/council/council_gate.py` - Pipeline bridge (signal -> council -> order)
@@ -109,9 +109,9 @@ The codebase has clear boundaries. Stay within one domain per session:
 - `backend/app/services/scouts/` - 12 dedicated scout agents (PLANNED)
 
 **Knowledge Layer** (learning from outcomes):
-- `backend/app/services/knowledge/memory_bank.py` - Agent observation embeddings
-- `backend/app/services/knowledge/heuristic_engine.py` - Bayesian pattern extraction
-- `backend/app/services/knowledge/knowledge_graph.py` - Cross-agent synergy edges
+- `backend/app/knowledge/memory_bank.py` - Agent observation embeddings
+- `backend/app/knowledge/heuristic_engine.py` - Bayesian pattern extraction
+- `backend/app/knowledge/knowledge_graph.py` - Cross-agent synergy edges
 - `backend/app/services/outcome_tracker.py` - Trade resolution + feedback loop
 
 **Event Pipeline** (real-time trading):
@@ -147,7 +147,7 @@ The codebase has clear boundaries. Stay within one domain per session:
 1. **Don't import yfinance** - Removed from requirements.txt, use Alpaca/FinViz/UW
 2. **Don't use mock data** - All components wire to real API endpoints
 3. **Python indentation** - Use 4 spaces, never tabs
-4. **Don't bypass CouncilGate** - All signals must go through the 13-agent council
+4. **Don't bypass CouncilGate** - All signals must go through the 32-agent council
 5. **Agent votes** - Must return AgentVote schema from council/schemas.py
 6. **Veto power** - Only risk and execution agents can veto
 7. **Emoji in JSX** - Use BMP unicode only (e.g. `\u21BB` not `\u{1F504}`)
