@@ -208,12 +208,14 @@ if ($needInstall) {
 # Start backend as background process (Start-Process, NOT Start-Job)
 $backendLogFile = Join-Path $LogDir "backend.log"
 $backendErrFile = Join-Path $LogDir "backend-error.log"
+# Clear BOTH log files so we only see output from THIS run
 "" | Out-File $backendLogFile -Encoding utf8
+"" | Out-File $backendErrFile -Encoding utf8
 
 # Force Python UTF-8 mode so starlette/slowapi never fall back to cp1252
 $env:PYTHONUTF8 = "1"
 
-$backendProc = Start-Process -FilePath $VenvPython -ArgumentList "-u", "start_server.py" `
+$backendProc = Start-Process -FilePath $VenvPython -ArgumentList "-X", "utf8", "-u", "start_server.py" `
     -WorkingDirectory $BackendDir `
     -RedirectStandardOutput $backendLogFile `
     -RedirectStandardError $backendErrFile `
@@ -248,13 +250,13 @@ if ($healthy) {
     Log "API Docs  http://localhost:$BackendPort/docs" DarkGray
 } else {
     Log "Backend failed to become healthy." Yellow
-    Log "--- Last 25 lines of backend.log ---" Yellow
+    Log "--- Last 50 lines of backend.log ---" Yellow
     if (Test-Path $backendLogFile) {
-        Get-Content $backendLogFile -Tail 25 | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
+        Get-Content $backendLogFile -Tail 50 | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
     }
     if (Test-Path $backendErrFile) {
-        Log "--- Last 25 lines of backend-error.log ---" Yellow
-        Get-Content $backendErrFile -Tail 25 | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
+        Log "--- Last 50 lines of backend-error.log ---" Yellow
+        Get-Content $backendErrFile -Tail 50 | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
     }
     Log "------------------------------------" Yellow
 }
@@ -277,7 +279,9 @@ if (-not $SkipFrontend) {
 
     $frontendLogFile = Join-Path $LogDir "frontend.log"
     $frontendErrFile = Join-Path $LogDir "frontend-error.log"
-    "" | Out-File $frontendLogFile -Encoding utf8
+    # Clear frontend logs (ignore lock errors from prior run)
+    try { "" | Out-File $frontendLogFile -Encoding utf8 -ErrorAction Stop } catch { Remove-Item $frontendLogFile -Force -ErrorAction SilentlyContinue; "" | Out-File $frontendLogFile -Encoding utf8 -ErrorAction SilentlyContinue }
+    try { "" | Out-File $frontendErrFile -Encoding utf8 -ErrorAction Stop } catch { Remove-Item $frontendErrFile -Force -ErrorAction SilentlyContinue; "" | Out-File $frontendErrFile -Encoding utf8 -ErrorAction SilentlyContinue }
 
     $env:VITE_BACKEND_URL = "http://localhost:$BackendPort"
 
