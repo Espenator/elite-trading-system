@@ -96,13 +96,12 @@ if (-not (Test-Prerequisites)) {
     exit 1
 }
 
-# Fix .env encoding (remove BOM if present)
+# Fix .env encoding - force UTF-8 without BOM (prevents cp1252 decode errors on Windows)
 if (Test-Path $EnvFile) {
-    $bytes = [IO.File]::ReadAllBytes($EnvFile)
-    if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
-        [IO.File]::WriteAllText($EnvFile, [IO.File]::ReadAllText($EnvFile, [Text.Encoding]::UTF8), (New-Object Text.UTF8Encoding($false)))
-        Log "Removed BOM from .env" Yellow
-    }
+    $rawText = [IO.File]::ReadAllText($EnvFile, [Text.Encoding]::UTF8)
+    $utf8NoBom = New-Object Text.UTF8Encoding($false)
+    [IO.File]::WriteAllText($EnvFile, $rawText, $utf8NoBom)
+    Log "Ensured .env is clean UTF-8 (no BOM)" DarkGray
 } else {
     $envExample = Join-Path $BackendDir ".env.example"
     if (Test-Path $envExample) {
@@ -133,11 +132,11 @@ function Kill-PortProcesses([int]$Port) {
         }
     }
     $pids = $pids | Sort-Object -Unique
-    foreach ($pid in $pids) {
-        $proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
+    foreach ($procId in $pids) {
+        $proc = Get-Process -Id $procId -ErrorAction SilentlyContinue
         if ($proc) {
-            Log "Killing PID $pid ($($proc.ProcessName)) on port $Port" Yellow
-            taskkill /F /PID $pid 2>$null | Out-Null
+            Log "Killing PID $procId ($($proc.ProcessName)) on port $Port" Yellow
+            taskkill /F /PID $procId 2>$null | Out-Null
         }
     }
 }
@@ -270,7 +269,8 @@ if (-not $SkipFrontend) {
 
     $env:VITE_BACKEND_URL = "http://localhost:$BackendPort"
 
-    $frontendProc = Start-Process -FilePath "npx" -ArgumentList "vite", "--port", "$FrontendPort", "--host" `
+    $npxCmd = "npx vite --port $FrontendPort --host"
+    $frontendProc = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", $npxCmd `
         -WorkingDirectory $FrontendDir `
         -RedirectStandardOutput $frontendLogFile `
         -RedirectStandardError $frontendErrFile `
