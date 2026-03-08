@@ -211,7 +211,7 @@ Stage 1 (Parallel, 13): market_perception, flow_perception, regime, social_perce
     finbert_sentiment, earnings_tone, dark_pool, macro_regime
 Stage 2 (Parallel, 8): rsi, bbv, ema_trend, relative_strength, cycle_timing,
     supply_chain, institutional_flow, congressional
-Stage 3 (Parallel, 2): hypothesis (LLM, reads blackboard), layered_memory
+Stage 3 (1): hypothesis (LLM, reads blackboard)  [layered_memory_agent file exists but NOT yet wired]
 Stage 4: strategy (entry/exit/sizing, confidence modulated by social+news consensus)
 Stage 5 (Parallel, 3): risk, execution, portfolio_optimizer
 Stage 5.5 (Parallel, 3): bull_debater, bear_debater, red_team
@@ -290,7 +290,7 @@ AlpacaStreamService
 - CI: 151 tests passing (GREEN)
 - Version: 4.0.0 (single source of truth: backend/app/core/config.py APP_VERSION)
 - Frontend: 14 pages, all pixel-matched to mockups, wired to real API hooks
-- Backend: 35 API route files (34 in api/v1/ + ingestion.py), 57 service files, knowledge layer wired
+- Backend: 35 API route files (34 in api/v1/ + ingestion.py), 56 top-level service files, knowledge layer wired
 - Council: 32 agents (11 core + 12 academic edge + 6 technical + 3 debate/adversarial) + arbiter + runner + CouncilGate + WeightLearner (fully connected)
 - Discovery: TurboScanner (10 screens) + HyperSwarm (50 workers) + AutonomousScout (4 scouts) — ALL POLLING, transitioning to streaming (Issue #38)
 - Knowledge: MemoryBank + HeuristicEngine + KnowledgeGraph (wired to outcome tracker) at backend/app/knowledge/

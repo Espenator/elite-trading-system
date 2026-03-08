@@ -139,9 +139,9 @@ elite-trading-system/
 |   |   |       |-- supply_chain_agent.py        # Contagion propagation (P1)
 |   |   |       |-- institutional_flow_agent.py  # 13F consensus (P2)
 |   |   |       |-- congressional_agent.py       # Political insider trades (P2)
-|   |   |       # --- Stage 3: Hypothesis + Memory (2 agents) ---
+|   |   |       # --- Stage 3: Hypothesis (1 agent wired; layered_memory_agent NOT yet wired) ---
 |   |   |       |-- hypothesis_agent.py          # LLM-generated hypotheses
-|   |   |       |-- layered_memory_agent.py      # FinMem short/mid/long-term (P3)
+|   |   |       |-- layered_memory_agent.py      # FinMem short/mid/long-term (P3 — NOT wired in runner.py)
 |   |   |       # --- Stage 4: Strategy (1 agent) ---
 |   |   |       |-- strategy_agent.py            # Entry/exit/sizing logic
 |   |   |       # --- Stage 5: Risk + Execution + Portfolio (3 agents) ---
@@ -154,8 +154,8 @@ elite-trading-system/
 |   |   |       |-- red_team_agent.py            # Adversarial stress-testing
 |   |   |       # --- Stage 6: Critic (1 agent) ---
 |   |   |       |-- critic_agent.py              # Postmortem R-multiple learning
-|   |   |       # --- Post-Arbiter background (1 agent) ---
-|   |   |       |-- alt_data_agent.py            # Satellite/web/app signals (P4)
+|   |   |       # --- Post-Arbiter background enrichment (NOT a DAG voter) ---
+|   |   |       |-- alt_data_agent.py            # Satellite/web/app signals (P4) — background=True
 |   |   |
 |   |   |-- core/
 |   |   |   |-- __init__.py
@@ -216,7 +216,7 @@ elite-trading-system/
 |   |   |   |-- __init__.py
 |   |   |   |-- signals.py             # Signal data models
 |   |   |
-|   |   |-- services/                  # Business logic layer (57 files)
+|   |   |-- services/                  # Business logic layer (56 top-level .py files)
 |   |   |   |-- __init__.py
 |   |   |   # --- Core Trading ---
 |   |   |   |-- signal_engine.py            # Signal scoring + EventDrivenSignalEngine

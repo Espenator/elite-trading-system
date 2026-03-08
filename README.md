@@ -4,7 +4,7 @@
 
 CI Status: GREEN — 151 tests passing
 Frontend: **ALL 14 PAGES COMPLETE** — pixel-fidelity match to 23 mockup images. Build clean.
-Backend: FastAPI app (v4.0.0) — 35 route files, 57 service files.
+Backend: FastAPI app (v4.0.0) — 35 route files, 56 top-level service files.
 Council: **32-agent DAG** in 7 stages — council-controlled trading via CouncilGate (v4.0.0)
 
 ---
@@ -18,7 +18,7 @@ React + FastAPI full-stack trading application with 14-route V3 widescreen dashb
 | Frontend pages | 14 (all sidebar routes) | **ALL COMPLETE** — pixel-matched to mockups, no mock data |
 | Frontend components | 12 shared + 5 agent-tab | All wired, no orphaned imports |
 | Backend API routes | 35 files (34 in api/v1/ + ingestion) | All mounted in main.py |
-| Backend services | 57 files in services/ | Business logic layer |
+| Backend services | 56 files in services/ | Business logic layer (top-level .py; llm_clients/ subdir adds 3 more) |
 | Council agents | **32 agents** in 7-stage DAG | 11 Core + 12 Academic Edge (P0–P4) + 6 Supplemental + 3 Debate/Adversarial |
 | Council intelligence | WeightLearner + CouncilGate + SelfAwareness + Homeostasis | Bayesian self-learning agent weights |
 | Council subsystems | 15 orchestration files + 4 subdirs (debate/, reflexes/, regime/, directives/) | runner, arbiter, blackboard, task_spawner, shadow_tracker, etc. |
@@ -126,33 +126,42 @@ AlpacaStreamService
 
 Every signal passes through the full 32-agent council before any trade is executed. No hardcoded data — Kelly sizing uses real DuckDB trade statistics, ATR comes from real feature data, and the mock-source guard prevents trading on fake data.
 
-## Council DAG (32 Agents, 7 Stages)
+## Council DAG (32 Agent Files, 7 Stages)
+
+> Source of truth: `backend/app/council/runner.py` (verified March 8, 2026)
 
 ```
-Stage 1 (Parallel — Perception):
-  market_perception, flow_perception, regime, intermarket,
-  gex, insider, dark_pool, institutional_flow, congressional,
-  macro_regime, alt_data
+Stage 1 (Parallel, 13 agents):
+  market_perception, flow_perception, regime, social_perception,
+  news_catalyst, youtube_knowledge, intermarket,
+  gex_agent, insider_agent, finbert_sentiment_agent,
+  earnings_tone_agent, dark_pool_agent, macro_regime_agent
 
-Stage 2 (Parallel — Technical):
-  rsi, bbv, ema_trend, relative_strength, cycle_timing
+Stage 2 (Parallel, 8 agents):
+  rsi, bbv, ema_trend, relative_strength, cycle_timing,
+  supply_chain_agent, institutional_flow_agent, congressional_agent
 
-Stage 3 (Parallel — NLP/Sentiment):
-  hypothesis (LLM), finbert_sentiment, earnings_tone,
-  social_perception, news_catalyst, youtube_knowledge,
-  supply_chain
+Stage 3 (1 agent):
+  hypothesis  [layered_memory_agent file exists but NOT yet wired in runner.py]
 
-Stage 4 (Strategy + Memory):
-  strategy, portfolio_optimizer, layered_memory
+Stage 4 (1 agent):
+  strategy
 
-Stage 5 (Debate):
-  bull_debater, bear_debater, red_team
+Stage 5 (Parallel, 3 agents):
+  risk, execution, portfolio_optimizer_agent
 
-Stage 6 (Risk + Execution):
-  risk, execution, critic
+Stage 5.5 (Conditional — only when non-hold direction proposed):
+  DebateEngine → bull_debater + bear_debater (internal, may veto)
+  red_team_agent (stress test, direct call)
 
-Stage 7 (Arbiter):
-  arbiter (deterministic BUY/SELL/HOLD with Bayesian weights)
+Stage 6 (1 agent):
+  critic
+
+Stage 7 — Arbiter (deterministic, NOT a voter):
+  arbitrate() → BUY/SELL/HOLD with Bayesian-weighted confidence
+
+Post-arbiter (background, NOT a voter):
+  alt_data_agent (satellite/web/app signals enrichment)
 ```
 
 ## What Was Recently Done
@@ -263,7 +272,7 @@ elite-trading-system/
 │   │   │   ├── knowledge_graph.py    # Cross-agent synergy edges
 │   │   │   └── embedding_service.py  # Embedding generation
 │   │   ├── modules/                  # 7 modules (chart_patterns, ml_engine, openclaw, etc.)
-│   │   └── services/                 # 57 service files (business logic)
+│   │   └── services/                 # 56 top-level service files (business logic)
 │   ├── tests/                        # pytest test suite (151 tests)
 │   ├── requirements.txt
 │   └── run_server.py
