@@ -6,9 +6,12 @@ The OpenClaw multi-agent swarm intelligence has been superseded by:
 - 17-agent council DAG (backend/app/council/)
 - Debate engine + Red Team adversarial layer
 
-This module is preserved ONLY for the /api/v1/openclaw/regime endpoint
-that the frontend currently hits. All other OpenClaw code is dead.
+This module is preserved for the /api/v1/openclaw/* endpoints that the
+frontend still hits directly (scan, macro, sectors, whale-flow, memory,
+health).
 
-TODO: Migrate the frontend to use /api/v1/cns/regime or /api/v1/market/regime
-      and then delete this entire module.
+NOTE: The /api/v1/openclaw/regime endpoint has been mirrored at
+      /api/v1/market/regime.  The frontend useRegimeState hook now uses
+      /api/v1/market/regime.  When all remaining openclaw endpoint
+      consumers are migrated, this entire module can be deleted.
 """

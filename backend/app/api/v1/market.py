@@ -258,13 +258,143 @@ async def get_indices() -> Dict[str, Any]:
 
 @router.get("/order-book")
 async def get_order_book(symbol: str = "SPY"):
-    """TODO: Implement real order book from market data provider.
-    Returns L2 order book for TradeExecution page."""
-    return {"symbol": symbol, "bids": [], "asks": [], "status": "stub"}
+    """Return L2-style order book derived from Alpaca NBBO snapshot.
+
+    Uses the latest bid/ask from Alpaca's SIP feed to construct a
+    representative five-level order book.  Without an exchange-level L2
+    subscription, levels are extrapolated from the NBBO spread.
+    """
+    try:
+        from app.services.alpaca_service import alpaca_service
+        if not alpaca_service._is_configured():
+            return {"symbol": symbol, "bids": [], "asks": [], "status": "no_alpaca_key"}
+
+        snaps = await alpaca_service.get_snapshots([symbol.upper()])
+        if not snaps:
+            return {"symbol": symbol, "bids": [], "asks": [], "status": "no_data"}
+
+        snap = snaps.get(symbol.upper(), {})
+        q = snap.get("latestQuote") or {}
+        bid_price = _parse_float(q.get("bp"))
+        ask_price = _parse_float(q.get("ap"))
+        bid_size = int(q.get("bs") or 0)
+        ask_size = int(q.get("as") or 0)
+
+        if not bid_price or not ask_price:
+            return {"symbol": symbol, "bids": [], "asks": [], "status": "no_quote"}
+
+        spread = ask_price - bid_price
+        tick = max(0.01, round(spread / 4, 2))
+
+        bids = [
+            {"price": round(bid_price - tick * i, 2), "size": max(1, bid_size // (i + 1))}
+            for i in range(5)
+        ]
+        asks = [
+            {"price": round(ask_price + tick * i, 2), "size": max(1, ask_size // (i + 1))}
+            for i in range(5)
+        ]
+
+        return {
+            "symbol": symbol.upper(),
+            "bids": bids,
+            "asks": asks,
+            "mid": round((bid_price + ask_price) / 2, 4),
+            "spread": round(spread, 4),
+            "status": "live",
+            "source": "alpaca_nbbo",
+        }
+    except Exception as exc:
+        logger.warning("Order book fetch error for %s: %s", symbol, exc)
+        return {"symbol": symbol, "bids": [], "asks": [], "status": "error"}
 
 
 @router.get("/price-ladder")
 async def get_price_ladder(symbol: str = "SPY"):
-    """TODO: Implement real price ladder from market data provider.
-    Returns price ladder for TradeExecution page."""
-    return {"symbol": symbol, "levels": [], "status": "stub"}
+    """Return price ladder from Alpaca snapshot data.
+
+    Constructs a visual price ladder around the current price using the
+    daily trading range and NBBO spread as tick-size reference.
+    """
+    try:
+        from app.services.alpaca_service import alpaca_service
+        if not alpaca_service._is_configured():
+            return {"symbol": symbol, "levels": [], "status": "no_alpaca_key"}
+
+        snaps = await alpaca_service.get_snapshots([symbol.upper()])
+        if not snaps:
+            return {"symbol": symbol, "levels": [], "status": "no_data"}
+
+        snap = snaps.get(symbol.upper(), {})
+        latest_trade = snap.get("latestTrade") or {}
+        latest_quote = snap.get("latestQuote") or {}
+        daily_bar = snap.get("dailyBar") or {}
+        prev_bar = snap.get("prevDailyBar") or {}
+
+        current_price = _parse_float(latest_trade.get("p") or daily_bar.get("c"))
+        bid = _parse_float(latest_quote.get("bp"))
+        ask = _parse_float(latest_quote.get("ap"))
+        day_high = _parse_float(daily_bar.get("h"))
+        day_low = _parse_float(daily_bar.get("l"))
+        prev_close = _parse_float(prev_bar.get("c"))
+
+        if not current_price:
+            return {"symbol": symbol, "levels": [], "status": "no_data"}
+
+        spread = ask - bid if ask > bid else 0.0
+        # Tick size: derive from spread; cap between $0.01 and $2.00 to keep the
+        # ladder visually useful across penny stocks and high-priced symbols alike.
+        if spread:
+            tick = min(2.0, max(0.01, round(spread / 3, 2)))
+        else:
+            tick = min(2.0, max(0.01, round(current_price * 0.0005, 2)))
+
+        tol = tick * 0.5  # tolerance for key-level proximity markers
+
+        levels = []
+        for i in range(-5, 6):
+            price = round(current_price + tick * i, 2)
+            level_type = "current" if i == 0 else ("above" if i > 0 else "below")
+            levels.append({
+                "price": price,
+                "type": level_type,
+                "is_bid": bid > 0 and abs(price - bid) <= tol,
+                "is_ask": ask > 0 and abs(price - ask) <= tol,
+                "is_day_high": day_high > 0 and abs(price - day_high) <= tol,
+                "is_day_low": day_low > 0 and abs(price - day_low) <= tol,
+                "is_prev_close": prev_close > 0 and abs(price - prev_close) <= tol,
+            })
+
+        return {
+            "symbol": symbol.upper(),
+            "levels": levels,
+            "current_price": current_price,
+            "bid": bid,
+            "ask": ask,
+            "day_high": day_high,
+            "day_low": day_low,
+            "prev_close": prev_close,
+            "status": "live",
+            "source": "alpaca_snapshot",
+        }
+    except Exception as exc:
+        logger.warning("Price ladder fetch error for %s: %s", symbol, exc)
+        return {"symbol": symbol, "levels": [], "status": "error"}
+
+
+@router.get("/regime")
+async def get_market_regime():
+    """Return current market regime at a stable, non-openclaw URL.
+
+    Delegates to the OpenClaw bridge for the actual regime data.
+    This endpoint satisfies the frontend migration away from
+    /api/v1/openclaw/regime (see openclaw/__init__.py TODO).
+
+    Response: {state: GREEN|YELLOW|RED, vix, hmm_confidence, hurst, macro_context}
+    """
+    try:
+        from app.services.openclaw_bridge_service import openclaw_bridge
+        return await openclaw_bridge.get_regime()
+    except Exception as exc:
+        logger.warning("Market regime fetch error: %s", exc)
+        return {"state": "UNKNOWN", "details": None, "readme": None}

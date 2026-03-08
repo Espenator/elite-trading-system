@@ -169,3 +169,58 @@ async def test_alignment_get_endpoints_return_200(path):
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         r = await ac.get(path)
     assert r.status_code == 200, f"{path} returned {r.status_code}: {r.text}"
+
+# ---------------------------------------------------------------------------
+# Constellation: _calc_stage_2_rate unit tests
+# ---------------------------------------------------------------------------
+def _make_outcome(regime: str, r_mult: float = 1.0):
+    """Helper: create a minimal TradeOutcome."""
+    from app.core.alignment.constellation import TradeOutcome
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    return TradeOutcome(
+        symbol="SPY",
+        entry_time=now,
+        exit_time=now,
+        pnl_pct=r_mult * 0.02,
+        r_multiple=r_mult,
+        hold_duration_hours=4.0,
+        regime_at_entry=regime,
+    )
+
+
+def test_stage2_rate_empty_outcomes():
+    from app.core.alignment.constellation import OutcomeConstellation
+    oc = OutcomeConstellation()
+    diag = oc.get_diagnostic()
+    assert diag["stage_2_entry_rate"] == 0.0
+
+
+def test_stage2_rate_all_trending_bull():
+    from app.core.alignment.constellation import OutcomeConstellation
+    oc = OutcomeConstellation()
+    for _ in range(5):
+        oc.record_outcome(_make_outcome("trending_bull"))
+    diag = oc.get_diagnostic()
+    assert diag["stage_2_entry_rate"] == 1.0
+
+
+def test_stage2_rate_mixed_regimes():
+    from app.core.alignment.constellation import OutcomeConstellation
+    oc = OutcomeConstellation()
+    oc.record_outcome(_make_outcome("trending_bull"))
+    oc.record_outcome(_make_outcome("high_vol_crisis"))
+    oc.record_outcome(_make_outcome("low_vol_grind"))
+    oc.record_outcome(_make_outcome("mean_revert"))
+    diag = oc.get_diagnostic()
+    # 2 out of 4 are stage-2 regimes
+    assert diag["stage_2_entry_rate"] == pytest.approx(0.5)
+
+
+def test_stage2_rate_no_stage2_regimes():
+    from app.core.alignment.constellation import OutcomeConstellation
+    oc = OutcomeConstellation()
+    for regime in ("high_vol_crisis", "mean_revert", "trending_bear"):
+        oc.record_outcome(_make_outcome(regime))
+    diag = oc.get_diagnostic()
+    assert diag["stage_2_entry_rate"] == 0.0

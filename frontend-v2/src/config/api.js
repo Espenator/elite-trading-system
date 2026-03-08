@@ -66,7 +66,8 @@ const API_CONFIG = {
     openclaw: "/openclaw", // OpenClaw bridge: regime, top candidates, health, scan
     market: "/market", // Market indices (SPY, QQQ, DIA) for Dashboard
     marketIndices: "/market/indices", // GET indices snapshot for Dashboard top bar
-    openclawRegime: "/openclaw/regime", // Regime state for Signal Intelligence / Market Regime
+    marketRegime: "/market/regime", // Regime state (modern endpoint, replaces openclawRegime)
+    openclawRegime: "/market/regime", // DEPRECATED: use marketRegime. Kept for backward compat.
     mlBrain: "/ml-brain/", // ML brain model status + predictions (trailing slash to avoid 307 redirect)
     "ml-brain/models": "/ml-brain/registry/status", // ML model registry status
     riskShield: "/risk-shield", // RiskShield emergency controls + safety checks
@@ -86,7 +87,8 @@ const API_CONFIG = {
   blackboard: "/openclaw", // Blackboard pub/sub feed
     
     // ---- MARKET REGIME PAGE (Page 10/15) ----
-    "openclaw/regime": "/openclaw/regime", // HMM regime state + VIX + Hurst + confidence
+    "market/regime": "/market/regime", // HMM regime state (modern endpoint)
+    "openclaw/regime": "/market/regime", // HMM regime state — now served at /market/regime
     "openclaw/macro": "/openclaw/macro", // Macro oscillator, wave, bias, VIX, HY spread, F&G
     "strategy/regime-params": "/strategy/regime-params", // Regime trading params + Kelly scaling
     "backtest/regime": "/backtest/regime", // Regime-based performance (GREEN/YELLOW/RED)

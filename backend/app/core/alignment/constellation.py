@@ -160,9 +160,29 @@ class OutcomeConstellation:
 
     @staticmethod
     def _calc_stage_2_rate(outcomes: List[TradeOutcome]) -> float:
-        """Placeholder: fraction of entries at stage 2 breakout points."""
-        # TODO: integrate with regime/stage detection
-        return 0.0
+        """Fraction of entries taken during a stage-2 (trending bull) regime.
+
+        Stage 2 in market structure theory (Weinstein / Minervini) corresponds
+        to a confirmed uptrend: price above all major MAs, constructive breadth,
+        and expanding volume.  In this system the Bayesian regime engine
+        classifies such conditions as ``trending_bull`` or ``low_vol_grind``.
+
+        Legacy regime strings that contain "stage_2" or "stage2" are also
+        counted to preserve backward compatibility with any older DuckDB records.
+
+        This metric measures entry discipline — are we preferring momentum-
+        aligned setups (stage 2) over counter-trend or crisis entries?
+        """
+        if not outcomes:
+            return 0.0
+        stage2_regimes = {"trending_bull", "low_vol_grind"}
+        count = sum(
+            1 for o in outcomes
+            if o.regime_at_entry in stage2_regimes
+            or "stage_2" in o.regime_at_entry
+            or "stage2" in o.regime_at_entry
+        )
+        return count / len(outcomes)
 
     @staticmethod
     def _calc_regime_adaptation(outcomes: List[TradeOutcome]) -> float:

@@ -122,6 +122,36 @@ class TestMarketEndpoints:
         r = await client.get("/api/v1/market/indices")
         assert r.status_code in [200, 404]
 
+    @pytest.mark.anyio
+    async def test_market_order_book_returns_200_and_schema(self, client):
+        r = await client.get("/api/v1/market/order-book?symbol=SPY")
+        assert r.status_code == 200
+        data = r.json()
+        assert "symbol" in data
+        assert "bids" in data
+        assert "asks" in data
+        assert "status" in data
+        # status is either "live" (if Alpaca keys present) or a non-stub fallback
+        assert data["status"] != "stub"
+
+    @pytest.mark.anyio
+    async def test_market_price_ladder_returns_200_and_schema(self, client):
+        r = await client.get("/api/v1/market/price-ladder?symbol=SPY")
+        assert r.status_code == 200
+        data = r.json()
+        assert "symbol" in data
+        assert "levels" in data
+        assert "status" in data
+        assert data["status"] != "stub"
+
+    @pytest.mark.anyio
+    async def test_market_regime_returns_200_and_state(self, client):
+        r = await client.get("/api/v1/market/regime")
+        assert r.status_code == 200
+        data = r.json()
+        # Must have a "state" key (UNKNOWN when bridge not configured)
+        assert "state" in data
+
 
 # ---------------------------------------------------------------------------
 # Alerts endpoints

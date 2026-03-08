@@ -330,7 +330,8 @@ export function useBacktestDrawdownAnalysis(pollMs = 60000) {
 // ---- Market Regime Page (10/15) Specialized Hooks ----
 
 export function useRegimeState(pollMs = 30000) {
-  return useApi('openclaw/regime', { pollIntervalMs: pollMs });
+  // Migrated from 'openclaw/regime' to 'market/regime' (see openclaw/__init__.py)
+  return useApi('market/regime', { pollIntervalMs: pollMs });
 }
 
 export function useMacroState(pollMs = 30000) {
