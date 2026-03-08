@@ -15,6 +15,13 @@ $EnvFile = "$BackendDir\.env"
 # Ensure logs directory
 if (!(Test-Path $LogDir)) { New-Item -ItemType Directory $LogDir -Force | Out-Null }
 
+# ── Timestamped log helper ──
+function Log($msg, $color) {
+    $ts = Get-Date -Format "HH:mm:ss"
+    if ($color) { Write-Host "  [$ts] $msg" -ForegroundColor $color }
+    else { Write-Host "  [$ts] $msg" }
+}
+
 # Helper: read value from .env
 function Get-EnvValue($Key, $Default) {
     if (Test-Path $EnvFile) {
@@ -22,6 +29,49 @@ function Get-EnvValue($Key, $Default) {
         if ($line) { return ($line -split "=", 2)[1].Trim() }
     }
     return $Default
+}
+
+# ── Pre-flight: Validate Python & Node are on PATH ──
+function Test-Prerequisites {
+    $ok = $true
+    try {
+        $pyVer = & python --version 2>&1
+        if ($pyVer -match "(\d+\.\d+)") {
+            $v = [version]$Matches[1]
+            if ($v -lt [version]"3.10") {
+                Log "Python $($Matches[1]) found but 3.10+ required" Red
+                $ok = $false
+            } else {
+                Log "Python $pyVer" Green
+            }
+        }
+    } catch {
+        Log "Python not found on PATH. Install from https://python.org/downloads" Red
+        $ok = $false
+    }
+
+    if (!$SkipFrontend) {
+        try {
+            $nodeVer = & node --version 2>&1
+            if ($nodeVer -match "v(\d+)") {
+                if ([int]$Matches[1] -lt 18) {
+                    Log "Node.js $nodeVer found but v18+ required" Red
+                    $ok = $false
+                } else {
+                    Log "Node.js $nodeVer" Green
+                }
+            }
+        } catch {
+            Log "Node.js not found on PATH. Install from https://nodejs.org" Red
+            $ok = $false
+        }
+    }
+
+    if (!$ok) {
+        Log "Pre-flight check FAILED — install missing tools and retry" Red
+        return $false
+    }
+    return $true
 }
 
 # Resolve ports
@@ -36,16 +86,34 @@ Write-Host "   Backend :$BackendPort  |  Frontend :$FrontendPort" -ForegroundCol
 Write-Host "  ============================================" -ForegroundColor DarkCyan
 Write-Host ""
 
+# Pre-flight
+if (!(Test-Prerequisites)) {
+    Write-Host ""
+    Write-Host "  Press any key to exit..." -ForegroundColor Yellow
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    exit 1
+}
+
 # Fix .env encoding (remove BOM if present)
 if (Test-Path $EnvFile) {
     $bytes = [IO.File]::ReadAllBytes($EnvFile)
     if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
         [IO.File]::WriteAllText($EnvFile, [IO.File]::ReadAllText($EnvFile, [Text.Encoding]::UTF8), (New-Object Text.UTF8Encoding($false)))
-        Write-Host "  [fix] Removed BOM from .env" -ForegroundColor Yellow
+        Log "Removed BOM from .env" Yellow
     }
 } elseif (Test-Path "$BackendDir\.env.example") {
     Copy-Item "$BackendDir\.env.example" $EnvFile
-    Write-Host "  [setup] Created .env from .env.example - edit with your API keys" -ForegroundColor Yellow
+    Log "Created .env from .env.example — EDIT backend\.env with your API keys!" Yellow
+}
+
+# Validate .env has real Alpaca keys (not placeholders)
+if (Test-Path $EnvFile) {
+    $alpacaKey = Get-EnvValue "ALPACA_API_KEY" ""
+    if ($alpacaKey -eq "" -or $alpacaKey -match "^your-") {
+        Log "WARNING: ALPACA_API_KEY is not set or still a placeholder!" Yellow
+        Log "Edit $EnvFile with your real Alpaca API keys." Yellow
+        Log "Backend will start but market data will be unavailable." Yellow
+    }
 }
 
 # ── Robust port cleanup (netstat catches orphans that Get-NetTCPConnection misses) ──
@@ -58,28 +126,34 @@ function Kill-PortProcesses([int]$Port) {
     foreach ($pid in $pids) {
         $proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
         if ($proc) {
-            Write-Host "  [cleanup] Killing PID $pid ($($proc.ProcessName)) on port $Port" -ForegroundColor Yellow
+            Log "Killing PID $pid ($($proc.ProcessName)) on port $Port" Yellow
             taskkill /F /PID $pid 2>$null | Out-Null
         }
     }
 }
 
-Write-Host "  Checking for stale processes..." -ForegroundColor Cyan
+Log "Checking for stale processes..." Cyan
 Kill-PortProcesses $BackendPort
 Kill-PortProcesses $FrontendPort
 
-# ── DuckDB lock file cleanup ──
+# ── DuckDB lock file cleanup (targeted — only kill processes for THIS app) ──
 $DuckDbFile = "$BackendDir\data\analytics.duckdb"
 $DuckDbWal  = "$DuckDbFile.wal"
 $DuckDbTmp  = "$DuckDbFile.tmp"
 if (Test-Path $DuckDbWal) {
-    # Kill any orphan Python/uvicorn processes that might hold the lock
+    # Only kill python processes that are running from the backend directory
     $lockHolders = Get-Process python*, uvicorn* -ErrorAction SilentlyContinue |
-        Where-Object { $_.Id -ne $PID }
+        Where-Object {
+            $_.Id -ne $PID -and (
+                $_.Path -like "*$BackendDir*" -or
+                $_.CommandLine -like "*$BackendDir*" -or
+                $_.MainWindowTitle -like "*Embodier*"
+            )
+        }
     if ($lockHolders) {
-        Write-Host "  [cleanup] Killing stale Python processes holding DuckDB lock:" -ForegroundColor Yellow
+        Log "Killing stale Python processes holding DuckDB lock:" Yellow
         $lockHolders | ForEach-Object {
-            Write-Host "            PID $($_.Id) ($($_.ProcessName))" -ForegroundColor Yellow
+            Log "  PID $($_.Id) ($($_.ProcessName))" Yellow
             taskkill /F /PID $($_.Id) 2>$null | Out-Null
         }
         Start-Sleep 1
@@ -88,64 +162,71 @@ if (Test-Path $DuckDbWal) {
     @($DuckDbWal, $DuckDbTmp) | ForEach-Object {
         if (Test-Path $_) {
             Remove-Item $_ -Force -ErrorAction SilentlyContinue
-            Write-Host "  [cleanup] Removed stale lock: $(Split-Path $_ -Leaf)" -ForegroundColor Yellow
+            Log "Removed stale lock: $(Split-Path $_ -Leaf)" Yellow
         }
     }
 }
 Start-Sleep 1
 
-# Ensure Python venv exists
+# ── Ensure Python venv exists ──
 Set-Location $BackendDir
 if (!(Test-Path "venv")) {
-    Write-Host "  [setup] Creating Python virtual environment..." -ForegroundColor Cyan
+    Log "Creating Python virtual environment..." Cyan
     python -m venv venv
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "  [ERROR] Failed to create venv. Is Python 3.10+ installed?" -ForegroundColor Red
-        Write-Host "          Download from https://python.org/downloads" -ForegroundColor Yellow
+        Log "Failed to create venv. Is Python 3.10+ installed?" Red
+        Log "Download from https://python.org/downloads" Yellow
         exit 1
     }
 }
 
-# Activate venv and install deps if needed
-& .\venv\Scripts\Activate.ps1
+# ── Activate venv and install deps ──
+# Use the venv's python directly (more reliable than Activate.ps1 in Start-Job)
+$VenvPython = "$BackendDir\venv\Scripts\python.exe"
+$VenvPip = "$BackendDir\venv\Scripts\pip.exe"
+
+if (!(Test-Path $VenvPython)) {
+    Log "venv/Scripts/python.exe not found — recreating venv..." Yellow
+    Remove-Item "venv" -Recurse -Force -ErrorAction SilentlyContinue
+    python -m venv venv
+}
+
+# Check if fastapi is installed
 $needInstall = $false
-try { python -c "import fastapi" 2>&1 | Out-Null } catch { $needInstall = $true }
+& $VenvPython -c "import fastapi" 2>&1 | Out-Null
 if ($LASTEXITCODE -ne 0) { $needInstall = $true }
 if ($needInstall) {
-    Write-Host "  [setup] Installing Python dependencies..." -ForegroundColor Cyan
-    pip install -r requirements.txt --quiet 2>&1 | Out-Null
+    Log "Installing Python dependencies..." Cyan
+    & $VenvPip install -r requirements.txt --quiet 2>&1 | Out-Null
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "  [ERROR] pip install failed. Check requirements.txt" -ForegroundColor Red
+        Log "pip install failed — trying with verbose output:" Red
+        & $VenvPip install -r requirements.txt 2>&1 | Select-Object -Last 20
         exit 1
     }
+    Log "Python dependencies installed" Green
 }
 
-# Start backend as background job with restart loop
-$backendJob = Start-Job -ScriptBlock {
-    param($dir, $port, $logFile, $maxRestarts)
-    Set-Location $dir
-    & .\venv\Scripts\Activate.ps1
-    $env:PORT = $port
-    $env:PYTHONIOENCODING = "utf-8"
-    $env:PYTHONUNBUFFERED = "1"
-    $restarts = 0
-    while ($restarts -le $maxRestarts) {
-        if ($restarts -gt 0) {
-            "$(Get-Date -Format 'HH:mm:ss') [RESTART $restarts/$maxRestarts]" | Tee-Object $logFile -Append
-            Start-Sleep 5
-        }
-        try {
-            python start_server.py 2>&1 | Tee-Object $logFile -Append
-        } catch {
-            "$_" | Tee-Object $logFile -Append
-        }
-        $restarts++
-    }
-    "$(Get-Date -Format 'HH:mm:ss') [FATAL] Backend exceeded $maxRestarts restarts" | Tee-Object $logFile -Append
-} -ArgumentList $BackendDir, $BackendPort, "$LogDir\backend.log", $MaxRestarts
+# ── Start backend as background process (NOT Start-Job — avoids runspace issues) ──
+$backendLogFile = "$LogDir\backend.log"
+"" | Out-File $backendLogFile -Encoding utf8  # Clear log
+
+$backendProc = Start-Process -FilePath $VenvPython -ArgumentList @(
+    "-u",  # Unbuffered output
+    "start_server.py"
+) -WorkingDirectory $BackendDir -RedirectStandardOutput $backendLogFile -RedirectStandardError "$LogDir\backend-error.log" -PassThru -NoNewWindow:$false -WindowStyle Hidden
+
+if (!$backendProc) {
+    Log "Failed to start backend process" Red
+    exit 1
+}
+Log "Backend PID: $($backendProc.Id)" DarkGray
+
+# Set env vars for the backend process
+$env:PYTHONIOENCODING = "utf-8"
+$env:PYTHONUNBUFFERED = "1"
 
 # Wait for backend health (90s timeout with diagnostics on failure)
-Write-Host "  Waiting for backend" -ForegroundColor Cyan -NoNewline
+Log "Waiting for backend..." Cyan
 $healthy = $false
 for ($i = 0; $i -lt 90; $i++) {
     Start-Sleep 1
@@ -153,64 +234,59 @@ for ($i = 0; $i -lt 90; $i++) {
         $response = Invoke-WebRequest "http://localhost:$BackendPort/health" -TimeoutSec 2 -ErrorAction SilentlyContinue
         if ($response.StatusCode -eq 200) { $healthy = $true; break }
     } catch { }
-    # Detect early crash — don't wait the full 90s if the job died
-    if ($backendJob.State -eq "Failed" -or $backendJob.State -eq "Completed") {
+    # Detect early crash
+    if ($backendProc.HasExited) {
         Write-Host ""
-        Write-Host "  [ERROR] Backend process exited unexpectedly" -ForegroundColor Red
+        Log "Backend process exited unexpectedly (exit code: $($backendProc.ExitCode))" Red
         break
     }
     Write-Host "." -NoNewline
 }
 Write-Host ""
 if ($healthy) {
-    Write-Host "  [OK] Backend   http://localhost:$BackendPort" -ForegroundColor Green
-    Write-Host "       API Docs  http://localhost:$BackendPort/docs" -ForegroundColor DarkGray
+    Log "Backend   http://localhost:$BackendPort" Green
+    Log "API Docs  http://localhost:$BackendPort/docs" DarkGray
 } else {
-    Write-Host "  [WARN] Backend failed to become healthy." -ForegroundColor Yellow
-    Write-Host "  --- Last 25 lines of backend.log ---" -ForegroundColor Yellow
-    if (Test-Path "$LogDir\backend.log") {
-        Get-Content "$LogDir\backend.log" -Tail 25 | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
-    } else {
-        Write-Host "  (no log file found)" -ForegroundColor DarkGray
+    Log "Backend failed to become healthy." Yellow
+    Log "--- Last 25 lines of backend.log ---" Yellow
+    if (Test-Path $backendLogFile) {
+        Get-Content $backendLogFile -Tail 25 | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
     }
-    Write-Host "  ------------------------------------" -ForegroundColor Yellow
+    if (Test-Path "$LogDir\backend-error.log") {
+        Log "--- Last 25 lines of backend-error.log ---" Yellow
+        Get-Content "$LogDir\backend-error.log" -Tail 25 | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
+    }
+    Log "------------------------------------" Yellow
 }
 
-# Start frontend (unless skipped)
-$frontendJob = $null
+# ── Start frontend (unless skipped) ──
+$frontendProc = $null
 if (!$SkipFrontend) {
     Set-Location $FrontendDir
 
     if (!(Test-Path "node_modules")) {
-        Write-Host "  [setup] Installing frontend dependencies..." -ForegroundColor Cyan
-        npm install --silent 2>&1 | Out-Null
+        Log "Installing frontend dependencies..." Cyan
+        npm install 2>&1 | Out-Null
         if ($LASTEXITCODE -ne 0) {
-            Write-Host "  [ERROR] npm install failed. Is Node.js 18+ installed?" -ForegroundColor Red
-            Write-Host "          Download from https://nodejs.org" -ForegroundColor Yellow
+            Log "npm install failed — trying with verbose output:" Red
+            npm install 2>&1 | Select-Object -Last 20
+        } else {
+            Log "Frontend dependencies installed" Green
         }
     }
 
-    $frontendJob = Start-Job -ScriptBlock {
-        param($dir, $backendPort, $frontendPort, $logFile, $maxRestarts)
-        Set-Location $dir
-        $env:VITE_BACKEND_URL = "http://localhost:$backendPort"
-        $restarts = 0
-        while ($restarts -le $maxRestarts) {
-            if ($restarts -gt 0) {
-                "$(Get-Date -Format 'HH:mm:ss') [RESTART FE $restarts/$maxRestarts]" | Tee-Object $logFile -Append
-                Start-Sleep 3
-            }
-            try {
-                npx vite --port $frontendPort --host 2>&1 | Tee-Object $logFile -Append
-            } catch {
-                "$_" | Tee-Object $logFile -Append
-            }
-            $restarts++
-        }
-    } -ArgumentList $FrontendDir, $BackendPort, $FrontendPort, "$LogDir\frontend.log", $MaxRestarts
+    $frontendLogFile = "$LogDir\frontend.log"
+    "" | Out-File $frontendLogFile -Encoding utf8
+
+    # Set VITE_BACKEND_URL for the frontend process
+    $env:VITE_BACKEND_URL = "http://localhost:$BackendPort"
+
+    $frontendProc = Start-Process -FilePath "npx" -ArgumentList @(
+        "vite", "--port", $FrontendPort, "--host"
+    ) -WorkingDirectory $FrontendDir -RedirectStandardOutput $frontendLogFile -RedirectStandardError "$LogDir\frontend-error.log" -PassThru -WindowStyle Hidden
 
     Start-Sleep 3
-    Write-Host "  [OK] Frontend  http://localhost:$FrontendPort" -ForegroundColor Green
+    Log "Frontend  http://localhost:$FrontendPort" Green
 
     Start-Sleep 2
     Start-Process "http://localhost:$FrontendPort"
@@ -219,29 +295,39 @@ if (!$SkipFrontend) {
 # Running banner
 Write-Host ""
 Write-Host "  RUNNING  |  Press Ctrl+C to stop" -ForegroundColor Green
-Write-Host "  Logs:  $LogDir\backend.log  /  frontend.log" -ForegroundColor DarkGray
+Write-Host "  Backend PID:  $($backendProc.Id)" -ForegroundColor DarkGray
+if ($frontendProc) { Write-Host "  Frontend PID: $($frontendProc.Id)" -ForegroundColor DarkGray }
+Write-Host "  Logs: $LogDir" -ForegroundColor DarkGray
 Write-Host ""
 
-# Monitor loop + clean shutdown
+# ── Monitor loop + clean shutdown ──
 try {
     while ($true) {
         Start-Sleep 10
-        if ($backendJob.State -eq "Failed") {
-            Write-Host "  [ERROR] Backend crashed. See logs\backend.log" -ForegroundColor Red
-            Receive-Job $backendJob
+        if ($backendProc.HasExited) {
+            Log "Backend crashed (exit: $($backendProc.ExitCode)). See logs\backend.log" Red
             break
         }
     }
 } finally {
     Write-Host ""
-    Write-Host "  Shutting down..." -ForegroundColor Yellow
-    if ($backendJob) { Stop-Job $backendJob -ErrorAction SilentlyContinue; Remove-Job $backendJob -ErrorAction SilentlyContinue }
-    if ($frontendJob) { Stop-Job $frontendJob -ErrorAction SilentlyContinue; Remove-Job $frontendJob -ErrorAction SilentlyContinue }
+    Log "Shutting down..." Yellow
+
+    # Kill backend
+    if ($backendProc -and !$backendProc.HasExited) {
+        try { $backendProc.Kill() } catch { }
+    }
+    # Kill frontend
+    if ($frontendProc -and !$frontendProc.HasExited) {
+        try { $frontendProc.Kill() } catch { }
+    }
+
     Kill-PortProcesses $BackendPort
     Kill-PortProcesses $FrontendPort
+
     # Clean up DuckDB lock files on shutdown
     @($DuckDbWal, $DuckDbTmp) | ForEach-Object {
         if (Test-Path $_) { Remove-Item $_ -Force -ErrorAction SilentlyContinue }
     }
-    Write-Host "  [OK] Stopped." -ForegroundColor Green
+    Log "Stopped." Green
 }
