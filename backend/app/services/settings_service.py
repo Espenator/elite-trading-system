@@ -258,14 +258,50 @@ DEFAULTS: Dict[str, Dict[str, Any]] = {
         "twoFactorEnabled": False,
         "sessionTimeoutMinutes": 30,
     },
+    "machine": {
+        # Identity
+        "machineId": "",  # ESPENMAIN | ProfitTrader | custom
+        "machineName": "",  # Friendly display name
+        "machineRole": "auto",  # "pc1" | "pc2" | "standalone" | "auto"
+        "isPrimaryNode": None,  # bool | None (auto-detect)
+        # Auto-detection
+        "autoDetectHostname": True,
+        "hostnameOverride": "",  # Force specific hostname match
+        # GPU
+        "gpuEnabled": True,
+        "gpuDeviceIndex": 0,
+        "gpuRole": "mixed",  # "inference" | "training" | "mixed"
+        "gpuVramHeadroom": 512,  # MB reserved as buffer
+    },
+    "deployment": {
+        # Mode
+        "deploymentMode": "auto",  # "single_pc" | "dual_pc" | "auto"
+        "distributedModeEnabled": False,  # Explicit toggle
+        # Peer Configuration
+        "peerMachineHost": "",  # IP or hostname of peer (e.g., "192.168.1.116")
+        "peerMachineRole": "",  # "pc1" | "pc2" | ""
+        "peerRequiredForStartup": False,
+        "peerRequiredForExecution": False,
+        # Fallback
+        "allowSinglePcFallback": True,
+        "fallbackModeActive": False,  # Runtime state (read-only)
+        "peerOnline": False,  # Runtime state (read-only)
+        # Service Affinity
+        "serviceAffinityMode": "auto",  # "auto" | "manual"
+        "runTrainingServices": "auto",  # "yes" | "no" | "auto"
+        "runInferenceServices": "auto",
+        "runExecutionServices": "auto",
+        "runIntelligenceServices": "auto",
+    },
     "device": {
-        "deviceName": "",
-        "deviceRole": "full",
+        # DEPRECATED - use machine.* and deployment.* instead
+        "deviceName": "",  # deprecated - use machine.machineName
+        "deviceRole": "full",  # deprecated - use machine.machineRole
         "backendPort": 8000,
-        "brainHost": "localhost",
+        "brainHost": "localhost",  # deprecated - use deployment.peerMachineHost
         "brainPort": 50051,
-        "peerDevices": [],
-        "tradingMode": "live",
+        "peerDevices": [],  # deprecated
+        "tradingMode": "live",  # deprecated - use trading.tradingMode
     },
     "appearance": {
         "theme": "dark",
