@@ -269,6 +269,16 @@ async def _start_event_driven_pipeline():
     asyncio.create_task(_node_discovery.start())  # Fire and forget
     log.info("NodeDiscovery started (PC2: %s)", settings.CLUSTER_PC2_HOST or "disabled")
 
+    # 0c. Register core services on the local node in NodeRegistry
+    try:
+        from app.services.node_registry import get_node_registry
+        _node_reg = get_node_registry()
+        for _svc in ("message_bus", "signal_engine", "council_gate", "order_executor"):
+            _node_reg.register_service(settings.NODE_ID, _svc)
+        log.info("\u2705 NodeRegistry: core services registered on node %r", settings.NODE_ID)
+    except Exception:
+        log.debug("NodeRegistry service registration skipped")
+
     # 0b. OllamaNodePool health checks
     from app.services.ollama_node_pool import get_ollama_pool
     _ollama_pool = get_ollama_pool()

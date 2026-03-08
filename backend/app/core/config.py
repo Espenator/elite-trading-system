@@ -217,6 +217,7 @@ class Settings(BaseSettings):
     OLLAMA_LARGE_MODEL: str = "llama3:70b-q4_K_M"   # PC-2: complex, ~40GB VRAM
 
     # ── Cluster / Multi-PC ────────────────────────────────
+    NODE_ID: str = "pc1"  # Unique name for this node (pc1, pc2, or any label)
     CLUSTER_PC2_HOST: str = ""  # Empty = single-PC mode
     CLUSTER_HEALTH_INTERVAL: int = 60  # Seconds between health checks
 

@@ -18,7 +18,12 @@ E1.6 additions:
     - mDNS-style network scan for auto-discovering Ollama instances
     - Collect PC2 telemetry via HTTP (when PC2 runs a telemetry daemon)
 
-Part of #39 — E0.5 + E1.6
+E1 node-registry integration:
+    - Register local node in NodeRegistry on startup
+    - Register remote PC2 node with capabilities on discovery
+    - Update NodeHealth in registry after each health check
+
+Part of #39 — E0.5 + E1.6 + E1
 """
 import asyncio
 import logging
@@ -36,6 +41,7 @@ class NodeDiscovery:
         self._health_interval: int = 60
         self._running: bool = False
         self._task: Optional[asyncio.Task] = None
+        self._node_id: str = "pc1"
 
         # Discovery state
         self._pc2_ollama_available: bool = False
@@ -50,10 +56,12 @@ class NodeDiscovery:
         """Load cluster config from settings."""
         try:
             from app.core.config import settings
+            self._node_id = (getattr(settings, "NODE_ID", "") or "pc1").strip()
             self._pc2_host = (settings.CLUSTER_PC2_HOST or "").strip()
             self._health_interval = settings.CLUSTER_HEALTH_INTERVAL
         except Exception:
             import os
+            self._node_id = os.getenv("NODE_ID", "pc1").strip()
             self._pc2_host = os.getenv("CLUSTER_PC2_HOST", "").strip()
             self._health_interval = int(os.getenv("CLUSTER_HEALTH_INTERVAL", "60"))
 
@@ -62,8 +70,62 @@ class NodeDiscovery:
         """True if PC2 host is configured."""
         return bool(self._pc2_host)
 
+    # -- NodeRegistry helpers ------------------------------------------------
+
+    def _register_local_node(self) -> None:
+        """Register the local node in the NodeRegistry."""
+        try:
+            from app.services.node_registry import (
+                NodeCapabilities, NodeRole, NodeStatus, get_node_registry,
+            )
+            from app.services.gpu_telemetry import _read_local_gpu
+
+            node_id = self._node_id
+            caps = NodeCapabilities()
+
+            # Populate GPU devices from local hardware
+            gpu = _read_local_gpu()
+            if gpu is not None:
+                from app.services.node_registry import GPUDevice
+                caps.gpu_devices = [
+                    GPUDevice(
+                        index=gpu.device_index,
+                        name=gpu.name,
+                        vram_total_mb=gpu.vram_total_mb,
+                        vram_free_mb=gpu.vram_free_mb,
+                        utilization_pct=gpu.gpu_utilization_pct,
+                        temperature_c=gpu.temperature_c,
+                    )
+                ]
+
+            # Ollama availability — check whether a local URL is configured
+            try:
+                from app.core.config import settings as _s
+                caps.has_ollama = bool(getattr(_s, "OLLAMA_BASE_URL", ""))
+                caps.ollama_models = []
+            except Exception:
+                pass
+
+            import os
+            caps.cpu_count = os.cpu_count() or 0
+
+            registry = get_node_registry()
+            node = registry.register_node(
+                node_id=node_id,
+                role=NodeRole.LOCAL,
+                address="",
+                capabilities=caps,
+            )
+            registry.update_health(node_id, NodeStatus.ONLINE)
+            logger.info("NodeRegistry: local node %r registered", node_id)
+        except Exception as e:
+            logger.debug("NodeDiscovery: failed to register local node: %s", e)
+
     async def start(self) -> None:
         """Start discovery (non-blocking background task)."""
+        # Always register the local node regardless of cluster mode
+        self._register_local_node()
+
         if not self.is_cluster_mode:
             logger.info("NodeDiscovery: single-PC mode (CLUSTER_PC2_HOST not set)")
             return
@@ -189,6 +251,9 @@ class NodeDiscovery:
         await self._register_with_dispatcher()
         await self._collect_pc2_telemetry()
 
+        # 4. Update NodeRegistry with discovered PC2 state (E1)
+        self._update_node_registry()
+
     # -- Telemetry integration (E1.6) -----------------------------------------
 
     async def handle_telemetry_event(self, data: Dict[str, Any]) -> None:
@@ -271,6 +336,42 @@ class NodeDiscovery:
             registry.update_node_url(NodeRole.PC2, ollama_url)
         except Exception as e:
             logger.debug("Failed to update model pinning registry: %s", e)
+
+    def _update_node_registry(self) -> None:
+        """Update NodeRegistry with the current PC2 discovery state."""
+        try:
+            from app.services.node_registry import (
+                NodeCapabilities,
+                NodeRole,
+                NodeStatus,
+                get_node_registry,
+            )
+
+            registry = get_node_registry()
+            pc2_node_id = "pc2"
+
+            caps = NodeCapabilities(
+                has_ollama=self._pc2_ollama_available,
+                ollama_models=list(self._pc2_ollama_models),
+                has_brain_service=self._pc2_brain_available,
+            )
+
+            # Register or update the PC2 node record
+            registry.register_node(
+                node_id=pc2_node_id,
+                role=NodeRole.REMOTE,
+                address=self._pc2_host,
+                capabilities=caps,
+            )
+
+            # Mark health based on at least one service responding
+            if self._pc2_ollama_available or self._pc2_brain_available:
+                registry.update_health(pc2_node_id, NodeStatus.ONLINE)
+            else:
+                registry.update_health(pc2_node_id, NodeStatus.OFFLINE)
+
+        except Exception as e:
+            logger.debug("NodeDiscovery: failed to update NodeRegistry: %s", e)
 
     def get_cluster_status(self) -> Dict[str, Any]:
         """Return cluster health for /api/v1/cluster/status."""
