@@ -63,6 +63,7 @@ class Settings(BaseSettings):
     ALPACA_SECRET_KEY: str = ""
     ALPACA_BASE_URL: str = "https://api.alpaca.markets"
     ALPACA_DATA_URL: str = "https://data.alpaca.markets"
+    ALPACA_FEED: str = "iex"  # sip (real-time) | iex (free delayed)
 
     @property
     def APCA_API_KEY_ID(self) -> str:
@@ -114,10 +115,20 @@ class Settings(BaseSettings):
 
     # ── Discord ─────────────────────────────────────────────
     DISCORD_BOT_TOKEN: str = ""
+    DISCORD_USER_TOKEN: str = ""  # Self-bot token for channel reading
     DISCORD_CHANNEL_IDS: str = ""
     DISCORD_API_BASE: str = "https://discord.com/api/v10"
+    DISCORD_UW_CHANNEL_ID: str = ""  # Unusual Whales channel
+    DISCORD_UW_LIVE_CHANNEL_ID: str = ""  # UW Live channel
+    DISCORD_FOM_CHANNEL_ID: str = ""  # FOM channel
+    DISCORD_FOM_ZONES_CHANNEL_ID: str = ""  # FOM Zones channel
+    DISCORD_FOM_IVOL_CHANNEL_ID: str = ""  # FOM IVOL channel
+    DISCORD_EXPECTED_MOVES_CHANNEL_ID: str = ""  # Expected Moves channel
+    DISCORD_MAVERICK_CHANNEL_ID: str = ""  # Maverick channel
 
     # ── X / Twitter ─────────────────────────────────────────
+    X_API_KEY: str = ""  # Consumer key
+    X_API_KEY_SECRET: str = ""  # Consumer secret
     X_OAUTH: str = ""
     X_OAUTH2_CLIENT_ID: str = ""
     X_OAUTH2_CLIENT_SECRET: str = ""
@@ -126,6 +137,18 @@ class Settings(BaseSettings):
     # ── Reddit ──────────────────────────────────────────────
     REDDIT_CLIENT_ID: str = ""
     REDDIT_CLIENT_SECRET: str = ""
+
+    # ── Slack ───────────────────────────────────────────────
+    SLACK_BOT_TOKEN: str = ""
+    SLACK_APP_TOKEN: str = ""
+    SLACK_SIGNING_SECRET: str = ""
+    SLACK_WEBHOOK_URL: str = ""
+    OC_TRADE_DESK_CHANNEL: str = ""
+    OC_SIGNALS_RAW_CHANNEL: str = ""
+    SLACK_WEBHOOK_UW: str = ""
+    SLACK_WEBHOOK_FOM: str = ""
+    SLACK_WEBHOOK_MAV: str = ""
+    SLACK_WEBHOOK_CHANNEL: str = ""
 
     # ── Benzinga ───────────────────────────────────────────
     BENZINGA_API_KEY: str = ""
@@ -164,6 +187,9 @@ class Settings(BaseSettings):
 
     # ── OpenClaw (Multi-Agent) ──────────────────────────────
     OPENCLAW_ENABLED: bool = True
+    OPENCLAW_BRIDGE_TOKEN: str = ""  # Auth token for OpenClaw bridge
+    GIST_TOKEN: str = ""  # GitHub Gist token for AI bridge
+    BRIDGE_GIST_ID: str = ""  # Gist ID for bridge sync
     OLLAMA_BASE_URL: str = "http://localhost:11434"
 
     # ── Brain Service (PC2) ───────────────────────────────
@@ -176,8 +202,12 @@ class Settings(BaseSettings):
     PERPLEXITY_API_KEY: str = ""
     PERPLEXITY_BASE_URL: str = "https://api.perplexity.ai"
     PERPLEXITY_MODEL: str = "sonar-pro"
+    PERPLEXITY_ENABLED: bool = True
     ANTHROPIC_API_KEY: str = ""
     ANTHROPIC_MODEL: str = "claude-sonnet-4-20250514"
+    LOCAL_LLM_MODEL: str = "qwen3:14b"
+    LLM_ENABLED: bool = True
+    LLM_PREFER_LOCAL: bool = True
     LLM_ROUTER_ENABLED: bool = True
     LLM_COST_TRACKING: bool = True
 
@@ -194,6 +224,7 @@ class Settings(BaseSettings):
     # Set to enable real-time pub/sub between PC1 and PC2.
     # Leave empty for local-only MessageBus (single-PC mode).
     REDIS_URL: str = ""  # e.g., redis://192.168.1.105:6379/0
+    SCANNER_OLLAMA_URLS: str = "http://localhost:11434,http://192.168.1.116:11434"
 
     # ── GPU Telemetry ─────────────────────────────────────
     GPU_TELEMETRY_ENABLED: bool = True
@@ -249,10 +280,49 @@ class Settings(BaseSettings):
 
     # ── Risk Guardrails (additional) ───────────────────────
     MAX_SINGLE_POSITION: float = 0.02
+    MAX_DAILY_LOSS_PCT: float = 2.0
+    DEFAULT_RISK_PCT: float = 1.5
+    CIRCUIT_BREAKER_THRESHOLD: float = -0.03
+    ATR_STOP_MULTIPLIER: float = 2.0
+    MAX_DAILY_DRAWDOWN_PCT: float = 5.0
+    AUTO_PAUSE_TRADING: bool = True
+    TRAILING_STOP_PCT: float = 0.03
+    MAX_POSITION_PCT: float = 0.10
+    SIGNAL_BUY_THRESHOLD: float = 0.60
+    SIGNAL_STRONG_BUY_THRESHOLD: float = 0.75
+    SIGNAL_MIN_EDGE: float = 0.05
+    SIGNAL_MIN_VOLUME_SCORE: float = 0.5
+    AUTO_EXECUTE_TRADES: bool = False
+    AUTO_EXECUTE_ENABLED: bool = True
+    MAX_DAILY_TRADES: int = 10
+
+    # ── StockGeist Aliases (OpenClaw compat) ───────────────
+    STOCKGEIST_TOKEN: str = ""  # alias for STOCKGEIST_API_KEY
+    STOCKGEIST_AUTH: str = ""  # alternate auth header
+
+    # ── Streaming / Signals ────────────────────────────────
+    STREAMING_ENABLED: bool = True
+    STREAMING_BAR_TIMEFRAME: str = "1Min"
+    SCORE_TRIGGER_THRESHOLD: int = 75
+
+    # ── Encryption ─────────────────────────────────────────
+    FERNET_KEY: str = ""  # Fernet symmetric key for encrypting stored secrets
+
+    # ── API Auth Token ──────────────────────────────────────
+    # (moved up for clarity but kept here as well for reference)
+
+    # ── TradingView ────────────────────────────────────────
+    TRADINGVIEW_WEBHOOK_SECRET: str = ""
+    TRADINGVIEW_WEBHOOK_URL: str = ""
+
+    # ── WebSocket ──────────────────────────────────────────
+    WS_HEARTBEAT_INTERVAL: int = 30
+    WS_MAX_CONNECTIONS: int = 100
 
     # ── ML Engine ───────────────────────────────────────────
     ML_MODEL_DIR: str = "data/models"
     ML_RETRAIN_INTERVAL_HOURS: int = 168
+    ML_ENSEMBLE_ENABLED: bool = True
 
 
 settings = Settings()
@@ -262,6 +332,16 @@ if settings.UNUSUALWHALES_API_KEY and not settings.UNUSUAL_WHALES_API_KEY:
     settings.UNUSUAL_WHALES_API_KEY = settings.UNUSUALWHALES_API_KEY
 elif settings.UNUSUAL_WHALES_API_KEY and not settings.UNUSUALWHALES_API_KEY:
     settings.UNUSUALWHALES_API_KEY = settings.UNUSUAL_WHALES_API_KEY
+
+# Unify StockGeist aliases (STOCKGEIST_API_KEY <-> STOCKGEIST_TOKEN <-> STOCKGEIST_AUTH)
+_sg = settings.STOCKGEIST_API_KEY or settings.STOCKGEIST_TOKEN or settings.STOCKGEIST_AUTH
+if _sg:
+    if not settings.STOCKGEIST_API_KEY:
+        settings.STOCKGEIST_API_KEY = _sg
+    if not settings.STOCKGEIST_TOKEN:
+        settings.STOCKGEIST_TOKEN = _sg
+    if not settings.STOCKGEIST_AUTH:
+        settings.STOCKGEIST_AUTH = _sg
 
 # Production safety: validate critical keys when in live trading mode
 if settings.TRADING_MODE.lower() == "live":
