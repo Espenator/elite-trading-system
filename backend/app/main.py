@@ -75,7 +75,7 @@ from app.api.v1 import (
     cluster,
     llm_health,
 )
-from app.api import ingestion
+from app.api import ingestion, adapters
 
 # Configure structured logging (JSON in production, human-readable in dev)
 from app.core.logging_config import setup_logging, correlation_id, generate_correlation_id
@@ -1089,6 +1089,7 @@ app.include_router(swarm.router, prefix="/api/v1/swarm", tags=["swarm"])
 app.include_router(cognitive.router, prefix="/api/v1/cognitive", tags=["cognitive"])
 app.include_router(youtube_knowledge.router, prefix="/api/v1/youtube-knowledge", tags=["youtube_knowledge"])
 app.include_router(ingestion.router, tags=["ingestion"])
+app.include_router(adapters.router, prefix="/api/v1/adapters", tags=["adapters"])
 app.include_router(cluster.router, prefix="/api/v1/cluster", tags=["cluster"])
 app.include_router(llm_health.router, prefix="/api/v1/llm/health", tags=["llm_health"])
 
