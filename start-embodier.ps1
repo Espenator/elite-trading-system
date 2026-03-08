@@ -229,6 +229,8 @@ Log "Backend PID: $($backendProc.Id)" DarkGray
 
 # Wait for backend liveness (90s timeout) — use /healthz (fast, no deps)
 # NOT /health which queries DuckDB + ML registry and blocks during initial data ingest
+# NOTE: Do NOT use $backendProc.HasExited -- on Windows, Start-Process may return
+# an intermediate PID that exits while the real uvicorn worker (child) keeps running.
 Log "Waiting for backend..." Cyan
 $healthy = $false
 for ($i = 0; $i -lt 90; $i++) {
@@ -237,12 +239,6 @@ for ($i = 0; $i -lt 90; $i++) {
         $response = Invoke-WebRequest "http://localhost:$BackendPort/healthz" -TimeoutSec 2 -ErrorAction SilentlyContinue
         if ($response.StatusCode -eq 200) { $healthy = $true; break }
     } catch { }
-    # Detect early crash
-    if ($backendProc.HasExited) {
-        Write-Host ""
-        Log "Backend process exited unexpectedly (exit code: $($backendProc.ExitCode))" Red
-        break
-    }
     Write-Host "." -NoNewline
 }
 Write-Host ""
@@ -309,25 +305,30 @@ Write-Host "  Logs: $LogDir" -ForegroundColor DarkGray
 Write-Host ""
 
 # Monitor loop + clean shutdown
+# Use HTTP liveness check instead of HasExited -- the Start-Process PID may be an
+# intermediate parent that exits while the real uvicorn worker keeps running on port 8000.
+$consecutiveFails = 0
 try {
     while ($true) {
         Start-Sleep 10
-        if ($backendProc.HasExited) {
-            Log "Backend crashed (exit: $($backendProc.ExitCode)). See logs\backend.log" Red
-            break
+        $alive = $false
+        try {
+            $r = Invoke-WebRequest "http://localhost:$BackendPort/healthz" -TimeoutSec 3 -ErrorAction SilentlyContinue
+            if ($r.StatusCode -eq 200) { $alive = $true; $consecutiveFails = 0 }
+        } catch { }
+        if (-not $alive) {
+            $consecutiveFails++
+            if ($consecutiveFails -ge 3) {
+                Log "Backend unresponsive (3 consecutive failures). See logs\backend.log" Red
+                break
+            }
         }
     }
 } finally {
     Write-Host ""
     Log "Shutting down..." Yellow
 
-    if ($backendProc -and (-not $backendProc.HasExited)) {
-        try { $backendProc.Kill() } catch { }
-    }
-    if ($frontendProc -and (-not $frontendProc.HasExited)) {
-        try { $frontendProc.Kill() } catch { }
-    }
-
+    # Kill by port -- reliable regardless of PID tracking
     Kill-PortProcesses $BackendPort
     Kill-PortProcesses $FrontendPort
 
