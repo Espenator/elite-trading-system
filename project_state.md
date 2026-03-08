@@ -15,7 +15,7 @@
 ## LATEST CHANGES (March 7, 2026) — v3.5.0-dev
 
 ### Architecture Pivot: Continuous Discovery (Issue #38)
-Full codebase audit revealed the system is 73% analyst, 27% scout. The 17-agent council brain is starved of ideas. HyperSwarm processes 40 signals/sec but is fed bursts every 60s. All discovery is polling-based (60-900s intervals). No streaming discovery exists.
+Full codebase audit revealed the system is 73% analyst, 27% scout. The 32-agent council brain is starved of ideas. HyperSwarm processes 40 signals/sec but is fed bursts every 60s. All discovery is polling-based (60-900s intervals). No streaming discovery exists.
 
 **Decision**: Invert the ratio. Build continuous discovery firehose. First: compute infrastructure (Issue #39), then: discovery enhancements (Issue #38).
 
@@ -26,7 +26,7 @@ Full codebase audit revealed the system is 73% analyst, 27% scout. The 17-agent 
 1. **E1**: Streaming Discovery Engine (Alpaca `*` trade stream + news stream)
 2. **E2**: 12 Dedicated Scout Agents (always-running, all data sources active)
 3. **E3**: HyperSwarm Continuous Triage (priority queue, adaptive threshold)
-4. **E4**: Multi-Tier Council (Fast 5-agent <200ms + Deep 17-agent <2s)
+4. **E4**: Multi-Tier Council (Fast 5-agent <200ms + Deep 32-agent <2s)
 5. **E5**: Dynamic Universe (500-2000 symbols, self-healing)
 6. **E6**: Dual-Mode Agents (every analyst gets background scout mode)
 7. **E7**: Feedback-Driven Signal Amplification (scouts learn from outcomes)
@@ -40,24 +40,24 @@ Every frontend page matches its mockup. ACC rebuilt into 5 files with 8 tabs. 20
 ## Previous: v3.2.0 (March 5, 2026)
 
 ### Council-Controlled Intelligence (10 commits, CI Run #452 GREEN)
-The entire trade pipeline is now council-controlled. No signal reaches the order executor without passing through the 17-agent council (7 perception + 5 technical + 5 decision stages).
+The entire trade pipeline is now council-controlled. No signal reaches the order executor without passing through the 32-agent council (7 perception + 5 technical + 5 decision stages).
 
 **New Pipeline:**
 ```
-AlpacaStream → SignalEngine → CouncilGate (score >= 65) → 17-Agent Council → OrderExecutor → Alpaca
+AlpacaStream → SignalEngine → CouncilGate (score >= 65) → 32-Agent Council → OrderExecutor → Alpaca
 ```
 
 **New Files Created:**
-1. `council/council_gate.py` — CouncilGate class: bridges SignalEngine → Council → OrderExecutor. Intercepts all signals with score >= 65 and invokes the full 17-agent council before any trade.
+1. `council/council_gate.py` — CouncilGate class: bridges SignalEngine → Council → OrderExecutor. Intercepts all signals with score >= 65 and invokes the full 32-agent council before any trade.
 2. `council/weight_learner.py` — WeightLearner class: Bayesian self-learning agent weights. Updates alpha/beta from trade outcomes. Agents that vote correctly get higher weight over time.
 3. `services/trade_stats_service.py` — TradeStatsService class: Queries real win_rate, avg_win, avg_loss from DuckDB trade history. Replaces all hardcoded Kelly parameters.
 
 **Files Updated:**
-4. `council/schemas.py` — Docstring corrected: 8-agent → 17-agent
-5. `api/v1/council.py` — 17 agents, 7 stages, added /weights endpoint + council_status endpoint
+4. `council/schemas.py` — Docstring corrected: 8-agent → 32-agent
+5. `api/v1/council.py` — 32 agents, 7 stages, added /weights endpoint + council_status endpoint
 6. `services/order_executor.py` — Now listens to `council.verdict` instead of raw `signal.generated`. Uses real DuckDB stats for Kelly sizing. Uses real ATR from features. Mock-source guard prevents trading on fake data.
 7. `main.py` — CouncilGate wired into pipeline startup. Version 3.2.0. Title "Embodier Trader".
-8. `features/feature_aggregator.py` — Expanded with intermarket, cycle, and extended indicator features (EMA-5/10/20, VIX, SPY correlation, sector breadth, cycle phases) for all 17 agents.
+8. `features/feature_aggregator.py` — Expanded with intermarket, cycle, and extended indicator features (EMA-5/10/20, VIX, SPY correlation, sector breadth, cycle phases) for all 32 agents.
 9. `council/arbiter.py` — Uses Bayesian learned weights from WeightLearner instead of static weights.
 10. `tests/test_api.py` — Updated assertions for version 3.2.0, Embodier Trader title.
 
@@ -67,7 +67,7 @@ AlpacaStream → SignalEngine → CouncilGate (score >= 65) → 17-Agent Council
 - [x] **P8**: Build agent self-awareness — Bayesian WeightLearner with alpha/beta tracking
 - [x] Fix stale docstrings — schemas.py, council.py API, arbiter.py all updated
 - [x] Remove hardcoded/mock data — OrderExecutor uses real DuckDB stats, real ATR, mock-source guard
-- [x] Council controls all trading — No signal bypasses the 17-agent council
+- [x] Council controls all trading — No signal bypasses the 32-agent council
 
 ## CRITICAL ARCHITECTURE AUDIT (March 4, 2026)
 
@@ -81,9 +81,9 @@ The codebase had five separate agent/decision systems. As of v3.2.0, Systems 2 a
 - **Problem**: These are NOT real agents. No daemon lifecycle, no health monitoring, no inter-agent communication.
 - **Status**: UNRESOLVED — needs P6
 
-#### System 2: Council (17-agent DAG) ← NOW CONNECTED TO SYSTEM 4
+#### System 2: Council (32-agent DAG) ← NOW CONNECTED TO SYSTEM 4
 - **Location**: `backend/app/council/` (runner.py, arbiter.py, schemas.py, council_gate.py, weight_learner.py, agents/)
-- **What it is**: 17 council agents in a 7-stage DAG with deterministic arbiter + Bayesian weight learning
+- **What it is**: 32 council agents in a 7-stage DAG with deterministic arbiter + Bayesian weight learning
 - **Agents**: market_perception, flow_perception, regime, intermarket, rsi, bbv, ema_trend, relative_strength, cycle_timing, hypothesis, strategy, risk, execution, critic (+ arbiter)
 - **How it works**: CouncilGate subscribes to signal.generated, auto-invokes run_council(), publishes council.verdict
 - **Status**: CONNECTED to event pipeline via CouncilGate (v3.2.0)
@@ -128,7 +128,7 @@ The codebase had five separate agent/decision systems. As of v3.2.0, Systems 2 a
 - [ ] **P3**: Build CircuitBreaker Reflexes (brainstem <50ms) — flash crash, VIX spike, drawdown limits
 - [ ] **P4**: Clean Up OpenClaw — extract useful logic, delete dead Flask app
 - [ ] **P5**: Build TaskSpawner — dynamic agent registry replacing hardcoded imports
-- [ ] **P6**: Unify Agent Command Center — show real 17-agent council state
+- [ ] **P6**: Unify Agent Command Center — show real 32-agent council state
 - [ ] **P7**: Wire brain_service gRPC — connect Ollama to hypothesis_agent and critic_agent
 
 ### BLOCKERS
@@ -143,7 +143,7 @@ The codebase had five separate agent/decision systems. As of v3.2.0, Systems 2 a
 | Frontend | React 18 (Vite), Tailwind CSS, Lightweight Charts |
 | Database | DuckDB (WAL mode, connection pooling) |
 | ML | XGBoost, scikit-learn, LSTM (no PyTorch in prod) |
-| Council | 17-agent DAG with Bayesian-weighted arbiter (7 stages) |
+| Council | 32-agent DAG with Bayesian-weighted arbiter (7 stages) |
 | Brain Service | gRPC + Ollama (PC2) for LLM inference |
 | Event Pipeline | MessageBus → CouncilGate → Council → OrderExecutor |
 | CI/CD | GitHub Actions (151 tests passing) |
@@ -186,7 +186,7 @@ Agent Schema: `AgentVote(agent_name, direction, confidence, reasoning, veto, vet
 
 ## CNS Architecture (Central Nervous System)
 - **Brainstem** (<50ms): CircuitBreaker reflexes [TO BUILD - P3]
-- **Spinal Cord** (~1500ms): 17-agent council DAG [BUILT]
+- **Spinal Cord** (~1500ms): 32-agent council DAG [BUILT]
 - **Cortex** (300-800ms): hypothesis + critic via brain_service gRPC [NOT WIRED - P7]
 - **Thalamus**: BlackboardState shared memory [TO BUILD - P1]
 - **Autonomic**: Bayesian WeightLearner [BUILT - P8] — learns from trade outcomes

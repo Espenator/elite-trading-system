@@ -6,7 +6,7 @@
 ## Tech Stack
 - **Backend**: Python 3.11, FastAPI, DuckDB
 - **Frontend**: React 18 (Vite), Lightweight Charts, Tailwind CSS
-- **Council**: 17-agent DAG with Bayesian-weighted arbiter (7 stages)
+- **Council**: 32-agent DAG with Bayesian-weighted arbiter (7 stages)
 - **Discovery**: TurboScanner + HyperSwarm + 12 Scout Agents (Issue #38 — streaming transition)
 - **Knowledge**: MemoryBank + HeuristicEngine + KnowledgeGraph (outcome-driven learning)
 - **Data Sources**: Alpaca Markets, Unusual Whales, FinViz, FRED, SEC EDGAR (NO yfinance)
@@ -311,7 +311,7 @@ elite-trading-system/
 1. **No yfinance** - All market data via Alpaca, Unusual Whales, FinViz, FRED, SEC EDGAR
 2. **Real API only** - No mock data in production components
 3. **useApi hook** - Central data fetching: `useApi('endpoint')` returns `{ data, loading, error }`
-4. **Council-controlled trading** - All signals pass through 17-agent council via CouncilGate before execution
+4. **Council-controlled trading** - All signals pass through 32-agent council via CouncilGate before execution
 5. **Bayesian weight learning** - WeightLearner adjusts agent influence based on trade outcomes
 6. **DuckDB** - Primary analytics database (WAL mode, connection pooling)
 7. **OpenClaw** - Legacy code with useful scanner/agent pieces, scheduled for cleanup (P4)
