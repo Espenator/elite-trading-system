@@ -251,13 +251,12 @@ export default function PerformanceAnalytics() {
       {/* ─── HEADER ────────────────────────────────────────────── */}
       <div className="px-4 py-3 flex items-center justify-between border-b border-gray-800/50 shrink-0">
         <h1 className="text-xl font-bold text-white tracking-tight">Performance Analytics</h1>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-[#111827] border border-emerald-500/30 rounded-full px-3 py-1.5">
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-xs font-bold text-white shadow-lg shadow-emerald-500/20">
-              {kpi.grade}
-            </div>
-            <span className="text-xs text-emerald-400 font-semibold">Trading Grade</span>
+        {/* Trading Grade Badge - Large Top-Right Per Mockup */}
+        <div className="flex items-center gap-2 bg-[#111827] border border-emerald-500/30 rounded-lg px-4 py-2">
+          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-xl font-bold text-white shadow-lg shadow-emerald-500/30">
+            {kpi.grade}
           </div>
+          <span className="text-sm text-emerald-400 font-semibold">Trading Grade</span>
         </div>
       </div>
 
@@ -285,95 +284,213 @@ export default function PerformanceAnalytics() {
       </div>
 
       {/* ─── CONTENT GRID ──────────────────────────────────────── */}
-      <div className="flex-1 p-3 space-y-3 min-h-0 overflow-auto">
+      <div className="flex-1 p-3 min-h-0 overflow-auto">
 
-        {/* ══ ROW 1 ═══════════════════════════════════════════════
-            4 panels: Risk Cockpit | Equity + Drawdown | AI + Rolling Risk | Attribution + Agent ELO
+        {/* ══ MAIN 3-COLUMN LAYOUT ═══════════════════════════════════
+            Left (col-span-3): Risk Cockpit, Kelly Criterion, Agent Attribution Leaderboard, Risk/Reward + Expectancy
+            Center (col-span-5): Equity + Drawdown, Enhanced Trades Table
+            Right (col-span-4): AI + Rolling Risk, Attribution + Agent ELO
         */}
-        <div className="grid grid-cols-12 gap-3" style={{ minHeight: 300 }}>
+        <div className="grid grid-cols-12 gap-3 mb-3">
 
-          {/* ── 1. Risk Cockpit ────────────────────────────────── */}
-          <Panel title="Risk Cockpit" icon={Shield} className="col-span-3">
-            <div className="flex flex-col gap-2 h-full">
-              {/* Grade + Label */}
-              <div className="flex flex-col items-center gap-1">
-                <div className="text-[9px] text-gray-500 italic">Trading Grade Rnkr</div>
-                <TradingGradeHero grade={kpi.grade} score={kpi.score ?? 87} size={100} />
+          {/* ══ LEFT COLUMN ═══════════════════════════════════════ */}
+          <div className="col-span-3 flex flex-col gap-3">
+
+            {/* ── 1. Risk Cockpit (Grade + Sharpe/Sortino/Calmar ONLY) ── */}
+            <Panel title="Risk Cockpit" icon={Shield} className="h-auto">
+              <div className="flex flex-col gap-2">
+                {/* Grade + Label */}
+                <div className="flex flex-col items-center gap-1">
+                  <div className="text-[9px] text-gray-500 italic">Trading Grade Rnkr</div>
+                  <TradingGradeHero grade={kpi.grade} score={kpi.score ?? 87} size={100} />
+                </div>
+                {/* Sharpe / Sortino / Calmar */}
+                <div className="grid grid-cols-3 gap-2 w-full">
+                  <div className="text-center">
+                    <div className="text-[10px] text-gray-500 mb-0.5">Sharpe</div>
+                    <div className="text-sm font-bold text-cyan-400">{kpi.sharpe}</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-[10px] text-gray-500 mb-0.5">Sortino</div>
+                    <div className="text-sm font-bold text-cyan-400">{kpi.sortino}</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-[10px] text-gray-500 mb-0.5">Calmar</div>
+                    <div className="text-sm font-bold text-cyan-400">{kpi.calmar}</div>
+                  </div>
+                </div>
               </div>
-              {/* Sharpe / Sortino / Calmar */}
-              <div className="grid grid-cols-3 gap-2 w-full">
-                <div className="text-center">
-                  <div className="text-[10px] text-gray-500 mb-0.5">Sharpe</div>
-                  <div className="text-sm font-bold text-cyan-400">{kpi.sharpe}</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-[10px] text-gray-500 mb-0.5">Sortino</div>
-                  <div className="text-sm font-bold text-cyan-400">{kpi.sortino}</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-[10px] text-gray-500 mb-0.5">Calmar</div>
-                  <div className="text-sm font-bold text-cyan-400">{kpi.calmar}</div>
-                </div>
-              </div>
-              {/* Kelly Criterion */}
-              <div className="w-full">
+            </Panel>
+
+            {/* ── 2. Kelly Criterion (Separate Panel) ────────────── */}
+            <Panel title="Kelly Criterion" icon={Target} className="h-auto">
+              <div className="space-y-2">
                 <ProgressBar
-                  label="Kelly Criterion"
-                  value={kpi.kellyPct}
+                  label="Optimal Position Size"
+                  value={kpi.kellyPct ?? 0}
                   color="bg-emerald-500"
                 />
+                <div className="flex items-center justify-between text-[10px]">
+                  <span className="text-gray-400">Kelly %</span>
+                  <span className="text-emerald-400 font-semibold">{kpi.kellyPct ?? 0}%</span>
+                </div>
               </div>
-              {/* Risk/Reward + Expectancy mini bar chart */}
-              <div className="w-full flex-1 min-h-0">
-                <div className="text-[10px] text-gray-500 mb-1">Risk/Reward + Expectancy</div>
-                <div className="h-[70px]">
+            </Panel>
+
+            {/* ── 3. Agent Attribution Leaderboard ───────────────── */}
+            <Panel title="Agent Attribution Leaderboard" icon={Star} className="flex-1">
+              <div className="space-y-2">
+                {agents.map((a, idx) => (
+                  <div key={a.name}>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className={clsx(
+                          'inline-flex items-center justify-center w-4 h-4 rounded text-[8px] font-bold text-white',
+                          rankColors[idx] || 'bg-gray-600'
+                        )}>
+                          {idx + 1}
+                        </span>
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: a.color }} />
+                        <span className="text-[11px] text-gray-300">{a.name}</span>
+                      </div>
+                      <span className="text-[10px] text-gray-400">{a.elo} ELO</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-2 bg-gray-800/60 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{ width: `${(a.pnl / 30000) * 100}%`, backgroundColor: a.color }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-emerald-400 w-14 text-right">${(a.pnl / 1000).toFixed(1)}k</span>
+                    </div>
+                    <div className="flex gap-3 mt-0.5">
+                      <span className="text-[9px] text-gray-500">{a.trades} trades</span>
+                      <span className="text-[9px] text-gray-500">{a.winRate}% win</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+
+            {/* ── 4. Risk/Reward + Expectancy (Separate Panel) ────── */}
+            <Panel title="Risk/Reward + Expectancy" icon={Crosshair} className="h-auto" style={{ minHeight: 200 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={rrExpect} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(30,58,95,0.2)" />
+                  <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#6b7280' }} />
+                  <YAxis yAxisId="rr" tick={{ fontSize: 9, fill: '#6b7280' }} />
+                  <YAxis yAxisId="exp" orientation="right" tick={{ fontSize: 9, fill: '#6b7280' }} />
+                  <Tooltip {...chartTooltipStyle} />
+                  <Bar yAxisId="rr" dataKey="rr" fill="#00D9FF" radius={[3, 3, 0, 0]} opacity={0.7} name="R:R" />
+                  <Line yAxisId="exp" type="monotone" dataKey="expectancy" stroke="#10b981" strokeWidth={2} dot={{ r: 3, fill: '#10b981' }} name="Expectancy" />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </Panel>
+          </div>
+
+          {/* ══ CENTER COLUMN ═════════════════════════════════════ */}
+          <div className="col-span-5 flex flex-col gap-3">
+
+            {/* ── Equity + Drawdown (Large Primary Chart) ───────── */}
+            <Panel title="Equity + Drawdown" icon={TrendingUp} className="flex-1" style={{ minHeight: 300 }}>
+              <div className="flex flex-col h-full">
+                <div className="text-[9px] text-gray-500 italic mb-1">Trading Grade Rnkr</div>
+                <div className="flex-1 min-h-0">
                   <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={rrExpect} margin={{ top: 2, right: 5, left: -15, bottom: 0 }}>
+                    <ComposedChart data={equityData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="eqGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#10b981" stopOpacity={0.3} />
+                          <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
+                        </linearGradient>
+                        <linearGradient id="ddGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#ef4444" stopOpacity={0.05} />
+                          <stop offset="100%" stopColor="#ef4444" stopOpacity={0.25} />
+                        </linearGradient>
+                      </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(30,58,95,0.2)" />
-                      <XAxis dataKey="name" tick={{ fontSize: 8, fill: '#6b7280' }} />
-                      <YAxis tick={{ fontSize: 8, fill: '#6b7280' }} />
+                      <XAxis dataKey="date" tick={{ fontSize: 8, fill: '#6b7280' }} interval="preserveStartEnd" />
+                      <YAxis yAxisId="eq" tick={{ fontSize: 8, fill: '#6b7280' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+                      <YAxis yAxisId="dd" orientation="right" tick={{ fontSize: 8, fill: '#6b7280' }} tickFormatter={v => `${v}%`} />
                       <Tooltip {...chartTooltipStyle} />
-                      <Bar dataKey="rr" fill="#00D9FF" radius={[2, 2, 0, 0]} opacity={0.7} name="R:R" />
-                      <Line type="monotone" dataKey="expectancy" stroke="#10b981" strokeWidth={1.5} dot={false} name="Expectancy" yAxisId={0} />
+                      <Area yAxisId="eq" type="monotone" dataKey="equity" stroke="#10b981" strokeWidth={2} fill="url(#eqGrad)" />
+                      <Area yAxisId="dd" type="monotone" dataKey="drawdown" stroke="#ef4444" strokeWidth={1} fill="url(#ddGrad)" />
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
               </div>
-            </div>
-          </Panel>
+            </Panel>
 
-          {/* ── 2. Equity + Drawdown ──────────────────────────── */}
-          <Panel title="Equity + Drawdown" icon={TrendingUp} className="col-span-3">
-            <div className="flex flex-col h-full">
-              <div className="text-[9px] text-gray-500 italic mb-1">Trading Grade Rnkr</div>
-              <div className="flex-1 min-h-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={equityData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="eqGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#10b981" stopOpacity={0.3} />
-                        <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
-                      </linearGradient>
-                      <linearGradient id="ddGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#ef4444" stopOpacity={0.05} />
-                        <stop offset="100%" stopColor="#ef4444" stopOpacity={0.25} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(30,58,95,0.2)" />
-                    <XAxis dataKey="date" tick={{ fontSize: 8, fill: '#6b7280' }} interval="preserveStartEnd" />
-                    <YAxis yAxisId="eq" tick={{ fontSize: 8, fill: '#6b7280' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
-                    <YAxis yAxisId="dd" orientation="right" tick={{ fontSize: 8, fill: '#6b7280' }} tickFormatter={v => `${v}%`} />
-                    <Tooltip {...chartTooltipStyle} />
-                    <Area yAxisId="eq" type="monotone" dataKey="equity" stroke="#10b981" strokeWidth={2} fill="url(#eqGrad)" />
-                    <Area yAxisId="dd" type="monotone" dataKey="drawdown" stroke="#ef4444" strokeWidth={1} fill="url(#ddGrad)" />
-                  </ComposedChart>
-                </ResponsiveContainer>
+            {/* ── Enhanced Trades Table ─────────────────────────── */}
+            <Panel title="Enhanced Trades Table" icon={BarChart3} className="flex-1" style={{ minHeight: 240 }}>
+              <div className="overflow-auto h-full">
+                <table className="w-full text-[10px]">
+                  <thead>
+                    <tr className="border-b border-gray-800/50">
+                      {['date', 'symbol', 'side', 'entry', 'exit', 'pnl', 'rr', 'status'].map((col) => (
+                        <th
+                          key={col}
+                          onClick={() => handleSort(col)}
+                          className="text-left py-1 px-1.5 text-gray-500 uppercase cursor-pointer hover:text-cyan-400 transition-colors whitespace-nowrap"
+                        >
+                          {col}
+                          {tradeSort.key === col && (
+                            <ChevronDown
+                              size={10}
+                              className={clsx(
+                                'inline ml-0.5 transition-transform',
+                                tradeSort.dir === 'asc' && 'rotate-180'
+                              )}
+                            />
+                          )}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {trades.map((t) => (
+                      <tr key={t.id} className="border-b border-gray-800/20 hover:bg-gray-900/30 transition-colors">
+                        <td className="py-1 px-1.5 text-gray-400">{t.date}</td>
+                        <td className="py-1 px-1.5 text-cyan-400 font-medium">{t.symbol}</td>
+                        <td className="py-1 px-1.5">
+                          <span className={clsx(
+                            'px-1.5 py-0.5 rounded text-[9px] font-semibold',
+                            t.side === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'
+                          )}>
+                            {t.side}
+                          </span>
+                        </td>
+                        <td className="py-1 px-1.5 text-gray-300">${t.entry}</td>
+                        <td className="py-1 px-1.5 text-gray-300">${t.exit}</td>
+                        <td className={clsx(
+                          'py-1 px-1.5 font-semibold',
+                          t.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'
+                        )}>
+                          {t.pnl >= 0 ? '+' : ''}${t.pnl}
+                        </td>
+                        <td className="py-1 px-1.5 text-cyan-400">{t.rr}</td>
+                        <td className="py-1 px-1.5">
+                          <span className={clsx(
+                            'px-1.5 py-0.5 rounded text-[9px]',
+                            t.status === 'WIN' ? 'bg-emerald-900/30 text-emerald-400' : 'bg-red-900/30 text-red-400'
+                          )}>
+                            {t.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            </div>
-          </Panel>
+            </Panel>
+          </div>
 
-          {/* ── 3. AI + Rolling Risk ──────────────────────────── */}
-          <Panel title="AI + Rolling Risk" icon={Brain} className="col-span-3">
+          {/* ══ RIGHT COLUMN ══════════════════════════════════════ */}
+          <div className="col-span-4 flex flex-col gap-3">
+
+            {/* ── AI + Rolling Risk ──────────────────────────────── */}
+            <Panel title="AI + Rolling Risk" icon={Brain} className="flex-1" style={{ minHeight: 300 }}>
             <div className="flex flex-col gap-2 h-full">
               {/* AI Performance Dial */}
               <div className="aurora-card p-4">
