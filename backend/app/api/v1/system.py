@@ -205,7 +205,11 @@ async def gpu_raw():
 # ---------------------------------------------------------------------------
 @router.get("/device")
 async def device_info():
-    """Return this device's identity and system info for the Electron shell and Settings UI."""
+    """Return this device's identity and system info for the Electron shell and Settings UI.
+
+    DEPRECATED: Use /machine for machine-awareness features.
+    This endpoint is maintained for backward compatibility.
+    """
     import os
     import platform
     import socket
@@ -228,3 +232,66 @@ async def device_info():
         "brainHost": device_settings.get("brainHost", "localhost"),
         "brainPort": device_settings.get("brainPort", 50051),
     }
+
+
+# /machine — Machine identity and deployment mode
+# ---------------------------------------------------------------------------
+@router.get("/machine")
+async def machine_info():
+    """Return comprehensive machine identity and deployment configuration.
+
+    Returns:
+        - machine_id: Hostname or custom identifier
+        - machine_name: Friendly display name
+        - machine_role: "pc1", "pc2", or "standalone"
+        - deployment_mode: "single_pc" or "dual_pc"
+        - peer_host: IP or hostname of peer machine
+        - peer_online: True if peer is reachable
+        - fallback_mode: True if dual-PC mode but peer offline
+        - gpu_enabled: True if GPU is enabled
+        - detection_method: How machine role was determined
+        - system_info: Platform details
+    """
+    import os
+    import platform
+
+    try:
+        from app.services.machine_identity import get_machine_identity
+        machine_identity = get_machine_identity()
+
+        # Refresh peer online status
+        await machine_identity.check_peer_online()
+
+        status = machine_identity.get_status()
+
+        # Add system info
+        status["system_info"] = {
+            "platform": platform.system().lower(),
+            "arch": platform.machine(),
+            "python_version": platform.python_version(),
+            "cpu_count": os.cpu_count(),
+        }
+
+        return status
+
+    except Exception as e:
+        log.exception("Failed to get machine identity: %s", e)
+        import socket
+        return {
+            "machine_id": socket.gethostname(),
+            "machine_name": socket.gethostname(),
+            "machine_role": "standalone",
+            "deployment_mode": "single_pc",
+            "peer_host": None,
+            "peer_online": False,
+            "fallback_mode": False,
+            "gpu_enabled": True,
+            "detection_method": "error_fallback",
+            "error": str(e),
+            "system_info": {
+                "platform": platform.system().lower(),
+                "arch": platform.machine(),
+                "python_version": platform.python_version(),
+                "cpu_count": os.cpu_count(),
+            }
+        }

@@ -921,6 +921,43 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         log.warning("DuckDB init skipped: %s", e)
 
+    # 1b. Machine Identity & Deployment Mode
+    log.info("=" * 80)
+    log.info("Elite Trading System v%s - Initializing", settings.APP_VERSION)
+    log.info("=" * 80)
+    try:
+        from app.services.machine_identity import get_machine_identity
+        machine_identity = get_machine_identity()
+        status = machine_identity.get_status()
+
+        # Check peer online status
+        await machine_identity.check_peer_online()
+        status = machine_identity.get_status()  # Refresh after check
+
+        # Display deployment configuration
+        log.info("DEPLOYMENT MODE: %s", status["deployment_mode"].upper())
+        log.info("MACHINE: %s (role=%s)", status["machine_id"], status["machine_role"])
+        log.info("DETECTION METHOD: %s", status["detection_method"])
+
+        if status["deployment_mode"] == "dual_pc":
+            peer_status = "ONLINE" if status["peer_online"] else "OFFLINE"
+            log.info("PEER: %s (%s)", status["peer_host"], peer_status)
+            if status["fallback_mode"]:
+                log.warning("⚠ FALLBACK MODE ACTIVE - Running in single-PC mode (peer unavailable)")
+                log.warning("  Services will run locally - some functionality may be degraded")
+
+        log.info("GPU: %s%s",
+                "ENABLED" if status["gpu_enabled"] else "DISABLED",
+                f" (device {status['gpu_device_index']})" if status["gpu_enabled"] else "")
+        log.info("=" * 80)
+
+        # Store in app state for easy access
+        app.state.machine_identity = machine_identity
+
+    except Exception as e:
+        log.exception("Failed to initialize machine identity: %s", e)
+        log.warning("Continuing with default (standalone) mode")
+
     # 2. ML Flywheel singletons
     try:
         _init_ml_singletons()
