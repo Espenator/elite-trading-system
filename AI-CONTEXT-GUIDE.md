@@ -1,7 +1,7 @@
 # AI Context Guide - Embodier Trader (Elite Trading System)
 > Strategies for managing AI context limits when working with this codebase.
 > This repo has 100+ files. Feeding everything at once causes "lost in the middle" problems.
-> Last updated: March 7, 2026 — v3.5.0-dev (Continuous Discovery Architecture)
+> Last updated: March 8, 2026 — v4.0.0 (Council 32 agents)
 
 ## Quick Start for AI Sessions
 
@@ -90,8 +90,8 @@ The codebase has clear boundaries. Stay within one domain per session:
 - `backend/app/services/*.py` - Business logic
 - Pattern: route calls service, service calls external API
 
-**Council** (13-agent DAG + intelligence layer):
-- `backend/app/council/agents/*.py` - 13 agent modules
+**Council** (32-agent DAG + intelligence layer):
+- `backend/app/council/agents/*.py` - 32 agent modules
 - `backend/app/council/runner.py` - 7-stage DAG orchestrator
 - `backend/app/council/arbiter.py` - Deterministic arbiter with Bayesian weights
 - `backend/app/council/council_gate.py` - Pipeline bridge (signal -> council -> order)

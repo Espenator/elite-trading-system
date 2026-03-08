@@ -1,6 +1,6 @@
 # Project State - Embodier Trader (Embodier.ai)
 > Paste this file at the start of every new AI chat session. Say: "Read this project state document. Acknowledge you understand the architecture, and then I will give you your first task."
-> Last updated: March 7, 2026
+> Last updated: March 8, 2026 — v4.0.0
 
 ## Identity
 - **Project**: Embodier Trader by Embodier.ai
@@ -8,14 +8,14 @@
 - **Repo**: github.com/Espenator/elite-trading-system (PUBLIC — this is the ONE repo for all code)
 - **Legacy Repo**: github.com/Espenator/Embodier-Trader — forked HTML site + orphaned JS agents. TO BE ARCHIVED. Do NOT build here.
 - **Owner**: Espenator (Asheville, NC)
-- **Status**: Active development, Phase 2 — v3.5.0-dev (Continuous Discovery Architecture)
+- **Status**: Active development, Phase 2 — v4.0.0
 - **Philosophy**: Embodied Intelligence — the system IS profit, not seeking it. It operates as a conscious profit-seeking being with a Central Nervous System (CNS) architecture.
 - **Current Focus**: Multi-PC compute infrastructure (Issue #39) + continuous real-time discovery firehose (Issue #38)
 
-## LATEST CHANGES (March 7, 2026) — v3.5.0-dev
+## LATEST CHANGES (March 8, 2026) — v4.0.0
 
 ### Architecture Pivot: Continuous Discovery (Issue #38)
-Full codebase audit revealed the system is 73% analyst, 27% scout. The 17-agent council brain is starved of ideas. HyperSwarm processes 40 signals/sec but is fed bursts every 60s. All discovery is polling-based (60-900s intervals). No streaming discovery exists.
+Full codebase audit revealed the system is 73% analyst, 27% scout. The 32-agent council brain is starved of ideas. HyperSwarm processes 40 signals/sec but is fed bursts every 60s. All discovery is polling-based (60-900s intervals). No streaming discovery exists.
 
 **Decision**: Invert the ratio. Build continuous discovery firehose. First: compute infrastructure (Issue #39), then: discovery enhancements (Issue #38).
 
@@ -143,7 +143,7 @@ The codebase had five separate agent/decision systems. As of v3.2.0, Systems 2 a
 | Frontend | React 18 (Vite), Tailwind CSS, Lightweight Charts |
 | Database | DuckDB (WAL mode, connection pooling) |
 | ML | XGBoost, scikit-learn, LSTM (no PyTorch in prod) |
-| Council | 17-agent DAG with Bayesian-weighted arbiter (7 stages) |
+| Council | 32-agent DAG with Bayesian-weighted arbiter (7 stages) |
 | Brain Service | gRPC + Ollama (PC2) for LLM inference |
 | Event Pipeline | MessageBus → CouncilGate → Council → OrderExecutor |
 | CI/CD | GitHub Actions (151 tests passing) |
@@ -160,21 +160,24 @@ The codebase had five separate agent/decision systems. As of v3.2.0, Systems 2 a
 - StockGeist / News API / Discord / X — Social sentiment (via council agents)
 - YouTube — Transcript intelligence (via council agent)
 
-## Council Architecture (13-Agent DAG, 7 Stages)
+## Council Architecture (32-Agent DAG, 7 Stages)
 ```
-Stage 1 (Parallel, 7): market_perception, flow_perception, regime, social_perception, news_catalyst, youtube_knowledge, intermarket
-Stage 2 (Parallel, 5): rsi, bbv, ema_trend, relative_strength, cycle_timing
-Stage 3: hypothesis (wired to brain_service LLM, reads blackboard)
+Stage 1 (Parallel, 13): market_perception, flow_perception, regime, social_perception, news_catalyst, youtube_knowledge, intermarket, gex, insider, finbert_sentiment, earnings_tone, dark_pool, macro_regime
+Stage 2 (Parallel, 8): rsi, bbv, ema_trend, relative_strength, cycle_timing, supply_chain, institutional_flow, congressional
+Stage 3 (Parallel, 2): hypothesis (wired to brain_service LLM, reads blackboard), layered_memory
 Stage 4: strategy (entry/exit/sizing, confidence modulated by social+news consensus)
-Stage 5 (Parallel): risk, execution
+Stage 5 (Parallel, 3): risk, execution, portfolio_optimizer
+Stage 5.5 (Debate, 3): bull_debater, bear_debater, red_team
 Stage 6: critic (postmortem learning)
 Stage 7: arbiter (deterministic BUY/SELL/HOLD with Bayesian weights)
 ```
 
 Agent Groups:
 - **Core (8)**: market_perception, flow_perception, regime, hypothesis, strategy, risk, execution, critic
+- **Academic Edge (12)**: gex, insider, finbert_sentiment, earnings_tone, supply_chain, institutional_flow, congressional, dark_pool, portfolio_optimizer, layered_memory, alt_data, macro_regime
 - **Data-Source Perception (3)**: social_perception (0.7), news_catalyst (0.6), youtube_knowledge (0.4)
-- **Technical Analysis (5)**: rsi, bbv, ema_trend, intermarket, relative_strength, cycle_timing
+- **Technical Analysis (6)**: rsi, bbv, ema_trend, intermarket, relative_strength, cycle_timing
+- **Debate (3)**: bull_debater, bear_debater, red_team
 
 Arbiter Rules:
 1. VETO from risk or execution -> hold, vetoed=True
@@ -186,7 +189,7 @@ Agent Schema: `AgentVote(agent_name, direction, confidence, reasoning, veto, vet
 
 ## CNS Architecture (Central Nervous System)
 - **Brainstem** (<50ms): CircuitBreaker reflexes [TO BUILD - P3]
-- **Spinal Cord** (~1500ms): 17-agent council DAG [BUILT]
+- **Spinal Cord** (~1500ms): 32-agent council DAG [BUILT]
 - **Cortex** (300-800ms): hypothesis + critic via brain_service gRPC [NOT WIRED - P7]
 - **Thalamus**: BlackboardState shared memory [TO BUILD - P1]
 - **Autonomic**: Bayesian WeightLearner [BUILT - P8] — learns from trade outcomes
@@ -214,8 +217,8 @@ AlpacaStreamService
 
 ```
 [React Frontend] --useApi()--> [FastAPI Backend] --services--> [External APIs]
-15 pages, 31 API route files, WebSocket via websocket_manager.py
-17-Agent Council DAG, ML Engine (XGBoost), DuckDB Analytics
+15 pages, 36 route files (35 api/v1/ + 1 ingestion.py), WebSocket via websocket_manager.py
+32-Agent Council DAG, ML Engine (XGBoost), DuckDB Analytics
 [Brain Service gRPC] <-- Ollama LLM inference on PC2
 [Electron Desktop Shell] -- spawns backend + serves frontend
 ```
@@ -230,12 +233,12 @@ AlpacaStreamService
 6. Council Gate: signal.generated -> CouncilGate -> run_council() -> council.verdict -> OrderExecutor
 7. Weight Learning: WeightLearner.update(agent, won) adjusts Bayesian alpha/beta -> arbiter uses learned weights
 
-## Current State (Mar 7, 2026 — v3.5.0-dev)
+## Current State (Mar 8, 2026 — v4.0.0)
 - CI: 151 tests passing (Run #452 GREEN)
-- Version: 3.5.0-dev (Continuous Discovery Architecture in progress)
+- Version: 4.0.0
 - Frontend: 14 pages, all pixel-matched to mockups, wired to real API hooks
-- Backend: 29 API routes, 24+ service files, knowledge layer wired
-- Council: 17 agents + arbiter + runner + CouncilGate + WeightLearner (fully connected)
+- Backend: 36 route files (35 api/v1/ + 1 ingestion.py), 56 top-level service files, knowledge layer wired
+- Council: 32 voting agents + arbiter + runner + CouncilGate + WeightLearner (fully connected)
 - Discovery: TurboScanner (10 screens) + HyperSwarm (50 workers) + AutonomousScout (4 scouts) + 6 UW agents — ALL POLLING, transitioning to streaming (Issue #38)
 - Knowledge: MemoryBank + HeuristicEngine + KnowledgeGraph (wired to outcome tracker)
 - Brain Service: gRPC + Ollama ready (not yet connected to council)
@@ -307,7 +310,7 @@ A comprehensive pixel-by-pixel audit was performed comparing all 23 mockup image
 4. ALWAYS use 4-space indentation in Python
 5. Council agents MUST return AgentVote schema
 6. The ONE repo is Espenator/elite-trading-system — do NOT commit to Embodier-Trader
-7. Council has 17 agents in 7 stages — NOT 8 or 13 agents
+7. Council has 32 voting agents in 7 stages — NOT 13 or 17 or 31 or 35 agents
 8. Read CRITICAL ARCHITECTURE AUDIT section before making changes
 9. Agent pattern: module-level NAME + WEIGHT + async def evaluate() -> AgentVote
 10. VETO_AGENTS = {"risk", "execution"} — only these can veto

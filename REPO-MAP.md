@@ -1,12 +1,12 @@
 # Embodier Trader - Repository Map
-> Auto-generated reference for AI coding assistants. Last updated: March 7, 2026 (v3.5.0-dev).
+> Auto-generated reference for AI coding assistants. Last updated: March 8, 2026 (v4.0.0).
 > Run `python map_repo.py` to regenerate, or `python bundle_files.py` to bundle key files.
 > **Current Focus**: Continuous Discovery Architecture (Issue #38)
 
 ## Tech Stack
 - **Backend**: Python 3.11, FastAPI, DuckDB
 - **Frontend**: React 18 (Vite), Lightweight Charts, Tailwind CSS
-- **Council**: 17-agent DAG with Bayesian-weighted arbiter (7 stages)
+- **Council**: 32-agent DAG with Bayesian-weighted arbiter (7 stages)
 - **Discovery**: TurboScanner + HyperSwarm + 12 Scout Agents (Issue #38 — streaming transition)
 - **Knowledge**: MemoryBank + HeuristicEngine + KnowledgeGraph (outcome-driven learning)
 - **Data Sources**: Alpaca Markets, Unusual Whales, FinViz, FRED, SEC EDGAR (NO yfinance)
@@ -46,14 +46,14 @@ elite-trading-system/
 |   |   |-- main.py                    # FastAPI app entry (v3.2.0, Embodier Trader)
 |   |   |-- websocket_manager.py       # WebSocket broadcast manager
 |   |   |
-|   |   |-- api/v1/                    # REST API endpoints (29 routes)
+|   |   |-- api/v1/                    # REST API endpoints (35 routes)
 |   |   |   |-- __init__.py
 |   |   |   |-- agents.py              # Agent Command Center (5 template agents)
 |   |   |   |-- alerts.py              # Drawdown alerts, system alerts
 |   |   |   |-- alignment.py           # Alignment/consensus endpoints
 |   |   |   |-- alpaca.py              # Alpaca API proxy for frontend
 |   |   |   |-- backtest_routes.py     # Strategy backtesting
-|   |   |   |-- council.py             # Council evaluate, status, weights (13-agent)
+|   |   |   |-- council.py             # Council evaluate, status, weights (32-agent)
 |   |   |   |-- data_sources.py        # Data source health
 |   |   |   |-- features.py            # Feature aggregator endpoints
 |   |   |   |-- flywheel.py            # ML flywheel metrics
@@ -78,7 +78,7 @@ elite-trading-system/
 |   |   |   |-- training.py            # ML training jobs
 |   |   |   |-- youtube_knowledge.py   # YouTube research
 |   |   |
-|   |   |-- council/                   # 13-Agent Council DAG (7 stages)
+|   |   |-- council/                   # 32-Agent Council DAG (7 stages)
 |   |   |   |-- __init__.py
 |   |   |   |-- runner.py              # 7-stage parallel DAG orchestrator
 |   |   |   |-- arbiter.py             # Deterministic arbiter + Bayesian weights
@@ -154,7 +154,7 @@ elite-trading-system/
 |   |   |   |-- __init__.py
 |   |   |   |-- signals.py            # Signal data models
 |   |   |
-|   |   |-- services/                 # Business logic layer (24 files)
+|   |   |-- services/                 # Business logic layer (56 top-level files)
 |   |   |   |-- __init__.py
 |   |   |   |-- alpaca_service.py          # Alpaca broker REST
 |   |   |   |-- alpaca_stream_service.py   # Alpaca WebSocket -> MessageBus
@@ -311,7 +311,7 @@ elite-trading-system/
 1. **No yfinance** - All market data via Alpaca, Unusual Whales, FinViz, FRED, SEC EDGAR
 2. **Real API only** - No mock data in production components
 3. **useApi hook** - Central data fetching: `useApi('endpoint')` returns `{ data, loading, error }`
-4. **Council-controlled trading** - All signals pass through 17-agent council via CouncilGate before execution
+4. **Council-controlled trading** - All signals pass through 32-agent council via CouncilGate before execution
 5. **Bayesian weight learning** - WeightLearner adjusts agent influence based on trade outcomes
 6. **DuckDB** - Primary analytics database (WAL mode, connection pooling)
 7. **OpenClaw** - Legacy code with useful scanner/agent pieces, scheduled for cleanup (P4)
@@ -334,7 +334,7 @@ TRIAGE:
   swarm.idea -> HyperSwarm (50 workers, Ollama <500ms) -> score >= 65 escalated
 
 EVALUATION:
-  Escalated -> SwarmSpawner -> 17-Agent Council (7 stages) -> council.verdict
+  Escalated -> SwarmSpawner -> 32-Agent Council (7 stages) -> council.verdict
 
 EXECUTION:
   council.verdict -> OrderExecutor (real DuckDB stats, real ATR, mock guard) -> Alpaca
@@ -347,4 +347,4 @@ LEARNING:
 
 All backend routes: `http://localhost:8000/api/v1/{service}`
 
-Services: `agents`, `alerts`, `alignment`, `alpaca`, `backtest`, `council`, `data-sources`, `features`, `flywheel`, `logs`, `market`, `ml-brain`, `openclaw`, `orders`, `patterns`, `performance`, `portfolio`, `quotes`, `risk`, `risk-shield`, `sentiment`, `settings`, `signals`, `status`, `stocks`, `strategy`, `system`, `training`, `youtube-knowledge`
+Services: `agents`, `alerts`, `alignment`, `alpaca`, `backtest`, `council`, `data-sources`, `features`, `flywheel`, `logs`, `market`, `ml-brain`, `openclaw`, `orders`, `patterns`, `performance`, `portfolio`, `quotes`, `risk`, `risk-shield`, `sentiment`, `settings`, `signals`, `status`, `stocks`, `strategy`, `system`, `training`, `youtube-knowledge`, plus `/ingestion`
