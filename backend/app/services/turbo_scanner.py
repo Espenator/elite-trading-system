@@ -826,10 +826,11 @@ class TurboScanner:
                 })
             # Also publish as signal.generated so UnifiedProfitEngine can score it
             # (only when LLM pipeline active — UnifiedProfitEngine does sync DuckDB queries)
-            if _llm_on and signal.score >= 60:
+            # NOTE: signal.score is 0-1 scale; convert to 0-100 to match CouncilGate threshold (65.0)
+            if _llm_on and signal.score >= MIN_SIGNAL_SCORE:
                 await self._bus.publish("signal.generated", {
                     "symbol": signal.symbol,
-                    "score": signal.score,
+                    "score": signal.score * 100,  # Convert 0-1 to 0-100 scale
                     "label": f"scanner_{signal.signal_type}",
                     "price": signal.data.get("close", 0) if isinstance(signal.data, dict) else 0,
                     "regime": "SCANNER",

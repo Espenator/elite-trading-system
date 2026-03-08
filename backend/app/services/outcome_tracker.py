@@ -423,6 +423,27 @@ class OutcomeTracker:
         except Exception as e:
             logger.debug("Council feedback error: %s", e)
 
+        # Wire SelfAwareness Bayesian tracking (Audit Bug #8)
+        try:
+            from app.council.self_awareness import get_self_awareness
+            sa = get_self_awareness()
+            profitable = outcome == "win"
+            # Update all agents that participated — look up from feedback store
+            agent_votes = getattr(pos, 'agent_votes', None) or {}
+            if agent_votes:
+                for agent_name, voted_direction in agent_votes.items():
+                    sa.record_trade_outcome(agent_name, profitable)
+            else:
+                # No per-agent votes available; update core agents collectively
+                for agent_name in [
+                    "market_perception", "flow_perception", "regime", "intermarket",
+                    "rsi", "bbv", "ema_trend", "relative_strength", "cycle_timing",
+                    "hypothesis", "strategy", "risk", "execution",
+                ]:
+                    sa.record_trade_outcome(agent_name, profitable)
+        except Exception as e:
+            logger.debug("SelfAwareness tracking failed: %s", e)
+
         # Feed to adaptive LLM router — update accuracy for participating agents
         try:
             from app.services.adaptive_router import get_hybrid_router

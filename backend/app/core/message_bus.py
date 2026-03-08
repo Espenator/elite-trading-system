@@ -70,6 +70,29 @@ class MessageBus:
         "cluster.node_status",  # Node online/offline/degraded transitions
         # Outcome tracking
         "outcome.resolved",     # Position outcome resolved (win/loss/scratch)
+        # Perception layer — data source topics
+        "perception.unusualwhales",     # UnusualWhales alerts (options flow, dark pool, congress)
+        "perception.finviz.screener",   # Finviz screener results
+        "perception.macro",             # FRED macro data (CPI, unemployment, VIX, 10Y yield)
+        "perception.edgar",             # SEC EDGAR filings
+        # OpenClaw graduated scanner topics
+        "perception.flow.uw_analysis",  # UW agents analysis
+        "perception.flow.whale",        # Whale flow detection
+        "perception.scanner.daily",     # Daily scanner results
+        "perception.scanner.pullback",  # Pullback detector
+        "perception.scanner.rebound",   # Rebound detector
+        "perception.scanner.short_squeeze",  # Short squeeze detector
+        "perception.scanner.accumulation",   # AMD accumulation detector
+        "perception.scanner.sector",    # Sector rotation
+        "perception.scanner.earnings",  # Earnings calendar
+        "perception.scanner.expected_move",  # FOM expected moves
+        "perception.world_intel",       # Sensorium world intelligence
+        "perception.regime.openclaw",   # OpenClaw regime detection
+        "perception.regime.hmm",        # HMM regime detection
+        "perception.macro.openclaw",    # OpenClaw macro context
+        "signal.openclaw.composite",    # OpenClaw composite scorer (0-100)
+        "signal.openclaw.ensemble",     # OpenClaw ensemble scorer (ML)
+        "signal.unified",               # UnifiedProfitEngine output
     }
 
     # Topics bridged through Redis when cluster mode is active.
@@ -90,6 +113,10 @@ class MessageBus:
         "knowledge.ingested",
         "outcome.resolved",
         "hitl.approval_needed",
+        "perception.unusualwhales",
+        "perception.finviz.screener",
+        "perception.macro",
+        "perception.edgar",
     }
 
     # Redis channel prefix to avoid collisions with other apps

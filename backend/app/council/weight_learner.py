@@ -24,8 +24,9 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-# Default weights for all 13 agents (+ arbiter reference)
+# Default weights for all agents (core + academic edge agents)
 DEFAULT_WEIGHTS: Dict[str, float] = {
+    # ── Core Council Agents ──────────────────────────────────────────
     "market_perception": 1.0,
     "flow_perception": 0.8,
     "regime": 1.2,
@@ -44,6 +45,23 @@ DEFAULT_WEIGHTS: Dict[str, float] = {
     "bull_debater": 0.7,
     "bear_debater": 0.7,
     "red_team": 0.8,
+    # ── Academic Edge Agents (P2) ────────────────────────────────────
+    "dark_pool_agent": 0.9,
+    "congressional_agent": 0.7,
+    "insider_agent": 0.8,
+    "earnings_tone_agent": 0.8,
+    "gex_agent": 0.85,
+    "news_catalyst_agent": 0.8,
+    "portfolio_optimizer_agent": 0.9,
+    "institutional_flow_agent": 0.8,
+    "macro_regime_agent": 0.9,
+    "layered_memory_agent": 0.7,
+    "market_perception_agent": 0.8,
+    "finbert_sentiment_agent": 0.75,
+    "alt_data_agent": 0.7,
+    "social_perception_agent": 0.7,
+    "supply_chain_agent": 0.7,
+    "youtube_knowledge_agent": 0.6,
 }
 
 

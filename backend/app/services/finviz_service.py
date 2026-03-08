@@ -5,9 +5,11 @@ import csv
 import io
 import logging
 import re
+import time
 
 from typing import List, Dict, Optional, Any
 from app.core.config import settings
+from app.core.message_bus import get_message_bus
 
 logger = logging.getLogger(__name__)
 
@@ -202,7 +204,20 @@ class FinvizService:
                     logger.debug("Exchange lookup via Alpaca skipped: %s", e)
                 # Enrich each row (market cap category + exchange)
                 stocks = [_enrich_stock_row(r, exchange_map) for r in rows]
-                
+
+                # Publish screener results to MessageBus for downstream consumers
+                try:
+                    bus = get_message_bus()
+                    if bus._running:
+                        await bus.publish("perception.finviz.screener", {
+                            "type": "finviz_screener_results",
+                            "results": stocks,
+                            "source": "finviz_service",
+                            "timestamp": time.time(),
+                        })
+                except Exception:
+                    pass
+
                 return stocks
                 
             except httpx.HTTPStatusError as e:

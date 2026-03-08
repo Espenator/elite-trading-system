@@ -55,8 +55,8 @@ async def evaluate(
     changes = _analyze_position_changes(filings, symbol)
 
     # Consensus detection
-    consensus_buys = _detect_consensus(changes, "buy")
-    consensus_sells = _detect_consensus(changes, "sell")
+    consensus_buys = _detect_consensus(changes, "buy", symbol)
+    consensus_sells = _detect_consensus(changes, "sell", symbol)
 
     # Crowded trade detection
     crowded = _detect_crowded_trades(filings, symbol)
@@ -209,13 +209,33 @@ def _analyze_position_changes(
     }
 
 
-def _detect_consensus(changes: Dict, direction: str) -> List[str]:
-    """Detect consensus buying or selling across top-performing funds."""
-    # For now, use the changes dict to determine consensus
-    if direction == "buy" and changes.get("buyers", 0) >= _CONSENSUS_MIN_FUNDS:
-        return [changes.get("symbol", "")]
-    elif direction == "sell" and changes.get("sellers", 0) >= _CONSENSUS_MIN_FUNDS:
-        return [changes.get("symbol", "")]
+def _detect_consensus(changes, direction: str, symbol: str = "") -> List[str]:
+    """Detect consensus buying or selling across top-performing funds.
+
+    Handles both a summary dict (from _analyze_position_changes) and a raw
+    list of per-filing change dicts that may come from external data providers.
+    """
+    if isinstance(changes, list):
+        # Handle list of change dicts (e.g. from external API responses)
+        symbols: List[str] = []
+        for change in changes:
+            if not isinstance(change, dict):
+                continue
+            sym = change.get("symbol", symbol) or symbol
+            if not sym:
+                continue
+            if direction == "buy" and change.get("buyers", 0) >= _CONSENSUS_MIN_FUNDS:
+                symbols.append(sym)
+            elif direction == "sell" and change.get("sellers", 0) >= _CONSENSUS_MIN_FUNDS:
+                symbols.append(sym)
+        return [s for s in symbols if s]
+    elif isinstance(changes, dict):
+        # Handle summary dict from _analyze_position_changes
+        sym = changes.get("symbol", symbol) or symbol
+        if direction == "buy" and changes.get("buyers", 0) >= _CONSENSUS_MIN_FUNDS:
+            return [sym] if sym else []
+        elif direction == "sell" and changes.get("sellers", 0) >= _CONSENSUS_MIN_FUNDS:
+            return [sym] if sym else []
     return []
 
 

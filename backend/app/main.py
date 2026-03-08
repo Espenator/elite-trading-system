@@ -326,7 +326,27 @@ async def _start_event_driven_pipeline():
         await _council_gate.start()
         log.info("\u2705 CouncilGate started (13-agent council controls trading)")
     else:
-        log.info("\u26a0 CouncilGate DISABLED -- signals go directly to OrderExecutor")
+        log.info("\u26a0 CouncilGate DISABLED -- routing signals directly to OrderExecutor")
+        # BUG FIX: When council is off, route signals directly as verdicts.
+        # Without this, signal.generated has NO trading consumer and nothing executes.
+        async def _signal_to_verdict_fallback(signal_data):
+            """Bypass council — convert signal.generated directly to council.verdict format."""
+            score = signal_data.get("score", 0)
+            if score < 65:  # Still gate on minimum score
+                return
+            await _message_bus.publish("council.verdict", {
+                "symbol": signal_data.get("symbol", ""),
+                "final_direction": signal_data.get("label", "long"),
+                "final_confidence": min(score / 100.0, 1.0),
+                "execution_ready": True,
+                "vetoed": False,
+                "votes": [],
+                "council_reasoning": "CouncilGate disabled — direct signal passthrough",
+                "signal_data": signal_data,
+                "price": signal_data.get("close", signal_data.get("price", 0)),
+            })
+        await _message_bus.subscribe("signal.generated", _signal_to_verdict_fallback)
+        log.info("\u2705 Signal->Verdict fallback subscriber registered (CouncilGate bypass)")
 
     # 4. OrderExecutor (subscribes to council.verdict)
     from app.services.order_executor import OrderExecutor
@@ -614,6 +634,42 @@ async def _start_event_driven_pipeline():
     log.info("\u2705 OutcomeTracker started (win_rate=%.2f, resolved=%d)",
              _outcome_tracker._stats["win_rate"], _outcome_tracker._stats["total_resolved"])
 
+    # 24b. outcome.resolved subscribers — close the feedback loop (Audit Bug #12)
+    async def _on_outcome_resolved(outcome_data):
+        """Feed resolved outcomes to WeightLearner and SelfAwareness."""
+        try:
+            from app.council.weight_learner import get_weight_learner
+            learner = get_weight_learner()
+            learner.update_from_outcome(
+                symbol=outcome_data.get("symbol", ""),
+                outcome_direction="win" if outcome_data.get("pnl_pct", 0) > 0.001 else "loss",
+                pnl=outcome_data.get("pnl", 0.0),
+                r_multiple=outcome_data.get("r_multiple", 0.0),
+            )
+        except Exception as e:
+            log.debug("WeightLearner outcome update failed: %s", e)
+
+        try:
+            from app.council.self_awareness import get_self_awareness
+            sa = get_self_awareness()
+            profitable = outcome_data.get("pnl_pct", 0) > 0.001
+            agent_votes = outcome_data.get("agent_votes", {}) or {}
+            if agent_votes:
+                for agent_name in agent_votes:
+                    sa.record_trade_outcome(agent_name, profitable)
+            else:
+                for agent_name in [
+                    "market_perception", "flow_perception", "regime", "intermarket",
+                    "rsi", "bbv", "ema_trend", "relative_strength", "cycle_timing",
+                    "hypothesis", "strategy", "risk", "execution",
+                ]:
+                    sa.record_trade_outcome(agent_name, profitable)
+        except Exception as e:
+            log.debug("SelfAwareness outcome update failed: %s", e)
+
+    await _message_bus.subscribe("outcome.resolved", _on_outcome_resolved)
+    log.info("\u2705 outcome.resolved subscriber active (WeightLearner + SelfAwareness)")
+
     # 24. Knowledge Layer — EmbeddingService + MemoryBank + HeuristicEngine + KnowledgeGraph
     # Initialize singletons eagerly so they're warm when council calls them.
     # No LLM requirement — these are local DuckDB + numpy/sentence-transformers.
@@ -656,6 +712,49 @@ async def _start_event_driven_pipeline():
             log.warning("\u26A0\uFE0F IntelligenceOrchestrator init failed: %s", e)
     else:
         log.info("\u26A0\uFE0F IntelligenceOrchestrator skipped (LLM_ENABLED=false)")
+
+    # 25b. IntelligenceCache — pre-warm council intelligence data
+    try:
+        from app.services.intelligence_cache import get_intelligence_cache
+        _intelligence_cache = get_intelligence_cache()
+        await _intelligence_cache.start()
+        log.info("\u2705 IntelligenceCache started (pre-warming council data)")
+    except Exception as e:
+        log.warning("\u26A0\uFE0F IntelligenceCache start failed: %s", e)
+
+    # ── Startup Validation: Topic Health Check ──────────────────────
+    _critical_topics = {"signal.generated", "council.verdict", "order.submitted"}
+    _all_topics = _message_bus.VALID_TOPICS
+    _no_subscribers = []
+    _critical_missing = []
+
+    for topic in sorted(_all_topics):
+        handlers = _message_bus._subscribers.get(topic, [])
+        if not handlers:
+            _no_subscribers.append(topic)
+            if topic in _critical_topics:
+                _critical_missing.append(topic)
+
+    if _no_subscribers:
+        log.warning(
+            "\u26A0 MessageBus: %d/%d topics have ZERO subscribers: %s",
+            len(_no_subscribers), len(_all_topics),
+            ", ".join(_no_subscribers[:10]) + ("..." if len(_no_subscribers) > 10 else ""),
+        )
+
+    if _critical_missing:
+        log.error(
+            "\U0001F6A8 CRITICAL: These essential topics have NO consumers \u2014 trading pipeline is broken: %s",
+            ", ".join(_critical_missing),
+        )
+        # Don't fail hard \u2014 log the error so it's visible but allow startup to continue
+        # in development mode. In production, this should be a hard failure.
+
+    _active_topics = len(_all_topics) - len(_no_subscribers)
+    log.info(
+        "\U0001F4CA MessageBus Health: %d/%d topics active, %d zero-subscriber, %d critical",
+        _active_topics, len(_all_topics), len(_no_subscribers), len(_critical_missing),
+    )
 
     log.info("=" * 60)
     log.info("\u2705 Event-Driven Pipeline ONLINE (Council-Controlled)")

@@ -1,11 +1,13 @@
 """Unusual Whales API service for options flow alerts."""
 
 import logging
+import time
 from typing import Any, Dict, List
 
 import httpx
 
 from app.core.config import settings
+from app.core.message_bus import get_message_bus
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +52,20 @@ class UnusualWhalesService:
         if not r.content:
             return []
         data = r.json()
+
+        # Publish to MessageBus so downstream consumers (council, screeners) receive flow data
+        try:
+            bus = get_message_bus()
+            if bus._running:
+                await bus.publish("perception.unusualwhales", {
+                    "type": "unusual_whales_alerts",
+                    "alerts": data,
+                    "source": "unusual_whales_service",
+                    "timestamp": time.time(),
+                })
+        except Exception:
+            pass
+
         return data
 
     async def get_flow_count(self) -> int:

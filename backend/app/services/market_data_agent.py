@@ -9,6 +9,7 @@ Run every 60s during market hours when agent is started.
 Fixes Issue #25 Task 5.
 """
 import logging
+import time
 from typing import List, Tuple
 
 import httpx
@@ -180,11 +181,45 @@ async def _fetch_edgar() -> List[Tuple[str, str]]:
     """Pull SEC EDGAR company filings via SecEdgarService."""
     try:
         from app.services.sec_edgar_service import SecEdgarService
+        from app.core.message_bus import get_message_bus
+
+        # Use tracked symbol list instead of hardcoded AAPL
+        try:
+            from app.modules.symbol_universe import get_tracked_symbols
+            symbols = get_tracked_symbols() or ["AAPL"]
+        except Exception:
+            symbols = ["AAPL"]
 
         svc = SecEdgarService()
-        forms = await svc.get_recent_forms("AAPL", limit=5)
-        filings = ", ".join(forms) if forms else "none"
-        return [(f"SEC EDGAR AAPL recent: {filings}", "success")]
+        results = []
+        for symbol in symbols[:5]:  # Check first 5 tracked symbols
+            try:
+                forms = await svc.get_recent_forms(symbol, limit=5)
+                filing_data = {"symbol": symbol, "forms": forms}
+                results.append(filing_data)
+
+                # Publish each filing to MessageBus
+                try:
+                    bus = get_message_bus()
+                    if bus._running:
+                        await bus.publish("perception.edgar", {
+                            "type": "sec_filing",
+                            "data": filing_data,
+                            "source": "market_data_agent",
+                            "timestamp": time.time(),
+                        })
+                except Exception:
+                    pass
+            except Exception:
+                pass
+
+        if results:
+            summary = ", ".join(
+                f"{r['symbol']}:{','.join(r['forms'][:2]) or 'none'}"
+                for r in results
+            )
+            return [(f"SEC EDGAR ({len(results)} symbols): {summary[:80]}", "success")]
+        return [("SEC EDGAR: no results", "info")]
     except Exception as e:
         logger.exception("SEC EDGAR fetch failed")
         msg = (str(e) or type(e).__name__ or "error")[:80]

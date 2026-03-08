@@ -20,10 +20,12 @@ that map to directives adjusting confidence thresholds and position sizes.
 Council integration: Enhances existing regime_agent. Reads FRED API (already integrated).
 """
 import logging
+import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.council.agent_config import get_agent_thresholds
 from app.council.schemas import AgentVote
+from app.core.message_bus import get_message_bus
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +65,19 @@ async def evaluate(
 
     # Fetch macro data from FRED
     macro_data = await _fetch_macro_data()
+
+    # Publish FRED macro data to MessageBus for downstream perception consumers
+    try:
+        bus = get_message_bus()
+        if bus._running:
+            await bus.publish("perception.macro", {
+                "type": "fred_macro_data",
+                "data": macro_data,
+                "source": "macro_regime_agent",
+                "timestamp": time.time(),
+            })
+    except Exception:
+        pass
 
     # Get VIX
     vix = float(f.get("vix_close", 0) or f.get("vix", 0))
