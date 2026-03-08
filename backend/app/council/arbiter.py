@@ -25,6 +25,9 @@ REQUIRED_AGENTS = {"regime", "risk", "strategy"}
 # Agents with veto power
 VETO_AGENTS = {"risk", "execution"}
 
+# Minimum confidence assigned during a buy/sell directional deadlock
+DEADLOCK_MIN_CONFIDENCE = 0.5
+
 
 def _get_learned_weights() -> Dict[str, float]:
     """Fetch Bayesian-updated weights from WeightLearner.
@@ -148,7 +151,7 @@ def arbitrate(
         # Directional deadlock: buy and sell are equally weighted.
         # Conservative policy: refuse to trade when there is no consensus.
         final_direction = "hold"
-        final_confidence = max(buy_weight / total_weight, 0.5)
+        final_confidence = max(buy_weight / total_weight, DEADLOCK_MIN_CONFIDENCE)
         logger.info(
             "Arbiter deadlock for %s: buy=%.2f sell=%.2f — forcing safe hold",
             symbol, buy_weight, sell_weight,
