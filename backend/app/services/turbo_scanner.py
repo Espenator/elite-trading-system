@@ -359,7 +359,7 @@ class TurboScanner:
                     signal_type="momentum_surge",
                     direction=direction,
                     score=score,
-                    reasoning=f"Momentum: {ret_5d:.1%} 5d, {ret_20d:.1%} 20d",
+                    reasoning=f"Momentum: {ret_5d:.1%} 5d, {'N/A' if (isinstance(ret_20d, float) and np.isnan(ret_20d)) else f'{ret_20d:.1%}'} 20d",
                     data={"ret_5d": round(ret_5d, 4), "ret_20d": round(ret_20d, 4)},
                 ))
             return signals
