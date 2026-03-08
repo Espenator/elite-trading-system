@@ -255,6 +255,25 @@ class DuckDBStorage:
             )
         """)
 
+        # Ingestion events table for tracking adapter ingestion
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS ingestion_events (
+                event_id VARCHAR PRIMARY KEY,
+                source VARCHAR NOT NULL,
+                source_kind VARCHAR NOT NULL,
+                topic VARCHAR,
+                symbol VARCHAR,
+                entity_id VARCHAR,
+                occurred_at TIMESTAMP NOT NULL,
+                ingested_at TIMESTAMP NOT NULL,
+                sequence INTEGER,
+                dedupe_key VARCHAR,
+                schema_version VARCHAR DEFAULT '1.0',
+                payload_json VARCHAR,
+                trace_id VARCHAR
+            )
+        """)
+
         # Indexes for fast range scans
         conn.execute("CREATE INDEX IF NOT EXISTS idx_ohlcv_date ON daily_ohlcv (date)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_ohlcv_symbol ON daily_ohlcv (symbol)")
@@ -265,6 +284,11 @@ class DuckDBStorage:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_model_evals_model ON model_evals (model_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_postmortems_symbol ON postmortems (symbol)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_postmortems_decision ON postmortems (council_decision_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_ingestion_source ON ingestion_events (source)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_ingestion_topic ON ingestion_events (topic)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_ingestion_symbol ON ingestion_events (symbol)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_ingestion_occurred_at ON ingestion_events (occurred_at)")
+
 
         # ── Phase 1: LLM Router telemetry ────────────────────────────
         conn.execute("""
