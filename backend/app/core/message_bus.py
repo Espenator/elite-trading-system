@@ -63,12 +63,12 @@ class MessageBus:
         "swarm.idea",           # New idea submitted for analysis
         "swarm.spawned",        # Swarm spawned and running
         "swarm.result",         # Swarm analysis complete
-        "swarm.prescreened",    # Pre-screened idea from HyperSwarm → SwarmSpawner (bypasses triage)
+        "swarm.prescreened",    # Reserved: high-confidence HyperSwarm signal (currently no active subscriber)
         "knowledge.ingested",   # New knowledge fed into the system
         "scout.discovery",      # Scout found an opportunity
-        "scout.heartbeat",      # Scout agent health tick (E2)
+        "scout.heartbeat",      # Scout agent health tick (E2) — aggregated by HealthAggregator
         # Triage layer topics (E3)
-        "triage.escalated",     # Idea passed quality gate → HyperSwarm
+        "triage.escalated",     # Idea passed quality gate → HyperSwarm + SwarmSpawner
         "triage.dropped",       # Idea below threshold (audit trail)
         # Cluster telemetry topics
         "cluster.telemetry",    # GPU/VRAM/Ollama stats from cluster nodes

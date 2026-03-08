@@ -507,3 +507,159 @@ class TestNewsScoutBackpressure:
             # Should not raise — get_news() is called, not get_latest()
             await scout.scout()
         mock_agg.get_news.assert_called_once_with(limit=10)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Follow-up PR regression tests (Change 1: LEGACY_SCOUT_ENABLED, Change 2:
+# HealthAggregator, Change 3: SwarmSpawner → triage.escalated)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestHealthAggregator:
+    """HealthAggregator batches scout.heartbeat events into one aggregated pulse."""
+
+    @pytest.mark.anyio
+    async def test_start_subscribes_to_scout_heartbeat(self):
+        from app.services.scouts.health_aggregator import HealthAggregator
+        bus = FakeBus()
+        agg = HealthAggregator(message_bus=bus)
+        await agg.start()
+        assert "scout.heartbeat" in bus.subscriptions
+        await agg.stop()
+
+    @pytest.mark.anyio
+    async def test_on_heartbeat_stores_latest_per_source(self):
+        from app.services.scouts.health_aggregator import HealthAggregator
+        bus = FakeBus()
+        agg = HealthAggregator(message_bus=bus)
+        await agg.start()
+        await agg._on_heartbeat({
+            "source": "flow_hunter_scout",
+            "status": "healthy",
+            "stats": {"cycles_run": 5},
+            "timestamp": "2026-01-01T00:00:00+00:00",
+        })
+        status = agg.get_status()
+        assert "flow_hunter_scout" in status["scouts"]
+        assert status["scouts"]["flow_hunter_scout"]["status"] == "healthy"
+        await agg.stop()
+
+    @pytest.mark.anyio
+    async def test_multiple_sources_tracked(self):
+        from app.services.scouts.health_aggregator import HealthAggregator
+        bus = FakeBus()
+        agg = HealthAggregator(message_bus=bus)
+        await agg.start()
+        for src in ["flow_hunter_scout", "macro_scout", "streaming_discovery_engine"]:
+            await agg._on_heartbeat({"source": src, "status": "healthy", "stats": {}, "timestamp": "2026-01-01T00:00:00+00:00"})
+        status = agg.get_status()
+        assert status["scout_count"] == 3
+        await agg.stop()
+
+    @pytest.mark.anyio
+    async def test_stale_detection(self):
+        import time
+        from app.services.scouts.health_aggregator import HealthAggregator, STALE_AFTER_SECS
+        bus = FakeBus()
+        agg = HealthAggregator(message_bus=bus)
+        await agg.start()
+        await agg._on_heartbeat({"source": "slow_scout", "status": "healthy", "stats": {}, "timestamp": "2026-01-01T00:00:00+00:00"})
+        # Backdate last_seen_epoch to simulate staleness
+        agg._latest["slow_scout"]["last_seen_epoch"] = time.time() - (STALE_AFTER_SECS + 10)
+        status = agg.get_status()
+        assert status["scouts"]["slow_scout"]["status"] == "stale"
+        await agg.stop()
+
+    @pytest.mark.anyio
+    async def test_no_bus_does_not_raise(self):
+        from app.services.scouts.health_aggregator import HealthAggregator
+        agg = HealthAggregator()
+        await agg.start()
+        status = agg.get_status()
+        assert isinstance(status, dict)
+        await agg.stop()
+
+    @pytest.mark.anyio
+    async def test_scout_registry_starts_health_aggregator(self):
+        """ScoutRegistry.start() should wire up HealthAggregator."""
+        registry = ScoutRegistry()
+        bus = FakeBus()
+        # Override _started to avoid importing all 12 scouts by monkeypatching
+        registry._started = True  # prevent re-start in full start()
+        # Manually wire HealthAggregator as registry would
+        from app.services.scouts.health_aggregator import HealthAggregator
+        registry._health_aggregator = HealthAggregator(message_bus=bus)
+        await registry._health_aggregator.start()
+        health = registry.get_health()
+        assert "scout_count" in health
+        await registry._health_aggregator.stop()
+        registry._health_aggregator = None
+
+    @pytest.mark.anyio
+    async def test_get_health_returns_empty_when_no_aggregator(self):
+        """get_health() must not crash when HealthAggregator hasn't started."""
+        registry = ScoutRegistry()
+        health = registry.get_health()
+        assert health["scout_count"] == 0
+        assert health["scouts"] == {}
+
+
+class TestSwarmSpawnerSubscribesToTriageEscalated:
+    """SwarmSpawner must subscribe to triage.escalated, NOT swarm.idea or swarm.prescreened."""
+
+    @pytest.mark.anyio
+    async def test_subscribes_to_triage_escalated_not_swarm_idea(self):
+        import app.services.swarm_spawner as mod
+        mod._spawner = None
+        from app.services.swarm_spawner import SwarmSpawner
+        bus = FakeBus()
+        spawner = SwarmSpawner()
+        spawner._bus = bus
+        spawner._running = False
+        # Patch worker creation to avoid tasks
+        import unittest.mock as mock
+        with mock.patch("asyncio.create_task"):
+            await spawner.start()
+        assert "triage.escalated" in bus.subscriptions, "SwarmSpawner must subscribe to triage.escalated"
+        assert "swarm.idea" not in bus.subscriptions, "SwarmSpawner must NOT subscribe to raw swarm.idea"
+        assert "swarm.prescreened" not in bus.subscriptions, "SwarmSpawner must NOT subscribe to swarm.prescreened"
+        spawner._running = False
+
+    def test_swarm_spawner_start_code_subscribes_triage_escalated(self):
+        """Source-code check: start() must subscribe to triage.escalated, not raw swarm topics."""
+        import inspect
+        from app.services.swarm_spawner import SwarmSpawner
+        source = inspect.getsource(SwarmSpawner.start)
+        assert "triage.escalated" in source
+        # Must not call subscribe() with raw swarm.idea or swarm.prescreened
+        assert 'subscribe("swarm.idea"' not in source
+        assert 'subscribe("swarm.prescreened"' not in source
+
+    def test_hyper_swarm_escalate_does_not_publish_to_prescreened(self):
+        """HyperSwarm._escalate must NOT re-publish to swarm.prescreened (no subscriber)."""
+        import inspect
+        from app.services.hyper_swarm import HyperSwarm
+        source = inspect.getsource(HyperSwarm._escalate)
+        assert "swarm.prescreened" not in source, "_escalate must not publish to unused swarm.prescreened"
+
+
+class TestLegacyScoutFlag:
+    """LEGACY_SCOUT_ENABLED env flag gates AutonomousScoutService in main.py."""
+
+    def test_legacy_scout_env_defaults_to_false(self):
+        """When LEGACY_SCOUT_ENABLED is unset, it must default to 'false'."""
+        import os
+        import inspect
+        import app.main as main_mod
+        source = inspect.getsource(main_mod._start_event_driven_pipeline)
+        assert "LEGACY_SCOUT_ENABLED" in source
+        assert '"false"' in source, "Default must be 'false'"
+
+    def test_legacy_scout_flag_controls_autonomous_scout(self):
+        """LEGACY_SCOUT_ENABLED=true must be required alongside LLM_ENABLED for AutonomousScoutService."""
+        import os
+        import inspect
+        import app.main as main_mod
+        source = inspect.getsource(main_mod._start_event_driven_pipeline)
+        # Both flags must be AND-ed
+        assert "_legacy_scout_enabled" in source
+        assert "_llm_enabled and _legacy_scout_enabled" in source

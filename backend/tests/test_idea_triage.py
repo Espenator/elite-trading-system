@@ -480,13 +480,16 @@ class TestNoFeedbackLoop:
     """HyperSwarm._escalate must NOT re-enter IdeaTriageService via swarm.idea."""
 
     @pytest.mark.anyio
-    async def test_hyper_swarm_escalate_publishes_to_prescreened_not_swarm_idea(self):
-        """_escalate() must publish to swarm.prescreened, never swarm.idea."""
-        # Verify the fix: no swarm.idea publication from _escalate
+    async def test_hyper_swarm_escalate_does_not_publish_to_swarm_idea(self):
+        """_escalate() must not publish back to swarm.idea (feedback loop).
+
+        Architecture: SwarmSpawner now subscribes to triage.escalated directly, so
+        HyperSwarm._escalate() no longer needs to publish anywhere — it just logs.
+        """
         import inspect
         from app.services.hyper_swarm import HyperSwarm
         source = inspect.getsource(HyperSwarm._escalate)
-        # Must use swarm.prescreened topic
-        assert "swarm.prescreened" in source, "_escalate must publish to swarm.prescreened"
         # Must NOT re-publish to swarm.idea (that would create a feedback loop)
         assert '"swarm.idea"' not in source, "_escalate must not publish back to swarm.idea"
+        # Must NOT publish to swarm.prescreened either (SwarmSpawner no longer subscribes)
+        assert '"swarm.prescreened"' not in source, "_escalate must not publish to swarm.prescreened (no subscriber)"

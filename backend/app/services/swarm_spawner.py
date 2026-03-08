@@ -127,12 +127,15 @@ class SwarmSpawner:
         if self._running:
             return
         self._running = True
-        # Subscribe to idea events from MessageBus
+        # Subscribe to triage-escalated ideas only (E3 quality gate).
+        # Previously subscribed to raw swarm.idea which caused full 17-agent council
+        # to run on every unfiltered idea.  Now only ideas that have passed
+        # IdeaTriageService's scoring threshold (≥40 by default) reach here.
+        # swarm.prescreened is no longer subscribed: SwarmSpawner now receives all
+        # triage-passed ideas directly via triage.escalated, so HyperSwarm
+        # prescreened output is handled by the HyperSwarm→council path separately.
         if self._bus:
-            await self._bus.subscribe("swarm.idea", self._on_idea_event)
-            # swarm.prescreened: pre-scored ideas from HyperSwarm that bypass
-            # IdeaTriageService (avoids feedback loop) but still need full council.
-            await self._bus.subscribe("swarm.prescreened", self._on_idea_event)
+            await self._bus.subscribe("triage.escalated", self._on_idea_event)
         # Start worker tasks
         for i in range(self.MAX_CONCURRENT_SWARMS):
             task = asyncio.create_task(self._worker(i))

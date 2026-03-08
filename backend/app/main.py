@@ -510,14 +510,21 @@ async def _start_event_driven_pipeline():
     log.info("\u2705 KnowledgeIngestionService connected to MessageBus")
 
     # 10. AutonomousScoutService — proactive opportunity discovery
-    if _llm_enabled:
+    # LEGACY_SCOUT_ENABLED defaults to false: ScoutRegistry (step 10b) supersedes it with
+    # 12 dedicated scouts that cover the same UW flow at 15-second intervals.
+    # Running both simultaneously causes every UW flow alert to hit swarm.idea twice.
+    # Set LEGACY_SCOUT_ENABLED=true only if you need the legacy backtest/watchlist scouts
+    # that are not yet ported to the ScoutRegistry.
+    _legacy_scout_enabled = os.getenv("LEGACY_SCOUT_ENABLED", "false").lower() == "true"
+    if _llm_enabled and _legacy_scout_enabled:
         from app.services.autonomous_scout import get_scout_service
         _scout_service = get_scout_service()
         _scout_service._bus = _message_bus
         await _scout_service.start()
         log.info("\u2705 AutonomousScoutService started (%d scouts)", len(_scout_service._tasks))
     else:
-        log.info("\u26A0\uFE0F AutonomousScoutService skipped (LLM_ENABLED=false)")
+        _reason = "LLM_ENABLED=false" if not _llm_enabled else "LEGACY_SCOUT_ENABLED=false (ScoutRegistry active)"
+        log.info("\u26A0\uFE0F AutonomousScoutService skipped (%s)", _reason)
 
     # 10b. ScoutRegistry — E2: 12 dedicated continuous scout agents
     from app.services.scouts.registry import get_scout_registry

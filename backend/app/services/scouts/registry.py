@@ -20,6 +20,7 @@ class ScoutRegistry:
     def __init__(self):
         self._scouts: List[BaseScout] = []
         self._started = False
+        self._health_aggregator = None
 
     # ──────────────────────────────────────────────────────────────────────
     # Registration
@@ -75,10 +76,23 @@ class ScoutRegistry:
             self._scouts.append(scout)
             await scout.start()
 
+        # Start the HealthAggregator — subscribes to scout.heartbeat from all
+        # individual scouts and publishes a single consolidated heartbeat every
+        # 60 seconds instead of 28 individual events per minute.
+        from app.services.scouts.health_aggregator import HealthAggregator
+        self._health_aggregator = HealthAggregator(message_bus=message_bus)
+        await self._health_aggregator.start()
+
         self._started = True
         logger.info("ScoutRegistry started %d scouts", len(self._scouts))
 
     async def stop(self) -> None:
+        if self._health_aggregator:
+            try:
+                await self._health_aggregator.stop()
+            except Exception as exc:
+                logger.warning("Error stopping HealthAggregator: %s", exc)
+            self._health_aggregator = None
         for scout in self._scouts:
             try:
                 await scout.stop()
@@ -94,6 +108,12 @@ class ScoutRegistry:
 
     def get_stats(self) -> Dict[str, dict]:
         return {s.name: s.get_stats() for s in self._scouts}
+
+    def get_health(self) -> Dict:
+        """Return aggregated health status from the HealthAggregator."""
+        if self._health_aggregator:
+            return self._health_aggregator.get_status()
+        return {"scout_count": len(self._scouts), "scouts": {}, "aggregated_at": None}
 
     @property
     def scout_count(self) -> int:

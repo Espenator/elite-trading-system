@@ -409,31 +409,15 @@ REASON: [one sentence]"""
     # Escalation to Full Council
     # ──────────────────────────────────────────────────────────────────────
     async def _escalate(self, signal_data: Dict, result: MicroSwarmResult):
-        """Escalate high-scoring micro-swarm results to the full SwarmSpawner.
+        """Record a high-scoring micro-swarm result.
 
-        Publishes to ``swarm.prescreened`` (NOT ``swarm.idea``) so that the
-        IdeaTriageService is bypassed.  Publishing back to ``swarm.idea`` would
-        re-enter the triage pipeline and create a feedback loop where
-        IdeaTriageService re-escalates the same idea back to HyperSwarm on
-        each iteration.
+        SwarmSpawner now subscribes to ``triage.escalated`` directly, so it
+        already has the underlying idea in its queue before this method is
+        called.  The ``_escalate`` path therefore only needs to log the
+        high-confidence finding for telemetry/audit purposes — no additional
+        publish is needed to avoid double-processing.
         """
         self._stats["total_escalated"] += 1
-        if self._bus:
-            # swarm.prescreened → SwarmSpawner directly (bypasses IdeaTriageService)
-            await self._bus.publish("swarm.prescreened", {
-                "source": f"hyper_swarm:{result.signal_type}",
-                "symbols": [result.symbol],
-                "direction": result.direction,
-                "reasoning": f"[HyperSwarm score={result.score}/100] {result.reasoning}",
-                "priority": 1 if result.score >= 80 else 2,
-                "metadata": {
-                    "micro_swarm_score": result.score,
-                    "micro_swarm_confidence": result.confidence,
-                    "risk_level": result.risk_level,
-                    "signal_type": result.signal_type,
-                    "escalated": True,
-                },
-            })
         logger.info(
             "HyperSwarm ESCALATED: %s %s score=%d -> full council",
             result.symbol, result.direction, result.score,
