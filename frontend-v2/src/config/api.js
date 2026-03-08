@@ -50,6 +50,7 @@ const API_CONFIG = {
 
     // ---- ADDITIONAL ROUTERS ----
     agents: "/agents", // Agent control: start/stop/pause/config
+    agentsSummary: "/agents/summary", // Real-time ACC header: counts, CPU, RAM, GPU, uptime
     dataSources: "/data-sources/", // Health of all 10 data feeds (trailing slash required by FastAPI)
     sentiment: "/sentiment", // Aggregated sentiment from 4 sources
     youtubeKnowledge: "/youtube-knowledge", // YouTube transcript ingestion

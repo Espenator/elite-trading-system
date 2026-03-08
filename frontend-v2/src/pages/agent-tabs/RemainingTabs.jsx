@@ -12,6 +12,8 @@ import { toast } from "react-toastify";
 // ========== BLACKBOARD & COMMS TAB ==========
 export function BlackboardCommsTab() {
   const { data: busStatus } = useApi("system/event-bus/status");
+  const { data: wsChannelsRaw } = useApi("agentWsChannels", { pollIntervalMs: 15000 });
+  const { data: hitlRaw } = useApi("agentHitlBuffer", { pollIntervalMs: 15000 });
   const [messages, setMessages] = useState([]);
   const feedRef = useRef([]);
 
@@ -28,22 +30,11 @@ export function BlackboardCommsTab() {
     return () => { ws.unsubscribe("agents", handler); ws.unsubscribe("council", handler); };
   }, []);
 
-  const topics = [
-    { topic: "signal.generated", subs: 5, rate: 3.4, status: "ok" },
-    { topic: "council.verdict", subs: 8, rate: 1.2, status: "ok" },
-    { topic: "market_data.bar", subs: 12, rate: 15.7, status: "ok" },
-    { topic: "risk.alert", subs: 6, rate: 0.3, status: "ok" },
-    { topic: "agent.heartbeat", subs: 42, rate: 7.0, status: "ok" },
-    { topic: "ml.training.progress", subs: 3, rate: 0.1, status: "warn" },
-    { topic: "order.submitted", subs: 4, rate: 0.8, status: "ok" },
-    { topic: "sentiment.update", subs: 5, rate: 2.1, status: "ok" },
-  ];
+  // Use real WS channel data from /agents/ws-channels; empty array if unavailable
+  const channels = Array.isArray(wsChannelsRaw?.channels) ? wsChannelsRaw.channels : [];
 
-  const hitlBuffer = [
-    { id: 1, type: "TRADE", symbol: "TSLA", action: "BUY", confidence: 72, status: "pending" },
-    { id: 2, type: "RISK", symbol: "PORTFOLIO", action: "REDUCE", confidence: 85, status: "pending" },
-    { id: 3, type: "SCALE", symbol: "Scanner-Fleet", action: "SPAWN x3", confidence: 91, status: "approved" },
-  ];
+  // Use real HITL buffer data; empty array if no pending items
+  const hitlBuffer = Array.isArray(hitlRaw?.buffer) ? hitlRaw.buffer : [];
 
   return (
     <div className="grid grid-cols-12 gap-3">
@@ -66,22 +57,33 @@ export function BlackboardCommsTab() {
       {/* WS Channel Monitor */}
       <div className="col-span-4 space-y-3">
         <div className="aurora-card p-3">
-          <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">MessageBus Channel Monitor</h3>
-          <table className="w-full text-[10px]">
-            <thead><tr className="text-gray-500 border-b border-gray-800">
-              <th className="text-left py-1">Topic</th><th className="text-right">Subs</th><th className="text-right">Rate/s</th><th className="text-right">Status</th>
-            </tr></thead>
-            <tbody>{topics.map(t => (
-              <tr key={t.topic} className="border-b border-gray-800/30 hover:bg-cyan-500/5">
-                <td className="py-1 text-cyan-400 font-mono">{t.topic}</td>
-                <td className="text-right text-white">{t.subs}</td>
-                <td className="text-right text-gray-400">{t.rate}</td>
-                <td className="text-right">
-                  <span className={`w-2 h-2 rounded-full inline-block ${t.status === "ok" ? "bg-emerald-500" : "bg-amber-500"}`} />
-                </td>
-              </tr>
-            ))}</tbody>
-          </table>
+          <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">
+            MessageBus Channel Monitor
+            {wsChannelsRaw?.total_connections != null && (
+              <span className="ml-2 text-gray-500 font-normal normal-case text-[9px]">
+                {wsChannelsRaw.total_connections} connection{wsChannelsRaw.total_connections !== 1 ? "s" : ""}
+              </span>
+            )}
+          </h3>
+          {channels.length === 0 ? (
+            <div className="text-gray-500 text-[10px] text-center py-4">No channel data — backend may be offline</div>
+          ) : (
+            <table className="w-full text-[10px]">
+              <thead><tr className="text-gray-500 border-b border-gray-800">
+                <th className="text-left py-1">Channel</th><th className="text-right">Subs</th><th className="text-right">Msg/s</th><th className="text-right">Status</th>
+              </tr></thead>
+              <tbody>{channels.map(t => (
+                <tr key={t.channel} className="border-b border-gray-800/30 hover:bg-cyan-500/5">
+                  <td className="py-1 text-cyan-400 font-mono">{t.channel}</td>
+                  <td className="text-right text-white">{t.subscribers ?? 0}</td>
+                  <td className="text-right text-gray-400">{t.msg_per_sec ?? 0}</td>
+                  <td className="text-right">
+                    <span className={`w-2 h-2 rounded-full inline-block ${t.status === "active" ? "bg-emerald-500" : "bg-gray-600"}`} />
+                  </td>
+                </tr>
+              ))}</tbody>
+            </table>
+          )}
         </div>
       </div>
 
@@ -89,7 +91,9 @@ export function BlackboardCommsTab() {
       <div className="col-span-3 aurora-card p-3">
         <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Human-In-The-Loop Buffer</h3>
         <div className="space-y-2">
-          {hitlBuffer.map(h => (
+          {hitlBuffer.length === 0 ? (
+            <div className="text-gray-500 text-[10px] text-center py-4">No pending items</div>
+          ) : hitlBuffer.map(h => (
             <div key={h.id} className="bg-[#0B0E14] border border-gray-700 rounded p-2">
               <div className="flex items-center justify-between text-[10px] mb-1">
                 <span className="text-amber-400 font-bold">{h.type}</span>
@@ -113,92 +117,140 @@ export function BlackboardCommsTab() {
 }
 
 // ========== CONFERENCE & CONSENSUS TAB ==========
-export function ConferenceConsensusTab() {
-  const { data: councilStatus } = useApi("council/status");
-  const stages = [
-    { name: "Stage 1: Perception", agents: ["MarketPerception", "FlowPerception", "Regime", "Intermarket"], status: "complete" },
-    { name: "Stage 2: Indicators", agents: ["RSI", "BBV", "EMA_Trend", "RelativeStrength", "CycleTiming"], status: "complete" },
-    { name: "Stage 3: Hypothesis", agents: ["Hypothesis"], status: "running" },
-    { name: "Stage 4: Strategy", agents: ["Strategy"], status: "pending" },
-    { name: "Stage 5: Risk/Exec", agents: ["Risk", "Execution"], status: "pending" },
-    { name: "Stage 6: Critic", agents: ["Critic"], status: "pending" },
-    { name: "Stage 7: Arbiter", agents: ["Arbiter"], status: "pending" },
-  ];
+export function ConferenceConsensusTab({ councilStatus: councilStatusProp }) {
+  // Accept councilStatus as a prop (pre-fetched in ACC) or fetch locally as fallback
+  const { data: councilStatusFetched } = useApi("council/status", { pollIntervalMs: 30000, enabled: !councilStatusProp });
+  const councilStatus = councilStatusProp ?? councilStatusFetched;
 
-  const recentConferences = [
-    { id: "#841", symbol: "AAPL", verdict: "BUY", confidence: 88, duration: "4.2s", votes: { for: 9, against: 3, abstain: 1 } },
-    { id: "#840", symbol: "MSFT", verdict: "HOLD", confidence: 62, duration: "3.8s", votes: { for: 5, against: 6, abstain: 2 } },
-    { id: "#839", symbol: "TSLA", verdict: "SELL", confidence: 78, duration: "5.1s", votes: { for: 2, against: 10, abstain: 1 } },
-    { id: "#838", symbol: "SPY", verdict: "BUY", confidence: 91, duration: "3.2s", votes: { for: 11, against: 1, abstain: 1 } },
+  const { data: councilLatest } = useApi("councilLatest", { pollIntervalMs: 15000 });
+  const { data: councilWeightsData } = useApi("councilWeights", { pollIntervalMs: 30000 });
+
+  // Build real DAG stages from /council/status — fall back to known schema if not yet loaded
+  const STAGE_LABELS = [
+    "Stage 1: Perception",
+    "Stage 2: Indicators",
+    "Stage 3: Hypothesis",
+    "Stage 4: Strategy",
+    "Stage 5: Risk/Exec",
+    "Stage 6: Critic",
+    "Stage 7: Arbiter",
   ];
+  const dagStages = Array.isArray(councilStatus?.dag_stages) ? councilStatus.dag_stages : [
+    ["market_perception", "flow_perception", "regime", "intermarket"],
+    ["rsi", "bbv", "ema_trend", "relative_strength", "cycle_timing"],
+    ["hypothesis"],
+    ["strategy"],
+    ["risk", "execution"],
+    ["critic"],
+    ["arbiter"],
+  ];
+  const stages = dagStages.map((agentList, i) => ({
+    name: STAGE_LABELS[i] ?? `Stage ${i + 1}`,
+    agents: agentList.map(a => a.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())),
+    status: "ready",
+  }));
+
+  // Latest council decision from /council/latest
+  const hasDecision = councilLatest && councilLatest.status !== "no_evaluation_yet" && councilLatest.symbol;
+  const latestConference = hasDecision ? [{
+    id: councilLatest.council_decision_id || "#—",
+    symbol: councilLatest.symbol,
+    verdict: (councilLatest.final_direction || "hold").toUpperCase(),
+    confidence: Math.round((councilLatest.final_confidence ?? 0) * 100),
+    duration: councilLatest.cognitive?.total_latency_ms != null
+      ? `${(councilLatest.cognitive.total_latency_ms / 1000).toFixed(1)}s`
+      : "—",
+    votes: {
+      for: (councilLatest.votes ?? []).filter(v => v.direction === councilLatest.final_direction).length,
+      against: (councilLatest.votes ?? []).filter(v => v.direction !== councilLatest.final_direction && !v.veto).length,
+      vetoed: (councilLatest.votes ?? []).filter(v => v.veto).length,
+    },
+  }] : [];
+
+  // Real Bayesian weights from /council/weights
+  const rawWeights = councilWeightsData?.weights ?? councilStatus?.agent_weights ?? {};
+  const weightEntries = Object.entries(rawWeights)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([name, w]) => [
+      name.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
+      typeof w === "number" ? w : 1.0,
+    ]);
+  const weightSum = weightEntries.reduce((s, [, w]) => s + w, 0) || 1;
 
   return (
     <div className="grid grid-cols-12 gap-3">
       {/* Pipeline Visualization */}
       <div className="col-span-8 aurora-card p-3">
-        <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-3">Council DAG Pipeline (7 Stages)</h3>
+        <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-3">
+          Council DAG Pipeline ({stages.length} Stages · {councilStatus?.agent_count ?? dagStages.flat().length} agents)
+        </h3>
         <div className="space-y-2">
           {stages.map((s, i) => (
-            <div key={s.name} className={`flex items-center gap-3 p-2 rounded border ${s.status === "complete" ? "border-emerald-500/30 bg-emerald-500/5" : s.status === "running" ? "border-cyan-500/30 bg-cyan-500/10 animate-pulse" : "border-gray-700 bg-gray-800/20"}`}>
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${s.status === "complete" ? "bg-emerald-500/20 text-emerald-400" : s.status === "running" ? "bg-cyan-500/20 text-cyan-400" : "bg-gray-700 text-gray-500"}`}>
-                {s.status === "complete" ? "✓" : i + 1}
+            <div key={s.name} className="flex items-center gap-3 p-2 rounded border border-gray-700 bg-gray-800/20">
+              <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold bg-gray-700 text-gray-300">
+                {i + 1}
               </div>
               <div className="flex-1">
                 <div className="text-[10px] text-white font-bold">{s.name}</div>
                 <div className="flex gap-1 mt-0.5 flex-wrap">
                   {s.agents.map(a => (
-                    <span key={a} className={`px-1.5 py-0.5 rounded text-[8px] ${s.status === "complete" ? "bg-emerald-500/10 text-emerald-400" : s.status === "running" ? "bg-cyan-500/10 text-cyan-400" : "bg-gray-800 text-gray-500"}`}>{a}</span>
+                    <span key={a} className="px-1.5 py-0.5 rounded text-[8px] bg-cyan-500/10 text-cyan-400">{a}</span>
                   ))}
                 </div>
               </div>
-              <span className={`text-[9px] ${s.status === "complete" ? "text-emerald-400" : s.status === "running" ? "text-cyan-400" : "text-gray-600"}`}>{s.status.toUpperCase()}</span>
+              <span className="text-[9px] text-gray-500">READY</span>
             </div>
           ))}
         </div>
+        {!councilStatus && (
+          <div className="text-[9px] text-gray-600 mt-2">Connecting to /council/status…</div>
+        )}
       </div>
 
-      {/* Vote Breakdown + Recent Conferences */}
+      {/* Latest Conference + Bayesian Weights */}
       <div className="col-span-4 space-y-3">
         <div className="aurora-card p-3">
-          <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Recent Conferences</h3>
-          <div className="space-y-2">
-            {recentConferences.map(c => (
-              <div key={c.id} className="bg-[#0B0E14] rounded p-2 border border-gray-800">
-                <div className="flex items-center justify-between text-[10px] mb-1">
-                  <span className="text-gray-500">{c.id}</span>
-                  <span className="text-cyan-400 font-bold">{c.symbol}</span>
-                  <span className={`font-bold ${c.verdict === "BUY" ? "text-emerald-400" : c.verdict === "SELL" ? "text-red-400" : "text-amber-400"}`}>{c.verdict}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-cyan-500 rounded-full" style={{ width: `${c.confidence}%` }} />
-                  </div>
-                  <span className="text-[9px] text-white">{c.confidence}%</span>
-                </div>
-                <div className="flex gap-2 mt-1 text-[8px]">
-                  <span className="text-emerald-400">For: {c.votes.for}</span>
-                  <span className="text-red-400">Against: {c.votes.against}</span>
-                  <span className="text-gray-500">Abstain: {c.votes.abstain}</span>
-                  <span className="text-gray-600 ml-auto">{c.duration}</span>
-                </div>
+          <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Latest Council Decision</h3>
+          {latestConference.length === 0 ? (
+            <div className="text-gray-500 text-[10px] text-center py-4">
+              No evaluation yet — run a council evaluation to see results
+            </div>
+          ) : latestConference.map(c => (
+            <div key={c.id} className="bg-[#0B0E14] rounded p-2 border border-gray-800">
+              <div className="flex items-center justify-between text-[10px] mb-1">
+                <span className="text-gray-500 font-mono">{c.id}</span>
+                <span className="text-cyan-400 font-bold">{c.symbol}</span>
+                <span className={`font-bold ${c.verdict === "BUY" ? "text-emerald-400" : c.verdict === "SELL" ? "text-red-400" : "text-amber-400"}`}>{c.verdict}</span>
               </div>
-            ))}
-          </div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                  <div className="h-full bg-cyan-500 rounded-full" style={{ width: `${c.confidence}%` }} />
+                </div>
+                <span className="text-[9px] text-white">{c.confidence}%</span>
+              </div>
+              <div className="flex gap-2 mt-1 text-[8px]">
+                <span className="text-emerald-400">For: {c.votes.for}</span>
+                <span className="text-red-400">Against: {c.votes.against}</span>
+                <span className="text-gray-500">Vetoed: {c.votes.vetoed}</span>
+                <span className="text-gray-600 ml-auto">{c.duration}</span>
+              </div>
+            </div>
+          ))}
         </div>
 
-        {/* Bayesian Weights */}
+        {/* Bayesian Weights — real data from /council/weights */}
         <div className="aurora-card p-3">
           <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Bayesian Agent Weights</h3>
-          {[
-            ["MarketPerception", 0.12], ["FlowPerception", 0.09], ["Regime", 0.15],
-            ["RSI", 0.08], ["Strategy", 0.14], ["Risk", 0.11], ["Critic", 0.10],
-          ].map(([name, w]) => (
+          {weightEntries.length === 0 ? (
+            <div className="text-gray-500 text-[10px] text-center py-4">Connecting to /council/weights…</div>
+          ) : weightEntries.map(([name, w]) => (
             <div key={name} className="flex items-center gap-2 text-[9px] mb-1">
-              <span className="w-24 text-gray-400">{name}</span>
+              <span className="w-28 text-gray-400 truncate">{name}</span>
               <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                <div className="h-full bg-cyan-500 rounded-full" style={{ width: `${w * 500}%` }} />
+                <div className="h-full bg-cyan-500 rounded-full" style={{ width: `${Math.min(100, (w / weightSum) * 100)}%` }} />
               </div>
-              <span className="text-white w-8 text-right">{(w * 100).toFixed(0)}%</span>
+              <span className="text-white w-10 text-right font-mono">{w.toFixed(3)}</span>
             </div>
           ))}
         </div>

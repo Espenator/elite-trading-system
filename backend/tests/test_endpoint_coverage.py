@@ -41,6 +41,7 @@ EXPECTED_FRONTEND_ENDPOINTS = [
     "/api/v1/backtest/drawdown-analysis",
     "/api/v1/status",
     "/api/v1/agents",
+    "/api/v1/agents/summary",
     "/api/v1/data-sources/",
     "/api/v1/sentiment",
     "/api/v1/youtube-knowledge",

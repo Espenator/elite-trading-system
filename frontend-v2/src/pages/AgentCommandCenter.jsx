@@ -50,18 +50,18 @@ export default function AgentCommandCenter() {
 
   // Data hooks
   const { data: agentsRaw } = useApi("agents", { pollIntervalMs: 15000 });
-  const { data: systemStatus } = useApi("system/health");
-  const agents = useMemo(() => (Array.isArray(agentsRaw) ? agentsRaw : []), [agentsRaw]);
+  const { data: agentSummary } = useApi("agentsSummary", { pollIntervalMs: 15000 });
+  const { data: councilStatusData } = useApi("council/status", { pollIntervalMs: 30000 });
+  const agents = useMemo(() => (Array.isArray(agentsRaw?.agents) ? agentsRaw.agents : Array.isArray(agentsRaw) ? agentsRaw : []), [agentsRaw]);
 
-  // Derived metrics
-  const onlineCount = agents.filter(a => a.status === "running").length;
-  const totalCount = agents.length || 42;
-  const cpuAvg = agents.length > 0
-    ? Math.round(agents.reduce((s, a) => s + (a.cpu_usage || 0), 0) / agents.length)
-    : 47;
-  const ramPct = systemStatus?.memory_percent || 31;
-  const gpuPct = systemStatus?.gpu_percent || 61;
-  const uptime = systemStatus?.uptime || "47d 12h 33m";
+  // Derived metrics — prefer live summary, fall back to computed values, never static fakes
+  const totalCount = agentSummary?.total_agents ?? (councilStatusData?.agent_count ?? 0) + agents.length;
+  const onlineCount = agentSummary?.online_count ?? agents.filter(a => a.status === "running").length;
+  const cpuAvg = agentSummary?.cpu_percent
+    ?? (agents.length > 0 ? Math.round(agents.reduce((s, a) => s + (a.cpuPercent || 0), 0) / agents.length) : 0);
+  const ramPct = agentSummary?.memory_percent ?? 0;
+  const gpuPct = agentSummary?.gpu_percent ?? 0;
+  const uptime = agentSummary?.uptime ?? "—";
 
   const setTab = (key) => setSearchParams({ tab: key });
 
@@ -85,7 +85,7 @@ export default function AgentCommandCenter() {
             <span className="text-white font-bold">{uptime}</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="text-white font-bold">{totalCount}/{totalCount}</span>
+            <span className="text-white font-bold">{onlineCount}/{totalCount}</span>
             <span className="text-emerald-400 font-bold">ONLINE</span>
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
           </div>
@@ -141,12 +141,12 @@ export default function AgentCommandCenter() {
 
       {/* ========== TAB CONTENT ========== */}
       <div className="flex-1 p-3 overflow-y-auto">
-        {activeTab === "overview" && <SwarmOverviewTab agents={agents} />}
+        {activeTab === "overview" && <SwarmOverviewTab agents={agents} councilStatus={councilStatusData} />}
         {activeTab === "registry" && <AgentRegistryTab agents={agents} />}
         {activeTab === "spawn" && <SpawnScaleTab />}
         {activeTab === "wiring" && <LiveWiringTab />}
         {activeTab === "blackboard" && <BlackboardCommsTab />}
-        {activeTab === "conference" && <ConferenceConsensusTab />}
+        {activeTab === "conference" && <ConferenceConsensusTab councilStatus={councilStatusData} />}
         {activeTab === "mlops" && <MlOpsTab />}
         {activeTab === "logs" && <LogsTelemetryTab />}
       </div>
@@ -163,11 +163,9 @@ export default function AgentCommandCenter() {
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block ml-0.5" />
           </span>
           <span className="text-gray-700">|</span>
-          <span><span className="text-white">{totalCount}</span> agents</span>
+          <span><span className="text-white">{totalCount}</span> agents ({onlineCount} online)</span>
           <span className="text-gray-700">|</span>
-          <span>LLM Flow <span className="text-white">847</span></span>
-          <span className="text-gray-700">|</span>
-          <span>Conference <span className="text-white">8/12</span></span>
+          <span>Council <span className="text-white">{agentSummary?.council_agents ?? councilStatusData?.agent_count ?? "—"}</span> agents</span>
           <span className="text-gray-700">|</span>
           <span>Last Refresh <span className="text-[#00D9FF]">{new Date().toLocaleTimeString("en-US", { hour12: false })}</span></span>
           <span className="text-gray-700">|</span>
