@@ -935,7 +935,15 @@ async def lifespan(app: FastAPI):
             "Event-driven pipeline failed to start -- falling back to polling only"
         )
 
-    # 3b. Flywheel scheduler (optional)
+    # 3b. Initialize data ingestion adapters
+    try:
+        from app.services.ingestion import initialize_adapters
+        registry = initialize_adapters()
+        log.info("Data ingestion adapters initialized: %s", ", ".join(registry.get_adapter_ids()))
+    except Exception as e:
+        log.warning("Adapter initialization failed: %s", e)
+
+    # 3c. Flywheel scheduler (optional) - now includes adapter jobs
     try:
         from app.jobs.scheduler import start_scheduler
         start_scheduler()
