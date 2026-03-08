@@ -1,0 +1,84 @@
+name: UI Fidelity Audit
+
+# Warn-only visual regression workflow.
+# Runs on every PR and on pushes to main.
+# Does NOT fail the pipeline — it uploads diff artifacts for human review.
+# Set STRICT_DIFF=1 in the repo's Actions secrets/variables to make failures blocking.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ui-fidelity:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend-v2
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend-v2/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Copy mockup baselines
+        run: npm run ui:baseline
+
+      - name: Start dev server + capture screenshots via Playwright
+        run: npx playwright test e2e/visual-regression.spec.js --reporter=list
+        env:
+          CI: true
+          # Override UPDATE_SNAPSHOTS to capture fresh screenshots without
+          # comparing to non-existent snapshot files on first run
+          UPDATE_SNAPSHOTS: "1"
+        continue-on-error: true   # capture screenshots even if some pages fail
+
+      - name: Run pixel diff against mockup baselines
+        run: npm run ui:diff
+        # STRICT_DIFF=1 → exit 1 on any failing diff (makes the job fail)
+        # Leave unset (default) for warn-only mode
+        env:
+          STRICT_DIFF: ${{ vars.STRICT_DIFF || '0' }}
+        continue-on-error: ${{ vars.STRICT_DIFF != '1' }}
+
+      - name: Upload screenshots & diffs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-fidelity-${{ github.run_number }}
+          path: |
+            artifacts/ui-screenshots/current/
+            artifacts/ui-screenshots/diff/
+            artifacts/ui-screenshots/diff-report.json
+          retention-days: 30
+
+      - name: Print diff summary
+        if: always()
+        run: |
+          echo "## UI Fidelity Diff Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Page | Status | Mismatch (1920×1080) |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|----------------------|" >> $GITHUB_STEP_SUMMARY
+          node -e "
+            const r = require('../artifacts/ui-screenshots/diff-report.json');
+            for (const p of r.pages) {
+              const vp = p.viewports?.find(v => v.viewport === '1920x1080');
+              const pct = vp?.mismatchRatio != null ? (vp.mismatchRatio * 100).toFixed(2) + '%' : 'n/a';
+              const icon = p.status === 'pass' ? '✅' : p.status === 'fail' ? '❌' : '⚠️';
+              console.log('| ' + p.page + ' | ' + icon + ' ' + p.status + ' | ' + pct + ' |');
+            }
+          " >> $GITHUB_STEP_SUMMARY || true

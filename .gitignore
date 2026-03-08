@@ -71,3 +71,7 @@ htmlcov/
 *.bak
 *.tmp
 .claude/
+
+# ── UI Fidelity Audit — generated artifacts (captured per-run) ──
+artifacts/ui-screenshots/current/
+artifacts/ui-screenshots/diff/

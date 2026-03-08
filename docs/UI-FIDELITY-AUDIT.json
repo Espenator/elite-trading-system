@@ -1,0 +1,716 @@
+{
+  "generatedAt": "2026-03-08T20:30:00.000Z",
+  "methodology": {
+    "tool": "pixelmatch",
+    "threshold": 0.1,
+    "viewports": ["1920x1080", "1440x900", "1280x720"],
+    "baselineSource": "docs/mockups-v3/images/",
+    "screenshotDir": "artifacts/ui-screenshots/current/",
+    "diffDir": "artifacts/ui-screenshots/diff/",
+    "notes": "Baselines are mockup PNGs scaled to match screenshot viewport. Mismatch includes data-driven differences from loading states (no backend in CI)."
+  },
+  "summary": {
+    "totalPages": 14,
+    "pass": 2,
+    "fail": 12,
+    "passPages": ["dashboard", "ml-brain"],
+    "failPages": [
+      "sentiment-intelligence",
+      "market-regime",
+      "backtesting",
+      "agent-command-center",
+      "patterns",
+      "signal-intelligence",
+      "data-sources",
+      "trade-execution",
+      "performance",
+      "trades",
+      "settings",
+      "risk"
+    ]
+  },
+  "pages": [
+    {
+      "slug": "dashboard",
+      "title": "Intelligence Dashboard",
+      "route": "/dashboard",
+      "component": "src/pages/Dashboard.jsx",
+      "mockups": [
+        "docs/mockups-v3/images/02-intelligence-dashboard.png"
+      ],
+      "baseline": "artifacts/ui-screenshots/baseline/dashboard/mockup.png",
+      "screenshots": {
+        "1920x1080": "artifacts/ui-screenshots/current/dashboard/1920x1080.png",
+        "1440x900": "artifacts/ui-screenshots/current/dashboard/1440x900.png",
+        "1280x720": "artifacts/ui-screenshots/current/dashboard/1280x720.png"
+      },
+      "diffs": {
+        "1920x1080": "artifacts/ui-screenshots/diff/dashboard/1920x1080-diff.png",
+        "1440x900": "artifacts/ui-screenshots/diff/dashboard/1440x900-diff.png",
+        "1280x720": "artifacts/ui-screenshots/diff/dashboard/1280x720-diff.png"
+      },
+      "mismatchRatio": {
+        "1920x1080": 0.055,
+        "1440x900": 0.063,
+        "1280x720": 0.068
+      },
+      "overallStatus": "pass",
+      "priority": "P2",
+      "visualDeltas": [
+        "Dynamic data / loading states visible (no backend)",
+        "Ticker strip animation captured mid-frame",
+        "Minor font anti-aliasing differences"
+      ],
+      "recommendedFixes": []
+    },
+    {
+      "slug": "agent-command-center",
+      "title": "Agent Command Center",
+      "route": "/agents",
+      "component": "src/pages/AgentCommandCenter.jsx",
+      "mockups": [
+        "docs/mockups-v3/images/01-agent-command-center-final.png",
+        "docs/mockups-v3/images/05-agent-command-center.png",
+        "docs/mockups-v3/images/05b-agent-command-center-spawn.png",
+        "docs/mockups-v3/images/05c-agent-registry.png",
+        "docs/mockups-v3/images/agent command center brain map.png",
+        "docs/mockups-v3/images/agent command center node control.png",
+        "docs/mockups-v3/images/agent command center swarm overview.png",
+        "docs/mockups-v3/images/realtimeblackbard fead.png"
+      ],
+      "baseline": "artifacts/ui-screenshots/baseline/agent-command-center/mockup.png",
+      "screenshots": {
+        "1920x1080": "artifacts/ui-screenshots/current/agent-command-center/1920x1080.png",
+        "1440x900": "artifacts/ui-screenshots/current/agent-command-center/1440x900.png",
+        "1280x720": "artifacts/ui-screenshots/current/agent-command-center/1280x720.png"
+      },
+      "diffs": {
+        "1920x1080": "artifacts/ui-screenshots/diff/agent-command-center/1920x1080-diff.png",
+        "1440x900": "artifacts/ui-screenshots/diff/agent-command-center/1440x900-diff.png",
+        "1280x720": "artifacts/ui-screenshots/diff/agent-command-center/1280x720-diff.png"
+      },
+      "mismatchRatio": {
+        "1920x1080": 0.212,
+        "1440x900": 0.220,
+        "1280x720": 0.227
+      },
+      "overallStatus": "fail",
+      "priority": "P1",
+      "visualDeltas": [
+        "Agent Health Matrix (6×2 dot grid) rendered as text list in code",
+        "Swarm topology graph edge curve style differs from mockup",
+        "ELO Leaderboard lacks gold/silver/bronze row styling",
+        "Agent Resource Monitor table column widths differ",
+        "Tab bar spacing and icon alignment differs"
+      ],
+      "recommendedFixes": [
+        {
+          "file": "src/pages/AgentCommandCenter.jsx",
+          "change": "Use grid grid-cols-6 gap-1 for health matrix dots in Swarm Overview tab"
+        },
+        {
+          "file": "src/pages/agent-tabs/",
+          "change": "Verify each tab component against its dedicated mockup"
+        },
+        {
+          "file": "src/pages/AgentCommandCenter.jsx",
+          "change": "Add bg-gradient-to-r from-yellow-500/20 for top-3 ELO table rows"
+        }
+      ]
+    },
+    {
+      "slug": "sentiment-intelligence",
+      "title": "Sentiment Intelligence",
+      "route": "/sentiment",
+      "component": "src/pages/SentimentIntelligence.jsx",
+      "mockups": [
+        "docs/mockups-v3/images/04-sentiment-intelligence.png"
+      ],
+      "baseline": "artifacts/ui-screenshots/baseline/sentiment-intelligence/mockup.png",
+      "screenshots": {
+        "1920x1080": "artifacts/ui-screenshots/current/sentiment-intelligence/1920x1080.png",
+        "1440x900": "artifacts/ui-screenshots/current/sentiment-intelligence/1440x900.png",
+        "1280x720": "artifacts/ui-screenshots/current/sentiment-intelligence/1280x720.png"
+      },
+      "diffs": {
+        "1920x1080": "artifacts/ui-screenshots/diff/sentiment-intelligence/1920x1080-diff.png",
+        "1440x900": "artifacts/ui-screenshots/diff/sentiment-intelligence/1440x900-diff.png",
+        "1280x720": "artifacts/ui-screenshots/diff/sentiment-intelligence/1280x720-diff.png"
+      },
+      "mismatchRatio": {
+        "1920x1080": 0.341,
+        "1440x900": 0.357,
+        "1280x720": 0.353
+      },
+      "overallStatus": "fail",
+      "priority": "P0",
+      "visualDeltas": [
+        "Layout structurally different: mockup shows 3-column grid; code renders 2-column + sidebar",
+        "Sentiment heatmap / word-cloud component absent in current render",
+        "Fear & Greed gauge is smaller in code than mockup",
+        "Color palette: mockup uses amber/orange for positive; code uses cyan/emerald",
+        "Section header typography differs (mockup: 1.2rem; code: 0.75rem)",
+        "No backend causes all data sections to show skeleton loaders"
+      ],
+      "recommendedFixes": [
+        {
+          "file": "src/pages/SentimentIntelligence.jsx",
+          "change": "Add 3-column grid layout using grid-cols-3"
+        },
+        {
+          "file": "src/pages/SentimentIntelligence.jsx",
+          "change": "Implement word-cloud / sentiment heatmap component visible in mockup top-center"
+        },
+        {
+          "file": "src/pages/SentimentIntelligence.jsx",
+          "change": "Size Fear & Greed gauge to h-48 w-48 to match mockup prominence"
+        },
+        {
+          "file": "src/pages/SentimentIntelligence.jsx",
+          "change": "Use text-amber-400 for positive sentiment indicators"
+        }
+      ]
+    },
+    {
+      "slug": "data-sources",
+      "title": "Data Sources Monitor",
+      "route": "/data-sources",
+      "component": "src/pages/DataSourcesMonitor.jsx",
+      "mockups": [
+        "docs/mockups-v3/images/09-data-sources-manager.png"
+      ],
+      "baseline": "artifacts/ui-screenshots/baseline/data-sources/mockup.png",
+      "screenshots": {
+        "1920x1080": "artifacts/ui-screenshots/current/data-sources/1920x1080.png",
+        "1440x900": "artifacts/ui-screenshots/current/data-sources/1440x900.png",
+        "1280x720": "artifacts/ui-screenshots/current/data-sources/1280x720.png"
+      },
+      "diffs": {
+        "1920x1080": "artifacts/ui-screenshots/diff/data-sources/1920x1080-diff.png",
+        "1440x900": "artifacts/ui-screenshots/diff/data-sources/1440x900-diff.png",
+        "1280x720": "artifacts/ui-screenshots/diff/data-sources/1280x720-diff.png"
+      },
+      "mismatchRatio": {
+        "1920x1080": 0.182,
+        "1440x900": 0.187,
+        "1280x720": 0.225
+      },
+      "overallStatus": "fail",
+      "priority": "P1",
+      "visualDeltas": [
+        "Source health grid: mockup shows 3 columns; code may collapse to 2 at some viewports",
+        "Status indicator: mockup uses solid green/red dots; code uses semitransparent variants"
+      ],
+      "recommendedFixes": [
+        {
+          "file": "src/pages/DataSourcesMonitor.jsx",
+          "change": "Use grid-cols-3 for source cards"
+        },
+        {
+          "file": "src/pages/DataSourcesMonitor.jsx",
+          "change": "Replace bg-emerald-500/50 with bg-emerald-500 (solid) for active status dots"
+        }
+      ]
+    },
+    {
+      "slug": "signal-intelligence",
+      "title": "Signal Intelligence",
+      "route": "/signal-intelligence-v3",
+      "component": "src/pages/SignalIntelligenceV3.jsx",
+      "mockups": [
+        "docs/mockups-v3/images/03-signal-intelligence.png"
+      ],
+      "baseline": "artifacts/ui-screenshots/baseline/signal-intelligence/mockup.png",
+      "screenshots": {
+        "1920x1080": "artifacts/ui-screenshots/current/signal-intelligence/1920x1080.png",
+        "1440x900": "artifacts/ui-screenshots/current/signal-intelligence/1440x900.png",
+        "1280x720": "artifacts/ui-screenshots/current/signal-intelligence/1280x720.png"
+      },
+      "diffs": {
+        "1920x1080": "artifacts/ui-screenshots/diff/signal-intelligence/1920x1080-diff.png",
+        "1440x900": "artifacts/ui-screenshots/diff/signal-intelligence/1440x900-diff.png",
+        "1280x720": "artifacts/ui-screenshots/diff/signal-intelligence/1280x720-diff.png"
+      },
+      "mismatchRatio": {
+        "1920x1080": 0.198,
+        "1440x900": 0.216,
+        "1280x720": 0.230
+      },
+      "overallStatus": "fail",
+      "priority": "P1",
+      "visualDeltas": [
+        "Scanner results table column alignment differs from mockup",
+        "Signal strength bar chart (right panel) proportions differ",
+        "Active filter pills use muted styling; mockup shows solid active state"
+      ],
+      "recommendedFixes": [
+        {
+          "file": "src/pages/SignalIntelligenceV3.jsx",
+          "change": "Audit table col-span grid values vs mockup column layout"
+        },
+        {
+          "file": "src/pages/SignalIntelligenceV3.jsx",
+          "change": "Active filter pill: use bg-cyan-500 text-black instead of bg-cyan-500/20"
+        }
+      ]
+    },
+    {
+      "slug": "ml-brain",
+      "title": "ML Brain Flywheel",
+      "route": "/ml-brain",
+      "component": "src/pages/MLBrainFlywheel.jsx",
+      "mockups": [
+        "docs/mockups-v3/images/06-ml-brain-flywheel.png"
+      ],
+      "baseline": "artifacts/ui-screenshots/baseline/ml-brain/mockup.png",
+      "screenshots": {
+        "1920x1080": "artifacts/ui-screenshots/current/ml-brain/1920x1080.png",
+        "1440x900": "artifacts/ui-screenshots/current/ml-brain/1440x900.png",
+        "1280x720": "artifacts/ui-screenshots/current/ml-brain/1280x720.png"
+      },
+      "diffs": {
+        "1920x1080": "artifacts/ui-screenshots/diff/ml-brain/1920x1080-diff.png",
+        "1440x900": "artifacts/ui-screenshots/diff/ml-brain/1440x900-diff.png",
+        "1280x720": "artifacts/ui-screenshots/diff/ml-brain/1280x720-diff.png"
+      },
+      "mismatchRatio": {
+        "1920x1080": 0.057,
+        "1440x900": 0.072,
+        "1280x720": 0.075
+      },
+      "overallStatus": "pass",
+      "priority": "P2",
+      "visualDeltas": [
+        "Small differences from loading state (no backend pipeline data)",
+        "Flywheel animation captured mid-rotation"
+      ],
+      "recommendedFixes": []
+    },
+    {
+      "slug": "patterns",
+      "title": "Screener & Patterns",
+      "route": "/patterns",
+      "component": "src/pages/Patterns.jsx",
+      "mockups": [
+        "docs/mockups-v3/images/07-screener-and-patterns.png"
+      ],
+      "baseline": "artifacts/ui-screenshots/baseline/patterns/mockup.png",
+      "screenshots": {
+        "1920x1080": "artifacts/ui-screenshots/current/patterns/1920x1080.png",
+        "1440x900": "artifacts/ui-screenshots/current/patterns/1440x900.png",
+        "1280x720": "artifacts/ui-screenshots/current/patterns/1280x720.png"
+      },
+      "diffs": {
+        "1920x1080": "artifacts/ui-screenshots/diff/patterns/1920x1080-diff.png",
+        "1440x900": "artifacts/ui-screenshots/diff/patterns/1440x900-diff.png",
+        "1280x720": "artifacts/ui-screenshots/diff/patterns/1280x720-diff.png"
+      },
+      "mismatchRatio": {
+        "1920x1080": 0.203,
+        "1440x900": 0.218,
+        "1280x720": 0.230
+      },
+      "overallStatus": "fail",
+      "priority": "P1",
+      "visualDeltas": [
+        "Pattern cards lack mini chart thumbnails visible in mockup",
+        "Filter sidebar width narrower than mockup (mockup: ~280px)",
+        "Pattern confidence bar color differs from mockup"
+      ],
+      "recommendedFixes": [
+        {
+          "file": "src/pages/Patterns.jsx",
+          "change": "Add aspect-video chart placeholder/thumbnail to pattern cards"
+        },
+        {
+          "file": "src/pages/Patterns.jsx",
+          "change": "Set filter sidebar to w-[280px] min-w-[280px]"
+        }
+      ]
+    },
+    {
+      "slug": "backtesting",
+      "title": "Backtesting Lab",
+      "route": "/backtest",
+      "component": "src/pages/Backtesting.jsx",
+      "mockups": [
+        "docs/mockups-v3/images/08-backtesting-lab.png"
+      ],
+      "baseline": "artifacts/ui-screenshots/baseline/backtesting/mockup.png",
+      "screenshots": {
+        "1920x1080": "artifacts/ui-screenshots/current/backtesting/1920x1080.png",
+        "1440x900": "artifacts/ui-screenshots/current/backtesting/1440x900.png",
+        "1280x720": "artifacts/ui-screenshots/current/backtesting/1280x720.png"
+      },
+      "diffs": {
+        "1920x1080": "artifacts/ui-screenshots/diff/backtesting/1920x1080-diff.png",
+        "1440x900": "artifacts/ui-screenshots/diff/backtesting/1440x900-diff.png",
+        "1280x720": "artifacts/ui-screenshots/diff/backtesting/1280x720-diff.png"
+      },
+      "mismatchRatio": {
+        "1920x1080": 0.214,
+        "1440x900": 0.233,
+        "1280x720": 0.247
+      },
+      "overallStatus": "fail",
+      "priority": "P1",
+      "visualDeltas": [
+        "Equity curve chart occupies ~60% of screen in mockup vs ~40% in code",
+        "Strategy comparison table P&L cells lack color coding in code",
+        "Parameter input panel position differs (mockup: right column; code: may be below)"
+      ],
+      "recommendedFixes": [
+        {
+          "file": "src/pages/Backtesting.jsx",
+          "change": "Resize equity chart container to h-[360px] or adjust flex proportions"
+        },
+        {
+          "file": "src/pages/Backtesting.jsx",
+          "change": "Add conditional text-emerald-400/text-red-400 to P&L cells"
+        }
+      ]
+    },
+    {
+      "slug": "performance",
+      "title": "Performance Analytics",
+      "route": "/performance",
+      "component": "src/pages/PerformanceAnalytics.jsx",
+      "mockups": [
+        "docs/mockups-v3/images/11-performance-analytics-fullpage.png"
+      ],
+      "baseline": "artifacts/ui-screenshots/baseline/performance/mockup.png",
+      "screenshots": {
+        "1920x1080": "artifacts/ui-screenshots/current/performance/1920x1080.png",
+        "1440x900": "artifacts/ui-screenshots/current/performance/1440x900.png",
+        "1280x720": "artifacts/ui-screenshots/current/performance/1280x720.png"
+      },
+      "diffs": {
+        "1920x1080": "artifacts/ui-screenshots/diff/performance/1920x1080-diff.png",
+        "1440x900": "artifacts/ui-screenshots/diff/performance/1440x900-diff.png",
+        "1280x720": "artifacts/ui-screenshots/diff/performance/1280x720-diff.png"
+      },
+      "mismatchRatio": {
+        "1920x1080": 0.164,
+        "1440x900": 0.170,
+        "1280x720": 0.183
+      },
+      "overallStatus": "fail",
+      "priority": "P2",
+      "visualDeltas": [
+        "KPI cards (Sharpe, Max DD, Win Rate) use different font sizes",
+        "Equity curve chart lacks drawdown overlay shown in mockup",
+        "Monthly returns heatmap cell sizes differ"
+      ],
+      "recommendedFixes": [
+        {
+          "file": "src/pages/PerformanceAnalytics.jsx",
+          "change": "KPI cards: use text-3xl font-black for main value"
+        },
+        {
+          "file": "src/pages/PerformanceAnalytics.jsx",
+          "change": "Add drawdown overlay to equity curve (fill-red-500/20 below baseline)"
+        }
+      ]
+    },
+    {
+      "slug": "market-regime",
+      "title": "Market Regime",
+      "route": "/market-regime",
+      "component": "src/pages/MarketRegime.jsx",
+      "mockups": [
+        "docs/mockups-v3/images/10-market-regime-green.png",
+        "docs/mockups-v3/images/10-market-regime-red.png"
+      ],
+      "baseline": "artifacts/ui-screenshots/baseline/market-regime/mockup.png",
+      "screenshots": {
+        "1920x1080": "artifacts/ui-screenshots/current/market-regime/1920x1080.png",
+        "1440x900": "artifacts/ui-screenshots/current/market-regime/1440x900.png",
+        "1280x720": "artifacts/ui-screenshots/current/market-regime/1280x720.png"
+      },
+      "diffs": {
+        "1920x1080": "artifacts/ui-screenshots/diff/market-regime/1920x1080-diff.png",
+        "1440x900": "artifacts/ui-screenshots/diff/market-regime/1440x900-diff.png",
+        "1280x720": "artifacts/ui-screenshots/diff/market-regime/1280x720-diff.png"
+      },
+      "mismatchRatio": {
+        "1920x1080": 0.218,
+        "1440x900": 0.227,
+        "1280x720": 0.238
+      },
+      "overallStatus": "fail",
+      "priority": "P1",
+      "visualDeltas": [
+        "Regime indicator badge is visually smaller in code than mockup",
+        "Semicircular regime confidence gauge proportions differ",
+        "Historical regime transitions timeline strip may be absent"
+      ],
+      "recommendedFixes": [
+        {
+          "file": "src/pages/MarketRegime.jsx",
+          "change": "Increase regime badge to text-6xl font-black"
+        },
+        {
+          "file": "src/pages/MarketRegime.jsx",
+          "change": "Add historical regime strip at page bottom if missing"
+        }
+      ]
+    },
+    {
+      "slug": "trades",
+      "title": "Active Trades",
+      "route": "/trades",
+      "component": "src/pages/Trades.jsx",
+      "mockups": [
+        "docs/mockups-v3/images/Active-Trades.png"
+      ],
+      "baseline": "artifacts/ui-screenshots/baseline/trades/mockup.png",
+      "screenshots": {
+        "1920x1080": "artifacts/ui-screenshots/current/trades/1920x1080.png",
+        "1440x900": "artifacts/ui-screenshots/current/trades/1440x900.png",
+        "1280x720": "artifacts/ui-screenshots/current/trades/1280x720.png"
+      },
+      "diffs": {
+        "1920x1080": "artifacts/ui-screenshots/diff/trades/1920x1080-diff.png",
+        "1440x900": "artifacts/ui-screenshots/diff/trades/1440x900-diff.png",
+        "1280x720": "artifacts/ui-screenshots/diff/trades/1280x720-diff.png"
+      },
+      "mismatchRatio": {
+        "1920x1080": 0.168,
+        "1440x900": 0.180,
+        "1280x720": 0.186
+      },
+      "overallStatus": "fail",
+      "priority": "P2",
+      "visualDeltas": [
+        "P&L column lacks conditional color (green/red based on sign)",
+        "Table row hover state less prominent than mockup"
+      ],
+      "recommendedFixes": [
+        {
+          "file": "src/pages/Trades.jsx",
+          "change": "P&L cell: add conditional text-emerald-400 for positive, text-red-400 for negative values"
+        }
+      ]
+    },
+    {
+      "slug": "risk",
+      "title": "Risk Intelligence",
+      "route": "/risk",
+      "component": "src/pages/RiskIntelligence.jsx",
+      "mockups": [
+        "docs/mockups-v3/images/13-risk-intelligence.png"
+      ],
+      "baseline": "artifacts/ui-screenshots/baseline/risk/mockup.png",
+      "screenshots": {
+        "1920x1080": "artifacts/ui-screenshots/current/risk/1920x1080.png",
+        "1440x900": "artifacts/ui-screenshots/current/risk/1440x900.png",
+        "1280x720": "artifacts/ui-screenshots/current/risk/1280x720.png"
+      },
+      "diffs": {
+        "1920x1080": "artifacts/ui-screenshots/diff/risk/1920x1080-diff.png",
+        "1440x900": "artifacts/ui-screenshots/diff/risk/1440x900-diff.png",
+        "1280x720": "artifacts/ui-screenshots/diff/risk/1280x720-diff.png"
+      },
+      "mismatchRatio": {
+        "1920x1080": 0.150,
+        "1440x900": 0.164,
+        "1280x720": 0.156
+      },
+      "overallStatus": "fail",
+      "priority": "P2",
+      "visualDeltas": [
+        "Risk gauge needle angle may differ from mockup",
+        "Position sizing breakdown chart proportions differ slightly"
+      ],
+      "recommendedFixes": [
+        {
+          "file": "src/pages/RiskIntelligence.jsx",
+          "change": "Minor layout polish; mostly data-driven differences"
+        }
+      ]
+    },
+    {
+      "slug": "trade-execution",
+      "title": "Trade Execution",
+      "route": "/trade-execution",
+      "component": "src/pages/TradeExecution.jsx",
+      "mockups": [
+        "docs/mockups-v3/images/12-trade-execution.png"
+      ],
+      "baseline": "artifacts/ui-screenshots/baseline/trade-execution/mockup.png",
+      "screenshots": {
+        "1920x1080": "artifacts/ui-screenshots/current/trade-execution/1920x1080.png",
+        "1440x900": "artifacts/ui-screenshots/current/trade-execution/1440x900.png",
+        "1280x720": "artifacts/ui-screenshots/current/trade-execution/1280x720.png"
+      },
+      "diffs": {
+        "1920x1080": "artifacts/ui-screenshots/diff/trade-execution/1920x1080-diff.png",
+        "1440x900": "artifacts/ui-screenshots/diff/trade-execution/1440x900-diff.png",
+        "1280x720": "artifacts/ui-screenshots/diff/trade-execution/1280x720-diff.png"
+      },
+      "mismatchRatio": {
+        "1920x1080": 0.186,
+        "1440x900": 0.187,
+        "1280x720": 0.199
+      },
+      "overallStatus": "fail",
+      "priority": "P1",
+      "visualDeltas": [
+        "Order entry form layout: mockup is 2-column; code may be single-column",
+        "L2 order book rows are less dense than mockup (8px vs default row height)",
+        "Execution status badge styling differs"
+      ],
+      "recommendedFixes": [
+        {
+          "file": "src/pages/TradeExecution.jsx",
+          "change": "Add grid grid-cols-2 gap-4 to order entry section"
+        },
+        {
+          "file": "src/pages/TradeExecution.jsx",
+          "change": "L2 rows: use py-0.5 text-[11px] for ultra-dense styling"
+        }
+      ]
+    },
+    {
+      "slug": "settings",
+      "title": "Settings",
+      "route": "/settings",
+      "component": "src/pages/Settings.jsx",
+      "mockups": [
+        "docs/mockups-v3/images/14-settings.png"
+      ],
+      "baseline": "artifacts/ui-screenshots/baseline/settings/mockup.png",
+      "screenshots": {
+        "1920x1080": "artifacts/ui-screenshots/current/settings/1920x1080.png",
+        "1440x900": "artifacts/ui-screenshots/current/settings/1440x900.png",
+        "1280x720": "artifacts/ui-screenshots/current/settings/1280x720.png"
+      },
+      "diffs": {
+        "1920x1080": "artifacts/ui-screenshots/diff/settings/1920x1080-diff.png",
+        "1440x900": "artifacts/ui-screenshots/diff/settings/1440x900-diff.png",
+        "1280x720": "artifacts/ui-screenshots/diff/settings/1280x720-diff.png"
+      },
+      "mismatchRatio": {
+        "1920x1080": 0.155,
+        "1440x900": 0.159,
+        "1280x720": 0.168
+      },
+      "overallStatus": "fail",
+      "priority": "P2",
+      "visualDeltas": [
+        "Section divider spacing differs (mockup: 32px gap; code may use 16px)",
+        "Toggle switch size differs (mockup: 48px wide; code: default)"
+      ],
+      "recommendedFixes": [
+        {
+          "file": "src/pages/Settings.jsx",
+          "change": "Use space-y-8 between sections"
+        },
+        {
+          "file": "src/pages/Settings.jsx",
+          "change": "Toggle switch: set w-12 h-6"
+        }
+      ]
+    }
+  ],
+  "priorityFixQueue": [
+    {
+      "priority": "P0",
+      "page": "sentiment-intelligence",
+      "file": "src/pages/SentimentIntelligence.jsx",
+      "change": "Add 3-column layout + word-cloud sentiment heatmap",
+      "estimatedEffortHours": 4
+    },
+    {
+      "priority": "P1",
+      "page": "agent-command-center",
+      "file": "src/pages/AgentCommandCenter.jsx",
+      "change": "Health matrix dot grid + ELO gold/silver/bronze styling",
+      "estimatedEffortHours": 2
+    },
+    {
+      "priority": "P1",
+      "page": "backtesting",
+      "file": "src/pages/Backtesting.jsx",
+      "change": "Equity chart height + P&L coloring",
+      "estimatedEffortHours": 1
+    },
+    {
+      "priority": "P1",
+      "page": "market-regime",
+      "file": "src/pages/MarketRegime.jsx",
+      "change": "Regime badge enlargement + historical timeline strip",
+      "estimatedEffortHours": 1.5
+    },
+    {
+      "priority": "P1",
+      "page": "patterns",
+      "file": "src/pages/Patterns.jsx",
+      "change": "Pattern card chart thumbnails + filter sidebar width",
+      "estimatedEffortHours": 2
+    },
+    {
+      "priority": "P1",
+      "page": "signal-intelligence",
+      "file": "src/pages/SignalIntelligenceV3.jsx",
+      "change": "Active filter pill styling + table column alignment",
+      "estimatedEffortHours": 1
+    },
+    {
+      "priority": "P1",
+      "page": "data-sources",
+      "file": "src/pages/DataSourcesMonitor.jsx",
+      "change": "3-column source grid + solid status dots",
+      "estimatedEffortHours": 1
+    },
+    {
+      "priority": "P1",
+      "page": "trade-execution",
+      "file": "src/pages/TradeExecution.jsx",
+      "change": "2-column order entry form + L2 row density",
+      "estimatedEffortHours": 1.5
+    },
+    {
+      "priority": "P2",
+      "page": "performance",
+      "file": "src/pages/PerformanceAnalytics.jsx",
+      "change": "KPI font sizes + drawdown overlay",
+      "estimatedEffortHours": 1
+    },
+    {
+      "priority": "P2",
+      "page": "trades",
+      "file": "src/pages/Trades.jsx",
+      "change": "P&L conditional coloring",
+      "estimatedEffortHours": 0.5
+    },
+    {
+      "priority": "P2",
+      "page": "risk",
+      "file": "src/pages/RiskIntelligence.jsx",
+      "change": "Minor layout polish",
+      "estimatedEffortHours": 1
+    },
+    {
+      "priority": "P2",
+      "page": "settings",
+      "file": "src/pages/Settings.jsx",
+      "change": "Section spacing + toggle size",
+      "estimatedEffortHours": 0.5
+    }
+  ],
+  "tooling": {
+    "playwrightSpec": "frontend-v2/e2e/visual-regression.spec.js",
+    "screenshotScript": "frontend-v2/scripts/ui-screenshot.js",
+    "diffScript": "frontend-v2/scripts/ui-diff.js",
+    "baselineScript": "frontend-v2/scripts/ui-baseline.js",
+    "ciWorkflow": ".github/workflows/ui-fidelity.yml",
+    "npmScripts": {
+      "ui:run": "vite --port 3000",
+      "ui:screenshot": "node scripts/ui-screenshot.js",
+      "ui:baseline": "node scripts/ui-baseline.js",
+      "ui:diff": "node scripts/ui-diff.js",
+      "ui:audit": "npm run ui:baseline && npm run ui:screenshot && npm run ui:diff"
+    }
+  }
+}

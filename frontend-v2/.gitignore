@@ -29,3 +29,7 @@ npm-debug.log*
 
 # TypeScript
 *.tsbuildinfo
+
+# Playwright
+test-results/
+playwright-report/

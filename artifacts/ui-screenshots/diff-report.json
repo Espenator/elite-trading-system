@@ -1,0 +1,426 @@
+{
+  "generatedAt": "2026-03-08T20:33:57.847Z",
+  "threshold": 0.1,
+  "pages": [
+    {
+      "page": "dashboard",
+      "status": "pass",
+      "viewports": [
+        {
+          "viewport": "1920x1080",
+          "status": "pass",
+          "mismatchPixels": 113995,
+          "totalPixels": 2073600,
+          "mismatchRatio": 0.05497444058641975,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/dashboard/1920x1080-diff.png"
+        },
+        {
+          "viewport": "1440x900",
+          "status": "pass",
+          "mismatchPixels": 81073,
+          "totalPixels": 1296000,
+          "mismatchRatio": 0.06255632716049382,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/dashboard/1440x900-diff.png"
+        },
+        {
+          "viewport": "1280x720",
+          "status": "pass",
+          "mismatchPixels": 62895,
+          "totalPixels": 921600,
+          "mismatchRatio": 0.06824544270833334,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/dashboard/1280x720-diff.png"
+        }
+      ]
+    },
+    {
+      "page": "agent-command-center",
+      "status": "fail",
+      "viewports": [
+        {
+          "viewport": "1920x1080",
+          "status": "fail",
+          "mismatchPixels": 439916,
+          "totalPixels": 2073600,
+          "mismatchRatio": 0.2121508487654321,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/agent-command-center/1920x1080-diff.png"
+        },
+        {
+          "viewport": "1440x900",
+          "status": "fail",
+          "mismatchPixels": 284755,
+          "totalPixels": 1296000,
+          "mismatchRatio": 0.21971836419753085,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/agent-command-center/1440x900-diff.png"
+        },
+        {
+          "viewport": "1280x720",
+          "status": "fail",
+          "mismatchPixels": 209286,
+          "totalPixels": 921600,
+          "mismatchRatio": 0.22708984375,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/agent-command-center/1280x720-diff.png"
+        }
+      ]
+    },
+    {
+      "page": "sentiment-intelligence",
+      "status": "fail",
+      "viewports": [
+        {
+          "viewport": "1920x1080",
+          "status": "fail",
+          "mismatchPixels": 706620,
+          "totalPixels": 2073600,
+          "mismatchRatio": 0.34076967592592594,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/sentiment-intelligence/1920x1080-diff.png"
+        },
+        {
+          "viewport": "1440x900",
+          "status": "fail",
+          "mismatchPixels": 462878,
+          "totalPixels": 1296000,
+          "mismatchRatio": 0.357158950617284,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/sentiment-intelligence/1440x900-diff.png"
+        },
+        {
+          "viewport": "1280x720",
+          "status": "fail",
+          "mismatchPixels": 325593,
+          "totalPixels": 921600,
+          "mismatchRatio": 0.353291015625,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/sentiment-intelligence/1280x720-diff.png"
+        }
+      ]
+    },
+    {
+      "page": "data-sources",
+      "status": "fail",
+      "viewports": [
+        {
+          "viewport": "1920x1080",
+          "status": "fail",
+          "mismatchPixels": 376826,
+          "totalPixels": 2073600,
+          "mismatchRatio": 0.18172550154320988,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/data-sources/1920x1080-diff.png"
+        },
+        {
+          "viewport": "1440x900",
+          "status": "fail",
+          "mismatchPixels": 242918,
+          "totalPixels": 1296000,
+          "mismatchRatio": 0.18743672839506173,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/data-sources/1440x900-diff.png"
+        },
+        {
+          "viewport": "1280x720",
+          "status": "fail",
+          "mismatchPixels": 207155,
+          "totalPixels": 921600,
+          "mismatchRatio": 0.22477756076388888,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/data-sources/1280x720-diff.png"
+        }
+      ]
+    },
+    {
+      "page": "signal-intelligence",
+      "status": "fail",
+      "viewports": [
+        {
+          "viewport": "1920x1080",
+          "status": "fail",
+          "mismatchPixels": 411347,
+          "totalPixels": 2073600,
+          "mismatchRatio": 0.19837336033950617,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/signal-intelligence/1920x1080-diff.png"
+        },
+        {
+          "viewport": "1440x900",
+          "status": "fail",
+          "mismatchPixels": 279898,
+          "totalPixels": 1296000,
+          "mismatchRatio": 0.21597067901234568,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/signal-intelligence/1440x900-diff.png"
+        },
+        {
+          "viewport": "1280x720",
+          "status": "fail",
+          "mismatchPixels": 211584,
+          "totalPixels": 921600,
+          "mismatchRatio": 0.22958333333333333,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/signal-intelligence/1280x720-diff.png"
+        }
+      ]
+    },
+    {
+      "page": "ml-brain",
+      "status": "pass",
+      "viewports": [
+        {
+          "viewport": "1920x1080",
+          "status": "pass",
+          "mismatchPixels": 118381,
+          "totalPixels": 2073600,
+          "mismatchRatio": 0.05708960262345679,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/ml-brain/1920x1080-diff.png"
+        },
+        {
+          "viewport": "1440x900",
+          "status": "pass",
+          "mismatchPixels": 93135,
+          "totalPixels": 1296000,
+          "mismatchRatio": 0.07186342592592593,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/ml-brain/1440x900-diff.png"
+        },
+        {
+          "viewport": "1280x720",
+          "status": "pass",
+          "mismatchPixels": 68693,
+          "totalPixels": 921600,
+          "mismatchRatio": 0.07453667534722222,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/ml-brain/1280x720-diff.png"
+        }
+      ]
+    },
+    {
+      "page": "patterns",
+      "status": "fail",
+      "viewports": [
+        {
+          "viewport": "1920x1080",
+          "status": "fail",
+          "mismatchPixels": 421357,
+          "totalPixels": 2073600,
+          "mismatchRatio": 0.2032007137345679,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/patterns/1920x1080-diff.png"
+        },
+        {
+          "viewport": "1440x900",
+          "status": "fail",
+          "mismatchPixels": 282140,
+          "totalPixels": 1296000,
+          "mismatchRatio": 0.21770061728395063,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/patterns/1440x900-diff.png"
+        },
+        {
+          "viewport": "1280x720",
+          "status": "fail",
+          "mismatchPixels": 211731,
+          "totalPixels": 921600,
+          "mismatchRatio": 0.22974283854166666,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/patterns/1280x720-diff.png"
+        }
+      ]
+    },
+    {
+      "page": "backtesting",
+      "status": "fail",
+      "viewports": [
+        {
+          "viewport": "1920x1080",
+          "status": "fail",
+          "mismatchPixels": 443899,
+          "totalPixels": 2073600,
+          "mismatchRatio": 0.21407166280864198,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/backtesting/1920x1080-diff.png"
+        },
+        {
+          "viewport": "1440x900",
+          "status": "fail",
+          "mismatchPixels": 302233,
+          "totalPixels": 1296000,
+          "mismatchRatio": 0.23320447530864197,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/backtesting/1440x900-diff.png"
+        },
+        {
+          "viewport": "1280x720",
+          "status": "fail",
+          "mismatchPixels": 227400,
+          "totalPixels": 921600,
+          "mismatchRatio": 0.24674479166666666,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/backtesting/1280x720-diff.png"
+        }
+      ]
+    },
+    {
+      "page": "performance",
+      "status": "fail",
+      "viewports": [
+        {
+          "viewport": "1920x1080",
+          "status": "fail",
+          "mismatchPixels": 339666,
+          "totalPixels": 2073600,
+          "mismatchRatio": 0.16380497685185186,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/performance/1920x1080-diff.png"
+        },
+        {
+          "viewport": "1440x900",
+          "status": "fail",
+          "mismatchPixels": 220824,
+          "totalPixels": 1296000,
+          "mismatchRatio": 0.1703888888888889,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/performance/1440x900-diff.png"
+        },
+        {
+          "viewport": "1280x720",
+          "status": "fail",
+          "mismatchPixels": 168430,
+          "totalPixels": 921600,
+          "mismatchRatio": 0.18275824652777778,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/performance/1280x720-diff.png"
+        }
+      ]
+    },
+    {
+      "page": "market-regime",
+      "status": "fail",
+      "viewports": [
+        {
+          "viewport": "1920x1080",
+          "status": "fail",
+          "mismatchPixels": 452790,
+          "totalPixels": 2073600,
+          "mismatchRatio": 0.218359375,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/market-regime/1920x1080-diff.png"
+        },
+        {
+          "viewport": "1440x900",
+          "status": "fail",
+          "mismatchPixels": 293559,
+          "totalPixels": 1296000,
+          "mismatchRatio": 0.22651157407407407,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/market-regime/1440x900-diff.png"
+        },
+        {
+          "viewport": "1280x720",
+          "status": "fail",
+          "mismatchPixels": 218970,
+          "totalPixels": 921600,
+          "mismatchRatio": 0.23759765625,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/market-regime/1280x720-diff.png"
+        }
+      ]
+    },
+    {
+      "page": "trades",
+      "status": "fail",
+      "viewports": [
+        {
+          "viewport": "1920x1080",
+          "status": "fail",
+          "mismatchPixels": 349381,
+          "totalPixels": 2073600,
+          "mismatchRatio": 0.16849006558641974,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/trades/1920x1080-diff.png"
+        },
+        {
+          "viewport": "1440x900",
+          "status": "fail",
+          "mismatchPixels": 233478,
+          "totalPixels": 1296000,
+          "mismatchRatio": 0.18015277777777777,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/trades/1440x900-diff.png"
+        },
+        {
+          "viewport": "1280x720",
+          "status": "fail",
+          "mismatchPixels": 171707,
+          "totalPixels": 921600,
+          "mismatchRatio": 0.18631401909722223,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/trades/1280x720-diff.png"
+        }
+      ]
+    },
+    {
+      "page": "risk",
+      "status": "fail",
+      "viewports": [
+        {
+          "viewport": "1920x1080",
+          "status": "fail",
+          "mismatchPixels": 310348,
+          "totalPixels": 2073600,
+          "mismatchRatio": 0.14966628086419753,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/risk/1920x1080-diff.png"
+        },
+        {
+          "viewport": "1440x900",
+          "status": "fail",
+          "mismatchPixels": 211912,
+          "totalPixels": 1296000,
+          "mismatchRatio": 0.16351234567901235,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/risk/1440x900-diff.png"
+        },
+        {
+          "viewport": "1280x720",
+          "status": "fail",
+          "mismatchPixels": 144007,
+          "totalPixels": 921600,
+          "mismatchRatio": 0.15625759548611112,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/risk/1280x720-diff.png"
+        }
+      ]
+    },
+    {
+      "page": "trade-execution",
+      "status": "fail",
+      "viewports": [
+        {
+          "viewport": "1920x1080",
+          "status": "fail",
+          "mismatchPixels": 385279,
+          "totalPixels": 2073600,
+          "mismatchRatio": 0.18580198688271604,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/trade-execution/1920x1080-diff.png"
+        },
+        {
+          "viewport": "1440x900",
+          "status": "fail",
+          "mismatchPixels": 242015,
+          "totalPixels": 1296000,
+          "mismatchRatio": 0.18673996913580246,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/trade-execution/1440x900-diff.png"
+        },
+        {
+          "viewport": "1280x720",
+          "status": "fail",
+          "mismatchPixels": 183373,
+          "totalPixels": 921600,
+          "mismatchRatio": 0.1989724392361111,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/trade-execution/1280x720-diff.png"
+        }
+      ]
+    },
+    {
+      "page": "settings",
+      "status": "fail",
+      "viewports": [
+        {
+          "viewport": "1920x1080",
+          "status": "fail",
+          "mismatchPixels": 322250,
+          "totalPixels": 2073600,
+          "mismatchRatio": 0.15540605709876543,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/settings/1920x1080-diff.png"
+        },
+        {
+          "viewport": "1440x900",
+          "status": "fail",
+          "mismatchPixels": 205971,
+          "totalPixels": 1296000,
+          "mismatchRatio": 0.15892824074074074,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/settings/1440x900-diff.png"
+        },
+        {
+          "viewport": "1280x720",
+          "status": "fail",
+          "mismatchPixels": 154963,
+          "totalPixels": 921600,
+          "mismatchRatio": 0.16814561631944444,
+          "diffPath": "/home/runner/work/elite-trading-system/elite-trading-system/artifacts/ui-screenshots/diff/settings/1280x720-diff.png"
+        }
+      ]
+    }
+  ]
+}
