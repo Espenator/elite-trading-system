@@ -1,7 +1,8 @@
 # AI & Coding Instructions: Two-PC Development Workflow
 
 > **For AI assistants (Perplexity/Comet, Claude, Copilot) and human developers working on Embodier Trader.**
-> **Last Updated:** 2026-03-07
+> **Version**: v3.5.0
+> **Last Updated:** March 8, 2026
 
 ## Critical Context: This Project Runs on Two PCs
 
@@ -73,11 +74,43 @@ Never copy files manually between PCs. Always commit, push, pull.
 | FastAPI backend (primary) | ESPENMAIN (PC1) | Central API server |
 | React frontend | ESPENMAIN (PC1) | Pairs with backend |
 | ML model training | ProfitTrader (PC2) | Has GPU (dual RTX) |
-| Brain service / agents | ESPENMAIN (PC1) | Needs backend access |
+| Brain service (Ollama + gRPC) | ProfitTrader (PC2) | GPU inference — gRPC port 50051 |
+| Council agents | ESPENMAIN (PC1) | Needs backend + MessageBus access |
 | Backtesting | Either | CPU-bound, can run anywhere |
 | Database (DuckDB) | ESPENMAIN (PC1) | Single source of truth |
 
-### 7. When Writing Code That Calls the Other PC
+### 7. Brain Service (PC2) — gRPC on Port 50051
+
+The `brain_service/` runs on PC2 (ProfitTrader) and exposes Ollama LLM inference over gRPC:
+
+```python
+# brain_client.py on PC1 connects to PC2's brain_service
+BRAIN_HOST = os.getenv("BRAIN_HOST", "192.168.1.116")
+BRAIN_PORT = int(os.getenv("BRAIN_PORT", "50051"))
+
+# Enable/disable brain:
+BRAIN_ENABLED = os.getenv("BRAIN_ENABLED", "false")  # set "true" in production
+```
+
+```env
+# backend/.env on PC1
+BRAIN_HOST=192.168.1.116
+BRAIN_PORT=50051
+BRAIN_ENABLED=true
+
+# backend/.env on PC2
+BRAIN_HOST=localhost
+BRAIN_PORT=50051
+BRAIN_ENABLED=false  # PC2 IS the brain, it doesn't call itself
+```
+
+To start brain_service on PC2:
+```powershell
+cd C:\Users\ProfitTrader\elite-trading-system\brain_service
+python server.py  # starts gRPC server on 0.0.0.0:50051
+```
+
+### 8. When Writing Code That Calls the Other PC
 Always read from .env:
 ```python
 # Service on PC2 calling PC1's API
@@ -89,13 +122,13 @@ pc2_url = os.getenv("PC2_API_URL")  # http://192.168.1.116:8000
 response = requests.post(f"{pc2_url}/api/v1/train", json=payload)
 ```
 
-### 8. WebSocket Connections Across PCs
+### 9. WebSocket Connections Across PCs
 ```javascript
 // Frontend on ProfitTrader connecting to ESPENMAIN backend
 const ws = new WebSocket(import.meta.env.VITE_WS_URL || 'ws://192.168.1.105:8000/ws');
 ```
 
-### 9. Testing Connectivity
+### 10. Testing Connectivity
 Before debugging network issues, verify basics:
 ```powershell
 # Quick test from either PC
@@ -103,9 +136,11 @@ Test-Connection 192.168.1.105 -Count 1  # ping ESPENMAIN
 Test-Connection 192.168.1.116 -Count 1  # ping ProfitTrader
 Invoke-RestMethod http://192.168.1.105:8000/api/v1/health
 Invoke-RestMethod http://192.168.1.116:8000/api/v1/health
+# Test brain_service gRPC (requires grpcurl or Python client):
+python -c "import grpc; ch = grpc.insecure_channel('192.168.1.116:50051'); print('brain_service reachable')"
 ```
 
-### 10. Docker / docker-compose Considerations
+### 11. Docker / docker-compose Considerations
 If using docker-compose, expose ports on 0.0.0.0:
 ```yaml
 services:
@@ -117,13 +152,14 @@ services:
 ## Quick Reference Card
 
 ```
-ESPENMAIN (PC1):  192.168.1.105  |  Primary  |  Backend + Frontend + DB
-ProfitTrader (PC2): 192.168.1.116  |  Secondary |  GPU Training + ML
-Router:           192.168.1.254  |  AT&T BGW320-505
-Subnet:           192.168.1.0/24
-Backend Port:     8000
-Frontend Port:    3000
-Bind Address:     0.0.0.0 (always)
+ESPENMAIN (PC1):    192.168.1.105  |  Primary   |  Backend + Frontend + DB + Council
+ProfitTrader (PC2): 192.168.1.116  |  Secondary |  GPU Training + ML + Brain (Ollama gRPC)
+Router:             192.168.1.254  |  AT&T BGW320-505
+Subnet:             192.168.1.0/24
+Backend Port:       8000
+Frontend Port:      3000
+Brain gRPC Port:    50051 (PC2 only)
+Bind Address:       0.0.0.0 (always)
 ```
 
 ## Related Docs
@@ -131,3 +167,4 @@ Bind Address:     0.0.0.0 (always)
 - [../SETUP.md](../SETUP.md) - General setup and quick start
 - [../.env.example](../.env.example) - All environment variables including network section
 - [../AI-CONTEXT-GUIDE.md](../AI-CONTEXT-GUIDE.md) - General AI context for the project
+- [API-KEY-INVENTORY.md](./API-KEY-INVENTORY.md) - All API keys and PC assignment

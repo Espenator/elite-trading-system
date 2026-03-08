@@ -1,5 +1,58 @@
 # API Complete List — Elite Trading System (March 2026)
 
+**Version**: v3.5.0
+**Last Updated**: March 8, 2026
+
+---
+
+## Section A: Backend API Route Files (`backend/app/api/v1/`)
+
+As of v3.5.0, there are **34 route files** in `backend/app/api/v1/` (excluding `__init__.py`):
+
+| # | File | Prefix / Purpose |
+|---|------|-----------------|
+| 1 | `agents.py` | `/agents` — council agent status, control |
+| 2 | `alerts.py` | `/alerts` — price/signal alerts |
+| 3 | `alignment.py` | `/alignment` — AI alignment checks |
+| 4 | `alpaca.py` | `/alpaca` — Alpaca broker integration |
+| 5 | `backtest_routes.py` | `/backtest` — backtesting runs |
+| 6 | `cluster.py` | `/cluster` — multi-PC cluster status |
+| 7 | `cns.py` | `/cns` — central nervous system / system health |
+| 8 | `cognitive.py` | `/cognitive` — cognitive telemetry dashboard |
+| 9 | `council.py` | `/council` — council run/status endpoints |
+| 10 | `data_sources.py` | `/data-sources` — data source monitor |
+| 11 | `features.py` | `/features` — ML feature pipeline |
+| 12 | `flywheel.py` | `/flywheel` — ML flywheel / training loop |
+| 13 | `llm_health.py` | `/llm-health` — LLM router health status |
+| 14 | `logs.py` | `/logs` — system log streaming |
+| 15 | `market.py` | `/market` — market data endpoints |
+| 16 | `ml_brain.py` | `/ml-brain` — ML model management |
+| 17 | `openclaw.py` | `/openclaw` — OpenClaw scanner integration |
+| 18 | `orders.py` | `/orders` — order management |
+| 19 | `patterns.py` | `/patterns` — pattern library |
+| 20 | `performance.py` | `/performance` — P&L, performance analytics |
+| 21 | `portfolio.py` | `/portfolio` — portfolio positions |
+| 22 | `quotes.py` | `/quotes` — real-time quotes |
+| 23 | `risk.py` | `/risk` — risk metrics + Kelly sizing |
+| 24 | `risk_shield_api.py` | `/risk-shield` — risk circuit breakers |
+| 25 | `sentiment.py` | `/sentiment` — NLP sentiment scores |
+| 26 | `settings_routes.py` | `/settings` — system settings |
+| 27 | `signals.py` | `/signals` — generated trading signals |
+| 28 | `status.py` | `/status` — system status / health |
+| 29 | `stocks.py` | `/stocks` — stock screener results |
+| 30 | `strategy.py` | `/strategy` — strategy management |
+| 31 | `swarm.py` | `/swarm` — agent swarm control |
+| 32 | `system.py` | `/system` — system info / diagnostics |
+| 33 | `training.py` | `/training` — ML training management |
+| 34 | `youtube_knowledge.py` | `/youtube-knowledge` — YouTube intelligence |
+
+> **Note**: The original issue references 29 route files. The actual codebase has 34 as of v3.5.0.
+> The 5 additional routes added since that count are: `cluster`, `cns`, `cognitive`, `llm_health`, `swarm`.
+
+---
+
+## Section B: External API Keys & Services
+
 **Perplexity API:** `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`
 
 ---
@@ -117,9 +170,10 @@ https://elite.finviz.com/export.ashx?v=111&f=fa_div_pos,sec_technology&auth=4475
 ---
 
 ## 9. SEC EDGAR
-- **Status:** Not implemented in any Espenator repository — needs to be built from scratch
+- **Status:** Implemented in `backend/app/services/sec_edgar_service.py`
 - **Base URL:** `https://data.sec.gov`
 - **Auth:** No API key required — only needs a `User-Agent` header
+- **Env Var:** `SEC_EDGAR_USER_AGENT`
 - **User-Agent:** `Embodier.ai espen@embodier.ai`
 
 ### Key Endpoints
@@ -149,5 +203,8 @@ https://elite.finviz.com/export.ashx?v=111&f=fa_div_pos,sec_technology&auth=4475
 | StockGeist | `STOCKGEIST_AUTH` | ❌ No | Config only |
 | YouTube | `YOUTUBE_API_KEY` | ❌ No | Config only |
 | X / Twitter | `X_BEARER_TOKEN` | ❌ No | Config only |
-| SEC EDGAR | N/A | ❌ No | **Not implemented** |
+| SEC EDGAR | `SEC_EDGAR_USER_AGENT` | ❌ No (no secret needed) | ✅ Implemented (sec_edgar_service.py) |
 | Slack | `SLACK_WEBHOOK_URL` | ❌ No | Webhook only |
+| Perplexity | `PERPLEXITY_API_KEY` | ❌ No | ✅ Implemented (perplexity_intelligence.py) |
+| Anthropic/Claude | `ANTHROPIC_API_KEY` | ❌ No | ✅ Implemented (claude_reasoning.py) |
+| Ollama (local) | `OLLAMA_BASE_URL` | N/A (local) | ✅ Implemented (brain_service gRPC 50051) |

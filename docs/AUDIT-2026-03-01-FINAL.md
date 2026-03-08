@@ -1,5 +1,8 @@
 # Elite Trading System - Final Comprehensive Audit Report
 
+> ⚠️ **NEWER AUDIT AVAILABLE**: This audit (March 1, 2026) has been superseded by a more comprehensive audit:
+> **`docs/audits/brain_consciousness_audit_2026-03-08.pdf`** — conducted March 8, 2026, covering 250+ files with **42 bugs found** (up from 25 in this report). See that document for the current defect list. This document is preserved as historical record.
+
 **Date:** March 1, 2026 3:00 PM EST
 **Auditor:** Perplexity AI Council (GPT-5.2 Thinking + Claude Opus 4.6 + Gemini 3.1 Pro)
 **Repository:** github.com/Espenator/elite-trading-system
@@ -85,9 +88,10 @@ The system scores **5.8/10** (up from 4.2/10 on Feb 27). The primary blocker is 
 
 ## Files Reviewed - Complete Audit Status
 
-### Backend API Routes (25/25 reviewed)
+### Backend API Routes (25/25 reviewed at time of audit)
 
 All 25 route files in backend/app/api/v1/ have been read line-by-line.
+> **Note**: As of v3.5.0 (March 8, 2026), there are now 34 route files. The 9 added since this audit: `alignment`, `cluster`, `cns`, `cognitive`, `council`, `features`, `llm_health`, `swarm`, `youtube_knowledge`.
 
 **Files with bugs fixed:** risk.py, backtest_routes.py, portfolio.py, data_sources.py, agents.py, flywheel.py
 **Files confirmed clean:** openclaw.py, performance.py, strategy.py, sentiment.py, ml_brain.py, alerts.py, signals.py, orders.py, training.py, settings_routes.py, risk_shield_api.py, system.py, patterns.py, logs.py, alpaca.py, market.py, status.py, stocks.py, quotes.py

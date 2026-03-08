@@ -1,66 +1,191 @@
 # Elite Trading System: Intelligent Agent Swarm Architecture v2
 
+**Version**: v3.5.0
 **Date**: 2026-03-04
-**Status**: PROPOSAL — Awaiting Approval
+**Last Updated**: March 8, 2026
+**Status**: IMPLEMENTED — 32-agent council active as of v3.5.0
 **Scope**: Complete redesign of agent layer, LLM integration, learning systems, and compute model
 
 ---
 
 ## Executive Summary
 
-The current system uses a **static 17-agent DAG with one-shot voting**. Agents don't talk to each other, don't debate, don't learn during execution, and vote once before going silent. Bayesian weight updates happen hours/days later after trades resolve. There is no swarm intelligence — it's 17 isolated workers dropping ballots into a box.
+The system has evolved from a static 17-agent DAG into a **living 32-agent council** (31 agents in the main DAG + 1 background enrichment agent). The council executes a 7-stage DAG with adversarial debate, multi-tier fast/deep routing, and Bayesian weight learning.
 
-This proposal transforms the system into a **living organism** with:
-- Specialized micro-swarms that activate based on market regime
-- Multi-round adversarial debate before any trade
-- 3 fine-tuned local LLMs for fast, free, specialized reasoning
-- Self-recursive learning at 3 timescales (30min / nightly / weekly)
-- Genetic evolution that breeds better agents over time
-- Deep RL for position sizing (replacing the heuristic Kelly formula)
-- Dynamic agent population that grows, evolves, and dies based on performance
+As of v3.5.0 (March 8, 2026), the implemented architecture includes:
+- **32 council agents** across 4 categories (11 core, 12 academic edge, 6 supplemental, 3 debate/adversarial) + 1 background agent
+- **7-stage DAG** (Stages 1–7 plus Stage 5.5 for debate/red-team)
+- **Multi-tier evaluation**: fast path (7 agents, threshold ≥45) and deep path (full council, threshold ≥65)
+- **15 council orchestration files** (runner, arbiter, hitl_gate, blackboard, etc.)
+- **Local brain service** on PC2 via gRPC 50051 (Ollama + vLLM)
+- **3 fine-tuned local LLMs** for fast, free, specialized reasoning
+- Self-recursive Bayesian weight learning via `weight_learner.py`
+- Homeostasis, circuit breakers, and fail-closed safety gates
+
+> **⚠️ Known Critical Bugs (from audit 2026-03-08 — 42 bugs total, see `docs/audits/brain_consciousness_audit_2026-03-08.pdf`)**
+>
+> 1. **TurboScanner/CouncilGate threshold mismatch** — TurboScanner scores 0.0–1.0 but CouncilGate threshold is `65.0`; signals never enter the council without manual normalization.
+> 2. **Double `council.verdict` publication** — Both `runner.py` and `council_gate.py` publish `council.verdict`; risk of duplicate order execution.
+> 3. **UnusualWhales flow never published** — Options flow is fetched from API but never published to MessageBus, so flow_perception_agent sees no live flow data.
+> 4. **SelfAwareness Bayesian tracking never called** — `self_awareness.py` (286 lines, fully implemented) is never called from `runner.py` or anywhere else.
+> 5. **IntelligenceCache.start() never called** — Every council evaluation runs cold; cached intelligence (LLM results, news) is never warmed up.
 
 ---
 
-## Part 1: Current Architecture (What We Have)
+## Part 1: Implemented Architecture (v3.5.0)
+
+### 1.1 Council DAG — 7 Stages
 
 ```
                     ┌─────────────────┐
                     │  Council Runner  │
                     └────────┬────────┘
                              │
-        ┌────────────────────┼────────────────────┐
-        │ Stage 1: 7 Perception Agents (parallel)  │
-        │ Stage 2: 5 Technical Agents  (parallel)  │
-        │ Stage 3: 1 Hypothesis Agent  (LLM)       │
-        │ Stage 4: 1 Strategy Agent                │
-        │ Stage 5: 2 Risk+Execution    (parallel)  │
-        │ Stage 6: 1 Critic                        │
-        └────────────────────┬────────────────────┘
+        ┌────────────────────┼─────────────────────────────────┐
+        │ Stage 1: Perception + Academic Edge P0/P1/P2          │
+        │   (parallel — 13 agents)                              │
+        │   market_perception, flow_perception, regime,         │
+        │   social_perception, news_catalyst, youtube_knowledge,│
+        │   intermarket, gex, insider, finbert_sentiment,        │
+        │   earnings_tone, dark_pool, macro_regime               │
+        ├─────────────────────────────────────────────────────┤
+        │ Stage 2: Technical Analysis + Data Enrichment         │
+        │   (parallel — 8 agents)                               │
+        │   rsi, bbv, ema_trend, relative_strength,             │
+        │   cycle_timing, supply_chain, institutional_flow,     │
+        │   congressional                                        │
+        ├─────────────────────────────────────────────────────┤
+        │ Stage 3: Hypothesis + Memory (parallel — 2 agents)    │
+        │   hypothesis, layered_memory                           │
+        ├─────────────────────────────────────────────────────┤
+        │ Stage 4: Strategy (1 agent)                           │
+        │   strategy                                            │
+        ├─────────────────────────────────────────────────────┤
+        │ Stage 5: Risk + Execution + Portfolio (parallel — 3) │
+        │   risk, execution, portfolio_optimizer                │
+        ├─────────────────────────────────────────────────────┤
+        │ Stage 5.5: Debate + Red Team (3 agents)               │
+        │   bull_debater, bear_debater, red_team                │
+        ├─────────────────────────────────────────────────────┤
+        │ Stage 6: Critic (1 agent)                             │
+        └─────────────────────────────────────────────────────┘
                              │
                     ┌────────┴────────┐
-                    │     Arbiter     │
-                    │ (weighted vote) │
+                    │  Stage 7: Arbiter│
+                    │ (deterministic   │
+                    │  weighted vote)  │
                     └─────────────────┘
+                             │
+                    ┌────────┴──────────────┐
+                    │ Post-Arbiter (bg):     │
+                    │ alt_data (enrichment) │
+                    └───────────────────────┘
 ```
 
-### Current Limitations
+**Total agents: 32** (31 in main DAG + 1 background post-arbiter)
 
-| Limitation | Impact |
+### 1.2 Agent Roster — Complete List
+
+#### 11 Core Agents
+| Agent | File | Stage | Role |
+|---|---|---|---|
+| market_perception | market_perception_agent.py | 1 | Price action, volume, trend |
+| flow_perception | flow_perception_agent.py | 1 | Options flow, dark pool |
+| regime | regime_agent.py | 1 | Market regime classification |
+| social_perception | social_perception_agent.py | 1 | Social media sentiment |
+| news_catalyst | news_catalyst_agent.py | 1 | News event detection |
+| youtube_knowledge | youtube_knowledge_agent.py | 1 | Video/channel intelligence |
+| hypothesis | hypothesis_agent.py | 3 | LLM-based thesis generation |
+| strategy | strategy_agent.py | 4 | Trade strategy selection |
+| risk | risk_agent.py | 5 | Risk gate + drawdown check |
+| execution | execution_agent.py | 5 | Order sizing + timing |
+| critic | critic_agent.py | 6 | Final quality gate |
+
+#### 12 Academic Edge Agents (P0–P4)
+| Agent | File | Stage | Edge |
+|---|---|---|---|
+| gex | gex_agent.py | 1 | Gamma exposure (options market structure) |
+| insider | insider_agent.py | 1 | Insider trading filings |
+| earnings_tone | earnings_tone_agent.py | 1 | Earnings call NLP sentiment |
+| finbert_sentiment | finbert_sentiment_agent.py | 1 | FinBERT financial NLP |
+| dark_pool | dark_pool_agent.py | 1 | Dark pool print detection |
+| macro_regime | macro_regime_agent.py | 1 | Macro regime from FRED/EDGAR |
+| supply_chain | supply_chain_agent.py | 2 | Supply chain risk signals |
+| institutional_flow | institutional_flow_agent.py | 2 | 13F institutional positioning |
+| congressional | congressional_agent.py | 2 | Congressional trading disclosures |
+| portfolio_optimizer | portfolio_optimizer_agent.py | 5 | Kelly + correlation sizing |
+| layered_memory | layered_memory_agent.py | 3 | Episodic + semantic memory |
+| alt_data | alt_data_agent.py | post | Alternative data enrichment (background) |
+
+#### 6 Supplemental Agents
+| Agent | File | Stage | Role |
+|---|---|---|---|
+| rsi | rsi_agent.py | 2 | RSI momentum |
+| bbv | bbv_agent.py | 2 | Bollinger Band + Volume |
+| ema_trend | ema_trend_agent.py | 2 | EMA trend confirmation |
+| intermarket | intermarket_agent.py | 1 | Cross-asset correlation |
+| relative_strength | relative_strength_agent.py | 2 | Relative strength vs sector/SPY |
+| cycle_timing | cycle_timing_agent.py | 2 | Market cycle phase detection |
+
+#### 3 Debate/Adversarial Agents
+| Agent | File | Stage | Role |
+|---|---|---|---|
+| bull_debater | bull_debater.py | 5.5 | Bullish thesis construction |
+| bear_debater | bear_debater.py | 5.5 | Bearish counter-thesis |
+| red_team | red_team_agent.py | 5.5 | Adversarial stress test |
+
+### 1.3 Council Orchestration — 15 Files
+
+Located in `backend/app/council/`:
+
+| File | Role |
 |---|---|
-| **Static 17-agent DAG** | All agents run on every trade, even when irrelevant |
-| **One-shot voting** | No debate, no challenge, no refinement |
-| **Passive blackboard** | Agents can't communicate with each other |
-| **No online learning** | Weight updates happen hours/days after trade resolves |
-| **Agent code never changes** | Only voting weights adapt; strategies are static |
-| **No swarm intelligence** | No emergent behavior from agent interactions |
-| **No evolutionary pressure** | Bad agents persist forever with reduced weight |
-| **Heuristic Kelly sizing** | `win_rate = 0.40 + (score - 50) * 0.007` is unvalidated |
-| **Single-process compute** | No horizontal scaling, no batch inference |
-| **Generic LLM usage** | Cloud models not trained on YOUR trading data |
+| `runner.py` | Main DAG orchestrator — runs all 7 stages |
+| `arbiter.py` | Deterministic weighted vote → DecisionPacket |
+| `schemas.py` | AgentVote, DecisionPacket, CognitiveMeta dataclasses |
+| `council_gate.py` | MessageBus bridge: signal.generated → council run |
+| `blackboard.py` | Shared context state between agents |
+| `hitl_gate.py` | Human-in-the-loop review gate |
+| `weight_learner.py` | Bayesian agent weight updates post-trade |
+| `self_awareness.py` | Bayesian self-monitoring (implemented, not yet wired) |
+| `task_spawner.py` | Async parallel agent execution |
+| `overfitting_guard.py` | Walk-forward overfitting detection |
+| `data_quality.py` | Input data freshness checks |
+| `shadow_tracker.py` | Shadow mode signal tracking |
+| `feedback_loop.py` | Trade outcome → weight feedback |
+| `homeostasis.py` | System health + circuit breakers (fail-closed) |
+| `agent_config.py` | Agent registry + configuration |
+
+Plus subdirectories: `agents/` (32 agent files), `debate/`, `reflexes/`, `regime/`
+
+### 1.4 Multi-Tier Evaluation
+
+The system uses two evaluation paths (via `council_gate.py` + `fast_council.py`):
+
+| Path | Threshold | Agents | Latency |
+|---|---|---|---|
+| **Fast path** | Score ≥ 45 (COUNCIL_FAST_THRESHOLD) | 7 agents (F1: market_perception+regime, F2: rsi+ema_trend+bbv+relative_strength, F3: risk) | ~200ms |
+| **Deep path** | Score ≥ 65 (COUNCIL_GATE_ENABLED threshold) | Full 31-agent DAG | ~2–8s |
+| **Bypass** | COUNCIL_GATE_ENABLED=false | 0 agents (fallback verdict) | ~10ms |
+
+Fast path returns a `FastCouncilResult` with an `escalate` flag. Signals in [45, 65) go through fast path; ≥65 goes direct to deep council.
+
+### 1.5 Previous Architecture Limitations (Pre-v3.5.0)
+
+| Limitation | Status in v3.5.0 |
+|---|---|
+| **Static 17-agent DAG** | ✅ Replaced — 31-agent 7-stage DAG |
+| **One-shot voting** | ✅ Replaced — adversarial debate in Stage 5.5 |
+| **Passive blackboard** | ✅ Enhanced — BlackboardState shared across all stages |
+| **No online learning** | ✅ Partial — Bayesian weight_learner wired; SelfAwareness not yet called |
+| **Single LLM tier** | ✅ Replaced — multi-tier: local Ollama brain + cloud fallback |
+| **Heuristic Kelly sizing** | ✅ Enhanced — portfolio_optimizer_agent + kelly_position_sizer |
+| **No regime routing** | ✅ Added — regime agent + fast/deep tier routing |
+| **No debate** | ✅ Added — bull_debater, bear_debater, red_team in Stage 5.5 |
 
 ---
 
-## Part 2: Proposed Architecture (The Intelligent Swarm)
+## Part 2: Future Architecture Proposals (Beyond v3.5.0)
 
 ### 2.1 High-Level Design
 
@@ -119,7 +244,7 @@ This proposal transforms the system into a **living organism** with:
 
 ### 3.1 Replace Flat DAG with Regime-Routed Swarms
 
-Instead of 17 agents all voting on every trade, the **Meta-Orchestrator** routes to the right swarm:
+Instead of 32 agents all voting on every trade, the **Meta-Orchestrator** routes to the right swarm:
 
 | Micro-Swarm | Activates When | Agents Inside (3-5) | Edge Source |
 |---|---|---|---|
@@ -156,7 +281,7 @@ class MetaOrchestrator:
         return active  # Typically 2-3 swarms, never all 5
 ```
 
-**Impact**: Instead of 17 agents generating noise, 6-10 relevant experts generate signal. Signal-to-noise ratio increases dramatically.
+**Impact**: Instead of 32 agents generating noise, 6-10 relevant experts generate signal. Signal-to-noise ratio increases dramatically.
 
 ---
 
@@ -194,7 +319,7 @@ class MetaOrchestrator:
 
 ### 4.2 Why This Matters
 
-The current system has a **confirmation bias problem**. 17 agents looking at correlated indicators all agree because they're seeing the same thing. The adversarial debate:
+The current system has a **confirmation bias problem**. 32 agents looking at correlated indicators all agree because they're seeing the same thing. The adversarial debate (already implemented as Stage 5.5):
 - Forces each thesis to survive scrutiny before capital is risked
 - The "no thesis survives → no trade" outcome prevents low-conviction entries
 - The Critic is trained specifically on trades that LOST money — it knows what failure looks like
@@ -694,7 +819,7 @@ def prune_redundant_agents(self):
 |---|---|---|
 | Working backtester | Vectorized replay engine with Sharpe/drawdown output | Large |
 | Micro-swarm routing | Replace flat DAG with regime-routed swarm activation | Medium |
-| Reduce to 8-10 agents | Merge redundant technical agents, drop low-value ones | Small |
+| Micro-swarm routing | Replace flat 32-agent DAG with regime-routed swarm activation | Medium |
 
 ### Phase 2: Intelligence (Weeks 3-4)
 | Task | Description | Effort |
@@ -740,7 +865,7 @@ def prune_redundant_agents(self):
 
 | Metric | Current System | After v2 | Why |
 |---|---|---|---|
-| **Signal-to-Noise** | Low (17 agents, correlated signals) | High (3-5 relevant experts per trade) | Micro-swarm routing |
+| **Signal-to-Noise** | Medium (32 agents, some correlated) | High (3-5 relevant experts per trade) | Micro-swarm routing |
 | **Bad Trade Prevention** | Weak (one-shot vote can confirm bias) | Strong (adversarial debate kills weak theses) | Debate protocol |
 | **Adaptation Speed** | Days (post-trade Bayesian update) | 30min intra-day + nightly + weekly | 3-loop learning |
 | **Strategy Discovery** | Manual (human codes agents) | Automated (genetic evolution breeds strategies) | Evolution engine |
@@ -748,20 +873,28 @@ def prune_redundant_agents(self):
 | **LLM Cost** | ~$50-100/day (cloud API calls) | ~$5/day (mostly local, cloud for overflow) | Local LLM layer |
 | **LLM Relevance** | Generic (not trained on your data) | Specialized (fine-tuned on your trades weekly) | LoRA fine-tuning |
 | **Agent Quality** | Static (bad agents persist) | Darwinian (bad agents die, good agents breed) | Spawner/killer |
-| **Compute Efficiency** | Low (17 sequential agents) | High (parallel swarms + batch inference) | Multi-process architecture |
+| **Compute Efficiency** | Low (32 sequential agents) | High (parallel swarms + batch inference) | Multi-process architecture |
 
 ---
 
 ## Summary
 
-This redesign transforms the system from a **static committee that votes** into a **living organism that thinks, debates, evolves, and learns**:
+### v3.5.0 Status (Implemented)
 
-- **Micro-swarms** replace the flat 17-agent DAG (right experts for right market)
-- **Adversarial debate** replaces one-shot voting (kills bad trades before they happen)
-- **Local fine-tuned LLMs** replace generic cloud models (faster, cheaper, smarter)
-- **Genetic evolution** replaces manual agent design (breeds better strategies automatically)
-- **Deep RL** replaces heuristic Kelly (learns optimal sizing from data)
-- **Active messaging** replaces passive blackboard (enables emergent swarm intelligence)
-- **Dynamic population** replaces fixed agents (Darwinian survival of the fittest)
+The v3.5.0 system implements a **32-agent council** with a 7-stage DAG, adversarial debate, multi-tier fast/deep evaluation, and Bayesian weight learning. The core swarm is live and operational. Five critical bugs remain (see the warning box in the Executive Summary above).
 
-The current architecture is the skeleton. This proposal adds the brain, nervous system, and evolutionary pressure.
+### Future Roadmap (Proposed — beyond v3.5.0)
+
+The proposals below represent the next evolution toward a fully autonomous, self-improving system:
+
+- **Micro-swarms** replace the flat 32-agent DAG (right experts for right market) [proposed]
+- **Genetic evolution** replaces manual agent design (breeds better strategies automatically) [proposed]
+- **Deep RL** replaces heuristic Kelly sizing (learns optimal sizing from data) [proposed]
+- **Dynamic population** replaces fixed agents (Darwinian survival of the fittest) [proposed]
+
+Already implemented as of v3.5.0:
+- **Adversarial debate** in Stage 5.5 (bull_debater, bear_debater, red_team) [✅ done]
+- **Local LLMs** via brain_service on PC2 (Ollama gRPC 50051) [✅ done]
+- **Active MessageBus** replaces passive blackboard (async pub/sub, Redis-backed) [✅ done]
+- **Bayesian weight learning** via weight_learner.py [✅ done]
+- **Homeostasis + circuit breakers** fail-closed safety [✅ done]

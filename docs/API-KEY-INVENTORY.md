@@ -1,9 +1,10 @@
 # API Key Inventory & Two-PC Setup Guide
 
-> Last updated: 2026-03-07
+> Version: v3.5.0
+> Last updated: March 8, 2026
 > Repo: elite-trading-system
 > PC1 (ESPENMAIN): 192.168.1.105 - Primary trading + fast inference
-> PC2 (ProfitTrader): 192.168.1.116 - Heavy compute + ML
+> PC2 (ProfitTrader): 192.168.1.116 - Heavy compute + ML + Brain Service (Ollama gRPC 50051)
 
 ## Overview
 
@@ -71,6 +72,8 @@ The only differences are cluster/network settings (which PC is master vs worker)
 | Cluster PC2 Host | `CLUSTER_PC2_HOST` | node_discovery.py | `192.168.1.116` | (empty) |
 | Redis URL | `REDIS_URL` | message_bus.py | `redis://192.168.1.105:6379/0` | `redis://192.168.1.105:6379/0` |
 | Brain Host | `BRAIN_HOST` | brain_client.py | `192.168.1.116` | `localhost` |
+| Brain Port | `BRAIN_PORT` | brain_client.py | `50051` | `50051` |
+| Brain Enabled | `BRAIN_ENABLED` | brain_client.py | `true` | `false` |
 | Ollama PC2 URL | `OLLAMA_PC2_URL` | ollama_node_pool.py | `http://192.168.1.116:11434` | `http://localhost:11434` |
 | Scanner Ollama URLs | `SCANNER_OLLAMA_URLS` | turbo_scanner.py | `http://localhost:11434,http://192.168.1.116:11434` | `http://localhost:11434` |
 
@@ -167,7 +170,8 @@ Finviz              YES                 YES
 Discord Bot         YES                 NO (PC1 runs the bot)
 Perplexity          YES                 YES
 Anthropic           YES                 YES
-Ollama              YES (local)         YES (local)
+Ollama              YES (local)         YES (local + gRPC 50051)
+Brain Service       CLIENT (port 50051) SERVER (runs server.py)
 FRED                YES                 YES
 SEC EDGAR           YES                 YES
 News API            YES                 YES
@@ -179,4 +183,4 @@ Telegram            YES                 NO
 Redis               HOST (6379)         CLIENT (connect to PC1)
 ```
 
-**Rule of thumb:** Data-fetching API keys go on BOTH PCs. Channel-monitoring agents (Discord, YouTube, X) run ONLY on PC1 to avoid duplicate ingestion.
+**Rule of thumb:** Data-fetching API keys go on BOTH PCs. Channel-monitoring agents (Discord, YouTube, X) run ONLY on PC1 to avoid duplicate ingestion. The brain_service (Ollama gRPC server) runs ONLY on PC2; PC1 connects to it as a client via `BRAIN_HOST=192.168.1.116` and `BRAIN_PORT=50051`.
