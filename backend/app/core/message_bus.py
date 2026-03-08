@@ -65,6 +65,7 @@ class MessageBus:
         "swarm.result",         # Swarm analysis complete
         "knowledge.ingested",   # New knowledge fed into the system
         "scout.discovery",      # Scout found an opportunity
+        "scout.heartbeat",      # Scout health/heartbeat pulse (E2)
         # Cluster telemetry topics
         "cluster.telemetry",    # GPU/VRAM/Ollama stats from cluster nodes
         "cluster.node_status",  # Node online/offline/degraded transitions

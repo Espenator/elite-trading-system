@@ -12,3 +12,4 @@ from app.services import expected_move_service  # noqa: F401
 from app.services import news_aggregator  # noqa: F401
 from app.services import geopolitical_radar  # noqa: F401
 from app.services import autonomous_scout  # noqa: F401
+from app.services import scouts  # noqa: F401  — E2: 12 dedicated scout agents

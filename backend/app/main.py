@@ -501,6 +501,19 @@ async def _start_event_driven_pipeline():
     else:
         log.info("\u26A0\uFE0F AutonomousScoutService skipped (LLM_ENABLED=false)")
 
+    # 10b. E2: 12 Dedicated Scout Agents — always-running continuous discovery fleet
+    try:
+        from app.services.scouts.registry import get_scout_registry
+        _scout_registry = get_scout_registry()
+        await _scout_registry.start_all(_message_bus)
+        status = _scout_registry.get_status()
+        log.info(
+            "\u2705 ScoutRegistry started: %d/%d scouts running",
+            status["running_scouts"], status["total_scouts"],
+        )
+    except Exception as _e:
+        log.warning("\u26A0\uFE0F ScoutRegistry start failed: %s", _e)
+
     # 11. DiscordSwarmBridge — Discord channels -> swarm analysis
     if _llm_enabled:
         from app.services.discord_swarm_bridge import get_discord_bridge
@@ -867,6 +880,11 @@ async def _stop_event_driven_pipeline():
     try:
         from app.services.autonomous_scout import get_scout_service
         await get_scout_service().stop()
+    except Exception:
+        pass
+    try:
+        from app.services.scouts.registry import get_scout_registry
+        await get_scout_registry().stop_all()
     except Exception:
         pass
     try:
