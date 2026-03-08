@@ -334,11 +334,16 @@ async def _start_event_driven_pipeline():
             score = signal_data.get("score", 0)
             if score < 65:  # Still gate on minimum score
                 return
+            # Normalize signal label to valid direction: buy/sell/hold
+            # Signal labels may be "long"/"short" but OrderExecutor requires "buy"/"sell"/"hold"
+            _label_map = {"long": "buy", "short": "sell", "buy": "buy", "sell": "sell"}
+            raw_label = signal_data.get("label", "hold")
+            direction = _label_map.get(raw_label, "hold")
             await _message_bus.publish("council.verdict", {
                 "symbol": signal_data.get("symbol", ""),
-                "final_direction": signal_data.get("label", "long"),
+                "final_direction": direction,
                 "final_confidence": min(score / 100.0, 1.0),
-                "execution_ready": True,
+                "execution_ready": direction != "hold",
                 "vetoed": False,
                 "votes": [],
                 "council_reasoning": "CouncilGate disabled — direct signal passthrough",
