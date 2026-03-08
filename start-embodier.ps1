@@ -1,5 +1,6 @@
 param(
     [switch]$SkipFrontend,
+    [switch]$WithBrain,
     [int]$BackendPort = 0,
     [int]$FrontendPort = 0,
     [int]$MaxRestarts = 3
@@ -310,11 +311,54 @@ if (-not $SkipFrontend) {
     Start-Process "http://localhost:$FrontendPort"
 }
 
+# Start brain service (if requested)
+$brainProc = $null
+if ($WithBrain) {
+    $BrainDir = Join-Path $Root "brain_service"
+    if (Test-Path $BrainDir) {
+        Set-Location $BrainDir
+
+        # Check if proto is compiled
+        $protoDir = Join-Path $BrainDir "proto"
+        if (-not (Test-Path "$protoDir\brain_pb2.py")) {
+            Log "Compiling gRPC proto files..." Cyan
+            & python compile_proto.py
+            if ($LASTEXITCODE -ne 0) {
+                Log "Failed to compile proto files" Yellow
+            }
+        }
+
+        $brainLogFile = Join-Path $LogDir "brain.log"
+        $brainErrFile = Join-Path $LogDir "brain-error.log"
+        "" | Out-File $brainLogFile -Encoding utf8 -ErrorAction SilentlyContinue
+        "" | Out-File $brainErrFile -Encoding utf8 -ErrorAction SilentlyContinue
+
+        $brainProc = Start-Process -FilePath "python" -ArgumentList "server.py" `
+            -WorkingDirectory $BrainDir `
+            -RedirectStandardOutput $brainLogFile `
+            -RedirectStandardError $brainErrFile `
+            -PassThru -WindowStyle Hidden -ErrorAction SilentlyContinue
+
+        if ($brainProc) {
+            Log "Brain Service PID: $($brainProc.Id)" DarkGray
+            Start-Sleep 2
+            Log "Brain Service  grpc://localhost:50051" Green
+        } else {
+            Log "Brain service failed to start - check logs/brain.log" Yellow
+        }
+
+        Set-Location $Root
+    } else {
+        Log "Brain service directory not found - skipping" Yellow
+    }
+}
+
 # Running banner
 Write-Host ""
 Write-Host "  RUNNING  |  Press Ctrl+C to stop" -ForegroundColor Green
 Write-Host "  Backend PID:  $($backendProc.Id)" -ForegroundColor DarkGray
 if ($frontendProc) { Write-Host "  Frontend PID: $($frontendProc.Id)" -ForegroundColor DarkGray }
+if ($brainProc) { Write-Host "  Brain PID:    $($brainProc.Id)" -ForegroundColor DarkGray }
 Write-Host "  Logs: $LogDir" -ForegroundColor DarkGray
 Write-Host ""
 
@@ -345,6 +389,16 @@ try {
     # Kill by port -- reliable regardless of PID tracking
     Kill-PortProcesses $BackendPort
     Kill-PortProcesses $FrontendPort
+    if ($WithBrain) {
+        Kill-PortProcesses 50051
+    }
+
+    # Also kill brain process by PID if we started it
+    if ($brainProc -and -not $brainProc.HasExited) {
+        try {
+            Stop-Process -Id $brainProc.Id -Force -ErrorAction SilentlyContinue
+        } catch {}
+    }
 
     foreach ($f in @($DuckDbWal, $DuckDbTmp)) {
         if (Test-Path $f) { Remove-Item $f -Force -ErrorAction SilentlyContinue }

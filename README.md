@@ -212,7 +212,8 @@ elite-trading-system/
 │   │   └── services/                 # 24 service files
 │   ├── tests/                        # pytest test suite
 │   ├── requirements.txt
-│   └── run_server.py
+│   ├── start_server.py               # Development entry point (use this)
+│   └── run_server.py                 # PyInstaller-compatible entry point
 ├── brain_service/                    # gRPC + Ollama LLM inference (PC2)
 ├── frontend-v2/                      # React 18 + Vite + TailwindCSS
 │   └── src/
@@ -338,22 +339,155 @@ All pages in frontend-v2/src/pages/. All use useApi() hook. No mock data. **ALL 
 
 ## Quick Start
 
-```bash
+### One-Click Startup (Windows — Recommended)
+
+```powershell
 # Clone
 git clone https://github.com/Espenator/elite-trading-system.git
 cd elite-trading-system
 
-# Backend setup
+# Optional: Validate environment before starting
+python scripts/preflight.py
+
+# Start everything (backend + frontend)
+.\start-embodier.ps1
+
+# Or: Backend only (for API development)
+.\start-embodier.ps1 -SkipFrontend
+
+# Or: With brain service (requires Ollama on PC2)
+.\start-embodier.ps1 -WithBrain
+```
+
+**What it does:**
+1. Validates Python 3.10+ and Node 18+
+2. Kills stale processes on ports 8000 and 3000
+3. Cleans DuckDB lock files
+4. Creates Python venv and installs dependencies
+5. Fixes .env encoding issues (Windows compatibility)
+6. Starts backend → waits for health check → starts frontend
+7. Opens browser to http://localhost:3000
+8. Monitors health and auto-restarts on crash
+
+### Manual Startup (Advanced)
+
+```bash
+# Terminal 1 — Backend
 cd backend
 pip install -r requirements.txt
 cp .env.example .env  # Edit .env with Alpaca API keys
 python start_server.py
 
-# Frontend setup (new terminal)
+# Terminal 2 — Frontend
 cd frontend-v2
 npm install
 npm run dev
 ```
+
+### Docker Startup
+
+```bash
+# Copy and configure .env
+cp backend/.env.example backend/.env
+# Edit backend/.env with your API keys
+
+# Start all services
+docker-compose up -d
+
+# View logs
+docker-compose logs -f backend
+docker-compose logs -f frontend
+
+# Stop
+docker-compose down
+```
+
+**Access:**
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:8000
+- API Docs: http://localhost:8000/docs
+
+### Brain Service (Optional — LLM Inference)
+
+The brain service provides local LLM inference via Ollama for the hypothesis agent. If not running, the backend uses rule-based hypothesis generation (degraded mode).
+
+**Prerequisites:**
+1. Install Ollama: https://ollama.ai
+2. Pull a model: `ollama pull llama3.2`
+3. Start Ollama: `ollama serve`
+
+**Start brain service:**
+```bash
+cd brain_service
+python compile_proto.py  # First time only
+python server.py
+```
+
+**Configure backend to use brain service:**
+```env
+# In backend/.env
+BRAIN_ENABLED=true
+BRAIN_HOST=localhost  # Or PC2 IP: 192.168.1.116
+BRAIN_PORT=50051
+```
+
+**Firewall (Dual-PC Setup):**
+```powershell
+# On PC2 (brain service host):
+netsh advfirewall firewall add rule name="Brain Service gRPC" dir=in action=allow protocol=TCP localport=50051
+```
+
+### Health Check Endpoints
+
+| Endpoint | Purpose | Response Time | Use Case |
+|----------|---------|---------------|----------|
+| `/healthz` | Liveness probe | <50ms | Docker/k8s liveness, fast check |
+| `/readyz` | Readiness probe | <200ms | Docker/k8s readiness, dependency check |
+| `/health` | Full diagnostic | <500ms | Detailed system status |
+
+**Test health:**
+```powershell
+Invoke-RestMethod http://localhost:8000/healthz
+Invoke-RestMethod http://localhost:8000/readyz
+Invoke-RestMethod http://localhost:8000/health | ConvertTo-Json -Depth 5
+```
+
+### Verify Startup
+
+After starting the system, run the verification script to ensure all critical endpoints are working:
+
+```bash
+python scripts/verify-startup.py
+```
+
+This checks:
+- ✓ Liveness probe (/healthz)
+- ✓ Readiness probe (/readyz)
+- ✓ Health diagnostics (/health)
+- ✓ Status API
+- ✓ Council status
+- ✓ API documentation
+
+### Degraded Mode Startup
+
+The system is designed to start even when optional integrations are missing:
+
+**No Alpaca Keys:**
+- ✅ Backend starts
+- ⚠️ Market data disabled
+- ✅ UI shows demo mode
+
+**No Brain Service:**
+- ✅ Backend starts
+- ⚠️ LLM inference disabled
+- ✅ Council uses rule-based hypothesis generation
+
+**No Optional APIs (Unusual Whales, Finviz, etc.):**
+- ✅ Backend starts
+- ⚠️ Features degrade gracefully
+- ✅ Logs warnings for missing services
+
+
 
 ## License
 

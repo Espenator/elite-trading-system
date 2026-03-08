@@ -138,6 +138,31 @@ logs\backend.log
 logs\frontend.log
 ```
 
+### Health Check Endpoints
+
+Test that backend is responding:
+
+```powershell
+# Liveness (fast, no dependencies)
+Invoke-RestMethod http://localhost:8000/healthz
+
+# Readiness (checks DuckDB, Alpaca config)
+Invoke-RestMethod http://localhost:8000/readyz
+
+# Full diagnostic
+Invoke-RestMethod http://localhost:8000/health | ConvertTo-Json -Depth 5
+```
+
+### Automated Verification
+
+```bash
+# Before starting - validate environment
+python scripts/preflight.py
+
+# After starting - verify endpoints
+python scripts/verify-startup.py
+```
+
 ### Common issues
 
 | Symptom | Fix |
