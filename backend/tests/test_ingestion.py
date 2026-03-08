@@ -648,7 +648,8 @@ class TestMarketDataAgentCompat:
 class TestIngestionEventsTable:
     def test_ingestion_events_table_created(self):
         """DuckDB schema must include the ingestion_events table."""
-        import tempfile, os
+        import os
+        import tempfile
         from app.data.duckdb_storage import DuckDBStorage
         with tempfile.TemporaryDirectory() as td:
             db_path = os.path.join(td, "test.duckdb")
@@ -661,7 +662,8 @@ class TestIngestionEventsTable:
 
     def test_ingestion_events_columns_match_sink(self):
         """All columns written by EventSink._persist must exist in the DDL."""
-        import tempfile, os
+        import os
+        import tempfile
         from app.data.duckdb_storage import DuckDBStorage
         with tempfile.TemporaryDirectory() as td:
             db_path = os.path.join(td, "test.duckdb")
@@ -682,7 +684,8 @@ class TestIngestionEventsTable:
 
     def test_ingestion_events_indexes_created(self):
         """Indexes on source, topic, symbol should be created."""
-        import tempfile, os
+        import os
+        import tempfile
         from app.data.duckdb_storage import DuckDBStorage
         with tempfile.TemporaryDirectory() as td:
             db_path = os.path.join(td, "test.duckdb")
@@ -699,7 +702,8 @@ class TestIngestionEventsTable:
     @pytest.mark.asyncio
     async def test_event_sink_persists_to_ingestion_events(self):
         """EventSink should successfully write to the ingestion_events table."""
-        import tempfile, os
+        import os
+        import tempfile
         from app.data.duckdb_storage import DuckDBStorage
         from app.services.ingestion.sink import EventSink
 
