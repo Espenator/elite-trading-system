@@ -57,7 +57,7 @@ class UnusualWhalesService:
         try:
             bus = get_message_bus()
             if bus._running:
-                await bus.publish("perception.unusualwhales", {
+                await bus.publish("unusual_whales.flow", {
                     "type": "unusual_whales_alerts",
                     "alerts": data,
                     "source": "unusual_whales_service",
@@ -90,7 +90,19 @@ class UnusualWhalesService:
         async with httpx.AsyncClient(timeout=15.0) as client:
             r = await client.get(url, headers=self._headers())
         r.raise_for_status()
-        return r.json() if r.content else []
+        data = r.json() if r.content else []
+        try:
+            bus = get_message_bus()
+            if bus._running:
+                await bus.publish("unusual_whales.flow", {
+                    "type": "congress_trades",
+                    "alerts": data,
+                    "source": "unusual_whales_service",
+                    "timestamp": time.time(),
+                })
+        except Exception:
+            pass
+        return data
 
     async def get_insider_trades(self) -> Any:
         """Fetch insider trading activity (paid plan)."""
@@ -99,7 +111,19 @@ class UnusualWhalesService:
         async with httpx.AsyncClient(timeout=15.0) as client:
             r = await client.get(url, headers=self._headers())
         r.raise_for_status()
-        return r.json() if r.content else []
+        data = r.json() if r.content else []
+        try:
+            bus = get_message_bus()
+            if bus._running:
+                await bus.publish("unusual_whales.flow", {
+                    "type": "insider_trades",
+                    "alerts": data,
+                    "source": "unusual_whales_service",
+                    "timestamp": time.time(),
+                })
+        except Exception:
+            pass
+        return data
 
     async def get_darkpool_flow(self) -> Any:
         """Fetch dark pool transaction data (paid plan)."""
@@ -108,4 +132,16 @@ class UnusualWhalesService:
         async with httpx.AsyncClient(timeout=15.0) as client:
             r = await client.get(url, headers=self._headers())
         r.raise_for_status()
-        return r.json() if r.content else []
+        data = r.json() if r.content else []
+        try:
+            bus = get_message_bus()
+            if bus._running:
+                await bus.publish("unusual_whales.flow", {
+                    "type": "darkpool_flow",
+                    "alerts": data,
+                    "source": "unusual_whales_service",
+                    "timestamp": time.time(),
+                })
+        except Exception:
+            pass
+        return data

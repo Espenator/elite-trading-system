@@ -71,7 +71,7 @@ class MessageBus:
         # Outcome tracking
         "outcome.resolved",     # Position outcome resolved (win/loss/scratch)
         # Perception layer — data source topics
-        "perception.unusualwhales",     # UnusualWhales alerts (options flow, dark pool, congress)
+        "unusual_whales.flow",          # UnusualWhales alerts (options flow, dark pool, congress)
         "perception.finviz.screener",   # Finviz screener results
         "perception.macro",             # FRED macro data (CPI, unemployment, VIX, 10Y yield)
         "perception.edgar",             # SEC EDGAR filings
@@ -113,7 +113,7 @@ class MessageBus:
         "knowledge.ingested",
         "outcome.resolved",
         "hitl.approval_needed",
-        "perception.unusualwhales",
+        "unusual_whales.flow",
         "perception.finviz.screener",
         "perception.macro",
         "perception.edgar",
