@@ -197,3 +197,192 @@ def test_kelly_regime_multipliers():
     assert "BULLISH" in _REGIME_MULTIPLIERS
     assert "CRISIS" in _REGIME_MULTIPLIERS
     assert _REGIME_MULTIPLIERS["CRISIS"] < _REGIME_MULTIPLIERS["BULLISH"]
+
+
+# --- Test 23: StreamingDiscoveryEngine instantiates cleanly ---
+def test_streaming_discovery_instantiation():
+    from app.services.streaming_discovery import StreamingDiscoveryEngine
+
+    class _FakeBus:
+        _subscribers = {}
+        _running = False
+        async def subscribe(self, *a, **kw): pass
+        async def unsubscribe(self, *a, **kw): pass
+        async def publish(self, *a, **kw): pass
+
+    engine = StreamingDiscoveryEngine(message_bus=_FakeBus())
+    assert not engine._running
+    assert engine._volume_spike_ratio == 2.0
+    assert engine._gap_threshold == 0.02
+    status = engine.get_status()
+    assert status["running"] is False
+    assert status["symbols_tracked"] == 0
+    assert "stats" in status
+    assert "universe" in status
+
+
+# --- Test 24: StreamingDiscoveryEngine detects volume spike ---
+def test_streaming_discovery_volume_spike():
+    from app.services.streaming_discovery import StreamingDiscoveryEngine, _SymbolWindow
+
+    class _FakeBus:
+        _subscribers = {}
+        _running = False
+        async def subscribe(self, *a, **kw): pass
+        async def unsubscribe(self, *a, **kw): pass
+        async def publish(self, *a, **kw): pass
+
+    engine = StreamingDiscoveryEngine(message_bus=_FakeBus())
+
+    # Build a window with baseline volume
+    win = _SymbolWindow()
+    for i in range(19):
+        win.push({"close": 100.0, "volume": 1000.0, "open": 100.0, "high": 101.0, "low": 99.0})
+    # Now push a spike bar
+    spike_bar = {"close": 102.0, "volume": 5000.0, "open": 101.0, "high": 103.0, "low": 101.0}
+    win.push(spike_bar)
+
+    events = engine._detect_anomalies("AAPL", win, spike_bar)
+    vol_spike_events = [e for e in events if e.event_type == "volume_spike"]
+    assert len(vol_spike_events) >= 1
+    assert vol_spike_events[0].direction == "bullish"
+    assert vol_spike_events[0].score > 60
+
+
+# --- Test 25: StreamingDiscoveryEngine detects price breakout ---
+def test_streaming_discovery_price_breakout():
+    from app.services.streaming_discovery import StreamingDiscoveryEngine, _SymbolWindow
+
+    class _FakeBus:
+        _subscribers = {}
+        _running = False
+        async def subscribe(self, *a, **kw): pass
+        async def unsubscribe(self, *a, **kw): pass
+        async def publish(self, *a, **kw): pass
+
+    engine = StreamingDiscoveryEngine(message_bus=_FakeBus())
+    win = _SymbolWindow()
+    # Fill 20 bars with highs at 100
+    for i in range(20):
+        win.push({"close": 99.0, "volume": 1000.0, "open": 98.0, "high": 100.0, "low": 97.0})
+    # New 20-bar high
+    breakout_bar = {"close": 105.0, "volume": 1500.0, "open": 101.0, "high": 106.0, "low": 100.5}
+    win.push(breakout_bar)
+
+    events = engine._detect_anomalies("MSFT", win, breakout_bar)
+    breakout_events = [e for e in events if e.event_type == "price_breakout"]
+    assert len(breakout_events) >= 1
+    assert breakout_events[0].direction == "bullish"
+
+
+# --- Test 26: StreamingDiscoveryEngine detects gap up ---
+def test_streaming_discovery_gap_up():
+    from app.services.streaming_discovery import StreamingDiscoveryEngine, _SymbolWindow
+
+    class _FakeBus:
+        _subscribers = {}
+        _running = False
+        async def subscribe(self, *a, **kw): pass
+        async def unsubscribe(self, *a, **kw): pass
+        async def publish(self, *a, **kw): pass
+
+    engine = StreamingDiscoveryEngine(message_bus=_FakeBus())
+    win = _SymbolWindow()
+    for i in range(5):
+        win.push({"close": 100.0, "volume": 1000.0, "open": 99.5, "high": 100.5, "low": 99.0})
+    # Gap up: open 5% above prior close
+    gap_bar = {"close": 105.0, "volume": 1200.0, "open": 105.0, "high": 106.0, "low": 104.5}
+    win.push(gap_bar)
+
+    events = engine._detect_anomalies("NVDA", win, gap_bar)
+    gap_events = [e for e in events if e.event_type == "gap_up"]
+    assert len(gap_events) >= 1
+    assert gap_events[0].direction == "bullish"
+
+
+# --- Test 27: DynamicUniverseManager promotes symbols ---
+def test_dynamic_universe_promotion():
+    from app.services.streaming_discovery import DynamicUniverseManager, UNIVERSE_ACTIVITY_THRESHOLD
+
+    mgr = DynamicUniverseManager()
+    for _ in range(UNIVERSE_ACTIVITY_THRESHOLD):
+        mgr.record_anomaly("AAPL")
+
+    assert "AAPL" in mgr._promoted
+    pending = mgr.drain_pending()
+    assert "AAPL" in pending
+    # drain clears pending
+    assert len(mgr.drain_pending()) == 0
+
+
+# --- Test 28: AutonomousScoutService has all 15 scout types in config ---
+def test_scout_service_has_15_scout_types():
+    from app.services.autonomous_scout import AutonomousScoutService
+    scout = AutonomousScoutService()
+    enabled = scout.config["enabled_scouts"]
+    expected_scouts = {
+        # Original 4 scouts (backward compatible)
+        "flow", "screener", "watchlist", "backtest",
+        # 11 new E2 scouts
+        "insider", "congress", "gamma", "news",
+        "sentiment", "macro", "earnings", "sector_rotation",
+        "short_squeeze", "ipo", "correlation_break",
+    }
+    for scout_name in expected_scouts:
+        assert scout_name in enabled, f"Missing scout: {scout_name}"
+
+
+# --- Test 29: AutonomousScoutService config has all 15 interval keys ---
+def test_scout_service_config_intervals():
+    from app.services.autonomous_scout import AutonomousScoutService
+    scout = AutonomousScoutService()
+    required_intervals = [
+        # Original 4
+        "flow_scan_interval", "screener_scan_interval",
+        "watchlist_scan_interval", "backtest_scan_interval",
+        # New 11 (E2)
+        "insider_scan_interval", "congress_scan_interval",
+        "gamma_scan_interval", "news_scan_interval",
+        "sentiment_scan_interval", "macro_scan_interval",
+        "earnings_scan_interval", "sector_rotation_scan_interval",
+        "short_squeeze_scan_interval", "ipo_scan_interval",
+        "correlation_break_scan_interval",
+    ]
+    for interval_key in required_intervals:
+        assert interval_key in scout.config, f"Missing config key: {interval_key}"
+        assert scout.config[interval_key] > 0, f"Invalid interval for {interval_key}"
+
+
+# --- Test 30: StreamingDiscoveryEngine singleton factory ---
+def test_streaming_discovery_singleton():
+    import app.services.streaming_discovery as sd_mod
+    # Reset singleton for clean test
+    sd_mod._streaming_discovery = None
+    e1 = sd_mod.get_streaming_discovery()
+    e2 = sd_mod.get_streaming_discovery()
+    assert e1 is e2
+    # Cleanup
+    sd_mod._streaming_discovery = None
+
+
+# --- Test 31: Swarm router has discovery endpoints ---
+def test_swarm_router_has_discovery_endpoints():
+    from app.api.v1.swarm import router
+    routes = {r.path for r in router.routes}
+    assert any("discovery/status" in p for p in routes)
+    assert any("discovery/universe" in p for p in routes)
+
+
+# --- Test 32: ScoutConfigRequest includes new interval fields ---
+def test_scout_config_request_new_fields():
+    from app.api.v1.swarm import ScoutConfigRequest
+    req = ScoutConfigRequest(
+        insider_scan_interval=600,
+        congress_scan_interval=300,
+        gamma_scan_interval=120,
+        sector_rotation_scan_interval=300,
+    )
+    assert req.insider_scan_interval == 600
+    assert req.congress_scan_interval == 300
+    assert req.gamma_scan_interval == 120
+    assert req.sector_rotation_scan_interval == 300

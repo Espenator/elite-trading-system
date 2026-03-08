@@ -57,6 +57,17 @@ class ScoutConfigRequest(BaseModel):
     screener_scan_interval: Optional[int] = None
     watchlist_scan_interval: Optional[int] = None
     backtest_scan_interval: Optional[int] = None
+    insider_scan_interval: Optional[int] = None
+    congress_scan_interval: Optional[int] = None
+    gamma_scan_interval: Optional[int] = None
+    news_scan_interval: Optional[int] = None
+    sentiment_scan_interval: Optional[int] = None
+    macro_scan_interval: Optional[int] = None
+    earnings_scan_interval: Optional[int] = None
+    sector_rotation_scan_interval: Optional[int] = None
+    short_squeeze_scan_interval: Optional[int] = None
+    ipo_scan_interval: Optional[int] = None
+    correlation_break_scan_interval: Optional[int] = None
     max_discoveries_per_scan: Optional[int] = None
     enabled_scouts: Optional[List[str]] = None
 
@@ -219,16 +230,19 @@ async def update_scout_config(req: ScoutConfigRequest):
     """Update scout configuration (scan intervals, enabled scouts)."""
     from app.services.autonomous_scout import get_scout_service
     scout = get_scout_service()
-    if req.flow_scan_interval is not None:
-        scout.config["flow_scan_interval"] = req.flow_scan_interval
-    if req.screener_scan_interval is not None:
-        scout.config["screener_scan_interval"] = req.screener_scan_interval
-    if req.watchlist_scan_interval is not None:
-        scout.config["watchlist_scan_interval"] = req.watchlist_scan_interval
-    if req.backtest_scan_interval is not None:
-        scout.config["backtest_scan_interval"] = req.backtest_scan_interval
-    if req.max_discoveries_per_scan is not None:
-        scout.config["max_discoveries_per_scan"] = req.max_discoveries_per_scan
+    interval_fields = [
+        "flow_scan_interval", "screener_scan_interval", "watchlist_scan_interval",
+        "backtest_scan_interval", "insider_scan_interval", "congress_scan_interval",
+        "gamma_scan_interval", "news_scan_interval", "sentiment_scan_interval",
+        "macro_scan_interval", "earnings_scan_interval",
+        "sector_rotation_scan_interval", "short_squeeze_scan_interval",
+        "ipo_scan_interval", "correlation_break_scan_interval",
+        "max_discoveries_per_scan",
+    ]
+    for field_name in interval_fields:
+        val = getattr(req, field_name, None)
+        if val is not None:
+            scout.config[field_name] = val
     if req.enabled_scouts is not None:
         scout.config["enabled_scouts"] = req.enabled_scouts
     return {"status": "ok", "config": scout.config}
@@ -457,6 +471,7 @@ async def intelligence_status():
     from app.services.correlation_radar import get_correlation_radar
     from app.services.pattern_library import get_pattern_library
     from app.services.expected_move_service import get_expected_move_service
+    from app.services.streaming_discovery import get_streaming_discovery
 
     from app.services.turbo_scanner import get_turbo_scanner
     from app.services.hyper_swarm import get_hyper_swarm
@@ -470,6 +485,7 @@ async def intelligence_status():
         "news_aggregator": get_news_aggregator().get_status(),
         "market_sweep": get_market_sweep().get_status(),
         "scout": get_scout_service().get_status(),
+        "streaming_discovery": get_streaming_discovery().get_status(),
         "discord": get_discord_bridge().get_status(),
         "radar": get_geopolitical_radar().get_status(),
         "correlations": get_correlation_radar().get_status(),
@@ -477,6 +493,23 @@ async def intelligence_status():
         "expected_moves": get_expected_move_service().get_status(),
         "ingestion": knowledge_ingest.get_stats(),
     }
+
+
+# ------------------------------------------------------------------
+# StreamingDiscoveryEngine endpoints (E1 — Issue #38)
+# ------------------------------------------------------------------
+@router.get("/discovery/status")
+async def streaming_discovery_status():
+    """Get StreamingDiscoveryEngine status: symbols tracked, anomalies detected, stats."""
+    from app.services.streaming_discovery import get_streaming_discovery
+    return get_streaming_discovery().get_status()
+
+
+@router.get("/discovery/universe")
+async def streaming_discovery_universe():
+    """Get DynamicUniverseManager status: top active symbols, promoted symbols."""
+    from app.services.streaming_discovery import get_streaming_discovery
+    return get_streaming_discovery().get_universe_status()
 
 
 # ------------------------------------------------------------------

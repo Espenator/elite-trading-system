@@ -269,6 +269,16 @@ async def _start_event_driven_pipeline():
     asyncio.create_task(_node_discovery.start())  # Fire and forget
     log.info("NodeDiscovery started (PC2: %s)", settings.CLUSTER_PC2_HOST or "disabled")
 
+    # 0c. Register core services on the local node in NodeRegistry
+    try:
+        from app.services.node_registry import get_node_registry
+        _node_reg = get_node_registry()
+        for _svc in ("message_bus", "signal_engine", "council_gate", "order_executor"):
+            _node_reg.register_service(settings.NODE_ID, _svc)
+        log.info("\u2705 NodeRegistry: core services registered on node %r", settings.NODE_ID)
+    except Exception:
+        log.debug("NodeRegistry service registration skipped")
+
     # 0b. OllamaNodePool health checks
     from app.services.ollama_node_pool import get_ollama_pool
     _ollama_pool = get_ollama_pool()
@@ -473,6 +483,13 @@ async def _start_event_driven_pipeline():
         # Keep _alpaca_stream reference for backward compat in health checks
         _alpaca_stream = _stream_manager
         log.info("\u2705 AlpacaStreamManager launched for %d symbols", len(symbols))
+
+    # 7. StreamingDiscoveryEngine (E1 — Issue #38) — real-time anomaly detection
+    # Always start: pure in-process, zero new connections, subscribes to market_data.bar.
+    from app.services.streaming_discovery import get_streaming_discovery
+    _streaming_discovery = get_streaming_discovery(message_bus=_message_bus)
+    await _streaming_discovery.start()
+    log.info("\u2705 StreamingDiscoveryEngine started (volume/price/gap anomaly detection)")
 
     # 8. SwarmSpawner — spawns analysis swarms from ideas
     # Skip when LLM disabled — _run_swarm does synchronous DuckDB ingest + LLM council

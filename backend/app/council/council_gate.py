@@ -29,7 +29,7 @@ class CouncilGate:
     message_bus : MessageBus
         The async event bus.
     gate_threshold : float
-        Minimum signal score to trigger council evaluation (default 65).
+        Minimum signal score to trigger council evaluation (default 0.65).
     max_concurrent : int
         Maximum concurrent council evaluations to prevent overload.
     cooldown_seconds : int
@@ -39,7 +39,7 @@ class CouncilGate:
     def __init__(
         self,
         message_bus,
-        gate_threshold: float = 65.0,
+        gate_threshold: float = 0.65,
         max_concurrent: int = 3,
         cooldown_seconds: int = 120,
     ):
@@ -64,7 +64,7 @@ class CouncilGate:
         self._start_time = time.time()
         await self.message_bus.subscribe("signal.generated", self._on_signal)
         logger.info(
-            "CouncilGate started — threshold=%.0f, max_concurrent=%d, cooldown=%ds",
+            "CouncilGate started — threshold=%.2f, max_concurrent=%d, cooldown=%ds",
             self.gate_threshold,
             self.max_concurrent,
             self.cooldown_seconds,
