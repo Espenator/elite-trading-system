@@ -93,6 +93,8 @@ class MessageBus:
         "signal.openclaw.composite",    # OpenClaw composite scorer (0-100)
         "signal.openclaw.ensemble",     # OpenClaw ensemble scorer (ML)
         "signal.unified",               # UnifiedProfitEngine output
+        # Ingestion layer health
+        "ingestion.health",             # Per-adapter health / freshness reports
     }
 
     # Topics bridged through Redis when cluster mode is active.

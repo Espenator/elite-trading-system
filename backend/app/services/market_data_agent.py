@@ -1,10 +1,21 @@
 """
-Market Data Agent — one tick of data collection.
-Scans: Finviz Elite, Alpaca, Unusual Whales, OpenClaw Bridge.
-Pulls: FRED economic data, SEC EDGAR filings.
+Market Data Agent — thin supervisor for ingestion adapters.
 
-v2.0: Now persists all data to DuckDB via data_ingestion service.
-Run every 60s during market hours when agent is started.
+v3.0: Refactored into adapter-based architecture.  Each source is now a
+``BaseSourceAdapter`` registered in the ``AdapterRegistry``.  This module
+provides:
+
+  * ``run_tick()`` — one legacy compatibility tick (delegates to adapters'
+    ``poll_once()`` for sources that are still scheduled, and reports
+    adapter health for streaming sources).
+  * Adapter health summary for the activity log.
+
+The heavy per-source fetch logic has moved into:
+    ``app.services.ingestion.adapters.*``
+
+The legacy ``run_tick()`` signature is preserved so that
+``app.api.v1.agents.run_market_data_tick_if_running()`` keeps working
+without any changes.
 
 Fixes Issue #25 Task 5.
 """
@@ -32,86 +43,130 @@ async def run_tick(
     run_ingestion: bool = True,
 ) -> List[Tuple[str, str]]:
     """
-    Run one Market Data Agent tick. Returns list of (message, level) for activity log.
+    Run one Market Data Agent tick.  Returns list of (message, level).
 
-    v2.0: Added run_ingestion flag. When True, persists all fetched data
-    to DuckDB via data_ingestion service after collection.
+    v3.0: Delegates to ingestion adapters when available; falls back to
+    legacy inline fetchers for backward compatibility.
     """
     entries: List[Tuple[str, str]] = []
-
     tracked_symbols: list = []
 
-    # --- Finviz Elite -> symbol_universe (client link) ---
-    if run_finviz:
-        try:
-            from app.services.finviz_service import FinvizService
-            from app.modules.symbol_universe import set_tracked_symbols_from_finviz
+    # ── Try adapter-based path first ──────────────────────────────────
+    try:
+        from app.services.ingestion.registry import get_adapter_registry
+        registry = get_adapter_registry()
+        adapters = registry.all_adapters()
+    except Exception:
+        adapters = []
 
-            svc = FinvizService()
-            stocks = await svc.get_stock_list()
-            count = len(stocks) if stocks else 0
-            stored = set_tracked_symbols_from_finviz(stocks or [])
-            tracked_symbols = list(stocks or []) if isinstance(stocks, list) else []
-            # Extract just ticker strings if stocks are dicts
-            if tracked_symbols and isinstance(tracked_symbols[0], dict):
-                tracked_symbols = [
-                    s.get("ticker") or s.get("symbol") or s.get("Ticker", "")
-                    for s in tracked_symbols
-                ]
-                tracked_symbols = [t for t in tracked_symbols if t]
-            entries.append(
-                (
-                    f"Finviz Elite: {count} symbols -> symbol_universe: {stored} tracked",
-                    "success",
-                )
-            )
-        except Exception as e:
-            logger.exception("Finviz tick failed")
-            entries.append((f"Finviz: {str(e)[:80]}", "warning"))
+    # If adapters are running, report their health instead of duplicating fetches.
+    adapter_names = {a.source_name for a in adapters if a._running}
 
-    # --- Alpaca (market data / connection check) ---
+    # --- Finviz Elite ---
+    if run_finviz and "finviz" not in adapter_names:
+        entries.extend(await _fetch_finviz_legacy())
+    elif run_finviz and "finviz" in adapter_names:
+        adapter = registry.get("finviz")
+        h = adapter.health()
+        entries.append((
+            f"Finviz adapter: {h.get('state')} ({h.get('events_published', 0)} events)",
+            "success" if h.get("state") == "healthy" else "info",
+        ))
+
+    # --- Alpaca connection check (lightweight, always inline) ---
     if run_alpaca:
-        try:
-            from app.services.alpaca_service import alpaca_service
-            import httpx
+        entries.extend(await _check_alpaca_connection())
 
-            url = f"{alpaca_service.base_url.rstrip('/')}/clock"
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                r = await client.get(
-                    url,
-                    headers=alpaca_service._get_headers(),
-                )
-            if r.status_code == 200:
-                data = r.json()
-                is_open = data.get("is_open", False)
-                entries.append((f"Alpaca: connected, market_open={is_open}", "success"))
-            else:
-                entries.append((f"Alpaca: HTTP {r.status_code}", "warning"))
-        except Exception as e:
-            logger.exception("Alpaca tick failed")
-            entries.append((f"Alpaca: {str(e)[:80]}", "warning"))
-
-    # --- Unusual Whales (options flow) ---
-    if run_unusual_whales:
+    # --- Unusual Whales ---
+    if run_unusual_whales and "unusual_whales" not in adapter_names:
         entries.extend(await _fetch_unusual_whales())
+    elif run_unusual_whales and "unusual_whales" in adapter_names:
+        adapter = registry.get("unusual_whales")
+        h = adapter.health()
+        entries.append((
+            f"Unusual Whales adapter: {h.get('state')} ({h.get('events_published', 0)} events)",
+            "success" if h.get("state") == "healthy" else "info",
+        ))
 
-    # --- FRED economic data ---
-    if run_fred:
+    # --- FRED ---
+    if run_fred and "fred" not in adapter_names:
         entries.extend(await _fetch_fred())
+    elif run_fred and "fred" in adapter_names:
+        adapter = registry.get("fred")
+        h = adapter.health()
+        entries.append((
+            f"FRED adapter: {h.get('state')} ({h.get('events_published', 0)} events)",
+            "success" if h.get("state") == "healthy" else "info",
+        ))
 
-    # --- SEC EDGAR filings ---
-    if run_edgar:
+    # --- SEC EDGAR ---
+    if run_edgar and "sec_edgar" not in adapter_names:
         entries.extend(await _fetch_edgar())
+    elif run_edgar and "sec_edgar" in adapter_names:
+        adapter = registry.get("sec_edgar")
+        h = adapter.health()
+        entries.append((
+            f"SEC EDGAR adapter: {h.get('state')} ({h.get('events_published', 0)} events)",
+            "success" if h.get("state") == "healthy" else "info",
+        ))
 
-    # --- OpenClaw Bridge (regime, candidates, whale flow from Gist) ---
-    if run_openclaw:
+    # --- OpenClaw ---
+    if run_openclaw and "openclaw" not in adapter_names:
         entries.extend(await _fetch_openclaw())
+    elif run_openclaw and "openclaw" in adapter_names:
+        adapter = registry.get("openclaw")
+        h = adapter.health()
+        entries.append((
+            f"OpenClaw adapter: {h.get('state')} ({h.get('events_published', 0)} events)",
+            "success" if h.get("state") == "healthy" else "info",
+        ))
 
-    # --- DuckDB Ingestion (persist everything collected above) ---
+    # --- DuckDB Ingestion (legacy path — still needed for indicators + trade outcomes) ---
     if run_ingestion:
         entries.extend(await _run_ingestion(tracked_symbols))
 
     return entries
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Legacy inline fetchers (kept for backward compat when adapters aren't up)
+# ──────────────────────────────────────────────────────────────────────────
+
+async def _fetch_finviz_legacy() -> List[Tuple[str, str]]:
+    """Legacy Finviz inline fetch."""
+    try:
+        from app.services.finviz_service import FinvizService
+        from app.modules.symbol_universe import set_tracked_symbols_from_finviz
+
+        svc = FinvizService()
+        stocks = await svc.get_stock_list()
+        count = len(stocks) if stocks else 0
+        stored = set_tracked_symbols_from_finviz(stocks or [])
+        return [(
+            f"Finviz Elite: {count} symbols -> symbol_universe: {stored} tracked",
+            "success",
+        )]
+    except Exception as e:
+        logger.exception("Finviz tick failed")
+        return [(f"Finviz: {str(e)[:80]}", "warning")]
+
+
+async def _check_alpaca_connection() -> List[Tuple[str, str]]:
+    """Alpaca clock / connectivity check."""
+    try:
+        from app.services.alpaca_service import alpaca_service
+
+        url = f"{alpaca_service.base_url.rstrip('/')}/clock"
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(url, headers=alpaca_service._get_headers())
+        if r.status_code == 200:
+            data = r.json()
+            is_open = data.get("is_open", False)
+            return [(f"Alpaca: connected, market_open={is_open}", "success")]
+        return [(f"Alpaca: HTTP {r.status_code}", "warning")]
+    except Exception as e:
+        logger.exception("Alpaca tick failed")
+        return [(f"Alpaca: {str(e)[:80]}", "warning")]
 
 
 async def _run_ingestion(symbols: list) -> List[Tuple[str, str]]:
@@ -121,7 +176,6 @@ async def _run_ingestion(symbols: list) -> List[Tuple[str, str]]:
     For full backfill, use data_ingestion.ingest_all(symbols, days=252).
     """
     if not symbols:
-        # Fallback: use tracked symbols from symbol_universe
         try:
             from app.modules.symbol_universe import get_tracked_symbols
             symbols = get_tracked_symbols()[:20]
@@ -134,7 +188,6 @@ async def _run_ingestion(symbols: list) -> List[Tuple[str, str]]:
     try:
         from app.services.data_ingestion import data_ingestion
 
-        # Incremental: last 5 days of bars + indicators + flow + macro
         report = await data_ingestion.ingest_all(symbols[:20], days=5)
 
         ohlcv_total = report.get("ohlcv", {}).get("total_rows", 0)
@@ -142,19 +195,16 @@ async def _run_ingestion(symbols: list) -> List[Tuple[str, str]]:
         flow_count = report.get("options_flow", 0)
         macro_count = report.get("macro", 0)
         trade_count = report.get("trade_outcomes", 0)
-
         health = report.get("duckdb_health", {})
 
         msg = (
             f"DuckDB ingestion: {ohlcv_total} OHLCV, {indicator_count} indicators, "
             f"{flow_count} flow, {macro_count} macro, {trade_count} trades"
         )
-
         if health:
             msg += f" | tables={health.get('total_tables', '?')}, rows={health.get('total_rows', '?')}"
 
         return [(msg, "success")]
-
     except Exception as e:
         logger.exception("DuckDB ingestion failed")
         return [(f"DuckDB ingestion: {str(e)[:80]}", "warning")]
@@ -183,7 +233,6 @@ async def _fetch_edgar() -> List[Tuple[str, str]]:
         from app.services.sec_edgar_service import SecEdgarService
         from app.core.message_bus import get_message_bus
 
-        # Use tracked symbol list instead of hardcoded AAPL
         try:
             from app.modules.symbol_universe import get_tracked_symbols
             symbols = get_tracked_symbols() or ["AAPL"]
@@ -192,13 +241,12 @@ async def _fetch_edgar() -> List[Tuple[str, str]]:
 
         svc = SecEdgarService()
         results = []
-        for symbol in symbols[:5]:  # Check first 5 tracked symbols
+        for symbol in symbols[:5]:
             try:
                 forms = await svc.get_recent_forms(symbol, limit=5)
                 filing_data = {"symbol": symbol, "forms": forms}
                 results.append(filing_data)
 
-                # Publish each filing to MessageBus
                 try:
                     bus = get_message_bus()
                     if bus._running:
@@ -241,12 +289,10 @@ async def _fetch_unusual_whales() -> List[Tuple[str, str]]:
         if e.response.status_code == 401:
             return [("Unusual Whales: invalid API key", "warning")]
         if e.response.status_code == 404:
-            return [
-                (
-                    "Unusual Whales: endpoint not found -- set UNUSUAL_WHALES_FLOW_PATH from api.unusualwhales.com/docs",
-                    "info",
-                )
-            ]
+            return [(
+                "Unusual Whales: endpoint not found -- set UNUSUAL_WHALES_FLOW_PATH from api.unusualwhales.com/docs",
+                "info",
+            )]
         return [(f"Unusual Whales: HTTP {e.response.status_code}", "warning")]
     except httpx.ConnectError:
         return [("Unusual Whales: connection failed (check base URL)", "warning")]
@@ -278,15 +324,12 @@ async def _fetch_openclaw() -> List[Tuple[str, str]]:
         top_ticker = candidates[0].get("ticker", "?") if candidates else "none"
         top_score = candidates[0].get("composite_score", 0) if candidates else 0
 
-        entries = [
-            (
-                f"OpenClaw: regime={regime_state}, {candidate_count} candidates, "
-                f"top={top_ticker} ({top_score}), {whale_count} whale alerts, "
-                f"scan={scan_date}",
-                "success",
-            )
-        ]
-        return entries
+        return [(
+            f"OpenClaw: regime={regime_state}, {candidate_count} candidates, "
+            f"top={top_ticker} ({top_score}), {whale_count} whale alerts, "
+            f"scan={scan_date}",
+            "success",
+        )]
     except Exception as e:
         logger.exception("OpenClaw Bridge fetch failed")
         return [(f"OpenClaw: {str(e)[:80]}", "warning")]

@@ -474,6 +474,30 @@ async def _start_event_driven_pipeline():
         _alpaca_stream = _stream_manager
         log.info("\u2705 AlpacaStreamManager launched for %d symbols", len(symbols))
 
+    # 7. Ingestion adapter registry — register and start all source adapters
+    try:
+        from app.services.ingestion.registry import get_adapter_registry
+        from app.services.ingestion.adapters.finviz_adapter import FinvizAdapter
+        from app.services.ingestion.adapters.fred_adapter import FredAdapter
+        from app.services.ingestion.adapters.sec_edgar_adapter import SecEdgarAdapter
+        from app.services.ingestion.adapters.unusual_whales_adapter import UnusualWhalesAdapter
+        from app.services.ingestion.adapters.openclaw_adapter import OpenClawAdapter
+
+        _adapter_registry = get_adapter_registry()
+        _adapter_registry.register(FinvizAdapter(message_bus=_message_bus))
+        _adapter_registry.register(FredAdapter(message_bus=_message_bus))
+        _adapter_registry.register(SecEdgarAdapter(message_bus=_message_bus))
+        _adapter_registry.register(UnusualWhalesAdapter(message_bus=_message_bus))
+        _adapter_registry.register(OpenClawAdapter(message_bus=_message_bus))
+
+        await _adapter_registry.start_all()
+        log.info(
+            "\u2705 Ingestion adapters started: %s",
+            ", ".join(a.source_name for a in _adapter_registry.all_adapters()),
+        )
+    except Exception:
+        log.exception("Ingestion adapter registry failed — falling back to legacy polling")
+
     # 8. SwarmSpawner — spawns analysis swarms from ideas
     # Skip when LLM disabled — _run_swarm does synchronous DuckDB ingest + LLM council
     # which blocks the entire async event loop and deadlocks the server.
@@ -802,6 +826,13 @@ async def _stop_event_driven_pipeline():
             await _stream_manager.stop()
         except Exception:
             pass
+
+    # Stop ingestion adapters
+    try:
+        from app.services.ingestion.registry import get_adapter_registry
+        await get_adapter_registry().stop_all()
+    except Exception:
+        pass
 
     # Stop swarm intelligence components first (reverse startup order)
     try:
