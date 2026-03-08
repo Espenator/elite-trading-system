@@ -2,7 +2,7 @@
 
 import logging
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import httpx
 
@@ -10,6 +10,10 @@ from app.core.config import settings
 from app.core.message_bus import get_message_bus
 
 logger = logging.getLogger(__name__)
+
+# Global cache for latest unusual whales alerts (updated via MessageBus)
+_latest_alerts_cache: Dict[str, Any] = {}
+_cache_timestamp: float = 0.0
 
 
 class UnusualWhalesService:
@@ -109,3 +113,63 @@ class UnusualWhalesService:
             r = await client.get(url, headers=self._headers())
         r.raise_for_status()
         return r.json() if r.content else []
+
+
+def update_alerts_cache(event_data: Dict[str, Any]) -> None:
+    """Update global alerts cache from MessageBus event.
+
+    Called by MessageBus subscriber in main.py to store latest UW alerts.
+    """
+    global _latest_alerts_cache, _cache_timestamp
+    alerts = event_data.get("alerts", [])
+    timestamp = event_data.get("timestamp", time.time())
+
+    # Store alerts by symbol for easy lookup
+    if isinstance(alerts, list):
+        for alert in alerts:
+            if isinstance(alert, dict) and "ticker" in alert:
+                symbol = alert["ticker"]
+                _latest_alerts_cache[symbol] = {
+                    **alert,
+                    "_cached_at": timestamp,
+                }
+        _cache_timestamp = timestamp
+        logger.debug("Updated UnusualWhales cache: %d symbols", len(_latest_alerts_cache))
+    elif isinstance(alerts, dict):
+        # Handle dict response format
+        items = alerts.get("items", []) or alerts.get("data", [])
+        for alert in items:
+            if isinstance(alert, dict) and "ticker" in alert:
+                symbol = alert["ticker"]
+                _latest_alerts_cache[symbol] = {
+                    **alert,
+                    "_cached_at": timestamp,
+                }
+        _cache_timestamp = timestamp
+        logger.debug("Updated UnusualWhales cache: %d symbols", len(_latest_alerts_cache))
+
+
+def get_alerts_for_symbol(symbol: str) -> Optional[Dict[str, Any]]:
+    """Get cached unusual whales alerts for a specific symbol.
+
+    Returns None if no alerts available or cache is stale (>5 min).
+    """
+    if not _latest_alerts_cache:
+        return None
+
+    # Check cache age
+    cache_age = time.time() - _cache_timestamp
+    if cache_age > 300:  # 5 minutes
+        return None
+
+    return _latest_alerts_cache.get(symbol)
+
+
+def get_all_cached_alerts() -> Dict[str, Any]:
+    """Get all cached alerts with metadata."""
+    return {
+        "alerts": dict(_latest_alerts_cache),
+        "cache_timestamp": _cache_timestamp,
+        "cache_age_seconds": time.time() - _cache_timestamp if _cache_timestamp > 0 else None,
+        "symbol_count": len(_latest_alerts_cache),
+    }

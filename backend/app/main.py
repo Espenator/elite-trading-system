@@ -452,6 +452,18 @@ async def _start_event_driven_pipeline():
     await _message_bus.subscribe("market_data.bar", _bridge_market_data_to_ws)
     log.info("\u2705 MarketData->WebSocket bridge active")
 
+    # 5d. UnusualWhales flow alerts cache subscriber
+    # Updates global cache in unusual_whales_service so flow_perception_agent can access
+    async def _update_unusual_whales_cache(event_data):
+        try:
+            from app.services.unusual_whales_service import update_alerts_cache
+            update_alerts_cache(event_data)
+        except Exception as e:
+            log.debug("UnusualWhales cache update failed: %s", e)
+
+    await _message_bus.subscribe("perception.unusualwhales", _update_unusual_whales_cache)
+    log.info("\u2705 UnusualWhales->Cache subscriber active (flow_perception_agent can now access UW alerts)")
+
     # 6. AlpacaStreamManager (replaces single AlpacaStreamService)
     global _stream_manager
     if os.getenv("DISABLE_ALPACA_DATA_STREAM", "").strip().lower() in ("1", "true", "yes"):

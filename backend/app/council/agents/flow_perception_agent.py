@@ -4,6 +4,7 @@ from typing import Any, Dict
 
 from app.council.agent_config import get_agent_thresholds
 from app.council.schemas import AgentVote
+from app.services.unusual_whales_service import get_alerts_for_symbol
 
 logger = logging.getLogger(__name__)
 
@@ -22,15 +23,26 @@ async def evaluate(
     net_premium = f.get("flow_net_premium", 0)
     pcr = f.get("flow_pcr", 0)
 
+    # Check for UnusualWhales cached alerts for this symbol
+    uw_alert = get_alerts_for_symbol(symbol)
+    uw_metadata = {}
+    if uw_alert:
+        # Enhance confidence if UW alerts exist
+        uw_metadata = {
+            "unusual_whales_alert": True,
+            "uw_alert_type": uw_alert.get("type", "unknown"),
+        }
+        logger.debug(f"UnusualWhales alert found for {symbol}: {uw_alert.get('type')}")
+
     # If no flow data, abstain with low confidence
     if call_vol == 0 and put_vol == 0:
         return AgentVote(
             agent_name=NAME,
             direction="hold",
             confidence=0.1,
-            reasoning="No options flow data available",
+            reasoning="No options flow data available" + (" (UW alert detected but no flow features)" if uw_alert else ""),
             weight=cfg["weight_flow_perception"],
-            metadata={"data_available": False},
+            metadata={"data_available": False, **uw_metadata},
         )
 
     # PCR analysis
@@ -53,13 +65,23 @@ async def evaluate(
     elif net_premium < 0 and direction == "sell":
         confidence = min(0.8, confidence + 0.1)
 
+    # UnusualWhales alert boosts confidence
+    if uw_alert:
+        alert_type = uw_alert.get("type", "").lower()
+        if "bullish" in alert_type and direction == "buy":
+            confidence = min(0.85, confidence + 0.05)
+        elif "bearish" in alert_type and direction == "sell":
+            confidence = min(0.85, confidence + 0.05)
+
     reasoning = (
         f"PCR={pcr:.2f}, Net premium=${net_premium:,.0f}, "
         f"Call vol={call_vol:,.0f}, Put vol={put_vol:,.0f}"
     )
+    if uw_alert:
+        reasoning += f" | UW alert: {uw_alert.get('type', 'unknown')}"
 
     # Enrich with institutional flow intelligence if available
-    intel_meta = {"data_available": True, "pcr": pcr}
+    intel_meta = {"data_available": True, "pcr": pcr, **uw_metadata}
     blackboard = context.get("blackboard")
     if blackboard:
         intel = blackboard.metadata.get("intelligence", {})
