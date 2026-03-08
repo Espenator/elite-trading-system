@@ -317,14 +317,23 @@ async def _start_event_driven_pipeline():
     )
     if council_gate_enabled:
         from app.council.council_gate import CouncilGate
+        _fast_threshold = float(os.getenv("COUNCIL_FAST_THRESHOLD", "45"))
+        _gate_threshold = float(os.getenv("COUNCIL_GATE_THRESHOLD", "65"))
+        _fast_path = os.getenv("COUNCIL_FAST_PATH_ENABLED", "true").lower() == "true"
         _council_gate = CouncilGate(
             message_bus=_message_bus,
-            gate_threshold=float(os.getenv("COUNCIL_GATE_THRESHOLD", "65")),
+            gate_threshold=_gate_threshold,
+            fast_threshold=_fast_threshold,
+            enable_fast_path=_fast_path,
             max_concurrent=int(os.getenv("COUNCIL_MAX_CONCURRENT", "3")),
             cooldown_seconds=int(os.getenv("COUNCIL_COOLDOWN_SECS", "120")),
         )
         await _council_gate.start()
-        log.info("\u2705 CouncilGate started (13-agent council controls trading)")
+        log.info(
+            "\u2705 CouncilGate started (tiered: fast_threshold=%.0f, "
+            "gate_threshold=%.0f, fast_path=%s)",
+            _fast_threshold, _gate_threshold, _fast_path,
+        )
     else:
         log.info("\u26a0 CouncilGate DISABLED -- routing signals directly to OrderExecutor")
         # BUG FIX: When council is off, route signals directly as verdicts.

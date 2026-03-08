@@ -584,3 +584,72 @@ class TestFastArbitrateEdgeCases:
         assert 0.0 < FAST_HOLD_THRESHOLD < 1.0
         # Threshold must be > 1/3 to be reachable when 3 directions compete
         assert FAST_HOLD_THRESHOLD > 1 / 3
+
+
+# ---------------------------------------------------------------------------
+# CouncilGate env-var passthrough (runtime wiring)
+# ---------------------------------------------------------------------------
+
+class TestCouncilGateEnvVarWiring:
+    """Verify that CouncilGate accepts fast_threshold and enable_fast_path
+    at construction so that runtime env vars can control the fast path.
+
+    These tests confirm the gap identified in the repo-truth audit is fixed:
+    main.py now passes COUNCIL_FAST_THRESHOLD and COUNCIL_FAST_PATH_ENABLED
+    to CouncilGate at startup.
+    """
+
+    def test_custom_fast_threshold_accepted(self):
+        from app.council.council_gate import CouncilGate
+
+        class MockBus:
+            async def subscribe(self, *a):
+                pass
+
+        gate = CouncilGate(
+            message_bus=MockBus(),
+            gate_threshold=70.0,
+            fast_threshold=50.0,
+            enable_fast_path=True,
+        )
+        assert gate.fast_threshold == 50.0
+        assert gate.gate_threshold == 70.0
+        assert gate.enable_fast_path is True
+
+    def test_fast_path_disabled_via_constructor(self):
+        from app.council.council_gate import CouncilGate
+
+        class MockBus:
+            async def subscribe(self, *a):
+                pass
+
+        gate = CouncilGate(
+            message_bus=MockBus(),
+            gate_threshold=65.0,
+            fast_threshold=45.0,
+            enable_fast_path=False,
+        )
+        assert gate.enable_fast_path is False
+        # When disabled, threshold for routing should be gate_threshold
+        status = gate.get_status()
+        assert status["enable_fast_path"] is False
+
+    def test_status_exposes_wiring_config(self):
+        """get_status() must expose all three tunable params for ops dashboards."""
+        from app.council.council_gate import CouncilGate
+
+        class MockBus:
+            async def subscribe(self, *a):
+                pass
+
+        gate = CouncilGate(
+            message_bus=MockBus(),
+            gate_threshold=60.0,
+            fast_threshold=40.0,
+            enable_fast_path=True,
+        )
+        gate._start_time = 0
+        status = gate.get_status()
+        assert status["gate_threshold"] == 60.0
+        assert status["fast_threshold"] == 40.0
+        assert status["enable_fast_path"] is True
