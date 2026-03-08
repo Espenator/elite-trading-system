@@ -227,18 +227,32 @@ if (-not $backendProc) {
 }
 Log "Backend PID: $($backendProc.Id)" DarkGray
 
-# Wait for backend liveness (90s timeout) — use /healthz (fast, no deps)
-# NOT /health which queries DuckDB + ML registry and blocks during initial data ingest
-# NOTE: Do NOT use $backendProc.HasExited -- on Windows, Start-Process may return
-# an intermediate PID that exits while the real uvicorn worker (child) keeps running.
+# Wait for backend liveness (90s timeout)
+# Use TCP port check first (fast, works even when event loop is busy with data ingest),
+# then confirm with /healthz HTTP check.
+# -UseBasicParsing is required for Windows PS 5.1 (avoids slow IE COM parsing).
 Log "Waiting for backend..." Cyan
 $healthy = $false
+$tcpUp = $false
 for ($i = 0; $i -lt 90; $i++) {
     Start-Sleep 1
-    try {
-        $response = Invoke-WebRequest "http://localhost:$BackendPort/healthz" -TimeoutSec 2 -ErrorAction SilentlyContinue
-        if ($response.StatusCode -eq 200) { $healthy = $true; break }
-    } catch { }
+    if (-not $tcpUp) {
+        $tcp = New-Object Net.Sockets.TcpClient
+        try {
+            $tcp.Connect("127.0.0.1", $BackendPort)
+            $tcpUp = $true
+            $tcp.Close()
+            Log "Port $BackendPort open" DarkGray
+        } catch {
+            try { $tcp.Close() } catch { }
+        }
+    }
+    if ($tcpUp) {
+        try {
+            $response = Invoke-WebRequest "http://localhost:$BackendPort/healthz" -TimeoutSec 3 -UseBasicParsing -ErrorAction SilentlyContinue
+            if ($response.StatusCode -eq 200) { $healthy = $true; break }
+        } catch { }
+    }
     Write-Host "." -NoNewline
 }
 Write-Host ""
@@ -313,7 +327,7 @@ try {
         Start-Sleep 10
         $alive = $false
         try {
-            $r = Invoke-WebRequest "http://localhost:$BackendPort/healthz" -TimeoutSec 3 -ErrorAction SilentlyContinue
+            $r = Invoke-WebRequest "http://localhost:$BackendPort/healthz" -TimeoutSec 5 -UseBasicParsing -ErrorAction SilentlyContinue
             if ($r.StatusCode -eq 200) { $alive = $true; $consecutiveFails = 0 }
         } catch { }
         if (-not $alive) {
