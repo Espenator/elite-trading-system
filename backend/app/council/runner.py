@@ -474,6 +474,7 @@ async def run_council(
     # Stage 7: Arbiter
     decision = arbitrate(symbol, timeframe, timestamp, all_votes)
     decision.council_decision_id = blackboard.council_decision_id
+    decision.council_tier = "deep"  # full 35-agent path
 
     # ── ETBI: Populate cognitive telemetry on DecisionPacket ────────────
     total_latency = time.monotonic() * 1000 - blackboard.council_start_ms

@@ -160,6 +160,11 @@ class DecisionPacket:
     council_reasoning: str
     council_decision_id: str = ""  # links to BlackboardState
 
+    # Multi-tier provenance: which council path produced this decision.
+    # "fast" → only the lightweight pre-screening agents ran (no deep council).
+    # "deep" → full 35-agent DAG ran (default path).
+    council_tier: str = "deep"  # "fast" | "deep"
+
     # ── ETBI Cognitive Extensions ──────────────────────────────────────────
     cognitive: CognitiveMeta = field(default_factory=CognitiveMeta)
     active_hypothesis: Optional[Dict[str, Any]] = None  # hypothesis agent's output
@@ -180,6 +185,7 @@ class DecisionPacket:
             "execution_ready": self.execution_ready,
             "council_reasoning": self.council_reasoning,
             "vote_count": len(self.votes),
+            "council_tier": self.council_tier,
             "cognitive": self.cognitive.to_dict(),
         }
         if self.council_decision_id:
