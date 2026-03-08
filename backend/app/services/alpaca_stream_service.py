@@ -12,6 +12,55 @@ regardless of market session. During off-hours, polls snapshots on a
 configurable interval so the UI always shows real (not mock) data.
 
 Requires env vars: ALPACA_API_KEY, ALPACA_SECRET_KEY
+
+=============================================================================
+CANONICAL INGESTION CONTRACT (v3.5.0)
+=============================================================================
+
+This is the AUTHORITATIVE live stream path for Alpaca market data.
+
+DATA FLOW:
+  1. AlpacaStreamService (WebSocket/Snapshot) → MessageBus 'market_data.bar'
+  2. main.py:438 subscriber → DuckDB daily_ohlcv (INSERT OR REPLACE)
+  3. signal_engine, position_manager, order_executor subscribe downstream
+
+NORMALIZED EVENT SCHEMA (market_data.bar):
+  {
+    "symbol": str,           # Ticker symbol (uppercase)
+    "timestamp": str,        # ISO 8601 timestamp
+    "open": float,
+    "high": float,
+    "low": float,
+    "close": float,
+    "volume": int,
+    "vwap": float | None,
+    "trade_count": int | None,
+    "source": str,          # "alpaca_websocket" | "alpaca_snapshot_{session}"
+    # Snapshot-only fields (may be absent in WebSocket events):
+    "latest_trade_price": float,
+    "bid": float,
+    "ask": float,
+    "prev_close": float,
+    "daily_volume": int,
+  }
+
+PERSISTENCE GUARANTEES:
+  - Idempotent: INSERT OR REPLACE on (symbol, date)
+  - No duplicate bars for same symbol+timestamp
+  - DuckDB async_insert() prevents event loop blocking
+
+HEALTH & RESILIENCE:
+  - Circuit breaker opens after 10 consecutive failures (configurable)
+  - Exponential backoff: 2s → 60s max
+  - Health metrics published to 'system.heartbeat' every 60s
+  - Graceful fallback to snapshot polling when WebSocket unavailable
+
+DEPRECATION NOTICE:
+  - data_ingestion.py ingest_daily_bars() is LEGACY (uses HTTP API directly)
+  - Future refactor: route ALL Alpaca data through this MessageBus contract
+  - DO NOT add new direct DuckDB writes — use MessageBus publish instead
+
+=============================================================================
 """
 import asyncio
 import logging
@@ -36,9 +85,14 @@ class AlpacaStreamService:
     INITIAL_RECONNECT_DELAY = 2  # seconds
     SNAPSHOT_POLL_INTERVAL = 30  # seconds between snapshot polls off-hours
     SNAPSHOT_BATCH_SIZE = 50  # symbols per snapshot API call
+    HEALTH_METRICS_INTERVAL = 60  # seconds between health metric publishes
     # When Alpaca returns "connection limit exceeded", fall back to mock after this many failures
     CONNECTION_LIMIT_FALLBACK_AFTER = int(
         os.getenv("ALPACA_STREAM_FALLBACK_AFTER_LIMIT", "1")
+    )
+    # Circuit breaker: stop trying after this many consecutive failures
+    CIRCUIT_BREAKER_THRESHOLD = int(
+        os.getenv("ALPACA_CIRCUIT_BREAKER_THRESHOLD", "10")
     )
 
     def __init__(self, message_bus, symbols: Optional[List[str]] = None, api_key: str = None, secret_key: str = None):
@@ -61,6 +115,9 @@ class AlpacaStreamService:
         self._session = "unknown"  # "pre", "regular", "post", "closed"
         self._snapshot_task: Optional[asyncio.Task] = None
         self._connection_limit_failures = 0
+        self._consecutive_failures = 0
+        self._circuit_open = False
+        self._health_metrics_task: Optional[asyncio.Task] = None
 
     async def start(self) -> None:
         """Start streaming with clock-aware mode selection.
@@ -92,6 +149,9 @@ class AlpacaStreamService:
         self._running = True
         self._start_time = time.time()
 
+        # Start health metrics publishing loop
+        self._health_metrics_task = asyncio.create_task(self._publish_health_metrics_loop())
+
         # Always seed snapshots on startup
         await self._fetch_and_publish_snapshots()
 
@@ -105,6 +165,16 @@ class AlpacaStreamService:
 
         # Main loop: switch between WebSocket and snapshot polling
         while self._running:
+            # Circuit breaker: stop retrying if too many consecutive failures
+            if self._circuit_open:
+                logger.error(
+                    "AlpacaStreamService: circuit breaker OPEN after %d failures — "
+                    "falling back to snapshot polling only",
+                    self._consecutive_failures,
+                )
+                await self._run_snapshot_poll_loop()
+                continue
+
             try:
                 await self._check_clock()
 
@@ -112,6 +182,8 @@ class AlpacaStreamService:
                     # Market open: use WebSocket for real-time bars
                     logger.info("Market OPEN — switching to WebSocket streaming")
                     await self._connect_and_stream(api_key, secret_key)
+                    # Successful connection: reset failure counter
+                    self._consecutive_failures = 0
                 else:
                     # Market closed: poll snapshots
                     logger.info(
@@ -124,6 +196,7 @@ class AlpacaStreamService:
                 logger.info("AlpacaStreamService cancelled")
                 break
             except TypeError as e:
+                self._consecutive_failures += 1
                 if "extra_headers" in str(e) or "create_connection" in str(e):
                     logger.warning(
                         "Alpaca websocket failed (incompatible websockets library). "
@@ -134,6 +207,7 @@ class AlpacaStreamService:
                     continue
                 raise
             except ValueError as e:
+                self._consecutive_failures += 1
                 err_msg = str(e).lower()
                 if "connection limit exceeded" in err_msg or "auth failed" in err_msg:
                     self._connection_limit_failures += 1
@@ -160,9 +234,21 @@ class AlpacaStreamService:
                     continue
                 raise
             except Exception:
+                self._consecutive_failures += 1
+                # Open circuit breaker if threshold exceeded
+                if self._consecutive_failures >= self.CIRCUIT_BREAKER_THRESHOLD:
+                    self._circuit_open = True
+                    await self.message_bus.publish("risk.alert", {
+                        "type": "alpaca_circuit_breaker",
+                        "severity": "critical",
+                        "message": f"Alpaca stream circuit breaker opened after {self._consecutive_failures} failures",
+                        "consecutive_failures": self._consecutive_failures,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    })
+
                 logger.exception(
-                    "AlpacaStreamService error — reconnecting in %ds",
-                    self._reconnect_delay,
+                    "AlpacaStreamService error — reconnecting in %ds (failures: %d/%d)",
+                    self._reconnect_delay, self._consecutive_failures, self.CIRCUIT_BREAKER_THRESHOLD,
                 )
                 await asyncio.sleep(self._reconnect_delay)
                 self._reconnect_delay = min(
@@ -384,9 +470,37 @@ class AlpacaStreamService:
         while self._running:
             await asyncio.sleep(60)
 
+    async def _publish_health_metrics_loop(self) -> None:
+        """Periodically publish health metrics to MessageBus for monitoring."""
+        while self._running:
+            try:
+                await asyncio.sleep(self.HEALTH_METRICS_INTERVAL)
+                if not self._running:
+                    break
+
+                status = self.get_status()
+                await self.message_bus.publish("system.heartbeat", {
+                    "service": "alpaca_stream",
+                    "status": status,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                })
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                logger.exception("Health metrics publish failed")
+
     async def stop(self) -> None:
         """Graceful shutdown."""
         self._running = False
+
+        # Stop health metrics loop
+        if self._health_metrics_task and not self._health_metrics_task.done():
+            self._health_metrics_task.cancel()
+            try:
+                await asyncio.wait_for(self._health_metrics_task, timeout=2.0)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                pass
+
         if self._stream:
             try:
                 await self._stream.close()
@@ -421,4 +535,7 @@ class AlpacaStreamService:
             ),
             "reconnect_delay": self._reconnect_delay,
             "snapshot_poll_interval": self.SNAPSHOT_POLL_INTERVAL,
+            "consecutive_failures": self._consecutive_failures,
+            "circuit_breaker_open": self._circuit_open,
+            "circuit_breaker_threshold": self.CIRCUIT_BREAKER_THRESHOLD,
         }

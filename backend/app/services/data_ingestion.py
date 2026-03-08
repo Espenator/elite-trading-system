@@ -3,6 +3,25 @@
 This is the write-side orchestrator that feeds the analytics database.
 market_data_agent.py calls this during each tick to persist data.
 
+=============================================================================
+LEGACY INGESTION PATH — SCHEDULED FOR REFACTOR
+=============================================================================
+
+⚠️  ALPACA DATA FLOW:
+   - This service uses DIRECT DuckDB writes via HTTP API polling
+   - The CANONICAL live stream is AlpacaStreamService → MessageBus
+   - ingest_daily_bars() should ONLY be used for:
+     1. Historical backfills (252+ days on initial setup)
+     2. Batch symbol universe updates (500+ symbols)
+   - DO NOT use for real-time ingestion (use AlpacaStreamService instead)
+
+REFACTOR PLAN:
+   - Route all ingestion through MessageBus 'market_data.bar'
+   - Keep batch backfill methods (ingest_daily_bars with days=252)
+   - Remove real-time polling overlap with AlpacaStreamService
+
+=============================================================================
+
 Data flow:
     Alpaca Market Data API -> daily_ohlcv
     ta library calculations -> technical_indicators

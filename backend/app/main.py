@@ -404,10 +404,16 @@ async def _start_event_driven_pipeline():
     # Without this, snapshots published by AlpacaStreamService flow through the event pipeline
     # but never reach the database — the data_ingestion.ingest_all path uses separate HTTP calls.
     # BUG FIX 11: Uses async_insert() instead of sync conn.execute() to avoid blocking the event loop.
+    # DEDUPLICATION: Track recently seen bars to prevent duplicate persistence.
+    _bar_dedup_cache: Dict[str, float] = {}  # "symbol:date" -> timestamp
+    _bar_dedup_ttl = 300  # 5 minutes
+
     async def _persist_bar_to_duckdb(bar_data):
-        """Write a market_data.bar event to DuckDB daily_ohlcv table (non-blocking)."""
+        """Write a market_data.bar event to DuckDB daily_ohlcv table (non-blocking, deduplicated)."""
         try:
+            import time as _time
             from app.data.duckdb_storage import duckdb_store
+
             symbol = bar_data.get("symbol")
             timestamp = bar_data.get("timestamp", "")
             if not symbol or not timestamp:
@@ -415,7 +421,16 @@ async def _start_event_driven_pipeline():
 
             # Extract date from timestamp (could be ISO format or date string)
             date_str = str(timestamp)[:10]  # YYYY-MM-DD
+            dedup_key = f"{symbol}:{date_str}"
 
+            # Check deduplication cache
+            now = _time.time()
+            if dedup_key in _bar_dedup_cache:
+                if now - _bar_dedup_cache[dedup_key] < _bar_dedup_ttl:
+                    # Already persisted recently, skip
+                    return
+
+            # Persist to DuckDB (INSERT OR REPLACE handles DB-level dedup)
             await duckdb_store.async_insert(
                 """
                 INSERT OR REPLACE INTO daily_ohlcv (symbol, date, open, high, low, close, volume, source)
@@ -432,11 +447,18 @@ async def _start_event_driven_pipeline():
                     bar_data.get("source", "stream"),
                 ],
             )
+
+            # Update dedup cache and prune old entries
+            _bar_dedup_cache[dedup_key] = now
+            if len(_bar_dedup_cache) > 10000:
+                # Prune entries older than TTL
+                _bar_dedup_cache.clear()
+
         except Exception as e:
             log.debug("DuckDB bar persist failed: %s", e)
 
     await _message_bus.subscribe("market_data.bar", _persist_bar_to_duckdb)
-    log.info("\u2705 market_data.bar -> DuckDB persistence subscriber active")
+    log.info("✅ market_data.bar -> DuckDB persistence subscriber active (deduplicated)")
 
     # 5c. BUG FIX 8: Bridge market_data.bar events to WebSocket "market" channel.
     # Without this, the frontend Dashboard gets NO real-time price updates through
