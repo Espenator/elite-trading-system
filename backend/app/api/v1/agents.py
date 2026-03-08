@@ -917,7 +917,7 @@ async def get_ws_channel_status():
     from app.websocket_manager import get_channel_info
     info = get_channel_info()
     channels = []
-    default_channels = ["agents", "signals", "risk", "council", "kelly", "sentiment", "trades", "logs", "homeostasis", "circuit_breaker"]
+    default_channels = ["agents", "signals", "risk", "council", "kelly", "sentiment", "trades", "logs", "homeostasis", "circuit_breaker", "llm_health"]
     for ch in default_channels:
         subs = info.get("channels", {}).get(ch, 0)
         channels.append({

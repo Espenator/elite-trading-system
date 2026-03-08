@@ -30,6 +30,26 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _safe_int(val) -> Optional[int]:
+    if val is None:
+        return None
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return None
+
+
+def _safe_float(val) -> Optional[float]:
+    if val is None:
+        return None
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return None
+
+
 # ── Tier definitions ──────────────────────────────────────────────────────────
 
 class Tier(str, Enum):
@@ -177,6 +197,14 @@ class LLMResponse:
         }
 
 
+# Tier → provider name mapping for health monitor
+TIER_PROVIDER_MAP: Dict[Tier, str] = {
+    Tier.BRAINSTEM: "ollama",
+    Tier.CORTEX: "perplexity",
+    Tier.DEEP_CORTEX: "anthropic",
+}
+
+
 class LLMRouter:
     """Unified async LLM router with fallback, circuit breaker, and cost tracking."""
 
@@ -193,6 +221,15 @@ class LLMRouter:
             "brainstem_calls": 0, "cortex_calls": 0, "deep_cortex_calls": 0,
             "fallbacks": 0, "failures": 0, "total_cost_usd_cents": 0,
         }
+        # Lazy import to avoid circular
+        self._health_monitor = None
+
+    @property
+    def health_monitor(self):
+        if self._health_monitor is None:
+            from app.services.llm_health_monitor import get_llm_health_monitor
+            self._health_monitor = get_llm_health_monitor()
+        return self._health_monitor
 
     def get_tier_for_task(self, task: str) -> Tier:
         """Map a task name to its optimal tier."""
@@ -212,6 +249,7 @@ class LLMRouter:
         if isinstance(tier, str):
             tier = Tier(tier)
 
+        provider = TIER_PROVIDER_MAP.get(tier, tier.value)
         t0 = time.time()
         try:
             content, model, tokens_in, tokens_out, citations = await self._call_tier(
@@ -220,6 +258,11 @@ class LLMRouter:
             latency = (time.time() - t0) * 1000
             self._circuits[tier].record_success()
             self._stats[f"{tier.value}_calls"] += 1
+            self.health_monitor.record_success(provider)
+
+            # Check if circuit was previously open and just recovered
+            if not self._circuits[tier].is_open():
+                self.health_monitor.record_circuit_breaker_closed(provider)
 
             cost = self._estimate_cost(tier, tokens_in, tokens_out)
             self._stats["total_cost_usd_cents"] += int(cost * 100)
@@ -234,6 +277,32 @@ class LLMRouter:
             self._circuits[tier].record_failure()
             self._stats["failures"] += 1
             logger.warning("LLM tier %s failed: %s", tier.value, e)
+
+            # ── Classify error and notify health monitor ──
+            err_str = str(e).lower()
+            http_status = getattr(e, 'status_code', 0) or self._extract_status(err_str)
+
+            if http_status == 429 or 'rate_limit' in err_str or 'rate limit' in err_str:
+                retry_after = self._extract_retry_after(err_str)
+                self.health_monitor.record_rate_limit(
+                    provider, http_status=429, message=str(e)[:200],
+                    retry_after=retry_after,
+                )
+            elif http_status in (401, 403) or 'authentication' in err_str or 'auth' in err_str or 'invalid.*key' in err_str:
+                self.health_monitor.record_auth_failure(
+                    provider, message=str(e)[:200], http_status=http_status or 401,
+                )
+            elif http_status in (529, 503) or 'overloaded' in err_str or 'capacity' in err_str:
+                self.health_monitor.record_overloaded(
+                    provider, message=str(e)[:200], http_status=http_status or 529,
+                )
+            else:
+                self.health_monitor.record_failure(provider, str(e)[:200], http_status)
+
+            # Check if circuit breaker just opened
+            if self._circuits[tier].is_open():
+                self.health_monitor.record_circuit_breaker_opened(provider)
+
             return LLMResponse(
                 content="", tier=tier.value, model="", task=task,
                 latency_ms=latency, error=str(e),
@@ -269,6 +338,7 @@ class LLMRouter:
                 return result
 
         logger.error("All tiers exhausted for task %s", task)
+        self.health_monitor.record_all_tiers_exhausted(task)
         return LLMResponse(
             content="", tier=tier.value, model="", task=task,
             latency_ms=0, error="all_tiers_exhausted",
@@ -433,6 +503,10 @@ class LLMRouter:
         effective_timeout = timeout or 30.0
         async with httpx.AsyncClient(timeout=effective_timeout) as client:
             resp = await client.post(url, json=payload, headers=headers)
+
+            # Parse rate limit headers before raise_for_status
+            self._parse_rate_limit_headers(resp, "perplexity")
+
             resp.raise_for_status()
             data = resp.json()
 
@@ -500,6 +574,74 @@ class LLMRouter:
             )
         finally:
             await client.close()
+
+    # ── Rate limit header parsing ─────────────────────────────────────────────
+
+    def _parse_rate_limit_headers(self, resp, provider: str) -> None:
+        """Extract rate limit info from HTTP response headers.
+
+        Anthropic headers: anthropic-ratelimit-requests-remaining, etc.
+        Perplexity headers: x-ratelimit-remaining, x-ratelimit-limit, x-ratelimit-reset
+        Generic: retry-after, x-ratelimit-remaining
+        """
+        h = resp.headers
+        remaining = None
+        limit = None
+        reset_at = None
+
+        # Anthropic-specific
+        if provider == "anthropic":
+            remaining = _safe_int(h.get("anthropic-ratelimit-requests-remaining"))
+            limit = _safe_int(h.get("anthropic-ratelimit-requests-limit"))
+            reset_str = h.get("anthropic-ratelimit-requests-reset")
+            if reset_str:
+                try:
+                    from datetime import datetime as dt
+                    reset_at = dt.fromisoformat(reset_str.replace("Z", "+00:00")).timestamp()
+                except Exception:
+                    pass
+            # Also check token limits
+            tok_remaining = _safe_int(h.get("anthropic-ratelimit-tokens-remaining"))
+            tok_limit = _safe_int(h.get("anthropic-ratelimit-tokens-limit"))
+            if tok_remaining is not None and tok_limit is not None and tok_limit > 0:
+                tok_pct = tok_remaining / tok_limit
+                if tok_pct < 0.2:
+                    self.health_monitor.record_quota_warning(provider, tok_remaining, tok_limit)
+
+        # Perplexity / generic
+        else:
+            remaining = _safe_int(h.get("x-ratelimit-remaining"))
+            limit = _safe_int(h.get("x-ratelimit-limit"))
+            reset_str = h.get("x-ratelimit-reset")
+            if reset_str:
+                reset_at = _safe_float(reset_str)
+
+        if remaining is not None or limit is not None:
+            self.health_monitor.update_rate_limit_headers(
+                provider, remaining=remaining, limit=limit, reset_at=reset_at,
+            )
+
+    @staticmethod
+    def _extract_status(err_str: str) -> int:
+        """Extract HTTP status code from error string."""
+        import re
+        m = re.search(r'(?:status[_ ]?code|http)\s*[:=]?\s*(\d{3})', err_str)
+        if m:
+            return int(m.group(1))
+        # Anthropic SDK puts status in the exception
+        for code in (429, 401, 403, 529, 503, 500, 502):
+            if str(code) in err_str:
+                return code
+        return 0
+
+    @staticmethod
+    def _extract_retry_after(err_str: str) -> Optional[float]:
+        """Extract retry-after seconds from error string."""
+        import re
+        m = re.search(r'retry[- _]?after\D*(\d+\.?\d*)', err_str)
+        if m:
+            return float(m.group(1))
+        return None
 
     # ── Cost estimation ───────────────────────────────────────────────────────
 

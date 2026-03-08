@@ -335,6 +335,28 @@ DEFAULT_SOURCES: Dict[str, Dict[str, Any]] = {
         "status": "active",
         "enabled": True,
     },
+    "perplexity": {
+        "id": "perplexity",
+        "name": "Perplexity AI",
+        "type": "rest",
+        "category": "llm",
+        "base_url": "https://api.perplexity.ai",
+        "required_keys": ["api_key"],
+        "test_endpoint": "/chat/completions",
+        "status": "active",
+        "enabled": True,
+    },
+    "anthropic": {
+        "id": "anthropic",
+        "name": "Anthropic Claude",
+        "type": "rest",
+        "category": "llm",
+        "base_url": "https://api.anthropic.com",
+        "required_keys": ["api_key"],
+        "test_endpoint": "/v1/messages",
+        "status": "active",
+        "enabled": True,
+    },
     "github_gist": {
         "id": "github_gist",
         "name": "GitHub Gist",
@@ -575,6 +597,13 @@ def _build_headers(source_id: str, creds: Dict[str, str]) -> Dict[str, str]:
         headers["Authorization"] = f"Bearer {creds.get('token', '')}"
     elif source_id == "stockgeist":
         headers["Authorization"] = f"Bearer {creds.get('api_key', '')}"
+    elif source_id == "perplexity":
+        headers["Authorization"] = f"Bearer {creds.get('api_key', '')}"
+        headers["Content-Type"] = "application/json"
+    elif source_id == "anthropic":
+        headers["x-api-key"] = creds.get("api_key", "")
+        headers["anthropic-version"] = "2023-06-01"
+        headers["Content-Type"] = "application/json"
     return headers
 
 
@@ -619,12 +648,14 @@ async def test_source(source_id: str):
             src["last_latency_ms"] = round(latency, 1)
             src["last_error"] = None
             _save_sources(sources)
+            acct_status = account.get('status', 'unknown') if isinstance(account, dict) else getattr(account, 'status', 'unknown')
+            acct_equity = account.get('equity', 0) if isinstance(account, dict) else getattr(account, 'equity', 0)
             result = TestResult(
                 source_id="alpaca",
                 success=True,
                 latency_ms=round(latency, 1),
                 status_code=200,
-                message=f"Account status: {account.status}, equity: ${float(account.equity):,.2f}",
+                message=f"Account status: {acct_status}, equity: ${float(acct_equity):,.2f}",
                 error=None,
                 tested_at=now_str,
             )
@@ -746,6 +777,54 @@ async def test_source(source_id: str):
             )
             await broadcast_ws("data_sources", {"type": "source_tested", "source_id": "tradingview", "result": _test_result_to_dict(result)})
             return result
+
+    # --- Perplexity: POST with JSON body ---
+    if source_id == "perplexity":
+        creds_key = f"{DB_CREDS_PREFIX}{source_id}"
+        encrypted = db_service.get_config(creds_key)
+        if not encrypted:
+            return TestResult(source_id=source_id, success=False, latency_ms=0, error="No credentials stored. Required: ['api_key']", tested_at=now_str)
+        creds = _decrypt(encrypted)
+        start = datetime.now(timezone.utc)
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+                resp = await client.post("https://api.perplexity.ai/chat/completions",
+                    headers={"Authorization": f"Bearer {creds.get('api_key','')}", "Content-Type": "application/json"},
+                    json={"model": "sonar", "messages": [{"role": "user", "content": "Say OK"}], "max_tokens": 5})
+            latency = (datetime.now(timezone.utc) - start).total_seconds() * 1000
+            ok = resp.status_code == 200
+            src["status"] = "healthy" if ok else "error"; src["last_test"] = now_str; src["last_latency_ms"] = round(latency, 1)
+            _save_sources(sources)
+            msg = resp.json().get("choices", [{}])[0].get("message", {}).get("content", "")[:80] if ok else None
+            return TestResult(source_id=source_id, success=ok, latency_ms=round(latency, 1), status_code=resp.status_code,
+                message=f"Perplexity OK: {msg}" if ok else None, error=None if ok else f"HTTP {resp.status_code}: {resp.text[:100]}", tested_at=now_str)
+        except Exception as e:
+            latency = (datetime.now(timezone.utc) - start).total_seconds() * 1000
+            return TestResult(source_id=source_id, success=False, latency_ms=round(latency, 1), error=str(e)[:200], tested_at=now_str)
+
+    # --- Anthropic: POST with JSON body ---
+    if source_id == "anthropic":
+        creds_key = f"{DB_CREDS_PREFIX}{source_id}"
+        encrypted = db_service.get_config(creds_key)
+        if not encrypted:
+            return TestResult(source_id=source_id, success=False, latency_ms=0, error="No credentials stored. Required: ['api_key']", tested_at=now_str)
+        creds = _decrypt(encrypted)
+        start = datetime.now(timezone.utc)
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+                resp = await client.post("https://api.anthropic.com/v1/messages",
+                    headers={"x-api-key": creds.get('api_key',''), "anthropic-version": "2023-06-01", "Content-Type": "application/json"},
+                    json={"model": "claude-sonnet-4-20250514", "max_tokens": 10, "messages": [{"role": "user", "content": "Say OK"}]})
+            latency = (datetime.now(timezone.utc) - start).total_seconds() * 1000
+            ok = resp.status_code == 200
+            src["status"] = "healthy" if ok else "error"; src["last_test"] = now_str; src["last_latency_ms"] = round(latency, 1)
+            _save_sources(sources)
+            msg = resp.json().get("content", [{}])[0].get("text", "")[:80] if ok else None
+            return TestResult(source_id=source_id, success=ok, latency_ms=round(latency, 1), status_code=resp.status_code,
+                message=f"Claude OK: {msg}" if ok else None, error=None if ok else f"HTTP {resp.status_code}: {resp.text[:100]}", tested_at=now_str)
+        except Exception as e:
+            latency = (datetime.now(timezone.utc) - start).total_seconds() * 1000
+            return TestResult(source_id=source_id, success=False, latency_ms=round(latency, 1), error=str(e)[:200], tested_at=now_str)
 
     # --- Generic authenticated test for remaining sources ---
     creds_key = f"{DB_CREDS_PREFIX}{source_id}"
