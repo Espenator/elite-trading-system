@@ -227,13 +227,14 @@ if (-not $backendProc) {
 }
 Log "Backend PID: $($backendProc.Id)" DarkGray
 
-# Wait for backend health (90s timeout)
+# Wait for backend liveness (90s timeout) — use /healthz (fast, no deps)
+# NOT /health which queries DuckDB + ML registry and blocks during initial data ingest
 Log "Waiting for backend..." Cyan
 $healthy = $false
 for ($i = 0; $i -lt 90; $i++) {
     Start-Sleep 1
     try {
-        $response = Invoke-WebRequest "http://localhost:$BackendPort/health" -TimeoutSec 2 -ErrorAction SilentlyContinue
+        $response = Invoke-WebRequest "http://localhost:$BackendPort/healthz" -TimeoutSec 2 -ErrorAction SilentlyContinue
         if ($response.StatusCode -eq 200) { $healthy = $true; break }
     } catch { }
     # Detect early crash
