@@ -118,9 +118,10 @@ class HyperSwarm:
             return
         self._running = True
 
-        # Subscribe to turbo_scanner signals via MessageBus
+        # Subscribe to triage.escalated — IdeaTriageService (E3) pre-filters
+        # swarm.idea events before HyperSwarm consumes them.
         if self._bus:
-            await self._bus.subscribe("swarm.idea", self._on_signal)
+            await self._bus.subscribe("triage.escalated", self._on_signal)
 
         # Start worker pool
         worker_count = min(MAX_CONCURRENT_MICRO_SWARMS, len(self._ollama_urls) * MAX_CONCURRENT_PER_OLLAMA)
@@ -411,9 +412,10 @@ REASON: [one sentence]"""
         """Escalate high-scoring micro-swarm results to the full SwarmSpawner."""
         self._stats["total_escalated"] += 1
         if self._bus:
-            # Publish to a separate topic so SwarmSpawner picks it up
-            # with enhanced context from micro-swarm analysis
-            await self._bus.publish("swarm.idea", {
+            # Publish to hyper_swarm.escalated (not swarm.idea) so SwarmSpawner
+            # picks it up directly via its dedicated subscription, avoiding the
+            # circular loop where IdeaTriageService would re-score and re-escalate.
+            await self._bus.publish("hyper_swarm.escalated", {
                 "source": f"hyper_swarm:{result.signal_type}",
                 "symbols": [result.symbol],
                 "direction": result.direction,

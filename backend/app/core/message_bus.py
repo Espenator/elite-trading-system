@@ -65,6 +65,12 @@ class MessageBus:
         "swarm.result",         # Swarm analysis complete
         "knowledge.ingested",   # New knowledge fed into the system
         "scout.discovery",      # Scout found an opportunity
+        "scout.heartbeat",      # Scout agent health tick (E2)
+        # Triage layer topics (E3)
+        "triage.escalated",     # Idea passed quality gate → HyperSwarm
+        "triage.dropped",       # Idea below threshold (audit trail)
+        # HyperSwarm escalation (avoids circular swarm.idea loop)
+        "hyper_swarm.escalated",  # HyperSwarm → SwarmSpawner (dedicated, non-looping)
         # Cluster telemetry topics
         "cluster.telemetry",    # GPU/VRAM/Ollama stats from cluster nodes
         "cluster.node_status",  # Node online/offline/degraded transitions
@@ -109,6 +115,8 @@ class MessageBus:
         "swarm.idea",
         "swarm.result",
         "scout.discovery",
+        "triage.escalated",
+        "hyper_swarm.escalated",
         "model.updated",
         "knowledge.ingested",
         "outcome.resolved",

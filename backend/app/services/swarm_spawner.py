@@ -129,7 +129,10 @@ class SwarmSpawner:
         self._running = True
         # Subscribe to idea events from MessageBus
         if self._bus:
-            await self._bus.subscribe("swarm.idea", self._on_idea_event)
+            # Subscribe to triage.escalated instead of raw swarm.idea so that
+            # IdeaTriageService acts as a quality gate before SwarmSpawner processes ideas.
+            await self._bus.subscribe("triage.escalated", self._on_idea_event)
+            await self._bus.subscribe("hyper_swarm.escalated", self._on_idea_event)
         # Start worker tasks
         for i in range(self.MAX_CONCURRENT_SWARMS):
             task = asyncio.create_task(self._worker(i))
@@ -368,7 +371,7 @@ class SwarmSpawner:
 
     # --- Event handler ---
     async def _on_idea_event(self, data: Dict[str, Any]):
-        """Handle swarm.idea events from the MessageBus."""
+        """Handle triage.escalated / hyper_swarm.escalated events from the MessageBus."""
         idea = SwarmIdea(
             source=data.get("source", "unknown"),
             symbols=data.get("symbols", []),

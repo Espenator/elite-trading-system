@@ -237,6 +237,9 @@ _node_discovery = None
 _stream_manager = None
 _gpu_telemetry_daemon = None
 _llm_dispatcher = None
+_streaming_discovery = None  # E1: StreamingDiscoveryEngine
+_idea_triage = None          # E3: IdeaTriageService
+_scout_registry = None       # E2: ScoutRegistry (12 scouts)
 
 
 async def _start_event_driven_pipeline():
@@ -254,6 +257,7 @@ async def _start_event_driven_pipeline():
     global _council_gate, _order_executor, _alpaca_stream_task
     global _node_discovery, _stream_manager
     global _gpu_telemetry_daemon, _llm_dispatcher
+    global _streaming_discovery, _idea_triage, _scout_registry
 
     log.info("=" * 60)
     log.info("\U0001f680 Starting Event-Driven Pipeline (Council-Controlled)")
@@ -307,6 +311,20 @@ async def _start_event_driven_pipeline():
     _event_signal_engine = EventDrivenSignalEngine(_message_bus)
     await _event_signal_engine.start()
     log.info("\u2705 EventDrivenSignalEngine started")
+
+    # 2b. StreamingDiscoveryEngine — E1: real-time anomaly detection from market bars
+    from app.services.streaming_discovery import get_streaming_discovery_engine
+    _streaming_discovery = get_streaming_discovery_engine()
+    _streaming_discovery._bus = _message_bus
+    await _streaming_discovery.start()
+    log.info("\u2705 StreamingDiscoveryEngine started (5 detectors, 3-gate emit)")
+
+    # 2c. IdeaTriageService — E3: dedup, priority scoring, adaptive threshold
+    from app.services.idea_triage import get_idea_triage_service
+    _idea_triage = get_idea_triage_service()
+    _idea_triage._bus = _message_bus
+    await _idea_triage.start()
+    log.info("\u2705 IdeaTriageService started (base_threshold=40, routes swarm.idea → triage.escalated)")
 
     # 3. CouncilGate (subscribes to signal.generated, invokes council)
     # Disable when LLM or council is off — council calls LLM which blocks when Ollama is down.
@@ -500,6 +518,12 @@ async def _start_event_driven_pipeline():
         log.info("\u2705 AutonomousScoutService started (%d scouts)", len(_scout_service._tasks))
     else:
         log.info("\u26A0\uFE0F AutonomousScoutService skipped (LLM_ENABLED=false)")
+
+    # 10b. ScoutRegistry — E2: 12 dedicated continuous scout agents
+    from app.services.scouts.registry import get_scout_registry
+    _scout_registry = get_scout_registry()
+    await _scout_registry.start(message_bus=_message_bus)
+    log.info("\u2705 ScoutRegistry started (%d scouts)", _scout_registry.scout_count)
 
     # 11. DiscordSwarmBridge — Discord channels -> swarm analysis
     if _llm_enabled:
@@ -773,6 +797,7 @@ async def _stop_event_driven_pipeline():
     global _event_signal_engine, _council_gate, _order_executor
     global _node_discovery, _stream_manager
     global _gpu_telemetry_daemon, _llm_dispatcher
+    global _streaming_discovery, _idea_triage, _scout_registry
     log.info("Shutting down event-driven pipeline...")
 
     # Stop GPU Telemetry Daemon
@@ -867,6 +892,21 @@ async def _stop_event_driven_pipeline():
     try:
         from app.services.autonomous_scout import get_scout_service
         await get_scout_service().stop()
+    except Exception:
+        pass
+    try:
+        from app.services.scouts.registry import get_scout_registry
+        await get_scout_registry().stop()
+    except Exception:
+        pass
+    try:
+        from app.services.idea_triage import get_idea_triage_service
+        await get_idea_triage_service().stop()
+    except Exception:
+        pass
+    try:
+        from app.services.streaming_discovery import get_streaming_discovery_engine
+        await get_streaming_discovery_engine().stop()
     except Exception:
         pass
     try:
