@@ -5,6 +5,8 @@ import { getApiUrl, getAuthHeaders } from "../config/api";
 import CNSVitals from "../components/dashboard/CNSVitals";
 import ProfitBrainBar from "../components/dashboard/ProfitBrainBar";
 import ws from "../services/websocket";
+import { useOperatorCockpit } from "../hooks/useOperatorCockpit";
+import { ModeBadge, ExecutionAuthorityBanner } from "../components/operator";
 
 // --- TOP TICKER STRIP (scrolling market tickers) ---
 const TickerStrip = ({ indices, signals }) => {
@@ -770,6 +772,16 @@ const SORT_PILLS = [
 const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1D", "1W"];
 
 export default function Dashboard() {
+  // --- OPERATOR COCKPIT STATE ---
+  const {
+    tradingMode,
+    executionAuthority,
+    autoState,
+    alpacaStatus,
+    riskPolicy,
+    switchMode,
+  } = useOperatorCockpit();
+
   // --- STATE ---
   const [activeSortKey, setActiveSortKey] = useState("Composite Score");
   const [selectedSymbol, setSelectedSymbol] = useState("SPY"); // default so Price Action chart loads
@@ -1108,6 +1120,8 @@ export default function Dashboard() {
               EMBODIER TRADER
             </h1>
           </div>
+          {/* Operator Mode Badge */}
+          <ModeBadge mode={tradingMode} size="md" />
           {/* Regime Badges */}
           <div
             className={`px-2 py-0.5 rounded font-bold tracking-wider ${openclaw.regime === "BEAR" ? "bg-red-500/20 text-red-400 border border-red-500/50" : "bg-green-500/20 text-green-400 border border-green-500/50"}`}
@@ -1131,6 +1145,10 @@ export default function Dashboard() {
             className={`px-2 py-0.5 rounded font-bold ${(globalSentiment.score ?? 0) >= 60 ? "bg-green-500/20 text-green-400" : (globalSentiment.score ?? 0) >= 40 ? "bg-amber-500/20 text-amber-400" : "bg-red-500/20 text-red-400"}`}
           >
             SENT {globalSentiment.score ?? globalSentiment.value ?? "\u2014"}
+          </div>
+          {/* Alpaca Account Status */}
+          <div className={`px-2 py-0.5 rounded font-bold text-[10px] ${alpacaStatus.connected ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/50" : "bg-red-500/20 text-red-400 border border-red-500/50"}`}>
+            ALPACA {alpacaStatus.connected ? "CONNECTED" : "DISCONNECTED"}
           </div>
         </div>
         {/* KPIs */}
