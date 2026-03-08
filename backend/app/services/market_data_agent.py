@@ -60,7 +60,7 @@ async def run_tick(
         adapters = []
 
     # If adapters are running, report their health instead of duplicating fetches.
-    adapter_names = {a.source_name for a in adapters if a._running}
+    adapter_names = {a.source_name for a in adapters if a.is_running}
 
     # --- Finviz Elite ---
     if run_finviz and "finviz" not in adapter_names:

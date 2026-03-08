@@ -44,6 +44,7 @@ class BaseSourceAdapter(ABC):
     # Backoff parameters
     _max_backoff: float = 300.0   # 5 minutes
     _base_backoff: float = 5.0
+    _degraded_error_threshold: int = 5
 
     def __init__(self, message_bus=None):
         self._bus = message_bus
@@ -202,7 +203,7 @@ class BaseSourceAdapter(ABC):
 
         if not self._running:
             state = "stopped"
-        elif self._consecutive_errors >= 5:
+        elif self._consecutive_errors >= self._degraded_error_threshold:
             state = "degraded"
         elif self._last_success_at == 0.0 and uptime > self.poll_interval_seconds * 2:
             state = "offline"
@@ -249,12 +250,17 @@ class BaseSourceAdapter(ABC):
         except Exception as exc:
             logger.debug("%s checkpoint save failed: %s", self.source_name, exc)
 
+    @property
+    def is_running(self) -> bool:
+        """Whether this adapter is currently running."""
+        return self._running
+
     # ------------------------------------------------------------------
     # Hooks for subclasses
     # ------------------------------------------------------------------
 
     async def _on_start(self) -> None:
-        """Called after generic start logic.  Override for adapter-specific setup."""
+        """Called after checkpoint load, before starting the poll/stream loop."""
 
     async def _on_stop(self) -> None:
         """Called before generic stop logic.  Override for cleanup."""

@@ -75,4 +75,4 @@ class FinvizAdapter(BaseSourceAdapter):
 
     def diff_detected(self) -> bool:
         """Public helper: did the last poll detect a change?"""
-        return self._last_hash != self._checkpoint.get("prev_hash", "")
+        return self._last_hash != self._checkpoint.get("last_hash", "")
