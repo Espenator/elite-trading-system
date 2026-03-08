@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useSettings } from "../hooks/useSettings";
 import { useApi } from "../hooks/useApi";
+import { useOperatorCockpit } from "../hooks/useOperatorCockpit";
 import { toast } from "react-toastify";
 import {
   User, Key, Activity, Bell, Cpu, Database,
@@ -11,6 +12,7 @@ import {
   Shield, Brain, Palette, FileText, Eye,
   Monitor, Lock, Clock, ChevronDown,
 } from "lucide-react";
+import { ModeBadge, ExecutionAuthorityBanner, AccountStatusCard, RiskGuardrailPanel } from "../components/operator";
 
 // -- Toast config --
 const TOAST_CFG = { position: "bottom-right", theme: "dark" };
@@ -157,6 +159,16 @@ export default function SettingsPage() {
     exportSettings, importSettings, refetch,
   } = useSettings();
 
+  const {
+    tradingMode,
+    executionAuthority,
+    autoState,
+    alpacaStatus,
+    riskPolicy,
+    switchMode,
+    setAutoState,
+  } = useOperatorCockpit();
+
   const importRef = useRef(null);
   const S = settings || {};
   const [showFullLog, setShowFullLog] = useState(false);
@@ -298,29 +310,93 @@ export default function SettingsPage() {
           <MiniToggle label="Show FII" checked={!!get("appearance", "showFill", true)} onChange={(v) => updateField("appearance", "showFill", v)} />
         </SectionCard>
 
-        {/* 2. TRADING MODE */}
-        <SectionCard title="Trading Mode">
-          <div className="flex items-center gap-4 mb-1">
-            <span className={`text-sm font-bold ${get("dataSources", "alpacaBaseUrl", "paper") === "paper" ? "text-[#00D9FF]" : "text-gray-500"}`}>PAPER</span>
-            <button
-              onClick={() => updateField("dataSources", "alpacaBaseUrl", get("dataSources", "alpacaBaseUrl", "paper") === "paper" ? "live" : "paper")}
-              className={`relative w-14 h-7 rounded-full transition-colors ${get("dataSources", "alpacaBaseUrl", "paper") === "live" ? "bg-red-500" : "bg-cyan-500"}`}
-            >
-              <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full transition-transform ${get("dataSources", "alpacaBaseUrl", "paper") === "live" ? "translate-x-7" : "translate-x-0.5"}`} />
-            </button>
-            <span className={`text-sm font-bold ${get("dataSources", "alpacaBaseUrl", "paper") === "live" ? "text-red-400" : "text-gray-500"}`}>LIVE</span>
+        {/* 2. TRADING MODE - Operator Cockpit Control */}
+        <SectionCard title="Trading Mode & Execution Authority">
+          {/* Manual vs Auto Mode */}
+          <div className="mb-2 pb-2 border-b border-gray-800/50">
+            <div className="text-[10px] text-gray-400 mb-1.5">Operator Mode</div>
+            <div className="flex items-center gap-2 mb-2">
+              <button
+                onClick={() => switchMode("Manual")}
+                className={`flex-1 px-3 py-2 rounded text-[10px] font-mono font-bold uppercase transition-all ${
+                  tradingMode === "Manual"
+                    ? "bg-gray-700/50 border-2 border-gray-500 text-white"
+                    : "bg-gray-800/30 border border-gray-700/50 text-gray-500 hover:border-gray-600"
+                }`}
+              >
+                <User className="w-3 h-3 inline mr-1" />
+                Manual
+              </button>
+              <button
+                onClick={() => switchMode("Auto")}
+                className={`flex-1 px-3 py-2 rounded text-[10px] font-mono font-bold uppercase transition-all ${
+                  tradingMode === "Auto"
+                    ? "bg-gradient-to-r from-cyan-500/20 to-emerald-500/20 border-2 border-cyan-500/50 text-cyan-400"
+                    : "bg-gray-800/30 border border-gray-700/50 text-gray-500 hover:border-gray-600"
+                }`}
+              >
+                <Activity className="w-3 h-3 inline mr-1 animate-pulse" />
+                Auto
+              </button>
+            </div>
+            <div className="text-[9px] text-gray-500">
+              {tradingMode === "Manual"
+                ? "System recommends, human decides and executes all trades"
+                : "System may execute paper trades via Alpaca, subject to risk controls"}
+            </div>
           </div>
-          {get("dataSources", "alpacaBaseUrl", "paper") === "live" && (
-            <p className="text-[10px] text-amber-400 mt-1">⚠ Live mode = real money</p>
+
+          {/* Auto State (only shown in Auto mode) */}
+          {tradingMode === "Auto" && (
+            <div className="mb-2 pb-2 border-b border-gray-800/50">
+              <div className="text-[10px] text-gray-400 mb-1.5">Auto Execution State</div>
+              <div className="grid grid-cols-2 gap-1.5 mb-2">
+                {[
+                  { value: "armed", label: "Armed", desc: "Ready to execute", color: "emerald" },
+                  { value: "active", label: "Active", desc: "Actively trading", color: "cyan" },
+                  { value: "paused", label: "Paused", desc: "User paused", color: "amber" },
+                  { value: "blocked", label: "Blocked", desc: "Risk controls", color: "red" },
+                ].map((state) => (
+                  <button
+                    key={state.value}
+                    onClick={() => setAutoState(state.value)}
+                    className={`px-2 py-1.5 rounded text-[9px] font-mono font-bold uppercase transition-all ${
+                      autoState === state.value
+                        ? `bg-${state.color}-500/20 border border-${state.color}-500/50 text-${state.color}-400`
+                        : "bg-gray-800/30 border border-gray-700/50 text-gray-500 hover:border-gray-600"
+                    }`}
+                  >
+                    {state.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
-          <MiniSelect label="Broker" value={get("trading", "broker", "alpaca")} options={[
-            { value: "alpaca", label: "Alpaca Markets" },
-            { value: "ibkr", label: "Interactive Brokers" },
-          ]} onChange={(e) => updateField("trading", "broker", e.target.value)} />
-          <MiniField label="Account" value={get("trading", "accountType", "Paper Trading")} onChange={(e) => updateField("trading", "accountType", e.target.value)} />
-          <div className="flex items-center justify-between py-[1px]">
-            <span className="text-[10px] text-gray-400">Paper Trading</span>
-            <span className="text-[9px] text-green-400">Active</span>
+
+          {/* Alpaca Paper Account Status */}
+          <div className="mb-2">
+            <div className="text-[10px] text-gray-400 mb-1">Alpaca Paper Account</div>
+            <div className="flex items-center justify-between py-1 bg-[#0B0E14] rounded px-2">
+              <span className="text-[10px] text-gray-400">Connection Status</span>
+              <span className={`text-[10px] font-mono font-bold uppercase ${alpacaStatus.connected ? "text-emerald-400" : "text-red-400"}`}>
+                {alpacaStatus.connected ? "Connected" : "Disconnected"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between py-1 bg-[#0B0E14] rounded px-2 mt-1">
+              <span className="text-[10px] text-gray-400">Account Type</span>
+              <span className="text-[10px] font-mono font-bold uppercase text-cyan-400">PAPER</span>
+            </div>
+            <div className="text-[9px] text-gray-500 mt-1">
+              All trades execute on Alpaca paper trading account (simulated, no real money)
+            </div>
+          </div>
+
+          {/* Execution Authority */}
+          <div className="flex items-center justify-between py-1">
+            <span className="text-[10px] text-gray-400">Execution Authority</span>
+            <span className="text-[10px] font-mono font-bold uppercase text-white">
+              {tradingMode === "Manual" ? "HUMAN" : "SYSTEM"}
+            </span>
           </div>
         </SectionCard>
 
