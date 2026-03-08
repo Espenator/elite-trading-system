@@ -100,17 +100,17 @@ export default function StatusFooter({
   mlStatus     = "red",
 
   // System info
-  agentCount   = 0,
-  llmFlow      = 0,
-  conferenceCur = 0,
-  conferenceMax = 12,
-  loadCur      = 0,
-  loadMax      = 4.0,
-  uptimeDays   = 0,
-  uptimeHours  = 0,
+  agentCount   = null,
+  llmFlow      = null,
+  conferenceCur = null,
+  conferenceMax = null,
+  loadCur      = null,
+  loadMax      = null,
+  uptimeDays   = null,
+  uptimeHours  = null,
 
   // Market / regime
-  regime       = "GREEN",
+  regime       = null,
 
   // Ticker data — array of { symbol, price, change, changeColor }
   tickerItems,
@@ -133,16 +133,7 @@ export default function StatusFooter({
   }, []);
 
   // Default ticker items (fallback while real data loads)
-  const tickers = tickerItems ?? [
-    { symbol: "SPY",  price: "598.42", change: "+0.34%", changeColor: "green" },
-    { symbol: "QQQ",  price: "518.73", change: "+0.52%", changeColor: "green" },
-    { symbol: "DIA",  price: "441.20", change: "+0.18%", changeColor: "green" },
-    { symbol: "VIX",  price: "14.20",  change: "-2.31%", changeColor: "red"   },
-    { symbol: "IWM",  price: "226.84", change: "+0.67%", changeColor: "green" },
-    { symbol: "NVDA", price: "875.10", change: "+1.24%", changeColor: "green" },
-    { symbol: "AAPL", price: "218.32", change: "+0.45%", changeColor: "green" },
-    { symbol: "TSLA", price: "194.05", change: "-0.83%", changeColor: "red"   },
-  ];
+  const tickers = Array.isArray(tickerItems) ? tickerItems : [];
 
   // Duplicate the ticker array so the loop-scroll looks seamless
   const doubled = [...tickers, ...tickers];
@@ -184,22 +175,25 @@ export default function StatusFooter({
           className="ticker-strip flex items-center h-full px-2"
           style={{ width: "max-content" }}
         >
-          {doubled.map((item, i) => (
+          {tickers.length === 0 ? (
+            <span className="mx-3 font-mono text-[10px] text-[#6B7280]">No live market snapshot</span>
+          ) : doubled.map((item, i) => (
             <span key={`${item.symbol}-${i}`} className="flex items-center">
               <TickerItem {...item} />
               {i < doubled.length - 1 && <Pipe />}
             </span>
           ))}
-          {/* Regime badge inline in ticker */}
-          <span className="flex items-center gap-1.5 mx-3 font-mono text-[10px] shrink-0">
-            <span className="text-[#9CA3AF] font-bold tracking-wider">REGIME:</span>
-            <span
-              className="font-bold tracking-wider"
-              style={{ color: REGIME_TEXT[regime] ?? "#10B981" }}
-            >
-              {regime}
+          {regime && (
+            <span className="flex items-center gap-1.5 mx-3 font-mono text-[10px] shrink-0">
+              <span className="text-[#9CA3AF] font-bold tracking-wider">REGIME:</span>
+              <span
+                className="font-bold tracking-wider"
+                style={{ color: REGIME_TEXT[regime] ?? "#10B981" }}
+              >
+                {regime}
+              </span>
             </span>
-          </span>
+          )}
         </div>
       </div>
 
@@ -226,43 +220,54 @@ export default function StatusFooter({
 
         <Dot />
 
-        <span className="shrink-0 text-[#9CA3AF]">
-          <span style={{ color: "#00D9FF" }}>{agentCount}</span> agents
-        </span>
+        {agentCount != null && (
+          <>
+            <span className="shrink-0 text-[#9CA3AF]">
+              <span style={{ color: "#00D9FF" }}>{agentCount}</span> agents
+            </span>
+            <Dot />
+          </>
+        )}
 
-        <Dot />
+        {llmFlow != null && (
+          <>
+            <span className="shrink-0 text-[#9CA3AF]">
+              LLM Flow <span style={{ color: "#F9FAFB" }}>{llmFlow}</span>
+            </span>
+            <Dot />
+          </>
+        )}
 
-        <span className="shrink-0 text-[#9CA3AF]">
-          LLM Flow <span style={{ color: "#F9FAFB" }}>{llmFlow}</span>
-        </span>
+        {conferenceCur != null && conferenceMax != null && (
+          <>
+            <span className="shrink-0 text-[#9CA3AF]">
+              Conference{" "}
+              <span style={{ color: conferenceCur >= conferenceMax ? "#EF4444" : "#F9FAFB" }}>
+                {conferenceCur}/{conferenceMax}
+              </span>
+            </span>
+            <Dot />
+          </>
+        )}
 
-        <Dot />
-
-        <span className="shrink-0 text-[#9CA3AF]">
-          Conference{" "}
-          <span style={{ color: conferenceCur >= conferenceMax ? "#EF4444" : "#F9FAFB" }}>
-            {conferenceCur}/{conferenceMax}
+        {loadCur != null && loadMax != null && (
+          <span className="shrink-0 text-[#9CA3AF]">
+            Load{" "}
+            <span
+              style={{
+                color:
+                  loadCur / loadMax > 0.85
+                    ? "#EF4444"
+                    : loadCur / loadMax > 0.65
+                    ? "#F59E0B"
+                    : "#F9FAFB",
+              }}
+            >
+              {typeof loadCur === "number" ? loadCur.toFixed(1) : loadCur}/
+              {typeof loadMax === "number" ? loadMax.toFixed(1) : loadMax}
+            </span>
           </span>
-        </span>
-
-        <Dot />
-
-        <span className="shrink-0 text-[#9CA3AF]">
-          Load{" "}
-          <span
-            style={{
-              color:
-                loadCur / loadMax > 0.85
-                  ? "#EF4444"
-                  : loadCur / loadMax > 0.65
-                  ? "#F59E0B"
-                  : "#F9FAFB",
-            }}
-          >
-            {typeof loadCur === "number" ? loadCur.toFixed(1) : loadCur}/
-            {typeof loadMax === "number" ? loadMax.toFixed(1) : loadMax}
-          </span>
-        </span>
+        )}
       </div>
 
       {/* ── Right: Uptime + Clock ───────────────────────────────────── */}
@@ -274,14 +279,17 @@ export default function StatusFooter({
           height:      "100%",
         }}
       >
-        <span className="shrink-0">
-          Uptime{" "}
-          <span className="text-[#9CA3AF]">
-            {uptimeDays}d {pad(uptimeHours)}h
-          </span>
-        </span>
-
-        <span className="text-[#374151]">·</span>
+        {uptimeDays != null && uptimeHours != null && (
+          <>
+            <span className="shrink-0">
+              Uptime{" "}
+              <span className="text-[#9CA3AF]">
+                {uptimeDays}d {pad(uptimeHours)}h
+              </span>
+            </span>
+            <span className="text-[#374151]">·</span>
+          </>
+        )}
 
         <span className="shrink-0">
           Refresh{" "}

@@ -547,14 +547,13 @@ function EloLeaderboard() {
   const { data, loading } = useEloLeaderboard(30000);
 
   const leaders = React.useMemo(() => {
-    if (!data || !Array.isArray(data) || data.length === 0) return [
-      { rank: 1, name: "Researcher", elo: 1947, winRate: 72 },
-      { rank: 2, name: "Scanner-03", elo: 1891, winRate: 69 },
-      { rank: 3, name: "RegimeDetector", elo: 1847, winRate: 71 },
-      { rank: 4, name: "MLtrain-01", elo: 1823, winRate: 67 },
-      { rank: 5, name: "Arbitrator", elo: 1810, winRate: 65 },
-    ];
-    return data.map((d, i) => ({
+    const rows = Array.isArray(data)
+      ? data
+      : Array.isArray(data?.leaderboard)
+        ? data.leaderboard
+        : [];
+    if (rows.length === 0) return [];
+    return rows.map((d, i) => ({
       rank: i + 1,
       name: d.agent_name || d.name || `Agent-${i}`,
       elo: d.elo_rating ?? d.elo ?? 0,
@@ -575,7 +574,13 @@ function EloLeaderboard() {
           </tr>
         </thead>
         <tbody>
-          {leaders.slice(0, 5).map(l => (
+          {leaders.length === 0 ? (
+            <tr>
+              <td colSpan="4" className="py-3 text-center text-gray-500 font-mono">
+                No leaderboard data reported by the backend
+              </td>
+            </tr>
+          ) : leaders.slice(0, 5).map(l => (
             <tr key={l.rank} className="border-b border-gray-800/20 hover:bg-[#00D9FF]/5">
               <td className="py-1 text-gray-500 font-mono">{l.rank}</td>
               <td className="text-[#00D9FF] font-mono">{l.name}</td>

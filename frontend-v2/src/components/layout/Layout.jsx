@@ -9,10 +9,15 @@ import Sidebar from './Sidebar';
 import NotificationCenter from './NotificationCenter';
 import StatusFooter from './StatusFooter';
 import { CNSProvider, useCNS } from '../../hooks/useCNS';
+import { useApi } from '../../hooks/useApi';
 import ws from '../../services/websocket';
 
 function LayoutInner() {
   const { wsConnected } = useCNS();
+  const { data: apiStatus } = useApi('status', { pollIntervalMs: 15000 });
+  const { data: systemSummary } = useApi('system/health', { pollIntervalMs: 30000 });
+  const { data: marketIndices } = useApi('marketIndices', { pollIntervalMs: 15000 });
+  const { data: regimeState } = useApi('openclawRegime', { pollIntervalMs: 30000 });
 
   // BUG 1 FIX: Layout owns the sidebar collapsed state
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -35,7 +40,26 @@ function LayoutInner() {
         <main className="flex-1 overflow-y-auto custom-scrollbar p-6 pb-10">
           <Outlet />
         </main>
-        <StatusFooter />
+        <StatusFooter
+          wsStatus={wsConnected ? 'green' : 'red'}
+          apiStatus={apiStatus?.connected ? 'green' : 'red'}
+          agentCount={systemSummary?.activeAgents ?? null}
+          regime={regimeState?.regime ?? regimeState?.state ?? null}
+          tickerItems={Object.entries(marketIndices ?? {}).flatMap(([symbol, data]) => (
+            data
+              ? [{
+                  symbol,
+                  price: typeof (data.price ?? data.value ?? data.last) === 'number'
+                    ? (data.price ?? data.value ?? data.last).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                    : (data.price ?? data.value ?? data.last ?? '—'),
+                  change: typeof (data.change ?? data.changePct) === 'number'
+                    ? `${(data.change ?? data.changePct) >= 0 ? '+' : ''}${(data.change ?? data.changePct).toFixed(2)}%`
+                    : null,
+                  changeColor: (data.change ?? data.changePct) > 0 ? 'green' : (data.change ?? data.changePct) < 0 ? 'red' : 'neutral',
+                }]
+              : []
+          ))}
+        />
       </div>
 
       {/* Global notification overlay */}

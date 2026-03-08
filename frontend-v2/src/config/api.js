@@ -107,6 +107,7 @@ const API_CONFIG = {
     "alpaca/orders": "/alpaca/orders", // Orders list with status filter
     "alpaca/activities": "/alpaca/activities", // Trade activities/fills
     "orders/advanced": "/orders/advanced", // Advanced order creation (bracket/OCO/OTO)
+    "orders/emergency-stop": "/orders/emergency-stop", // POST: cancel orders + flatten all positions
 
         // ---- ALIGNMENT ENGINE (Constitutive Alignment - 6 patterns) ----
     "alignment/settings": "/alignment/settings", // GET/PUT alignment mode + check toggles

@@ -8,11 +8,51 @@ import {
 import { useApi } from "../../hooks/useApi";
 import ws from "../../services/websocket";
 import { toast } from "react-toastify";
+import { getApiUrl, getAuthHeaders } from "../../config/api";
+
+function formatTimestamp(ts) {
+  if (!ts) return "—";
+  const date = new Date(ts);
+  if (Number.isNaN(date.getTime())) return String(ts);
+  return date.toLocaleTimeString("en-US", { hour12: false });
+}
+
+function normalizeHitlItems(data) {
+  const raw = Array.isArray(data) ? data : data?.items ?? data?.buffer ?? [];
+  return raw.map((item, index) => ({
+    id: item.id ?? item.decision_id ?? `hitl-${index}`,
+    type: item.type ?? item.category ?? "REVIEW",
+    symbol: item.symbol ?? item.ticker ?? "—",
+    action: item.action ?? item.direction ?? item.side ?? "—",
+    confidence: Math.round((item.confidence ?? 0) * ((item.confidence ?? 0) <= 1 ? 100 : 1)),
+    status: String(item.status ?? "pending").toLowerCase(),
+  }));
+}
+
+async function postHitlDecision(itemId, action) {
+  const response = await fetch(getApiUrl(`/agents/hitl/${encodeURIComponent(itemId)}/${action}`), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload?.detail || `HTTP ${response.status}`);
+  }
+  return payload;
+}
+
+function buildModelRows(models) {
+  if (Array.isArray(models)) return models;
+  if (Array.isArray(models?.latest_runs)) return models.latest_runs;
+  return [];
+}
 
 // ========== BLACKBOARD & COMMS TAB ==========
 export function BlackboardCommsTab() {
   const { data: busStatus } = useApi("system/event-bus/status");
+  const { data: hitlData, refetch: refetchHitl } = useApi("agentHitlBuffer", { pollIntervalMs: 15000 });
   const [messages, setMessages] = useState([]);
+  const [pendingActions, setPendingActions] = useState({});
   const feedRef = useRef([]);
 
   useEffect(() => {
@@ -28,22 +68,25 @@ export function BlackboardCommsTab() {
     return () => { ws.unsubscribe("agents", handler); ws.unsubscribe("council", handler); };
   }, []);
 
-  const topics = [
-    { topic: "signal.generated", subs: 5, rate: 3.4, status: "ok" },
-    { topic: "council.verdict", subs: 8, rate: 1.2, status: "ok" },
-    { topic: "market_data.bar", subs: 12, rate: 15.7, status: "ok" },
-    { topic: "risk.alert", subs: 6, rate: 0.3, status: "ok" },
-    { topic: "agent.heartbeat", subs: 42, rate: 7.0, status: "ok" },
-    { topic: "ml.training.progress", subs: 3, rate: 0.1, status: "warn" },
-    { topic: "order.submitted", subs: 4, rate: 0.8, status: "ok" },
-    { topic: "sentiment.update", subs: 5, rate: 2.1, status: "ok" },
-  ];
+  const topics = Array.isArray(busStatus?.topics) ? busStatus.topics : [];
+  const hitlBuffer = normalizeHitlItems(hitlData);
 
-  const hitlBuffer = [
-    { id: 1, type: "TRADE", symbol: "TSLA", action: "BUY", confidence: 72, status: "pending" },
-    { id: 2, type: "RISK", symbol: "PORTFOLIO", action: "REDUCE", confidence: 85, status: "pending" },
-    { id: 3, type: "SCALE", symbol: "Scanner-Fleet", action: "SPAWN x3", confidence: 91, status: "approved" },
-  ];
+  const handleHitlAction = async (itemId, action) => {
+    setPendingActions((current) => ({ ...current, [itemId]: action }));
+    try {
+      await postHitlDecision(itemId, action);
+      toast.success(`HITL ${action} submitted`);
+      refetchHitl();
+    } catch (error) {
+      toast.error(`HITL ${action} failed: ${error.message}`);
+    } finally {
+      setPendingActions((current) => {
+        const next = { ...current };
+        delete next[itemId];
+        return next;
+      });
+    }
+  };
 
   return (
     <div className="grid grid-cols-12 gap-3">
@@ -67,46 +110,79 @@ export function BlackboardCommsTab() {
       <div className="col-span-4 space-y-3">
         <div className="aurora-card p-3">
           <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">MessageBus Channel Monitor</h3>
-          <table className="w-full text-[10px]">
-            <thead><tr className="text-gray-500 border-b border-gray-800">
-              <th className="text-left py-1">Topic</th><th className="text-right">Subs</th><th className="text-right">Rate/s</th><th className="text-right">Status</th>
-            </tr></thead>
-            <tbody>{topics.map(t => (
-              <tr key={t.topic} className="border-b border-gray-800/30 hover:bg-cyan-500/5">
-                <td className="py-1 text-cyan-400 font-mono">{t.topic}</td>
-                <td className="text-right text-white">{t.subs}</td>
-                <td className="text-right text-gray-400">{t.rate}</td>
-                <td className="text-right">
-                  <span className={`w-2 h-2 rounded-full inline-block ${t.status === "ok" ? "bg-emerald-500" : "bg-amber-500"}`} />
-                </td>
-              </tr>
-            ))}</tbody>
-          </table>
+          {topics.length === 0 ? (
+            <div className="text-gray-500 text-xs py-8 text-center">
+              No MessageBus topics reported by the backend.
+            </div>
+          ) : (
+            <table className="w-full text-[10px]">
+              <thead><tr className="text-gray-500 border-b border-gray-800">
+                <th className="text-left py-1">Topic</th><th className="text-right">Subs</th><th className="text-right">Rate</th><th className="text-right">Status</th>
+              </tr></thead>
+              <tbody>{topics.map((topic) => {
+                const msgRate = topic.msgRate ?? topic.rate ?? 0;
+                const subs = topic.subs ?? topic.subscribers ?? 0;
+                const active = subs > 0 || msgRate > 0;
+                return (
+                  <tr key={topic.topic} className="border-b border-gray-800/30 hover:bg-cyan-500/5">
+                    <td className="py-1 text-cyan-400 font-mono">{topic.topic}</td>
+                    <td className="text-right text-white">{subs}</td>
+                    <td className="text-right text-gray-400">{msgRate}</td>
+                    <td className="text-right">
+                      <span className={`w-2 h-2 rounded-full inline-block ${active ? "bg-emerald-500" : "bg-gray-600"}`} />
+                    </td>
+                  </tr>
+                );
+              })}</tbody>
+            </table>
+          )}
         </div>
       </div>
 
       {/* HITL Buffer */}
       <div className="col-span-3 aurora-card p-3">
         <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Human-In-The-Loop Buffer</h3>
-        <div className="space-y-2">
-          {hitlBuffer.map(h => (
-            <div key={h.id} className="bg-[#0B0E14] border border-gray-700 rounded p-2">
-              <div className="flex items-center justify-between text-[10px] mb-1">
-                <span className="text-amber-400 font-bold">{h.type}</span>
-                <span className="text-gray-500">{h.symbol}</span>
-              </div>
-              <div className="text-[10px] text-white mb-1">{h.action} <span className="text-gray-500">({h.confidence}% conf)</span></div>
-              {h.status === "pending" ? (
-                <div className="flex gap-1">
-                  <button className="px-2 py-0.5 text-[9px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded" onClick={() => toast.success(`Approved: ${h.action}`)}>Approve</button>
-                  <button className="px-2 py-0.5 text-[9px] bg-red-500/20 text-red-400 border border-red-500/30 rounded" onClick={() => toast.warning(`Rejected: ${h.action}`)}>Reject</button>
+        {hitlBuffer.length === 0 ? (
+          <div className="text-gray-500 text-xs py-8 text-center">
+            No pending HITL items in the backend buffer.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {hitlBuffer.map((item) => (
+              <div key={item.id} className="bg-[#0B0E14] border border-gray-700 rounded p-2">
+                <div className="flex items-center justify-between text-[10px] mb-1">
+                  <span className="text-amber-400 font-bold">{item.type}</span>
+                  <span className="text-gray-500">{item.symbol}</span>
                 </div>
-              ) : (
-                <span className="text-[9px] text-emerald-400">Approved</span>
-              )}
-            </div>
-          ))}
-        </div>
+                <div className="text-[10px] text-white mb-1">
+                  {item.action} <span className="text-gray-500">({item.confidence}% conf)</span>
+                </div>
+                {item.status === "pending" ? (
+                  <div className="flex gap-1">
+                    <button
+                      className="px-2 py-0.5 text-[9px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded disabled:opacity-50"
+                      disabled={Boolean(pendingActions[item.id])}
+                      onClick={() => handleHitlAction(item.id, "approve")}
+                    >
+                      Approve
+                    </button>
+                    <button
+                      className="px-2 py-0.5 text-[9px] bg-red-500/20 text-red-400 border border-red-500/30 rounded disabled:opacity-50"
+                      disabled={Boolean(pendingActions[item.id])}
+                      onClick={() => handleHitlAction(item.id, "reject")}
+                    >
+                      Reject
+                    </button>
+                  </div>
+                ) : (
+                  <span className={`text-[9px] ${item.status === "approved" ? "text-emerald-400" : item.status === "rejected" ? "text-red-400" : "text-gray-400"}`}>
+                    {item.status.toUpperCase()}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -115,90 +191,96 @@ export function BlackboardCommsTab() {
 // ========== CONFERENCE & CONSENSUS TAB ==========
 export function ConferenceConsensusTab() {
   const { data: councilStatus } = useApi("council/status");
-  const stages = [
-    { name: "Stage 1: Perception", agents: ["MarketPerception", "FlowPerception", "Regime", "Intermarket"], status: "complete" },
-    { name: "Stage 2: Indicators", agents: ["RSI", "BBV", "EMA_Trend", "RelativeStrength", "CycleTiming"], status: "complete" },
-    { name: "Stage 3: Hypothesis", agents: ["Hypothesis"], status: "running" },
-    { name: "Stage 4: Strategy", agents: ["Strategy"], status: "pending" },
-    { name: "Stage 5: Risk/Exec", agents: ["Risk", "Execution"], status: "pending" },
-    { name: "Stage 6: Critic", agents: ["Critic"], status: "pending" },
-    { name: "Stage 7: Arbiter", agents: ["Arbiter"], status: "pending" },
-  ];
+  const { data: conferenceStatus } = useApi("conference", { pollIntervalMs: 15000 });
 
-  const recentConferences = [
-    { id: "#841", symbol: "AAPL", verdict: "BUY", confidence: 88, duration: "4.2s", votes: { for: 9, against: 3, abstain: 1 } },
-    { id: "#840", symbol: "MSFT", verdict: "HOLD", confidence: 62, duration: "3.8s", votes: { for: 5, against: 6, abstain: 2 } },
-    { id: "#839", symbol: "TSLA", verdict: "SELL", confidence: 78, duration: "5.1s", votes: { for: 2, against: 10, abstain: 1 } },
-    { id: "#838", symbol: "SPY", verdict: "BUY", confidence: 91, duration: "3.2s", votes: { for: 11, against: 1, abstain: 1 } },
-  ];
+  const stages = Array.isArray(councilStatus?.dag_stages)
+    ? councilStatus.dag_stages.map((agents, index) => ({
+        name: `Stage ${index + 1}`,
+        agents,
+      }))
+    : [];
+  const latestConference = conferenceStatus?.last_conference;
+  const weightEntries = Object.entries(councilStatus?.agent_weights ?? {});
 
   return (
     <div className="grid grid-cols-12 gap-3">
       {/* Pipeline Visualization */}
       <div className="col-span-8 aurora-card p-3">
         <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-3">Council DAG Pipeline (7 Stages)</h3>
-        <div className="space-y-2">
-          {stages.map((s, i) => (
-            <div key={s.name} className={`flex items-center gap-3 p-2 rounded border ${s.status === "complete" ? "border-emerald-500/30 bg-emerald-500/5" : s.status === "running" ? "border-cyan-500/30 bg-cyan-500/10 animate-pulse" : "border-gray-700 bg-gray-800/20"}`}>
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${s.status === "complete" ? "bg-emerald-500/20 text-emerald-400" : s.status === "running" ? "bg-cyan-500/20 text-cyan-400" : "bg-gray-700 text-gray-500"}`}>
-                {s.status === "complete" ? "✓" : i + 1}
-              </div>
-              <div className="flex-1">
-                <div className="text-[10px] text-white font-bold">{s.name}</div>
-                <div className="flex gap-1 mt-0.5 flex-wrap">
-                  {s.agents.map(a => (
-                    <span key={a} className={`px-1.5 py-0.5 rounded text-[8px] ${s.status === "complete" ? "bg-emerald-500/10 text-emerald-400" : s.status === "running" ? "bg-cyan-500/10 text-cyan-400" : "bg-gray-800 text-gray-500"}`}>{a}</span>
-                  ))}
+        {stages.length === 0 ? (
+          <div className="text-gray-500 text-xs py-10 text-center">
+            No council DAG configuration reported by the backend.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {stages.map((stage, index) => (
+              <div key={stage.name} className="flex items-center gap-3 p-2 rounded border border-gray-700 bg-gray-800/20">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold bg-cyan-500/20 text-cyan-400">
+                  {index + 1}
+                </div>
+                <div className="flex-1">
+                  <div className="text-[10px] text-white font-bold">{stage.name}</div>
+                  <div className="flex gap-1 mt-0.5 flex-wrap">
+                    {stage.agents.map((agent) => (
+                      <span key={agent} className="px-1.5 py-0.5 rounded text-[8px] bg-cyan-500/10 text-cyan-400">
+                        {agent}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </div>
-              <span className={`text-[9px] ${s.status === "complete" ? "text-emerald-400" : s.status === "running" ? "text-cyan-400" : "text-gray-600"}`}>{s.status.toUpperCase()}</span>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Vote Breakdown + Recent Conferences */}
       <div className="col-span-4 space-y-3">
         <div className="aurora-card p-3">
-          <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Recent Conferences</h3>
-          <div className="space-y-2">
-            {recentConferences.map(c => (
-              <div key={c.id} className="bg-[#0B0E14] rounded p-2 border border-gray-800">
-                <div className="flex items-center justify-between text-[10px] mb-1">
-                  <span className="text-gray-500">{c.id}</span>
-                  <span className="text-cyan-400 font-bold">{c.symbol}</span>
-                  <span className={`font-bold ${c.verdict === "BUY" ? "text-emerald-400" : c.verdict === "SELL" ? "text-red-400" : "text-amber-400"}`}>{c.verdict}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-cyan-500 rounded-full" style={{ width: `${c.confidence}%` }} />
-                  </div>
-                  <span className="text-[9px] text-white">{c.confidence}%</span>
-                </div>
-                <div className="flex gap-2 mt-1 text-[8px]">
-                  <span className="text-emerald-400">For: {c.votes.for}</span>
-                  <span className="text-red-400">Against: {c.votes.against}</span>
-                  <span className="text-gray-500">Abstain: {c.votes.abstain}</span>
-                  <span className="text-gray-600 ml-auto">{c.duration}</span>
-                </div>
+          <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Latest Conference</h3>
+          {!latestConference || latestConference.ticker === "N/A" ? (
+            <div className="text-gray-500 text-xs py-6 text-center">
+              No conference has been recorded yet.
+            </div>
+          ) : (
+            <div className="bg-[#0B0E14] rounded p-2 border border-gray-800">
+              <div className="flex items-center justify-between text-[10px] mb-1">
+                <span className="text-gray-500">#{conferenceStatus?.total_conferences ?? 0}</span>
+                <span className="text-cyan-400 font-bold">{latestConference.ticker}</span>
+                <span className={`font-bold ${latestConference.verdict === "BUY" ? "text-emerald-400" : latestConference.verdict === "SELL" ? "text-red-400" : "text-amber-400"}`}>
+                  {latestConference.verdict}
+                </span>
               </div>
-            ))}
-          </div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                  <div className="h-full bg-cyan-500 rounded-full" style={{ width: `${latestConference.confidence ?? 0}%` }} />
+                </div>
+                <span className="text-[9px] text-white">{latestConference.confidence ?? 0}%</span>
+              </div>
+              <div className="flex gap-2 mt-1 text-[8px] flex-wrap">
+                {Object.entries(latestConference.votes ?? {}).map(([side, count]) => (
+                  <span key={side} className="text-gray-400">{side}: {count}</span>
+                ))}
+                <span className="text-gray-600 ml-auto">{latestConference.duration ?? 0}s</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Bayesian Weights */}
         <div className="aurora-card p-3">
           <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Bayesian Agent Weights</h3>
-          {[
-            ["MarketPerception", 0.12], ["FlowPerception", 0.09], ["Regime", 0.15],
-            ["RSI", 0.08], ["Strategy", 0.14], ["Risk", 0.11], ["Critic", 0.10],
-          ].map(([name, w]) => (
+          {weightEntries.length === 0 ? (
+            <div className="text-gray-500 text-xs py-4 text-center">
+              No Bayesian weight data available.
+            </div>
+          ) : weightEntries.map(([name, weight]) => (
             <div key={name} className="flex items-center gap-2 text-[9px] mb-1">
               <span className="w-24 text-gray-400">{name}</span>
               <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                <div className="h-full bg-cyan-500 rounded-full" style={{ width: `${w * 500}%` }} />
+                <div className="h-full bg-cyan-500 rounded-full" style={{ width: `${Math.min(Number(weight || 0) * 100, 100)}%` }} />
               </div>
-              <span className="text-white w-8 text-right">{(w * 100).toFixed(0)}%</span>
+              <span className="text-white w-10 text-right">{(Number(weight || 0) * 100).toFixed(1)}%</span>
             </div>
           ))}
         </div>
@@ -210,90 +292,92 @@ export function ConferenceConsensusTab() {
 // ========== ML OPS TAB ==========
 export function MlOpsTab() {
   const { data: models } = useApi("ml-brain/models");
-  const modelList = Array.isArray(models) ? models : [
-    { name: "xgboost_v3", version: "3.2.1", accuracy: 84.2, status: "deployed", lastTrain: "2h ago" },
-    { name: "lstm_regime", version: "2.1.0", accuracy: 78.9, status: "deployed", lastTrain: "6h ago" },
-    { name: "hmm_regime", version: "1.4.2", accuracy: 81.3, status: "deployed", lastTrain: "12h ago" },
-    { name: "xgboost_v4", version: "4.0.0-beta", accuracy: 86.1, status: "training", lastTrain: "running" },
-    { name: "sentiment_bert", version: "1.0.0", accuracy: 72.4, status: "staging", lastTrain: "1d ago" },
-  ];
-
-  const trainingJobs = [
-    { id: "JOB-001", model: "xgboost_v4", epoch: "47/1000", loss: 0.0023, eta: "2h 14m", gpu: 89 },
-    { id: "JOB-002", model: "lstm_v3", epoch: "120/500", loss: 0.0156, eta: "45m", gpu: 45 },
-  ];
-
-  const driftMetrics = [
-    { name: "Feature PSI", val: 0.12, threshold: 0.25, status: "ok" },
-    { name: "Prediction Calibration", val: 0.08, threshold: 0.15, status: "ok" },
-    { name: "Input Distribution", val: 0.34, threshold: 0.30, status: "warn" },
-    { name: "Label Drift", val: 0.05, threshold: 0.20, status: "ok" },
-  ];
+  const { data: drift } = useApi("drift", { pollIntervalMs: 30000 });
+  const modelList = buildModelRows(models);
+  const trainingJobs = modelList.filter((model) => String(model.stage ?? model.status).toLowerCase() === "training");
+  const driftMetrics = Array.isArray(drift?.metrics) ? drift.metrics : [];
 
   return (
     <div className="grid grid-cols-12 gap-3">
       {/* Model Registry */}
       <div className="col-span-6 aurora-card p-3">
         <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Model Registry</h3>
-        <table className="w-full text-[10px]">
-          <thead><tr className="text-gray-500 border-b border-gray-800">
-            <th className="text-left py-1">Model</th><th className="text-left">Version</th><th className="text-right">Accuracy</th><th className="text-right">Status</th><th className="text-right">Last Train</th>
-          </tr></thead>
-          <tbody>{modelList.map((m, i) => (
-            <tr key={m.name || i} className="border-b border-gray-800/30 hover:bg-cyan-500/5">
-              <td className="py-1.5 text-cyan-400 font-mono">{m.name}</td>
-              <td className="text-gray-400">{m.version}</td>
-              <td className="text-right text-emerald-400">{typeof m.accuracy === "number" ? `${m.accuracy}%` : m.accuracy || "—"}</td>
-              <td className="text-right">
-                <span className={`px-1.5 py-0.5 rounded text-[9px] ${m.status === "deployed" ? "bg-emerald-500/20 text-emerald-400" : m.status === "training" ? "bg-purple-500/20 text-purple-400" : "bg-amber-500/20 text-amber-400"}`}>{m.status}</span>
-              </td>
-              <td className="text-right text-gray-500">{m.lastTrain}</td>
-            </tr>
-          ))}</tbody>
-        </table>
+        {modelList.length === 0 ? (
+          <div className="text-gray-500 text-xs py-8 text-center">
+            The model registry has not reported any runs yet.
+          </div>
+        ) : (
+          <table className="w-full text-[10px]">
+            <thead><tr className="text-gray-500 border-b border-gray-800">
+              <th className="text-left py-1">Model</th><th className="text-left">Run ID</th><th className="text-right">Accuracy</th><th className="text-right">Stage</th><th className="text-right">Created</th>
+            </tr></thead>
+            <tbody>{modelList.map((model, index) => {
+              const accuracy = model.metrics?.val_accuracy ?? model.metrics?.cv_accuracy ?? model.metrics?.accuracy ?? null;
+              const stage = model.stage ?? model.status ?? "unknown";
+              return (
+                <tr key={model.run_id || model.name || index} className="border-b border-gray-800/30 hover:bg-cyan-500/5">
+                  <td className="py-1.5 text-cyan-400 font-mono">{model.model_name ?? model.name ?? "—"}</td>
+                  <td className="text-gray-400 font-mono">{model.run_id ?? model.version ?? "—"}</td>
+                  <td className="text-right text-emerald-400">{typeof accuracy === "number" ? `${(accuracy * (accuracy <= 1 ? 100 : 1)).toFixed(1)}%` : "—"}</td>
+                  <td className="text-right">
+                    <span className={`px-1.5 py-0.5 rounded text-[9px] ${stage === "champion" ? "bg-emerald-500/20 text-emerald-400" : stage === "training" ? "bg-purple-500/20 text-purple-400" : "bg-amber-500/20 text-amber-400"}`}>{stage}</span>
+                  </td>
+                  <td className="text-right text-gray-500">{formatTimestamp(model.created_at)}</td>
+                </tr>
+              );
+            })}</tbody>
+          </table>
+        )}
       </div>
 
       {/* Training Pipeline */}
       <div className="col-span-3 aurora-card p-3">
         <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Training Pipeline</h3>
-        <div className="space-y-2">
-          {trainingJobs.map(j => (
-            <div key={j.id} className="bg-[#0B0E14] rounded p-2 border border-gray-800">
-              <div className="flex items-center justify-between text-[10px] mb-1">
-                <span className="text-gray-500">{j.id}</span>
-                <span className="text-cyan-400 font-bold">{j.model}</span>
+        {trainingJobs.length === 0 ? (
+          <div className="text-gray-500 text-xs py-8 text-center">
+            No training jobs are currently reported by the registry.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {trainingJobs.map((job) => (
+              <div key={job.run_id} className="bg-[#0B0E14] rounded p-2 border border-gray-800">
+                <div className="flex items-center justify-between text-[10px] mb-1">
+                  <span className="text-gray-500 font-mono">{job.run_id}</span>
+                  <span className="text-cyan-400 font-bold">{job.model_name ?? "model"}</span>
+                </div>
+                <div className="text-[9px] text-gray-400">
+                  Created <span className="text-white">{formatTimestamp(job.created_at)}</span>
+                </div>
               </div>
-              <div className="text-[9px] text-gray-400 mb-1">Epoch: <span className="text-white">{j.epoch}</span> | Loss: <span className="text-emerald-400">{j.loss}</span></div>
-              <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden mb-1">
-                <div className="h-full bg-purple-500 rounded-full animate-pulse" style={{ width: `${(parseInt(j.epoch) / parseInt(j.epoch.split("/")[1])) * 100}%` }} />
-              </div>
-              <div className="flex justify-between text-[8px]">
-                <span className="text-gray-500">ETA: {j.eta}</span>
-                <span className="text-amber-400">GPU: {j.gpu}%</span>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Drift Detection */}
       <div className="col-span-3 aurora-card p-3">
         <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Drift Detection</h3>
-        <div className="space-y-2">
-          {driftMetrics.map(d => (
-            <div key={d.name}>
-              <div className="flex justify-between text-[9px] mb-0.5">
-                <span className="text-gray-400">{d.name}</span>
-                <span className={d.status === "warn" ? "text-amber-400" : "text-emerald-400"}>{d.val} / {d.threshold}</span>
+        {driftMetrics.length === 0 ? (
+          <div className="text-gray-500 text-xs py-8 text-center">
+            No drift metrics are currently available.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {driftMetrics.map((metric) => (
+              <div key={metric.name}>
+                <div className="flex justify-between text-[9px] mb-0.5">
+                  <span className="text-gray-400">{metric.name}</span>
+                  <span className={metric.status === "warn" ? "text-amber-400" : "text-emerald-400"}>{metric.value}</span>
+                </div>
+                <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full ${metric.status === "warn" ? "bg-amber-500" : "bg-emerald-500"}`} style={{ width: `${Math.min((metric.value ?? 0) * 100, 100)}%` }} />
+                </div>
               </div>
-              <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full ${d.status === "warn" ? "bg-amber-500" : "bg-emerald-500"}`} style={{ width: `${(d.val / d.threshold) * 100}%` }} />
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
         <div className="mt-3 text-[9px] text-gray-500">
-          Auto-retrain trigger: PSI &gt; 0.25 on any feature
+          Mean PSI: {drift?.mean_psi ?? "—"} · Drift detected: {drift?.drift_detected ? "yes" : "no"}
         </div>
       </div>
     </div>
@@ -306,20 +390,11 @@ export function LogsTelemetryTab() {
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
 
-  const logEntries = Array.isArray(logs) ? logs.slice(0, 100) : [
-    { ts: "09:41:23.847", level: "INFO", source: "CouncilGate", msg: "Signal #841 forwarded to council — AAPL score 78" },
-    { ts: "09:41:22.112", level: "INFO", source: "Arbiter", msg: "Conference #841 verdict: BUY (88% confidence, 9/3/1)" },
-    { ts: "09:41:21.003", level: "WARN", source: "MLTrain-03", msg: "GPU memory at 87% — approaching threshold" },
-    { ts: "09:41:19.556", level: "INFO", source: "OrderExecutor", msg: "Order submitted: BUY AAPL x25 @ market" },
-    { ts: "09:41:18.201", level: "ERROR", source: "MLTrain-03", msg: "No heartbeat for 12m — marking unresponsive" },
-    { ts: "09:41:15.889", level: "INFO", source: "Scanner-01", msg: "Scanning NASDAQ — 847 symbols processed" },
-    { ts: "09:41:14.002", level: "DEBUG", source: "WeightLearner", msg: "Bayesian update: Researcher weight 0.12 → 0.13" },
-    { ts: "09:41:12.441", level: "INFO", source: "Sentiment-02", msg: "Twitter stream: 234 mentions processed for AAPL" },
-    { ts: "09:41:10.998", level: "WARN", source: "BridgeCreator", msg: "Latency spike on Alpaca WS: 89ms" },
-    { ts: "09:41:09.112", level: "INFO", source: "RiskEngine", msg: "Portfolio VaR: $2,341 (within limits)" },
-    { ts: "09:41:07.556", level: "INFO", source: "FeatureAggr", msg: "Feature refresh complete: 847 features x 42 symbols" },
-    { ts: "09:41:05.002", level: "INFO", source: "Conference-01", msg: "Conference #840 complete in 3.8s — HOLD MSFT" },
-  ];
+  const logEntries = Array.isArray(logs)
+    ? logs.slice(0, 100)
+    : Array.isArray(logs?.logs)
+      ? logs.logs.slice(0, 100)
+      : [];
 
   const levelColors = {
     INFO: "text-cyan-400", WARN: "text-amber-400", ERROR: "text-red-400", DEBUG: "text-gray-500",
@@ -356,27 +431,33 @@ export function LogsTelemetryTab() {
 
       {/* Log Stream */}
       <div className="aurora-card p-3">
-        <div className="max-h-[450px] overflow-y-auto scrollbar-thin font-mono space-y-0">
-          {filtered.map((l, i) => (
-            <div key={i} className="flex gap-3 text-[10px] hover:bg-cyan-500/5 px-2 py-0.5 rounded cursor-pointer border-b border-gray-800/20">
-              <span className="text-gray-600 shrink-0 w-20">{l.ts || "—"}</span>
-              <span className={`shrink-0 w-10 font-bold ${levelColors[l.level || "INFO"]}`}>{l.level || "INFO"}</span>
-              <span className="text-purple-400 shrink-0 w-24 truncate">{l.source || "system"}</span>
-              <span className="text-gray-300 flex-1">{l.msg || l.message || JSON.stringify(l).slice(0, 150)}</span>
-            </div>
-          ))}
-        </div>
+        {filtered.length === 0 ? (
+          <div className="text-gray-500 text-xs py-10 text-center">
+            No log entries match the current backend response.
+          </div>
+        ) : (
+          <div className="max-h-[450px] overflow-y-auto scrollbar-thin font-mono space-y-0">
+            {filtered.map((l, i) => (
+              <div key={i} className="flex gap-3 text-[10px] hover:bg-cyan-500/5 px-2 py-0.5 rounded cursor-pointer border-b border-gray-800/20">
+                <span className="text-gray-600 shrink-0 w-20">{formatTimestamp(l.ts)}</span>
+                <span className={`shrink-0 w-10 font-bold ${levelColors[(l.level || "INFO").toUpperCase()]}`}>{(l.level || "INFO").toUpperCase()}</span>
+                <span className="text-purple-400 shrink-0 w-24 truncate">{l.source || "system"}</span>
+                <span className="text-gray-300 flex-1">{l.msg || l.message || JSON.stringify(l).slice(0, 150)}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Telemetry Summary */}
       <div className="grid grid-cols-6 gap-3">
         {[
-          ["Log Rate", "847/min", "text-cyan-400"],
-          ["Error Rate", "0.3%", "text-emerald-400"],
-          ["Avg Latency", "12ms", "text-white"],
-          ["Active Streams", "8", "text-cyan-400"],
-          ["Buffer Size", "2.4MB", "text-white"],
-          ["Uptime", "47h 12m", "text-emerald-400"],
+          ["Entries", String(logEntries.length), "text-cyan-400"],
+          ["Errors", String(logEntries.filter((entry) => String(entry.level).toLowerCase() === "error").length), "text-red-400"],
+          ["Warnings", String(logEntries.filter((entry) => String(entry.level).toLowerCase() === "warning" || String(entry.level).toLowerCase() === "warn").length), "text-amber-400"],
+          ["Sources", String(new Set(logEntries.map((entry) => entry.source || "system")).size), "text-white"],
+          ["Latest", logEntries[0]?.ts ? formatTimestamp(logEntries[0].ts) : "—", "text-white"],
+          ["Signals", String(logEntries.filter((entry) => entry.type === "signal").length), "text-emerald-400"],
         ].map(([label, val, c]) => (
           <div key={label} className="aurora-card p-2 text-center">
             <div className={`text-sm font-bold ${c}`}>{val}</div>
