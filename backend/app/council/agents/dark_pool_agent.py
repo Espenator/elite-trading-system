@@ -76,7 +76,7 @@ async def evaluate(
 
     # Write to blackboard
     if blackboard:
-        blackboard.dark_pool.update({
+        await blackboard.update("dark_pool", {
             "dix": dix_value,
             "dix_20d_avg": dix_20d_avg,
             "dix_signal": dix_signal,

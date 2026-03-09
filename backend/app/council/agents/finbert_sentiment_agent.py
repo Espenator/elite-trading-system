@@ -50,7 +50,7 @@ async def evaluate(
     posts = await _collect_posts(symbol)
     if not posts:
         if blackboard:
-            blackboard.sentiment["ticker_scores"][symbol] = 0.0
+            await blackboard.set("sentiment", "ticker_scores", {**blackboard.sentiment.get("ticker_scores", {}), symbol: 0.0})
         return AgentVote(
             agent_name=NAME,
             direction="hold",
@@ -77,14 +77,25 @@ async def evaluate(
 
     # Write to blackboard
     if blackboard:
-        blackboard.sentiment["ticker_scores"][symbol] = ticker_score
+        # Update ticker scores
+        ticker_scores = {**blackboard.sentiment.get("ticker_scores", {}), symbol: ticker_score}
+        await blackboard.set("sentiment", "ticker_scores", ticker_scores)
+
+        # Update volume anomalies
         if volume_anomaly:
-            if symbol not in blackboard.sentiment["volume_anomalies"]:
-                blackboard.sentiment["volume_anomalies"].append(symbol)
+            volume_anomalies = blackboard.sentiment.get("volume_anomalies", [])
+            if symbol not in volume_anomalies:
+                await blackboard.set("sentiment", "volume_anomalies", volume_anomalies + [symbol])
+
+        # Update crowd extremes
         if is_extreme:
-            if symbol not in blackboard.sentiment["crowd_extremes"]:
-                blackboard.sentiment["crowd_extremes"].append(symbol)
-        blackboard.sentiment["wsb_momentum"][symbol] = wsb_score
+            crowd_extremes = blackboard.sentiment.get("crowd_extremes", [])
+            if symbol not in crowd_extremes:
+                await blackboard.set("sentiment", "crowd_extremes", crowd_extremes + [symbol])
+
+        # Update WSB momentum
+        wsb_momentum = {**blackboard.sentiment.get("wsb_momentum", {}), symbol: wsb_score}
+        await blackboard.set("sentiment", "wsb_momentum", wsb_momentum)
 
     # Determine vote with contrarian filter
     direction, confidence = _sentiment_to_vote(

@@ -114,12 +114,12 @@ class HybridLLMRouter:
         # Store routing metadata in blackboard
         if blackboard and hasattr(blackboard, "metadata"):
             trace_key = f"{agent_name}_routing"
-            blackboard.metadata[trace_key] = {
+            await blackboard.set("metadata", trace_key, {
                 "provider": result.provider.value,
                 "latency_ms": round(latency_ms, 1),
                 "cost_usd": round(result.cost_usd, 6),
                 "fallback_used": result.fallback_used,
-            }
+            })
             # Append to llm_trace list
             traces = blackboard.metadata.get("llm_trace", [])
             traces.append({
@@ -127,7 +127,7 @@ class HybridLLMRouter:
                 "provider": result.provider.value,
                 "latency_ms": round(latency_ms, 1),
             })
-            blackboard.metadata["llm_trace"] = traces
+            await blackboard.set("metadata", "llm_trace", traces)
 
         return result
 

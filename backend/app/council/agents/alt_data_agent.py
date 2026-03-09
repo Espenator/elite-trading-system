@@ -59,7 +59,7 @@ async def evaluate(
 
     if not signals:
         if blackboard:
-            blackboard.alt_data.update({
+            await blackboard.update("alt_data", {
                 "signals": [],
                 "confidence": 0.0,
                 "sources": [],
@@ -78,7 +78,7 @@ async def evaluate(
 
     # Write to blackboard
     if blackboard:
-        blackboard.alt_data.update({
+        await blackboard.update("alt_data", {
             "signals": signals,
             "confidence": confidence,
             "sources": sources,

@@ -63,7 +63,7 @@ async def evaluate(
 
     # Write to blackboard
     if blackboard:
-        blackboard.layered_memory.update({
+        await blackboard.update("layered_memory", {
             "short_term": short_term[:_SHORT_TERM_TRADES],
             "mid_term": mid_term,
             "long_term": long_term,

@@ -50,7 +50,7 @@ async def evaluate(
     graph = await _load_knowledge_graph(symbol)
     if not graph or not graph.get("nodes"):
         if blackboard:
-            blackboard.supply_chain["graph_nodes"] = 0
+            await blackboard.set("supply_chain", "graph_nodes", 0)
         return AgentVote(
             agent_name=NAME,
             direction="hold",
@@ -71,7 +71,7 @@ async def evaluate(
 
     # Write to blackboard
     if blackboard:
-        blackboard.supply_chain.update({
+        await blackboard.update("supply_chain", {
             "contagion_alerts": contagion_alerts,
             "second_order_targets": second_order,
             "sector_rotation": sector_rotation,

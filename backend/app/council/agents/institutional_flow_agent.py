@@ -66,7 +66,7 @@ async def evaluate(
 
     # Write to blackboard
     if blackboard:
-        blackboard.institutional.update({
+        await blackboard.update("institutional", {
             "consensus_buys": consensus_buys,
             "consensus_sells": consensus_sells,
             "crowded_longs": crowded,

@@ -85,7 +85,7 @@ async def evaluate(
 
     # Write to blackboard
     if blackboard:
-        blackboard.congressional.update({
+        await blackboard.update("congressional", {
             "recent_trades": [_trade_summary(t) for t in trades[:20]],
             "committee_signals": committee_signals,
             "cluster_sectors": cluster_sectors,

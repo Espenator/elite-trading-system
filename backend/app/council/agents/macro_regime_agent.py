@@ -99,7 +99,7 @@ async def evaluate(
 
     # Write to blackboard
     if blackboard:
-        blackboard.macro_regime.update({
+        await blackboard.update("macro_regime", {
             "yield_curve_spread": yield_curve.get("spread", 0.0),
             "yield_curve_inverted": yield_curve.get("inverted", False),
             "credit_spread": credit.get("oas", 0.0),

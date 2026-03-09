@@ -44,7 +44,7 @@ async def evaluate(
 
     if not chain or last_price == 0:
         if blackboard:
-            blackboard.gex["regime"] = "neutral"
+            await blackboard.set("gex", "regime", "neutral")
         return AgentVote(
             agent_name=NAME,
             direction="hold",
@@ -72,7 +72,7 @@ async def evaluate(
 
     # Write to blackboard
     if blackboard:
-        blackboard.gex.update({
+        await blackboard.update("gex", {
             "net_gamma": net_gamma,
             "gamma_flip": gamma_flip,
             "call_wall": call_wall,

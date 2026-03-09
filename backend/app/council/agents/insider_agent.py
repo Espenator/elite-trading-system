@@ -57,7 +57,7 @@ async def evaluate(
     filings = await _fetch_insider_filings(symbol)
     if not filings:
         if blackboard:
-            blackboard.insider["latest_filings"] = []
+            await blackboard.set("insider", "latest_filings", [])
         return AgentVote(
             agent_name=NAME,
             direction="hold",
@@ -84,7 +84,7 @@ async def evaluate(
 
     # Write to blackboard
     if blackboard:
-        blackboard.insider.update({
+        await blackboard.update("insider", {
             "latest_filings": [_filing_summary(f) for f in filings[:20]],
             "cluster_tickers": [symbol] if cluster_detected else [],
             "top_signal": top_signal,

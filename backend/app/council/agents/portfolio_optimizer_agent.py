@@ -76,7 +76,7 @@ async def evaluate(
 
     # Write to blackboard
     if blackboard:
-        blackboard.portfolio_optimization.update({
+        await blackboard.update("portfolio_optimization", {
             "position_sizes": {symbol: optimal_size},
             "rebalance_trades": rebalance_trades,
             "risk_parity_weights": risk_parity,

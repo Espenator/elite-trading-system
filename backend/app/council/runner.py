@@ -85,8 +85,8 @@ async def run_council(
         homeostasis = get_homeostasis()
         vitals = await homeostasis.check_vitals()
         mode = homeostasis.get_mode()
-        blackboard.metadata["homeostasis_mode"] = mode
-        blackboard.metadata["position_scale"] = homeostasis.get_position_scale()
+        await blackboard.set("metadata", "homeostasis_mode", mode)
+        await blackboard.set("metadata", "position_scale", homeostasis.get_position_scale())
         context["homeostasis_mode"] = mode
 
         if mode == "HALTED":
@@ -114,7 +114,7 @@ async def run_council(
         halt_reason = await circuit_breaker.check_all(blackboard)
         if halt_reason:
             logger.warning("Circuit breaker halted council for %s: %s", symbol, halt_reason)
-            blackboard.metadata["circuit_breaker"] = halt_reason
+            await blackboard.set("metadata", "circuit_breaker", halt_reason)
             return DecisionPacket(
                 symbol=symbol,
                 timeframe=timeframe,
@@ -148,7 +148,7 @@ async def run_council(
                 ),
                 timeout=10.0,  # Hard 10s budget for intelligence gathering
             )
-            blackboard.metadata["intelligence"] = intel_package
+            await blackboard.set("metadata", "intelligence", intel_package)
             logger.info(
                 "Intelligence package for %s: tiers=%s, latency=%.0fms",
                 symbol,
@@ -217,12 +217,12 @@ async def run_council(
         if relevant_memories:
             if blackboard.knowledge_context is None:
                 blackboard.knowledge_context = {}
-            blackboard.knowledge_context["relevant_memories"] = relevant_memories
+            await blackboard.set("knowledge_context", "relevant_memories", relevant_memories)
             # Compute memory-based win rate for this regime
             resolved = [m for m in relevant_memories if m.get("was_correct") is not None]
             if resolved:
                 mem_win_rate = sum(1 for m in resolved if m["was_correct"]) / len(resolved)
-                blackboard.knowledge_context["memory_win_rate"] = round(mem_win_rate, 3)
+                await blackboard.set("knowledge_context", "memory_win_rate", round(mem_win_rate, 3))
             logger.info(
                 "Memory recall for %s: %d relevant memories (regime=%s)",
                 symbol, len(relevant_memories), regime,
@@ -272,8 +272,8 @@ async def run_council(
     all_votes.extend(stage1)
     context["stage1"] = {v.agent_name: v.to_dict() for v in stage1}
     for v in stage1:
-        blackboard.perceptions[v.agent_name] = v.to_dict()
-    blackboard.stage_latencies["stage1"] = time.monotonic() * 1000 - _stage_start
+        await blackboard.set("perceptions", v.agent_name, v.to_dict())
+    await blackboard.set("stage_latencies", "stage1", time.monotonic() * 1000 - _stage_start)
 
     # Stage 2: Technical Analysis (parallel — 5 agents)
     _stage_start = time.monotonic() * 1000
@@ -292,8 +292,8 @@ async def run_council(
     all_votes.extend(stage2)
     context["stage2"] = {v.agent_name: v.to_dict() for v in stage2}
     for v in stage2:
-        blackboard.perceptions[v.agent_name] = v.to_dict()
-    blackboard.stage_latencies["stage2"] = time.monotonic() * 1000 - _stage_start
+        await blackboard.set("perceptions", v.agent_name, v.to_dict())
+    await blackboard.set("stage_latencies", "stage2", time.monotonic() * 1000 - _stage_start)
 
     # Stage 3: Hypothesis (deep model tier for LLM)
     _stage_start = time.monotonic() * 1000
@@ -301,7 +301,7 @@ async def run_council(
     all_votes.append(stage3)
     context["stage3"] = {stage3.agent_name: stage3.to_dict()}
     blackboard.hypothesis = stage3.to_dict()
-    blackboard.stage_latencies["stage3"] = time.monotonic() * 1000 - _stage_start
+    await blackboard.set("stage_latencies", "stage3", time.monotonic() * 1000 - _stage_start)
 
     # Stage 4: Strategy
     _stage_start = time.monotonic() * 1000
@@ -309,7 +309,7 @@ async def run_council(
     all_votes.append(stage4)
     context["stage4"] = {stage4.agent_name: stage4.to_dict()}
     blackboard.strategy = stage4.to_dict()
-    blackboard.stage_latencies["stage4"] = time.monotonic() * 1000 - _stage_start
+    await blackboard.set("stage_latencies", "stage4", time.monotonic() * 1000 - _stage_start)
 
     # Stage 5: Risk + Execution (parallel)
     _stage_start = time.monotonic() * 1000
@@ -325,7 +325,7 @@ async def run_council(
             blackboard.risk_assessment = v.to_dict()
         elif v.agent_name == "execution":
             blackboard.execution_plan = v.to_dict()
-    blackboard.stage_latencies["stage5"] = time.monotonic() * 1000 - _stage_start
+    await blackboard.set("stage_latencies", "stage5", time.monotonic() * 1000 - _stage_start)
 
     # ── Bayesian Regime Update ────────────────────────────────────────────
     try:
@@ -342,8 +342,8 @@ async def run_council(
         )
         bayes_regime.update(likelihoods)
         blackboard.regime_belief = bayes_regime.get_beliefs()
-        blackboard.metadata["regime_entropy"] = bayes_regime.entropy()
-        blackboard.metadata["regime_position_modifier"] = bayes_regime.position_size_modifier()
+        await blackboard.set("metadata", "regime_entropy", bayes_regime.entropy())
+        await blackboard.set("metadata", "regime_position_modifier", bayes_regime.position_size_modifier())
         dom_regime, dom_prob = bayes_regime.dominant_regime()
         logger.info(
             "Bayesian regime for %s: %s (%.0f%%), entropy=%.3f, position_mod=%.2f",
@@ -461,7 +461,7 @@ async def run_council(
 
     except Exception as e:
         logger.debug("Stage 5.5 (debate/red-team) failed (proceeding): %s", e)
-    blackboard.stage_latencies["stage5.5"] = time.monotonic() * 1000 - _stage_start
+    await blackboard.set("stage_latencies", "stage5.5", time.monotonic() * 1000 - _stage_start)
 
     # Stage 6: Critic
     _stage_start = time.monotonic() * 1000
@@ -469,7 +469,7 @@ async def run_council(
     all_votes.append(stage6)
     context["stage6"] = {stage6.agent_name: stage6.to_dict()}
     blackboard.critic_review = stage6.to_dict()
-    blackboard.stage_latencies["stage6"] = time.monotonic() * 1000 - _stage_start
+    await blackboard.set("stage_latencies", "stage6", time.monotonic() * 1000 - _stage_start)
 
     # Stage 7: Arbiter
     decision = arbitrate(symbol, timeframe, timestamp, all_votes)
@@ -519,7 +519,7 @@ async def run_council(
             decision.council_reasoning += (
                 f" | HITL: awaiting approval ({', '.join(hitl_result.gates_triggered)})"
             )
-            blackboard.metadata["hitl_pending"] = hitl_result.to_dict()
+            await blackboard.set("metadata", "hitl_pending", hitl_result.to_dict())
             await hitl.request_approval(hitl_result)
     except Exception as e:
         logger.debug("HITL gate check failed (proceeding): %s", e)

@@ -88,7 +88,7 @@ async def evaluate(
 
     # Write to blackboard
     if blackboard:
-        blackboard.earnings.update({
+        await blackboard.update("earnings", {
             "tone_score": overall_tone,
             "cfo_delta": cfo_delta,
             "ceo_tone": ceo_tone,

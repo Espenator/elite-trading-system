@@ -116,7 +116,7 @@ async def evaluate(
                     reasoning += f" | Perplexity confirms: {perplexity_sentiment} (score={catalyst_score})"
 
         # Write catalyst data to blackboard for downstream agents
-        blackboard.metadata["news_catalysts"] = {
+        await blackboard.set("metadata", "news_catalysts", {
             "direction": direction,
             "confidence": confidence,
             "bullish_count": len(bull_catalysts),

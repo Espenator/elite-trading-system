@@ -89,14 +89,14 @@ async def evaluate(
     # Write to blackboard for downstream agents
     blackboard = context.get("blackboard")
     if blackboard:
-        blackboard.metadata["youtube_knowledge"] = {
+        await blackboard.set("metadata", "youtube_knowledge", {
             "entries_found": len(knowledge),
             "ideas_count": len(all_ideas),
             "concepts_count": len(all_concepts),
             "bull_signals": bull_signals,
             "bear_signals": bear_signals,
             "direction": direction,
-        }
+        })
 
     return AgentVote(
         agent_name=NAME,

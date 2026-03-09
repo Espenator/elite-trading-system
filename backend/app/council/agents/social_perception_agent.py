@@ -74,14 +74,14 @@ async def evaluate(
     # Write social context to blackboard for downstream agents
     blackboard = context.get("blackboard")
     if blackboard:
-        blackboard.metadata["social_sentiment"] = {
+        await blackboard.set("metadata", "social_sentiment", {
             "score": score,
             "direction": direction,
             "confidence": confidence,
             "sources": sources_used,
             "spike": spike_msg,
             "item_count": item_count,
-        }
+        })
 
     return AgentVote(
         agent_name=NAME,
