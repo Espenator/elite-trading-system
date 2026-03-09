@@ -6,6 +6,18 @@ Monitors system vitals and automatically switches trading modes:
   DEFENSIVE: Elevated volatility, moderate drawdown → 0.5x positions
   HALTED: Circuit breaker fired, extreme drawdown → 0.0x positions
 
+Monitors:
+  - Portfolio risk score and heat
+  - Drawdown breaches
+  - Agent health status
+  - Data source freshness (via DataQualityMonitor)
+  - DataFence validation stats (rejection rate, mock detection)
+
+Triggers DEFENSIVE mode when:
+  - Critical data sources go stale
+  - DataFence rejection rate exceeds 25%
+  - Risk score drops below threshold
+
 Used by runner.py to load appropriate directives and scale positions.
 
 Usage:
@@ -106,6 +118,29 @@ class HomeostasisMonitor:
                 vitals["risk_score"] = min(vitals["risk_score"], 45)
         except Exception:
             pass
+
+        # DataFence statistics — track validation and rejection rates
+        try:
+            from app.council.data_fence import get_data_fence
+            fence = get_data_fence()
+            fence_stats = fence.get_stats()
+            vitals["datafence_stats"] = fence_stats
+
+            # If rejection rate is high (>25%), lower risk score to trigger DEFENSIVE mode
+            rejection_rate = fence_stats.get("rejection_rate", 0.0)
+            if rejection_rate > 0.25:
+                logger.warning(
+                    "High DataFence rejection rate: %.1f%% - entering DEFENSIVE mode",
+                    rejection_rate * 100
+                )
+                vitals["risk_score"] = min(vitals["risk_score"], 40)
+
+            # If many mock sources detected, issue warning
+            mock_count = fence_stats.get("mock_detection_count", 0)
+            if mock_count > 5:
+                logger.warning("DataFence detected %d mock sources - data integrity concern", mock_count)
+        except Exception as e:
+            logger.debug("DataFence stats unavailable: %s", e)
 
         self._last_vitals = vitals
         self._last_check = now
