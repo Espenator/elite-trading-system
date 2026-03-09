@@ -74,6 +74,7 @@ from app.api.v1 import (
     cognitive,
     cluster,
     llm_health,
+    operator_status,
 )
 from app.api import ingestion
 
@@ -1083,6 +1084,7 @@ app.include_router(youtube_knowledge.router, prefix="/api/v1/youtube-knowledge",
 app.include_router(ingestion.router, tags=["ingestion"])
 app.include_router(cluster.router, prefix="/api/v1/cluster", tags=["cluster"])
 app.include_router(llm_health.router, prefix="/api/v1/llm/health", tags=["llm_health"])
+app.include_router(operator_status.router, prefix="/api/v1/operator-status", tags=["operator"])
 
 @app.get("/api/v1/consensus", tags=["agents"])
 async def consensus_alias():

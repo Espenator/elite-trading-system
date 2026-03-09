@@ -1,8 +1,8 @@
 # Operator Cockpit Frontend Refactor - Implementation Summary
 
-**Date:** 2026-03-08
+**Date:** 2026-03-08 (Updated: 2026-03-09)
 **Branch:** `claude/refactor-frontend-operator-cockpit`
-**Status:** Core Implementation Complete
+**Status:** ✅ Complete - Backend API Implemented
 
 ---
 
@@ -185,11 +185,14 @@ All trades are simulated (no real money)
 
 ---
 
-## Backend API Requirements
+## Backend API Implementation ✅
 
-The operator cockpit assumes the following backend endpoints exist (or gracefully degrades if they don't):
+**Status:** All endpoints implemented and tested (2026-03-09)
 
-### New Endpoints Needed
+**File:** `backend/app/api/v1/operator_status.py`
+**Tests:** `backend/tests/test_operator_status_api.py` (6 tests, all passing)
+
+### Implemented Endpoints
 
 **`GET /api/v1/operator-status`**
 - Returns current operator state:
@@ -243,20 +246,33 @@ The operator cockpit assumes the following backend endpoints exist (or gracefull
 **`operator.status`** - Real-time updates to operator state
 **`risk.update`** - Real-time portfolio heat and loss streak updates
 
-### Fallback Behavior
+### Implementation Details
 
-If backend endpoints don't exist, the hook:
-- Sets default values (Manual mode, Alpaca disconnected)
-- Attempts to read from existing `/api/v1/settings` endpoint
-- Logs warnings but doesn't block UI
-- Frontend remains functional
+**Database Storage:**
+- Operator state stored in DuckDB config table: `operator_state`
+- Risk shield status cached: `risk_shield_status`
+- Alpaca connection cached: `alpaca_connection_status`
+- Loss streak tracked: `current_loss_streak`
+- Freeze entries flag: `risk_shield_freeze_entries`
+
+**Integration:**
+- Mounted in `main.py` at `/api/v1/operator-status`
+- Uses existing `settings_service` for risk policy defaults
+- Uses existing `risk_shield_api` for freeze entries logic
+- Integrates with `websocket_manager` for real-time updates
+
+**Testing:**
+- 6 unit tests verify all endpoints
+- Schema validation tests ensure type safety
+- Auth tests verify protected endpoints
+- Default state tests ensure safe defaults (Manual mode)
 
 ---
 
 ## Remaining Work
 
 ### High Priority
-1. **Backend API implementation** - Create operator-status endpoints
+1. ✅ **Backend API implementation** - COMPLETE (2026-03-09)
 2. **SignalIntelligenceV3** - Add mode visibility to signal generation
 3. **Trades** - Distinguish paper trades from positions
 4. **RiskIntelligence** - Show risk guardrails and block reasons
