@@ -180,9 +180,12 @@ class DuckDBStorage:
             )
         """)
 
+                conn.execute("CREATE SEQUENCE IF NOT EXISTS trade_outcomes_seq")
+                # Migration: recreate trade_outcomes with auto-increment sequence
+        conn.execute("DROP TABLE IF EXISTS trade_outcomes")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS trade_outcomes (
-                id INTEGER PRIMARY KEY,
+                            id INTEGER PRIMARY KEY DEFAULT nextval('trade_outcomes_seq'),
                 symbol VARCHAR NOT NULL,
                 direction VARCHAR NOT NULL,
                 entry_date DATE NOT NULL,
