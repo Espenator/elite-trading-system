@@ -341,7 +341,7 @@ async def _start_event_driven_pipeline():
         from app.council.council_gate import CouncilGate
         _council_gate = CouncilGate(
             message_bus=_message_bus,
-            gate_threshold=float(os.getenv("COUNCIL_GATE_THRESHOLD", "65")),
+            gate_threshold=float(os.getenv("COUNCIL_GATE_THRESHOLD", "0.65")),
             max_concurrent=int(os.getenv("COUNCIL_MAX_CONCURRENT", "3")),
             cooldown_seconds=int(os.getenv("COUNCIL_COOLDOWN_SECS", "120")),
         )
@@ -354,12 +354,12 @@ async def _start_event_driven_pipeline():
         async def _signal_to_verdict_fallback(signal_data):
             """Bypass council — convert signal.generated directly to council.verdict format."""
             score = signal_data.get("score", 0)
-            if score < 65:  # Still gate on minimum score
+            if score < 0.65:  # Still gate on minimum score
                 return
             await _message_bus.publish("council.verdict", {
                 "symbol": signal_data.get("symbol", ""),
                 "final_direction": signal_data.get("label", "long"),
-                "final_confidence": min(score / 100.0, 1.0),
+                "final_confidence": min(score, 1.0),
                 "execution_ready": True,
                 "vetoed": False,
                 "votes": [],
