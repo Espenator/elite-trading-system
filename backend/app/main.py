@@ -902,24 +902,23 @@ async def _stop_event_driven_pipeline():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize data schema on startup; start background loops."""
-    # 1. Data schema
+    # 1. Database Manager — unified initialization for all databases
     try:
-        from app.data.storage import init_schema
-        init_schema()
-        log.info("SQLite schema initialized")
-    except Exception as e:
-        log.warning("SQLite schema init skipped: %s", e)
+        from app.data.database_manager import get_database_manager
+        db_manager = get_database_manager()
+        init_results = await db_manager.initialize()
 
-    try:
-        from app.data.duckdb_storage import duckdb_store
-        health = duckdb_store.health_check()
-        log.info(
-            "DuckDB ready: %d tables, %d rows",
-            health.get("total_tables", 0),
-            health.get("total_rows", 0),
-        )
+        # Log initialization results
+        for service_name, result in init_results.items():
+            if result.get("status") == "initialized":
+                log.info(f"✅ {service_name}: {result.get('type', 'unknown')} ready")
+            else:
+                log.warning(f"⚠️  {service_name} initialization failed: {result.get('error', 'unknown')}")
+
+        # Store in app state for access in routes
+        app.state.db_manager = db_manager
     except Exception as e:
-        log.warning("DuckDB init skipped: %s", e)
+        log.warning("Database Manager initialization failed: %s", e)
 
     # 2. ML Flywheel singletons
     try:
@@ -986,15 +985,13 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass
 
-        # Close DuckDB connection
+        # Shutdown Database Manager (closes all database connections)
         try:
-            from app.data.duckdb_storage import duckdb_store
-            if hasattr(duckdb_store, '_conn') and duckdb_store._conn:
-                duckdb_store._conn.close()
-                duckdb_store._conn = None
-                log.info("DuckDB connection closed")
-        except Exception:
-            pass
+            from app.data.database_manager import get_database_manager
+            db_manager = get_database_manager()
+            await db_manager.shutdown()
+        except Exception as e:
+            log.warning("Database Manager shutdown error: %s", e)
 
         log.info("Application shutdown complete")
 
@@ -1279,13 +1276,14 @@ async def health_check():
         except Exception:
             agent_weights = {"status": "unavailable"}
 
-        # DuckDB status
-        duckdb_status = {}
+        # Database Manager status
+        db_status = {}
         try:
-            from app.data.duckdb_storage import duckdb_store
-            duckdb_status = duckdb_store.health_check()
+            from app.data.database_manager import get_database_manager
+            db_manager = get_database_manager()
+            db_status = await db_manager.health_check()
         except Exception:
-            duckdb_status = {"status": "unavailable"}
+            db_status = {"status": "unavailable"}
 
         return {
             "status": "healthy",
@@ -1295,7 +1293,7 @@ async def health_check():
             "ml_engine": ml_status,
             "event_pipeline": event_pipeline,
             "agent_weights": agent_weights,
-            "duckdb": duckdb_status,
+            "databases": db_status,  # Renamed from 'duckdb' to 'databases' for clarity
         }
     except Exception as exc:
         log.exception("Health check failed")
