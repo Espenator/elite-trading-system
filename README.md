@@ -11,6 +11,8 @@ Council: **31-agent DAG** in 7 stages — council-controlled trading via Council
 
 React + FastAPI full-stack trading application with 14-route V3 widescreen dashboard, DuckDB database, **31-agent council DAG** with Bayesian weight learning, 12 Academic Edge Swarms (P0–P4), Alpaca + Finviz + Unusual Whales integrations, XGBoost ML pipeline, event-driven council-controlled order execution, and gRPC brain service for local Ollama LLM inference.
 
+> **Note:** Some documentation files contain conflict marker patterns (`<<<<<<<`, `=======`, `>>>>>>>`) as historical references to past indentation fixes (Phase 9-12). These are **not** actual Git conflicts and are safe to ignore.
+
 ## Current State (March 8, 2026)
 
 | Area | Count | Status |
@@ -347,6 +349,10 @@ cd elite-trading-system
 cd backend
 pip install -r requirements.txt
 cp .env.example .env  # Edit .env with Alpaca API keys
+
+# Optional: PyTorch for LSTM models (large, install separately if needed)
+# pip install torch>=2.0.0
+
 python start_server.py
 
 # Frontend setup (new terminal)
