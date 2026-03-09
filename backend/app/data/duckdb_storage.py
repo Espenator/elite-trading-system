@@ -59,16 +59,45 @@ class DuckDBStorage:
     _instance_lock = threading.Lock()
 
     def __new__(cls, db_path: str = None):
-        """Ensure only one instance of DuckDBStorage exists (singleton pattern)."""
+        """Ensure only one instance of DuckDBStorage exists (singleton pattern).
+
+        Args:
+            db_path: Path to the DuckDB database file. Only used on first instantiation.
+                    Subsequent calls with different paths will raise ValueError.
+
+        Returns:
+            The singleton instance of DuckDBStorage.
+
+        Raises:
+            ValueError: If db_path is provided and differs from the existing instance's path.
+        """
         if cls._instance is None:
             with cls._instance_lock:
                 # Double-check locking pattern
                 if cls._instance is None:
                     instance = super().__new__(cls)
                     cls._instance = instance
+        else:
+            # If instance exists and db_path is explicitly provided, validate it matches
+            if db_path is not None and hasattr(cls._instance, '_db_path'):
+                requested_path = str(db_path)
+                existing_path = cls._instance._db_path
+                if requested_path != existing_path:
+                    raise ValueError(
+                        f"DuckDBStorage singleton already initialized with path '{existing_path}'. "
+                        f"Cannot reinitialize with different path '{requested_path}'. "
+                        f"Use the existing singleton instance instead."
+                    )
         return cls._instance
 
     def __init__(self, db_path: str = None):
+        """Initialize the DuckDBStorage instance.
+
+        Only initializes once (singleton pattern). Subsequent calls are no-ops.
+
+        Args:
+            db_path: Path to the DuckDB database file. Only used on first initialization.
+        """
         # Only initialize once (singleton pattern)
         if hasattr(self, '_initialized') and self._initialized:
             return
