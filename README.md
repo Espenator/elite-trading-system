@@ -229,18 +229,18 @@ elite-trading-system/
 
 ## What Is NOT Done (TODO)
 
-### P0 — Critical (Blocks Trading)
-- [ ] Fix TurboScanner score scale (0.0–1.0 vs CouncilGate 65.0 threshold)
-- [ ] Fix double `council.verdict` publication (runner.py + council_gate.py)
-- [ ] Wire UnusualWhales flow to MessageBus so council can see it
+### P0 — Critical (Blocks Trading) — ✅ ALL COMPLETE
+- [x] Fix TurboScanner score scale (0.0–1.0 vs CouncilGate 65.0 threshold) — **DONE** (turbo_scanner.py:833)
+- [x] Fix double `council.verdict` publication (runner.py + council_gate.py) — **DONE** (single publish in council_gate.py:202)
+- [x] Wire UnusualWhales flow to MessageBus so council can see it — **DONE** (unusual_whales_service.py:56-67)
 - [ ] Start backend for first time (`uvicorn app.main:app`)
 
-### P1 — High (Blocks Full Intelligence)
-- [ ] Call SelfAwareness Bayesian tracking (286 lines of dead code)
-- [ ] Call IntelligenceCache.start() at startup
-- [ ] Wire brain_service gRPC to hypothesis_agent
+### P1 — High (Blocks Full Intelligence) — ✅ ALL COMPLETE
+- [x] Call SelfAwareness Bayesian tracking (286 lines of dead code) — **DONE** (runner.py:237-246)
+- [x] Call IntelligenceCache.start() at startup — **DONE** (main.py:716-723)
+- [x] Wire brain_service gRPC to hypothesis_agent — **DONE** (hypothesis_agent.py:20-68)
 - [ ] Establish WebSocket real-time data connectivity
-- [ ] Wire 12 new Academic Edge agents into runner.py DAG stages
+- [x] Wire 12 new Academic Edge agents into runner.py DAG stages — **DONE** (runner.py:250-309)
 
 ### P2 — Medium
 - [ ] Add JWT authentication for live trading endpoints
