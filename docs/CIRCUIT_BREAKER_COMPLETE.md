@@ -3,7 +3,7 @@
 **Status**: ✅ COMPLETE (March 9, 2026)
 **Priority**: P3 (Low)
 **Performance**: <1ms average latency (200x faster than <50ms requirement)
-**Test Coverage**: 55 tests passing (100%)
+**Test Coverage**: 76 tests passing (100%)
 
 ---
 
@@ -33,20 +33,24 @@ Signal Generated → Homeostasis Check → 🔴 CIRCUIT BREAKER 🔴 → Council
 
 - **Defensive**: Fails safe by design — API errors don't block trading
 - **Fast**: <1ms execution time (tested)
-- **Parallel**: All 5 checks run concurrently via `asyncio.gather()`
+- **Parallel**: All 9 checks run concurrently via `asyncio.gather()`
 - **Monitored**: Tracks all triggers with timestamps and reasons
 
 ---
 
-## 5 Reflex Checks
+## 9 Reflex Checks
 
 | Check | Trigger Condition | Default Threshold | Graceful Degradation |
 |-------|-------------------|-------------------|---------------------|
-| **Flash Crash** | Intraday move >5% | 5% in 5min (or 7.5% daily) | ✅ Pass if no data |
-| **VIX Spike** | VIX above panic level | VIX > 35.0 | ✅ Pass if no VIX data |
-| **Daily Drawdown** | Portfolio loss limit | -3% daily PnL | ✅ Pass if Risk API down |
-| **Position Limit** | Max open positions | 10 positions | ✅ Pass if Alpaca API down |
-| **Market Hours** | US market closed | Weekends + midnight-8AM ET | ❌ Always enforced |
+| **1. Flash Crash** | Intraday move >5% | 5% in 5min (or 7.5% daily) | ✅ Pass if no data |
+| **2. VIX Spike** | VIX above panic level | VIX > 35.0 | ✅ Pass if no VIX data |
+| **3. Daily Drawdown** | Portfolio loss limit | -3% daily PnL | ✅ Pass if Risk API down |
+| **4. Position Limit** | Max open positions | 10 positions | ✅ Pass if Alpaca API down |
+| **5. Market Hours** | US market closed | Weekends + midnight-8AM ET | ❌ Always enforced |
+| **6. Liquidity Check** | Low trading volume | <100k daily volume | ✅ Pass if no volume data |
+| **7. Correlation Spike** | Market correlation breakdown | >95% correlation (3+ pairs) | ✅ Pass if radar unavailable |
+| **8. Data Connection** | Critical data sources stale | >30min stale or <50% quality | ✅ Pass if monitor unavailable |
+| **9. Profit Ceiling** | Daily profit target hit | +10% daily profit | ✅ Pass if Risk API down |
 
 ### Configurable Thresholds
 
@@ -54,11 +58,18 @@ Thresholds are loaded from `agent_config.py` with these defaults:
 
 ```python
 {
+    # Original 5 checks
     "cb_vix_spike_threshold": 35.0,
     "cb_daily_drawdown_limit": 0.03,  # 3%
     "cb_flash_crash_threshold": 0.05,  # 5%
     "cb_max_positions": 10,
     "cb_max_single_position_pct": 0.20,  # 20%
+
+    # New 4 checks
+    "cb_min_volume": 100000,  # Minimum daily volume
+    "cb_correlation_spike_threshold": 0.95,  # Market correlation
+    "cb_daily_profit_ceiling": 0.10,  # 10% profit target
+    "cb_data_staleness_minutes": 30,  # Max data age
 }
 ```
 
@@ -123,7 +134,7 @@ The circuit breaker tracks comprehensive metrics accessible via API:
 
 ---
 
-## Test Coverage: 55 Tests (100% Pass Rate)
+## Test Coverage: 76 Tests (100% Pass Rate)
 
 ### Original Functional Tests (8)
 - `test_circuit_breaker.py`: Basic functionality for each check
@@ -167,12 +178,19 @@ The circuit breaker tracks comprehensive metrics accessible via API:
   - Runs before homeostasis ✅
   - Multiple violations handling ✅
 
+### New Reflex Tests (21)
+- `test_circuit_breaker_new_reflexes.py`: Tests for 4 new checks
+  - Liquidity check tests (6 tests)
+  - Correlation spike tests (6 tests)
+  - Data connection health tests (6 tests)
+  - Profit target ceiling tests (3 tests)
+
 ---
 
 ## Implementation Files
 
 **Core**:
-- `backend/app/council/reflexes/circuit_breaker.py` (170 lines) — Main implementation
+- `backend/app/council/reflexes/circuit_breaker.py` (251 lines) — Main implementation with 9 checks
 - `backend/app/council/reflexes/__init__.py` (2 lines) — Module init
 
 **API**:
@@ -181,12 +199,13 @@ The circuit breaker tracks comprehensive metrics accessible via API:
 **Integration**:
 - `backend/app/council/runner.py` (lines 111-133) — Council integration
 
-**Tests** (55 total):
+**Tests** (76 total):
 - `backend/tests/test_circuit_breaker.py` (75 lines, 8 tests)
 - `backend/tests/test_circuit_breaker_performance.py` (145 lines, 6 tests)
 - `backend/tests/test_circuit_breaker_edge_cases.py` (245 lines, 25 tests)
 - `backend/tests/test_circuit_breaker_metrics.py` (135 lines, 7 tests)
 - `backend/tests/test_circuit_breaker_integration.py` (180 lines, 9 tests)
+- `backend/tests/test_circuit_breaker_new_reflexes.py` (NEW — 21 tests)
 
 ---
 
@@ -241,18 +260,19 @@ print(f"Total triggers: {metrics['total_triggers']}")
 
 ## Production Readiness Checklist
 
-- [x] All 5 checks implemented and tested
+- [x] All 9 checks implemented and tested
 - [x] Performance meets <50ms requirement (0.25ms avg)
 - [x] Graceful degradation on API failures
-- [x] Comprehensive test coverage (55 tests)
+- [x] Comprehensive test coverage (76 tests)
 - [x] Metrics tracking and monitoring
 - [x] API endpoint for status/metrics
 - [x] Integration with council runner verified
 - [x] Documentation complete
 - [x] Edge cases handled
 - [x] Parallel execution verified
+- [x] New reflexes: Liquidity, Correlation, Data Health, Profit Ceiling
 
-**Status**: ✅ **PRODUCTION READY**
+**Status**: ✅ **PRODUCTION READY** with 9 comprehensive safety checks
 
 ---
 
