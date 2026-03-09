@@ -6,12 +6,14 @@ the entire council evaluation pipeline.
 
 Usage:
     bb = BlackboardState(symbol="AAPL", raw_features=features)
-    # Stage 1 agents write perceptions
-    bb.perceptions["market_perception"] = vote.to_dict()
+    # Stage 1 agents write perceptions (async with atomic lock)
+    await bb.set("perceptions", "market_perception", vote.to_dict())
     # Stage 2 writes hypothesis
     bb.hypothesis = vote.to_dict()
     # etc.
 """
+import asyncio
+import copy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -181,6 +183,62 @@ class BlackboardState:
 
     # Extensible metadata (circuit breaker results, directives, etc.)
     metadata: Dict[str, Any] = field(default_factory=dict)
+
+    # Asyncio lock for atomic updates (prevents race conditions in 31-agent DAG)
+    _lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False, repr=False)
+
+    async def set(self, namespace: str, key: str, value: Any) -> None:
+        """Atomically set a value in a namespace dictionary.
+
+        Args:
+            namespace: Name of the dict field (e.g., "gex", "metadata", "perceptions")
+            key: Key within the namespace dict
+            value: Value to set
+
+        Example:
+            await blackboard.set("gex", "regime", "long_gamma")
+            await blackboard.set("metadata", "social_sentiment", {...})
+        """
+        async with self._lock:
+            namespace_dict = getattr(self, namespace)
+            if not isinstance(namespace_dict, dict):
+                raise ValueError(f"Namespace '{namespace}' is not a dictionary")
+            namespace_dict[key] = value
+
+    async def update(self, namespace: str, updates: Dict[str, Any]) -> None:
+        """Atomically update multiple values in a namespace dictionary.
+
+        Args:
+            namespace: Name of the dict field (e.g., "gex", "metadata", "perceptions")
+            updates: Dictionary of key-value pairs to update
+
+        Example:
+            await blackboard.update("gex", {
+                "net_gamma": 100.5,
+                "regime": "long_gamma",
+                "call_wall": 450.0
+            })
+        """
+        async with self._lock:
+            namespace_dict = getattr(self, namespace)
+            if not isinstance(namespace_dict, dict):
+                raise ValueError(f"Namespace '{namespace}' is not a dictionary")
+            namespace_dict.update(updates)
+
+    def get_snapshot(self) -> "BlackboardState":
+        """Return a deep copy of the current state.
+
+        Prevents agents from accidentally modifying the master state.
+        The snapshot is a frozen point-in-time copy safe for read-only access.
+
+        Returns:
+            A deep copy of the BlackboardState instance
+
+        Example:
+            snapshot = blackboard.get_snapshot()
+            # Safe to read without locks, won't affect master state
+        """
+        return copy.deepcopy(self)
 
     @property
     def is_expired(self) -> bool:
