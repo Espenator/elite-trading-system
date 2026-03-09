@@ -76,6 +76,9 @@ class MessageBus:
         "outcome.resolved",     # Position outcome resolved (win/loss/scratch)
         # Perception layer — data source topics
         "perception.unusualwhales",     # UnusualWhales alerts (options flow, dark pool, congress)
+                        "unusual_whales.flow",           # UnusualWhales options flow alerts (agent-facing)
+        "unusual_whales.congress",       # UnusualWhales congress trading activity
+        "unusual_whales.darkpool",       # UnusualWhales dark pool transactions
         "perception.finviz.screener",   # Finviz screener results
         "perception.macro",             # FRED macro data (CPI, unemployment, VIX, 10Y yield)
         "perception.edgar",             # SEC EDGAR filings

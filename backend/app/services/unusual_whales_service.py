@@ -90,7 +90,21 @@ class UnusualWhalesService:
         async with httpx.AsyncClient(timeout=15.0) as client:
             r = await client.get(url, headers=self._headers())
         r.raise_for_status()
-        return r.json() if r.content else []
+                    data = r.json() if r.content else []
+
+                                try:
+                bus = get_message_bus()
+                if bus._running:
+                    await bus.publish("unusual_whales.congress", {
+                        "type": "congress_trades",
+                        "trades": data,
+                        "source": "unusual_whales_service",
+                        "timestamp": time.time(),
+                    })
+            except Exception:
+                pass
+
+            return data
 
     async def get_insider_trades(self) -> Any:
         """Fetch insider trading activity (paid plan)."""
@@ -108,4 +122,18 @@ class UnusualWhalesService:
         async with httpx.AsyncClient(timeout=15.0) as client:
             r = await client.get(url, headers=self._headers())
         r.raise_for_status()
-        return r.json() if r.content else []
+                    data = r.json() if r.content else []
+
+                                try:
+                bus = get_message_bus()
+                if bus._running:
+                    await bus.publish("unusual_whales.darkpool", {
+                        "type": "darkpool_flow",
+                        "transactions": data,
+                        "source": "unusual_whales_service",
+                        "timestamp": time.time(),
+                    })
+            except Exception:
+                pass
+
+            return data

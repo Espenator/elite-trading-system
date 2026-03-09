@@ -952,6 +952,7 @@ async def lifespan(app: FastAPI):
 
     try:
         from app.data.duckdb_storage import duckdb_store
+        duckdb_store.init_schema()
         health = duckdb_store.health_check()
         log.info(
             "DuckDB ready: %d tables, %d rows",
@@ -960,6 +961,27 @@ async def lifespan(app: FastAPI):
         )
     except Exception as e:
         log.warning("DuckDB init skipped: %s", e)
+
+    # 1b. Ingestion framework (incremental adapters)
+    try:
+        from app.data.checkpoint_store import CheckpointStore
+        from app.services.ingestion.registry import AdapterRegistry
+        from app.services.ingestion.scheduler import IngestionScheduler
+        from app.core.message_bus import get_message_bus
+
+        checkpoint_store = CheckpointStore()
+        message_bus = get_message_bus()
+        adapter_registry = AdapterRegistry(checkpoint_store, message_bus)
+        adapter_registry.initialize_adapters()
+
+        ingestion_scheduler = IngestionScheduler(adapter_registry)
+        ingestion_scheduler.schedule_all_adapters()
+        ingestion_scheduler.start()
+
+        log.info("Ingestion framework initialized: %d adapters scheduled",
+                len(adapter_registry.get_all_adapters()))
+    except Exception as e:
+        log.warning("Ingestion framework init failed: %s", e)
 
     # 2. ML Flywheel singletons
     try:
@@ -1002,6 +1024,14 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        # Stop ingestion framework
+        try:
+            if 'ingestion_scheduler' in locals():
+                ingestion_scheduler.stop()
+                log.info("Ingestion scheduler stopped")
+        except Exception as e:
+            log.warning("Error stopping ingestion scheduler: %s", e)
+
         try:
             from app.jobs.scheduler import stop_scheduler
             stop_scheduler()
@@ -1029,10 +1059,7 @@ async def lifespan(app: FastAPI):
         # Close DuckDB connection
         try:
             from app.data.duckdb_storage import duckdb_store
-            if hasattr(duckdb_store, '_conn') and duckdb_store._conn:
-                duckdb_store._conn.close()
-                duckdb_store._conn = None
-                log.info("DuckDB connection closed")
+            duckdb_store.close()
         except Exception:
             pass
 
