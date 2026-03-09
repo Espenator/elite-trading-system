@@ -190,3 +190,79 @@ class TestSignalTypes:
 
     def test_max_signals_per_scan_is_positive(self):
         assert MAX_SIGNALS_PER_SCAN > 0
+
+
+# ---------------------------------------------------------------------------
+# Score conversion (Bug Fix: 0-1 to 0-100 scale for signal.generated)
+# ---------------------------------------------------------------------------
+
+class TestScoreConversion:
+    @pytest.mark.asyncio
+    async def test_score_converted_to_0_100_scale_on_signal_generated(self):
+        """Verify that signal.score is converted from 0-1 to 0-100 scale when published."""
+        import os
+        os.environ["LLM_ENABLED"] = "true"
+
+        bus = AsyncMock()
+        scanner = TurboScanner(message_bus=bus)
+
+        # Create signal with 0-1 scale score
+        signal = ScanSignal(
+            symbol="AAPL",
+            signal_type="technical_breakout",
+            direction="bullish",
+            score=0.75,  # 0-1 scale
+            reasoning="Strong breakout signal",
+            data={"close": 150.0}
+        )
+
+        # Emit the signal
+        await scanner._emit_signal(signal)
+
+        # Verify bus.publish was called twice (swarm.idea + signal.generated)
+        assert bus.publish.call_count == 2
+
+        # Get the signal.generated call
+        calls = bus.publish.call_args_list
+        signal_generated_call = None
+        for call in calls:
+            if call[0][0] == "signal.generated":
+                signal_generated_call = call
+                break
+
+        assert signal_generated_call is not None, "signal.generated should be published"
+
+        # Verify the score was converted to 0-100 scale
+        payload = signal_generated_call[0][1]
+        assert payload["score"] == 75.0, f"Expected score 75.0 (0.75 * 100), got {payload['score']}"
+        assert payload["symbol"] == "AAPL"
+        assert payload["source"] == "turbo_scanner"
+
+    @pytest.mark.asyncio
+    async def test_score_not_published_if_below_min_threshold(self):
+        """Verify that signals below MIN_SIGNAL_SCORE are not published to signal.generated."""
+        import os
+        os.environ["LLM_ENABLED"] = "true"
+
+        bus = AsyncMock()
+        scanner = TurboScanner(message_bus=bus)
+
+        # Create signal with score below threshold (MIN_SIGNAL_SCORE is typically 0.5)
+        signal = ScanSignal(
+            symbol="AAPL",
+            signal_type="technical_breakout",
+            direction="bullish",
+            score=0.3,  # Below MIN_SIGNAL_SCORE
+            reasoning="Weak signal",
+            data={"close": 150.0}
+        )
+
+        # Emit the signal
+        await scanner._emit_signal(signal)
+
+        # Verify bus.publish was called only once (swarm.idea, not signal.generated)
+        assert bus.publish.call_count == 1
+
+        # Verify only swarm.idea was published
+        call = bus.publish.call_args_list[0]
+        assert call[0][0] == "swarm.idea"
