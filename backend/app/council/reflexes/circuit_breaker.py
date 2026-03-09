@@ -8,8 +8,9 @@ Thresholds are loaded from agent_config (settings service / directives).
 import asyncio
 import logging
 import os
+from collections import defaultdict, deque
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Dict, List
 
 from app.council.blackboard import BlackboardState
 
@@ -38,12 +39,58 @@ def _get_thresholds() -> dict:
 class CircuitBreaker:
     """Brainstem-level safety checks. Runs in <50ms before the council DAG."""
 
+    def __init__(self):
+        """Initialize circuit breaker with metrics tracking."""
+        # Metrics: track last 100 triggers per check type
+        self._trigger_history: Dict[str, deque] = defaultdict(lambda: deque(maxlen=100))
+        self._total_checks = 0
+        self._total_triggers = 0
+        self._last_trigger_time: Optional[datetime] = None
+        self._last_trigger_reason: Optional[str] = None
+
+    def _record_trigger(self, check_name: str, reason: str) -> None:
+        """Record a circuit breaker trigger for metrics."""
+        self._trigger_history[check_name].append({
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "reason": reason,
+        })
+        self._total_triggers += 1
+        self._last_trigger_time = datetime.now(timezone.utc)
+        self._last_trigger_reason = reason
+
+    def get_metrics(self) -> dict:
+        """Get circuit breaker metrics and trigger history."""
+        return {
+            "total_checks": self._total_checks,
+            "total_triggers": self._total_triggers,
+            "trigger_rate": self._total_triggers / max(self._total_checks, 1),
+            "last_trigger_time": self._last_trigger_time.isoformat() if self._last_trigger_time else None,
+            "last_trigger_reason": self._last_trigger_reason,
+            "trigger_history": {
+                check_name: list(history)
+                for check_name, history in self._trigger_history.items()
+            },
+            "checks_by_type": {
+                check_name: len(history)
+                for check_name, history in self._trigger_history.items()
+            },
+        }
+
     async def check_all(self, blackboard: BlackboardState) -> Optional[str]:
         """Run all circuit breaker checks in parallel.
 
         Returns:
             Halt reason string if any reflex fires, None if safe to proceed.
         """
+        self._total_checks += 1
+
+        check_names = [
+            "flash_crash",
+            "vix_spike",
+            "daily_drawdown",
+            "position_limit",
+            "market_hours",
+        ]
         checks = [
             self.flash_crash_detector(blackboard),
             self.vix_spike_detector(blackboard),
@@ -52,9 +99,11 @@ class CircuitBreaker:
             self.market_hours_check(blackboard),
         ]
         results = await asyncio.gather(*checks)
-        for reason in results:
+
+        for check_name, reason in zip(check_names, results):
             if reason:
                 logger.warning("Circuit breaker FIRED: %s", reason)
+                self._record_trigger(check_name, reason)
                 return reason
         return None
 

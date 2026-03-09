@@ -62,9 +62,11 @@ async def circuit_breaker_status():
     try:
         from app.council.reflexes.circuit_breaker import circuit_breaker, _get_thresholds
         thresholds = _get_thresholds()
+        metrics = circuit_breaker.get_metrics()
         return {
             "armed": True,
             "thresholds": thresholds,
+            "metrics": metrics,
             "checks": [
                 {"name": "flash_crash_detector", "description": "Rapid price drop detection"},
                 {"name": "vix_spike_detector", "description": "VIX above panic threshold"},
@@ -75,7 +77,7 @@ async def circuit_breaker_status():
         }
     except Exception as e:
         logger.error("Circuit breaker status failed: %s", e)
-        return {"armed": False, "thresholds": {}, "checks": []}
+        return {"armed": False, "thresholds": {}, "metrics": {}, "checks": []}
 
 
 # ─── Agent Health & Self-Awareness ───
