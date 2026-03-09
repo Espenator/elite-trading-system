@@ -10,7 +10,7 @@ Pipeline:
 
 Risk gates (all must pass before execution):
   1. Council verdict is execution_ready with direction != hold
-  2. Mock source guard (never trade on fake/mock data)
+  2. DataFence validation (replaces inline mock guard)
   3. Real Kelly position sizing from DuckDB trade stats (not hardcoded)
   4. Portfolio heat check (total exposure < max_heat)
   5. Drawdown check (not breached)
@@ -33,6 +33,8 @@ import collections
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+
+from app.council.data_fence import get_data_fence
 
 logger = logging.getLogger(__name__)
 
@@ -202,10 +204,20 @@ class OrderExecutor:
         if direction == "hold" or not execution_ready:
             return
 
-        # -- Gate 2: Mock source guard --
-        source = signal_data.get("source", "")
-        if source and "mock" in source.lower():
-            self._reject(symbol, score, "Mock data source -- refusing to trade")
+        # -- Gate 2: DataFence validation --
+        # Validate the order data through DataFence (replaces inline mock guard)
+        fence = get_data_fence()
+        order_data = {
+            "symbol": symbol,
+            "direction": direction,
+            "price": price,
+            "source": signal_data.get("source", ""),
+            "score": score,
+            "regime": regime,
+        }
+        validation_result = fence.validate_order(order_data)
+        if not validation_result.passed:
+            self._reject(symbol, score, f"DataFence: {validation_result.rejection_reason}")
             return
 
         logger.info(

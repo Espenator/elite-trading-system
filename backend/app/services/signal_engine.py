@@ -17,6 +17,7 @@ from collections import deque
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.modules.symbol_universe import get_tracked_symbols
+from app.council.data_fence import get_data_fence
 
 logger = logging.getLogger(__name__)
 
@@ -512,7 +513,19 @@ class EventDrivenSignalEngine:
                 "timestamp": data.get("timestamp", ""),
                 "source": "event_driven_signal_engine",
             }
-            await self.message_bus.publish("signal.generated", signal_data)
+
+            # Validate signal through DataFence before publishing
+            fence = get_data_fence()
+            validation_result = fence.validate_signal(signal_data)
+            if not validation_result.passed:
+                logger.warning(
+                    "Signal rejected by DataFence: %s %s - %s",
+                    symbol, final_score, validation_result.rejection_reason
+                )
+                return
+
+            # Use sanitized data from fence
+            await self.message_bus.publish("signal.generated", validation_result.sanitized_data)
 
             if final_score >= 80:
                 logger.info(
@@ -537,7 +550,19 @@ class EventDrivenSignalEngine:
                 "timestamp": data.get("timestamp", ""),
                 "source": "event_driven_signal_engine",
             }
-            await self.message_bus.publish("signal.generated", short_signal_data)
+
+            # Validate short signal through DataFence before publishing
+            fence = get_data_fence()
+            validation_result = fence.validate_signal(short_signal_data)
+            if not validation_result.passed:
+                logger.warning(
+                    "SHORT signal rejected by DataFence: %s %s - %s",
+                    symbol, bear_score, validation_result.rejection_reason
+                )
+                return
+
+            # Use sanitized data from fence
+            await self.message_bus.publish("signal.generated", validation_result.sanitized_data)
 
             if bear_score >= 80:
                 logger.info(
