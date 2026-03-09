@@ -102,8 +102,8 @@ The codebase had five separate agent/decision systems. As of v3.2.0, Systems 2 a
 
 #### System 5: CNS Architecture (DESIGNED, PARTIALLY BUILT)
 - **What it is**: The VISION — BlackboardState, TaskSpawner, CircuitBreaker, Self-Awareness, Homeostasis
-- **What's built**: Bayesian WeightLearner (P8), CouncilGate pipeline (P0)
-- **What's remaining**: BlackboardState (P1), CircuitBreaker (P3), TaskSpawner (P5)
+- **What's built**: Bayesian WeightLearner (P8), CouncilGate pipeline (P0), **CircuitBreaker reflexes (P3)**
+- **What's remaining**: BlackboardState (P1), TaskSpawner (P5)
 
 ## ROADMAP: Unification into CNS Architecture
 
@@ -125,7 +125,7 @@ The codebase had five separate agent/decision systems. As of v3.2.0, Systems 2 a
 
 ### REMAINING (Lower Priority — After Discovery Architecture)
 - [ ] **P1**: Build BlackboardState — shared state across DAG stages, later stages read earlier conclusions
-- [ ] **P3**: Build CircuitBreaker Reflexes (brainstem <50ms) — flash crash, VIX spike, drawdown limits
+- [x] **P3**: Build CircuitBreaker Reflexes (brainstem <50ms) — COMPLETE with 55 tests, <1ms latency
 - [ ] **P4**: Clean Up OpenClaw — extract useful logic, delete dead Flask app
 - [ ] **P5**: Build TaskSpawner — dynamic agent registry replacing hardcoded imports
 - [ ] **P6**: Unify Agent Command Center — show real 17-agent council state
@@ -185,7 +185,7 @@ Arbiter Rules:
 Agent Schema: `AgentVote(agent_name, direction, confidence, reasoning, veto, veto_reason, weight, metadata)`
 
 ## CNS Architecture (Central Nervous System)
-- **Brainstem** (<50ms): CircuitBreaker reflexes [TO BUILD - P3]
+- **Brainstem** (<50ms): CircuitBreaker reflexes [**BUILT — 55 tests, <1ms latency**]
 - **Spinal Cord** (~1500ms): 17-agent council DAG [BUILT]
 - **Cortex** (300-800ms): hypothesis + critic via brain_service gRPC [NOT WIRED - P7]
 - **Thalamus**: BlackboardState shared memory [TO BUILD - P1]
