@@ -817,6 +817,51 @@ function DriftMonitorPanel({ driftData = [] }) {
 // ─── BLACKBOARD FEED ──────────────────────────────────────────────────────────
 
 function BlackboardFeed({ topics = [] }) {
+  const [items, setItems] = useState([]);
+  const feedRef = useRef([]);
+
+  useEffect(() => {
+    const handler = (msg) => {
+      if (!msg || !msg.data) return;
+      const data = msg.data;
+      const now = new Date();
+      const time = `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}:${String(now.getSeconds()).padStart(2,"0")}`;
+
+      // Map stage to topic name
+      const stageTopicMap = {
+        "stage1": "PERCEPTION",
+        "stage2": "TECHNICAL",
+        "stage3": "HYPOTHESIS",
+        "stage4": "STRATEGY",
+        "stage5": "RISK_EXEC",
+        "stage6": "CRITIC",
+      };
+
+      const topic = stageTopicMap[data.stage] || data.stage?.toUpperCase() || "COUNCIL";
+      const symbol = data.symbol || "—";
+
+      // Count active subscriptions (number of agents in perceptions)
+      const subs = data.perceptions ? Object.keys(data.perceptions).length : 0;
+
+      // Generate a summary message
+      let last = `Stage ${data.stage} completed for ${symbol}`;
+      if (data.hypothesis) {
+        last = `Hypothesis: ${data.hypothesis.direction || 'N/A'} @ ${Math.round((data.hypothesis.confidence || 0) * 100)}%`;
+      } else if (data.strategy) {
+        last = `Strategy: ${data.strategy.direction || 'N/A'} @ ${Math.round((data.strategy.confidence || 0) * 100)}%`;
+      }
+
+      feedRef.current = [
+        { id: Date.now() + Math.random(), time, topic, subs, msgs: 0, last },
+        ...feedRef.current
+      ].slice(0, 20);  // Keep last 20 items
+      setItems([...feedRef.current]);
+    };
+
+    ws.subscribe("blackboard", handler);
+    return () => ws.unsubscribe("blackboard", handler);
+  }, []);
+
   const defaultTopics = [
     { topic: "SIG_GEN", subs: 12, msgs: 3.4, last: "Signal generated for SPY" },
     { topic: "RISK_EVAL", subs: 8, msgs: 0.1, last: "Risk assessment requested" },
@@ -825,7 +870,7 @@ function BlackboardFeed({ topics = [] }) {
     { topic: "MACRO_BRAIN", subs: 13, msgs: 4.2, last: "Macro data refresh" },
   ];
 
-  const displayTopics = topics.length > 0 ? topics : defaultTopics;
+  const displayTopics = items.length > 0 ? items : (topics.length > 0 ? topics : defaultTopics);
 
   return (
     <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-lg p-3">
@@ -835,17 +880,17 @@ function BlackboardFeed({ topics = [] }) {
           <tr className="text-gray-500 border-b border-gray-800">
             <th className="text-left py-1 font-medium">Topic</th>
             <th className="text-right font-medium">Subs</th>
-            <th className="text-right font-medium">Msg/s</th>
+            <th className="text-right font-medium">Time</th>
             <th className="text-left pl-3 font-medium">Last Message</th>
             <th className="text-right font-medium"></th>
           </tr>
         </thead>
         <tbody>
-          {displayTopics.map(t => (
-            <tr key={t.topic} className="border-b border-gray-800/30 hover:bg-[#00D9FF]/5">
+          {displayTopics.map((t, i) => (
+            <tr key={t.id || t.topic || i} className="border-b border-gray-800/30 hover:bg-[#00D9FF]/5">
               <td className="py-1 text-[#00D9FF] font-mono font-bold">{t.topic}</td>
               <td className="text-right text-white font-mono">{t.subs ?? 0}</td>
-              <td className="text-right text-gray-400 font-mono">{t.msgs ?? 0}</td>
+              <td className="text-right text-gray-400 font-mono">{t.time || (typeof t.msgs === 'number' ? t.msgs.toFixed(1) : t.msgs ?? 0)}</td>
               <td className="pl-3 text-gray-400">{t.last ?? "—"}</td>
               <td className="text-right text-gray-600 text-[9px]">→</td>
             </tr>

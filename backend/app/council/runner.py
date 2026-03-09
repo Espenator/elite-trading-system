@@ -35,6 +35,7 @@ from app.council.task_spawner import TaskSpawner
 from app.services.cognitive_telemetry import (
     record_cognitive_snapshot, determine_cognitive_mode, get_cognitive_dashboard
 )
+from app.services.message_bus import get_message_bus
 
 logger = logging.getLogger(__name__)
 
@@ -247,6 +248,27 @@ async def run_council(
 
     all_votes: List[AgentVote] = []
 
+    # Helper to publish blackboard updates to WebSocket
+    async def _publish_blackboard_update(stage: str):
+        """Publish blackboard state to MessageBus for WebSocket broadcast."""
+        try:
+            message_bus = get_message_bus()
+            await message_bus.publish("blackboard.update", {
+                "stage": stage,
+                "symbol": symbol,
+                "council_decision_id": blackboard.council_decision_id,
+                "perceptions": blackboard.perceptions,
+                "hypothesis": blackboard.hypothesis,
+                "strategy": blackboard.strategy,
+                "risk_assessment": blackboard.risk_assessment,
+                "execution_plan": blackboard.execution_plan,
+                "critic_review": blackboard.critic_review,
+                "stage_latencies": blackboard.stage_latencies,
+                "cognitive_mode": blackboard.cognitive_mode,
+            })
+        except Exception as e:
+            logger.debug("Blackboard WebSocket publish failed: %s", e)
+
     # Stage 1: Perception + Data Sources + Intermarket (parallel — 7 agents)
     _stage_start = time.monotonic() * 1000
     stage1_configs = [
@@ -274,6 +296,7 @@ async def run_council(
     for v in stage1:
         blackboard.perceptions[v.agent_name] = v.to_dict()
     blackboard.stage_latencies["stage1"] = time.monotonic() * 1000 - _stage_start
+    await _publish_blackboard_update("stage1")
 
     # Stage 2: Technical Analysis (parallel — 5 agents)
     _stage_start = time.monotonic() * 1000
@@ -294,6 +317,7 @@ async def run_council(
     for v in stage2:
         blackboard.perceptions[v.agent_name] = v.to_dict()
     blackboard.stage_latencies["stage2"] = time.monotonic() * 1000 - _stage_start
+    await _publish_blackboard_update("stage2")
 
     # Stage 3: Hypothesis + Memory (parallel — 2 agents)
     _stage_start = time.monotonic() * 1000
@@ -309,6 +333,7 @@ async def run_council(
         if v.agent_name == "hypothesis":
             blackboard.hypothesis = v.to_dict()
     blackboard.stage_latencies["stage3"] = time.monotonic() * 1000 - _stage_start
+    await _publish_blackboard_update("stage3")
 
     # Stage 4: Strategy
     _stage_start = time.monotonic() * 1000
@@ -317,6 +342,7 @@ async def run_council(
     context["stage4"] = {stage4.agent_name: stage4.to_dict()}
     blackboard.strategy = stage4.to_dict()
     blackboard.stage_latencies["stage4"] = time.monotonic() * 1000 - _stage_start
+    await _publish_blackboard_update("stage4")
 
     # Stage 5: Risk + Execution (parallel)
     _stage_start = time.monotonic() * 1000
@@ -333,6 +359,7 @@ async def run_council(
         elif v.agent_name == "execution":
             blackboard.execution_plan = v.to_dict()
     blackboard.stage_latencies["stage5"] = time.monotonic() * 1000 - _stage_start
+    await _publish_blackboard_update("stage5")
 
     # ── Bayesian Regime Update ────────────────────────────────────────────
     try:
@@ -477,6 +504,7 @@ async def run_council(
     context["stage6"] = {stage6.agent_name: stage6.to_dict()}
     blackboard.critic_review = stage6.to_dict()
     blackboard.stage_latencies["stage6"] = time.monotonic() * 1000 - _stage_start
+    await _publish_blackboard_update("stage6")
 
     # Stage 7: Arbiter
     decision = arbitrate(symbol, timeframe, timestamp, all_votes)

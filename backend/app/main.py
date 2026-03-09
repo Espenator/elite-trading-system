@@ -400,6 +400,16 @@ async def _start_event_driven_pipeline():
     await _message_bus.subscribe("council.verdict", _bridge_council_to_ws)
     log.info("\u2705 Council->WebSocket bridge active")
 
+    async def _bridge_blackboard_to_ws(blackboard_data):
+        try:
+            from app.websocket_manager import broadcast_ws
+            await broadcast_ws("blackboard", {"type": "blackboard_update", "data": blackboard_data})
+        except Exception as e:
+            log.debug("WS blackboard broadcast failed: %s", e)
+
+    await _message_bus.subscribe("blackboard.update", _bridge_blackboard_to_ws)
+    log.info("\u2705 Blackboard->WebSocket bridge active")
+
     # 5b. BUG FIX 5: Subscribe to market_data.bar to persist snapshot/stream data to DuckDB.
     # Without this, snapshots published by AlpacaStreamService flow through the event pipeline
     # but never reach the database — the data_ingestion.ingest_all path uses separate HTTP calls.

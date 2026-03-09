@@ -261,6 +261,7 @@ export const WS_CHANNELS = {
   market: "market",  // BUG FIX 8: real-time price updates from AlpacaStreamService
   swarm: "swarm",
   macro: "macro",
+  blackboard: "blackboard",  // Real-time council blackboard updates
 };
 
 export default API_CONFIG;
