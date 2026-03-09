@@ -129,6 +129,12 @@ class DuckDBStorage:
                 if not self._schema_initialized:
                     self._init_schema_internal(self._conn)
                     self._schema_initialized = True
+                else:
+                    # Ensure schema migrations are applied even if already initialized
+                    self._ensure_feature_pk(self._conn)
+            else:
+                # Existing connection: still enforce schema migrations
+                self._ensure_feature_pk(self._conn)
             return self._conn
 
     async def async_execute(self, query: str, params=None):
@@ -321,9 +327,12 @@ class DuckDBStorage:
                 schema_version VARCHAR DEFAULT '1.0',
                 feature_count INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (symbol, ts, timeframe)
+                PRIMARY KEY (symbol, ts, timeframe, pipeline_version)
             )
         """)
+
+        # Ensure version-aware primary key includes pipeline_version for storing multiple versions
+        self._ensure_feature_pk(conn)
 
         conn.execute("""
             CREATE TABLE IF NOT EXISTS model_evals (
@@ -511,6 +520,44 @@ class DuckDBStorage:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_knowledge_edges_src ON knowledge_edges (source_heuristic_id)")
 
         logger.info("DuckDB analytics schema initialized at %s", self._db_path)
+
+    def _ensure_feature_pk(self, conn):
+        """Ensure features table primary key covers pipeline_version for versioning."""
+        feature_cols = conn.execute("PRAGMA table_info('features')").fetchall()
+        pk_cols = [row[1] for row in feature_cols if row[5]]
+        expected_pk = ["symbol", "ts", "timeframe", "pipeline_version"]
+        if pk_cols != expected_pk:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS features_v2 (
+                    symbol VARCHAR NOT NULL,
+                    ts TIMESTAMP NOT NULL,
+                    timeframe VARCHAR NOT NULL DEFAULT '1d',
+                    feature_json VARCHAR,
+                    feature_hash VARCHAR,
+                    pipeline_version VARCHAR DEFAULT '1.0.0',
+                    schema_version VARCHAR DEFAULT '1.0',
+                    feature_count INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (symbol, ts, timeframe, pipeline_version)
+                )
+            """)
+            conn.execute("""
+                INSERT OR REPLACE INTO features_v2
+                (symbol, ts, timeframe, feature_json, feature_hash, pipeline_version, schema_version, feature_count, created_at)
+                SELECT
+                    symbol,
+                    ts,
+                    timeframe,
+                    feature_json,
+                    feature_hash,
+                    COALESCE(pipeline_version, '1.0.0'),
+                    COALESCE(schema_version, '1.0'),
+                    feature_count,
+                    created_at
+                FROM features
+            """)
+            conn.execute("DROP TABLE features")
+            conn.execute("ALTER TABLE features_v2 RENAME TO features")
 
     # ------------------------------------------------------------------
     # WRITE methods (called by data ingestion services)
