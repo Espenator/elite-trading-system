@@ -27,12 +27,22 @@ class FeatureStore:
 
     @staticmethod
     def _compute_hash(feature_dict: Dict[str, Any]) -> str:
-        """Compute stable SHA256 hash of feature dict.
+        """Compute stable SHA256 hash of feature dict (data hash).
 
         Sorts keys to ensure same inputs always produce same hash.
         """
         canonical = json.dumps(feature_dict, sort_keys=True, default=str)
         return hashlib.sha256(canonical.encode()).hexdigest()[:16]
+
+    @staticmethod
+    def _compute_schema_hash(feature_dict: Dict[str, Any]) -> str:
+        """Compute stable SHA256 hash of feature schema (structure, not values).
+
+        Only keys are hashed, not values. Detects when features are added/removed.
+        """
+        from app.utils.schema_hasher import SchemaHasher
+        hasher = SchemaHasher()
+        return hasher.hash_column_list(sorted(feature_dict.keys()))
 
     def store_features(
         self,
@@ -48,14 +58,15 @@ class FeatureStore:
         conn = self._get_conn()
         feature_json = json.dumps(feature_dict, default=str)
         feature_hash = self._compute_hash(feature_dict)
+        schema_hash = self._compute_schema_hash(feature_dict)
         now = datetime.now(timezone.utc)
 
         conn.execute("""
-            INSERT OR REPLACE INTO features (symbol, ts, timeframe, feature_json, feature_hash, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, [symbol.upper(), ts, timeframe, feature_json, feature_hash, now])
+            INSERT OR REPLACE INTO features (symbol, ts, timeframe, feature_json, feature_hash, schema_hash, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, [symbol.upper(), ts, timeframe, feature_json, feature_hash, schema_hash, now])
 
-        logger.debug("Stored features for %s@%s: hash=%s", symbol, ts, feature_hash)
+        logger.debug("Stored features for %s@%s: hash=%s schema_hash=%s", symbol, ts, feature_hash, schema_hash)
         return feature_hash
 
     def get_latest_features(
@@ -64,7 +75,7 @@ class FeatureStore:
         """Retrieve the most recent feature vector for a symbol."""
         conn = self._get_conn()
         result = conn.execute("""
-            SELECT feature_json, feature_hash, ts, created_at
+            SELECT feature_json, feature_hash, schema_hash, ts, created_at
             FROM features
             WHERE symbol = ? AND timeframe = ?
             ORDER BY ts DESC
@@ -77,8 +88,9 @@ class FeatureStore:
         return {
             "features": json.loads(result[0]) if result[0] else {},
             "feature_hash": result[1],
-            "ts": str(result[2]),
-            "created_at": str(result[3]),
+            "schema_hash": result[2],
+            "ts": str(result[3]),
+            "created_at": str(result[4]),
         }
 
     def get_features_window(
@@ -91,7 +103,7 @@ class FeatureStore:
         """Retrieve feature vectors for a symbol within a time window."""
         conn = self._get_conn()
         rows = conn.execute("""
-            SELECT feature_json, feature_hash, ts, created_at
+            SELECT feature_json, feature_hash, schema_hash, ts, created_at
             FROM features
             WHERE symbol = ? AND timeframe = ? AND ts BETWEEN ? AND ?
             ORDER BY ts
@@ -101,8 +113,9 @@ class FeatureStore:
             {
                 "features": json.loads(r[0]) if r[0] else {},
                 "feature_hash": r[1],
-                "ts": str(r[2]),
-                "created_at": str(r[3]),
+                "schema_hash": r[2],
+                "ts": str(r[3]),
+                "created_at": str(r[4]),
             }
             for r in rows
         ]

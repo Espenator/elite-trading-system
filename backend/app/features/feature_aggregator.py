@@ -64,7 +64,7 @@ class FeatureVector:
 
     @property
     def hash(self) -> str:
-        """Compute stable hash of all features."""
+        """Compute stable hash of all features (data hash)."""
         all_features = {}
         all_features.update(self.price_features)
         all_features.update(self.volume_features)
@@ -76,6 +76,26 @@ class FeatureVector:
         all_features.update(self.cycle_features)
         canonical = json.dumps(all_features, sort_keys=True, default=str)
         return hashlib.sha256(canonical.encode()).hexdigest()[:16]
+
+    @property
+    def schema_hash(self) -> str:
+        """Compute stable hash of feature schema (structure, not values).
+
+        This hash changes when feature names change, but not when values change.
+        Useful for detecting model compatibility issues.
+        """
+        from app.utils.schema_hasher import SchemaHasher
+        hasher = SchemaHasher()
+        return hasher.hash_feature_vector_schema(
+            price_features=list(self.price_features.keys()),
+            volume_features=list(self.volume_features.keys()),
+            volatility_features=list(self.volatility_features.keys()),
+            regime_features=list(self.regime_features.keys()),
+            flow_features=list(self.flow_features.keys()),
+            indicator_features=list(self.indicator_features.keys()),
+            intermarket_features=list(self.intermarket_features.keys()),
+            cycle_features=list(self.cycle_features.keys()),
+        )
 
 
 def _safe_float(val, default=0.0) -> float:

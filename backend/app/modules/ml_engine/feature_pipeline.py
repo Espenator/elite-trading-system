@@ -55,6 +55,7 @@ class FeatureManifest:
     n_features: int = 0
     n_labels: int = 0
     data_hash: str = ""
+    schema_hash: str = ""
     created_at: str = ""
 
     def save(self, path: Path = MANIFEST_FILE):
@@ -418,6 +419,10 @@ class FeaturePipeline:
             pd.util.hash_pandas_object(df[feature_cols].head(1000)).values.tobytes()
         ).hexdigest()[:12]
 
+        # Compute schema hash from feature and label column structure
+        from app.utils.schema_hasher import compute_feature_manifest_hash
+        schema_hash = compute_feature_manifest_hash(feature_cols, label_cols)
+
         manifest = FeatureManifest(
             version=PIPELINE_VERSION,
             feature_cols=feature_cols,
@@ -425,6 +430,7 @@ class FeaturePipeline:
             n_features=len(feature_cols),
             n_labels=len(label_cols),
             data_hash=data_hash,
+            schema_hash=schema_hash,
             created_at=datetime.utcnow().isoformat(),
         )
         manifest.save()

@@ -219,6 +219,7 @@ class DuckDBStorage:
                 timeframe VARCHAR NOT NULL DEFAULT '1d',
                 feature_json VARCHAR,
                 feature_hash VARCHAR,
+                schema_hash VARCHAR,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (symbol, ts, timeframe)
             )

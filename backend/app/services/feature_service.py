@@ -179,6 +179,8 @@ class FeatureService:
             "feature_count": manifest.n_features if manifest else 0,
             "label_count": manifest.n_labels if manifest else 0,
             "manifest_exists": manifest is not None,
+            "schema_hash": manifest.schema_hash if manifest else "",
+            "data_hash": manifest.data_hash if manifest else "",
         }
 
 
