@@ -23,7 +23,7 @@ React + FastAPI full-stack trading application with 14-route V3 widescreen dashb
 | Council intelligence | WeightLearner + CouncilGate + SelfAwareness + Homeostasis | Bayesian self-learning agent weights |
 | Council subsystems | 15 orchestration files | runner, arbiter, blackboard, task_spawner, shadow_tracker, etc. |
 | Tests | 151 passing | Backend pytest + frontend build |
-| Brain service | gRPC + Ollama | BUILT — not yet wired to council |
+| Brain service | gRPC + Ollama | **WIRED** — hypothesis_agent + critic_agent use brain_client |
 | Event pipeline | MessageBus + CouncilGate + SignalEngine + OrderExecutor | BUILT — council-controlled trading |
 | Database | DuckDB (WAL mode, pooling) | BUILT |
 | Authentication | None | Not started |
@@ -228,17 +228,17 @@ elite-trading-system/
 ## What Is NOT Done (TODO)
 
 ### P0 — Critical (Blocks Trading)
-- [ ] Fix TurboScanner score scale (0.0–1.0 vs CouncilGate 65.0 threshold)
-- [ ] Fix double `council.verdict` publication (runner.py + council_gate.py)
-- [ ] Wire UnusualWhales flow to MessageBus so council can see it
+- [x] Fix TurboScanner score scale (0.0–1.0 vs CouncilGate 65.0 threshold) — **DONE** (turbo_scanner.py:833)
+- [x] Fix double `council.verdict` publication (runner.py + council_gate.py) — **DONE** (council_gate.py:202 only)
+- [x] Wire UnusualWhales flow to MessageBus so council can see it — **DONE** (unusual_whales_service.py:60)
 - [ ] Start backend for first time (`uvicorn app.main:app`)
 
 ### P1 — High (Blocks Full Intelligence)
-- [ ] Call SelfAwareness Bayesian tracking (286 lines of dead code)
-- [ ] Call IntelligenceCache.start() at startup
-- [ ] Wire brain_service gRPC to hypothesis_agent
+- [x] Call SelfAwareness Bayesian tracking (286 lines of dead code) — **DONE** (runner.py:239)
+- [x] Call IntelligenceCache.start() at startup — **DONE** (main.py:720)
+- [x] Wire brain_service gRPC to hypothesis_agent — **DONE** (hypothesis_agent.py:23)
+- [x] Wire 12 new Academic Edge agents into runner.py DAG stages — **DONE** (all 12 agents in DAG)
 - [ ] Establish WebSocket real-time data connectivity
-- [ ] Wire 12 new Academic Edge agents into runner.py DAG stages
 
 ### P2 — Medium
 - [ ] Add JWT authentication for live trading endpoints
