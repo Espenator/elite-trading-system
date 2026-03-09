@@ -3,6 +3,17 @@
 These are fast (<50ms) safety checks that can halt trading instantly.
 If any check fires, the council is skipped entirely and a HOLD is returned.
 
+Implemented Reflexes (9 total):
+  1. Flash Crash Detector — Detects rapid price drops (>5% in 5min)
+  2. VIX Spike Detector — Detects panic volatility (VIX > 35)
+  3. Daily Drawdown Limit — Enforces max 3% daily loss
+  4. Position Limit Check — Prevents over-concentration (max 10 positions)
+  5. Market Hours Check — Blocks trading outside market hours
+  6. Liquidity Check — Ensures sufficient trading volume (>100k shares)
+  7. Correlation Spike Detector — Detects market correlation breakdown
+  8. Data Connection Health — Monitors critical data source freshness
+  9. Profit Target Ceiling — Enforces daily profit taking (>10% gain)
+
 Thresholds are loaded from agent_config (settings service / directives).
 """
 import asyncio
@@ -23,6 +34,10 @@ _DEFAULTS = {
     "cb_flash_crash_threshold": 0.05,  # 5% in 5min
     "cb_max_positions": 10,
     "cb_max_single_position_pct": 0.20,  # 20%
+    "cb_min_volume": 100000,  # Minimum daily volume for trading
+    "cb_correlation_spike_threshold": 0.95,  # Market correlation breakdown
+    "cb_daily_profit_ceiling": 0.10,  # 10% daily profit target
+    "cb_data_staleness_minutes": 30,  # Max data age before halt
 }
 
 
@@ -97,6 +112,10 @@ class CircuitBreaker:
             self.daily_drawdown_limit(blackboard),
             self.position_limit_check(blackboard),
             self.market_hours_check(blackboard),
+            self.liquidity_check(blackboard),
+            self.correlation_spike_detector(blackboard),
+            self.data_connection_health(blackboard),
+            self.profit_target_ceiling(blackboard),
         ]
         results = await asyncio.gather(*checks)
 
@@ -177,6 +196,73 @@ class CircuitBreaker:
         if hour < 13 or hour >= 22:
             return f"Market closed: off-hours (UTC hour={hour})"
 
+        return None
+
+    async def liquidity_check(self, blackboard: BlackboardState) -> Optional[str]:
+        """Check if symbol has sufficient trading volume."""
+        thresholds = _get_thresholds()
+        f = blackboard.raw_features.get("features", blackboard.raw_features)
+        volume = f.get("volume") or f.get("volume_1d") or 0
+        min_volume = thresholds["cb_min_volume"]
+
+        if volume > 0 and volume < min_volume:
+            return f"Insufficient liquidity: volume={volume:,.0f} below {min_volume:,.0f} threshold"
+        return None
+
+    async def correlation_spike_detector(self, blackboard: BlackboardState) -> Optional[str]:
+        """Detect market correlation breakdown (all assets moving together)."""
+        thresholds = _get_thresholds()
+        try:
+            from app.services.correlation_radar import get_correlation_radar
+            radar = get_correlation_radar()
+            status = radar.get_status()
+
+            # Check if correlation breaks exceed threshold
+            breaks = status.get("active_breaks", [])
+            if len(breaks) > 0:
+                # High correlation (>0.95) across multiple pairs indicates systemic risk
+                high_corr = [b for b in breaks if abs(b.get("correlation", 0)) > thresholds["cb_correlation_spike_threshold"]]
+                if len(high_corr) >= 3:  # 3+ pairs with extreme correlation
+                    return f"Correlation spike: {len(high_corr)} pairs with >95% correlation (systemic risk)"
+        except Exception:
+            pass  # Correlation radar unavailable — don't block
+        return None
+
+    async def data_connection_health(self, blackboard: BlackboardState) -> Optional[str]:
+        """Check if critical data sources are stale or disconnected."""
+        thresholds = _get_thresholds()
+        try:
+            from app.council.data_quality import get_data_quality_monitor
+            dqm = get_data_quality_monitor()
+            health = dqm.get_health()
+
+            # Check for critical stale sources
+            critical_stale = health.get("critical_stale", [])
+            if len(critical_stale) > 0:
+                sources = ", ".join(critical_stale[:3])  # Show first 3
+                return f"Data connection degraded: {len(critical_stale)} critical sources stale ({sources})"
+
+            # Check overall quality score
+            quality_score = health.get("overall_quality_score", 100)
+            if quality_score < 50:  # Below 50% quality
+                return f"Data quality critically low: {quality_score:.0f}% (threshold: 50%)"
+        except Exception:
+            pass  # Data quality monitor unavailable — don't block
+        return None
+
+    async def profit_target_ceiling(self, blackboard: BlackboardState) -> Optional[str]:
+        """Check if daily profit target has been reached (take profits)."""
+        thresholds = _get_thresholds()
+        try:
+            from app.api.v1.risk import drawdown_check_status
+            dd = await drawdown_check_status()
+            daily_pnl_pct = dd.get("daily_pnl_pct", 0)
+            ceiling = thresholds["cb_daily_profit_ceiling"]
+
+            if daily_pnl_pct >= ceiling:
+                return f"Daily profit target reached: {daily_pnl_pct:.2%} exceeds {ceiling:.0%} ceiling (take profits)"
+        except Exception:
+            pass  # Risk API unavailable — don't block
         return None
 
 
