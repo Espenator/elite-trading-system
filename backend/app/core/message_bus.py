@@ -12,6 +12,7 @@ in-process queue for zero-overhead — they are NOT sent over the wire.
 Topics:
   market_data.bar     - New 1-min bar from Alpaca WebSocket
   market_data.quote   - Real-time quote update
+  market_data.l2_quote - L2 order book depth (bid/ask price levels)
   signal.generated    - Trading signal created (score >= threshold)
   order.submitted     - Order sent to broker
   order.filled        - Order executed
@@ -50,6 +51,7 @@ class MessageBus:
     VALID_TOPICS = {
         "market_data.bar",
         "market_data.quote",
+        "market_data.l2_quote",  # L2 order book depth (bid/ask levels)
         "signal.generated",
         "order.submitted",
         "order.filled",

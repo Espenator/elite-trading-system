@@ -45,6 +45,7 @@ _DEFAULTS: Dict[str, Any] = {
 
     # Execution Agent
     "min_volume_threshold": 50_000,
+    "slippage_threshold": 0.002,  # 0.2% max acceptable slippage
 
     # Hypothesis Agent (LLM confidence mapping)
     "llm_buy_confidence_threshold": 0.6,
