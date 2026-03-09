@@ -4,7 +4,8 @@
 - Python 3.10+ (with pip)
 - Node.js 18+ (with npm)
 - Git
-- Windows 10/11 (PowerShell 5.1+)
+- **Windows**: Windows 10/11 (PowerShell 5.1+)
+- **Linux/Mac**: Bash shell, curl or wget
 
 ## Paths
 
@@ -42,10 +43,17 @@ Both IPs are DHCP-reserved on the AT&T BGW320-505 router (192.168.1.254).
 
 ## Quick Start (One Click)
 
+### Windows
 Double-click `start-embodier.bat` or run:
 ```powershell
 cd C:\Users\Espen\elite-trading-system
 .\start-embodier.ps1
+```
+
+### Linux/Mac
+```bash
+cd /path/to/elite-trading-system
+./start-embodier.sh
 ```
 
 This will:
@@ -56,12 +64,19 @@ This will:
 5. Auto-restart if either service crashes (up to 3 times)
 
 ### Backend only (no frontend)
+**Windows:**
 ```powershell
 .\start-embodier.ps1 -SkipFrontend
 ```
 
+**Linux/Mac:**
+```bash
+./start-embodier.sh --skip-frontend
+```
+
 ## Manual Start (Step by Step)
 
+### Windows
 ```powershell
 # Terminal 1 — Backend
 cd C:\Users\Espen\elite-trading-system\backend
@@ -70,6 +85,18 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 # Terminal 2 — Frontend
 cd C:\Users\Espen\elite-trading-system\frontend-v2
+npm run dev
+```
+
+### Linux/Mac
+```bash
+# Terminal 1 — Backend
+cd /path/to/elite-trading-system/backend
+source venv/bin/activate
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+# Terminal 2 — Frontend
+cd /path/to/elite-trading-system/frontend-v2
 npm run dev
 ```
 
@@ -112,12 +139,23 @@ docker-compose up -d
 ## Troubleshooting
 
 ### Kill stale processes
+**Windows:**
 ```powershell
 Get-Process -Name node -ErrorAction SilentlyContinue | Stop-Process -Force
 Get-Process -Name python -ErrorAction SilentlyContinue | Stop-Process -Force
 ```
 
+**Linux/Mac:**
+```bash
+pkill node
+pkill python
+# Or kill specific ports:
+lsof -ti:8000 | xargs kill -9
+lsof -ti:3000 | xargs kill -9
+```
+
 ### Reset and restart
+**Windows:**
 ```powershell
 cd C:\Users\Espen\elite-trading-system
 git stash; git pull origin main; git stash drop
@@ -126,10 +164,26 @@ cd ..\frontend-v2; npm install
 cd ..; .\start-embodier.ps1
 ```
 
+**Linux/Mac:**
+```bash
+cd /path/to/elite-trading-system
+git stash && git pull origin main && git stash drop
+cd backend && source venv/bin/activate && pip install -r requirements.txt
+cd ../frontend-v2 && npm install
+cd .. && ./start-embodier.sh
+```
+
 ### Check if the API is running
+**Windows:**
 ```powershell
 Invoke-RestMethod http://localhost:8000/health
 Invoke-RestMethod http://localhost:8000/api/v1/status
+```
+
+**Linux/Mac:**
+```bash
+curl http://localhost:8000/health
+curl http://localhost:8000/api/v1/status
 ```
 
 ### Check logs
