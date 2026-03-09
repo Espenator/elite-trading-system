@@ -317,6 +317,9 @@ class DuckDBStorage:
                 timeframe VARCHAR NOT NULL DEFAULT '1d',
                 feature_json VARCHAR,
                 feature_hash VARCHAR,
+                pipeline_version VARCHAR DEFAULT '1.0.0',
+                schema_version VARCHAR DEFAULT '1.0',
+                feature_count INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (symbol, ts, timeframe)
             )
@@ -360,6 +363,7 @@ class DuckDBStorage:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_flow_date ON options_flow (date)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_outcomes_symbol ON trade_outcomes (symbol, entry_date)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_features_symbol_ts ON features (symbol, ts)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_features_pipeline_version ON features (pipeline_version)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_model_evals_model ON model_evals (model_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_postmortems_symbol ON postmortems (symbol)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_postmortems_decision ON postmortems (council_decision_id)")

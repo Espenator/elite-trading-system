@@ -53,6 +53,8 @@ class TrainingRun:
     metrics: Dict[str, float] = field(default_factory=dict)
     feature_cols: List[str] = field(default_factory=list)
     feature_hash: str = ""
+    pipeline_version: str = ""  # Feature pipeline version used for training
+    schema_version: str = ""  # Feature schema version
     model_path: str = ""
     stage: str = "candidate"  # "candidate", "champion", "archived"
     created_at: str = ""
@@ -149,6 +151,8 @@ class ModelRegistry:
         metrics: Dict[str, float],
         feature_cols: List[str],
         model_type: str = "xgboost",
+        pipeline_version: str = "",
+        schema_version: str = "",
         notes: str = "",
     ) -> TrainingRun:
         """
@@ -162,11 +166,26 @@ class ModelRegistry:
             metrics: Evaluation metrics (val_accuracy, sharpe, hit_rate, etc.).
             feature_cols: Feature columns used for training.
             model_type: One of "xgboost", "lightgbm", "lstm".
+            pipeline_version: Feature pipeline version used for training.
+            schema_version: Feature schema version.
             notes: Optional human-readable notes.
 
         Returns:
             TrainingRun record.
         """
+        # Auto-detect pipeline version if not provided
+        if not pipeline_version:
+            try:
+                from app.modules.ml_engine.feature_pipeline import PIPELINE_VERSION
+                pipeline_version = PIPELINE_VERSION
+                log.info(f"Auto-detected pipeline version: {pipeline_version}")
+            except ImportError:
+                pipeline_version = "unknown"
+                log.warning("Could not auto-detect pipeline version")
+
+        if not schema_version:
+            schema_version = "1.0"  # Default schema version
+
         # Generate run ID
         run_id = f"{model_name}_{int(time.time())}_{hashlib.md5(str(params).encode()).hexdigest()[:6]}"
 
@@ -191,6 +210,8 @@ class ModelRegistry:
             metrics=metrics,
             feature_cols=feature_cols,
             feature_hash=feature_hash,
+            pipeline_version=pipeline_version,
+            schema_version=schema_version,
             model_path=str(model_path),
             stage="candidate",
             created_at=datetime.now(timezone.utc).isoformat(),
@@ -385,6 +406,84 @@ class ModelRegistry:
             "latest_runs": self._runs[-5:] if self._runs else [],
             "registry_dir": str(_REGISTRY_DIR),
         }
+
+    def check_feature_compatibility(
+        self,
+        run_id: str,
+        symbol: str,
+        timeframe: str = "1d",
+    ) -> Dict[str, Any]:
+        """Check if features are available for a model's required pipeline version.
+
+        Args:
+            run_id: Model run ID to check
+            symbol: Stock symbol to check features for
+            timeframe: Timeframe to check
+
+        Returns:
+            Dictionary with compatibility information.
+        """
+        run = self._get_run(run_id)
+        if not run:
+            return {
+                "status": "error",
+                "message": f"Run {run_id} not found",
+                "compatible": False
+            }
+
+        pipeline_version = run.get("pipeline_version", "")
+        if not pipeline_version or pipeline_version == "unknown":
+            return {
+                "status": "warning",
+                "message": "Model has no pipeline version information",
+                "compatible": None,
+                "run_id": run_id,
+                "model_name": run.get("model_name")
+            }
+
+        try:
+            from app.data.feature_store import feature_store
+            compat = feature_store.check_version_compatibility(
+                pipeline_version, symbol, timeframe
+            )
+
+            return {
+                "status": "ok",
+                "compatible": compat["compatible"],
+                "run_id": run_id,
+                "model_name": run.get("model_name"),
+                "required_pipeline_version": pipeline_version,
+                "schema_version": run.get("schema_version", ""),
+                "feature_availability": compat,
+            }
+        except Exception as e:
+            log.exception("Error checking feature compatibility")
+            return {
+                "status": "error",
+                "message": str(e),
+                "compatible": False
+            }
+
+    def get_runs_by_pipeline_version(
+        self,
+        pipeline_version: str,
+        model_name: Optional[str] = None
+    ) -> List[Dict]:
+        """Get all training runs for a specific pipeline version.
+
+        Args:
+            pipeline_version: Pipeline version to filter by
+            model_name: Optional model name filter
+
+        Returns:
+            List of matching training runs.
+        """
+        results = []
+        for run in self._runs:
+            if run.get("pipeline_version") == pipeline_version:
+                if model_name is None or run.get("model_name") == model_name:
+                    results.append(run)
+        return results
 
     # --- Internal helpers --------------------------------------------------
 

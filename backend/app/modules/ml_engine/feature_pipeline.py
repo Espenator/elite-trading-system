@@ -49,6 +49,7 @@ MANIFEST_FILE = _PIPELINE_DIR / "feature_manifest.json"
 class FeatureManifest:
     """Versioned record of what the pipeline produced."""
     version: str = PIPELINE_VERSION
+    schema_version: str = "1.0"  # Schema version for compatibility tracking
     feature_cols: List[str] = field(default_factory=list)
     label_cols: List[str] = field(default_factory=list)
     legacy_cols: List[str] = field(default_factory=lambda: list(LEGACY_FEATURE_COLS))
@@ -56,6 +57,7 @@ class FeatureManifest:
     n_labels: int = 0
     data_hash: str = ""
     created_at: str = ""
+    feature_types: Dict[str, str] = field(default_factory=dict)  # feature_name -> type category
 
     def save(self, path: Path = MANIFEST_FILE):
         tmp = path.with_suffix(".tmp")
