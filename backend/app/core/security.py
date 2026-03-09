@@ -1,28 +1,33 @@
 """
 API Authentication for Embodier Trader.
 
-Uses a shared API key for machine-to-machine auth between
-ESPENMAIN / Profit Trader PCs and the backend.
+Supports both JWT tokens and legacy bearer tokens for backward compatibility.
 
-SECURITY FIX (Audit Task 1):
+SECURITY:
 - Authentication is ALWAYS required on state-changing endpoints
 - Paper vs live only changes the broker target URL, NOT auth enforcement
-- If API_AUTH_TOKEN is not set, ALL state-changing requests are blocked
-- Set API_AUTH_TOKEN in .env to enable the system
+- JWT tokens are preferred (time-limited, can include user context)
+- Legacy bearer tokens (API_AUTH_TOKEN) are still supported for backward compatibility
 
 Usage in route files:
-    from app.core.security import require_auth
+    from app.core.security import require_auth, get_current_user
     @router.post("/execute", dependencies=[Depends(require_auth)])
+
+    # Or to get user context from JWT:
+    @router.get("/profile")
+    async def profile(user = Depends(get_current_user)):
+        return {"user": user}
 """
 
 import logging
 import secrets
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.core.config import settings
+from app.core.jwt_utils import verify_token
 
 logger = logging.getLogger(__name__)
 
@@ -62,39 +67,56 @@ async def require_auth(
     """Dependency that enforces API authentication on ALL protected endpoints.
 
     SECURITY: Auth is required in ALL modes (paper + live).
-    Paper vs live only changes the broker target URL, not auth enforcement.
+    Supports both JWT tokens and legacy bearer tokens.
 
-    - If API_AUTH_TOKEN is set: requires valid Bearer token
-    - If API_AUTH_TOKEN is NOT set: blocks ALL requests (fail-closed)
+    Priority:
+    1. Try to verify as JWT token (preferred)
+    2. Fall back to legacy bearer token comparison
+    3. Block if neither is valid
+
+    Returns:
+        The validated token string
     """
-    token = _get_auth_token()
-
-    if token is None:
-        # No token configured — block everything (fail-closed)
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                "API_AUTH_TOKEN must be configured. "
-                "Set API_AUTH_TOKEN in .env to enable state-changing endpoints."
-            ),
-        )
-
-    # Token is configured — require valid Bearer auth
     if credentials is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authorization header required",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        # Try to get legacy token - if not configured, block everything
+        legacy_token = _get_auth_token()
+        if legacy_token is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "Authentication required. "
+                    "Set JWT_SECRET_KEY or API_AUTH_TOKEN in .env."
+                ),
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authorization header required",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
-    if not secrets.compare_digest(credentials.credentials, token):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    token_str = credentials.credentials
 
-    return credentials.credentials
+    # Try JWT token first (preferred)
+    jwt_payload = verify_token(token_str, token_type="access")
+    if jwt_payload:
+        # Valid JWT token - store user context in request state
+        request.state.user = jwt_payload
+        return token_str
+
+    # Fall back to legacy bearer token
+    legacy_token = _get_auth_token()
+    if legacy_token and secrets.compare_digest(token_str, legacy_token):
+        # Valid legacy token - mark as legacy user
+        request.state.user = {"type": "legacy", "authenticated": True}
+        return token_str
+
+    # Neither JWT nor legacy token is valid
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or expired authentication token",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 async def optional_auth(
@@ -102,11 +124,44 @@ async def optional_auth(
 ) -> Optional[str]:
     """Soft auth check — logs warning if no token but doesn't block.
     Useful for read-only endpoints that benefit from auth but don't require it.
+    Supports both JWT and legacy tokens.
     """
-    token = _get_auth_token()
-    if token and credentials and secrets.compare_digest(credentials.credentials, token):
-        return credentials.credentials
+    if not credentials:
+        return None
+
+    token_str = credentials.credentials
+
+    # Try JWT first
+    jwt_payload = verify_token(token_str, token_type="access")
+    if jwt_payload:
+        return token_str
+
+    # Try legacy token
+    legacy_token = _get_auth_token()
+    if legacy_token and secrets.compare_digest(token_str, legacy_token):
+        return token_str
+
     return None
+
+
+async def get_current_user(
+    request: Request,
+    _: str = Depends(require_auth)
+) -> Dict[str, Any]:
+    """
+    Get the current authenticated user from the request.
+
+    This dependency REQUIRES authentication and returns the user context.
+    For JWT tokens, returns the full JWT payload.
+    For legacy tokens, returns a minimal user object.
+
+    Usage:
+        @router.get("/profile")
+        async def get_profile(user = Depends(get_current_user)):
+            return {"username": user.get("sub"), ...}
+    """
+    # User context was set by require_auth
+    return getattr(request.state, "user", {"type": "unknown"})
 
 
 def generate_token() -> str:

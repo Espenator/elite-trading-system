@@ -74,6 +74,7 @@ from app.api.v1 import (
     cognitive,
     cluster,
     llm_health,
+    auth,
 )
 from app.api import ingestion
 
@@ -1048,6 +1049,7 @@ async def add_security_and_correlation_headers(request, call_next):
         correlation_id.reset(token)
 
 # --- API Routers ---
+app.include_router(auth.router, prefix="/api/v1", tags=["auth"])
 app.include_router(stocks.router, prefix="/api/v1/stocks", tags=["stocks"])
 app.include_router(quotes.router, prefix="/api/v1/quotes", tags=["quotes"])
 app.include_router(orders.router, prefix="/api/v1/orders", tags=["orders"])

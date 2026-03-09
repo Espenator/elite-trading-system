@@ -32,6 +32,12 @@ class Settings(BaseSettings):
     # ── API Authentication ────────────────────────────────
     API_AUTH_TOKEN: str = ""  # Set to enable Bearer token auth on state-changing endpoints
 
+    # ── JWT Authentication ────────────────────────────────
+    JWT_SECRET_KEY: str = ""  # Secret key for JWT signing (auto-generated if empty)
+    JWT_ALGORITHM: str = "HS256"  # JWT signing algorithm
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30  # Access token expiration in minutes
+    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # Refresh token expiration in days
+
     # ── Server ──────────────────────────────────────────────
     HOST: str = "0.0.0.0"
     PORT: int = Field(default=8000, alias="PORT")
