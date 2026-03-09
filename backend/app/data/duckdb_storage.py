@@ -443,10 +443,11 @@ class DuckDBStorage:
         conn = self._get_conn()
         conn.execute("""
             INSERT INTO trade_outcomes
-            (id, symbol, direction, entry_date, exit_date, entry_price, exit_price,
-            shares, pnl, r_multiple, outcome, stop_price, target_price,
-            signal_score, resolved, resolved_at)
+                (id, symbol, direction, entry_date, exit_date, entry_price, exit_price,
+                shares, pnl, r_multiple, outcome, stop_price, target_price,
+                signal_score, resolved, resolved_at)
             VALUES ((SELECT COALESCE(MAX(id), 0) + 1 FROM trade_outcomes), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, [
             trade["symbol"], trade["direction"],
             trade["entry_date"], trade.get("exit_date"),
             trade["entry_price"], trade.get("exit_price"),
