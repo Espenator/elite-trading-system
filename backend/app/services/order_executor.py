@@ -151,6 +151,64 @@ class OrderExecutor:
             self._trade_stats = get_trade_stats()
         return self._trade_stats
 
+    async def _get_market_context(self, symbol: str, price: float) -> Dict[str, Optional[float]]:
+        """Fetch market context for slippage calculation: volume, volatility, spread.
+
+        Returns:
+            dict with keys: volume (avg daily), volatility (realized), spread (bid-ask)
+        """
+        context = {
+            "volume": None,
+            "volatility": None,
+            "spread": None,
+        }
+
+        try:
+            # Get snapshot for current volume and spread
+            alpaca = self._get_alpaca_service()
+            snapshots = await alpaca.get_snapshots([symbol])
+            if snapshots and symbol in snapshots:
+                snap = snapshots[symbol]
+
+                # Extract daily volume from dailyBar
+                daily_bar = snap.get("dailyBar", {})
+                if daily_bar and "v" in daily_bar:
+                    context["volume"] = float(daily_bar["v"])
+
+                # Extract bid-ask spread from latestQuote
+                latest_quote = snap.get("latestQuote", {})
+                if latest_quote:
+                    bid = latest_quote.get("bp")
+                    ask = latest_quote.get("ap")
+                    if bid and ask:
+                        context["spread"] = float(ask) - float(bid)
+
+            # Calculate volatility from recent bars (20-day realized volatility)
+            bars_data = await alpaca.get_bars(symbol, timeframe="1Day", limit=21)
+            if bars_data and "bars" in bars_data and len(bars_data["bars"]) >= 2:
+                bars = bars_data["bars"]
+                # Calculate daily returns
+                returns = []
+                for i in range(1, len(bars)):
+                    prev_close = bars[i-1].get("c", 0)
+                    curr_close = bars[i].get("c", 0)
+                    if prev_close and curr_close:
+                        daily_return = (curr_close - prev_close) / prev_close
+                        returns.append(daily_return)
+
+                # Calculate realized volatility (std dev of returns)
+                if len(returns) >= 10:
+                    mean_return = sum(returns) / len(returns)
+                    variance = sum((r - mean_return) ** 2 for r in returns) / len(returns)
+                    std_dev = variance ** 0.5
+                    # Annualize (sqrt(252) for daily returns)
+                    context["volatility"] = std_dev * (252 ** 0.5)
+
+        except Exception as e:
+            logger.debug("Failed to fetch market context for %s: %s", symbol, e)
+
+        return context
+
     async def start(self) -> None:
         """Subscribe to council.verdict and begin processing."""
         self._running = True
@@ -376,8 +434,17 @@ class OrderExecutor:
         try:
             from app.services.execution_simulator import get_execution_simulator
             sim = get_execution_simulator()
+
+            # Fetch market context for realistic slippage calculation
+            market_ctx = await self._get_market_context(record.symbol, price)
+
             fill = sim.simulate_fill(
-                price=price, side=record.side, order_qty=record.qty,
+                price=price,
+                side=record.side,
+                order_qty=record.qty,
+                volume=market_ctx.get("volume"),
+                volatility=market_ctx.get("volatility"),
+                spread=market_ctx.get("spread"),
             )
             sim_fill_price = fill.fill_price
             sim_fill_ratio = fill.fill_ratio

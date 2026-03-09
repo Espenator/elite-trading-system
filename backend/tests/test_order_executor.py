@@ -231,3 +231,163 @@ class TestServiceLoading:
         exe = OrderExecutor(message_bus=mock_bus, max_single_position=0.05)
         sizer = exe._get_kelly_sizer()
         assert sizer.max_allocation == 0.05
+
+
+# ---------------------------------------------------------------------------
+# Market context and slippage integration
+# ---------------------------------------------------------------------------
+
+class TestMarketContextAndSlippage:
+    @pytest.mark.anyio
+    async def test_get_market_context_returns_dict(self, executor):
+        """_get_market_context should return dict with volume, volatility, spread."""
+        with patch.object(executor, "_get_alpaca_service") as mock_alpaca_getter:
+            mock_alpaca = AsyncMock()
+            mock_alpaca_getter.return_value = mock_alpaca
+            mock_alpaca.get_snapshots = AsyncMock(return_value=None)
+            mock_alpaca.get_bars = AsyncMock(return_value=None)
+
+            context = await executor._get_market_context("AAPL", 180.0)
+
+            assert isinstance(context, dict)
+            assert "volume" in context
+            assert "volatility" in context
+            assert "spread" in context
+
+    @pytest.mark.anyio
+    async def test_get_market_context_with_snapshot_data(self, executor):
+        """_get_market_context should extract volume and spread from snapshot."""
+        with patch.object(executor, "_get_alpaca_service") as mock_alpaca_getter:
+            mock_alpaca = AsyncMock()
+            mock_alpaca_getter.return_value = mock_alpaca
+
+            # Mock snapshot with volume and bid-ask data
+            mock_alpaca.get_snapshots = AsyncMock(return_value={
+                "AAPL": {
+                    "dailyBar": {"v": 50000000},  # 50M volume
+                    "latestQuote": {"bp": 179.95, "ap": 180.05}  # 10¢ spread
+                }
+            })
+            mock_alpaca.get_bars = AsyncMock(return_value=None)
+
+            context = await executor._get_market_context("AAPL", 180.0)
+
+            assert context["volume"] == 50000000
+            assert context["spread"] == pytest.approx(0.10, rel=1e-5)  # 180.05 - 179.95
+
+    @pytest.mark.anyio
+    async def test_get_market_context_calculates_volatility(self, executor):
+        """_get_market_context should calculate realized volatility from bars."""
+        with patch.object(executor, "_get_alpaca_service") as mock_alpaca_getter:
+            mock_alpaca = AsyncMock()
+            mock_alpaca_getter.return_value = mock_alpaca
+            mock_alpaca.get_snapshots = AsyncMock(return_value=None)
+
+            # Mock bar data with price series
+            bars = [{"c": 100.0 + i * 0.5} for i in range(21)]  # Trending price series
+            mock_alpaca.get_bars = AsyncMock(return_value={"bars": bars})
+
+            context = await executor._get_market_context("AAPL", 180.0)
+
+            assert context["volatility"] is not None
+            assert isinstance(context["volatility"], float)
+            assert context["volatility"] > 0
+
+    @pytest.mark.anyio
+    async def test_get_market_context_handles_errors(self, executor):
+        """_get_market_context should handle API errors gracefully."""
+        with patch.object(executor, "_get_alpaca_service") as mock_alpaca_getter:
+            mock_alpaca = AsyncMock()
+            mock_alpaca_getter.return_value = mock_alpaca
+            mock_alpaca.get_snapshots = AsyncMock(side_effect=Exception("API error"))
+            mock_alpaca.get_bars = AsyncMock(side_effect=Exception("API error"))
+
+            context = await executor._get_market_context("AAPL", 180.0)
+
+            # Should return empty context without crashing
+            assert context["volume"] is None
+            assert context["volatility"] is None
+            assert context["spread"] is None
+
+    @pytest.mark.anyio
+    async def test_shadow_execute_uses_market_context(self, executor, mock_bus):
+        """_shadow_execute should fetch market context and pass to simulator."""
+        with patch.object(executor, "_get_market_context") as mock_get_context:
+            mock_get_context.return_value = {
+                "volume": 10000000,
+                "volatility": 0.35,
+                "spread": 0.05,
+            }
+
+            with patch("app.services.execution_simulator.get_execution_simulator") as mock_sim_getter:
+                mock_sim = MagicMock()
+                mock_sim_getter.return_value = mock_sim
+                mock_sim.simulate_fill = MagicMock(return_value=MagicMock(
+                    fill_price=180.10,
+                    fill_ratio=0.95,
+                    slippage_bps=5.5,
+                ))
+
+                record = OrderRecord(
+                    order_id="",
+                    client_order_id="test-123",
+                    symbol="AAPL",
+                    side="buy",
+                    qty=100,
+                    order_type="market",
+                    limit_price=None,
+                    stop_loss=None,
+                    take_profit=None,
+                    signal_score=75.0,
+                    council_confidence=0.80,
+                    kelly_pct=0.05,
+                    regime="BULLISH",
+                    status="pending",
+                    timestamp=time.time(),
+                )
+
+                await executor._shadow_execute(record, 180.0)
+
+                # Verify market context was fetched
+                mock_get_context.assert_called_once_with("AAPL", 180.0)
+
+                # Verify simulator was called with market context
+                mock_sim.simulate_fill.assert_called_once()
+                call_kwargs = mock_sim.simulate_fill.call_args[1]
+                assert call_kwargs["price"] == 180.0
+                assert call_kwargs["side"] == "buy"
+                assert call_kwargs["order_qty"] == 100
+                assert call_kwargs["volume"] == 10000000
+                assert call_kwargs["volatility"] == 0.35
+                assert call_kwargs["spread"] == 0.05
+
+    @pytest.mark.anyio
+    async def test_shadow_execute_handles_simulator_errors(self, executor, mock_bus):
+        """_shadow_execute should handle simulator errors gracefully."""
+        with patch.object(executor, "_get_market_context") as mock_get_context:
+            mock_get_context.return_value = {"volume": None, "volatility": None, "spread": None}
+
+            with patch("app.services.execution_simulator.get_execution_simulator") as mock_sim_getter:
+                mock_sim_getter.side_effect = Exception("Simulator error")
+
+                record = OrderRecord(
+                    order_id="",
+                    client_order_id="test-123",
+                    symbol="AAPL",
+                    side="buy",
+                    qty=100,
+                    order_type="market",
+                    limit_price=None,
+                    stop_loss=None,
+                    take_profit=None,
+                    signal_score=75.0,
+                    council_confidence=0.80,
+                    kelly_pct=0.05,
+                    regime="BULLISH",
+                    status="pending",
+                    timestamp=time.time(),
+                )
+
+                # Should not crash
+                await executor._shadow_execute(record, 180.0)
+                assert record.status == "shadow"
