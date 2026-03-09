@@ -5,11 +5,11 @@
 CI Status: GREEN — 151 tests passing
 Frontend: **ALL 14 PAGES COMPLETE** — pixel-fidelity match to 23 mockup images. Build clean.
 Backend: Ready to start (uvicorn never run yet).
-Council: **31-agent DAG** in 7 stages — council-controlled trading via CouncilGate (v3.5.0)
+Council: **32-agent DAG** in 7 stages — council-controlled trading via CouncilGate (v3.5.0)
 
 ---
 
-React + FastAPI full-stack trading application with 14-route V3 widescreen dashboard, DuckDB database, **31-agent council DAG** with Bayesian weight learning, 12 Academic Edge Swarms (P0–P4), Alpaca + Finviz + Unusual Whales integrations, XGBoost ML pipeline, event-driven council-controlled order execution, and gRPC brain service for local Ollama LLM inference.
+React + FastAPI full-stack trading application with 14-route V3 widescreen dashboard, DuckDB database, **32-agent council DAG** with Bayesian weight learning, 12 Academic Edge Swarms (P0–P4), Alpaca + Finviz + Unusual Whales integrations, XGBoost ML pipeline, event-driven council-controlled order execution, and gRPC brain service for local Ollama LLM inference.
 
 > **Note:** Some documentation files contain conflict marker patterns (`<<<<<<<`, `=======`, `>>>>>>>`) as historical references to past indentation fixes (Phase 9-12). These are **not** actual Git conflicts and are safe to ignore.
 
@@ -19,9 +19,9 @@ React + FastAPI full-stack trading application with 14-route V3 widescreen dashb
 |------|-------|--------|
 | Frontend pages | 14 (all sidebar routes) | **ALL COMPLETE** — pixel-matched to mockups, no mock data |
 | Frontend components | 12 shared + 5 agent-tab | All wired, no orphaned imports |
-| Backend API routes | 29 files in api/v1/ | All mounted in main.py |
+| Backend API routes | 34 files in api/v1/ | All mounted in main.py |
 | Backend services | 24 files in services/ | Business logic layer |
-| Council agents | **31 agents** in 7-stage DAG | 11 Core + 12 Academic Edge (P0–P4) + 6 Supplemental + 2 Debate |
+| Council agents | **32 agents** in 7-stage DAG | 11 Core + 12 Academic Edge (P0–P4) + 6 Supplemental + 3 Debate |
 | Council intelligence | WeightLearner + CouncilGate + SelfAwareness + Homeostasis | Bayesian self-learning agent weights |
 | Council subsystems | 15 orchestration files | runner, arbiter, blackboard, task_spawner, shadow_tracker, etc. |
 | Tests | 151 passing | Backend pytest + frontend build |
@@ -31,9 +31,9 @@ React + FastAPI full-stack trading application with 14-route V3 widescreen dashb
 | Authentication | None | Not started |
 | WebSocket | Code exists | Not connected to frontend |
 
-## Council Architecture (31 Agents)
+## Council Architecture (32 Agents)
 
-The council is the profit-critical decision engine. Every trade signal passes through the full 31-agent DAG before execution.
+The council is the profit-critical decision engine. Every trade signal passes through the full 32-agent DAG before execution.
 
 ### Core Council (11 Agents — Original Spine)
 
@@ -79,7 +79,7 @@ The council is the profit-critical decision engine. Every trade signal passes th
 | Relative Strength | relative_strength_agent.py | Sector/stock relative strength |
 | Cycle Timing | cycle_timing_agent.py | Market cycle phase detection |
 
-### Debate and Adversarial (3)
+### Debate and Adversarial (3 Agents)
 
 | Agent | File | Role |
 |-------|------|------|
@@ -114,7 +114,7 @@ AlpacaStreamService
   -> market_data.bar
   -> EventDrivenSignalEngine
   -> signal.generated (score >= 65)
-  -> CouncilGate (invokes 31-agent council)
+  -> CouncilGate (invokes 32-agent council)
   -> council.verdict (BUY/SELL/HOLD with Bayesian-weighted confidence)
   -> OrderExecutor (real DuckDB stats, real ATR, mock-source guard)
   -> order.submitted
@@ -122,9 +122,9 @@ AlpacaStreamService
   -> Frontend
 ```
 
-Every signal passes through the full 31-agent council before any trade is executed. No hardcoded data — Kelly sizing uses real DuckDB trade statistics, ATR comes from real feature data, and the mock-source guard prevents trading on fake data.
+Every signal passes through the full 32-agent council before any trade is executed. No hardcoded data — Kelly sizing uses real DuckDB trade statistics, ATR comes from real feature data, and the mock-source guard prevents trading on fake data.
 
-## Council DAG (31 Agents, 7 Stages)
+## Council DAG (32 Agents, 7 Stages)
 
 ```
 Stage 1 (Parallel — Perception):
@@ -155,13 +155,13 @@ Stage 7 (Arbiter):
 
 ## What Was Recently Done
 
-### v3.5.0 (March 8, 2026) — 31-Agent Council + Brain Consciousness Audit
+### v3.5.0 (March 8, 2026) — 32-Agent Council + Brain Consciousness Audit
 
-- **Council expanded from 13 to 31 agents** — added 12 Academic Edge Swarms (P0–P4) + 6 supplemental
+- **Council expanded from 13 to 32 agents** — added 12 Academic Edge Swarms (P0–P4) + 6 supplemental + 1 debate
 - **Full brain consciousness audit** covering ~250+ Python files (42 bugs found — 4 critical, 5 high)
 - **OpenClaw fully assimilated** — all modules migrated to FastAPI Brain agents, MessageBus communication
 - **LLM Health Monitor** — classifies LLM HTTP errors, broadcasts health via WebSockets
-- **agent_config.py** — settings-driven thresholds for all 31 agents with sensible defaults
+- **agent_config.py** — settings-driven thresholds for all 32 agents with sensible defaults
 - **Council subsystems built**: blackboard, task_spawner, shadow_tracker, self_awareness, homeostasis, overfitting_guard, data_quality, hitl_gate, feedback_loop
 
 **Audit document:** [`docs/audits/brain_consciousness_audit_2026-03-08.pdf`](docs/audits/brain_consciousness_audit_2026-03-08.pdf)
@@ -195,9 +195,9 @@ elite-trading-system/
 ├── backend/                          # Python FastAPI backend
 │   ├── app/
 │   │   ├── main.py                   # FastAPI app + startup wiring
-│   │   ├── api/v1/                   # 29 API route files
+│   │   ├── api/v1/                   # 34 API route files
 │   │   ├── council/                  # Council decision engine
-│   │   │   ├── agents/               # 31 agent implementations
+│   │   │   ├── agents/               # 32 agent implementations
 │   │   │   ├── debate/               # Bull/Bear debate system
 │   │   │   ├── directives/           # Council directives
 │   │   │   ├── reflexes/             # Circuit breaker reflexes
@@ -275,7 +275,7 @@ All pages in frontend-v2/src/pages/. All use useApi() hook. No mock data. **ALL 
 | 13 | /trade-execution | TradeExecution.jsx | **COMPLETE** |
 | 14 | /settings | Settings.jsx | **COMPLETE** |
 
-## Backend API Routes (29 files in backend/app/api/v1/)
+## Backend API Routes (34 files in backend/app/api/v1/)
 
 | File | Purpose |
 |------|---------|
@@ -284,10 +284,14 @@ All pages in frontend-v2/src/pages/. All use useApi() hook. No mock data. **ALL 
 | alignment.py | Alignment/consensus endpoints |
 | alpaca.py | Alpaca API proxy for frontend |
 | backtest_routes.py | Strategy backtesting |
+| cluster.py | Multi-PC cluster orchestration |
+| cns.py | Central nervous system coordination |
+| cognitive.py | Cognitive intelligence endpoints |
 | council.py | Council evaluate, status, weights endpoints |
 | data_sources.py | Data source health |
 | features.py | Feature aggregator endpoints |
 | flywheel.py | ML flywheel metrics |
+| llm_health.py | LLM service health monitoring |
 | logs.py | System logs |
 | market.py | Market data, regime, indices |
 | ml_brain.py | ML model management |
@@ -305,6 +309,7 @@ All pages in frontend-v2/src/pages/. All use useApi() hook. No mock data. **ALL 
 | status.py | System health |
 | stocks.py | Finviz screener |
 | strategy.py | Regime-based strategies |
+| swarm.py | Swarm intelligence coordination |
 | system.py | System config, GPU |
 | training.py | ML training jobs |
 | youtube_knowledge.py | YouTube research |
@@ -316,7 +321,7 @@ All pages in frontend-v2/src/pages/. All use useApi() hook. No mock data. **ALL 
 | Frontend | React 18, Vite, TailwindCSS, Lightweight Charts, lucide-react |
 | Backend | Python 3.11+, FastAPI, DuckDB, pydantic-settings |
 | AI/ML | XGBoost, scikit-learn, HMM (hmmlearn), Kelly criterion, FinBERT |
-| Council | 31-agent DAG with Bayesian-weighted arbiter (7 stages) |
+| Council | 32-agent DAG with Bayesian-weighted arbiter (7 stages) |
 | Brain Service | gRPC + Ollama (local LLM on RTX GPU) |
 | Broker | Alpaca Markets (paper + live via alpaca-py) |
 | Data | Alpaca Markets, Unusual Whales, Finviz, FRED, SEC EDGAR, NewsAPI |

@@ -3,12 +3,13 @@
 **Date**: 2026-03-04
 **Status**: PROPOSAL — Awaiting Approval
 **Scope**: Complete redesign of agent layer, LLM integration, learning systems, and compute model
+**Note**: As of March 8, 2026, the current implemented system has **32 agents** (11 Core + 12 Academic Edge + 6 Supplemental + 3 Debate). See README.md for details.
 
 ---
 
 ## Executive Summary
 
-The current system uses a **static 17-agent DAG with one-shot voting**. Agents don't talk to each other, don't debate, don't learn during execution, and vote once before going silent. Bayesian weight updates happen hours/days later after trades resolve. There is no swarm intelligence — it's 17 isolated workers dropping ballots into a box.
+The current system (as of March 8, 2026) uses a **static 32-agent DAG with one-shot voting** (expanded from 17 agents). Agents don't talk to each other, don't debate, don't learn during execution, and vote once before going silent. Bayesian weight updates happen hours/days later after trades resolve. There is no swarm intelligence — it's 32 isolated workers dropping ballots into a box.
 
 This proposal transforms the system into a **living organism** with:
 - Specialized micro-swarms that activate based on market regime
@@ -23,18 +24,21 @@ This proposal transforms the system into a **living organism** with:
 
 ## Part 1: Current Architecture (What We Have)
 
+**As of March 8, 2026:** 32 agents in 7-stage DAG (see README.md for complete agent list)
+
 ```
                     ┌─────────────────┐
                     │  Council Runner  │
                     └────────┬────────┘
                              │
         ┌────────────────────┼────────────────────┐
-        │ Stage 1: 7 Perception Agents (parallel)  │
-        │ Stage 2: 5 Technical Agents  (parallel)  │
-        │ Stage 3: 1 Hypothesis Agent  (LLM)       │
-        │ Stage 4: 1 Strategy Agent                │
-        │ Stage 5: 2 Risk+Execution    (parallel)  │
-        │ Stage 6: 1 Critic                        │
+        │ Stage 1: Perception (11 agents parallel) │
+        │ Stage 2: Technical (5 agents parallel)   │
+        │ Stage 3: NLP/Sentiment (7 agents)        │
+        │ Stage 4: Strategy + Memory (3 agents)    │
+        │ Stage 5: Debate (3 agents parallel)      │
+        │ Stage 6: Risk+Exec+Critic (3 agents)     │
+        │ Stage 7: Arbiter (weighted vote)         │
         └────────────────────┬────────────────────┘
                              │
                     ┌────────┴────────┐
@@ -47,7 +51,7 @@ This proposal transforms the system into a **living organism** with:
 
 | Limitation | Impact |
 |---|---|
-| **Static 17-agent DAG** | All agents run on every trade, even when irrelevant |
+| **Static 32-agent DAG** | All agents run on every trade, even when irrelevant |
 | **One-shot voting** | No debate, no challenge, no refinement |
 | **Passive blackboard** | Agents can't communicate with each other |
 | **No online learning** | Weight updates happen hours/days after trade resolves |
