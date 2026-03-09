@@ -308,6 +308,28 @@ async def _start_event_driven_pipeline():
     await _event_signal_engine.start()
     log.info("\u2705 EventDrivenSignalEngine started")
 
+    # 2b. StreamingDiscoveryEngine — E1: real-time anomaly detection from market bars
+    from app.services.streaming_discovery import get_streaming_discovery_engine
+    _streaming_discovery = get_streaming_discovery_engine()
+    _streaming_discovery._bus = _message_bus
+    await _streaming_discovery.start()
+    log.info("\u2705 StreamingDiscoveryEngine started (5 detectors, 3-gate emit)")
+
+    # 2c. IdeaTriageService — E3: dedup, priority scoring, adaptive threshold
+    from app.services.idea_triage import get_idea_triage_service
+    _idea_triage = get_idea_triage_service()
+    _idea_triage._bus = _message_bus
+    await _idea_triage.start()
+    log.info("\u2705 IdeaTriageService started (base_threshold=40, routes swarm.idea → triage.escalated)")
+
+    # 2d. ScoutRegistry — E2: 12 dedicated continuous scout agents.
+    # Started here (adjacent to E1/E3) so all three discovery-pipeline stages
+    # are live before any downstream consumers (SwarmSpawner, HyperSwarm) start.
+    from app.services.scouts.registry import get_scout_registry
+    _scout_registry = get_scout_registry()
+    await _scout_registry.start(message_bus=_message_bus)
+    log.info("\u2705 ScoutRegistry started (%d scouts)", _scout_registry.scout_count)
+
     # 3. CouncilGate (subscribes to signal.generated, invokes council)
     # Disable when LLM or council is off — council calls LLM which blocks when Ollama is down.
     council_gate_enabled = (
@@ -867,6 +889,24 @@ async def _stop_event_driven_pipeline():
     try:
         from app.services.autonomous_scout import get_scout_service
         await get_scout_service().stop()
+    except Exception:
+        pass
+    # Stop E2 publishers (scouts) before E3 processor (triage) so in-flight
+    # swarm.idea events aren't dispatched to an already-stopped triage service.
+    try:
+        from app.services.scouts.registry import get_scout_registry
+        await get_scout_registry().stop()
+    except Exception:
+        pass
+    # Stop E1 publisher before E3 processor for the same reason.
+    try:
+        from app.services.streaming_discovery import get_streaming_discovery_engine
+        await get_streaming_discovery_engine().stop()
+    except Exception:
+        pass
+    try:
+        from app.services.idea_triage import get_idea_triage_service
+        await get_idea_triage_service().stop()
     except Exception:
         pass
     try:
