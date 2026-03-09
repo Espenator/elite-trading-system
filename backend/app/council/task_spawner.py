@@ -201,10 +201,32 @@ class TaskSpawner:
 
         return list(await asyncio.gather(*tasks))
 
-    async def _run_agent(self, module, symbol, timeframe, features, context, timeout: float = 30.0) -> AgentVote:
-        """Run a single agent with error handling, timing, and timeout."""
+    async def _run_agent(self, module, symbol, timeframe, features, context, timeout: float = None) -> AgentVote:
+        """Run a single agent with error handling, timing, and adaptive timeout.
+
+        Args:
+            timeout: If provided, overrides the adaptive timeout. If None, uses timeout reflex manager.
+        """
+        from app.council.reflexes.timeout_reflex import get_timeout_manager
+
         name = getattr(module, "NAME", getattr(module, "__name__", "unknown"))
+        timeout_manager = get_timeout_manager()
+
+        # Check if agent should be skipped due to repeated timeouts
+        if timeout_manager.should_skip_agent(name):
+            logger.warning("Skipping agent %s due to repeated timeout failures", name)
+            return timeout_manager.create_fallback_vote(
+                name, "Skipped due to repeated timeouts", self.blackboard.council_decision_id
+            )
+
+        # Get adaptive timeout if not manually specified
+        if timeout is None:
+            timeout = timeout_manager.get_timeout(name)
+
         start = time.monotonic()
+        timed_out = False
+        errored = False
+
         try:
             vote = await asyncio.wait_for(
                 module.evaluate(symbol, timeframe, features, context),
@@ -212,21 +234,32 @@ class TaskSpawner:
             )
             vote.blackboard_ref = self.blackboard.council_decision_id
             elapsed = (time.monotonic() - start) * 1000
-            logger.debug("Agent %s completed in %.0fms", name, elapsed)
+            logger.debug("Agent %s completed in %.0fms (timeout=%.1fs)", name, elapsed, timeout)
+
+            # Record successful execution
+            timeout_manager.record_execution(name, elapsed, timed_out=False, error=False)
             return vote
+
         except asyncio.TimeoutError:
             elapsed = (time.monotonic() - start) * 1000
-            logger.warning("Agent %s timed out after %.0fms (limit=%.0fs)", name, elapsed, timeout)
-            return AgentVote(
-                agent_name=name,
-                direction="hold",
-                confidence=0.0,
-                reasoning=f"Agent timeout after {elapsed:.0f}ms",
-                blackboard_ref=self.blackboard.council_decision_id,
+            timed_out = True
+            logger.warning("Agent %s timed out after %.0fms (limit=%.1fs)", name, elapsed, timeout)
+
+            # Record timeout
+            timeout_manager.record_execution(name, elapsed, timed_out=True, error=False)
+
+            return timeout_manager.create_fallback_vote(
+                name, f"Agent timeout after {elapsed:.0f}ms", self.blackboard.council_decision_id
             )
+
         except Exception as e:
             elapsed = (time.monotonic() - start) * 1000
+            errored = True
             logger.exception("Agent %s failed after %.0fms: %s", name, elapsed, e)
+
+            # Record error
+            timeout_manager.record_execution(name, elapsed, timed_out=False, error=True)
+
             return AgentVote(
                 agent_name=name,
                 direction="hold",

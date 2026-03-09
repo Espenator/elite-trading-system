@@ -942,3 +942,108 @@ async def get_flow_anomalies():
         "anomaly_count": 0,
         "last_check": datetime.now(timezone.utc).isoformat(),
     }
+
+
+# --- Agent Timeout Reflexes ---
+@router.get("/timeout/stats")
+async def get_timeout_stats():
+    """Get timeout statistics for all agents."""
+    from app.council.reflexes.timeout_reflex import get_timeout_manager
+
+    timeout_manager = get_timeout_manager()
+
+    # Get aggregate stats
+    aggregate = timeout_manager.get_stats()
+
+    # Get per-agent stats
+    agent_stats = timeout_manager.get_all_agent_stats()
+
+    return {
+        "aggregate": aggregate,
+        "agents": agent_stats,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@router.get("/timeout/stats/{agent_name}")
+async def get_agent_timeout_stats(agent_name: str):
+    """Get timeout statistics for a specific agent."""
+    from app.council.reflexes.timeout_reflex import get_timeout_manager
+
+    timeout_manager = get_timeout_manager()
+    stats = timeout_manager.get_stats(agent_name)
+
+    if not stats:
+        raise HTTPException(status_code=404, detail=f"No timeout stats found for agent: {agent_name}")
+
+    return stats
+
+
+@router.post("/timeout/override/{agent_name}", dependencies=[Depends(require_auth)])
+async def set_timeout_override(agent_name: str, timeout_seconds: float):
+    """Set a manual timeout override for a specific agent.
+
+    Args:
+        agent_name: Agent identifier
+        timeout_seconds: Timeout in seconds
+    """
+    from app.council.reflexes.timeout_reflex import get_timeout_manager
+
+    if timeout_seconds <= 0 or timeout_seconds > 300:
+        raise HTTPException(status_code=400, detail="Timeout must be between 0 and 300 seconds")
+
+    timeout_manager = get_timeout_manager()
+    timeout_manager.set_timeout_override(agent_name, timeout_seconds)
+
+    _append_log(agent_name, f"Timeout override set to {timeout_seconds:.1f}s", "info")
+    await broadcast_ws("agents", {
+        "type": "timeout_override",
+        "agent_name": agent_name,
+        "timeout_seconds": timeout_seconds,
+    })
+
+    return {
+        "ok": True,
+        "agent_name": agent_name,
+        "timeout_seconds": timeout_seconds,
+    }
+
+
+@router.delete("/timeout/override/{agent_name}", dependencies=[Depends(require_auth)])
+async def clear_timeout_override(agent_name: str):
+    """Clear manual timeout override for a specific agent."""
+    from app.council.reflexes.timeout_reflex import get_timeout_manager
+
+    timeout_manager = get_timeout_manager()
+    timeout_manager.clear_timeout_override(agent_name)
+
+    _append_log(agent_name, "Timeout override cleared", "info")
+    await broadcast_ws("agents", {
+        "type": "timeout_override_cleared",
+        "agent_name": agent_name,
+    })
+
+    return {"ok": True, "agent_name": agent_name}
+
+
+@router.post("/timeout/reset", dependencies=[Depends(require_auth)])
+async def reset_timeout_stats(agent_name: str = None):
+    """Reset timeout statistics.
+
+    Args:
+        agent_name: If provided, reset stats for specific agent. If None, reset all.
+    """
+    from app.council.reflexes.timeout_reflex import get_timeout_manager
+
+    timeout_manager = get_timeout_manager()
+    timeout_manager.reset_stats(agent_name)
+
+    msg = f"Timeout stats reset for {agent_name}" if agent_name else "All timeout stats reset"
+    _append_log(agent_name or "System", msg, "info")
+    await broadcast_ws("agents", {
+        "type": "timeout_stats_reset",
+        "agent_name": agent_name,
+    })
+
+    return {"ok": True, "message": msg}
+

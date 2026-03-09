@@ -146,6 +146,19 @@ _DEFAULTS: Dict[str, Any] = {
     "macro_vix_complacency": 15,
     "macro_vix_elevated": 35,
     "macro_credit_stress_oas": 600,
+
+    # Timeout Reflex Configuration
+    "timeout_adaptive_enabled": True,
+    "timeout_adaptive_multiplier": 1.2,  # Add 20% buffer to p95 latency
+    "timeout_min_samples": 10,  # Minimum executions before using adaptive timeout
+    "timeout_skip_streak_threshold": 5,  # Skip agent after this many consecutive timeouts
+    "timeout_tier_perception": 5.0,  # seconds
+    "timeout_tier_technical": 10.0,
+    "timeout_tier_hypothesis": 15.0,
+    "timeout_tier_strategy": 12.0,
+    "timeout_tier_risk_execution": 8.0,
+    "timeout_tier_critic": 12.0,
+    "timeout_tier_default": 30.0,
 }
 
 
