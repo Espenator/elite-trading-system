@@ -124,7 +124,7 @@ async def evaluate(
             "headline_count": headline_count,
             "top_bullish": bull_catalysts[:3],
             "top_bearish": bear_catalysts[:3],
-        }
+        })
 
     meta = {
         "data_available": True,
