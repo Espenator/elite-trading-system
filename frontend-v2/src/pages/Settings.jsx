@@ -769,6 +769,12 @@ export default function SettingsPage() {
         </SectionCard>
       </div>
 
+      {/* ROW 6: Machine & Deployment */}
+      <div className="grid grid-cols-3 gap-2 mb-2">
+        {/* 26. MACHINE & DEPLOYMENT */}
+        <MachineDeploymentCard settings={S} updateField={updateField} onSave={onSave} />
+      </div>
+
       {/* FOOTER BAR */}
       <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-800/50">
         <div className="flex gap-2">
@@ -808,6 +814,275 @@ export default function SettingsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// -- Machine & Deployment Card Component --
+function MachineDeploymentCard({ settings, updateField, onSave }) {
+  const { data: machineStatus, loading: machineLoading, refetch: refreshMachine } = useApi("machine", {
+    endpoint: "/system/machine",
+    refreshInterval: 5000, // Refresh every 5 seconds
+  });
+
+  const [testing, setTesting] = useState(false);
+
+  const get = (cat, key, fallback = "") => settings[cat]?.[key] ?? fallback;
+
+  const testPeerConnection = async () => {
+    setTesting(true);
+    try {
+      const response = await fetch("/api/v1/system/machine/test-peer", {
+        method: "POST",
+      });
+      const result = await response.json();
+      if (result.success) {
+        toast.success(result.message, TOAST_CFG);
+      } else {
+        toast.error(result.message, TOAST_CFG);
+      }
+      await refreshMachine();
+    } catch (error) {
+      toast.error("Failed to test peer connection", TOAST_CFG);
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const machineRole = machineStatus?.machine_role || get("machine", "machineRole", "standalone");
+  const deploymentMode = machineStatus?.deployment_mode || get("deployment", "deploymentMode", "single_pc");
+  const peerOnline = machineStatus?.peer_online || false;
+  const fallbackMode = machineStatus?.fallback_mode || false;
+  const peerHost = machineStatus?.peer_host || get("deployment", "peerMachineHost", "");
+  const detectionMethod = machineStatus?.detection_method || "unknown";
+  const gpuEnabled = machineStatus?.gpu_enabled ?? get("machine", "gpuEnabled", true);
+
+  return (
+    <SectionCard title="Machine & Deployment" className="col-span-3">
+      <div className="grid grid-cols-3 gap-4">
+        {/* Column 1: Machine Identity */}
+        <div className="space-y-0.5">
+          <div className="text-[9px] font-bold text-gray-500 uppercase tracking-wider mb-1">Machine Identity</div>
+
+          <MiniSelect
+            label="Machine Role"
+            value={get("machine", "machineRole", "auto")}
+            options={[
+              { value: "auto", label: "Auto-Detect" },
+              { value: "pc1", label: "PC1 (Primary)" },
+              { value: "pc2", label: "PC2 (Secondary)" },
+              { value: "standalone", label: "Standalone" },
+            ]}
+            onChange={(e) => updateField("machine", "machineRole", e.target.value)}
+          />
+
+          <MiniField
+            label="Machine ID"
+            value={get("machine", "machineId", "")}
+            onChange={(e) => updateField("machine", "machineId", e.target.value)}
+            placeholder="Auto-detected"
+          />
+
+          <MiniField
+            label="Display Name"
+            value={get("machine", "machineName", "")}
+            onChange={(e) => updateField("machine", "machineName", e.target.value)}
+            placeholder="Friendly name"
+          />
+
+          <MiniToggle
+            label="Auto-Detect Hostname"
+            checked={!!get("machine", "autoDetectHostname", true)}
+            onChange={(v) => updateField("machine", "autoDetectHostname", v)}
+          />
+
+          <MiniToggle
+            label="GPU Enabled"
+            checked={!!get("machine", "gpuEnabled", true)}
+            onChange={(v) => updateField("machine", "gpuEnabled", v)}
+          />
+
+          {gpuEnabled && (
+            <MiniField
+              label="GPU Device Index"
+              value={get("machine", "gpuDeviceIndex", 0)}
+              type="number"
+              onChange={(e) => updateField("machine", "gpuDeviceIndex", Number(e.target.value))}
+            />
+          )}
+
+          <button
+            onClick={() => onSave("machine")}
+            className="mt-1 w-full text-[9px] bg-cyan-500/10 border border-[#00D9FF]/50/20 rounded px-2 py-1 text-[#00D9FF] hover:bg-cyan-500/20 flex items-center gap-1 justify-center"
+          >
+            <Save className="w-2.5 h-2.5" /> Save Machine Settings
+          </button>
+        </div>
+
+        {/* Column 2: Deployment Configuration */}
+        <div className="space-y-0.5">
+          <div className="text-[9px] font-bold text-gray-500 uppercase tracking-wider mb-1">Deployment Configuration</div>
+
+          <MiniSelect
+            label="Deployment Mode"
+            value={get("deployment", "deploymentMode", "auto")}
+            options={[
+              { value: "auto", label: "Auto-Detect" },
+              { value: "single_pc", label: "Single-PC" },
+              { value: "dual_pc", label: "Dual-PC" },
+            ]}
+            onChange={(e) => updateField("deployment", "deploymentMode", e.target.value)}
+          />
+
+          <MiniField
+            label="Peer Host"
+            value={get("deployment", "peerMachineHost", "")}
+            onChange={(e) => updateField("deployment", "peerMachineHost", e.target.value)}
+            placeholder="192.168.1.116"
+          />
+
+          <MiniSelect
+            label="Peer Role"
+            value={get("deployment", "peerMachineRole", "")}
+            options={[
+              { value: "", label: "Auto" },
+              { value: "pc1", label: "PC1" },
+              { value: "pc2", label: "PC2" },
+            ]}
+            onChange={(e) => updateField("deployment", "peerMachineRole", e.target.value)}
+          />
+
+          <MiniToggle
+            label="Auto-Discover Peers"
+            checked={!!get("deployment", "autoDiscoverPeers", false)}
+            onChange={(v) => updateField("deployment", "autoDiscoverPeers", v)}
+          />
+
+          <MiniToggle
+            label="Allow Fallback Mode"
+            checked={!!get("deployment", "allowSinglePcFallback", true)}
+            onChange={(v) => updateField("deployment", "allowSinglePcFallback", v)}
+          />
+
+          <MiniSelect
+            label="Service Affinity"
+            value={get("deployment", "serviceAffinityMode", "auto")}
+            options={[
+              { value: "auto", label: "Auto" },
+              { value: "manual", label: "Manual" },
+            ]}
+            onChange={(e) => updateField("deployment", "serviceAffinityMode", e.target.value)}
+          />
+
+          <button
+            onClick={() => onSave("deployment")}
+            className="mt-1 w-full text-[9px] bg-cyan-500/10 border border-[#00D9FF]/50/20 rounded px-2 py-1 text-[#00D9FF] hover:bg-cyan-500/20 flex items-center gap-1 justify-center"
+          >
+            <Save className="w-2.5 h-2.5" /> Save Deployment Settings
+          </button>
+        </div>
+
+        {/* Column 3: Status & Diagnostics */}
+        <div className="space-y-0.5">
+          <div className="text-[9px] font-bold text-gray-500 uppercase tracking-wider mb-1">Status & Diagnostics</div>
+
+          {machineLoading ? (
+            <div className="flex items-center gap-2 text-gray-500 text-xs py-2">
+              <Loader2 className="w-3 h-3 animate-spin" /> Loading status...
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between py-[1px]">
+                <span className="text-[10px] text-gray-400">Current Role</span>
+                <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                  machineRole === "pc1" ? "bg-blue-500/20 text-blue-400" :
+                  machineRole === "pc2" ? "bg-purple-500/20 text-purple-400" :
+                  "bg-gray-500/20 text-gray-400"
+                }`}>
+                  {machineRole}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between py-[1px]">
+                <span className="text-[10px] text-gray-400">Deployment</span>
+                <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                  deploymentMode === "dual_pc" ? "bg-cyan-500/20 text-[#00D9FF]" :
+                  "bg-gray-500/20 text-gray-400"
+                }`}>
+                  {deploymentMode === "dual_pc" ? "Dual-PC" : "Single-PC"}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between py-[1px]">
+                <span className="text-[10px] text-gray-400">Detection</span>
+                <span className="text-[9px] text-gray-500 truncate">
+                  {detectionMethod.replace(/_/g, " ")}
+                </span>
+              </div>
+
+              {peerHost && (
+                <>
+                  <div className="flex items-center justify-between py-[1px]">
+                    <span className="text-[10px] text-gray-400">Peer Status</span>
+                    <div className="flex items-center gap-1">
+                      <StatusDot ok={peerOnline} />
+                      <span className={`text-[9px] font-bold uppercase ${
+                        peerOnline ? "text-[#10b981]" : "text-red-400"
+                      }`}>
+                        {peerOnline ? "ONLINE" : "OFFLINE"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between py-[1px]">
+                    <span className="text-[10px] text-gray-400">Peer Host</span>
+                    <span className="text-[9px] text-gray-300 font-mono">{peerHost}</span>
+                  </div>
+                </>
+              )}
+
+              {fallbackMode && (
+                <div className="flex items-center gap-1 py-1 px-2 bg-amber-500/10 border border-amber-500/30 rounded">
+                  <AlertTriangle className="w-3 h-3 text-amber-400" />
+                  <span className="text-[9px] text-amber-400 font-bold uppercase">Fallback Mode Active</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between py-[1px]">
+                <span className="text-[10px] text-gray-400">GPU</span>
+                <span className={`text-[9px] font-bold ${gpuEnabled ? "text-[#10b981]" : "text-gray-500"}`}>
+                  {gpuEnabled ? "ENABLED" : "DISABLED"}
+                </span>
+              </div>
+
+              {peerHost && (
+                <button
+                  onClick={testPeerConnection}
+                  disabled={testing}
+                  className="mt-1 w-full text-[9px] bg-[#10b981]/10 border border-[#10b981]/30 rounded px-2 py-1 text-[#10b981] hover:bg-[#10b981]/20 flex items-center gap-1 justify-center disabled:opacity-50"
+                >
+                  {testing ? (
+                    <>
+                      <Loader2 className="w-2.5 h-2.5 animate-spin" /> Testing...
+                    </>
+                  ) : (
+                    <>
+                      <Wifi className="w-2.5 h-2.5" /> Test Peer Connection
+                    </>
+                  )}
+                </button>
+              )}
+
+              <button
+                onClick={refreshMachine}
+                className="mt-1 w-full text-[9px] bg-gray-700/30 border border-gray-600/50 rounded px-2 py-1 text-gray-400 hover:bg-gray-700/50 flex items-center gap-1 justify-center"
+              >
+                <RefreshCw className="w-2.5 h-2.5" /> Refresh Status
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </SectionCard>
   );
 }
 
