@@ -494,7 +494,12 @@ class EventDrivenSignalEngine:
         except Exception:
             pass
 
-        final_score = max(0.0, min(100.0, blended * self._regime_mult))
+        # Normalize bull signal: clamp input before multiplying to preserve granularity
+        # When regime_mult > 1.0, multiplying high scores would exceed 100 and get clamped,
+        # losing the ability to distinguish between strong signals
+        max_input_bull = 100.0 / self._regime_mult if self._regime_mult > 1.0 else 100.0
+        clamped_blended = min(blended, max_input_bull)
+        final_score = max(0.0, clamped_blended * self._regime_mult)
 
         # Only publish signals above threshold
         if final_score >= self.SIGNAL_THRESHOLD:
@@ -520,8 +525,13 @@ class EventDrivenSignalEngine:
                     symbol, final_score, label, data.get("close", 0), self._regime_state,
                 )
 
-            # SHORT signal: generate when bear score exceeds threshold
-        bear_score = max(0.0, min(100.0, (100.0 - blended) * self._bear_regime_mult))
+        # SHORT signal: generate when bear score exceeds threshold
+        # Normalize bear signal: clamp input before multiplying to preserve granularity
+        # This ensures symmetric behavior with bull signals
+        inverted_score = 100.0 - blended
+        max_input_bear = 100.0 / self._bear_regime_mult if self._bear_regime_mult > 1.0 else 100.0
+        clamped_inverted = min(inverted_score, max_input_bear)
+        bear_score = max(0.0, clamped_inverted * self._bear_regime_mult)
         if bear_score >= self.SIGNAL_THRESHOLD:
             self._signals_generated += 1
             short_signal_data = {
