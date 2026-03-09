@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
 import { useApi } from "../hooks/useApi";
+import { useDataSourcesWebSocket } from "../hooks/useWebSocketData";
 import {
   RefreshCw,
   Copy,
@@ -565,8 +566,8 @@ function FieldRow({ label, children }) {
 // ---------- Main Component ----------
 
 export default function DataSourcesMonitor() {
-  const { data, loading, error, refetch } = useApi("dataSources", {
-    pollIntervalMs: 30000,
+  const { data, loading, error, refetch } = useDataSourcesWebSocket({
+    fallbackPollMs: 30000,
   });
 
   const [selectedSourceId, setSelectedSourceId] = useState("alpaca");

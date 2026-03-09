@@ -2,7 +2,7 @@
 // Mockup: 07-screener-and-patterns.png
 // Two-column layout: Screening Engine (left) + Pattern Intelligence (right)
 // Bottom: 3-panel row: Consolidated Live Feed | Pattern Arsenal | Forming Detections
-// Backend: GET /api/v1/patterns, /api/v1/signals
+// Backend: GET /api/v1/patterns, /api/v1/signals (WebSocket subscriptions)
 // Uses: useApi, Recharts mini charts, lucide-react icons, dark theme with cyan/teal
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
@@ -17,6 +17,7 @@ import { LineChart, Line, AreaChart, Area, BarChart, Bar, ResponsiveContainer, X
 import clsx from "clsx";
 import { format } from "date-fns";
 import { useApi } from "../hooks/useApi";
+import { useSignalsWebSocket, usePatternsWebSocket } from "../hooks/useWebSocketData";
 import PageHeader from "../components/ui/PageHeader";
 import Slider from "../components/ui/Slider";
 import log from "@/utils/logger";
@@ -220,8 +221,8 @@ function ScreeningEngine() {
   const [institutionalAccum, setInstitutionalAccum] = useState(55);
   const [sectorMomentum, setSectorMomentum] = useState(80);
 
-  // API data (graceful fallback)
-  const { data: signalsData } = useApi("signals", { pollIntervalMs: 30000 });
+  // API data (WebSocket with fallback)
+  const { data: signalsData } = useSignalsWebSocket({ fallbackPollMs: 30000 });
 
   return (
     <div className="flex flex-col gap-2 h-full">
@@ -453,8 +454,8 @@ function PatternIntelligence() {
   const [monteCarloPct, setMonteCarloPct] = useState("0%");
   const [patternComplexity, setPatternComplexity] = useState(0);
 
-  // API data
-  const { data: patternsData } = useApi("patterns", { pollIntervalMs: 30000 });
+  // API data (WebSocket with fallback)
+  const { data: patternsData } = usePatternsWebSocket({ fallbackPollMs: 30000 });
 
   const MONTE_CARLO_OPTS = ["90%", "95%", "99%"];
 

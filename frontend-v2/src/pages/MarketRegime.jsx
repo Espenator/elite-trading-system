@@ -25,6 +25,7 @@ import {
   postBiasOverride,
 } from "../hooks/useApi";
 import { useApi } from "../hooks/useApi";
+import { useMarketWebSocket, useRiskWebSocket } from "../hooks/useWebSocketData";
 import { getApiUrl, getAuthHeaders } from "../config/api";
 import log from "@/utils/logger";
 
@@ -841,12 +842,15 @@ export default function MarketRegime() {
   const { data: sectorsData } = useSectorRotation();
   const { data: transitionData } = useRegimeTransitions();
 
-  // --- Additional API Hooks ---
+  // --- Additional API Hooks (WebSocket with fallback) ---
   const { data: scanData } = useApi("openclaw/scan", { pollIntervalMs: 30000 });
   const { data: memoryData } = useApi("openclaw/memory", { pollIntervalMs: 30000 });
-  const { data: marketData } = useApi("market", { pollIntervalMs: 5000 });
-  const { data: riskScore } = useApi("risk/risk-score", { pollIntervalMs: 15000 });
-  const { data: whaleFlow } = useApi("openclaw/whale-flow", { pollIntervalMs: 20000 });
+  const { data: marketData } = useMarketWebSocket({ fallbackPollMs: 10000 });
+  const { data: riskScore } = useRiskWebSocket({
+    fallbackPollMs: 30000,
+    transform: (data) => data?.riskScore || data,
+  });
+  const { data: whaleFlow } = useApi("openclaw/whale-flow", { pollIntervalMs: 30000 });
 
   // --- Local State ---
   const [timeframe, setTimeframe] = useState("1M");
