@@ -295,12 +295,16 @@ async def run_council(
         blackboard.perceptions[v.agent_name] = v.to_dict()
     blackboard.stage_latencies["stage2"] = time.monotonic() * 1000 - _stage_start
 
-    # Stage 3: Hypothesis (deep model tier for LLM)
+    # Stage 3: Hypothesis + Memory (parallel — 2 agents)
     _stage_start = time.monotonic() * 1000
-    stage3 = await spawner.spawn("hypothesis", symbol, timeframe, context=context, model_tier="deep")
-    all_votes.append(stage3)
-    context["stage3"] = {stage3.agent_name: stage3.to_dict()}
-    blackboard.hypothesis = stage3.to_dict()
+    stage3 = await spawner.spawn_parallel([
+        {"agent_type": "hypothesis", "symbol": symbol, "timeframe": timeframe, "context": context, "model_tier": "deep"},
+        {"agent_type": "layered_memory_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
+    ])
+    all_votes.extend(stage3)
+    context["stage3"] = {v.agent_name: v.to_dict() for v in stage3}
+    blackboard.hypothesis = next((v.to_dict() for v in stage3 if v.agent_name == "hypothesis"), {})
+    blackboard.layered_memory = next((v.to_dict() for v in stage3 if v.agent_name == "layered_memory_agent"), {})
     blackboard.stage_latencies["stage3"] = time.monotonic() * 1000 - _stage_start
 
     # Stage 4: Strategy
