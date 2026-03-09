@@ -105,6 +105,10 @@ class CircuitBreaker:
             "daily_drawdown",
             "position_limit",
             "market_hours",
+            "liquidity",
+            "correlation_spike",
+            "data_connection",
+            "profit_ceiling",
         ]
         checks = [
             self.flash_crash_detector(blackboard),
