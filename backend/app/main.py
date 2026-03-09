@@ -912,6 +912,7 @@ async def lifespan(app: FastAPI):
 
     try:
         from app.data.duckdb_storage import duckdb_store
+        duckdb_store.init_schema()
         health = duckdb_store.health_check()
         log.info(
             "DuckDB ready: %d tables, %d rows",
@@ -989,10 +990,7 @@ async def lifespan(app: FastAPI):
         # Close DuckDB connection
         try:
             from app.data.duckdb_storage import duckdb_store
-            if hasattr(duckdb_store, '_conn') and duckdb_store._conn:
-                duckdb_store._conn.close()
-                duckdb_store._conn = None
-                log.info("DuckDB connection closed")
+            duckdb_store.close()
         except Exception:
             pass
 
