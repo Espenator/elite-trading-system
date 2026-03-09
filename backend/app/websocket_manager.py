@@ -30,12 +30,19 @@ def set_ws_auth_token(token: str):
 
 
 def verify_ws_token(token: Optional[str]) -> bool:
-    """Verify WebSocket connection token."""
-    if _WS_AUTH_TOKEN is None:
-        # Allow in development, block in production
-        import os
-        return os.getenv("TRADING_MODE", "live") != "live"
-    return token == _WS_AUTH_TOKEN
+    """Verify WebSocket connection token.
+
+    Security: Always requires valid token when _WS_AUTH_TOKEN is set.
+    If _WS_AUTH_TOKEN is not set, rejects connection to fail closed.
+    """
+    if _WS_AUTH_TOKEN is None or not _WS_AUTH_TOKEN:
+        logger.error("WebSocket auth token not configured - rejecting connection")
+        return False
+    if token is None:
+        return False
+    # Use constant-time comparison to prevent timing attacks
+    import secrets
+    return secrets.compare_digest(token, _WS_AUTH_TOKEN)
 
 
 async def accept_connection(websocket: WebSocket, token: Optional[str] = None) -> bool:

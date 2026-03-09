@@ -356,3 +356,12 @@ if settings.TRADING_MODE.lower() == "live":
         import logging as _log
         _log.warning("Live trading requires: %s. Falling back to paper.", ", ".join(_missing))
         settings.TRADING_MODE = "paper"
+
+# Production safety: FERNET_KEY must be set in production to encrypt stored credentials
+if settings.ENVIRONMENT.lower() == "production" and not settings.FERNET_KEY:
+    import logging as _log
+    _log.error(
+        "FERNET_KEY must be set in production environment for credential encryption. "
+        "Generate one with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'"
+    )
+    raise RuntimeError("FERNET_KEY required in production environment")

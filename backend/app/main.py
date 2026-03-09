@@ -35,6 +35,7 @@ from app.websocket_manager import (
     subscribe,
     unsubscribe,
     broadcast_ws,
+    set_ws_auth_token,
 )
 import json
 
@@ -902,6 +903,14 @@ async def _stop_event_driven_pipeline():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize data schema on startup; start background loops."""
+    # 0. Security: Initialize WebSocket authentication token
+    ws_token = settings.API_AUTH_TOKEN
+    if ws_token:
+        set_ws_auth_token(ws_token)
+        log.info("✅ WebSocket authentication configured")
+    else:
+        log.warning("⚠️ WebSocket authentication NOT configured - connections will be rejected")
+
     # 1. Data schema
     try:
         from app.data.storage import init_schema
@@ -1022,13 +1031,28 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
     )
 
 # CORS
+# Security: In production, allow_credentials should only be True with explicit origins
+_cors_origins = [o.strip() for o in settings.effective_cors_origins.split(",") if o.strip()]
+_allow_credentials = settings.ENVIRONMENT.lower() != "production" or (
+    settings.ENVIRONMENT.lower() == "production" and
+    len(_cors_origins) == 1 and
+    "localhost" not in _cors_origins[0]
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in settings.effective_cors_origins.split(",") if o.strip()],
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=_allow_credentials,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
 )
+
+if settings.ENVIRONMENT.lower() == "production":
+    log.info(
+        "🔒 CORS configured for production: origins=%s, credentials=%s",
+        _cors_origins[:3] if len(_cors_origins) > 3 else _cors_origins,
+        _allow_credentials,
+    )
 
 
 @app.middleware("http")
