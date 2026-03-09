@@ -32,6 +32,12 @@ class Settings(BaseSettings):
     # ── API Authentication ────────────────────────────────
     API_AUTH_TOKEN: str = ""  # Set to enable Bearer token auth on state-changing endpoints
 
+    # ── JWT Authentication (Live Trading) ─────────────────
+    JWT_SECRET_KEY: str = ""  # Secret key for JWT signing (required for live trading)
+    JWT_ALGORITHM: str = "HS256"  # JWT signing algorithm
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60  # Access token expiration time in minutes
+    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # Refresh token expiration time in days
+
     # ── Server ──────────────────────────────────────────────
     HOST: str = "0.0.0.0"
     PORT: int = Field(default=8000, alias="PORT")

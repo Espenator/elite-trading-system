@@ -7,11 +7,15 @@ Endpoints:
   DELETE /orders            → cancel ALL open orders
   GET    /orders            → list open orders from Alpaca
   GET    /orders/recent     → recent orders from local DB
+
+Authentication:
+  All state-changing endpoints use JWT authentication in live mode.
+  In paper mode, falls back to simple bearer token authentication.
 """
 import json
 import logging
 from fastapi import APIRouter, HTTPException, Body, Depends, Request
-from app.core.security import require_auth
+from app.core.security import require_jwt_auth
 # slowapi rate limiting handled at app level (main.py)
 # from slowapi.util import get_remote_address  # moved to app-level
 
@@ -96,7 +100,7 @@ def _validate_limit(limit: int) -> int:
     return limit
 
 # ── Advanced order creation ─────────────────────────────────────────────
-@router.post("/advanced", response_model=Dict, dependencies=[Depends(require_auth)])
+@router.post("/advanced", response_model=Dict, dependencies=[Depends(require_jwt_auth)])
 # Rate limited by app-level limiter (200/min) in main.py
 async def create_advanced_order(request: Request, req: AdvancedOrderRequest):
     """Submit any Alpaca v2 order: simple, bracket, OCO, OTO, trailing."""
@@ -152,7 +156,7 @@ async def create_advanced_order(request: Request, req: AdvancedOrderRequest):
 
 
 # ── Replace / amend order ───────────────────────────────────────────────
-@router.patch("/{order_id}", response_model=Dict, dependencies=[Depends(require_auth)])
+@router.patch("/{order_id}", response_model=Dict, dependencies=[Depends(require_jwt_auth)])
 async def replace_order(order_id: str, req: ReplaceOrderRequest):
     """PATCH /v2/orders/{id} — amend qty, price, trail, or TIF."""
     try:
@@ -176,7 +180,7 @@ async def replace_order(order_id: str, req: ReplaceOrderRequest):
 
 
 # ── Cancel single order ────────────────────────────────────────────────
-@router.delete("/{order_id}", dependencies=[Depends(require_auth)])
+@router.delete("/{order_id}", dependencies=[Depends(require_jwt_auth)])
 async def cancel_order(order_id: str):
     """Cancel a single open order."""
     try:
@@ -188,7 +192,7 @@ async def cancel_order(order_id: str):
 
 
 # ── Cancel ALL open orders ──────────────────────────────────────────────
-@router.delete("/", dependencies=[Depends(require_auth)])
+@router.delete("/", dependencies=[Depends(require_jwt_auth)])
 async def cancel_all_orders():
     """Cancel all open orders."""
     try:
@@ -225,7 +229,7 @@ async def get_recent_orders(limit: int = 10):
 
 
 # ── Close position ────────────────────────────────────────────────────
-@router.post("/close", dependencies=[Depends(require_auth)])
+@router.post("/close", dependencies=[Depends(require_jwt_auth)])
 async def close_position(
     symbol: Optional[str] = None,
     request: Request = None,
@@ -249,7 +253,7 @@ async def close_position(
 
 
 # ── Adjust position ───────────────────────────────────────────────────
-@router.post("/adjust", dependencies=[Depends(require_auth)])
+@router.post("/adjust", dependencies=[Depends(require_jwt_auth)])
 async def adjust_position(symbol: str = Body(...), qty: str = Body(None), side: str = Body("buy")):
     """Adjust an existing position size."""
     try:
@@ -263,7 +267,7 @@ async def adjust_position(symbol: str = Body(...), qty: str = Body(None), side: 
 
 
 # ── Flatten all positions ─────────────────────────────────────────────
-@router.post("/flatten-all", dependencies=[Depends(require_auth)])
+@router.post("/flatten-all", dependencies=[Depends(require_jwt_auth)])
 async def flatten_all():
     """Liquidate all open positions."""
     try:
@@ -275,7 +279,7 @@ async def flatten_all():
 
 
 # ── Emergency stop ────────────────────────────────────────────────────
-@router.post("/emergency-stop", dependencies=[Depends(require_auth)])
+@router.post("/emergency-stop", dependencies=[Depends(require_jwt_auth)])
 async def emergency_stop():
     """Cancel all orders and close all positions immediately."""
     errors = []
