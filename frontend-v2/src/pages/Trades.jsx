@@ -1,7 +1,7 @@
 /**
  * Active Trades Page - Matches mockup: Active-Trades.png (v3)
  * Layout: KPI top bar, Positions table, Orders table, Footer
- * Real Alpaca API via useApi hooks
+ * Real Alpaca API via WebSocket + API hooks
  */
 import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { toast } from "react-toastify";
@@ -16,6 +16,7 @@ import {
   Edit3,
 } from "lucide-react";
 import { useApi } from "../hooks/useApi";
+import { useTradesWebSocket } from "../hooks/useWebSocketData";
 import { getApiUrl, getAuthHeaders } from "../config/api";
 
 // ── Formatters ──
@@ -139,24 +140,24 @@ export default function Trades() {
   const [ordSortDir, setOrdSortDir] = useState("asc");
   const [rebalanceTime, setRebalanceTime] = useState("25m");
 
-  // ── Real API Hooks ──
+  // ── Real API Hooks (WebSocket with fallback) ──
   const {
     data: positionsData,
     loading: posLoading,
     error: posError,
     refetch: refetchPositions,
-  } = useApi("alpaca/positions", { pollIntervalMs: 5000 });
+  } = useApi("alpaca/positions", { pollIntervalMs: 10000 });
 
   const {
     data: ordersData,
     loading: ordLoading,
     error: ordError,
     refetch: refetchOrders,
-  } = useApi("alpaca/orders", { pollIntervalMs: 5000 });
+  } = useApi("alpaca/orders", { pollIntervalMs: 10000 });
 
-  const { data: accountData } = useApi("alpaca/account", { pollIntervalMs: 10000 });
+  const { data: accountData } = useApi("alpaca/account", { pollIntervalMs: 15000 });
 
-  const { data: portfolioData } = useApi("portfolio", { pollIntervalMs: 10000 });
+  const { data: portfolioData } = useTradesWebSocket({ fallbackPollMs: 15000 });
 
   const { data: systemData } = useApi("system", { pollIntervalMs: 30000 });
 

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { createChart } from 'lightweight-charts';
 import { AreaChart, Area, LineChart, Line, ResponsiveContainer, Tooltip } from 'recharts';
 import { useApi } from '../hooks/useApi';
+import { useSignalsWebSocket } from '../hooks/useWebSocketData';
 import { getApiUrl, getAuthHeaders } from '../config/api';
 import log from "@/utils/logger";
 import {
@@ -268,14 +269,14 @@ function LogSparklines() {
 export default function MLBrainFlywheel() {
   const [isRetraining, setIsRetraining] = useState(false);
 
-  // --- API INTEGRATION ---
-  const { data: apiKpis } = useApi('flywheelKpis', { pollIntervalMs: 10000 });
+  // --- API INTEGRATION (WebSocket with fallback) ---
+  const { data: apiKpis } = useApi('flywheelKpis', { pollIntervalMs: 15000 });
   const { data: apiPerf } = useApi('flywheelPerformance', { pollIntervalMs: 60000 });
-  const { data: apiSignals } = useApi('flywheelSignals', { pollIntervalMs: 5000 });
-  const { data: apiModels } = useApi('flywheelModels', { pollIntervalMs: 15000 });
-  const { data: apiLogs } = useApi('flywheelLogs', { pollIntervalMs: 2000 });
+  const { data: apiSignals } = useSignalsWebSocket({ fallbackPollMs: 10000 });
+  const { data: apiModels } = useApi('flywheelModels', { pollIntervalMs: 30000 });
+  const { data: apiLogs } = useApi('flywheelLogs', { pollIntervalMs: 5000 });
   const { data: apiFeatures } = useApi('flywheelFeatures', { pollIntervalMs: 30000 });
-  const { data: apiBrain } = useApi('mlBrain', { pollIntervalMs: 15000 });
+  const { data: apiBrain } = useApi('mlBrain', { pollIntervalMs: 30000 });
 
   // Safe data extraction with fallbacks
   const kpis = apiKpis?.flywheel || FALLBACK_KPIS;

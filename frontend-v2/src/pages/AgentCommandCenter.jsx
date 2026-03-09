@@ -8,6 +8,7 @@ import {
   Activity, Cpu, Shield, Zap, AlertTriangle, Power,
 } from "lucide-react";
 import { useApi } from "../hooks/useApi";
+import { useAgentsWebSocket } from "../hooks/useWebSocketData";
 import { toast } from "react-toastify";
 
 // Tab components (split for manageable file sizes)
@@ -48,8 +49,8 @@ export default function AgentCommandCenter() {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") || "overview";
 
-  // Data hooks
-  const { data: agentsRaw } = useApi("agents", { pollIntervalMs: 15000 });
+  // Data hooks (WebSocket with fallback)
+  const { data: agentsRaw } = useAgentsWebSocket({ fallbackPollMs: 30000 });
   const { data: systemStatus } = useApi("system/health");
   const agents = useMemo(() => (Array.isArray(agentsRaw) ? agentsRaw : []), [agentsRaw]);
 

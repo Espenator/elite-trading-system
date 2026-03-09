@@ -1,6 +1,15 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import log from "@/utils/logger";
 import { useApi } from "../hooks/useApi";
+import {
+  useSignalsWebSocket,
+  useKellyWebSocket,
+  useTradesWebSocket,
+  useMarketWebSocket,
+  useAgentsWebSocket,
+  useRiskWebSocket,
+  useSentimentWebSocket,
+} from "../hooks/useWebSocketData";
 import { getApiUrl, getAuthHeaders } from "../config/api";
 import CNSVitals from "../components/dashboard/CNSVitals";
 import ProfitBrainBar from "../components/dashboard/ProfitBrainBar";
@@ -782,34 +791,31 @@ export default function Dashboard() {
     return () => ws.disconnect();
   }, []);
 
-  // --- API HOOKS (Real-time polling) ---
-  // Intervals tuned to prevent request flooding (max ~2 req/s combined)
+  // --- API HOOKS (WebSocket with fallback polling) ---
   const {
     data: signalsData,
     loading: sigLoading,
     error: sigErr,
     isStale: sigStale,
-  } = useApi("signals", { pollIntervalMs: 15000 });
-  const { data: kellyData, error: kellyErr } = useApi("kellyRanked", { pollIntervalMs: 30000 });
-  const { data: portfolioData, error: portfolioErr } = useApi("portfolio", { pollIntervalMs: 15000 });
-  const { data: indicesData, error: indicesErr } = useApi("marketIndices", {
-    pollIntervalMs: 15000,
+  } = useSignalsWebSocket();
+  const { data: kellyData, error: kellyErr } = useKellyWebSocket();
+  const { data: portfolioData, error: portfolioErr } = useTradesWebSocket();
+  const { data: indicesData, error: indicesErr } = useMarketWebSocket({
+    transform: (data) => data?.indices || data,
   });
   const { data: openclawData, error: openclawErr } = useApi("openclaw", { pollIntervalMs: 30000 });
   const { data: performanceData } = useApi("performance", {
     pollIntervalMs: 60000,
   });
-  const { data: agentsData } = useApi("agents", { pollIntervalMs: 30000 });
-  const { data: riskScoreData } = useApi("riskScore", {
-    pollIntervalMs: 30000,
+  const { data: agentsData } = useAgentsWebSocket();
+  const { data: riskScoreData } = useRiskWebSocket({
+    transform: (data) => data?.riskScore || data,
   });
   const { data: alertsData } = useApi("systemAlerts", {
     pollIntervalMs: 30000,
   });
   const { data: flywheelData } = useApi("flywheel", { pollIntervalMs: 60000 });
-  const { data: sentimentData } = useApi("sentiment", {
-    pollIntervalMs: 30000,
-  });
+  const { data: sentimentData } = useSentimentWebSocket();
   const { data: cognitiveData } = useApi("cognitiveDashboard", { pollIntervalMs: 30000 });
 
   // Right Panel specific APIs based on selectedSymbol
