@@ -316,7 +316,7 @@ elite-trading-system/
 6. **DuckDB** - Primary analytics database (WAL mode, connection pooling)
 7. **OpenClaw** - Legacy code with useful scanner/agent pieces, scheduled for cleanup (P4)
 8. **CI** - 151 tests passing, GitHub Actions on every push
-9. **Brain Service** - gRPC + Ollama on PC2 for LLM inference (not yet wired to council)
+9. **Brain Service** - gRPC + Ollama on PC2 for LLM inference (wired to hypothesis + critic agents)
 10. **Discovery** - Transitioning from periodic polling to continuous streaming (Issue #38)
 11. **Knowledge Layer** - MemoryBank + HeuristicEngine + KnowledgeGraph learn from trade outcomes
 

@@ -23,7 +23,7 @@ React + FastAPI full-stack trading application with 14-route V3 widescreen dashb
 | Council intelligence | WeightLearner + CouncilGate + SelfAwareness + Homeostasis | Bayesian self-learning agent weights |
 | Council subsystems | 15 orchestration files | runner, arbiter, blackboard, task_spawner, shadow_tracker, etc. |
 | Tests | 151 passing | Backend pytest + frontend build |
-| Brain service | gRPC + Ollama | BUILT — not yet wired to council |
+| Brain service | gRPC + Ollama | **WIRED** — hypothesis + critic agents use BrainClient |
 | Event pipeline | MessageBus + CouncilGate + SignalEngine + OrderExecutor | BUILT — council-controlled trading |
 | Database | DuckDB (WAL mode, pooling) | BUILT |
 | Authentication | None | Not started |
@@ -236,7 +236,7 @@ elite-trading-system/
 ### P1 — High (Blocks Full Intelligence)
 - [ ] Call SelfAwareness Bayesian tracking (286 lines of dead code)
 - [ ] Call IntelligenceCache.start() at startup
-- [ ] Wire brain_service gRPC to hypothesis_agent
+- [x] Wire brain_service gRPC to hypothesis_agent
 - [ ] Establish WebSocket real-time data connectivity
 - [ ] Wire 12 new Academic Edge agents into runner.py DAG stages
 

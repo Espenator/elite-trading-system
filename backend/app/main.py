@@ -237,6 +237,7 @@ _node_discovery = None
 _stream_manager = None
 _gpu_telemetry_daemon = None
 _llm_dispatcher = None
+_brain_client = None
 
 
 async def _start_event_driven_pipeline():
@@ -253,7 +254,7 @@ async def _start_event_driven_pipeline():
     global _message_bus, _alpaca_stream, _event_signal_engine
     global _council_gate, _order_executor, _alpaca_stream_task
     global _node_discovery, _stream_manager
-    global _gpu_telemetry_daemon, _llm_dispatcher
+    global _gpu_telemetry_daemon, _llm_dispatcher, _brain_client
 
     log.info("=" * 60)
     log.info("\U0001f680 Starting Event-Driven Pipeline (Council-Controlled)")
@@ -292,7 +293,19 @@ async def _start_event_driven_pipeline():
     _llm_dispatcher = get_llm_dispatcher()
     log.info("\u2705 LLMDispatcher initialized (enabled=%s)", _llm_dispatcher._enabled)
 
-    # 1d. Subscribe NodeDiscovery to cluster.telemetry events
+    # 1d. Brain Service (gRPC client) — hypothesis + critic agents
+    from app.services.brain_client import get_brain_client
+    _brain_client = get_brain_client()
+    if _brain_client.enabled:
+        log.info(
+            "\u2705 Brain Service client initialized (gRPC target: %s:%d)",
+            _brain_client.host,
+            _brain_client.port,
+        )
+    else:
+        log.info("\u26a0 Brain Service DISABLED — hypothesis/critic agents will use LLM router fallback")
+
+    # 1e. Subscribe NodeDiscovery to cluster.telemetry events
     if _node_discovery:
         await _message_bus.subscribe(
             "cluster.telemetry",

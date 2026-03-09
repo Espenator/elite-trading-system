@@ -129,7 +129,7 @@ The codebase had five separate agent/decision systems. As of v3.2.0, Systems 2 a
 - [ ] **P4**: Clean Up OpenClaw — extract useful logic, delete dead Flask app
 - [ ] **P5**: Build TaskSpawner — dynamic agent registry replacing hardcoded imports
 - [ ] **P6**: Unify Agent Command Center — show real 17-agent council state
-- [ ] **P7**: Wire brain_service gRPC — connect Ollama to hypothesis_agent and critic_agent
+- [x] **P7**: Wire brain_service gRPC — connect Ollama to hypothesis_agent and critic_agent
 
 ### BLOCKERS
 - [ ] **BLOCKER-1**: Start backend for first time (uvicorn app.main:app)

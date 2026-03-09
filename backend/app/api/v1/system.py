@@ -67,8 +67,32 @@ async def system_status():
     """
     Return system-wide status for glass-box UI:
     - trading_mode: paper | live
-    - modules: status of each component (symbol_universe, social_news, chart_patterns, ml_engine, execution)
+    - modules: status of each component (symbol_universe, social_news, chart_patterns, ml_engine, execution, brain_service)
     """
+    # Get brain service status
+    brain_status = {"status": "disabled", "description": "Brain Service (gRPC + Ollama)"}
+    try:
+        from app.services.brain_client import get_brain_client
+        client = get_brain_client()
+        if client.enabled:
+            if client._circuit.state.value == "closed":
+                brain_status = {
+                    "status": "ready",
+                    "description": f"Brain Service connected (gRPC: {client.host}:{client.port})",
+                }
+            elif client._circuit.state.value == "open":
+                brain_status = {
+                    "status": "degraded",
+                    "description": "Brain Service circuit breaker OPEN (too many failures or latency)",
+                }
+            else:
+                brain_status = {
+                    "status": "testing",
+                    "description": "Brain Service circuit breaker HALF_OPEN (testing recovery)",
+                }
+    except Exception:
+        pass
+
     return {
         "trading_mode": get_trading_mode(),
         "modules": {
@@ -80,6 +104,7 @@ async def system_status():
             "chart_patterns": chart_patterns_status(),
             "ml_engine": ml_engine_status(),
             "execution_engine": execution_status(),
+            "brain_service": brain_status,
         },
     }
 
@@ -228,3 +253,46 @@ async def device_info():
         "brainHost": device_settings.get("brainHost", "localhost"),
         "brainPort": device_settings.get("brainPort", 50051),
     }
+
+
+# ---------------------------------------------------------------------------
+# /brain  — Brain Service (gRPC) status
+# ---------------------------------------------------------------------------
+@router.get("/brain")
+async def brain_service_status():
+    """
+    Return Brain Service gRPC client status.
+
+    Shows whether the Brain service is enabled, connection details,
+    circuit breaker state, and latency metrics.
+
+    Used by hypothesis_agent and critic_agent for LLM inference.
+    """
+    try:
+        from app.services.brain_client import get_brain_client
+        client = get_brain_client()
+        status = client.get_status()
+
+        # Add latency metrics if available
+        if hasattr(client._circuit, 'avg_latency_ms'):
+            status["avg_latency_ms"] = round(client._circuit.avg_latency_ms, 1)
+            status["p95_latency_ms"] = round(client._circuit.p95_latency_ms, 1)
+
+        # Check if NodeDiscovery has PC2 brain availability info
+        try:
+            from app.services.node_discovery import get_node_discovery
+            discovery = get_node_discovery()
+            if discovery.is_cluster_mode:
+                status["pc2_available"] = discovery._pc2_brain_available
+                status["pc2_target"] = f"{discovery._pc2_host}:50051"
+        except Exception:
+            pass
+
+        return status
+    except Exception as e:
+        log.warning("Brain service status failed: %s", e)
+        return {
+            "enabled": False,
+            "error": str(e),
+        }
+
