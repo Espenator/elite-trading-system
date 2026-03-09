@@ -954,6 +954,17 @@ async def lifespan(app: FastAPI):
         # Store in app state for easy access
         app.state.machine_identity = machine_identity
 
+        # Start background peer health checks
+        await machine_identity.start_health_checks()
+
+        # Start peer discovery (if enabled)
+        try:
+            from app.services.peer_discovery import get_peer_discovery
+            peer_discovery = get_peer_discovery()
+            await peer_discovery.start()
+        except Exception as e:
+            log.debug("Peer discovery not started: %s", e)
+
     except Exception as e:
         log.exception("Failed to initialize machine identity: %s", e)
         log.warning("Continuing with default (standalone) mode")

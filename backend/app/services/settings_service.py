@@ -282,6 +282,7 @@ DEFAULTS: Dict[str, Dict[str, Any]] = {
         "peerMachineRole": "",  # "pc1" | "pc2" | ""
         "peerRequiredForStartup": False,
         "peerRequiredForExecution": False,
+        "autoDiscoverPeers": False,  # Enable mDNS/zeroconf peer discovery
         # Fallback
         "allowSinglePcFallback": True,
         "fallbackModeActive": False,  # Runtime state (read-only)

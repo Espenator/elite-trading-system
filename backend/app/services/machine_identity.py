@@ -10,6 +10,7 @@ Priority order for machine role detection:
 
 Part of machine-awareness architecture (#issue)
 """
+import asyncio
 import logging
 import os
 import socket
@@ -46,6 +47,15 @@ class MachineIdentityService:
 
         # Detection method used (for debugging)
         self._detection_method: str = ""
+
+        # Background health check task
+        self._health_check_task: Optional[asyncio.Task] = None
+        self._health_check_interval: int = 30  # seconds
+        self._running: bool = False
+
+        # Track previous state for change detection
+        self._prev_peer_online: bool = False
+        self._prev_fallback_mode: bool = False
 
         self._detect()
 
@@ -209,9 +219,13 @@ class MachineIdentityService:
             self.peer_online = False
 
         # Fallback mode = dual-PC deployment but peer is offline
+        prev_fallback = self.fallback_mode
         self.fallback_mode = (
             self.deployment_mode == "dual_pc" and not self.peer_online
         )
+
+        # Detect state changes and broadcast events
+        self._detect_and_broadcast_changes(prev_fallback)
 
         if self.fallback_mode:
             logger.warning(
@@ -220,6 +234,120 @@ class MachineIdentityService:
             )
 
         return self.peer_online
+
+    def _detect_and_broadcast_changes(self, prev_fallback: bool) -> None:
+        """Detect state changes and broadcast WebSocket events."""
+        peer_changed = self._prev_peer_online != self.peer_online
+        fallback_changed = prev_fallback != self.fallback_mode
+
+        if peer_changed or fallback_changed:
+            # Broadcast state change event
+            self._broadcast_status_change(
+                peer_changed=peer_changed,
+                fallback_changed=fallback_changed
+            )
+
+            # Update previous state
+            self._prev_peer_online = self.peer_online
+            self._prev_fallback_mode = self.fallback_mode
+
+            # Log important transitions
+            if peer_changed:
+                if self.peer_online:
+                    logger.info("MachineIdentity: Peer %s is now ONLINE", self.peer_host)
+                else:
+                    logger.warning("MachineIdentity: Peer %s is now OFFLINE", self.peer_host)
+
+            if fallback_changed:
+                if self.fallback_mode:
+                    logger.warning("MachineIdentity: Entering FALLBACK MODE")
+                else:
+                    logger.info("MachineIdentity: Exiting FALLBACK MODE - dual-PC mode restored")
+
+    def _broadcast_status_change(self, peer_changed: bool, fallback_changed: bool) -> None:
+        """Broadcast machine status change via WebSocket."""
+        try:
+            from app.websocket_manager import broadcast_ws
+
+            payload = {
+                "type": "machine_status_change",
+                "machine_id": self.machine_id,
+                "machine_role": self.machine_role,
+                "deployment_mode": self.deployment_mode,
+                "peer_online": self.peer_online,
+                "fallback_mode": self.fallback_mode,
+                "peer_changed": peer_changed,
+                "fallback_changed": fallback_changed,
+                "timestamp": None,  # Will be added by broadcast_ws
+            }
+
+            # Non-blocking broadcast
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.create_task(broadcast_ws("machine_status", payload))
+            except RuntimeError:
+                # No event loop (startup or testing)
+                logger.debug("No event loop available for WebSocket broadcast")
+
+        except Exception as e:
+            logger.debug("Failed to broadcast machine status change: %s", e)
+
+    async def start_health_checks(self) -> None:
+        """Start background peer health check loop.
+
+        Only starts if in dual-PC mode with a peer configured.
+        """
+        if self._running:
+            logger.warning("MachineIdentity: health check loop already running")
+            return
+
+        if self.deployment_mode != "dual_pc" or not self.peer_host:
+            logger.info(
+                "MachineIdentity: skipping health checks (mode=%s, peer=%s)",
+                self.deployment_mode,
+                self.peer_host or "none"
+            )
+            return
+
+        self._running = True
+        self._health_check_task = asyncio.create_task(self._health_check_loop())
+        logger.info(
+            "MachineIdentity: started background health checks for peer %s (interval=%ds)",
+            self.peer_host,
+            self._health_check_interval
+        )
+
+    async def stop_health_checks(self) -> None:
+        """Stop background peer health check loop."""
+        self._running = False
+        if self._health_check_task:
+            self._health_check_task.cancel()
+            try:
+                await self._health_check_task
+            except asyncio.CancelledError:
+                pass
+            self._health_check_task = None
+            logger.info("MachineIdentity: stopped background health checks")
+
+    async def _health_check_loop(self) -> None:
+        """Background loop for periodic peer health checks."""
+        # Initial delay before first check
+        await asyncio.sleep(10)
+
+        while self._running:
+            try:
+                await self.check_peer_online()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.exception("MachineIdentity: error in health check loop: %s", e)
+
+            # Wait for next check
+            try:
+                await asyncio.sleep(self._health_check_interval)
+            except asyncio.CancelledError:
+                break
 
     def get_status(self) -> Dict[str, Any]:
         """Return current machine identity status.

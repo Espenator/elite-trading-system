@@ -295,3 +295,41 @@ async def machine_info():
                 "cpu_count": os.cpu_count(),
             }
         }
+
+
+@router.post("/machine/test-peer")
+async def test_peer_connection():
+    """Manually test peer machine connectivity.
+
+    Performs an immediate health check and returns the result.
+    Useful for troubleshooting peer connectivity issues.
+    """
+    try:
+        from app.services.machine_identity import get_machine_identity
+        machine_identity = get_machine_identity()
+
+        if not machine_identity.peer_host:
+            return {
+                "success": False,
+                "message": "No peer configured",
+                "peer_host": None,
+            }
+
+        # Perform health check
+        peer_online = await machine_identity.check_peer_online()
+
+        return {
+            "success": peer_online,
+            "message": "Peer is online" if peer_online else "Peer is offline or unreachable",
+            "peer_host": machine_identity.peer_host,
+            "peer_online": peer_online,
+            "fallback_mode": machine_identity.fallback_mode,
+        }
+
+    except Exception as e:
+        log.exception("Failed to test peer connection: %s", e)
+        return {
+            "success": False,
+            "message": f"Error testing peer connection: {str(e)}",
+            "peer_host": None,
+        }
