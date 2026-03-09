@@ -11,10 +11,7 @@ import logging
 
 from app.services.ingestion.base import BaseSourceAdapter
 from app.models.source_event import SourceEvent
-from app.services.openclaw_bridge_service import (
-    get_latest_signals,
-    get_realtime_stats
-)
+from app.services.openclaw_bridge_service import openclaw_bridge
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +29,7 @@ class OpenClawAdapter(BaseSourceAdapter):
         """OpenClaw bridge doesn't require traditional credentials"""
         try:
             # Check if we can get stats (indicates bridge is working)
-            stats = get_realtime_stats()
+            stats = openclaw_bridge.get_realtime_stats()
             return stats is not None
         except Exception as e:
             logger.error(f"OpenClaw validation failed: {e}")
@@ -52,7 +49,7 @@ class OpenClawAdapter(BaseSourceAdapter):
 
         try:
             # Get latest signals from OpenClaw bridge
-            signals = get_latest_signals(limit=100)
+            signals = openclaw_bridge.get_realtime_signals(limit=100)
 
             for signal in signals:
                 signal_id = signal.get("signal_id") or signal.get("id")

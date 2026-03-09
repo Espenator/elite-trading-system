@@ -44,13 +44,9 @@ class CheckpointStore:
                     row_count INTEGER,
                     error_message VARCHAR,
                     metadata JSON,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created_at TIMESTAMP,
+                    updated_at TIMESTAMP
                 )
-            """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_adapter_updated
-                ON adapter_checkpoints(adapter_name, updated_at)
             """)
 
     def get_checkpoint(self, adapter_name: str) -> Optional[Dict[str, Any]]:
@@ -122,6 +118,8 @@ class CheckpointStore:
             metadata: Additional metadata as JSON
         """
         with duckdb.connect(self.db_path) as conn:
+            # Calculate timestamp in Python since DuckDB has issues with CURRENT_TIMESTAMP in UPSERT
+            now = datetime.utcnow()
             conn.execute("""
                 INSERT INTO adapter_checkpoints (
                     adapter_name,
@@ -133,9 +131,10 @@ class CheckpointStore:
                     row_count,
                     error_message,
                     metadata,
+                    created_at,
                     updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (adapter_name) DO UPDATE SET
                     source_key = EXCLUDED.source_key,
                     last_cursor = EXCLUDED.last_cursor,
@@ -145,7 +144,7 @@ class CheckpointStore:
                     row_count = EXCLUDED.row_count,
                     error_message = EXCLUDED.error_message,
                     metadata = EXCLUDED.metadata,
-                    updated_at = CURRENT_TIMESTAMP
+                    updated_at = ?
             """, [
                 adapter_name,
                 source_key,
@@ -155,7 +154,10 @@ class CheckpointStore:
                 status,
                 row_count,
                 error_message,
-                metadata
+                metadata,
+                now,  # created_at for INSERT
+                now,  # updated_at for INSERT
+                now   # updated_at for UPDATE
             ])
             conn.commit()
             logger.info(f"Checkpoint saved for {adapter_name}: {row_count} rows, status={status}")

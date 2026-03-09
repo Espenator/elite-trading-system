@@ -23,12 +23,19 @@ from app.services.ingestion.scheduler import IngestionScheduler
 @pytest.fixture
 def temp_checkpoint_db():
     """Create a temporary checkpoint database"""
-    with tempfile.NamedTemporaryFile(suffix=".duckdb", delete=False) as f:
-        db_path = f.name
+    # Create a temp file path but don't create the file itself
+    # DuckDB will create the file when it connects
+    fd, db_path = tempfile.mkstemp(suffix=".duckdb")
+    os.close(fd)  # Close the file descriptor
+    os.remove(db_path)  # Remove the empty file so DuckDB can create it
     yield db_path
     # Cleanup
     if os.path.exists(db_path):
         os.remove(db_path)
+    # Also cleanup WAL file if it exists
+    wal_path = db_path + ".wal"
+    if os.path.exists(wal_path):
+        os.remove(wal_path)
 
 
 @pytest.fixture
