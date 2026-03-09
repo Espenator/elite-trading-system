@@ -8,6 +8,8 @@ os.environ["TRADING_MODE"] = "paper"
 os.environ["ALPACA_API_KEY"] = "test_key"
 os.environ["ALPACA_SECRET_KEY"] = "test_secret"
 os.environ["API_AUTH_TOKEN"] = "test_auth_token_for_tests"
+os.environ["JWT_SECRET_KEY"] = "test_jwt_secret_key_for_testing_only"
+os.environ["ALPACA_SIGNATURE_SECRET"] = "test_signature_secret_for_testing"
 
 from app.main import app  # noqa: E402
 

@@ -32,6 +32,14 @@ class Settings(BaseSettings):
     # ── API Authentication ────────────────────────────────
     API_AUTH_TOKEN: str = ""  # Set to enable Bearer token auth on state-changing endpoints
 
+    # JWT Authentication
+    JWT_SECRET_KEY: str = ""  # Secret key for signing JWT tokens (required for JWT auth)
+    JWT_ALGORITHM: str = "HS256"  # JWT signing algorithm
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60  # Access token expiration in minutes
+
+    # Alpaca Order Signature (MITM protection)
+    ALPACA_SIGNATURE_SECRET: str = ""  # Secret key for signing Alpaca orders to prevent MITM attacks
+
     # ── Server ──────────────────────────────────────────────
     HOST: str = "0.0.0.0"
     PORT: int = Field(default=8000, alias="PORT")

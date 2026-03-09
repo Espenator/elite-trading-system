@@ -4,7 +4,7 @@ Wires the RiskShield UI to OpenClaw risk_governor.py (474 lines)
 Maps 9 safety checks to UI checklist, portfolio heatmap, emergency controls
 """
 from fastapi import APIRouter, HTTPException, Depends
-from app.core.security import require_auth
+from app.core.security import require_auth, require_trading_scope
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 import logging
@@ -114,7 +114,7 @@ async def get_risk_shield_status() -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail="Internal Risk Governor Error")
 
 
-@router.post("/emergency-action", dependencies=[Depends(require_auth)])
+@router.post("/emergency-action", dependencies=[Depends(require_trading_scope)])
 async def execute_emergency_action(payload: EmergencyActionReq):
     """
     Executes tactical emergency commands via Alpaca API.

@@ -3,6 +3,8 @@ Real data only. No mock data, no fabricated numbers.
 
 Supports both Trading API (paper-api.alpaca.markets/v2) and
 Market Data API (data.alpaca.markets/v2) for 24/7 price coverage.
+
+SECURITY: All order submissions include X-Signature header for MITM protection.
 """
 import httpx
 import logging
@@ -103,6 +105,34 @@ class AlpacaService:
             "content-type": "application/json",
         }
 
+    def _get_headers_with_signature(self, order_data: dict) -> Dict[str, str]:
+        """Get headers with X-Signature for order submission.
+
+        Args:
+            order_data: The order payload to sign
+
+        Returns:
+            Headers dictionary with X-Signature included
+        """
+        headers = self._get_headers()
+
+        # Add X-Signature header if ALPACA_SIGNATURE_SECRET is configured
+        if settings.ALPACA_SIGNATURE_SECRET:
+            try:
+                from app.core.security import generate_order_signature
+                signature = generate_order_signature(order_data)
+                headers["X-Signature"] = signature
+                logger.debug("Added X-Signature header for order submission")
+            except Exception as e:
+                logger.warning("Failed to generate order signature: %s", e)
+        else:
+            logger.warning(
+                "ALPACA_SIGNATURE_SECRET not configured. "
+                "Order submissions will not include X-Signature header for MITM protection."
+            )
+
+        return headers
+
     def _cache_get(self, key: str, ttl: float) -> Any:
         entry = self._cache.get(key)
         if entry and (time.time() - entry[0]) < ttl:
@@ -124,8 +154,19 @@ class AlpacaService:
         json_body: Optional[Dict] = None,
         timeout: float = _TIMEOUT,
         _retries: int = 3,
+        custom_headers: Optional[Dict[str, str]] = None,
     ) -> Optional[Any]:
-        """Centralised HTTP caller with error handling and retry for 429/503."""
+        """Centralised HTTP caller with error handling and retry for 429/503.
+
+        Args:
+            method: HTTP method (GET, POST, PATCH, DELETE)
+            path: API path (e.g., "/orders")
+            params: Query parameters
+            json_body: JSON request body
+            timeout: Request timeout in seconds
+            _retries: Number of retries for 429/503 errors
+            custom_headers: Optional custom headers to override defaults
+        """
         if not self._is_configured():
             logger.warning("Alpaca API keys not configured")
             return None
@@ -135,11 +176,14 @@ class AlpacaService:
 
         for attempt in range(_retries + 1):
             try:
+                # Use custom headers if provided, otherwise use default headers
+                headers = custom_headers if custom_headers else self._get_headers()
+
                 async with httpx.AsyncClient() as client:
                     resp = await client.request(
                         method,
                         url,
-                        headers=self._get_headers(),
+                        headers=headers,
                         params=params,
                         json=json_body,
                         timeout=timeout,
@@ -305,7 +349,9 @@ class AlpacaService:
         if stop_loss:
             body["stop_loss"] = stop_loss
 
-        result = await self._request("POST", "/orders", json_body=body)
+        # Add X-Signature header for MITM protection
+        headers = self._get_headers_with_signature(body)
+        result = await self._request("POST", "/orders", json_body=body, custom_headers=headers)
         if result is None:
             raise Exception("Failed to create order — Alpaca returned no data")
         return result
@@ -340,7 +386,10 @@ class AlpacaService:
             body["client_order_id"] = client_order_id
         if not body:
             return None
-        return await self._request("PATCH", f"/orders/{order_id}", json_body=body)
+
+        # Add X-Signature header for MITM protection
+        headers = self._get_headers_with_signature(body)
+        return await self._request("PATCH", f"/orders/{order_id}", json_body=body, custom_headers=headers)
 
     async def cancel_order(self, order_id: str) -> Optional[Any]:
         """DELETE /v2/orders/{order_id} — cancel a single order.
