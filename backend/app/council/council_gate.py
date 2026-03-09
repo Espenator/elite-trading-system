@@ -1,16 +1,19 @@
-"""Council Gate — bridges SignalEngine → Council → OrderExecutor.
+"""Council Gate — bridges SignalEngine → Council → OrderExecutor with tiered routing.
 
-Subscribes to signal.generated on the MessageBus.  When a signal arrives
-with score >= gate_threshold the full 13-agent council is invoked.
+Subscribes to signal.generated on the MessageBus. When a signal arrives:
+- score >= 75: Fast Council (5 agents, <200ms) with escalation to Deep if needed
+- score >= 65: Deep Council (31 agents, <2s)
+- score < 65: Skip council
+
 If the council verdict is execution_ready the signal is re-published as
 council.verdict which the OrderExecutor listens on.
 
 This replaces the old direct signal → order path with an intelligent
-agent-council-controlled decision layer.
+tiered agent-council-controlled decision layer.
 
 Pipeline:
   AlpacaStream → MessageBus → SignalEngine → **CouncilGate** → Council → OrderExecutor
-  market_data.bar → signal.generated → council evaluation → council.verdict → order
+  market_data.bar → signal.generated → fast/deep council → council.verdict → order
 """
 import asyncio
 import logging
@@ -22,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 class CouncilGate:
-    """Event-driven gate that invokes the council on high-score signals.
+    """Event-driven gate that invokes tiered council (fast/deep) on high-score signals.
 
     Parameters
     ----------
@@ -30,6 +33,8 @@ class CouncilGate:
         The async event bus.
     gate_threshold : float
         Minimum signal score to trigger council evaluation (default 65).
+    fast_threshold : float
+        Score threshold for Fast Council (default 75). Signals >= 75 use Fast Council.
     max_concurrent : int
         Maximum concurrent council evaluations to prevent overload.
     cooldown_seconds : int
@@ -40,11 +45,13 @@ class CouncilGate:
         self,
         message_bus,
         gate_threshold: float = 65.0,
+        fast_threshold: float = 75.0,
         max_concurrent: int = 3,
         cooldown_seconds: int = 120,
     ):
         self.message_bus = message_bus
         self.gate_threshold = gate_threshold
+        self.fast_threshold = fast_threshold
         self.max_concurrent = max_concurrent
         self.cooldown_seconds = cooldown_seconds
 
@@ -57,6 +64,9 @@ class CouncilGate:
         self._councils_passed = 0
         self._councils_vetoed = 0
         self._councils_held = 0
+        self._fast_councils = 0
+        self._deep_councils = 0
+        self._escalations = 0
 
     async def start(self) -> None:
         """Subscribe to signal.generated and begin gating."""
@@ -64,8 +74,9 @@ class CouncilGate:
         self._start_time = time.time()
         await self.message_bus.subscribe("signal.generated", self._on_signal)
         logger.info(
-            "CouncilGate started — threshold=%.0f, max_concurrent=%d, cooldown=%ds",
+            "CouncilGate started — threshold=%.0f, fast_threshold=%.0f, max_concurrent=%d, cooldown=%ds",
             self.gate_threshold,
+            self.fast_threshold,
             self.max_concurrent,
             self.cooldown_seconds,
         )
@@ -75,9 +86,12 @@ class CouncilGate:
         self._running = False
         await self.message_bus.unsubscribe("signal.generated", self._on_signal)
         logger.info(
-            "CouncilGate stopped — %d signals, %d councils, %d passed, %d vetoed, %d held",
+            "CouncilGate stopped — %d signals, %d councils (%d fast, %d deep, %d escalated), %d passed, %d vetoed, %d held",
             self._signals_received,
             self._councils_invoked,
+            self._fast_councils,
+            self._deep_councils,
+            self._escalations,
             self._councils_passed,
             self._councils_vetoed,
             self._councils_held,
@@ -125,26 +139,15 @@ class CouncilGate:
     async def _evaluate_with_council(
         self, symbol: str, signal_data: Dict[str, Any]
     ) -> None:
-        """Run the full 13-agent council for the symbol."""
+        """Run council evaluation with tiered routing (fast or deep)."""
         async with self._semaphore:
             self._symbol_last_eval[symbol] = time.time()
             self._councils_invoked += 1
 
             try:
-                from app.council.runner import run_council
-
                 score = signal_data.get("score", 0)
                 regime = signal_data.get("regime", "UNKNOWN")
                 price = signal_data.get("close", signal_data.get("price", 0))
-
-                logger.info(
-                    "\u2699 CouncilGate: invoking council for %s "
-                    "(signal=%.1f, regime=%s, price=$%.2f)",
-                    symbol,
-                    score,
-                    regime,
-                    price,
-                )
 
                 # Pass signal data as context for agents
                 context = {
@@ -157,11 +160,62 @@ class CouncilGate:
                     "source": "council_gate",
                 }
 
-                decision = await run_council(
-                    symbol=symbol,
-                    timeframe="1d",
-                    context=context,
-                )
+                # Tiered routing: Fast Council (score >= 75) or Deep Council (score >= 65)
+                use_fast = score >= self.fast_threshold
+                decision = None
+
+                if use_fast:
+                    # Try Fast Council first
+                    from app.council.fast_runner import run_fast_council, should_escalate_to_deep
+
+                    self._fast_councils += 1
+                    logger.info(
+                        "⚡ CouncilGate: invoking FAST council for %s "
+                        "(signal=%.1f, regime=%s, price=$%.2f)",
+                        symbol,
+                        score,
+                        regime,
+                        price,
+                    )
+
+                    decision = await run_fast_council(
+                        symbol=symbol,
+                        timeframe="1d",
+                        context=context,
+                        signal_score=score,
+                    )
+
+                    # Check if we need to escalate to deep council
+                    if await should_escalate_to_deep(decision, threshold=0.7):
+                        self._escalations += 1
+                        logger.info(
+                            "↗️ Fast council escalating %s to Deep council "
+                            "(confidence=%.0f%% < 70%%)",
+                            symbol,
+                            decision.final_confidence * 100,
+                        )
+                        use_fast = False
+                        decision = None  # Reset to run deep council
+
+                if not use_fast or decision is None:
+                    # Run Deep Council (full 31 agents)
+                    from app.council.runner import run_council
+
+                    self._deep_councils += 1
+                    logger.info(
+                        "⚙ CouncilGate: invoking DEEP council for %s "
+                        "(signal=%.1f, regime=%s, price=$%.2f)",
+                        symbol,
+                        score,
+                        regime,
+                        price,
+                    )
+
+                    decision = await run_council(
+                        symbol=symbol,
+                        timeframe="1d",
+                        context=context,
+                    )
 
                 # Process council verdict
                 if decision.vetoed:
