@@ -236,7 +236,7 @@ elite-trading-system/
 ### P1 — High (Blocks Full Intelligence)
 - [x] Call SelfAwareness Bayesian tracking (286 lines of dead code) — ✅ COMPLETE (outcome_tracker.py:426, main.py:669)
 - [x] Call IntelligenceCache.start() at startup — ✅ COMPLETE (main.py:721)
-- [ ] Wire brain_service gRPC to hypothesis_agent
+- [x] Wire brain_service gRPC to hypothesis_agent — ✅ COMPLETE (hypothesis_agent.py:21-68, brain_client.py)
 - [ ] Establish WebSocket real-time data connectivity
 - [x] Wire 12 new Academic Edge agents into runner.py DAG stages — ✅ COMPLETE (runner.py:266-310)
 
