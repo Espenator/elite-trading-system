@@ -34,13 +34,22 @@ Both IPs are DHCP-reserved on the AT&T BGW320-505 router (192.168.1.254).
 
 ## Ports
 
+### PC1 (ESPENMAIN)
 | Service | Port | URL |
 |---------|------|-----|
 | Backend API | 8000 | http://localhost:8000 |
 | API Docs | 8000 | http://localhost:8000/docs |
 | Frontend | 3000 | http://localhost:3000 |
 
+### PC2 (ProfitTrader) - Optional
+| Service | Port | URL (from PC1) |
+|---------|------|----------------|
+| Ollama API | 11434 | http://192.168.1.116:11434 |
+| Brain gRPC | 50051 | 192.168.1.116:50051 |
+
 ## Quick Start (One Click)
+
+### Single-PC Mode (PC1 Only)
 
 Double-click `start-embodier.bat` or run:
 ```powershell
@@ -55,9 +64,54 @@ This will:
 4. Open http://localhost:3000 in your browser
 5. Auto-restart if either service crashes (up to 3 times)
 
-### Backend only (no frontend)
+#### Backend only (no frontend)
 ```powershell
 .\start-embodier.ps1 -SkipFrontend
+```
+
+### Dual-PC Mode (PC1 + PC2)
+
+For maximum performance with GPU-accelerated Brain Service and Ollama on PC2:
+
+**First-time setup (run once on PC2):**
+```powershell
+# On PC2 (ProfitTrader) - run as Administrator
+cd C:\Users\ProfitTrader\elite-trading-system
+.\setup-pc2.ps1
+```
+
+This configures PowerShell remoting and firewall rules.
+
+**Daily use (run from PC1):**
+```powershell
+# On PC1 (ESPENMAIN)
+cd C:\Users\Espen\elite-trading-system
+.\start-dual-pc.ps1
+```
+
+This will:
+1. Test connectivity to PC2
+2. Start Brain Service (gRPC) and Ollama on PC2 via remote PowerShell
+3. Start Backend + Frontend on PC1
+4. Validate cross-PC connectivity
+5. Graceful fallback to single-PC mode if PC2 is unavailable
+
+**Alternative - Manual PC2 Start:**
+
+If PowerShell remoting is not configured, start PC2 services manually:
+```powershell
+# On PC2 (ProfitTrader)
+cd C:\Users\ProfitTrader\elite-trading-system
+.\start-pc2.ps1
+
+# Then on PC1 (ESPENMAIN)
+cd C:\Users\Espen\elite-trading-system
+.\start-dual-pc.ps1 -NoRemoting
+```
+
+**Force single-PC mode:**
+```powershell
+.\start-dual-pc.ps1 -SinglePCMode
 ```
 
 ## Manual Start (Step by Step)
@@ -148,6 +202,17 @@ logs\frontend.log
 | Frontend blank page | Make sure backend is running on port 8000 |
 | CORS errors | Backend auto-allows localhost origins — should work out of the box |
 | Port in use | The launcher auto-kills stale processes on ports 8000/3000 |
+
+### Dual-PC Mode Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| "PC2 is not reachable" | Ensure PC2 is powered on and both PCs are on same LAN. Check `CLUSTER_PC2_HOST` in `backend/.env` |
+| "PowerShell Remoting FAILED" | On PC2, run as Admin: `.\setup-pc2.ps1` or use `-NoRemoting` flag |
+| "Ollama NOT READY YET" | Wait 30-60 seconds for Ollama to start. Check `logs\ollama.log` on PC2 |
+| "Brain Service unresponsive" | Check `logs\brain_service.log` on PC2. Ensure Python 3.10+ installed |
+| Dual-PC starts in single-PC mode | Check network connectivity with `ping 192.168.1.116` from PC1 |
+| PC2 services won't stop | Manually run on PC2: `Get-Process ollama,python | Stop-Process -Force` |
 
 ## Sync to ProfitTrader PC
 ```powershell

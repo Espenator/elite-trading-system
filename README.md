@@ -333,11 +333,13 @@ All pages in frontend-v2/src/pages/. All use useApi() hook. No mock data. **ALL 
 
 ## Hardware (Dual-PC Setup)
 - **PC 1 (ESPENMAIN)**: Development + Frontend + Backend API
-- **PC 2**: RTX GPU cluster for ML training + Ollama inference (brain_service)
-- Connected via gRPC (brain_service port 50051)
+- **PC 2 (ProfitTrader)**: RTX GPU cluster for ML training + Ollama inference (brain_service)
+- Connected via gRPC (brain_service port 50051) and Ollama API (port 11434)
+- **Automated dual-PC boot sequence**: `start-dual-pc.ps1` orchestrates startup across both machines
 
 ## Quick Start
 
+### Single-PC Mode
 ```bash
 # Clone
 git clone https://github.com/Espenator/elite-trading-system.git
@@ -354,6 +356,20 @@ cd frontend-v2
 npm install
 npm run dev
 ```
+
+### Dual-PC Mode (Automated)
+For GPU-accelerated Brain Service and Ollama on PC2:
+```powershell
+# First-time setup on PC2 (run as Administrator)
+cd C:\Users\ProfitTrader\elite-trading-system
+.\setup-pc2.ps1
+
+# Daily use from PC1
+cd C:\Users\Espen\elite-trading-system
+.\start-dual-pc.ps1
+```
+
+See [SETUP.md](SETUP.md) for detailed instructions.
 
 ## License
 
