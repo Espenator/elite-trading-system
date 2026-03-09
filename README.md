@@ -164,12 +164,12 @@ Stage 7 (Arbiter):
 
 **Audit document:** [`docs/audits/brain_consciousness_audit_2026-03-08.pdf`](docs/audits/brain_consciousness_audit_2026-03-08.pdf)
 
-**Critical findings from audit:**
-- UnusualWhales options flow fetched but never published to MessageBus — council blind to it
-- TurboScanner scores 0.0–1.0 but CouncilGate threshold is 65.0 — signals never enter council
-- Double `council.verdict` publication (runner.py + council_gate.py) — potential duplicate orders
-- SelfAwareness Bayesian tracking (286 lines) fully implemented but never called — dead code
-- IntelligenceCache.start() never called — every council evaluation runs cold
+**Critical findings from audit (ALL RESOLVED ✅):**
+- ✅ UnusualWhales options flow fetched but never published to MessageBus — **FIXED** (unusual_whales_service.py:56-67)
+- ✅ TurboScanner scores 0.0–1.0 but CouncilGate threshold is 65.0 — **FIXED** (turbo_scanner.py:833 converts to 0-100)
+- ✅ Double `council.verdict` publication (runner.py + council_gate.py) — **FIXED** (single publish at council_gate.py:202)
+- ✅ SelfAwareness Bayesian tracking (286 lines) fully implemented but never called — **FIXED** (called at outcome_tracker.py:426, runner.py:238, main.py:638)
+- ✅ IntelligenceCache.start() never called — **FIXED** (called at startup in main.py:720)
 
 ### v3.4.0 (March 6, 2026) — ALL 14 Pages Complete + Mockup Fidelity Pass
 
@@ -228,17 +228,17 @@ elite-trading-system/
 ## What Is NOT Done (TODO)
 
 ### P0 — Critical (Blocks Trading)
-- [ ] Fix TurboScanner score scale (0.0–1.0 vs CouncilGate 65.0 threshold)
-- [ ] Fix double `council.verdict` publication (runner.py + council_gate.py)
-- [ ] Wire UnusualWhales flow to MessageBus so council can see it
+- [x] Fix TurboScanner score scale (0.0–1.0 vs CouncilGate 65.0 threshold) — ✅ DONE (turbo_scanner.py:833)
+- [x] Fix double `council.verdict` publication (runner.py + council_gate.py) — ✅ DONE (council_gate.py:202 only)
+- [x] Wire UnusualWhales flow to MessageBus so council can see it — ✅ DONE (unusual_whales_service.py:56-67)
 - [ ] Start backend for first time (`uvicorn app.main:app`)
 
 ### P1 — High (Blocks Full Intelligence)
-- [ ] Call SelfAwareness Bayesian tracking (286 lines of dead code)
-- [ ] Call IntelligenceCache.start() at startup
-- [ ] Wire brain_service gRPC to hypothesis_agent
-- [ ] Establish WebSocket real-time data connectivity
-- [ ] Wire 12 new Academic Edge agents into runner.py DAG stages
+- [x] Call SelfAwareness Bayesian tracking (286 lines of dead code) — ✅ DONE (outcome_tracker.py:426, runner.py:238, main.py:638)
+- [x] Call IntelligenceCache.start() at startup — ✅ DONE (main.py:720)
+- [x] Wire brain_service gRPC to hypothesis_agent — ✅ DONE (hypothesis_agent.py:21-68)
+- [x] Establish WebSocket real-time data connectivity — ✅ DONE (main.py:370-453 bridges active)
+- [x] Wire 12 new Academic Edge agents into runner.py DAG stages — ✅ DONE (runner.py:260-310)
 
 ### P2 — Medium
 - [ ] Add JWT authentication for live trading endpoints
