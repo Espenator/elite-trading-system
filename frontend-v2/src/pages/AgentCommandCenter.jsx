@@ -67,13 +67,13 @@ export default function AgentCommandCenter() {
 
   return (
     <div className="min-h-screen bg-[#0B0E14] text-white flex flex-col">
-      {/* ========== HEADER BAR ========== */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-800 bg-[#111827]/90 shrink-0">
+      {/* ========== HEADER BAR (mockup 01: AGENT COMMAND CENTER, GREEN, Uptime, 42/42 ONLINE, CPU/RAM/GPU, KILL SWITCH, ELITE TRADING SYSTEM) ========== */}
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#1e293b] bg-[#111827] shrink-0">
         {/* Left: Title + Status */}
         <div className="flex items-center gap-3">
-          <Activity className="w-5 h-5 text-[#00D9FF]" />
-          <h1 className="text-sm font-bold tracking-widest text-white font-mono">AGENT COMMAND CENTER</h1>
-          <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 tracking-wider">
+          <Activity className="w-5 h-5 text-[#06b6d4]" />
+          <h1 className="text-sm font-bold tracking-widest text-[#f8fafc] font-mono">AGENT COMMAND CENTER</h1>
+          <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-[#064e3b] text-[#10b981] border border-[#10b981]/40 tracking-wider">
             GREEN
           </span>
         </div>
@@ -81,59 +81,59 @@ export default function AgentCommandCenter() {
         {/* Center: System Metrics */}
         <div className="flex items-center gap-5 text-[10px] font-mono">
           <div className="flex items-center gap-1.5">
-            <span className="text-gray-500">Uptime:</span>
-            <span className="text-white font-bold">{uptime}</span>
+            <span className="text-[#64748b]">Uptime:</span>
+            <span className="text-[#f8fafc] font-bold">{uptime}</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="text-white font-bold">{totalCount}/{totalCount}</span>
-            <span className="text-emerald-400 font-bold">ONLINE</span>
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[#f8fafc] font-bold">{onlineCount}/{totalCount}</span>
+            <span className="text-[#10b981] font-bold">ONLINE</span>
+            <div className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse" />
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="text-gray-500">CPU:</span>
-            <span className={cpuAvg > 80 ? "text-red-400 font-bold" : cpuAvg > 60 ? "text-amber-400 font-bold" : "text-white font-bold"}>{cpuAvg}%</span>
-            <MetricBar value={cpuAvg} />
+            <span className="text-[#64748b]">CPU:</span>
+            <span className={cpuAvg > 80 ? "text-[#ef4444] font-bold" : cpuAvg > 60 ? "text-[#f59e0b] font-bold" : "text-[#f8fafc] font-bold"}>{cpuAvg}%</span>
+            <MetricBar value={cpuAvg} color="#3b82f6" />
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="text-gray-500">RAM:</span>
-            <span className={ramPct > 80 ? "text-red-400 font-bold" : "text-white font-bold"}>{ramPct}%</span>
-            <MetricBar value={ramPct} color="#00D9FF" />
+            <span className="text-[#64748b]">RAM:</span>
+            <span className={ramPct > 80 ? "text-[#ef4444] font-bold" : "text-[#f8fafc] font-bold"}>{ramPct}%</span>
+            <MetricBar value={ramPct} color="#10b981" />
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="text-gray-500">GPU:</span>
-            <span className={gpuPct > 80 ? "text-red-400 font-bold" : gpuPct > 60 ? "text-amber-400 font-bold" : "text-white font-bold"}>{gpuPct}%</span>
-            <MetricBar value={gpuPct} color="#a855f7" />
+            <span className="text-[#64748b]">GPU:</span>
+            <span className={gpuPct > 80 ? "text-[#ef4444] font-bold" : gpuPct > 60 ? "text-[#f59e0b] font-bold" : "text-[#f8fafc] font-bold"}>{gpuPct}%</span>
+            <MetricBar value={gpuPct} color="#8b5cf6" />
           </div>
         </div>
 
         {/* Right: Kill Switch + Branding */}
         <div className="flex items-center gap-4">
           <button
-            className="px-3 py-1.5 text-[11px] font-bold bg-red-600/20 text-red-400 border border-red-500/50 rounded hover:bg-red-600/40 hover:shadow-[0_0_12px_rgba(239,68,68,0.3)] transition-all flex items-center gap-1.5 tracking-wider"
+            className="px-4 py-1.5 text-[11px] font-bold bg-[#7f1d1d] text-[#f87171] border border-[#ef4444]/50 rounded-full hover:bg-[#991b1b] hover:shadow-[0_0_12px_rgba(239,68,68,0.3)] transition-all flex items-center gap-1.5 tracking-wider"
             onClick={() => toast.error("KILL SWITCH activated — all agents halting!")}
           >
             <Power className="w-3 h-3" />
             KILL SWITCH
           </button>
-          <span className="text-[10px] text-gray-500 font-mono tracking-[0.2em] uppercase">ELITE TRADING SYSTEM</span>
+          <span className="text-[10px] text-[#64748b] font-mono tracking-[0.2em] uppercase">ELITE TRADING SYSTEM</span>
         </div>
       </div>
 
-      {/* ========== TAB BAR ========== */}
-      <div className="flex items-center px-4 border-b border-gray-800 bg-[#111827]/40 shrink-0">
+      {/* ========== TAB BAR (mockup: Swarm Overview active with underline) ========== */}
+      <div className="flex items-center px-4 border-b border-[#1e293b] bg-[#111827]/60 shrink-0">
         {TABS.map(t => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
             className={`px-4 py-2.5 text-[11px] font-medium border-b-2 transition-all whitespace-nowrap ${
               activeTab === t.key
-                ? "text-[#00D9FF] border-[#00D9FF] bg-[#00D9FF]/5"
-                : "text-gray-500 border-transparent hover:text-gray-300 hover:bg-gray-800/30"
+                ? "text-[#06b6d4] border-[#06b6d4] bg-[#164e63]/10"
+                : "text-[#64748b] border-transparent hover:text-[#94a3b8] hover:bg-[#1e293b]/50"
             }`}
           >
             {t.label}
             {activeTab === t.key && (
-              <span className="ml-1.5 text-[9px] text-[#00D9FF]/60 uppercase tracking-wider">ACTIVE</span>
+              <span className="ml-1.5 text-[9px] text-[#06b6d4]/70 uppercase tracking-wider">ACTIVE</span>
             )}
           </button>
         ))}
@@ -151,31 +151,31 @@ export default function AgentCommandCenter() {
         {activeTab === "logs" && <LogsTelemetryTab />}
       </div>
 
-      {/* ========== FOOTER BAR ========== */}
-      <div className="flex items-center justify-between px-4 py-1 border-t border-gray-800 bg-[#111827]/80 text-[9px] font-mono shrink-0">
-        <div className="flex items-center gap-3 text-gray-600">
+      {/* ========== FOOTER BAR (mockup: WebSocket Connected • API Healthy • 42 agents • LLM Flow 847 • Conference 8/12 • Last Refresh • Load • Uptime) ========== */}
+      <div className="flex items-center justify-between px-4 py-1.5 border-t border-[#1e293b] bg-[#111827] text-[10px] font-mono shrink-0">
+        <div className="flex items-center gap-3 text-[#64748b]">
           <span className="flex items-center gap-1">
-            WebSocket <span className="text-emerald-400 ml-0.5">Connected</span>
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-0.5" />
+            WebSocket <span className="text-[#10b981] ml-0.5">Connected</span>
+            <div className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse ml-0.5" />
           </span>
-          <span className="text-gray-700">|</span>
-          <span>API <span className="text-emerald-400">Healthy</span>
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block ml-0.5" />
+          <span className="text-[#374151]">|</span>
+          <span>API <span className="text-[#10b981]">Healthy</span>
+            <div className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse inline-block ml-0.5" />
           </span>
-          <span className="text-gray-700">|</span>
-          <span><span className="text-white">{totalCount}</span> agents</span>
-          <span className="text-gray-700">|</span>
-          <span>LLM Flow <span className="text-white">847</span></span>
-          <span className="text-gray-700">|</span>
-          <span>Conference <span className="text-white">8/12</span></span>
-          <span className="text-gray-700">|</span>
-          <span>Last Refresh <span className="text-[#00D9FF]">{new Date().toLocaleTimeString("en-US", { hour12: false })}</span></span>
-          <span className="text-gray-700">|</span>
-          <span>Load <span className="text-white">2.4/4.0</span></span>
-          <span className="text-gray-700">|</span>
-          <span>Uptime <span className="text-white">{uptime}</span></span>
+          <span className="text-[#374151]">|</span>
+          <span><span className="text-[#f8fafc]">{totalCount}</span> agents</span>
+          <span className="text-[#374151]">|</span>
+          <span>LLM Flow <span className="text-[#f8fafc]">847</span></span>
+          <span className="text-[#374151]">|</span>
+          <span>Conference <span className="text-[#f8fafc]">8/12</span></span>
+          <span className="text-[#374151]">|</span>
+          <span>Last Refresh <span className="text-[#06b6d4]">{new Date().toLocaleTimeString("en-US", { hour12: false })}</span></span>
+          <span className="text-[#374151]">|</span>
+          <span>Load <span className="text-[#f8fafc]">2.4/4.0</span></span>
+          <span className="text-[#374151]">|</span>
+          <span>Uptime <span className="text-[#f8fafc]">{uptime}</span></span>
         </div>
-        <div className="text-gray-700">
+        <div className="text-[#64748b]">
           Embodier.ai v2.0
         </div>
       </div>
