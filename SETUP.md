@@ -4,7 +4,7 @@
 - Python 3.10+ (with pip)
 - Node.js 18+ (with npm)
 - Git
-- Windows 10/11 (PowerShell 5.1+)
+- Windows 10/11 (PowerShell 5.1+) **or** Linux/macOS (bash)
 
 ## Paths
 
@@ -42,10 +42,19 @@ Both IPs are DHCP-reserved on the AT&T BGW320-505 router (192.168.1.254).
 
 ## Quick Start (One Click)
 
+### Windows
+
 Double-click `start-embodier.bat` or run:
 ```powershell
 cd C:\Users\Espen\elite-trading-system
 .\start-embodier.ps1
+```
+
+### Linux/macOS
+
+```bash
+cd /path/to/elite-trading-system
+./start-embodier.sh
 ```
 
 This will:
@@ -56,11 +65,20 @@ This will:
 5. Auto-restart if either service crashes (up to 3 times)
 
 ### Backend only (no frontend)
+
+**Windows:**
 ```powershell
 .\start-embodier.ps1 -SkipFrontend
 ```
 
+**Linux/macOS:**
+```bash
+./start-embodier.sh --skip-frontend
+```
+
 ## Manual Start (Step by Step)
+
+### Windows
 
 ```powershell
 # Terminal 1 — Backend
@@ -70,6 +88,19 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 # Terminal 2 — Frontend
 cd C:\Users\Espen\elite-trading-system\frontend-v2
+npm run dev
+```
+
+### Linux/macOS
+
+```bash
+# Terminal 1 — Backend
+cd /path/to/elite-trading-system/backend
+source venv/bin/activate
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+# Terminal 2 — Frontend
+cd /path/to/elite-trading-system/frontend-v2
 npm run dev
 ```
 
