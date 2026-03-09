@@ -260,6 +260,28 @@ class AlpacaStreamService:
         if not close:
             return None
 
+        # Publish L2 quote data to MessageBus for execution agent slippage calculations
+        bid_price = float(latest_quote.get("bp") or 0)
+        ask_price = float(latest_quote.get("ap") or 0)
+        bid_size = int(latest_quote.get("bs") or 0)
+        ask_size = int(latest_quote.get("as") or 0)
+
+        if bid_price > 0 and ask_price > 0:
+            # Generate synthetic L2 depth levels (top 3) based on NBBO
+            # Real L2 data requires institutional market data feeds
+            l2_data = self._generate_synthetic_l2(
+                bid_price, ask_price, bid_size, ask_size
+            )
+            asyncio.create_task(
+                self.message_bus.publish("market_data.l2_quote", {
+                    "symbol": symbol,
+                    "timestamp": latest_quote.get("t") or datetime.now(timezone.utc).isoformat(),
+                    "bids": l2_data["bids"],
+                    "asks": l2_data["asks"],
+                    "source": f"alpaca_snapshot_{self._session}",
+                })
+            )
+
         return {
             "symbol": symbol,
             "timestamp": (
@@ -278,10 +300,10 @@ class AlpacaStreamService:
             # Extra fields from snapshot
             "latest_trade_price": float(latest_trade.get("p") or 0),
             "latest_trade_size": int(latest_trade.get("s") or 0),
-            "bid": float(latest_quote.get("bp") or 0),
-            "ask": float(latest_quote.get("ap") or 0),
-            "bid_size": int(latest_quote.get("bs") or 0),
-            "ask_size": int(latest_quote.get("as") or 0),
+            "bid": bid_price,
+            "ask": ask_price,
+            "bid_size": bid_size,
+            "ask_size": ask_size,
             "prev_close": float(prev_daily.get("c") or 0),
             "daily_open": float(daily_bar.get("o") or 0),
             "daily_high": float(daily_bar.get("h") or 0),
@@ -289,6 +311,43 @@ class AlpacaStreamService:
             "daily_close": float(daily_bar.get("c") or 0),
             "daily_volume": int(daily_bar.get("v") or 0),
         }
+
+    def _generate_synthetic_l2(
+        self, bid_price: float, ask_price: float, bid_size: int, ask_size: int
+    ) -> Dict[str, List]:
+        """Generate synthetic L2 order book levels based on NBBO.
+
+        Since Alpaca stock data API doesn't provide full L2 depth (institutional only),
+        we simulate 3 levels of depth on each side based on the NBBO and typical
+        spread behavior.
+
+        Args:
+            bid_price: Best bid price
+            ask_price: Best ask price
+            bid_size: Size at best bid
+            ask_size: Size at best ask
+
+        Returns:
+            Dict with "bids" and "asks" lists of (price, size) tuples
+        """
+        spread = ask_price - bid_price
+        tick_size = 0.01  # Assume penny stocks
+
+        # Generate 3 bid levels (descending price)
+        bids = [
+            (bid_price, bid_size),
+            (bid_price - tick_size, int(bid_size * 0.8)),
+            (bid_price - tick_size * 2, int(bid_size * 0.6)),
+        ]
+
+        # Generate 3 ask levels (ascending price)
+        asks = [
+            (ask_price, ask_size),
+            (ask_price + tick_size, int(ask_size * 0.8)),
+            (ask_price + tick_size * 2, int(ask_size * 0.6)),
+        ]
+
+        return {"bids": bids, "asks": asks}
 
     async def _run_snapshot_poll_loop(self) -> None:
         """Poll snapshots on interval while market is closed.

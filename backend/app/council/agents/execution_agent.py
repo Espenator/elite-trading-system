@@ -4,6 +4,14 @@ Refactored to:
 - Accept L2 Quote data (bid/ask depth) from context
 - Calculate Impact Cost based on position size vs. order book depth
 - Reduce confidence if projected slippage exceeds threshold (0.2% default)
+
+Context data format:
+    context["l2_quote"] = {
+        "bids": [(price, size), ...],  # Top 3 bid levels, descending price
+        "asks": [(price, size), ...],  # Top 3 ask levels, ascending price
+    }
+    context["intended_direction"] = "buy" | "sell"
+    context["position_value"] = 10000.0  # Dollar value of position
 """
 import logging
 import os
