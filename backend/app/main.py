@@ -69,6 +69,7 @@ from app.api.v1 import (
     features as features_routes,
     council,
     cns,
+    health_extended,
     youtube_knowledge,
     swarm,
     cognitive,
@@ -902,6 +903,14 @@ async def _stop_event_driven_pipeline():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize data schema on startup; start background loops."""
+    # 0. Environment validation (fail-fast option)
+    try:
+        from app.core.env_validator import validate_environment
+        validate_environment(fail_fast=False)  # Warn but continue in dev
+        # Set fail_fast=True in production to exit on critical errors
+    except Exception as e:
+        log.warning("Environment validation failed: %s", e)
+
     # 1. Data schema
     try:
         from app.data.storage import init_schema
@@ -1083,6 +1092,7 @@ app.include_router(youtube_knowledge.router, prefix="/api/v1/youtube-knowledge",
 app.include_router(ingestion.router, tags=["ingestion"])
 app.include_router(cluster.router, prefix="/api/v1/cluster", tags=["cluster"])
 app.include_router(llm_health.router, prefix="/api/v1/llm/health", tags=["llm_health"])
+app.include_router(health_extended.router, tags=["health"])
 
 @app.get("/api/v1/consensus", tags=["agents"])
 async def consensus_alias():

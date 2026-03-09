@@ -346,7 +346,7 @@ All pages in frontend-v2/src/pages/. All use useApi() hook. No mock data. **ALL 
 git clone https://github.com/Espenator/elite-trading-system.git
 cd elite-trading-system
 
-# Optional: Validate environment before starting
+# Validate environment before starting
 python scripts/preflight.py
 
 # Start everything (backend + frontend)
@@ -357,6 +357,9 @@ python scripts/preflight.py
 
 # Or: With brain service (requires Ollama on PC2)
 .\start-embodier.ps1 -WithBrain
+
+# After startup, verify all systems are operational
+python scripts/doctor.py
 ```
 
 **What it does:**
@@ -376,7 +379,7 @@ python scripts/preflight.py
 cd backend
 pip install -r requirements.txt
 cp .env.example .env  # Edit .env with Alpaca API keys
-python start_server.py
+python server.py
 
 # Terminal 2 — Frontend
 cd frontend-v2
@@ -444,12 +447,18 @@ netsh advfirewall firewall add rule name="Brain Service gRPC" dir=in action=allo
 | `/healthz` | Liveness probe | <50ms | Docker/k8s liveness, fast check |
 | `/readyz` | Readiness probe | <200ms | Docker/k8s readiness, dependency check |
 | `/health` | Full diagnostic | <500ms | Detailed system status |
+| `/health/websocket` | WebSocket metrics | <100ms | Connection monitoring |
+| `/health/brain` | Brain service gRPC | <3s | LLM service connectivity |
+| `/health/diagnostics` | All subsystems | <1s | Complete system overview |
 
 **Test health:**
 ```powershell
 Invoke-RestMethod http://localhost:8000/healthz
 Invoke-RestMethod http://localhost:8000/readyz
 Invoke-RestMethod http://localhost:8000/health | ConvertTo-Json -Depth 5
+Invoke-RestMethod http://localhost:8000/health/websocket | ConvertTo-Json -Depth 3
+Invoke-RestMethod http://localhost:8000/health/brain | ConvertTo-Json -Depth 3
+Invoke-RestMethod http://localhost:8000/health/diagnostics | ConvertTo-Json -Depth 5
 ```
 
 ### Verify Startup

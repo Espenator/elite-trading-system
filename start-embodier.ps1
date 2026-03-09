@@ -216,7 +216,7 @@ $backendErrFile = Join-Path $LogDir "backend-error.log"
 # Force Python UTF-8 mode so starlette/slowapi never fall back to cp1252
 $env:PYTHONUTF8 = "1"
 
-$backendProc = Start-Process -FilePath $VenvPython -ArgumentList "-X", "utf8", "-u", "start_server.py" `
+$backendProc = Start-Process -FilePath $VenvPython -ArgumentList "-X", "utf8", "-u", "server.py" `
     -WorkingDirectory $BackendDir `
     -RedirectStandardOutput $backendLogFile `
     -RedirectStandardError $backendErrFile `

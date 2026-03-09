@@ -99,9 +99,57 @@ python scripts/verify-startup.py --wait 30
 
 ---
 
-## Future Scripts (Planned)
+## System Diagnostics (`doctor.py`)
 
-- `doctor.py` — Comprehensive system health diagnostic
+**Purpose:** Comprehensive system health diagnostics CLI tool
+
+**Usage:**
+```bash
+# Full diagnostic
+python scripts/doctor.py
+
+# Quick check (critical checks only)
+python scripts/doctor.py --quick
+
+# Export report to JSON
+python scripts/doctor.py --export diagnostic-report.json
+```
+
+**Checks:**
+
+### Environment (6 checks)
+- ✓ Python 3.10+ installed
+- ✓ Node.js 18+ installed
+- ✓ Required Python packages
+- ⚠ .env file exists
+- ⚠ Alpaca API keys configured
+- ✓ Optional API keys
+
+### Infrastructure (3 checks)
+- ✓ Port 8000, 3000, 50051 availability
+- ✓ Database directory exists and writable
+- ✓ Disk space (>20% free)
+
+### Backend Services (3 checks)
+- ✓ Backend liveness (/healthz)
+- ✓ WebSocket health
+- ✓ Brain service connectivity
+
+**Exit codes:**
+- 0: All checks passed
+- 1: Critical failures
+- 2: Warnings only (degraded mode)
+
+**When to use:**
+- After installation
+- Before reporting bugs
+- When troubleshooting issues
+- In CI/CD pipelines
+- For support ticket diagnostics
+
+---
+
+## Future Scripts (Planned)
 - `check-env.py` — Deep validation of .env configuration
 - `benchmark-startup.py` — Measure startup time and identify bottlenecks
 - `smoke-test.py` — End-to-end smoke test of critical flows
