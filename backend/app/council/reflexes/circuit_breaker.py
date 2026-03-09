@@ -49,6 +49,7 @@ class CircuitBreaker:
             self.vix_spike_detector(blackboard),
             self.daily_drawdown_limit(blackboard),
             self.position_limit_check(blackboard),
+            self.single_position_check(blackboard),
             self.market_hours_check(blackboard),
         ]
         results = await asyncio.gather(*checks)
@@ -108,6 +109,33 @@ class CircuitBreaker:
             positions = await alpaca_service.get_positions()
             if len(positions) >= thresholds["cb_max_positions"]:
                 return f"Position limit reached: {len(positions)}/{thresholds['cb_max_positions']} positions"
+        except Exception:
+            pass  # Alpaca unavailable — don't block
+        return None
+
+    async def single_position_check(self, blackboard: BlackboardState) -> Optional[str]:
+        """Check if any single position exceeds maximum percentage of portfolio."""
+        thresholds = _get_thresholds()
+        try:
+            from app.services.alpaca_service import alpaca_service
+            positions = await alpaca_service.get_positions()
+            account = await alpaca_service.get_account()
+
+            if not positions or not account:
+                return None
+
+            equity = float(account.get("equity", 0))
+            if equity <= 0:
+                return None
+
+            max_pct = thresholds["cb_max_single_position_pct"]
+
+            for pos in positions:
+                market_value = abs(float(pos.get("market_value", 0)))
+                pos_pct = market_value / equity
+                if pos_pct > max_pct:
+                    symbol = pos.get("symbol", "UNKNOWN")
+                    return f"Single position limit exceeded: {symbol} is {pos_pct:.1%} of portfolio (max {max_pct:.0%})"
         except Exception:
             pass  # Alpaca unavailable — don't block
         return None
