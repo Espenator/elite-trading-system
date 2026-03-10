@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import log from "@/utils/logger";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl, getAuthHeaders } from "../config/api";
@@ -772,13 +773,14 @@ const SORT_PILLS = [
 const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1D", "1W"];
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   // --- STATE ---
   const [activeSortKey, setActiveSortKey] = useState("Composite Score");
   const [selectedSymbol, setSelectedSymbol] = useState("SPY"); // default so Price Action chart loads
   const [activeTimeframe, setActiveTimeframe] = useState("1h");
   const [autoExec, setAutoExec] = useState(false);
 
-  // --- WebSocket connection (Dashboard renders outside Layout, so must connect here) ---
+  // --- WebSocket connection (Layout handles this now, but keep as safety net) ---
   useEffect(() => {
     ws.connect();
     return () => ws.disconnect();
@@ -994,7 +996,7 @@ export default function Dashboard() {
   }, [processedSignals]);
 
   const handleSpawnAgent = useCallback(() => {
-    window.location.href = "/agents";
+    navigate("/agents");
   }, []);
 
   // --- KEYBOARD SHORTCUTS ---
@@ -1091,7 +1093,7 @@ export default function Dashboard() {
   // Only show boot screen on very first load (no data AND no error yet)
   if (sigLoading && !signalsData && !sigErr)
     return (
-      <div className="h-screen w-full bg-[#0B0E14] flex items-center justify-center text-[#00D9FF] font-mono text-xs">
+      <div className="h-full w-full bg-[#0B0E14] flex items-center justify-center text-[#00D9FF] font-mono text-xs">
         INITIALIZING EMBODIER NEURAL NET...
       </div>
     );
@@ -1107,7 +1109,7 @@ export default function Dashboard() {
   ].filter(Boolean);
 
   return (
-    <div className="flex flex-col h-screen w-full bg-[#0B0E14] text-[#e5e7eb] font-sans text-[9px] leading-tight overflow-y-auto selection:bg-[#00D9FF]/30">
+    <div className="-m-6 -mb-10 flex flex-col h-[calc(100%+3.5rem)] w-[calc(100%+3rem)] bg-[#0B0E14] text-[#e5e7eb] font-sans text-[9px] leading-tight overflow-y-auto selection:bg-[#00D9FF]/30">
       {/* API ERROR BANNER */}
       {criticalErrors.length > 0 && (
         <div className="px-4 py-1.5 bg-red-500/10 border-b border-red-500/30 text-red-400 text-[10px] flex items-center gap-2 shrink-0">
@@ -1580,7 +1582,7 @@ export default function Dashboard() {
                     .then(() => alert(`Stop Limit order placed: ${selectedSymbol}`))
                     .catch(e => alert(`Stop Limit order failed: ${e.message}`));
                 }} className="bg-[#1e293b] hover:bg-cyan-900 text-[#00D9FF] py-1 rounded text-[8px]">Stop Limit</button>
-                <button onClick={() => { window.location.href = "/trade-execution"; }} className="bg-[#1e293b] hover:bg-amber-900 text-[#f59e0b] py-1 rounded text-[8px]">Modify</button>
+                <button onClick={() => { navigate("/trade-execution"); }} className="bg-[#1e293b] hover:bg-amber-900 text-[#f59e0b] py-1 rounded text-[8px]">Modify</button>
               </div>
             </div>
           )}
@@ -1602,7 +1604,7 @@ export default function Dashboard() {
               <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5 space-y-1.5">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">COGNITIVE INTELLIGENCE</h3>
-                  <button onClick={() => { window.location.href = "/cognitive-dashboard"; }} className="text-[7px] text-[#00D9FF] hover:text-white transition-colors">View Full →</button>
+                  <button onClick={() => { navigate("/dashboard"); }} className="text-[7px] text-[#00D9FF] hover:text-white transition-colors">View Full →</button>
                 </div>
                 <div className="grid grid-cols-2 gap-1 font-mono text-[8px]">
                   <div className="flex items-center gap-1.5">
@@ -1648,7 +1650,7 @@ export default function Dashboard() {
       </main>
 
       {/* BOTTOM ACTION BAR */}
-      <footer className="flex items-center justify-between px-3 py-1 bg-[#0B0E14] border-t border-[rgba(42,52,68,0.5)] shrink-0 font-mono text-[8px] text-[#94a3b8]">
+      <footer className="flex items-center px-3 py-1 bg-[#0B0E14] border-t border-[rgba(42,52,68,0.5)] shrink-0 font-mono text-[8px] text-[#94a3b8]">
         <div className="flex gap-2">
           <button onClick={handleSpawnAgent} className="bg-[#1e293b] hover:bg-[#374151] text-white px-2 py-0.5 rounded border border-[#374151]">
             Spawn Agent [N]
@@ -1659,18 +1661,6 @@ export default function Dashboard() {
           <button onClick={handleEmergencyStop} className="bg-red-900/70 text-red-400 px-2 py-0.5 rounded font-bold border border-red-700/50">
             EMERGENCY STOP
           </button>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1">
-            <div className="w-1.5 h-1.5 rounded-full bg-green-500" /> WS
-          </span>
-          <span className="flex items-center gap-1">
-            <div className="w-1.5 h-1.5 rounded-full bg-green-500" /> API
-          </span>
-          <span>{agents.total || swarm.total || "\u2014"} Agents</span>
-          <span>CPU {performance.cpu || "\u2014"}%</span>
-          <span>GPU {performance.gpu || "\u2014"}%</span>
-          <span>Uptime {performance.uptime || "\u2014"}</span>
         </div>
       </footer>
 
