@@ -1,6 +1,6 @@
 # Elite Trading System
 ### Embodier.ai — Full-Stack AI Trading Intelligence Platform
-**Version 3.5.1** | Last Updated: March 9, 2026
+**Version 4.1.0-dev** | Last Updated: March 9, 2026
 
 CI Status: GREEN — 666 tests passing
 Frontend: **ALL 14 PAGES COMPLETE** — pixel-fidelity match to 23 mockup images. Build clean.
@@ -28,6 +28,7 @@ React + FastAPI full-stack trading application with 14-route V3 widescreen dashb
 | Database | DuckDB (WAL mode, pooling) | BUILT |
 | Authentication | None | Not started |
 | WebSocket | Code exists | **ACTIVE** — bridges for signals, orders, council, market data |
+| Electron desktop app | `desktop/` | **IN PROGRESS** — Electron shell 80% scaffolded, build plan designed. See [build plan](docs/ELECTRON-DESKTOP-BUILD-PLAN.md) |
 
 ## Council Architecture (35 Agents)
 
@@ -380,3 +381,32 @@ npm run dev
 ## License
 
 Private repository — Embodier.ai
+
+
+---
+
+## Desktop App (Electron) — IN PROGRESS
+
+**Goal:** Double-click one icon. Everything starts. No more terminal juggling, port conflicts, or separate process management.
+
+Embodier Trader is being packaged as a native Electron desktop application with PyInstaller-bundled Python backend.
+
+### Operating Modes
+
+| Mode | Description |
+|------|-------------|
+| **Full** | Single PC runs everything (backend + frontend + all services) |
+| **Primary + Secondary** | ESPENMAIN runs trading/ML, Profit Trader runs brain-service (LLM) + scanner |
+| **Degraded** | Primary continues trading if Secondary goes offline, with tiered fallback |
+
+### Key Features
+- One-click startup — Electron spawns backend automatically
+- Role-aware — same installer, different behavior per machine
+- Peer resilience — tiered fallback when 2nd PC goes down (retry -> local Ollama -> no-brain conservative mode)
+- iPhone PWA — remote monitoring via Tailscale
+- Auto-updater via GitHub Releases
+
+### Documentation
+- [Electron Desktop Build Plan](docs/ELECTRON-DESKTOP-BUILD-PLAN.md) — Full 3-phase build plan with task checklists
+- [Peer Resilience Architecture](docs/PEER-RESILIENCE-ARCHITECTURE.md) — Tiered fallback strategy for 2-PC mode
+- [Status & TODO (March 9, 2026)](docs/STATUS-AND-TODO-2026-03-09.md) — Current project status
