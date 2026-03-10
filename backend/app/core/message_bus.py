@@ -241,6 +241,22 @@ class MessageBus:
             logger.debug("MessageBus not running — dropping event on '%s'", topic)
             return
 
+        # Enforce canonical score semantics at the bus boundary so every publisher
+        # (current + future) preserves the invariant:
+        #   signal.generated.score ∈ [0, 100]
+        if topic == "signal.generated" and isinstance(data, dict) and "score" in data:
+            try:
+                from app.core.score_semantics import coerce_signal_score_0_100
+
+                data = dict(data)  # don't mutate caller-owned dict
+                data["score"] = coerce_signal_score_0_100(
+                    data.get("score"),
+                    context=f"MessageBus publish(signal.generated) {data.get('symbol', '')}".strip(),
+                )
+            except Exception:
+                # Never let score coercion break event delivery.
+                pass
+
         event = {"topic": topic, "data": data, "timestamp": time.time()}
 
         # Local delivery (always)

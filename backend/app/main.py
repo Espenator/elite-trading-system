@@ -74,6 +74,8 @@ from app.api.v1 import (
     cognitive,
     cluster,
     llm_health,
+    ingestion_firehose,
+    triage,
 )
 from app.api import ingestion
 
@@ -237,6 +239,7 @@ _node_discovery = None
 _stream_manager = None
 _gpu_telemetry_daemon = None
 _llm_dispatcher = None
+_channels_orchestrator = None
 
 
 async def _start_event_driven_pipeline():
@@ -280,6 +283,19 @@ async def _start_event_driven_pipeline():
     _message_bus = get_message_bus()
     await _message_bus.start()
     log.info("\u2705 MessageBus started")
+
+    # 1a. Firehose channel orchestrator (CNS sensory layer)
+    global _channels_orchestrator
+    firehose_enabled = os.getenv("FIREHOSE_ENABLED", "true").strip().lower() in ("1", "true", "yes")
+    if firehose_enabled:
+        try:
+            from app.services.channels.orchestrator import ensure_orchestrator_started
+            _channels_orchestrator = await ensure_orchestrator_started(_message_bus)
+            log.info("\u2705 Firehose ChannelsOrchestrator started (agents=%d)", len(_channels_orchestrator.get_status().get("agents", {})))
+        except Exception as e:
+            log.warning("Firehose orchestrator failed to start: %s", e)
+    else:
+        log.info("\u26A0\uFE0F Firehose disabled (FIREHOSE_ENABLED=false)")
 
     # 1b. GPU Telemetry Daemon — broadcasts to cluster.telemetry
     from app.services.gpu_telemetry import GPUTelemetryDaemon
@@ -330,45 +346,16 @@ async def _start_event_driven_pipeline():
     await _scout_registry.start(message_bus=_message_bus)
     log.info("\u2705 ScoutRegistry started (%d scouts)", _scout_registry.scout_count)
 
-    # 3. CouncilGate (subscribes to signal.generated, invokes council)
-    # Disable when LLM or council is off — council calls LLM which blocks when Ollama is down.
-    council_gate_enabled = (
-        os.getenv("COUNCIL_GATE_ENABLED", "true").lower() == "true"
-        and _llm_enabled
-        and _council_enabled
+    # 3. Council invocation (single canonical path)
+    # Canonical: CouncilGate. Optional fallback is explicitly disabled by default and safe.
+    from app.services.council_invocation import setup_council_invocation
+
+    council_setup = await setup_council_invocation(
+        _message_bus,
+        llm_enabled=_llm_enabled,
+        council_enabled=_council_enabled,
     )
-    if council_gate_enabled:
-        from app.council.council_gate import CouncilGate
-        _council_gate = CouncilGate(
-            message_bus=_message_bus,
-            gate_threshold=float(os.getenv("COUNCIL_GATE_THRESHOLD", "0.65")),
-            max_concurrent=int(os.getenv("COUNCIL_MAX_CONCURRENT", "3")),
-            cooldown_seconds=int(os.getenv("COUNCIL_COOLDOWN_SECS", "120")),
-        )
-        await _council_gate.start()
-        log.info("\u2705 CouncilGate started (13-agent council controls trading)")
-    else:
-        log.info("\u26a0 CouncilGate DISABLED -- routing signals directly to OrderExecutor")
-        # BUG FIX: When council is off, route signals directly as verdicts.
-        # Without this, signal.generated has NO trading consumer and nothing executes.
-        async def _signal_to_verdict_fallback(signal_data):
-            """Bypass council — convert signal.generated directly to council.verdict format."""
-            score = signal_data.get("score", 0)
-            if score < 0.65:  # Still gate on minimum score
-                return
-            await _message_bus.publish("council.verdict", {
-                "symbol": signal_data.get("symbol", ""),
-                "final_direction": signal_data.get("label", "long"),
-                "final_confidence": min(score, 1.0),
-                "execution_ready": True,
-                "vetoed": False,
-                "votes": [],
-                "council_reasoning": "CouncilGate disabled — direct signal passthrough",
-                "signal_data": signal_data,
-                "price": signal_data.get("close", signal_data.get("price", 0)),
-            })
-        await _message_bus.subscribe("signal.generated", _signal_to_verdict_fallback)
-        log.info("\u2705 Signal->Verdict fallback subscriber registered (CouncilGate bypass)")
+    _council_gate = council_setup.get("gate")
 
     # 4. OrderExecutor (subscribes to council.verdict)
     from app.services.order_executor import OrderExecutor
@@ -496,17 +483,17 @@ async def _start_event_driven_pipeline():
         _alpaca_stream = _stream_manager
         log.info("\u2705 AlpacaStreamManager launched for %d symbols", len(symbols))
 
-    # 8. SwarmSpawner — spawns analysis swarms from ideas
-    # Skip when LLM disabled — _run_swarm does synchronous DuckDB ingest + LLM council
-    # which blocks the entire async event loop and deadlocks the server.
-    if _llm_enabled:
+    # 8. SwarmSpawner — legacy deep analysis (explicitly disabled by default)
+    # HyperSwarm is the canonical triage computation layer and escalates via signal.generated.
+    swarm_spawner_enabled = os.getenv("SWARM_SPAWNER_ENABLED", "false").strip().lower() in ("1", "true", "yes")
+    if _llm_enabled and swarm_spawner_enabled:
         from app.services.swarm_spawner import get_swarm_spawner
         _swarm_spawner = get_swarm_spawner()
         _swarm_spawner._bus = _message_bus
         await _swarm_spawner.start()
         log.info("\u2705 SwarmSpawner started (%d workers)", _swarm_spawner.MAX_CONCURRENT_SWARMS)
     else:
-        log.info("\u26A0\uFE0F SwarmSpawner skipped (LLM_ENABLED=false)")
+        log.info("\u26A0\uFE0F SwarmSpawner skipped (SWARM_SPAWNER_ENABLED=false or LLM_ENABLED=false)")
 
     # 9. KnowledgeIngestionService — connect to message bus
     from app.services.knowledge_ingest import knowledge_ingest
@@ -523,15 +510,16 @@ async def _start_event_driven_pipeline():
     else:
         log.info("\u26A0\uFE0F AutonomousScoutService skipped (LLM_ENABLED=false)")
 
-    # 11. DiscordSwarmBridge — Discord channels -> swarm analysis
-    if _llm_enabled:
+    # 11. DiscordSwarmBridge — legacy direct Discord->swarm.idea
+    # Prefer Firehose (DiscordChannelAgent) when enabled to avoid double-polling/double-publish.
+    if _llm_enabled and not firehose_enabled:
         from app.services.discord_swarm_bridge import get_discord_bridge
         _discord_bridge = get_discord_bridge()
         _discord_bridge._bus = _message_bus
         await _discord_bridge.start()
         log.info("\u2705 DiscordSwarmBridge started (%d channels)", len(_discord_bridge._channels))
     else:
-        log.info("\u26A0\uFE0F DiscordSwarmBridge skipped (LLM_ENABLED=false)")
+        log.info("\u26A0\uFE0F DiscordSwarmBridge skipped (%s)", "firehose_enabled" if firehose_enabled else "LLM_ENABLED=false")
 
     # 12. GeopoliticalRadar — continuous macro event detection
     if _llm_enabled:
@@ -795,7 +783,16 @@ async def _stop_event_driven_pipeline():
     global _event_signal_engine, _council_gate, _order_executor
     global _node_discovery, _stream_manager
     global _gpu_telemetry_daemon, _llm_dispatcher
+    global _channels_orchestrator
     log.info("Shutting down event-driven pipeline...")
+
+    # Stop Firehose orchestrator early (it depends on MessageBus)
+    if _channels_orchestrator:
+        try:
+            await _channels_orchestrator.stop()
+        except Exception:
+            pass
+        _channels_orchestrator = None
 
     # Stop GPU Telemetry Daemon
     if _gpu_telemetry_daemon:
@@ -1150,6 +1147,8 @@ app.include_router(youtube_knowledge.router, prefix="/api/v1/youtube-knowledge",
 app.include_router(ingestion.router, tags=["ingestion"])
 app.include_router(cluster.router, prefix="/api/v1/cluster", tags=["cluster"])
 app.include_router(llm_health.router, prefix="/api/v1/llm/health", tags=["llm_health"])
+app.include_router(ingestion_firehose.router, tags=["ingestion"])
+app.include_router(triage.router, prefix="/api/v1/triage", tags=["triage"])
 
 @app.get("/api/v1/consensus", tags=["agents"])
 async def consensus_alias():
