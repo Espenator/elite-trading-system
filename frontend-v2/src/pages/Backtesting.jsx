@@ -632,7 +632,7 @@ export default function Backtesting() {
               <YAxis type="category" dataKey="name" stroke="#6B7280" tick={{ fontSize: 9 }} width={90} />
               <Tooltip content={<DarkTooltip />} />
               <Bar dataKey="sharpe" name="Sharpe">
-                {parallelRuns.map((r, i) => <Cell key={i} fill={r.color} />)}
+                {parallelRuns.map((r, i) => <Cell key={r.name || `cell-${i}`} fill={r.color} />)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>

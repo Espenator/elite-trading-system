@@ -16,8 +16,13 @@ logger = logging.getLogger(__name__)
 
 # Channels allowed for WS subscription (subset of MessageBus or UI channels)
 WS_ALLOWED_CHANNELS: Set[str] = {
+    # Core trading channels
     "order", "risk", "kelly", "signals", "council", "health",
     "market_data", "alerts", "outcomes", "system",
+    # Frontend dashboard channels (must match frontend WS_CHANNELS in config/api.js)
+    "agents", "data_sources", "datasources", "trades", "logs",
+    "sentiment", "alignment", "council_verdict",
+    "homeostasis", "circuit_breaker", "swarm", "macro", "market",
 }
 
 # --- Connection Registry ---
