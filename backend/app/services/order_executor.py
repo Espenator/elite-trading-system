@@ -268,6 +268,32 @@ class OrderExecutor:
             return
 
         side = "buy" if direction == "buy" else "sell"
+
+        # -- Simulate execution (slippage + partial fills) BEFORE OrderRecord creation --
+        # This ensures qty adjustments happen BEFORE stop/TP calculation
+        sim_result = await self._simulate_execution(symbol, side, qty, price)
+        adjusted_qty = sim_result["fill_qty"]
+
+        if adjusted_qty < 1:
+            self._reject(
+                symbol, score,
+                f"Simulated fill qty < 1 (fill_ratio={sim_result['fill_ratio']:.2f})"
+            )
+            return
+
+        # -- Recalculate stop/take-profit with ADJUSTED quantity --
+        # This is critical: stop/TP must be based on the ACTUAL qty we'll execute
+        # not the Kelly-ideal qty (which may be reduced by partial fills)
+        sizer = self._get_kelly_sizer()
+        atr_estimate = kelly_result.get("atr_used", price * 0.02)
+        stop_data = sizer.calculate_trailing_stop(
+            entry_price=sim_result["fill_price"],  # Use slippage-adjusted price
+            atr=atr_estimate,
+            side=direction,
+            atr_multiplier=2.0,
+            trailing_pct=0.03,
+        )
+
         client_order_id = f"et-{symbol}-{uuid.uuid4().hex[:8]}"
 
         order_record = OrderRecord(
@@ -275,11 +301,11 @@ class OrderExecutor:
             client_order_id=client_order_id,
             symbol=symbol,
             side=side,
-            qty=qty,
+            qty=adjusted_qty,  # Use slippage-adjusted qty
             order_type="market" if not self.use_bracket_orders else "bracket",
             limit_price=None,
-            stop_loss=kelly_result.get("stop_loss"),
-            take_profit=kelly_result.get("take_profit"),
+            stop_loss=stop_data["stop_loss"],  # Recalculated for adjusted qty
+            take_profit=stop_data["take_profit"],  # Recalculated for adjusted qty
             signal_score=score,
             council_confidence=confidence,
             kelly_pct=kelly_result["kelly_pct"],
@@ -289,13 +315,123 @@ class OrderExecutor:
         )
 
         if self.auto_execute:
-            await self._execute_order(order_record, price)
+            await self._execute_order(order_record, price, sim_result)
         else:
-            await self._shadow_execute(order_record, price)
+            await self._shadow_execute(order_record, price, sim_result)
+
+    # -- Market Data Enrichment --
+    async def _get_market_data(self, symbol: str) -> Dict[str, Optional[float]]:
+        """Fetch volume, volatility, and spread for realistic slippage simulation.
+
+        Returns dict with:
+            - volume: Recent average daily volume (shares)
+            - volatility: Recent realized volatility (annualized)
+            - spread: Bid-ask spread (dollars)
+        """
+        market_data = {
+            "volume": None,
+            "volatility": None,
+            "spread": None,
+        }
+
+        try:
+            from app.data.duckdb_storage import duckdb_store
+            conn = duckdb_store._get_conn()
+
+            # Fetch 20-day avg volume and realized volatility from technical_indicators
+            row = conn.execute(
+                """
+                SELECT
+                    AVG(volume) as avg_volume,
+                    AVG(volatility_20) as avg_volatility
+                FROM technical_indicators
+                WHERE symbol = ?
+                    AND date >= DATE('now', '-20 days')
+                """,
+                [symbol.upper()],
+            ).fetchone()
+
+            if row:
+                if row[0] and float(row[0]) > 0:
+                    market_data["volume"] = float(row[0])
+                if row[1] and float(row[1]) > 0:
+                    market_data["volatility"] = float(row[1])
+        except Exception as e:
+            logger.debug("Market data fetch failed for %s: %s", symbol, e)
+
+        # Spread estimation: could be enhanced with real-time quote data
+        # For now, left as None to let ExecutionSimulator estimate from price
+
+        return market_data
+
+    # -- Slippage Simulation --
+    async def _simulate_execution(
+        self,
+        symbol: str,
+        side: str,
+        qty: int,
+        price: float
+    ) -> Dict[str, Any]:
+        """Simulate realistic execution with slippage and partial fills.
+
+        Returns dict with:
+            - fill_price: Adjusted price after slippage
+            - fill_qty: Adjusted quantity after partial fill
+            - slippage_bps: Total slippage in basis points
+            - fill_ratio: Fill ratio (0, 1]
+            - volume_impact_bps: Volume impact component
+            - spread_cost_bps: Spread cost component
+        """
+        # Default: no adjustment (used if simulator unavailable)
+        sim_result = {
+            "fill_price": price,
+            "fill_qty": qty,
+            "slippage_bps": 0.0,
+            "fill_ratio": 1.0,
+            "volume_impact_bps": 0.0,
+            "spread_cost_bps": 0.0,
+        }
+
+        try:
+            # Fetch market microstructure data
+            market_data = await self._get_market_data(symbol)
+
+            # Get simulator
+            from app.services.execution_simulator import get_execution_simulator
+            sim = get_execution_simulator()
+
+            # Simulate fill with enriched market data
+            fill = sim.simulate_fill(
+                price=price,
+                side=side,
+                order_qty=qty,
+                volume=market_data.get("volume"),
+                volatility=market_data.get("volatility"),
+                spread=market_data.get("spread"),
+            )
+
+            sim_result = {
+                "fill_price": fill.fill_price,
+                "fill_qty": max(1, int(qty * fill.fill_ratio)),
+                "slippage_bps": fill.slippage_bps,
+                "fill_ratio": fill.fill_ratio,
+                "volume_impact_bps": fill.volume_impact_bps,
+                "spread_cost_bps": fill.spread_cost_bps,
+            }
+        except Exception as e:
+            logger.debug("Execution simulation unavailable for %s: %s", symbol, e)
+
+        return sim_result
 
     # -- Order Execution --
-    async def _execute_order(self, record: OrderRecord, price: float) -> None:
-        """Submit order to Alpaca and publish order.submitted event."""
+    async def _execute_order(self, record: OrderRecord, price: float, sim_result: Dict[str, Any]) -> None:
+        """Submit order to Alpaca and publish order.submitted event.
+
+        Args:
+            record: OrderRecord with qty/stop/TP already adjusted for slippage
+            price: Original intended price (for reference)
+            sim_result: Execution simulation results (slippage, fill_ratio, etc.)
+        """
         alpaca = self._get_alpaca_service()
         try:
             order_kwargs: Dict[str, Any] = {
@@ -324,12 +460,13 @@ class OrderExecutor:
                 self._daily_trade_count += 1
                 self._signals_executed += 1
                 self._symbol_last_trade[record.symbol] = time.time()
-                self._total_notional += record.qty * price
+                self._total_notional += record.qty * sim_result["fill_price"]
 
                 logger.info(
                     "\u2705 ORDER SUBMITTED: %s %d x %s @ ~$%.2f "
-                    "(signal=%.1f, council=%.0f%%, kelly=%.2f%%, regime=%s) [%s]",
-                    record.side.upper(), record.qty, record.symbol, price,
+                    "(slip=%.1fbps, fill=%.0f%%, signal=%.1f, council=%.0f%%, kelly=%.2f%%, regime=%s) [%s]",
+                    record.side.upper(), record.qty, record.symbol, sim_result["fill_price"],
+                    sim_result["slippage_bps"], sim_result["fill_ratio"] * 100,
                     record.signal_score, record.council_confidence * 100,
                     record.kelly_pct * 100, record.regime,
                     "BRACKET" if self.use_bracket_orders else "MARKET",
@@ -341,7 +478,12 @@ class OrderExecutor:
                     "symbol": record.symbol,
                     "side": record.side,
                     "qty": record.qty,
-                    "price": price,
+                    "price": sim_result["fill_price"],
+                    "intended_price": price,
+                    "slippage_bps": sim_result["slippage_bps"],
+                    "fill_ratio": sim_result["fill_ratio"],
+                    "volume_impact_bps": sim_result["volume_impact_bps"],
+                    "spread_cost_bps": sim_result["spread_cost_bps"],
                     "order_type": record.order_type,
                     "signal_score": record.signal_score,
                     "council_confidence": record.council_confidence,
@@ -352,7 +494,7 @@ class OrderExecutor:
                     "timestamp": time.time(),
                     "source": "order_executor",
                 })
-                await self._notify_frontend(record, price, "submitted")
+                await self._notify_frontend(record, sim_result["fill_price"], "submitted")
                 asyncio.create_task(self._poll_for_fill(record))
             else:
                 record.status = "failed"
@@ -368,37 +510,27 @@ class OrderExecutor:
             self._signals_rejected += 1
             logger.exception("Order execution error for %s: %s", record.symbol, e)
 
-    async def _shadow_execute(self, record: OrderRecord, price: float) -> None:
-        """Log what WOULD be executed without placing an actual order."""
-        sim_fill_price = price
-        sim_fill_ratio = 1.0
-        sim_slippage_bps = 0.0
-        try:
-            from app.services.execution_simulator import get_execution_simulator
-            sim = get_execution_simulator()
-            fill = sim.simulate_fill(
-                price=price, side=record.side, order_qty=record.qty,
-            )
-            sim_fill_price = fill.fill_price
-            sim_fill_ratio = fill.fill_ratio
-            sim_slippage_bps = fill.slippage_bps
-            record.qty = max(1, int(record.qty * sim_fill_ratio))
-        except Exception as e:
-            logger.debug("Execution simulator not available: %s", e)
+    async def _shadow_execute(self, record: OrderRecord, price: float, sim_result: Dict[str, Any]) -> None:
+        """Log what WOULD be executed without placing an actual order.
 
+        Args:
+            record: OrderRecord with qty/stop/TP already adjusted for slippage
+            price: Original intended price (for reference)
+            sim_result: Execution simulation results (slippage, fill_ratio, etc.)
+        """
         record.status = "shadow"
         self._orders.append(record)
         self._daily_trade_count += 1
         self._signals_executed += 1
         self._symbol_last_trade[record.symbol] = time.time()
-        self._total_notional += record.qty * sim_fill_price
+        self._total_notional += record.qty * sim_result["fill_price"]
 
         logger.info(
             "\U0001f47b SHADOW ORDER: %s %d x %s @ ~$%.2f "
             "(slip=%.1fbps, fill=%.0f%%, signal=%.1f, "
             "council=%.0f%%, kelly=%.2f%%, regime=%s)",
-            record.side.upper(), record.qty, record.symbol, sim_fill_price,
-            sim_slippage_bps, sim_fill_ratio * 100, record.signal_score,
+            record.side.upper(), record.qty, record.symbol, sim_result["fill_price"],
+            sim_result["slippage_bps"], sim_result["fill_ratio"] * 100, record.signal_score,
             record.council_confidence * 100, record.kelly_pct * 100,
             record.regime,
         )
@@ -409,10 +541,12 @@ class OrderExecutor:
             "symbol": record.symbol,
             "side": record.side,
             "qty": record.qty,
-            "price": sim_fill_price,
+            "price": sim_result["fill_price"],
             "intended_price": price,
-            "slippage_bps": sim_slippage_bps,
-            "fill_ratio": sim_fill_ratio,
+            "slippage_bps": sim_result["slippage_bps"],
+            "fill_ratio": sim_result["fill_ratio"],
+            "volume_impact_bps": sim_result["volume_impact_bps"],
+            "spread_cost_bps": sim_result["spread_cost_bps"],
             "order_type": record.order_type,
             "signal_score": record.signal_score,
             "council_confidence": record.council_confidence,
@@ -423,7 +557,7 @@ class OrderExecutor:
             "timestamp": time.time(),
             "source": "order_executor_shadow",
         })
-        await self._notify_frontend(record, sim_fill_price, "shadow")
+        await self._notify_frontend(record, sim_result["fill_price"], "shadow")
 
     # -- Fill Polling --
     async def _poll_for_fill(self, record: OrderRecord, max_attempts: int = 30) -> None:
