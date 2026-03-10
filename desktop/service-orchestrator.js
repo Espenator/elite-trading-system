@@ -66,11 +66,20 @@ const SERVICE_DEFINITIONS = {
   },
   "brain-service": {
     order: 10,
-    startFn: null, // Set dynamically based on config
-    stopFn: null,
-    healthFn: () => false,
+    startFn: async () => {
+      const { ollamaFallback } = require("./ollama-fallback");
+      await ollamaFallback.initialize();
+      log.info("[Orchestrator] Brain service initialized via Ollama");
+    },
+    stopFn: async () => {
+      const { ollamaFallback } = require("./ollama-fallback");
+      await ollamaFallback.shutdown();
+    },
+    healthFn: () => {
+      const { ollamaFallback } = require("./ollama-fallback");
+      return ollamaFallback.getStatus().available;
+    },
     critical: false,
-    process: null,
   },
   scanner: {
     order: 11,
@@ -156,8 +165,8 @@ class ServiceOrchestrator {
   /**
    * Initialize orchestrator based on device role.
    */
-  async initialize() {
-    this._role = deviceConfig.getDeviceRole();
+  async initialize(role) {
+    this._role = role || deviceConfig.getDeviceRole();
     const services = deviceConfig.getDeviceServices?.() || this._getServicesForRole(this._role);
 
     log.info(`[Orchestrator] Role: ${this._role}`);

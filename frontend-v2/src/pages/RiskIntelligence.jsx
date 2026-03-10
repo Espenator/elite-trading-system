@@ -3,9 +3,10 @@
 // Route: /risk | Section: Execution | Page 10
 // Rebuilt to match mockup 13-risk-intelligence.png
 // =============================================================================
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useApi } from "../hooks/useApi";
-import { getApiUrl, getAuthHeaders } from "../config/api";
+import { getApiUrl, getAuthHeaders, WS_CHANNELS } from "../config/api";
+import ws from "../services/websocket";
 import log from "@/utils/logger";
 import Card from "../components/ui/Card";
 import Badge from "../components/ui/Badge";
@@ -205,6 +206,12 @@ export default function RiskIntelligence() {
     setLastRefresh(new Date());
     refetchRisk(); refetchShield(); refetchGauges();
   }, [refetchRisk, refetchShield, refetchGauges]);
+
+  // ─── WebSocket live updates ──────────────────────────────────────────────
+  useEffect(() => {
+    const unsub = ws.on(WS_CHANNELS.risk, () => handleRefresh());
+    return unsub;
+  }, [handleRefresh]);
 
   // ─── DERIVED VALUES ───────────────────────────────────────────────────────
   const riskScore = riskScoreData?.score ?? riskData?.risk_score ?? 0;

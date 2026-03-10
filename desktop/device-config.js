@@ -10,6 +10,7 @@
  *   "scanner-only" — OpenClaw scanner only
  */
 const os = require("os");
+const crypto = require("crypto");
 const path = require("path");
 const Store = require("electron-store");
 
@@ -99,6 +100,20 @@ function completeSetup(config) {
   store.set("tradingMode", config.tradingMode || "paper");
   store.set("setupComplete", true);
   store.set("setupDate", new Date().toISOString());
+
+  // Auto-generate API auth token on first setup
+  if (!store.get("apiAuthToken")) {
+    store.set("apiAuthToken", crypto.randomBytes(32).toString("base64url"));
+  }
+}
+
+function getAuthToken() {
+  let token = store.get("apiAuthToken");
+  if (!token) {
+    token = crypto.randomBytes(32).toString("base64url");
+    store.set("apiAuthToken", token);
+  }
+  return token;
 }
 
 function getPeerDevices() {
@@ -137,6 +152,13 @@ function getTradingMode() {
   return store.get("tradingMode") || "paper";
 }
 
+function setTradingMode(mode) {
+  if (mode !== "paper" && mode !== "live") {
+    throw new Error(`Invalid trading mode: ${mode}. Must be "paper" or "live".`);
+  }
+  store.set("tradingMode", mode);
+}
+
 function getFullConfig() {
   return {
     deviceId: getDeviceId(),
@@ -153,6 +175,11 @@ function getFullConfig() {
 
 function generateEnvFile(config) {
   const keys = config.apiKeys || {};
+  const tradingMode = config.tradingMode || "paper";
+  const isLive = tradingMode === "live";
+  const peerAddr = config.peerDevices?.[0]?.address || "";
+  const peerPort = config.peerDevices?.[0]?.port || 8000;
+
   const lines = [
     "# Embodier Trader — Auto-generated .env",
     `# Device: ${config.deviceName} (${config.deviceRole})`,
@@ -161,15 +188,16 @@ function generateEnvFile(config) {
     "# --- Server ---",
     `HOST=0.0.0.0`,
     `PORT=${config.backendPort || 8000}`,
+    `ENVIRONMENT=production`,
     "",
     "# --- Trading Mode ---",
-    `TRADING_MODE=${config.tradingMode || "live"}`,
-    `AUTO_EXECUTE_TRADES=true`,
+    `TRADING_MODE=${tradingMode}`,
+    `AUTO_EXECUTE_TRADES=${isLive ? "true" : "false"}`,
     "",
-    "# --- Alpaca (Live Trading) ---",
+    "# --- Alpaca ---",
     `ALPACA_API_KEY=${keys.alpacaApiKey || ""}`,
     `ALPACA_SECRET_KEY=${keys.alpacaSecretKey || ""}`,
-    `ALPACA_BASE_URL=${keys.alpacaBaseUrl || "https://api.alpaca.markets"}`,
+    `ALPACA_BASE_URL=${keys.alpacaBaseUrl || (isLive ? "https://api.alpaca.markets" : "https://paper-api.alpaca.markets")}`,
     `ALPACA_FEED=sip`,
     "",
     "# --- Brain Service (LLM) ---",
@@ -178,23 +206,34 @@ function generateEnvFile(config) {
     `BRAIN_PORT=${config.brainPort || 50051}`,
     `OLLAMA_MODEL=llama3.2`,
     "",
+    "# --- LLM Cloud APIs ---",
+    `ANTHROPIC_API_KEY=${keys.anthropicApiKey || ""}`,
+    `PERPLEXITY_API_KEY=${keys.perplexityApiKey || ""}`,
+    "",
     "# --- Data Sources ---",
+    `FINVIZ_API_KEY=${keys.finvizApiKey || ""}`,
     `FINVIZ_EMAIL=${keys.finvizEmail || ""}`,
     `FRED_API_KEY=${keys.fredApiKey || ""}`,
-    `UNUSUAL_WHALES_TOKEN=${keys.unusualWhalesToken || ""}`,
+    `UNUSUAL_WHALES_API_KEY=${keys.unusualWhalesToken || ""}`,
+    `UNUSUALWHALES_API_KEY=${keys.unusualWhalesToken || ""}`,
     `NEWS_API_KEY=${keys.newsApiKey || ""}`,
-    `STOCKGEIST_TOKEN=${keys.stockgeistToken || ""}`,
+    `STOCKGEIST_API_KEY=${keys.stockgeistToken || ""}`,
     `DISCORD_BOT_TOKEN=${keys.discordBotToken || ""}`,
     `X_BEARER_TOKEN=${keys.xBearerToken || ""}`,
     `YOUTUBE_API_KEY=${keys.youtubeApiKey || ""}`,
     "",
     "# --- Security ---",
-    `API_AUTH_TOKEN=${keys.apiAuthToken || ""}`,
-    `FERNET_KEY=`,
+    `API_AUTH_TOKEN=${getAuthToken()}`,
+    "",
+    "# --- Council ---",
+    `COUNCIL_GATE_ENABLED=true`,
+    `COUNCIL_GATE_THRESHOLD=65`,
+    `COUNCIL_MAX_CONCURRENT=3`,
     "",
     "# --- Peer Devices ---",
-    `OPENCLAW_API_URL=${config.peerDevices?.[0]?.address ? `http://${config.peerDevices[0].address}:5000` : ""}`,
-    `ELITE_API_URL=${config.peerDevices?.[0]?.address ? `http://${config.peerDevices[0].address}:8000` : ""}`,
+    `PC2_API_URL=${peerAddr ? `http://${peerAddr}:${peerPort}` : ""}`,
+    `AWARENESS_WORKER_URL=${peerAddr ? `http://${peerAddr}:${peerPort}` : ""}`,
+    `REDIS_URL=${peerAddr ? `redis://${peerAddr}:6379/0` : ""}`,
   ];
   return lines.join("\n") + "\n";
 }
@@ -215,6 +254,8 @@ module.exports = {
   getApiKeys,
   setApiKeys,
   getTradingMode,
+  setTradingMode,
+  getAuthToken,
   getFullConfig,
   generateEnvFile,
   KNOWN_DEVICES,

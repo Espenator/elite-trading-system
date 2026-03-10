@@ -1151,7 +1151,7 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in settings.effective_cors_origins.split(",") if o.strip()],
+    allow_origins=settings.effective_cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
@@ -1284,6 +1284,13 @@ async def websocket_endpoint(websocket: WebSocket):
     from app.websocket_manager import get_connection_count
     if get_connection_count() >= _WS_MAX_CONNECTIONS:
         await websocket.close(code=1013, reason="Max connections reached")
+        return
+
+    # Enforce auth token on WebSocket connect (production security)
+    token = websocket.query_params.get("token", "")
+    expected = (settings.API_AUTH_TOKEN or "").strip()
+    if expected and (not token or token != expected):
+        await websocket.close(code=4401, reason="Unauthorized")
         return
 
     await websocket.accept()

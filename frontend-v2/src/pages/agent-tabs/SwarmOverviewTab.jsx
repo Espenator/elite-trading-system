@@ -574,8 +574,7 @@ function EloLeaderboard() {
 // ─── HITL APPROVAL QUEUE ──────────────────────────────────────────────────────
 
 async function postHitlDecision(decisionId, action) {
-  const base = import.meta.env.VITE_API_URL ?? "";
-  const res = await fetch(`${base}/api/v1/agents/hitl/${decisionId}/${action}`, {
+  const res = await fetch(`${getApiUrl('agents')}/hitl/${decisionId}/${action}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAuthHeaders() },
   });

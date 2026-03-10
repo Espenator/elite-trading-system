@@ -223,6 +223,20 @@ class PeerMonitor extends EventEmitter {
   }
 
   /**
+   * Initialize monitoring (alias for start, matches main.js expected interface).
+   */
+  async initialize() {
+    this.start();
+  }
+
+  /**
+   * Shutdown monitoring (alias for stop, matches main.js expected interface).
+   */
+  async shutdown() {
+    this.stop();
+  }
+
+  /**
    * Check if a specific service is available across the cluster.
    */
   isServiceAvailable(serviceName) {

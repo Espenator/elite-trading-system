@@ -11,7 +11,7 @@ const backendManager = require("./backend-manager");
 let tray = null;
 
 function createTray(mainWindow) {
-  const iconPath = path.join(__dirname, "icons", process.platform === "win32" ? "icon.ico" : "icon-tray.png");
+  const iconPath = path.join(__dirname, "icons", process.platform === "win32" ? "icon.ico" : "icon.svg");
 
   // Create a simple 16x16 icon if no file exists
   let icon;

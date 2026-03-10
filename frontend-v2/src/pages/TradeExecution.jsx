@@ -1,7 +1,8 @@
 import React, { useEffect, useCallback, useRef, useState } from 'react';
 import useTradeExecution from '../hooks/useTradeExecution';
-import { getApiUrl, getAuthHeaders } from '../config/api';
+import { getApiUrl, getAuthHeaders, WS_CHANNELS } from '../config/api';
 import { useApi } from '../hooks/useApi';
+import ws from '../services/websocket';
 import clsx from 'clsx';
 import { Minus, Plus } from 'lucide-react';
 import { VisualPriceLadder, CouncilDecisionPanel } from '../components/dashboard/TradeExecutionWidgets';
@@ -67,7 +68,18 @@ export default function TradeExecution() {
     selectedRow, setSelectedRow, orderForm, updateOrderForm, loading,
     executeMarketBuy, executeMarketSell, executeLimitBuy, executeLimitSell,
     executeStopLoss, executeAdvancedOrder, closePosition, adjustPosition,
+    refresh: refreshTradeData,
   } = useTradeExecution();
+
+  // --- WebSocket live updates for trade execution ---
+  useEffect(() => {
+    const unsubs = [
+      ws.on(WS_CHANNELS.trades, () => refreshTradeData()),
+      ws.on(WS_CHANNELS.market, () => refreshTradeData()),
+      ws.on(WS_CHANNELS.council_verdict, () => refreshTradeData()),
+    ];
+    return () => unsubs.forEach((fn) => fn());
+  }, [refreshTradeData]);
 
   // Symbol universe from API (fallback to common tickers)
   const { data: stocksData } = useApi('stocks', { pollIntervalMs: 120000 });

@@ -171,21 +171,21 @@ const ProgressBar = ({ value, color = '#00D9FF', label = '', showValue = true })
 // ============================================================================
 export default function SignalIntelligenceV3() {
   // --- REAL API HOOKS (mapped to config/api.js endpoints) ---
-  const { data: apiSignals, loading: sigLoading, refetch: refetchSignals } = useApi('signals', { pollIntervalMs: 5000 });
-  const { data: apiAgents } = useApi('agents', { pollIntervalMs: 10000 });
-  const { data: apiOpenclaw } = useApi('openclaw', { pollIntervalMs: 8000 });
-  const { data: apiDataSources } = useApi('dataSources', { pollIntervalMs: 15000 });
+  const { data: apiSignals, loading: sigLoading, refetch: refetchSignals } = useApi('signals', { pollIntervalMs: 15000 });
+  const { data: apiAgents } = useApi('agents', { pollIntervalMs: 30000 });
+  const { data: apiOpenclaw } = useApi('openclaw', { pollIntervalMs: 15000 });
+  const { data: apiDataSources } = useApi('dataSources', { pollIntervalMs: 30000 });
   const { data: apiSentiment } = useApi('sentiment', { pollIntervalMs: 30000 });
   const { data: apiYoutube } = useApi('youtubeKnowledge', { pollIntervalMs: 60000 });
   const { data: apiTraining } = useApi('training', { pollIntervalMs: 30000 });
-  const { data: apiMlBrain } = useApi('mlBrain', { pollIntervalMs: 15000 });
-  const { data: apiPatterns } = useApi('patterns', { pollIntervalMs: 10000 });
-  const { data: apiRisk } = useApi('risk', { pollIntervalMs: 10000 });
-  const { data: apiAlerts } = useApi('alerts', { pollIntervalMs: 10000 });
-  const { data: apiStatus } = useApi('status', { pollIntervalMs: 15000 });
+  const { data: apiMlBrain } = useApi('mlBrain', { pollIntervalMs: 30000 });
+  const { data: apiPatterns } = useApi('patterns', { pollIntervalMs: 30000 });
+  const { data: apiRisk } = useApi('risk', { pollIntervalMs: 15000 });
+  const { data: apiAlerts } = useApi('alerts', { pollIntervalMs: 15000 });
+  const { data: apiStatus } = useApi('status', { pollIntervalMs: 30000 });
   const { data: apiPerf } = useApi('performance', { pollIntervalMs: 30000 });
-  const { data: apiMarket } = useApi('market', { pollIntervalMs: 5000 });
-  const { data: apiPortfolio } = useApi('portfolio', { pollIntervalMs: 10000 });
+  const { data: apiMarket } = useApi('market', { pollIntervalMs: 15000 });
+  const { data: apiPortfolio } = useApi('portfolio', { pollIntervalMs: 15000 });
   const { data: apiStrategy } = useApi('strategy', { pollIntervalMs: 30000 });
 
   // --- DERIVE AGENT LISTS FROM API (with hardcoded fallbacks) ---
@@ -505,7 +505,7 @@ export default function SignalIntelligenceV3() {
   const [mlConfidenceThreshold, setMlConfidenceThreshold] = useState(75);
 
   // --- DERIVED DATA ---
-  const { data: regimeApiData } = useApi('openclawRegime', { pollIntervalMs: 10000 });
+  const { data: regimeApiData } = useApi('openclawRegime', { pollIntervalMs: 30000 });
   const { data: flywheelData } = useApi('flywheel', { pollIntervalMs: 15000 });
   const regimeData = useMemo(() => regimeApiData || apiOpenclaw?.regime || { state: 'BULL_TREND', conf: 87, color: 'emerald', since: null }, [regimeApiData, apiOpenclaw]);
 

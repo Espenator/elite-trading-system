@@ -255,6 +255,11 @@ class MessageBus:
             logger.debug("MessageBus not running — dropping event on '%s'", topic)
             return
 
+        if topic not in self.VALID_TOPICS:
+            logger.error("Invalid MessageBus topic '%s' — check for typos. Valid topics: %s",
+                         topic, sorted(self.VALID_TOPICS))
+            return
+
         # Enforce canonical score semantics at the bus boundary so every publisher
         # (current + future) preserves the invariant:
         #   signal.generated.score ∈ [0, 100]

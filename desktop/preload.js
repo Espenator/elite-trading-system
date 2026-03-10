@@ -14,19 +14,29 @@ contextBridge.exposeInMainWorld("embodier", {
   getBackendStatus: () => ipcRenderer.invoke("get-backend-status"),
   restartBackend: () => ipcRenderer.invoke("restart-backend"),
 
+  // Updates
+  checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),
+
   // Settings
   getApiKeys: () => ipcRenderer.invoke("get-api-keys"),
   setApiKeys: (keys) => ipcRenderer.invoke("set-api-keys", keys),
+  setTradingMode: (mode) => ipcRenderer.invoke("set-trading-mode", mode),
 
   // Peer devices
   getPeerDevices: () => ipcRenderer.invoke("get-peer-devices"),
   addPeerDevice: (peer) => ipcRenderer.invoke("add-peer-device", peer),
   removePeerDevice: (id) => ipcRenderer.invoke("remove-peer-device", id),
 
+  // Setup wizard
+  sendSetupComplete: (config) => ipcRenderer.send("setup-complete", config),
+
   // Window controls
   minimize: () => ipcRenderer.send("window-minimize"),
   maximize: () => ipcRenderer.send("window-maximize"),
   close: () => ipcRenderer.send("window-close"),
+
+  // Auth
+  getAuthToken: () => ipcRenderer.invoke("get-auth-token"),
 
   // App info
   getVersion: () => ipcRenderer.invoke("get-version"),

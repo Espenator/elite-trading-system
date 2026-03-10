@@ -67,6 +67,10 @@ htmlcov/
 # ── Runtime data (root-level only, not backend/app/data/) ──
 /data/
 
+# ── Auto-updater hash files ──
+.deps-hash
+.build-hash
+
 # ── Misc ──
 *.bak
 *.tmp

@@ -2,7 +2,9 @@
 
 Provides the Research Dashboard with cognitive quality metrics from the council.
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+
+from app.core.security import require_auth
 import logging
 
 logger = logging.getLogger(__name__)
@@ -61,7 +63,7 @@ async def get_calibration():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/record-outcome")
+@router.post("/record-outcome", dependencies=[Depends(require_auth)])
 async def record_trade_outcome(payload: dict):
     """Record a trade outcome for confidence calibration.
 
