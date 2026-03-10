@@ -9,7 +9,7 @@ const http = require('http');
 const https = require('https');
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
-const BACKEND_PORT = 8000;
+const BACKEND_PORT = parseInt(process.env.BACKEND_PORT || '8001', 10);
 const FRONTEND_PORT = 3000;
 
 let mainWindow = null;
@@ -59,7 +59,7 @@ function startBackend() {
   const devPython = isWindows
     ? path.join(__dirname, '..', 'backend', 'venv', 'Scripts', 'python.exe')
     : path.join(__dirname, '..', 'backend', 'venv', 'bin', 'python');
-  const devScript = path.join(__dirname, '..', 'backend', 'run.py');
+  const devScript = path.join(__dirname, '..', 'backend', 'run_server.py');
 
   let cmd, args, cwd;
 
