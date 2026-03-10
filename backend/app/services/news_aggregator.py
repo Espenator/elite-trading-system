@@ -504,6 +504,7 @@ class NewsAggregator:
                         "label": f"news_{item.urgency}_{item.sentiment}",
                         "price": 0,
                         "regime": "NEWS",
+                        "created_at": time.time(),  # High-precision timestamp for TTL enforcement
                         "source": "news_aggregator",
                     })
 

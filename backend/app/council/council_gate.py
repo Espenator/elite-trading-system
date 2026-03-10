@@ -11,6 +11,11 @@ agent-council-controlled decision layer.
 Pipeline:
   AlpacaStream → MessageBus → SignalEngine → **CouncilGate** → Council → OrderExecutor
   market_data.bar → signal.generated → council evaluation → council.verdict → order
+
+Signal TTL Enforcement:
+  Signals have a 2.0-second Time-To-Live (TTL) to prevent execution of stale
+  "toxic" signals. If a signal's age exceeds the TTL at the gate, it is dropped
+  and a LATENCY_EXPIRED event is broadcast for monitoring.
 """
 import asyncio
 import logging
@@ -19,6 +24,9 @@ import time
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
+
+# Signal TTL in seconds — signals older than this are considered stale
+SIGNAL_TTL_SECONDS = 2.0
 
 
 class CouncilGate:
@@ -57,6 +65,7 @@ class CouncilGate:
         self._councils_passed = 0
         self._councils_vetoed = 0
         self._councils_held = 0
+        self._signals_expired = 0  # Signals dropped due to TTL
 
     async def start(self) -> None:
         """Subscribe to signal.generated and begin gating."""
@@ -75,12 +84,13 @@ class CouncilGate:
         self._running = False
         await self.message_bus.unsubscribe("signal.generated", self._on_signal)
         logger.info(
-            "CouncilGate stopped — %d signals, %d councils, %d passed, %d vetoed, %d held",
+            "CouncilGate stopped — %d signals, %d councils, %d passed, %d vetoed, %d held, %d expired",
             self._signals_received,
             self._councils_invoked,
             self._councils_passed,
             self._councils_vetoed,
             self._councils_held,
+            self._signals_expired,
         )
 
     async def _on_signal(self, signal_data: Dict[str, Any]) -> None:
@@ -92,9 +102,35 @@ class CouncilGate:
         symbol = signal_data.get("symbol", "")
         score = signal_data.get("score", 0)
         source = signal_data.get("source", "")
+        created_at = signal_data.get("created_at")
 
         if not symbol:
             return
+
+        # Gate 0: TTL enforcement — prevent execution of stale signals
+        if created_at is not None:
+            now = time.time()
+            signal_age = now - created_at
+            if signal_age > SIGNAL_TTL_SECONDS:
+                self._signals_expired += 1
+                logger.warning(
+                    "⏱️ Signal EXPIRED: %s (age=%.3fs > TTL=%.1fs, score=%.1f)",
+                    symbol,
+                    signal_age,
+                    SIGNAL_TTL_SECONDS,
+                    score,
+                )
+                # Broadcast LATENCY_EXPIRED event for monitoring
+                await self.message_bus.publish("signal.latency_expired", {
+                    "symbol": symbol,
+                    "score": score,
+                    "signal_age": signal_age,
+                    "ttl": SIGNAL_TTL_SECONDS,
+                    "created_at": created_at,
+                    "expired_at": now,
+                    "source": source,
+                })
+                return
 
         # Gate 1: Mock source guard — never trade on mock/fake data
         if source and "mock" in source.lower():
@@ -234,6 +270,7 @@ class CouncilGate:
             "max_concurrent": self.max_concurrent,
             "cooldown_seconds": self.cooldown_seconds,
             "signals_received": self._signals_received,
+            "signals_expired": self._signals_expired,
             "councils_invoked": self._councils_invoked,
             "councils_passed": self._councils_passed,
             "councils_vetoed": self._councils_vetoed,
@@ -241,4 +278,5 @@ class CouncilGate:
             "pass_rate": (
                 round(self._councils_passed / max(self._councils_invoked, 1), 3)
             ),
+            "signal_ttl_seconds": SIGNAL_TTL_SECONDS,
         }

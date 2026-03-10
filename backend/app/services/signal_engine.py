@@ -510,6 +510,7 @@ class EventDrivenSignalEngine:
                 "regime_mult": self._regime_mult,
                 "bar_count": len(history),
                 "timestamp": data.get("timestamp", ""),
+                "created_at": time.time(),  # High-precision timestamp for TTL enforcement
                 "source": "event_driven_signal_engine",
             }
             await self.message_bus.publish("signal.generated", signal_data)
@@ -535,6 +536,7 @@ class EventDrivenSignalEngine:
                 "regime_mult": self._bear_regime_mult,
                 "bar_count": len(history),
                 "timestamp": data.get("timestamp", ""),
+                "created_at": time.time(),  # High-precision timestamp for TTL enforcement
                 "source": "event_driven_signal_engine",
             }
             await self.message_bus.publish("signal.generated", short_signal_data)

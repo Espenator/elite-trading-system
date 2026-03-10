@@ -834,6 +834,7 @@ class TurboScanner:
                     "label": f"scanner_{signal.signal_type}",
                     "price": signal.data.get("close", 0) if isinstance(signal.data, dict) else 0,
                     "regime": "SCANNER",
+                    "created_at": time.time(),  # High-precision timestamp for TTL enforcement
                     "source": "turbo_scanner",
                 })
 
