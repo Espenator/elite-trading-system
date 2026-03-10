@@ -107,6 +107,23 @@ class HomeostasisMonitor:
         except Exception:
             pass
 
+        # Memory watchdog — track layered_memory_agent health
+        try:
+            from app.council.memory_watchdog import get_memory_watchdog
+            mw = get_memory_watchdog()
+            mem_health = await mw.check_health()
+            vitals["memory_health"] = mem_health["health_status"]
+            vitals["memory_metrics"] = mem_health["metrics"]
+            vitals["memory_warnings"] = mem_health["warnings"]
+            # Degrade if memory is unhealthy
+            if mem_health["health_status"] == "unhealthy":
+                vitals["risk_score"] = min(vitals["risk_score"], 40)
+                logger.warning("Memory watchdog reports unhealthy state: %s", mem_health["warnings"])
+            elif mem_health["health_status"] == "degraded":
+                vitals["risk_score"] = min(vitals["risk_score"], 45)
+        except Exception as e:
+            logger.debug("Memory watchdog check failed: %s", e)
+
         self._last_vitals = vitals
         self._last_check = now
         self._mode = self._compute_mode(vitals)

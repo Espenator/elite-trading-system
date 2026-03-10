@@ -1,11 +1,12 @@
 # Elite Trading System
 ### Embodier.ai — Full-Stack AI Trading Intelligence Platform
-**Version 3.5.0** | Last Updated: March 8, 2026
+**Version 3.5.1** | Last Updated: March 10, 2026
 
-CI Status: GREEN — 151 tests passing
+CI Status: GREEN — 151 tests passing (31 new tests for memory watchdog and slippage enhancements)
 Frontend: **ALL 14 PAGES COMPLETE** — pixel-fidelity match to 23 mockup images. Build clean.
 Backend: Ready to start (uvicorn never run yet).
 Council: **31-agent DAG** in 7 stages — council-controlled trading via CouncilGate (v3.5.0)
+Enhancements: **Memory Watchdog** + **Market Context Slippage** (v3.5.1)
 
 ---
 
@@ -152,6 +153,15 @@ Stage 7 (Arbiter):
 ```
 
 ## What Was Recently Done
+
+### v3.5.1 (March 10, 2026) — Memory Watchdog + Market Context Slippage
+
+- **Market Context Integration**: OrderExecutor now fetches real-time volume, volatility, and spread from DuckDB for realistic slippage modeling
+- **Memory Watchdog**: Comprehensive monitoring system for layered_memory_agent health (size, staleness, query performance, pattern quality)
+- **Homeostasis Integration**: Memory health now monitored alongside portfolio heat and drawdown—degrades to DEFENSIVE mode if memory unhealthy
+- **Test Coverage**: 31 new comprehensive tests for market context and memory watchdog functionality
+
+**Enhancement Document:** [`docs/MEMORY_WATCHDOG_SLIPPAGE_ENHANCEMENTS.md`](docs/MEMORY_WATCHDOG_SLIPPAGE_ENHANCEMENTS.md)
 
 ### v3.5.0 (March 8, 2026) — 31-Agent Council + Brain Consciousness Audit
 

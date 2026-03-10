@@ -151,6 +151,82 @@ class OrderExecutor:
             self._trade_stats = get_trade_stats()
         return self._trade_stats
 
+    async def _get_market_context(self, symbol: str) -> Dict[str, Optional[float]]:
+        """Fetch real-time market context from DuckDB for realistic slippage.
+
+        Returns volume, volatility (ATR-based), and estimated spread for the symbol.
+        This enriches ExecutionSimulator with real market microstructure data.
+
+        Args:
+            symbol: Stock symbol to fetch context for.
+
+        Returns:
+            Dict with keys: volume, volatility, spread (all optional floats).
+        """
+        context = {
+            "volume": None,
+            "volatility": None,
+            "spread": None,
+        }
+
+        try:
+            from app.data.duckdb_storage import duckdb_store
+
+            # Fetch recent volume (20-day average from daily_ohlcv)
+            volume_query = """
+                SELECT AVG(volume) as avg_volume
+                FROM daily_ohlcv
+                WHERE symbol = ?
+                AND date >= CURRENT_DATE - INTERVAL '20 days'
+            """
+            volume_result = await duckdb_store.async_execute(volume_query, [symbol])
+            if volume_result and volume_result[0][0]:
+                context["volume"] = float(volume_result[0][0])
+
+            # Fetch recent volatility (ATR_14 as proxy for volatility)
+            volatility_query = """
+                SELECT atr_14, close
+                FROM technical_indicators t
+                JOIN daily_ohlcv d ON t.symbol = d.symbol AND t.date = d.date
+                WHERE t.symbol = ?
+                ORDER BY t.date DESC
+                LIMIT 1
+            """
+            volatility_result = await duckdb_store.async_execute(volatility_query, [symbol])
+            if volatility_result and volatility_result[0][0] and volatility_result[0][1]:
+                atr = float(volatility_result[0][0])
+                close = float(volatility_result[0][1])
+                # Normalize ATR to percentage (annualized proxy)
+                context["volatility"] = (atr / close) * 100 if close > 0 else None
+
+            # Spread estimation: use high-low range from most recent day
+            spread_query = """
+                SELECT high, low
+                FROM daily_ohlcv
+                WHERE symbol = ?
+                ORDER BY date DESC
+                LIMIT 1
+            """
+            spread_result = await duckdb_store.async_execute(spread_query, [symbol])
+            if spread_result and spread_result[0][0] and spread_result[0][1]:
+                high = float(spread_result[0][0])
+                low = float(spread_result[0][1])
+                # Estimate spread as fraction of high-low range
+                context["spread"] = (high - low) * 0.1  # 10% of daily range as spread proxy
+
+            logger.debug(
+                "Market context for %s: volume=%s, volatility=%s, spread=%s",
+                symbol,
+                context["volume"],
+                context["volatility"],
+                context["spread"],
+            )
+
+        except Exception as e:
+            logger.warning("Failed to fetch market context for %s: %s", symbol, e)
+
+        return context
+
     async def start(self) -> None:
         """Subscribe to council.verdict and begin processing."""
         self._running = True
@@ -369,15 +445,27 @@ class OrderExecutor:
             logger.exception("Order execution error for %s: %s", record.symbol, e)
 
     async def _shadow_execute(self, record: OrderRecord, price: float) -> None:
-        """Log what WOULD be executed without placing an actual order."""
+        """Log what WOULD be executed without placing an actual order.
+
+        Now enriched with real-time market context (volume, volatility, spread)
+        from DuckDB to provide realistic slippage simulation.
+        """
         sim_fill_price = price
         sim_fill_ratio = 1.0
         sim_slippage_bps = 0.0
         try:
+            # Fetch market context from DuckDB for realistic slippage
+            market_ctx = await self._get_market_context(record.symbol)
+
             from app.services.execution_simulator import get_execution_simulator
             sim = get_execution_simulator()
             fill = sim.simulate_fill(
-                price=price, side=record.side, order_qty=record.qty,
+                price=price,
+                side=record.side,
+                order_qty=record.qty,
+                volume=market_ctx.get("volume"),
+                volatility=market_ctx.get("volatility"),
+                spread=market_ctx.get("spread"),
             )
             sim_fill_price = fill.fill_price
             sim_fill_ratio = fill.fill_ratio
