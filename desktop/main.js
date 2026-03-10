@@ -186,7 +186,7 @@ function createMainWindow() {
 
   if (isDev) {
     // In dev, load from Vite dev server
-    mainWindow.loadURL("http://localhost:5173");
+    mainWindow.loadURL("http://localhost:3000");
   } else {
     // In production, serve the built frontend through the backend
     const frontendPath = path.join(process.resourcesPath || __dirname, "frontend", "index.html");
@@ -247,6 +247,7 @@ function registerIpcHandlers() {
   ipcMain.handle("get-backend-status", () => backendManager.getStatus());
   ipcMain.handle("get-version", () => app.getVersion());
   ipcMain.handle("get-api-keys", () => deviceConfig.getApiKeys());
+  ipcMain.handle("get-auth-token", () => deviceConfig.getAuthToken());
   ipcMain.handle("get-peer-devices", () => deviceConfig.getPeerDevices());
 
   ipcMain.handle("set-api-keys", (_event, keys) => {

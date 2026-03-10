@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import log from "@/utils/logger";
 import { useApi } from "../hooks/useApi";
-import { getApiUrl, getAuthHeaders } from "../config/api";
+import { getApiUrl, getAuthHeaders, WS_CHANNELS } from "../config/api";
 import CNSVitals from "../components/dashboard/CNSVitals";
 import ProfitBrainBar from "../components/dashboard/ProfitBrainBar";
 import ws from "../services/websocket";
@@ -789,10 +789,11 @@ export default function Dashboard() {
     loading: sigLoading,
     error: sigErr,
     isStale: sigStale,
+    refetch: refetchSignals,
   } = useApi("signals", { pollIntervalMs: 15000 });
   const { data: kellyData, error: kellyErr } = useApi("kellyRanked", { pollIntervalMs: 30000 });
-  const { data: portfolioData, error: portfolioErr } = useApi("portfolio", { pollIntervalMs: 15000 });
-  const { data: indicesData, error: indicesErr } = useApi("marketIndices", {
+  const { data: portfolioData, error: portfolioErr, refetch: refetchPortfolio } = useApi("portfolio", { pollIntervalMs: 15000 });
+  const { data: indicesData, error: indicesErr, refetch: refetchIndices } = useApi("marketIndices", {
     pollIntervalMs: 15000,
   });
   const { data: openclawData, error: openclawErr } = useApi("openclaw", { pollIntervalMs: 30000 });
@@ -800,7 +801,7 @@ export default function Dashboard() {
     pollIntervalMs: 60000,
   });
   const { data: agentsData } = useApi("agents", { pollIntervalMs: 30000 });
-  const { data: riskScoreData } = useApi("riskScore", {
+  const { data: riskScoreData, refetch: refetchRiskScore } = useApi("riskScore", {
     pollIntervalMs: 30000,
   });
   const { data: alertsData } = useApi("systemAlerts", {
@@ -833,6 +834,17 @@ export default function Dashboard() {
     pollIntervalMs: 10000,
     enabled: !!selectedSymbol,
   });
+
+  // --- WebSocket live updates (reduce polling latency for key channels) ---
+  useEffect(() => {
+    const unsubs = [
+      ws.on(WS_CHANNELS.market, () => refetchIndices()),
+      ws.on(WS_CHANNELS.signals, () => refetchSignals()),
+      ws.on(WS_CHANNELS.risk, () => refetchRiskScore()),
+      ws.on(WS_CHANNELS.trades, () => refetchPortfolio()),
+    ];
+    return () => unsubs.forEach((fn) => fn());
+  }, [refetchIndices, refetchSignals, refetchRiskScore, refetchPortfolio]);
 
   // --- SORT MAP (all 15 pills) ---
   const SORT_MAP = useMemo(

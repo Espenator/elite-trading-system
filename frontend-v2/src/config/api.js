@@ -213,15 +213,32 @@ export const getApiUrl = (endpoint) => {
 
 /**
  * Get auth headers for state-changing requests (POST/PUT/DELETE).
- * Reads API_AUTH_TOKEN from VITE_API_AUTH_TOKEN env var.
- * Returns headers object to spread into fetch options.
+ * In Electron: reads token from window.embodier (set by preload bridge).
+ * In dev/standalone: reads from VITE_API_AUTH_TOKEN env var.
  */
+let _cachedAuthToken = null;
+
 export const getAuthHeaders = () => {
-  const token = import.meta.env.VITE_API_AUTH_TOKEN;
-  if (token) {
-    return { Authorization: `Bearer ${token}` };
+  // Use cached token if available
+  if (_cachedAuthToken) {
+    return { Authorization: `Bearer ${_cachedAuthToken}` };
+  }
+  // Try env var first (works in dev and standalone)
+  const envToken = import.meta.env.VITE_API_AUTH_TOKEN;
+  if (envToken) {
+    _cachedAuthToken = envToken;
+    return { Authorization: `Bearer ${envToken}` };
   }
   return {};
+};
+
+/** Load auth token from Electron preload bridge (call once on app init). */
+export const initAuthFromElectron = async () => {
+  if (typeof window !== "undefined" && window.embodier?.getAuthToken) {
+    try {
+      _cachedAuthToken = await window.embodier.getAuthToken();
+    } catch { /* not in Electron */ }
+  }
 };
 
 /**

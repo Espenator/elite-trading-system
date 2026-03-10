@@ -10,6 +10,7 @@
  *   "scanner-only" — OpenClaw scanner only
  */
 const os = require("os");
+const crypto = require("crypto");
 const path = require("path");
 const Store = require("electron-store");
 
@@ -99,6 +100,20 @@ function completeSetup(config) {
   store.set("tradingMode", config.tradingMode || "paper");
   store.set("setupComplete", true);
   store.set("setupDate", new Date().toISOString());
+
+  // Auto-generate API auth token on first setup
+  if (!store.get("apiAuthToken")) {
+    store.set("apiAuthToken", crypto.randomBytes(32).toString("base64url"));
+  }
+}
+
+function getAuthToken() {
+  let token = store.get("apiAuthToken");
+  if (!token) {
+    token = crypto.randomBytes(32).toString("base64url");
+    store.set("apiAuthToken", token);
+  }
+  return token;
 }
 
 function getPeerDevices() {
@@ -189,7 +204,7 @@ function generateEnvFile(config) {
     `YOUTUBE_API_KEY=${keys.youtubeApiKey || ""}`,
     "",
     "# --- Security ---",
-    `API_AUTH_TOKEN=${keys.apiAuthToken || ""}`,
+    `API_AUTH_TOKEN=${getAuthToken()}`,
     `FERNET_KEY=`,
     "",
     "# --- Peer Devices ---",
@@ -215,6 +230,7 @@ module.exports = {
   getApiKeys,
   setApiKeys,
   getTradingMode,
+  getAuthToken,
   getFullConfig,
   generateEnvFile,
   KNOWN_DEVICES,

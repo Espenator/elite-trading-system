@@ -2,7 +2,7 @@
 // Market Regime — AI Brain's Macro Intelligence Center (Page 10/15)
 // Route: /market-regime
 
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
   LineChart,
   Line,
@@ -25,7 +25,8 @@ import {
   postBiasOverride,
 } from "../hooks/useApi";
 import { useApi } from "../hooks/useApi";
-import { getApiUrl, getAuthHeaders } from "../config/api";
+import { getApiUrl, getAuthHeaders, WS_CHANNELS } from "../config/api";
+import ws from "../services/websocket";
 import log from "@/utils/logger";
 
 // ============================================================
@@ -834,8 +835,8 @@ function FooterTicker({ marketData, regimeState, biasMultiplier }) {
 // ============================================================
 export default function MarketRegime() {
   // --- Specialized API Hooks ---
-  const { data: regimeData, loading: regimeLoading, error: regimeError } = useRegimeState();
-  const { data: macroData } = useMacroState();
+  const { data: regimeData, loading: regimeLoading, error: regimeError, refetch: refetchRegime } = useRegimeState();
+  const { data: macroData, refetch: refetchMacro } = useMacroState();
   const { data: paramsData, refetch: refetchParams } = useRegimeParams();
   const { data: backtestData } = useRegimePerformance();
   const { data: sectorsData } = useSectorRotation();
@@ -844,9 +845,18 @@ export default function MarketRegime() {
   // --- Additional API Hooks ---
   const { data: scanData } = useApi("openclaw/scan", { pollIntervalMs: 30000 });
   const { data: memoryData } = useApi("openclaw/memory", { pollIntervalMs: 30000 });
-  const { data: marketData } = useApi("market", { pollIntervalMs: 5000 });
+  const { data: marketData, refetch: refetchMarket } = useApi("market", { pollIntervalMs: 5000 });
   const { data: riskScore } = useApi("risk/risk-score", { pollIntervalMs: 15000 });
   const { data: whaleFlow } = useApi("openclaw/whale-flow", { pollIntervalMs: 20000 });
+
+  // --- WebSocket live updates for regime changes ---
+  useEffect(() => {
+    const unsubs = [
+      ws.on(WS_CHANNELS.macro, () => { refetchRegime(); refetchMacro(); }),
+      ws.on(WS_CHANNELS.market, () => refetchMarket()),
+    ];
+    return () => unsubs.forEach((fn) => fn());
+  }, [refetchRegime, refetchMacro, refetchMarket]);
 
   // --- Local State ---
   const [timeframe, setTimeframe] = useState("1M");

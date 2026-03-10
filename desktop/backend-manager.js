@@ -67,6 +67,8 @@ function buildEnvVars() {
     FRED_API_KEY: apiKeys.fredApiKey || "",
     NEWS_API_KEY: apiKeys.newsApiKey || "",
     STOCKGEIST_TOKEN: apiKeys.stockgeistToken || "",
+    // Auth token for API security
+    API_AUTH_TOKEN: deviceConfig.getAuthToken(),
     // Prevent Python from buffering stdout
     PYTHONUNBUFFERED: "1",
   };

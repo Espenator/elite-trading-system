@@ -31,6 +31,9 @@ contextBridge.exposeInMainWorld("embodier", {
   maximize: () => ipcRenderer.send("window-maximize"),
   close: () => ipcRenderer.send("window-close"),
 
+  // Auth
+  getAuthToken: () => ipcRenderer.invoke("get-auth-token"),
+
   // App info
   getVersion: () => ipcRenderer.invoke("get-version"),
   openExternal: (url) => ipcRenderer.invoke("open-external", url),
