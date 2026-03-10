@@ -1230,33 +1230,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* MAIN CONTENT AREA: Left Sidebar + Center Table + Right Panel */}
+      {/* MAIN CONTENT AREA: Center Table + Right Panel */}
       <main className="flex flex-1 overflow-hidden">
-
-        {/* LEFT SIDEBAR NAV */}
-        <aside className="w-[52px] shrink-0 bg-[#0B0E14] border-r border-[rgba(42,52,68,0.5)] flex flex-col items-center py-3 gap-3">
-          {[
-            { label: "Dash", icon: "\u25A3", active: true, path: "/" },
-            { label: "Signals", icon: "\u26A1", path: "/signals" },
-            { label: "Port", icon: "\u2637", path: "/trades" },
-            { label: "Risk", icon: "\u26D4", path: "/risk" },
-            { label: "Agents", icon: "\u2699", path: "/agents" },
-            { label: "ML", icon: "\u2B22", path: "/ml-brain" },
-          ].map((nav) => (
-            <button
-              key={nav.label}
-              onClick={() => { if (!nav.active) window.location.href = nav.path; }}
-              className={`w-9 h-9 rounded flex flex-col items-center justify-center gap-0.5 transition-colors ${nav.active ? "bg-[#00D9FF]/15 text-[#00D9FF] border border-[#00D9FF]/30" : "text-[#64748b] hover:text-[#94a3b8] hover:bg-[#1e293b]/50 border border-transparent"}`}
-            >
-              <span className="text-sm leading-none">{nav.icon}</span>
-              <span className="text-[6px] font-mono leading-none">{nav.label}</span>
-            </button>
-          ))}
-          <div className="flex-1" />
-          <div className="w-9 h-9 rounded border border-[rgba(42,52,68,0.5)] flex items-center justify-center">
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          </div>
-        </aside>
 
         {/* CENTER COLUMN: Sort Pills + Table (dominant area) */}
         <section className="flex flex-col flex-1 min-w-0 border-r border-[rgba(42,52,68,0.5)] bg-[#0B0E14]">
