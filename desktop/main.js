@@ -123,7 +123,7 @@ function createMainWindow() {
     minWidth: 1024,
     minHeight: 700,
     title: `Embodier Trader — ${deviceConfig.getDeviceName()}`,
-    icon: path.join(__dirname, "icons", "icon.png"),
+    icon: path.join(__dirname, "icons", process.platform === "win32" ? "icon.ico" : "icon.svg"),
     show: false,
     webPreferences: {
       nodeIntegration: false,

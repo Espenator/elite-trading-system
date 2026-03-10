@@ -41,9 +41,9 @@
       "tray.js",
       "backend-manager.js",
       "device-config.js",
-                  "peer-monitor.js",
-            "service-orchestrator.js",
-            "ollama-fallback.js",
+      "peer-monitor.js",
+      "service-orchestrator.js",
+      "ollama-fallback.js",
       "pages/**/*",
       "icons/**/*"
     ],
