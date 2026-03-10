@@ -145,14 +145,14 @@ export default function Trades() {
     loading: posLoading,
     error: posError,
     refetch: refetchPositions,
-  } = useApi("alpaca/positions", { pollIntervalMs: 5000 });
+  } = useApi("alpaca/positions", { pollIntervalMs: 15000 });
 
   const {
     data: ordersData,
     loading: ordLoading,
     error: ordError,
     refetch: refetchOrders,
-  } = useApi("alpaca/orders", { pollIntervalMs: 5000 });
+  } = useApi("alpaca/orders", { pollIntervalMs: 15000 });
 
   const { data: accountData } = useApi("alpaca/account", { pollIntervalMs: 10000 });
 

@@ -845,7 +845,7 @@ export default function MarketRegime() {
   // --- Additional API Hooks ---
   const { data: scanData } = useApi("openclaw/scan", { pollIntervalMs: 30000 });
   const { data: memoryData } = useApi("openclaw/memory", { pollIntervalMs: 30000 });
-  const { data: marketData, refetch: refetchMarket } = useApi("market", { pollIntervalMs: 5000 });
+  const { data: marketData, refetch: refetchMarket } = useApi("market", { pollIntervalMs: 15000 });
   const { data: riskScore } = useApi("risk/risk-score", { pollIntervalMs: 15000 });
   const { data: whaleFlow } = useApi("openclaw/whale-flow", { pollIntervalMs: 20000 });
 

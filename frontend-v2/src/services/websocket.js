@@ -97,7 +97,11 @@ class AppWebSocket {
         }
       };
 
-      this.ws.onerror = () => {};
+      this.ws.onerror = (evt) => {
+        console.warn("[WS] connection error", evt);
+        if (this.handlers.has("*"))
+          this.handlers.get("*").forEach((fn) => fn({ type: "error", error: evt }));
+      };
     } catch (err) {
       if (this.handlers.has("*"))
         this.handlers.get("*").forEach((fn) => fn({ type: "error", error: err }));
