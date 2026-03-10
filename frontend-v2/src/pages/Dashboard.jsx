@@ -371,19 +371,21 @@ const SignalBarChart = ({ signals, selectedSymbol, onSelect }) => {
 
 // --- MINI EQUITY CURVE (SVG Sparkline) ---
 const MiniEquityCurve = ({ points }) => {
-    if (!points || points.length < 2) {
-  
-      // Show flat line at initial equity when no trade data
-      const initEquity = points?.[0]?.value ?? points?.[0]?.equity ?? 100000;
-      return (
-        <div>
-          <div className="text-[8px] text-[#64748b] text-center font-mono mb-1">Initial: ${initEquity.toLocaleString()}</div>
-          <svg width="280" height="40" viewBox="0 0 280 40" className="w-full">
-            <line x1="4" y1="20" x2="276" y2="20" stroke="#10b981" strokeWidth="1.5" strokeDasharray="4 2" />
-          </svg>
-        </div>
-      );
-    }
+  const pad = 4;
+  const w = 280;
+  const h = 40;
+  const values = (points || []).map((p) => Number(p?.value ?? p?.equity ?? p?.y ?? 0)).filter((v) => !Number.isNaN(v));
+  if (!values.length || values.length < 2) {
+    const initEquity = points?.[0]?.value ?? points?.[0]?.equity ?? 100000;
+    return (
+      <div>
+        <div className="text-[8px] text-[#64748b] text-center font-mono mb-1">Initial: ${Number(initEquity).toLocaleString()}</div>
+        <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="w-full">
+          <line x1={pad} y1={h / 2} x2={w - pad} y2={h / 2} stroke="#10b981" strokeWidth="1.5" strokeDasharray="4 2" />
+        </svg>
+      </div>
+    );
+  }
   const minV = Math.min(...values);
   const maxV = Math.max(...values);
   const range = maxV - minV || 1;
@@ -800,6 +802,8 @@ export default function Dashboard() {
     pollIntervalMs: 60000,
   });
   const { data: agentsData } = useApi("agents", { pollIntervalMs: 30000 });
+  const { data: consensusData } = useApi("agentConsensus", { pollIntervalMs: 20000 });
+  const { data: performanceEquityData } = useApi("performanceEquity", { pollIntervalMs: 30000 });
   const { data: riskScoreData } = useApi("riskScore", {
     pollIntervalMs: 30000,
   });
@@ -1041,17 +1045,29 @@ export default function Dashboard() {
   const openclaw = openclawData?.openclaw || openclawData || {};
   const performance = useMemo(() => {
     const p = performanceData?.performance || performanceData || {};
+    const equityCurve = performanceEquityData?.equity_curve ?? performanceEquityData?.equity ?? p.equityCurve ?? [];
     return {
       ...p,
       sharpe: p.sharpe ?? p.sharpeRatio ?? 0,
       alpha: p.alpha ?? 0,
       winRate: p.winRate ?? p.win_rate ?? 0,
       maxDrawdown: p.maxDrawdown ?? p.max_drawdown ?? 0,
-      equityCurve: p.equityCurve || [],
+      equityCurve: Array.isArray(equityCurve) ? equityCurve : [],
     };
-  }, [performanceData]);
+  }, [performanceData, performanceEquityData]);
   const techs = techsData?.technicals || techsData || {};
   const swarm = swarmData?.swarmTopology || swarmData || {};
+  const consensus = consensusData?.votes ?? consensusData?.agents ?? swarm?.agents ?? [];
+  const consensusVerdict = consensusData?.verdict ?? consensusData?.consensus ?? swarm?.consensus;
+  const swarmForConsensus = useMemo(() => ({
+    ...swarm,
+    agents: Array.isArray(consensus) && consensus.length > 0 ? consensus.map((v) => ({
+      name: v.name ?? v.agent_name ?? v.agent,
+      vote: v.vote ?? v.verdict,
+      confidence: v.confidence ?? v.agreement ?? 50,
+    })) : swarm?.agents ?? [],
+    consensus: consensusData?.agreement_percent ?? consensusData?.agreement ?? swarm?.consensus,
+  }), [swarm, consensus, consensusData]);
   const sources = dataSourcesData?.dataSources || dataSourcesData || {};
   const risk = riskData?.proposal || riskData || {};
   const quotes = quotesData?.book || quotesData || {};
@@ -1289,29 +1305,29 @@ export default function Dashboard() {
           {/* MAIN SIGNALS TABLE */}
           <div className="flex-1 overflow-auto bg-[#0B0E14]">
             <table className="w-full text-left font-mono whitespace-nowrap">
-              <thead className="sticky top-0 bg-[#111827] text-[#64748b] border-b border-[rgba(42,52,68,0.5)] shadow-md z-10">
+              <thead className="sticky top-0 bg-[#111827] text-[10px] uppercase text-slate-500 border-b border-[rgba(42,52,68,0.5)] shadow-md z-10">
                 <tr>
-                  <th className="px-1.5 py-1 font-normal">Sym</th>
-                  <th className="px-1.5 py-1 font-normal">Dir</th>
-                  <th className="px-1.5 py-1 font-normal">Score</th>
-                  <th className="px-1.5 py-1 font-normal">Regime</th>
-                  <th className="px-1.5 py-1 font-normal">ML</th>
-                  <th className="px-1.5 py-1 font-normal">Sent</th>
-                  <th className="px-1.5 py-1 font-normal">Tech</th>
-                  <th className="px-1.5 py-1 font-normal">Agent</th>
-                  <th className="px-1.5 py-1 font-normal">Swarm</th>
-                  <th className="px-1.5 py-1 font-normal">SHAP</th>
-                  <th className="px-1.5 py-1 font-normal">Kelly</th>
-                  <th className="px-1.5 py-1 font-normal">Entry</th>
-                  <th className="px-1.5 py-1 font-normal">Tgt</th>
-                  <th className="px-1.5 py-1 font-normal">Stop</th>
-                  <th className="px-1.5 py-1 font-normal">R-Mult</th>
-                  <th className="px-1.5 py-1 font-normal">P&L</th>
-                  <th className="px-1.5 py-1 font-normal">Sec</th>
-                  <th className="px-1.5 py-1 font-normal">Mom</th>
-                  <th className="px-1.5 py-1 font-normal">Vol</th>
-                  <th className="px-1.5 py-1 font-normal">News</th>
-                  <th className="px-1.5 py-1 font-normal">Pat</th>
+                  <th className="px-1.5 py-1 font-semibold">Sym</th>
+                  <th className="px-1.5 py-1 font-semibold">Dir</th>
+                  <th className="px-1.5 py-1 font-semibold">Score</th>
+                  <th className="px-1.5 py-1 font-semibold">Regime</th>
+                  <th className="px-1.5 py-1 font-semibold">ML</th>
+                  <th className="px-1.5 py-1 font-semibold">Sent</th>
+                  <th className="px-1.5 py-1 font-semibold">Tech</th>
+                  <th className="px-1.5 py-1 font-semibold">Agent</th>
+                  <th className="px-1.5 py-1 font-semibold">Swarm</th>
+                  <th className="px-1.5 py-1 font-semibold">SHAP</th>
+                  <th className="px-1.5 py-1 font-semibold">Kelly</th>
+                  <th className="px-1.5 py-1 font-semibold">Entry</th>
+                  <th className="px-1.5 py-1 font-semibold">Tgt</th>
+                  <th className="px-1.5 py-1 font-semibold">Stop</th>
+                  <th className="px-1.5 py-1 font-semibold">R-Mult</th>
+                  <th className="px-1.5 py-1 font-semibold">P&L</th>
+                  <th className="px-1.5 py-1 font-semibold">Sec</th>
+                  <th className="px-1.5 py-1 font-semibold">Mom</th>
+                  <th className="px-1.5 py-1 font-semibold">Vol</th>
+                  <th className="px-1.5 py-1 font-semibold">News</th>
+                  <th className="px-1.5 py-1 font-semibold">Pat</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#1e293b]/50">
@@ -1325,9 +1341,9 @@ export default function Dashboard() {
                       onClick={() => setSelectedSymbol(sig.symbol)}
                       className={`cursor-pointer hover:bg-[#1e293b]/30 transition-colors ${isSelected ? "bg-[#164e63]/30 border-l-2 border-[#00D9FF]" : "border-l-2 border-transparent"}`}
                     >
-                      <td className="px-1.5 py-1 text-white font-bold font-mono">{sig.symbol}</td>
-                      <td className={`px-1.5 py-1 font-mono ${dirColor}`}>{isLong ? "L" : "S"}</td>
-                      <td className="px-1.5 py-1">
+                      <td className="px-1.5 py-1 text-[0.65rem] text-white font-bold font-mono">{sig.symbol}</td>
+                      <td className={`px-1.5 py-1 text-[0.65rem] font-mono ${dirColor}`}>{isLong ? "L" : "S"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem]">
                         <div className="flex items-center gap-1">
                           <span className={`font-mono ${sig.score >= 90 ? "text-green-400" : "text-[#00D9FF]"}`}>{sig.score}</span>
                           <div className="w-12 h-1.5 bg-[#1e293b] rounded-full overflow-hidden">
@@ -1335,24 +1351,24 @@ export default function Dashboard() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-1.5 py-1 text-[#94a3b8] font-mono">{sig.scores?.regime || "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-[#94a3b8] font-mono">{sig.scores?.ml || "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-[#94a3b8] font-mono">{sig.scores?.sentiment || "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-[#94a3b8] font-mono">{sig.scores?.technical || "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-[#00D9FF] truncate max-w-[80px]">{sig.leadAgent || "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-[#94a3b8]">{sig.swarmVote || "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-[#64748b] truncate max-w-[60px]">{sig.topShap || "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-[#00D9FF] font-mono">{sig.kellyPercent ?? 0}%</td>
-                      <td className="px-1.5 py-1 text-[#94a3b8] font-mono">{sig.entry != null ? `$${Number(sig.entry).toFixed(2)}` : "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-green-400 font-mono">{sig.target != null ? `$${Number(sig.target).toFixed(2)}` : "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-red-400 font-mono">{sig.stop != null ? `$${Number(sig.stop).toFixed(2)}` : "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-white font-mono">{sig.rMultiple != null ? `${Number(sig.rMultiple).toFixed(1)}:1` : "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-green-400 font-mono">{sig.expPnL != null ? `+$${Number(sig.expPnL).toLocaleString()}` : "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-[#64748b]">{sig.sector?.substring(0, 3) || "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-green-400 font-mono">+{sig.momentum || "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-[#00D9FF] font-mono">{sig.volSpike || "\u2014"}x</td>
-                      <td className="px-1.5 py-1 text-[#64748b] truncate max-w-[50px]">{sig.newsImpact || "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-[#00D9FF] truncate max-w-[60px]">{sig.pattern || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">{sig.scores?.regime || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">{sig.scores?.ml || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">{sig.scores?.sentiment || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">{sig.scores?.technical || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#00D9FF] truncate max-w-[80px] font-mono">{sig.leadAgent || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">{sig.swarmVote || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#64748b] truncate max-w-[60px] font-mono">{sig.topShap || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#00D9FF] font-mono">{sig.kellyPercent ?? 0}%</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">{sig.entry != null ? `$${Number(sig.entry).toFixed(2)}` : "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-green-400 font-mono">{sig.target != null ? `$${Number(sig.target).toFixed(2)}` : "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-red-400 font-mono">{sig.stop != null ? `$${Number(sig.stop).toFixed(2)}` : "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-white font-mono">{sig.rMultiple != null ? `${Number(sig.rMultiple).toFixed(1)}:1` : "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-green-400 font-mono">{sig.expPnL != null ? `+$${Number(sig.expPnL).toLocaleString()}` : "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#64748b] font-mono">{sig.sector?.substring(0, 3) || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-green-400 font-mono">+{sig.momentum || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#00D9FF] font-mono">{sig.volSpike || "\u2014"}x</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#64748b] truncate max-w-[50px] font-mono">{sig.newsImpact || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#00D9FF] truncate max-w-[60px] font-mono">{sig.pattern || "\u2014"}</td>
                     </tr>
                   );
                 })}
@@ -1390,10 +1406,10 @@ export default function Dashboard() {
 
         {/* RIGHT COLUMN: Intelligence Panel (~32%) */}
         <section className="flex flex-col w-[32%] bg-[#111827] overflow-y-auto custom-scrollbar">
-          {/* Swarm Consensus Bars (prominent at top per mockup) */}
+          {/* Swarm Consensus Bars (prominent at top per mockup) — GET /api/v1/agents/consensus */}
           <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5 space-y-1.5">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">SWARM CONSENSUS</h3>
-            {(swarm.agents || []).slice(0, 6).map((agent, i) => (
+            {(swarmForConsensus.agents || []).slice(0, 6).map((agent, i) => (
               <ConsensusBar
                 key={i}
                 label={agent.name || `Agent ${i + 1}`}
@@ -1401,7 +1417,7 @@ export default function Dashboard() {
                 sellPct={agent.vote === "SELL" ? agent.confidence || 50 : 0}
               />
             ))}
-            {(!swarm.agents || swarm.agents.length === 0) && (
+            {(!swarmForConsensus.agents || swarmForConsensus.agents.length === 0) && (
               <div className="text-[8px] text-[#64748b] font-mono py-2 text-center">
                 Awaiting swarm agent data...
               </div>
@@ -1454,7 +1470,7 @@ export default function Dashboard() {
                   { label: "Technical Rank", val: `${selectedSignal.scores?.technical || "\u2014"}`, pct: selectedSignal.scores?.technical || 0 },
                   { label: "ML Probability", val: `${selectedSignal.scores?.ml || "\u2014"}%`, pct: selectedSignal.scores?.ml || 0 },
                   { label: "Sentiment Pulse", val: `${selectedSignal.scores?.sentiment || "\u2014"}`, pct: selectedSignal.scores?.sentiment || 0 },
-                  { label: "Swarm Consensus", val: `${swarm.consensus || "\u2014"}%`, pct: swarm.consensus || 0 },
+                  { label: "Swarm Consensus", val: `${swarmForConsensus.consensus ?? swarm.consensus ?? "\u2014"}%`, pct: swarmForConsensus.consensus ?? swarm.consensus ?? 0 },
                 ].map((item) => (
                   <div key={item.label} className="flex items-center justify-between">
                     <span className="text-[#94a3b8] w-24">{item.label}</span>

@@ -1,7 +1,7 @@
 """Event-Driven Order Executor — council-controlled trading.
 
 Subscribes to `council.verdict` on the MessageBus (published by CouncilGate
-after the 13-agent council approves a trade).  This ensures every trade
+after the 35-agent council approves a trade).  This ensures every trade
 passes through the full agent intelligence layer.
 
 Pipeline:

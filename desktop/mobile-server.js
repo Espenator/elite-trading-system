@@ -162,6 +162,11 @@ class MobileServer {
     return `http://${this._localIp}:${this._port}`;
   }
 
+  /** Returns whether the server is running. */
+  isRunning() {
+    return this._started;
+  }
+
   /** Get connection info for QR display. */
   getConnectionInfo() {
     return {

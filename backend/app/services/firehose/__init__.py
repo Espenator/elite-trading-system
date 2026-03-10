@@ -1,9 +1,12 @@
-"""Firehose — canonical sensory event layer.
+"""DEPRECATED: Use app.services.channels instead. This package will be removed."""
+import warnings
 
-Normalizes external sources into SensoryEvent and routes to MessageBus topics
-(market_data.bar, swarm.idea, perception.*). Agents run under the orchestrator
-with queue, backoff, and circuit breaker support.
-"""
+warnings.warn(
+    "firehose package is deprecated, use channels",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 from app.services.firehose.schemas import SensoryEvent
 
 __all__ = ["SensoryEvent"]

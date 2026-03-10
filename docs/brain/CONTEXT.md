@@ -1,12 +1,12 @@
 # 🧠 ESPEN'S SECOND BRAIN — TRADING ASSISTANT CONTEXT
 > **Claude: Read this file at the START of every session before doing anything.**
-> Last updated: 2026-03-02
+> Last updated: March 10, 2026
 
 ---
 
 ## 👤 WHO I AM
 - **Name:** Espen Schiefloe
-- **App:** Embodier Trader (elite trading system, Python/Streamlit-based)
+- **App:** Embodier Trader (elite trading system — FastAPI backend, React frontend, Electron desktop)
 - **Trading style:** Price-structure trader — structure FIRST, indicators confirm
 - **Markets:** Crypto (spot & futures), Equities, Forex, Options
 - **Core markets always monitored:** QQQ, SPY, BTC, ETH, TQQQ, SPXL, NVDA, GOOG
@@ -39,42 +39,49 @@
 
 ---
 
-## 🚀 EMBODIER TRADER APP — CURRENT STATE (Audited 2026-03-02)
+## 🚀 EMBODIER TRADER APP — CURRENT STATE (Audited March 10, 2026)
 
-### Architecture: Full-Stack Trading System (336 files)
+### Architecture: Full-Stack Trading System
 ```
 elite-trading-system/
-├── backend/          ← Python FastAPI (20+ API routes, OpenClaw agents, ML engine)
-│   ├── app/api/v1/   ← 20 route modules (signals, market, orders, risk, ml_brain...)
-│   ├── app/core/     ← Config + Alignment engine (Bible enforcement)
-│   ├── app/modules/  ← OpenClaw (multi-agent), ML engine, Social/News, YouTube agent
-│   ├── app/services/ ← Alpaca, Finviz, Unusual Whales, FRED, SEC EDGAR
-│   └── tests/        ← 22 tests (~4% coverage)
-├── frontend-v2/      ← React + Vite + Tailwind (15 pages)
+├── backend/          ← Python FastAPI (34 API routes, 35-agent council, 68+ services)
+│   ├── app/api/v1/   ← 34 route modules (signals, market, orders, council, alignment, risk, ml_brain...)
+│   ├── app/council/  ← 35-agent DAG (7 stages), CouncilGate, arbiter, weight_learner
+│   ├── app/core/     ← Config, message bus
+│   ├── app/modules/  ← OpenClaw, ML engine, Social/News, YouTube agent
+│   ├── app/services/ ← llm_clients (Ollama, Perplexity, Claude), firehose, scouts, scanning, trading, Alpaca, Finviz, FRED, SEC EDGAR, etc.
+│   └── tests/        ← 666 tests passing
+├── brain_service/    ← gRPC + Ollama (local LLM); part of 3-tier router
+├── desktop/          ← Electron app (BUILD-READY); service orchestrator, backend manager
+├── frontend-v2/      ← React + Vite + Tailwind (15 pages); WebSocket active, 5 pages wired
 │   ├── src/pages/    ← Dashboard, SignalIntelligence, TradeExecution, Agents...
 │   ├── src/hooks/    ← useApi, useWebSocket, useSettings
-│   └── src/components/ ← 30+ components (charts, dashboard, UI kit)
+│   └── src/components/ ← Charts, dashboard, UI kit
 └── docs/             ← Mockups, audits, implementation plans
 ```
 
-### System Health Score: 5.8/10 (40% functional, 60% scaffolding)
-- **Backend:** ❌ NOT STARTING (4 critical blockers — see task board)
-- **Frontend:** 🟡 75% Complete (all 15 pages wired, some stubs remain)
-- **ML Engine:** 🟡 Pipeline solid, training has data leakage bug
-- **Tests:** ❌ 4% coverage (need 20%+ for trading system)
-- **Docker:** 🟡 Basic but functional
+### System Health (March 10, 2026)
+- **Backend:** ✅ Operational (auth Bearer token fail-closed, WebSocket, startup resolved)
+- **Frontend:** ✅ 15 pages wired; WebSocket active on 5 pages
+- **Desktop:** ✅ BUILD-READY (Electron)
+- **Council:** 35-agent DAG, 7 stages; SignalEngine → CouncilGate → Council → OrderExecutor
+- **LLM:** 3-tier router (Ollama → Perplexity → Claude). Ollama handles most routine calls; Claude used for 6 deep-reasoning tasks: strategy_critic, strategy_evolution, deep_postmortem, trade_thesis, overnight_analysis, directive_evolution
+- **Tests:** 666 passing (CI green)
+- **Auth:** Bearer token, fail-closed
+- **Redis:** Used for caching/sessions where applicable
 
-### Top-Quality Modules (9/10)
-- `backend/app/api/v1/orders.py` — Production-quality order execution
+### Top-Quality Modules
+- `backend/app/api/v1/orders.py` — Production-quality order execution (alignment gate)
 - `frontend-v2/src/pages/TradeExecution.jsx` — Fully wired trade UI
-- `backend/app/modules/ml_engine/outcome_resolver.py` — Clean ML resolution
+- `backend/app/council/` — 35-agent council, CouncilGate, Bayesian weight learning
+- `backend/app/services/llm_router.py` + `llm_clients/` — 3-tier LLM routing
 
 ### Key Integrations
 - **Broker:** Alpaca (paper + live)
-- **Data:** Finviz Elite, Unusual Whales, FRED, SEC EDGAR, TradingView
+- **Data:** Finviz Elite, Unusual Whales, FRED, SEC EDGAR (no yfinance)
 - **ML:** XGBoost + LSTM, 30+ features, drift detection
-- **Agents:** OpenClaw multi-agent system (scanners, scorers, executors)
-- **Real-time:** WebSocket streaming (needs auth)
+- **Agents:** 35-agent council; OpenClaw legacy; discovery (TurboScanner, HyperSwarm, 12 Scout agents)
+- **Real-time:** WebSocket active; Bearer token auth
 
 ### GitHub
 - **Repo:** https://github.com/Espenator/elite-trading-system (public)
@@ -133,7 +140,7 @@ elite-trading-system/
 
 ### When helping with app dev:
 - Check app_tasks in the database first
-- Code in Python (Streamlit, pandas, yfinance, sklearn, sqlite3)
+- Code in Python (FastAPI, pandas, sklearn, DuckDB) or React/JS for frontend
 - Always write production-quality, well-commented code
 - Save significant code changes to git
 
@@ -206,4 +213,3 @@ python3 .brain/brain_tools.py add-level SYMBOL 450.00 resistance "Daily resistan
 
 ---
 *Second Brain v1.0 | Built by Claude for Espen Schiefloe | Embodier Trader*
-# Test change Mon Mar  2 22:30:40 UTC 2026

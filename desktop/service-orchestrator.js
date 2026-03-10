@@ -12,10 +12,12 @@
  */
 const { spawn } = require("child_process");
 const path = require("path");
+const http = require("http");
 const log = require("electron-log");
 const deviceConfig = require("./device-config");
 const backendManager = require("./backend-manager");
 const { peerMonitor, PEER_STATE } = require("./peer-monitor");
+const { MobileServer } = require("./mobile-server");
 
 // Service definitions with start order and health check info
 const SERVICE_DEFINITIONS = {
@@ -23,7 +25,9 @@ const SERVICE_DEFINITIONS = {
     order: 1,
     startFn: () => backendManager.startBackend(),
     stopFn: () => backendManager.stopBackend(),
-    healthFn: () => backendManager.isRunning(),
+    healthFn: function () {
+      return this._healthCache["backend"] ?? backendManager.isRunning();
+    },
     critical: true,
   },
   frontend: {
@@ -39,14 +43,18 @@ const SERVICE_DEFINITIONS = {
     // Council runs inside the backend process
     startFn: async () => log.info("[Orchestrator] Council runs within backend"),
     stopFn: async () => {},
-    healthFn: () => backendManager.isRunning(),
+    healthFn: function () {
+      return this._healthCache["council"] ?? backendManager.isRunning();
+    },
     critical: false,
   },
   "ml-engine": {
     order: 4,
     startFn: async () => log.info("[Orchestrator] ML engine runs within backend"),
     stopFn: async () => {},
-    healthFn: () => backendManager.isRunning(),
+    healthFn: function () {
+      return this._healthCache["ml-engine"] ?? backendManager.isRunning();
+    },
     critical: false,
   },
   "event-pipeline": {
@@ -68,7 +76,16 @@ const SERVICE_DEFINITIONS = {
     order: 11,
     startFn: async () => log.info("[Orchestrator] Scanner runs within backend"),
     stopFn: async () => {},
-    healthFn: () => backendManager.isRunning(),
+    healthFn: function () {
+      return this._healthCache["scanner"] ?? backendManager.isRunning();
+    },
+    critical: false,
+  },
+  "mobile-server": {
+    order: 12,
+    startFn: null, // set dynamically
+    stopFn: null,
+    healthFn: () => false,
     critical: false,
   },
 };
@@ -78,6 +95,62 @@ class ServiceOrchestrator {
     this._activeServices = new Map(); // serviceName -> { status, startedAt }
     this._role = null;
     this._fallbackActive = false;
+    this._healthCache = {};
+    this._healthLoopId = null;
+  }
+
+  /**
+   * HTTP GET health check for a backend API path.
+   */
+  async _checkEndpoint(path, timeoutMs = 3000) {
+    return new Promise((resolve) => {
+      const port = deviceConfig.getBackendPort();
+      const req = http.get(`http://127.0.0.1:${port}${path}`, (res) => {
+        resolve(res.statusCode === 200);
+      });
+      req.on("error", () => resolve(false));
+      req.setTimeout(timeoutMs, () => {
+        req.destroy();
+        resolve(false);
+      });
+    });
+  }
+
+  /**
+   * Run health checks for backend-backed services and update cache.
+   */
+  async _runHealthChecks() {
+    if (!backendManager.isRunning()) {
+      this._healthCache["backend"] = false;
+      this._healthCache["council"] = false;
+      this._healthCache["ml-engine"] = false;
+      this._healthCache["scanner"] = false;
+      return;
+    }
+    const [backendOk, councilOk, mlOk, scannerOk] = await Promise.all([
+      this._checkEndpoint("/api/v1/status"),
+      this._checkEndpoint("/api/v1/agents/health"),
+      this._checkEndpoint("/api/v1/ml-brain/status"),
+      this._checkEndpoint("/api/v1/openclaw/scanner/status"),
+    ]);
+    this._healthCache["backend"] = backendOk;
+    this._healthCache["council"] = councilOk;
+    this._healthCache["ml-engine"] = mlOk;
+    this._healthCache["scanner"] = scannerOk;
+  }
+
+  /**
+   * Start the periodic health check loop (every 30s).
+   */
+  _startHealthLoop() {
+    this._runHealthChecks().catch((err) =>
+      log.warn("[Orchestrator] Health check error:", err?.message)
+    );
+    this._healthLoopId = setInterval(() => {
+      this._runHealthChecks().catch((err) =>
+        log.warn("[Orchestrator] Health check error:", err?.message)
+      );
+    }, 30000);
   }
 
   /**
@@ -94,6 +167,18 @@ class ServiceOrchestrator {
     const sorted = services
       .filter((s) => SERVICE_DEFINITIONS[s])
       .sort((a, b) => (SERVICE_DEFINITIONS[a].order || 99) - (SERVICE_DEFINITIONS[b].order || 99));
+
+    // Wire up mobile-server dynamically when it is in the service list
+    if (sorted.includes("mobile-server")) {
+      this._mobileServer = new MobileServer({
+        port: 8765,
+        backendPort: deviceConfig.getBackendPort(),
+      });
+      const def = SERVICE_DEFINITIONS["mobile-server"];
+      def.startFn = () => this._mobileServer.start();
+      def.stopFn = () => this._mobileServer.stop();
+      def.healthFn = () => this._mobileServer.isRunning();
+    }
 
     // Start services sequentially (respecting dependency order)
     for (const serviceName of sorted) {
@@ -113,6 +198,7 @@ class ServiceOrchestrator {
       this._setupPeerMonitoring();
     }
 
+    this._startHealthLoop();
     log.info(`[Orchestrator] All services started for role: ${this._role}`);
   }
 
@@ -146,9 +232,9 @@ class ServiceOrchestrator {
   _getServicesForRole(role) {
     switch (role) {
       case "full":
-        return ["backend", "frontend", "council", "ml-engine", "event-pipeline", "brain-service", "scanner"];
+        return ["backend", "frontend", "council", "ml-engine", "event-pipeline", "brain-service", "scanner", "mobile-server"];
       case "primary":
-        return ["backend", "frontend", "council", "ml-engine", "event-pipeline"];
+        return ["backend", "frontend", "council", "ml-engine", "event-pipeline", "mobile-server"];
       case "secondary":
         return ["backend", "frontend", "brain-service", "scanner"];
       case "brain-only":
@@ -201,7 +287,6 @@ class ServiceOrchestrator {
 
     // Tighten risk parameters when running in degraded mode
     try {
-      const http = require("http");
       const port = deviceConfig.getBackendPort();
       // Notify backend to enter degraded mode
       const req = http.request({
@@ -235,7 +320,6 @@ class ServiceOrchestrator {
 
     // Notify backend to restore normal mode
     try {
-      const http = require("http");
       const port = deviceConfig.getBackendPort();
       const req = http.request({
         hostname: "127.0.0.1",
@@ -256,6 +340,10 @@ class ServiceOrchestrator {
    */
   async shutdown() {
     log.info("[Orchestrator] Shutting down all services...");
+    if (this._healthLoopId) {
+      clearInterval(this._healthLoopId);
+      this._healthLoopId = null;
+    }
     peerMonitor.stop();
 
     // Stop in reverse order
@@ -281,7 +369,7 @@ class ServiceOrchestrator {
       const def = SERVICE_DEFINITIONS[name];
       services[name] = {
         ...info,
-        healthy: def?.healthFn ? def.healthFn() : false,
+        healthy: def?.healthFn ? def.healthFn.call(this) : false,
       };
     }
 
@@ -289,6 +377,7 @@ class ServiceOrchestrator {
       role: this._role,
       fallbackActive: this._fallbackActive,
       services,
+      healthCache: { ...this._healthCache },
       cluster: peerMonitor.getClusterHealth(),
     };
   }

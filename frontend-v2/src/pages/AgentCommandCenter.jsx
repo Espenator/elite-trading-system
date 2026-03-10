@@ -48,10 +48,40 @@ export default function AgentCommandCenter() {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") || "overview";
 
-  // Data hooks
+  // Data hooks (real API — no mock data)
   const { data: agentsRaw } = useApi("agents", { pollIntervalMs: 15000 });
   const { data: systemStatus } = useApi("system/health");
+  const { data: teamsRaw } = useApi("teams", { pollIntervalMs: 20000 });
+  const { data: alertsRaw } = useApi("systemAlerts", { pollIntervalMs: 20000 });
+  const { data: conferenceRaw } = useApi("conference", { pollIntervalMs: 20000 });
+  const { data: driftRaw } = useApi("drift", { pollIntervalMs: 30000 });
+  const { data: blackboardRaw } = useApi("cnsBlackboard", { pollIntervalMs: 15000 });
+  const { data: cnsAgentsHealthRaw } = useApi("cnsAgentsHealth", { pollIntervalMs: 15000 });
   const agents = useMemo(() => (Array.isArray(agentsRaw) ? agentsRaw : []), [agentsRaw]);
+  const teams = useMemo(() => (Array.isArray(teamsRaw) ? teamsRaw : teamsRaw?.teams ?? []), [teamsRaw]);
+  const alerts = useMemo(() => (Array.isArray(alertsRaw) ? alertsRaw : alertsRaw?.alerts ?? []), [alertsRaw]);
+  const conferenceData = useMemo(() => conferenceRaw?.current ?? conferenceRaw?.conference ?? conferenceRaw ?? null, [conferenceRaw]);
+  const driftData = useMemo(() => (Array.isArray(driftRaw) ? driftRaw : driftRaw?.drift ?? driftRaw?.metrics ?? []), [driftRaw]);
+  const blackboardTopics = useMemo(() => {
+    const b = blackboardRaw?.topics ?? blackboardRaw?.blackboard ?? blackboardRaw;
+    if (Array.isArray(b)) return b;
+    if (b && typeof b === "object") return Object.entries(b).map(([topic, data]) => ({ topic, ...(typeof data === "object" ? data : { last: data }) }));
+    return [];
+  }, [blackboardRaw]);
+  const agentsForHealth = useMemo(() => {
+    const healthList = cnsAgentsHealthRaw?.agents ?? cnsAgentsHealthRaw?.matrix ?? (Array.isArray(cnsAgentsHealthRaw) ? cnsAgentsHealthRaw : []);
+    if (healthList.length > 0) {
+      return healthList.map((a) => ({
+        name: a.name ?? a.agent_name ?? a.agent,
+        agent_name: a.agent_name ?? a.name,
+        status: a.status ?? (a.last_heartbeat ? "running" : "stopped"),
+        health: a.health ?? (a.status === "running" ? "healthy" : a.status === "error" ? "error" : "stopped"),
+        last_heartbeat: a.last_heartbeat,
+        type: a.type,
+      }));
+    }
+    return agents;
+  }, [cnsAgentsHealthRaw, agents]);
 
   // Derived metrics
   const onlineCount = agents.filter(a => a.status === "running").length;
@@ -141,7 +171,16 @@ export default function AgentCommandCenter() {
 
       {/* ========== TAB CONTENT ========== */}
       <div className="flex-1 p-3 overflow-y-auto">
-        {activeTab === "overview" && <SwarmOverviewTab agents={agents} />}
+        {activeTab === "overview" && (
+          <SwarmOverviewTab
+            agents={agentsForHealth}
+            teams={teams}
+            alerts={alerts}
+            topics={blackboardTopics}
+            conferenceData={conferenceData}
+            driftData={driftData}
+          />
+        )}
         {activeTab === "registry" && <AgentRegistryTab agents={agents} />}
         {activeTab === "spawn" && <SpawnScaleTab />}
         {activeTab === "wiring" && <LiveWiringTab />}

@@ -11,9 +11,10 @@
 - **Knowledge**: MemoryBank + HeuristicEngine + KnowledgeGraph (outcome-driven learning)
 - **Data Sources**: Alpaca Markets, Unusual Whales, FinViz, FRED, SEC EDGAR (NO yfinance)
 - **Event Pipeline**: MessageBus -> CouncilGate -> Council -> OrderExecutor
-- **Brain Service**: gRPC + Ollama (local LLM on RTX GPU)
-- **CI/CD**: GitHub Actions (`.github/workflows/ci.yml`) — 898 tests passing (backend)
-- **Infra**: Docker, docker-compose.yml
+- **LLM Intelligence**: 3-tier router (Ollama → Perplexity → Claude); brain_service (gRPC + Ollama) for local inference; Claude for 6 deep-reasoning tasks
+- **CI/CD**: GitHub Actions (`.github/workflows/ci.yml`) — 666 tests passing (backend)
+- **Infra**: Docker, docker-compose.yml; Redis (caching/sessions); Bearer token auth (fail-closed)
+- **Desktop**: Electron app (BUILD-READY); WebSocket active, 5 frontend pages wired
 
 ## Directory Tree
 
@@ -46,7 +47,7 @@ elite-trading-system/
 |   |   |-- main.py                    # FastAPI app entry (v4.1.0-dev, Embodier Trader)
 |   |   |-- websocket_manager.py       # WebSocket broadcast manager
 |   |   |
-|   |   |-- api/v1/                    # REST API endpoints (30+ routes)
+|   |   |-- api/v1/                    # REST API endpoints (34 routes)
 |   |   |   |-- __init__.py
 |   |   |   |-- agents.py              # Agent Command Center (5 template agents)
 |   |   |   |-- alerts.py              # Drawdown alerts, system alerts
@@ -154,12 +155,13 @@ elite-trading-system/
 |   |   |   |-- __init__.py
 |   |   |   |-- signals.py            # Signal data models
 |   |   |
-|   |   |-- services/                 # Business logic layer (24 files)
+|   |   |-- services/                 # Business logic layer (68+ modules: llm_clients, data_sources, scanning, trading, firehose, scouts, channels, ingestion, etc.)
 |   |   |   |-- __init__.py
 |   |   |   |-- alpaca_service.py          # Alpaca broker REST
 |   |   |   |-- alpaca_stream_service.py   # Alpaca WebSocket -> MessageBus
 |   |   |   |-- backtest_engine.py         # Backtester + Monte Carlo
 |   |   |   |-- brain_client.py            # gRPC client for brain_service
+|   |   |   |-- llm_clients/               # Ollama, Perplexity, Claude (3-tier router)
 |   |   |   |-- data_ingestion.py          # Data ingestion pipeline
 |   |   |   |-- database.py               # DuckDB layer (WAL, pooling)
 |   |   |   |-- execution_simulator.py     # Paper trading simulator
@@ -175,7 +177,7 @@ elite-trading-system/
 |   |   |   |-- sec_edgar_service.py       # SEC EDGAR filings
 |   |   |   |-- settings_service.py        # Settings CRUD service
 |   |   |   |-- signal_engine.py           # Signal scoring + EventDrivenSignalEngine
-|   |   |   |-- trade_stats_service.py     # Real DuckDB trade stats (NEW v3.2.0)
+|   |   |   |-- trade_stats_service.py     # Real DuckDB trade stats
 |   |   |   |-- training_store.py          # ML artifact storage
 |   |   |   |-- unusual_whales_service.py  # Options flow
 |   |   |   |-- walk_forward_validator.py  # Walk-forward validation
@@ -187,9 +189,14 @@ elite-trading-system/
 |   |-- tests/
 |       |-- __init__.py
 |       |-- conftest.py                # Test fixtures
-|       |-- test_api.py                # API integration tests (151 tests)
+|       |-- test_api.py                # API integration tests (666 tests)
 |
-|-- brain_service/                     # gRPC + Ollama LLM service (PC2)
+|-- brain_service/                     # gRPC + Ollama LLM service (local inference; part of 3-tier router)
+|
+|-- desktop/                            # Electron desktop app (BUILD-READY)
+|   |-- main.js, preload.js, tray.js
+|   |-- service-orchestrator.js, backend-manager.js, mobile-server.js
+|   |-- pages/ (splash, setup), mobile/, icons/
 |
 |-- core/
 |   |-- api/
@@ -315,10 +322,13 @@ elite-trading-system/
 5. **Bayesian weight learning** - WeightLearner adjusts agent influence based on trade outcomes
 6. **DuckDB** - Primary analytics database (WAL mode, connection pooling)
 7. **OpenClaw** - Legacy code with useful scanner/agent pieces, scheduled for cleanup (P4)
-8. **CI** - 898 tests passing (backend pytest), GitHub Actions on every push
-9. **Brain Service** - gRPC + Ollama on PC2 for LLM inference (not yet wired to council)
+8. **CI** - 666 tests passing (backend pytest), GitHub Actions on every push
+9. **Brain Service** - gRPC + Ollama for local LLM; part of 3-tier router (Ollama → Perplexity → Claude). Claude used for 6 deep-reasoning tasks (strategy_critic, strategy_evolution, deep_postmortem, trade_thesis, overnight_analysis, directive_evolution); Ollama handles most routine calls.
 10. **Discovery** - Transitioning from periodic polling to continuous streaming (Issue #38)
 11. **Knowledge Layer** - MemoryBank + HeuristicEngine + KnowledgeGraph learn from trade outcomes
+12. **Auth** - Bearer token authentication; fail-closed (unauthenticated requests rejected)
+13. **WebSocket** - Active; 5 frontend pages wired for real-time updates
+14. **Redis** - Used for caching and session state where applicable
 
 ## Discovery + Trade Pipeline (v3.5.0-dev)
 
@@ -334,7 +344,7 @@ TRIAGE:
   swarm.idea -> HyperSwarm (50 workers, Ollama <500ms) -> score >= 65 escalated
 
 EVALUATION:
-  Escalated -> SwarmSpawner -> 17-Agent Council (7 stages) -> council.verdict
+  Escalated -> SwarmSpawner -> 35-Agent Council (7 stages) -> council.verdict
 
 EXECUTION:
   council.verdict -> OrderExecutor (real DuckDB stats, real ATR, mock guard) -> Alpaca

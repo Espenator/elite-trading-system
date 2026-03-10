@@ -1,5 +1,9 @@
 # Firehose and CNS Enhancements for Elite Trading System
 
+## Canonical ingestion: `channels/` package
+
+**The canonical data-ingestion implementation is `backend/app/services/channels/`** (ChannelsOrchestrator with 5 agents: Alpaca, Discord, UW, Finviz, News). The older `backend/app/services/firehose/` package is **deprecated** and will be removed; use `channels/` for new work.
+
 ## Overview
 This document outlines the implementation of Firehose and CNS enhancements in the Elite Trading System as detailed in `cursor_agent_prompts_firehose_and_cns.md`.
 

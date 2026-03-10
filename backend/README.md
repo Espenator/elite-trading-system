@@ -1,10 +1,10 @@
 # Elite Trading System - Backend API
 
-**Last Updated: March 3, 2026**
+**Last Updated: March 10, 2026**
 
 FastAPI backend serving the Embodier.ai Elite Trading Intelligence System. Provides REST API endpoints for trading signals, order execution, agent management, ML training, backtesting, and real-time WebSocket data.
 
-> **Status: All route files and services coded. 146 tests passing across 12 test files. CI green.**
+> **Status: All route files and services coded. 666 tests passing. CI green (see `.github/workflows/ci.yml`). Auth (Bearer token, fail-closed), WebSocket, and backend startup are operational.**
 
 ---
 
@@ -17,7 +17,15 @@ FastAPI backend serving the Embodier.ai Elite Trading Intelligence System. Provi
 - **Data Sources**: Finviz Elite, Unusual Whales, FRED, SEC EDGAR, Alpaca Markets
 - **ML**: XGBoost, scikit-learn, hmmlearn (torch/PyTorch was removed from requirements.txt)
 - **Configuration**: pydantic-settings, python-dotenv
-- **WebSocket**: FastAPI WebSocket manager
+- **WebSocket**: FastAPI WebSocket manager (active; 5 frontend pages wired)
+- **Auth**: Bearer token authentication (fail-closed)
+- **LLM**: 3-tier router (Ollama → Perplexity → Claude); brain_service (gRPC + Ollama) for local inference
+- **Council**: 35-agent DAG, 7 stages; SignalEngine → CouncilGate → Council → OrderExecutor
+- **Infra**: Redis (caching/sessions where applicable)
+
+### Production request flow
+
+Signals flow: **SignalEngine** → **CouncilGate** → **35-agent Council** (7 stages) → **OrderExecutor** → Alpaca; real-time updates to frontend via **WebSocket**.
 
 ---
 
@@ -27,7 +35,7 @@ FastAPI backend serving the Embodier.ai Elite Trading Intelligence System. Provi
 backend/
   app/
     api/
-      v1/                  # 25 REST API route files
+      v1/                  # 34 REST API route files (brain, triage, ingestion firehose, awareness, council, etc.)
         agents.py          # Agent management + lifecycle
         alerts.py          # System alerts
         backtest_routes.py # Strategy backtesting
@@ -53,24 +61,28 @@ backend/
         system.py          # System config + /gpu endpoint
         training.py        # ML model training jobs
         youtube_knowledge.py # YouTube research data
-    core/                  # Config, settings
+    council/               # 35-agent DAG (7 stages), CouncilGate, arbiter, weight_learner
+    core/                  # Config, message bus
     data/                  # DuckDB storage layer
     models/                # LSTM trainer, inference
     modules/
       ml_engine/           # XGBoost trainer, drift detector, model registry
       openclaw/            # OpenClaw swarm modules
     schemas/               # Pydantic request/response models
-    services/              # 15 service files (see below)
+    services/              # 68+ modules: llm_clients (Ollama, Perplexity, Claude), firehose, scouts, channels, scanning, trading, ingestion, etc.
       alpaca_service.py    # Alpaca broker integration
       backtest_engine.py   # Historical signal backtester
+      brain_client.py      # gRPC client for brain_service
       database.py          # DuckDB/SQLite database layer
       finviz_service.py    # Finviz stock screener
       fred_service.py      # FRED economic data
       kelly_position_sizer.py # Kelly criterion sizing
+      llm_router.py        # 3-tier LLM router
       market_data_agent.py # Market data aggregation
       ml_training.py       # LSTM/XGBoost training
       openclaw_bridge_service.py # OpenClaw bridge
       openclaw_db.py       # OpenClaw SQLite persistence
+      order_executor.py    # Council-controlled execution
       sec_edgar_service.py # SEC EDGAR filings
       signal_engine.py     # Signal scoring engine
       training_store.py    # ML model artifact storage
@@ -81,7 +93,7 @@ backend/
     websocket_manager.py   # WebSocket connection manager
   tests/
     conftest.py            # Test fixtures
-    test_api.py            # API tests (minimal)
+    test_api.py            # API integration tests (666 tests)
   requirements.txt         # Python dependencies
   start_server.py          # Server startup script
   Dockerfile               # Docker build
@@ -144,14 +156,13 @@ See `.env.example` for all available settings.
 
 ---
 
-## Known Issues (March 3, 2026)
+## Known Issues (March 10, 2026)
 
-- Backend needs first end-to-end runtime test (`uvicorn app.main:app --reload`)
-- `openclaw_bridge_service.py` is a large module needing split
+- `openclaw_bridge_service.py` is a large module; consider splitting for maintainability
 - `signal_engine.py` scoring may need alignment with OpenClaw 5-pillar system
-- torch/PyTorch removed from requirements.txt -- LSTM inference code may fail
+- torch/PyTorch removed from requirements.txt — LSTM inference may require optional torch install if used
 
-**Critical**: Run `uvicorn app.main:app` locally before committing any backend changes.
+Backend startup, WebSocket, and Bearer-token auth are resolved and operational.
 
 ---
 
