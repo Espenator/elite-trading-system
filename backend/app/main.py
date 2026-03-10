@@ -61,7 +61,6 @@ from app.api.v1 import (
     patterns,
     settings_routes,
     openclaw,
-    brain,
     ml_brain,
     risk_shield_api,
     market,
@@ -74,11 +73,7 @@ from app.api.v1 import (
     swarm,
     cognitive,
     cluster,
-    llm_health,
-    ingestion_firehose,
-    awareness,
-    triage,
-    blackboard_routes,
+    llm_health,     mobile_api,
 )
 from app.api import ingestion
 
@@ -228,28 +223,6 @@ async def _risk_monitor_loop():
             await asyncio.sleep(60)
 
 
-async def _brain_heartbeat_loop():
-    """Publish system.heartbeat with brain_state and degraded reasons for operator awareness."""
-    await asyncio.sleep(60)  # First tick after 60s
-    while True:
-        try:
-            from app.api.v1.brain import get_degraded_status
-            status = get_degraded_status()
-            brain_state = "DEGRADED" if status.get("degraded") else "NORMAL"
-            if _message_bus:
-                await _message_bus.publish("system.heartbeat", {
-                    "brain_state": brain_state,
-                    "reasons": status.get("reasons", []),
-                    "details": status.get("details", {}),
-                    "timestamp": status.get("timestamp"),
-                })
-        except asyncio.CancelledError:
-            break
-        except Exception as e:
-            log.debug("Brain heartbeat failed: %s", e)
-        await asyncio.sleep(60)
-
-
 # ---------------------------------------------------------------------------
 # Event-Driven Architecture: MessageBus + Stream + Signal + Council + Order
 # ---------------------------------------------------------------------------
@@ -264,7 +237,6 @@ _node_discovery = None
 _stream_manager = None
 _gpu_telemetry_daemon = None
 _llm_dispatcher = None
-_channels_orchestrator = None
 
 
 async def _start_event_driven_pipeline():
@@ -308,19 +280,6 @@ async def _start_event_driven_pipeline():
     _message_bus = get_message_bus()
     await _message_bus.start()
     log.info("\u2705 MessageBus started")
-
-    # 1a. Firehose channel orchestrator (CNS sensory layer)
-    global _channels_orchestrator
-    firehose_enabled = os.getenv("FIREHOSE_ENABLED", "true").strip().lower() in ("1", "true", "yes")
-    if firehose_enabled:
-        try:
-            from app.services.channels.orchestrator import ensure_orchestrator_started
-            _channels_orchestrator = await ensure_orchestrator_started(_message_bus)
-            log.info("\u2705 Firehose ChannelsOrchestrator started (agents=%d)", len(_channels_orchestrator.get_status().get("agents", {})))
-        except Exception as e:
-            log.warning("Firehose orchestrator failed to start: %s", e)
-    else:
-        log.info("\u26A0\uFE0F Firehose disabled (FIREHOSE_ENABLED=false)")
 
     # 1b. GPU Telemetry Daemon — broadcasts to cluster.telemetry
     from app.services.gpu_telemetry import GPUTelemetryDaemon
@@ -371,17 +330,45 @@ async def _start_event_driven_pipeline():
     await _scout_registry.start(message_bus=_message_bus)
     log.info("\u2705 ScoutRegistry started (%d scouts)", _scout_registry.scout_count)
 
-    # 3. Council invocation (single canonical path)
-    # Canonical: CouncilGate. Optional fallback is explicitly disabled by default and safe.
-    from app.services.council_invocation import setup_council_invocation
-
-    council_setup = await setup_council_invocation(
-        _message_bus,
-        llm_enabled=_llm_enabled,
-        council_enabled=_council_enabled,
+    # 3. CouncilGate (subscribes to signal.generated, invokes council)
+    # Disable when LLM or council is off — council calls LLM which blocks when Ollama is down.
+    council_gate_enabled = (
+        os.getenv("COUNCIL_GATE_ENABLED", "true").lower() == "true"
+        and _llm_enabled
+        and _council_enabled
     )
-    _council_gate = council_setup.get("gate")
-    council_gate_enabled = council_setup.get("mode") == "gate"
+    if council_gate_enabled:
+        from app.council.council_gate import CouncilGate
+        _council_gate = CouncilGate(
+            message_bus=_message_bus,
+            gate_threshold=float(os.getenv("COUNCIL_GATE_THRESHOLD", "0.65")),
+            max_concurrent=int(os.getenv("COUNCIL_MAX_CONCURRENT", "3")),
+            cooldown_seconds=int(os.getenv("COUNCIL_COOLDOWN_SECS", "120")),
+        )
+        await _council_gate.start()
+        log.info("\u2705 CouncilGate started (13-agent council controls trading)")
+    else:
+        log.info("\u26a0 CouncilGate DISABLED -- routing signals directly to OrderExecutor")
+        # BUG FIX: When council is off, route signals directly as verdicts.
+        # Without this, signal.generated has NO trading consumer and nothing executes.
+        async def _signal_to_verdict_fallback(signal_data):
+            """Bypass council — convert signal.generated directly to council.verdict format."""
+            score = signal_data.get("score", 0)
+            if score < 0.65:  # Still gate on minimum score
+                return
+            await _message_bus.publish("council.verdict", {
+                "symbol": signal_data.get("symbol", ""),
+                "final_direction": signal_data.get("label", "long"),
+                "final_confidence": min(score, 1.0),
+                "execution_ready": True,
+                "vetoed": False,
+                "votes": [],
+                "council_reasoning": "CouncilGate disabled — direct signal passthrough",
+                "signal_data": signal_data,
+                "price": signal_data.get("close", signal_data.get("price", 0)),
+            })
+        await _message_bus.subscribe("signal.generated", _signal_to_verdict_fallback)
+        log.info("\u2705 Signal->Verdict fallback subscriber registered (CouncilGate bypass)")
 
     # 4. OrderExecutor (subscribes to council.verdict)
     from app.services.order_executor import OrderExecutor
@@ -509,24 +496,17 @@ async def _start_event_driven_pipeline():
         _alpaca_stream = _stream_manager
         log.info("\u2705 AlpacaStreamManager launched for %d symbols", len(symbols))
 
-    # 8. SymbolPrepService — off-hot-path symbol data prep (for SwarmSpawner)
-    swarm_spawner_enabled = os.getenv("SWARM_SPAWNER_ENABLED", "false").strip().lower() in ("1", "true", "yes")
-    if _llm_enabled and swarm_spawner_enabled:
-        from app.services.symbol_prep import get_symbol_prep_service
-        _symbol_prep = get_symbol_prep_service(_message_bus)
-        await _symbol_prep.start()
-        log.info("\u2705 SymbolPrepService started (prep off hot path)")
-    # 8b. SwarmSpawner — legacy deep analysis (explicitly disabled by default)
-    # HyperSwarm is the canonical triage computation layer and escalates via signal.generated.
-    if _llm_enabled and swarm_spawner_enabled:
+    # 8. SwarmSpawner — spawns analysis swarms from ideas
+    # Skip when LLM disabled — _run_swarm does synchronous DuckDB ingest + LLM council
+    # which blocks the entire async event loop and deadlocks the server.
+    if _llm_enabled:
         from app.services.swarm_spawner import get_swarm_spawner
         _swarm_spawner = get_swarm_spawner()
         _swarm_spawner._bus = _message_bus
         await _swarm_spawner.start()
         log.info("\u2705 SwarmSpawner started (%d workers)", _swarm_spawner.MAX_CONCURRENT_SWARMS)
     else:
-        if not swarm_spawner_enabled or not _llm_enabled:
-            log.info("\u26A0\uFE0F SwarmSpawner skipped (SWARM_SPAWNER_ENABLED=false or LLM_ENABLED=false)")
+        log.info("\u26A0\uFE0F SwarmSpawner skipped (LLM_ENABLED=false)")
 
     # 9. KnowledgeIngestionService — connect to message bus
     from app.services.knowledge_ingest import knowledge_ingest
@@ -543,16 +523,15 @@ async def _start_event_driven_pipeline():
     else:
         log.info("\u26A0\uFE0F AutonomousScoutService skipped (LLM_ENABLED=false)")
 
-    # 11. DiscordSwarmBridge — legacy direct Discord->swarm.idea
-    # Prefer Firehose (DiscordChannelAgent) when enabled to avoid double-polling/double-publish.
-    if _llm_enabled and not firehose_enabled:
+    # 11. DiscordSwarmBridge — Discord channels -> swarm analysis
+    if _llm_enabled:
         from app.services.discord_swarm_bridge import get_discord_bridge
         _discord_bridge = get_discord_bridge()
         _discord_bridge._bus = _message_bus
         await _discord_bridge.start()
         log.info("\u2705 DiscordSwarmBridge started (%d channels)", len(_discord_bridge._channels))
     else:
-        log.info("\u26A0\uFE0F DiscordSwarmBridge skipped (%s)", "firehose_enabled" if firehose_enabled else "LLM_ENABLED=false")
+        log.info("\u26A0\uFE0F DiscordSwarmBridge skipped (LLM_ENABLED=false)")
 
     # 12. GeopoliticalRadar — continuous macro event detection
     if _llm_enabled:
@@ -628,15 +607,15 @@ async def _start_event_driven_pipeline():
         log.info("\u26A0\uFE0F HyperSwarm skipped (LLM_ENABLED=false)")
 
     # 20. NewsAggregator — 8+ RSS/API news sources every 60s
-    # When Firehose is enabled, NewsChannelAgent runs the aggregator (with callback); skip standalone.
-    if _llm_enabled and not firehose_enabled:
+    # Publishes swarm.idea + signal.generated events → sync DuckDB processing.
+    if _llm_enabled:
         from app.services.news_aggregator import get_news_aggregator
         _news_agg = get_news_aggregator()
         _news_agg._bus = _message_bus
         await _news_agg.start()
         log.info("\u2705 NewsAggregator started (%d RSS feeds)", 9)
     else:
-        log.info("\u26A0\uFE0F NewsAggregator skipped (%s)", "firehose_enabled" if firehose_enabled else "LLM_ENABLED=false")
+        log.info("\u26A0\uFE0F NewsAggregator skipped (LLM_ENABLED=false)")
 
     # 21. MarketWideSweep — batch Alpaca ingest + 10 SQL screens across full market
     # BUG FIX 3: Always start — batch Alpaca ingest + SQL screens, no LLM dependency.
@@ -677,33 +656,9 @@ async def _start_event_driven_pipeline():
     log.info("\u2705 OutcomeTracker started (win_rate=%.2f, resolved=%d)",
              _outcome_tracker._stats["win_rate"], _outcome_tracker._stats["total_resolved"])
 
-    # 24b. Pipeline integrity check (critical subscribers; fail startup if FAIL_ON_CRITICAL_SUBSCRIBER_MISSING)
-    try:
-        from app.events.contracts import run_startup_integrity_check
-        integrity_ok, integrity_details = run_startup_integrity_check(_message_bus)
-        if not integrity_ok:
-            log.warning(
-                "Pipeline integrity check failed: missing subscribers for %s",
-                integrity_details.get("missing", []),
-            )
-            if os.getenv("FAIL_ON_CRITICAL_SUBSCRIBER_MISSING", "").strip().lower() in ("1", "true", "yes"):
-                raise RuntimeError(
-                    "Startup aborted: critical pipeline topics have no subscribers. "
-                    "Set FAIL_ON_CRITICAL_SUBSCRIBER_MISSING=false to allow degraded start."
-                )
-        else:
-            log.info("\u2705 Pipeline integrity check passed (critical subscribers registered)")
-    except RuntimeError:
-        raise
-    except Exception as e:
-        log.debug("Pipeline integrity check skipped: %s", e)
-
     # 24b. outcome.resolved subscribers — close the feedback loop (Audit Bug #12)
     async def _on_outcome_resolved(outcome_data):
-        """Feed resolved outcomes to WeightLearner and SelfAwareness. Skip learning when is_censored."""
-        if outcome_data.get("is_censored"):
-            log.debug("Outcome censored (e.g. timeout_censored), skipping WeightLearner and SelfAwareness")
-            return
+        """Feed resolved outcomes to WeightLearner and SelfAwareness."""
         try:
             from app.council.weight_learner import get_weight_learner
             learner = get_weight_learner()
@@ -712,7 +667,6 @@ async def _start_event_driven_pipeline():
                 outcome_direction="win" if outcome_data.get("pnl_pct", 0) > 0.001 else "loss",
                 pnl=outcome_data.get("pnl", 0.0),
                 r_multiple=outcome_data.get("r_multiple", 0.0),
-                is_censored=outcome_data.get("is_censored", False),
             )
         except Exception as e:
             log.debug("WeightLearner outcome update failed: %s", e)
@@ -737,15 +691,6 @@ async def _start_event_driven_pipeline():
 
     await _message_bus.subscribe("outcome.resolved", _on_outcome_resolved)
     log.info("\u2705 outcome.resolved subscriber active (WeightLearner + SelfAwareness)")
-
-    # 24c. ML Signal Publisher — Stage4 signals into brain (signal.generated / swarm.idea)
-    try:
-        from app.services.ml_signal_publisher import get_ml_signal_publisher
-        _ml_signal_publisher = get_ml_signal_publisher(_message_bus)
-        await _ml_signal_publisher.start()
-        log.info("\u2705 MLSignalPublisher started (stage4 -> signal.generated)")
-    except Exception as e:
-        log.debug("MLSignalPublisher not started: %s", e)
 
     # 24. Knowledge Layer — EmbeddingService + MemoryBank + HeuristicEngine + KnowledgeGraph
     # Initialize singletons eagerly so they're warm when council calls them.
@@ -850,16 +795,7 @@ async def _stop_event_driven_pipeline():
     global _event_signal_engine, _council_gate, _order_executor
     global _node_discovery, _stream_manager
     global _gpu_telemetry_daemon, _llm_dispatcher
-    global _channels_orchestrator
     log.info("Shutting down event-driven pipeline...")
-
-    # Stop Firehose orchestrator early (it depends on MessageBus)
-    if _channels_orchestrator:
-        try:
-            await _channels_orchestrator.stop()
-        except Exception:
-            pass
-        _channels_orchestrator = None
 
     # Stop GPU Telemetry Daemon
     if _gpu_telemetry_daemon:
@@ -893,11 +829,6 @@ async def _stop_event_driven_pipeline():
     try:
         from app.services.outcome_tracker import get_outcome_tracker
         await get_outcome_tracker().stop()
-    except Exception:
-        pass
-    try:
-        from app.services.ml_signal_publisher import get_ml_signal_publisher
-        await get_ml_signal_publisher().stop()
     except Exception:
         pass
     try:
@@ -983,11 +914,6 @@ async def _stop_event_driven_pipeline():
         await get_swarm_spawner().stop()
     except Exception:
         pass
-    try:
-        from app.services.symbol_prep import get_symbol_prep_service
-        await get_symbol_prep_service().stop()
-    except Exception:
-        pass
 
     if _council_evaluator:
         await _council_evaluator.stop()
@@ -1016,12 +942,6 @@ async def _stop_event_driven_pipeline():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize data schema on startup; start background loops."""
-    # 0. Security: align WebSocket auth with API auth (single token for REST + WS)
-    token = (getattr(settings, "API_AUTH_TOKEN", None) or "").strip() or None
-    if token:
-        from app.websocket_manager import set_ws_auth_token
-        set_ws_auth_token(token)
-        log.info("WebSocket auth enabled (API_AUTH_TOKEN)")
     # 1. Data schema
     try:
         from app.data.storage import init_schema
@@ -1093,7 +1013,6 @@ async def lifespan(app: FastAPI):
     drift_task = asyncio.create_task(_drift_check_loop()) if _llm_on else None
     heartbeat_task = asyncio.create_task(heartbeat_loop())
     risk_monitor_task = asyncio.create_task(_risk_monitor_loop())
-    brain_heartbeat_task = asyncio.create_task(_brain_heartbeat_loop())
 
     log.info("=" * 60)
     log.info("Embodier Trader v%s ONLINE — PRODUCTION (Council-Controlled Intelligence)", settings.APP_VERSION)
@@ -1119,10 +1038,10 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass
         await _stop_event_driven_pipeline()
-        for task in [tick_task, drift_task, heartbeat_task, risk_monitor_task, brain_heartbeat_task]:
+        for task in [tick_task, drift_task, heartbeat_task, risk_monitor_task]:
             if task is not None:
                 task.cancel()
-        for task in [tick_task, drift_task, heartbeat_task, risk_monitor_task, brain_heartbeat_task]:
+        for task in [tick_task, drift_task, heartbeat_task, risk_monitor_task]:
             if task is not None:
                 try:
                     await task
@@ -1230,12 +1149,7 @@ app.include_router(cognitive.router, prefix="/api/v1/cognitive", tags=["cognitiv
 app.include_router(youtube_knowledge.router, prefix="/api/v1/youtube-knowledge", tags=["youtube_knowledge"])
 app.include_router(ingestion.router, tags=["ingestion"])
 app.include_router(cluster.router, prefix="/api/v1/cluster", tags=["cluster"])
-app.include_router(llm_health.router, prefix="/api/v1/llm/health", tags=["llm_health"])
-app.include_router(ingestion_firehose.router, tags=["ingestion"])
-app.include_router(awareness.router)
-app.include_router(triage.router, prefix="/api/v1/triage", tags=["triage"])
-app.include_router(brain.router, prefix="/api/v1/brain", tags=["brain"])
-app.include_router(blackboard_routes.router, prefix="/api/v1/blackboard", tags=["blackboard"])
+app.include_router(llm_health.router) app.include_router(mobile_api.router, prefix="/api/v1/mobile"), prefix="/api/v1/llm/health", tags=["llm_health"])
 
 @app.get("/api/v1/consensus", tags=["agents"])
 async def consensus_alias():
@@ -1253,38 +1167,6 @@ _VALID_WS_CHANNELS = frozenset({
     "logs", "sentiment", "alignment", "homeostasis", "circuit_breaker",
 })
 
-# Canonical WS message shape for operator awareness (docs/mockups-v3)
-_WS_MESSAGE_SCHEMA = {
-    "channel": "string (e.g. signal, council, risk, market, order, swarm)",
-    "type": "string (e.g. new_signal, council_verdict, risk_update, price_update)",
-    "data": "object (channel-specific payload)",
-    "ts": "number (Unix timestamp)",
-}
-_WS_CHANNEL_SCHEMAS = {
-    "signal": {"type": "new_signal", "data": {"signal": {"symbol": "AAPL", "score": 75}}},
-    "council": {"type": "council_verdict", "data": {"verdict": {"symbol": "AAPL", "final_direction": "buy"}}},
-    "risk": {"type": "risk_update", "data": {"risk_score": 80, "grade": "A"}},
-    "market": {"type": "price_update", "data": {"bar": {"symbol": "AAPL", "close": 150.0}}},
-    "order": {"type": "order_update", "data": {"order": {"symbol": "AAPL", "side": "buy"}}},
-    "swarm": {"type": "swarm_result", "data": {"result": {"symbol": "AAPL"}}},
-}
-
-
-@app.get("/api/v1/ws/registry", tags=["websocket"])
-async def ws_registry():
-    """Return WebSocket channel list, subscriber counts, and payload contract for operator awareness."""
-    from app.websocket_manager import get_channel_info
-    info = get_channel_info()
-    return {
-        "channels": sorted(_VALID_WS_CHANNELS),
-        "payload_contract": {"channel": "str", "type": "str", "data": "object", "ts": "float"},
-        "total_connections": info["total_connections"],
-        "subscriber_counts": dict(sorted(info["channels"].items())),
-        "message_schema": _WS_MESSAGE_SCHEMA,
-        "schema_examples": _WS_CHANNEL_SCHEMAS,
-    }
-
-
 # --- WebSocket rate limiting (Audit Task 15) ---
 _WS_MSG_RATE: dict = {}  # websocket -> list of timestamps
 _WS_MAX_MSGS_PER_MIN = 120
@@ -1295,22 +1177,20 @@ _WS_MAX_CONNECTIONS = 50
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for real-time updates.
 
-    Clients send {type:"subscribe", channel} / {type:"unsubscribe", channel} / {type:"pong"}.
-    Server responds with ack (type: subscribed/unsubscribed) or error (type: error, detail).
-    Payload contract: {channel, type, data, ts}. When API_AUTH_TOKEN is set, client must pass ?token=<token>.
+    SECURITY (Audit Task 2): Clients can only subscribe/unsubscribe/pong.
+    All data publishing to channels originates from server-side services
+    via broadcast_ws(). Client-to-channel relay has been removed to prevent
+    UI spoofing (fake council_verdict, risk_update, order_update messages).
+
+    RATE LIMITING (Audit Task 15): Max 120 messages/min per connection,
+    max 50 simultaneous connections.
     """
     import time as _time
-    from urllib.parse import parse_qs
-    from app.websocket_manager import get_connection_count, verify_ws_token
 
+    # Enforce max connections (Task 15)
+    from app.websocket_manager import get_connection_count
     if get_connection_count() >= _WS_MAX_CONNECTIONS:
         await websocket.close(code=1013, reason="Max connections reached")
-        return
-    query_string = (websocket.scope.get("query_string") or b"").decode()
-    params = parse_qs(query_string)
-    ws_token = (params.get("token") or [None])[0]
-    if not verify_ws_token(ws_token):
-        await websocket.close(code=4001, reason="Unauthorized")
         return
 
     await websocket.accept()
@@ -1346,16 +1226,10 @@ async def websocket_endpoint(websocket: WebSocket):
                 ch = msg.get("channel")
                 if ch and ch in _VALID_WS_CHANNELS:
                     subscribe(websocket, ch)
-                    await websocket.send_json({"type": "subscribed", "channel": ch})
-                elif ch:
-                    await websocket.send_json({"type": "error", "detail": f"Invalid channel: {ch}"})
-                else:
-                    await websocket.send_json({"type": "error", "detail": "Missing channel"})
             elif msg_type == "unsubscribe":
                 ch = msg.get("channel")
                 if ch:
                     unsubscribe(websocket, ch)
-                    await websocket.send_json({"type": "unsubscribed", "channel": ch})
             # SECURITY: No client-to-channel relay. Clients cannot broadcast.
             # Commands (e.g., trigger council evaluation) go through REST endpoints.
     except Exception:
