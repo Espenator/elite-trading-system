@@ -170,8 +170,10 @@ async def _fetch_options_chain(symbol: str) -> List[Dict[str, Any]]:
     try:
         from app.services.unusual_whales_service import get_options_chain
         return await get_options_chain(symbol)
-    except Exception:
-        pass
+    except ImportError as e:
+        logger.warning("Failed to import Unusual Whales options chain: %s", e)
+    except Exception as e:
+        logger.debug("Unusual Whales options chain not available for %s: %s", symbol, e)
 
     # Fallback: try CBOE data
     try:

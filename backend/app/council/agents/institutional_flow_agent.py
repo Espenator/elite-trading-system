@@ -156,8 +156,10 @@ async def _fetch_13f_data(symbol: str) -> List[Dict[str, Any]]:
     try:
         from app.services.unusual_whales_service import get_institutional_flow
         return await get_institutional_flow(symbol)
-    except Exception:
-        pass
+    except ImportError as e:
+        logger.warning("Failed to import Unusual Whales institutional flow: %s", e)
+    except Exception as e:
+        logger.debug("Unusual Whales institutional flow not available for %s: %s", symbol, e)
 
     return []
 

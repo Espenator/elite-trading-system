@@ -172,8 +172,10 @@ async def _fetch_insider_filings(symbol: str) -> List[Dict[str, Any]]:
         filings = await get_insider_trades(symbol)
         if filings:
             return filings
-    except Exception:
-        pass
+    except ImportError as e:
+        logger.warning("Failed to import Unusual Whales insider trades: %s", e)
+    except Exception as e:
+        logger.debug("Unusual Whales insider trades not available for %s: %s", symbol, e)
 
     # Try SEC EDGAR XBRL feed
     try:

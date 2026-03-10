@@ -2,7 +2,7 @@
 
 import logging
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import httpx
 
@@ -109,3 +109,168 @@ class UnusualWhalesService:
             r = await client.get(url, headers=self._headers())
         r.raise_for_status()
         return r.json() if r.content else []
+
+
+# Global service instance for module-level function access
+_service_instance = None
+
+
+def _get_service() -> UnusualWhalesService:
+    """Get or create the global UnusualWhalesService instance."""
+    global _service_instance
+    if _service_instance is None:
+        _service_instance = UnusualWhalesService()
+    return _service_instance
+
+
+# Module-level wrapper functions for council agents
+# These provide per-symbol data access with symbol filtering
+
+
+async def get_insider_trades(symbol: str) -> List[Dict[str, Any]]:
+    """
+    Fetch insider trades filtered by symbol.
+
+    Args:
+        symbol: Stock ticker symbol (e.g., "AAPL")
+
+    Returns:
+        List of insider trade dicts for the specified symbol
+    """
+    service = _get_service()
+    try:
+        all_trades = await service.get_insider_trades()
+        if not all_trades:
+            return []
+
+        # Filter by symbol (case-insensitive)
+        symbol_upper = symbol.upper()
+        if isinstance(all_trades, list):
+            return [
+                trade for trade in all_trades
+                if str(trade.get("ticker", "") or trade.get("symbol", "")).upper() == symbol_upper
+            ]
+        elif isinstance(all_trades, dict) and "data" in all_trades:
+            # Handle paginated response format
+            data = all_trades.get("data", [])
+            return [
+                trade for trade in data
+                if str(trade.get("ticker", "") or trade.get("symbol", "")).upper() == symbol_upper
+            ]
+        return []
+    except Exception as e:
+        logger.warning("Failed to fetch insider trades for %s: %s", symbol, e)
+        return []
+
+
+async def get_dark_pool_flow(symbol: str) -> Optional[Dict[str, Any]]:
+    """
+    Fetch dark pool flow data filtered by symbol.
+
+    Args:
+        symbol: Stock ticker symbol (e.g., "AAPL")
+
+    Returns:
+        Dict with dark pool flow data for the symbol, or None if not found
+    """
+    service = _get_service()
+    try:
+        all_flow = await service.get_darkpool_flow()
+        if not all_flow:
+            return None
+
+        # Filter by symbol (case-insensitive)
+        symbol_upper = symbol.upper()
+        if isinstance(all_flow, list):
+            # Find the first matching entry
+            for entry in all_flow:
+                if str(entry.get("ticker", "") or entry.get("symbol", "")).upper() == symbol_upper:
+                    return entry
+        elif isinstance(all_flow, dict) and "data" in all_flow:
+            # Handle paginated response format
+            data = all_flow.get("data", [])
+            for entry in data:
+                if str(entry.get("ticker", "") or entry.get("symbol", "")).upper() == symbol_upper:
+                    return entry
+        return None
+    except Exception as e:
+        logger.warning("Failed to fetch dark pool flow for %s: %s", symbol, e)
+        return None
+
+
+async def get_options_chain(symbol: str) -> List[Dict[str, Any]]:
+    """
+    Fetch options chain data for a symbol from flow alerts.
+
+    Note: Unusual Whales flow alerts contain options data, not a full options chain.
+    This function filters flow alerts by the specified symbol.
+
+    Args:
+        symbol: Stock ticker symbol (e.g., "AAPL")
+
+    Returns:
+        List of options flow alerts for the specified symbol
+    """
+    service = _get_service()
+    try:
+        all_alerts = await service.get_flow_alerts()
+        if not all_alerts:
+            return []
+
+        # Filter by symbol (case-insensitive)
+        symbol_upper = symbol.upper()
+        if isinstance(all_alerts, list):
+            return [
+                alert for alert in all_alerts
+                if str(alert.get("ticker", "") or alert.get("symbol", "")).upper() == symbol_upper
+            ]
+        elif isinstance(all_alerts, dict) and "data" in all_alerts:
+            # Handle paginated response format
+            data = all_alerts.get("data", [])
+            return [
+                alert for alert in data
+                if str(alert.get("ticker", "") or alert.get("symbol", "")).upper() == symbol_upper
+            ]
+        return []
+    except Exception as e:
+        logger.warning("Failed to fetch options chain for %s: %s", symbol, e)
+        return []
+
+
+async def get_institutional_flow(symbol: str) -> List[Dict[str, Any]]:
+    """
+    Fetch institutional flow/trading activity filtered by symbol.
+
+    Note: This uses congress trades as a proxy for institutional activity.
+    Actual institutional flow would require 13F filings or other data sources.
+
+    Args:
+        symbol: Stock ticker symbol (e.g., "AAPL")
+
+    Returns:
+        List of institutional trades for the specified symbol
+    """
+    service = _get_service()
+    try:
+        all_trades = await service.get_congress_trades()
+        if not all_trades:
+            return []
+
+        # Filter by symbol (case-insensitive)
+        symbol_upper = symbol.upper()
+        if isinstance(all_trades, list):
+            return [
+                trade for trade in all_trades
+                if str(trade.get("ticker", "") or trade.get("symbol", "")).upper() == symbol_upper
+            ]
+        elif isinstance(all_trades, dict) and "data" in all_trades:
+            # Handle paginated response format
+            data = all_trades.get("data", [])
+            return [
+                trade for trade in data
+                if str(trade.get("ticker", "") or trade.get("symbol", "")).upper() == symbol_upper
+            ]
+        return []
+    except Exception as e:
+        logger.warning("Failed to fetch institutional flow for %s: %s", symbol, e)
+        return []

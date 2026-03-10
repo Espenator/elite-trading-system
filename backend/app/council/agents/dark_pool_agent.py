@@ -159,8 +159,10 @@ async def _fetch_dark_pool_data(symbol: str) -> Optional[Dict[str, Any]]:
     try:
         from app.services.unusual_whales_service import get_dark_pool_flow
         return await get_dark_pool_flow(symbol)
-    except Exception:
-        pass
+    except ImportError as e:
+        logger.warning("Failed to import Unusual Whales dark pool flow: %s", e)
+    except Exception as e:
+        logger.debug("Unusual Whales dark pool flow not available for %s: %s", symbol, e)
     return None
 
 
