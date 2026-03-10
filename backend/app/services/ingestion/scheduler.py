@@ -185,7 +185,7 @@ class IngestionScheduler:
             {
                 "id": job.id,
                 "name": job.name,
-                "next_run_time": job.next_run_time.isoformat() if job.next_run_time else None,
+                "next_run_time": getattr(job, 'next_run_time', None).isoformat() if getattr(job, 'next_run_time', None) else None,
                 "trigger": str(job.trigger)
             }
             for job in self.scheduler.get_jobs()

@@ -101,15 +101,15 @@ class TestFeatureStoreVersioning:
     def test_get_available_versions(self):
         """Test getting available pipeline versions."""
         from app.data.feature_store import feature_store
-        from datetime import datetime, timezone
+        from datetime import datetime, timezone, timedelta
 
         symbol = "AVTEST"
         ts = datetime.now(timezone.utc)
         features = {"close": 100.0}
 
-        # Store features with different versions
+        # Store features with different versions (different timestamps to avoid INSERT OR REPLACE collision)
         feature_store.store_features(symbol, ts, "1d", features, pipeline_version="1.0.0")
-        feature_store.store_features(symbol, ts, "1d", features, pipeline_version="2.0.0")
+        feature_store.store_features(symbol, ts + timedelta(seconds=1), "1d", features, pipeline_version="2.0.0")
 
         # Get versions for specific symbol
         versions = feature_store.get_available_versions(symbol, "1d")
