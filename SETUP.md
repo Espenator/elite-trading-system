@@ -30,6 +30,24 @@ Repo:      C:\Users\ProfitTrader\elite-trading-system
 
 Both IPs are DHCP-reserved on the AT&T BGW320-505 router (192.168.1.254).
 
+### Alpaca Accounts (Paper Trading)
+
+| Label | Machine | Purpose | Env Key |
+|-------|---------|---------|---------|
+| ESPENMAIN | PC1 | Trading (portfolio execution) | `ALPACA_KEY_1` |
+| Profit Trader | PC2 | Discovery scanning | `ALPACA_KEY_2` |
+
+Both use `https://paper-api.alpaca.markets/v2`. Keys are in `backend/.env` (gitignored).
+
+### Slack Bots (Embodier Trader Workspace)
+
+| Bot | App ID | Purpose |
+|-----|--------|---------|
+| OpenClaw | A0AF9HSCQ6S | Multi-agent swarm notifications |
+| TradingView Alerts | A0AFQ89RVEV | Inbound TradingView webhook alerts |
+
+Slack workspace tokens expire every 12h. Refresh at https://api.slack.com/apps
+
 > See also: [docs/NETWORK_TWO_PC_SETUP.md](docs/NETWORK_TWO_PC_SETUP.md) and [docs/AI_TWO_PC_CODING_GUIDE.md](docs/AI_TWO_PC_CODING_GUIDE.md)
 
 ## Ports
@@ -38,7 +56,7 @@ Both IPs are DHCP-reserved on the AT&T BGW320-505 router (192.168.1.254).
 |---------|------|-----|
 | Backend API | 8000 | http://localhost:8000 |
 | API Docs | 8000 | http://localhost:8000/docs |
-| Frontend | 3000 | http://localhost:3000 |
+| Frontend (Vite) | 5173 | http://localhost:5173 |
 
 ## Quick Start (One Click)
 
@@ -52,7 +70,7 @@ This will:
 1. Create a Python venv and install deps (first run only)
 2. Start the FastAPI backend on port 8000
 3. Install npm packages and start Vite on port 3000 (first run only)
-4. Open http://localhost:3000 in your browser
+4. Open http://localhost:5173 in your browser
 5. Auto-restart if either service crashes (up to 3 times)
 
 ### Backend only (no frontend)
