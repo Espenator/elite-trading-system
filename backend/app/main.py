@@ -73,7 +73,7 @@ from app.api.v1 import (
     swarm,
     cognitive,
     cluster,
-    llm_health,
+    llm_health,     mobile_api,
 )
 from app.api import ingestion
 
@@ -1149,7 +1149,7 @@ app.include_router(cognitive.router, prefix="/api/v1/cognitive", tags=["cognitiv
 app.include_router(youtube_knowledge.router, prefix="/api/v1/youtube-knowledge", tags=["youtube_knowledge"])
 app.include_router(ingestion.router, tags=["ingestion"])
 app.include_router(cluster.router, prefix="/api/v1/cluster", tags=["cluster"])
-app.include_router(llm_health.router, prefix="/api/v1/llm/health", tags=["llm_health"])
+app.include_router(llm_health.router) app.include_router(mobile_api.router, prefix="/api/v1/mobile"), prefix="/api/v1/llm/health", tags=["llm_health"])
 
 @app.get("/api/v1/consensus", tags=["agents"])
 async def consensus_alias():
