@@ -18,16 +18,28 @@ from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-# Config: read from pydantic settings first, fall back to env
+# Config: canonical BRAIN_SERVICE_URL (PC2) or BRAIN_HOST:BRAIN_PORT
 try:
     from app.core.config import settings as _brain_settings
     BRAIN_ENABLED = _brain_settings.BRAIN_ENABLED
-    BRAIN_HOST = _brain_settings.BRAIN_HOST
-    BRAIN_PORT = _brain_settings.BRAIN_PORT
+    _url = getattr(_brain_settings, "BRAIN_SERVICE_URL", "") or os.getenv("BRAIN_SERVICE_URL", "")
+    if _url:
+        _parts = _url.strip().rsplit(":", 1)
+        BRAIN_HOST = _parts[0] if _parts else _brain_settings.BRAIN_HOST
+        BRAIN_PORT = int(_parts[1]) if len(_parts) == 2 else _brain_settings.BRAIN_PORT
+    else:
+        BRAIN_HOST = _brain_settings.BRAIN_HOST
+        BRAIN_PORT = _brain_settings.BRAIN_PORT
 except Exception:
     BRAIN_ENABLED = os.getenv("BRAIN_ENABLED", "false").lower() == "true"
-    BRAIN_HOST = os.getenv("BRAIN_HOST", "localhost")
-    BRAIN_PORT = int(os.getenv("BRAIN_PORT", "50051"))
+    _url = os.getenv("BRAIN_SERVICE_URL", "")
+    if _url:
+        _parts = _url.strip().rsplit(":", 1)
+        BRAIN_HOST = _parts[0] if _parts else "localhost"
+        BRAIN_PORT = int(_parts[1]) if len(_parts) == 2 else 50051
+    else:
+        BRAIN_HOST = os.getenv("BRAIN_HOST", "localhost")
+        BRAIN_PORT = int(os.getenv("BRAIN_PORT", "50051"))
 BRAIN_CONNECT_TIMEOUT = int(os.getenv("BRAIN_CONNECT_TIMEOUT", "5"))
 BRAIN_REQUEST_TIMEOUT = int(os.getenv("BRAIN_REQUEST_TIMEOUT", "15"))
 
@@ -128,14 +140,15 @@ class CircuitBreaker:
         return sorted_lat[min(idx, len(sorted_lat) - 1)]
 
 
-def _stub_infer_response() -> Dict[str, Any]:
-    """Stub response when brain is disabled or unavailable."""
+def _stub_infer_response(tag: str = "brain_disabled") -> Dict[str, Any]:
+    """Stub response when brain is disabled or unavailable. Always low-confidence and tagged."""
     return {
         "summary": "Brain service disabled or unavailable",
         "confidence": 0.1,
-        "risk_flags": ["brain_disabled"],
+        "risk_flags": [tag],
         "reasoning_bullets": ["LLM hypothesis not available"],
         "error": "",
+        "degraded_mode": True,
     }
 
 
@@ -220,13 +233,13 @@ class BrainClient:
 
         if not self._circuit.can_execute():
             logger.debug("Brain circuit breaker OPEN — returning stub")
-            return {**_stub_infer_response(), "error": "circuit_breaker_open"}
+            return {**_stub_infer_response("circuit_breaker_open"), "error": "circuit_breaker_open"}
 
         try:
             self._ensure_channel()
             if self._stub is None:
                 self._circuit.record_failure()
-                return {**_stub_infer_response(), "error": "grpc_not_connected"}
+                return {**_stub_infer_response("grpc_not_connected"), "error": "grpc_not_connected"}
 
             import sys
             from pathlib import Path
@@ -266,11 +279,11 @@ class BrainClient:
         except asyncio.TimeoutError:
             logger.warning("Brain infer timed out after %ds", BRAIN_REQUEST_TIMEOUT)
             self._circuit.record_failure()
-            return {**_stub_infer_response(), "error": "timeout"}
+            return {**_stub_infer_response("timeout"), "error": "timeout"}
         except Exception as e:
             logger.warning("Brain infer error: %s", e)
             self._circuit.record_failure()
-            return {**_stub_infer_response(), "error": str(e)}
+            return {**_stub_infer_response("unreachable"), "error": str(e)}
 
     async def critic(
         self,

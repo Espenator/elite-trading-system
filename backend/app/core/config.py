@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     # ── App ─────────────────────────────────────────────────
     APP_NAME: str = "Embodier Trader"
     PROJECT_NAME: str = "Embodier Trader"
-    APP_VERSION: str = "4.0.0"  # Single source of truth for version
+    APP_VERSION: str = "4.1.0-dev"  # Single source of truth for version
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
     ENVIRONMENT: str = "production"
@@ -190,12 +190,16 @@ class Settings(BaseSettings):
     OPENCLAW_BRIDGE_TOKEN: str = ""  # Auth token for OpenClaw bridge
     GIST_TOKEN: str = ""  # GitHub Gist token for AI bridge
     BRIDGE_GIST_ID: str = ""  # Gist ID for bridge sync
-    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_BASE_URL: str = "http://localhost:11434"  # Backward compat; prefer OLLAMA_URL for PC1 fallback
 
-    # ── Brain Service (PC2) ───────────────────────────────
+    # ── Canonical LLM contract ─────────────────────────────
+    # PC2: Brain Service (gRPC) — primary trading intelligence entrypoint
+    BRAIN_SERVICE_URL: str = ""  # e.g. localhost:50051; empty = derive from BRAIN_HOST:BRAIN_PORT
     BRAIN_ENABLED: bool = True
     BRAIN_HOST: str = "localhost"
     BRAIN_PORT: int = 50051
+    # PC1 fallback: local Ollama when Brain Service unreachable (Electron: process/health only; no trading logic)
+    OLLAMA_URL: str = ""  # Empty = use OLLAMA_BASE_URL (e.g. http://localhost:11434)
     OLLAMA_MODEL: str = "llama3.2"
 
     # ── Multi-LLM Intelligence Layer ─────────────────────
@@ -323,6 +327,37 @@ class Settings(BaseSettings):
     ML_MODEL_DIR: str = "data/models"
     ML_RETRAIN_INTERVAL_HOURS: int = 168
     ML_ENSEMBLE_ENABLED: bool = True
+
+    # ── Outcome / Learning integrity ────────────────────────
+    # Shadow timeout policy: "timeout_censored" (do not count toward win/loss/Kelly/weights)
+    # or "mark_to_market" (resolve at last known price; requires reliable price source)
+    OUTCOME_TIMEOUT_POLICY: str = "timeout_censored"
+
+    # ── Degraded mode (real-time truth for operator) ─────────
+    # When True, OrderExecutor may AUTO-execute even if brain reports degraded (use with caution).
+    DEGRADED_MODE_OVERRIDE: bool = False
+
+    # ── Profit-brain alignment / pipeline enforcement ────────
+    # Enforce typed event contracts and reject malformed pipeline payloads.
+    ENFORCE_CANONICAL_PIPELINE: bool = True
+    # Block any execution path that does not carry an approved ExecutionDecision (council + sizing + risk).
+    BLOCK_EXECUTION_WITHOUT_COUNCIL: bool = True
+    # Durable idempotent outcome resolution; explicit unresolved/timeout statuses.
+    STRICT_OUTCOME_INTEGRITY: bool = True
+    # Learner accepts only valid/attributable outcomes; drop low-quality with audit.
+    STRICT_LEARNER_INPUTS: bool = True
+    # Startup fails (or hard-degraded) if critical pipeline topics lack required subscribers.
+    FAIL_ON_CRITICAL_SUBSCRIBER_MISSING: bool = False
+    # Portfolio-level hard limits (exposure, concentration, daily loss, drawdown).
+    ENABLE_PORTFOLIO_RISK_GOVERNOR: bool = True
+    # Pre-trade slippage/liquidity viability gate (deny when expected cost > edge).
+    ENABLE_EXECUTION_VIABILITY_GATE: bool = True
+    # Outbox/inbox + idempotency for critical stage transitions.
+    ENABLE_EXACTLY_ONCE_CRITICAL_EVENTS: bool = False
+    # Stamp verdict/execution/outcome with strategy/model/config version.
+    ENABLE_STRATEGY_VERSION_PINNING: bool = False
+    # Global kill switch: block new entries; optional flatten mode.
+    ENABLE_KILL_SWITCH: bool = True
 
 
 settings = Settings()

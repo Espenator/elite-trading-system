@@ -5,7 +5,7 @@ Enhanced with:
 - Event-driven MessageBus architecture for <1s signal latency
 - Alpaca WebSocket streaming for real-time market data
 - EventDrivenSignalEngine reacting to market_data.bar events
-- CouncilGate: 13-agent council controls all trading decisions
+- CouncilGate: 35-agent council controls all trading decisions
 - OrderExecutor receives council.verdict (not raw signals)
 - Bayesian weight learning from trade outcomes
 """
@@ -62,6 +62,7 @@ from app.api.v1 import (
     settings_routes,
     openclaw,
     ml_brain,
+    brain,
     risk_shield_api,
     market,
     alpaca,
@@ -74,8 +75,13 @@ from app.api.v1 import (
     cognitive,
     cluster,
     llm_health,
+    mobile_api,
+    awareness,
+    blackboard_routes,
+    triage,
 )
 from app.api import ingestion
+from app.api.v1 import ingestion_firehose
 
 # Configure structured logging (JSON in production, human-readable in dev)
 from app.core.logging_config import setup_logging, correlation_id, generate_correlation_id
@@ -237,6 +243,9 @@ _node_discovery = None
 _stream_manager = None
 _gpu_telemetry_daemon = None
 _llm_dispatcher = None
+_price_cache = None
+_channels_orch = None
+_ml_pub = None
 
 
 async def _start_event_driven_pipeline():
@@ -658,7 +667,15 @@ async def _start_event_driven_pipeline():
 
     # 24b. outcome.resolved subscribers — close the feedback loop (Audit Bug #12)
     async def _on_outcome_resolved(outcome_data):
-        """Feed resolved outcomes to WeightLearner and SelfAwareness."""
+        """Feed resolved outcomes to WeightLearner and SelfAwareness.
+        IMPORTANT: Skip censored outcomes to protect learning integrity."""
+        if outcome_data.get("is_censored", False):
+            log.info(
+                "⏭️ Skipping censored outcome for %s (reason: %s)",
+                outcome_data.get("symbol", "?"),
+                outcome_data.get("close_reason", "unknown"),
+            )
+            return
         try:
             from app.council.weight_learner import get_weight_learner
             learner = get_weight_learner()
@@ -691,6 +708,32 @@ async def _start_event_driven_pipeline():
 
     await _message_bus.subscribe("outcome.resolved", _on_outcome_resolved)
     log.info("\u2705 outcome.resolved subscriber active (WeightLearner + SelfAwareness)")
+
+    # 24c. PriceCacheService — caches last price per symbol from market_data.bar/quote
+    global _price_cache, _channels_orch, _ml_pub
+    from app.services.price_cache_service import PriceCacheService
+    _price_cache = PriceCacheService(message_bus=_message_bus)
+    await _price_cache.start()
+    log.info("\u2705 PriceCacheService started")
+
+    # 24d. ChannelsOrchestrator — firehose data ingestion agents
+    if os.getenv("CHANNELS_FIREHOSE_ENABLED", "true").lower() in ("1", "true", "yes"):
+        from app.services.channels.orchestrator import ChannelsOrchestrator
+        _channels_orch = ChannelsOrchestrator(message_bus=_message_bus)
+        await _channels_orch.start()
+        log.info("\u2705 ChannelsOrchestrator started (%d agents)", len(_channels_orch._agents))
+    else:
+        log.info("\u26A0\uFE0F ChannelsOrchestrator skipped (CHANNELS_FIREHOSE_ENABLED=false)")
+
+    # 24e. MLSignalPublisher — publishes ML scores to signal.generated
+    try:
+        from app.services.ml_signal_publisher import get_ml_signal_publisher
+        _ml_pub = get_ml_signal_publisher(_message_bus)
+        _ml_pub._bus = _message_bus
+        await _ml_pub.start()
+        log.info("\u2705 MLSignalPublisher started")
+    except Exception as e:
+        log.warning("MLSignalPublisher start failed: %s", e)
 
     # 24. Knowledge Layer — EmbeddingService + MemoryBank + HeuristicEngine + KnowledgeGraph
     # Initialize singletons eagerly so they're warm when council calls them.
@@ -795,7 +838,24 @@ async def _stop_event_driven_pipeline():
     global _event_signal_engine, _council_gate, _order_executor
     global _node_discovery, _stream_manager
     global _gpu_telemetry_daemon, _llm_dispatcher
+    global _price_cache, _channels_orch, _ml_pub
     log.info("Shutting down event-driven pipeline...")
+
+    if _ml_pub:
+        try:
+            await _ml_pub.stop()
+        except Exception:
+            pass
+    if _channels_orch:
+        try:
+            await _channels_orch.stop()
+        except Exception:
+            pass
+    if _price_cache:
+        try:
+            await _price_cache.stop()
+        except Exception:
+            pass
 
     # Stop GPU Telemetry Daemon
     if _gpu_telemetry_daemon:
@@ -1150,6 +1210,39 @@ app.include_router(youtube_knowledge.router, prefix="/api/v1/youtube-knowledge",
 app.include_router(ingestion.router, tags=["ingestion"])
 app.include_router(cluster.router, prefix="/api/v1/cluster", tags=["cluster"])
 app.include_router(llm_health.router, prefix="/api/v1/llm/health", tags=["llm_health"])
+app.include_router(mobile_api.router, prefix="/api/v1/mobile", tags=["mobile"])
+app.include_router(ingestion_firehose.router)
+app.include_router(brain.router, prefix="/api/v1/brain", tags=["brain"])
+app.include_router(awareness.router, prefix="/api/v1", tags=["awareness"])
+app.include_router(blackboard_routes.router, prefix="/api/v1/blackboard", tags=["blackboard"])
+app.include_router(triage.router, prefix="/api/v1/triage", tags=["triage"])
+
+
+@app.get("/api/v1/ws/registry", tags=["websocket"])
+async def ws_registry():
+    """WebSocket channel registry: channel names, message schema, subscriber counts."""
+    from app.websocket_manager import get_channel_info
+    info = get_channel_info()
+    live = info.get("channels", {}) or {}
+    # Expose all valid channel names so clients know what can be subscribed to
+    all_channel_names = sorted(set(_VALID_WS_CHANNELS) | set(live.keys()))
+    subscriber_counts = {ch: live.get(ch, 0) for ch in all_channel_names}
+    return {
+        "total_connections": info.get("total_connections", 0),
+        "channels": all_channel_names,
+        "subscriber_counts": subscriber_counts,
+        "message_schema": {
+            "channel": "string (e.g. signal, council, risk, market, order, swarm)",
+            "type": "string (e.g. update, new_signal, verdict)",
+            "data": "object (payload)",
+            "ts": "number (Unix timestamp)",
+        },
+        "schema_examples": [
+            {"channel": "signal", "type": "new_signal", "data": {"symbol": "AAPL", "score": 80}, "ts": 1234567890.0},
+            {"channel": "council", "type": "verdict", "data": {"symbol": "AAPL", "direction": "buy"}, "ts": 1234567890.0},
+        ],
+    }
+
 
 @app.get("/api/v1/consensus", tags=["agents"])
 async def consensus_alias():

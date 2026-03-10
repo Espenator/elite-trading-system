@@ -408,6 +408,7 @@ class TestTriageResult:
             escalated=True,
             age_secs=2.5,
             is_duplicate=False,
+            drop_reason=None,
             original={},
         )
         d = result.to_dict()
@@ -419,7 +420,7 @@ class TestTriageResult:
         result = TriageResult(
             idea_id="x", symbol="AAPL", source="x", direction="bullish",
             score=80, threshold=40, escalated=True,
-            age_secs=0, is_duplicate=False, original={}
+            age_secs=0, is_duplicate=False, drop_reason=None, original={}
         )
         assert result.escalated is True
 
@@ -427,7 +428,7 @@ class TestTriageResult:
         result = TriageResult(
             idea_id="x", symbol="AAPL", source="x", direction="bullish",
             score=20, threshold=40, escalated=False,
-            age_secs=0, is_duplicate=False, original={}
+            age_secs=0, is_duplicate=False, drop_reason="below_threshold", original={}
         )
         assert result.escalated is False
 

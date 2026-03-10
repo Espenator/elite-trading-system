@@ -127,9 +127,9 @@ class SwarmSpawner:
         if self._running:
             return
         self._running = True
-        # Subscribe to idea events from MessageBus
+        # Subscribe to triage.escalated only — no bypass: ideas must pass IdeaTriageService first.
         if self._bus:
-            await self._bus.subscribe("swarm.idea", self._on_idea_event)
+            await self._bus.subscribe("triage.escalated", self._on_idea_event)
         # Start worker tasks
         for i in range(self.MAX_CONCURRENT_SWARMS):
             task = asyncio.create_task(self._worker(i))
@@ -204,19 +204,23 @@ class SwarmSpawner:
         )
 
         try:
-            # Phase 1: Data Ingestion — ensure we have fresh data for the symbols
+            # Phase 1: Symbol prep (off hot path — no inline data_ingestion)
             self._active_swarms[idea.id] = SwarmStatus.INGESTING
-            data_quality = await self._ingest_data(idea.symbols)
+            data_quality = await self._request_prep(idea)
             result.data_quality = data_quality
+            degraded = data_quality.get("degraded", False)
 
             # Phase 2: Council Analysis — run relevant agents
             self._active_swarms[idea.id] = SwarmStatus.ANALYZING
             verdict = await self._run_council(idea)
             result.council_verdict = verdict
 
-            # Phase 3: Backtest Validation — if we have historical signals
+            # Phase 3: Backtest — skip if prep timed out (explicit degraded mode)
             self._active_swarms[idea.id] = SwarmStatus.BACKTESTING
-            bt_result = await self._run_backtest(idea)
+            if degraded:
+                bt_result = {"skipped": True, "reason": "prep_timeout_or_degraded", "degraded": True}
+            else:
+                bt_result = await self._run_backtest(idea)
             result.backtest_result = bt_result
 
             # Phase 4: Synthesize recommendation
@@ -247,21 +251,31 @@ class SwarmSpawner:
         )
         return result
 
-    async def _ingest_data(self, symbols: List[str]) -> Dict[str, Any]:
-        """Ensure we have recent OHLCV + indicators for the symbols."""
-        quality = {"symbols_requested": len(symbols), "symbols_ready": 0, "errors": []}
+    async def _request_prep(self, idea: SwarmIdea) -> Dict[str, Any]:
+        """Request symbol prep via SymbolPrepService (no inline data_ingestion). Returns quality dict."""
+        symbols = (idea.symbols or [])[:25]
+        quality = {
+            "symbols_requested": len(symbols),
+            "symbols_ready": 0,
+            "errors": [],
+            "degraded": False,
+        }
+        if not symbols:
+            return quality
         try:
-            from app.services.data_ingestion import data_ingestion
-            for sym in symbols[:25]:  # Cap at 25 symbols per swarm (was 10)
-                try:
-                    await data_ingestion.ingest_daily_bars([sym], days=60)
-                    await data_ingestion.compute_and_store_indicators([sym])
-                    quality["symbols_ready"] += 1
-                except Exception as e:
-                    quality["errors"].append(f"{sym}: {e}")
-                    logger.debug("Ingest failed for %s: %s", sym, e)
+            from app.services.symbol_prep import get_symbol_prep_service
+            prep = get_symbol_prep_service(self._bus)
+            timeout = float(__import__("os").getenv("SYMBOL_PREP_TIMEOUT", "45.0"))
+            out = await prep.request_prep_and_wait(idea.id, symbols, timeout=timeout, bus=self._bus)
+            quality["symbols_ready"] = len(out.get("symbols_ready", []))
+            quality["errors"] = list(out.get("errors", []))
+            quality["degraded"] = bool(out.get("degraded"))
         except ImportError:
-            quality["errors"].append("data_ingestion module not available")
+            quality["errors"].append("symbol_prep not available")
+            quality["degraded"] = True
+        except Exception as e:
+            quality["errors"].append(str(e))
+            quality["degraded"] = True
         return quality
 
     async def _run_council(self, idea: SwarmIdea) -> Optional[Dict[str, Any]]:
@@ -368,7 +382,7 @@ class SwarmSpawner:
 
     # --- Event handler ---
     async def _on_idea_event(self, data: Dict[str, Any]):
-        """Handle swarm.idea events from the MessageBus."""
+        """Handle triage.escalated events from the MessageBus (no direct swarm.idea bypass)."""
         idea = SwarmIdea(
             source=data.get("source", "unknown"),
             symbols=data.get("symbols", []),

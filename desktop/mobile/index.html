@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#00d4aa" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Embodier Trader Mobile</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="header">
+      <div class="header-top">
+        <h1 class="logo">Embodier</h1>
+        <div class="header-meta">
+          <span id="connection-status" class="status-dot" title="Connection"></span>
+          <span id="last-update" class="last-update"></span>
+        </div>
+      </div>
+      <div class="pnl-row">
+        <div class="pnl-card">
+          <span class="pnl-label">Total P&L</span>
+          <span id="total-pnl" class="pnl-value">—</span>
+        </div>
+        <div class="pnl-card">
+          <span class="pnl-label">Daily P&L</span>
+          <span id="daily-pnl" class="pnl-value">—</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="main">
+      <section class="card section-positions">
+        <h2>Positions</h2>
+        <div id="positions-list" class="positions-list"></div>
+      </section>
+
+      <section class="card section-alerts">
+        <h2>Alerts</h2>
+        <div id="alerts-feed" class="alerts-feed"></div>
+      </section>
+
+      <section class="card section-system">
+        <h2>System</h2>
+        <div id="system-status" class="system-status"></div>
+      </section>
+
+      <section class="card section-emergency">
+        <h2>Emergency</h2>
+        <div class="emergency-buttons">
+          <button type="button" id="btn-pause" class="btn btn-warning">Pause</button>
+          <button type="button" id="btn-resume" class="btn btn-success">Resume</button>
+          <button type="button" id="btn-kill" class="btn btn-danger">Kill switch</button>
+        </div>
+      </section>
+    </main>
+
+    <div id="pull-hint" class="pull-hint" aria-hidden="true">Pull to refresh</div>
+  </div>
+
+  <div id="token-modal" class="modal" role="dialog" aria-label="Enter token" aria-modal="true" hidden>
+    <div class="modal-content">
+      <h3>API Token</h3>
+      <p>Enter your Bearer token to access the trading dashboard.</p>
+      <input type="password" id="token-input" placeholder="Bearer token" autocomplete="off" />
+      <div class="modal-actions">
+        <button type="button" id="token-save" class="btn btn-accent">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="confirm-modal" class="modal" role="dialog" aria-label="Confirm action" aria-modal="true" hidden>
+    <div class="modal-content">
+      <h3 id="confirm-title">Confirm</h3>
+      <p id="confirm-message"></p>
+      <div class="modal-actions">
+        <button type="button" id="confirm-cancel" class="btn btn-secondary">Cancel</button>
+        <button type="button" id="confirm-ok" class="btn btn-danger">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

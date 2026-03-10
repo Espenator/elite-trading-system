@@ -330,10 +330,10 @@ function AgentHealthMatrix({ agents }) {
         ))}
       </div>
       <div className="flex items-center gap-3 text-[9px] text-gray-500 pt-2 border-t border-cyan-500/10">
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500"/>{active || 38} Active</span>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500"/>{warning || 2} Warning</span>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500"/>{error || 1} Error</span>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-600"/>{stopped || 1} Stopped</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500"/>{active} Active</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500"/>{warning} Warning</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500"/>{error} Error</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-600"/>{stopped} Stopped</span>
       </div>
     </div>
   );
@@ -375,17 +375,15 @@ function SystemAlertsPanel({ alerts = [] }) {
     ERROR: { color: "text-red-400", dotColor: "bg-red-500", bgColor: "bg-red-500/5 border-red-500/20" },
   };
 
-  const displayAlerts = alerts.length > 0 ? alerts : [
-    { level: "RED", msg: "MLtrain-03 unresponsive — no heartbeat for 12m" },
-    { level: "AMBER", msg: "GPU memory at 87% — approaching threshold" },
-    { level: "INFO", msg: "Bridge latency normalized — 23ms avg" },
-  ];
+  const displayAlerts = alerts;
 
   return (
     <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-lg p-3">
       <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2 font-mono">SYSTEM ALERTS</h3>
       <div className="space-y-1.5">
-        {displayAlerts.map((a, i) => {
+        {displayAlerts.length === 0 ? (
+          <div className="text-[10px] text-gray-500 font-mono py-2 text-center">Awaiting system alerts...</div>
+        ) : displayAlerts.map((a, i) => {
           const cfg = levelConfig[a.level] || levelConfig["INFO"];
           return (
             <div key={i} className={`flex items-center gap-2 text-[10px] rounded px-2 py-1.5 border ${cfg.bgColor}`}>
@@ -403,18 +401,15 @@ function SystemAlertsPanel({ alerts = [] }) {
 // ─── TEAM STATUS ──────────────────────────────────────────────────────────────
 
 function TeamStatus({ teams = [] }) {
-  const displayTeams = teams.length > 0 ? teams : [
-    { name: "fear_bounce_team", agents: 5, status: "ACTIVE", health: 87 },
-    { name: "greed_momentum_team", agents: 4, status: "ACTIVE", health: 92 },
-    { name: "momentum", agents: 3, status: "DEGRADED", health: 67 },
-    { name: "scanner", agents: 8, status: "ACTIVE", health: 95 },
-  ];
+  const displayTeams = teams;
 
   return (
     <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-lg p-3">
       <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2 font-mono">TEAM STATUS</h3>
       <div className="grid grid-cols-2 gap-2">
-        {displayTeams.map(t => (
+        {displayTeams.length === 0 ? (
+          <div className="text-[10px] text-gray-500 font-mono py-2 col-span-2 text-center">Awaiting team data...</div>
+        ) : displayTeams.map(t => (
           <div key={t.name} className={`rounded p-2 border ${t.status === "ACTIVE" ? "bg-emerald-500/5 border-emerald-500/20" : "bg-amber-500/5 border-amber-500/20"}`}>
             <div className="text-[10px] font-bold text-white font-mono truncate">{t.name}</div>
             <div className="flex items-center justify-between mt-1 text-[9px]">
@@ -477,24 +472,13 @@ function LiveActivityFeed({ agents }) {
 // ─── RESOURCE MONITOR ─────────────────────────────────────────────────────────
 
 function ResourceMonitor({ agents = [] }) {
-  const defaultRows = [
-    { name: "MLtrain-01", cpu: 45, mem: "1200MB", tokens: 8400, status: "healthy" },
-    { name: "Researcher", cpu: 32, mem: "890MB", tokens: 12100, status: "healthy" },
-    { name: "Scanner-03", cpu: 28, mem: "560MB", tokens: 3200, status: "healthy" },
-    { name: "RegimeDetector", cpu: 22, mem: "450MB", tokens: 6800, status: "healthy" },
-    { name: "Arbitrator", cpu: 18, mem: "390MB", tokens: 5100, status: "healthy" },
-    { name: "LLMGate", cpu: 15, mem: "320MB", tokens: 4200, status: "healthy" },
-    { name: "Execution-01", cpu: 12, mem: "250MB", tokens: 1500, status: "warn" },
-    { name: "Adversary", cpu: 8, mem: "180MB", tokens: 2800, status: "healthy" },
-  ];
-
   const rows = agents.length > 0 ? agents.map(a => ({
     name: a.name || a.agent_name || "Agent",
     cpu: a.cpu ?? a.cpu_usage ?? 0,
-    mem: a.memory_mb != null ? `${a.memory_mb}MB` : "0MB",
-    tokens: a.tokens_per_hour ?? 0,
-    status: a.status || "unknown",
-  })) : defaultRows;
+    mem: a.memory_mb != null ? `${a.memory_mb}MB` : (a.mem != null ? `${a.mem}MB` : "0MB"),
+    tokens: a.tokens_per_hour ?? a.tokens ?? 0,
+    status: a.status || a.health || "unknown",
+  })) : [];
 
   return (
     <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-lg p-3">
@@ -510,7 +494,9 @@ function ResourceMonitor({ agents = [] }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map(r => (
+          {rows.length === 0 ? (
+            <tr><td colSpan={5} className="py-3 text-center text-[10px] text-gray-500 font-mono">Awaiting agent resource data...</td></tr>
+          ) : rows.map(r => (
             <tr key={r.name} className="border-b border-gray-800/30 hover:bg-[#00D9FF]/5">
               <td className="py-1 text-[#00D9FF] font-mono">{r.name}</td>
               <td className="font-mono">
@@ -547,13 +533,7 @@ function EloLeaderboard() {
   const { data, loading } = useEloLeaderboard(30000);
 
   const leaders = React.useMemo(() => {
-    if (!data || !Array.isArray(data) || data.length === 0) return [
-      { rank: 1, name: "Researcher", elo: 1947, winRate: 72 },
-      { rank: 2, name: "Scanner-03", elo: 1891, winRate: 69 },
-      { rank: 3, name: "RegimeDetector", elo: 1847, winRate: 71 },
-      { rank: 4, name: "MLtrain-01", elo: 1823, winRate: 67 },
-      { rank: 5, name: "Arbitrator", elo: 1810, winRate: 65 },
-    ];
+    if (!data || !Array.isArray(data) || data.length === 0) return [];
     return data.map((d, i) => ({
       rank: i + 1,
       name: d.agent_name || d.name || `Agent-${i}`,
@@ -575,7 +555,9 @@ function EloLeaderboard() {
           </tr>
         </thead>
         <tbody>
-          {leaders.slice(0, 5).map(l => (
+          {leaders.length === 0 ? (
+            <tr><td colSpan={4} className="py-3 text-center text-[10px] text-gray-500 font-mono">Awaiting ELO leaderboard...</td></tr>
+          ) : leaders.slice(0, 5).map(l => (
             <tr key={l.rank} className="border-b border-gray-800/20 hover:bg-[#00D9FF]/5">
               <td className="py-1 text-gray-500 font-mono">{l.rank}</td>
               <td className="text-[#00D9FF] font-mono">{l.name}</td>
@@ -722,17 +704,15 @@ function ConferencePipelineViz() {
 // ─── LAST CONFERENCE ──────────────────────────────────────────────────────────
 
 function LastConference({ conferenceData = null }) {
-  const fallback = {
-    symbol: "AAPL", id: "941", verdict: "BUY", confidence: 88, duration: 4.2,
-    votes: [
-      { agent: "Researcher", vote: 92 },
-      { agent: "RiskOfficer", vote: 65 },
-      { agent: "Adversary", vote: 45 },
-      { agent: "Arbitrator", vote: 88 },
-    ]
-  };
-
-  const cd = conferenceData || fallback;
+  const cd = conferenceData;
+  if (!cd) {
+    return (
+      <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-lg p-3">
+        <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2 font-mono">LAST CONFERENCE</h3>
+        <div className="text-[10px] text-gray-500 font-mono py-4 text-center">Awaiting conference data...</div>
+      </div>
+    );
+  }
   const votes = Array.isArray(cd.votes) ? cd.votes : [];
   const confidence = cd.confidence ?? 0;
   const verdict = cd.verdict ?? "—";
@@ -778,22 +758,15 @@ function LastConference({ conferenceData = null }) {
 // ─── DRIFT MONITOR ────────────────────────────────────────────────────────────
 
 function DriftMonitorPanel({ driftData = [] }) {
-  const defaultData = [
-    { name: "volume_sma_ratio", val: 0.24, status: "ok" },
-    { name: "atr_normalized", val: 0.22, status: "ok" },
-    { name: "macd_histogram", val: 0.15, status: "ok" },
-    { name: "vwap_distance", val: 0.11, status: "ok" },
-    { name: "rsi_14", val: 0.08, status: "ok" },
-    { name: "Mean PSI:", label: "0.119", val: null, status: "info" },
-  ];
-
-  const displayData = driftData.length > 0 ? driftData : defaultData;
+  const displayData = driftData;
 
   return (
     <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-lg p-3">
       <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2 font-mono">DRIFT MONITOR</h3>
       <div className="space-y-1">
-        {displayData.map((m, i) => (
+        {displayData.length === 0 ? (
+          <div className="text-[10px] text-gray-500 font-mono py-2 text-center">Awaiting drift metrics...</div>
+        ) : displayData.map((m, i) => (
           <div key={i} className="flex items-center justify-between text-[10px]">
             <span className="text-gray-400 font-mono">{m.name}</span>
             {m.val != null ? (
@@ -816,15 +789,7 @@ function DriftMonitorPanel({ driftData = [] }) {
 // ─── BLACKBOARD FEED ──────────────────────────────────────────────────────────
 
 function BlackboardFeed({ topics = [] }) {
-  const defaultTopics = [
-    { topic: "SIG_GEN", subs: 12, msgs: 3.4, last: "Signal generated for SPY" },
-    { topic: "RISK_EVAL", subs: 8, msgs: 0.1, last: "Risk assessment requested" },
-    { topic: "SENTIMENT", subs: 6, msgs: 5.7, last: "News stream parsing complete" },
-    { topic: "EXECUTION", subs: 4, msgs: 0.3, last: "Order status updated" },
-    { topic: "MACRO_BRAIN", subs: 13, msgs: 4.2, last: "Macro data refresh" },
-  ];
-
-  const displayTopics = topics.length > 0 ? topics : defaultTopics;
+  const displayTopics = topics;
 
   return (
     <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-lg p-3">
@@ -840,7 +805,9 @@ function BlackboardFeed({ topics = [] }) {
           </tr>
         </thead>
         <tbody>
-          {displayTopics.map(t => (
+          {displayTopics.length === 0 ? (
+            <tr><td colSpan={5} className="py-3 text-center text-[10px] text-gray-500 font-mono">Awaiting blackboard feed...</td></tr>
+          ) : displayTopics.map(t => (
             <tr key={t.topic} className="border-b border-gray-800/30 hover:bg-[#00D9FF]/5">
               <td className="py-1 text-[#00D9FF] font-mono font-bold">{t.topic}</td>
               <td className="text-right text-white font-mono">{t.subs ?? 0}</td>

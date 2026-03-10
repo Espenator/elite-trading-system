@@ -1,7 +1,7 @@
 """Council Gate — bridges SignalEngine → Council → OrderExecutor.
 
 Subscribes to signal.generated on the MessageBus.  When a signal arrives
-with score >= gate_threshold the full 13-agent council is invoked.
+with score >= gate_threshold the full 35-agent council is invoked.
 If the council verdict is execution_ready the signal is re-published as
 council.verdict which the OrderExecutor listens on.
 
@@ -18,6 +18,8 @@ import os
 import time
 from typing import Any, Dict, Optional
 
+from app.core.score_semantics import coerce_gate_threshold_0_100, coerce_signal_score_0_100
+
 logger = logging.getLogger(__name__)
 
 
@@ -29,7 +31,7 @@ class CouncilGate:
     message_bus : MessageBus
         The async event bus.
     gate_threshold : float
-        Minimum signal score to trigger council evaluation (default 0.65).
+        Minimum signal score (0-100) to trigger council evaluation (default 65.0).
     max_concurrent : int
         Maximum concurrent council evaluations to prevent overload.
     cooldown_seconds : int
@@ -39,12 +41,14 @@ class CouncilGate:
     def __init__(
         self,
         message_bus,
-        gate_threshold: float = 0.65,
+        gate_threshold: float = 65.0,
         max_concurrent: int = 3,
         cooldown_seconds: int = 120,
     ):
         self.message_bus = message_bus
-        self.gate_threshold = gate_threshold
+        self.gate_threshold = coerce_gate_threshold_0_100(
+            gate_threshold, context="CouncilGate"
+        )
         self.max_concurrent = max_concurrent
         self.cooldown_seconds = cooldown_seconds
 
@@ -54,6 +58,8 @@ class CouncilGate:
         self._symbol_last_eval: Dict[str, float] = {}
         self._signals_received = 0
         self._councils_invoked = 0
+        self._cooldown_skips = 0
+        self._concurrency_skips = 0
         self._councils_passed = 0
         self._councils_vetoed = 0
         self._councils_held = 0
@@ -96,23 +102,30 @@ class CouncilGate:
         if not symbol:
             return
 
+        score_f = coerce_signal_score_0_100(
+            score,
+            context=f"CouncilGate {symbol} ({source or 'unknown'}) ",
+        )
+
         # Gate 1: Mock source guard — never trade on mock/fake data
         if source and "mock" in source.lower():
             logger.debug("CouncilGate: skipping mock signal for %s", symbol)
             return
 
         # Gate 2: Score threshold
-        if score < self.gate_threshold:
+        if score_f < self.gate_threshold:
             return
 
         # Gate 3: Per-symbol cooldown
         now = time.time()
         last_eval = self._symbol_last_eval.get(symbol, 0)
         if now - last_eval < self.cooldown_seconds:
+            self._cooldown_skips += 1
             return
 
         # Gate 4: Concurrency limit
         if self._semaphore.locked():
+            self._concurrency_skips += 1
             logger.debug(
                 "CouncilGate: max concurrent evaluations reached, skipping %s",
                 symbol,
@@ -194,10 +207,12 @@ class CouncilGate:
                     return
 
                 # Council approved — publish verdict for OrderExecutor
+                # Sizing gate is applied canonically in OrderExecutor (Kelly must pass before submit).
                 self._councils_passed += 1
                 verdict_data = decision.to_dict()
                 verdict_data["signal_data"] = signal_data
                 verdict_data["price"] = price
+                verdict_data["sizing_deferred_to_executor"] = True  # SizingGate runs in OrderExecutor
 
                 await self.message_bus.publish("council.verdict", verdict_data)
 
@@ -235,6 +250,8 @@ class CouncilGate:
             "cooldown_seconds": self.cooldown_seconds,
             "signals_received": self._signals_received,
             "councils_invoked": self._councils_invoked,
+            "cooldown_skips": self._cooldown_skips,
+            "concurrency_skips": self._concurrency_skips,
             "councils_passed": self._councils_passed,
             "councils_vetoed": self._councils_vetoed,
             "councils_held": self._councils_held,

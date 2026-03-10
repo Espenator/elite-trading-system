@@ -391,6 +391,15 @@ class DuckDBStorage:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_ingestion_symbol ON ingestion_events (symbol)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_ingestion_occurred_at ON ingestion_events (occurred_at)")
 
+        # Job state for idempotent daily jobs (e.g. daily_outcome_update)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS job_state (
+                job_name VARCHAR PRIMARY KEY,
+                last_run_date VARCHAR NOT NULL,
+                last_run_ts DOUBLE NOT NULL,
+                last_result VARCHAR
+            )
+        """)
 
         # ── Phase 1: LLM Router telemetry ────────────────────────────
         conn.execute("""

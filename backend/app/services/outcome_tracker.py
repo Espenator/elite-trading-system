@@ -21,6 +21,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from app.services.database import db_service
@@ -28,6 +29,14 @@ from app.services.database import db_service
 logger = logging.getLogger(__name__)
 
 CONFIG_KEY = "outcome_tracker"
+
+
+class OutcomeResolutionStatus(str, Enum):
+    """Explicit outcome state for integrity and learning."""
+    PENDING = "pending"
+    RESOLVED = "resolved"
+    TIMEOUT_UNRESOLVED = "timeout_unresolved"
+    UNRESOLVED_MISSING_DATA = "unresolved_missing_data"
 
 
 @dataclass
@@ -51,7 +60,10 @@ class TrackedPosition:
     pnl_pct: float = 0.0
     r_multiple: float = 0.0
     closed_at: Optional[float] = None
-    close_reason: str = ""  # "take_profit", "stop_loss", "manual", "timeout", "position_gone"
+    close_reason: str = ""  # "take_profit", "stop_loss", "manual", "timeout", "timeout_censored", "position_gone"
+    is_censored: bool = False  # True = do not count toward win/loss/Kelly/weights
+    resolution_status: str = OutcomeResolutionStatus.RESOLVED.value  # pending|resolved|timeout_unresolved|unresolved_missing_data
+    retry_scheduled_at: Optional[float] = None  # for unresolved_missing_data retry backoff
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -67,6 +79,9 @@ class TrackedPosition:
             "r_multiple": self.r_multiple,
             "is_shadow": self.is_shadow,
             "close_reason": self.close_reason,
+            "is_censored": self.is_censored,
+            "resolution_status": self.resolution_status,
+            "retry_scheduled_at": self.retry_scheduled_at,
             "opened_at": self.opened_at,
             "closed_at": self.closed_at,
         }
@@ -79,6 +94,9 @@ class OutcomeTracker:
     SHADOW_MAX_HOLD = 5 * 24 * 3600  # 5 days max for shadow positions
     MAX_HISTORY = 2000
 
+    # Stale threshold for shadow exit price (seconds)
+    SHADOW_PRICE_STALE_SEC = 300
+
     def __init__(self, message_bus=None):
         self._bus = message_bus
         self._running = False
@@ -86,6 +104,7 @@ class OutcomeTracker:
         self._open_positions: Dict[str, TrackedPosition] = {}  # order_id -> position
         self._closed: List[TrackedPosition] = []
         self._stats = self._load_stats()
+        self._price_cache = None  # PriceCacheService, set in start()
 
     def _load_stats(self) -> Dict[str, Any]:
         """Load persistent stats from DB."""
@@ -104,6 +123,8 @@ class OutcomeTracker:
             "avg_loss_pct": 0.015,
             "avg_r_multiple": 0.0,
             "resolved_history": [],  # Last N outcomes for Kelly
+            "shadow_price_stale_count": 0,
+            "shadow_exit_checks_skipped_due_to_no_price": 0,
         }
 
     def _save_stats(self) -> None:
@@ -118,6 +139,12 @@ class OutcomeTracker:
         if self._bus:
             await self._bus.subscribe("order.submitted", self._on_order)
             await self._bus.subscribe("order.filled", self._on_fill)
+            try:
+                from app.services.price_cache_service import get_price_cache
+                self._price_cache = get_price_cache(self._bus)
+                await self._price_cache.start()
+            except Exception as e:
+                logger.debug("PriceCacheService not available: %s", e)
 
         self._poll_task = asyncio.create_task(self._poll_loop())
         logger.info(
@@ -209,18 +236,22 @@ class OutcomeTracker:
         except Exception as e:
             logger.debug("Could not fetch Alpaca positions: %s", e)
 
-        # Get current prices for shadow positions
+        # Get current prices for shadow positions: PriceCache first, then REST fallback
+        symbols_needed = [
+            pos.symbol for pos in self._open_positions.values()
+            if pos.is_shadow and pos.symbol not in alpaca_positions
+        ]
         current_prices = {}
-        try:
-            from app.services.data_ingestion import data_ingestion
-            symbols_needed = [
-                pos.symbol for pos in self._open_positions.values()
-                if pos.is_shadow and pos.symbol not in alpaca_positions
-            ]
-            if symbols_needed:
-                current_prices = await self._get_current_prices(symbols_needed)
-        except Exception:
-            pass
+        if symbols_needed and self._price_cache:
+            current_prices = self._price_cache.get_prices(symbols_needed)
+        if symbols_needed and len(current_prices) < len(symbols_needed):
+            try:
+                rest_prices = await self._get_current_prices(symbols_needed)
+                for k, v in rest_prices.items():
+                    if k not in current_prices and v and v > 0:
+                        current_prices[k] = v
+            except Exception:
+                pass
 
         closed_ids = []
         now = time.time()
@@ -229,16 +260,31 @@ class OutcomeTracker:
             if pos.is_shadow:
                 # Shadow position: check SL/TP/timeout
                 price = current_prices.get(pos.symbol)
-                if price:
+                if price is not None and price > 0:
+                    # Optionally track stale usage for telemetry
+                    if self._price_cache and self._price_cache.is_stale(
+                        pos.symbol, max_age_sec=self.SHADOW_PRICE_STALE_SEC
+                    ):
+                        self._stats["shadow_price_stale_count"] = (
+                            self._stats.get("shadow_price_stale_count", 0) + 1
+                        )
                     closed = self._check_shadow_exit(pos, price, now)
                     if closed:
                         closed_ids.append(order_id)
                 elif now - pos.opened_at > self.SHADOW_MAX_HOLD:
-                    # Timeout — resolve at entry price (scratch)
-                    pos.exit_price = pos.entry_price
-                    pos.close_reason = "timeout"
-                    self._resolve_position(pos)
+                    # Timeout — policy from env: timeout_censored (recommended) or mark_to_market
+                    self._resolve_shadow_timeout(pos, now, last_known_price=None)
                     closed_ids.append(order_id)
+                else:
+                    # No price available for this shadow symbol — skip exit check this cycle
+                    self._stats["shadow_exit_checks_skipped_due_to_no_price"] = (
+                        self._stats.get("shadow_exit_checks_skipped_due_to_no_price", 0) + 1
+                    )
+                    try:
+                        from app.core.metrics import counter_inc
+                        counter_inc("outcome_missing_data_total", {})
+                    except Exception:
+                        pass
             else:
                 # Real position: check if still in Alpaca
                 if pos.symbol not in alpaca_positions:
@@ -294,20 +340,53 @@ class OutcomeTracker:
                 self._resolve_position(pos)
                 return True
 
-        # Timeout
+        # Timeout (policy: timeout_censored or mark_to_market with last known price)
         if now - pos.opened_at > self.SHADOW_MAX_HOLD:
-            pos.exit_price = current_price
-            pos.close_reason = "timeout"
-            self._resolve_position(pos)
+            self._resolve_shadow_timeout(pos, now, last_known_price=current_price)
             return True
 
         return False
 
+    def _resolve_shadow_timeout(
+        self, pos: TrackedPosition, now: float, last_known_price: Optional[float] = None
+    ) -> None:
+        """Resolve shadow position on timeout per SHADOW_TIMEOUT_POLICY (censor|mark_to_market|scratch)."""
+        import os
+        policy = (
+            os.getenv("SHADOW_TIMEOUT_POLICY") or
+            os.getenv("OUTCOME_TIMEOUT_POLICY") or
+            "censor"
+        ).strip().lower()
+        # Map legacy/settings to policy
+        if policy in ("timeout_censored", "scratch"):
+            policy = "censor"
+        try:
+            from app.core.config import settings
+            if policy == "censor" and hasattr(settings, "OUTCOME_TIMEOUT_POLICY"):
+                leg = getattr(settings, "OUTCOME_TIMEOUT_POLICY", "").strip().lower()
+                if leg == "mark_to_market":
+                    policy = "mark_to_market"
+        except Exception:
+            pass
+
+        if policy == "mark_to_market" and last_known_price is not None and last_known_price > 0:
+            pos.exit_price = last_known_price
+            pos.close_reason = "timeout"
+            pos.is_censored = False
+            pos.resolution_status = OutcomeResolutionStatus.RESOLVED.value
+        else:
+            # timeout_censored (recommended), or mark_to_market with no price
+            pos.exit_price = pos.entry_price
+            pos.close_reason = "timeout_censored"
+            pos.is_censored = True
+            pos.resolution_status = OutcomeResolutionStatus.TIMEOUT_UNRESOLVED.value
+        self._resolve_position(pos)
+
     def _resolve_position(self, pos: TrackedPosition) -> None:
-        """Compute PnL and feed outcome to feedback systems."""
+        """Compute PnL and feed outcome to feedback systems. Censored outcomes skip stats and learning."""
         pos.closed_at = time.time()
 
-        # Compute PnL
+        # Compute PnL (always for payload)
         if pos.side == "buy":
             pos.pnl = (pos.exit_price - pos.entry_price) * pos.qty
             pos.pnl_pct = (pos.exit_price - pos.entry_price) / pos.entry_price if pos.entry_price else 0
@@ -326,7 +405,7 @@ class OutcomeTracker:
         else:
             pos.r_multiple = pos.pnl_pct / 0.02 if pos.pnl_pct else 0.0  # Assume 2% risk
 
-        # Classify outcome
+        # Classify outcome (for logging and for non-censored path)
         if pos.pnl_pct > 0.001:
             outcome = "win"
         elif pos.pnl_pct < -0.001:
@@ -334,7 +413,28 @@ class OutcomeTracker:
         else:
             outcome = "scratch"
 
-        # Update rolling stats
+        if pos.is_censored:
+            # Do NOT update win/loss/Kelly stats or learning systems
+            try:
+                from app.core.metrics import counter_inc
+                counter_inc("outcome_resolution_total", {"status": "censored"})
+            except Exception:
+                pass
+            logger.info(
+                "Position RESOLVED (CENSORED): %s %s reason=%s resolution_status=%s — excluded from win/loss/Kelly/weights",
+                pos.symbol, pos.side, pos.close_reason, pos.resolution_status,
+            )
+            if self._bus:
+                asyncio.create_task(self._bus.publish("outcome.resolved", pos.to_dict()))
+            return
+
+        try:
+            from app.core.metrics import counter_inc
+            counter_inc("outcome_resolution_total", {"status": "resolved"})
+        except Exception:
+            pass
+
+        # Update rolling stats (non-censored only)
         self._stats["total_resolved"] += 1
         self._stats["total_pnl"] += pos.pnl
         if outcome == "win":
@@ -344,7 +444,7 @@ class OutcomeTracker:
         else:
             self._stats["scratches"] += 1
 
-        # Update resolved history for Kelly
+        # Update resolved history for Kelly (non-censored only)
         history = self._stats.get("resolved_history", [])
         history.append({
             "symbol": pos.symbol,
@@ -625,6 +725,10 @@ class OutcomeTracker:
             "avg_loss_pct": self._stats["avg_loss_pct"],
             "avg_r_multiple": self._stats["avg_r_multiple"],
             "kelly_calibrated": self._stats["total_resolved"] >= 10,
+            "shadow_price_stale_count": self._stats.get("shadow_price_stale_count", 0),
+            "shadow_exit_checks_skipped_due_to_no_price": self._stats.get(
+                "shadow_exit_checks_skipped_due_to_no_price", 0
+            ),
         }
 
     def get_open_positions(self) -> List[Dict[str, Any]]:

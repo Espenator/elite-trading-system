@@ -152,7 +152,18 @@ class DatabaseService:
                     enabled INTEGER NOT NULL DEFAULT 1
                 )
             """)
-            
+
+            # Persistent idempotency for jobs (restart-safe; no in-memory-only keys)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS job_idempotency (
+                    job_name TEXT NOT NULL,
+                    idempotency_key TEXT NOT NULL,
+                    completed_at TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    PRIMARY KEY (job_name, idempotency_key)
+                )
+            """)
+
             conn.commit()
     
     def create_order(
@@ -277,7 +288,30 @@ class DatabaseService:
                 (key, json.dumps(value)),
             )
             conn.commit()
-    
+
+    # --- Job idempotency (durable; restart-safe) ---
+
+    def get_idempotency_run(self, job_name: str, idempotency_key: str) -> Optional[str]:
+        """Return completed_at timestamp if this job+key already ran, else None."""
+        with _db_cursor(self.db_path, row_factory=sqlite3.Row) as (conn, cursor):
+            cursor.execute(
+                "SELECT completed_at FROM job_idempotency WHERE job_name = ? AND idempotency_key = ?",
+                (job_name, idempotency_key),
+            )
+            row = cursor.fetchone()
+        return row[0] if row else None
+
+    def set_idempotency_run(self, job_name: str, idempotency_key: str) -> None:
+        """Record that this job+key completed (idempotent: same key skips on next run)."""
+        now = datetime.now().isoformat()
+        with _db_cursor(self.db_path) as (conn, cursor):
+            cursor.execute(
+                """INSERT OR REPLACE INTO job_idempotency (job_name, idempotency_key, completed_at, created_at)
+                   VALUES (?, ?, ?, ?)""",
+                (job_name, idempotency_key, now, now),
+            )
+            conn.commit()
+
     # --- Alert rules ---
     
     def get_alert_rules(self) -> List[Dict]:

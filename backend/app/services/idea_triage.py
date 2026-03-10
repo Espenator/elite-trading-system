@@ -28,13 +28,26 @@ Adaptive threshold
 import asyncio
 import hashlib
 import logging
+import os
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Any, Deque, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
+
+
+class TriageDropReason(str, Enum):
+    """Explicit reason codes for triage drop (auditable, observable)."""
+    BELOW_THRESHOLD = "below_threshold"
+    DUPLICATE = "duplicate"
+    COOLDOWN = "cooldown"
+    OVERLOAD_SHED = "overload_shed"
+    INVALID_PAYLOAD = "invalid_payload"
+    STALE = "stale"
+    INCOMPLETE = "incomplete"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Tunable constants
@@ -45,6 +58,7 @@ MIN_THRESHOLD = 20
 MAX_THRESHOLD = 80
 
 DEDUP_WINDOW_SECS = 300     # 5 minutes — same symbol+direction pair is duplicate
+SYMBOL_COOLDOWN_SECS = 120  # Per-symbol cooldown between escalations
 QUEUE_HIGH_WATER = 200      # Queue depth above this → raise threshold
 QUEUE_LOW_WATER = 50        # Queue depth below this → lower threshold
 THRESHOLD_ADJUST_STEP = 5   # How much to adjust per step
@@ -53,6 +67,7 @@ AGE_PENALTY_RATE = 1        # Points per second (capped at MAX_AGE_PENALTY)
 DUP_PENALTY = 15            # Penalty for recently-seen symbol
 MAX_QUEUE_SIZE = 5000       # Prevent unbounded memory usage (_recent_arrivals hard cap)
 MAX_SEEN_SIZE = 10_000      # Prevent unbounded dedup dict under a symbol storm
+OVERLOAD_SHED_QUEUE_DEPTH = 5000  # MessageBus queue depth above this -> shed load
 
 SOURCE_BONUSES: Dict[str, int] = {
     "insider_scout": 30,
@@ -71,6 +86,9 @@ SOURCE_BONUSES: Dict[str, int] = {
 
 PRIORITY_BONUSES: Dict[int, int] = {1: 20, 2: 15, 3: 10, 4: 5, 5: 0}
 
+# Max age (seconds) for an idea to be considered non-stale
+MAX_IDEA_AGE_SECS = 600  # 10 minutes
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Data structures
@@ -87,10 +105,12 @@ class TriageResult:
     escalated: bool
     age_secs: float
     is_duplicate: bool
+    drop_reason: Optional[str]  # TriageDropReason.value or None
     original: Dict[str, Any]
     timestamp: str = field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
+    confidence: float = 1.0  # 0–1 quality/confidence for downstream
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -103,7 +123,9 @@ class TriageResult:
             "escalated": self.escalated,
             "age_secs": round(self.age_secs, 1),
             "is_duplicate": self.is_duplicate,
+            "drop_reason": self.drop_reason,
             "timestamp": self.timestamp,
+            "confidence": self.confidence,
         }
 
 
@@ -127,12 +149,16 @@ class IdeaTriageService:
         self._seen: Dict[Tuple[str, str], float] = {}
         self._seen_lock = asyncio.Lock()
 
+        # Per-symbol escalation cooldown: symbol -> last escalated epoch
+        self._symbol_last_escalated: Dict[str, float] = {}
+
         # Stats
         self._stats = {
             "total_received": 0,
             "total_escalated": 0,
             "total_dropped": 0,
             "total_duplicates": 0,
+            "dropped_by_reason": defaultdict(int),
             "current_threshold": BASE_THRESHOLD,
             "queue_depth": 0,
         }
@@ -141,6 +167,8 @@ class IdeaTriageService:
         # Bounded deque (maxlen=MAX_QUEUE_SIZE) gives automatic O(1) eviction
         # of the oldest timestamp whenever the window is full — no manual trim needed.
         self._recent_arrivals: Deque[float] = deque(maxlen=MAX_QUEUE_SIZE)
+        self._recent_dropped: Deque[Dict[str, Any]] = deque(maxlen=200)
+        self._recent_escalated: Deque[Dict[str, Any]] = deque(maxlen=200)
         self._heartbeat_task: Optional[asyncio.Task] = None
 
     # ──────────────────────────────────────────────────────────────────────
@@ -190,6 +218,51 @@ class IdeaTriageService:
         priority = int(data.get("priority", 5))
         metadata = data.get("metadata", {})
 
+        # Watchdog: shed load when the nervous system is saturated.
+        try:
+            if self._bus and getattr(self._bus, "_queue", None) is not None:
+                depth = int(self._bus.get_metrics().get("queue_depth", 0))
+                threshold = int(os.getenv("TRIAGE_OVERLOAD_QUEUE_DEPTH", str(OVERLOAD_SHED_QUEUE_DEPTH)))
+                if depth >= threshold:
+                    result = TriageResult(
+                        idea_id=_make_idea_id(data),
+                        symbol=symbol,
+                        source=source,
+                        direction=direction,
+                        score=0,
+                        threshold=self._adaptive_threshold(),
+                        escalated=False,
+                        age_secs=0.0,
+                        is_duplicate=False,
+                        drop_reason=TriageDropReason.OVERLOAD_SHED.value,
+                        original=data,
+                    )
+                    self._stats["total_dropped"] += 1
+                    self._stats["dropped_by_reason"][TriageDropReason.OVERLOAD_SHED.value] += 1
+                    await self._publish_dropped(data, result)
+                    return
+        except Exception:
+            pass
+
+        if not symbol:
+            result = TriageResult(
+                idea_id=_make_idea_id(data),
+                symbol="",
+                source=source,
+                direction=direction,
+                score=0,
+                threshold=self._adaptive_threshold(),
+                escalated=False,
+                age_secs=0.0,
+                is_duplicate=False,
+                drop_reason=TriageDropReason.INVALID_PAYLOAD.value,
+                original=data,
+            )
+            self._stats["total_dropped"] += 1
+            self._stats["dropped_by_reason"][TriageDropReason.INVALID_PAYLOAD.value] += 1
+            await self._publish_dropped(data, result)
+            return
+
         # Extract event age (if publisher embedded a timestamp)
         event_ts = (
             metadata.get("detected_at") or
@@ -204,10 +277,40 @@ class IdeaTriageService:
             except Exception:
                 pass
 
+        # Reject stale ideas (explicit degraded path)
+        if age_secs > MAX_IDEA_AGE_SECS:
+            result = TriageResult(
+                idea_id=_make_idea_id(data),
+                symbol=symbol,
+                source=source,
+                direction=direction,
+                score=0,
+                threshold=self._adaptive_threshold(),
+                escalated=False,
+                age_secs=age_secs,
+                is_duplicate=False,
+                drop_reason=TriageDropReason.STALE.value,
+                original=data,
+            )
+            self._stats["total_dropped"] += 1
+            self._stats["dropped_by_reason"][TriageDropReason.STALE.value] += 1
+            logger.info(
+                "Triage dropped stale idea symbol=%s age_secs=%.0f trace_id=%s",
+                symbol, age_secs, (data.get("_event_meta") or {}).get("trace_id"),
+            )
+            await self._publish_dropped(data, result)
+            return
+
         # Dedup check
         is_dup = await self._check_and_record(symbol, direction, now)
         if is_dup:
             self._stats["total_duplicates"] += 1
+
+        # Per-symbol cooldown: avoid flooding downstream analysis on the same ticker.
+        cooldown_hit = False
+        last_escalated = self._symbol_last_escalated.get(symbol.upper(), 0.0)
+        if (now - last_escalated) < SYMBOL_COOLDOWN_SECS:
+            cooldown_hit = True
 
         # Score
         score = self._score_idea(source, priority, age_secs, is_dup)
@@ -217,6 +320,17 @@ class IdeaTriageService:
         self._stats["current_threshold"] = threshold
 
         idea_id = _make_idea_id(data)
+        drop_reason: Optional[str] = None
+        escalated = False
+        if cooldown_hit:
+            drop_reason = TriageDropReason.COOLDOWN.value
+        elif is_dup:
+            drop_reason = TriageDropReason.DUPLICATE.value
+        elif score < threshold:
+            drop_reason = TriageDropReason.BELOW_THRESHOLD.value
+        else:
+            escalated = True
+
         result = TriageResult(
             idea_id=idea_id,
             symbol=symbol,
@@ -224,17 +338,21 @@ class IdeaTriageService:
             direction=direction,
             score=score,
             threshold=threshold,
-            escalated=(score >= threshold),
+            escalated=escalated,
             age_secs=age_secs,
             is_duplicate=is_dup,
+            drop_reason=drop_reason,
             original=data,
         )
 
         if result.escalated:
             self._stats["total_escalated"] += 1
+            self._symbol_last_escalated[symbol.upper()] = now
             await self._publish_escalated(data, result)
         else:
             self._stats["total_dropped"] += 1
+            if result.drop_reason:
+                self._stats["dropped_by_reason"][result.drop_reason] += 1
             await self._publish_dropped(data, result)
 
     # ──────────────────────────────────────────────────────────────────────
@@ -320,7 +438,24 @@ class IdeaTriageService:
         try:
             payload = dict(original)
             payload["triage"] = result.to_dict()
-            await self._bus.publish("triage.escalated", payload)
+            trace_id = (original.get("_event_meta") or {}).get("trace_id")
+            try:
+                from app.events.contracts import publish_event, TOPIC_TRIAGE_ESCALATED
+                ok = await publish_event(
+                    self._bus,
+                    TOPIC_TRIAGE_ESCALATED,
+                    payload,
+                    producer="idea_triage",
+                    pipeline_stage="triage",
+                    trace_id=trace_id,
+                )
+                if not ok:
+                    await self._bus.publish("triage.escalated", payload)
+            except Exception:
+                await self._bus.publish("triage.escalated", payload)
+            self._recent_escalated.append(
+                {"triage": result.to_dict(), "original": {"symbol": result.symbol, "source": result.source}}
+            )
             logger.debug(
                 "Escalated: symbol=%s source=%s score=%d threshold=%d",
                 result.symbol, result.source, result.score, result.threshold,
@@ -336,7 +471,24 @@ class IdeaTriageService:
         try:
             payload = dict(original)
             payload["triage"] = result.to_dict()
-            await self._bus.publish("triage.dropped", payload)
+            trace_id = (original.get("_event_meta") or {}).get("trace_id")
+            try:
+                from app.events.contracts import publish_event, TOPIC_TRIAGE_DROPPED
+                ok = await publish_event(
+                    self._bus,
+                    TOPIC_TRIAGE_DROPPED,
+                    payload,
+                    producer="idea_triage",
+                    pipeline_stage="triage",
+                    trace_id=trace_id,
+                )
+                if not ok:
+                    await self._bus.publish("triage.dropped", payload)
+            except Exception:
+                await self._bus.publish("triage.dropped", payload)
+            self._recent_dropped.append(
+                {"triage": result.to_dict(), "original": {"symbol": result.symbol, "source": result.source}}
+            )
         except Exception as exc:
             logger.debug("Triage drop publish failed: %s", exc)
 
@@ -371,7 +523,15 @@ class IdeaTriageService:
     # ──────────────────────────────────────────────────────────────────────
 
     def get_stats(self) -> Dict[str, Any]:
-        return dict(self._stats)
+        # Ensure defaultdict is JSONable for APIs.
+        stats = dict(self._stats)
+        if "dropped_by_reason" in stats and isinstance(stats["dropped_by_reason"], dict):
+            stats["dropped_by_reason"] = dict(stats["dropped_by_reason"])
+        stats["symbol_cooldown_seconds"] = SYMBOL_COOLDOWN_SECS
+        stats["dedup_window_seconds"] = DEDUP_WINDOW_SECS
+        stats["recent_dropped"] = list(self._recent_dropped)[-25:]
+        stats["recent_escalated"] = list(self._recent_escalated)[-25:]
+        return stats
 
     def score_idea(
         self, source: str, priority: int, age_secs: float = 0, is_dup: bool = False

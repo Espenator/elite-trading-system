@@ -28,6 +28,7 @@ const API_CONFIG = {
     system: "/system", // System status + config
     "system/event-bus/status": "/system/event-bus/status", // Event-bus topics for Agent Command Center
     signals: "/signals/", // Generated trading signals (trailing slash required by FastAPI)
+    signalsHeatmap: "/signals/heatmap", // Signal heatmap for Dashboard
     backtest: "/backtest/", // Backtesting engine (trailing slash to avoid 307)
     backtestRuns: "/backtest/runs", // Recent backtest runs (for Backtesting page)
         backtestResults: "/backtest/results", // Full backtest results + equity curve
@@ -55,6 +56,7 @@ const API_CONFIG = {
     risk: "/risk", // Risk metrics + position sizing
     strategy: "/strategy", // Active strategies + A/B tests
     performance: "/performance", // Historical performance analytics
+    performanceEquity: "/performance/equity", // Equity curve + drawdown for Dashboard sparkline
     performanceTrades: "/performance/trades", // Realized trades for P&L dist / monthly win rate
     logs: "/logs", // System activity logs
     alerts: "/alerts", // Alert rules + notifications
@@ -63,6 +65,7 @@ const API_CONFIG = {
     openclaw: "/openclaw", // OpenClaw bridge: regime, top candidates, health, scan
     market: "/market", // Market indices (SPY, QQQ, DIA) for Dashboard
     marketIndices: "/market/indices", // GET indices snapshot for Dashboard top bar
+    marketOrderBook: "/market/order-book", // L2 order book for Dashboard right panel
     openclawRegime: "/openclaw/regime", // Regime state for Signal Intelligence / Market Regime
     mlBrain: "/ml-brain/", // ML brain model status + predictions (trailing slash to avoid 307 redirect)
     "ml-brain/models": "/ml-brain/registry/status", // ML model registry status
@@ -75,6 +78,7 @@ const API_CONFIG = {
   kellyRanked: "/signals/kelly-ranked", // Kelly-ranked ticker opportunities
     preTradeCheck: "/strategy/pre-trade-check", // Pre-trade risk gate (6 checks)
       swarmTopology: "/agents/swarm-topology", // Agent swarm topology + ELO leaderboard
+  agentConsensus: "/agents/consensus", // Swarm consensus (votes, agreement %, verdict)
   conference: "/agents/conference", // Conference pipeline status
   teams: "/agents/teams", // Agent team groupings
   drift: "/agents/drift", // Model drift metrics

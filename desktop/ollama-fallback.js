@@ -1,9 +1,13 @@
 /**
- * Ollama Fallback Manager
- * 
- * When the secondary PC (brain service) is unavailable,
- * this module provides local LLM capabilities via Ollama
- * running on the primary PC as a degraded-mode fallback.
+ * Ollama Fallback Manager (process/health only)
+ *
+ * CONTRACT: This module manages Ollama process lifecycle and health only.
+ * Trading intelligence (signals, council, inference) is backend-managed:
+ * backend calls brain_service (PC2) or backend-owned Ollama (PC1) via
+ * app.services.brain_client / HyperSwarm / llm_router. Electron does NOT
+ * implement trading logic; it only starts Ollama, checks /api/tags, and
+ * reports status. The chat()/embed() methods exist for non-trading use
+ * (e.g. local UI experiments) and must not be used for signal/council path.
  */
 
 const { exec, spawn } = require('child_process');

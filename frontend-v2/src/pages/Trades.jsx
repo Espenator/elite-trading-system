@@ -331,6 +331,8 @@ export default function Trades() {
     { key: "market_value", label: "Price", align: "right" },
     { key: "delta", label: "Delta", align: "right" },
     { key: "theta", label: "Theta", align: "right" },
+    { key: "gamma", label: "Gamma", align: "right" },
+    { key: "vega", label: "Vega", align: "right" },
     { key: "qty2", label: "Qty", align: "right" },
     { key: "beta", label: "Beta", align: "right" },
     { key: "daily_range_vol", label: "Daily Range Vol", align: "right" },
@@ -593,6 +595,8 @@ export default function Trades() {
                   // Greeks (may not be available for equities)
                   const delta = p.delta ?? "--";
                   const theta = p.theta ?? "--";
+                  const gamma = p.gamma ?? "--";
+                  const vega = p.vega ?? "--";
                   const beta = p.beta ?? "--";
                   const dailyRangeVol = p.daily_range_vol || p.dailyRangeVol || "--";
 
@@ -665,6 +669,14 @@ export default function Trades() {
                       {/* Theta */}
                       <td className="px-1.5 py-[3px] text-right font-mono text-slate-500 text-[9px]">
                         {theta}
+                      </td>
+                      {/* Gamma */}
+                      <td className="px-1.5 py-[3px] text-right font-mono text-slate-500 text-[9px]">
+                        {gamma}
+                      </td>
+                      {/* Vega */}
+                      <td className="px-1.5 py-[3px] text-right font-mono text-slate-500 text-[9px]">
+                        {vega}
                       </td>
                       {/* Qty (second instance) */}
                       <td className="px-1.5 py-[3px] text-right font-mono text-slate-400 text-[9px]">

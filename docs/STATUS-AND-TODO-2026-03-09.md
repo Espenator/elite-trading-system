@@ -34,7 +34,7 @@ Daily operational pain of managing separate frontend/backend processes, port con
 | Electron Desktop Shell | 80% SCAFFOLDED - needs finishing |
 | Peer Resilience | NOT STARTED - architecture designed |
 | iPhone PWA | NOT STARTED - planned |
-| CI/CD (666 tests) | GREEN |
+| CI/CD (898 tests) | GREEN |
 
 ---
 

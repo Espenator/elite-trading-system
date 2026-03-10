@@ -2,34 +2,34 @@
 ### Embodier.ai — Full-Stack AI Trading Intelligence Platform
 **Version 4.1.0-dev** | Last Updated: March 10, 2026
 
-CI Status: GREEN — 666 tests passing
+CI Status: GREEN — 666 tests passing (backend pytest)
 Frontend: **ALL 14 PAGES COMPLETE** — pixel-fidelity match to 23 mockup images. Build clean.
 Backend: **Backend successfully started!** Tests passing (666/666). Council running 35 agents.
 Council: **35-agent DAG** in 7 stages — council-controlled trading via CouncilGate (v3.5.0)
 
 ---
 
-React + FastAPI full-stack trading application with 14-route V3 widescreen dashboard, DuckDB database, **35-agent council DAG** with Bayesian weight learning, 12 Academic Edge Swarms (P0–P4), Alpaca + Finviz + Unusual Whales integrations, XGBoost ML pipeline, event-driven council-controlled order execution, **3-tier LLM intelligence** (Ollama → Perplexity → Claude), and Electron desktop app with PyInstaller-bundled backend.
+React + FastAPI full-stack trading application with 14-route V3 widescreen dashboard, DuckDB database, **35-agent council DAG** with Bayesian weight learning, 12 Academic Edge Swarms (P0–P4), Alpaca + Finviz + Unusual Whales integrations, XGBoost ML pipeline, event-driven council-controlled order execution, and gRPC brain service for local Ollama LLM inference.
 
 ## Current State (March 10, 2026)
 
 | Area | Count | Status |
 |------|-------|--------|
 | Frontend pages | 14 (all sidebar routes) | **ALL COMPLETE** — pixel-matched to mockups, no mock data |
-| Frontend components | 22 shared (ui/, layout/, dashboard/) | All wired, no orphaned imports |
-| Backend API routes | 34 files in api/v1/ | All mounted in main.py |
-| Backend services | 68+ files in services/ | Business logic + LLM clients + data sources + scanning + trading |
+| Frontend components | 12 shared + 5 agent-tab | All wired, no orphaned imports |
+| Backend API routes | **34** files in api/v1/ | All mounted in main.py (including brain, triage, ingestion firehose, awareness) |
+| Backend services | **68+** (incl. subdirs) | llm_clients, data_sources, scanning, trading, etc. |
 | Council agents | **35 agents** in 7-stage DAG | 11 Core + 12 Academic Edge (P0–P4) + 6 Supplemental + 3 Debate + 3 others |
 | Council intelligence | WeightLearner + CouncilGate + SelfAwareness + Homeostasis | Bayesian self-learning agent weights |
 | Council subsystems | 15 orchestration files | runner, arbiter, blackboard, task_spawner, shadow_tracker, etc. |
-| LLM Intelligence | 3-tier router (698 lines) | Ollama (free, <500ms) → Perplexity (web, <3s) → Claude (deep, <10s) |
-| Tests | 666 passing | Backend pytest + frontend build |
+| Tests | **666 passing** | Backend pytest + frontend build |
+| LLM Intelligence | 3-tier router | Ollama → Perplexity → Claude; Claude reserved for 6 deep-reasoning tasks |
 | Brain service | gRPC + Ollama | **WIRED** — hypothesis_agent calls brain gRPC |
 | Event pipeline | MessageBus + CouncilGate + SignalEngine + OrderExecutor | BUILT — council-controlled trading |
-| Database | DuckDB (WAL mode, pooling) + SQLite (config/orders) | BUILT |
-| Authentication | Bearer token auth (fail-closed) | **DONE** — end-to-end: Electron generates → backend validates → frontend sends |
-| WebSocket | Real-time pub/sub | **ACTIVE** — 5 pages wired (Dashboard, Risk, TradeExecution, MarketRegime) + bridges |
-| Electron desktop app | `desktop/` | **BUILD-READY** — 11 bugs fixed, auth wired, IPC working. See [build plan](docs/ELECTRON-DESKTOP-BUILD-PLAN.md) |
+| Database | DuckDB (WAL mode, pooling) | BUILT |
+| Authentication | Bearer token | **Fail-closed** — live trading endpoints protected |
+| WebSocket | 5 pages wired | **ACTIVE** — bridges for signals, orders, council, market data |
+| Electron desktop app | `desktop/` | **BUILD-READY** — See [build plan](docs/ELECTRON-DESKTOP-BUILD-PLAN.md) |
 
 ## Council Architecture (35 Agents)
 
@@ -159,31 +159,15 @@ Post-Arbiter (Background):
   alt_data_agent (background enrichment)
 ```
 
+## LLM Intelligence (3-Tier Router)
+
+- **Tier 1 — Ollama**: Routine/local LLM traffic; hypothesis_agent and most council LLM calls.
+- **Tier 2 — Perplexity**: Mid-tier reasoning when needed.
+- **Tier 3 — Claude**: Reserved for 6 deep-reasoning tasks only: `strategy_critic`, `strategy_evolution`, `deep_postmortem`, `trade_thesis`, `overnight_analysis`, `directive_evolution`.
+
+brain_service (gRPC + Ollama) is wired; the router directs traffic by task type.
+
 ## What Was Recently Done
-
-### v4.1.0-dev (March 10, 2026) — Electron Build-Ready + Auth + WebSocket Wiring
-
-**Electron Desktop App — 11 bugs fixed, now build-ready:**
-- ✅ Deleted conflicting `electron-builder.yml` (package.json is source of truth)
-- ✅ Fixed setup wizard IPC — replaced broken `require('electron')` with preload bridge
-- ✅ Added missing `initialize()`/`shutdown()` to peer-monitor.js
-- ✅ Added missing `activate()`/`deactivate()` to ollama-fallback.js
-- ✅ Fixed service-orchestrator `initialize(role)` signature, wired brain-service
-- ✅ Added backend binary validation, exponential restart backoff (max 5), port conflict detection
-- ✅ Added 4 missing API key fields to setup wizard
-
-**End-to-end API token authentication:**
-- ✅ `device-config.js` generates secure token (crypto.randomBytes)
-- ✅ `backend-manager.js` passes `API_AUTH_TOKEN` env var to backend
-- ✅ `preload.js` exposes `getAuthToken()` to renderer
-- ✅ `frontend-v2/src/config/api.js` reads token from Electron bridge or env var
-- ✅ `backend/app/core/security.py` validates Bearer tokens (fail-closed)
-
-**WebSocket real-time data wired to 4 additional pages:**
-- ✅ Dashboard — market, signals, risk, trades channels
-- ✅ RiskIntelligence — risk channel triggers refresh
-- ✅ TradeExecution — trades, market, council_verdict channels
-- ✅ MarketRegime — macro, market channels
 
 ### v3.5.1 (March 9, 2026) — P0/P1 Fixes Complete ✅
 
@@ -197,17 +181,17 @@ Post-Arbiter (Background):
 - ✅ Brain service gRPC wired to hypothesis_agent (line 21)
 - ✅ WebSocket bridges active (signals, orders, council, market data)
 - ✅ All 12 Academic Edge agents wired into runner.py DAG stages
-- ✅ 666 tests passing (100% pass rate)
+- ✅ 666 tests passing (100% pass rate, backend pytest)
 
 **System Status:** Council now runs 35 agents across 7 stages. All P0 and P1 tasks complete.
 
-### v3.5.0 (March 8, 2026) — 31-Agent Council + Brain Consciousness Audit
+### v3.5.0 (March 8, 2026) — 35-Agent Council + Brain Consciousness Audit *(historical)*
 
-- **Council expanded from 13 to 31 agents** — added 12 Academic Edge Swarms (P0–P4) + 6 supplemental
+- **Council expanded from 13 to 35 agents** — added 12 Academic Edge Swarms (P0–P4) + 6 supplemental + 3 debate
 - **Full brain consciousness audit** covering ~250+ Python files (42 bugs found — 4 critical, 5 high)
 - **OpenClaw fully assimilated** — all modules migrated to FastAPI Brain agents, MessageBus communication
 - **LLM Health Monitor** — classifies LLM HTTP errors, broadcasts health via WebSockets
-- **agent_config.py** — settings-driven thresholds for all 31 agents with sensible defaults
+- **agent_config.py** — settings-driven thresholds for all 35 agents with sensible defaults
 - **Council subsystems built**: blackboard, task_spawner, shadow_tracker, self_awareness, homeostasis, overfitting_guard, data_quality, hitl_gate, feedback_loop
 
 **Audit document:** [`docs/audits/brain_consciousness_audit_2026-03-08.pdf`](docs/audits/brain_consciousness_audit_2026-03-08.pdf)
@@ -247,45 +231,30 @@ elite-trading-system/
 │   │   │   ├── debate/               # Bull/Bear debate system
 │   │   │   ├── directives/           # Council directives
 │   │   │   ├── reflexes/             # Circuit breaker reflexes
-│   │   │   ├── regime/               # Bayesian regime classification
+│   │   │   ├── regime/               # Regime classification
 │   │   │   ├── runner.py             # DAG orchestrator (profit spine)
 │   │   │   ├── arbiter.py            # Final BUY/SELL/HOLD decision
 │   │   │   ├── blackboard.py         # Shared memory
 │   │   │   ├── council_gate.py       # Signal → Council → Executor bridge
 │   │   │   └── weight_learner.py     # Bayesian weight adaptation
-│   │   ├── core/                     # MessageBus, config, security, alignment
+│   │   ├── core/                     # MessageBus, config, middleware
 │   │   ├── features/                 # Feature aggregator
-│   │   ├── knowledge/                # Heuristics + memory bank + embeddings
-│   │   ├── models/                   # PyTorch LSTM + inference
+│   │   ├── knowledge/                # ETBI cognitive intelligence
 │   │   ├── modules/                  # 7 modules (chart_patterns, ml_engine, openclaw, etc.)
-│   │   └── services/                 # 68+ service files
-│   │       ├── llm_clients/          # Claude, Ollama, Perplexity wrappers
-│   │       ├── data_sources/         # Data feed integrations
-│   │       ├── scanning/             # Signal scanning
-│   │       └── trading/              # Trade execution
-│   ├── tests/                        # 37 test files (666 tests)
+│   │   └── services/                 # 68+ service files (incl. subdirs)
+│   ├── tests/                        # pytest test suite
 │   ├── requirements.txt
 │   └── run_server.py
 ├── brain_service/                    # gRPC + Ollama LLM inference (PC2)
-│   ├── server.py                     # Async gRPC server
-│   ├── ollama_client.py              # Ollama HTTP client
-│   └── proto/brain.proto             # Service definition
 ├── desktop/                          # Electron desktop app (BUILD-READY)
-│   ├── main.js                       # Electron main process
-│   ├── preload.js                    # Context-isolated IPC bridge
-│   ├── backend-manager.js            # PyInstaller backend launcher
-│   ├── service-orchestrator.js       # Role-based service control
-│   ├── peer-monitor.js               # 2-PC health monitoring
-│   ├── ollama-fallback.js            # Local LLM fallback
-│   ├── device-config.js              # Device identity + auth token
-│   └── pages/setup.html              # First-run setup wizard
 ├── frontend-v2/                      # React 18 + Vite + TailwindCSS
 │   └── src/
 │       ├── pages/                    # 14 page components
-│       ├── components/               # 22 shared components
-│       └── config/api.js             # API + WebSocket + auth config
-├── docs/                             # 60+ docs (architecture, audits, research)
-├── docker-compose.yml                # Redis + Backend + Frontend
+│       └── components/               # Shared + agent-tab components
+├── docs/
+│   ├── mockups-v3/images/            # 23 design mockups (source of truth)
+│   └── audits/                       # Audit reports
+├── docker-compose.yml
 └── README.md
 ```
 
@@ -305,19 +274,16 @@ elite-trading-system/
 - [x] Wire 12 new Academic Edge agents into runner.py DAG stages
 
 ### P2 — Medium
-- [x] ~~Add JWT authentication for live trading endpoints~~ → Bearer token auth implemented (fail-closed)
+- [ ] Add JWT authentication for live trading endpoints
 - [ ] Visual polish pass in browser at 2560px target resolution
-- [x] ~~Wire WebSocket real-time data~~ → 4 pages wired (Dashboard, Risk, TradeExecution, MarketRegime)
-- [ ] Wire WebSocket to remaining pages (Live Activity Feed, Blackboard Feed)
+- [ ] Wire WebSocket real-time data to Live Activity Feed, Blackboard Feed
 - [ ] Update agent_config.py to include weights for 6 supplemental agents explicitly
 - [ ] Signal scoring weights calibration from historical data
-- [ ] End-to-end pipeline integration test (signal → council → order)
 
 ### P3 — Low
 - [ ] Build CircuitBreaker reflexes (brainstem <50ms)
 - [ ] Multi-timeframe analysis in real-time path
 - [ ] Clean up remaining OpenClaw dead code
-- [ ] Add `anthropic` to requirements.txt (currently lazy-imported)
 
 ## Frontend Pages (14)
 
@@ -349,14 +315,10 @@ All pages in frontend-v2/src/pages/. All use useApi() hook. No mock data. **ALL 
 | alignment.py | Alignment/consensus endpoints |
 | alpaca.py | Alpaca API proxy for frontend |
 | backtest_routes.py | Strategy backtesting |
-| cluster.py | Cluster management |
-| cns.py | CNS (Central Nervous System) — homeostasis, circuit breaker, postmortems |
-| cognitive.py | Cognitive telemetry dashboard |
 | council.py | Council evaluate, status, weights endpoints |
 | data_sources.py | Data source health |
 | features.py | Feature aggregator endpoints |
 | flywheel.py | ML flywheel metrics |
-| llm_health.py | LLM health monitoring + circuit breaker status |
 | logs.py | System logs |
 | market.py | Market data, regime, indices |
 | ml_brain.py | ML model management |
@@ -374,63 +336,39 @@ All pages in frontend-v2/src/pages/. All use useApi() hook. No mock data. **ALL 
 | status.py | System health |
 | stocks.py | Finviz screener |
 | strategy.py | Regime-based strategies |
-| swarm.py | Swarm intelligence operations |
 | system.py | System config, GPU |
 | training.py | ML training jobs |
 | youtube_knowledge.py | YouTube research |
+| brain.py | Brain gRPC proxy / LLM |
+| triage.py | Triage / prioritization |
+| ingestion_firehose.py | Ingestion firehose |
+| awareness.py | Awareness endpoints |
+| blackboard_routes.py | Blackboard state |
+| mobile_api.py | Mobile API |
+| llm_health.py | LLM health monitor |
+| cognitive.py | Cognitive dashboard |
+| cns.py | CNS architecture |
+| cluster.py | Cluster / node |
+| swarm.py | Swarm intelligence |
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|------------|
-| Frontend | React 18, Vite 5, TailwindCSS, Lightweight Charts, Recharts, lucide-react |
-| Backend | Python 3.11+, FastAPI, DuckDB (analytics), SQLite (config), pydantic-settings |
-| AI/ML | PyTorch LSTM, XGBoost, scikit-learn, HMM (hmmlearn), Kelly criterion, FinBERT |
-| LLM Intelligence | **3-tier router**: Ollama (local, free) → Perplexity Sonar Pro (web) → Claude (deep reasoning) |
+| Frontend | React 18, Vite, TailwindCSS, Lightweight Charts, lucide-react |
+| Backend | Python 3.11+, FastAPI, DuckDB, pydantic-settings |
+| AI/ML | XGBoost, scikit-learn, HMM (hmmlearn), Kelly criterion, FinBERT |
 | Council | 35-agent DAG with Bayesian-weighted arbiter (7 stages) |
-| Brain Service | gRPC + Ollama (local LLM on RTX GPU, dual-PC model pinning) |
-| Knowledge | Heuristic engine + memory bank + embedding search (all-MiniLM-L6-v2) |
+| LLM Intelligence | 3-tier router: Ollama (routine) → Perplexity → Claude (6 deep-reasoning tasks) |
+| Brain Service | gRPC + Ollama (local LLM on RTX GPU); brain_service in architecture |
 | Broker | Alpaca Markets (paper + live via alpaca-py) |
 | Data | Alpaca Markets, Unusual Whales, Finviz, FRED, SEC EDGAR, NewsAPI |
+| Knowledge | MemoryBank, HeuristicEngine, KnowledgeGraph (ETBI cognitive layer) |
+| Authentication | Bearer token auth, fail-closed for live trading |
 | Event Pipeline | MessageBus → CouncilGate → Council → OrderExecutor |
-| Authentication | Bearer token auth, fail-closed (backend/app/core/security.py) |
-| Desktop | Electron 29 + PyInstaller bundled backend |
+| Desktop | Electron (desktop/) — BUILD-READY |
 | CI/CD | GitHub Actions — pytest + npm build (666 tests) |
-| Infra | Docker, docker-compose.yml, Redis (cross-PC messaging) |
-
-## Intelligence Layer (3-Tier LLM Router)
-
-The brain uses a cost-optimized 3-tier LLM architecture. Local models handle 80%+ of calls for free. Cloud APIs are reserved for high-value tasks only.
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  Tier 1: BRAINSTEM (Ollama — local, FREE, <500ms)                  │
-│  Models: llama3.2, mistral:7b, qwen3:14b                          │
-│  Tasks: regime_classification, signal_scoring, feature_summary,    │
-│         quick_hypothesis, risk_check                               │
-│  PC1: fast models (llama3.2, mistral:7b)                          │
-│  PC2: deep models (deepseek-r1:14b, mixtral:8x7b)                │
-├─────────────────────────────────────────────────────────────────────┤
-│  Tier 2: CORTEX (Perplexity Sonar Pro — web-grounded, <3s)        │
-│  Tasks: breaking_news, earnings_context, sector_rotation,          │
-│         macro_context, institutional_flow                          │
-├─────────────────────────────────────────────────────────────────────┤
-│  Tier 3: DEEP CORTEX (Anthropic Claude — deep reasoning, <10s)    │
-│  Model: claude-sonnet-4-20250514                                   │
-│  Tasks: strategy_critic, strategy_evolution, deep_postmortem,      │
-│         trade_thesis, overnight_analysis, directive_evolution      │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-**Safety:** Circuit breaker (3 fails → 5 min skip), rate limiting (1 rps deep cortex), $100/mo budget cap, automatic fallback chains.
-
-**Key files:**
-- `backend/app/services/llm_router.py` — Multi-tier routing with DuckDB cost tracking
-- `backend/app/services/llm_clients/claude_client.py` — Anthropic AsyncAnthropic wrapper
-- `backend/app/services/claude_reasoning.py` — Deep reasoning service (7 methods)
-- `backend/app/services/intelligence_orchestrator.py` — Pre-council intelligence gathering
-- `backend/app/services/brain_client.py` — gRPC client to PC2 Ollama
-- `backend/app/services/adaptive_router.py` — Auto-escalates to cloud if local accuracy <45%
+| Infra | Docker, docker-compose.yml, Redis (where used) |
 
 ## Data Sources
 
@@ -476,7 +414,7 @@ Private repository — Embodier.ai
 
 **Goal:** Double-click one icon. Everything starts. No more terminal juggling, port conflicts, or separate process management.
 
-Embodier Trader is packaged as a native Electron 29 desktop application with PyInstaller-bundled Python backend. All 11 build-blocking bugs have been fixed.
+Embodier Trader is packaged as a native Electron desktop application with PyInstaller-bundled Python backend. Build plan and scaffolding complete.
 
 ### Operating Modes
 
@@ -490,20 +428,10 @@ Embodier Trader is packaged as a native Electron 29 desktop application with PyI
 - One-click startup — Electron spawns backend automatically
 - Role-aware — same installer, different behavior per machine
 - Peer resilience — tiered fallback when 2nd PC goes down (retry -> local Ollama -> no-brain conservative mode)
-- Secure auth — auto-generated API token flows from Electron → backend → frontend
-- Port conflict detection + exponential restart backoff
 - iPhone PWA — remote monitoring via Tailscale
 - Auto-updater via GitHub Releases
-
-### What Was Fixed (v4.1.0-dev)
-- Setup wizard IPC (contextIsolation-compatible preload bridge)
-- Missing peer-monitor and ollama-fallback methods
-- Service orchestrator role handling + brain-service wiring
-- Backend binary validation before spawn
-- 4 missing API key fields in setup wizard
-- Conflicting electron-builder.yml deleted
 
 ### Documentation
 - [Electron Desktop Build Plan](docs/ELECTRON-DESKTOP-BUILD-PLAN.md) — Full 3-phase build plan with task checklists
 - [Peer Resilience Architecture](docs/PEER-RESILIENCE-ARCHITECTURE.md) — Tiered fallback strategy for 2-PC mode
-- [Status & TODO (March 9, 2026)](docs/STATUS-AND-TODO-2026-03-09.md) — Current project status
+- [Status & TODO (March 10, 2026)](docs/STATUS-AND-TODO-2026-03-09.md) — Current project status

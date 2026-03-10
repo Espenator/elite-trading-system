@@ -245,6 +245,7 @@ function registerIpcHandlers() {
   ipcMain.handle("get-device-config", () => deviceConfig.getFullConfig());
   ipcMain.handle("get-system-info", () => deviceConfig.getSystemInfo());
   ipcMain.handle("get-backend-status", () => backendManager.getStatus());
+  ipcMain.handle("get-orchestrator-status", () => serviceOrchestrator.getStatus());
   ipcMain.handle("get-version", () => app.getVersion());
   ipcMain.handle("get-api-keys", () => deviceConfig.getApiKeys());
   ipcMain.handle("get-auth-token", () => deviceConfig.getAuthToken());
