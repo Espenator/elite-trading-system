@@ -1,23 +1,26 @@
 # Elite Trading System - Backend API
 
-**Last Updated: March 3, 2026**
+**Last Updated: March 10, 2026**
 
-FastAPI backend serving the Embodier.ai Elite Trading Intelligence System. Provides REST API endpoints for trading signals, order execution, agent management, ML training, backtesting, and real-time WebSocket data.
+FastAPI backend serving the Embodier.ai Elite Trading Intelligence System. Provides REST API endpoints for trading signals, order execution, agent management, ML training, backtesting, and real-time WebSocket data. Includes a 35-agent council DAG, 3-tier LLM intelligence router (Ollama → Perplexity → Claude), and fail-closed Bearer token authentication.
 
-> **Status: All route files and services coded. 146 tests passing across 12 test files. CI green.**
+> **Status: 666 tests passing across 37 test files. CI green. Backend runs successfully. 35-agent council operational.**
 
 ---
 
 ## Tech Stack
 
 - **Framework**: FastAPI (Python 3.11+)
-- **Database**: DuckDB (via `app/data/storage.py` and `app/services/database.py`)
+- **Database**: DuckDB (analytics, WAL mode) + SQLite (config, orders)
 - **HTTP Client**: httpx (async)
 - **Broker**: Alpaca Markets (paper + live via alpaca-py)
-- **Data Sources**: Finviz Elite, Unusual Whales, FRED, SEC EDGAR, Alpaca Markets
-- **ML**: XGBoost, scikit-learn, hmmlearn (torch/PyTorch was removed from requirements.txt)
+- **Data Sources**: Finviz Elite, Unusual Whales, FRED, SEC EDGAR, Alpaca Markets, NewsAPI
+- **ML**: PyTorch LSTM, XGBoost, scikit-learn, hmmlearn
+- **LLM**: 3-tier router — Ollama (local) → Perplexity Sonar Pro (web) → Claude (deep reasoning)
+- **Council**: 35-agent DAG with Bayesian-weighted arbiter (7 stages)
+- **Auth**: Bearer token authentication, fail-closed (`app/core/security.py`)
 - **Configuration**: pydantic-settings, python-dotenv
-- **WebSocket**: FastAPI WebSocket manager
+- **WebSocket**: FastAPI WebSocket manager + channel-based pub/sub
 
 ---
 
@@ -27,55 +30,62 @@ FastAPI backend serving the Embodier.ai Elite Trading Intelligence System. Provi
 backend/
   app/
     api/
-      v1/                  # 25 REST API route files
-        agents.py          # Agent management + lifecycle
+      v1/                  # 34 REST API route files
+        agents.py          # Agent Command Center
         alerts.py          # System alerts
+        alignment.py       # Alignment/consensus
+        alpaca.py          # Alpaca API proxy
         backtest_routes.py # Strategy backtesting
+        cluster.py         # Cluster management
+        cns.py             # CNS: homeostasis, circuit breaker, postmortems
+        cognitive.py       # Cognitive telemetry
+        council.py         # Council evaluate, status, weights (35-agent)
         data_sources.py    # Data source health
+        features.py        # Feature aggregator
         flywheel.py        # ML flywheel metrics
+        llm_health.py      # LLM health monitoring
         logs.py            # System logs
         market.py          # Market data + regime
         ml_brain.py        # ML model management
-        openclaw.py        # OpenClaw bridge router
-        orders.py          # Alpaca order management
-        patterns.py        # Pattern/screener queries
+        openclaw.py        # OpenClaw bridge
+        orders.py          # Alpaca order CRUD
+        patterns.py        # Pattern/screener
         performance.py     # Performance analytics
         portfolio.py       # Portfolio positions + P&L
         quotes.py          # Price and chart data
         risk.py            # Risk metrics + exposure
-        risk_shield_api.py # Risk Governor bridge
+        risk_shield_api.py # Emergency controls
         sentiment.py       # Sentiment data
         settings_routes.py # App settings
-        signals.py         # Trading signal CRUD
+        signals.py         # Trading signals
         status.py          # System health check
-        stocks.py          # Finviz screener queries
-        strategy.py        # Strategy definitions
-        system.py          # System config + /gpu endpoint
-        training.py        # ML model training jobs
-        youtube_knowledge.py # YouTube research data
-    core/                  # Config, settings
+        stocks.py          # Finviz screener
+        strategy.py        # Regime-based strategies
+        swarm.py           # Swarm intelligence
+        system.py          # System config + GPU
+        training.py        # ML training jobs
+        youtube_knowledge.py # YouTube research
+    core/                  # Config, security, alignment, message bus
     data/                  # DuckDB storage layer
-    models/                # LSTM trainer, inference
+    knowledge/             # Heuristics + memory bank + embeddings
+    models/                # PyTorch LSTM + inference
+    council/               # 35-agent DAG (runner, arbiter, blackboard, etc.)
     modules/
       ml_engine/           # XGBoost trainer, drift detector, model registry
       openclaw/            # OpenClaw swarm modules
     schemas/               # Pydantic request/response models
-    services/              # 15 service files (see below)
+    services/              # 68+ service files (see below)
+      llm_router.py        # 3-tier LLM routing (Ollama/Perplexity/Claude)
+      llm_clients/         # Claude, Ollama, Perplexity SDK wrappers
+      claude_reasoning.py  # Deep reasoning service (7 methods)
+      intelligence_orchestrator.py # Pre-council multi-tier gathering
+      brain_client.py      # gRPC client to PC2 Ollama
       alpaca_service.py    # Alpaca broker integration
-      backtest_engine.py   # Historical signal backtester
-      database.py          # DuckDB/SQLite database layer
-      finviz_service.py    # Finviz stock screener
-      fred_service.py      # FRED economic data
-      kelly_position_sizer.py # Kelly criterion sizing
-      market_data_agent.py # Market data aggregation
-      ml_training.py       # LSTM/XGBoost training
-      openclaw_bridge_service.py # OpenClaw bridge
-      openclaw_db.py       # OpenClaw SQLite persistence
-      sec_edgar_service.py # SEC EDGAR filings
-      signal_engine.py     # Signal scoring engine
-      training_store.py    # ML model artifact storage
-      unusual_whales_service.py # Options flow data
-      walk_forward_validator.py # Walk-forward validation
+      order_executor.py    # Council-controlled execution
+      signal_engine.py     # EventDrivenSignalEngine
+      data_sources/        # Data feed integrations
+      scanning/            # Signal scanning
+      trading/             # Trade execution services
     strategy/              # Trading strategy logic
     main.py                # FastAPI app entry point
     websocket_manager.py   # WebSocket connection manager
@@ -144,14 +154,13 @@ See `.env.example` for all available settings.
 
 ---
 
-## Known Issues (March 3, 2026)
+## Known Issues (March 10, 2026)
 
-- Backend needs first end-to-end runtime test (`uvicorn app.main:app --reload`)
+- `anthropic` package not in requirements.txt (lazy-imported at runtime)
 - `openclaw_bridge_service.py` is a large module needing split
-- `signal_engine.py` scoring may need alignment with OpenClaw 5-pillar system
-- torch/PyTorch removed from requirements.txt -- LSTM inference code may fail
+- End-to-end pipeline integration test needed (signal → council → order)
 
-**Critical**: Run `uvicorn app.main:app` locally before committing any backend changes.
+**All previous critical blockers resolved**: Backend starts successfully, 666 tests passing, authentication wired, council operational.
 
 ---
 

@@ -1,6 +1,6 @@
 # Project State - Embodier Trader (Embodier.ai)
 > Paste this file at the start of every new AI chat session. Say: "Read this project state document. Acknowledge you understand the architecture, and then I will give you your first task."
-> Last updated: March 7, 2026
+> Last updated: March 10, 2026
 
 ## Identity
 - **Project**: Embodier Trader by Embodier.ai
@@ -8,31 +8,24 @@
 - **Repo**: github.com/Espenator/elite-trading-system (PUBLIC — this is the ONE repo for all code)
 - **Legacy Repo**: github.com/Espenator/Embodier-Trader — forked HTML site + orphaned JS agents. TO BE ARCHIVED. Do NOT build here.
 - **Owner**: Espenator (Asheville, NC)
-- **Status**: Active development, Phase 2 — v3.5.0-dev (Continuous Discovery Architecture)
+- **Status**: Active development, Phase 3 — v4.1.0-dev (Production Hardening)
 - **Philosophy**: Embodied Intelligence — the system IS profit, not seeking it. It operates as a conscious profit-seeking being with a Central Nervous System (CNS) architecture.
-- **Current Focus**: Multi-PC compute infrastructure (Issue #39) + continuous real-time discovery firehose (Issue #38)
+- **Current Focus**: Electron desktop app packaging, end-to-end pipeline testing, production deployment
 
-## LATEST CHANGES (March 7, 2026) — v3.5.0-dev
+## LATEST CHANGES (March 10, 2026) — v4.1.0-dev
 
-### Architecture Pivot: Continuous Discovery (Issue #38)
-Full codebase audit revealed the system is 73% analyst, 27% scout. The 17-agent council brain is starved of ideas. HyperSwarm processes 40 signals/sec but is fed bursts every 60s. All discovery is polling-based (60-900s intervals). No streaming discovery exists.
+### Electron Desktop App BUILD-READY + Auth + WebSocket Wiring
+- 11 Electron bugs fixed (setup wizard IPC, missing methods, build config conflict, etc.)
+- End-to-end Bearer token authentication wired (Electron → backend → frontend)
+- WebSocket real-time data wired to 4 additional pages (Dashboard, Risk, TradeExecution, MarketRegime)
+- README fully updated with 3-tier LLM intelligence layer documentation
+- All 4 stale documentation files updated to reflect current state
 
-**Decision**: Invert the ratio. Build continuous discovery firehose. First: compute infrastructure (Issue #39), then: discovery enhancements (Issue #38).
+### Previous: v3.5.1 (March 9, 2026) — P0/P1 Fixes Complete
+All critical startup blockers resolved: TurboScanner score scale, council.verdict dedup, UnusualWhales MessageBus wiring, SelfAwareness activation, IntelligenceCache startup, brain gRPC wired, 12 Academic Edge agents added. 666 tests passing.
 
-**Issue #39 — Multi-PC Compute Architecture (prerequisite)**:
-- E0.1-E0.8: AlpacaKeyPool (3 keys, 3 WebSocket streams, 1000+ symbols), OllamaNodePool (shared across services), NodeDiscovery (auto-detect PC2), AlpacaStreamManager (multi-stream orchestrator), Brain Service enablement, UW/Finviz optimization
-
-**Issue #38 — Continuous Discovery (8-enhancement plan)**:
-1. **E1**: Streaming Discovery Engine (Alpaca `*` trade stream + news stream)
-2. **E2**: 12 Dedicated Scout Agents (always-running, all data sources active)
-3. **E3**: HyperSwarm Continuous Triage (priority queue, adaptive threshold)
-4. **E4**: Multi-Tier Council (Fast 5-agent <200ms + Deep 17-agent <2s)
-5. **E5**: Dynamic Universe (500-2000 symbols, self-healing)
-6. **E6**: Dual-Mode Agents (every analyst gets background scout mode)
-7. **E7**: Feedback-Driven Signal Amplification (scouts learn from outcomes)
-8. **E8**: Multi-Timeframe Scanning (5min/15min/1hr/daily/weekly)
-
-**Also completed**: Integration sprint — wired knowledge layer (MemoryBank, HeuristicEngine, KnowledgeGraph) into startup + feedback loop.
+### Previous: v3.5.0 (March 8, 2026) — 35-Agent Council + Brain Consciousness Audit
+Council expanded to 35 agents (from 13). Full brain consciousness audit (~250+ files, 42 bugs found). OpenClaw fully assimilated. Council subsystems built.
 
 ### Previous: v3.4.0 (March 6, 2026) — ALL 14 Frontend Pages Complete
 Every frontend page matches its mockup. ACC rebuilt into 5 files with 8 tabs. 20 orphaned files cleaned up.
@@ -40,20 +33,20 @@ Every frontend page matches its mockup. ACC rebuilt into 5 files with 8 tabs. 20
 ## Previous: v3.2.0 (March 5, 2026)
 
 ### Council-Controlled Intelligence (10 commits, CI Run #452 GREEN)
-The entire trade pipeline is now council-controlled. No signal reaches the order executor without passing through the 17-agent council (7 perception + 5 technical + 5 decision stages).
+The entire trade pipeline is now council-controlled. No signal reaches the order executor without passing through the 35-agent council (7 perception + 5 technical + 5 decision stages).
 
 **New Pipeline:**
 ```
-AlpacaStream → SignalEngine → CouncilGate (score >= 65) → 17-Agent Council → OrderExecutor → Alpaca
+AlpacaStream → SignalEngine → CouncilGate (score >= 65) → 35-Agent Council → OrderExecutor → Alpaca
 ```
 
 **New Files Created:**
-1. `council/council_gate.py` — CouncilGate class: bridges SignalEngine → Council → OrderExecutor. Intercepts all signals with score >= 65 and invokes the full 17-agent council before any trade.
+1. `council/council_gate.py` — CouncilGate class: bridges SignalEngine → Council → OrderExecutor. Intercepts all signals with score >= 65 and invokes the full 35-agent council before any trade.
 2. `council/weight_learner.py` — WeightLearner class: Bayesian self-learning agent weights. Updates alpha/beta from trade outcomes. Agents that vote correctly get higher weight over time.
 3. `services/trade_stats_service.py` — TradeStatsService class: Queries real win_rate, avg_win, avg_loss from DuckDB trade history. Replaces all hardcoded Kelly parameters.
 
 **Files Updated:**
-4. `council/schemas.py` — Docstring corrected: 8-agent → 17-agent
+4. `council/schemas.py` — Docstring corrected: 8-agent → 35-agent
 5. `api/v1/council.py` — 17 agents, 7 stages, added /weights endpoint + council_status endpoint
 6. `services/order_executor.py` — Now listens to `council.verdict` instead of raw `signal.generated`. Uses real DuckDB stats for Kelly sizing. Uses real ATR from features. Mock-source guard prevents trading on fake data.
 7. `main.py` — CouncilGate wired into pipeline startup. Version 3.2.0. Title "Embodier Trader".
@@ -67,7 +60,7 @@ AlpacaStream → SignalEngine → CouncilGate (score >= 65) → 17-Agent Council
 - [x] **P8**: Build agent self-awareness — Bayesian WeightLearner with alpha/beta tracking
 - [x] Fix stale docstrings — schemas.py, council.py API, arbiter.py all updated
 - [x] Remove hardcoded/mock data — OrderExecutor uses real DuckDB stats, real ATR, mock-source guard
-- [x] Council controls all trading — No signal bypasses the 17-agent council
+- [x] Council controls all trading — No signal bypasses the 35-agent council
 
 ## CRITICAL ARCHITECTURE AUDIT (March 4, 2026)
 
@@ -81,7 +74,7 @@ The codebase had five separate agent/decision systems. As of v3.2.0, Systems 2 a
 - **Problem**: These are NOT real agents. No daemon lifecycle, no health monitoring, no inter-agent communication.
 - **Status**: UNRESOLVED — needs P6
 
-#### System 2: Council (17-agent DAG) ← NOW CONNECTED TO SYSTEM 4
+#### System 2: Council (35-agent DAG) ← NOW CONNECTED TO SYSTEM 4
 - **Location**: `backend/app/council/` (runner.py, arbiter.py, schemas.py, council_gate.py, weight_learner.py, agents/)
 - **What it is**: 17 council agents in a 7-stage DAG with deterministic arbiter + Bayesian weight learning
 - **Agents**: market_perception, flow_perception, regime, intermarket, rsi, bbv, ema_trend, relative_strength, cycle_timing, hypothesis, strategy, risk, execution, critic (+ arbiter)
@@ -128,27 +121,30 @@ The codebase had five separate agent/decision systems. As of v3.2.0, Systems 2 a
 - [ ] **P3**: Build CircuitBreaker Reflexes (brainstem <50ms) — flash crash, VIX spike, drawdown limits
 - [ ] **P4**: Clean Up OpenClaw — extract useful logic, delete dead Flask app
 - [ ] **P5**: Build TaskSpawner — dynamic agent registry replacing hardcoded imports
-- [ ] **P6**: Unify Agent Command Center — show real 17-agent council state
+- [ ] **P6**: Unify Agent Command Center — show real 35-agent council state
 - [ ] **P7**: Wire brain_service gRPC — connect Ollama to hypothesis_agent and critic_agent
 
-### BLOCKERS
-- [ ] **BLOCKER-1**: Start backend for first time (uvicorn app.main:app)
-- [ ] **BLOCKER-2**: Establish WebSocket real-time data connectivity
-- [ ] **BLOCKER-3**: Add JWT authentication for live trading endpoints
+### BLOCKERS — ALL RESOLVED ✅
+- [x] **BLOCKER-1**: Start backend for first time — ✅ Running, 666 tests passing
+- [x] **BLOCKER-2**: Establish WebSocket real-time data — ✅ 5 pages wired with pub/sub
+- [x] **BLOCKER-3**: Add authentication for trading endpoints — ✅ Bearer token auth, fail-closed
 
 ## Tech Stack
 | Layer | Technology |
 |-------|------------|
 | Backend | Python 3.11, FastAPI, uvicorn |
-| Frontend | React 18 (Vite), Tailwind CSS, Lightweight Charts |
-| Database | DuckDB (WAL mode, connection pooling) |
-| ML | XGBoost, scikit-learn, LSTM (no PyTorch in prod) |
-| Council | 17-agent DAG with Bayesian-weighted arbiter (7 stages) |
-| Brain Service | gRPC + Ollama (PC2) for LLM inference |
+| Frontend | React 18 (Vite 5), Tailwind CSS, Lightweight Charts, Recharts |
+| Database | DuckDB (analytics, WAL mode) + SQLite (config/orders) |
+| ML | PyTorch LSTM, XGBoost, scikit-learn, hmmlearn |
+| LLM Intelligence | 3-tier router: Ollama (local, free) → Perplexity (web) → Claude (deep reasoning) |
+| Council | 35-agent DAG with Bayesian-weighted arbiter (7 stages) |
+| Knowledge | MemoryBank + HeuristicEngine + KnowledgeGraph + Embedding search |
+| Brain Service | gRPC + Ollama (PC2), dual-PC model pinning |
 | Event Pipeline | MessageBus → CouncilGate → Council → OrderExecutor |
-| CI/CD | GitHub Actions (151 tests passing) |
-| Infra | Docker, docker-compose.yml |
-| Local AI | Ollama on RTX GPU cluster |
+| Authentication | Bearer token auth, fail-closed (backend/app/core/security.py) |
+| Desktop | Electron 29 + PyInstaller bundled backend (BUILD-READY) |
+| CI/CD | GitHub Actions (666 tests passing) |
+| Infra | Docker, docker-compose.yml, Redis (cross-PC messaging) |
 
 ## Data Sources (CRITICAL - NO yfinance)
 
@@ -160,21 +156,34 @@ The codebase had five separate agent/decision systems. As of v3.2.0, Systems 2 a
 - StockGeist / News API / Discord / X — Social sentiment (via council agents)
 - YouTube — Transcript intelligence (via council agent)
 
-## Council Architecture (13-Agent DAG, 7 Stages)
+## Council Architecture (35-Agent DAG, 7 Stages)
 ```
-Stage 1 (Parallel, 7): market_perception, flow_perception, regime, social_perception, news_catalyst, youtube_knowledge, intermarket
-Stage 2 (Parallel, 5): rsi, bbv, ema_trend, relative_strength, cycle_timing
-Stage 3: hypothesis (wired to brain_service LLM, reads blackboard)
-Stage 4: strategy (entry/exit/sizing, confidence modulated by social+news consensus)
-Stage 5 (Parallel): risk, execution
-Stage 6: critic (postmortem learning)
+Stage 1 (Parallel — Perception + Academic Edge, 13 agents):
+  market_perception, flow_perception, regime, social_perception,
+  news_catalyst, youtube_knowledge, intermarket,
+  gex_agent, insider_agent, finbert_sentiment_agent,
+  earnings_tone_agent, dark_pool_agent, macro_regime_agent
+
+Stage 2 (Parallel — Technical + Data Enrichment, 8 agents):
+  rsi, bbv, ema_trend, relative_strength, cycle_timing,
+  supply_chain_agent, institutional_flow_agent, congressional_agent
+
+Stage 3 (Hypothesis + Memory, 2 agents):
+  hypothesis (LLM via brain gRPC), layered_memory_agent
+
+Stage 4: strategy (entry/exit/sizing)
+Stage 5 (Risk + Execution + Portfolio, 3 agents): risk, execution, portfolio_optimizer_agent
+Stage 5.5 (Debate + Red Team, 3 agents): bull_debater, bear_debater, red_team
+Stage 6: critic (postmortem learning, Claude deep reasoning fallback)
 Stage 7: arbiter (deterministic BUY/SELL/HOLD with Bayesian weights)
+Post-Arbiter (Background): alt_data_agent
 ```
 
 Agent Groups:
-- **Core (8)**: market_perception, flow_perception, regime, hypothesis, strategy, risk, execution, critic
-- **Data-Source Perception (3)**: social_perception (0.7), news_catalyst (0.6), youtube_knowledge (0.4)
-- **Technical Analysis (5)**: rsi, bbv, ema_trend, intermarket, relative_strength, cycle_timing
+- **Core (11)**: market_perception, flow_perception, regime, social_perception, news_catalyst, youtube_knowledge, hypothesis, strategy, risk, execution, critic
+- **Academic Edge (12, P0-P4)**: gex, insider, earnings_tone, finbert_sentiment, supply_chain, institutional_flow, congressional, dark_pool, portfolio_optimizer, layered_memory, alt_data, macro_regime
+- **Technical (6)**: rsi, bbv, ema_trend, intermarket, relative_strength, cycle_timing
+- **Debate (3)**: bull_debater, bear_debater, red_team
 
 Arbiter Rules:
 1. VETO from risk or execution -> hold, vetoed=True
@@ -185,16 +194,20 @@ Arbiter Rules:
 Agent Schema: `AgentVote(agent_name, direction, confidence, reasoning, veto, veto_reason, weight, metadata)`
 
 ## CNS Architecture (Central Nervous System)
-- **Brainstem** (<50ms): CircuitBreaker reflexes [TO BUILD - P3]
-- **Spinal Cord** (~1500ms): 17-agent council DAG [BUILT]
-- **Cortex** (300-800ms): hypothesis + critic via brain_service gRPC [NOT WIRED - P7]
-- **Thalamus**: BlackboardState shared memory [TO BUILD - P1]
-- **Autonomic**: Bayesian WeightLearner [BUILT - P8] — learns from trade outcomes
-- **PNS Sensory**: Alpaca WS, Unusual Whales, FinViz, FRED, EDGAR [BUILT — transitioning to streaming]
-- **Discovery Layer**: StreamingDiscoveryEngine + 12 Scout Agents + Dynamic Universe [PLANNED — Issue #38]
+- **Brainstem** (<50ms): CircuitBreaker reflexes [BUILT — backend/app/council/reflexes/]
+- **Spinal Cord** (~1500ms): 35-agent council DAG [BUILT — 7 stages]
+- **Cortex** (300-800ms): hypothesis via brain gRPC + critic via Claude deep reasoning [WIRED]
+- **Thalamus**: BlackboardState shared memory [BUILT — backend/app/council/blackboard.py]
+- **Autonomic**: Bayesian WeightLearner [BUILT] — learns from trade outcomes
+- **Metacognition**: SelfAwareness + CognitiveTelemetry [BUILT + ACTIVE]
+- **Homeostasis**: System stability monitoring + auto-healing [BUILT]
+- **PNS Sensory**: Alpaca WS, Unusual Whales, FinViz, FRED, EDGAR, NewsAPI [BUILT]
+- **Intelligence Layer**: 3-tier LLM router (Ollama → Perplexity → Claude) [BUILT]
+- **Knowledge Layer**: MemoryBank + HeuristicEngine + KnowledgeGraph + Embeddings [BUILT]
 - **PNS Motor**: OrderExecutor -> Alpaca Orders (via council.verdict) [BUILT]
 - **Event Bus**: MessageBus pub/sub [BUILT]
-- **Council Gate**: SignalEngine → Council → OrderExecutor bridge [BUILT - P0]
+- **Council Gate**: SignalEngine → Council → OrderExecutor bridge [BUILT]
+- **HITL Gate**: Human-in-the-loop approval gate [BUILT]
 
 ## Event-Driven Pipeline (BUILT — v3.2.0)
 ```
@@ -202,8 +215,8 @@ AlpacaStreamService
   -> market_data.bar
   -> EventDrivenSignalEngine
   -> signal.generated (score >= 65)
-  -> CouncilGate (invokes 17-agent council)
-  -> council.verdict (BUY/SELL/HOLD)
+  -> CouncilGate (invokes 35-agent council + IntelligenceOrchestrator)
+  -> council.verdict (BUY/SELL/HOLD with Bayesian-weighted confidence)
   -> OrderExecutor (real DuckDB stats, real ATR, mock-source guard)
   -> order.submitted
   -> WebSocket bridges
@@ -213,11 +226,13 @@ AlpacaStreamService
 ## Architecture
 
 ```
-[React Frontend] --useApi()--> [FastAPI Backend] --services--> [External APIs]
-15 pages, 31 API route files, WebSocket via websocket_manager.py
-17-Agent Council DAG, ML Engine (XGBoost), DuckDB Analytics
-[Brain Service gRPC] <-- Ollama LLM inference on PC2
-[Electron Desktop Shell] -- spawns backend + serves frontend
+[React Frontend (14 pages)] --useApi()+WebSocket--> [FastAPI Backend (34 routes, 68+ services)]
+  --3-tier LLM--> [Ollama (local) | Perplexity (web) | Claude (deep reasoning)]
+  --services--> [Alpaca, Unusual Whales, Finviz, FRED, SEC EDGAR, NewsAPI]
+35-Agent Council DAG (7 stages), ML Engine (LSTM + XGBoost), DuckDB Analytics
+[Brain Service gRPC :50051] <-- Ollama LLM inference on PC2
+[Electron Desktop Shell] -- spawns backend + serves frontend (BUILD-READY)
+Bearer token auth: Electron generates -> backend validates -> frontend sends
 ```
 
 ## Key Code Patterns
@@ -230,19 +245,21 @@ AlpacaStreamService
 6. Council Gate: signal.generated -> CouncilGate -> run_council() -> council.verdict -> OrderExecutor
 7. Weight Learning: WeightLearner.update(agent, won) adjusts Bayesian alpha/beta -> arbiter uses learned weights
 
-## Current State (Mar 7, 2026 — v3.5.0-dev)
-- CI: 151 tests passing (Run #452 GREEN)
-- Version: 3.5.0-dev (Continuous Discovery Architecture in progress)
-- Frontend: 14 pages, all pixel-matched to mockups, wired to real API hooks
-- Backend: 29 API routes, 24+ service files, knowledge layer wired
-- Council: 17 agents + arbiter + runner + CouncilGate + WeightLearner (fully connected)
-- Discovery: TurboScanner (10 screens) + HyperSwarm (50 workers) + AutonomousScout (4 scouts) + 6 UW agents — ALL POLLING, transitioning to streaming (Issue #38)
-- Knowledge: MemoryBank + HeuristicEngine + KnowledgeGraph (wired to outcome tracker)
-- Brain Service: gRPC + Ollama ready (not yet connected to council)
+## Current State (Mar 10, 2026 — v4.1.0-dev)
+- CI: 666 tests passing (CI GREEN)
+- Version: 4.1.0-dev (Production Hardening)
+- Frontend: 14 pages, all pixel-matched to mockups, WebSocket wired to 5 pages
+- Backend: 34 API routes, 68+ service files, 3-tier LLM router operational
+- Council: 35 agents + arbiter + runner + CouncilGate + WeightLearner (fully connected)
+- LLM: Ollama (free, <500ms) → Perplexity (web, <3s) → Claude (deep reasoning, <10s)
+- Knowledge: MemoryBank + HeuristicEngine + KnowledgeGraph + Embedding search (wired)
+- Brain Service: gRPC + Ollama wired to hypothesis_agent
+- Authentication: Bearer token auth, fail-closed, end-to-end (Electron → backend → frontend)
 - Event Pipeline: MessageBus + CouncilGate + SignalEngine + OrderExecutor running
+- Desktop: Electron 29 BUILD-READY (11 bugs fixed, auth wired, IPC working)
 - Kelly Sizing: Real DuckDB stats (no hardcoded values)
 - Mock Guard: OrderExecutor rejects trades from mock data sources
-- **Next milestone**: E1 + E2 (streaming discovery + 12 scout agents)
+- **Next milestone**: End-to-end pipeline integration test, Electron build + package
 
 ## UI MOCKUP FIDELITY AUDIT (Mar 6, 2026)
 
@@ -307,7 +324,7 @@ A comprehensive pixel-by-pixel audit was performed comparing all 23 mockup image
 4. ALWAYS use 4-space indentation in Python
 5. Council agents MUST return AgentVote schema
 6. The ONE repo is Espenator/elite-trading-system — do NOT commit to Embodier-Trader
-7. Council has 17 agents in 7 stages — NOT 8 or 13 agents
+7. Council has 35 agents in 7 stages — NOT 17 or 13 agents
 8. Read CRITICAL ARCHITECTURE AUDIT section before making changes
 9. Agent pattern: module-level NAME + WEIGHT + async def evaluate() -> AgentVote
 10. VETO_AGENTS = {"risk", "execution"} — only these can veto

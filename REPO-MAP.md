@@ -1,19 +1,20 @@
 # Embodier Trader - Repository Map
-> Auto-generated reference for AI coding assistants. Last updated: March 7, 2026 (v3.5.0-dev).
-> Run `python map_repo.py` to regenerate, or `python bundle_files.py` to bundle key files.
-> **Current Focus**: Continuous Discovery Architecture (Issue #38)
+> Reference for AI coding assistants. Last updated: March 10, 2026 (v4.1.0-dev).
+> **Current Focus**: Production hardening — Electron desktop app, end-to-end testing
 
 ## Tech Stack
-- **Backend**: Python 3.11, FastAPI, DuckDB
-- **Frontend**: React 18 (Vite), Lightweight Charts, Tailwind CSS
-- **Council**: 17-agent DAG with Bayesian-weighted arbiter (7 stages)
-- **Discovery**: TurboScanner + HyperSwarm + 12 Scout Agents (Issue #38 — streaming transition)
-- **Knowledge**: MemoryBank + HeuristicEngine + KnowledgeGraph (outcome-driven learning)
-- **Data Sources**: Alpaca Markets, Unusual Whales, FinViz, FRED, SEC EDGAR (NO yfinance)
-- **Event Pipeline**: MessageBus -> CouncilGate -> Council -> OrderExecutor
-- **Brain Service**: gRPC + Ollama (local LLM on RTX GPU)
-- **CI/CD**: GitHub Actions (`.github/workflows/ci.yml`) — 151 tests passing
-- **Infra**: Docker, docker-compose.yml
+- **Backend**: Python 3.11, FastAPI, DuckDB (analytics) + SQLite (config/orders)
+- **Frontend**: React 18 (Vite 5), Lightweight Charts, Recharts, Tailwind CSS
+- **Council**: 35-agent DAG with Bayesian-weighted arbiter (7 stages)
+- **LLM Intelligence**: 3-tier router — Ollama (local, free) → Perplexity (web) → Claude (deep reasoning)
+- **Knowledge**: MemoryBank + HeuristicEngine + KnowledgeGraph + Embedding Search (all-MiniLM-L6-v2)
+- **Data Sources**: Alpaca Markets, Unusual Whales, FinViz, FRED, SEC EDGAR, NewsAPI (NO yfinance)
+- **Event Pipeline**: MessageBus → CouncilGate → Council → OrderExecutor
+- **Brain Service**: gRPC + Ollama (local LLM on RTX GPU, dual-PC model pinning)
+- **Authentication**: Bearer token auth, fail-closed (backend/app/core/security.py)
+- **Desktop**: Electron 29 + PyInstaller bundled backend (BUILD-READY)
+- **CI/CD**: GitHub Actions (`.github/workflows/ci.yml`) — 666 tests passing
+- **Infra**: Docker, docker-compose.yml, Redis (cross-PC messaging)
 
 ## Directory Tree
 
@@ -46,17 +47,20 @@ elite-trading-system/
 |   |   |-- main.py                    # FastAPI app entry (v3.2.0, Embodier Trader)
 |   |   |-- websocket_manager.py       # WebSocket broadcast manager
 |   |   |
-|   |   |-- api/v1/                    # REST API endpoints (29 routes)
-|   |   |   |-- __init__.py
-|   |   |   |-- agents.py              # Agent Command Center (5 template agents)
+|   |   |-- api/v1/                    # REST API endpoints (34 route files)
+|   |   |   |-- agents.py              # Agent Command Center
 |   |   |   |-- alerts.py              # Drawdown alerts, system alerts
 |   |   |   |-- alignment.py           # Alignment/consensus endpoints
 |   |   |   |-- alpaca.py              # Alpaca API proxy for frontend
 |   |   |   |-- backtest_routes.py     # Strategy backtesting
-|   |   |   |-- council.py             # Council evaluate, status, weights (13-agent)
+|   |   |   |-- cluster.py             # Cluster management
+|   |   |   |-- cns.py                 # CNS: homeostasis, circuit breaker, postmortems
+|   |   |   |-- cognitive.py           # Cognitive telemetry dashboard
+|   |   |   |-- council.py             # Council evaluate, status, weights (35-agent)
 |   |   |   |-- data_sources.py        # Data source health
 |   |   |   |-- features.py            # Feature aggregator endpoints
 |   |   |   |-- flywheel.py            # ML flywheel metrics
+|   |   |   |-- llm_health.py          # LLM health monitoring + circuit breaker
 |   |   |   |-- logs.py                # System logs
 |   |   |   |-- market.py              # Market data, regime, indices
 |   |   |   |-- ml_brain.py            # ML model management
@@ -74,38 +78,38 @@ elite-trading-system/
 |   |   |   |-- status.py              # System health
 |   |   |   |-- stocks.py              # Finviz screener
 |   |   |   |-- strategy.py            # Regime-based strategies
+|   |   |   |-- swarm.py               # Swarm intelligence operations
 |   |   |   |-- system.py              # System config, GPU
 |   |   |   |-- training.py            # ML training jobs
 |   |   |   |-- youtube_knowledge.py   # YouTube research
 |   |   |
-|   |   |-- council/                   # 13-Agent Council DAG (7 stages)
+|   |   |-- council/                   # 35-Agent Council DAG (7 stages)
 |   |   |   |-- __init__.py
-|   |   |   |-- runner.py              # 7-stage parallel DAG orchestrator
+|   |   |   |-- runner.py              # 7-stage parallel DAG orchestrator (profit spine)
 |   |   |   |-- arbiter.py             # Deterministic arbiter + Bayesian weights
 |   |   |   |-- schemas.py             # AgentVote + DecisionPacket dataclasses
-|   |   |   |-- council_gate.py        # Bridge: SignalEngine -> Council -> OrderExecutor (NEW v3.2.0)
-|   |   |   |-- weight_learner.py      # Bayesian self-learning agent weights (NEW v3.2.0)
-|   |   |   |-- agents/
-|   |   |       |-- __init__.py
-|   |   |       |-- market_perception_agent.py   # Stage 1: market conditions
-|   |   |       |-- flow_perception_agent.py     # Stage 1: options flow PCR
-|   |   |       |-- regime_agent.py              # Stage 1: market regime alignment
-|   |   |       |-- intermarket_agent.py         # Stage 1: cross-market correlations
-|   |   |       |-- rsi_agent.py                 # Stage 2: multi-timeframe RSI
-|   |   |       |-- bbv_agent.py                 # Stage 2: Bollinger Band mean-reversion
-|   |   |       |-- ema_trend_agent.py           # Stage 2: EMA cascade classification
-|   |   |       |-- relative_strength_agent.py   # Stage 2: sector relative strength
-|   |   |       |-- cycle_timing_agent.py        # Stage 2: market cycle timing
-|   |   |       |-- hypothesis_agent.py          # Stage 3: brain_service LLM (stub)
-|   |   |       |-- strategy_agent.py            # Stage 4: entry/exit/sizing
-|   |   |       |-- risk_agent.py                # Stage 5: risk assessment (VETO)
-|   |   |       |-- execution_agent.py           # Stage 5: execution readiness (VETO)
-|   |   |       |-- critic_agent.py              # Stage 6: postmortem learning
+|   |   |   |-- council_gate.py        # Bridge: SignalEngine -> Council -> OrderExecutor
+|   |   |   |-- weight_learner.py      # Bayesian self-learning agent weights
+|   |   |   |-- blackboard.py          # Shared memory state across DAG stages
+|   |   |   |-- self_awareness.py      # System metacognition + Bayesian tracking
+|   |   |   |-- task_spawner.py        # Dynamic agent registry + spawning
+|   |   |   |-- homeostasis.py         # System stability + auto-healing
+|   |   |   |-- hitl_gate.py           # Human-in-the-loop approval gate
+|   |   |   |-- feedback_loop.py       # Post-trade feedback to agents
+|   |   |   |-- agent_config.py        # Settings-driven thresholds for all 35 agents
+|   |   |   |-- debate/                # Bull/Bear debate + red team
+|   |   |   |-- directives/            # Council directives
+|   |   |   |-- reflexes/              # Circuit breaker reflexes
+|   |   |   |-- regime/                # Bayesian regime classification
+|   |   |   |-- agents/                # 35 agent implementations
+|   |   |       |-- (11 core + 12 academic edge + 6 technical + 3 debate + 3 others)
 |   |   |
 |   |   |-- core/
 |   |   |   |-- __init__.py
-|   |   |   |-- config.py              # App configuration
+|   |   |   |-- config.py              # App configuration (359 settings)
 |   |   |   |-- message_bus.py         # Async pub/sub event bus
+|   |   |   |-- security.py            # Bearer token auth (fail-closed)
+|   |   |   |-- alignment/             # 8 alignment/constraint files
 |   |   |
 |   |   |-- data/
 |   |   |   |-- __init__.py
@@ -154,64 +158,71 @@ elite-trading-system/
 |   |   |   |-- __init__.py
 |   |   |   |-- signals.py            # Signal data models
 |   |   |
-|   |   |-- services/                 # Business logic layer (24 files)
-|   |   |   |-- __init__.py
+|   |   |-- knowledge/                # ETBI cognitive intelligence
+|   |   |   |-- heuristic_engine.py    # Regime-aware heuristic activation
+|   |   |   |-- memory_bank.py         # Agent observations per symbol/regime
+|   |   |   |-- embedding_service.py   # Batch embeddings (all-MiniLM-L6-v2)
+|   |   |   |-- knowledge_graph.py     # Cross-agent pattern relationships
+|   |   |
+|   |   |-- services/                 # Business logic layer (68+ files)
+|   |   |   |-- llm_router.py             # 3-tier LLM routing (Ollama/Perplexity/Claude)
+|   |   |   |-- llm_clients/              # Claude, Ollama, Perplexity wrappers
+|   |   |   |   |-- claude_client.py       # Anthropic AsyncAnthropic SDK
+|   |   |   |   |-- ollama_client.py       # Ollama HTTP client
+|   |   |   |-- claude_reasoning.py        # Deep reasoning service (7 methods)
+|   |   |   |-- intelligence_orchestrator.py # Pre-council multi-tier gathering
+|   |   |   |-- adaptive_router.py         # Auto-escalate to cloud if local <45%
+|   |   |   |-- brain_client.py            # gRPC client for brain_service (PC2)
 |   |   |   |-- alpaca_service.py          # Alpaca broker REST
 |   |   |   |-- alpaca_stream_service.py   # Alpaca WebSocket -> MessageBus
-|   |   |   |-- backtest_engine.py         # Backtester + Monte Carlo
-|   |   |   |-- brain_client.py            # gRPC client for brain_service
-|   |   |   |-- data_ingestion.py          # Data ingestion pipeline
-|   |   |   |-- database.py               # DuckDB layer (WAL, pooling)
-|   |   |   |-- execution_simulator.py     # Paper trading simulator
-|   |   |   |-- feature_service.py         # DuckDB feature queries
-|   |   |   |-- finviz_service.py          # Finviz screening
-|   |   |   |-- fred_service.py            # FRED economic data
-|   |   |   |-- kelly_position_sizer.py    # Kelly criterion sizing
-|   |   |   |-- market_data_agent.py       # Market data aggregation
-|   |   |   |-- ml_training.py             # LSTM/XGBoost training
-|   |   |   |-- openclaw_bridge_service.py # OpenClaw bridge
-|   |   |   |-- openclaw_db.py             # OpenClaw SQLite
 |   |   |   |-- order_executor.py          # Council-controlled order execution
-|   |   |   |-- sec_edgar_service.py       # SEC EDGAR filings
-|   |   |   |-- settings_service.py        # Settings CRUD service
 |   |   |   |-- signal_engine.py           # Signal scoring + EventDrivenSignalEngine
-|   |   |   |-- trade_stats_service.py     # Real DuckDB trade stats (NEW v3.2.0)
-|   |   |   |-- training_store.py          # ML artifact storage
-|   |   |   |-- unusual_whales_service.py  # Options flow
-|   |   |   |-- walk_forward_validator.py  # Walk-forward validation
+|   |   |   |-- data_sources/              # Data feed integrations
+|   |   |   |-- scanning/                  # Signal scanning
+|   |   |   |-- trading/                   # Trade execution services
+|   |   |   |-- (+ 50 more service files)
 |   |   |
 |   |   |-- strategy/
 |   |       |-- __init__.py
 |   |       |-- backtest.py            # Backtest framework
 |   |
-|   |-- tests/
-|       |-- __init__.py
+|   |-- tests/                         # 37 test files (666 tests passing)
 |       |-- conftest.py                # Test fixtures
-|       |-- test_api.py                # API integration tests (151 tests)
+|       |-- test_api.py                # API integration tests
 |
 |-- brain_service/                     # gRPC + Ollama LLM service (PC2)
+|   |-- server.py                      # Async gRPC server (port 50051)
+|   |-- ollama_client.py               # Ollama HTTP client
+|   |-- proto/brain.proto              # Service definition (InferCandidateContext, CriticPostmortem, Embed)
 |
 |-- core/
 |   |-- api/
 |       |-- ml_api.py                  # ML API standalone module
 |
-|-- frontend-v2/                       # React frontend (Vite)
+|-- desktop/                           # Electron desktop app (BUILD-READY)
+|   |-- main.js                        # Electron main process
+|   |-- preload.js                     # Context-isolated IPC bridge
+|   |-- backend-manager.js             # PyInstaller backend launcher
+|   |-- service-orchestrator.js        # Role-based service control
+|   |-- peer-monitor.js                # 2-PC health monitoring
+|   |-- ollama-fallback.js             # Local LLM fallback
+|   |-- device-config.js               # Device identity + auth token generation
+|   |-- pages/setup.html               # First-run setup wizard
+|
+|-- frontend-v2/                       # React frontend (Vite 5)
 |   |-- Dockerfile
 |   |-- package.json
-|   |-- package-lock.json
-|   |-- index.html
-|   |-- nginx.conf
-|   |-- vite.config.js
+|   |-- vite.config.js                 # Dev server port 3000, proxy /api + /ws
 |   |-- .env.example
 |   |
 |   |-- src/
 |       |-- App.jsx                    # Root component + routing
-|       |-- main.jsx                   # React entry point
+|       |-- main.jsx                   # React entry + auth init from Electron
 |       |-- index.css                  # Global styles (Tailwind)
 |       |-- V3-ARCHITECTURE.md         # Frontend architecture doc
 |       |
 |       |-- config/
-|       |   |-- api.js                 # API base URL config
+|       |   |-- api.js                 # API URLs + WebSocket + auth headers
 |       |
 |       |-- hooks/
 |       |   |-- useApi.js              # Central API hook
@@ -308,33 +319,37 @@ elite-trading-system/
 
 ## Key Architecture Notes
 
-1. **No yfinance** - All market data via Alpaca, Unusual Whales, FinViz, FRED, SEC EDGAR
-2. **Real API only** - No mock data in production components
-3. **useApi hook** - Central data fetching: `useApi('endpoint')` returns `{ data, loading, error }`
-4. **Council-controlled trading** - All signals pass through 17-agent council via CouncilGate before execution
-5. **Bayesian weight learning** - WeightLearner adjusts agent influence based on trade outcomes
-6. **DuckDB** - Primary analytics database (WAL mode, connection pooling)
-7. **OpenClaw** - Legacy code with useful scanner/agent pieces, scheduled for cleanup (P4)
-8. **CI** - 151 tests passing, GitHub Actions on every push
-9. **Brain Service** - gRPC + Ollama on PC2 for LLM inference (not yet wired to council)
-10. **Discovery** - Transitioning from periodic polling to continuous streaming (Issue #38)
-11. **Knowledge Layer** - MemoryBank + HeuristicEngine + KnowledgeGraph learn from trade outcomes
+1. **No yfinance** — All market data via Alpaca, Unusual Whales, FinViz, FRED, SEC EDGAR
+2. **Real API only** — No mock data in production components
+3. **useApi hook** — Central data fetching: `useApi('endpoint')` returns `{ data, loading, error }`
+4. **Council-controlled trading** — All signals pass through 35-agent council via CouncilGate before execution
+5. **Bayesian weight learning** — WeightLearner adjusts agent influence based on trade outcomes
+6. **3-tier LLM router** — Ollama (free, <500ms) → Perplexity (web, <3s) → Claude (deep, <10s). Cost-optimized: local handles 80%+
+7. **DuckDB** — Primary analytics database (WAL mode, connection pooling)
+8. **Bearer token auth** — Fail-closed: no token = all state-changing endpoints blocked
+9. **CI** — 666 tests passing, GitHub Actions on every push
+10. **Brain Service** — gRPC + Ollama on PC2 for LLM inference, wired to hypothesis_agent
+11. **Knowledge Layer** — MemoryBank + HeuristicEngine + KnowledgeGraph + Embedding search
+12. **Electron desktop** — One-click startup, role-aware (full/primary/secondary), peer resilience
+13. **WebSocket** — Real-time pub/sub: 5 pages wired (Dashboard, Risk, TradeExecution, MarketRegime) + bridges
 
-## Discovery + Trade Pipeline (v3.5.0-dev)
+## Trade Pipeline (v4.1.0-dev)
 
 ```
-DISCOVERY (continuous — Issue #38):
-  StreamingDiscoveryEngine (Alpaca * stream) -> volume/price anomalies
-  12 Scout Agents (UW flow, insider, news, sentiment, etc.) -> discoveries
-  TurboScanner (60s, 10 DuckDB screens, 8000+ symbols) -> signals
-  MarketWideSweep (4hr full, 30min incremental) -> signals
+DISCOVERY:
+  TurboScanner (60s, 10 DuckDB screens) -> signals
+  12 Scout Agents (UW flow, insider, news, sentiment) -> discoveries
   All -> swarm.idea (MessageBus)
 
 TRIAGE:
-  swarm.idea -> HyperSwarm (50 workers, Ollama <500ms) -> score >= 65 escalated
+  swarm.idea -> IdeaTriageService (dedup, priority scoring) -> HyperSwarm -> score >= 0.65 escalated
 
-EVALUATION:
-  Escalated -> SwarmSpawner -> 17-Agent Council (7 stages) -> council.verdict
+EVALUATION (35-agent council, 7 stages):
+  IntelligenceOrchestrator (Ollama + Perplexity + optional Claude)
+    -> Knowledge recall (MemoryBank + HeuristicEngine)
+    -> Circuit breaker check (brainstem reflexes)
+    -> Council DAG: perception → technical → hypothesis → strategy → risk → debate → arbiter
+    -> council.verdict (BUY/SELL/HOLD with Bayesian-weighted confidence)
 
 EXECUTION:
   council.verdict -> OrderExecutor (real DuckDB stats, real ATR, mock guard) -> Alpaca
@@ -347,4 +362,4 @@ LEARNING:
 
 All backend routes: `http://localhost:8000/api/v1/{service}`
 
-Services: `agents`, `alerts`, `alignment`, `alpaca`, `backtest`, `council`, `data-sources`, `features`, `flywheel`, `logs`, `market`, `ml-brain`, `openclaw`, `orders`, `patterns`, `performance`, `portfolio`, `quotes`, `risk`, `risk-shield`, `sentiment`, `settings`, `signals`, `status`, `stocks`, `strategy`, `system`, `training`, `youtube-knowledge`
+Services: `agents`, `alerts`, `alignment`, `alpaca`, `backtest`, `cluster`, `cns`, `cognitive`, `council`, `data-sources`, `features`, `flywheel`, `llm-health`, `logs`, `market`, `ml-brain`, `openclaw`, `orders`, `patterns`, `performance`, `portfolio`, `quotes`, `risk`, `risk-shield`, `sentiment`, `settings`, `signals`, `status`, `stocks`, `strategy`, `swarm`, `system`, `training`, `youtube-knowledge`

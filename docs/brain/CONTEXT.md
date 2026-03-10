@@ -39,42 +39,46 @@
 
 ---
 
-## 🚀 EMBODIER TRADER APP — CURRENT STATE (Audited 2026-03-02)
+## 🚀 EMBODIER TRADER APP — CURRENT STATE (Updated 2026-03-10)
 
-### Architecture: Full-Stack Trading System (336 files)
+### Architecture: Full-Stack AI Trading Intelligence Platform
 ```
 elite-trading-system/
-├── backend/          ← Python FastAPI (20+ API routes, OpenClaw agents, ML engine)
-│   ├── app/api/v1/   ← 20 route modules (signals, market, orders, risk, ml_brain...)
-│   ├── app/core/     ← Config + Alignment engine (Bible enforcement)
-│   ├── app/modules/  ← OpenClaw (multi-agent), ML engine, Social/News, YouTube agent
-│   ├── app/services/ ← Alpaca, Finviz, Unusual Whales, FRED, SEC EDGAR
-│   └── tests/        ← 22 tests (~4% coverage)
-├── frontend-v2/      ← React + Vite + Tailwind (15 pages)
-│   ├── src/pages/    ← Dashboard, SignalIntelligence, TradeExecution, Agents...
-│   ├── src/hooks/    ← useApi, useWebSocket, useSettings
-│   └── src/components/ ← 30+ components (charts, dashboard, UI kit)
-└── docs/             ← Mockups, audits, implementation plans
+├── backend/          ← Python FastAPI (34 API routes, 35-agent council, 68+ services)
+│   ├── app/api/v1/   ← 34 route modules
+│   ├── app/council/  ← 35-agent DAG (7 stages) with Bayesian weights
+│   ├── app/core/     ← Config, security (Bearer auth), alignment, message bus
+│   ├── app/knowledge/ ← Heuristics + memory bank + embeddings
+│   ├── app/services/  ← 68+ files: LLM router, Alpaca, data sources, scanning
+│   │   └── llm_clients/ ← Claude, Ollama, Perplexity SDK wrappers
+│   └── tests/        ← 37 test files (666 tests passing)
+├── frontend-v2/      ← React 18 + Vite 5 + Tailwind (14 pages, ALL COMPLETE)
+│   ├── src/pages/    ← All 14 pages pixel-matched to mockups
+│   ├── src/config/   ← API + WebSocket + auth config
+│   └── src/components/ ← 22 shared components
+├── desktop/          ← Electron 29 desktop app (BUILD-READY, 11 bugs fixed)
+├── brain_service/    ← gRPC + Ollama LLM inference (PC2)
+└── docs/             ← 60+ docs (architecture, audits, research)
 ```
 
-### System Health Score: 5.8/10 (40% functional, 60% scaffolding)
-- **Backend:** ❌ NOT STARTING (4 critical blockers — see task board)
-- **Frontend:** 🟡 75% Complete (all 15 pages wired, some stubs remain)
-- **ML Engine:** 🟡 Pipeline solid, training has data leakage bug
-- **Tests:** ❌ 4% coverage (need 20%+ for trading system)
-- **Docker:** 🟡 Basic but functional
-
-### Top-Quality Modules (9/10)
-- `backend/app/api/v1/orders.py` — Production-quality order execution
-- `frontend-v2/src/pages/TradeExecution.jsx` — Fully wired trade UI
-- `backend/app/modules/ml_engine/outcome_resolver.py` — Clean ML resolution
+### System Health Score: 8.5/10
+- **Backend:** ✅ RUNNING — 666 tests passing, all routes mounted
+- **Frontend:** ✅ ALL 14 PAGES COMPLETE — pixel-matched to 23 mockups
+- **Council:** ✅ 35-agent DAG operational across 7 stages
+- **LLM Intelligence:** ✅ 3-tier router: Ollama (free) → Perplexity (web) → Claude (deep)
+- **Authentication:** ✅ Bearer token auth, fail-closed
+- **WebSocket:** ✅ 5 pages wired with real-time pub/sub
+- **Desktop:** ✅ Electron BUILD-READY (11 bugs fixed)
+- **Tests:** ✅ 666 passing (CI GREEN)
+- **Docker:** ✅ docker-compose.yml with Redis, Backend, Frontend
 
 ### Key Integrations
-- **Broker:** Alpaca (paper + live)
-- **Data:** Finviz Elite, Unusual Whales, FRED, SEC EDGAR, TradingView
-- **ML:** XGBoost + LSTM, 30+ features, drift detection
-- **Agents:** OpenClaw multi-agent system (scanners, scorers, executors)
-- **Real-time:** WebSocket streaming (needs auth)
+- **Broker:** Alpaca (paper + live via alpaca-py)
+- **Data:** Finviz Elite, Unusual Whales, FRED, SEC EDGAR, NewsAPI
+- **ML:** PyTorch LSTM + XGBoost ensemble, drift detection, walk-forward validation
+- **LLM:** Ollama (local, free) + Perplexity Sonar Pro (web) + Claude (deep reasoning)
+- **Agents:** 35-agent council DAG + 12 Academic Edge Swarms
+- **Real-time:** WebSocket streaming with auth
 
 ### GitHub
 - **Repo:** https://github.com/Espenator/elite-trading-system (public)
