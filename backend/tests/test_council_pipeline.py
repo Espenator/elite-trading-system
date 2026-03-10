@@ -149,8 +149,11 @@ def test_cors_production_empty_by_default():
     from app.core.config import Settings
 
     s = Settings(ENVIRONMENT="production", CORS_ORIGINS="")
-    # effective_cors_origins always includes localhost dev defaults for out-of-box DX
-    assert "localhost" in s.effective_cors_origins
+    # effective_cors_origins returns a list of allowed origins
+    origins = s.effective_cors_origins
+    assert isinstance(origins, list)
+    assert any("localhost" in o for o in origins)
+    assert "null" in origins  # Electron file:// support
 
 
 def test_cors_development_has_localhost():
@@ -158,4 +161,5 @@ def test_cors_development_has_localhost():
     from app.core.config import Settings
 
     s = Settings(ENVIRONMENT="development", CORS_ORIGINS="")
-    assert "localhost" in s.effective_cors_origins
+    origins = s.effective_cors_origins
+    assert any("localhost" in o for o in origins)

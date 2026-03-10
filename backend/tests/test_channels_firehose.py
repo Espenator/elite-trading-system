@@ -276,11 +276,12 @@ async def test_ingestion_status_and_metrics_endpoints(client):
 
 
 @pytest.mark.asyncio
-async def test_awareness_enrich_endpoint(client):
+async def test_awareness_enrich_endpoint(client, auth_headers):
     """POST /awareness/enrich accepts events and returns stub-enriched list."""
     r = await client.post(
-        "/awareness/enrich",
+        "/api/v1/awareness/enrich",
         json={"events": [{"event_id": "e1", "source": "discord", "event_type": "social_post", "symbols": ["SPY"]}]},
+        headers=auth_headers,
     )
     assert r.status_code == 200
     data = r.json()

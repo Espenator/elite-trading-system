@@ -326,6 +326,20 @@
     </div>
 
     <div class="api-section">
+      <h4>LLM / AI <span class="optional">(Optional — enables cloud council agents)</span></h4>
+      <div class="field-row">
+        <div class="field">
+          <label>Anthropic API Key (Claude)</label>
+          <input type="password" id="anthropicKey" placeholder="sk-ant-...">
+        </div>
+        <div class="field">
+          <label>Perplexity API Key</label>
+          <input type="password" id="perplexityKey" placeholder="pplx-...">
+        </div>
+      </div>
+    </div>
+
+    <div class="api-section">
       <h4>Social & Alternative Data <span class="optional">(All optional)</span></h4>
       <div class="field-row">
         <div class="field">
@@ -461,6 +475,8 @@
         alpacaApiKey: document.getElementById('alpacaKey').value,
         alpacaSecretKey: document.getElementById('alpacaSecret').value,
         alpacaBaseUrl: document.getElementById('alpacaEnv').value,
+        anthropicApiKey: document.getElementById('anthropicKey').value,
+        perplexityApiKey: document.getElementById('perplexityKey').value,
         finvizEmail: document.getElementById('finvizEmail').value,
         fredApiKey: document.getElementById('fredKey').value,
         newsApiKey: document.getElementById('newsApiKey').value,
@@ -488,6 +504,7 @@
       `<strong>Brain Service:</strong> ${config.brainHost === 'disabled' ? 'Disabled' : config.brainHost}`,
       `<strong>Network:</strong> ${peerLine}`,
       `<strong>Alpaca:</strong> ${hasAlpaca}`,
+      `<strong>LLM APIs:</strong> ${[config.apiKeys.anthropicApiKey && 'Claude', config.apiKeys.perplexityApiKey && 'Perplexity'].filter(Boolean).join(', ') || 'None (Ollama local only)'}`,
       `<strong>Data Sources:</strong> ${[config.apiKeys.finvizEmail && 'Finviz', config.apiKeys.fredApiKey && 'FRED', config.apiKeys.newsApiKey && 'News API', config.apiKeys.unusualWhalesToken && 'UW', config.apiKeys.stockgeistToken && 'Stockgeist', config.apiKeys.discordBotToken && 'Discord', config.apiKeys.xBearerToken && 'X/Twitter', config.apiKeys.youtubeApiKey && 'YouTube'].filter(Boolean).join(', ') || 'None (will use defaults)'}`,
     ].join('<br>');
   }

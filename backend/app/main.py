@@ -1151,7 +1151,7 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in settings.effective_cors_origins.split(",") if o.strip()],
+    allow_origins=settings.effective_cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-Requested-With"],

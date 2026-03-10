@@ -2,10 +2,13 @@
 Embodier Trader - Application Configuration
 All fields match EXACTLY what services reference via settings.FIELD_NAME
 """
+import logging
 from pathlib import Path
 from typing import Optional
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_log = logging.getLogger(__name__)
 
 # Resolve .env relative to backend/ root (parent of app/core/)
 _BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
@@ -37,21 +40,56 @@ class Settings(BaseSettings):
     PORT: int = Field(default=8000, alias="PORT")
     BACKEND_PORT: Optional[int] = None
     FRONTEND_PORT: int = 3000
-    # CORS: In production, set CORS_ORIGINS env var to your real frontend URL.
-    # Localhost origins are for development only.
+    # CORS: Set CORS_ORIGINS env var to add production/custom origins.
+    # Localhost origins are always included (Electron app connects via localhost).
     CORS_ORIGINS: str = ""
 
     @property
-    def effective_cors_origins(self) -> str:
-        """Return CORS origins.
+    def effective_cors_origins(self) -> list[str]:
+        """Return CORS origins as a list.
 
-        Always includes localhost dev origins so the app works out of the box.
-        Add your production domain via CORS_ORIGINS env var.
+        Always includes localhost origins because the Electron desktop app
+        loads from file:// and makes API calls to http://localhost:8000 /
+        http://127.0.0.1:8000.  Browsers send a ``null`` Origin header for
+        file:// pages, so we include ``"null"`` as well.
+
+        In production, set CORS_ORIGINS to add any additional allowed
+        origins (e.g. a hosted dashboard domain).  A warning is logged if
+        CORS_ORIGINS is empty in production so operators are aware only
+        localhost and null origins are permitted.
         """
-        defaults = "http://localhost:5173,http://localhost:3000,http://localhost:3002,http://localhost:8501"
-        if self.CORS_ORIGINS:
-            return f"{self.CORS_ORIGINS},{defaults}"
-        return defaults
+        # Localhost / Electron defaults — always present
+        localhost_origins = [
+            "http://localhost:5173",
+            "http://localhost:3000",
+            "http://localhost:3002",
+            "http://localhost:8501",
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:3002",
+            "http://127.0.0.1:8501",
+            "null",  # Electron file:// protocol sends Origin: null
+        ]
+
+        custom_origins = [
+            o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()
+        ] if self.CORS_ORIGINS else []
+
+        if self.ENVIRONMENT == "production" and not custom_origins:
+            _log.warning(
+                "CORS_ORIGINS is empty in production. Only localhost and "
+                "null (Electron file://) origins are allowed. Set "
+                "CORS_ORIGINS to add external domains."
+            )
+
+        # Deduplicate while preserving order
+        seen: set[str] = set()
+        origins: list[str] = []
+        for origin in custom_origins + localhost_origins:
+            if origin not in seen:
+                seen.add(origin)
+                origins.append(origin)
+        return origins
 
     @property
     def effective_port(self) -> int:

@@ -1,7 +1,7 @@
 """Council Gate — bridges SignalEngine → Council → OrderExecutor.
 
 Subscribes to signal.generated on the MessageBus.  When a signal arrives
-with score >= gate_threshold the full 35-agent council is invoked.
+with score >= gate_threshold the full 33-agent council is invoked.
 If the council verdict is execution_ready the signal is re-published as
 council.verdict which the OrderExecutor listens on.
 

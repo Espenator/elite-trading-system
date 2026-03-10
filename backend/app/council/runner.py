@@ -1,4 +1,4 @@
-"""Council Runner — orchestrates the 35-agent DAG and arbiter.
+"""Council Runner — orchestrates the 33-agent DAG and arbiter.
 
 DAG execution order (parallel within stages):
   Stage 1: Perception + Academic Edge P0/P1/P2 (parallel — 13 agents)
@@ -45,7 +45,7 @@ async def run_council(
     features: Optional[Dict[str, Any]] = None,
     context: Optional[Dict[str, Any]] = None,
 ) -> DecisionPacket:
-    """Run the full 35-agent council and return a DecisionPacket.
+    """Run the full 33-agent council and return a DecisionPacket.
 
     Args:
         symbol: Ticker symbol to evaluate

@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld("embodier", {
   // Settings
   getApiKeys: () => ipcRenderer.invoke("get-api-keys"),
   setApiKeys: (keys) => ipcRenderer.invoke("set-api-keys", keys),
+  setTradingMode: (mode) => ipcRenderer.invoke("set-trading-mode", mode),
 
   // Peer devices
   getPeerDevices: () => ipcRenderer.invoke("get-peer-devices"),

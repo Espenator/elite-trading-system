@@ -39,7 +39,7 @@ class TaskSpawner:
         self._registry[name] = agent_module
 
     def register_all_agents(self):
-        """Auto-register all 35 council agents (17 core + 18 academic edge swarm)."""
+        """Auto-register all 33 council agents (17 core + 16 academic edge swarm)."""
         # Core council agents (17)
         from app.council.agents import (
             market_perception_agent,

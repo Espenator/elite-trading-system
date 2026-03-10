@@ -98,11 +98,21 @@ function buildEnvVars() {
     BRAIN_HOST: apiKeys.brainHost || "localhost",
     BRAIN_PORT: String(apiKeys.brainPort || 50051),
     FINVIZ_EMAIL: apiKeys.finvizEmail || "",
+    FINVIZ_API_KEY: apiKeys.finvizApiKey || "",
     FRED_API_KEY: apiKeys.fredApiKey || "",
     NEWS_API_KEY: apiKeys.newsApiKey || "",
-    STOCKGEIST_TOKEN: apiKeys.stockgeistToken || "",
+    UNUSUAL_WHALES_API_KEY: apiKeys.unusualWhalesToken || "",
+    STOCKGEIST_API_KEY: apiKeys.stockgeistToken || "",
+    DISCORD_BOT_TOKEN: apiKeys.discordBotToken || "",
+    X_BEARER_TOKEN: apiKeys.xBearerToken || "",
+    YOUTUBE_API_KEY: apiKeys.youtubeApiKey || "",
+    // LLM cloud APIs
+    ANTHROPIC_API_KEY: apiKeys.anthropicApiKey || "",
+    PERPLEXITY_API_KEY: apiKeys.perplexityApiKey || "",
     // Auth token for API security
     API_AUTH_TOKEN: deviceConfig.getAuthToken(),
+    // Council
+    COUNCIL_GATE_ENABLED: "true",
     // Prevent Python from buffering stdout
     PYTHONUNBUFFERED: "1",
     // Ensure .env file is also loaded by backend

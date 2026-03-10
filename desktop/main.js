@@ -317,6 +317,15 @@ function registerIpcHandlers() {
     return { ok: true };
   });
 
+  ipcMain.handle("set-trading-mode", async (_event, mode) => {
+    deviceConfig.setTradingMode(mode);
+    // Restart backend with new mode
+    await backendManager.stopBackend();
+    await backendManager.startBackend();
+    if (mainWindow) mainWindow.webContents.send("backend-status", backendManager.getStatus());
+    return { ok: true, mode };
+  });
+
   ipcMain.handle("add-peer-device", (_event, peer) => {
     deviceConfig.addPeerDevice(peer);
     return { ok: true };
