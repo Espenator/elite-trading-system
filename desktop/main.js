@@ -25,6 +25,9 @@ const log = require("electron-log");
 const deviceConfig = require("./device-config");
 const backendManager = require("./backend-manager");
 const { createTray, updateMenu, destroyTray } = require("./tray");
+const { peerMonitor } = require("./peer-monitor");
+const { serviceOrchestrator } = require("./service-orchestrator");
+const { ollamaFallback } = require("./ollama-fallback");
 
 // Configure logging
 log.transports.file.level = "info";
@@ -328,6 +331,15 @@ app.whenReady().then(async () => {
     return;
   }
 
+    // Initialize distributed system
+  try {
+    await peerMonitor.initialize();
+    await serviceOrchestrator.initialize(deviceConfig.getDeviceRole());
+    log.info("Distributed system initialized");
+  } catch (err) {
+    log.warn("Distributed system init failed (standalone mode):", err.message);
+  }
+
   // Create main window
   createMainWindow();
   mainWindow.once("ready-to-show", () => {
@@ -350,6 +362,9 @@ app.on("before-quit", async (event) => {
   if (backendManager.isRunning()) {
     event.preventDefault();
     log.info("Shutting down backend before quit...");
+        await peerMonitor.shutdown();
+    await serviceOrchestrator.shutdown();
+    await ollamaFallback.shutdown();
     await backendManager.stopBackend();
     destroyTray();
     app.quit();

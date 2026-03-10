@@ -19,7 +19,8 @@
   },
   "dependencies": {
     "electron-store": "^8.1.0",
-    "electron-log": "^5.1.1"
+    "electron-log": "^5.1.1",
+        "ws": "^8.16.0"
   },
   "devDependencies": {
     "electron": "^29.1.0",
@@ -40,6 +41,9 @@
       "tray.js",
       "backend-manager.js",
       "device-config.js",
+                  "peer-monitor.js",
+            "service-orchestrator.js",
+            "ollama-fallback.js",
       "pages/**/*",
       "icons/**/*"
     ],
