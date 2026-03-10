@@ -207,10 +207,12 @@ class CouncilGate:
                     return
 
                 # Council approved — publish verdict for OrderExecutor
+                # Sizing gate is applied canonically in OrderExecutor (Kelly must pass before submit).
                 self._councils_passed += 1
                 verdict_data = decision.to_dict()
                 verdict_data["signal_data"] = signal_data
                 verdict_data["price"] = price
+                verdict_data["sizing_deferred_to_executor"] = True  # SizingGate runs in OrderExecutor
 
                 await self.message_bus.publish("council.verdict", verdict_data)
 

@@ -86,7 +86,7 @@ def get_degraded_status() -> Dict[str, Any]:
     details: Dict[str, Any] = {}
     now = time.time()
 
-    # Market data: require recent bar/quote in PriceCache (or skip if cache not used)
+    # Market data: require recent bar/quote in PriceCache when available (optional service)
     try:
         from app.services.price_cache_service import get_price_cache
         cache = get_price_cache()
@@ -97,6 +97,8 @@ def get_degraded_status() -> Dict[str, Any]:
         elif (now - last_ts) > MARKET_DATA_STALE_SEC:
             reasons.append("market_data_stale")
             details["market_data_stale"] = {"reason": "cached_prices_too_old", "age_sec": round(now - last_ts, 1)}
+    except ImportError:
+        pass  # PriceCacheService not installed — skip market_data check
     except Exception as e:
         reasons.append("market_data_stale")
         details["market_data_stale"] = {"reason": "price_cache_unavailable", "error": str(e)}

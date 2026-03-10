@@ -125,55 +125,14 @@ if not logger.handlers:
 ET = ZoneInfo('America/New_York')
 
 # ================================================================
-# Blackboard Topic Registry
+# Blackboard — canonical service only (no local fallback)
 # ================================================================
-class Topic:
-    """Pub/Sub topics for Blackboard swarm communication."""
-    SCORED_CANDIDATES = 'scored_candidates'
-    ML_PREDICTIONS = 'ml_predictions'
-    REGIME_STATE = 'regime_state'
-    WHALE_FLOW = 'whale_flow'
-    MODEL_METRICS = 'model_metrics'
-    TRADE_OUTCOMES = 'trade_outcomes'
-    RETRAIN_REQUEST = 'retrain_request'
-
-
-class Blackboard:
-    """Minimal Blackboard for standalone operation."""
-
-    def __init__(self):
-        self._store: Dict[str, Any] = {}
-        self._subscribers: Dict[str, list] = {}
-
-    def publish(self, topic: str, data: Any):
-        self._store[topic] = data
-        for cb in self._subscribers.get(topic, []):
-            try:
-                cb(data)
-            except Exception as e:
-                logger.debug('Subscriber error on %s: %s', topic, e)
-
-    def read(self, topic: str, default: Any = None) -> Any:
-        return self._store.get(topic, default)
-
-    def subscribe(self, topic: str, callback):
-        self._subscribers.setdefault(topic, []).append(callback)
-
-
-# Singleton blackboard
-_blackboard: Optional[Blackboard] = None
-
-
-def get_blackboard() -> Blackboard:
-    global _blackboard
-    if _blackboard is None:
-        _blackboard = Blackboard()
-    return _blackboard
-
-
-def set_blackboard(bb: Blackboard):
-    global _blackboard
-    _blackboard = bb
+from app.services.blackboard_service import (
+    Blackboard,
+    Topic,
+    get_blackboard,
+    set_blackboard,
+)
 
 
 # ================================================================

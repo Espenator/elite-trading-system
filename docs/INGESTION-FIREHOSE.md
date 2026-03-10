@@ -88,5 +88,33 @@ The following policies ensure learning integrity, execution safety, and real-tim
   - If sizing returns HOLD or zero size, execution is blocked (no order submitted).
   - Sizing metadata (`sizing_gate_passed`, `sizing_metadata` with edge, raw_kelly, stats_source) is attached to `order.submitted` and optionally reflected on `council.verdict` via `sizing_deferred_to_executor`.
 
+## One True Pipeline (topic flow)
+
+Single canonical event and gating pipeline — no bypass paths.
+
+- **Producers** publish raw ideas to `swarm.idea` (scouts, TurboScanner, firehose agents, NewsAggregator, etc.).
+- **IdeaTriageService** is the only component that may publish `triage.escalated` or `triage.dropped`. It subscribes to `swarm.idea`, scores/dedups, and routes.
+- **Heavy analysis** (HyperSwarm, SwarmSpawner) subscribes **only** to `triage.escalated`. There is no code path where `swarm.idea` directly triggers council or spawn.
+- **Symbol prep**: SwarmSpawner publishes `symbol.prep.requested` and waits for `symbol.prep.ready` (via SymbolPrepService); no inline `data_ingestion` in the request path.
+- **Council path**: `signal.generated` → CouncilGate → council evaluation → `council.verdict` → OrderExecutor. OrderExecutor subscribes only to `council.verdict`.
+- **Outcomes**: `order.submitted` / `order.filled` → OutcomeTracker; resolved outcomes → `outcome.resolved` → WeightLearner (censored outcomes excluded).
+
+```
+swarm.idea → IdeaTriageService → triage.escalated → HyperSwarm / SwarmSpawner
+                                      ↓
+                              symbol.prep.requested → SymbolPrepService → symbol.prep.ready
+                                      ↓
+signal.generated → CouncilGate → council.verdict → OrderExecutor → order.submitted
+                                      ↓
+outcome.resolved (non-censored) → WeightLearner / Kelly
+```
+
+## Truth & Degraded Modes
+
+- **Always-on awareness**: System exposes explicit degraded state via `GET /api/v1/brain/health` and `GET /api/v1/brain/degraded`. Reasons include `market_data_stale`, `risk_stale`, `llm_unavailable`, `ws_disconnected` (optional). When PriceCacheService is used, stale cached prices contribute to `market_data_stale`.
+- **Heartbeat**: A periodic task publishes `system.heartbeat` on the MessageBus with `brain_state` (NORMAL | DEGRADED) and `reasons` for observability.
+- **Safe defaults**: AUTO trading is refused when `brain_state != NORMAL` unless `DEGRADED_MODE_OVERRIDE=true` (default: false). No key cognition failure remains invisible; silent `except: pass` in hot paths is replaced with observable state or logging.
+- **Shadow timeout policy**: `SHADOW_TIMEOUT_POLICY` (or `OUTCOME_TIMEOUT_POLICY`) = `censor` (default) | `mark_to_market` | `scratch`. Censored outcomes are not used for Kelly or WeightLearner.
+
 ## Conclusion
 The implementation of the Firehose and CNS enhancements has been completed and thoroughly documented. Further testing will ensure robustness and functionality of the new integrations and changes in the system.

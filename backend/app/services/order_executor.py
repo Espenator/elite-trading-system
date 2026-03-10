@@ -34,7 +34,25 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from app.services.execution_decision import ExecutionDecision, ExecutionDenyReason
+
 logger = logging.getLogger(__name__)
+
+
+def _emit_gate_denied(reason: str) -> None:
+    try:
+        from app.core.metrics import counter_inc
+        counter_inc("execution_gate_denied_total", {"reason": reason})
+    except Exception:
+        pass
+
+
+def _emit_execution_attempt(mode: str, status: str) -> None:
+    try:
+        from app.core.metrics import counter_inc
+        counter_inc("execution_attempt_total", {"mode": mode, "status": status})
+    except Exception:
+        pass
 
 
 @dataclass
@@ -58,6 +76,7 @@ class OrderRecord:
     timestamp: float
     alpaca_response: Optional[Dict] = None
     reject_reason: Optional[str] = None
+    sizing_metadata: Optional[Dict] = None  # edge, raw_kelly, stats_source, etc.
 
 
 class OrderExecutor:
@@ -196,16 +215,32 @@ class OrderExecutor:
         regime = signal_data.get("regime", "UNKNOWN")
 
         if not symbol or not price or price <= 0:
+            self._reject(
+                symbol or "?",
+                score,
+                "Missing symbol or invalid price",
+                ExecutionDenyReason.MISSING_SYMBOL_PRICE,
+            )
             return
 
         # -- Gate 1: Council must approve --
-        if direction == "hold" or not execution_ready:
+        if direction == "hold":
+            self._reject(symbol, score, "Council hold", ExecutionDenyReason.COUNCIL_HOLD)
+            return
+        if not execution_ready:
+            self._reject(
+                symbol, score, "Council not execution_ready",
+                ExecutionDenyReason.COUNCIL_NOT_READY,
+            )
             return
 
         # -- Gate 2: Mock source guard --
         source = signal_data.get("source", "")
         if source and "mock" in source.lower():
-            self._reject(symbol, score, "Mock data source -- refusing to trade")
+            self._reject(
+                symbol, score, "Mock data source -- refusing to trade",
+                ExecutionDenyReason.MOCK_SOURCE,
+            )
             return
 
         logger.info(
@@ -222,29 +257,79 @@ class OrderExecutor:
         # -- Gate 3: Daily trade limit --
         self._check_daily_reset()
         if self._daily_trade_count >= self.max_daily_trades:
-            self._reject(symbol, score, "Daily trade limit reached")
+            self._reject(
+                symbol, score, "Daily trade limit reached",
+                ExecutionDenyReason.DAILY_LIMIT,
+            )
             return
 
         # -- Gate 4: Per-symbol cooldown --
         last_trade = self._symbol_last_trade.get(symbol, 0)
         if time.time() - last_trade < self.cooldown_seconds:
             remaining = int(self.cooldown_seconds - (time.time() - last_trade))
-            self._reject(symbol, score, f"Cooldown active ({remaining}s remaining)")
+            self._reject(
+                symbol, score, f"Cooldown active ({remaining}s remaining)",
+                ExecutionDenyReason.COOLDOWN,
+            )
             return
 
         # -- Gate 5: Drawdown check --
         drawdown_ok = await self._check_drawdown()
         if not drawdown_ok:
-            self._reject(symbol, score, "Drawdown limit breached")
+            self._reject(
+                symbol, score, "Drawdown limit breached",
+                ExecutionDenyReason.DRAWDOWN,
+            )
             return
 
-        # -- Gate 6: Kelly position sizing (from REAL trade stats) --
+        # -- Gate 5b: Degraded mode — refuse AUTO execution when brain reports degraded (default: no override)
+        if self.auto_execute:
+            try:
+                import os
+                from app.api.v1.brain import get_degraded_status
+                status = get_degraded_status()
+                override = os.getenv("DEGRADED_MODE_OVERRIDE", "false").strip().lower() in ("1", "true", "yes")
+                if status.get("degraded") and not override:
+                    self._reject(
+                        symbol, score,
+                        "Degraded mode active (reasons: %s). Set DEGRADED_MODE_OVERRIDE=true to override."
+                        % ", ".join(status.get("reasons", [])),
+                        ExecutionDenyReason.DEGRADED,
+                    )
+                    return
+            except Exception as e:
+                logger.debug("Degraded check failed: %s", e)
+
+        # -- Gate 5c: Kill switch — block new entries when risk shield has frozen entries
+        try:
+            from app.core.config import settings
+            if getattr(settings, "ENABLE_KILL_SWITCH", True):
+                from app.api.v1.risk_shield_api import is_entries_frozen
+                if is_entries_frozen():
+                    self._reject(
+                        symbol, score,
+                        "Kill switch / entries frozen — new orders blocked",
+                        ExecutionDenyReason.KILL_SWITCH_ACTIVE,
+                    )
+                    return
+        except Exception as e:
+            logger.debug("Kill switch check failed: %s", e)
+
+        # -- Gate 6: Canonical SizingGate — Kelly (or deterministic sizing) must be binding
         kelly_result = await self._compute_kelly_size(symbol, score, regime, price, direction)
-        if kelly_result["action"] == "HOLD" or kelly_result["kelly_pct"] <= 0:
+        if kelly_result.get("action") == "REJECT":
             self._reject(
                 symbol, score,
-                f"Kelly says HOLD (edge={kelly_result.get('edge', 0):.4f}, "
-                f"source={kelly_result.get('stats_source', 'unknown')})"
+                kelly_result.get("reject_reason", "Sizing rejected"),
+                ExecutionDenyReason.SIZING_REJECTED,
+            )
+            return
+        if kelly_result["action"] == "HOLD" or kelly_result.get("kelly_pct", 0) <= 0:
+            self._reject(
+                symbol, score,
+                f"SizingGate BLOCKED: Kelly HOLD (edge={kelly_result.get('edge', 0):.4f}, "
+                f"source={kelly_result.get('stats_source', 'unknown')})",
+                ExecutionDenyReason.SIZING_HOLD,
             )
             return
 
@@ -255,47 +340,92 @@ class OrderExecutor:
                 symbol, score,
                 f"Portfolio heat exceeded "
                 f"({heat_info.get('current_heat', 0):.1%} / {self.max_portfolio_heat:.1%})",
+                ExecutionDenyReason.PORTFOLIO_HEAT,
             )
             return
 
-        # -- All gates passed --
+        # -- Gate 8: Viability (slippage/liquidity vs edge) — deny when expected cost > edge
+        try:
+            from app.core.config import settings
+            if getattr(settings, "ENABLE_EXECUTION_VIABILITY_GATE", True):
+                viable, reason = await self._check_viability(
+                    symbol, price, kelly_result.get("qty", 0), direction,
+                    kelly_result.get("edge", 0), score,
+                )
+                if not viable:
+                    self._reject(
+                        symbol, score,
+                        reason or "Viability gate: expected cost exceeds edge",
+                        ExecutionDenyReason.VIABILITY_DENIED,
+                    )
+                    return
+        except Exception as e:
+            logger.debug("Viability check failed: %s", e)
+
+        # -- All gates passed: build ExecutionDecision (required for any submit)
         qty = kelly_result["qty"]
         if qty < 1:
             self._reject(
                 symbol, score,
-                f"Computed qty < 1 (kelly_pct={kelly_result['kelly_pct']:.4f})"
+                f"Computed qty < 1 (kelly_pct={kelly_result['kelly_pct']:.4f})",
+                ExecutionDenyReason.QTY_INVALID,
             )
             return
 
         side = "buy" if direction == "buy" else "sell"
-        client_order_id = f"et-{symbol}-{uuid.uuid4().hex[:8]}"
-
-        order_record = OrderRecord(
-            order_id="",
-            client_order_id=client_order_id,
+        decision = ExecutionDecision(
             symbol=symbol,
             side=side,
             qty=qty,
-            order_type="market" if not self.use_bracket_orders else "bracket",
-            limit_price=None,
-            stop_loss=kelly_result.get("stop_loss"),
-            take_profit=kelly_result.get("take_profit"),
+            price=price,
+            direction=direction,
+            execution_ready=execution_ready,
             signal_score=score,
             council_confidence=confidence,
-            kelly_pct=kelly_result["kelly_pct"],
             regime=regime,
-            status="pending",
-            timestamp=time.time(),
+            kelly_pct=kelly_result["kelly_pct"],
+            stop_loss=kelly_result.get("stop_loss"),
+            take_profit=kelly_result.get("take_profit"),
+            sizing_metadata={
+                "action": kelly_result.get("action", "BUY"),
+                "edge": kelly_result.get("edge"),
+                "raw_kelly": kelly_result.get("raw_kelly"),
+                "stats_source": kelly_result.get("stats_source"),
+                "win_rate": kelly_result.get("win_rate"),
+                "trade_count": kelly_result.get("trade_count"),
+            },
+            risk_checks_passed=drawdown_ok,
+            verdict_timestamp=time.time(),
         )
 
         if self.auto_execute:
-            await self._execute_order(order_record, price)
+            await self._execute_order(decision)
         else:
-            await self._shadow_execute(order_record, price)
+            await self._shadow_execute(decision)
 
-    # -- Order Execution --
-    async def _execute_order(self, record: OrderRecord, price: float) -> None:
-        """Submit order to Alpaca and publish order.submitted event."""
+    # -- Order Execution (requires ExecutionDecision; no direct broker path) --
+    async def _execute_order(self, decision: ExecutionDecision) -> None:
+        """Submit order to Alpaca and publish order.submitted. Caller must pass approved ExecutionDecision."""
+        client_order_id = f"et-{decision.symbol}-{uuid.uuid4().hex[:8]}"
+        record = OrderRecord(
+            order_id="",
+            client_order_id=client_order_id,
+            symbol=decision.symbol,
+            side=decision.side,
+            qty=decision.qty,
+            order_type="market" if not self.use_bracket_orders else "bracket",
+            limit_price=None,
+            stop_loss=decision.stop_loss,
+            take_profit=decision.take_profit,
+            signal_score=decision.signal_score,
+            council_confidence=decision.council_confidence,
+            kelly_pct=decision.kelly_pct,
+            regime=decision.regime,
+            status="pending",
+            timestamp=time.time(),
+            sizing_metadata=decision.sizing_metadata,
+        )
+        price = decision.price
         alpaca = self._get_alpaca_service()
         try:
             order_kwargs: Dict[str, Any] = {
@@ -325,6 +455,7 @@ class OrderExecutor:
                 self._signals_executed += 1
                 self._symbol_last_trade[record.symbol] = time.time()
                 self._total_notional += record.qty * price
+                _emit_execution_attempt("auto_execute", "submitted")
 
                 logger.info(
                     "\u2705 ORDER SUBMITTED: %s %d x %s @ ~$%.2f "
@@ -335,29 +466,20 @@ class OrderExecutor:
                     "BRACKET" if self.use_bracket_orders else "MARKET",
                 )
 
-                await self.message_bus.publish("order.submitted", {
-                    "order_id": record.order_id,
-                    "client_order_id": record.client_order_id,
-                    "symbol": record.symbol,
-                    "side": record.side,
-                    "qty": record.qty,
-                    "price": price,
-                    "order_type": record.order_type,
-                    "signal_score": record.signal_score,
-                    "council_confidence": record.council_confidence,
-                    "kelly_pct": record.kelly_pct,
-                    "regime": record.regime,
-                    "stop_loss": record.stop_loss,
-                    "take_profit": record.take_profit,
-                    "timestamp": time.time(),
-                    "source": "order_executor",
-                })
+                payload = decision.to_order_payload(
+                    order_id=record.order_id, client_order_id=record.client_order_id
+                )
+                payload["timestamp"] = time.time()
+                payload["source"] = "order_executor"
+                payload["order_type"] = record.order_type
+                await self.message_bus.publish("order.submitted", payload)
                 await self._notify_frontend(record, price, "submitted")
                 asyncio.create_task(self._poll_for_fill(record))
             else:
                 record.status = "failed"
                 record.reject_reason = "Alpaca returned no data"
                 self._signals_rejected += 1
+                _emit_execution_attempt("auto_execute", "rejected")
                 logger.error(
                     "Order submission failed for %s -- no response from Alpaca",
                     record.symbol,
@@ -366,10 +488,14 @@ class OrderExecutor:
             record.status = "failed"
             record.reject_reason = str(e)
             self._signals_rejected += 1
+            _emit_execution_attempt("auto_execute", "rejected")
             logger.exception("Order execution error for %s: %s", record.symbol, e)
 
-    async def _shadow_execute(self, record: OrderRecord, price: float) -> None:
-        """Log what WOULD be executed without placing an actual order."""
+    async def _shadow_execute(self, decision: ExecutionDecision) -> None:
+        """Log what WOULD be executed without placing an actual order. Requires ExecutionDecision."""
+        client_order_id = f"et-{decision.symbol}-{uuid.uuid4().hex[:8]}"
+        price = decision.price
+        qty = decision.qty
         sim_fill_price = price
         sim_fill_ratio = 1.0
         sim_slippage_bps = 0.0
@@ -377,21 +503,39 @@ class OrderExecutor:
             from app.services.execution_simulator import get_execution_simulator
             sim = get_execution_simulator()
             fill = sim.simulate_fill(
-                price=price, side=record.side, order_qty=record.qty,
+                price=price, side=decision.side, order_qty=qty,
             )
             sim_fill_price = fill.fill_price
             sim_fill_ratio = fill.fill_ratio
             sim_slippage_bps = fill.slippage_bps
-            record.qty = max(1, int(record.qty * sim_fill_ratio))
+            qty = max(1, int(qty * sim_fill_ratio))
         except Exception as e:
             logger.debug("Execution simulator not available: %s", e)
 
-        record.status = "shadow"
+        record = OrderRecord(
+            order_id="",
+            client_order_id=client_order_id,
+            symbol=decision.symbol,
+            side=decision.side,
+            qty=qty,
+            order_type="market" if not self.use_bracket_orders else "bracket",
+            limit_price=None,
+            stop_loss=decision.stop_loss,
+            take_profit=decision.take_profit,
+            signal_score=decision.signal_score,
+            council_confidence=decision.council_confidence,
+            kelly_pct=decision.kelly_pct,
+            regime=decision.regime,
+            status="shadow",
+            timestamp=time.time(),
+            sizing_metadata=decision.sizing_metadata,
+        )
         self._orders.append(record)
         self._daily_trade_count += 1
         self._signals_executed += 1
         self._symbol_last_trade[record.symbol] = time.time()
         self._total_notional += record.qty * sim_fill_price
+        _emit_execution_attempt("shadow", "submitted")
 
         logger.info(
             "\U0001f47b SHADOW ORDER: %s %d x %s @ ~$%.2f "
@@ -403,26 +547,17 @@ class OrderExecutor:
             record.regime,
         )
 
-        await self.message_bus.publish("order.submitted", {
-            "order_id": f"shadow-{record.client_order_id}",
-            "client_order_id": record.client_order_id,
-            "symbol": record.symbol,
-            "side": record.side,
-            "qty": record.qty,
-            "price": sim_fill_price,
-            "intended_price": price,
-            "slippage_bps": sim_slippage_bps,
-            "fill_ratio": sim_fill_ratio,
-            "order_type": record.order_type,
-            "signal_score": record.signal_score,
-            "council_confidence": record.council_confidence,
-            "kelly_pct": record.kelly_pct,
-            "regime": record.regime,
-            "stop_loss": record.stop_loss,
-            "take_profit": record.take_profit,
-            "timestamp": time.time(),
-            "source": "order_executor_shadow",
-        })
+        payload = decision.to_order_payload(
+            order_id=f"shadow-{client_order_id}", client_order_id=client_order_id
+        )
+        payload["price"] = sim_fill_price
+        payload["intended_price"] = price
+        payload["slippage_bps"] = sim_slippage_bps
+        payload["fill_ratio"] = sim_fill_ratio
+        payload["timestamp"] = time.time()
+        payload["source"] = "order_executor_shadow"
+        payload["order_type"] = record.order_type
+        await self.message_bus.publish("order.submitted", payload)
         await self._notify_frontend(record, sim_fill_price, "shadow")
 
     # -- Fill Polling --
@@ -649,6 +784,47 @@ class OrderExecutor:
             logger.debug("Portfolio heat check error: %s", e)
             return True, {}
 
+    async def _check_viability(
+        self,
+        symbol: str,
+        price: float,
+        qty: int,
+        direction: str,
+        edge: float,
+        signal_score: float,
+    ) -> tuple:
+        """Pre-trade viability: expected slippage/cost must not exceed expected edge.
+
+        Returns (viable: bool, deny_reason: Optional[str]).
+        Uses config SLIPPAGE_BPS and SIGNAL_MIN_EDGE; denies when expected cost > edge.
+        """
+        try:
+            from app.core.config import settings
+            slippage_bps = getattr(settings, "SLIPPAGE_BPS", 5.0) or 5.0
+            min_edge = getattr(settings, "SIGNAL_MIN_EDGE", 0.05) or 0.05
+        except Exception:
+            slippage_bps = 5.0
+            min_edge = 0.05
+
+        # Expected transaction cost as fraction (slippage + spread proxy)
+        expected_cost_bps = slippage_bps * 1.5  # conservative multiplier
+        expected_cost_frac = expected_cost_bps / 10_000.0
+
+        # Edge from Kelly/sizing or signal (use max of edge and score-derived)
+        effective_edge = max(edge or 0, (signal_score - 50) / 1000.0 if signal_score else 0)
+        effective_edge = max(effective_edge, min_edge)
+
+        if expected_cost_frac >= effective_edge:
+            try:
+                from app.core.metrics import counter_inc
+                counter_inc("execution_viability_denied_total", {"reason": "cost_exceeds_edge"})
+            except Exception:
+                pass
+            return False, (
+                f"Viability denied: expected cost {expected_cost_bps:.0f} bps >= edge {effective_edge:.4f}"
+            )
+        return True, None
+
     def _check_daily_reset(self) -> None:
         """Reset daily trade count at market open (US/Eastern)."""
         try:
@@ -663,10 +839,24 @@ class OrderExecutor:
             self._daily_reset_date = today_et
             self._daily_trade_count = 0
 
-    def _reject(self, symbol: str, score: float, reason: str) -> None:
-        """Log a rejected signal."""
+    def _reject(
+        self,
+        symbol: str,
+        score: float,
+        reason: str,
+        deny_reason: Optional[ExecutionDenyReason] = None,
+    ) -> None:
+        """Log a rejected signal and emit gate-denied metric."""
         self._signals_rejected += 1
-        logger.info("\u26d4 Signal REJECTED: %s score=%.1f -- %s", symbol, score, reason)
+        if deny_reason is not None:
+            _emit_gate_denied(deny_reason.value)
+        _emit_execution_attempt(
+            "auto_execute" if self.auto_execute else "shadow", "rejected"
+        )
+        logger.info(
+            "\u26d4 Signal REJECTED: %s score=%.1f reason=%s deny=%s",
+            symbol, score, reason, deny_reason.value if deny_reason else "unknown",
+        )
 
     def _record_fill_outcome(self, record: OrderRecord, fill_price: float) -> None:
         """Wire filled order to trade_stats_service and weight_learner."""

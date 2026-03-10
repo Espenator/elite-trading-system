@@ -1753,7 +1753,7 @@ class MemoryV3:
             logger.info("[MemoryV3] Blackboard not available, skipping listener")
             return
         bb = get_blackboard()
-        queue = await bb.subscribe(Topic.TRADE_OUTCOMES, 'memory_v3')
+        queue = await bb.subscribe_async(Topic.TRADE_OUTCOMES, 'memory_v3')
         logger.info("[MemoryV3] Listening on trade_outcomes topic")
         while True:
             try:

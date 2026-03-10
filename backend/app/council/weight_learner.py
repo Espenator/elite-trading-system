@@ -15,14 +15,21 @@ Algorithm:
             weight *= (1 - learning_rate * confidence)
     Normalize weights so mean = 1.0 (preserves relative scaling).
     Persist to DuckDB for durability across restarts.
+
+Input quality gates (STRICT_LEARNER_INPUTS): required attribution, confidence
+threshold, invalid/censored filtered; dropped inputs are audited and metrics emitted.
 """
 import json
 import logging
 import time
 from collections import defaultdict
-from typing import Any, Dict, List, Optional
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
+
+# Minimum confidence (0–1) for an outcome to be used for learning when STRICT_LEARNER_INPUTS is True
+LEARNER_MIN_CONFIDENCE = 0.5
 
 # Default weights for all agents (core + academic edge agents)
 DEFAULT_WEIGHTS: Dict[str, float] = {
@@ -79,6 +86,9 @@ class WeightLearner:
     decay_rate : float
         Older decisions decay toward default (prevents overfitting).
     """
+
+    # Minimum weight contribution to be included in learning (avoid noise from near-zero influence)
+    MIN_CONTRIBUTION_WEIGHT = 0.05
 
     def __init__(
         self,
@@ -142,6 +152,37 @@ class WeightLearner:
         if len(self._decision_history) > 500:
             self._decision_history = self._decision_history[-500:]
 
+    def _validate_learner_input(
+        self,
+        symbol: str,
+        outcome_direction: str,
+        is_censored: bool,
+        confidence: float = 1.0,
+        outcome_id: Optional[str] = None,
+    ) -> Tuple[bool, str]:
+        """Validate learner input when STRICT_LEARNER_INPUTS is True.
+
+        Returns (accepted: bool, reason: str). Reason is used for audit and metrics.
+        """
+        try:
+            from app.core.config import settings
+            strict = getattr(settings, "STRICT_LEARNER_INPUTS", True)
+        except Exception:
+            strict = True
+
+        if not strict:
+            return True, "ok"
+
+        if is_censored:
+            return False, "censored"
+        if not symbol or not symbol.strip():
+            return False, "missing_symbol"
+        if outcome_direction not in ("win", "loss", "profit", "stop_loss", "buy", "sell"):
+            return False, "invalid_outcome_direction"
+        if confidence < LEARNER_MIN_CONFIDENCE:
+            return False, "low_confidence"
+        return True, "ok"
+
     def update_from_outcome(
         self,
         symbol: str,
@@ -153,12 +194,15 @@ class WeightLearner:
         regime_entropy: float = 0.0,
         debate_winner: str = "",
         red_team_recommendation: str = "",
+        is_censored: bool = False,
+        confidence: float = 1.0,
+        outcome_id: Optional[str] = None,
     ) -> Dict[str, float]:
         """Update weights based on a trade outcome.
 
-        Finds the most recent decision for this symbol and adjusts
-        each agent's weight based on whether their vote aligned with
-        the actual outcome.
+        Requires is_censored=False; censored outcomes must not change weights.
+        When STRICT_LEARNER_INPUTS is True, validates attribution and confidence;
+        dropped inputs are audited and learner_input_total{status,reason} emitted.
 
         Parameters
         ----------
@@ -181,12 +225,39 @@ class WeightLearner:
             "bull", "bear", or "contested" from the debate.
         red_team_recommendation : str
             "PROCEED", "REDUCE_SIZE", or "REJECT".
+        is_censored : bool
+            If True, do not update weights (outcome not usable for learning).
+        confidence : float
+            Quality/confidence of the outcome (0–1). Used when STRICT_LEARNER_INPUTS.
+        outcome_id : Optional[str]
+            Optional outcome/trade ID for provenance.
 
         Returns
         -------
         Dict[str, float]
             Updated weights after this learning step.
         """
+        accepted, reason = self._validate_learner_input(
+            symbol, outcome_direction, is_censored, confidence, outcome_id
+        )
+        try:
+            from app.core.metrics import counter_inc
+            counter_inc("learner_input_total", {"status": "accepted" if accepted else "dropped", "reason": reason})
+        except Exception:
+            pass
+
+        if not accepted:
+            self._audit_dropped_input(symbol, outcome_direction, reason, outcome_id)
+            logger.debug(
+                "WeightLearner: input dropped symbol=%s reason=%s",
+                symbol, reason,
+            )
+            return self._weights
+
+        if is_censored:
+            logger.debug("WeightLearner: outcome censored, skipping weight update for %s", symbol)
+            return self._weights
+
         # Find matching decision
         matched = None
         for d in reversed(self._decision_history):
@@ -218,12 +289,15 @@ class WeightLearner:
         elif abs(r_multiple) > 1.0:
             magnitude = 1.2
 
-        # Update each agent's weight
+        # Update each agent's weight (only agents with non-trivial influence)
         adjustments = {}
         for vote in matched["votes"]:
             agent = vote["agent_name"]
             if agent not in self._weights:
                 continue
+            weight_used = vote.get("weight", self._weights.get(agent, 1.0))
+            if weight_used < self.MIN_CONTRIBUTION_WEIGHT:
+                continue  # Skip agents with negligible contribution
 
             aligned = vote["direction"] == correct_direction
             confidence = vote["confidence"]
@@ -289,8 +363,20 @@ class WeightLearner:
         from datetime import datetime, timezone
         self.last_update = datetime.now(timezone.utc).isoformat()
 
+        # Store attribution snapshot for this trade (agent votes, weights, decision, decisive factors)
+        self._store_attribution(symbol, matched, outcome_direction, correct_direction, adjustments)
+
+        # Persist learner provenance (outcome IDs used, version, timestamp, quality score)
+        self._persist_learner_provenance(symbol, outcome_direction, matched.get("timestamp"), len(adjustments))
+
         # Persist
         self._persist_to_store()
+
+        try:
+            from app.core.metrics import counter_inc
+            counter_inc("learner_update_total", {"status": "ok"})
+        except Exception:
+            pass
 
         logger.info(
             "WeightLearner: updated from %s %s outcome "
@@ -305,6 +391,125 @@ class WeightLearner:
         )
 
         return self._weights
+
+    def _audit_dropped_input(
+        self,
+        symbol: str,
+        outcome_direction: str,
+        reason: str,
+        outcome_id: Optional[str] = None,
+    ) -> None:
+        """Audit log for dropped learner inputs (observable, diagnosable)."""
+        try:
+            from app.data.duckdb_storage import duckdb_store
+            conn = duckdb_store._get_conn()
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS learner_dropped_input_audit (
+                    id INTEGER PRIMARY KEY,
+                    symbol VARCHAR,
+                    outcome_direction VARCHAR,
+                    reason VARCHAR,
+                    outcome_id VARCHAR,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            conn.execute(
+                """INSERT INTO learner_dropped_input_audit
+                   (id, symbol, outcome_direction, reason, outcome_id)
+                   VALUES ((SELECT COALESCE(MAX(id), 0) + 1 FROM learner_dropped_input_audit), ?, ?, ?, ?)""",
+                [symbol or "", outcome_direction or "", reason or "", outcome_id or ""],
+            )
+        except Exception as e:
+            logger.debug("Learner dropped-input audit failed: %s", e)
+
+    def _persist_learner_provenance(
+        self,
+        symbol: str,
+        outcome_direction: str,
+        decision_ts: Any,
+        agents_updated: int,
+    ) -> None:
+        """Persist learner update provenance: outcome IDs used, learner version, timestamp, quality score."""
+        try:
+            from app.data.duckdb_storage import duckdb_store
+            conn = duckdb_store._get_conn()
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS learner_provenance (
+                    id INTEGER PRIMARY KEY,
+                    symbol VARCHAR,
+                    outcome_direction VARCHAR,
+                    decision_ts VARCHAR,
+                    agents_updated INTEGER,
+                    update_count INTEGER,
+                    learner_version VARCHAR,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            conn.execute(
+                """INSERT INTO learner_provenance
+                   (id, symbol, outcome_direction, decision_ts, agents_updated, update_count, learner_version)
+                   VALUES ((SELECT COALESCE(MAX(id), 0) + 1 FROM learner_provenance), ?, ?, ?, ?, ?, ?)""",
+                [
+                    symbol or "",
+                    outcome_direction or "",
+                    str(decision_ts) if decision_ts else "",
+                    agents_updated,
+                    self.update_count,
+                    "1.0",
+                ],
+            )
+        except Exception as e:
+            logger.debug("Learner provenance persist failed: %s", e)
+
+    def _store_attribution(
+        self,
+        symbol: str,
+        decision: Dict[str, Any],
+        outcome_direction: str,
+        correct_direction: str,
+        adjustments: Dict[str, Any],
+    ) -> None:
+        """Store attribution snapshot per trade in DuckDB (agent votes, weights, arbiter decision)."""
+        try:
+            from app.data.duckdb_storage import duckdb_store
+            import json
+            conn = duckdb_store._get_conn()
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS trade_attribution (
+                    id INTEGER PRIMARY KEY,
+                    symbol VARCHAR NOT NULL,
+                    resolved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    final_direction VARCHAR,
+                    outcome_direction VARCHAR,
+                    correct_direction VARCHAR,
+                    agent_votes VARCHAR,
+                    weights_used VARCHAR,
+                    decisive_factors VARCHAR
+                )
+            """)
+            votes_json = json.dumps(decision.get("votes", []))
+            weights_json = json.dumps({a: adj.get("new") for a, adj in adjustments.items()})
+            decisive = json.dumps({
+                "outcome": outcome_direction,
+                "correct_direction": correct_direction,
+                "agents_updated": list(adjustments.keys()),
+            })
+            conn.execute(
+                """INSERT INTO trade_attribution
+                   (id, symbol, final_direction, outcome_direction, correct_direction, agent_votes, weights_used, decisive_factors)
+                   VALUES ((SELECT COALESCE(MAX(id), 0) + 1 FROM trade_attribution), ?, ?, ?, ?, ?, ?, ?)""",
+                [
+                    symbol.upper(),
+                    decision.get("final_direction", ""),
+                    outcome_direction,
+                    correct_direction,
+                    votes_json,
+                    weights_json,
+                    decisive,
+                ],
+            )
+        except Exception as e:
+            logger.debug("WeightLearner: store attribution failed: %s", e)
 
     def _normalize_weights(self) -> None:
         """Normalize weights so their mean is 1.0."""

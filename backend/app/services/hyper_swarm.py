@@ -182,6 +182,27 @@ class HyperSwarm:
                         self._results.append(result)
                         self._update_stats(result)
 
+                        # Publish micro-swarm result for downstream observability/UI.
+                        if self._bus:
+                            try:
+                                await self._bus.publish(
+                                    "swarm.result",
+                                    {
+                                        "type": "micro_swarm_result",
+                                        "result": result.to_dict(),
+                                        "input": {
+                                            "source": signal_data.get("source", "unknown"),
+                                            "symbols": signal_data.get("symbols", []),
+                                            "direction": signal_data.get("direction", "unknown"),
+                                            "triage": signal_data.get("triage"),
+                                        },
+                                        "timestamp": time.time(),
+                                        "source": "hyper_swarm",
+                                    },
+                                )
+                            except Exception:
+                                pass
+
                         # Escalate high-scoring signals to full council
                         if result.score >= ESCALATION_THRESHOLD:
                             await self._escalate(signal_data, result)
@@ -263,10 +284,12 @@ REASON: [one sentence]"""
 
     async def _get_symbol_context(self, symbol: str) -> Dict[str, Any]:
         """Fetch technical context from DuckDB for the symbol."""
-        try:
+        def _query() -> Optional[tuple]:
             from app.data.duckdb_storage import duckdb_store
+
             conn = duckdb_store._get_conn()
-            row = conn.execute("""
+            return conn.execute(
+                """
                 SELECT t.rsi_14, t.adx_14, t.macd, t.sma_20, t.sma_50, t.sma_200,
                        o.close, o.volume,
                        o.close / NULLIF(LAG(o.close, 5) OVER (PARTITION BY o.symbol ORDER BY o.date), 0) - 1 as ret_5d,
@@ -276,31 +299,39 @@ REASON: [one sentence]"""
                 WHERE t.symbol = ?
                 ORDER BY t.date DESC
                 LIMIT 1
-            """, [symbol]).fetchone()
+                """,
+                [symbol],
+            ).fetchone()
 
-            if row:
-                close = float(row[6] or 0)
-                sma20 = float(row[3] or 0)
-                sma50 = float(row[4] or 0)
-                sma200 = float(row[5] or 0)
-                if close > sma20 > sma50 > sma200:
-                    sma_stack = "bullish (close>20>50>200)"
-                elif close < sma20 < sma50 < sma200:
-                    sma_stack = "bearish (close<20<50<200)"
-                else:
-                    sma_stack = "mixed"
-                return {
-                    "rsi": round(float(row[0] or 50), 1),
-                    "adx": round(float(row[1] or 0), 1),
-                    "macd": round(float(row[2] or 0), 4),
-                    "close": close,
-                    "ret_5d": f"{float(row[8] or 0):.1%}" if row[8] else "N/A",
-                    "volume_ratio": f"{float(row[9] or 1):.1f}" if row[9] else "N/A",
-                    "sma_stack": sma_stack,
-                }
+        try:
+            # Hot-path purity: never block the event loop on DuckDB.
+            row = await asyncio.wait_for(asyncio.to_thread(_query), timeout=1.0)
+            if not row:
+                return {}
+
+            close = float(row[6] or 0)
+            sma20 = float(row[3] or 0)
+            sma50 = float(row[4] or 0)
+            sma200 = float(row[5] or 0)
+            if close > sma20 > sma50 > sma200:
+                sma_stack = "bullish (close>20>50>200)"
+            elif close < sma20 < sma50 < sma200:
+                sma_stack = "bearish (close<20<50<200)"
+            else:
+                sma_stack = "mixed"
+            return {
+                "rsi": round(float(row[0] or 50), 1),
+                "adx": round(float(row[1] or 0), 1),
+                "macd": round(float(row[2] or 0), 4),
+                "close": close,
+                "ret_5d": f"{float(row[8] or 0):.1%}" if row[8] else "N/A",
+                "volume_ratio": f"{float(row[9] or 1):.1f}" if row[9] else "N/A",
+                "sma_stack": sma_stack,
+            }
+        except asyncio.TimeoutError:
+            return {}
         except Exception:
-            pass
-        return {}
+            return {}
 
     # ──────────────────────────────────────────────────────────────────────
     # Ollama Pool Management
@@ -409,27 +440,44 @@ REASON: [one sentence]"""
     # Escalation to Full Council
     # ──────────────────────────────────────────────────────────────────────
     async def _escalate(self, signal_data: Dict, result: MicroSwarmResult):
-        """Escalate high-scoring micro-swarm results to the full SwarmSpawner."""
+        """Escalate high-scoring micro-swarm results to the canonical council path.
+
+        Contract: publish to signal.generated (0-100 score). CouncilGate is the
+        only runtime consumer that can publish council.verdict.
+        """
         self._stats["total_escalated"] += 1
         if self._bus:
-            # Publish to a separate topic so SwarmSpawner picks it up
-            # with enhanced context from micro-swarm analysis
-            await self._bus.publish("swarm.idea", {
-                "source": f"hyper_swarm:{result.signal_type}",
-                "symbols": [result.symbol],
-                "direction": result.direction,
-                "reasoning": f"[HyperSwarm score={result.score}/100] {result.reasoning}",
-                "priority": 1 if result.score >= 80 else 2,
-                "metadata": {
-                    "micro_swarm_score": result.score,
-                    "micro_swarm_confidence": result.confidence,
-                    "risk_level": result.risk_level,
-                    "signal_type": result.signal_type,
-                    "escalated": True,
+            # Map bullish/bearish into buy/sell; neutral -> hold.
+            d = (result.direction or "").strip().lower()
+            if d in ("bullish", "buy", "long", "up"):
+                final_direction = "buy"
+            elif d in ("bearish", "sell", "short", "down"):
+                final_direction = "sell"
+            else:
+                final_direction = "hold"
+
+            await self._bus.publish(
+                "signal.generated",
+                {
+                    "symbol": result.symbol,
+                    "score": float(result.score),
+                    "direction": final_direction,
+                    "label": f"hyper_swarm_{result.signal_type}",
+                    "price": signal_data.get("price") or signal_data.get("metadata", {}).get("price") or 0,
+                    "regime": "HYPERSWARM",
+                    "source": "hyper_swarm",
+                    "metadata": {
+                        "micro_swarm_score": result.score,
+                        "micro_swarm_confidence": result.confidence,
+                        "risk_level": result.risk_level,
+                        "signal_type": result.signal_type,
+                        "reasoning": result.reasoning,
+                        "triage": signal_data.get("triage"),
+                    },
                 },
-            })
+            )
         logger.info(
-            "HyperSwarm ESCALATED: %s %s score=%d -> full council",
+            "HyperSwarm ESCALATED: %s %s score=%d -> signal.generated",
             result.symbol, result.direction, result.score,
         )
 

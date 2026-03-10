@@ -80,10 +80,11 @@ async def council_latest():
 
 @router.get("/status")
 async def council_status():
-    """Return council configuration and agent list (13 agents, 7 stages)."""
+    """Return council configuration from canonical registry (agent_count matches DAG)."""
     import os
 
-    # Try to get live weight data from weight_learner
+    from app.council.registry import get_agent_count, get_agents, get_dag_stages
+
     agent_weights = {}
     try:
         from app.council.weight_learner import get_weight_learner
@@ -96,32 +97,9 @@ async def council_status():
         "council_enabled": os.getenv("COUNCIL_ENABLED", "true").lower() == "true",
         "brain_enabled": os.getenv("BRAIN_ENABLED", "false").lower() == "true",
         "council_gate_enabled": os.getenv("COUNCIL_GATE_ENABLED", "true").lower() == "true",
-        "agent_count": 13,
-        "agents": [
-            "market_perception",
-            "flow_perception",
-            "regime",
-            "intermarket",
-            "rsi",
-            "bbv",
-            "ema_trend",
-            "relative_strength",
-            "cycle_timing",
-            "hypothesis",
-            "strategy",
-            "risk",
-            "execution",
-            "critic",
-        ],
-        "dag_stages": [
-            ["market_perception", "flow_perception", "regime", "intermarket"],
-            ["rsi", "bbv", "ema_trend", "relative_strength", "cycle_timing"],
-            ["hypothesis"],
-            ["strategy"],
-            ["risk", "execution"],
-            ["critic"],
-            ["arbiter"],
-        ],
+        "agent_count": get_agent_count(),
+        "agents": get_agents(),
+        "dag_stages": get_dag_stages(),
         "agent_weights": agent_weights,
     }
 

@@ -2,14 +2,23 @@
 WebSocket connection manager for broadcasting to all connected clients.
 Enhanced with: token auth, channel subscriptions, heartbeat, reconnection.
 Import broadcast_ws(channel, data) from here to push updates.
+
+Topic validation: subscribe/unsubscribe validate against WS_ALLOWED_CHANNELS
+so unknown topics are rejected with structured error; connection/topic metrics emitted.
 """
 import asyncio
 import logging
 import time
-from typing import Set, Dict, Optional
+from typing import Any, Set, Dict, Optional
 from fastapi import WebSocket, WebSocketDisconnect, Query
 
 logger = logging.getLogger(__name__)
+
+# Channels allowed for WS subscription (subset of MessageBus or UI channels)
+WS_ALLOWED_CHANNELS: Set[str] = {
+    "order", "risk", "kelly", "signals", "council", "health",
+    "market_data", "alerts", "outcomes", "system",
+}
 
 # --- Connection Registry ---
 _ws_connections: Set[WebSocket] = set()
@@ -67,25 +76,59 @@ def remove_connection(websocket: WebSocket):
     logger.info(f"WebSocket disconnected. Total: {len(_ws_connections)}")
 
 
-def subscribe(websocket: WebSocket, channel: str):
-    """Subscribe a client to a specific data channel."""
+def validate_channel(channel: str) -> tuple[bool, Optional[str]]:
+    """Validate channel against allowed registry. Returns (valid, error_message)."""
+    if not channel or not isinstance(channel, str):
+        return False, "channel_required"
+    if channel.strip() != channel:
+        return False, "channel_invalid"
+    if channel not in WS_ALLOWED_CHANNELS:
+        return False, f"unknown_channel:{channel}"
+    return True, None
+
+
+def subscribe(websocket: WebSocket, channel: str) -> Dict[str, Any]:
+    """Subscribe a client to a specific data channel. Validates against registry.
+    Returns dict with success=True/False and optional error/reason for structured response.
+    """
+    try:
+        from app.core.metrics import counter_inc
+        counter_inc("ws_subscribe_attempt_total", {"channel": channel or "empty"})
+    except Exception:
+        pass
+    valid, err = validate_channel(channel)
+    if not valid:
+        try:
+            from app.core.metrics import counter_inc
+            counter_inc("ws_subscribe_rejected_total", {"reason": err or "invalid"})
+        except Exception:
+            pass
+        return {"success": False, "error": err, "channel": channel}
     if channel not in _channel_subscriptions:
         _channel_subscriptions[channel] = set()
     _channel_subscriptions[channel].add(websocket)
+    return {"success": True, "channel": channel}
 
 
 def unsubscribe(websocket: WebSocket, channel: str):
-    """Unsubscribe a client from a channel."""
-    if channel in _channel_subscriptions:
+    """Unsubscribe a client from a channel. Validates channel; no-op if unknown."""
+    valid, _ = validate_channel(channel)
+    if valid and channel in _channel_subscriptions:
         _channel_subscriptions[channel].discard(websocket)
 
 
-async def broadcast_ws(channel: str, data: dict | list):
+async def broadcast_ws(channel: str, data: dict | list, type: Optional[str] = None):
     """
     Send JSON message to all connected WebSocket clients.
+    Canonical payload: {channel, type, data, ts}. If type is omitted, use data.get("type", "update").
     If channel has subscribers, send only to them. Otherwise broadcast to all.
     """
-    msg = {"channel": channel, "data": data, "ts": time.time()}
+    ts = time.time()
+    if isinstance(data, dict) and type is None:
+        type = data.get("type", "update")
+    else:
+        type = type or "update"
+    msg = {"channel": channel, "type": type, "data": data, "ts": ts}
     
     # Use channel subscribers if any, otherwise broadcast to all
     targets = _channel_subscriptions.get(channel, _ws_connections)
