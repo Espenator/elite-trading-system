@@ -324,6 +324,30 @@
         </div>
       </div>
     </div>
+
+    <div class="api-section">
+      <h4>Social & Alternative Data <span class="optional">(All optional)</span></h4>
+      <div class="field-row">
+        <div class="field">
+          <label>Stockgeist Token</label>
+          <input type="text" id="stockgeistToken" placeholder="Social sentiment data">
+        </div>
+        <div class="field">
+          <label>Discord Bot Token</label>
+          <input type="password" id="discordBotToken" placeholder="Discord integration">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>X (Twitter) Bearer Token</label>
+          <input type="password" id="xBearerToken" placeholder="X/Twitter data">
+        </div>
+        <div class="field">
+          <label>YouTube API Key</label>
+          <input type="text" id="youtubeApiKey" placeholder="YouTube data">
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Step 4: Summary -->
@@ -441,6 +465,10 @@
         fredApiKey: document.getElementById('fredKey').value,
         newsApiKey: document.getElementById('newsApiKey').value,
         unusualWhalesToken: document.getElementById('uwToken').value,
+        stockgeistToken: document.getElementById('stockgeistToken').value,
+        discordBotToken: document.getElementById('discordBotToken').value,
+        xBearerToken: document.getElementById('xBearerToken').value,
+        youtubeApiKey: document.getElementById('youtubeApiKey').value,
       },
     };
   }
@@ -460,7 +488,7 @@
       `<strong>Brain Service:</strong> ${config.brainHost === 'disabled' ? 'Disabled' : config.brainHost}`,
       `<strong>Network:</strong> ${peerLine}`,
       `<strong>Alpaca:</strong> ${hasAlpaca}`,
-      `<strong>Data Sources:</strong> ${[config.apiKeys.finvizEmail && 'Finviz', config.apiKeys.fredApiKey && 'FRED', config.apiKeys.newsApiKey && 'News API', config.apiKeys.unusualWhalesToken && 'UW'].filter(Boolean).join(', ') || 'None (will use defaults)'}`,
+      `<strong>Data Sources:</strong> ${[config.apiKeys.finvizEmail && 'Finviz', config.apiKeys.fredApiKey && 'FRED', config.apiKeys.newsApiKey && 'News API', config.apiKeys.unusualWhalesToken && 'UW', config.apiKeys.stockgeistToken && 'Stockgeist', config.apiKeys.discordBotToken && 'Discord', config.apiKeys.xBearerToken && 'X/Twitter', config.apiKeys.youtubeApiKey && 'YouTube'].filter(Boolean).join(', ') || 'None (will use defaults)'}`,
     ].join('<br>');
   }
 
@@ -504,13 +532,9 @@
       // Finish — send config to main process
       const config = gatherConfig();
       if (window.embodier) {
-        // Use IPC via preload
-        const { ipcRenderer } = require('electron');
-        ipcRenderer.send('setup-complete', config);
+        window.embodier.sendSetupComplete(config);
       } else {
-        // Fallback for testing outside Electron
         console.log('Setup complete:', config);
-        alert('Setup complete! Config logged to console.');
       }
     }
   }

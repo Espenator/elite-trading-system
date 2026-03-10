@@ -13,6 +13,7 @@ const deviceConfig = require("./device-config");
 let backendProcess = null;
 let healthCheckInterval = null;
 let isShuttingDown = false;
+let restartCount = 0;
 
 function getBackendPath() {
   const isDev = process.env.NODE_ENV === "development";
@@ -71,8 +72,21 @@ function buildEnvVars() {
   };
 }
 
+function isPortAvailable(port) {
+  return new Promise((resolve) => {
+    const net = require("net");
+    const server = net.createServer();
+    server.once("error", () => resolve(false));
+    server.once("listening", () => {
+      server.close();
+      resolve(true);
+    });
+    server.listen(port, "127.0.0.1");
+  });
+}
+
 function startBackend() {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     if (backendProcess) {
       log.info("Backend already running");
       resolve();
@@ -82,6 +96,13 @@ function startBackend() {
     isShuttingDown = false;
     const backendPath = getBackendPath();
     const port = deviceConfig.getBackendPort();
+
+    const portFree = await isPortAvailable(port);
+    if (!portFree) {
+      reject(new Error(`Port ${port} is already in use. Change the backend port in Settings.`));
+      return;
+    }
+
     const env = buildEnvVars();
 
     log.info(`Starting backend (${backendPath.mode}) on port ${port}...`);
@@ -95,6 +116,14 @@ function startBackend() {
       );
     } else {
       // Production: run bundled binary
+      if (!fs.existsSync(backendPath.binary)) {
+        reject(
+          new Error(
+            `Backend binary not found at: ${backendPath.binary}\nRun 'npm run build:backend' to build the PyInstaller package.`
+          )
+        );
+        return;
+      }
       backendProcess = spawn(backendPath.binary, [], {
         cwd: backendPath.cwd,
         env,
@@ -122,10 +151,18 @@ function startBackend() {
       log.info(`Backend exited (code=${code}, signal=${signal})`);
       backendProcess = null;
       if (!isShuttingDown && code !== 0) {
-        log.warn("Backend crashed — will restart in 3s...");
+        restartCount++;
+        if (restartCount > 5) {
+          log.error("Backend crashed too many times (5), giving up auto-restart");
+          return;
+        }
+        const delay = Math.min(3000 * Math.pow(2, restartCount - 1), 60000);
+        log.warn(`Backend crashed — restart #${restartCount} in ${delay}ms...`);
         setTimeout(() => {
           if (!isShuttingDown) startBackend().catch(() => {});
-        }, 3000);
+        }, delay);
+      } else {
+        restartCount = 0;
       }
     });
 

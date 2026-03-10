@@ -23,6 +23,9 @@ contextBridge.exposeInMainWorld("embodier", {
   addPeerDevice: (peer) => ipcRenderer.invoke("add-peer-device", peer),
   removePeerDevice: (id) => ipcRenderer.invoke("remove-peer-device", id),
 
+  // Setup wizard
+  sendSetupComplete: (config) => ipcRenderer.send("setup-complete", config),
+
   // Window controls
   minimize: () => ipcRenderer.send("window-minimize"),
   maximize: () => ipcRenderer.send("window-maximize"),

@@ -20,7 +20,7 @@ const log = {
 // Default configuration
 const DEFAULT_CONFIG = {
     ollamaHost: 'http://127.0.0.1:11434',
-    preferredModel: 'llama3.1:8b',
+    preferredModel: 'llama3.2',
     fallbackModel: 'mistral:7b',
     healthCheckInterval: 30000,
     requestTimeout: 120000,
@@ -304,6 +304,28 @@ class OllamaFallback {
             activeModel: this._activeModel,
             stats: { ...this._stats },
         };
+    }
+
+    /**
+     * Activate fallback (called by service-orchestrator when peer is lost).
+     */
+    async activate() {
+        log.info('Activating Ollama fallback...');
+        if (!this._available) {
+            await this.initialize();
+        }
+    }
+
+    /**
+     * Deactivate fallback (called by service-orchestrator when peer recovers).
+     */
+    async deactivate() {
+        log.info('Deactivating Ollama fallback...');
+        if (this._healthTimer) {
+            clearInterval(this._healthTimer);
+            this._healthTimer = null;
+        }
+        this._available = false;
     }
 
     /**
