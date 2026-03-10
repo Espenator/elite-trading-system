@@ -1,25 +1,25 @@
 import { useId } from "react";
 import clsx from "clsx";
 
-const defaultTrack =
-  "w-full h-2 rounded appearance-none bg-secondary/30 accent-cyan-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed";
-
 /**
- * Reusable slider (range input) with optional label and value display.
- * @param {string} [label] - Label above the slider
+ * Slider with gradient track and white thumb (dark theme).
+ * Layout: label (left) | slider (center) | value (right)
+ *
+ * @param {string} [label] - Label on the left of the slider
  * @param {number} min - Minimum value
  * @param {number} max - Maximum value
  * @param {number} [step=1] - Step value
  * @param {number} value - Current value (controlled)
- * @param {function} [onChange] - (value: number) => {}; called with parsed number, not the event
- * @param {string} [suffix] - Shown after value (e.g. "%", "s")
- * @param {function} [formatValue] - (value) => string for display; default is value.toString()
+ * @param {function} [onChange] - (value: number) => {}
+ * @param {string} [suffix] - Shown after value (e.g. "%")
+ * @param {function} [formatValue] - (value) => string for display
  * @param {boolean} [disabled] - Disable interaction
- * @param {boolean} [readOnly] - Same as disabled for display-only sliders
- * @param {boolean} [showValue=true] - Show value + suffix next to slider; set false when using an external input
+ * @param {boolean} [readOnly] - Same as disabled
+ * @param {boolean} [showValue=true] - Show value + suffix on the right
  * @param {string} [className] - Wrapper div class
  * @param {string} [inputClassName] - Range input class
  * @param {string} [valueClassName] - Value span class
+ * @param {boolean} [labelAbove] - If true, label renders above (legacy layout)
  */
 function Slider({
   label,
@@ -36,14 +36,17 @@ function Slider({
   className,
   inputClassName,
   valueClassName,
+  labelAbove = false,
   id: idProp,
   ...rest
 }) {
-    const autoId = useId();
-    const id = idProp || autoId;
+  const autoId = useId();
+  const id = idProp || autoId;
   const isInteractive =
     !disabled && !readOnly && typeof onChange === "function";
   const displayValue = formatValue ? formatValue(value) : value;
+  const pct = max > min ? Math.round(((value - min) / (max - min)) * 100) : 0;
+
   const handleChange = (e) => {
     if (typeof onChange === "function") {
       const raw = e.target.value;
@@ -52,17 +55,35 @@ function Slider({
     }
   };
 
+  // Gradient: blue (#6A82FB) → cyan (#00C6FF) on filled portion; dark grey (#374151) on unfilled
+  const trackStyle = {
+    background: `linear-gradient(to right, #6A82FB 0%, #00C6FF ${pct}%, #374151 ${pct}%, #374151 100%)`,
+  };
+
   return (
-    <div className={clsx("flex flex-col gap-1.5", className)}>
-      {label && (
+    <div className={clsx("w-full", className)}>
+      {labelAbove && label && (
         <label
           htmlFor={id}
-          className="text-xs text-secondary block font-medium"
+          className="text-xs text-secondary block font-medium mb-1.5"
         >
           {label}
         </label>
       )}
-      <div className="flex items-center gap-2 w-full">
+      <div
+        className={clsx(
+          "flex items-center gap-2 w-full",
+          !labelAbove && "gap-3",
+        )}
+      >
+        {label && !labelAbove && (
+          <label
+            htmlFor={id}
+            className="text-xs text-gray-400 font-medium shrink-0 w-28 min-w-28 max-w-28 truncate"
+          >
+            {label}
+          </label>
+        )}
         <input
           id={id}
           type="range"
@@ -73,14 +94,20 @@ function Slider({
           onChange={handleChange}
           disabled={!isInteractive}
           readOnly={readOnly && !onChange}
-          className={clsx(defaultTrack, inputClassName)}
+          style={trackStyle}
+          className={clsx(
+            "slider-gradient-track flex-1 min-w-[4rem] h-1.5 rounded-full appearance-none cursor-pointer",
+            "focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed",
+            "transition-none",
+            inputClassName,
+          )}
           aria-label={label}
           {...rest}
         />
         {showValue && (
           <span
             className={clsx(
-              "text-xs text-cyan-400/80 shrink-0 min-w-[2rem]",
+              "text-xs text-gray-400 font-medium shrink-0 min-w-[10px] w-[30px] text-right tabular-nums",
               valueClassName,
             )}
           >
@@ -89,6 +116,33 @@ function Slider({
           </span>
         )}
       </div>
+      <style>{`
+        .slider-gradient-track::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 14px;
+          height: 14px;
+          border-radius: 50%;
+          background: #FFFFFF;
+          cursor: pointer;
+          box-shadow: 0 0 0 1px rgba(0,0,0,0.1);
+        }
+        .slider-gradient-track::-webkit-slider-thumb:hover {
+          background: #F3F4F6;
+        }
+        .slider-gradient-track::-moz-range-thumb {
+          width: 14px;
+          height: 14px;
+          border-radius: 50%;
+          background: #FFFFFF;
+          cursor: pointer;
+          border: none;
+          box-shadow: 0 0 0 1px rgba(0,0,0,0.1);
+        }
+        .slider-gradient-track::-moz-range-thumb:hover {
+          background: #F3F4F6;
+        }
+      `}</style>
     </div>
   );
 }
