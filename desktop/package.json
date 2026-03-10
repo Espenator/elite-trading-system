@@ -1,6 +1,6 @@
 {
   "name": "embodier-trader",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "description": "Embodier Trading System — AI-Powered Trading Platform",
   "main": "main.js",
   "author": "Embodier.ai",
@@ -8,102 +8,50 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "dev": "cross-env NODE_ENV=development electron .",
-    "setup": "npm install && cd ../frontend-v2 && npm install && npm run build && cd ../desktop && echo Setup complete!",
+    "dev": "NODE_ENV=development electron .",
     "dist:win": "electron-builder --win",
     "dist:mac": "electron-builder --mac",
     "dist:linux": "electron-builder --linux",
-    "dist:all": "electron-builder --win --mac --linux",
-    "pack": "electron-builder --dir"
-  },
-  "dependencies": {
-    "electron-store": "^8.1.0",
-    "electron-log": "^5.1.1",
-    "ws": "^8.16.0"
-  },
-  "devDependencies": {
-    "electron": "^29.1.0",
-    "electron-builder": "^24.13.3",
-    "cross-env": "^7.0.3"
+    "dist:all": "electron-builder --win --mac --linux"
   },
   "build": {
     "appId": "ai.embodier.trader",
     "productName": "Embodier Trader",
-    "copyright": "Copyright © 2026 Embodier.ai",
     "directories": {
-      "output": "release",
-      "buildResources": "icons"
+      "output": "release"
     },
     "files": [
       "main.js",
       "preload.js",
-      "tray.js",
-      "backend-manager.js",
-      "device-config.js",
-      "auto-updater.js",
-      "peer-monitor.js",
-      "service-orchestrator.js",
-      "ollama-fallback.js",
-      "mobile-server.js",
-      "pages/**/*",
-      "icons/**/*",
-      "mobile/**/*"
+      "pages/**",
+      "assets/**",
+      "node_modules/**"
     ],
     "extraResources": [
-      {
-        "from": "../frontend-v2/dist",
-        "to": "frontend",
-        "filter": ["**/*"]
-      },
-      {
-        "from": "../backend/dist/embodier-backend",
-        "to": "backend",
-        "filter": ["**/*"]
-      }
+      { "from": "../backend/dist/embodier-backend", "to": "backend/embodier-backend" },
+      { "from": "../frontend-v2/dist", "to": "frontend" }
     ],
     "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": ["x64"]
-        }
-      ],
-      "icon": "icons/icon.ico",
-      "artifactName": "Embodier-Trader-Setup-${version}-win-${arch}.${ext}"
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "assets/icon.ico"
+    },
+    "mac": {
+      "target": [{ "target": "dmg", "arch": ["x64", "arm64"] }],
+      "icon": "assets/icon.icns"
+    },
+    "linux": {
+      "target": [{ "target": "AppImage", "arch": ["x64"] }],
+      "icon": "assets/icon.png"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "installerIcon": "icons/icon.ico",
-      "uninstallerIcon": "icons/icon.ico",
-      "installerHeaderIcon": "icons/icon.ico",
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "Embodier Trader",
-      "menuCategory": "Trading"
-    },
-    "mac": {
-      "target": [
-        {
-          "target": "dmg",
-          "arch": ["x64", "arm64"]
-        }
-      ],
-      "icon": "icons/icon.icns",
-      "artifactName": "Embodier-Trader-${version}-mac-${arch}.${ext}",
-      "category": "public.app-category.finance",
-      "darkModeSupport": true
-    },
-    "linux": {
-      "target": [
-        {
-          "target": "AppImage",
-          "arch": ["x64"]
-        }
-      ],
-      "icon": "icons",
-      "artifactName": "Embodier-Trader-${version}-linux-${arch}.${ext}",
-      "category": "Office;Finance"
+      "createStartMenuShortcut": true
     }
+  },
+  "devDependencies": {
+    "electron": "^36.0.0",
+    "electron-builder": "^26.0.0"
   }
 }
