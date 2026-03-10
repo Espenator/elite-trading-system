@@ -310,20 +310,20 @@ export default function RiskIntelligence() {
   // RENDER
   // =========================================================================
   return (
-    <div className="min-h-screen p-3 space-y-3" style={{ backgroundColor: C.bg, color: C.text }}>
+    <div className="flex flex-col min-h-0" style={{ backgroundColor: C.bg, color: C.text }}>
 
       {/* ════════════════════════════════════════════════════════════════════════
-          HEADER BAR
+          HEADER BAR (mockup 13-risk-intelligence: aligns with system header style)
           ════════════════════════════════════════════════════════════════════════ */}
-      <header className="bg-surface border border-secondary/20 rounded-md px-5 py-3 flex items-center justify-between">
+      <header className="px-5 py-3 flex items-center justify-between border-b border-[rgba(42,52,68,0.5)] shrink-0 bg-[#111827]">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg flex items-center justify-center"
                style={{ backgroundColor: grade.color + '20' }}>
             <Shield className="w-5 h-5" style={{ color: grade.color }} />
           </div>
           <div>
-            <h1 className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
-              RISK_INTELLIGENCE
+            <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+              Risk Intelligence
               <Badge variant="primary" size="sm">LIVE</Badge>
             </h1>
             <span className="text-[10px] text-gray-500 uppercase tracking-widest font-mono">
@@ -373,7 +373,7 @@ export default function RiskIntelligence() {
           <button
             onClick={handleRefresh}
             className="p-2 rounded-lg bg-white/5 border border-[rgba(42,52,68,0.5)]
-                       hover:border-[#00D9FF]/50/30 text-gray-500 hover:text-[#00D9FF] transition-all"
+                       hover:border-[#00D9FF]/50 text-gray-500 hover:text-[#00D9FF] transition-all"
             title="Refresh"
           >
             <RefreshCw className="w-4 h-4" />
@@ -385,8 +385,10 @@ export default function RiskIntelligence() {
       </header>
 
       {/* ════════════════════════════════════════════════════════════════════════
-          TOP SECTION ROW: Risk Configuration | Parameter Sweeps | Realtime Risk Detail
+          MAIN CONTENT
           ════════════════════════════════════════════════════════════════════════ */}
+      <div className="p-3 space-y-3">
+      {/* TOP SECTION ROW: Risk Configuration | Parameter Sweeps | Realtime Risk Detail */}
       <div className="grid grid-cols-12 gap-3">
 
         {/* --- Risk Configuration (left, 4 cols) --- */}
@@ -403,7 +405,7 @@ export default function RiskIntelligence() {
                   value={riskModel}
                   onChange={(e) => setRiskModel(e.target.value)}
                   className="w-full bg-[#0B0E14] border border-[rgba(42,52,68,0.5)] rounded-lg px-3 py-1.5 text-xs text-white
-                             font-mono appearance-none cursor-pointer hover:border-[#00D9FF]/50/30 transition-all"
+                             font-mono appearance-none cursor-pointer hover:border-[#00D9FF]/50 transition-all"
                 >
                   <option>Adaptive Multi-Factor</option>
                   <option>Momentum Risk</option>
@@ -421,7 +423,7 @@ export default function RiskIntelligence() {
                   value={strategy}
                   onChange={(e) => setStrategy(e.target.value)}
                   className="w-full bg-[#0B0E14] border border-[rgba(42,52,68,0.5)] rounded-lg px-3 py-1.5 text-xs text-white
-                             font-mono appearance-none cursor-pointer hover:border-[#00D9FF]/50/30 transition-all"
+                             font-mono appearance-none cursor-pointer hover:border-[#00D9FF]/50 transition-all"
                 >
                   <option>Enhanced MetaResolved TrenchRunner</option>
                   <option>Momentum Alpha</option>
@@ -575,7 +577,7 @@ export default function RiskIntelligence() {
                 onClick={() => handleEmergency('FREEZE')}
                 className="py-1.5 rounded-lg text-[10px] font-bold uppercase
                            bg-cyan-600/30 hover:bg-cyan-600/50 text-cyan-300
-                           border border-[#00D9FF]/50/30 transition-all"
+                           border border-[#00D9FF]/50 transition-all"
               >
                 Freeze
               </button>
@@ -861,11 +863,13 @@ export default function RiskIntelligence() {
         </div>
       </Card>
 
+      </div>
+
       {/* ════════════════════════════════════════════════════════════════════════
-          FOOTER
+          FOOTER (mockup: aligns with system footer style)
           ════════════════════════════════════════════════════════════════════════ */}
-      <footer className="bg-surface border border-secondary/20 rounded-md flex items-center justify-between px-4 py-2
-                         text-[10px] text-gray-500 font-mono">
+      <footer className="mt-3 px-4 py-2 border border-[rgba(42,52,68,0.5)] rounded-lg flex items-center justify-between
+                         text-[10px] text-[#94a3b8] font-mono bg-[#111827]">
         <span className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
           <Radio className="w-3 h-3 text-[#00D9FF]" />
@@ -885,8 +889,8 @@ export default function RiskIntelligence() {
             Monte Carlo: READY
           </span>
         </div>
-        <span className="flex items-center gap-2">
-          Embodier.ai -- {new Date().getFullYear()} | Refresh: {lastRefresh.toLocaleTimeString()}
+        <span className="text-[#94a3b8]">
+          Embodier Trader - Risk Intelligence v2.0 | Refresh: {lastRefresh.toLocaleTimeString()}
         </span>
       </footer>
     </div>

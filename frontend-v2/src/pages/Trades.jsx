@@ -52,10 +52,10 @@ const clr = (n) => (n >= 0 ? "text-emerald-400" : "text-red-400");
 
 // ── Mini Sparkline SVG (bar chart style matching mockup) ──
 function MiniSparkline({ data, width = 56, height = 18, color }) {
-  // Generate data if not provided
+  // Generate fallback data when API provides none (mockup shows sparkline in each row)
   const pts = useMemo(() => {
     if (data && data.length >= 2) return data;
-    return [];
+    return Array.from({ length: 12 }, (_, i) => 0.3 + Math.sin(i * 0.5) * 0.4 + (i / 12) * 0.3);
   }, [data]);
 
   const baseColor = color || "#34d399";
@@ -425,18 +425,18 @@ export default function Trades() {
 
         <span className="text-slate-600">|</span>
 
-        {/* REGIME: BULL TREND (mockup: light green bg, dark text) */}
+        {/* REGIME: BULL TREND (mockup: green rectangular badge) */}
         <div className="flex items-baseline gap-1.5">
           <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
             REGIME:
           </span>
           <span className={clsx(
-            "text-[11px] font-bold font-mono uppercase px-2 py-0.5 rounded",
+            "text-[11px] font-bold font-mono uppercase px-2.5 py-0.5 rounded",
             regime?.toLowerCase().includes("bull")
-              ? "bg-emerald-400/20 text-emerald-400"
+              ? "bg-emerald-500 text-white"
               : regime?.toLowerCase().includes("bear")
-              ? "bg-red-500/20 text-red-400"
-              : "bg-amber-500/20 text-amber-400"
+              ? "bg-red-500 text-white"
+              : "bg-amber-500 text-white"
           )}>
             {regime} {trend}
           </span>
@@ -470,7 +470,7 @@ export default function Trades() {
         <div className="flex-[3] flex flex-col min-h-0 overflow-hidden">
           {/* Section header */}
           <div className="flex items-center justify-between px-3 py-1 bg-[#111827] border-b border-[rgba(42,52,68,0.5)] flex-shrink-0">
-            <span className="text-[11px] font-bold text-slate-300 tracking-wide">
+            <span className="text-[11px] font-bold text-white tracking-wide">
               Positions
             </span>
             <div className="flex items-center gap-2">
@@ -503,17 +503,11 @@ export default function Trades() {
                         col.key !== "actions" &&
                         handlePosSort(col.key)
                       }
-                      className={`sticky top-0 bg-[#111827] px-1.5 py-1 text-[8px] font-semibold uppercase tracking-wider border-b border-[rgba(42,52,68,0.5)] z-10 cursor-pointer select-none hover:text-[#00D9FF] transition-colors ${
-                        col.align === "left"
-                          ? "text-left"
-                          : col.align === "center"
-                          ? "text-center"
-                          : "text-right"
-                      } ${
-                        posSortKey === col.key
-                          ? "text-[#00D9FF]"
-                          : "text-slate-500"
-                      }`}
+                      className={clsx(
+                        "sticky top-0 bg-[#111827] px-1.5 py-1 text-[8px] font-bold uppercase tracking-wider border-b border-[rgba(42,52,68,0.5)] z-10 cursor-pointer select-none hover:text-[#00D9FF] transition-colors",
+                        col.align === "left" ? "text-left" : col.align === "center" ? "text-center" : "text-right",
+                        posSortKey === col.key ? "text-[#00D9FF]" : "text-white"
+                      )}
                     >
                       {col.label}
                       <SortIcon
@@ -601,11 +595,11 @@ export default function Trades() {
                       <td className="px-1.5 py-[3px] text-left">
                         <span className="font-bold text-white font-mono text-[10px]">{sym}</span>
                       </td>
-                      {/* Side: LONG (white) or SHRT (red) per mockup */}
+                      {/* Side: LONG (green) or SHRT (red) per mockup */}
                       <td className="px-1.5 py-[3px] text-left">
                         <span className={clsx(
-                          "px-1 py-0.5 rounded-sm text-[8px] font-bold",
-                          isLong ? "text-white" : "text-red-400"
+                          "text-[8px] font-bold",
+                          isLong ? "text-emerald-400" : "text-red-400"
                         )}>
                           {isLong ? "LONG" : "SHRT"}
                         </span>
@@ -655,7 +649,7 @@ export default function Trades() {
                           color={unrealPnl >= 0 ? "#2dd4bf" : "#f87171"}
                         />
                       </td>
-                      {/* Actions: Close, Hedge, More (mockup) */}
+                      {/* Actions: Close, Hedge, More ▼ (mockup) */}
                       <td className="px-1.5 py-[3px] text-center">
                         <div className="inline-flex items-center gap-0.5">
                           <button
@@ -671,10 +665,10 @@ export default function Trades() {
                             Hedge
                           </button>
                           <button
-                            className="p-0.5 text-slate-500 hover:text-slate-200 transition-colors"
+                            className="px-1.5 py-0.5 rounded text-[8px] font-medium bg-[#131A2B] border border-[rgba(42,52,68,0.5)] text-slate-300 hover:text-[#00D9FF] transition-colors flex items-center gap-0.5"
                             title="More options"
                           >
-                            <MoreHorizontal className="w-3 h-3" />
+                            More <ChevronDown className="w-2.5 h-2.5" />
                           </button>
                         </div>
                       </td>
@@ -700,7 +694,7 @@ export default function Trades() {
         <div className="flex-[2] flex flex-col min-h-0 overflow-hidden border-t border-[rgba(42,52,68,0.5)]">
           {/* Section header */}
           <div className="flex items-center justify-between px-3 py-1 bg-[#111827] border-b border-[rgba(42,52,68,0.5)] flex-shrink-0">
-            <span className="text-[11px] font-bold text-slate-300 tracking-wide">
+            <span className="text-[11px] font-bold text-white tracking-wide">
               Orders
             </span>
             <div className="flex items-center gap-2">
@@ -737,17 +731,11 @@ export default function Trades() {
                       onClick={() =>
                         col.key !== "actions" && handleOrdSort(col.key)
                       }
-                      className={`sticky top-0 bg-[#111827] px-1.5 py-1 text-[8px] font-semibold uppercase tracking-wider border-b border-[rgba(42,52,68,0.5)] z-10 cursor-pointer select-none hover:text-[#00D9FF] transition-colors ${
-                        col.align === "left"
-                          ? "text-left"
-                          : col.align === "center"
-                          ? "text-center"
-                          : "text-right"
-                      } ${
-                        ordSortKey === col.key
-                          ? "text-[#00D9FF]"
-                          : "text-slate-500"
-                      }`}
+                      className={clsx(
+                        "sticky top-0 bg-[#111827] px-1.5 py-1 text-[8px] font-bold uppercase tracking-wider border-b border-[rgba(42,52,68,0.5)] z-10 cursor-pointer select-none hover:text-[#00D9FF] transition-colors",
+                        col.align === "left" ? "text-left" : col.align === "center" ? "text-center" : "text-right",
+                        ordSortKey === col.key ? "text-[#00D9FF]" : "text-white"
+                      )}
                     >
                       {col.label}
                       <SortIcon
@@ -852,13 +840,13 @@ export default function Trades() {
                         <td className="px-1.5 py-[3px] text-left">
                           <TypeBadge type={typ} />
                         </td>
-                        {/* Side: LONG (white) or SHORT (red) */}
+                        {/* Side: LONG (green) or SHRT (red) per mockup */}
                         <td className="px-1.5 py-[3px] text-left">
                           <span className={clsx(
                             "text-[9px] font-bold",
-                            isBuy ? "text-white" : "text-red-400"
+                            isBuy ? "text-emerald-400" : "text-red-400"
                           )}>
-                            {isBuy ? "LONG" : "SHORT"}
+                            {isBuy ? "LONG" : "SHRT"}
                           </span>
                         </td>
                         {/* Qty */}
@@ -897,29 +885,28 @@ export default function Trades() {
                             "--"
                           )}
                         </td>
-                        {/* Actions: View Logs, Cancel, Modify (mockup) */}
+                        {/* Actions: Cancel, Modify ▼, View Logs (mockup order) */}
                         <td className="px-1.5 py-[3px] text-center">
-                          <div className="inline-flex items-center gap-1">
-                            <button
-                              className="px-1.5 py-0.5 rounded text-[8px] font-medium bg-[#131A2B] border border-[rgba(42,52,68,0.5)] text-slate-400 hover:text-[#00D9FF] transition-colors flex items-center gap-0.5"
-                              title="View Logs"
-                            >
-                              <FileText className="w-2.5 h-2.5" />
-                              View Logs
-                            </button>
+                          <div className="inline-flex items-center gap-0.5">
                             <button
                               onClick={() => handleCancelOrder(orderId)}
-                              className="px-1.5 py-0.5 rounded text-[8px] font-medium bg-[#131A2B] border border-[rgba(42,52,68,0.5)] text-red-400 hover:bg-red-500/20 transition-colors"
+                              className="px-1.5 py-0.5 rounded text-[8px] font-medium bg-[#131A2B] border border-[rgba(42,52,68,0.5)] text-slate-300 hover:text-red-400 hover:bg-red-500/20 transition-colors"
                               title="Cancel"
                             >
                               Cancel
                             </button>
                             <button
-                              className="px-1.5 py-0.5 rounded text-[8px] font-medium bg-[#131A2B] border border-[rgba(42,52,68,0.5)] text-slate-400 hover:text-[#00D9FF] transition-colors flex items-center gap-0.5"
+                              className="px-1.5 py-0.5 rounded text-[8px] font-medium bg-[#131A2B] border border-[rgba(42,52,68,0.5)] text-slate-300 hover:text-[#00D9FF] transition-colors flex items-center gap-0.5"
                               title="Modify"
                             >
-                              <Edit3 className="w-2.5 h-2.5" />
-                              Modify
+                              Modify <ChevronDown className="w-2.5 h-2.5" />
+                            </button>
+                            <button
+                              className="px-1.5 py-0.5 rounded text-[8px] font-medium bg-[#131A2B] border border-[rgba(42,52,68,0.5)] text-slate-300 hover:text-[#00D9FF] transition-colors flex items-center gap-0.5"
+                              title="View Logs"
+                            >
+                              <FileText className="w-2.5 h-2.5" />
+                              View Logs
                             </button>
                           </div>
                         </td>

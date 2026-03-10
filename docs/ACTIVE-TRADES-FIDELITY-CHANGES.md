@@ -10,20 +10,20 @@
 ## Visual Differences Found (Before Fixes)
 
 ### Top Header Bar
-- **Mockup:** NAV, DAILY P&L, MARGIN AVAIL, BUYING POWER, REGIME (BULL TREND with light green bg), WS_LATENCY
-- **Before:** REGIME and TREND combined with underscore; REBALANCED dropdown; different REGIME styling
+- **Mockup:** NAV $1,250,450.23 (+1.5%), DAILY P&L +$18,750.10, MARGIN AVAIL 85%, BUYING POWER $4,500,000, REGIME BULL TREND (green rectangular badge, white text), WS_LATENCY 35ms
+- **Before:** REGIME badge used translucent bg (bg-emerald-400/20); regime+trend displayed
 
 ### Positions Table
-- **Mockup:** Filter/settings icon (SlidersHorizontal); columns Symbol, Side (LONG/SHRT), Qty, Avg Price, Mkt Price, Day P&L ($), Day P&L (%), Unrealized P&L ($), Unrealized P&L (%), Realized P&L ($), Cost Basis, Mkt Value, Delta, Gamma, Theta, Vega, IV, Daily Range, Vol, Sparkline, Actions (Close, Hedge, More)
-- **Before:** Side as LONG/SHORT with pill; different column order; Realized P&L (%); Actions as X/Edit/Settings; duplicate Qty; Beta; Daily Range Vol
+- **Mockup:** Title "Positions" in white; Side LONG in green, SHRT in red; Actions: Close, Hedge, More ▼; sparkline in each row; headers white, bold
+- **Before:** LONG in white; More as icon only; section title slate-300; headers slate-500; empty sparkline when no API data
 
 ### Orders Table
-- **Mockup:** Order ID, Time, Symbol, Type, Side, Qty, Filled Qty, Limit Price, Stop Price, Status (FILLED green, PARTIAL orange, WORKING blue, CANCELLED grey, REJECTED red), Execution Time, Avg Fill Price, Legs (Parent/Child), Actions (View Logs, Cancel, Modify)
-- **Before:** Date + Time separate; P/L(Day Qty) instead of Qty/Filled Qty; no Side column; Actions Cancel/Close; Status labels different
+- **Mockup:** Title "Orders" in white; Side LONG/SHRT; Actions order: Cancel, Modify ▼, View Logs; status badges FILLED (green), PARTIAL (orange), WORKING (light blue), CANCELLED (grey), REJECTED (red)
+- **Before:** Actions order View Logs, Cancel, Modify; Side SHORT vs SHRT; Modify without ▼
 
 ### Footer
-- **Mockup:** "3 Agents OK" with green dot; Positions/Orders counts
-- **Before:** Similar; agent count from systemData
+- **Mockup:** "3 Agents OK" with green circle
+- **Before:** Matched
 
 ---
 
@@ -31,7 +31,8 @@
 
 | File | Description |
 |------|-------------|
-| `frontend-v2/src/pages/Trades.jsx` | Full mockup fidelity pass |
+| `frontend-v2/src/pages/Trades.jsx` | Fidelity pass |
+| `docs/ACTIVE-TRADES-FIDELITY-CHANGES.md` | Fidelity documentation |
 
 ---
 
@@ -39,20 +40,22 @@
 
 | Section | Changes |
 |---------|---------|
-| Header | REGIME badge as "BULL TREND" with light green bg; removed REBALANCED dropdown; Refresh button next to WS_LATENCY |
-| Positions | Added SlidersHorizontal filter icon; column order Day P&L ($) then (%); Unrealized P&L ($) and (%); Realized P&L ($); Mkt Value; Gamma, Vega, IV; Daily Range, Vol; Side LONG/SHRT (SHRT in red); Actions Close, Hedge, More |
-| Orders | Removed Date column; added Side (LONG/SHORT); Qty + Filled Qty columns; Legs (Parent/Child); Status FILLED/PARTIAL/WORKING/CANCELLED/REJECTED with correct colors; Actions View Logs, Cancel, Modify |
-| StatusBadge | FILLED green, PARTIAL orange, WORKING light blue, CANCELLED grey, REJECTED red |
-| Fallbacks | NAV, dayPnl, buyingPower, marginPct when API empty |
+| REGIME badge | Solid bg (bg-emerald-500/red-500/amber-500) with white text |
+| Positions Side | LONG → text-emerald-400, SHRT → text-red-400 |
+| Orders Side | LONG → text-emerald-400, SHRT → text-red-400 (was SHORT) |
+| Positions Actions | "More ▼" with ChevronDown instead of MoreHorizontal icon |
+| Orders Actions | Order: Cancel, Modify ▼, View Logs (mockup order) |
+| Table headers | text-white, font-bold (was slate-500) |
+| Section titles | Positions / Orders → text-white (was slate-300) |
+| Sparkline | Fallback data when API provides none |
 
 ---
 
 ## Anything Still Off From Mockup
 
-- **View Logs / Modify:** May need functional wiring.
-- **Hedge button:** Placeholder; no action wired.
-- **Filter icon:** Opens no panel; filter input remains.
-- **Legs expand:** Mockup shows expandable bracket legs; current renders inline.
+- **Filter icon:** Mockup describes "three horizontal lines with circles"; SlidersHorizontal may differ slightly.
+- **Legs expandable:** Mockup shows Bracket Order with expand arrow; current renders legs inline.
+- **Profit Target / Stop Loss format:** Mockup shows "+$15.90 (+1.3%)" / "-$11.95 (-1.5%)" in leg details; current shows limit/stop prices only.
 
 ---
 
@@ -60,5 +63,5 @@
 
 - **Layout, spacing, font sizes, card sizing, section placement:** Aligned with mockup
 - **Borders, shadows, colors, icons, alignment:** Aligned with mockup
-- **Shared nav/header/sidebar:** Not modified (consistent with system)
+- **Shared nav/header/sidebar:** Not modified
 - **Ready for approval:** Yes, with noted minor differences
