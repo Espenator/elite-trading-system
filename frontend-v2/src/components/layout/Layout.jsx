@@ -1,7 +1,7 @@
 // LAYOUT WRAPPER - Embodier.ai Trading Intelligence System
 // CNS-aware layout: WebSocket + homeostasis + circuit breaker context for all pages.
 // BUG 1 FIX: Sidebar collapsed state is owned here and passed down as props.
-// BUG 2 FIX: StatusFooter now wired to real health data instead of red defaults.
+// BUG 2 FIX: StatusFooter now wired to real API data instead of red defaults.
 
 import { useState, useEffect, useCallback } from 'react';
 import { Outlet } from 'react-router-dom';
@@ -23,22 +23,17 @@ function LayoutInner() {
     setSidebarCollapsed(prev => !prev);
   }, []);
 
-  // BUG 2 FIX: Fetch system health for StatusFooter
-  const { data: healthData } = useApi('health', { pollIntervalMs: 10000 });
+  // BUG 2 FIX: Fetch API status + system data for StatusFooter
+  const { data: statusData } = useApi('status', { pollIntervalMs: 10000 });
+  const { data: systemData } = useApi('system', { pollIntervalMs: 15000 });
+  const { data: regimeData } = useApi('openclawRegime', { pollIntervalMs: 15000 });
 
-  // Derive StatusFooter props from health + WS state
-  const apiStatus = healthData?.status === 'healthy' ? 'green' : healthData ? 'amber' : 'red';
+  // Derive StatusFooter props
+  const apiStatus = statusData?.status === 'ok' ? 'green' : statusData ? 'amber' : 'red';
   const wsStatus = wsConnected ? 'green' : 'red';
-  const uptimeSeconds = healthData?.event_pipeline?.uptime_seconds || healthData?.signal_engine?.uptime_seconds || 0;
-  const uptimeDays = Math.floor(uptimeSeconds / 86400);
-  const uptimeHours = Math.floor((uptimeSeconds % 86400) / 3600);
-  const agentCount = healthData?.order_executor?.agent_weights ? Object.keys(healthData.order_executor.agent_weights).length : 0;
-  const llmFlow = healthData?.event_pipeline?.total_events || 0;
-  const conferenceCur = healthData?.council_gate?.councils_passed || 0;
-  const conferenceMax = healthData?.council_gate?.councils_invoked || 12;
-  const regime = healthData?.signal_engine?.regime || 'UNKNOWN';
-  const loadCur = healthData?.order_executor?.max_portfolio_heat || 0;
-  const loadMax = 4.0;
+  const regime = regimeData?.regime || systemData?.regime || 'UNKNOWN';
+  // Agent count from system/agents data
+  const agentCount = systemData?.modules ? Object.keys(systemData.modules).length : 0;
 
   return (
     <div className="flex min-h-screen bg-dark text-white overflow-hidden">
@@ -58,13 +53,6 @@ function LayoutInner() {
           apiStatus={apiStatus}
           wsStatus={wsStatus}
           agentCount={agentCount}
-          llmFlow={llmFlow}
-          conferenceCur={conferenceCur}
-          conferenceMax={conferenceMax}
-          loadCur={loadCur}
-          loadMax={loadMax}
-          uptimeDays={uptimeDays}
-          uptimeHours={uptimeHours}
           regime={regime}
         />
       </div>
