@@ -1,129 +1,233 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useApi } from '../hooks/useApi';
-import { getApiUrl, getAuthHeaders, getWsUrl, WS_CHANNELS } from '../config/api';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+} from "react";
+import { useApi } from "../hooks/useApi";
+import { getApiUrl, getAuthHeaders } from "../config/api";
 import log from "@/utils/logger";
-import { createChart, CrosshairMode, LineStyle } from 'lightweight-charts';
+import { createChart, CrosshairMode, LineStyle } from "lightweight-charts";
 import {
-  Activity, AlertTriangle, Cpu, Network, Zap, TrendingUp, TrendingDown,
-  Clock, Shield, Database, GitMerge, Radio, Server, Layers, BarChart2,
-  Eye, Sliders, Globe, MessageSquare, Play, Square, RefreshCw, CheckCircle,
-  XCircle, Rocket, FileText, Download, Share2, Search, Crosshair, Lock,
-  Unlock, Save, Power, Wifi, HardDrive, Filter, Target, Maximize2
-} from 'lucide-react';
-import ReactFlow, { Background, Controls, MarkerType, Handle } from 'reactflow';
-import 'reactflow/dist/style.css';
-import ws from '../services/websocket';
+  Cpu,
+  Zap,
+  TrendingUp,
+  TrendingDown,
+  Shield,
+  Database,
+  BarChart2,
+  Globe,
+  RefreshCw,
+  Rocket,
+  FileText,
+  Download,
+  Share2,
+  Search,
+  Lock,
+  Unlock,
+  Save,
+  Wifi,
+  Target,
+  Upload,
+} from "lucide-react";
+import ws from "../services/websocket";
+import Slider from "../components/ui/Slider";
 
 // ============================================================================
 // CONSTANTS & INITIAL DATA (fallbacks when API is unavailable)
 // ============================================================================
 
-const FALLBACK_CORE_AGENTS = [];
+const FALLBACK_CORE_AGENTS = [
+  { id: "apex", name: "Apex Orchestrator", defaultWeight: 100, type: "Core" },
+  {
+    id: "rel_weak",
+    name: "Relative Weakness",
+    defaultWeight: 85,
+    type: "Core",
+  },
+  { id: "short_basket", name: "Short Basket", defaultWeight: 75, type: "Core" },
+  { id: "meta_arch", name: "Meta Architect", defaultWeight: 90, type: "Core" },
+  { id: "meta_alch", name: "Meta Alchemist", defaultWeight: 80, type: "Core" },
+  { id: "risk_gov", name: "Risk Governor", defaultWeight: 100, type: "Risk" },
+  {
+    id: "signal_eng",
+    name: "Signal Engine",
+    defaultWeight: 95,
+    type: "Engine",
+  },
+];
 const FALLBACK_EXTENDED_AGENTS = [];
-const FALLBACK_ALL_AGENTS = [];
 
 /** Parse API agents response into { core, extended, all } using fallbacks */
 function parseAgentsFromApi(apiData) {
   if (!apiData) return null;
-  const list = Array.isArray(apiData) ? apiData
-    : apiData?.agents ? apiData.agents
-    : apiData?.data ? apiData.data
-    : null;
+  const list = Array.isArray(apiData)
+    ? apiData
+    : apiData?.agents
+      ? apiData.agents
+      : apiData?.data
+        ? apiData.data
+        : null;
   if (!list || list.length === 0) return null;
   const normalize = (a) => ({
-    id: a.id || a.agent_id || a.name?.toLowerCase().replace(/\s+/g, '_'),
+    id: a.id || a.agent_id || a.name?.toLowerCase().replace(/\s+/g, "_"),
     name: a.name || a.label || a.id,
-    type: a.type || a.role || 'Swarm',
+    type: a.type || a.role || "Swarm",
     defaultWeight: a.weight ?? a.defaultWeight ?? a.default_weight ?? 50,
     status: a.status || a.state || null,
   });
   const all = list.map(normalize);
-  const coreTypes = new Set(['Core', 'Risk', 'Engine', 'Orchestrator']);
-  const core = all.filter(a => coreTypes.has(a.type));
-  const extended = all.filter(a => !coreTypes.has(a.type));
+  const coreTypes = new Set(["Core", "Risk", "Engine", "Orchestrator"]);
+  const core = all.filter((a) => coreTypes.has(a.type));
+  const extended = all.filter((a) => !coreTypes.has(a.type));
   return { core, extended, all };
 }
 
 const SCANNERS = [
-  { id: 'scan_entity', name: 'Entity Scanner' },
-  { id: 'scan_force', name: 'Force Scanner' },
-  { id: 'scan_mfi', name: 'MFI Edge' },
-  { id: 'scan_pullback', name: 'Pullback Detector' },
-  { id: 'scan_amd', name: 'AMD Detector' },
-  { id: 'scan_rebound', name: 'Rebound Detector' },
-  { id: 'scan_squeeze', name: 'Smart Squeeze' },
-  { id: 'scan_tech', name: 'Technical Oscillator' },
-  { id: 'scan_earnings', name: 'Earnings Calendar' },
-  { id: 'scan_fomc', name: 'FOMC Calendar' },
-  { id: 'scan_whale', name: 'Whale Flow' },
-  { id: 'scan_uw', name: 'UW Agents' },
-  { id: 'scan_tv_watch', name: 'TV Watchlist' },
-  { id: 'scan_tv_decision', name: 'TV Decision Refresh' }
-];
-
-const SCORING_METRICS = [
-  { id: 'score_signal_rat', name: 'Signal Rationalization', value: 0 },
-  { id: 'score_lstm_shot', name: 'LSTM Shot Timer', value: 0 },
-  { id: 'score_slnm', name: 'SLNM Strength', value: 0 },
-  { id: 'score_velez', name: 'Velez Score', value: 0 },
-  { id: 'score_blake', name: 'Blake Flow', value: 0 },
-  { id: 'score_mada', name: 'Mada Flow', value: 0 },
-  { id: 'score_iwi', name: 'IWI Structure', value: 0 },
-  { id: 'score_rl_comp', name: 'R&L Compression', value: 0 },
-  { id: 'score_competition', name: 'Competition', value: 0 }
+  { id: "daily", name: "Daily Scanner", pct: 100 },
+  { id: "finviz", name: "Finviz Screener", pct: 70 },
+  { id: "amd", name: "AMD Detector", pct: 85 },
+  { id: "pullback", name: "Pullback Detector", pct: 90 },
+  { id: "rebound", name: "Rebound Detector", pct: 80 },
+  { id: "squeeze", name: "Short Squeeze", pct: 65 },
+  { id: "tech", name: "Technical Checker", pct: 75 },
+  { id: "earnings", name: "Earnings Calendar", pct: 50 },
+  { id: "fomc", name: "FOMC Expected", pct: 100 },
+  { id: "sector", name: "Sector Rotation", pct: 85 },
+  { id: "whale", name: "Whale Flow", pct: 95 },
+  { id: "uw", name: "UW Agents", pct: 90 },
+  { id: "tv_watch", name: "TV Watchlist", pct: 60 },
+  { id: "tv_refresh", name: "TV Session Refresh", pct: 40 },
 ];
 
 const INTEL_MODULES = [
-  { id: 'intel_hmm', name: 'HMM Regime', defaultWeight: 0 },
-  { id: 'intel_sentiment', name: 'Sentiment', defaultWeight: 0 },
-  { id: 'intel_lstm', name: 'LSTM Trainer', defaultWeight: 0 },
-  { id: 'intel_macro', name: 'Macro Context', defaultWeight: 0 },
-  { id: 'intel_monte', name: 'Monte Carlo', defaultWeight: 0 }
+  { id: "intel_hmm", name: "HMM Regime", defaultWeight: 100 },
+  { id: "intel_llm", name: "LLM Client", defaultWeight: 85 },
+  { id: "intel_lora", name: "LoRA Trainer", defaultWeight: 70 },
+  { id: "intel_macro", name: "Macro Context", defaultWeight: 95 },
+  { id: "intel_mem1", name: "Memory v1", defaultWeight: 60 },
+  { id: "intel_mem3", name: "Memory v3", defaultWeight: 90 },
+  { id: "intel_mtf", name: "MTF Alignment", defaultWeight: 85 },
+  { id: "intel_perf", name: "Perf Tracker", defaultWeight: 100 },
+  { id: "intel_regime", name: "Regime Detector", defaultWeight: 100 },
 ];
 
 const ML_MODELS = [
-  { id: 'ml_lstm', name: 'LSTM Daily', version: '—', defaultStatus: '—' },
-  { id: 'ml_xgb', name: 'XGBoost GPU', version: '—', defaultStatus: '—' },
-  { id: 'ml_river', name: 'River Online', version: '—', defaultStatus: '—' },
-  { id: 'ml_infer', name: 'Inference Engine', version: '—', defaultStatus: '—' },
-  { id: 'ml_wfv', name: 'Walk-Forward Val', version: '—', defaultStatus: '—' },
-  { id: 'ml_pipe', name: 'ML Pipeline', version: '—', defaultStatus: '—' }
+  {
+    id: "ml_lstm",
+    name: "LSTM Daily",
+    version: "v4.2.1",
+    defaultStatus: "Ready",
+  },
+  {
+    id: "ml_xgb",
+    name: "XGBoost GPU",
+    version: "v2.8.0",
+    defaultStatus: "Ready",
+  },
+  {
+    id: "ml_river",
+    name: "River Online",
+    version: "v1.1.5",
+    defaultStatus: "Training",
+  },
+  {
+    id: "ml_infer",
+    name: "Inference Engine",
+    version: "v3.0.0",
+    defaultStatus: "Ready",
+  },
+  {
+    id: "ml_wfv",
+    name: "Walk-Forward Val",
+    version: "v1.0.2",
+    defaultStatus: "Idle",
+  },
+  {
+    id: "ml_pipe",
+    name: "ML Pipeline",
+    version: "v5.1.0",
+    defaultStatus: "Ready",
+  },
 ];
 
 const DATA_SOURCES = [
-  { id: 'ds_twitter', name: 'Twitter/X API' },
-  { id: 'ds_reddit', name: 'Reddit API' },
-  { id: 'ds_discord', name: 'Discord Listener' },
-  { id: 'ds_news', name: 'News API' },
-  { id: 'ds_whale', name: 'Whale Flow' },
-  { id: 'ds_insider', name: 'Insider API' }
+  { id: "ds_twitter", name: "Twitter/X API", connected: false },
+  { id: "ds_reddit", name: "Reddit API", connected: false },
+  { id: "ds_news", name: "NewsAPI", connected: false },
+  { id: "ds_benzinga", name: "Benzinga Pro", connected: false },
+  { id: "ds_rss", name: "RSS Aggregator", connected: false },
+  { id: "ds_discord", name: "Discord Listener", connected: true },
+  { id: "ds_youtube", name: "YouTube Agent", connected: false, weight: 1 },
 ];
 
 const API_ENDPOINTS = [
-  'agents','alerts','backtest','data_sources','flywheel','logs',
-  'market','ml_brain','openclaw','orders','patterns','performance',
-  'portfolio','quotes','risk','risk_shield','sentiment','settings',
-  'signals','status','stocks','strategy','system','training',
-  'youtube_knowledge','websocket','auth_bridge','ext_webhooks'
+  "agents",
+  "alerts",
+  "backtest",
+  "data_sources",
+  "flywheel",
+  "logs",
+  "market",
+  "ml_brain",
+  "openclaw",
+  "orders",
+  "patterns",
+  "performance",
+  "portfolio",
+  "quotes",
+  "risk",
+  "risk_shield",
+  "sentiment",
+  "settings",
+  "signals",
+  "status",
+  "stocks",
+  "strategy",
+  "system",
+  "training",
+  "youtube_knowledge",
+  "websocket",
+  "auth_bridge",
+  "ext_webhooks",
 ];
 
 const SHAP_FACTORS = [
-  'UW Options Flow','Velez Score','Volume Surge','Whale Flow',
-  'RSI Divergence','HTF Structure','Compression','Sector Momentum'
+  "UN Options Flow",
+  "Velez Score",
+  "Volume Surge",
+  "Whale Flow",
+  "RSI Divergence",
+  "HTF Structure",
+  "Compression",
+  "Sector Momentum",
 ];
 
 // ============================================================================
 // REUSABLE UI COMPONENTS
 // ============================================================================
 
-const Panel = ({ title, icon: Icon, children, className = '', headerAction = null }) => (
-  <div className={`bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded overflow-hidden flex flex-col ${className}`}>
+const Panel = ({
+  title,
+  icon: Icon,
+  children,
+  className = "",
+  headerAction = null,
+}) => (
+  <div
+    className={`bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded overflow-hidden flex flex-col ${className}`}
+  >
     <div className="px-2.5 py-1.5 border-b border-[rgba(42,52,68,0.5)] flex justify-between items-center bg-[#0B0E14] shrink-0">
       <div className="flex items-center gap-1.5">
         {Icon && <Icon className="w-3 h-3 text-[#00D9FF] shrink-0" />}
-        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">{title}</h3>
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
+          {title}
+        </h3>
       </div>
-      {headerAction && <div className="flex items-center gap-1">{headerAction}</div>}
+      {headerAction && (
+        <div className="flex items-center gap-1">{headerAction}</div>
+      )}
     </div>
     <div className="p-2 flex-1 flex flex-col overflow-y-auto scrollbar-thin scrollbar-thumb-[#374151] scrollbar-track-transparent">
       {children}
@@ -131,40 +235,24 @@ const Panel = ({ title, icon: Icon, children, className = '', headerAction = nul
   </div>
 );
 
-const Toggle = ({ checked, onChange, size = 'md' }) => {
-  const h = size === 'sm' ? 'h-3' : 'h-4';
-  const w = size === 'sm' ? 'w-6' : 'w-8';
-  const dot = size === 'sm' ? 'w-2 h-2' : 'w-3 h-3';
-  const translate = size === 'sm' ? 'translate-x-3' : 'translate-x-4';
+const Toggle = ({ checked, onChange, size = "md", variant = "cyan" }) => {
+  const h = size === "sm" ? "h-3" : "h-4";
+  const w = size === "sm" ? "w-6" : "w-8";
+  const dot = size === "sm" ? "w-2 h-2" : "w-3 h-3";
+  const translate = size === "sm" ? "translate-x-3" : "translate-x-4";
+  const bgChecked = variant === "orange" ? "bg-amber-500" : "bg-cyan-500";
   return (
-    <button type="button" onClick={() => onChange(!checked)}
-      className={`${w} ${h} rounded-full relative transition-colors duration-200 focus:outline-none shrink-0 ${checked ? 'bg-cyan-500' : 'bg-[#374151]'}`}>
-      <span className={`absolute top-0.5 left-0.5 bg-white rounded-full transition-transform duration-200 ${dot} ${checked ? translate : 'translate-x-0'}`} />
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      className={`${w} ${h} rounded-full relative transition-colors duration-200 focus:outline-none shrink-0 ${checked ? bgChecked : "bg-[#374151]"}`}
+    >
+      <span
+        className={`absolute top-0.5 left-0.5 bg-white rounded-full transition-transform duration-200 ${dot} ${checked ? translate : "translate-x-0"}`}
+      />
     </button>
   );
 };
-
-const Badge = ({ children, color = 'cyan' }) => {
-  const colors = {
-    cyan: 'bg-cyan-500/10 text-[#00D9FF] border-[#00D9FF]/50/30',
-    emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
-    amber: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
-    red: 'bg-red-500/10 text-red-400 border-red-500/30',
-    purple: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
-    gray: 'bg-gray-500/10 text-gray-400 border-gray-500/30',
-  };
-  return (<span className={`px-1.5 py-0.5 rounded text-[9px] border font-mono ${colors[color] ?? colors.gray}`}>{children}</span>);
-};
-
-const ProgressBar = ({ value, color = '#00D9FF', label = '', showValue = true }) => (
-  <div className="flex items-center gap-1.5 w-full">
-    {label && <span className="text-[8px] text-gray-400 w-24 shrink-0 truncate">{label}</span>}
-    <div className="flex-1 h-1.5 bg-[#1e293b] rounded-full overflow-hidden">
-      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${value}%`, backgroundColor: color }} />
-    </div>
-    {showValue && <span className="text-[8px] text-gray-400 w-8 text-right shrink-0">{value}%</span>}
-  </div>
-);
 
 // ============================================================================
 // MAIN DASHBOARD COMPONENT
@@ -189,37 +277,85 @@ export default function SignalIntelligenceV3() {
   const { data: apiStrategy } = useApi('strategy', { pollIntervalMs: 30000 });
 
   // --- DERIVE AGENT LISTS FROM API (with hardcoded fallbacks) ---
-  const parsedAgents = useMemo(() => parseAgentsFromApi(apiAgents), [apiAgents]);
-  const CORE_AGENTS = useMemo(() => parsedAgents?.core ?? FALLBACK_CORE_AGENTS, [parsedAgents]);
-  const EXTENDED_AGENTS = useMemo(() => parsedAgents?.extended ?? FALLBACK_EXTENDED_AGENTS, [parsedAgents]);
-  const ALL_AGENTS = useMemo(() => parsedAgents?.all ?? FALLBACK_ALL_AGENTS, [parsedAgents]);
+  const parsedAgents = useMemo(
+    () => parseAgentsFromApi(apiAgents),
+    [apiAgents],
+  );
+  const CORE_AGENTS = useMemo(
+    () =>
+      parsedAgents?.core?.length ? parsedAgents.core : FALLBACK_CORE_AGENTS,
+    [parsedAgents],
+  );
+  const EXTENDED_AGENTS = useMemo(
+    () => parsedAgents?.extended ?? FALLBACK_EXTENDED_AGENTS,
+    [parsedAgents],
+  );
+  const ALL_AGENTS = useMemo(
+    () => (parsedAgents?.all?.length ? parsedAgents.all : FALLBACK_CORE_AGENTS),
+    [parsedAgents],
+  );
 
   // --- LOCAL STATE ---
   const [agentStates, setAgentStates] = useState({});
   const [scannerStates, setScannerStates] = useState(() =>
-    SCANNERS.reduce((acc, scan) => ({ ...acc, [scan.id]: { active: true, status: 'green', runs: 0 } }), {})
+    SCANNERS.reduce(
+      (acc, scan) => ({
+        ...acc,
+        [scan.id]: { active: true, pct: scan.pct, status: "green", runs: 0 },
+      }),
+      {},
+    ),
   );
   const [intelStates, setIntelStates] = useState(() =>
-    INTEL_MODULES.reduce((acc, mod) => ({ ...acc, [mod.id]: { active: true, weight: mod.defaultWeight, status: 'green' } }), {})
+    INTEL_MODULES.reduce(
+      (acc, mod) => ({
+        ...acc,
+        [mod.id]: { active: true, weight: mod.defaultWeight, status: "green" },
+      }),
+      {},
+    ),
   );
   const [scoringFormula, setScoringFormula] = useState({
-    ocTaBlend: 60, tierSlamDunk: 90, tierStrongGo: 75, tierWatch: 60, regimeMultiplier: 1.2
+    ocTaBlend: 60,
+    tierSlamDunk: 90,
+    tierStrongGo: 75,
+    tierWatch: 60,
+    regimeMultiplier: 1.2,
   });
   const [shapWeights, setShapWeights] = useState(() =>
-    SHAP_FACTORS.reduce((acc, factor) => ({ ...acc, [factor]: 50 }), {})
+    SHAP_FACTORS.reduce(
+      (acc, factor, i) => ({
+        ...acc,
+        [factor]: [8, 8, 8, 8, 5, 9, 8, 8][i] ?? 8,
+      }),
+      {},
+    ),
   );
-  const [shapActive, setShapActive] = useState(() =>
-    SHAP_FACTORS.reduce((acc, factor) => ({ ...acc, [factor]: true }), {})
-  );
-  const [alertRules, setAlertRules] = useState({
-    comp_regime_stage: true,
-    vix_halve_pos: true,
-  });
   const [mlStates, setMlStates] = useState(() =>
-    ML_MODELS.reduce((acc, mod) => ({ ...acc, [mod.id]: { active: true, confThreshold: 75, status: mod.defaultStatus } }), {})
+    ML_MODELS.reduce(
+      (acc, mod) => ({
+        ...acc,
+        [mod.id]: {
+          active: true,
+          confThreshold: 75,
+          status: mod.defaultStatus,
+        },
+      }),
+      {},
+    ),
   );
   const [dataSourceStates, setDataSourceStates] = useState(() =>
-    DATA_SOURCES.reduce((acc, ds) => ({ ...acc, [ds.id]: { active: true, weight: 100 } }), {})
+    DATA_SOURCES.reduce(
+      (acc, ds) => ({
+        ...acc,
+        [ds.id]: {
+          active: true,
+          weight: ds.weight ?? 100,
+          connected: ds.connected,
+        },
+      }),
+      {},
+    ),
   );
   const [regimeLock, setRegimeLock] = useState(false);
   const [autoExecute, setAutoExecute] = useState(false);
@@ -227,8 +363,8 @@ export default function SignalIntelligenceV3() {
   const [lossLimit, setLossLimit] = useState(5);
   const [wsLatency, setWsLatency] = useState(42);
   const [signals, setSignals] = useState([]);
-  const [selectedSymbol, setSelectedSymbol] = useState('NVDA');
-  const [chartTimeframe, setChartTimeframe] = useState('W1');
+  const [selectedSymbol, setSelectedSymbol] = useState("NVDA");
+  const [chartTimeframe, setChartTimeframe] = useState("W1");
 
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
@@ -236,34 +372,46 @@ export default function SignalIntelligenceV3() {
   // --- WEBSOCKET CONNECTION (uses services/websocket.js singleton) ---
   useEffect(() => {
     ws.connect();
-    const unsubSignals = ws.on('signals', (msg) => {
-      if (msg?.type === 'signals_updated') refetchSignals();
-      if (msg?.type === 'signal' && msg.payload) {
-        setSignals(prev => [msg.payload, ...prev].slice(0, 50));
+    const unsubSignals = ws.on("signals", (msg) => {
+      if (msg?.type === "signals_updated") refetchSignals();
+      if (msg?.type === "signal" && msg.payload) {
+        setSignals((prev) => [msg.payload, ...prev].slice(0, 50));
       }
     });
-    const unsubLatency = ws.on('*', (msg) => {
-      if (msg?.data?.type === 'ping' && msg.data.latency) setWsLatency(msg.data.latency);
+    const unsubLatency = ws.on("*", (msg) => {
+      if (msg?.data?.type === "ping" && msg.data.latency)
+        setWsLatency(msg.data.latency);
     });
-    return () => { unsubSignals(); unsubLatency(); };
+    return () => {
+      unsubSignals();
+      unsubLatency();
+    };
   }, [refetchSignals]);
 
   // --- SYNC API AGENTS INTO LOCAL agentStates ---
   useEffect(() => {
     if (!ALL_AGENTS || ALL_AGENTS.length === 0) return;
-    setAgentStates(prev => {
+    setAgentStates((prev) => {
       const next = { ...prev };
       for (const agent of ALL_AGENTS) {
         const existing = prev[agent.id];
         const apiStatus = agent.status;
-        const statusColor = apiStatus === 'active' || apiStatus === 'running' ? 'green'
-          : apiStatus === 'degraded' || apiStatus === 'warming' ? 'yellow'
-          : apiStatus === 'error' || apiStatus === 'stopped' ? 'red'
-          : existing?.status || 'green';
+        const statusColor =
+          apiStatus === "active" || apiStatus === "running"
+            ? "green"
+            : apiStatus === "degraded" || apiStatus === "warming"
+              ? "yellow"
+              : apiStatus === "error" || apiStatus === "stopped"
+                ? "red"
+                : existing?.status || "green";
         if (existing) {
           next[agent.id] = { ...existing, status: statusColor };
         } else {
-          next[agent.id] = { active: true, weight: agent.defaultWeight, status: statusColor };
+          next[agent.id] = {
+            active: true,
+            weight: agent.defaultWeight,
+            status: statusColor,
+          };
         }
       }
       return next;
@@ -273,16 +421,23 @@ export default function SignalIntelligenceV3() {
   // --- SYNC API DATA SOURCES INTO LOCAL dataSourceStates ---
   useEffect(() => {
     if (!apiDataSources) return;
-    const sources = Array.isArray(apiDataSources) ? apiDataSources
+    const sources = Array.isArray(apiDataSources)
+      ? apiDataSources
       : apiDataSources?.sources || apiDataSources?.data || [];
     if (sources.length === 0) return;
-    setDataSourceStates(prev => {
+    setDataSourceStates((prev) => {
       const next = { ...prev };
       for (const src of sources) {
         const id = src.id || src.source_id;
         if (!id) continue;
-        const isActive = src.active !== false && src.status !== 'down' && src.status !== 'error';
-        next[id] = { active: isActive, weight: src.weight ?? prev[id]?.weight ?? 100 };
+        const isActive =
+          src.active !== false &&
+          src.status !== "down" &&
+          src.status !== "error";
+        next[id] = {
+          active: isActive,
+          weight: src.weight ?? prev[id]?.weight ?? 100,
+        };
       }
       return next;
     });
@@ -292,7 +447,7 @@ export default function SignalIntelligenceV3() {
   useEffect(() => {
     const models = apiMlBrain?.models || apiTraining?.models || null;
     if (!models || !Array.isArray(models)) return;
-    setMlStates(prev => {
+    setMlStates((prev) => {
       const next = { ...prev };
       for (const m of models) {
         const id = m.id || m.model_id;
@@ -300,7 +455,8 @@ export default function SignalIntelligenceV3() {
         next[id] = {
           ...prev[id],
           status: m.status || m.state || prev[id].status,
-          confThreshold: m.confidence_threshold ?? m.confThreshold ?? prev[id].confThreshold,
+          confThreshold:
+            m.confidence_threshold ?? m.confThreshold ?? prev[id].confThreshold,
         };
       }
       return next;
@@ -311,34 +467,71 @@ export default function SignalIntelligenceV3() {
   useEffect(() => {
     if (!chartContainerRef.current || chartRef.current) return;
     const chart = createChart(chartContainerRef.current, {
-      layout: { background: { color: 'transparent' }, textColor: '#9ca3af', fontFamily: 'JetBrains Mono, monospace', fontSize: 9 },
-      grid: { vertLines: { color: '#1e293b', style: LineStyle.SparseDotted }, horzLines: { color: '#1e293b', style: LineStyle.SparseDotted } },
+      layout: {
+        background: { color: "transparent" },
+        textColor: "#9ca3af",
+        fontFamily: "JetBrains Mono, monospace",
+        fontSize: 9,
+      },
+      grid: {
+        vertLines: { color: "#1e293b", style: LineStyle.SparseDotted },
+        horzLines: { color: "#1e293b", style: LineStyle.SparseDotted },
+      },
       crosshair: { mode: CrosshairMode.Normal },
-      timeScale: { borderColor: '#374151', timeVisible: true, secondsVisible: false },
-      rightPriceScale: { borderColor: '#374151' },
+      timeScale: {
+        borderColor: "#374151",
+        timeVisible: true,
+        secondsVisible: false,
+      },
+      rightPriceScale: { borderColor: "#374151" },
     });
     const candleSeries = chart.addCandlestickSeries({
-      upColor: '#10b981', downColor: '#ef4444', borderVisible: false,
-      wickUpColor: '#10b981', wickDownColor: '#ef4444'
+      upColor: "#10b981",
+      downColor: "#ef4444",
+      borderVisible: false,
+      wickUpColor: "#10b981",
+      wickDownColor: "#ef4444",
     });
     const volSeries = chart.addHistogramSeries({
-      color: '#26a69a', priceFormat: { type: 'volume' },
-      priceScaleId: '', scaleMargins: { top: 0.8, bottom: 0 }
+      color: "#26a69a",
+      priceFormat: { type: "volume" },
+      priceScaleId: "",
+      scaleMargins: { top: 0.8, bottom: 0 },
     });
-    const sma20 = chart.addLineSeries({ color: '#00D9FF', lineWidth: 1, title: 'SMA20' });
-    const sma50 = chart.addLineSeries({ color: '#a855f7', lineWidth: 1, title: 'SMA50' });
-    const sma200 = chart.addLineSeries({ color: '#F97316', lineWidth: 1, lineStyle: LineStyle.Dashed, title: 'SMA200' });
-    const vwap = chart.addLineSeries({ color: '#ffffff', lineWidth: 1, lineStyle: LineStyle.Dotted, title: 'VWAP' });
+    const sma20 = chart.addLineSeries({
+      color: "#00D9FF",
+      lineWidth: 1,
+      title: "SMA20",
+    });
+    const sma50 = chart.addLineSeries({
+      color: "#a855f7",
+      lineWidth: 1,
+      title: "SMA50",
+    });
+    const sma200 = chart.addLineSeries({
+      color: "#F97316",
+      lineWidth: 1,
+      lineStyle: LineStyle.Dashed,
+      title: "SMA200",
+    });
+    const vwap = chart.addLineSeries({
+      color: "#ffffff",
+      lineWidth: 1,
+      lineStyle: LineStyle.Dotted,
+      title: "VWAP",
+    });
     // Fetch real OHLCV data from backend quotes API
     const fetchChart = async () => {
       try {
-        const url = getApiUrl('quotes') + `/${selectedSymbol}?timeframe=${chartTimeframe}`;
+        const url =
+          getApiUrl("quotes") +
+          `/${selectedSymbol}?timeframe=${chartTimeframe}`;
         const res = await fetch(url);
-        if (!res.ok) throw new Error('Quote fetch failed');
+        if (!res.ok) throw new Error("Quote fetch failed");
         const json = await res.json();
         const bars = json.bars || json.data || json || [];
         if (bars.length === 0) return;
-        const rawData = bars.map(b => {
+        const rawData = bars.map((b) => {
           const t = b.timestamp ?? b.t ?? b.time;
           const ts = t != null ? Math.floor(new Date(t).getTime() / 1000) : NaN;
           const open = Number(b.open ?? b.o);
@@ -346,10 +539,17 @@ export default function SignalIntelligenceV3() {
           const low = Number(b.low ?? b.l);
           const close = Number(b.close ?? b.c);
           const volume = Number(b.volume ?? b.v ?? 0);
-          return { time: Number.isFinite(ts) ? ts : NaN, open, high, low, close, volume };
+          return {
+            time: Number.isFinite(ts) ? ts : NaN,
+            open,
+            high,
+            low,
+            close,
+            volume,
+          };
         });
         const sorted = rawData
-          .filter(d => Number.isFinite(d.time) && Number.isFinite(d.close))
+          .filter((d) => Number.isFinite(d.time) && Number.isFinite(d.close))
           .sort((a, b) => a.time - b.time);
         const data = [];
         let prevTime = -1;
@@ -362,93 +562,220 @@ export default function SignalIntelligenceV3() {
           }
         }
         if (data.length === 0) return;
-        const volData = data.map((d) => ({ time: d.time, value: d.volume, color: d.close >= d.open ? '#10b98144' : '#ef444444' }));
-        const s20 = []; const s50 = []; const s200 = []; const vwapData = [];
-        let cumVol = 0, cumVolPrice = 0;
+        const volData = data.map((d) => ({
+          time: d.time,
+          value: d.volume,
+          color: d.close >= d.open ? "#10b98144" : "#ef444444",
+        }));
+        const s20 = [];
+        const s50 = [];
+        const s200 = [];
+        const vwapData = [];
+        let cumVol = 0,
+          cumVolPrice = 0;
         data.forEach((d, i) => {
           const vol = d.volume;
           const tp = (d.high + d.low + d.close) / 3;
-          cumVol += vol; cumVolPrice += tp * vol;
-          if (cumVol > 0) vwapData.push({ time: d.time, value: cumVolPrice / cumVol });
-          if (i >= 19) s20.push({ time: d.time, value: data.slice(i - 19, i + 1).reduce((a, b) => a + b.close, 0) / 20 });
-          if (i >= 49) s50.push({ time: d.time, value: data.slice(i - 49, i + 1).reduce((a, b) => a + b.close, 0) / 50 });
-          if (i >= 199) s200.push({ time: d.time, value: data.slice(i - 199, i + 1).reduce((a, b) => a + b.close, 0) / 200 });
+          cumVol += vol;
+          cumVolPrice += tp * vol;
+          if (cumVol > 0)
+            vwapData.push({ time: d.time, value: cumVolPrice / cumVol });
+          if (i >= 19)
+            s20.push({
+              time: d.time,
+              value:
+                data.slice(i - 19, i + 1).reduce((a, b) => a + b.close, 0) / 20,
+            });
+          if (i >= 49)
+            s50.push({
+              time: d.time,
+              value:
+                data.slice(i - 49, i + 1).reduce((a, b) => a + b.close, 0) / 50,
+            });
+          if (i >= 199)
+            s200.push({
+              time: d.time,
+              value:
+                data.slice(i - 199, i + 1).reduce((a, b) => a + b.close, 0) /
+                200,
+            });
         });
-        candleSeries.setData(data); volSeries.setData(volData);
-        sma20.setData(s20); sma50.setData(s50); sma200.setData(s200); vwap.setData(vwapData);
+        candleSeries.setData(data);
+        volSeries.setData(volData);
+        sma20.setData(s20);
+        sma50.setData(s50);
+        sma200.setData(s200);
+        vwap.setData(vwapData);
         const lastPrice = data[data.length - 1].close;
-        candleSeries.createPriceLine({ price: lastPrice, color: '#00D9FF', lineWidth: 2, lineStyle: LineStyle.Solid, title: 'ENTRY' });
-        candleSeries.createPriceLine({ price: lastPrice * 1.05, color: '#10b981', lineWidth: 2, lineStyle: LineStyle.Dashed, title: 'TARGET' });
-        candleSeries.createPriceLine({ price: lastPrice * 0.98, color: '#ef4444', lineWidth: 2, lineStyle: LineStyle.Dotted, title: 'STOP' });
-      } catch (err) { log.warn('Chart data fetch (expected if no quotes endpoint):', err.message); }
+        candleSeries.createPriceLine({
+          price: lastPrice,
+          color: "#00D9FF",
+          lineWidth: 2,
+          lineStyle: LineStyle.Solid,
+          title: "ENTRY",
+        });
+        candleSeries.createPriceLine({
+          price: lastPrice * 1.05,
+          color: "#10b981",
+          lineWidth: 2,
+          lineStyle: LineStyle.Dashed,
+          title: "TARGET",
+        });
+        candleSeries.createPriceLine({
+          price: lastPrice * 0.98,
+          color: "#ef4444",
+          lineWidth: 2,
+          lineStyle: LineStyle.Dotted,
+          title: "STOP",
+        });
+      } catch (err) {
+        log.warn(
+          "Chart data fetch (expected if no quotes endpoint):",
+          err.message,
+        );
+      }
     };
     fetchChart();
     chartRef.current = chart;
-    const handleResize = () => { if (chartContainerRef.current) chart.applyOptions({ width: chartContainerRef.current.clientWidth }); };
-    window.addEventListener('resize', handleResize);
-    return () => { window.removeEventListener('resize', handleResize); chart.remove(); chartRef.current = null; };
+    const handleResize = () => {
+      if (chartContainerRef.current)
+        chart.applyOptions({ width: chartContainerRef.current.clientWidth });
+    };
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      chart.remove();
+      chartRef.current = null;
+    };
   }, [selectedSymbol, chartTimeframe]);
 
   // --- SYNC API SIGNALS TO LOCAL STATE ---
   useEffect(() => {
     if (apiSignals) {
-      const list = Array.isArray(apiSignals) ? apiSignals
-        : apiSignals?.signals ? apiSignals.signals
-        : [];
-      if (list.length > 0) { setSignals(list.slice(0, 50)); return; }
+      const list = Array.isArray(apiSignals)
+        ? apiSignals
+        : apiSignals?.signals
+          ? apiSignals.signals
+          : [];
+      if (list.length > 0) {
+        setSignals(list.slice(0, 50));
+        return;
+      }
     }
     if (signals.length === 0) {
       setSignals([
-        { id: 1, symbol: 'NVDA', score: 96, dir: 'LONG', price: 145.28, agent: 'Signal Engine', status: 'Staged' },
-        { id: 2, symbol: 'AMD', score: 88, dir: 'LONG', price: 148.50, agent: 'Apex Orchestrator', status: 'Pending' },
-        { id: 3, symbol: 'TSLA', score: 32, dir: 'SHORT', price: 225.10, agent: 'Rel_Weak', status: 'Active' },
-        { id: 4, symbol: 'PLTR', score: 91, dir: 'LONG', price: 44.80, agent: 'Apex Orchestrator', status: 'Staged' },
-        { id: 5, symbol: 'SMCI', score: 85, dir: 'LONG', price: 1045.20, agent: 'Squeeze', status: 'Watch' },
-        { id: 6, symbol: 'META', score: 76, dir: 'LONG', price: 502.10, agent: 'Tech', status: 'Pending' },
-        { id: 7, symbol: 'BA', score: 12, dir: 'SHORT', price: 184.20, agent: 'Short_B', status: 'Active' },
-        { id: 8, symbol: 'AAPL', score: 65, dir: 'LONG', price: 245.15, agent: 'Daily', status: 'Watch' },
+        {
+          id: 1,
+          symbol: "NVDA",
+          score: 96,
+          dir: "LONG",
+          price: 145.2,
+          agent: "Signal Engine",
+        },
+        {
+          id: 2,
+          symbol: "AMD",
+          score: 86,
+          dir: "LONG",
+          price: 128.5,
+          agent: "Meta Architect",
+        },
+        {
+          id: 3,
+          symbol: "AMD",
+          score: 88,
+          dir: "LONG",
+          price: 128.5,
+          agent: "Meta Architect",
+        },
+        {
+          id: 4,
+          symbol: "TSLA",
+          score: 32,
+          dir: "SHORT",
+          price: 220.1,
+          agent: "Risk Governor",
+        },
+        {
+          id: 5,
+          symbol: "PLTR",
+          score: 91,
+          dir: "LONG",
+          price: 42.8,
+          agent: "Apex Orchestrator",
+        },
+        {
+          id: 6,
+          symbol: "SMCI",
+          score: 85,
+          dir: "LONG",
+          price: 890.0,
+          agent: "Relative Weakness",
+        },
+        {
+          id: 7,
+          symbol: "META",
+          score: 76,
+          dir: "LONG",
+          price: 575.3,
+          agent: "Signal Engine",
+        },
+        {
+          id: 8,
+          symbol: "BA",
+          score: 12,
+          dir: "SHORT",
+          price: 185.4,
+          agent: "Short Basket",
+        },
+        {
+          id: 9,
+          symbol: "AAPL",
+          score: 65,
+          dir: "LONG",
+          price: 245.1,
+          agent: "Meta Alchemist",
+        },
       ]);
     }
   }, [apiSignals]);
 
   // --- HANDLERS (Real API Mapped) ---
   const handleUpdateWeight = useCallback(async (category, id, value) => {
-    if (category === 'agent') setAgentStates(p => ({ ...p, [id]: { ...p[id], weight: value } }));
-    else if (category === 'scanner') setScannerStates(p => ({ ...p, [id]: { ...p[id], weight: value } }));
-    else if (category === 'intel') setIntelStates(p => ({ ...p, [id]: { ...p[id], weight: value } }));
-    else if (category === 'shap') { setShapWeights(p => ({ ...p, [id]: value })); return; }
+    if (category === "agent")
+      setAgentStates((p) => ({ ...p, [id]: { ...p[id], weight: value } }));
+    else if (category === "scanner")
+      setScannerStates((p) => ({ ...p, [id]: { ...p[id], weight: value } }));
+    else if (category === "intel")
+      setIntelStates((p) => ({ ...p, [id]: { ...p[id], weight: value } }));
+    else if (category === "shap") {
+      setShapWeights((p) => ({ ...p, [id]: value }));
+      return;
+    }
     try {
       const url = getApiUrl(`${category}s`) + `/${id}/weight`;
-      await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, body: JSON.stringify({ weight: value }) });
-    } catch (err) { log.error(`Failed to update ${category} weight:`, err); }
-  }, []);
-
-  const handleToggleState = useCallback(async (category, id, currentState) => {
-    const newState = !currentState;
-    if (category === 'agent') setAgentStates(p => ({ ...p, [id]: { ...p[id], active: newState } }));
-    else if (category === 'scanner') setScannerStates(p => ({ ...p, [id]: { ...p[id], active: newState } }));
-    else if (category === 'intel') setIntelStates(p => ({ ...p, [id]: { ...p[id], active: newState } }));
-    try {
-      const url = getApiUrl(`${category}s`) + `/${id}/toggle`;
-      await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, body: JSON.stringify({ active: newState }) });
-    } catch (err) { log.error(`Failed to toggle ${category}:`, err); }
-  }, []);
-
-  const triggerScan = useCallback(async (id) => {
-    try {
-      setScannerStates(p => ({ ...p, [id]: { ...p[id], status: 'yellow' } }));
-      const url = getApiUrl('openclaw/scan');
-      await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, body: JSON.stringify({ scannerId: id }) });
-      setTimeout(() => { setScannerStates(p => ({ ...p, [id]: { ...p[id], status: 'green', runs: p[id].runs + 1 } })); }, 1500);
-    } catch (e) { setScannerStates(p => ({ ...p, [id]: { ...p[id], status: 'red' } })); }
+      await fetch(url, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ weight: value }),
+      });
+    } catch (err) {
+      log.error(`Failed to update ${category} weight:`, err);
+    }
   }, []);
 
   const triggerRetrain = useCallback(async (id) => {
     try {
-      setMlStates(p => ({ ...p, [id]: { ...p[id], status: 'Training' } }));
-      const url = getApiUrl('training') + '/retrain';
-      await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }, body: JSON.stringify({ modelId: id }) });
-    } catch (e) { log.error(e); }
+      setMlStates((p) => ({ ...p, [id]: { ...p[id], status: "Training" } }));
+      const url = getApiUrl("training") + "/retrain";
+      await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ modelId: id }),
+      });
+    } catch (e) {
+      log.error(e);
+    }
   }, []);
 
   // --- SAVE PROFILE (persist all weights/toggles to backend settings) ---
@@ -467,42 +794,55 @@ export default function SignalIntelligenceV3() {
         maxHeat,
         lossLimit,
       };
-      const url = getApiUrl('settings');
+      const url = getApiUrl("settings");
       const res = await fetch(url, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify({ page: 'signal_intelligence_v3', profile: payload }),
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({
+          page: "signal_intelligence_v3",
+          profile: payload,
+        }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      log.info('Profile saved successfully');
+      log.info("Profile saved successfully");
     } catch (err) {
-      log.error('Failed to save profile:', err);
+      log.error("Failed to save profile:", err);
     }
-  }, [agentStates, scannerStates, intelStates, mlStates, dataSourceStates, scoringFormula, shapWeights, regimeLock, autoExecute, maxHeat, lossLimit]);
+  }, [
+    agentStates,
+    scannerStates,
+    intelStates,
+    mlStates,
+    dataSourceStates,
+    scoringFormula,
+    shapWeights,
+    regimeLock,
+    autoExecute,
+    maxHeat,
+    lossLimit,
+  ]);
 
   // --- SIGNAL ACTIONS: Stage for execution via orders endpoint ---
   const handleStageSignal = useCallback(async (signal) => {
     try {
-      const url = getApiUrl('orders');
+      const url = getApiUrl("orders");
       await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({
           symbol: signal.symbol || signal.ticker,
-          side: (signal.dir === 'LONG' || signal.action === 'BUY') ? 'buy' : 'sell',
-          type: 'limit',
+          side:
+            signal.dir === "LONG" || signal.action === "BUY" ? "buy" : "sell",
+          type: "limit",
           limit_price: signal.price,
-          source: 'signal_intelligence_v3',
+          source: "signal_intelligence_v3",
           signal_id: signal.id,
         }),
       });
     } catch (err) {
-      log.error('Failed to stage signal:', err);
+      log.error("Failed to stage signal:", err);
     }
   }, []);
-
-  // --- ML Controls State ---
-  const [mlConfidenceThreshold, setMlConfidenceThreshold] = useState(75);
 
   // --- DERIVED DATA ---
   const { data: regimeApiData } = useApi('openclawRegime', { pollIntervalMs: 30000 });
@@ -510,44 +850,71 @@ export default function SignalIntelligenceV3() {
   const regimeData = useMemo(() => regimeApiData || apiOpenclaw?.regime || { state: 'BULL_TREND', conf: 87, color: 'emerald', since: null }, [regimeApiData, apiOpenclaw]);
 
   const regimeBanner = useMemo(() => {
-    const state = regimeData.state || '';
-    if (state.includes('BULL')) return { color: '#10B981', bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.3)', text: '#10B981', label: 'BULL', icon: 'trending-up' };
-    if (state.includes('BEAR')) return { color: '#EF4444', bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.3)', text: '#EF4444', label: 'BEAR', icon: 'trending-down' };
-    if (state.includes('HIGH_VOL') || state.includes('VOLATILE')) return { color: '#F97316', bg: 'rgba(249,115,22,0.08)', border: 'rgba(249,115,22,0.3)', text: '#F97316', label: 'HIGH_VOL', icon: 'alert' };
-    if (state.includes('SIDE') || state.includes('RANGE') || state.includes('CHOP')) return { color: '#F59E0B', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.3)', text: '#F59E0B', label: 'SIDEWAYS', icon: 'minus' };
-    return { color: '#10B981', bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.3)', text: '#10B981', label: 'BULL', icon: 'trending-up' };
+    const state = regimeData.state || "";
+    if (state.includes("BULL"))
+      return {
+        color: "#10B981",
+        bg: "rgba(16,185,129,0.08)",
+        border: "rgba(16,185,129,0.3)",
+        text: "#10B981",
+        label: "BULL",
+        icon: "trending-up",
+      };
+    if (state.includes("BEAR"))
+      return {
+        color: "#EF4444",
+        bg: "rgba(239,68,68,0.08)",
+        border: "rgba(239,68,68,0.3)",
+        text: "#EF4444",
+        label: "BEAR",
+        icon: "trending-down",
+      };
+    if (state.includes("HIGH_VOL") || state.includes("VOLATILE"))
+      return {
+        color: "#F97316",
+        bg: "rgba(249,115,22,0.08)",
+        border: "rgba(249,115,22,0.3)",
+        text: "#F97316",
+        label: "HIGH_VOL",
+        icon: "alert",
+      };
+    if (
+      state.includes("SIDE") ||
+      state.includes("RANGE") ||
+      state.includes("CHOP")
+    )
+      return {
+        color: "#F59E0B",
+        bg: "rgba(245,158,11,0.08)",
+        border: "rgba(245,158,11,0.3)",
+        text: "#F59E0B",
+        label: "SIDEWAYS",
+        icon: "minus",
+      };
+    return {
+      color: "#10B981",
+      bg: "rgba(16,185,129,0.08)",
+      border: "rgba(16,185,129,0.3)",
+      text: "#10B981",
+      label: "BULL",
+      icon: "trending-up",
+    };
   }, [regimeData]);
 
-  const bannerColor = regimeData.state?.includes('BULL') ? 'emerald' : regimeData.state?.includes('BEAR') ? 'red' : 'amber';
-
   const scannerMetrics = useMemo(() => {
-    const activeScanners = Object.values(scannerStates).filter(s => s.active).length;
-    const totalRuns = Object.values(scannerStates).reduce((sum, s) => sum + s.runs, 0);
-    const sigs = Array.isArray(apiSignals) ? apiSignals : apiSignals?.signals || signals;
+    const sigs = Array.isArray(apiSignals)
+      ? apiSignals
+      : apiSignals?.signals || signals;
     const signalsToday = sigs.length;
-    const highConfSignals = sigs.filter(s => (s.score || s.confidence || 0) >= 80).length;
-    const hitRate = signalsToday > 0 ? Math.round((highConfSignals / signalsToday) * 100) : 0;
-    const topSignal = sigs.length > 0 ? (sigs.reduce((best, s) => (s.score || s.confidence || 0) > (best.score || best.confidence || 0) ? s : best, sigs[0])) : null;
-    return { activeScanners, totalRuns, signalsToday, hitRate, topSignal };
-  }, [scannerStates, apiSignals, signals]);
+    const highConfSignals = sigs.filter(
+      (s) => (s.score || s.confidence || 0) >= 80,
+    ).length;
+    const hitRate =
+      signalsToday > 0 ? Math.round((highConfSignals / signalsToday) * 100) : 0;
+    return { signalsToday, hitRate };
+  }, [apiSignals, signals]);
 
-  const mlControlsData = useMemo(() => {
-    const activeModels = Object.values(mlStates).filter(m => m.active).length;
-    const lastRetrain = flywheelData?.last_retrain || flywheelData?.lastRetrain || apiTraining?.last_retrain || apiTraining?.lastRetrain || null;
-    const flywheelCycles = flywheelData?.cycles || flywheelData?.total_cycles || null;
-    const flywheelAccuracy = flywheelData?.accuracy || flywheelData?.model_accuracy || null;
-    const featureImportance = flywheelData?.feature_importance || flywheelData?.featureImportance || apiTraining?.feature_importance || apiTraining?.featureImportance || [
-      { name: 'UW Options Flow', importance: 0.23 },
-      { name: 'Velez Score', importance: 0.19 },
-      { name: 'Volume Surge', importance: 0.15 },
-      { name: 'RSI Divergence', importance: 0.12 },
-      { name: 'HTF Structure', importance: 0.09 },
-    ];
-    return { activeModels, lastRetrain, flywheelCycles, flywheelAccuracy, featureImportance: (Array.isArray(featureImportance) ? featureImportance : []).slice(0, 5) };
-  }, [mlStates, apiTraining, flywheelData]);
-
-  const timeframes = ['1m', '5m', '15m', '1H', '4H', 'D1', 'W1'];
-  const symbols = ['NVDA', 'AMD', 'TSLA', 'AAPL', 'PLTR', 'SMCI', 'META', 'BA'];
+  const timeframes = ["1m", "5m", "15m", "1H", "4H", "D1", "W1"];
 
   // --- RENDER ---
   return (
@@ -555,97 +922,176 @@ export default function SignalIntelligenceV3() {
       {/* ================================================================== */}
       {/* TOP HEADER BAR                                                     */}
       {/* ================================================================== */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-[#0B0E14] border-b border-[rgba(42,52,68,0.5)] shrink-0">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between px-4 py-2 bg-[#0B0E14] border-b border-[rgba(42,52,68,0.5)] shrink-0">
+        <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5">
-            {/* Green hexagon icon */}
-            <svg className="w-4 h-4 text-emerald-400 shrink-0" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2l9 5v10l-9 5-9-5V7l9-5z" />
-            </svg>
-            <span className="text-xs font-bold text-[#00D9FF] tracking-wider">SIGNAL_INTELLIGENCE_V3</span>
+            <span className="w-2 h-2 rounded-full bg-[#00D9FF]" />
+            <span className="text-xs font-bold text-[#00D9FF] tracking-wider">
+              SIGNAL_INTELLIGENCE_V3
+            </span>
           </div>
-          {/* PAS / FWL / E.I.T buttons */}
-          <div className="flex items-center gap-0.5">
-            {['PAS', 'FWL', 'E.I.T'].map(btn => (
-              <button key={btn} className="px-1.5 py-0.5 bg-[#1e293b] border border-[#374151] rounded text-[8px] text-gray-400 hover:text-[#00D9FF] hover:border-[#00D9FF]/40 transition-all font-mono">
-                {btn}
-              </button>
-            ))}
-          </div>
-          {/* VL / SHAP labels */}
           <div className="flex items-center gap-1.5">
-            <span className="text-[8px] text-gray-500 font-mono">VL</span>
-            <span className="text-[8px] text-gray-500 font-mono">SHAP</span>
+            <span className="w-2 h-2 rounded-full bg-[#00D9FF]" />
+            <span className="text-xs font-mono text-gray-400">
+              OC_CORE_v5.2.1
+            </span>
           </div>
-          {/* SIZE selector */}
-          <div className="flex items-center gap-1">
-            <span className="text-[8px] text-gray-500 font-mono">SIZE</span>
-            <select className="bg-[#1e293b] border border-[#374151] rounded px-1.5 py-0.5 text-[8px] text-gray-300 outline-none cursor-pointer font-mono w-12">
-              <option>100</option>
-              <option>50</option>
-              <option>200</option>
-            </select>
-          </div>
+          <span className="text-[10px] text-gray-500 font-mono">
+            WS_LATENCY: {wsLatency}ms
+          </span>
+          <span className="text-[10px] text-gray-500 font-mono">
+            SWARM_SIZE: {ALL_AGENTS.length}
+          </span>
         </div>
-        <div className="flex items-center gap-3">
-          {/* Save Profile */}
+        <div className="flex items-center gap-2">
+          <button
+            className="p-1.5 rounded text-gray-500 hover:text-[#00D9FF] transition-colors"
+            title="Download"
+          >
+            <Download className="w-3.5 h-3.5" />
+          </button>
+          <button
+            className="p-1.5 rounded text-gray-500 hover:text-[#00D9FF] transition-colors"
+            title="Upload"
+          >
+            <Upload className="w-3.5 h-3.5" />
+          </button>
+          <button
+            className="p-1.5 rounded text-gray-500 hover:text-[#00D9FF] transition-colors"
+            title="Share"
+          >
+            <Share2 className="w-3.5 h-3.5" />
+          </button>
           <button
             onClick={handleSaveProfile}
-            className="flex items-center gap-1 px-2.5 py-1 bg-[#00D9FF]/10 border border-[#00D9FF]/30 rounded text-[10px] text-[#00D9FF] hover:bg-[#00D9FF]/20 transition-all"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded text-xs font-medium text-white transition-colors"
           >
-            <Save className="w-3 h-3" /> Save Profile
+            <Save className="w-3.5 h-3.5" /> Save Profile
           </button>
+        </div>
+      </div>
+
+      {/* BULL_TREND REGIME Banner — prominent top panel */}
+      <div
+        className="shrink-0 px-4 py-2.5 border-b border-[rgba(42,52,68,0.5)]"
+        style={{
+          background: regimeBanner.bg,
+          borderColor: regimeBanner.border,
+        }}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span
+                className="text-lg font-bold font-mono"
+                style={{ color: regimeBanner.text }}
+              >
+                ((-)) {regimeData.state || "BULL_TREND"} REGIME
+              </span>
+              <Zap
+                className="w-4 h-4 animate-pulse"
+                style={{ color: regimeBanner.text }}
+              />
+            </div>
+            <span className="text-[10px] text-gray-500 font-mono">
+              Hidden Markov Model (Layer 3)
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] text-gray-400 font-mono">
+              HMM Confidence: {regimeData.conf ?? 87}%
+            </span>
+            <button className="px-2 py-0.5 text-[9px] font-medium border rounded border-gray-600 text-gray-400 hover:border-[#00D9FF]/50 hover:text-[#00D9FF] transition-colors">
+              Override
+            </button>
+            <button
+              onClick={() => setRegimeLock(!regimeLock)}
+              className="p-1 text-gray-500 hover:text-gray-400 transition-colors"
+            >
+              {regimeLock ? (
+                <Lock className="w-3.5 h-3.5" />
+              ) : (
+                <Unlock className="w-3.5 h-3.5" />
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
       {/* ================================================================== */}
       {/* MAIN 4-COLUMN GRID LAYOUT                                          */}
       {/* ================================================================== */}
-      <div className="flex-1 grid grid-cols-[200px_1fr_220px_220px] gap-1 p-1 overflow-hidden min-h-0">
-
+      <div className="flex-1 grid grid-cols-[300px_1fr_300px_240px] gap-1 p-1 overflow-hidden min-h-0">
         {/* ============================================================== */}
         {/* COLUMN 1: Scanner Modules (Layer 1) + OpenClaw Score (Layer 4) */}
         {/* ============================================================== */}
         <div className="flex flex-col gap-1 overflow-hidden min-h-0">
           {/* Scanner Modules (Layer 1) */}
-          <Panel title="Scanner Modules (Layer 1)" icon={Search} className="flex-[5] min-h-0"
-            headerAction={<span className="text-[7px] text-gray-500">{SCANNERS.length} SCANNER TOGGLES</span>}>
-            <div className="space-y-0.5">
-              {SCANNERS.map(scan => {
-                const isActive = scannerStates[scan.id]?.active ?? true;
+          <Panel
+            title="Scanner Modules (Layer 1)"
+            icon={Search}
+            className="flex-[5] min-h-0"
+            headerAction={
+              <span className="text-[7px] text-gray-500">
+                {SCANNERS.length} SCANNER TOGGLES
+              </span>
+            }
+          >
+            <div className="space-y-1">
+              {SCANNERS.map((scan) => {
+                const pct = scannerStates[scan.id]?.pct ?? scan.pct ?? 50;
                 return (
-                  <div key={scan.id} className="flex items-center gap-1.5 py-0.5 px-0.5 hover:bg-[#1e293b]/40 rounded group">
-                    <span className="text-[8px] text-gray-300 flex-1 truncate">{scan.name}</span>
-                    <Toggle checked={isActive}
-                      onChange={() => setScannerStates(p => ({ ...p, [scan.id]: { ...p[scan.id], active: !p[scan.id]?.active } }))} size="sm" />
-                    {/* Activity bar */}
-                    <div className="w-10 h-1 bg-[#1e293b] rounded-full overflow-hidden shrink-0">
-                      <div className="h-full rounded-full transition-all duration-500" style={{
-                        width: isActive ? `${40 + ((scan.id.charCodeAt(5) * 17) % 60)}%` : '0%',
-                        backgroundColor: isActive ? '#10b981' : '#374151'
-                      }} />
-                    </div>
-                  </div>
+                  <Slider
+                    key={scan.id}
+                    label={scan.name}
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={pct}
+                    onChange={(v) =>
+                      setScannerStates((p) => ({
+                        ...p,
+                        [scan.id]: { ...p[scan.id], pct: v },
+                      }))
+                    }
+                    suffix="%"
+                    className="py-0.5"
+                    valueClassName="text-[8px] min-w-[2.5rem]"
+                  />
                 );
               })}
             </div>
           </Panel>
 
-          {/* OpenClaw Score (Layer 4) */}
-          <Panel title="OpenClaw Score (Layer 4)" icon={Cpu} className="flex-[5] min-h-0"
-            headerAction={<span className="text-[7px] text-gray-500">{CORE_AGENTS.length} CORE AGENTS</span>}>
+          {/* OpenClaw Swarm (Layer 4) */}
+          <Panel
+            title="OpenClaw Swarm (Layer 4)"
+            icon={Cpu}
+            className="flex-[5] min-h-0"
+            headerAction={
+              <span className="text-[7px] text-gray-500">7 CORE AGENTS</span>
+            }
+          >
             <div className="space-y-1">
-              {CORE_AGENTS.map(agent => (
-                <ProgressBar
+              {CORE_AGENTS.slice(0, 7).map((agent) => (
+                <Slider
                   key={agent.id}
                   label={agent.name}
+                  min={0}
+                  max={100}
+                  step={1}
                   value={agentStates[agent.id]?.weight ?? agent.defaultWeight}
-                  color={agentStates[agent.id]?.status === 'green' ? '#10b981' : agentStates[agent.id]?.status === 'yellow' ? '#f59e0b' : '#ef4444'}
+                  onChange={(v) => handleUpdateWeight("agent", agent.id, v)}
+                  suffix="%"
+                  className="py-0.5"
+                  valueClassName="text-[8px] min-w-[2.5rem]"
                 />
               ))}
             </div>
             <div className="mt-2 pt-1 border-t border-[rgba(42,52,68,0.5)]">
-              <span className="text-[8px] text-gray-500 uppercase tracking-wider">EXTENDED SWARM ({EXTENDED_AGENTS.length})</span>
+              <span className="text-[8px] text-gray-500 uppercase tracking-wider">
+                EXTENDED SWARM ({EXTENDED_AGENTS.length || 93})
+              </span>
             </div>
           </Panel>
         </div>
@@ -659,37 +1105,62 @@ export default function SignalIntelligenceV3() {
             {/* Chart header */}
             <div className="px-2.5 py-1 border-b border-[rgba(42,52,68,0.5)] flex items-center justify-between bg-[#0B0E14] shrink-0">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold text-white">{selectedSymbol}</span>
+                <span className="text-[10px] font-bold text-white">
+                  {selectedSymbol}
+                </span>
                 <span className="text-[8px] text-gray-500">OHLCV</span>
                 <div className="flex items-center gap-1.5 ml-2">
-                  <span className="flex items-center gap-0.5"><span className="w-2 h-0.5 bg-[#00D9FF] inline-block rounded" /><span className="text-[7px] text-[#00D9FF]">SMAC200</span></span>
-                  <span className="flex items-center gap-0.5"><span className="w-2 h-0.5 bg-white inline-block rounded" /><span className="text-[7px] text-gray-300">VWAP</span></span>
+                  <span className="flex items-center gap-0.5">
+                    <span className="w-2 h-0.5 bg-[#00D9FF] inline-block rounded" />
+                    <span className="text-[7px] text-[#00D9FF]">SMA200</span>
+                  </span>
+                  <span className="flex items-center gap-0.5">
+                    <span className="w-2 h-0.5 bg-white inline-block rounded" />
+                    <span className="text-[7px] text-gray-300">VWAP</span>
+                  </span>
                 </div>
               </div>
               <div className="flex items-center gap-0.5">
-                {timeframes.map(t => (
-                  <button key={t} onClick={() => setChartTimeframe(t)}
+                {timeframes.map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setChartTimeframe(t)}
                     className={`text-[10px] uppercase tracking-wider font-bold rounded-md px-3 py-1 transition-all ${
                       chartTimeframe === t
-                        ? 'bg-cyan-500/20 text-[#00D9FF] border border-[#00D9FF]/50/30'
-                        : 'bg-transparent text-gray-500 border border-gray-700'
-                    }`}>{t}</button>
+                        ? "bg-cyan-500/20 text-[#00D9FF] border border-[#00D9FF]/50/30"
+                        : "bg-transparent text-gray-500 border border-gray-700"
+                    }`}
+                  >
+                    {t}
+                  </button>
                 ))}
               </div>
             </div>
-            <div ref={chartContainerRef} className="w-full flex-1 min-h-[200px]" />
+            <div
+              ref={chartContainerRef}
+              className="w-full flex-1 min-h-[200px]"
+            />
           </div>
 
           {/* Signal Data Table */}
-          <Panel title="Signal data table" icon={FileText} className="flex-[3] min-h-0"
+          <Panel
+            title="Signal data table"
+            icon={FileText}
+            className="flex-[3] min-h-0"
             headerAction={
               <div className="flex items-center gap-2">
-                <span className="text-[7px] text-gray-600 font-mono">{signals.length} signals</span>
-                <button onClick={refetchSignals} className="text-gray-500 hover:text-[#00D9FF] transition-colors">
+                <span className="text-[7px] text-gray-600 font-mono">
+                  {signals.length} signals
+                </span>
+                <button
+                  onClick={refetchSignals}
+                  className="text-gray-500 hover:text-[#00D9FF] transition-colors"
+                >
                   <RefreshCw className="w-2.5 h-2.5" />
                 </button>
               </div>
-            }>
+            }
+          >
             <div className="overflow-auto flex-1 min-h-0">
               <table className="w-full text-[8px]">
                 <thead className="sticky top-0 bg-[#111827] z-10">
@@ -704,38 +1175,99 @@ export default function SignalIntelligenceV3() {
                 </thead>
                 <tbody>
                   {signals.map((sig, idx) => (
-                    <tr key={sig.id || idx} className="border-b border-[rgba(42,52,68,0.5)]/30 hover:bg-[#00D9FF]/5 cursor-pointer transition-colors"
-                      onClick={() => setSelectedSymbol(sig.symbol || sig.ticker)}>
+                    <tr
+                      key={sig.id || idx}
+                      className="border-b border-[rgba(42,52,68,0.5)]/30 hover:bg-[#00D9FF]/5 cursor-pointer transition-colors"
+                      onClick={() =>
+                        setSelectedSymbol(sig.symbol || sig.ticker)
+                      }
+                    >
                       <td className="py-0.5 px-1 font-bold font-mono text-[#00D9FF]">
                         {sig.symbol || sig.ticker}
                       </td>
                       <td className="py-0.5 px-1">
                         <div className="flex items-center gap-1">
                           <div className="w-8 h-1 bg-[#1e293b] rounded-full overflow-hidden">
-                            <div className="h-full rounded-full" style={{
-                              width: `${sig.score || sig.confidence || 0}%`,
-                              backgroundColor: (sig.score || sig.confidence || 0) >= 80 ? '#10b981' : (sig.score || sig.confidence || 0) >= 50 ? '#f59e0b' : '#ef4444'
-                            }} />
+                            <div
+                              className="h-full rounded-full"
+                              style={{
+                                width: `${sig.score || sig.confidence || 0}%`,
+                                backgroundColor:
+                                  (sig.score || sig.confidence || 0) >= 80
+                                    ? "#10b981"
+                                    : (sig.score || sig.confidence || 0) >= 50
+                                      ? "#f59e0b"
+                                      : "#ef4444",
+                              }}
+                            />
                           </div>
-                          <span className={`font-mono font-bold ${(sig.score || sig.confidence || 0) >= 80 ? 'text-emerald-400' : (sig.score || sig.confidence || 0) >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
-                            {sig.score || sig.confidence || '--'}
+                          <span
+                            className={`font-mono font-bold ${(sig.score || sig.confidence || 0) >= 80 ? "text-emerald-400" : (sig.score || sig.confidence || 0) >= 50 ? "text-amber-400" : "text-red-400"}`}
+                          >
+                            {sig.score || sig.confidence || "--"}
                           </span>
                         </div>
                       </td>
                       <td className="py-0.5 px-1">
-                        <span className={`flex items-center gap-0.5 text-[7px] font-bold ${(sig.dir === 'LONG' || sig.action === 'BUY') ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {(sig.dir === 'LONG' || sig.action === 'BUY') ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
-                          {sig.dir || sig.action || '--'}
+                        <span
+                          className={`flex items-center gap-0.5 text-[7px] font-bold ${sig.dir === "LONG" || sig.action === "BUY" ? "text-emerald-400" : "text-red-400"}`}
+                        >
+                          {sig.dir === "LONG" || sig.action === "BUY" ? (
+                            <TrendingUp className="w-2.5 h-2.5" />
+                          ) : (
+                            <TrendingDown className="w-2.5 h-2.5" />
+                          )}
+                          {sig.dir || sig.action || "--"}
                         </span>
                       </td>
-                      <td className="py-0.5 px-1 font-mono text-gray-300"><span className="font-mono">${typeof sig.price === 'number' ? sig.price.toFixed(2) : sig.price || '--'}</span></td>
-                      <td className="py-0.5 px-1 text-[#00D9FF] truncate max-w-[80px]">{sig.agent || sig.source || '--'}</td>
+                      <td className="py-0.5 px-1 font-mono text-gray-300">
+                        <span className="font-mono">
+                          $
+                          {typeof sig.price === "number"
+                            ? sig.price.toFixed(2)
+                            : sig.price || "--"}
+                        </span>
+                      </td>
                       <td className="py-0.5 px-1">
-                        <div className="flex items-center gap-1">
-                          <button onClick={(e) => { e.stopPropagation(); setSelectedSymbol(sig.symbol || sig.ticker); }}
-                            className="text-[#00D9FF] hover:text-white transition-colors" title="View chart"><Eye className="w-2.5 h-2.5" /></button>
-                          <button onClick={(e) => { e.stopPropagation(); handleStageSignal(sig); }}
-                            className="text-emerald-400 hover:text-white transition-colors" title="Stage order"><Play className="w-2.5 h-2.5" /></button>
+                        <span className="text-[#00D9FF] underline cursor-pointer truncate max-w-[80px] block">
+                          {sig.agent || sig.source || "--"}
+                        </span>
+                      </td>
+                      <td className="py-0.5 px-1">
+                        <div className="flex items-center gap-0.5">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                            }}
+                            className="px-1 py-0.5 text-[7px] font-medium text-emerald-400 border border-emerald-500/40 rounded hover:bg-emerald-500/10"
+                          >
+                            Accept
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                            }}
+                            className="px-1 py-0.5 text-[7px] font-medium text-red-400 border border-red-500/40 rounded hover:bg-red-500/10"
+                          >
+                            Reject
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                            }}
+                            className="px-1 py-0.5 text-[7px] font-medium text-gray-400 border border-gray-600 rounded hover:bg-gray-500/10"
+                          >
+                            Watch
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleStageSignal(sig);
+                            }}
+                            className="px-1 py-0.5 text-[7px] font-medium text-emerald-400 border border-emerald-500/40 rounded hover:bg-emerald-500/10"
+                          >
+                            Execute
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -750,158 +1282,311 @@ export default function SignalIntelligenceV3() {
         {/* COLUMN 3: Global Scoring Engine + Intelligence Modules          */}
         {/* ============================================================== */}
         <div className="flex flex-col gap-1 overflow-y-auto min-h-0 scrollbar-thin scrollbar-thumb-[#374151] scrollbar-track-transparent">
-
           {/* Global Scoring Engine (Layer 2) */}
-          <Panel title="Global Scoring Engine (Layer 2)" icon={Target} className="shrink-0">
-            <div className="space-y-0.5">
-              {SCORING_METRICS.map(metric => (
-                <div key={metric.id} className="flex items-center gap-1">
-                  <span className="text-[7px] text-gray-400 w-24 shrink-0 truncate">{metric.name}</span>
-                  <div className="flex-1 h-1 bg-[#1e293b] rounded-full overflow-hidden">
-                    <div className="h-full rounded-full" style={{
-                      width: `${metric.value}%`,
-                      backgroundColor: metric.value >= 85 ? '#10b981' : metric.value >= 70 ? '#00D9FF' : metric.value >= 50 ? '#f59e0b' : '#ef4444'
-                    }} />
+          <Panel
+            title="Global Scoring Engine (Layer 2)"
+            icon={Target}
+            className="shrink-0"
+          >
+            <div className="space-y-1.5">
+              <div className="text-[8px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                OpenClaw Core vs Tech Analysis
+              </div>
+              <Slider
+                label="Blend 60/40"
+                min={0}
+                max={100}
+                value={scoringFormula.ocTaBlend}
+                onChange={(v) =>
+                  setScoringFormula((p) => ({ ...p, ocTaBlend: v }))
+                }
+                suffix="%"
+                className="py-0.5"
+                valueClassName="text-[8px] min-w-[2.5rem]"
+              />
+              <Slider
+                label="Regime Multiplier"
+                min={0}
+                max={3}
+                step={0.1}
+                value={scoringFormula.regimeMultiplier || 1.2}
+                onChange={(v) =>
+                  setScoringFormula((p) => ({ ...p, regimeMultiplier: v }))
+                }
+                formatValue={(v) => v.toFixed(1)}
+                className="py-0.5"
+                valueClassName="text-[8px] min-w-[2rem]"
+              />
+              <Slider
+                label="SLAM DUNK Tier"
+                min={0}
+                max={100}
+                value={scoringFormula.tierSlamDunk}
+                onChange={(v) =>
+                  setScoringFormula((p) => ({ ...p, tierSlamDunk: v }))
+                }
+                suffix=""
+                className="py-0.5"
+                valueClassName="text-[8px] min-w-[2rem]"
+              />
+              <div className="text-[8px] font-bold text-gray-400 uppercase tracking-wider mt-2 mb-1">
+                PER-FACTOR SHAP WEIGHTS
+              </div>
+              {SHAP_FACTORS.map((f) => {
+                const v = shapWeights[f] ?? 8;
+                return (
+                  <Slider
+                    key={f}
+                    label={f}
+                    min={0}
+                    max={10}
+                    step={1}
+                    value={v}
+                    onChange={(val) =>
+                      setShapWeights((p) => ({ ...p, [f]: val }))
+                    }
+                    className="py-0.5"
+                    valueClassName="text-[8px] min-w-[1.5rem]"
+                  />
+                );
+              })}
+            </div>
+          </Panel>
+
+          {/* Intelligence Modules (Layer 3) + ML Model Control (Layer 5) side by side */}
+          <Panel
+            title="Intelligence Modules (Layer 3)"
+            icon={Shield}
+            className="flex-1 min-w-0"
+          >
+            <div className="space-y-1">
+              {INTEL_MODULES.map((mod) => (
+                <Slider
+                  key={mod.id}
+                  label={mod.name}
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={intelStates[mod.id]?.weight ?? mod.defaultWeight}
+                  onChange={(v) => handleUpdateWeight("intel", mod.id, v)}
+                  suffix="%"
+                  className="py-0.5"
+                  valueClassName="text-[8px] min-w-[2.5rem]"
+                />
+              ))}
+            </div>
+          </Panel>
+          <Panel
+            title="ML Model Control (Layer 5)"
+            icon={Cpu}
+            className="flex-1 min-w-0"
+          >
+            <div className="space-y-1">
+              {ML_MODELS.map((model) => {
+                const status =
+                  mlStates[model.id]?.status ?? model.defaultStatus;
+                const statusColor =
+                  status === "Ready"
+                    ? "text-emerald-400"
+                    : status === "Training"
+                      ? "text-amber-400"
+                      : "text-gray-500";
+                const conf = mlStates[model.id]?.confThreshold ?? 75;
+                return (
+                  <div
+                    key={model.id}
+                    className="flex items-center gap-2 py-0.5 border-b border-[rgba(42,52,68,0.5)]/30 last:border-0"
+                  >
+                    <span className="text-[8px] text-gray-300 shrink-0 truncate w-24">
+                      {model.name}
+                    </span>
+                    <span className="text-[7px] text-gray-500 font-mono shrink-0">
+                      {model.version}
+                    </span>
+                    <span
+                      className={`text-[7px] font-mono ${statusColor} shrink-0`}
+                    >
+                      {status}
+                    </span>
+                    <Slider
+                      label="Confidence"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={conf}
+                      onChange={(v) =>
+                        setMlStates((p) => ({
+                          ...p,
+                          [model.id]: { ...p[model.id], confThreshold: v },
+                        }))
+                      }
+                      suffix="%"
+                      className="flex-1 min-w-0 py-0"
+                      valueClassName="text-[8px] min-w-[2.5rem]"
+                    />
+                    <button
+                      onClick={() => triggerRetrain(model.id)}
+                      className="shrink-0 px-2 py-0.5 text-[7px] font-medium bg-gray-700 text-gray-300 border border-gray-600 rounded hover:bg-gray-600 transition-colors"
+                    >
+                      RETRAIN
+                    </button>
                   </div>
-                  <span className="text-[7px] text-gray-500 w-6 text-right font-mono">{metric.value}%</span>
-                </div>
-              ))}
-            </div>
-          </Panel>
-
-          {/* Intelligence Modules (Layer 3) */}
-          <Panel title="Intelligence Modules (Layer 3):" icon={Shield} className="shrink-0">
-            <div className="space-y-0.5">
-              {INTEL_MODULES.map(mod => (
-                <div key={mod.id} className="flex items-center gap-1 py-0.5">
-                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                    intelStates[mod.id]?.active ? 'bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)]' : 'bg-gray-600'
-                  }`} />
-                  <span className="text-[8px] text-gray-300 flex-1 truncate">{mod.name}</span>
-                  <span className="text-[7px] text-gray-500 font-mono">{intelStates[mod.id]?.weight ?? mod.defaultWeight}<span className="font-mono">%</span></span>
-                </div>
-              ))}
-            </div>
-          </Panel>
-
-          {/* Regime Detector */}
-          <Panel title="Regime Detector" icon={BarChart2} className="shrink-0">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: regimeBanner.color, boxShadow: `0 0 8px ${regimeBanner.color}` }} />
-              <span className="text-[10px] font-bold font-mono" style={{ color: regimeBanner.text }}>{regimeData.state || 'BULL_TREND'}</span>
-              <Badge color={bannerColor}><span className="font-mono">{regimeData.conf ?? '--'}%</span></Badge>
-            </div>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-[7px] text-gray-500">p-comp:90</span>
-              <span className="text-[7px] text-gray-500">AND rdir=BULL</span>
-            </div>
-            <div className="w-full h-1.5 bg-[#1e293b] rounded-full overflow-hidden mt-1.5">
-              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${regimeData.conf ?? 0}%`, backgroundColor: regimeBanner.color }} />
+                );
+              })}
             </div>
           </Panel>
         </div>
 
         {/* ============================================================== */}
-        {/* COLUMN 4: External Sensors + Execution + ML + Telemetry        */}
+        {/* COLUMN 4: External Sensors + Execution + Telemetry             */}
         {/* ============================================================== */}
         <div className="flex flex-col gap-1 overflow-y-auto min-h-0 scrollbar-thin scrollbar-thumb-[#374151] scrollbar-track-transparent">
-
           {/* External Sensors */}
           <Panel title="External Sensors" icon={Globe} className="shrink-0">
-            {DATA_SOURCES.map(ds => (
+            {DATA_SOURCES.map((ds) => (
               <div key={ds.id} className="flex items-center gap-1.5 py-0.5">
-                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                  dataSourceStates[ds.id]?.active ? 'bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)]' : 'bg-gray-600'
-                }`} />
-                <span className="text-[8px] text-gray-300 flex-1 truncate">{ds.name}</span>
-                <Badge color={dataSourceStates[ds.id]?.active ? 'emerald' : 'gray'}>
-                  {dataSourceStates[ds.id]?.active ? 'ON' : 'OFF'}
-                </Badge>
-              </div>
-            ))}
-          </Panel>
-
-          {/* Execution & Automation */}
-          <Panel title="Execution & Automation" icon={Rocket} className="shrink-0">
-            <div className="space-y-1">
-              {/* Auto Execution toggle */}
-              <div className="flex items-center justify-between">
-                <span className="text-[8px] text-gray-400 uppercase tracking-wider font-bold">AUTO EXECUTION</span>
-                <Toggle checked={autoExecute} onChange={setAutoExecute} size="sm" />
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[8px] text-gray-500 w-20">Trading Mode</span>
-                <Badge color="red">PAPER TRADING</Badge>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[8px] text-gray-500 w-20">Position Size</span>
-                <Badge color="cyan">KELLY CRITERION</Badge>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[8px] text-gray-500 w-20">Risk Portfolio</span>
-                <span className="text-[8px] font-mono text-amber-400"><span className="font-mono">{maxHeat}%</span></span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[8px] text-gray-500 w-20">Daily Loss Limit</span>
-                <span className="text-[8px] font-mono text-red-400"><span className="font-mono">{lossLimit}%</span></span>
-              </div>
-            </div>
-          </Panel>
-
-          {/* ML Model Control (Layer 5) */}
-          <Panel title="ML Model Control (Layer 5)" icon={Cpu} className="shrink-0">
-            {ML_MODELS.map(model => (
-              <div key={model.id} className="flex items-center gap-1 py-0.5 border-b border-[rgba(42,52,68,0.5)]/30 last:border-0">
-                <span className="text-[8px] text-gray-300 w-20 shrink-0 truncate">{model.name}</span>
-                <div className="flex-1 h-1 bg-[#1e293b] rounded-full overflow-hidden">
-                  <div className="h-full rounded-full" style={{
-                    width: `${mlStates[model.id]?.confThreshold ?? 75}%`,
-                    backgroundColor: mlStates[model.id]?.status === 'Ready' ? '#10b981' : mlStates[model.id]?.status === 'Training' ? '#f59e0b' : '#6b7280'
-                  }} />
-                </div>
-                <span className="text-[7px] text-gray-500 w-6 text-right font-mono">{mlStates[model.id]?.confThreshold ?? 75}%</span>
-              </div>
-            ))}
-          </Panel>
-
-          {/* Strategy Telemetry */}
-          <Panel title="Strategy Telemetry" icon={BarChart2} className="shrink-0">
-            <div className="space-y-0.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[7px] text-gray-500">Active Models</span>
-                <span className="text-[8px] font-bold font-mono text-emerald-400"><span className="font-mono">{mlControlsData.activeModels}/{ML_MODELS.length}</span></span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-[7px] text-gray-500">Accuracy</span>
-                <span className="text-[8px] font-bold font-mono text-[#00D9FF]">
-                  {mlControlsData.flywheelAccuracy != null ? `${(typeof mlControlsData.flywheelAccuracy === 'number' && mlControlsData.flywheelAccuracy <= 1 ? (mlControlsData.flywheelAccuracy * 100).toFixed(1) : mlControlsData.flywheelAccuracy)}%` : '--'}
+                <span className="text-[8px] text-gray-300 flex-1 truncate">
+                  {ds.name}
                 </span>
+                {ds.connected ? (
+                  <span className="text-[8px] text-emerald-400 font-medium">
+                    Connected
+                  </span>
+                ) : (
+                  <Toggle
+                    checked={dataSourceStates[ds.id]?.active ?? true}
+                    onChange={() =>
+                      setDataSourceStates((p) => ({
+                        ...p,
+                        [ds.id]: { ...p[ds.id], active: !p[ds.id]?.active },
+                      }))
+                    }
+                    size="sm"
+                  />
+                )}
+                {ds.weight != null && (
+                  <span className="text-[7px] text-gray-500 font-mono">
+                    Weight {ds.weight}
+                  </span>
+                )}
               </div>
+            ))}
+          </Panel>
+
+          {/* Execution & Automation Engine */}
+          <Panel
+            title="Execution & Automation Engine"
+            icon={Rocket}
+            className="shrink-0"
+          >
+            <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-[7px] text-gray-500">Flywheel Cycles</span>
-                <span className="text-[8px] font-bold font-mono text-purple-400">{mlControlsData.flywheelCycles ?? '--'}</span>
+                <span className="text-[8px] text-gray-400 uppercase tracking-wider font-bold">
+                  AUTO EXECUTION
+                </span>
+                <Toggle
+                  checked={autoExecute}
+                  onChange={setAutoExecute}
+                  size="sm"
+                  variant="orange"
+                />
               </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[8px] text-gray-500 w-24">
+                  Trading Mode:
+                </span>
+                <select className="bg-[#1e293b] border border-[#374151] rounded px-1.5 py-0.5 text-[8px] text-gray-300 outline-none font-mono flex-1">
+                  <option>PAPER TRADING</option>
+                  <option>LIVE TRADING</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[8px] text-gray-500 w-24">
+                  Position Sizer:
+                </span>
+                <select className="bg-[#1e293b] border border-[#374151] rounded px-1.5 py-0.5 text-[8px] text-gray-300 outline-none font-mono flex-1">
+                  <option>KELLY CRITERION</option>
+                </select>
+              </div>
+              <Slider
+                label="Max Portfolio Heat"
+                min={0}
+                max={100}
+                value={maxHeat}
+                onChange={setMaxHeat}
+                suffix="%"
+                className="py-0.5"
+                valueClassName="text-[8px] min-w-[2.5rem]"
+              />
+              <Slider
+                label="Daily Loss Limit"
+                min={0}
+                max={100}
+                value={lossLimit}
+                onChange={setLossLimit}
+                suffix="%"
+                className="py-0.5"
+                valueClassName="text-[8px] min-w-[2.5rem]"
+              />
+              <div className="text-[8px] font-bold text-gray-400 uppercase tracking-wider mt-2 mb-1">
+                IF/THEN rules
+              </div>
+              <input
+                type="text"
+                placeholder="IF comp&gt;90"
+                className="w-full bg-[#0B0E14] border border-[#374151] rounded px-2 py-1 text-[8px] text-gray-300 font-mono placeholder-gray-600 outline-none"
+                readOnly
+              />
+              <input
+                type="text"
+                placeholder="IF comp&gt;90 AND regime=BULL"
+                className="w-full bg-[#0B0E14] border border-[#374151] rounded px-2 py-1 text-[8px] text-gray-300 font-mono placeholder-gray-600 outline-none"
+                readOnly
+              />
+              <input
+                type="text"
+                placeholder="THEN stage"
+                className="w-full bg-[#0B0E14] border border-[#374151] rounded px-2 py-1 text-[8px] text-gray-300 font-mono placeholder-gray-600 outline-none"
+                readOnly
+              />
             </div>
           </Panel>
 
-          {/* API Priority Engine */}
-          <Panel title="API Priority Engine" icon={Server} className="shrink-0">
-            <div className="space-y-0.5">
-              {API_ENDPOINTS.slice(0, 10).map((ep, i) => {
+          {/* System Telemetry */}
+          <Panel
+            title="System Telemetry"
+            icon={BarChart2}
+            className="shrink-0"
+            headerAction={
+              <span className="text-[7px] text-gray-500">
+                API ENDPOINT HEALTH
+              </span>
+            }
+          >
+            <div className="grid grid-cols-6 gap-x-2 gap-y-4 mb-2">
+              {API_ENDPOINTS.slice(0, 24).map((ep) => {
                 const health = apiStatus?.endpoints?.[ep];
-                const latency = health?.latency ?? (((ep.charCodeAt(0) * 31 + ep.charCodeAt(1) * 7) % 180) + 15);
-                const isErr = health?.status === 'down' || health?.error;
-                const isWarn = health?.status === 'degraded' || latency > 200;
+                const isErr = health?.status === "down" || health?.error;
+                const isWarn = health?.status === "degraded";
                 return (
-                  <div key={ep} className="flex items-center gap-1">
-                    <span className={`w-1 h-1 rounded-full shrink-0 ${
-                      isErr ? 'bg-red-500' : isWarn ? 'bg-amber-500' : 'bg-emerald-500'
-                    }`} />
-                    <span className="text-[7px] text-gray-400 flex-1 truncate font-mono">{ep}</span>
-                    <span className={`text-[7px] font-mono ${isErr ? 'text-red-400' : isWarn ? 'text-amber-400' : 'text-gray-500'}`}>{latency}ms</span>
+                  <div key={ep} className="flex justify-center">
+                    <div
+                      className={`w-4 h-4 rounded-full ${
+                        isErr
+                          ? "bg-red-500"
+                          : isWarn
+                            ? "bg-amber-500"
+                            : "bg-emerald-500"
+                      }`}
+                      title={ep}
+                    />
                   </div>
                 );
               })}
+            </div>
+            <div className="text-[8px] text-gray-500 font-mono">
+              DB: {apiStatus?.db_latency_ms ?? "4.2"}ms MEM:{" "}
+              {apiStatus?.memory_percent ?? 64}%
             </div>
           </Panel>
         </div>
@@ -914,7 +1599,10 @@ export default function SignalIntelligenceV3() {
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)]" />
-            <span className="text-emerald-400">{Object.values(agentStates).filter(a => a.active).length} agents connected</span>
+            <span className="text-emerald-400">
+              {Object.values(agentStates).filter((a) => a.active).length} agents
+              connected
+            </span>
           </span>
           <span className="flex items-center gap-1">
             <Wifi className="w-3 h-3 text-gray-600" />
@@ -922,94 +1610,23 @@ export default function SignalIntelligenceV3() {
           </span>
           <span className="flex items-center gap-1">
             <Database className="w-3 h-3 text-gray-600" />
-            DB: {apiStatus?.db_latency_ms ?? '--'}ms
+            DB: {apiStatus?.db_latency_ms ?? "--"}ms
           </span>
         </div>
         <div className="flex items-center gap-3">
-          <span>Signals: <span className="font-mono">{scannerMetrics.signalsToday}</span></span>
-          <span>Hit Rate: <span className="font-mono">{scannerMetrics.hitRate}%</span></span>
-          <span className="text-gray-600">{new Date().toLocaleTimeString()}</span>
+          <span>
+            Signals:{" "}
+            <span className="font-mono">{scannerMetrics.signalsToday}</span>
+          </span>
+          <span>
+            Hit Rate:{" "}
+            <span className="font-mono">{scannerMetrics.hitRate}%</span>
+          </span>
+          <span className="text-gray-600">
+            {new Date().toLocaleTimeString()}
+          </span>
         </div>
       </div>
     </div>
   );
 }
-
-
-// ============================================================================
-// EXPORTED SUB-COMPONENTS
-// ============================================================================
-
-// --- REACT FLOW CUSTOM NODES ---
-const CustomFlowNode = ({ data }) => {
-  const colors = {
-    green: 'border-emerald-500 bg-emerald-500/10 text-emerald-400',
-    yellow: 'border-amber-500 bg-amber-500/10 text-amber-400 animate-pulse',
-    red: 'border-red-500 bg-red-500/10 text-red-400'
-  };
-  return (
-    <div className={`px-3 py-2 rounded-md border-2 ${colors[data.status] || colors.green} min-w-[140px] text-center`}>
-      <Handle type="target" position="top" className="w-2 h-2" />
-      <div className="text-[10px] font-bold">{data.label}</div>
-      <div className="text-[8px] opacity-60">{data.subLabel}</div>
-      <Handle type="source" position="bottom" className="w-2 h-2" />
-    </div>
-  );
-};
-
-const nodeTypes = { custom: CustomFlowNode };
-
-export const AgentPipelineFlow = () => {
-  const initialNodes = [
-    { id: 'scan1', type: 'custom', position: { x: 50, y: 50 }, data: { label: 'Daily Scanner', subLabel: '15m Pipeline', status: 'green' } },
-    { id: 'scan2', type: 'custom', position: { x: 250, y: 50 }, data: { label: 'Whale Flow', subLabel: 'UW Options', status: 'green' } },
-    { id: 'intel1', type: 'custom', position: { x: 150, y: 150 }, data: { label: 'HMM Regime', subLabel: 'BULL_TREND', status: 'green' } },
-    { id: 'agent1', type: 'custom', position: { x: 50, y: 250 }, data: { label: 'Relative Weakness', subLabel: 'Short Finding', status: 'yellow' } },
-    { id: 'agent2', type: 'custom', position: { x: 250, y: 250 }, data: { label: 'Apex Orchestrator', subLabel: 'Master Coord', status: 'green' } },
-    { id: 'score1', type: 'custom', position: { x: 150, y: 350 }, data: { label: 'Composite Scorer', subLabel: 'Pillar Weighting', status: 'green' } },
-    { id: 'exec1', type: 'custom', position: { x: 150, y: 450 }, data: { label: 'Risk Governor', subLabel: 'Position Sizing', status: 'red' } }
-  ];
-  const initialEdges = [
-    { id: 'e1', source: 'scan1', target: 'intel1', animated: true, style: { stroke: '#00D9FF' }, markerEnd: { type: MarkerType.ArrowClosed, color: '#00D9FF' } },
-    { id: 'e2', source: 'scan2', target: 'intel1', animated: true, style: { stroke: '#00D9FF' }, markerEnd: { type: MarkerType.ArrowClosed, color: '#00D9FF' } },
-    { id: 'e3', source: 'intel1', target: 'agent1', animated: true, style: { stroke: '#10b981' } },
-    { id: 'e4', source: 'intel1', target: 'agent2', animated: true, style: { stroke: '#10b981' } },
-    { id: 'e5', source: 'agent1', target: 'score1', animated: true, style: { stroke: '#a855f7' } },
-    { id: 'e6', source: 'agent2', target: 'score1', animated: true, style: { stroke: '#a855f7' } },
-    { id: 'e7', source: 'score1', target: 'exec1', animated: true, style: { stroke: '#f59e0b' } }
-  ];
-  return (
-    <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-md p-3">
-      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-2">Agent Swarm Data Flow Pipeline</h3>
-      <div style={{ height: 520 }}>
-        <ReactFlow nodes={initialNodes} edges={initialEdges} nodeTypes={nodeTypes} fitView
-          proOptions={{ hideAttribution: true }}>
-          <Background color="#1e293b" gap={16} />
-          <Controls />
-        </ReactFlow>
-      </div>
-    </div>
-  );
-};
-
-// --- ANALYTICS DASHBOARDS ROW (LW Charts - pending Step 7a) ---
-export const AnalyticsDashboards = () => {
-    const chartTitles = [
-        '30-Day Signal Accuracy & PnL',
-        'Multi-Factor Scoring Radar',
-        'Agent Swarm Consensus Matrix',
-        'Scanner Correlation'
-    ];
-    return (
-        <div className="grid grid-cols-4 gap-2">
-            {chartTitles.map((title, i) => (
-                <div key={i} className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-md p-3">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-2">{title}</h3>
-                    <div className="h-[200px] flex items-center justify-center text-gray-500 text-xs border border-dashed border-[rgba(42,52,68,0.5)] rounded">
-                        <span>LW Charts pending</span>
-                    </div>
-                </div>
-            ))}
-        </div>
-    );
-};

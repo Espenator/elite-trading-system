@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useSentiment } from '../hooks/useSentiment';
-import { SectorTreemap, MultiFactorRadar, ScannerStatusMatrix, PredictionMarketCard } from '../components/dashboard/SentimentWidgets';
+import { SectorTreemap, ScannerStatusMatrix } from '../components/dashboard/SentimentWidgets';
 
 // ---- Constants ----
 const SOURCE_KEYS = ['stockgeist', 'news', 'discord', 'x', 'fred', 'sec'];
@@ -304,7 +304,7 @@ export default function SentimentIntelligence() {
           <button
             onClick={refetch}
             disabled={loading}
-            className="px-3 py-1.5 rounded-lg bg-[#111827] border border-[rgba(42,52,68,0.5)] text-xs text-gray-400 hover:text-white hover:border-[#00D9FF]/40 transition-all flex items-center gap-1.5"
+            className="px-3 py-1.5 rounded-lg bg-[#111827] border border-[#1e293b] text-xs text-gray-400 hover:text-white hover:border-[#00D9FF]/40 transition-all flex items-center gap-1.5"
           >
             <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
             Refresh
@@ -325,10 +325,10 @@ export default function SentimentIntelligence() {
         {/* ===== LEFT COLUMN: OpenClaw Agent Swarm + Sentiment Sources ===== */}
         <div className="col-span-12 xl:col-span-2 space-y-3">
           {/* Agent Swarm Panel */}
-          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-md overflow-hidden">
-            <div className="px-3 py-2.5 border-b border-secondary/20">
-              <h3 className="text-xs font-semibold text-white">OpenClaw Agent Swarm</h3>
-              <p className="text-[9px] text-gray-500 mt-0.5">
+          <div className="bg-[#111827] border border-[#1e293b] rounded-md overflow-hidden">
+            <div className="px-3 py-2.5 border-b border-[#1e293b]">
+              <h3 className="text-xs font-bold uppercase tracking-wider font-mono text-[#94a3b8]">OpenClaw Agent Swarm</h3>
+              <p className="text-[9px] text-[#64748b] mt-0.5">
                 {sourceHealth.length > 0
                   ? `${sourceHealth.filter(s => s.status === 'LIVE').length}/${agentList.length} agents live`
                   : 'Swarm active'}
@@ -362,7 +362,7 @@ export default function SentimentIntelligence() {
               })}
 
               {/* Weight sliders */}
-              <div className="border-t border-secondary/20 pt-1.5 mt-1.5 space-y-1">
+              <div className="border-t border-[#1e293b] pt-1.5 mt-1.5 space-y-1">
                 {weightSliders.map((w) => (
                   <div key={w.label} className="flex items-center justify-between px-1">
                     <span className="text-[9px] text-slate-500">{w.label}</span>
@@ -380,7 +380,7 @@ export default function SentimentIntelligence() {
               <button
                 disabled={discovering}
                 onClick={handleAutoDiscover}
-                className="w-full mt-2 py-1.5 rounded-lg bg-cyan-500/20 border border-[#00D9FF]/50/40 text-[#00D9FF] text-[10px] font-semibold hover:bg-cyan-500/30 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+                className="w-full mt-2 py-1.5 rounded-md bg-[#06b6d4] text-white text-[10px] font-semibold hover:bg-[#22d3ee] transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
               >
                 <Plus className={`w-3 h-3 ${discovering ? 'animate-spin' : ''}`} />
                 {discovering ? 'Discovering...' : '+ Auto Discover'}
@@ -389,13 +389,13 @@ export default function SentimentIntelligence() {
           </div>
 
           {/* Sentiment Sources Panel */}
-          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-md overflow-hidden">
-            <div className="px-3 py-2.5 border-b border-secondary/20">
-              <h3 className="text-xs font-semibold text-white">Sentiment Sources</h3>
+          <div className="bg-[#111827] border border-[#1e293b] rounded-md overflow-hidden">
+            <div className="px-3 py-2.5 border-b border-[#1e293b]">
+              <h3 className="text-xs font-bold uppercase tracking-wider font-mono text-[#94a3b8]">Sentiment Sources</h3>
             </div>
             <div className="p-2.5">
               {/* Description text */}
-              <p className="text-[9px] text-gray-500 mb-2 leading-relaxed">
+              <p className="text-[9px] text-[#64748b] mb-2 leading-relaxed">
                 Live sentiment data collected from multiple sources including social media, news aggregators, SEC filings, and macro economic indicators.
               </p>
 
@@ -438,7 +438,7 @@ export default function SentimentIntelligence() {
               <div className="space-y-1">
                 {sourceBarData.map((bar) => (
                   <div key={bar.name} className="flex items-center gap-1.5">
-                    <span className="text-[8px] text-gray-500 w-16 truncate shrink-0">{bar.name}</span>
+                    <span className="text-[8px] text-[#64748b] w-16 truncate shrink-0">{bar.name}</span>
                     <div className="flex-1 bg-slate-800/50 rounded-full h-2 overflow-hidden">
                       <div
                         className="h-2 rounded-full transition-all"
@@ -455,15 +455,15 @@ export default function SentimentIntelligence() {
         {/* ===== CENTER COLUMN: Banner + Heatmap + 30-Day Sentiment ===== */}
         <div className="col-span-12 xl:col-span-4 space-y-3">
 
-          {/* PAS v8 Regime Banner */}
-          <div className="bg-emerald-500/20 border border-emerald-500/50 rounded-md p-3 text-center">
-            <span className="text-emerald-400 font-black text-sm tracking-widest uppercase">
+          {/* PAS v8 Regime Banner — mockup: green banner BULL_TREND 87% */}
+          <div className="bg-[#064e3b]/40 border border-[#10b981]/50 rounded-md p-3 text-center">
+            <span className="text-[#10b981] font-black text-sm tracking-widest uppercase font-mono">
               PAS v8 Regime: BULL_TREND {moodValue}%
             </span>
           </div>
 
           {/* Symbol Heatmap Grid - 3 columns x 4 rows matching mockup */}
-          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-md p-3">
+          <div className="bg-[#111827] border border-[#1e293b] rounded-md p-3">
             <SectorTreemap />
             <div className="grid grid-cols-3 gap-1.5 mt-3">
               {heatmapGrid.map((item) => {
@@ -485,9 +485,9 @@ export default function SentimentIntelligence() {
           </div>
 
           {/* 30-Day Sentiment Area Chart - green/cyan gradient per mockup */}
-          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-md overflow-hidden">
-            <div className="px-4 py-2.5 border-b border-secondary/20">
-              <h3 className="text-sm font-semibold text-white">30-Day Sentiment</h3>
+          <div className="bg-[#111827] border border-[#1e293b] rounded-md overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-[#1e293b]">
+              <h3 className="text-xs font-bold uppercase tracking-wider font-mono text-[#94a3b8]">30-Day Sentiment</h3>
             </div>
             <div className="p-3">
               <div className="h-48 w-full">
@@ -516,6 +516,26 @@ export default function SentimentIntelligence() {
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
+              {/* Segmented horizontal bars per mockup: Consensus, Dominating, etc. (green/blue/purple) */}
+              <div className="mt-3 space-y-1.5">
+                {[
+                  { label: 'Consensus', g: 60, b: 25, p: 15 },
+                  { label: 'Dominating', g: 40, b: 35, p: 25 },
+                  { label: 'Tracies', g: 50, b: 30, p: 20 },
+                  { label: 'Content', g: 70, b: 20, p: 10 },
+                  { label: 'Intelligence', g: 45, b: 40, p: 15 },
+                  { label: 'Nckey', g: 55, b: 25, p: 20 },
+                ].map((row, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="text-[9px] font-mono text-[#64748b] w-20 shrink-0">{row.label}</span>
+                    <div className="flex-1 h-2 rounded overflow-hidden flex bg-[#1e293b]">
+                      <div className="bg-[#10b981]" style={{ width: `${row.g}%` }} />
+                      <div className="bg-[#3b82f6]" style={{ width: `${row.b}%` }} />
+                      <div className="bg-[#8b5cf6]" style={{ width: `${row.p}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -523,127 +543,186 @@ export default function SentimentIntelligence() {
         {/* ===== CENTER-RIGHT COLUMN: Trade Signals + Radar + Prediction + Alerts ===== */}
         <div className="col-span-12 xl:col-span-3 space-y-3">
 
-          {/* Trade Signals */}
-          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-md overflow-hidden">
-            <div className="px-4 py-2 border-b border-secondary/20">
-              <h3 className="text-xs font-semibold text-white">Trade Signals</h3>
+          {/* Trade Signals — mockup: table with Stock, Tip, Bought, Value, Return, Factor + SLAM DUNK tags */}
+          <div className="bg-[#111827] border border-[#1e293b] rounded-md overflow-hidden">
+            <div className="px-4 py-2 border-b border-[#1e293b]">
+              <h3 className="text-xs font-bold uppercase tracking-wider font-mono text-[#94a3b8]">Trade Signals</h3>
             </div>
             <div className="p-3">
-              <p className="text-[9px] text-gray-400 leading-relaxed">
-                {tradeSignalText}
-              </p>
+              {signals.length > 0 ? (
+                <table className="w-full text-[10px] font-mono">
+                  <thead>
+                    <tr className="text-[#64748b] border-b border-[#1e293b]">
+                      <th className="text-left py-1 font-medium uppercase">Stock</th>
+                      <th className="text-left font-medium uppercase">Tip</th>
+                      <th className="text-right font-medium uppercase">Bought</th>
+                      <th className="text-right font-medium uppercase">Value</th>
+                      <th className="text-right font-medium uppercase">Return</th>
+                      <th className="text-right font-medium uppercase">Factor</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {signals.slice(0, 8).map((s, i) => (
+                      <tr key={i} className="border-b border-[#1e293b]/50 hover:bg-[#164e63]/10">
+                        <td className="py-1.5 text-[#06b6d4] font-bold">{s.ticker || s.symbol || '—'}</td>
+                        <td className="text-[#94a3b8]">{s.direction || '—'}</td>
+                        <td className="text-right text-[#f8fafc]">{s.entry != null ? Number(s.entry).toFixed(2) : '—'}</td>
+                        <td className="text-right text-[#f8fafc]">{s.value != null ? Number(s.value).toFixed(2) : '—'}</td>
+                        <td className={`text-right ${(s.composite ?? 0) >= 0 ? 'text-[#10b981]' : 'text-[#ef4444]'}`}>
+                          {s.composite != null ? `${(s.composite >= 0 ? '+' : '')}${Number(s.composite * 100).toFixed(2)}%` : '—'}
+                        </td>
+                        <td className="text-right">
+                          {(s.composite ?? 0) >= 0.2 ? (
+                            <span className="px-1.5 py-0.5 rounded bg-[#10b981]/20 text-[#10b981] font-bold text-[9px] uppercase">SLAM DUNK</span>
+                          ) : (
+                            <span className="text-[#64748b]">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p className="text-[9px] text-[#64748b] leading-relaxed">
+                  {tradeSignalText}
+                </p>
+              )}
             </div>
           </div>
 
-          {/* Prediction Markets Row */}
+          {/* Market Events — mockup: scrolling timestamped feed */}
+          <div className="bg-[#111827] border border-[#1e293b] rounded-md overflow-hidden">
+            <div className="px-4 py-2 border-b border-[#1e293b]">
+              <h3 className="text-xs font-bold uppercase tracking-wider font-mono text-[#94a3b8]">Market Events</h3>
+            </div>
+            <div className="p-2 max-h-32 overflow-y-auto space-y-1">
+              {history && history.length > 0 ? (
+                history.slice(0, 12).map((h, i) => {
+                  const t = h.timestamp ? new Date(h.timestamp) : new Date();
+                  const time = `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
+                  return (
+                    <div key={i} className="flex gap-2 text-[9px] text-[#94a3b8]">
+                      <span className="font-mono text-[#64748b] shrink-0">{time}</span>
+                      <span className="truncate">{h.source || 'Sentiment'} {h.score != null ? (h.score >= 0 ? 'bullish' : 'bearish') : ''}</span>
+                    </div>
+                  );
+                })
+              ) : (
+                <>
+                  <div className="flex gap-2 text-[9px] text-[#94a3b8]"><span className="font-mono text-[#64748b] shrink-0">12:33</span><span>Market regime update</span></div>
+                  <div className="flex gap-2 text-[9px] text-[#94a3b8]"><span className="font-mono text-[#64748b] shrink-0">12:29</span><span>Sentiment feed normalized</span></div>
+                  <div className="flex gap-2 text-[9px] text-[#94a3b8]"><span className="font-mono text-[#64748b] shrink-0">12:30</span><span>Cross-source consensus refresh</span></div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Prediction Markets Row — mockup: Progress green/blue, Probability green */}
           <div className="grid grid-cols-2 gap-2">
-            {/* Prediction Market 1 */}
-            <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-md overflow-hidden">
-              <div className="px-2.5 py-1.5 border-b border-secondary/20">
-                <h3 className="text-[10px] font-semibold text-white">Prediction Market</h3>
+            {/* Prediction Market 1 — Probability green, Progress green */}
+            <div className="bg-[#111827] border border-[#1e293b] rounded-md overflow-hidden">
+              <div className="px-2.5 py-1.5 border-b border-[#1e293b]">
+                <h3 className="text-[10px] font-bold uppercase tracking-wider font-mono text-[#94a3b8]">Prediction Market</h3>
               </div>
               <div className="p-2.5 flex flex-col items-center">
-                {/* Circle indicator */}
                 <div className="relative w-14 h-14 mb-1.5">
                   <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
                     <circle cx="18" cy="18" r="15.9" fill="none" stroke="rgba(51,65,85,0.3)" strokeWidth="2.5" />
                     <circle
-                      cx="18" cy="18" r="15.9" fill="none" stroke="#00D9FF" strokeWidth="2.5"
+                      cx="18" cy="18" r="15.9" fill="none" stroke="#10b981" strokeWidth="2.5"
                       strokeDasharray={`${predMarket1.probability} ${100 - predMarket1.probability}`}
                       strokeLinecap="round"
                     />
                   </svg>
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-[10px] font-bold text-[#00D9FF] font-mono">{predMarket1.probability}%</span>
+                    <span className="text-[10px] font-bold text-[#10b981] font-mono">{predMarket1.probability}%</span>
                   </div>
                 </div>
                 <div className="w-full space-y-1 mt-0.5">
                   <div className="flex justify-between text-[8px]">
-                    <span className="text-gray-500">Probability</span>
-                    <span className="text-[#00D9FF] font-bold font-mono">{predMarket1.probability}%</span>
+                    <span className="text-[#64748b]">Probability</span>
+                    <span className="text-[#10b981] font-bold font-mono">{predMarket1.probability}%</span>
                   </div>
-                  <div className="w-full bg-slate-800 rounded-full h-1">
-                    <div className="h-1 rounded-full bg-cyan-500 transition-all" style={{ width: `${predMarket1.probability}%` }} />
+                  <div className="w-full bg-[#1e293b] rounded-full h-1">
+                    <div className="h-1 rounded-full bg-[#10b981] transition-all" style={{ width: `${predMarket1.probability}%` }} />
                   </div>
                   <div className="flex justify-between text-[8px]">
-                    <span className="text-gray-500">Progress</span>
-                    <span className="text-amber-400 font-bold font-mono">{predMarket1.progress}%</span>
+                    <span className="text-[#64748b]">Progress</span>
+                    <span className="text-[#10b981] font-bold font-mono">{predMarket1.progress}%</span>
                   </div>
-                  <div className="w-full bg-slate-800 rounded-full h-1">
-                    <div className="bg-amber-500 h-1 rounded-full transition-all" style={{ width: `${predMarket1.progress}%` }} />
+                  <div className="w-full bg-[#1e293b] rounded-full h-1">
+                    <div className="bg-[#10b981] h-1 rounded-full transition-all" style={{ width: `${predMarket1.progress}%` }} />
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Prediction Market 2 */}
-            <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-md overflow-hidden">
-              <div className="px-2.5 py-1.5 border-b border-secondary/20">
-                <h3 className="text-[10px] font-semibold text-white">Prediction Market</h3>
+            {/* Prediction Market 2 — Probability green, Progress blue */}
+            <div className="bg-[#111827] border border-[#1e293b] rounded-md overflow-hidden">
+              <div className="px-2.5 py-1.5 border-b border-[#1e293b]">
+                <h3 className="text-[10px] font-bold uppercase tracking-wider font-mono text-[#94a3b8]">Prediction Market</h3>
               </div>
               <div className="p-2.5 flex flex-col items-center">
-                {/* Circle indicator */}
                 <div className="relative w-14 h-14 mb-1.5">
                   <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
                     <circle cx="18" cy="18" r="15.9" fill="none" stroke="rgba(51,65,85,0.3)" strokeWidth="2.5" />
                     <circle
-                      cx="18" cy="18" r="15.9" fill="none" stroke="#00D9FF" strokeWidth="2.5"
+                      cx="18" cy="18" r="15.9" fill="none" stroke="#10b981" strokeWidth="2.5"
                       strokeDasharray={`${predMarket2.probability} ${100 - predMarket2.probability}`}
                       strokeLinecap="round"
                     />
                   </svg>
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-[10px] font-bold text-[#00D9FF] font-mono">{predMarket2.probability}%</span>
+                    <span className="text-[10px] font-bold text-[#10b981] font-mono">{predMarket2.probability}%</span>
                   </div>
                 </div>
                 <div className="w-full space-y-1 mt-0.5">
                   <div className="flex justify-between text-[8px]">
-                    <span className="text-gray-500">Probability</span>
-                    <span className="text-[#00D9FF] font-bold font-mono">{predMarket2.probability}%</span>
+                    <span className="text-[#64748b]">Probability</span>
+                    <span className="text-[#10b981] font-bold font-mono">{predMarket2.probability}%</span>
                   </div>
-                  <div className="w-full bg-slate-800 rounded-full h-1">
-                    <div className="h-1 rounded-full bg-cyan-500 transition-all" style={{ width: `${predMarket2.probability}%` }} />
+                  <div className="w-full bg-[#1e293b] rounded-full h-1">
+                    <div className="h-1 rounded-full bg-[#10b981] transition-all" style={{ width: `${predMarket2.probability}%` }} />
                   </div>
                   <div className="flex justify-between text-[8px]">
-                    <span className="text-gray-500">Progress</span>
-                    <span className="text-amber-400 font-bold font-mono">{predMarket2.progress}%</span>
+                    <span className="text-[#64748b]">Progress</span>
+                    <span className="text-[#3b82f6] font-bold font-mono">{predMarket2.progress}%</span>
                   </div>
-                  <div className="w-full bg-slate-800 rounded-full h-1">
-                    <div className="bg-amber-500 h-1 rounded-full transition-all" style={{ width: `${predMarket2.progress}%` }} />
+                  <div className="w-full bg-[#1e293b] rounded-full h-1">
+                    <div className="bg-[#3b82f6] h-1 rounded-full transition-all" style={{ width: `${predMarket2.progress}%` }} />
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Radar Chart - Large, prominent with TWO overlapping polygons per mockup */}
-          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-md overflow-hidden">
+          {/* Radar Chart - two polygons: green (current) + purple (previous) per mockup */}
+          <div className="bg-[#111827] border border-[#1e293b] rounded-md overflow-hidden">
             <div className="p-3">
-              <MultiFactorRadar />
               <div className="h-56 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <RadarChart data={radarData} outerRadius="75%">
                     <PolarGrid stroke="rgba(51,65,85,0.5)" />
                     <PolarAngleAxis dataKey="factor" tick={{ fontSize: 8, fill: '#94a3b8' }} />
                     <PolarRadiusAxis tick={false} axisLine={false} domain={[0, 100]} />
-                    {/* Previous period - lighter, behind */}
+                    {/* Previous period — purple polygon per mockup */}
                     <Radar
                       name="Previous"
                       dataKey="prev"
-                      stroke="#22d3ee"
-                      fill="rgba(34,211,153,0.08)"
+                      stroke="#8b5cf6"
+                      fill="rgba(139,92,246,0.12)"
                       strokeWidth={1}
                       strokeDasharray="4 3"
                       dot={false}
                     />
-                    {/* Current period - primary green filled polygon */}
+                    {/* Current period — green filled polygon */}
                     <Radar
                       name="Current"
                       dataKey="value"
-                      stroke="#34d399"
-                      fill="rgba(34,211,153,0.2)"
+                      stroke="#10b981"
+                      fill="rgba(16,185,129,0.2)"
                       strokeWidth={2}
-                      dot={{ r: 3, fill: '#34d399' }}
+                      dot={{ r: 3, fill: '#10b981' }}
                     />
                   </RadarChart>
                 </ResponsiveContainer>
@@ -651,24 +730,16 @@ export default function SentimentIntelligence() {
             </div>
           </div>
 
-          {/* Prediction Market Cards Grid */}
-          <div className="grid grid-cols-2 gap-3">
-            <PredictionMarketCard question="" probability={0} volume="0" trend="flat" />
-            <PredictionMarketCard question="" probability={0} volume="0" trend="flat" />
-            <PredictionMarketCard question="" probability={0} volume="0" trend="flat" />
-            <PredictionMarketCard question="" probability={0} volume="0" trend="flat" />
-          </div>
-
-          {/* Emergency Alert Banners */}
+          {/* Divergence Alert cards — mockup: orange warning, "Divergence Alert" title */}
           <div className="space-y-2">
             {/* Emergency Alert 1 */}
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-2.5 relative overflow-hidden">
-              <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500" />
+            <div className="bg-[#78350f]/30 border border-[#f59e0b]/40 rounded-md p-2.5 relative overflow-hidden">
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#f59e0b]" />
               <div className="flex items-start gap-2 pl-2">
-                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <AlertTriangle className="w-4 h-4 text-[#f59e0b] shrink-0 mt-0.5" />
                 <div className="min-w-0 flex-1">
-                  <div className="font-bold text-amber-400 text-[10px] mb-0.5">Emergency Alert</div>
-                  <p className="text-[9px] text-slate-300 leading-relaxed">
+                  <div className="font-bold text-[#f59e0b] text-[10px] mb-0.5">Divergence Alert</div>
+                  <p className="text-[9px] text-[#94a3b8] leading-relaxed">
                     {divergences.length > 0
                       ? `${divergences[0].ticker}: ${divergences[0].conflict} (Spread: ${divergences[0].spread})`
                       : 'Cross-source sentiment divergence detected. Social vs news sentiment misalignment may indicate reversal opportunity.'}
@@ -678,13 +749,13 @@ export default function SentimentIntelligence() {
             </div>
 
             {/* Emergency Alert 2 */}
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-2.5 relative overflow-hidden">
-              <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500" />
+            <div className="bg-[#78350f]/30 border border-[#f59e0b]/40 rounded-md p-2.5 relative overflow-hidden">
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#f59e0b]" />
               <div className="flex items-start gap-2 pl-2">
-                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <AlertTriangle className="w-4 h-4 text-[#f59e0b] shrink-0 mt-0.5" />
                 <div className="min-w-0 flex-1">
-                  <div className="font-bold text-amber-400 text-[10px] mb-0.5">Emergency Alert</div>
-                  <p className="text-[9px] text-slate-300 leading-relaxed">
+                  <div className="font-bold text-[#f59e0b] text-[10px] mb-0.5">Divergence Alert</div>
+                  <p className="text-[9px] text-[#94a3b8] leading-relaxed">
                     {divergences.length > 1
                       ? `${divergences[1].ticker}: ${divergences[1].conflict}`
                       : 'Elevated volatility regime detected. Risk management protocols are active and monitoring all positions.'}
@@ -699,10 +770,10 @@ export default function SentimentIntelligence() {
         <div className="col-span-12 xl:col-span-3 space-y-3">
 
           {/* Scanner Status Matrix - Dense dot grid */}
-          <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-md overflow-hidden h-full">
-            <div className="px-3 py-2 border-b border-secondary/20 flex items-center justify-between">
-              <h3 className="text-xs font-semibold text-white">Scanner Status Matrix</h3>
-              <span className="text-[9px] text-gray-500 font-mono">{scannerData.length} symbols</span>
+          <div className="bg-[#111827] border border-[#1e293b] rounded-md overflow-hidden h-full">
+            <div className="px-3 py-2 border-b border-[#1e293b] flex items-center justify-between">
+              <h3 className="text-xs font-bold uppercase tracking-wider font-mono text-[#94a3b8]">Scanner Status Matrix</h3>
+              <span className="text-[9px] text-[#64748b] font-mono">{scannerData.length} symbols</span>
             </div>
             <div className="p-2.5">
               <ScannerStatusMatrix />

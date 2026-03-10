@@ -12,28 +12,40 @@ import StatusFooter from './StatusFooter';
 import { CNSProvider, useCNS } from '../../hooks/useCNS';
 import { useApi } from '../../hooks/useApi';
 import ws from '../../services/websocket';
+import { getApiUrl } from '../../config/api';
+
+const API_HEALTH_POLL_MS = 20000;
 
 function LayoutInner() {
   const { wsConnected } = useCNS();
 
   // BUG 1 FIX: Layout owns the sidebar collapsed state
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Footer status: derive from CNS + lightweight API health poll
+  const [apiStatus, setApiStatus] = useState('red');
 
   const handleToggleSidebar = useCallback(() => {
     setSidebarCollapsed(prev => !prev);
   }, []);
 
-  // BUG 2 FIX: Fetch API status + system data for StatusFooter
-  const { data: statusData } = useApi('status', { pollIntervalMs: 10000 });
-  const { data: systemData } = useApi('system', { pollIntervalMs: 15000 });
-  const { data: regimeData } = useApi('openclawRegime', { pollIntervalMs: 15000 });
-
-  // Derive StatusFooter props
-  const apiStatus = statusData?.status === 'ok' ? 'green' : statusData ? 'amber' : 'red';
-  const wsStatus = wsConnected ? 'green' : 'red';
-  const regime = regimeData?.regime || systemData?.regime || 'UNKNOWN';
-  // Agent count from system/agents data
-  const agentCount = systemData?.modules ? Object.keys(systemData.modules).length : 0;
+  // Lightweight API health check for footer "API Healthy / Down"
+  useEffect(() => {
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const res = await fetch(getApiUrl('status'), { method: 'GET' });
+        if (!cancelled) setApiStatus(res.ok ? 'green' : 'red');
+      } catch {
+        if (!cancelled) setApiStatus('red');
+      }
+    };
+    check();
+    const id = setInterval(check, API_HEALTH_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
 
   return (
     <div className="flex min-h-screen bg-dark text-white overflow-hidden">
@@ -50,10 +62,8 @@ function LayoutInner() {
           <Outlet />
         </main>
         <StatusFooter
+          wsStatus={wsConnected ? 'green' : 'red'}
           apiStatus={apiStatus}
-          wsStatus={wsStatus}
-          agentCount={agentCount}
-          regime={regime}
         />
       </div>
 

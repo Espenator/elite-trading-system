@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { NavLink } from "react-router-dom";
 import log from "@/utils/logger";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl, getAuthHeaders, WS_CHANNELS } from "../config/api";
@@ -1245,24 +1246,30 @@ export default function Dashboard() {
       {/* MAIN CONTENT AREA: Left Sidebar + Center Table + Right Panel */}
       <main className="flex flex-1 overflow-hidden">
 
-        {/* LEFT SIDEBAR NAV */}
+        {/* LEFT SIDEBAR NAV — 6-icon mini sidebar per mockup 02-intelligence-dashboard */}
         <aside className="w-[52px] shrink-0 bg-[#0B0E14] border-r border-[rgba(42,52,68,0.5)] flex flex-col items-center py-3 gap-3">
           {[
-            { label: "Dash", icon: "\u25A3", active: true, path: "/" },
-            { label: "Signals", icon: "\u26A1", path: "/signals" },
+            { label: "Dash", icon: "\u25A3", path: "/dashboard" },
+            { label: "Signals", icon: "\u26A1", path: "/signal-intelligence-v3" },
             { label: "Port", icon: "\u2637", path: "/trades" },
             { label: "Risk", icon: "\u26D4", path: "/risk" },
             { label: "Agents", icon: "\u2699", path: "/agents" },
             { label: "ML", icon: "\u2B22", path: "/ml-brain" },
           ].map((nav) => (
-            <button
+            <NavLink
               key={nav.label}
-              onClick={() => { if (!nav.active) window.location.href = nav.path; }}
-              className={`w-9 h-9 rounded flex flex-col items-center justify-center gap-0.5 transition-colors ${nav.active ? "bg-[#00D9FF]/15 text-[#00D9FF] border border-[#00D9FF]/30" : "text-[#64748b] hover:text-[#94a3b8] hover:bg-[#1e293b]/50 border border-transparent"}`}
+              to={nav.path}
+              className={({ isActive }) =>
+                `w-9 h-9 rounded flex flex-col items-center justify-center gap-0.5 transition-colors border ${
+                  isActive
+                    ? "bg-[#00D9FF]/15 text-[#00D9FF] border-[#00D9FF]/30"
+                    : "text-[#64748b] hover:text-[#94a3b8] hover:bg-[#1e293b]/50 border-transparent"
+                }`
+              }
             >
               <span className="text-sm leading-none">{nav.icon}</span>
               <span className="text-[6px] font-mono leading-none">{nav.label}</span>
-            </button>
+            </NavLink>
           ))}
           <div className="flex-1" />
           <div className="w-9 h-9 rounded border border-[rgba(42,52,68,0.5)] flex items-center justify-center">
@@ -1416,12 +1423,12 @@ export default function Dashboard() {
           )}
         </section>
 
-        {/* RIGHT COLUMN: Intelligence Panel (~32%) */}
-        <section className="flex flex-col w-[32%] bg-[#111827] overflow-y-auto custom-scrollbar">
-          {/* Swarm Consensus Bars (prominent at top per mockup) — GET /api/v1/agents/consensus */}
-          <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5 space-y-1.5">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">SWARM CONSENSUS</h3>
-            {(swarmForConsensus.agents || []).slice(0, 6).map((agent, i) => (
+        {/* RIGHT COLUMN: Intelligence Panel (~32%) — card structure per UI-DESIGN-SYSTEM */}
+        <section className="flex flex-col w-[32%] bg-[#0B0E14] overflow-y-auto custom-scrollbar p-2 gap-2">
+          {/* Swarm Consensus Bars (prominent at top per mockup) */}
+          <div className="rounded-md border border-[rgba(42,52,68,0.5)] bg-[#111827] p-2.5 space-y-1.5">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-1">SWARM CONSENSUS</h3>
+            {(swarm.agents || []).slice(0, 6).map((agent, i) => (
               <ConsensusBar
                 key={i}
                 label={agent.name || `Agent ${i + 1}`}
@@ -1437,7 +1444,7 @@ export default function Dashboard() {
           </div>
 
           {/* Signal Strength Bar Chart */}
-          <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5">
+          <div className="rounded-md border border-[rgba(42,52,68,0.5)] bg-[#111827] p-2.5">
             <SignalBarChart
               signals={processedSignals.slice(0, 20)}
               selectedSymbol={selectedSymbol}
@@ -1446,7 +1453,7 @@ export default function Dashboard() {
           </div>
 
           {/* Regime Donut + Trades Donut Row */}
-          <div className="flex gap-2 border-b border-[rgba(42,52,68,0.5)] p-2.5">
+          <div className="flex gap-2 rounded-md border border-[rgba(42,52,68,0.5)] bg-[#111827] p-2.5">
             <div className="flex-1 flex flex-col items-center">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-1">REGIME</span>
               <RegimeDonut regime={openclaw.regime} score={openclaw.compositeScore} />

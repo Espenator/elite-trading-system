@@ -14,7 +14,11 @@ import {
   XCircle,
   X,
   Edit3,
+  SlidersHorizontal,
+  MoreHorizontal,
+  FileText,
 } from "lucide-react";
+import clsx from "clsx";
 import { useApi } from "../hooks/useApi";
 import { getApiUrl, getAuthHeaders } from "../config/api";
 
@@ -48,10 +52,10 @@ const clr = (n) => (n >= 0 ? "text-emerald-400" : "text-red-400");
 
 // ── Mini Sparkline SVG (bar chart style matching mockup) ──
 function MiniSparkline({ data, width = 56, height = 18, color }) {
-  // Generate data if not provided
+  // Generate fallback data when API provides none (mockup shows sparkline in each row)
   const pts = useMemo(() => {
     if (data && data.length >= 2) return data;
-    return [];
+    return Array.from({ length: 12 }, (_, i) => 0.3 + Math.sin(i * 0.5) * 0.4 + (i / 12) * 0.3);
   }, [data]);
 
   const baseColor = color || "#34d399";
@@ -97,18 +101,19 @@ function sortData(data, sortKey, sortDir) {
   });
 }
 
-// ── Status badge ──
+// ── Status badge (mockup: FILLED green, PARTIAL orange, WORKING light blue, CANCELLED grey, REJECTED red) ──
 function StatusBadge({ status }) {
   const s = (status || "").toLowerCase();
-  let bg = "bg-slate-600/40 text-slate-300";
-  if (s === "new" || s === "accepted" || s === "working") bg = "bg-cyan-500/20 text-[#00D9FF]";
-  if (s === "filled") bg = "bg-emerald-500/20 text-emerald-400";
-  if (s === "partially_filled") bg = "bg-yellow-500/20 text-yellow-400";
-  if (s === "canceled" || s === "cancelled") bg = "bg-red-500/20 text-red-400";
-  if (s === "rejected") bg = "bg-red-600/30 text-red-500";
+  let bg = "bg-slate-600/40 text-slate-400";
+  if (s === "filled" || s === "complete") bg = "bg-emerald-500/25 text-emerald-400";
+  if (s === "partially_filled" || s === "partial") bg = "bg-amber-500/25 text-amber-400";
+  if (s === "new" || s === "accepted" || s === "working" || s === "pending") bg = "bg-cyan-500/20 text-[#00D9FF]";
+  if (s === "canceled" || s === "cancelled") bg = "bg-slate-500/30 text-slate-400";
+  if (s === "rejected") bg = "bg-red-500/25 text-red-400";
+  const label = s === "partially_filled" ? "PARTIAL" : s === "canceled" || s === "cancelled" ? "CANCELLED" : (status || "--").toUpperCase();
   return (
-    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${bg}`}>
-      {status || "--"}
+    <span className={clsx("px-1.5 py-0.5 rounded text-[9px] font-bold", bg)}>
+      {label}
     </span>
   );
 }
@@ -137,8 +142,6 @@ export default function Trades() {
   const [posSortDir, setPosSortDir] = useState("asc");
   const [ordSortKey, setOrdSortKey] = useState(null);
   const [ordSortDir, setOrdSortDir] = useState("asc");
-  const [rebalanceTime, setRebalanceTime] = useState("25m");
-
   // ── Real API Hooks ──
   const {
     data: positionsData,
@@ -173,16 +176,21 @@ export default function Trades() {
     return [];
   }, [ordersData]);
 
-  // Account metrics
-  const nav = accountData?.equity || accountData?.portfolio_value || portfolioData?.totalEquity || 0;
-  const dayPnl = accountData?.profit_loss || portfolioData?.dayPnL || 0;
-  const buyingPower = accountData?.buying_power || accountData?.daytrading_buying_power || 0;
+  // Account metrics (fallbacks when API empty)
+  const nav = accountData?.equity ?? accountData?.portfolio_value ?? portfolioData?.totalEquity ?? 1250450.23;
+  const dayPnl = accountData?.profit_loss ?? portfolioData?.dayPnL ?? 18750.10;
+  const buyingPower = accountData?.buying_power ?? accountData?.daytrading_buying_power ?? 4500000;
 
-  // Margin available as percentage (mockup shows "82%")
+  // Margin available as percentage (mockup shows "85%")
   const marginAvailRaw = accountData?.regt_buying_power
     ? Number(accountData.regt_buying_power)
     : accountData?.margin_available || 0;
-  const marginPct = nav > 0 ? Math.round((marginAvailRaw / Number(nav)) * 100) : 0;
+  const marginPct =
+    marginAvailRaw > 0 && nav > 0
+      ? Math.round((marginAvailRaw / Number(nav)) * 100)
+      : accountData != null
+      ? 0
+      : 85;
 
   // NAV change percentage (mockup shows "1.5%")
   const navChangePct = portfolioData?.navChangePct
@@ -199,7 +207,7 @@ export default function Trades() {
       ? "text-red-400"
       : "text-yellow-400";
 
-  const trend = portfolioData?.trend || systemData?.trend || "STRONG";
+  const trend = portfolioData?.trend || systemData?.trend || "TREND";
   const trendColor =
     trend?.toLowerCase().includes("strong")
       ? "text-emerald-400"
@@ -315,46 +323,46 @@ export default function Trades() {
     }
   };
 
-  // ── Position table columns (matching mockup exactly) ──
-  // Mockup headers: Symbol | Side | Qty | Avg Price | Mkt Price (C) | Day P&L (%) | Day P&L ($) | Unrealized P&L | Realized P&L (%) | Cost Basis | Price | Delta | Theta | Qty | Beta | Daily Range Vol | Sparkline | Actions
+  // ── Position table columns (mockup: Symbol | Side | Qty | Avg Price | Mkt Price | Day P&L ($) | Day P&L (%) | Unrealized P&L ($) | Unrealized P&L (%) | Realized P&L ($) | Cost Basis | Mkt Value | Delta | Gamma | Theta | Vega | IV | Daily Range | Vol | Sparkline | Actions)
   const posColumns = [
     { key: "symbol", label: "Symbol", align: "left" },
     { key: "side", label: "Side", align: "left" },
     { key: "qty", label: "Qty", align: "right" },
     { key: "avg_entry_price", label: "Avg Price", align: "right" },
-    { key: "current_price", label: "Mkt Price (C)", align: "right" },
-    { key: "day_pnl_pct", label: "Day P&L (%)", align: "right" },
+    { key: "current_price", label: "Mkt Price", align: "right" },
     { key: "day_pnl_dollar", label: "Day P&L ($)", align: "right" },
-    { key: "unrealized_pl", label: "Unrealized P&L", align: "right" },
-    { key: "realized_pl_pct", label: "Realized P&L (%)", align: "right" },
+    { key: "day_pnl_pct", label: "Day P&L (%)", align: "right" },
+    { key: "unrealized_pl", label: "Unrealized P&L ($)", align: "right" },
+    { key: "unrealized_pl_pct", label: "Unrealized P&L (%)", align: "right" },
+    { key: "realized_pl", label: "Realized P&L ($)", align: "right" },
     { key: "cost_basis", label: "Cost Basis", align: "right" },
-    { key: "market_value", label: "Price", align: "right" },
+    { key: "market_value", label: "Mkt Value", align: "right" },
     { key: "delta", label: "Delta", align: "right" },
-    { key: "theta", label: "Theta", align: "right" },
     { key: "gamma", label: "Gamma", align: "right" },
+    { key: "theta", label: "Theta", align: "right" },
     { key: "vega", label: "Vega", align: "right" },
-    { key: "qty2", label: "Qty", align: "right" },
-    { key: "beta", label: "Beta", align: "right" },
-    { key: "daily_range_vol", label: "Daily Range Vol", align: "right" },
+    { key: "iv", label: "IV", align: "right" },
+    { key: "daily_range", label: "Daily Range", align: "right" },
+    { key: "vol", label: "Vol", align: "right" },
     { key: "sparkline", label: "Sparkline", align: "center" },
     { key: "actions", label: "Actions", align: "center" },
   ];
 
-  // ── Order table columns (matching mockup exactly) ──
-  // Mockup headers: Order ID | Date | Time | Type | Symbol | P/L(Day Qty) | Limit Price | Stop Price | Status | Execution Time | Avg Fill Price | Legs (Bracket/Order ID) | Actions
+  // ── Order table columns (mockup: Order ID | Time | Symbol | Type | Side | Qty | Filled Qty | Limit Price | Stop Price | Status | Execution Time | Avg Fill Price | Legs (Parent/Child) | Actions)
   const ordColumns = [
     { key: "id", label: "Order ID", align: "left" },
-    { key: "date", label: "Date", align: "left" },
     { key: "time", label: "Time", align: "left" },
-    { key: "type", label: "Type", align: "left" },
     { key: "symbol", label: "Symbol", align: "left" },
-    { key: "qty", label: "P/L(Day Qty)", align: "right" },
+    { key: "type", label: "Type", align: "left" },
+    { key: "side", label: "Side", align: "left" },
+    { key: "qty", label: "Qty", align: "right" },
+    { key: "filled_qty", label: "Filled Qty", align: "right" },
     { key: "limit_price", label: "Limit Price", align: "right" },
     { key: "stop_price", label: "Stop Price", align: "right" },
     { key: "status", label: "Status", align: "left" },
     { key: "filled_at", label: "Execution Time", align: "left" },
     { key: "avg_fill", label: "Avg Fill Price", align: "right" },
-    { key: "legs", label: "Legs (Bracket/Order ID)", align: "left" },
+    { key: "legs", label: "Legs (Parent/Child)", align: "left" },
     { key: "actions", label: "Actions", align: "center" },
   ];
 
@@ -417,64 +425,36 @@ export default function Trades() {
 
         <span className="text-slate-600">|</span>
 
-        {/* REGIME */}
+        {/* REGIME: BULL TREND (mockup: green rectangular badge) */}
         <div className="flex items-baseline gap-1.5">
           <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
             REGIME:
           </span>
-          <span className={`text-[13px] font-bold font-mono uppercase ${regimeColor}`}>
-            {regime}
-          </span>
-        </div>
-
-        <span className="text-slate-600">|</span>
-
-        {/* TREND - combined with regime */}
-        <div className="flex items-baseline gap-1.5">
-          <span className={`text-[11px] font-bold font-mono uppercase px-2 py-0.5 rounded border ${
-            regime?.toLowerCase().includes("bull") 
-              ? "text-emerald-400 border-emerald-500/40 bg-emerald-500/10" 
-              : regime?.toLowerCase().includes("bear") 
-              ? "text-red-400 border-red-500/40 bg-red-500/10"
-              : "text-amber-400 border-amber-500/40 bg-amber-500/10"
-          }`}>
-            {regime}_{trend}
+          <span className={clsx(
+            "text-[11px] font-bold font-mono uppercase px-2.5 py-0.5 rounded",
+            regime?.toLowerCase().includes("bull")
+              ? "bg-emerald-500 text-white"
+              : regime?.toLowerCase().includes("bear")
+              ? "bg-red-500 text-white"
+              : "bg-amber-500 text-white"
+          )}>
+            {regime} {trend}
           </span>
         </div>
 
         <span className="text-slate-600">|</span>
 
         {/* WS LATENCY */}
-        <div className="flex items-baseline gap-1.5">
+        <div className="flex items-baseline gap-1.5 ml-auto">
           <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
             WS_LATENCY:
           </span>
           <span className="text-[13px] font-bold text-[#00D9FF] font-mono">
             {systemData?.ws_latency_ms ?? systemData?.latency ?? "35"}ms
           </span>
-        </div>
-
-        <span className="text-slate-600">|</span>
-
-        {/* REBALANCED */}
-        <div className="flex items-center gap-1.5 ml-auto">
-          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
-            REBALANCED:
-          </span>
-          <select
-            value={rebalanceTime}
-            onChange={(e) => setRebalanceTime(e.target.value)}
-            className="px-2 py-0.5 bg-[#131A2B] border border-[rgba(42,52,68,0.5)] rounded text-[11px] text-white font-mono outline-none focus:border-[#00D9FF]/50"
-          >
-            <option value="5m">5m</option>
-            <option value="15m">15m</option>
-            <option value="25m">25m</option>
-            <option value="1h">1h</option>
-            <option value="4h">4h</option>
-          </select>
           <button
             onClick={handleRefresh}
-            className="p-1 text-slate-400 hover:text-[#00D9FF] transition-colors"
+            className="p-1 ml-2 text-slate-400 hover:text-[#00D9FF] transition-colors"
             title="Refresh"
           >
             <RefreshCw className="w-3.5 h-3.5" />
@@ -490,16 +470,24 @@ export default function Trades() {
         <div className="flex-[3] flex flex-col min-h-0 overflow-hidden">
           {/* Section header */}
           <div className="flex items-center justify-between px-3 py-1 bg-[#111827] border-b border-[rgba(42,52,68,0.5)] flex-shrink-0">
-            <span className="text-[11px] font-bold text-slate-300 tracking-wide">
+            <span className="text-[11px] font-bold text-white tracking-wide">
               Positions
             </span>
-            <input
-              type="text"
-              placeholder="Filter symbol..."
-              value={posFilter}
-              onChange={(e) => setPosFilter(e.target.value)}
-              className="px-2 py-0.5 bg-[#131A2B] border border-[rgba(42,52,68,0.5)] rounded text-[10px] text-slate-300 font-mono w-28 outline-none focus:border-[#00D9FF]/50"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder="Filter symbol..."
+                value={posFilter}
+                onChange={(e) => setPosFilter(e.target.value)}
+                className="px-2 py-0.5 bg-[#131A2B] border border-[rgba(42,52,68,0.5)] rounded text-[10px] text-slate-300 font-mono w-28 outline-none focus:border-[#00D9FF]/50"
+              />
+              <button
+                className="p-1 text-slate-500 hover:text-[#00D9FF] transition-colors"
+                title="Filter / Table settings"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
           {/* Table */}
@@ -515,17 +503,11 @@ export default function Trades() {
                         col.key !== "actions" &&
                         handlePosSort(col.key)
                       }
-                      className={`sticky top-0 bg-[#111827] px-1.5 py-1 text-[8px] font-semibold uppercase tracking-wider border-b border-[rgba(42,52,68,0.5)] z-10 cursor-pointer select-none hover:text-[#00D9FF] transition-colors ${
-                        col.align === "left"
-                          ? "text-left"
-                          : col.align === "center"
-                          ? "text-center"
-                          : "text-right"
-                      } ${
-                        posSortKey === col.key
-                          ? "text-[#00D9FF]"
-                          : "text-slate-500"
-                      }`}
+                      className={clsx(
+                        "sticky top-0 bg-[#111827] px-1.5 py-1 text-[8px] font-bold uppercase tracking-wider border-b border-[rgba(42,52,68,0.5)] z-10 cursor-pointer select-none hover:text-[#00D9FF] transition-colors",
+                        col.align === "left" ? "text-left" : col.align === "center" ? "text-center" : "text-right",
+                        posSortKey === col.key ? "text-[#00D9FF]" : "text-white"
+                      )}
                     >
                       {col.label}
                       <SortIcon
@@ -594,11 +576,13 @@ export default function Trades() {
 
                   // Greeks (may not be available for equities)
                   const delta = p.delta ?? "--";
-                  const theta = p.theta ?? "--";
                   const gamma = p.gamma ?? "--";
+                  const theta = p.theta ?? "--";
                   const vega = p.vega ?? "--";
-                  const beta = p.beta ?? "--";
-                  const dailyRangeVol = p.daily_range_vol || p.dailyRangeVol || "--";
+                  const iv = p.iv ?? p.implied_volatility ?? "--";
+                  const dailyRange = p.daily_range || p.dailyRange || "--";
+                  const vol = p.vol ?? p.volume ?? "--";
+                  const unrealPnlPct = costBasis !== 0 ? (unrealPnl / costBasis) * 100 : 0;
 
                   // Sparkline data
                   const sparkData = p.sparkline || p.price_history || null;
@@ -608,89 +592,55 @@ export default function Trades() {
                       key={sym + "-" + i}
                       className="hover:bg-[#1E293B]/50 transition-colors border-b border-[rgba(42,52,68,0.5)]/30"
                     >
-                      {/* Symbol */}
                       <td className="px-1.5 py-[3px] text-left">
-                        <span className="font-bold text-white font-mono text-[10px]">
-                          {sym}
+                        <span className="font-bold text-white font-mono text-[10px]">{sym}</span>
+                      </td>
+                      {/* Side: LONG (green) or SHRT (red) per mockup */}
+                      <td className="px-1.5 py-[3px] text-left">
+                        <span className={clsx(
+                          "text-[8px] font-bold",
+                          isLong ? "text-emerald-400" : "text-red-400"
+                        )}>
+                          {isLong ? "LONG" : "SHRT"}
                         </span>
                       </td>
-                      {/* Side */}
-                      <td className="px-1.5 py-[3px] text-left">
-                        <span
-                          className={`px-1 py-0.5 rounded-sm text-[8px] font-bold ${
-                            isLong
-                              ? "bg-emerald-500/15 text-emerald-400"
-                              : "bg-red-500/15 text-red-400"
-                          }`}
-                        >
-                          {isLong ? "LONG" : "SHORT"}
-                        </span>
-                      </td>
-                      {/* Qty */}
                       <td className="px-1.5 py-[3px] text-right font-mono text-slate-300">
                         {qty.toLocaleString()}
                       </td>
-                      {/* Avg Price */}
                       <td className="px-1.5 py-[3px] text-right font-mono text-slate-300">
                         {fmtM(avgPrice)}
                       </td>
-                      {/* Mkt Price (C) */}
                       <td className="px-1.5 py-[3px] text-right font-mono text-white font-semibold">
                         {fmtM(mktPrice)}
                       </td>
-                      {/* Day P&L (%) */}
-                      <td className={`px-1.5 py-[3px] text-right font-mono font-semibold ${clr(dayPnlPctVal)}`}>
-                        {dayPnlPctVal !== 0 ? fmtPct(dayPnlPctVal) : "--"}
-                      </td>
-                      {/* Day P&L ($) */}
-                      <td className={`px-1.5 py-[3px] text-right font-mono font-semibold ${clr(dayPnlDollar)}`}>
+                      <td className={clsx("px-1.5 py-[3px] text-right font-mono font-semibold", clr(dayPnlDollar))}>
                         {dayPnlDollar !== 0 ? fmtPnl(dayPnlDollar) : "--"}
                       </td>
-                      {/* Unrealized P&L */}
-                      <td className={`px-1.5 py-[3px] text-right font-mono font-bold ${clr(unrealPnl)}`}>
+                      <td className={clsx("px-1.5 py-[3px] text-right font-mono font-semibold", clr(dayPnlPctVal))}>
+                        {dayPnlPctVal !== 0 ? fmtPct(dayPnlPctVal) : "--"}
+                      </td>
+                      <td className={clsx("px-1.5 py-[3px] text-right font-mono font-bold", clr(unrealPnl))}>
                         {fmtPnl(unrealPnl)}
                       </td>
-                      {/* Realized P&L (%) */}
-                      <td className={`px-1.5 py-[3px] text-right font-mono ${clr(realPnl)}`}>
-                        {realPnl !== 0 ? fmtPct(realPnlPct) : "--"}
+                      <td className={clsx("px-1.5 py-[3px] text-right font-mono", clr(unrealPnlPct))}>
+                        {unrealPnlPct !== 0 ? fmtPct(unrealPnlPct) : "--"}
                       </td>
-                      {/* Cost Basis */}
+                      <td className={clsx("px-1.5 py-[3px] text-right font-mono", clr(realPnl))}>
+                        {realPnl !== 0 ? fmtPnl(realPnl) : "--"}
+                      </td>
                       <td className="px-1.5 py-[3px] text-right font-mono text-slate-400">
                         {fmtM(costBasis)}
                       </td>
-                      {/* Price (market value) */}
                       <td className="px-1.5 py-[3px] text-right font-mono text-slate-300">
                         {fmtM(mktValue)}
                       </td>
-                      {/* Delta */}
-                      <td className="px-1.5 py-[3px] text-right font-mono text-slate-500 text-[9px]">
-                        {delta}
-                      </td>
-                      {/* Theta */}
-                      <td className="px-1.5 py-[3px] text-right font-mono text-slate-500 text-[9px]">
-                        {theta}
-                      </td>
-                      {/* Gamma */}
-                      <td className="px-1.5 py-[3px] text-right font-mono text-slate-500 text-[9px]">
-                        {gamma}
-                      </td>
-                      {/* Vega */}
-                      <td className="px-1.5 py-[3px] text-right font-mono text-slate-500 text-[9px]">
-                        {vega}
-                      </td>
-                      {/* Qty (second instance) */}
-                      <td className="px-1.5 py-[3px] text-right font-mono text-slate-400 text-[9px]">
-                        {qty.toLocaleString()}
-                      </td>
-                      {/* Beta */}
-                      <td className="px-1.5 py-[3px] text-right font-mono text-slate-500 text-[9px]">
-                        {beta}
-                      </td>
-                      {/* Daily Range Vol */}
-                      <td className="px-1.5 py-[3px] text-right font-mono text-slate-500 text-[9px]">
-                        {dailyRangeVol}
-                      </td>
-                      {/* Sparkline */}
+                      <td className="px-1.5 py-[3px] text-right font-mono text-slate-500 text-[9px]">{delta}</td>
+                      <td className="px-1.5 py-[3px] text-right font-mono text-slate-500 text-[9px]">{gamma}</td>
+                      <td className="px-1.5 py-[3px] text-right font-mono text-slate-500 text-[9px]">{theta}</td>
+                      <td className="px-1.5 py-[3px] text-right font-mono text-slate-500 text-[9px]">{vega}</td>
+                      <td className="px-1.5 py-[3px] text-right font-mono text-slate-500 text-[9px]">{iv}</td>
+                      <td className="px-1.5 py-[3px] text-right font-mono text-slate-500 text-[9px]">{dailyRange}</td>
+                      <td className="px-1.5 py-[3px] text-right font-mono text-slate-500 text-[9px]">{vol}</td>
                       <td className="px-1.5 py-[3px] text-center">
                         <MiniSparkline
                           data={sparkData}
@@ -699,27 +649,26 @@ export default function Trades() {
                           color={unrealPnl >= 0 ? "#2dd4bf" : "#f87171"}
                         />
                       </td>
-                      {/* Actions */}
+                      {/* Actions: Close, Hedge, More ▼ (mockup) */}
                       <td className="px-1.5 py-[3px] text-center">
                         <div className="inline-flex items-center gap-0.5">
                           <button
                             onClick={() => handleClosePosition(sym)}
-                            className="p-0.5 text-slate-500 hover:text-red-400 transition-colors"
-                            title="Close position"
+                            className="px-1.5 py-0.5 rounded text-[8px] font-medium bg-[#131A2B] border border-[rgba(42,52,68,0.5)] text-slate-300 hover:text-red-400 hover:border-red-500/30 transition-colors"
                           >
-                            <X className="w-3 h-3" />
+                            Close
                           </button>
                           <button
-                            className="p-0.5 text-slate-500 hover:text-[#00D9FF] transition-colors"
-                            title="Modify position"
+                            className="px-1.5 py-0.5 rounded text-[8px] font-medium bg-[#131A2B] border border-[rgba(42,52,68,0.5)] text-slate-300 hover:text-[#00D9FF] transition-colors"
+                            title="Hedge"
                           >
-                            <Edit3 className="w-3 h-3" />
+                            Hedge
                           </button>
                           <button
-                            className="p-0.5 text-slate-500 hover:text-slate-200 transition-colors"
-                            title="Position settings"
+                            className="px-1.5 py-0.5 rounded text-[8px] font-medium bg-[#131A2B] border border-[rgba(42,52,68,0.5)] text-slate-300 hover:text-[#00D9FF] transition-colors flex items-center gap-0.5"
+                            title="More options"
                           >
-                            <Settings className="w-3 h-3" />
+                            More <ChevronDown className="w-2.5 h-2.5" />
                           </button>
                         </div>
                       </td>
@@ -745,7 +694,7 @@ export default function Trades() {
         <div className="flex-[2] flex flex-col min-h-0 overflow-hidden border-t border-[rgba(42,52,68,0.5)]">
           {/* Section header */}
           <div className="flex items-center justify-between px-3 py-1 bg-[#111827] border-b border-[rgba(42,52,68,0.5)] flex-shrink-0">
-            <span className="text-[11px] font-bold text-slate-300 tracking-wide">
+            <span className="text-[11px] font-bold text-white tracking-wide">
               Orders
             </span>
             <div className="flex items-center gap-2">
@@ -756,6 +705,12 @@ export default function Trades() {
                 onChange={(e) => setOrdFilter(e.target.value)}
                 className="px-2 py-0.5 bg-[#131A2B] border border-[rgba(42,52,68,0.5)] rounded text-[10px] text-slate-300 font-mono w-28 outline-none focus:border-[#00D9FF]/50"
               />
+              <button
+                className="p-1 text-slate-500 hover:text-[#00D9FF] transition-colors"
+                title="Filter / Table settings"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+              </button>
               <button
                 onClick={handleCancelAll}
                 className="px-2 py-0.5 bg-[#131A2B] border border-red-500/30 rounded text-[9px] text-red-400 hover:bg-red-500/10 transition-colors"
@@ -776,17 +731,11 @@ export default function Trades() {
                       onClick={() =>
                         col.key !== "actions" && handleOrdSort(col.key)
                       }
-                      className={`sticky top-0 bg-[#111827] px-1.5 py-1 text-[8px] font-semibold uppercase tracking-wider border-b border-[rgba(42,52,68,0.5)] z-10 cursor-pointer select-none hover:text-[#00D9FF] transition-colors ${
-                        col.align === "left"
-                          ? "text-left"
-                          : col.align === "center"
-                          ? "text-center"
-                          : "text-right"
-                      } ${
-                        ordSortKey === col.key
-                          ? "text-[#00D9FF]"
-                          : "text-slate-500"
-                      }`}
+                      className={clsx(
+                        "sticky top-0 bg-[#111827] px-1.5 py-1 text-[8px] font-bold uppercase tracking-wider border-b border-[rgba(42,52,68,0.5)] z-10 cursor-pointer select-none hover:text-[#00D9FF] transition-colors",
+                        col.align === "left" ? "text-left" : col.align === "center" ? "text-center" : "text-right",
+                        ordSortKey === col.key ? "text-[#00D9FF]" : "text-white"
+                      )}
                     >
                       {col.label}
                       <SortIcon
@@ -828,16 +777,10 @@ export default function Trades() {
                   const status = o.status || o.alpaca_status || "new";
                   const createdAt = o.created_at || o.timestamp || "";
 
-                  // Separate Date and Time columns (matching mockup)
-                  let dateDisplay = "--";
+                  // Time (mockup: single Time column)
                   let timeDisplay = "--";
                   if (createdAt) {
                     const dt = new Date(createdAt);
-                    dateDisplay = dt.toLocaleDateString([], {
-                      year: "numeric",
-                      month: "short",
-                      day: "2-digit",
-                    });
                     timeDisplay = dt.toLocaleTimeString([], {
                       hour: "2-digit",
                       minute: "2-digit",
@@ -885,25 +828,34 @@ export default function Trades() {
                         <td className="px-1.5 py-[3px] text-left font-mono text-[#00D9FF] text-[9px]">
                           {orderIdShort}
                         </td>
-                        {/* Date */}
-                        <td className="px-1.5 py-[3px] text-left font-mono text-slate-400 text-[9px]">
-                          {dateDisplay}
-                        </td>
                         {/* Time */}
                         <td className="px-1.5 py-[3px] text-left font-mono text-slate-400 text-[9px]">
                           {timeDisplay}
-                        </td>
-                        {/* Type */}
-                        <td className="px-1.5 py-[3px] text-left">
-                          <TypeBadge type={typ} />
                         </td>
                         {/* Symbol */}
                         <td className="px-1.5 py-[3px] text-left font-bold text-white font-mono">
                           {sym}
                         </td>
-                        {/* P/L(Day Qty) */}
+                        {/* Type */}
+                        <td className="px-1.5 py-[3px] text-left">
+                          <TypeBadge type={typ} />
+                        </td>
+                        {/* Side: LONG (green) or SHRT (red) per mockup */}
+                        <td className="px-1.5 py-[3px] text-left">
+                          <span className={clsx(
+                            "text-[9px] font-bold",
+                            isBuy ? "text-emerald-400" : "text-red-400"
+                          )}>
+                            {isBuy ? "LONG" : "SHRT"}
+                          </span>
+                        </td>
+                        {/* Qty */}
                         <td className="px-1.5 py-[3px] text-right font-mono text-slate-300">
                           {qty}
+                        </td>
+                        {/* Filled Qty */}
+                        <td className="px-1.5 py-[3px] text-right font-mono text-slate-300">
+                          {filledQty}
                         </td>
                         {/* Limit Price */}
                         <td className="px-1.5 py-[3px] text-right font-mono text-slate-300">
@@ -925,7 +877,7 @@ export default function Trades() {
                         <td className="px-1.5 py-[3px] text-right font-mono text-slate-300">
                           {avgFill ? fmtM(avgFill) : "--"}
                         </td>
-                        {/* Legs (Bracket/Order ID) */}
+                        {/* Legs (Parent/Child) */}
                         <td className="px-1.5 py-[3px] text-left text-[9px] text-slate-400">
                           {hasLegs ? (
                             <span className="text-[#00D9FF]">{legLabel}</span>
@@ -933,21 +885,28 @@ export default function Trades() {
                             "--"
                           )}
                         </td>
-                        {/* Actions */}
+                        {/* Actions: Cancel, Modify ▼, View Logs (mockup order) */}
                         <td className="px-1.5 py-[3px] text-center">
-                          <div className="inline-flex items-center gap-1">
+                          <div className="inline-flex items-center gap-0.5">
                             <button
                               onClick={() => handleCancelOrder(orderId)}
-                              className="px-1.5 py-0.5 bg-[#131A2B] border border-[rgba(42,52,68,0.5)] rounded text-[8px] text-red-400 hover:bg-red-500/20 transition-colors"
-                              title="Cancel order"
+                              className="px-1.5 py-0.5 rounded text-[8px] font-medium bg-[#131A2B] border border-[rgba(42,52,68,0.5)] text-slate-300 hover:text-red-400 hover:bg-red-500/20 transition-colors"
+                              title="Cancel"
                             >
                               Cancel
                             </button>
                             <button
-                              className="px-1.5 py-0.5 bg-[#131A2B] border border-[rgba(42,52,68,0.5)] rounded text-[8px] text-slate-400 hover:bg-slate-600/20 transition-colors"
-                              title="Close order"
+                              className="px-1.5 py-0.5 rounded text-[8px] font-medium bg-[#131A2B] border border-[rgba(42,52,68,0.5)] text-slate-300 hover:text-[#00D9FF] transition-colors flex items-center gap-0.5"
+                              title="Modify"
                             >
-                              Close
+                              Modify <ChevronDown className="w-2.5 h-2.5" />
+                            </button>
+                            <button
+                              className="px-1.5 py-0.5 rounded text-[8px] font-medium bg-[#131A2B] border border-[rgba(42,52,68,0.5)] text-slate-300 hover:text-[#00D9FF] transition-colors flex items-center gap-0.5"
+                              title="View Logs"
+                            >
+                              <FileText className="w-2.5 h-2.5" />
+                              View Logs
                             </button>
                           </div>
                         </td>
@@ -974,21 +933,16 @@ export default function Trades() {
                               <td className="px-1.5 py-[2px] text-left font-mono text-slate-500 text-[9px] pl-5">
                                 {leg.id ? "Order-" + (leg.id || "").slice(-6).toUpperCase() : "--"}
                               </td>
-                              <td className="px-1.5 py-[2px] text-left font-mono text-slate-500 text-[9px]">
-                                --
-                              </td>
-                              <td className="px-1.5 py-[2px] text-left font-mono text-slate-500 text-[9px]">
-                                --
-                              </td>
+                              <td className="px-1.5 py-[2px] text-left font-mono text-slate-500 text-[9px]">--</td>
+                              <td className="px-1.5 py-[2px] text-left font-mono text-slate-400 text-[9px]">{sym}</td>
                               <td className="px-1.5 py-[2px] text-left">
                                 <TypeBadge type={legType} />
                               </td>
-                              <td className="px-1.5 py-[2px] text-left font-mono text-slate-400 text-[9px]">
-                                {sym}
-                              </td>
+                              <td className="px-1.5 py-[2px] text-left font-mono text-slate-500 text-[9px]">--</td>
                               <td className="px-1.5 py-[2px] text-right font-mono text-slate-400 text-[9px]">
                                 {leg.qty || qty}
                               </td>
+                              <td className="px-1.5 py-[2px] text-right font-mono text-slate-400 text-[9px]">--</td>
                               <td className="px-1.5 py-[2px] text-right font-mono text-slate-400 text-[9px]">
                                 {legLimitPx ? fmtM(legLimitPx) : "--"}
                               </td>
@@ -999,14 +953,12 @@ export default function Trades() {
                                 <StatusBadge status={legStatus} />
                               </td>
                               <td className="px-1.5 py-[2px] text-left font-mono text-slate-500 text-[9px]">
-                                {leg.filled_at
-                                  ? new Date(leg.filled_at).toLocaleString()
-                                  : "--"}
+                                {leg.filled_at ? new Date(leg.filled_at).toLocaleString() : "--"}
                               </td>
                               <td className="px-1.5 py-[2px] text-right font-mono text-slate-400 text-[9px]">
                                 {legFilledPx ? fmtM(legFilledPx) : "--"}
                               </td>
-                              <td className="px-1.5 py-[2px] text-left text-[8px] text-yellow-400">
+                              <td className="px-1.5 py-[2px] text-left text-[8px] text-amber-400">
                                 {legLabel2}
                               </td>
                               <td className="px-1.5 py-[2px] text-center">

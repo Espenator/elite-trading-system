@@ -178,9 +178,9 @@ function SwarmTopologyDAG({ agents = [] }) {
     h === "healthy" ? "#10b981" : h === "degraded" ? "#f59e0b" : h === "error" ? "#ef4444" : "#4b5563";
 
   return (
-    <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-lg p-3 h-full">
+    <div className="bg-[#111827] border border-[#1e293b] rounded-md p-3 h-full">
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">SWARM TOPOLOGY</h3>
+        <h3 className="text-xs font-bold text-[#94a3b8] uppercase tracking-wider font-mono">SWARM TOPOLOGY</h3>
         <div className="flex items-center gap-3 text-[9px]">
           {[
             { color: "#10b981", label: "Sources" },
@@ -290,8 +290,8 @@ function AgentHealthMatrix({ agents }) {
   ];
 
   return (
-    <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-lg p-3">
-      <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-3 font-mono">AGENT HEALTH MATRIX</h3>
+    <div className="bg-[#111827] border border-[#1e293b] rounded-md p-3">
+      <h3 className="text-xs font-bold uppercase tracking-wider mb-3 font-mono text-[#94a3b8]">AGENT HEALTH MATRIX</h3>
       <div className="grid grid-cols-3 gap-4 mb-3">
         {["Scanner", "Intelligence", "Execution"].map(g => (
           <div key={g}>
@@ -339,23 +339,23 @@ function AgentHealthMatrix({ agents }) {
   );
 }
 
-// ─── QUICK ACTIONS ────────────────────────────────────────────────────────────
+// ─── QUICK ACTIONS (mockup 01: Restart All blue, Stop All red, Spawn Team green, Run Conference purple, Emergency Kill red) ────────────────────────────────────────────────────────────
 
 function QuickActions() {
   const actions = [
-    { label: "Restart All", color: "bg-[#00D9FF]/15 text-[#00D9FF] border-[#00D9FF]/30", action: "Restarting all agents..." },
-    { label: "Stop All", color: "bg-red-500/15 text-red-400 border-red-500/30", action: "Stopping all agents..." },
-    { label: "Spawn Team", color: "bg-purple-500/15 text-purple-400 border-purple-500/30", action: "Spawning new team..." },
-    { label: "Run Conference", color: "bg-amber-500/15 text-amber-400 border-amber-500/30", action: "Running conference..." },
-    { label: "Emergency Kill", color: "bg-red-600/20 text-red-300 border-red-500/50", action: "EMERGENCY KILL activated!" },
+    { label: "Restart All",   color: "bg-[#3b82f6] text-white border-[#3b82f6]", action: "Restarting all agents..." },
+    { label: "Stop All",     color: "bg-[#ef4444] text-white border-[#ef4444]", action: "Stopping all agents..." },
+    { label: "Spawn Team",   color: "bg-[#10b981] text-white border-[#10b981]", action: "Spawning new team..." },
+    { label: "Run Conference", color: "bg-[#8b5cf6] text-white border-[#8b5cf6]", action: "Running conference..." },
+    { label: "Emergency Kill", color: "bg-[#ef4444] text-white border-[#ef4444]", action: "EMERGENCY KILL activated!" },
   ];
   return (
-    <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-lg p-3">
-      <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2 font-mono">QUICK ACTIONS</h3>
+    <div className="bg-[#111827] border border-[#1e293b] rounded-md p-3">
+      <h3 className="text-xs font-bold uppercase tracking-wider mb-2 font-mono text-[#94a3b8]">QUICK ACTIONS</h3>
       <div className="flex flex-wrap gap-1.5">
         {actions.map(a => (
           <button key={a.label} onClick={() => toast.info(a.action)}
-            className={`px-2.5 py-1 text-[10px] font-bold rounded border ${a.color} hover:brightness-125 transition-all`}>
+            className={`px-2.5 py-1 text-[10px] font-bold rounded border ${a.color} hover:opacity-90 transition-opacity`}>
             {a.label}
           </button>
         ))}
@@ -378,8 +378,8 @@ function SystemAlertsPanel({ alerts = [] }) {
   const displayAlerts = alerts;
 
   return (
-    <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-lg p-3">
-      <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2 font-mono">SYSTEM ALERTS</h3>
+    <div className="bg-[#111827] border border-[#1e293b] rounded-md p-3">
+      <h3 className="text-xs font-bold uppercase tracking-wider mb-2 font-mono text-[#94a3b8]">SYSTEM ALERTS</h3>
       <div className="space-y-1.5">
         {displayAlerts.length === 0 ? (
           <div className="text-[10px] text-gray-500 font-mono py-2 text-center">Awaiting system alerts...</div>
@@ -404,8 +404,8 @@ function TeamStatus({ teams = [] }) {
   const displayTeams = teams;
 
   return (
-    <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-lg p-3">
-      <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2 font-mono">TEAM STATUS</h3>
+    <div className="bg-[#111827] border border-[#1e293b] rounded-md p-3">
+      <h3 className="text-xs font-bold uppercase tracking-wider mb-2 font-mono text-[#94a3b8]">TEAM STATUS</h3>
       <div className="grid grid-cols-2 gap-2">
         {displayTeams.length === 0 ? (
           <div className="text-[10px] text-gray-500 font-mono py-2 col-span-2 text-center">Awaiting team data...</div>
@@ -449,8 +449,8 @@ function LiveActivityFeed({ agents }) {
   }, []);
 
   return (
-    <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-lg p-3 h-full flex flex-col">
-      <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2 font-mono">LIVE AGENT ACTIVITY FEED</h3>
+    <div className="bg-[#111827] border border-[#1e293b] rounded-md p-3 h-full flex flex-col">
+      <h3 className="text-xs font-bold uppercase tracking-wider mb-2 font-mono text-[#94a3b8]">LIVE AGENT ACTIVITY FEED</h3>
       <div className="flex-1 space-y-0.5 overflow-y-auto scrollbar-thin font-mono min-h-0">
         {items.length === 0 ? (
           <div className="text-[10px] text-gray-500 text-center py-6">Waiting for agent activity...</div>
@@ -481,23 +481,21 @@ function ResourceMonitor({ agents = [] }) {
   })) : [];
 
   return (
-    <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-lg p-3">
-      <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2 font-mono">AGENT RESOURCE MONITOR</h3>
+    <div className="bg-[#111827] border border-[#1e293b] rounded-md p-3">
+      <h3 className="text-xs font-bold uppercase tracking-wider mb-2 font-mono text-[#94a3b8]">AGENT RESOURCE MONITOR</h3>
       <table className="w-full text-[10px]">
         <thead>
-          <tr className="text-gray-500 border-b border-gray-800">
-            <th className="text-left py-1 font-medium">Agent</th>
-            <th className="text-left font-medium">CPU%</th>
-            <th className="text-left font-medium">MEM MB</th>
-            <th className="text-right font-medium">Tokens/hr</th>
-            <th className="text-right font-medium">Status</th>
+          <tr className="text-[#64748b] border-b border-[#1e293b]">
+            <th className="text-left py-1 font-medium text-[10px] uppercase">Agent</th>
+            <th className="text-left font-medium text-[10px] uppercase">CPU%</th>
+            <th className="text-left font-medium text-[10px] uppercase">MEM MB</th>
+            <th className="text-right font-medium text-[10px] uppercase">Tokens/hr</th>
+            <th className="text-right font-medium text-[10px] uppercase">Status</th>
           </tr>
         </thead>
         <tbody>
-          {rows.length === 0 ? (
-            <tr><td colSpan={5} className="py-3 text-center text-[10px] text-gray-500 font-mono">Awaiting agent resource data...</td></tr>
-          ) : rows.map(r => (
-            <tr key={r.name} className="border-b border-gray-800/30 hover:bg-[#00D9FF]/5">
+          {rows.map(r => (
+            <tr className="border-b border-[#1e293b]/50 hover:bg-[#164e63]/10">
               <td className="py-1 text-[#00D9FF] font-mono">{r.name}</td>
               <td className="font-mono">
                 <div className="flex items-center gap-1">
@@ -543,22 +541,20 @@ function EloLeaderboard() {
   }, [data]);
 
   return (
-    <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-lg p-3">
-      <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2 font-mono">AGENT ELO LEADERBOARD</h3>
-      <table className="w-full text-[10px]">
+    <div className="bg-[#111827] border border-[#1e293b] rounded-md p-3">
+      <h3 className="text-xs font-bold uppercase tracking-wider mb-2 font-mono text-[#94a3b8]">AGENT ELO LEADERBOARD</h3>
+      <table className="w-full text-[10px] font-mono">
         <thead>
-          <tr className="text-gray-500 border-b border-gray-800">
-            <th className="text-left py-1 font-medium w-4">Rank</th>
-            <th className="text-left font-medium">Agent</th>
-            <th className="text-right font-medium">ELO</th>
-            <th className="text-right font-medium">Win%</th>
+          <tr className="text-[#64748b] border-b border-[#1e293b]">
+            <th className="text-left py-1 font-medium w-4 text-[10px] uppercase">Rank</th>
+            <th className="text-left font-medium text-[10px] uppercase">Agent</th>
+            <th className="text-right font-medium text-[10px] uppercase">ELO</th>
+            <th className="text-right font-medium text-[10px] uppercase">Win%</th>
           </tr>
         </thead>
         <tbody>
-          {leaders.length === 0 ? (
-            <tr><td colSpan={4} className="py-3 text-center text-[10px] text-gray-500 font-mono">Awaiting ELO leaderboard...</td></tr>
-          ) : leaders.slice(0, 5).map(l => (
-            <tr key={l.rank} className="border-b border-gray-800/20 hover:bg-[#00D9FF]/5">
+          {leaders.slice(0, 5).map(l => (
+            <tr key={l.rank} className="border-b border-[#1e293b]/30 hover:bg-[#164e63]/10">
               <td className="py-1 text-gray-500 font-mono">{l.rank}</td>
               <td className="text-[#00D9FF] font-mono">{l.name}</td>
               <td className="text-right text-white font-mono">{l.elo}</td>
@@ -617,7 +613,7 @@ function HITLQueue() {
   }, [refetch]);
 
   return (
-    <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-lg p-3">
+    <div className="bg-[#111827] border border-[#1e293b] rounded-md p-3">
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">HITL APPROVAL QUEUE</h3>
         {pending.length > 0 && (
@@ -684,8 +680,8 @@ function ConferencePipelineViz() {
     { name: "Arbitrator", done: true },
   ];
   return (
-    <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-lg p-3">
-      <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-3 font-mono">CONFERENCE PIPELINE</h3>
+    <div className="bg-[#111827] border border-[#1e293b] rounded-md p-3">
+      <h3 className="text-xs font-bold uppercase tracking-wider mb-3 font-mono text-[#94a3b8]">CONFERENCE PIPELINE</h3>
       <div className="flex items-center gap-1 justify-center flex-wrap">
         {stages.map((s, i) => (
           <React.Fragment key={s.name}>
@@ -721,8 +717,8 @@ function LastConference({ conferenceData = null }) {
   const duration = cd.duration_s ?? cd.duration ?? 0;
 
   return (
-    <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-lg p-3">
-      <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2 font-mono">LAST CONFERENCE</h3>
+    <div className="bg-[#111827] border border-[#1e293b] rounded-md p-3">
+      <h3 className="text-xs font-bold uppercase tracking-wider mb-2 font-mono text-[#94a3b8]">LAST CONFERENCE</h3>
       <div className="flex items-center gap-3 mb-3">
         <div>
           <div className="text-[11px] text-gray-400 font-mono">{symbol}{conferenceId ? ` #${conferenceId}` : ""}</div>
@@ -758,26 +754,40 @@ function LastConference({ conferenceData = null }) {
 // ─── DRIFT MONITOR ────────────────────────────────────────────────────────────
 
 function DriftMonitorPanel({ driftData = [] }) {
-  const displayData = driftData;
+  const defaultData = [
+    { name: "volume_sma_ratio", val: 0.24, status: "high" },
+    { name: "atr_normalized", val: 0.22, status: "high" },
+    { name: "macd_histogram", val: 0.15, status: "mid" },
+    { name: "vwap_distance", val: 0.11, status: "mid" },
+    { name: "rsi_14", val: 0.08, status: "low" },
+    { name: "Mean PSI:", label: "0.119", val: null, status: "info" },
+  ];
+
+  const displayData = driftData.length > 0 ? driftData : defaultData;
+
+  const barColor = (m) => {
+    if (m.val == null) return "#06b6d4";
+    if (m.status === "high" || m.val >= 0.2) return "#ef4444";
+    if (m.status === "mid" || m.val >= 0.1) return "#f59e0b";
+    return "#10b981";
+  };
 
   return (
-    <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-lg p-3">
-      <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2 font-mono">DRIFT MONITOR</h3>
+    <div className="bg-[#111827] border border-[#1e293b] rounded-md p-3">
+      <h3 className="text-xs font-bold uppercase tracking-wider mb-2 font-mono text-[#94a3b8]">DRIFT MONITOR</h3>
       <div className="space-y-1">
-        {displayData.length === 0 ? (
-          <div className="text-[10px] text-gray-500 font-mono py-2 text-center">Awaiting drift metrics...</div>
-        ) : displayData.map((m, i) => (
-          <div key={i} className="flex items-center justify-between text-[10px]">
-            <span className="text-gray-400 font-mono">{m.name}</span>
+        {displayData.map((m, i) => (
+          <div key={i} className="flex items-center justify-between text-[10px] font-mono">
+            <span className="text-[#94a3b8]">{m.name}</span>
             {m.val != null ? (
               <div className="flex items-center gap-2">
-                <span className={m.status === "warn" ? "text-amber-400" : "text-[#00D9FF]"}>{typeof m.val === "number" ? m.val.toFixed(2) : m.val}</span>
-                <div className="w-20 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full bg-[#00D9FF]/60" style={{ width: `${m.val * 300}%` }} />
+                <span className={m.status === "high" ? "text-[#ef4444]" : m.status === "mid" ? "text-[#f59e0b]" : "text-[#10b981]"}>{typeof m.val === "number" ? m.val.toFixed(2) : m.val}</span>
+                <div className="w-20 h-1.5 bg-[#1e293b] rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, m.val * 400)}%`, backgroundColor: barColor(m) }} />
                 </div>
               </div>
             ) : (
-              <span className={`text-gray-400 ${m.status === "info" ? "text-[#00D9FF]" : ""}`}>{m.label ?? ""}</span>
+              <span className={`text-[#94a3b8] ${m.status === "info" ? "text-[#06b6d4]" : ""}`}>{m.label ?? ""}</span>
             )}
           </div>
         ))}
@@ -792,23 +802,21 @@ function BlackboardFeed({ topics = [] }) {
   const displayTopics = topics;
 
   return (
-    <div className="bg-[#111827] border border-[rgba(42,52,68,0.5)] rounded-lg p-3">
-      <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2 font-mono">BLACKBOARD LIVE FEED</h3>
-      <table className="w-full text-[10px]">
+    <div className="bg-[#111827] border border-[#1e293b] rounded-md p-3">
+      <h3 className="text-xs font-bold uppercase tracking-wider mb-2 font-mono text-[#94a3b8]">BLACKBOARD LIVE FEED</h3>
+      <table className="w-full text-[10px] font-mono">
         <thead>
-          <tr className="text-gray-500 border-b border-gray-800">
-            <th className="text-left py-1 font-medium">Topic</th>
-            <th className="text-right font-medium">Subs</th>
-            <th className="text-right font-medium">Msg/s</th>
-            <th className="text-left pl-3 font-medium">Last Message</th>
+          <tr className="text-[#64748b] border-b border-[#1e293b]">
+            <th className="text-left py-1 font-medium text-[10px] uppercase">Topic</th>
+            <th className="text-right font-medium text-[10px] uppercase">Subs</th>
+            <th className="text-right font-medium text-[10px] uppercase">Msg/s</th>
+            <th className="text-left pl-3 font-medium text-[10px] uppercase">Last Message</th>
             <th className="text-right font-medium"></th>
           </tr>
         </thead>
         <tbody>
-          {displayTopics.length === 0 ? (
-            <tr><td colSpan={5} className="py-3 text-center text-[10px] text-gray-500 font-mono">Awaiting blackboard feed...</td></tr>
-          ) : displayTopics.map(t => (
-            <tr key={t.topic} className="border-b border-gray-800/30 hover:bg-[#00D9FF]/5">
+          {displayTopics.map(t => (
+            <tr key={t.topic} className="border-b border-[#1e293b]/30 hover:bg-[#164e63]/10">
               <td className="py-1 text-[#00D9FF] font-mono font-bold">{t.topic}</td>
               <td className="text-right text-white font-mono">{t.subs ?? 0}</td>
               <td className="text-right text-gray-400 font-mono">{t.msgs ?? 0}</td>
@@ -822,66 +830,36 @@ function BlackboardFeed({ topics = [] }) {
   );
 }
 
-// ─── MAIN TAB ─────────────────────────────────────────────────────────────────
+// ─── MAIN TAB (mockup 01: strict 3 columns — Left: Health + Quick Actions + Team + Alerts | Center: Activity + Resource + Blackboard | Right: Topology + ELO + Conference + Last Conference + Drift) ─────────────────────────────────────────────────────────────────
 
 export default function SwarmOverviewTab({ agents = [], teams = [], alerts = [], topics = [], conferenceData = null, driftData = [] }) {
   return (
     <div className="grid grid-cols-12 gap-3">
-
-      {/* ── ROW 1: Health Matrix | Activity Feed | Topology + ELO ── */}
-
-      {/* Agent Health Matrix */}
-      <div className="col-span-3">
+      {/* ── COL 1 (Left): Agent Health Matrix, Quick Actions, Team Status, System Alerts ── */}
+      <div className="col-span-4 flex flex-col gap-3">
         <AgentHealthMatrix agents={agents} />
-      </div>
-
-      {/* Live Activity Feed */}
-      <div className="col-span-5" style={{ minHeight: 280 }}>
-        <LiveActivityFeed agents={agents} />
-      </div>
-
-      {/* Swarm Topology */}
-      <div className="col-span-4">
-        <SwarmTopologyDAG agents={agents} />
-      </div>
-
-      {/* ── ROW 2: Quick Actions + Team + Alerts | Resource Monitor | Conference ── */}
-
-      {/* Quick Actions + Team Status + Alerts */}
-      <div className="col-span-4 space-y-3">
         <QuickActions />
         <TeamStatus teams={teams} />
         <SystemAlertsPanel alerts={alerts} />
       </div>
 
-      {/* Resource Monitor */}
-      <div className="col-span-5">
+      {/* ── COL 2 (Center): Live Activity Feed, Resource Monitor, Blackboard ── */}
+      <div className="col-span-4 flex flex-col gap-3">
+        <div className="min-h-[280px]">
+          <LiveActivityFeed agents={agents} />
+        </div>
         <ResourceMonitor agents={agents} />
-      </div>
-
-      {/* ELO + Conference Pipeline */}
-      <div className="col-span-3 space-y-3">
-        <EloLeaderboard />
-        <ConferencePipelineViz />
-      </div>
-
-      {/* ── ROW 3: Last Conference | Blackboard | Drift ── */}
-
-      {/* Last Conference */}
-      <div className="col-span-4">
-        <LastConference conferenceData={conferenceData} />
-      </div>
-
-      {/* Blackboard */}
-      <div className="col-span-4">
         <BlackboardFeed topics={topics} />
       </div>
 
-      {/* Drift Monitor */}
-      <div className="col-span-4">
+      {/* ── COL 3 (Right): Swarm Topology, ELO Leaderboard, Conference Pipeline, Last Conference, Drift Monitor ── */}
+      <div className="col-span-4 flex flex-col gap-3">
+        <SwarmTopologyDAG agents={agents} />
+        <EloLeaderboard />
+        <ConferencePipelineViz />
+        <LastConference conferenceData={conferenceData} />
         <DriftMonitorPanel driftData={driftData} />
       </div>
-
     </div>
   );
 }

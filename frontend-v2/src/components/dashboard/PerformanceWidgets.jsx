@@ -266,7 +266,7 @@ function ConcentricRing({ cx, cy, r, trackColor, fillColor, value, strokeWidth, 
   );
 }
 
-export function ConcentricAIDial({ metrics = [] }) {
+export function ConcentricAIDial({ metrics = [], centerLabel }) {
   const svgSize = 180;
   const cx = svgSize / 2;
   const cy = svgSize / 2;
@@ -331,30 +331,43 @@ export function ConcentricAIDial({ metrics = [] }) {
           className="absolute flex flex-col items-center justify-center"
           style={{ pointerEvents: 'none' }}
         >
-          <span
-            className="font-bold font-mono leading-none"
-            style={{ fontSize: 28, color: '#f1f5f9' }}
-          >
-            {overallScore}
-          </span>
-          <span
-            className="font-mono text-[9px] uppercase tracking-widest mt-0.5"
-            style={{ color: '#6b7280' }}
-          >
-            AI Score
-          </span>
-          <span
-            className="font-mono text-xs font-bold mt-0.5"
-            style={{
-              color:
-                metrics.length === 0 ? '#6b7280'
-                : overallScore >= 80 ? '#10B981'
-                : overallScore >= 60 ? '#F59E0B'
-                : '#EF4444',
-            }}
-          >
-            {overallGrade}
-          </span>
+          {centerLabel ? (
+            <>
+              <span
+                className="font-bold font-mono leading-none"
+                style={{ fontSize: 22, color: '#f1f5f9' }}
+              >
+                {centerLabel}
+              </span>
+            </>
+          ) : (
+            <>
+              <span
+                className="font-bold font-mono leading-none"
+                style={{ fontSize: 28, color: '#f1f5f9' }}
+              >
+                {overallScore}
+              </span>
+              <span
+                className="font-mono text-[9px] uppercase tracking-widest mt-0.5"
+                style={{ color: '#6b7280' }}
+              >
+                AI Score
+              </span>
+              <span
+                className="font-mono text-xs font-bold mt-0.5"
+                style={{
+                  color:
+                    metrics.length === 0 ? '#6b7280'
+                    : overallScore >= 80 ? '#10B981'
+                    : overallScore >= 60 ? '#F59E0B'
+                    : '#EF4444',
+                }}
+              >
+                {overallGrade}
+              </span>
+            </>
+          )}
         </div>
       </div>
 

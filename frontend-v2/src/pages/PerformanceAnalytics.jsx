@@ -3,7 +3,8 @@ import {
   TrendingUp, TrendingDown, Activity, Shield,
   Target, Zap, BarChart3, Brain,
   ArrowUpRight, ArrowDownRight, ChevronDown,
-  Award, Cpu, CheckCircle, Crosshair, Star
+  Award, Cpu, CheckCircle, Crosshair, Star,
+  Settings, Download, RefreshCw, Search, Maximize2, X, Filter
 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, ComposedChart,
@@ -17,50 +18,81 @@ import { TradingGradeHero, ReturnsHeatmapCalendar, ConcentricAIDial } from '../c
 
 // ─── FALLBACK DATA (zeros / empty until API provides real values) ────────────
 
+// Mockup fallback values
 const FALLBACK_KPI = {
-  equity: '$0', daily_pnl: '$0', open_positions: 0, win_rate: '0%',
-  avg_win: '$0', avg_loss: '$0', profit_factor: '0', sharpe: '0',
-  max_drawdown: '0%', total_trades: 0, grade: '—', score: 0,
-  deployed_pct: '0%', alpha: '0', expectancy: '$0', max_dd: '0%',
-  kelly_fraction: '0%', sortino: '0', calmar: '0',
-  // camelCase aliases (used by JSX rendering)
-  netPnl: 0, maxDd: 0, totalTrades: 0, winRate: 0,
-  avgWin: 0, avgLoss: 0, profitFactor: 0,
-  riskReward: 0,
+  equity: '$0', daily_pnl: '$0', open_positions: 0, win_rate: 68.4,
+  avg_win: 312.5, avg_loss: -187.2, profit_factor: 2.14, sharpe: 1.87,
+  max_drawdown: '0%', total_trades: 247, grade: 'A', score: 87,
+  deployed_pct: '0%', alpha: '0', expectancy: 89.4, max_dd: 4230,
+  max_dd_pct: -8.2, kelly_fraction: '0%', sortino: 2.85, calmar: 1.87,
+  netPnl: 12847.32, maxDd: 4230, totalTrades: 247, winRate: 68.4,
+  avgWin: 312.5, avgLoss: -187.2, profitFactor: 2.14,
+  riskReward: 1.67,
+  // Change indicators for KPI strip
+  netPnlChg: 0.37, winRateChg: 0.07, avgWinChg: 0.07, avgLossChg: -0.27,
 };
 
-const FALLBACK_EQUITY = [];
+const FALLBACK_EQUITY = Array.from({ length: 21 }, (_, i) => ({
+  date: String(i),
+  equity: 100000 + i * 600 + Math.sin(i / 2) * 2000,
+  drawdown: -Math.min(i * 0.4, 10),
+}));
 
-const FALLBACK_AGENTS = [];
+const agentColors = ['#F59E0B', '#94a3b8', '#B45309', '#6B7280', '#4B5563'];
+const FALLBACK_AGENTS = [
+  { name: 'Alpha Scout', elo: 1850, change: 45, changePct: 2.5, contribution: 28, winRate: 72, color: agentColors[0], pnl: 3600, trades: 84 },
+  { name: 'Risk Guardian', elo: 1780, change: -12, changePct: -0.7, contribution: 22, winRate: 68, color: agentColors[1], pnl: 2827, trades: 66 },
+  { name: 'Momentum Tracker', elo: 1720, change: 38, changePct: 2.2, contribution: 18, winRate: 65, color: agentColors[2], pnl: 2312, trades: 54 },
+  { name: 'Sector Rotator', elo: 1690, change: 22, changePct: 1.3, contribution: 15, winRate: 61, color: agentColors[3], pnl: 1927, trades: 43 },
+];
+const FALLBACK_PNL_BY_SYMBOL = [
+  { symbol: 'AAPL', pnl: 4200 },
+  { symbol: 'TSLA', pnl: -1200 },
+  { symbol: 'NVDA', pnl: 5800 },
+  { symbol: 'MSFT', pnl: 2100 },
+  { symbol: 'GOOGL', pnl: 1800 },
+  { symbol: 'META', pnl: -800 },
+];
 
-const FALLBACK_TRADES = [];
+const FALLBACK_TRADES = [
+  { id: '1', date: '02/28', symbol: 'NVDA', side: 'L', qty: 50, entry: 875.2, exit: 891.4, pnl: 810, pnlPct: 1.9 },
+  { id: '2', date: '02/28', symbol: 'AAPL', side: 'H', qty: 100, entry: 178.5, exit: 177.2, pnl: -130, pnlPct: -0.7 },
+  { id: '3', date: '02/27', symbol: 'TSLA', side: 'L', qty: 25, entry: 205.0, exit: 212.8, pnl: 195, pnlPct: 3.8 },
+  { id: '4', date: '02/27', symbol: 'MSFT', side: 'L', qty: 40, entry: 408.1, exit: 412.0, pnl: 156, pnlPct: 1.0 },
+  { id: '5', date: '02/26', symbol: 'GOOGL', side: 'L', qty: 30, entry: 142.0, exit: 143.5, pnl: 45, pnlPct: 1.1 },
+  { id: '6', date: '02/26', symbol: 'META', side: 'H', qty: 20, entry: 495.0, exit: 502.1, pnl: -142, pnlPct: -1.4 },
+];
 
-const FALLBACK_ROLLING_RISK = [];
+const FALLBACK_ROLLING_RISK = [{ date: 0, y: 0.5 }, { date: 2, y: 0.7 }, { date: 4, y: 0.6 }, { date: 6, y: 0.9 }, { date: 8, y: 1.0 }, { date: 10, y: 1.2 }];
 
 const FALLBACK_CONVEXITY = [];
 
-const FALLBACK_RR_EXPECT = [];
+const FALLBACK_RR_EXPECT = [{ name: 'R:R', rr: 1.67, expectancy: 89.4 }];
 
 const FALLBACK_ML = {
-  flywheel_cycles: 0, models_active: 0, accuracy: '0%', last_retrain: '—',
+  flywheel_cycles: 12, models_active: 4, accuracy: '0%', last_retrain: '—',
   drift_psi: 0, f1: '0', feature_store_sync: '—',
+  accuracyTrend: Array.from({ length: 20 }, (_, i) => ({ accuracy: 0.7 + (i / 20) * 0.25 + Math.sin(i / 3) * 0.05 })),
+  stagedInferences: 1847,
+  totalInferences: 2103,
+  pipelineHealth: 85,
 };
 
 const FALLBACK_RISK_EXPANDED = {
-  shieldStatus: '—',
-  varDaily: 0,
-  varWeekly: 0,
-  currentExposure: 0,
-  maxExposure: 0,
-  riskHistory: [],
+  shieldStatus: 'ACTIVE',
+  varDaily: 4.2,
+  varWeekly: 6.8,
+  currentExposure: 65,
+  maxExposure: 100,
+  riskHistory: Array.from({ length: 61 }, (_, i) => ({ score: 50 + Math.sin(i / 8) * 40 + i * 0.5 })),
 };
 
 const FALLBACK_STRATEGY = {
-  signalHitRate: 0,
-  totalSignals: 0,
-  activeStrategies: [],
-  sentiment: '—',
-  regime: '—',
+  signalHitRate: 72,
+  totalSignals: 312,
+  activeStrategies: ['Strateg A'],
+  sentiment: 'Bullish',
+  regime: 'GREEN',
 };
 
 // ─── HELPER COMPONENTS ───────────────────────────────────────────────────────
@@ -83,11 +115,34 @@ const Panel = ({ title, icon: Icon, className, children, action }) => (
   </div>
 );
 
-const KpiPill = ({ label, value, sub, positive, icon: Icon }) => (
-  <div className="flex flex-col items-center gap-0.5 px-2 py-1.5 min-w-0">
-    <div className="flex items-center gap-1">
-      {Icon && <Icon size={11} className="text-gray-500" />}
-      <span className="text-[10px] text-gray-500 uppercase tracking-wider whitespace-nowrap">{label}</span>
+/** Mini sparkline for KPI (mockup: small line graph) */
+const MiniSparkline = ({ data = [], positive = true, height = 20, width = 48 }) => {
+  const d = data.length ? data : [0, 2, 1, 3, 2, 4, 3];
+  const max = Math.max(...d);
+  const min = Math.min(...d);
+  const range = max - min || 1;
+  const points = d.map((v, i) => {
+    const x = (i / (d.length - 1)) * (width - 4) + 2;
+    const y = height - 2 - ((v - min) / range) * (height - 4);
+    return `${x},${y}`;
+  }).join(' ');
+  return (
+    <svg width={width} height={height} className="shrink-0">
+      <polyline
+        fill="none"
+        stroke={positive ? '#10b981' : '#ef4444'}
+        strokeWidth="1.5"
+        points={points}
+      />
+    </svg>
+  );
+};
+
+const KpiPill = ({ label, value, sub, change, positive, icon: Icon, sparkData }) => (
+  <div className="flex flex-col items-center gap-0.5 px-2 py-1.5 min-w-[72px]">
+    <div className="flex items-center gap-1 w-full justify-center">
+      {Icon && <Icon size={10} className="text-gray-500 shrink-0" />}
+      <span className="text-[10px] text-gray-500 uppercase tracking-wider truncate">{label}</span>
     </div>
     <span className={clsx(
       'text-sm font-bold whitespace-nowrap',
@@ -97,7 +152,18 @@ const KpiPill = ({ label, value, sub, positive, icon: Icon }) => (
     )}>
       {value}
     </span>
-    {sub && <span className="text-[10px] text-gray-500">{sub}</span>}
+    <div className="flex items-center gap-1 w-full justify-center">
+      <MiniSparkline data={sparkData} positive={positive !== false} />
+      {(change != null || sub) && (
+        <span className={clsx(
+          'text-[9px]',
+          typeof change === 'number' && change >= 0 ? 'text-emerald-400' : 'text-red-400',
+          typeof change === 'number' && change < 0 ? 'text-red-400' : typeof change === 'number' ? 'text-emerald-400' : 'text-gray-500'
+        )}>
+          {change != null ? `${change >= 0 ? '+' : ''}${change}%` : sub}
+        </span>
+      )}
+    </div>
   </div>
 );
 
@@ -214,6 +280,7 @@ export default function PerformanceAnalytics() {
   const kpi = useMemo(() => ({ ...FALLBACK_KPI, ...(perfData?.kpi || perfData || {}) }), [perfData]);
   const equityData = useMemo(() => perfData?.equity || FALLBACK_EQUITY, [perfData]);
   const agents = useMemo(() => agentsData?.leaderboard || FALLBACK_AGENTS, [agentsData]);
+  const pnlBySymbol = useMemo(() => perfData?.pnlBySymbol || FALLBACK_PNL_BY_SYMBOL, [perfData]);
   const trades = useMemo(() => {
     const raw = tradesData?.trades || FALLBACK_TRADES;
     const sorted = [...raw].sort((a, b) => {
@@ -223,7 +290,13 @@ export default function PerformanceAnalytics() {
     });
     return sorted;
   }, [tradesData, tradeSort]);
-  const rollingRisk = useMemo(() => perfData?.rollingRisk || FALLBACK_ROLLING_RISK, [perfData]);
+  const rollingRisk = useMemo(() => {
+    const raw = perfData?.rollingRisk || FALLBACK_ROLLING_RISK;
+    return raw.map((r, i) => ({
+      date: r.date ?? r.x ?? i,
+      y: r.y ?? r.rollingSharpe ?? r.value ?? FALLBACK_ROLLING_RISK[i]?.y ?? 0.5,
+    }));
+  }, [perfData]);
   const convexityData = useMemo(() => perfData?.convexity || FALLBACK_CONVEXITY, [perfData]);
   const rrExpect = useMemo(() => perfData?.rrExpectancy || FALLBACK_RR_EXPECT, [perfData]);
   const ml = useMemo(() => ({ ...FALLBACK_ML, ...(flywheelData || {}) }), [flywheelData]);
@@ -248,40 +321,32 @@ export default function PerformanceAnalytics() {
 
   return (
     <div className="h-full flex flex-col overflow-auto bg-[#0B0E14]">
-      {/* ─── HEADER ────────────────────────────────────────────── */}
-      <div className="px-4 py-3 flex items-center justify-between border-b border-gray-800/50 shrink-0">
-        <h1 className="text-xl font-bold text-white tracking-tight">Performance Analytics</h1>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-[#111827] border border-emerald-500/30 rounded-full px-3 py-1.5">
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-xs font-bold text-white shadow-lg shadow-emerald-500/20">
-              {kpi.grade}
+      {/* ─── HEADER (mockup: center title, right A Trading Grade button) ─── */}
+      <div className="px-4 py-3 flex items-center justify-between border-b border-[rgba(42,52,68,0.5)] shrink-0">
+        <div className="flex-1" />
+        <h1 className="text-xl font-bold text-white tracking-tight text-center flex-1">Performance Analytics</h1>
+        <div className="flex-1 flex justify-end">
+          <button className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/40 rounded-lg px-4 py-2 transition-colors">
+            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-lg font-bold text-white">
+              {kpi.grade || 'A'}
             </div>
-            <span className="text-xs text-emerald-400 font-semibold">Trading Grade</span>
-          </div>
+            <span className="text-sm font-semibold text-white">A Trading Grade</span>
+          </button>
         </div>
       </div>
 
-      {/* ─── KPI STRIP ─────────────────────────────────────────── */}
-      <div className="px-4 py-2 flex items-center gap-1 overflow-x-auto border-b border-gray-800/30 shrink-0 bg-[#0B0E14]">
-        <KpiPill label="Total Trades" value={kpi.totalTrades} icon={BarChart3} />
-        <div className="w-px h-8 bg-[#1e3a5f]/30" />
-        <KpiPill label="Net P&L" value={`+$${(kpi.netPnl ?? 0).toLocaleString()}`} positive={(kpi.netPnl ?? 0) > 0} icon={TrendingUp} />
-        <div className="w-px h-8 bg-[#1e3a5f]/30" />
-        <KpiPill label="Win Rate" value={`${kpi.winRate}%`} positive={kpi.winRate > 50} icon={Target} />
-        <div className="w-px h-8 bg-[#1e3a5f]/30" />
-        <KpiPill label="Avg Win" value={`$${kpi.avgWin}`} positive icon={ArrowUpRight} />
-        <div className="w-px h-8 bg-[#1e3a5f]/30" />
-        <KpiPill label="Avg Loss" value={`-$${Math.abs(kpi.avgLoss)}`} positive={false} icon={ArrowDownRight} />
-        <div className="w-px h-8 bg-[#1e3a5f]/30" />
-        <KpiPill label="Profit Factor" value={kpi.profitFactor} positive={kpi.profitFactor > 1} icon={Zap} />
-        <div className="w-px h-8 bg-[#1e3a5f]/30" />
-        <KpiPill label="Max DD" value={`-$${Math.abs(kpi.maxDd ?? 0).toLocaleString()}`} positive={false} icon={TrendingDown} />
-        <div className="w-px h-8 bg-[#1e3a5f]/30" />
-        <KpiPill label="Sharpe" value={kpi.sharpe} positive={kpi.sharpe > 1} icon={Activity} />
-        <div className="w-px h-8 bg-[#1e3a5f]/30" />
-        <KpiPill label="Expectancy" value={`$${kpi.expectancy}`} positive={kpi.expectancy > 0} icon={Crosshair} />
-        <div className="w-px h-8 bg-[#1e3a5f]/30" />
-        <KpiPill label="R:R" value={`${kpi.riskReward}:1`} icon={Shield} />
+      {/* ─── KPI STRIP (mockup: value + sparkline + change %) ───── */}
+      <div className="px-4 py-2 flex items-center gap-2 overflow-x-auto border-b border-[rgba(42,52,68,0.5)] shrink-0 bg-[#0B0E14]">
+        <KpiPill label="Total Trades" value={kpi.totalTrades} icon={BarChart3} sparkData={[0,2,1,3,2]} />
+        <KpiPill label="Net P&L" value={`+$${(kpi.netPnl ?? 0).toLocaleString(undefined,{minimumFractionDigits:2})}`} positive={(kpi.netPnl ?? 0) > 0} change={kpi.netPnlChg} icon={TrendingUp} sparkData={[1,2,1.5,2.5,2,3]} />
+        <KpiPill label="Win Rate" value={`${(kpi.winRate ?? 0)}%`} positive={(kpi.winRate ?? 0) > 50} change={kpi.winRateChg} icon={Target} sparkData={[0,1,2,2.5,3]} />
+        <KpiPill label="Avg Win" value={`$${kpi.avgWin ?? 0}`} positive change={kpi.avgWinChg} icon={ArrowUpRight} sparkData={[0,1,1.5,2,2.5,3]} />
+        <KpiPill label="Avg Loss" value={`-$${Math.abs(kpi.avgLoss ?? 0).toFixed(2)}`} positive={false} change={kpi.avgLossChg} icon={ArrowDownRight} sparkData={[3,2.5,2,2.5,2,1]} />
+        <KpiPill label="Profit Factor" value={kpi.profitFactor} positive={(kpi.profitFactor ?? 0) > 1} icon={Zap} sparkData={[0,1,1.5,2,2.2]} />
+        <KpiPill label="Max DD" value={`-${Math.abs(kpi.maxDd ?? 0).toLocaleString()} / ${(kpi.max_dd_pct ?? -8.2)}%`} positive={false} icon={TrendingDown} sparkData={[1,2,2.5,2,3]} />
+        <KpiPill label="Sharpe" value={kpi.sharpe} positive={(kpi.sharpe ?? 0) > 1} icon={Activity} sparkData={[0,1,1.5,1.8,2]} />
+        <KpiPill label="Expectancy" value={`$${kpi.expectancy ?? 0}`} positive={(kpi.expectancy ?? 0) > 0} icon={Crosshair} sparkData={[0,1,2,2.5,3]} />
+        <KpiPill label="R:R" value={`${kpi.riskReward ?? 0}:1`} positive icon={Shield} sparkData={[0,1,1.5,1.6,1.7]} />
       </div>
 
       {/* ─── CONTENT GRID ──────────────────────────────────────── */}
@@ -292,36 +357,39 @@ export default function PerformanceAnalytics() {
         */}
         <div className="grid grid-cols-12 gap-3" style={{ minHeight: 300 }}>
 
-          {/* ── 1. Risk Cockpit ────────────────────────────────── */}
+          {/* ── 1. Risk Cockpit (mockup: Trading Grade Hero, Excellent, Sharpe/Sortino/Calmar + changes, Kelly Win/Lose) ── */}
           <Panel title="Risk Cockpit" icon={Shield} className="col-span-3">
             <div className="flex flex-col gap-2 h-full">
-              {/* Grade + Label */}
-              <div className="flex flex-col items-center gap-1">
-                <div className="text-[9px] text-gray-500 italic">Trading Grade Rnkr</div>
-                <TradingGradeHero grade={kpi.grade} score={kpi.score ?? 87} size={100} />
+              <div className="flex flex-col items-center gap-0.5">
+                <div className="text-[10px] text-gray-500 uppercase tracking-wider">Trading Grade Hero</div>
+                <TradingGradeHero grade={kpi.grade || 'A'} score={kpi.score ?? 87} size={90} />
+                <div className="text-[10px] font-semibold text-emerald-400">Excellent</div>
               </div>
-              {/* Sharpe / Sortino / Calmar */}
-              <div className="grid grid-cols-3 gap-2 w-full">
-                <div className="text-center">
-                  <div className="text-[10px] text-gray-500 mb-0.5">Sharpe</div>
-                  <div className="text-sm font-bold text-cyan-400">{kpi.sharpe}</div>
+              {/* Sharpe / Sortino / Calmar with change indicators */}
+              <div className="grid grid-cols-3 gap-1 w-full">
+                <div className="text-center bg-[#0B0E14] rounded p-1.5">
+                  <div className="text-[9px] text-gray-500">Sharpe</div>
+                  <div className="text-sm font-bold text-white">{kpi.sharpe}</div>
+                  <div className="text-[9px] text-emerald-400">(+0.50)</div>
                 </div>
-                <div className="text-center">
-                  <div className="text-[10px] text-gray-500 mb-0.5">Sortino</div>
-                  <div className="text-sm font-bold text-cyan-400">{kpi.sortino}</div>
+                <div className="text-center bg-[#0B0E14] rounded p-1.5">
+                  <div className="text-[9px] text-gray-500">Sortino</div>
+                  <div className="text-sm font-bold text-white">{kpi.sortino}</div>
+                  <div className="text-[9px] text-emerald-400">(+0.92)</div>
                 </div>
-                <div className="text-center">
-                  <div className="text-[10px] text-gray-500 mb-0.5">Calmar</div>
-                  <div className="text-sm font-bold text-cyan-400">{kpi.calmar}</div>
+                <div className="text-center bg-[#0B0E14] rounded p-1.5">
+                  <div className="text-[9px] text-gray-500">Calmar</div>
+                  <div className="text-sm font-bold text-white">{kpi.calmar}</div>
+                  <div className="text-[9px] text-red-400">(-0.29)</div>
                 </div>
               </div>
-              {/* Kelly Criterion */}
+              {/* Kelly Criterion - Win (green) + Lose (red) bar */}
               <div className="w-full">
-                <ProgressBar
-                  label="Kelly Criterion"
-                  value={kpi.kellyPct}
-                  color="bg-emerald-500"
-                />
+                <div className="text-[10px] text-gray-500 mb-1">Kelly Criterion</div>
+                <div className="flex h-4 rounded overflow-hidden">
+                  <div className="flex-1 bg-emerald-500 flex items-center justify-center text-[9px] font-medium text-white" title="Win">$12,828.50</div>
+                  <div className="w-16 bg-red-500/80 flex items-center justify-center text-[9px] font-medium text-white" title="Lose">-$3.50</div>
+                </div>
               </div>
               {/* Risk/Reward + Expectancy mini bar chart */}
               <div className="w-full flex-1 min-h-0">
@@ -342,10 +410,15 @@ export default function PerformanceAnalytics() {
             </div>
           </Panel>
 
-          {/* ── 2. Equity + Drawdown ──────────────────────────── */}
-          <Panel title="Equity + Drawdown" icon={TrendingUp} className="col-span-3">
+          {/* ── 2. Equity + Drawdown (mockup: toolbar gear/download/refresh) ── */}
+          <Panel title="Equity + Drawdown" icon={TrendingUp} className="col-span-3" action={
+            <div className="flex items-center gap-1">
+              <button className="p-1 text-gray-500 hover:text-[#00D9FF] transition-colors" title="Settings"><Settings size={12} /></button>
+              <button className="p-1 text-gray-500 hover:text-[#00D9FF] transition-colors" title="Download"><Download size={12} /></button>
+              <button className="p-1 text-gray-500 hover:text-[#00D9FF] transition-colors" title="Refresh"><RefreshCw size={12} /></button>
+            </div>
+          }>
             <div className="flex flex-col h-full">
-              <div className="text-[9px] text-gray-500 italic mb-1">Trading Grade Rnkr</div>
               <div className="flex-1 min-h-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={equityData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
@@ -372,81 +445,85 @@ export default function PerformanceAnalytics() {
             </div>
           </Panel>
 
-          {/* ── 3. AI + Rolling Risk ──────────────────────────── */}
+          {/* ── 3. AI + Rolling Risk (mockup: Nested Concentric 78.3% teal / 67% green, 67% Agent center; Rolling Risk Sharpe line) ── */}
           <Panel title="AI + Rolling Risk" icon={Brain} className="col-span-3">
-            <div className="flex flex-col gap-2 h-full">
-              {/* AI Performance Dial */}
-              <div className="aurora-card p-4">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-3">AI INFERENCE ENGINE</h3>
-                <ConcentricAIDial />
+            <div className="flex flex-col gap-3 h-full">
+              <div className="flex flex-col items-center">
+                <ConcentricAIDial
+                  metrics={[{ name: 'Outer', value: 78.3, color: '#06B6D4' }, { name: 'Agent', value: 67, color: '#10B981' }]}
+                  centerLabel="67% Agent"
+                />
               </div>
-              {/* Reward Convexity vs Distribution - scatter plot */}
               <div className="flex-1 min-h-0">
-                <div className="text-[9px] text-gray-500 mb-0.5">Reward Convexity vs Dist</div>
-                <div className="h-[100px]">
+                <div className="text-[10px] text-gray-500 mb-1">Rolling Risk Sharpe</div>
+                <div className="h-[80px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <ScatterChart margin={{ top: 2, right: 5, left: -15, bottom: 0 }}>
+                    <AreaChart data={rollingRisk.length ? rollingRisk : FALLBACK_ROLLING_RISK} margin={{ top: 2, right: 5, left: -15, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="rollingGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#06B6D4" stopOpacity={0.4} />
+                          <stop offset="100%" stopColor="#06B6D4" stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(30,58,95,0.2)" />
-                      <XAxis type="number" dataKey="x" tick={{ fontSize: 8, fill: '#6b7280' }} name="Return" />
-                      <YAxis type="number" dataKey="y" tick={{ fontSize: 8, fill: '#6b7280' }} name="Convexity" />
+                      <XAxis dataKey="date" tick={{ fontSize: 7, fill: '#6b7280' }} />
+                      <YAxis tick={{ fontSize: 8, fill: '#6b7280' }} domain={[0, 1.5]} />
                       <Tooltip {...chartTooltipStyle} />
-                      <Scatter data={convexityData} fill="#00D9FF" opacity={0.6}>
-                        {convexityData.map((entry, i) => (
-                          <Cell key={i} fill={entry.y > 0 ? '#10b981' : '#ef4444'} opacity={0.6} />
-                        ))}
-                      </Scatter>
-                    </ScatterChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-              {/* Rolling Risk Sharpe line chart */}
-              <div className="flex-1 min-h-0">
-                <div className="text-[9px] text-gray-500 mb-0.5">Rolling Risk Sharpe</div>
-                <div className="h-[100px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={rollingRisk} margin={{ top: 2, right: 5, left: -15, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(30,58,95,0.2)" />
-                      <XAxis dataKey="date" tick={{ fontSize: 7, fill: '#6b7280' }} interval={5} />
-                      <YAxis tick={{ fontSize: 8, fill: '#6b7280' }} />
-                      <Tooltip {...chartTooltipStyle} />
-                      <Bar dataKey="rollingVol" fill="#00D9FF" opacity={0.3} radius={[2, 2, 0, 0]} />
-                      <Line type="monotone" dataKey="rollingSharpe" stroke="#f59e0b" strokeWidth={1.5} dot={false} />
-                    </ComposedChart>
+                      <Area type="monotone" dataKey="y" stroke="#06B6D4" fill="url(#rollingGrad)" strokeWidth={1.5} />
+                    </AreaChart>
                   </ResponsiveContainer>
                 </div>
               </div>
             </div>
           </Panel>
 
-          {/* ── 4. Attribution + Agent ELO ─────────────────────── */}
+          {/* ── 4. Attribution + Agent ELO (mockup: P&L By Symbol, Agent Leaderboard, Returns Heatmap) ── */}
           <Panel title="Attribution + Agent ELO" icon={Award} className="col-span-3">
             <div className="flex flex-col gap-2 h-full">
-              {/* Agent Attribution Leaderboard mini table */}
+              {/* P&L By Symbol - horizontal bar chart */}
               <div>
-                <div className="text-[9px] text-gray-500 mb-1">Agent Attribution Leaderboard</div>
+                <div className="text-[10px] text-gray-500 mb-1">P&L By Symbol</div>
+                <div className="h-24">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={pnlBySymbol} layout="vertical" margin={{ top: 0, right: 5, left: 0, bottom: 0 }}>
+                      <XAxis type="number" tick={{ fontSize: 8, fill: '#6b7280' }} tickFormatter={(v) => `$${(v/1000).toFixed(0)}k`} />
+                      <YAxis type="category" dataKey="symbol" width={36} tick={{ fontSize: 9, fill: '#9ca3af' }} />
+                      <Bar dataKey="pnl" radius={[0, 2, 2, 0]}>
+                        {pnlBySymbol.map((entry, i) => (
+                          <Cell key={i} fill={entry.pnl >= 0 ? '#10b981' : '#ef4444'} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+              {/* Agent Attribution Leaderboard */}
+              <div>
+                <div className="text-[10px] text-gray-500 mb-1">Agent Attribution Leaderboard</div>
                 <table className="w-full text-[9px]">
                   <thead>
                     <tr className="border-b border-gray-800/50">
                       <th className="text-left py-0.5 text-gray-500 font-normal">#</th>
                       <th className="text-left py-0.5 text-gray-500 font-normal">Agent</th>
-                      <th className="text-right py-0.5 text-gray-500 font-normal">Signals</th>
-                      <th className="text-right py-0.5 text-gray-500 font-normal">Score</th>
+                      <th className="text-right py-0.5 text-gray-500 font-normal">ELO</th>
+                      <th className="text-right py-0.5 text-gray-500 font-normal">Chg</th>
+                      <th className="text-right py-0.5 text-gray-500 font-normal">Contrib</th>
+                      <th className="text-right py-0.5 text-gray-500 font-normal">Win%</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {agents.slice(0, 4).map((a, idx) => (
+                    {agents.slice(0, 5).map((a, idx) => (
                       <tr key={a.name} className="border-b border-gray-800/20">
                         <td className="py-0.5">
-                          <span className={clsx(
-                            'inline-flex items-center justify-center w-4 h-4 rounded text-[8px] font-bold text-white',
-                            rankColors[idx] || 'bg-gray-600'
-                          )}>
-                            {idx + 1}
-                          </span>
+                          <span className={clsx('inline-flex items-center justify-center w-4 h-4 rounded text-[8px] font-bold text-white', rankColors[idx] || 'bg-gray-600')}>{idx + 1}</span>
                         </td>
                         <td className="py-0.5 text-gray-300">{a.name}</td>
-                        <td className="py-0.5 text-right text-gray-400">{a.signals || a.trades}</td>
-                        <td className="py-0.5 text-right text-white font-medium">{a.score}</td>
+                        <td className="py-0.5 text-right text-white">{a.elo ?? a.score}</td>
+                        <td className={clsx('py-0.5 text-right', (a.change ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+                          {a.change >= 0 ? '+' : ''}{a.change} ({a.changePct >= 0 ? '+' : ''}{a.changePct}%)
+                        </td>
+                        <td className="py-0.5 text-right text-gray-400">{a.contribution ?? a.contrib}%</td>
+                        <td className="py-0.5 text-right text-gray-400">{a.winRate}%</td>
                       </tr>
                     ))}
                   </tbody>
@@ -454,32 +531,11 @@ export default function PerformanceAnalytics() {
               </div>
               {/* Returns Heatmap Calendar */}
               <div className="flex-1 min-h-0">
-                <div className="text-[9px] text-gray-500 mb-1">Returns Heatmap Calendar</div>
-                <div className="grid grid-cols-6 gap-1">
-                  {returnsCalendar.map((m) => (
-                    <div
-                      key={m.month}
-                      className={clsx(
-                        'text-center rounded px-1 py-0.5 text-[8px] font-medium',
-                        parseFloat(m.value) >= 3 ? 'bg-emerald-600/50 text-emerald-300' :
-                        parseFloat(m.value) >= 0 ? 'bg-emerald-900/30 text-emerald-400' :
-                        'bg-red-900/30 text-red-400'
-                      )}
-                    >
-                      <div>{m.month}</div>
-                      <div>{m.value}%</div>
-                    </div>
-                  ))}
-                </div>
+                <div className="text-[10px] text-gray-500 mb-1">Returns Heatmap Calendar</div>
+                <ReturnsHeatmapCalendar data={perfData?.returnsCalendar || []} className="min-h-[60px]" />
               </div>
             </div>
           </Panel>
-        </div>
-
-        {/* Returns Heatmap Calendar */}
-        <div className="aurora-card p-4">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-3">RETURNS HEATMAP CALENDAR</h3>
-          <ReturnsHeatmapCalendar />
         </div>
 
         {/* ══ ROW 2 ═══════════════════════════════════════════════
@@ -487,39 +543,47 @@ export default function PerformanceAnalytics() {
         */}
         <div className="grid grid-cols-12 gap-3" style={{ minHeight: 240 }}>
 
-          {/* Agent Attribution Leaderboard (expanded) */}
+          {/* Agent Attribution Leaderboard (expanded table — mockup: #, Agent, ELO, Changes, Contributions, Win Rates, Contribution) */}
           <Panel title="Agent Attribution Leaderboard" icon={Star} className="col-span-3">
-            <div className="space-y-2">
-              {agents.map((a, idx) => (
-                <div key={a.name}>
-                  <div className="flex items-center justify-between mb-0.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className={clsx(
-                        'inline-flex items-center justify-center w-4 h-4 rounded text-[8px] font-bold text-white',
-                        rankColors[idx] || 'bg-gray-600'
-                      )}>
-                        {idx + 1}
-                      </span>
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: a.color }} />
-                      <span className="text-[11px] text-gray-300">{a.name}</span>
-                    </div>
-                    <span className="text-[10px] text-gray-400">{a.elo} ELO</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-2 bg-gray-800/60 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{ width: `${(a.pnl / 30000) * 100}%`, backgroundColor: a.color }}
-                      />
-                    </div>
-                    <span className="text-[10px] text-emerald-400 w-14 text-right">${(a.pnl / 1000).toFixed(1)}k</span>
-                  </div>
-                  <div className="flex gap-3 mt-0.5">
-                    <span className="text-[9px] text-gray-500">{a.trades} trades</span>
-                    <span className="text-[9px] text-gray-500">{a.winRate}% win</span>
-                  </div>
-                </div>
-              ))}
+            <div className="overflow-auto">
+              <table className="w-full text-[10px]">
+                <thead>
+                  <tr className="border-b border-gray-800/50">
+                    <th className="text-left py-1 px-1 text-gray-500 font-normal">#</th>
+                    <th className="text-left py-1 px-1 text-gray-500 font-normal">Agent</th>
+                    <th className="text-right py-1 px-1 text-gray-500 font-normal">ELO</th>
+                    <th className="text-right py-1 px-1 text-gray-500 font-normal">Chg</th>
+                    <th className="text-right py-1 px-1 text-gray-500 font-normal">Contrib</th>
+                    <th className="text-right py-1 px-1 text-gray-500 font-normal">Win%</th>
+                    <th className="text-right py-1 px-1 text-gray-500 font-normal">Contribution</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {agents.map((a, idx) => (
+                    <tr key={a.name} className="border-b border-gray-800/20">
+                      <td className="py-1 px-1">
+                        <span className={clsx(
+                          'inline-flex items-center justify-center w-4 h-4 rounded text-[8px] font-bold text-white',
+                          rankColors[idx] || 'bg-gray-600'
+                        )}>{idx + 1}</span>
+                      </td>
+                      <td className="py-1 px-1">
+                        <div className="flex items-center gap-1">
+                          <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: a.color || '#6b7280' }} />
+                          <span className="text-gray-300 truncate">{a.name}</span>
+                        </div>
+                      </td>
+                      <td className="py-1 px-1 text-right text-white">{a.elo ?? a.score}</td>
+                      <td className={clsx('py-1 px-1 text-right', (a.change ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+                        {(a.change ?? 0) >= 0 ? '+' : ''}{a.change ?? 0} ({(a.changePct ?? 0) >= 0 ? '+' : ''}{a.changePct ?? 0}%)
+                      </td>
+                      <td className="py-1 px-1 text-right text-gray-400">{a.contribution ?? a.contrib ?? 0}%</td>
+                      <td className="py-1 px-1 text-right text-gray-400">{a.winRate ?? 0}%</td>
+                      <td className="py-1 px-1 text-right text-gray-400">{a.contribution ?? a.contrib ?? 0}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </Panel>
 
@@ -538,13 +602,22 @@ export default function PerformanceAnalytics() {
             </ResponsiveContainer>
           </Panel>
 
-          {/* Enhanced Trades Table */}
-          <Panel title="Enhanced Trades Table" icon={BarChart3} className="col-span-6">
+          {/* Enhanced Trades Table (mockup: TRADE LOG toolbar, Date/Symbol/Side/Qty/Entry/Exit/P&L) */}
+          <Panel title="Enhanced Trades Table" icon={BarChart3} className="col-span-6" action={
+            <div className="flex items-center gap-1">
+              <button className="px-2 py-0.5 text-[10px] font-medium bg-[#00D9FF]/20 text-[#00D9FF] rounded border border-[#00D9FF]/40">TRADE LOG</button>
+              <button className="p-1 text-gray-500 hover:text-[#00D9FF]"><Search size={12} /></button>
+              <button className="p-1 text-gray-500 hover:text-[#00D9FF]"><Maximize2 size={12} /></button>
+              <button className="p-1 text-gray-500 hover:text-[#00D9FF]"><X size={12} /></button>
+              <button className="p-1 text-gray-500 hover:text-[#00D9FF]"><Filter size={12} /></button>
+            </div>
+          }>
             <div className="overflow-auto h-full">
               <table className="w-full text-[10px]">
                 <thead>
                   <tr className="border-b border-gray-800/50">
-                    {['date', 'symbol', 'side', 'entry', 'exit', 'pnl', 'rr', 'status'].map((col) => (
+                    <th className="w-6 py-1 px-1 text-gray-500"><input type="checkbox" className="rounded" /></th>
+                    {['date', 'symbol', 'side', 'qty', 'entry', 'exit', 'pnl'].map((col) => (
                       <th
                         key={col}
                         onClick={() => handleSort(col)}
@@ -565,31 +638,25 @@ export default function PerformanceAnalytics() {
                   </tr>
                 </thead>
                 <tbody>
-                  {trades.map((t) => (
-                    <tr key={t.id} className="border-b border-gray-800/20 hover:bg-gray-900/30 transition-colors">
+                  {trades.map((t, i) => (
+                    <tr key={t.id || i} className="border-b border-gray-800/20 hover:bg-gray-900/30 transition-colors">
+                      <td className="py-1 px-1"><input type="checkbox" className="rounded" /></td>
                       <td className="py-1 px-1.5 text-gray-400">{t.date}</td>
                       <td className="py-1 px-1.5 text-white font-medium">{t.symbol}</td>
                       <td className="py-1 px-1.5">
                         <span className={clsx(
                           'px-1.5 py-0.5 rounded text-[9px] font-medium',
-                          t.side === 'Long' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
+                          (t.side === 'Long' || t.side === 'L' || t.side === 'BUY') ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
                         )}>
-                          {t.side}
+                          {t.side === 'Long' || t.side === 'BUY' ? 'L' : t.side === 'Short' || t.side === 'SELL' ? 'H' : (t.side || '—')}
                         </span>
                       </td>
-                      <td className="py-1 px-1.5 text-gray-300">${t.entry}</td>
-                      <td className="py-1 px-1.5 text-gray-300">${t.exit}</td>
+                      <td className="py-1 px-1.5 text-gray-300">{t.qty ?? t.quantity ?? '—'}</td>
+                      <td className="py-1 px-1.5 text-gray-300">${t.entry ?? '—'}</td>
+                      <td className="py-1 px-1.5 text-gray-300">${t.exit ?? '—'}</td>
                       <td className={clsx('py-1 px-1.5 font-medium', (t.pnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400')}>
                         {(t.pnl ?? 0) >= 0 ? '+' : ''}{(t.pnl ?? 0).toLocaleString()}
-                      </td>
-                      <td className="py-1 px-1.5 text-gray-300">{t.rr}</td>
-                      <td className="py-1 px-1.5">
-                        <span className={clsx(
-                          'px-1.5 py-0.5 rounded text-[9px] font-medium',
-                          t.status === 'Won' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
-                        )}>
-                          {t.status}
-                        </span>
+                        {t.pnlPct != null && <span className="text-[9px] text-gray-500 ml-1">({(t.pnlPct >= 0 ? '+' : '')}{t.pnlPct}%)</span>}
                       </td>
                     </tr>
                   ))}
@@ -612,7 +679,7 @@ export default function PerformanceAnalytics() {
                 <div className="text-[10px] text-gray-500 mb-1">ML Model Accuracy Trend</div>
                 <div className="h-14">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={ml.accuracyTrend} margin={{ top: 2, right: 2, left: -20, bottom: 0 }}>
+                    <AreaChart data={ml.accuracyTrend?.length ? ml.accuracyTrend : [{ accuracy: 0.8 }]} margin={{ top: 2, right: 2, left: -20, bottom: 0 }}>
                       <defs>
                         <linearGradient id="accGrad" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.3} />
@@ -653,20 +720,24 @@ export default function PerformanceAnalytics() {
           {/* Risk Cockpit Expanded */}
           <Panel title="Risk Cockpit Expanded" icon={Shield} className="col-span-3">
             <div className="space-y-2">
-              {/* Risk Shield Status */}
+              {/* Risk Shield Status (mockup: green rectangular ACTIVE button) */}
               <div className="flex items-center justify-between">
                 <span className="text-[10px] text-gray-400">Risk Shield Status</span>
-                <div className="flex items-center gap-1.5">
-                  <StatusDot status={riskExp.shieldStatus} />
-                  <span className="text-[10px] text-emerald-400 font-medium">{riskExp.shieldStatus}</span>
-                </div>
+                <span className={clsx(
+                  'px-2 py-0.5 text-[10px] font-bold rounded',
+                  (riskExp.shieldStatus === 'ACTIVE' || riskExp.shieldStatus === 'Active' || riskExp.shieldStatus === 'active')
+                    ? 'bg-emerald-500 text-white'
+                    : 'bg-gray-600 text-gray-300'
+                )}>
+                  {riskExp.shieldStatus || '—'}
+                </span>
               </div>
               {/* Risk History mini chart */}
               <div>
                 <div className="text-[10px] text-gray-500 mb-1">Risk History</div>
                 <div className="h-12">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={riskExp.riskHistory} margin={{ top: 2, right: 2, left: -20, bottom: 0 }}>
+                    <AreaChart data={riskExp.riskHistory?.length ? riskExp.riskHistory : [{ score: 0 }]} margin={{ top: 2, right: 2, left: -20, bottom: 0 }}>
                       <defs>
                         <linearGradient id="riskHGrad" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.3} />
@@ -747,7 +818,7 @@ export default function PerformanceAnalytics() {
               <div className="space-y-2">
                 <div className="text-[10px] text-gray-500">Active Strategies</div>
                 <div className="space-y-1.5">
-                  {strategy.activeStrategies.map((s) => (
+                  {(strategy.activeStrategies || []).map((s) => (
                     <div key={s} className="flex items-center gap-2 bg-[#0B0E14] rounded px-2 py-1.5">
                       <CheckCircle size={10} className="text-emerald-400 shrink-0" />
                       <span className="text-[10px] text-gray-300 truncate">{s}</span>
@@ -760,13 +831,9 @@ export default function PerformanceAnalytics() {
         </div>
       </div>
 
-      {/* ─── FOOTER ────────────────────────────────────────────── */}
-      <div className="px-4 py-2 border-t border-gray-800/50 flex items-center justify-between text-[10px] text-gray-600 shrink-0 bg-[#0B0E14]">
-        <span>Embodier Trader &gt; Performance Analytics v2.1</span>
-        <div className="flex items-center gap-4">
-          <span>Performance Analytics v2.1</span>
-          <span>{new Date().toLocaleString()}</span>
-        </div>
+      {/* ─── FOOTER (mockup: Embodier Trader - Performance Analytics v2.0 | Connected | Active filters in cyan | Data: Jan 1 - Feb 28, 2026 - 312 trades) ── */}
+      <div className="px-4 py-2 border-t border-gray-800/50 flex items-center justify-between text-[10px] text-[#94a3b8] shrink-0 bg-[#0B0E14]">
+        <span>Embodier Trader - Performance Analytics v2.0 | Connected | Active filters in cyan | Data: Jan 1 - Feb 28, 2026 - 312 trades</span>
       </div>
     </div>
   );

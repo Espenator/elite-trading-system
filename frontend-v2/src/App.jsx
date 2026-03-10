@@ -111,12 +111,11 @@ function App() {
     >
       <ErrorBoundary>
         <Routes>
-          {/* Dashboard has its own full-page layout (header, sidebar, footer) — render outside Layout */}
-          <Route path="/dashboard" element={<CNSProvider><P><Dashboard /></P></CNSProvider>} />
-
           <Route path="/" element={<Layout />}>
             {/* Default redirect */}
             <Route index element={<Navigate to="/dashboard" replace />} />
+            {/* Dashboard uses shared Layout (Sidebar + Header) like other pages */}
+            <Route path="dashboard" element={<CNSProvider><P><Dashboard /></P></CNSProvider>} />
             <Route path="agents" element={<P><AgentCommandCenter /></P>} />
             <Route path="agents/:tab" element={<P><AgentCommandCenter /></P>} />
 

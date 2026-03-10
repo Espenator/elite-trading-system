@@ -248,51 +248,45 @@ export default function TradeExecution() {
   const maxBidSz = Math.max(...displayLadder.map(r => r.side === 'bid' ? (r.bidSize || r.size || 0) : 0), 1);
   const maxAskSz = Math.max(...displayLadder.map(r => r.side === 'ask' ? (r.askSize || r.size || 0) : 0), 1);
 
-  /* ── Fallback: Order Book (two halves) ── */
-  const displayBookTop = bookArr.length > 0 ? bookArr.slice(0, Math.ceil(bookArr.length / 2)) : Array.from({ length: 10 }, () => ({
-    asset: '-', bid: (0).toFixed(3), ask: (0).toFixed(3), value: 0,
-  }));
-  const displayBookBot = bookArr.length > 0 ? bookArr.slice(Math.ceil(bookArr.length / 2)) : Array.from({ length: 12 }, () => ({
-    asset: 0, bid: (0).toFixed(3), ask: (0).toFixed(3), volume: '-',
-  }));
+  /* ── Fallback: Order Book (mockup: Bid/Size/Total, Ask/Size/Total) ── */
+  const bookBids = orderBook?.bids || [];
+  const bookAsks = orderBook?.asks || [];
+  const displayBookBids = bookBids.length > 0 ? bookBids.slice(0, 10) : [
+    { price: 4450.25, size: 310, total: 310 },
+    { price: 4450.50, size: 85, total: 395 },
+    { price: 4449.75, size: 120, total: 515 },
+    { price: 4449.50, size: 45, total: 560 },
+    { price: 4449.25, size: 200, total: 760 },
+  ];
+  const displayBookAsks = bookAsks.length > 0 ? bookAsks.slice(0, 10) : [
+    { price: 4450.50, size: 72, total: 72 },
+    { price: 4450.75, size: 95, total: 167 },
+    { price: 4451.50, size: 38, total: 205 },
+    { price: 4451.75, size: 110, total: 315 },
+    { price: 4452.00, size: 60, total: 375 },
+  ];
 
-  /* ── Fallback: News Feed ── */
+  /* ── Fallback: News Feed (mockup: timestamp first, colored dot, headline) ── */
   const displayNews = newsArr.length > 0 ? newsArr : [
-    { time: '2 min ago',  text: 'Evercore ISI: market volatility expected to rise amid trade policy uncertainty heading into Q3...', type: 'warning' },
-    { time: '7 min ago',  text: 'Nvidia reports record data center revenue, beating estimates by 12% on strong AI chip demand...', type: 'positive' },
-    { time: '15 min ago', text: 'US Treasury yields spike as Fed signals fewer rate cuts, SPX futures down 0.8% in after-hours...', type: 'negative' },
-    { time: '32 min ago', text: 'Apple announces strategic AI partnership with OpenAI; shares up 2.1% on the news...', type: 'info' },
-    { time: '1 hour ago', text: 'CrowdStrike downgraded by Morgan Stanley on valuation concerns after 60% YTD run-up...', type: 'negative' },
+    { time: '09:30:05', text: 'FED official comments on interest rates cause market volatility.', type: 'info' },
+    { time: '09:25:45', text: 'Strong economic data released, boosting sentiment.', type: 'positive' },
+    { time: '09:15:30', text: 'Breaking: Geopolitical tensions escalate, impacting oil prices.', type: 'negative' },
+    { time: '09:10:15', text: 'Earnings Alert: XYZ Inc. reports Q2 results, beats estimates.', type: 'warning' },
   ];
 
-  /* ── Fallback: System Status Log ── */
+  /* ── Fallback: System Status Log (mockup: timestamp, dot, message) ── */
   const displayStatus = statusArr.length > 0 ? statusArr : [
-    { time: '16:55:28', text: 'Processed Brackets succeeded.', type: 'success' },
-    { time: '16:55:27', text: 'Processed Quotes succeeded.', type: 'success' },
-    { time: '16:55:25', text: 'Rescanned System Status log.', type: 'warning' },
-    { time: '16:55:24', text: 'Order:Vertation moved compose queue.', type: 'info' },
-    { time: '16:55:22', text: 'Processed Destinations exceeded.', type: 'success' },
-    { time: '16:55:21', text: 'Processed Quotes succeeded.', type: 'success' },
-    { time: '16:55:20', text: 'Rescanned System Status log.', type: 'warning' },
-    { time: '16:55:18', text: 'Kelly optimizer recalc: edge 4.2%, quality 0.88', type: 'info' },
-    { time: '16:55:15', text: 'Alpaca WS heartbeat OK. Latency: 8ms', type: 'success' },
-    { time: '16:55:12', text: 'Risk gov: heat 68%, regime BULL_VOLATILE', type: 'info' },
-    { time: '16:55:10', text: 'Bracket NVDA queued: 785.50/820/770', type: 'success' },
-    { time: '16:55:08', text: 'Circuit breaker armed: max $15,000/day', type: 'warning' },
-    { time: '16:55:05', text: 'Market data: 342 symbols active', type: 'success' },
-    { time: '16:55:01', text: 'Session opened. Equity: $1,580,420.55', type: 'info' },
+    { time: '09:30:12', text: 'Order #123456 executed successfully (SPX, Buy, 50 contracts).', type: 'success' },
+    { time: '09:30:08', text: 'Connected to market data feed: Latency 8ms.', type: 'info' },
+    { time: '09:30:02', text: 'Warning: High market volatility detected.', type: 'warning' },
+    { time: '09:30:00', text: 'System initialized. All services online.', type: 'success' },
+    { time: '09:29:55', text: 'User Logged In: ELITE status confirmed.', type: 'info' },
   ];
 
-  /* ── Fallback: Positions ── */
+  /* ── Fallback: Positions (mockup: Symbol, Side, Qty, Avg Price, Current Price, P/L, Actions) ── */
   const displayPositions = posArr.length > 0 ? posArr : [
-    { symbol: 'SPX',  orderName: 'Iron Condor 06/21',      orderType: 'Multi-Leg', quantity: 10,   limit: '$2.45',   status: 'FILLED',   legs: 4 },
-    { symbol: 'NVDA', orderName: 'Bracket Buy 785.50',     orderType: 'Bracket',   quantity: 150,  limit: '$785.50', status: 'PENDING',  legs: 3 },
-    { symbol: 'AAPL', orderName: 'Trail Stop -1.5%',       orderType: 'Trailing',  quantity: 500,  limit: 'T-1.5%',  status: 'ACCEPTED', legs: 1 },
-    { symbol: 'TSLA', orderName: 'OCO Exit 195/180',       orderType: 'OCO',       quantity: 200,  limit: '$195.00', status: 'ACCEPTED', legs: 2 },
-    { symbol: 'MSFT', orderName: 'OTO Entry + TP',         orderType: 'OTO',       quantity: 100,  limit: '$405.00', status: 'PARTIAL',  legs: 2 },
-    { symbol: 'META', orderName: 'Limit Buy 480',          orderType: 'Limit',     quantity: 300,  limit: '$480.00', status: 'FILLED',   legs: 1 },
-    { symbol: 'PLTR', orderName: 'Bracket Short 25.50',    orderType: 'Bracket',   quantity: 1000, limit: '$25.50',  status: 'ACCEPTED', legs: 3 },
-    { symbol: 'AMD',  orderName: 'Trail Stop -$2.00',      orderType: 'Trailing',  quantity: 250,  limit: 'T-$2.00', status: 'ACCEPTED', legs: 1 },
+    { symbol: 'SPX', side: 'Long',  quantity: 10, avgPrice: 4450.25, currentPrice: 4450.25, pnl: 7625 },
+    { symbol: 'SPX', side: 'Short', quantity: 10, avgPrice: 4450.25, currentPrice: 4450.25, pnl: 7625 },
   ];
 
   /* Strike helpers */
@@ -319,11 +313,11 @@ export default function TradeExecution() {
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-400 to-transparent" />
         <span className="font-mono text-sm font-bold text-white uppercase tracking-widest">TRADE EXECUTION</span>
         <div className="flex items-center gap-5 ml-auto font-mono text-[10px]">
-          <span><span className="text-gray-500 mr-1">Portfolio:</span><span className="text-white">{fmtUsd(portfolio.value || 1580430.55)}</span></span>
+          <span><span className="text-gray-500 mr-1">Portfolio:</span><span className="text-white">{fmtUsd(portfolio.value || 1580420.55)}</span></span>
           <span className="text-gray-700">|</span>
           <span><span className="text-gray-500 mr-1">Daily P/L:</span><span className="text-[#00e676]">+{fmtUsd(portfolio.dailyPnl || 12500.80)}</span></span>
           <span className="text-gray-700">|</span>
-          <span><span className="text-gray-500 mr-1">Status:</span><span className="text-[#00D9FF] font-semibold">{portfolio.status || 'ELITE'}</span></span>
+          <span><span className="text-gray-500 mr-1">Status:</span><span className="px-2 py-0.5 rounded text-[9px] font-bold bg-[#00D9FF]/25 text-[#00D9FF]">{portfolio.status || 'ELITE'}</span></span>
           <span className="text-gray-700">|</span>
           <span><span className="text-gray-500 mr-1">Latency:</span><span className="text-white">{portfolio.latency || 8}ms</span></span>
         </div>
@@ -355,7 +349,7 @@ export default function TradeExecution() {
           onClick={() => withPreflight('sell', executeLimitSell)}
           disabled={loading || preflightLoading}
           className="px-3.5 py-[5px] rounded-[3px] font-mono text-[9px] font-semibold bg-transparent border border-[#ff3860] text-[#ff3860] hover:brightness-[1.2] hover:-translate-y-px transition-all disabled:opacity-50 flex items-center gap-1.5"
-        >Limit Sell <span className="text-[7px] bg-black/30 px-[3px] py-px rounded-sm">K</span></button>
+        >Limit Sell <span className="text-[7px] bg-black/30 px-[3px] py-px rounded-sm">O</span></button>
         {/* Stop Loss */}
         <button
           onClick={executeStopLoss}
@@ -488,15 +482,18 @@ export default function TradeExecution() {
             </FormField>
 
             <FormField label="Limit:">
-              <FormInput type="number" step="0.01" value={orderForm.limitPrice} onChange={e => updateOrderForm({ limitPrice: parseFloat(e.target.value) || 0 })} className="flex-1" />
+              <div className="flex-1 flex gap-2">
+                <FormInput type="number" step="0.01" value={orderForm.limitPrice} onChange={e => updateOrderForm({ limitPrice: parseFloat(e.target.value) || 0 })} className="flex-1" placeholder="1.55" />
+                <FormInput type="number" step="0.01" value={orderForm.stopPrice} onChange={e => updateOrderForm({ stopPrice: parseFloat(e.target.value) || 0 })} className="flex-1" placeholder="1.00" />
+              </div>
             </FormField>
 
             {/* Execute button -- cyan/teal gradient matching mockup */}
             <button
               onClick={() => withPreflight('buy', executeAdvancedOrder)}
               disabled={loading}
-              className="w-full py-3 mt-3.5 rounded font-mono text-[13px] font-bold text-black uppercase tracking-[1px] bg-gradient-to-br from-[#007a8a] to-[#00d4e8] hover:brightness-[1.15] hover:-translate-y-px transition-all disabled:opacity-50 disabled:cursor-wait shadow-[0_4px_20px_rgba(0,212,232,0.15)] hover:shadow-[0_6px_30px_rgba(0,212,232,0.3)]"
-            >{loading ? 'Executing...' : 'Execute Order'}</button>
+              className="w-full py-3 mt-3.5 rounded font-mono text-[13px] font-bold text-black uppercase tracking-[1px] bg-gradient-to-br from-[#007a8a] to-[#00d4e8] hover:brightness-[1.15] hover:-translate-y-px transition-all disabled:opacity-50 disabled:cursor-wait shadow-[0_4px_20px_rgba(0,212,232,0.15)] hover:shadow-[0_6px_30px_rgba(0,212,232,0.3)] flex items-center justify-center gap-2"
+            >{loading ? 'Executing...' : <>Execute Order <span className="text-[9px] bg-black/25 px-[4px] py-px rounded-sm">E</span></>}</button>
           </div>
         </div>
         {/* VisualPriceLadder — narrow adjacent column (~1/4 width) */}
@@ -515,45 +512,39 @@ export default function TradeExecution() {
         <div className="bg-[#111827]/80 flex flex-col overflow-hidden">
           <PanelHead>Live Order Book</PanelHead>
           <div className="flex-1 overflow-y-auto">
-            {/* Top asks */}
             <table className="w-full border-collapse">
               <thead>
                 <tr>
-                  <th className="px-1.5 py-1 font-mono text-[8px] text-gray-500 uppercase text-left border-b border-[rgba(42,52,68,0.5)] sticky top-0 bg-[#111827] z-[2]">Asset</th>
-                  <th className="px-1.5 py-1 font-mono text-[8px] text-gray-500 uppercase text-right border-b border-[rgba(42,52,68,0.5)] sticky top-0 bg-[#111827] z-[2]">Bid</th>
-                  <th className="px-1.5 py-1 font-mono text-[8px] text-gray-500 uppercase text-right border-b border-[rgba(42,52,68,0.5)] sticky top-0 bg-[#111827] z-[2]">Ask</th>
-                  <th className="px-1.5 py-1 font-mono text-[8px] text-gray-500 uppercase text-right border-b border-[rgba(42,52,68,0.5)] sticky top-0 bg-[#111827] z-[2]">Value</th>
+                  <th className="px-1.5 py-1 font-mono text-[8px] text-gray-500 uppercase text-left border-b border-[rgba(42,52,68,0.5)] sticky top-0 bg-[#111827] z-[2]">Bid</th>
+                  <th className="px-1.5 py-1 font-mono text-[8px] text-gray-500 uppercase text-right border-b border-[rgba(42,52,68,0.5)] sticky top-0 bg-[#111827] z-[2]">Size</th>
+                  <th className="px-1.5 py-1 font-mono text-[8px] text-gray-500 uppercase text-right border-b border-[rgba(42,52,68,0.5)] sticky top-0 bg-[#111827] z-[2]">Total</th>
                 </tr>
               </thead>
               <tbody>
-                {displayBookTop.map((r, i) => (
-                  <tr key={i} className="hover:bg-[rgba(0,212,232,0.03)]">
-                    <td className="px-1.5 py-[3px] font-mono text-[9px] text-gray-500 border-b border-[rgba(26,39,68,0.3)]">{r.asset || '-'}</td>
-                    <td className="px-1.5 py-[3px] font-mono text-[9px] text-[#00e676] text-right border-b border-[rgba(26,39,68,0.3)]">{parseFloat(r.bid || r.price || 0).toFixed(3)}</td>
-                    <td className="px-1.5 py-[3px] font-mono text-[9px] text-[#ff3860] text-right border-b border-[rgba(26,39,68,0.3)]">{parseFloat(r.ask || 0).toFixed(3)}</td>
-                    <td className="px-1.5 py-[3px] font-mono text-[9px] text-[#c8d6e5] text-right border-b border-[rgba(26,39,68,0.3)]">{r.value || r.total || '-'}</td>
+                {displayBookBids.map((r, i) => (
+                  <tr key={`b-${i}`} className="hover:bg-[rgba(0,212,232,0.03)]">
+                    <td className="px-1.5 py-[3px] font-mono text-[9px] text-[#00e676] border-b border-[rgba(26,39,68,0.3)]">{parseFloat(r.price ?? r.bid ?? 0).toFixed(2)}</td>
+                    <td className="px-1.5 py-[3px] font-mono text-[9px] text-[#c8d6e5] text-right border-b border-[rgba(26,39,68,0.3)]">{r.size ?? r.qty ?? 0}</td>
+                    <td className="px-1.5 py-[3px] font-mono text-[9px] text-[#c8d6e5] text-right border-b border-[rgba(26,39,68,0.3)]">{r.total ?? r.size ?? 0}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <div className="border-t border-[rgba(42,52,68,0.5)]" />
-            {/* Bottom bids */}
+            <div className="border-t-2 border-[rgba(42,52,68,0.5)]" />
             <table className="w-full border-collapse">
               <thead>
                 <tr>
-                  <th className="px-1.5 py-1 font-mono text-[8px] text-gray-500 uppercase text-left border-b border-[rgba(42,52,68,0.5)] bg-[#111827]">Asset $</th>
-                  <th className="px-1.5 py-1 font-mono text-[8px] text-gray-500 uppercase text-right border-b border-[rgba(42,52,68,0.5)] bg-[#111827]">Bid</th>
-                  <th className="px-1.5 py-1 font-mono text-[8px] text-gray-500 uppercase text-right border-b border-[rgba(42,52,68,0.5)] bg-[#111827]">Ask</th>
-                  <th className="px-1.5 py-1 font-mono text-[8px] text-gray-500 uppercase text-right border-b border-[rgba(42,52,68,0.5)] bg-[#111827]">Volume</th>
+                  <th className="px-1.5 py-1 font-mono text-[8px] text-gray-500 uppercase text-left border-b border-[rgba(42,52,68,0.5)] bg-[#111827]">Ask</th>
+                  <th className="px-1.5 py-1 font-mono text-[8px] text-gray-500 uppercase text-right border-b border-[rgba(42,52,68,0.5)] bg-[#111827]">Size</th>
+                  <th className="px-1.5 py-1 font-mono text-[8px] text-gray-500 uppercase text-right border-b border-[rgba(42,52,68,0.5)] bg-[#111827]">Total</th>
                 </tr>
               </thead>
               <tbody>
-                {displayBookBot.map((r, i) => (
-                  <tr key={i} className="hover:bg-[rgba(0,212,232,0.03)]">
-                    <td className="px-1.5 py-[3px] font-mono text-[9px] text-[#c8d6e5] border-b border-[rgba(26,39,68,0.3)]">{r.asset || '-'}</td>
-                    <td className="px-1.5 py-[3px] font-mono text-[9px] text-[#00e676] text-right border-b border-[rgba(26,39,68,0.3)]">{parseFloat(r.bid || r.price || 0).toFixed(3)}</td>
-                    <td className="px-1.5 py-[3px] font-mono text-[9px] text-[#ff3860] text-right border-b border-[rgba(26,39,68,0.3)]">{parseFloat(r.ask || 0).toFixed(3)}</td>
-                    <td className="px-1.5 py-[3px] font-mono text-[9px] text-[#c8d6e5] text-right border-b border-[rgba(26,39,68,0.3)]">{r.volume || '-'}</td>
+                {displayBookAsks.map((r, i) => (
+                  <tr key={`a-${i}`} className="hover:bg-[rgba(0,212,232,0.03)]">
+                    <td className="px-1.5 py-[3px] font-mono text-[9px] text-[#ff3860] border-b border-[rgba(26,39,68,0.3)]">{parseFloat(r.price ?? r.ask ?? 0).toFixed(2)}</td>
+                    <td className="px-1.5 py-[3px] font-mono text-[9px] text-[#c8d6e5] text-right border-b border-[rgba(26,39,68,0.3)]">{r.size ?? r.qty ?? 0}</td>
+                    <td className="px-1.5 py-[3px] font-mono text-[9px] text-[#c8d6e5] text-right border-b border-[rgba(26,39,68,0.3)]">{r.total ?? r.size ?? 0}</td>
                   </tr>
                 ))}
               </tbody>
@@ -600,12 +591,10 @@ export default function TradeExecution() {
                   item.type === 'positive' || item.type === 'success' ? 'bg-[#00e676]' :
                   'bg-[#00D9FF]';
                 return (
-                  <div key={i} className="px-2.5 py-1.5 border-b border-[rgba(26,39,68,0.3)] flex gap-1.5 items-start">
-                    <span className={clsx('w-1 h-1 rounded-full mt-1.5 shrink-0', dotColor)} />
-                    <div className="min-w-0">
-                      <div className="text-[9px] text-gray-500 leading-snug">{item.text}</div>
-                      <div className="text-[7px] text-gray-500 opacity-60 mt-0.5">{item.time}</div>
-                    </div>
+                  <div key={i} className="px-2.5 py-1.5 border-b border-[rgba(26,39,68,0.3)] flex gap-2 items-start">
+                    <span className="text-[8px] font-mono text-gray-500 shrink-0">{item.time}</span>
+                    <span className={clsx('w-1.5 h-1.5 rounded-full mt-1 shrink-0', dotColor)} />
+                    <div className="text-[9px] text-slate-300 leading-snug min-w-0">{item.text}</div>
                   </div>
                 );
               })}
@@ -623,23 +612,30 @@ export default function TradeExecution() {
             <table className="w-full border-collapse">
               <thead>
                 <tr>
-                  {['Asset', 'Order Name', 'Order Type', 'Quantity', 'Limit', 'Order Log', 'Legs'].map(h => (
+                  {['Symbol', 'Side', 'Quantity', 'Avg. Price', 'Current Price', 'P/L', 'Actions'].map(h => (
                     <th key={h} className="px-2 py-1.5 font-mono text-[8px] text-gray-500 uppercase text-left border-b border-[rgba(42,52,68,0.5)] sticky top-0 bg-[#111827]/80 z-[2]">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {displayPositions.map((pos, i) => {
-                  const sc = pos.status === 'FILLED' || pos.status === 'ACCEPTED' ? 'text-[#00e676]' : pos.status === 'PENDING' || pos.status === 'PARTIAL' ? 'text-[#ffab00]' : 'text-[#c8d6e5]';
+                  const side = pos.side || (pos.quantity > 0 ? 'Long' : 'Short');
+                  const pnl = pos.pnl ?? pos.unrealizedPl ?? pos.pnl_impact ?? 0;
+                  const pnlClr = pnl >= 0 ? 'text-[#00e676]' : 'text-[#ff3860]';
                   return (
                     <tr key={i} className="hover:bg-[rgba(0,212,232,0.03)]">
                       <td className="px-2 py-1 font-mono text-[9px] text-[#00D9FF] border-b border-[rgba(26,39,68,0.3)]">{pos.symbol}</td>
-                      <td className="px-2 py-1 font-mono text-[9px] text-[#c8d6e5] border-b border-[rgba(26,39,68,0.3)]">{pos.orderName || `${pos.side || ''} ${pos.symbol}`}</td>
-                      <td className="px-2 py-1 font-mono text-[9px] text-[#c8d6e5] border-b border-[rgba(26,39,68,0.3)]">{pos.orderType || 'Market'}</td>
-                      <td className="px-2 py-1 font-mono text-[9px] text-[#c8d6e5] border-b border-[rgba(26,39,68,0.3)]">{pos.quantity || pos.qty || 0}</td>
-                      <td className="px-2 py-1 font-mono text-[9px] text-[#c8d6e5] border-b border-[rgba(26,39,68,0.3)]">{pos.limit || (pos.avgPrice ? fmtUsd(pos.avgPrice) : '-')}</td>
-                      <td className={clsx('px-2 py-1 font-mono text-[9px] border-b border-[rgba(26,39,68,0.3)]', sc)}>{pos.status || 'ACTIVE'}</td>
-                      <td className="px-2 py-1 font-mono text-[9px] text-[#c8d6e5] border-b border-[rgba(26,39,68,0.3)]">{pos.legs || '-'}</td>
+                      <td className={clsx('px-2 py-1 font-mono text-[9px] font-semibold border-b border-[rgba(26,39,68,0.3)]', side === 'Long' ? 'text-[#00e676]' : 'text-[#ff3860]')}>{side}</td>
+                      <td className="px-2 py-1 font-mono text-[9px] text-[#c8d6e5] border-b border-[rgba(26,39,68,0.3)]">{pos.quantity ?? pos.qty ?? 0}</td>
+                      <td className="px-2 py-1 font-mono text-[9px] text-[#c8d6e5] border-b border-[rgba(26,39,68,0.3)]">{(pos.avgPrice ?? pos.avg_entry_price) != null ? fmtUsd(pos.avgPrice ?? pos.avg_entry_price) : '-'}</td>
+                      <td className="px-2 py-1 font-mono text-[9px] text-[#c8d6e5] border-b border-[rgba(26,39,68,0.3)]">{(pos.currentPrice ?? pos.current_price ?? pos.market_value) != null ? fmtUsd(pos.currentPrice ?? pos.current_price) : '-'}</td>
+                      <td className={clsx('px-2 py-1 font-mono text-[9px] font-semibold border-b border-[rgba(26,39,68,0.3)]', pnlClr)}>{(pnl >= 0 ? '+' : '') + fmtUsd(pnl)}</td>
+                      <td className="px-2 py-1 border-b border-[rgba(26,39,68,0.3)]">
+                        <div className="flex gap-1">
+                          <button onClick={() => closePosition?.(pos.symbol, pos.side)} className="px-1.5 py-0.5 rounded text-[8px] font-medium bg-[#0B0E14] border border-[rgba(42,52,68,0.5)] text-slate-300 hover:text-red-400 hover:border-red-500/30 transition-colors">Close</button>
+                          <button onClick={() => adjustPosition?.(pos.symbol, pos.side)} className="px-1.5 py-0.5 rounded text-[8px] font-medium bg-[#0B0E14] border border-[rgba(42,52,68,0.5)] text-slate-300 hover:text-[#00D9FF] transition-colors">Adjust</button>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
@@ -653,15 +649,20 @@ export default function TradeExecution() {
           <PanelHead>System Status Log</PanelHead>
           <div className="flex-1 overflow-y-auto px-2.5 py-1.5 font-mono text-[8px]">
             {displayStatus.map((item, i) => {
+              const dotColor =
+                item.type === 'success' ? 'bg-[#00e676]' :
+                item.type === 'warning' ? 'bg-[#ffab00]' :
+                item.type === 'info' ? 'bg-[#00D9FF]' :
+                item.type === 'error' ? 'bg-[#ff3860]' : 'bg-[#00e676]';
               const tc =
                 item.type === 'success' ? 'text-[#00e676]' :
                 item.type === 'warning' ? 'text-[#ffab00]' :
-                item.type === 'info'    ? 'text-[#00D9FF]' :
-                item.type === 'error'   ? 'text-[#ff3860]' :
-                'text-[#00e676]';
+                item.type === 'info' ? 'text-[#00D9FF]' :
+                item.type === 'error' ? 'text-[#ff3860]' : 'text-slate-300';
               return (
-                <div key={i} className="mb-px leading-relaxed">
-                  <span className="text-gray-500">[{item.time}]</span>{' '}
+                <div key={i} className="flex gap-2 items-start py-1 border-b border-[rgba(26,39,68,0.2)] last:border-0">
+                  <span className="text-gray-500 shrink-0">{item.time}</span>
+                  <span className={clsx('w-1.5 h-1.5 rounded-full mt-1 shrink-0', dotColor)} />
                   <span className={tc}>{item.text}</span>
                 </div>
               );

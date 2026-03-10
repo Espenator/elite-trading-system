@@ -1,5 +1,5 @@
 // EMBODIER TRADER — Sidebar (Aurora Design System)
-// V3 CONSOLIDATION: 16 sidebar pages (see V3-ARCHITECTURE.md)
+// V3 CONSOLIDATION: 14 sidebar pages (see V3-ARCHITECTURE.md)
 //
 // Visual spec (matches mockups exactly):
 //   - bg: #111827, border-right: rgba(42,52,68,0.5)
