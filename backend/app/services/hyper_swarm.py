@@ -1,6 +1,6 @@
 """HyperSwarm — orchestrates 50+ concurrent micro-analysis swarms via local LLMs.
 
-The original SwarmSpawner runs 5 full council evaluations (17 agents each).
+The original SwarmSpawner runs 5 full council evaluations (31 agents each).
 HyperSwarm takes a different approach: spawn HUNDREDS of lightweight micro-swarms
 that each use a single local Ollama call (<500ms, free) for rapid triage.
 

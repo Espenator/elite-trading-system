@@ -3,7 +3,7 @@ OpenClaw Module — DEPRECATED.
 
 The OpenClaw multi-agent swarm intelligence has been superseded by:
 - Bayesian regime engine (backend/app/services/regime_engine.py)
-- 17-agent council DAG (backend/app/council/)
+- 31-agent council DAG (backend/app/council/)
 - Debate engine + Red Team adversarial layer
 
 This module is preserved ONLY for the /api/v1/openclaw/regime endpoint

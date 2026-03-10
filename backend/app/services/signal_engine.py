@@ -136,7 +136,7 @@ def _compute_composite_score(quotes: List[dict]) -> Tuple[float, str]:
 
     AUDIT NOTE (Task 14): These weights are heuristic, not calibrated against
     historical trade outcomes. The signal engine should cast a wide net — the
-    17-agent council is the real intelligence layer. Consider:
+    31-agent council is the real intelligence layer. Consider:
     - Lowering the gate threshold (currently 65) to ~55 to avoid filtering out
       opportunities the council would have approved
     - Running a backtest sweep over thresholds 45-75 to find optimal gate

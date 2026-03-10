@@ -1,7 +1,7 @@
 """Council Gate — bridges SignalEngine → Council → OrderExecutor.
 
 Subscribes to signal.generated on the MessageBus.  When a signal arrives
-with score >= gate_threshold the full 13-agent council is invoked.
+with score >= gate_threshold the full 31-agent council is invoked.
 If the council verdict is execution_ready the signal is re-published as
 council.verdict which the OrderExecutor listens on.
 
@@ -125,7 +125,7 @@ class CouncilGate:
     async def _evaluate_with_council(
         self, symbol: str, signal_data: Dict[str, Any]
     ) -> None:
-        """Run the full 13-agent council for the symbol."""
+        """Run the full 31-agent council for the symbol."""
         async with self._semaphore:
             self._symbol_last_eval[symbol] = time.time()
             self._councils_invoked += 1

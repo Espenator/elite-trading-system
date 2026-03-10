@@ -1,14 +1,17 @@
-"""Council schemas — shared data structures for the 17-agent council.
+"""Council schemas — shared data structures for the 31-agent council.
 
-DAG: 7 stages, 17 agents + arbiter + debate stage 5.5.
-Stage 1: [market_perception, flow_perception, regime, social_perception, news_catalyst, youtube_knowledge, intermarket]
-Stage 2: [rsi, bbv, ema_trend, relative_strength, cycle_timing]
-Stage 3: [hypothesis]
+DAG: 7 stages, 31 agents + arbiter + debate stage 5.5.
+Stage 1: [market_perception, flow_perception, regime, social_perception, news_catalyst, youtube_knowledge, intermarket,
+          gex_agent, insider_agent, finbert_sentiment_agent, earnings_tone_agent, dark_pool_agent, macro_regime_agent]
+Stage 2: [rsi, bbv, ema_trend, relative_strength, cycle_timing,
+          supply_chain_agent, institutional_flow_agent, congressional_agent]
+Stage 3: [hypothesis, layered_memory_agent]
 Stage 4: [strategy]
-Stage 5: [risk, execution]
+Stage 5: [risk, execution, portfolio_optimizer_agent]
 Stage 5.5: [debate_engine, bull_debater, bear_debater, red_team]
 Stage 6: [critic]
 Stage 7: arbiter (deterministic)
+Post-arbiter: [alt_data_agent] (background enrichment)
 
 Embodier Trader Being Intelligence (ETBI) cognitive extensions:
   - CognitiveMeta: tracks exploration/exploitation mode, hypothesis diversity,

@@ -1,7 +1,7 @@
-"""Council API — evaluate symbols through the 13-agent council.
+"""Council API — evaluate symbols through the 31-agent council.
 
 POST /api/v1/council/evaluate  -> full DecisionPacket
-GET  /api/v1/council/status    -> council configuration (13 agents, 7 stages)
+GET  /api/v1/council/status    -> council configuration (31 agents, 7 stages)
 GET  /api/v1/council/latest    -> most recent DecisionPacket
 GET  /api/v1/council/weights   -> current agent weights (Bayesian-updated)
 POST /api/v1/council/weights/reset -> reset weights to defaults
@@ -49,7 +49,7 @@ def _check_rate_limit():
 
 @router.post("/evaluate", dependencies=[Depends(require_auth)])
 async def evaluate_symbol(req: CouncilEvalRequest):
-    """Run the 13-agent council on a symbol and return DecisionPacket."""
+    """Run the 31-agent council on a symbol and return DecisionPacket."""
     global _latest_decision
     _check_rate_limit()
     try:
@@ -80,7 +80,7 @@ async def council_latest():
 
 @router.get("/status")
 async def council_status():
-    """Return council configuration and agent list (13 agents, 7 stages)."""
+    """Return council configuration and agent list (31 agents, 7 stages)."""
     import os
 
     # Try to get live weight data from weight_learner
@@ -96,7 +96,7 @@ async def council_status():
         "council_enabled": os.getenv("COUNCIL_ENABLED", "true").lower() == "true",
         "brain_enabled": os.getenv("BRAIN_ENABLED", "false").lower() == "true",
         "council_gate_enabled": os.getenv("COUNCIL_GATE_ENABLED", "true").lower() == "true",
-        "agent_count": 13,
+        "agent_count": 31,
         "agents": [
             "market_perception",
             "flow_perception",

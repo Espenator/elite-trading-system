@@ -53,7 +53,7 @@ def arbitrate(
         symbol: Ticker symbol
         timeframe: Timeframe
         timestamp: ISO timestamp
-        votes: List of AgentVote from all 13 agents
+        votes: List of AgentVote from all 31 agents
 
     Returns:
         DecisionPacket with final decision

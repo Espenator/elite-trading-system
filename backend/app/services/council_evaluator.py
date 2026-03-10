@@ -1,6 +1,6 @@
 """Council Evaluator — bridges signal engine to council DAG.
 
-Subscribes to signal.generated events and triggers full 17-agent council
+Subscribes to signal.generated events and triggers full 31-agent council
 evaluation when signal strength warrants it. The council decision then
 gates order execution, replacing the direct signal→order flow.
 
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 class CouncilEvaluator:
-    """Bridges signal engine to 17-agent council for intelligent trade gating."""
+    """Bridges signal engine to 31-agent council for intelligent trade gating."""
 
     def __init__(
         self,
@@ -107,7 +107,7 @@ class CouncilEvaluator:
         asyncio.create_task(self._evaluate(symbol, signal_data))
 
     async def _evaluate(self, symbol: str, signal_data: Dict[str, Any]) -> None:
-        """Run full 17-agent council evaluation for a symbol."""
+        """Run full 31-agent council evaluation for a symbol."""
         start = time.time()
         try:
             from app.council.runner import run_council

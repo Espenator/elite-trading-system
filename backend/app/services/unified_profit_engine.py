@@ -2,7 +2,7 @@
 
 The system previously had 5 independent scoring systems:
   1. SignalEngine (hardcoded RSI+MACD composite)
-  2. Council DAG (17-agent votes)
+  2. Council DAG (31-agent votes)
   3. TurboScanner (SQL screens)
   4. PatternLibrary (12 hardcoded patterns)
   5. ML Brain XGBoost (trained but never deployed)
