@@ -388,6 +388,7 @@ if settings.TRADING_MODE.lower() == "live":
     if not settings.API_AUTH_TOKEN:
         _missing.append("API_AUTH_TOKEN")
     if _missing:
-        import logging as _log
-        _log.warning("Live trading requires: %s. Falling back to paper.", ", ".join(_missing))
-        settings.TRADING_MODE = "paper"
+        raise RuntimeError(
+            f"LIVE trading mode requires: {', '.join(_missing)}. "
+            f"Set these environment variables and restart, or use TRADING_MODE=paper."
+        )

@@ -981,7 +981,7 @@ async def drawdown_episodes():
     return {"episodes": episodes[-10:]}  # Last 10 drawdowns
 
 
-@router.post("/emergency/{action}")
+@router.post("/emergency/{action}", dependencies=[Depends(require_auth)])
 async def emergency_action(action: str):
     """Emergency risk actions: halt, resume, flatten."""
     logger.warning("Emergency risk action: %s", action)

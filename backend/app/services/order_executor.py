@@ -140,6 +140,9 @@ class OrderExecutor:
         self._signals_rejected = 0
         self._total_notional = 0.0
 
+        # Verdict deduplication (prevent double-submit on message replay)
+        self._recent_verdict_hashes: Dict[str, float] = {}  # hash -> timestamp
+
         # Services (lazy-loaded)
         self._alpaca_svc = None
         self._kelly_sizer = None
@@ -205,6 +208,24 @@ class OrderExecutor:
             return
 
         self._signals_received += 1
+
+        # Idempotency: deduplicate identical verdicts (message replay protection)
+        import hashlib, time as _t
+        _vkey = f"{verdict_data.get('symbol','')}" \
+                f"|{verdict_data.get('final_direction','')}" \
+                f"|{verdict_data.get('final_confidence',0)}" \
+                f"|{verdict_data.get('price', verdict_data.get('signal_data',{}).get('price',0))}"
+        _vhash = hashlib.sha256(_vkey.encode()).hexdigest()[:16]
+        _now = _t.time()
+        if _vhash in self._recent_verdict_hashes and (_now - self._recent_verdict_hashes[_vhash]) < 60:
+            logger.warning("Duplicate verdict suppressed: %s (within 60s window)", _vkey)
+            return
+        self._recent_verdict_hashes[_vhash] = _now
+        # Prune stale entries
+        self._recent_verdict_hashes = {
+            k: v for k, v in self._recent_verdict_hashes.items() if _now - v < 120
+        }
+
         symbol = verdict_data.get("symbol", "")
         direction = verdict_data.get("final_direction", "hold")
         confidence = verdict_data.get("final_confidence", 0)

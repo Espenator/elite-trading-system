@@ -8,7 +8,9 @@ GET  /api/v1/features/compatibility?symbol=X&version=2.0.0 → check version com
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
+
+from app.core.security import require_auth
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -50,7 +52,7 @@ async def get_latest_features(
         return {"status": "error", "message": str(e)}
 
 
-@router.post("/compute")
+@router.post("/compute", dependencies=[Depends(require_auth)])
 async def compute_features(req: FeatureComputeRequest):
     """Compute feature vector for a symbol, persist to store, and return."""
     try:

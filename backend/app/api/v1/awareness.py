@@ -8,7 +8,9 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+
+from app.core.security import require_auth
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/awareness", tags=["awareness"])
@@ -18,7 +20,7 @@ class EnrichRequest(BaseModel):
     events: List[Dict[str, Any]] = []
 
 
-@router.post("/enrich")
+@router.post("/enrich", dependencies=[Depends(require_auth)])
 async def awareness_enrich(req: EnrichRequest) -> Dict[str, Any]:
     """Batch enrich sensory events (tags, novelty_score, embedding_ref). Stub when no GPU."""
     enriched: List[Dict[str, Any]] = []
