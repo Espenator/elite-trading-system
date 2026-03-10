@@ -1,11 +1,8 @@
 /**
  * Embodier.ai (Trading) - API Configuration
- * Branch: v2-15-feb-espen-embodier-ai
- *
- * OLEH: This is the foundation file. Every hook and page imports from here.
- * OLEH: Update BASE_URL when deploying. Default is localhost:8000 (our FastAPI backend).
- * OLEH: Every endpoint listed here MUST have a corresponding FastAPI router in backend/app/api/v1/
- * OLEH: If an endpoint doesn't exist yet in backend, create the router file first.
+ * Central API configuration — every hook and page imports from here.
+ * Update BASE_URL when deploying. Default is localhost:8000 (FastAPI backend).
+ * Every endpoint listed here MUST have a corresponding FastAPI router in backend/app/api/v1/.
  *
  * BACKEND REFERENCE:
  *   Routers: stocks, quotes, orders, system, signals, backtest, status,
