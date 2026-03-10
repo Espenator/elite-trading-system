@@ -2,23 +2,26 @@
  * Generic fetch hook for API calls.
  * Uses config/api.js getApiUrl(endpoint).
  * Optional polling when pollIntervalMs > 0.
- * AUDIT FIX (Task 18): Reduced aggressive polling intervals (5-10s -> 15-30s)
- * and added page visibility pause. Use WebSocket subscriptions for real-time updates.
+ *
+ * FIX LOG (Mar 10 2026):
+ *  - AbortSignal.any fallback was dropping user abort signal (memory leaks on unmount)
+ *    Fixed: user signal + timeout signal now combined via addEventListener
+ *  - Added page visibility pause: polling stops when tab is hidden, resumes when visible
+ *  - Reduced aggressive polling intervals (5-10s → 15-30s)
  */
 import { useState, useEffect, useCallback, useRef } from "react";
 import { getApiUrl, getAuthHeaders } from "../config/api";
 
-// Default fetch timeout (15 seconds)
 const DEFAULT_TIMEOUT_MS = 15000;
 
-// Simple in-memory cache for API responses (stale-while-revalidate)
+// Simple in-memory cache (stale-while-revalidate)
 const _apiCache = new Map();
 const CACHE_MAX_SIZE = 200;
 const CACHE_STALE_MS = 300000; // 5 min
 
 // Global concurrency limiter — prevents browser connection exhaustion
 let _activeRequests = 0;
-const MAX_CONCURRENT = 6; // Browser limit per host
+const MAX_CONCURRENT = 6;
 const _queue = [];
 
 function _runNext() {
@@ -46,9 +49,23 @@ function _releaseSlot() {
 const _inflight = new Map();
 
 /**
+ * Combine two AbortSignals without requiring AbortSignal.any (ES2023+).
+ * Works in all browsers including older Electron Chromium builds.
+ * Returns a new AbortController that aborts when EITHER input signal aborts.
+ */
+function _combineSignals(sig1, sig2) {
+  const ctrl = new AbortController();
+  const abort = () => ctrl.abort();
+  if (sig1) sig1.addEventListener('abort', abort, { once: true });
+  if (sig2) sig2.addEventListener('abort', abort, { once: true });
+  // Abort immediately if either is already aborted
+  if (sig1?.aborted || sig2?.aborted) ctrl.abort();
+  return ctrl;
+}
+
+/**
  * @param {string} endpoint - Key from api.js endpoints (e.g. 'agents', 'dataSources')
  * @param {{ pollIntervalMs?: number, enabled?: boolean, endpoint?: string }} options
- * @returns {{ data: T | null, loading: boolean, error: Error | null, isStale: boolean, lastUpdated: number | null, refetch: () => Promise<void> }}
  */
 export function useApi(endpoint, options = {}) {
   const {
@@ -62,6 +79,17 @@ export function useApi(endpoint, options = {}) {
   const [isStale, setIsStale] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
   const abortRef = useRef(null);
+  // Track whether the tab is visible — pause polling when hidden
+  const visibleRef = useRef(!document.hidden);
+
+  // Page visibility listener — pause/resume polling
+  useEffect(() => {
+    const handleVisibility = () => {
+      visibleRef.current = !document.hidden;
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, []);
 
   const fetchData = useCallback(async (signal) => {
     let url = getApiUrl(endpoint);
@@ -86,9 +114,8 @@ export function useApi(endpoint, options = {}) {
           setLastUpdated(Date.now());
         }
         return;
-      } catch (err) {
+      } catch {
         if (signal?.aborted) return;
-        // fall through to cache check below
       } finally {
         if (!signal?.aborted) setLoading(false);
       }
@@ -97,20 +124,19 @@ export function useApi(endpoint, options = {}) {
     const fetchPromise = (async () => {
       await _acquireSlot();
       try {
-        // Timeout via AbortController
+        // FIX: combine user abort + timeout using addEventListener (no AbortSignal.any needed)
         const timeoutCtrl = new AbortController();
         const timeoutId = setTimeout(() => timeoutCtrl.abort(), DEFAULT_TIMEOUT_MS);
-
-        // Combine user abort + timeout signals
-        const combinedSignal = signal
-          ? AbortSignal.any ? AbortSignal.any([signal, timeoutCtrl.signal]) : timeoutCtrl.signal
-          : timeoutCtrl.signal;
+        const combinedCtrl = _combineSignals(signal, timeoutCtrl.signal);
 
         try {
-          const res = await fetch(url, { cache: "no-store", headers: getAuthHeaders(), signal: combinedSignal });
+          const res = await fetch(url, {
+            cache: "no-store",
+            headers: getAuthHeaders(),
+            signal: combinedCtrl.signal,
+          });
           if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
           const json = await res.json();
-          // Evict oldest if cache is full
           if (_apiCache.size >= CACHE_MAX_SIZE) {
             const oldest = _apiCache.keys().next().value;
             _apiCache.delete(oldest);
@@ -136,7 +162,6 @@ export function useApi(endpoint, options = {}) {
       }
     } catch (err) {
       if (signal?.aborted) return;
-      // Use cached data as fallback — but flag as stale
       const cached = _apiCache.get(url);
       if (cached && Date.now() - cached.ts < CACHE_STALE_MS) {
         setData(cached.data);
@@ -156,20 +181,21 @@ export function useApi(endpoint, options = {}) {
       setLoading(false);
       return;
     }
-    // Cancel previous in-flight request
     if (abortRef.current) abortRef.current.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
-
     setLoading(true);
     fetchData(ctrl.signal);
-
     return () => ctrl.abort();
   }, [enabled, fetchData]);
 
+  // Polling with visibility pause — skips tick when tab is hidden
   useEffect(() => {
     if (!enabled || pollIntervalMs <= 0) return;
-    const id = setInterval(() => fetchData(abortRef.current?.signal), pollIntervalMs);
+    const id = setInterval(() => {
+      if (!visibleRef.current) return; // FIX: pause when tab hidden
+      fetchData(abortRef.current?.signal);
+    }, pollIntervalMs);
     return () => clearInterval(id);
   }, [enabled, pollIntervalMs, fetchData]);
 
@@ -202,7 +228,6 @@ export function useKellyRanked(enabled = true) {
 
 /**
  * Shared fetch wrapper with timeout + AbortController support.
- * All POST/PUT helpers use this to prevent indefinite hangs.
  */
 async function apiFetch(url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
   const controller = new AbortController();
@@ -223,7 +248,6 @@ async function apiFetch(url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
   }
 }
 
-/** POST helper for dynamic stop-loss calculation */
 export async function fetchDynamicStopLoss(symbol, entryPrice, side = 'buy') {
   return apiFetch(getApiUrl('dynamicStopLoss'), {
     method: 'POST',
@@ -231,9 +255,9 @@ export async function fetchDynamicStopLoss(symbol, entryPrice, side = 'buy') {
   });
 }
 
-/** POST helper for pre-trade risk check
- *  Bug #24 fix: backend route is POST /api/v1/strategy/pre-trade-check/{ticker}
- *  Symbol must be in the URL path, not just the JSON body.
+/**
+ * Pre-trade risk check.
+ * Backend route: POST /api/v1/strategy/pre-trade-check/{ticker}
  */
 export async function fetchPreTradeCheck(symbol, side = 'buy') {
   return apiFetch(`${getApiUrl('preTradeCheck')}/${encodeURIComponent(symbol)}`, {
@@ -242,7 +266,7 @@ export async function fetchPreTradeCheck(symbol, side = 'buy') {
   });
 }
 
-// --- Agent Command Center Specialized Hooks ---
+// --- Agent Command Center Hooks ---
 
 export function useSwarmTopology(pollMs = 30000) {
   return useApi('swarmTopology', { pollIntervalMs: pollMs });
@@ -269,7 +293,8 @@ export function useAgentResources(pollMs = 15000) {
 }
 
 export function useBlackboardFeed(pollMs = 15000) {
-  return useApi('blackboard', { pollIntervalMs: pollMs });
+  // FIX #3: was 'blackboard' → '/openclaw'. Now correctly hits /cns/blackboard/current
+  return useApi('cnsBlackboard', { pollIntervalMs: pollMs });
 }
 
 // ---- Agent Extended Hooks ----
@@ -297,7 +322,7 @@ export function useWsChannels(pollMs = 30000) {
   return useApi('agentWsChannels', { pollIntervalMs: pollMs });
 }
 
-// ---- Backtesting Enhanced Hooks ----
+// ---- Backtesting Hooks ----
 
 export function useBacktestResults(pollMs = 30000) {
   return useApi('backtestResults', { pollIntervalMs: pollMs });
@@ -327,7 +352,7 @@ export function useBacktestDrawdownAnalysis(pollMs = 60000) {
   return useApi('backtestDrawdownAnalysis', { pollIntervalMs: pollMs });
 }
 
-// ---- Market Regime Page (10/15) Specialized Hooks ----
+// ---- Market Regime Hooks ----
 
 export function useRegimeState(pollMs = 30000) {
   return useApi('openclaw/regime', { pollIntervalMs: pollMs });
@@ -369,18 +394,17 @@ export function useBridgeHealth(pollMs = 30000) {
   return useApi('openclaw/health', { pollIntervalMs: pollMs });
 }
 
-// ---- Council (8-Agent Debate) Hooks ----
+// ---- Council Hooks ----
 
 export function useCouncilLatest(pollMs = 15000) {
   return useApi('councilLatest', { pollIntervalMs: pollMs });
 }
 
-/** POST helper to run a council evaluation */
 export async function fetchCouncilEvaluate(symbol, timeframe = '1d', context = '') {
   return apiFetch(getApiUrl('councilEvaluate'), {
     method: 'POST',
     body: JSON.stringify({ symbol, timeframe, context }),
-  }, 30000); // Council evaluations may take longer
+  }, 30000);
 }
 
 // ---- Feature Store Hooks ----
@@ -392,7 +416,6 @@ export function useFeaturesLatest(symbol, timeframe = '1d', enabled = true) {
   });
 }
 
-/** POST helper to compute + persist a feature vector */
 export async function fetchFeaturesCompute(symbol, timeframe = '1d') {
   return apiFetch(getApiUrl('featuresCompute'), {
     method: 'POST',
@@ -406,7 +429,6 @@ export function useSchedulerStatus(pollMs = 60000) {
   return useApi('flywheelScheduler', { pollIntervalMs: pollMs });
 }
 
-/** POST helper for bias multiplier override */
 export async function postBiasOverride(biasMultiplier) {
   return apiFetch(getApiUrl('openclaw/macro/override'), {
     method: 'POST',
@@ -414,7 +436,7 @@ export async function postBiasOverride(biasMultiplier) {
   });
 }
 
-// ---- CNS (Central Nervous System) Hooks ----
+// ---- CNS Hooks ----
 
 export function useHomeostasis(pollMs = 30000) {
   return useApi('cnsHomeostasis', { pollIntervalMs: pollMs });
@@ -452,7 +474,7 @@ export function useProfitBrain(pollMs = 30000) {
   return useApi('cnsProfitBrain', { pollIntervalMs: pollMs });
 }
 
-// ---- Swarm Intelligence Hooks ----
+// ---- Swarm Hooks ----
 
 export function useSwarmTurbo(pollMs = 30000) {
   return useApi('swarmTurboStatus', { pollIntervalMs: pollMs });
@@ -490,7 +512,6 @@ export function useSwarmMlScorer(pollMs = 30000) {
   return useApi('swarmMlScorerStatus', { pollIntervalMs: pollMs });
 }
 
-/** POST helper to override agent streak status */
 export async function postAgentOverrideStatus(agentName, action) {
   return apiFetch(`${getApiUrl('cnsAgentsHealth').replace('/health', '')}/${encodeURIComponent(agentName)}/override-status`, {
     method: 'POST',
@@ -498,7 +519,6 @@ export async function postAgentOverrideStatus(agentName, action) {
   });
 }
 
-/** POST helper to override agent Bayesian weight */
 export async function postAgentOverrideWeight(agentName, alpha, beta) {
   return apiFetch(`${getApiUrl('cnsAgentsHealth').replace('/health', '')}/${encodeURIComponent(agentName)}/override-weight`, {
     method: 'POST',
@@ -506,7 +526,6 @@ export async function postAgentOverrideWeight(agentName, alpha, beta) {
   });
 }
 
-/** PUT helper to update a directive file */
 export async function putDirective(filename, content) {
   return apiFetch(`${getApiUrl('cnsDirectives')}/${encodeURIComponent(filename)}`, {
     method: 'PUT',
