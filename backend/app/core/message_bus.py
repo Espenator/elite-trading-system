@@ -79,7 +79,8 @@ class MessageBus:
                         "unusual_whales.flow",           # UnusualWhales options flow alerts (agent-facing)
         "unusual_whales.congress",       # UnusualWhales congress trading activity
         "unusual_whales.darkpool",       # UnusualWhales dark pool transactions
-        "perception.finviz.screener",   # Finviz screener results
+        "perception.finviz.screener",   # Finviz screener results (bulk from service)
+        "finviz.screener",              # Finviz adapter per-row SourceEvent
         "perception.macro",             # FRED macro data (CPI, unemployment, VIX, 10Y yield)
         "perception.edgar",             # SEC EDGAR filings
         # OpenClaw graduated scanner topics
@@ -100,6 +101,15 @@ class MessageBus:
         "signal.openclaw.composite",    # OpenClaw composite scorer (0-100)
         "signal.openclaw.ensemble",     # OpenClaw ensemble scorer (ML)
         "signal.unified",               # UnifiedProfitEngine output
+        # Firehose ingestion topics
+        "ingest.raw",
+        "ingest.health",
+        "ingest.dlq",
+        "ingest.to_awareness",
+        "ingest.awareness_enriched",
+        # Symbol prep (Phase 2 — hot-path purity)
+        "symbol.prep.requested",
+        "symbol.prep.ready",
     }
 
     # Topics bridged through Redis when cluster mode is active.
@@ -125,6 +135,10 @@ class MessageBus:
         "perception.finviz.screener",
         "perception.macro",
         "perception.edgar",
+        "ingest.health",
+        "ingest.dlq",
+        "ingest.to_awareness",
+        "ingest.awareness_enriched",
     }
 
     # Redis channel prefix to avoid collisions with other apps

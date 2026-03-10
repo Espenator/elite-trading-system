@@ -228,6 +228,28 @@ async def _risk_monitor_loop():
             await asyncio.sleep(60)
 
 
+async def _brain_heartbeat_loop():
+    """Publish system.heartbeat with brain_state and degraded reasons for operator awareness."""
+    await asyncio.sleep(60)  # First tick after 60s
+    while True:
+        try:
+            from app.api.v1.brain import get_degraded_status
+            status = get_degraded_status()
+            brain_state = "DEGRADED" if status.get("degraded") else "NORMAL"
+            if _message_bus:
+                await _message_bus.publish("system.heartbeat", {
+                    "brain_state": brain_state,
+                    "reasons": status.get("reasons", []),
+                    "details": status.get("details", {}),
+                    "timestamp": status.get("timestamp"),
+                })
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            log.debug("Brain heartbeat failed: %s", e)
+        await asyncio.sleep(60)
+
+
 # ---------------------------------------------------------------------------
 # Event-Driven Architecture: MessageBus + Stream + Signal + Council + Order
 # ---------------------------------------------------------------------------
@@ -606,15 +628,15 @@ async def _start_event_driven_pipeline():
         log.info("\u26A0\uFE0F HyperSwarm skipped (LLM_ENABLED=false)")
 
     # 20. NewsAggregator — 8+ RSS/API news sources every 60s
-    # Publishes swarm.idea + signal.generated events → sync DuckDB processing.
-    if _llm_enabled:
+    # When Firehose is enabled, NewsChannelAgent runs the aggregator (with callback); skip standalone.
+    if _llm_enabled and not firehose_enabled:
         from app.services.news_aggregator import get_news_aggregator
         _news_agg = get_news_aggregator()
         _news_agg._bus = _message_bus
         await _news_agg.start()
         log.info("\u2705 NewsAggregator started (%d RSS feeds)", 9)
     else:
-        log.info("\u26A0\uFE0F NewsAggregator skipped (LLM_ENABLED=false)")
+        log.info("\u26A0\uFE0F NewsAggregator skipped (%s)", "firehose_enabled" if firehose_enabled else "LLM_ENABLED=false")
 
     # 21. MarketWideSweep — batch Alpaca ingest + 10 SQL screens across full market
     # BUG FIX 3: Always start — batch Alpaca ingest + SQL screens, no LLM dependency.
@@ -654,6 +676,27 @@ async def _start_event_driven_pipeline():
     await _outcome_tracker.start()
     log.info("\u2705 OutcomeTracker started (win_rate=%.2f, resolved=%d)",
              _outcome_tracker._stats["win_rate"], _outcome_tracker._stats["total_resolved"])
+
+    # 24b. Pipeline integrity check (critical subscribers; fail startup if FAIL_ON_CRITICAL_SUBSCRIBER_MISSING)
+    try:
+        from app.events.contracts import run_startup_integrity_check
+        integrity_ok, integrity_details = run_startup_integrity_check(_message_bus)
+        if not integrity_ok:
+            log.warning(
+                "Pipeline integrity check failed: missing subscribers for %s",
+                integrity_details.get("missing", []),
+            )
+            if os.getenv("FAIL_ON_CRITICAL_SUBSCRIBER_MISSING", "").strip().lower() in ("1", "true", "yes"):
+                raise RuntimeError(
+                    "Startup aborted: critical pipeline topics have no subscribers. "
+                    "Set FAIL_ON_CRITICAL_SUBSCRIBER_MISSING=false to allow degraded start."
+                )
+        else:
+            log.info("\u2705 Pipeline integrity check passed (critical subscribers registered)")
+    except RuntimeError:
+        raise
+    except Exception as e:
+        log.debug("Pipeline integrity check skipped: %s", e)
 
     # 24b. outcome.resolved subscribers — close the feedback loop (Audit Bug #12)
     async def _on_outcome_resolved(outcome_data):
@@ -1050,6 +1093,7 @@ async def lifespan(app: FastAPI):
     drift_task = asyncio.create_task(_drift_check_loop()) if _llm_on else None
     heartbeat_task = asyncio.create_task(heartbeat_loop())
     risk_monitor_task = asyncio.create_task(_risk_monitor_loop())
+    brain_heartbeat_task = asyncio.create_task(_brain_heartbeat_loop())
 
     log.info("=" * 60)
     log.info("Embodier Trader v%s ONLINE — PRODUCTION (Council-Controlled Intelligence)", settings.APP_VERSION)
@@ -1075,10 +1119,10 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass
         await _stop_event_driven_pipeline()
-        for task in [tick_task, drift_task, heartbeat_task, risk_monitor_task]:
+        for task in [tick_task, drift_task, heartbeat_task, risk_monitor_task, brain_heartbeat_task]:
             if task is not None:
                 task.cancel()
-        for task in [tick_task, drift_task, heartbeat_task, risk_monitor_task]:
+        for task in [tick_task, drift_task, heartbeat_task, risk_monitor_task, brain_heartbeat_task]:
             if task is not None:
                 try:
                     await task

@@ -31,7 +31,7 @@ import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
@@ -133,8 +133,16 @@ class NewsItem:
 class NewsAggregator:
     """Multi-source news aggregator with symbol extraction and sentiment analysis."""
 
-    def __init__(self, message_bus=None):
+    def __init__(
+        self,
+        message_bus=None,
+        *,
+        on_news_item: Optional[Callable[[NewsItem], Awaitable[None]]] = None,
+        publish_to_bus: bool = True,
+    ):
         self._bus = message_bus
+        self._on_news_item = on_news_item
+        self._publish_to_bus = publish_to_bus
         self._running = False
         self._task: Optional[asyncio.Task] = None
         self._seen_hashes: Set[str] = set()
@@ -479,7 +487,12 @@ class NewsAggregator:
     async def _trigger_swarm(self, item: NewsItem):
         """Trigger swarm analysis for actionable news items."""
         self._stats["swarms_triggered"] += 1
-        if self._bus:
+        if self._on_news_item:
+            try:
+                await self._on_news_item(item)
+            except Exception as e:
+                logger.debug("NewsAggregator on_news_item callback failed: %s", e)
+        if self._publish_to_bus and self._bus:
             priority = 1 if item.urgency == "breaking" else (3 if item.urgency == "developing" else 5)
             await self._bus.publish("swarm.idea", {
                 "source": f"news:{item.source}",
@@ -494,9 +507,8 @@ class NewsAggregator:
                     "sentiment_score": item.sentiment_score,
                 },
             })
-            # Also publish as signal.generated for unified scoring (breaking/high-sentiment news)
             if item.urgency in ("breaking", "developing") and item.symbols:
-                score = 50 + abs(item.sentiment_score) * 30  # 50-80 range
+                score = 50 + abs(item.sentiment_score) * 30
                 for sym in item.symbols[:3]:
                     await self._bus.publish("signal.generated", {
                         "symbol": sym,
