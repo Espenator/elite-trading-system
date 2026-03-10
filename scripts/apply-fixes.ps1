@@ -152,8 +152,10 @@ try {
         Log "Backfill triggered successfully!" Green
         $body = $backfillResp.Content | ConvertFrom-Json -ErrorAction SilentlyContinue
         if ($body) {
-            Log "  OHLCV rows: $($body.ohlcv.total_rows ?? 'N/A')" DarkGray
-            Log "  Indicators: $($body.indicators ?? 'N/A')" DarkGray
+            $ohlcvRows = if ($body.ohlcv -and $body.ohlcv.total_rows) { $body.ohlcv.total_rows } else { "N/A" }
+            $indCount  = if ($body.indicators) { $body.indicators } else { "N/A" }
+            Log "  OHLCV rows: $ohlcvRows" DarkGray
+            Log "  Indicators: $indCount" DarkGray
         }
     } else {
         Log "Backfill returned status $($backfillResp.StatusCode)" Yellow
