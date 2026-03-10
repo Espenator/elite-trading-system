@@ -9,6 +9,7 @@
 
 import React, { useEffect, useState } from 'react';
 import clsx from 'clsx';
+import { getApiUrl } from '../../config/api';
 
 /* ─────────────────────────────────────────────────────────────────
    Palette tokens (mirrors TradeExecution.jsx design language)
@@ -533,7 +534,7 @@ export function CouncilDecisionPanel({
     const fetchCouncil = async () => {
       setFetching(true);
       try {
-        const res = await fetch('/api/v1/council/latest');
+        const res = await fetch(getApiUrl('councilLatest'));
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         if (!cancelled) setData(json);
