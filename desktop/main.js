@@ -4,9 +4,9 @@
  * Lifecycle:
  *   1. Show splash screen
  *   2. If first run → show setup wizard
- *   3. Start Python/FastAPI backend
- *   4. Wait for health check
- *   5. Load React frontend in main window
+ *   3. Auto-update from git (pull + rebuild if needed)
+ *   4. Start Python/FastAPI backend from venv
+ *   5. Load React frontend from built dist/
  *   6. Show system tray
  *   7. On quit → graceful backend shutdown
  */
@@ -24,6 +24,7 @@ const fs = require("fs");
 const log = require("electron-log");
 const deviceConfig = require("./device-config");
 const backendManager = require("./backend-manager");
+const autoUpdater = require("./auto-updater");
 const { createTray, updateMenu, destroyTray } = require("./tray");
 const { peerMonitor } = require("./peer-monitor");
 const { serviceOrchestrator } = require("./service-orchestrator");
@@ -51,6 +52,7 @@ app.on("second-instance", () => {
 });
 
 // ── Splash Screen ──────────────────────────────────────────────────────────
+
 function createSplashWindow() {
   splashWindow = new BrowserWindow({
     width: 480,
@@ -71,7 +73,20 @@ function createSplashWindow() {
   return splashWindow;
 }
 
+function updateSplashStatus(text) {
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    const escaped = JSON.stringify(text);
+    splashWindow.webContents.executeJavaScript(
+      `(function() {
+        var el = document.getElementById('status-text');
+        if (el) el.textContent = ${escaped};
+      })()`
+    ).catch(() => {});
+  }
+}
+
 // ── Setup Wizard ───────────────────────────────────────────────────────────
+
 function showSetupWizard() {
   return new Promise((resolve) => {
     const setupWindow = new BrowserWindow({
@@ -114,6 +129,7 @@ function showSetupWizard() {
 }
 
 // ── Main Window ────────────────────────────────────────────────────────────
+
 function createMainWindow() {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
 
@@ -138,8 +154,10 @@ function createMainWindow() {
       label: "Embodier Trader",
       submenu: [
         { label: `Device: ${deviceConfig.getDeviceName()}`, enabled: false },
+        { label: `Mode: ${deviceConfig.getTradingMode().toUpperCase()}`, enabled: false },
         { type: "separator" },
         { label: "Settings", accelerator: "CmdOrCtrl+,", click: () => mainWindow.webContents.send("navigate", "/settings") },
+        { label: "Check for Updates", click: () => manualUpdateCheck() },
         { type: "separator" },
         { label: "Quit", accelerator: "CmdOrCtrl+Q", click: () => app.quit() },
       ],
@@ -164,8 +182,6 @@ function createMainWindow() {
         { label: "Trade Execution", click: () => mainWindow.webContents.send("navigate", "/trade") },
         { label: "Backtesting", click: () => mainWindow.webContents.send("navigate", "/backtest") },
         { label: "Performance", click: () => mainWindow.webContents.send("navigate", "/performance") },
-        { type: "separator" },
-        { label: `Mode: ${deviceConfig.getTradingMode().toUpperCase()}`, enabled: false },
       ],
     },
     {
@@ -180,23 +196,8 @@ function createMainWindow() {
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
 
-  // Load the frontend
-  const isDev = process.env.NODE_ENV === "development";
-  const port = deviceConfig.getBackendPort();
-
-  if (isDev) {
-    // In dev, load from Vite dev server
-    mainWindow.loadURL("http://localhost:3000");
-  } else {
-    // In production, serve the built frontend through the backend
-    const frontendPath = path.join(process.resourcesPath || __dirname, "frontend", "index.html");
-    if (fs.existsSync(frontendPath)) {
-      mainWindow.loadFile(frontendPath);
-    } else {
-      // Fallback: load from the backend's static serving
-      mainWindow.loadURL(`http://127.0.0.1:${port}`);
-    }
-  }
+  // Load the frontend from the built dist/ directory
+  loadFrontend();
 
   mainWindow.on("close", (event) => {
     // Minimize to tray instead of quitting
@@ -213,10 +214,68 @@ function createMainWindow() {
   return mainWindow;
 }
 
+function loadFrontend() {
+  const port = deviceConfig.getBackendPort();
+  const frontendDist = path.join(__dirname, "..", "frontend-v2", "dist", "index.html");
+
+  if (fs.existsSync(frontendDist)) {
+    // Serve from built frontend files
+    log.info(`Loading frontend from: ${frontendDist}`);
+    mainWindow.loadFile(frontendDist);
+  } else if (process.resourcesPath) {
+    // Packaged build: check resources path
+    const packagedFrontend = path.join(process.resourcesPath, "frontend", "index.html");
+    if (fs.existsSync(packagedFrontend)) {
+      mainWindow.loadFile(packagedFrontend);
+    } else {
+      mainWindow.loadURL(`http://127.0.0.1:${port}`);
+    }
+  } else {
+    // Last resort: load from backend
+    mainWindow.loadURL(`http://127.0.0.1:${port}`);
+  }
+}
+
+async function manualUpdateCheck() {
+  try {
+    const result = await autoUpdater.checkForUpdates((status) => {
+      log.info(`Manual update: ${status}`);
+    });
+
+    if (result.updated) {
+      const response = await dialog.showMessageBox(mainWindow, {
+        type: "info",
+        title: "Update Available",
+        message: "Updates were downloaded. Restart to apply?",
+        detail: `${result.changedFiles.length} files updated.`,
+        buttons: ["Restart Now", "Later"],
+      });
+      if (response.response === 0) {
+        app.relaunch();
+        app.quit();
+      }
+    } else {
+      dialog.showMessageBox(mainWindow, {
+        type: "info",
+        title: "No Updates",
+        message: "Embodier Trader is up to date.",
+      });
+    }
+  } catch (err) {
+    dialog.showMessageBox(mainWindow, {
+      type: "error",
+      title: "Update Error",
+      message: "Could not check for updates.",
+      detail: err.message,
+    });
+  }
+}
+
 function showAbout() {
   const sys = deviceConfig.getSystemInfo();
   const deviceName = deviceConfig.getDeviceName();
   const deviceRole = deviceConfig.getDeviceRole();
+  const status = backendManager.getStatus();
 
   dialog.showMessageBox(mainWindow, {
     type: "info",
@@ -225,13 +284,14 @@ function showAbout() {
     detail: [
       `Version: ${app.getVersion()}`,
       `Device: ${deviceName} (${deviceRole})`,
+      `Trading Mode: ${deviceConfig.getTradingMode().toUpperCase()}`,
+      `Backend: ${status.running ? `running (port ${status.port}, ${status.mode})` : "stopped"}`,
       `Platform: ${sys.platform} ${sys.arch}`,
-      `CPUs: ${sys.cpus} cores`,
-      `Memory: ${sys.totalMemoryGB} GB`,
+      `CPUs: ${sys.cpus} cores | Memory: ${sys.totalMemoryGB} GB`,
       sys.isAppleSilicon ? "Apple Silicon: Yes" : "",
       "",
       "AI-Powered Trading Platform",
-      "11-Agent Council | Event-Driven Pipeline",
+      "33-Agent Council | Event-Driven Pipeline",
       "",
       "© 2026 Embodier.ai",
     ]
@@ -241,6 +301,7 @@ function showAbout() {
 }
 
 // ── IPC Handlers ───────────────────────────────────────────────────────────
+
 function registerIpcHandlers() {
   ipcMain.handle("get-device-config", () => deviceConfig.getFullConfig());
   ipcMain.handle("get-system-info", () => deviceConfig.getSystemInfo());
@@ -274,6 +335,10 @@ function registerIpcHandlers() {
     return backendManager.getStatus();
   });
 
+  ipcMain.handle("check-for-updates", async () => {
+    return await autoUpdater.checkForUpdates((status) => log.info(status));
+  });
+
   ipcMain.handle("open-external", (_event, url) => shell.openExternal(url));
   ipcMain.handle("open-data-dir", () => shell.openPath(backendManager.getDataDir()));
 
@@ -286,12 +351,14 @@ function registerIpcHandlers() {
 }
 
 // ── App Lifecycle ──────────────────────────────────────────────────────────
+
 app.whenReady().then(async () => {
   log.info("=".repeat(60));
   log.info("Embodier Trader starting...");
   log.info(`Version: ${app.getVersion()}`);
   log.info(`Platform: ${process.platform} ${process.arch}`);
   log.info(`Device: ${deviceConfig.getDeviceName()} (${deviceConfig.getDeviceRole()})`);
+  log.info(`Trading Mode: ${deviceConfig.getTradingMode()}`);
   log.info("=".repeat(60));
 
   registerIpcHandlers();
@@ -312,13 +379,46 @@ app.whenReady().then(async () => {
     createSplashWindow();
   }
 
+  // Auto-update + environment setup
+  try {
+    updateSplashStatus("Checking for updates...");
+    const setupResult = await autoUpdater.runStartupSequence((status) => {
+      updateSplashStatus(status);
+      log.info(`[startup] ${status}`);
+    });
+
+    if (setupResult.updateCheck?.updated) {
+      log.info(`Updated: ${setupResult.updateCheck.changedFiles.length} files changed`);
+    }
+    if (setupResult.errors.length > 0) {
+      log.warn("Startup warnings:", setupResult.errors);
+    }
+  } catch (err) {
+    log.error("Startup setup failed:", err.message);
+    if (splashWindow && !splashWindow.isDestroyed()) splashWindow.close();
+
+    const result = await dialog.showMessageBox({
+      type: "error",
+      title: "Setup Error",
+      message: "Embodier Trader could not complete setup.",
+      detail: `${err.message}\n\nMake sure Python 3.10+ and Node.js 18+ are installed and available in PATH.`,
+      buttons: ["Retry", "Quit"],
+    });
+    if (result.response === 0) {
+      app.relaunch();
+    }
+    app.quit();
+    return;
+  }
+
   // Start backend
   try {
+    updateSplashStatus("Starting trading backend...");
     await backendManager.startBackend();
     log.info("Backend is ready");
   } catch (err) {
     log.error("Backend failed to start:", err.message);
-    if (splashWindow) splashWindow.close();
+    if (splashWindow && !splashWindow.isDestroyed()) splashWindow.close();
     const result = await dialog.showMessageBox({
       type: "error",
       title: "Backend Error",
@@ -333,8 +433,9 @@ app.whenReady().then(async () => {
     return;
   }
 
-    // Initialize distributed system
+  // Initialize distributed system
   try {
+    updateSplashStatus("Connecting to trading network...");
     await peerMonitor.initialize();
     await serviceOrchestrator.initialize(deviceConfig.getDeviceRole());
     log.info("Distributed system initialized");
@@ -343,15 +444,16 @@ app.whenReady().then(async () => {
   }
 
   // Create main window
+  updateSplashStatus("Loading dashboard...");
   createMainWindow();
   mainWindow.once("ready-to-show", () => {
-    if (splashWindow) {
+    if (splashWindow && !splashWindow.isDestroyed()) {
       splashWindow.close();
       splashWindow = null;
     }
     mainWindow.show();
     mainWindow.focus();
-    log.info("Main window displayed");
+    log.info("Main window displayed — Embodier Trader is live");
   });
 
   // System tray
@@ -364,7 +466,7 @@ app.on("before-quit", async (event) => {
   if (backendManager.isRunning()) {
     event.preventDefault();
     log.info("Shutting down backend before quit...");
-        await peerMonitor.shutdown();
+    await peerMonitor.shutdown();
     await serviceOrchestrator.shutdown();
     await ollamaFallback.shutdown();
     await backendManager.stopBackend();
@@ -374,10 +476,7 @@ app.on("before-quit", async (event) => {
 });
 
 app.on("window-all-closed", () => {
-  // On macOS, keep running in tray
-  if (process.platform !== "darwin") {
-    // On Windows/Linux, don't quit — stay in tray
-  }
+  // Stay in tray on all platforms
 });
 
 app.on("activate", () => {

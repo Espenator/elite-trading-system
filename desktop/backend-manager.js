@@ -1,7 +1,13 @@
 /**
  * Backend Process Manager
- * Spawns and manages the Python/FastAPI backend as a child process.
+ *
+ * Runs the Python/FastAPI backend from the repo's venv.
  * Handles health checks, graceful shutdown, and auto-restart.
+ *
+ * Mode priority:
+ *   1. Repo venv (default) — runs from backend/venv/bin/python
+ *   2. System python (fallback) — runs from global python3
+ *   3. PyInstaller binary (packaged builds only)
  */
 const { spawn } = require("child_process");
 const path = require("path");
@@ -10,27 +16,55 @@ const fs = require("fs");
 const log = require("electron-log");
 const deviceConfig = require("./device-config");
 
+const REPO_ROOT = path.join(__dirname, "..");
+const BACKEND_DIR = path.join(REPO_ROOT, "backend");
+
 let backendProcess = null;
 let healthCheckInterval = null;
 let isShuttingDown = false;
 let restartCount = 0;
 
-function getBackendPath() {
-  const isDev = process.env.NODE_ENV === "development";
+// ── Python Resolution ────────────────────────────────────────────────────────
 
-  if (isDev) {
-    // In development, run uvicorn directly
-    return { mode: "dev", cwd: path.join(__dirname, "..", "backend") };
-  }
-
-  // In production, use PyInstaller-bundled binary
-  const resourcesPath = process.resourcesPath || path.join(__dirname, "..");
-  const backendDir = path.join(resourcesPath, "backend");
-
+function getVenvPython() {
+  const venvDir = path.join(BACKEND_DIR, "venv");
   if (process.platform === "win32") {
-    return { mode: "prod", binary: path.join(backendDir, "embodier-backend.exe"), cwd: backendDir };
+    return path.join(venvDir, "Scripts", "python.exe");
   }
-  return { mode: "prod", binary: path.join(backendDir, "embodier-backend"), cwd: backendDir };
+  return path.join(venvDir, "bin", "python");
+}
+
+function getBackendConfig() {
+  const venvPython = getVenvPython();
+
+  // Option 1: Repo venv (preferred — created by auto-updater)
+  if (fs.existsSync(venvPython)) {
+    return {
+      mode: "venv",
+      python: venvPython,
+      cwd: BACKEND_DIR,
+    };
+  }
+
+  // Option 2: PyInstaller binary (packaged/distributed builds)
+  const resourcesPath = process.resourcesPath || path.join(__dirname, "..");
+  const binaryDir = path.join(resourcesPath, "backend");
+  const binaryName = process.platform === "win32" ? "embodier-backend.exe" : "embodier-backend";
+  const binaryPath = path.join(binaryDir, binaryName);
+  if (fs.existsSync(binaryPath)) {
+    return {
+      mode: "binary",
+      binary: binaryPath,
+      cwd: binaryDir,
+    };
+  }
+
+  // Option 3: System python (last resort)
+  return {
+    mode: "system",
+    python: process.platform === "win32" ? "python" : "python3",
+    cwd: BACKEND_DIR,
+  };
 }
 
 function getDataDir() {
@@ -52,7 +86,7 @@ function buildEnvVars() {
     PORT: String(port),
     HOST: "127.0.0.1",
     TRADING_MODE: tradingMode,
-    AUTO_EXECUTE_TRADES: "false",
+    AUTO_EXECUTE_TRADES: tradingMode === "live" ? "true" : "false",
     DATA_DIR: getDataDir(),
     DUCKDB_PATH: path.join(getDataDir(), "analytics.duckdb"),
     // API Keys
@@ -71,8 +105,12 @@ function buildEnvVars() {
     API_AUTH_TOKEN: deviceConfig.getAuthToken(),
     // Prevent Python from buffering stdout
     PYTHONUNBUFFERED: "1",
+    // Ensure .env file is also loaded by backend
+    ENVIRONMENT: "production",
   };
 }
+
+// ── Port Check ───────────────────────────────────────────────────────────────
 
 function isPortAvailable(port) {
   return new Promise((resolve) => {
@@ -87,6 +125,36 @@ function isPortAvailable(port) {
   });
 }
 
+async function killProcessOnPort(port) {
+  // Auto-clean stale processes on our port
+  try {
+    if (process.platform === "win32") {
+      const { execSync } = require("child_process");
+      const result = execSync(`netstat -ano | findstr :${port}`, { encoding: "utf8", timeout: 5000 });
+      const lines = result.split("\n").filter((l) => l.includes("LISTENING"));
+      for (const line of lines) {
+        const pid = line.trim().split(/\s+/).pop();
+        if (pid && pid !== "0") {
+          log.info(`Killing stale process on port ${port} (PID ${pid})`);
+          execSync(`taskkill /PID ${pid} /F`, { timeout: 5000 });
+        }
+      }
+    } else {
+      const { execSync } = require("child_process");
+      const result = execSync(`lsof -ti:${port}`, { encoding: "utf8", timeout: 5000 });
+      const pids = result.trim().split("\n").filter(Boolean);
+      for (const pid of pids) {
+        log.info(`Killing stale process on port ${port} (PID ${pid})`);
+        execSync(`kill -9 ${pid}`, { timeout: 5000 });
+      }
+    }
+  } catch {
+    // No process found or kill failed — that's fine
+  }
+}
+
+// ── Start / Stop ─────────────────────────────────────────────────────────────
+
 function startBackend() {
   return new Promise(async (resolve, reject) => {
     if (backendProcess) {
@@ -96,41 +164,45 @@ function startBackend() {
     }
 
     isShuttingDown = false;
-    const backendPath = getBackendPath();
+    const config = getBackendConfig();
     const port = deviceConfig.getBackendPort();
 
+    // Auto-kill stale processes on our port
     const portFree = await isPortAvailable(port);
     if (!portFree) {
-      reject(new Error(`Port ${port} is already in use. Change the backend port in Settings.`));
-      return;
+      log.warn(`Port ${port} in use — attempting to free it`);
+      await killProcessOnPort(port);
+      // Wait a moment for port to be released
+      await new Promise((r) => setTimeout(r, 1000));
+      const stillBusy = !(await isPortAvailable(port));
+      if (stillBusy) {
+        reject(new Error(`Port ${port} is still in use. Close the other application or change the backend port in Settings.`));
+        return;
+      }
     }
 
     const env = buildEnvVars();
+    log.info(`Starting backend (${config.mode}) on port ${port}...`);
 
-    log.info(`Starting backend (${backendPath.mode}) on port ${port}...`);
-
-    if (backendPath.mode === "dev") {
-      // Development: run uvicorn directly
-      backendProcess = spawn(
-        "python",
-        ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", String(port)],
-        { cwd: backendPath.cwd, env, stdio: ["ignore", "pipe", "pipe"] }
-      );
-    } else {
-      // Production: run bundled binary
-      if (!fs.existsSync(backendPath.binary)) {
-        reject(
-          new Error(
-            `Backend binary not found at: ${backendPath.binary}\nRun 'npm run build:backend' to build the PyInstaller package.`
-          )
-        );
+    if (config.mode === "binary") {
+      // PyInstaller binary
+      if (!fs.existsSync(config.binary)) {
+        reject(new Error(`Backend binary not found: ${config.binary}`));
         return;
       }
-      backendProcess = spawn(backendPath.binary, [], {
-        cwd: backendPath.cwd,
+      backendProcess = spawn(config.binary, [], {
+        cwd: config.cwd,
         env,
         stdio: ["ignore", "pipe", "pipe"],
       });
+    } else {
+      // Venv or system python
+      const python = config.python;
+      backendProcess = spawn(
+        python,
+        ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", String(port)],
+        { cwd: config.cwd, env, stdio: ["ignore", "pipe", "pipe"] }
+      );
     }
 
     backendProcess.stdout.on("data", (data) => {
@@ -169,7 +241,7 @@ function startBackend() {
     });
 
     // Wait for health check to pass
-    waitForHealth(port, 30000)
+    waitForHealth(port, 60_000)
       .then(() => {
         log.info("Backend is healthy and ready");
         startHealthMonitor(port);
@@ -187,7 +259,7 @@ function waitForHealth(port, timeoutMs) {
   return new Promise((resolve, reject) => {
     function check() {
       if (Date.now() - startTime > timeoutMs) {
-        reject(new Error(`Backend health check timed out after ${timeoutMs}ms`));
+        reject(new Error(`Backend health check timed out after ${timeoutMs / 1000}s`));
         return;
       }
 
@@ -269,11 +341,7 @@ function stopBackend() {
     });
 
     // Graceful shutdown
-    if (process.platform === "win32") {
-      backendProcess.kill("SIGTERM");
-    } else {
-      backendProcess.kill("SIGTERM");
-    }
+    backendProcess.kill("SIGTERM");
   });
 }
 
@@ -286,6 +354,7 @@ function getStatus() {
     running: isRunning(),
     pid: backendProcess?.pid || null,
     port: deviceConfig.getBackendPort(),
+    mode: getBackendConfig().mode,
   };
 }
 

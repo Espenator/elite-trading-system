@@ -14,6 +14,9 @@ contextBridge.exposeInMainWorld("embodier", {
   getBackendStatus: () => ipcRenderer.invoke("get-backend-status"),
   restartBackend: () => ipcRenderer.invoke("restart-backend"),
 
+  // Updates
+  checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),
+
   // Settings
   getApiKeys: () => ipcRenderer.invoke("get-api-keys"),
   setApiKeys: (keys) => ipcRenderer.invoke("set-api-keys", keys),

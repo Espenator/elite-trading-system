@@ -1,6 +1,6 @@
 {
   "name": "embodier-trader",
-  "version": "3.1.0",
+  "version": "4.0.0",
   "description": "Embodier Trading System — AI-Powered Trading Platform",
   "main": "main.js",
   "author": "Embodier.ai",
@@ -9,19 +9,17 @@
   "scripts": {
     "start": "electron .",
     "dev": "cross-env NODE_ENV=development electron .",
-    "build:frontend": "cd ../frontend-v2 && npm run build",
-    "build:backend": "cd ../backend && pyinstaller embodier-backend.spec --noconfirm",
+    "setup": "npm install && cd ../frontend-v2 && npm install && npm run build && cd ../desktop && echo Setup complete!",
     "dist:win": "electron-builder --win",
     "dist:mac": "electron-builder --mac",
     "dist:linux": "electron-builder --linux",
     "dist:all": "electron-builder --win --mac --linux",
-    "build:all": "npm run build:frontend && npm run build:backend && npm run dist:win",
     "pack": "electron-builder --dir"
   },
   "dependencies": {
     "electron-store": "^8.1.0",
     "electron-log": "^5.1.1",
-        "ws": "^8.16.0"
+    "ws": "^8.16.0"
   },
   "devDependencies": {
     "electron": "^29.1.0",
@@ -42,6 +40,7 @@
       "tray.js",
       "backend-manager.js",
       "device-config.js",
+      "auto-updater.js",
       "peer-monitor.js",
       "service-orchestrator.js",
       "ollama-fallback.js",

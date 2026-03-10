@@ -1,25 +1,49 @@
 # Embodier Trader — Setup & Quick Start
 
 ## Requirements
-- Python 3.10+ (with pip)
-- Node.js 18+ (with npm)
+- Python 3.10+ (with pip) — [python.org/downloads](https://www.python.org/downloads/)
+- Node.js 18+ (with npm) — [nodejs.org](https://nodejs.org/)
 - Git
-- Windows 10/11 (PowerShell 5.1+)
 
-## Paths
+## One-Click Launch
 
-### ESPENMAIN (PC1 — Primary)
-```
-Repo:      C:\Users\Espen\elite-trading-system
-Backend:   C:\Users\Espen\elite-trading-system\backend
-Frontend:  C:\Users\Espen\elite-trading-system\frontend-v2
-Python:    C:\Users\Espen\elite-trading-system\backend\venv
+### Windows (ESPENMAIN / ProfitTrader)
+
+**First time only:**
+```powershell
+# 1. Clone the repo
+git clone https://github.com/Espenator/elite-trading-system.git
+cd elite-trading-system
+
+# 2. Create desktop shortcut
+powershell -File create-shortcut.ps1
+
+# 3. Double-click "Embodier Trader" on your Desktop
 ```
 
-### ProfitTrader (PC2 — Secondary)
+**Or launch directly:**
 ```
-Repo:      C:\Users\ProfitTrader\elite-trading-system
+launch.bat
 ```
+
+### Linux / macOS
+```bash
+./launch.sh
+```
+
+## What Happens on Launch
+
+The Electron app handles everything automatically:
+
+1. **First run:** Shows setup wizard to collect device name, API keys, and trading mode
+2. **Auto-update:** Checks git for updates and pulls if behind (`git fetch` + `git pull --ff-only`)
+3. **Python setup:** Creates `backend/venv` and installs `requirements.txt` (only when deps change)
+4. **Frontend build:** Runs `npm install` + `npm run build` in `frontend-v2/` (only when source changes)
+5. **Backend start:** Launches FastAPI on port 8000 with health monitoring
+6. **Dashboard:** Opens the React frontend in the Electron window
+7. **System tray:** Minimizes to tray, shows backend status
+
+Every subsequent launch auto-updates from git — just like Spotify, Discord, or VS Code.
 
 ## Network (Two-PC LAN)
 
@@ -34,97 +58,50 @@ Both IPs are DHCP-reserved on the AT&T BGW320-505 router (192.168.1.254).
 
 ## Ports
 
-| Service | Port | URL |
-|---------|------|-----|
+| Service | Port | Access |
+|---------|------|--------|
 | Backend API | 8000 | http://localhost:8000 |
 | API Docs | 8000 | http://localhost:8000/docs |
-| Frontend | 3000 | http://localhost:3000 |
+| Frontend | — | Served by Electron (no separate port) |
+| Mobile PWA | 8765 | http://192.168.1.105:8765 (iPhone) |
 
-## Quick Start (One Click)
+## Environment / API Keys
 
-Double-click `start-embodier.bat` or run:
-```powershell
-cd C:\Users\Espen\elite-trading-system
-.\start-embodier.ps1
-```
+API keys are stored in Electron's config store (managed via the setup wizard).
+A `backend/.env` file is auto-generated from the wizard settings.
 
-This will:
-1. Create a Python venv and install deps (first run only)
-2. Start the FastAPI backend on port 8000
-3. Install npm packages and start Vite on port 3000 (first run only)
-4. Open http://localhost:3000 in your browser
-5. Auto-restart if either service crashes (up to 3 times)
+To edit keys later: **Embodier Trader menu > Settings > API Keys**
 
-### Backend only (no frontend)
-```powershell
-.\start-embodier.ps1 -SkipFrontend
-```
+### Required for Live Trading
+- `ALPACA_API_KEY` + `ALPACA_SECRET_KEY` (from [alpaca.markets](https://alpaca.markets))
+- `API_AUTH_TOKEN` (auto-generated on first setup)
 
-## Manual Start (Step by Step)
-
-```powershell
-# Terminal 1 — Backend
-cd C:\Users\Espen\elite-trading-system\backend
-venv\Scripts\Activate.ps1
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-
-# Terminal 2 — Frontend
-cd C:\Users\Espen\elite-trading-system\frontend-v2
-npm run dev
-```
-
-## Environment Files
-
-### backend/.env (required)
-Copy `backend/.env.example` to `backend/.env` and fill in your API keys.
-
-The minimum to get started:
-```env
-ALPACA_API_KEY=your_key
-ALPACA_SECRET_KEY=your_secret
-ALPACA_BASE_URL=https://paper-api.alpaca.markets
-TRADING_MODE=paper
-PORT=8000
-```
-
-### frontend-v2/.env (optional)
-The frontend proxy is configured in `vite.config.js` to forward `/api` requests
-to `http://localhost:8000` automatically. No `.env` needed for local dev.
-
-Set these only for production builds:
-```env
-VITE_API_URL=http://localhost:8000
-VITE_WS_URL=ws://localhost:8000/ws
-```
-
-## Docker (Alternative)
-
-```bash
-# Copy and configure .env
-cp backend/.env.example backend/.env
-# Edit backend/.env with your API keys
-
-docker-compose up -d
-# Backend: http://localhost:8000
-# Frontend: http://localhost:3000
-```
+### Optional Data Sources
+- Finviz Elite, FRED, Unusual Whales, NewsAPI, StockGeist
+- Discord, X/Twitter, YouTube (social sentiment)
+- Perplexity AI, Anthropic Claude (LLM council)
 
 ## Troubleshooting
 
-### Kill stale processes
+### Embodier Trader won't start
 ```powershell
-Get-Process -Name node -ErrorAction SilentlyContinue | Stop-Process -Force
-Get-Process -Name python -ErrorAction SilentlyContinue | Stop-Process -Force
+# Check Python is installed
+python --version     # Should be 3.10+
+
+# Check Node.js is installed
+node --version       # Should be 18+
+
+# Manual start (for debugging)
+cd desktop
+npm install
+npm start
 ```
 
-### Reset and restart
-```powershell
-cd C:\Users\Espen\elite-trading-system
-git stash; git pull origin main; git stash drop
-cd backend; venv\Scripts\Activate.ps1; pip install -r requirements.txt
-cd ..\frontend-v2; npm install
-cd ..; .\start-embodier.ps1
-```
+### Backend won't start
+Check the Electron log:
+- **Windows:** `%APPDATA%\embodier-trader\logs\main.log`
+- **macOS:** `~/Library/Logs/embodier-trader/main.log`
+- **Linux:** `~/.config/embodier-trader/logs/main.log`
 
 ### Check if the API is running
 ```powershell
@@ -132,10 +109,13 @@ Invoke-RestMethod http://localhost:8000/health
 Invoke-RestMethod http://localhost:8000/api/v1/status
 ```
 
-### Check logs
-```
-logs\backend.log
-logs\frontend.log
+### Reset everything
+```powershell
+cd elite-trading-system
+cd backend && rmdir /s /q venv
+cd ..\frontend-v2 && rmdir /s /q node_modules dist
+cd ..\desktop && rmdir /s /q node_modules
+# Then re-launch — everything rebuilds automatically
 ```
 
 ### Common issues
@@ -144,27 +124,30 @@ logs\frontend.log
 |---------|-----|
 | "python not found" | Install Python 3.10+ and add to PATH |
 | "npm not found" | Install Node.js 18+ from nodejs.org |
-| Backend won't start | Check `backend/.env` exists with valid Alpaca keys |
-| Frontend blank page | Make sure backend is running on port 8000 |
-| CORS errors | Backend auto-allows localhost origins — should work out of the box |
-| Port in use | The launcher auto-kills stale processes on ports 8000/3000 |
+| Backend won't start | Check API keys in Settings |
+| Port 8000 in use | Electron auto-kills stale processes — if stuck, restart your PC |
+| Frontend blank | Backend may still be starting — wait for splash to finish |
+
+## Check for Updates
+
+**Menu > Embodier Trader > Check for Updates**
+
+Or from command line:
+```bash
+cd elite-trading-system
+git pull origin main
+```
 
 ## Sync to ProfitTrader PC
 ```powershell
-# On ProfitTrader:
-cd C:\Users\ProfitTrader\elite-trading-system
-git pull origin main
-cd backend; venv\Scripts\Activate.ps1; pip install -r requirements.txt
-cd ..\frontend-v2; npm install
-cd ..; .\start-embodier.ps1
+# On ProfitTrader — same process:
+git clone https://github.com/Espenator/elite-trading-system.git
+cd elite-trading-system
+launch.bat
+# Setup wizard auto-detects ProfitTrader as secondary node
 ```
 
-## Desktop Shortcut
+## Desktop Shortcut (Manual)
 ```powershell
-$ws = New-Object -ComObject WScript.Shell
-$s = $ws.CreateShortcut("$env:USERPROFILE\Desktop\Embodier Trader.lnk")
-$s.TargetPath = "powershell.exe"
-$s.Arguments = "-ExecutionPolicy Bypass -File `"C:\Users\Espen\elite-trading-system\start-embodier.ps1`""
-$s.WorkingDirectory = "C:\Users\Espen\elite-trading-system"
-$s.Save()
+powershell -File create-shortcut.ps1
 ```
