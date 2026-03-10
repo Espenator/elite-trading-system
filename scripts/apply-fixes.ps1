@@ -39,11 +39,11 @@ function Kill-PortProcesses([int]$Port) {
 
 Write-Host ""
 Write-Host "  ============================================" -ForegroundColor DarkCyan
-Write-Host "   EMBODIER TRADER — APPLY BUG FIXES" -ForegroundColor DarkCyan
+Write-Host "   EMBODIER TRADER - APPLY BUG FIXES" -ForegroundColor DarkCyan
 Write-Host "  ============================================" -ForegroundColor DarkCyan
 Write-Host ""
 
-# ── Step 1: Pull latest code ────────────────────────────────────────────────
+# -- Step 1: Pull latest code ------------------------------------------------
 Log "Pulling latest fixes from remote..." Cyan
 Set-Location $Root
 git fetch origin claude/setup-embodier-trader-bhimn 2>&1 | Out-Null
@@ -56,7 +56,7 @@ if ($currentBranch -ne "claude/setup-embodier-trader-bhimn") {
 git pull origin claude/setup-embodier-trader-bhimn 2>&1 | ForEach-Object { Log $_ DarkGray }
 Log "Code updated." Green
 
-# ── Step 2: Patch .env (ALPACA_FEED=iex -> sip) ────────────────────────────
+# -- Step 2: Patch .env (ALPACA_FEED=iex -> sip) ----------------------------
 if (Test-Path $EnvFile) {
     $envContent = Get-Content $EnvFile -Raw
     if ($envContent -match "ALPACA_FEED=iex") {
@@ -67,15 +67,15 @@ if (Test-Path $EnvFile) {
     } elseif ($envContent -match "ALPACA_FEED=sip") {
         Log ".env already has ALPACA_FEED=sip" DarkGray
     } else {
-        # ALPACA_FEED not present at all — append it
+        # ALPACA_FEED not present at all - append it
         Add-Content $EnvFile "`n# Real-time SIP feed (paid subscription)`nALPACA_FEED=sip"
         Log "Added ALPACA_FEED=sip to .env" Green
     }
 } else {
-    Log ".env not found at $EnvFile — copy .env.example and add your API keys!" Red
+    Log ".env not found at $EnvFile - copy .env.example and add your API keys!" Red
 }
 
-# ── Step 3: Stop existing backend + frontend ────────────────────────────────
+# -- Step 3: Stop existing backend + frontend --------------------------------
 Log "Stopping existing processes..." Yellow
 Kill-PortProcesses $BackendPort
 Kill-PortProcesses $FrontendPort
@@ -91,7 +91,7 @@ foreach ($ext in @(".wal", ".tmp")) {
 }
 Start-Sleep 2
 
-# ── Step 4: Install any new Python deps ─────────────────────────────────────
+# -- Step 4: Install any new Python deps -------------------------------------
 if (Test-Path $VenvPython) {
     Log "Checking Python dependencies..." Cyan
     $VenvPip = Join-Path $BackendDir "venv\Scripts\pip.exe"
@@ -103,11 +103,11 @@ if (Test-Path $VenvPython) {
     }
     Log "Dependencies OK" Green
 } else {
-    Log "venv not found — run start-embodier.bat first to create it" Red
+    Log "venv not found - run start-embodier.bat first to create it" Red
     exit 1
 }
 
-# ── Step 5: Start backend ───────────────────────────────────────────────────
+# -- Step 5: Start backend ---------------------------------------------------
 if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory $LogDir -Force | Out-Null }
 $backendLogFile = Join-Path $LogDir "backend.log"
 $backendErrFile = Join-Path $LogDir "backend-error.log"
@@ -139,10 +139,10 @@ Write-Host ""
 if ($healthy) {
     Log "Backend HEALTHY at http://localhost:$BackendPort" Green
 } else {
-    Log "Backend not responding yet — check logs\backend.log" Yellow
+    Log "Backend not responding yet - check logs\backend.log" Yellow
 }
 
-# ── Step 6: Trigger backfill (populate indicators + features) ───────────────
+# -- Step 6: Trigger backfill (populate indicators + features) ---------------
 Log "Triggering ingestion backfill (30 days)..." Cyan
 try {
     $backfillResp = Invoke-WebRequest "http://localhost:$BackendPort/api/v1/ingestion/backfill" `
@@ -152,8 +152,10 @@ try {
         Log "Backfill triggered successfully!" Green
         $body = $backfillResp.Content | ConvertFrom-Json -ErrorAction SilentlyContinue
         if ($body) {
-            Log "  OHLCV rows: $($body.ohlcv.total_rows ?? 'N/A')" DarkGray
-            Log "  Indicators: $($body.indicators ?? 'N/A')" DarkGray
+            $ohlcvRows = if ($body.ohlcv -and $body.ohlcv.total_rows) { $body.ohlcv.total_rows } else { "N/A" }
+            $indCount  = if ($body.indicators) { $body.indicators } else { "N/A" }
+            Log "  OHLCV rows: $ohlcvRows" DarkGray
+            Log "  Indicators: $indCount" DarkGray
         }
     } else {
         Log "Backfill returned status $($backfillResp.StatusCode)" Yellow
@@ -162,7 +164,7 @@ try {
     Log "Backfill endpoint not available (auto-backfill will run in ~30s anyway)" Yellow
 }
 
-# ── Step 7: Start frontend ──────────────────────────────────────────────────
+# -- Step 7: Start frontend --------------------------------------------------
 Set-Location $FrontendDir
 if (-not (Test-Path "node_modules")) {
     Log "Installing frontend dependencies..." Cyan
@@ -185,10 +187,10 @@ $frontendProc = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "npx vite 
 Start-Sleep 3
 Log "Frontend at http://localhost:$FrontendPort" Green
 
-# ── Step 8: Open browser ────────────────────────────────────────────────────
+# -- Step 8: Open browser ----------------------------------------------------
 Start-Process "http://localhost:$FrontendPort"
 
-# ── Summary ─────────────────────────────────────────────────────────────────
+# -- Summary -----------------------------------------------------------------
 Write-Host ""
 Write-Host "  ============================================" -ForegroundColor Green
 Write-Host "   ALL FIXES APPLIED" -ForegroundColor Green
