@@ -278,9 +278,11 @@ class DuckDBStorage:
             )
         """)
 
+        conn.execute("CREATE SEQUENCE IF NOT EXISTS trade_outcomes_seq START 1")
+
         conn.execute("""
             CREATE TABLE IF NOT EXISTS trade_outcomes (
-                            id INTEGER PRIMARY KEY,
+                            id INTEGER PRIMARY KEY DEFAULT nextval('trade_outcomes_seq'),
                 symbol VARCHAR NOT NULL,
                 direction VARCHAR NOT NULL,
                 entry_date DATE NOT NULL,
@@ -578,10 +580,10 @@ class DuckDBStorage:
         conn = self._get_conn()
         conn.execute("""
             INSERT INTO trade_outcomes
-                (id, symbol, direction, entry_date, exit_date, entry_price, exit_price,
+                (symbol, direction, entry_date, exit_date, entry_price, exit_price,
                 shares, pnl, r_multiple, outcome, stop_price, target_price,
                 signal_score, resolved, resolved_at)
-            VALUES ((SELECT COALESCE(MAX(id), 0) + 1 FROM trade_outcomes), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, [
             trade["symbol"], trade["direction"],
             trade["entry_date"], trade.get("exit_date"),

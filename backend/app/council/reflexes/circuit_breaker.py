@@ -113,20 +113,22 @@ class CircuitBreaker:
         return None
 
     async def market_hours_check(self, blackboard: BlackboardState) -> Optional[str]:
-        """Check if market is currently open (basic US hours check)."""
-        now = datetime.now(timezone.utc)
-        # US market hours: 9:30 AM - 4:00 PM ET = 14:30 - 21:00 UTC
-        # Allow pre-market from 13:00 UTC (8 AM ET)
-        hour = now.hour
-        weekday = now.weekday()  # 0=Mon, 6=Sun
+        """Check if market is currently open (US/Eastern, handles DST)."""
+        try:
+            from zoneinfo import ZoneInfo
+        except ImportError:
+            from backports.zoneinfo import ZoneInfo
+        now_et = datetime.now(ZoneInfo("America/New_York"))
+        hour_et = now_et.hour
+        weekday = now_et.weekday()  # 0=Mon, 6=Sun
 
         if weekday >= 5:
             return "Market closed: weekend"
 
-        # Allow extended hours (pre-market + after-hours)
-        # Only block obvious off-hours (midnight to 8 AM ET)
-        if hour < 13 or hour >= 22:
-            return f"Market closed: off-hours (UTC hour={hour})"
+        # Allow extended hours: pre-market 4 AM ET through after-hours 8 PM ET
+        # Only block obvious off-hours (midnight to 4 AM ET, 8 PM to midnight ET)
+        if hour_et < 4 or hour_et >= 20:
+            return f"Market closed: off-hours (ET hour={hour_et})"
 
         return None
 

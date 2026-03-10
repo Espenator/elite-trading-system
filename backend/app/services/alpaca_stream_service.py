@@ -15,12 +15,6 @@ When WebSocket fails (connection limit, library issues), falls back to
 snapshot polling that works regardless of market open/closed state.
 
 Requires env vars: ALPACA_API_KEY, ALPACA_SECRET_KEY
-
-FIX (Mar 10 2026):
-  - 24/7 snapshot polling for off-hours (no data gaps overnight)
-  - Proper DST-aware US/Eastern timezone check via zoneinfo
-  - WebSocket → snapshot fallback on connection limit exceeded
-  - No mock/fake data ever generated
 """
 import asyncio
 import logging
@@ -31,10 +25,11 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-_PRE_MARKET_OPEN = 4
-_REGULAR_OPEN = 9
-_REGULAR_CLOSE = 16
-_POST_MARKET_CLOSE = 20
+# Market session windows (ET)
+_PRE_MARKET_OPEN = 4    # 4:00 AM ET
+_REGULAR_OPEN = 9       # 9:30 AM ET (we use 9 for simplicity; real check via /clock)
+_REGULAR_CLOSE = 16     # 4:00 PM ET
+_POST_MARKET_CLOSE = 20 # 8:00 PM ET
 
 
 def _get_et_hour() -> int:
@@ -49,10 +44,11 @@ def _get_et_hour() -> int:
 class AlpacaStreamService:
     """Alpaca WebSocket client with snapshot fallback for 24/7 coverage."""
 
-    MAX_RECONNECT_DELAY = 60
-    INITIAL_RECONNECT_DELAY = 2
-    SNAPSHOT_POLL_INTERVAL = 30
-    SNAPSHOT_BATCH_SIZE = 50
+    MAX_RECONNECT_DELAY = 60  # seconds
+    INITIAL_RECONNECT_DELAY = 2  # seconds
+    SNAPSHOT_POLL_INTERVAL = 30  # seconds between snapshot polls off-hours
+    SNAPSHOT_BATCH_SIZE = 50  # symbols per snapshot API call
+    # When Alpaca returns "connection limit exceeded", fall back after this many failures
     CONNECTION_LIMIT_FALLBACK_AFTER = int(
         os.getenv("ALPACA_STREAM_FALLBACK_AFTER_LIMIT", "1")
     )
@@ -74,13 +70,21 @@ class AlpacaStreamService:
         self._start_time: Optional[float] = None
         self._use_mock = False
         self._market_is_open = False
-        self._session = "unknown"
+        self._session = "unknown"  # "pre", "regular", "post", "closed"
         self._snapshot_task: Optional[asyncio.Task] = None
         self._connection_limit_failures = 0
-        self._ws_fallback_to_snapshots = False
+        self._ws_fallback_to_snapshots = False  # True when WS fails and we poll instead
 
     async def start(self) -> None:
-        """Start streaming with clock-aware mode selection."""
+        """Start streaming with clock-aware mode selection.
+
+        1. Check market clock
+        2. Fetch snapshots immediately (seed current prices)
+        3. If market is open: connect WebSocket for live bars
+        4. If market is closed: poll snapshots on interval
+        5. Monitor clock and switch modes when session changes
+        """
+        # Try settings first (pydantic), fall back to os.environ
         try:
             from app.core.config import settings as _settings
             api_key = self._api_key or getattr(_settings, "ALPACA_API_KEY", "") or os.getenv("ALPACA_API_KEY", "")
@@ -95,13 +99,16 @@ class AlpacaStreamService:
                 "starting in OFFLINE mode (no market data)"
             )
             self._use_mock = True
-            await self._run_offline_idle()
+            await self._run_mock_stream()
             return
 
         self._running = True
         self._start_time = time.time()
 
+        # Always seed snapshots on startup
         await self._fetch_and_publish_snapshots()
+
+        # Check market clock and enter appropriate mode
         await self._check_clock()
 
         logger.info(
@@ -109,16 +116,22 @@ class AlpacaStreamService:
             len(self.symbols), self._session,
         )
 
+        # Main loop: switch between WebSocket and snapshot polling
         while self._running:
             try:
                 await self._check_clock()
 
                 if self._market_is_open and not self._ws_fallback_to_snapshots:
+                    # Market open: use WebSocket for real-time bars
                     logger.info("Market OPEN — switching to WebSocket streaming")
                     await self._connect_and_stream(api_key, secret_key)
                 else:
+                    # Market closed OR WebSocket failed: poll snapshots
                     reason = "WS fallback" if self._ws_fallback_to_snapshots else f"session={self._session}"
-                    logger.info("Polling snapshots every %ds (%s)", self.SNAPSHOT_POLL_INTERVAL, reason)
+                    logger.info(
+                        "Polling snapshots every %ds (%s)",
+                        self.SNAPSHOT_POLL_INTERVAL, reason,
+                    )
                     await self._run_snapshot_poll_loop()
 
             except asyncio.CancelledError:
@@ -138,23 +151,37 @@ class AlpacaStreamService:
                 err_msg = str(e).lower()
                 if "connection limit exceeded" in err_msg or "auth failed" in err_msg:
                     self._connection_limit_failures += 1
-                    if self.CONNECTION_LIMIT_FALLBACK_AFTER > 0 and self._connection_limit_failures >= self.CONNECTION_LIMIT_FALLBACK_AFTER:
+                    fallback_after = self.CONNECTION_LIMIT_FALLBACK_AFTER
+                    if (
+                        fallback_after > 0
+                        and self._connection_limit_failures >= fallback_after
+                    ):
                         logger.warning(
                             "Alpaca data stream: connection limit exceeded (%d time(s)). "
+                            "Only one WebSocket per account is allowed. "
                             "Falling back to snapshot polling (real data, every %ds).",
-                            self._connection_limit_failures, self.SNAPSHOT_POLL_INTERVAL,
+                            self._connection_limit_failures,
+                            self.SNAPSHOT_POLL_INTERVAL,
                         )
                         self._ws_fallback_to_snapshots = True
                         continue
-                    logger.warning("Alpaca data stream: %s. Backing off %ds.", e, self.MAX_RECONNECT_DELAY)
+                    logger.warning(
+                        "Alpaca data stream: %s. Backing off %ds.",
+                        e, self.MAX_RECONNECT_DELAY,
+                    )
                     self._reconnect_delay = self.MAX_RECONNECT_DELAY
                     await asyncio.sleep(self._reconnect_delay)
                     continue
                 raise
             except Exception:
-                logger.exception("AlpacaStreamService error — reconnecting in %ds", self._reconnect_delay)
+                logger.exception(
+                    "AlpacaStreamService error — reconnecting in %ds",
+                    self._reconnect_delay,
+                )
                 await asyncio.sleep(self._reconnect_delay)
-                self._reconnect_delay = min(self._reconnect_delay * 2, self.MAX_RECONNECT_DELAY)
+                self._reconnect_delay = min(
+                    self._reconnect_delay * 2, self.MAX_RECONNECT_DELAY
+                )
 
     async def _check_clock(self) -> None:
         """Query Alpaca /v2/clock and update session state."""
@@ -163,7 +190,9 @@ class AlpacaStreamService:
             clock = await alpaca_service.get_clock()
             if clock:
                 self._market_is_open = clock.get("is_open", False)
+                # Determine session using proper US/Eastern timezone (handles DST)
                 hour_et = _get_et_hour()
+
                 if self._market_is_open:
                     self._session = "regular"
                 elif _PRE_MARKET_OPEN <= hour_et < _REGULAR_OPEN:
@@ -181,14 +210,28 @@ class AlpacaStreamService:
             self._session = "unknown"
 
     async def _fetch_and_publish_snapshots(self) -> None:
-        """Fetch Alpaca snapshots and publish as bars to MessageBus."""
+        """Fetch snapshots from Alpaca Market Data API and publish as bars.
+
+        Uses GET /v2/stocks/snapshots which returns:
+        - latestTrade (price, size, timestamp)
+        - latestQuote (bid/ask)
+        - minuteBar (last completed 1-min bar)
+        - dailyBar (current/last trading day OHLCV)
+        - prevDailyBar (previous trading day OHLCV)
+
+        This works 24/7 and returns real prices at all times.
+        """
         try:
             from app.services.alpaca_service import alpaca_service
+
+            # Batch symbols to avoid URL length limits
             for i in range(0, len(self.symbols), self.SNAPSHOT_BATCH_SIZE):
                 batch = self.symbols[i:i + self.SNAPSHOT_BATCH_SIZE]
                 snapshots = await alpaca_service.get_snapshots(batch)
+
                 if not snapshots:
                     continue
+
                 for symbol, snap in snapshots.items():
                     bar_data = self._snapshot_to_bar(symbol, snap)
                     if bar_data:
@@ -196,22 +239,40 @@ class AlpacaStreamService:
                         self._bars_received += 1
                         self._snapshots_fetched += 1
                         self._last_bar_time = time.time()
+
             if self._snapshots_fetched > 0:
-                logger.info("Snapshot seed: %d symbols priced (session=%s)", self._snapshots_fetched, self._session)
+                logger.info(
+                    "Snapshot seed: %d symbols priced (session=%s)",
+                    self._snapshots_fetched, self._session,
+                )
+
         except Exception:
             logger.exception("Snapshot fetch failed")
 
     def _snapshot_to_bar(self, symbol: str, snap: Dict) -> Optional[Dict]:
-        """Convert Alpaca snapshot to bar_data dict."""
+        """Convert an Alpaca snapshot response into a bar_data dict.
+
+        Prioritizes: minuteBar > dailyBar > latestTrade for price data.
+        Always includes latest trade price for most current value.
+        """
+        # Try minuteBar first (most granular recent data)
         minute_bar = snap.get("minuteBar") or {}
         daily_bar = snap.get("dailyBar") or {}
         prev_daily = snap.get("prevDailyBar") or {}
         latest_trade = snap.get("latestTrade") or {}
         latest_quote = snap.get("latestQuote") or {}
+
+        # Use minuteBar if available, else dailyBar
         source_bar = minute_bar if minute_bar.get("c") else daily_bar
-        close = latest_trade.get("p") or source_bar.get("c") or 0
+
+        close = (
+            latest_trade.get("p")
+            or source_bar.get("c")
+            or 0
+        )
         if not close:
             return None
+
         return {
             "symbol": symbol,
             "timestamp": (
@@ -227,6 +288,7 @@ class AlpacaStreamService:
             "vwap": float(source_bar.get("vw") or close),
             "trade_count": int(source_bar.get("n") or 0),
             "source": f"alpaca_snapshot_{self._session}",
+            # Extra fields from snapshot
             "latest_trade_price": float(latest_trade.get("p") or 0),
             "latest_trade_size": int(latest_trade.get("s") or 0),
             "bid": float(latest_quote.get("bp") or 0),
@@ -242,14 +304,24 @@ class AlpacaStreamService:
         }
 
     async def _run_snapshot_poll_loop(self) -> None:
-        """Poll snapshots on interval — works in ALL market states."""
+        """Poll snapshots on interval. Works in ALL market states.
+
+        When in WS fallback mode: polls continuously regardless of market state.
+        When market is closed: polls until market opens, then exits so main loop
+        can switch to WebSocket.
+        """
         while self._running:
+            # Fetch snapshots FIRST, then sleep (ensures immediate data on entry)
             await self._fetch_and_publish_snapshots()
             await asyncio.sleep(self.SNAPSHOT_POLL_INTERVAL)
+
+            # Check if we should exit this loop
             await self._check_clock()
             if self._market_is_open and not self._ws_fallback_to_snapshots:
-                logger.info("Market opened — switching to WebSocket")
+                # Market opened and WS is available — exit to switch to WebSocket
+                logger.info("Market opened — exiting snapshot poll loop for WebSocket")
                 return
+            # Otherwise keep polling (WS fallback or market closed)
 
     async def _connect_and_stream(self, api_key: str, secret_key: str) -> None:
         """Connect to Alpaca StockDataStream and subscribe to bars."""
@@ -264,13 +336,13 @@ class AlpacaStreamService:
             return
 
         feed_str = os.getenv("ALPACA_FEED", "sip")
+        # StockDataStream expects the DataFeed enum, not a plain string
         try:
             from alpaca.data.enums import DataFeed
             feed = DataFeed(feed_str)
         except Exception:
             from alpaca.data.enums import DataFeed
             feed = DataFeed.SIP
-
         self._stream = StockDataStream(
             api_key=api_key,
             secret_key=secret_key,
@@ -279,9 +351,11 @@ class AlpacaStreamService:
         )
 
         async def _handle_bar(bar) -> None:
+            """Process incoming bar and publish to MessageBus."""
             self._bars_received += 1
             self._last_bar_time = time.time()
             self._reconnect_delay = self.INITIAL_RECONNECT_DELAY
+
             bar_data = {
                 "symbol": bar.symbol,
                 "timestamp": bar.timestamp.isoformat() if hasattr(bar.timestamp, "isoformat") else str(bar.timestamp),
@@ -294,45 +368,59 @@ class AlpacaStreamService:
                 "trade_count": int(bar.trade_count) if hasattr(bar, "trade_count") and bar.trade_count else None,
                 "source": "alpaca_websocket",
             }
+
             await self.message_bus.publish("market_data.bar", bar_data)
+
             if self._bars_received % 100 == 0:
                 logger.info(
                     "AlpacaStream: %d bars received (latest: %s @ $%.2f)",
-                    self._bars_received, bar.symbol, float(bar.close),
+                    self._bars_received,
+                    bar.symbol,
+                    float(bar.close),
                 )
 
         self._stream.subscribe_bars(_handle_bar, *self.symbols)
         logger.info("Alpaca WebSocket connected — subscribed to %d symbols", len(self.symbols))
         await self._stream._run_forever()
 
-    async def _run_offline_idle(self) -> None:
-        """Idle loop when Alpaca keys unavailable. No fake data generated."""
+    async def _run_mock_stream(self) -> None:
+        """Idle loop when Alpaca keys are unavailable — publishes no data.
+
+        No fake market data is generated. The system simply waits for
+        Alpaca API credentials to be configured.
+        """
         logger.warning(
-            "AlpacaStreamService OFFLINE — no market data until Alpaca API keys configured. "
-            "Symbols queued: %d", len(self.symbols),
+            "AlpacaStreamService running in OFFLINE mode — "
+            "no market data will be published until Alpaca API keys are configured. "
+            "Symbols queued: %d",
+            len(self.symbols),
         )
         self._running = True
         self._start_time = time.time()
+
         while self._running:
             await asyncio.sleep(60)
 
     async def stop(self) -> None:
+        """Graceful shutdown."""
         self._running = False
         if self._stream:
             try:
                 await self._stream.close()
             except Exception:
-                logger.debug("Exception closing Alpaca stream", exc_info=True)
+                logger.debug("Exception closing Alpaca stream during shutdown", exc_info=True)
         logger.info(
             "AlpacaStreamService stopped — %d total bars (%d from snapshots)",
             self._bars_received, self._snapshots_fetched,
         )
 
     def update_symbols(self, symbols: List[str]) -> None:
+        """Update the symbol watchlist (takes effect on next reconnect/poll)."""
         self.symbols = symbols
         logger.info("Symbol watchlist updated: %d symbols", len(symbols))
 
     def get_status(self) -> Dict[str, Any]:
+        """Return service status for monitoring."""
         uptime = time.time() - self._start_time if self._start_time else 0
         return {
             "running": self._running,
@@ -346,7 +434,8 @@ class AlpacaStreamService:
             "uptime_seconds": round(uptime, 1),
             "last_bar_age_seconds": (
                 round(time.time() - self._last_bar_time, 1)
-                if self._last_bar_time else None
+                if self._last_bar_time
+                else None
             ),
             "reconnect_delay": self._reconnect_delay,
             "snapshot_poll_interval": self.SNAPSHOT_POLL_INTERVAL,
