@@ -1286,6 +1286,13 @@ async def websocket_endpoint(websocket: WebSocket):
         await websocket.close(code=1013, reason="Max connections reached")
         return
 
+    # Enforce auth token on WebSocket connect (production security)
+    token = websocket.query_params.get("token", "")
+    expected = (settings.API_AUTH_TOKEN or "").strip()
+    if expected and (not token or token != expected):
+        await websocket.close(code=4401, reason="Unauthorized")
+        return
+
     await websocket.accept()
     add_connection(websocket)
     _WS_MSG_RATE[websocket] = []

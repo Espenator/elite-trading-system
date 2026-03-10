@@ -91,8 +91,21 @@ class MobileServer {
   _handleRequest(req, res) {
     const url = new URL(req.url, `http://${req.headers.host}`);
 
-    // Proxy all /api/* requests to the FastAPI backend
+    // CORS preflight
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204, this._corsHeaders(req));
+      res.end();
+      return;
+    }
+
+    // Proxy all /api/* requests to the FastAPI backend (requires Bearer token)
     if (url.pathname.startsWith('/api/')) {
+      const authHeader = req.headers.authorization || '';
+      if (!authHeader.startsWith('Bearer ')) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Authorization required' }));
+        return;
+      }
       this._proxyToBackend(req, res);
       return;
     }
@@ -120,13 +133,23 @@ class MobileServer {
       res.writeHead(200, {
         'Content-Type': mime,
         'Cache-Control': ext === '.html' ? 'no-cache' : 'max-age=3600',
-        'Access-Control-Allow-Origin': '*',
       });
       res.end(data);
     } catch (err) {
       res.writeHead(500);
       res.end('Server error: ' + err.message);
     }
+  }
+
+  /** Build CORS headers scoped to the LAN origin. */
+  _corsHeaders(req) {
+    const origin = req.headers.origin || `http://${this._localIp}:${this._port}`;
+    return {
+      'Access-Control-Allow-Origin': origin,
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+      'Access-Control-Max-Age': '86400',
+    };
   }
 
   /** Proxy a request to the FastAPI backend. */
@@ -142,8 +165,7 @@ class MobileServer {
     const proxy = http.request(options, (backendRes) => {
       res.writeHead(backendRes.statusCode, {
         ...backendRes.headers,
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+        ...this._corsHeaders(req),
       });
       backendRes.pipe(res, { end: true });
     });

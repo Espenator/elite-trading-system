@@ -245,11 +245,15 @@ export const initAuthFromElectron = async () => {
 /**
  * Get WebSocket base URL. When WS_URL is "" (dev), uses current host so Vite proxy is used.
  */
-export const getWsBaseUrl = () =>
-  API_CONFIG.WS_URL ||
-  (typeof window !== "undefined"
-    ? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`
-    : "ws://localhost:3000/ws");
+export const getWsBaseUrl = () => {
+  const base =
+    API_CONFIG.WS_URL ||
+    (typeof window !== "undefined"
+      ? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`
+      : "ws://localhost:3000/ws");
+  const token = _cachedAuthToken || import.meta.env.VITE_API_AUTH_TOKEN || "";
+  return token ? `${base}?token=${encodeURIComponent(token)}` : base;
+};
 
 /**
  * Get WebSocket URL for a channel.
