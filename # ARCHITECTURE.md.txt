@@ -1,0 +1,231 @@
+# ARCHITECTURE.md
+
+## Embodier Trader — System Architecture (March 10, 2026)
+
+### 1. System Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        ESPENMAIN (PC1)                                  │
+│                                                                         │
+│  ┌──────────────┐   ┌──────────────────────────────────────────────┐   │
+│  │ Frontend-v2  │   │            FastAPI Backend (8000)             │   │
+│  │ React 18     │◄──┤  main.py (1372 lines, 55.7 KB)              │   │
+│  │ Vite (5173)  │   │  ├─ 42 API route files (api/v1/)            │   │
+│  │ 14 pages     │   │  ├─ 50+ service files (services/)           │   │
+│  │ TailwindCSS  │   │  ├─ Council Engine (35 agents, 7 stages)    │   │
+│  │ WebSocket ◄──┼───┤  ├─ MessageBus (async pub/sub)              │   │
+│  └──────────────┘   │  ├─ DuckDB (WAL mode)                       │   │
+│                     │  ├─ Knowledge Layer (ETBI)                   │   │
+│                     │  └─ AlpacaStreamManager (multi-key)          │   │
+│                     └─────────────┬────────────────────────────────┘   │
+│                                   │ gRPC :50051                        │
+├───────────────────────────────────┼────────────────────────────────────┤
+│                        PC2 (ProfitTrader GPU)                          │
+│  ┌────────────────────────────────┴───────────────────┐               │
+│  │ brain_service/server.py                             │               │
+│  │  ├─ gRPC server (proto/brain.proto)                │               │
+│  │  ├─ ollama_client.py → Ollama (llama3.2)           │               │
+│  │  └─ models.py (request/response schemas)           │               │
+│  └────────────────────────────────────────────────────┘               │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### 2. Full Trade Pipeline
+
+```
+AlpacaStreamManager (multi-key WebSocket)
+    │ market_data.bar
+    ▼
+EventDrivenSignalEngine (DuckDB queries + technical analysis)
+    │ signal.generated (score 0-100)
+    ▼
+CouncilGate (threshold ≥ 65, max_concurrent=3, cooldown=120s)
+    │ invokes run_council()
+    ▼
+┌─────────────────────────────────────────────┐
+│        35-AGENT DAG (7 Stages)              │
+│                                              │
+│ Stage 1: 13 agents (perception + P0-P2)     │
+│ Stage 2: 8 agents (technical + enrichment)  │
+│ Stage 3: 2 agents (hypothesis + memory)     │
+│ Stage 4: 1 agent (strategy)                 │
+│ Stage 5: 3 agents (risk + exec + portfolio) │
+│ Stage 5.5: 3 agents (debate + red team)     │
+│ Stage 6: 1 agent (critic)                   │
+│ Stage 7: arbiter (deterministic BUY/SELL/HOLD)│
+│ Post: 1 agent (alt_data, background)        │
+└─────────────┬───────────────────────────────┘
+              │ council.verdict
+              ▼
+OrderExecutor (real DuckDB stats, ATR, Kelly sizing, mock-source guard)
+    │ order.submitted
+    ▼
+Alpaca Markets API (paper/live)
+    │
+    ▼
+WebSocket bridges → Frontend Dashboard
+```
+
+### 3. Council Architecture (35 Agents)
+
+| Tier | Agent | File | Weight | DAG Stage | Status |
+|------|-------|------|--------|-----------|--------|
+| **Core** | market_perception | market_perception_agent.py | 1.0 | 1 | COMPLETE |
+| **Core** | flow_perception | flow_perception_agent.py | 0.8 | 1 | COMPLETE |
+| **Core** | regime | regime_agent.py | 1.2 | 1 | COMPLETE |
+| **Core** | social_perception | social_perception_agent.py | 0.7 | 1 | COMPLETE |
+| **Core** | news_catalyst | news_catalyst_agent.py | 0.6 | 1 | COMPLETE |
+| **Core** | youtube_knowledge | youtube_knowledge_agent.py | 0.4 | 1 | COMPLETE |
+| **Core** | intermarket | intermarket_agent.py | — | 1 | COMPLETE |
+| **Core** | hypothesis | hypothesis_agent.py | 0.9 | 3 | COMPLETE (gRPC wired) |
+| **Core** | strategy | strategy_agent.py | 1.1 | 4 | COMPLETE |
+| **Core** | risk | risk_agent.py | 1.5 | 5 | COMPLETE |
+| **Core** | execution | execution_agent.py | 1.3 | 5 | COMPLETE |
+| **Academic P0** | gex_agent | gex_agent.py | 0.9 | 1 | COMPLETE |
+| **Academic P0** | insider_agent | insider_agent.py | 0.85 | 1 | COMPLETE |
+| **Academic P1** | earnings_tone_agent | earnings_tone_agent.py | 0.8 | 1 | COMPLETE |
+| **Academic P1** | finbert_sentiment_agent | finbert_sentiment_agent.py | 0.75 | 1 | COMPLETE |
+| **Academic P1** | supply_chain_agent | supply_chain_agent.py | 0.7 | 2 | COMPLETE |
+| **Academic P2** | institutional_flow_agent | institutional_flow_agent.py | 0.7 | 2 | COMPLETE |
+| **Academic P2** | congressional_agent | congressional_agent.py | 0.6 | 2 | COMPLETE |
+| **Academic P2** | dark_pool_agent | dark_pool_agent.py | 0.7 | 1 | COMPLETE |
+| **Academic P3** | portfolio_optimizer_agent | portfolio_optimizer_agent.py | 0.8 | 5 | COMPLETE |
+| **Academic P3** | layered_memory_agent | layered_memory_agent.py | 0.6 | 3 | COMPLETE |
+| **Academic P4** | alt_data_agent | alt_data_agent.py | 0.5 | Post | COMPLETE |
+| **Academic P4** | macro_regime_agent | macro_regime_agent.py | 1.0 | 1 | COMPLETE |
+| **Supplemental** | rsi | rsi_agent.py | — | 2 | COMPLETE |
+| **Supplemental** | bbv | bbv_agent.py | — | 2 | COMPLETE |
+| **Supplemental** | ema_trend | ema_trend_agent.py | — | 2 | COMPLETE |
+| **Supplemental** | relative_strength | relative_strength_agent.py | — | 2 | COMPLETE |
+| **Supplemental** | cycle_timing | cycle_timing_agent.py | — | 2 | COMPLETE |
+| **Debate** | bull_debater | bull_debater.py | — | 5.5 | COMPLETE |
+| **Debate** | bear_debater | bear_debater.py | — | 5.5 | COMPLETE |
+| **Red Team** | red_team | red_team_agent.py | — | 5.5 | COMPLETE |
+| **Core** | critic | critic_agent.py | 0.5 | 6 | COMPLETE |
+
+**Note:** runner.py Stage 3 only spawns `hypothesis` individually (not `layered_memory_agent` in parallel as documented). The docstring says both but code spawns hypothesis alone, then the layered_memory_agent is not explicitly spawned in a separate parallel call — this is a wiring gap. [github](https://github.com/Espenator/elite-trading-system/blob/main/backend/app/council/runner.py)
+
+### 4. Backend Service Map
+
+Services directory contains 50+ files organized into subdirectories (broker/, channels/, data_sources/, firehose/, ingestion/, intelligence/, llm_clients/, ml/, scanning/, scouts/, trading/) plus ~40 top-level service files. Key services feeding the pipeline: [github](https://github.com/Espenator/elite-trading-system/tree/main/backend/app/services)
+
+| Service | Feeds |
+|---------|-------|
+| alpaca_service.py | Orders API, market data |
+| alpaca_stream_manager.py | MessageBus market_data.bar events |
+| signal_engine.py | signal.generated events |
+| order_executor.py | Alpaca order submission |
+| turbo_scanner.py | 60s parallel scanning |
+| hyper_swarm.py | 50-worker Ollama micro-swarms |
+| intelligence_cache.py | Pre-warmed council data |
+| intelligence_orchestrator.py | Multi-tier LLM package |
+| outcome_tracker.py | PnL → feedback loop |
+| position_manager.py | Trailing stops, time exits |
+| weight_learner.py (council/) | Bayesian agent weight adaptation |
+
+### 5. Frontend Page Map
+
+| Page | Route | Primary API Endpoints |
+|------|-------|----------------------|
+| Dashboard.jsx | /dashboard | /status, /portfolio, /signals, /market |
+| AgentCommandCenter.jsx | /agents | /agents, /council |
+| SignalIntelligenceV3.jsx | /signal-intelligence-v3 | /signals |
+| SentimentIntelligence.jsx | /sentiment | /sentiment |
+| DataSourcesMonitor.jsx | /data-sources | /data-sources |
+| MLBrainFlywheel.jsx | /ml-brain | /ml-brain, /flywheel |
+| Patterns.jsx | /patterns | /patterns |
+| Backtesting.jsx | /backtest | /backtest |
+| PerformanceAnalytics.jsx | /performance | /performance |
+| MarketRegime.jsx | /market-regime | /market |
+| Trades.jsx | /trades | /orders, /portfolio |
+| RiskIntelligence.jsx | /risk | /risk, /risk-shield |
+| TradeExecution.jsx | /trade-execution | /orders, /council |
+| Settings.jsx | /settings | /settings |
+
+### 6. Brain Service
+
+- **Location:** `brain_service/` (7 files + proto/ directory)
+- **gRPC schema:** `brain_service/proto/brain.proto`
+- **Server:** `brain_service/server.py` — gRPC server on port 50051
+- **Client:** `brain_service/ollama_client.py` — calls Ollama API
+- **Model:** llama3.2 (configurable via .env)
+- **Wiring:** `hypothesis_agent.py` calls brain gRPC via `app/services/brain_client.py` [github](https://github.com/Espenator/elite-trading-system/blob/main/backend/app/main.py)
+
+### 7. MessageBus Topic Map
+
+Topics published/subscribed in main.py: [github](https://github.com/Espenator/elite-trading-system/blob/main/backend/app/main.py)
+
+| Topic | Publishers | Subscribers |
+|-------|-----------|-------------|
+| market_data.bar | AlpacaStreamManager | SignalEngine, DuckDB persist, WS bridge |
+| signal.generated | SignalEngine, TurboScanner, NewsAggregator | CouncilGate (or fallback), WS bridge |
+| council.verdict | CouncilGate (sole publisher) | OrderExecutor, WS bridge |
+| order.submitted | OrderExecutor | WS bridge |
+| order.filled | OrderExecutor | WS bridge |
+| order.cancelled | OrderExecutor | WS bridge |
+| outcome.resolved | OutcomeTracker | WeightLearner + SelfAwareness |
+| swarm.idea | Scouts, StreamingDiscovery | IdeaTriage, HyperSwarm |
+| swarm.result | SwarmSpawner | WS bridge |
+| scout.discovery | GeopoliticalRadar | WS bridge (risk channel) |
+| cluster.telemetry | GPUTelemetryDaemon | NodeDiscovery |
+| perception.unusualwhales | UnusualWhalesService | Council agents |
+| triage.escalated | IdeaTriage | SwarmSpawner |
+
+### 8. DuckDB Schema
+
+Primary tables (from data/duckdb_storage.py):
+- `daily_ohlcv` — Symbol, date, OHLCV, source
+- `features` — Computed feature vectors (50+ indicators)
+- `signals` — Generated trading signals
+- `trades` — Executed trade records
+- `trade_stats` — Win rate, avg win/loss aggregates
+- `model_artifacts` — ML model metadata
+- `patterns` — Detected chart patterns
+- `settings` — User settings key-value store
+
+### 9. WebSocket Bridge Map
+
+| WS Channel | What Pushes | Source Topic |
+|------------|-------------|--------------|
+| signal | new_signal | signal.generated |
+| order | order_update | order.submitted/filled/cancelled |
+| council | council_verdict | council.verdict |
+| market | price_update | market_data.bar |
+| risk | risk_update, drawdown_alert, macro_event | _risk_monitor_loop, scout.discovery |
+| swarm | swarm_result | swarm.result |
+
+Additional valid channels (subscribe-only, no active bridge yet): signals, council_verdict, kelly, macro, blackboard, alerts, performance, agents, data_sources, trades, logs, sentiment, alignment, homeostasis, circuit_breaker. [github](https://github.com/Espenator/elite-trading-system/blob/main/backend/app/main.py)
+
+### 10. Dual-PC Hardware Topology
+
+- **ESPENMAIN (PC1):** Development + Backend API + Frontend + DuckDB + Alpaca streaming
+- **PC2 (ProfitTrader):** RTX GPU + brain_service (gRPC :50051) + Ollama inference
+- **Connection:** gRPC over LAN, port 50051, configured via `CLUSTER_PC2_HOST` env var
+- **NodeDiscovery:** Automatic PC2 health monitoring with tiered fallback
+
+***
+
+# DESIGN-STATUS.md
+
+## Embodier Trader — Design Status (March 10, 2026)
+
+### Rating Scale
+- **5** = Production-ready, fully tested, fully wired
+- **4** = Complete and wired, minor gaps
+- **3** = Implemented but partially wired or partially tested
+- **2** = Stubbed or partially implemented
+- **1** = Missing or broken
+
+### Council & Intelligence
+
+| Component | Rating | Notes |
+|-----------|--------|-------|
+| Council runner (7-stage DAG) | **4** | 629 lines, all 35 agents registered. Stage 3 docstring says layered_memory_agent runs parallel with hypothesis but code only spawns hypothesis alone |
+| WeightLearner / Bayesian adaptation | **4** | 14.8 KB, wired via outcome.resolved subscriber |
+| SelfAwareness / metacognition | **4** | 10.8 KB, called in runner.py for agent hibernation |
+| Homeostasis / auto-healing | **3** | 6.3 KB, check_vitals() called in runner but limited sensors |
+| OverfittingGuard | **3** | 9.4 KB, implemented but not actively gating ML decisions |
+| IntelligenceCache | **4** | start() called at startup, pre-warming council data |
+| CouncilGate (signal → council) | **4** | 8.9 KB, threshold configurable, cooldown working |
+| OrderExecutor | **4**

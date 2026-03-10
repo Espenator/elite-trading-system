@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     # ── App ─────────────────────────────────────────────────
     APP_NAME: str = "Embodier Trader"
     PROJECT_NAME: str = "Embodier Trader"
-    APP_VERSION: str = "4.0.0"  # Single source of truth for version
+    APP_VERSION: str = "4.1.0-dev"  # Single source of truth for version
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
     ENVIRONMENT: str = "production"

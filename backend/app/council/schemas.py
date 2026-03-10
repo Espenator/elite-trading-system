@@ -3,7 +3,7 @@
 DAG: 7 stages, 17 agents + arbiter + debate stage 5.5.
 Stage 1: [market_perception, flow_perception, regime, social_perception, news_catalyst, youtube_knowledge, intermarket]
 Stage 2: [rsi, bbv, ema_trend, relative_strength, cycle_timing]
-Stage 3: [hypothesis]
+Stage 3: [hypothesis, layered_memory_agent]
 Stage 4: [strategy]
 Stage 5: [risk, execution]
 Stage 5.5: [debate_engine, bull_debater, bear_debater, red_team]

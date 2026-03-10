@@ -81,7 +81,8 @@ class TestCensoredOutcomes:
 class TestPriceCacheService:
     def test_cache_stores_and_returns_price(self):
         cache = PriceCacheService(message_bus=None)
-        cache._cache["AAPL"] = (150.5, time.time())
+        cache._prices["AAPL"] = 150.5
+        cache._last_update_ts = time.time()
         assert cache.get_price("AAPL") == 150.5
         assert cache.get_price("MSFT") is None
 
@@ -90,11 +91,13 @@ class TestPriceCacheService:
         assert cache.is_stale("AAPL") is True
 
     def test_is_stale_old_entry(self):
-        cache = PriceCacheService(message_bus=None, stale_seconds=60)
-        cache._cache["AAPL"] = (150.0, time.time() - 120)
-        assert cache.is_stale("AAPL") is True
-        cache._cache["MSFT"] = (300.0, time.time())
-        assert cache.is_stale("MSFT") is False
+        cache = PriceCacheService(message_bus=None)
+        cache._prices["AAPL"] = 150.0
+        cache._last_update_ts = time.time() - 120
+        assert cache.is_stale("AAPL", max_age_sec=60) is True
+        cache._prices["MSFT"] = 300.0
+        cache._last_update_ts = time.time()
+        assert cache.is_stale("MSFT", max_age_sec=60) is False
 
 
 # ---- P0 Fix 4: Sizing gate ----

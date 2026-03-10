@@ -77,6 +77,14 @@ class PriceCacheService:
         """Return timestamp of last bar/quote update (for brain degraded check)."""
         return self._last_update_ts
 
+    def is_stale(self, symbol: str, max_age_sec: float = 300.0) -> bool:
+        """Return True if there is no price for symbol or cache is older than max_age_sec."""
+        if symbol and symbol.upper() not in self._prices:
+            return True
+        if self._last_update_ts is None:
+            return True
+        return (time.time() - self._last_update_ts) > max_age_sec
+
     def get_status(self) -> Dict[str, Any]:
         return {
             "running": self._running,

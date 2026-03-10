@@ -1,18 +1,18 @@
 # Embodier Trader - Repository Map
-> Auto-generated reference for AI coding assistants. Last updated: March 7, 2026 (v3.5.0-dev).
+> Auto-generated reference for AI coding assistants. Last updated: March 10, 2026 (v4.1.0-dev).
 > Run `python map_repo.py` to regenerate, or `python bundle_files.py` to bundle key files.
-> **Current Focus**: Continuous Discovery Architecture (Issue #38)
+> **Current Focus**: Production readiness (auth, paper burn-in, observability)
 
 ## Tech Stack
-- **Backend**: Python 3.11, FastAPI, DuckDB
+- **Backend**: Python 3.11+, FastAPI, DuckDB
 - **Frontend**: React 18 (Vite), Lightweight Charts, Tailwind CSS
-- **Council**: 17-agent DAG with Bayesian-weighted arbiter (7 stages)
-- **Discovery**: TurboScanner + HyperSwarm + 12 Scout Agents (Issue #38 — streaming transition)
+- **Council**: 35-agent DAG with Bayesian-weighted arbiter (7 stages; Stage 3: hypothesis + layered_memory_agent)
+- **Discovery**: TurboScanner + HyperSwarm + 12 Scout Agents (streaming transition)
 - **Knowledge**: MemoryBank + HeuristicEngine + KnowledgeGraph (outcome-driven learning)
 - **Data Sources**: Alpaca Markets, Unusual Whales, FinViz, FRED, SEC EDGAR (NO yfinance)
 - **Event Pipeline**: MessageBus -> CouncilGate -> Council -> OrderExecutor
 - **Brain Service**: gRPC + Ollama (local LLM on RTX GPU)
-- **CI/CD**: GitHub Actions (`.github/workflows/ci.yml`) — 151 tests passing
+- **CI/CD**: GitHub Actions (`.github/workflows/ci.yml`) — 898 tests passing (backend)
 - **Infra**: Docker, docker-compose.yml
 
 ## Directory Tree
@@ -43,17 +43,17 @@ elite-trading-system/
 |   |
 |   |-- app/
 |   |   |-- __init__.py
-|   |   |-- main.py                    # FastAPI app entry (v3.2.0, Embodier Trader)
+|   |   |-- main.py                    # FastAPI app entry (v4.1.0-dev, Embodier Trader)
 |   |   |-- websocket_manager.py       # WebSocket broadcast manager
 |   |   |
-|   |   |-- api/v1/                    # REST API endpoints (29 routes)
+|   |   |-- api/v1/                    # REST API endpoints (30+ routes)
 |   |   |   |-- __init__.py
 |   |   |   |-- agents.py              # Agent Command Center (5 template agents)
 |   |   |   |-- alerts.py              # Drawdown alerts, system alerts
 |   |   |   |-- alignment.py           # Alignment/consensus endpoints
 |   |   |   |-- alpaca.py              # Alpaca API proxy for frontend
 |   |   |   |-- backtest_routes.py     # Strategy backtesting
-|   |   |   |-- council.py             # Council evaluate, status, weights (13-agent)
+|   |   |   |-- council.py             # Council evaluate, status, weights (35-agent)
 |   |   |   |-- data_sources.py        # Data source health
 |   |   |   |-- features.py            # Feature aggregator endpoints
 |   |   |   |-- flywheel.py            # ML flywheel metrics
@@ -78,7 +78,7 @@ elite-trading-system/
 |   |   |   |-- training.py            # ML training jobs
 |   |   |   |-- youtube_knowledge.py   # YouTube research
 |   |   |
-|   |   |-- council/                   # 13-Agent Council DAG (7 stages)
+|   |   |-- council/                   # 35-Agent Council DAG (7 stages)
 |   |   |   |-- __init__.py
 |   |   |   |-- runner.py              # 7-stage parallel DAG orchestrator
 |   |   |   |-- arbiter.py             # Deterministic arbiter + Bayesian weights
@@ -96,7 +96,7 @@ elite-trading-system/
 |   |   |       |-- ema_trend_agent.py           # Stage 2: EMA cascade classification
 |   |   |       |-- relative_strength_agent.py   # Stage 2: sector relative strength
 |   |   |       |-- cycle_timing_agent.py        # Stage 2: market cycle timing
-|   |   |       |-- hypothesis_agent.py          # Stage 3: brain_service LLM (stub)
+|   |   |       |-- hypothesis_agent.py          # Stage 3: brain_service LLM + layered_memory_agent
 |   |   |       |-- strategy_agent.py            # Stage 4: entry/exit/sizing
 |   |   |       |-- risk_agent.py                # Stage 5: risk assessment (VETO)
 |   |   |       |-- execution_agent.py           # Stage 5: execution readiness (VETO)
@@ -311,11 +311,11 @@ elite-trading-system/
 1. **No yfinance** - All market data via Alpaca, Unusual Whales, FinViz, FRED, SEC EDGAR
 2. **Real API only** - No mock data in production components
 3. **useApi hook** - Central data fetching: `useApi('endpoint')` returns `{ data, loading, error }`
-4. **Council-controlled trading** - All signals pass through 17-agent council via CouncilGate before execution
+4. **Council-controlled trading** - All signals pass through 35-agent council via CouncilGate before execution
 5. **Bayesian weight learning** - WeightLearner adjusts agent influence based on trade outcomes
 6. **DuckDB** - Primary analytics database (WAL mode, connection pooling)
 7. **OpenClaw** - Legacy code with useful scanner/agent pieces, scheduled for cleanup (P4)
-8. **CI** - 151 tests passing, GitHub Actions on every push
+8. **CI** - 898 tests passing (backend pytest), GitHub Actions on every push
 9. **Brain Service** - gRPC + Ollama on PC2 for LLM inference (not yet wired to council)
 10. **Discovery** - Transitioning from periodic polling to continuous streaming (Issue #38)
 11. **Knowledge Layer** - MemoryBank + HeuristicEngine + KnowledgeGraph learn from trade outcomes

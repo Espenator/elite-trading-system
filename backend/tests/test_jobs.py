@@ -9,11 +9,12 @@ from app.jobs.scheduler import get_scheduler_status
 
 class TestDailyOutcomeUpdate:
     def test_first_run_completes(self):
-        import app.jobs.daily_outcome_update as mod
-        mod._last_run_date = ""  # reset
+        """Job returns completed, error, or skipped (if already run today via DuckDB state)."""
         result = daily_run()
-        assert result["status"] in ("completed", "error")
+        assert result["status"] in ("completed", "error", "skipped")
         assert "date" in result
+        if result["status"] == "skipped":
+            assert result.get("reason") == "already_run_today"
 
     def test_idempotent_skips_second_run(self):
         import app.jobs.daily_outcome_update as mod

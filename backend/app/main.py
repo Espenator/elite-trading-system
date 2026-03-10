@@ -62,6 +62,7 @@ from app.api.v1 import (
     settings_routes,
     openclaw,
     ml_brain,
+    brain,
     risk_shield_api,
     market,
     alpaca,
@@ -73,9 +74,13 @@ from app.api.v1 import (
     swarm,
     cognitive,
     cluster,
-    llm_health,     mobile_api,
+    llm_health,
+    mobile_api,
+    awareness,
+    triage,
 )
 from app.api import ingestion
+from app.api.v1 import ingestion_firehose
 
 # Configure structured logging (JSON in production, human-readable in dev)
 from app.core.logging_config import setup_logging, correlation_id, generate_correlation_id
@@ -1149,7 +1154,39 @@ app.include_router(cognitive.router, prefix="/api/v1/cognitive", tags=["cognitiv
 app.include_router(youtube_knowledge.router, prefix="/api/v1/youtube-knowledge", tags=["youtube_knowledge"])
 app.include_router(ingestion.router, tags=["ingestion"])
 app.include_router(cluster.router, prefix="/api/v1/cluster", tags=["cluster"])
-app.include_router(llm_health.router) app.include_router(mobile_api.router, prefix="/api/v1/mobile"), prefix="/api/v1/llm/health", tags=["llm_health"])
+app.include_router(llm_health.router, prefix="/api/v1/llm/health", tags=["llm_health"])
+app.include_router(mobile_api.router, prefix="/api/v1/mobile", tags=["mobile"])
+app.include_router(ingestion_firehose.router)
+app.include_router(brain.router, prefix="/api/v1/brain", tags=["brain"])
+app.include_router(awareness.router)
+app.include_router(triage.router, prefix="/api/v1/triage", tags=["triage"])
+
+
+@app.get("/api/v1/ws/registry", tags=["websocket"])
+async def ws_registry():
+    """WebSocket channel registry: channel names, message schema, subscriber counts."""
+    from app.websocket_manager import get_channel_info
+    info = get_channel_info()
+    live = info.get("channels", {}) or {}
+    # Expose all valid channel names so clients know what can be subscribed to
+    all_channel_names = sorted(set(_VALID_WS_CHANNELS) | set(live.keys()))
+    subscriber_counts = {ch: live.get(ch, 0) for ch in all_channel_names}
+    return {
+        "total_connections": info.get("total_connections", 0),
+        "channels": all_channel_names,
+        "subscriber_counts": subscriber_counts,
+        "message_schema": {
+            "channel": "string (e.g. signal, council, risk, market, order, swarm)",
+            "type": "string (e.g. update, new_signal, verdict)",
+            "data": "object (payload)",
+            "ts": "number (Unix timestamp)",
+        },
+        "schema_examples": [
+            {"channel": "signal", "type": "new_signal", "data": {"symbol": "AAPL", "score": 80}, "ts": 1234567890.0},
+            {"channel": "council", "type": "verdict", "data": {"symbol": "AAPL", "direction": "buy"}, "ts": 1234567890.0},
+        ],
+    }
+
 
 @app.get("/api/v1/consensus", tags=["agents"])
 async def consensus_alias():

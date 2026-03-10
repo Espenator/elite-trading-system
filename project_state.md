@@ -143,10 +143,10 @@ The codebase had five separate agent/decision systems. As of v3.2.0, Systems 2 a
 | Frontend | React 18 (Vite), Tailwind CSS, Lightweight Charts |
 | Database | DuckDB (WAL mode, connection pooling) |
 | ML | XGBoost, scikit-learn, LSTM (no PyTorch in prod) |
-| Council | 17-agent DAG with Bayesian-weighted arbiter (7 stages) |
+| Council | 35-agent DAG with Bayesian-weighted arbiter (7 stages) |
 | Brain Service | gRPC + Ollama (PC2) for LLM inference |
 | Event Pipeline | MessageBus → CouncilGate → Council → OrderExecutor |
-| CI/CD | GitHub Actions (151 tests passing) |
+| CI/CD | GitHub Actions (898 tests passing, backend pytest) |
 | Infra | Docker, docker-compose.yml |
 | Local AI | Ollama on RTX GPU cluster |
 
@@ -160,15 +160,14 @@ The codebase had five separate agent/decision systems. As of v3.2.0, Systems 2 a
 - StockGeist / News API / Discord / X — Social sentiment (via council agents)
 - YouTube — Transcript intelligence (via council agent)
 
-## Council Architecture (13-Agent DAG, 7 Stages)
+## Council Architecture (35-Agent DAG, 7 Stages)
 ```
-Stage 1 (Parallel, 7): market_perception, flow_perception, regime, social_perception, news_catalyst, youtube_knowledge, intermarket
-Stage 2 (Parallel, 5): rsi, bbv, ema_trend, relative_strength, cycle_timing
-Stage 3: hypothesis (wired to brain_service LLM, reads blackboard)
-Stage 4: strategy (entry/exit/sizing, confidence modulated by social+news consensus)
-Stage 5 (Parallel): risk, execution
-Stage 6: critic (postmortem learning)
-Stage 7: arbiter (deterministic BUY/SELL/HOLD with Bayesian weights)
+Stage 1 (Parallel): perception + Academic Edge P0/P1/P2 (13 agents)
+Stage 2 (Parallel): technical + data enrichment (8 agents)
+Stage 3 (Parallel): hypothesis + layered_memory_agent
+Stage 4: strategy
+Stage 5 (Parallel): risk, execution, portfolio_optimizer_agent
+Stage 6: critic; Stage 7: arbiter (deterministic BUY/SELL/HOLD with Bayesian weights)
 ```
 
 Agent Groups:
@@ -186,7 +185,7 @@ Agent Schema: `AgentVote(agent_name, direction, confidence, reasoning, veto, vet
 
 ## CNS Architecture (Central Nervous System)
 - **Brainstem** (<50ms): CircuitBreaker reflexes [TO BUILD - P3]
-- **Spinal Cord** (~1500ms): 17-agent council DAG [BUILT]
+- **Spinal Cord** (~1500ms): 35-agent council DAG [BUILT]
 - **Cortex** (300-800ms): hypothesis + critic via brain_service gRPC [NOT WIRED - P7]
 - **Thalamus**: BlackboardState shared memory [TO BUILD - P1]
 - **Autonomic**: Bayesian WeightLearner [BUILT - P8] — learns from trade outcomes
@@ -202,7 +201,7 @@ AlpacaStreamService
   -> market_data.bar
   -> EventDrivenSignalEngine
   -> signal.generated (score >= 65)
-  -> CouncilGate (invokes 17-agent council)
+  -> CouncilGate (invokes 35-agent council)
   -> council.verdict (BUY/SELL/HOLD)
   -> OrderExecutor (real DuckDB stats, real ATR, mock-source guard)
   -> order.submitted
@@ -215,7 +214,7 @@ AlpacaStreamService
 ```
 [React Frontend] --useApi()--> [FastAPI Backend] --services--> [External APIs]
 15 pages, 31 API route files, WebSocket via websocket_manager.py
-17-Agent Council DAG, ML Engine (XGBoost), DuckDB Analytics
+35-Agent Council DAG, ML Engine (XGBoost), DuckDB Analytics
 [Brain Service gRPC] <-- Ollama LLM inference on PC2
 [Electron Desktop Shell] -- spawns backend + serves frontend
 ```
@@ -230,12 +229,12 @@ AlpacaStreamService
 6. Council Gate: signal.generated -> CouncilGate -> run_council() -> council.verdict -> OrderExecutor
 7. Weight Learning: WeightLearner.update(agent, won) adjusts Bayesian alpha/beta -> arbiter uses learned weights
 
-## Current State (Mar 7, 2026 — v3.5.0-dev)
-- CI: 151 tests passing (Run #452 GREEN)
-- Version: 3.5.0-dev (Continuous Discovery Architecture in progress)
+## Current State (Mar 10, 2026 — v4.1.0-dev)
+- CI: 898 tests passing (backend pytest), GREEN
+- Version: 4.1.0-dev (Production readiness: Phase 1 P0 fixes done)
 - Frontend: 14 pages, all pixel-matched to mockups, wired to real API hooks
-- Backend: 29 API routes, 24+ service files, knowledge layer wired
-- Council: 17 agents + arbiter + runner + CouncilGate + WeightLearner (fully connected)
+- Backend: 30+ API routes (brain, triage, ingestion firehose, awareness mounted), 24+ service files
+- Council: 35 agents + arbiter + runner + CouncilGate + WeightLearner (Stage 3: hypothesis + layered_memory_agent)
 - Discovery: TurboScanner (10 screens) + HyperSwarm (50 workers) + AutonomousScout (4 scouts) + 6 UW agents — ALL POLLING, transitioning to streaming (Issue #38)
 - Knowledge: MemoryBank + HeuristicEngine + KnowledgeGraph (wired to outcome tracker)
 - Brain Service: gRPC + Ollama ready (not yet connected to council)

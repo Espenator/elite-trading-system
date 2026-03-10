@@ -29,8 +29,9 @@ AGENTS: List[str] = [
     "supply_chain_agent",
     "institutional_flow_agent",
     "congressional_agent",
-    # Stage 3
+    # Stage 3: Hypothesis + Memory
     "hypothesis",
+    "layered_memory_agent",
     # Stage 4
     "strategy",
     # Stage 5: Risk + Execution
@@ -54,7 +55,7 @@ DAG_STAGES: List[List[str]] = [
         "rsi", "bbv", "ema_trend", "relative_strength", "cycle_timing",
         "supply_chain_agent", "institutional_flow_agent", "congressional_agent",
     ],
-    ["hypothesis"],
+    ["hypothesis", "layered_memory_agent"],
     ["strategy"],
     ["risk", "execution", "portfolio_optimizer_agent"],
     ["critic"],

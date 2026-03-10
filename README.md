@@ -1,28 +1,28 @@
 # Elite Trading System
 ### Embodier.ai — Full-Stack AI Trading Intelligence Platform
-**Version 4.1.0-dev** | Last Updated: March 9, 2026
+**Version 4.1.0-dev** | Last Updated: March 10, 2026
 
-CI Status: GREEN — 666 tests passing
+CI Status: GREEN — 898 tests passing (backend pytest)
 Frontend: **ALL 14 PAGES COMPLETE** — pixel-fidelity match to 23 mockup images. Build clean.
-Backend: **Backend successfully started!** Tests passing (666/666). Council running 35 agents.
+Backend: **Backend successfully started!** Tests passing (898/898). Council running 35 agents.
 Council: **35-agent DAG** in 7 stages — council-controlled trading via CouncilGate (v3.5.0)
 
 ---
 
 React + FastAPI full-stack trading application with 14-route V3 widescreen dashboard, DuckDB database, **35-agent council DAG** with Bayesian weight learning, 12 Academic Edge Swarms (P0–P4), Alpaca + Finviz + Unusual Whales integrations, XGBoost ML pipeline, event-driven council-controlled order execution, and gRPC brain service for local Ollama LLM inference.
 
-## Current State (March 8, 2026)
+## Current State (March 10, 2026)
 
 | Area | Count | Status |
 |------|-------|--------|
 | Frontend pages | 14 (all sidebar routes) | **ALL COMPLETE** — pixel-matched to mockups, no mock data |
 | Frontend components | 12 shared + 5 agent-tab | All wired, no orphaned imports |
-| Backend API routes | 29 files in api/v1/ | All mounted in main.py |
+| Backend API routes | 30+ files in api/v1/ | All mounted in main.py (including brain, triage, ingestion firehose, awareness) |
 | Backend services | 24 files in services/ | Business logic layer |
 | Council agents | **35 agents** in 7-stage DAG | 11 Core + 12 Academic Edge (P0–P4) + 6 Supplemental + 3 Debate + 3 others |
 | Council intelligence | WeightLearner + CouncilGate + SelfAwareness + Homeostasis | Bayesian self-learning agent weights |
 | Council subsystems | 15 orchestration files | runner, arbiter, blackboard, task_spawner, shadow_tracker, etc. |
-| Tests | 666 passing | Backend pytest + frontend build |
+| Tests | 898 passing | Backend pytest + frontend build |
 | Brain service | gRPC + Ollama | **WIRED** — hypothesis_agent calls brain gRPC |
 | Event pipeline | MessageBus + CouncilGate + SignalEngine + OrderExecutor | BUILT — council-controlled trading |
 | Database | DuckDB (WAL mode, pooling) | BUILT |
@@ -172,7 +172,7 @@ Post-Arbiter (Background):
 - ✅ Brain service gRPC wired to hypothesis_agent (line 21)
 - ✅ WebSocket bridges active (signals, orders, council, market data)
 - ✅ All 12 Academic Edge agents wired into runner.py DAG stages
-- ✅ 666 tests passing (100% pass rate)
+- ✅ 898 tests passing (100% pass rate, backend pytest)
 
 **System Status:** Council now runs 35 agents across 7 stages. All P0 and P1 tasks complete.
 
