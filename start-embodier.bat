@@ -1,5 +1,5 @@
 @echo off
-title Embodier Trader v4.0.0
+title Embodier Trader v4.1.0
 color 0A
 cd /d "%~dp0"
 echo.

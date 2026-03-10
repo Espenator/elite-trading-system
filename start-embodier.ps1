@@ -83,7 +83,7 @@ if ($FrontendPort -eq 0) { $FrontendPort = [int](Get-EnvValue "FRONTEND_PORT" "3
 # Banner
 Write-Host ""
 Write-Host "  ============================================" -ForegroundColor DarkCyan
-Write-Host "   EMBODIER TRADER  v4.0.0" -ForegroundColor DarkCyan
+Write-Host "   EMBODIER TRADER  v4.1.0" -ForegroundColor DarkCyan
 Write-Host "   Backend :$BackendPort  |  Frontend :$FrontendPort" -ForegroundColor DarkCyan
 Write-Host "  ============================================" -ForegroundColor DarkCyan
 Write-Host ""
