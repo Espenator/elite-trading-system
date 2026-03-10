@@ -87,14 +87,14 @@ class TestVIXSpikeDetector:
 class TestDailyDrawdownLimit:
     @pytest.mark.anyio
     async def test_no_drawdown_returns_none(self, cb, bb):
-        with patch("app.council.reflexes.circuit_breaker.drawdown_check_status") as mock:
+        with patch("app.api.v1.risk.drawdown_check_status") as mock:
             mock.return_value = {"drawdown_breached": False, "daily_pnl_pct": 0.01}
             result = await cb.daily_drawdown_limit(bb)
             assert result is None
 
     @pytest.mark.anyio
     async def test_drawdown_breached_flag(self, cb, bb):
-        with patch("app.council.reflexes.circuit_breaker.drawdown_check_status") as mock:
+        with patch("app.api.v1.risk.drawdown_check_status") as mock:
             mock.return_value = {"drawdown_breached": True}
             result = await cb.daily_drawdown_limit(bb)
             assert result is not None
@@ -102,7 +102,7 @@ class TestDailyDrawdownLimit:
 
     @pytest.mark.anyio
     async def test_daily_pnl_below_limit(self, cb, bb):
-        with patch("app.council.reflexes.circuit_breaker.drawdown_check_status") as mock:
+        with patch("app.api.v1.risk.drawdown_check_status") as mock:
             mock.return_value = {"drawdown_breached": False, "daily_pnl_pct": -0.04}
             result = await cb.daily_drawdown_limit(bb)
             assert result is not None
@@ -110,7 +110,7 @@ class TestDailyDrawdownLimit:
 
     @pytest.mark.anyio
     async def test_api_exception_returns_none(self, cb, bb):
-        with patch("app.council.reflexes.circuit_breaker.drawdown_check_status") as mock:
+        with patch("app.api.v1.risk.drawdown_check_status") as mock:
             mock.side_effect = Exception("API unavailable")
             result = await cb.daily_drawdown_limit(bb)
             assert result is None
@@ -119,7 +119,7 @@ class TestDailyDrawdownLimit:
 class TestPositionLimitCheck:
     @pytest.mark.anyio
     async def test_no_positions_returns_none(self, cb, bb):
-        with patch("app.council.reflexes.circuit_breaker.alpaca_service") as mock:
+        with patch("app.services.alpaca_service.alpaca_service") as mock:
             mock.get_positions = AsyncMock(return_value=[])
             result = await cb.position_limit_check(bb)
             assert result is None
@@ -127,7 +127,7 @@ class TestPositionLimitCheck:
     @pytest.mark.anyio
     async def test_below_limit_returns_none(self, cb, bb):
         positions = [{"symbol": f"AAPL{i}"} for i in range(5)]
-        with patch("app.council.reflexes.circuit_breaker.alpaca_service") as mock:
+        with patch("app.services.alpaca_service.alpaca_service") as mock:
             mock.get_positions = AsyncMock(return_value=positions)
             result = await cb.position_limit_check(bb)
             assert result is None
@@ -135,7 +135,7 @@ class TestPositionLimitCheck:
     @pytest.mark.anyio
     async def test_at_limit_triggers(self, cb, bb):
         positions = [{"symbol": f"AAPL{i}"} for i in range(10)]
-        with patch("app.council.reflexes.circuit_breaker.alpaca_service") as mock:
+        with patch("app.services.alpaca_service.alpaca_service") as mock:
             mock.get_positions = AsyncMock(return_value=positions)
             result = await cb.position_limit_check(bb)
             assert result is not None
@@ -144,7 +144,7 @@ class TestPositionLimitCheck:
     @pytest.mark.anyio
     async def test_over_limit_triggers(self, cb, bb):
         positions = [{"symbol": f"AAPL{i}"} for i in range(15)]
-        with patch("app.council.reflexes.circuit_breaker.alpaca_service") as mock:
+        with patch("app.services.alpaca_service.alpaca_service") as mock:
             mock.get_positions = AsyncMock(return_value=positions)
             result = await cb.position_limit_check(bb)
             assert result is not None
@@ -152,7 +152,7 @@ class TestPositionLimitCheck:
 
     @pytest.mark.anyio
     async def test_alpaca_exception_returns_none(self, cb, bb):
-        with patch("app.council.reflexes.circuit_breaker.alpaca_service") as mock:
+        with patch("app.services.alpaca_service.alpaca_service") as mock:
             mock.get_positions = AsyncMock(side_effect=Exception("Alpaca down"))
             result = await cb.position_limit_check(bb)
             assert result is None
@@ -161,7 +161,7 @@ class TestPositionLimitCheck:
 class TestSinglePositionCheck:
     @pytest.mark.anyio
     async def test_no_positions_returns_none(self, cb, bb):
-        with patch("app.council.reflexes.circuit_breaker.alpaca_service") as mock:
+        with patch("app.services.alpaca_service.alpaca_service") as mock:
             mock.get_positions = AsyncMock(return_value=[])
             mock.get_account = AsyncMock(return_value={"equity": "100000"})
             result = await cb.single_position_check(bb)
@@ -170,7 +170,7 @@ class TestSinglePositionCheck:
     @pytest.mark.anyio
     async def test_small_position_returns_none(self, cb, bb):
         positions = [{"symbol": "AAPL", "market_value": "10000"}]
-        with patch("app.council.reflexes.circuit_breaker.alpaca_service") as mock:
+        with patch("app.services.alpaca_service.alpaca_service") as mock:
             mock.get_positions = AsyncMock(return_value=positions)
             mock.get_account = AsyncMock(return_value={"equity": "100000"})
             result = await cb.single_position_check(bb)
@@ -179,7 +179,7 @@ class TestSinglePositionCheck:
     @pytest.mark.anyio
     async def test_position_at_20_percent_returns_none(self, cb, bb):
         positions = [{"symbol": "AAPL", "market_value": "20000"}]
-        with patch("app.council.reflexes.circuit_breaker.alpaca_service") as mock:
+        with patch("app.services.alpaca_service.alpaca_service") as mock:
             mock.get_positions = AsyncMock(return_value=positions)
             mock.get_account = AsyncMock(return_value={"equity": "100000"})
             result = await cb.single_position_check(bb)
@@ -188,7 +188,7 @@ class TestSinglePositionCheck:
     @pytest.mark.anyio
     async def test_position_over_20_percent_triggers(self, cb, bb):
         positions = [{"symbol": "AAPL", "market_value": "25000"}]
-        with patch("app.council.reflexes.circuit_breaker.alpaca_service") as mock:
+        with patch("app.services.alpaca_service.alpaca_service") as mock:
             mock.get_positions = AsyncMock(return_value=positions)
             mock.get_account = AsyncMock(return_value={"equity": "100000"})
             result = await cb.single_position_check(bb)
@@ -199,7 +199,7 @@ class TestSinglePositionCheck:
     @pytest.mark.anyio
     async def test_negative_market_value_uses_absolute(self, cb, bb):
         positions = [{"symbol": "AAPL", "market_value": "-30000"}]
-        with patch("app.council.reflexes.circuit_breaker.alpaca_service") as mock:
+        with patch("app.services.alpaca_service.alpaca_service") as mock:
             mock.get_positions = AsyncMock(return_value=positions)
             mock.get_account = AsyncMock(return_value={"equity": "100000"})
             result = await cb.single_position_check(bb)
@@ -213,7 +213,7 @@ class TestSinglePositionCheck:
             {"symbol": "MSFT", "market_value": "30000"},
             {"symbol": "GOOGL", "market_value": "10000"},
         ]
-        with patch("app.council.reflexes.circuit_breaker.alpaca_service") as mock:
+        with patch("app.services.alpaca_service.alpaca_service") as mock:
             mock.get_positions = AsyncMock(return_value=positions)
             mock.get_account = AsyncMock(return_value={"equity": "100000"})
             result = await cb.single_position_check(bb)
@@ -223,7 +223,7 @@ class TestSinglePositionCheck:
     @pytest.mark.anyio
     async def test_zero_equity_returns_none(self, cb, bb):
         positions = [{"symbol": "AAPL", "market_value": "10000"}]
-        with patch("app.council.reflexes.circuit_breaker.alpaca_service") as mock:
+        with patch("app.services.alpaca_service.alpaca_service") as mock:
             mock.get_positions = AsyncMock(return_value=positions)
             mock.get_account = AsyncMock(return_value={"equity": "0"})
             result = await cb.single_position_check(bb)
@@ -231,7 +231,7 @@ class TestSinglePositionCheck:
 
     @pytest.mark.anyio
     async def test_alpaca_exception_returns_none(self, cb, bb):
-        with patch("app.council.reflexes.circuit_breaker.alpaca_service") as mock:
+        with patch("app.services.alpaca_service.alpaca_service") as mock:
             mock.get_positions = AsyncMock(side_effect=Exception("API error"))
             result = await cb.single_position_check(bb)
             assert result is None
@@ -240,54 +240,49 @@ class TestSinglePositionCheck:
 class TestMarketHoursCheck:
     @pytest.mark.anyio
     async def test_weekend_saturday_triggers(self, cb, bb):
-        # Saturday
+        # Saturday March 7, 2026 at 3 PM UTC
+        mock_now = datetime(2026, 3, 7, 15, 0, tzinfo=timezone.utc)
         with patch("app.council.reflexes.circuit_breaker.datetime") as mock_dt:
-            mock_dt.now.return_value = datetime(2026, 3, 8, 15, 0, tzinfo=timezone.utc)  # Saturday
-            mock_dt.now.return_value.weekday.return_value = 5
-            mock_dt.now.return_value.hour = 15
+            mock_dt.now.return_value = mock_now
             result = await cb.market_hours_check(bb)
             assert result is not None
             assert "weekend" in result.lower()
 
     @pytest.mark.anyio
     async def test_weekend_sunday_triggers(self, cb, bb):
-        # Sunday
+        # Sunday March 8, 2026 at 3 PM UTC
+        mock_now = datetime(2026, 3, 8, 15, 0, tzinfo=timezone.utc)
         with patch("app.council.reflexes.circuit_breaker.datetime") as mock_dt:
-            mock_dt.now.return_value = datetime(2026, 3, 9, 15, 0, tzinfo=timezone.utc)  # Sunday
-            mock_dt.now.return_value.weekday.return_value = 6
-            mock_dt.now.return_value.hour = 15
+            mock_dt.now.return_value = mock_now
             result = await cb.market_hours_check(bb)
             assert result is not None
             assert "weekend" in result.lower()
 
     @pytest.mark.anyio
     async def test_weekday_market_hours_returns_none(self, cb, bb):
-        # Monday 3 PM UTC (within extended hours)
+        # Monday March 10, 2026 at 3 PM UTC (within extended hours)
+        mock_now = datetime(2026, 3, 10, 15, 0, tzinfo=timezone.utc)
         with patch("app.council.reflexes.circuit_breaker.datetime") as mock_dt:
-            mock_dt.now.return_value = datetime(2026, 3, 9, 15, 0, tzinfo=timezone.utc)
-            mock_dt.now.return_value.weekday.return_value = 0
-            mock_dt.now.return_value.hour = 15
+            mock_dt.now.return_value = mock_now
             result = await cb.market_hours_check(bb)
             assert result is None
 
     @pytest.mark.anyio
     async def test_early_morning_triggers(self, cb, bb):
-        # Monday 5 AM UTC (too early)
+        # Monday March 10, 2026 at 5 AM UTC (too early)
+        mock_now = datetime(2026, 3, 10, 5, 0, tzinfo=timezone.utc)
         with patch("app.council.reflexes.circuit_breaker.datetime") as mock_dt:
-            mock_dt.now.return_value = datetime(2026, 3, 9, 5, 0, tzinfo=timezone.utc)
-            mock_dt.now.return_value.weekday.return_value = 0
-            mock_dt.now.return_value.hour = 5
+            mock_dt.now.return_value = mock_now
             result = await cb.market_hours_check(bb)
             assert result is not None
             assert "off-hours" in result.lower()
 
     @pytest.mark.anyio
     async def test_late_night_triggers(self, cb, bb):
-        # Monday 11 PM UTC (too late)
+        # Monday March 10, 2026 at 11 PM UTC (too late)
+        mock_now = datetime(2026, 3, 10, 23, 0, tzinfo=timezone.utc)
         with patch("app.council.reflexes.circuit_breaker.datetime") as mock_dt:
-            mock_dt.now.return_value = datetime(2026, 3, 9, 23, 0, tzinfo=timezone.utc)
-            mock_dt.now.return_value.weekday.return_value = 0
-            mock_dt.now.return_value.hour = 23
+            mock_dt.now.return_value = mock_now
             result = await cb.market_hours_check(bb)
             assert result is not None
             assert "off-hours" in result.lower()
@@ -320,7 +315,7 @@ class TestCheckAll:
     async def test_position_limit_halts(self, cb, bb):
         bb.raw_features = {"features": {"return_1d": 0.01, "vix_close": 20.0}}
         positions = [{"symbol": f"AAPL{i}"} for i in range(12)]
-        with patch("app.council.reflexes.circuit_breaker.alpaca_service") as mock:
+        with patch("app.services.alpaca_service.alpaca_service") as mock:
             mock.get_positions = AsyncMock(return_value=positions)
             mock.get_account = AsyncMock(return_value={"equity": "100000"})
             result = await cb.check_all(bb)
