@@ -236,7 +236,7 @@
     </div>
 
     <div class="peer-toggle">
-      <div class="peer-toggle-header" onclick="togglePeer()">
+      <div class="peer-toggle-header" onclick="togglePeer(event)">
         <input type="checkbox" id="hasPeer">
         <span>I have another Embodier device on my network</span>
       </div>
@@ -422,9 +422,12 @@
     }
   }
 
-  function togglePeer() {
+  function togglePeer(e) {
     const cb = document.getElementById('hasPeer');
-    cb.checked = !cb.checked;
+    // Only manually flip if the click was on the header div, not the checkbox itself
+    if (e.target !== cb) {
+      cb.checked = !cb.checked;
+    }
     document.getElementById('peerFields').classList.toggle('show', cb.checked);
   }
 
