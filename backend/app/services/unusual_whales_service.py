@@ -113,7 +113,7 @@ class UnusualWhalesService:
         async with httpx.AsyncClient(timeout=15.0) as client:
             r = await client.get(url, headers=self._headers())
         r.raise_for_status()
-            data = r.json() if r.content else []
+        data = r.json() if r.content else []
 
         try:
             bus = get_message_bus()
