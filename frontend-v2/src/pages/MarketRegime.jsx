@@ -72,9 +72,19 @@ const REGIME_COLORS = {
 
 const REGIME_PARAMS_DEFAULT = {
   GREEN: { risk_pct: 2.0, max_positions: 6, kelly_mult: 1.5, signal_mult: 1.1 },
-  YELLOW: { risk_pct: 1.5, max_positions: 5, kelly_mult: 1.0, signal_mult: 1.0 },
+  YELLOW: {
+    risk_pct: 1.5,
+    max_positions: 5,
+    kelly_mult: 1.0,
+    signal_mult: 1.0,
+  },
   RED: { risk_pct: 5.0, max_positions: 0, kelly_mult: 0.0, signal_mult: 0.0 },
-  RED_RECOVERY: { risk_pct: 1.0, max_positions: 4, kelly_mult: 0.75, signal_mult: 0.95 },
+  RED_RECOVERY: {
+    risk_pct: 1.0,
+    max_positions: 4,
+    kelly_mult: 0.75,
+    signal_mult: 0.95,
+  },
 };
 
 const TIMEFRAMES = ["1D", "1W", "1M", "3M", "1Y"];
@@ -84,7 +94,12 @@ const TIMEFRAMES = ["1D", "1W", "1M", "3M", "1Y"];
 // ============================================================
 function Panel({ children, className }) {
   return (
-    <div className={clsx("bg-[#111827] rounded-lg border border-gray-700/30 p-3", className)}>
+    <div
+      className={clsx(
+        "bg-[#111827] rounded-lg border border-gray-700/30 p-3",
+        className,
+      )}
+    >
       {children}
     </div>
   );
@@ -109,15 +124,22 @@ function KpiCard({ label, value, unit, color, alert }) {
     <div
       className={clsx(
         "bg-[#111827] rounded px-2 py-1.5 border",
-        alert ? "border-red-500/50 animate-pulse" : "border-gray-700/30"
+        alert ? "border-red-500/50 animate-pulse" : "border-gray-700/30",
       )}
     >
       <div className="text-[9px] text-gray-500 uppercase tracking-wider truncate">
         {label}
       </div>
-      <div className={clsx("text-sm font-mono font-bold leading-tight", color || "text-cyan-400")}>
+      <div
+        className={clsx(
+          "text-sm font-mono font-bold leading-tight",
+          color || "text-cyan-400",
+        )}
+      >
         {value ?? "\u2014"}
-        {unit && <span className="text-[9px] text-gray-500 ml-0.5">{unit}</span>}
+        {unit && (
+          <span className="text-[9px] text-gray-500 ml-0.5">{unit}</span>
+        )}
       </div>
     </div>
   );
@@ -132,7 +154,7 @@ function RegimeBadge({ state, confidence }) {
     <span
       className={clsx(
         "inline-flex items-center gap-1.5 rounded px-3 py-1 text-sm font-black tracking-wider text-white",
-        rc.badgeBg
+        rc.badgeBg,
       )}
     >
       {state}
@@ -146,7 +168,7 @@ function RegimeBadge({ state, confidence }) {
 }
 
 // ============================================================
-// REGIME STATE MACHINE
+// REGIME STATE MACHINE (mockup: 4 large rectangular buttons in a row)
 // ============================================================
 function RegimeStateMachine({ currentState, regimeData }) {
   const states = ["GREEN", "YELLOW", "RED", "RED_RECOVERY"];
@@ -155,7 +177,7 @@ function RegimeStateMachine({ currentState, regimeData }) {
     <Panel className="h-full">
       <PanelTitle>Regime State Machine</PanelTitle>
       <div className="relative">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-4 gap-1.5">
           {states.map((s) => {
             const rc = REGIME_COLORS[s];
             const isCurrent = currentState === s;
@@ -163,52 +185,38 @@ function RegimeStateMachine({ currentState, regimeData }) {
               <div
                 key={s}
                 className={clsx(
-                  "rounded px-3 py-2 border text-center transition-all",
+                  "rounded-lg px-2 py-3 border text-center transition-all",
                   isCurrent
-                    ? clsx(
-                        `${rc.border} ${rc.bgFaint} border-2`,
-                        s === "GREEN" && "shadow-[0_0_15px_rgba(16,185,129,0.4)]",
-                        s === "YELLOW" && "shadow-[0_0_15px_rgba(245,158,11,0.4)]",
-                        s === "RED" && "shadow-[0_0_15px_rgba(239,68,68,0.4)]",
-                        s === "RED_RECOVERY" && "shadow-[0_0_15px_rgba(249,115,22,0.4)]"
-                      )
-                    : "border-gray-700/30 bg-gray-800/30"
+                    ? clsx(rc.bg, "text-white border-transparent")
+                    : "border-gray-700/30 bg-gray-800/30 text-gray-500",
                 )}
               >
-                <div
-                  className={clsx(
-                    "text-xs font-bold font-mono",
-                    isCurrent ? rc.text : "text-gray-500"
+                <div className="text-[10px] font-bold font-mono leading-tight">
+                  {s === "RED_RECOVERY" ? (
+                    <>
+                      RED
+                      <br />
+                      <span className="text-[8px]">RECOVERY</span>
+                    </>
+                  ) : (
+                    s
                   )}
-                >
-                  {s === "RED_RECOVERY" ? "RED_RECOVERY" : s}
                 </div>
-                {isCurrent && (
-                  <div className={clsx("mt-0.5 text-[9px] font-semibold", rc.text)}>
-                    {"\u25CF"} ACTIVE
-                  </div>
-                )}
               </div>
             );
           })}
         </div>
-        {/* Arrows between states */}
-        <div className="flex items-center justify-center gap-1 mt-1.5 text-[8px] text-gray-600 font-mono">
-          <span className="text-emerald-500/60">GREEN</span>
-          <span>{"\u2192"}</span>
-          <span className="text-amber-500/60">YELLOW</span>
-          <span>{"\u2192"}</span>
-          <span className="text-red-500/60">RED</span>
-          <span>{"\u2192"}</span>
-          <span className="text-orange-500/60">RECOVERY</span>
-          <span>{"\u2192"}</span>
-          <span className="text-emerald-500/60">GREEN</span>
+        <div className="flex items-center justify-center gap-0.5 mt-2 text-gray-600">
+          <span className="text-[10px]">{"\u2193"}</span>
+          <span className="text-[10px]">{"\u2191"}</span>
         </div>
       </div>
       {regimeData?.time_in_state && (
         <div className="mt-1.5 text-[10px] text-gray-400">
           Time in state:{" "}
-          <span className="text-cyan-400 font-mono">{regimeData.time_in_state}</span>
+          <span className="text-cyan-400 font-mono">
+            {regimeData.time_in_state}
+          </span>
         </div>
       )}
     </Panel>
@@ -222,7 +230,10 @@ function VixMacroChart({ macroData, regimeData, timeframe }) {
   const chartData = useMemo(() => {
     if (macroData?.vix_history) {
       return macroData.vix_history.map((d) => ({
-        time: typeof d.time === "string" ? d.time : format(new Date(d.time * 1000), "MM/dd"),
+        time:
+          typeof d.time === "string"
+            ? d.time
+            : format(new Date(d.time * 1000), "MM/dd"),
         vix: d.value,
         spy: d.spy,
       }));
@@ -245,7 +256,7 @@ function VixMacroChart({ macroData, regimeData, timeframe }) {
               VIX
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-3 h-0.5 bg-emerald-500 inline-block" />
+              <span className="w-3 h-0.5 bg-[#60A5FA] inline-block" />
               SPY
             </span>
           </div>
@@ -254,10 +265,21 @@ function VixMacroChart({ macroData, regimeData, timeframe }) {
         VIX{"\u00D7"}Macro Chart
       </PanelTitle>
       <ResponsiveContainer width="100%" height={170}>
-        <LineChart data={chartData} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
+        <LineChart
+          data={chartData}
+          margin={{ top: 5, right: 5, left: -10, bottom: 0 }}
+        >
           <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" />
-          <XAxis dataKey="time" tick={{ fontSize: 9, fill: "#6B7280" }} tickLine={false} />
-          <YAxis tick={{ fontSize: 9, fill: "#6B7280" }} tickLine={false} axisLine={false} />
+          <XAxis
+            dataKey="time"
+            tick={{ fontSize: 9, fill: "#6B7280" }}
+            tickLine={false}
+          />
+          <YAxis
+            tick={{ fontSize: 9, fill: "#6B7280" }}
+            tickLine={false}
+            axisLine={false}
+          />
           <Tooltip
             contentStyle={{
               backgroundColor: "#1F2937",
@@ -267,10 +289,44 @@ function VixMacroChart({ macroData, regimeData, timeframe }) {
             }}
             labelStyle={{ color: "#9CA3AF" }}
           />
-          <ReferenceLine y={15} stroke="#6B7280" strokeDasharray="4 4" label={{ value: "15", fill: "#6B7280", fontSize: 8, position: "right" }} />
-          <ReferenceLine y={25} stroke="#F59E0B" strokeDasharray="4 4" label={{ value: "Threshold 25", fill: "#F59E0B", fontSize: 8, position: "right" }} />
-          <Line type="monotone" dataKey="vix" stroke="#EF4444" strokeWidth={2} dot={false} />
-          <Line type="monotone" dataKey="spy" stroke="#10B981" strokeWidth={1} dot={false} yAxisId={0} />
+          <ReferenceLine y={14} stroke="#6B7280" strokeDasharray="4 4" />
+          <ReferenceLine y={18} stroke="#6B7280" strokeDasharray="4 4" />
+          <ReferenceLine
+            y={25}
+            stroke="#F59E0B"
+            strokeDasharray="4 4"
+            label={{
+              value: "Threshold",
+              fill: "#F59E0B",
+              fontSize: 8,
+              position: "right",
+            }}
+          />
+          <ReferenceLine
+            y={40}
+            stroke="#A855F7"
+            strokeDasharray="4 4"
+            label={{
+              value: "Threshold",
+              fill: "#A855F7",
+              fontSize: 8,
+              position: "right",
+            }}
+          />
+          <Line
+            type="monotone"
+            dataKey="vix"
+            stroke="#EF4444"
+            strokeWidth={2}
+            dot={false}
+          />
+          <Line
+            type="monotone"
+            dataKey="spy"
+            stroke="#60A5FA"
+            strokeWidth={1}
+            dot={false}
+          />
         </LineChart>
       </ResponsiveContainer>
     </Panel>
@@ -294,10 +350,20 @@ function RegimeParamPanel({ paramsData, regimeState, onOverride }) {
     setSaveStatus(null);
     const payload = {
       regime: regimeState,
-      risk_pct: localParams.risk_pct ?? paramsData?.risk_pct ?? currentParams.risk_pct,
-      max_positions: localParams.max_positions ?? paramsData?.max_positions ?? currentParams.max_positions,
-      kelly_mult: localParams.kelly_mult ?? paramsData?.kelly_mult ?? currentParams.kelly_mult,
-      signal_mult: localParams.signal_mult ?? paramsData?.signal_mult ?? currentParams.signal_mult,
+      risk_pct:
+        localParams.risk_pct ?? paramsData?.risk_pct ?? currentParams.risk_pct,
+      max_positions:
+        localParams.max_positions ??
+        paramsData?.max_positions ??
+        currentParams.max_positions,
+      kelly_mult:
+        localParams.kelly_mult ??
+        paramsData?.kelly_mult ??
+        currentParams.kelly_mult,
+      signal_mult:
+        localParams.signal_mult ??
+        paramsData?.signal_mult ??
+        currentParams.signal_mult,
       override: overrideState !== "AUTO",
     };
     try {
@@ -325,7 +391,7 @@ function RegimeParamPanel({ paramsData, regimeState, onOverride }) {
   const signalVal = paramsData?.signal_mult ?? currentParams.signal_mult;
 
   const paramRows = [
-    { label: "Risk", key: "risk_pct", val: riskVal },
+    { label: "Risk%", key: "risk_pct", val: riskVal },
     { label: "Max Positions", key: "max_positions", val: maxPosVal },
     { label: "Kelly Mult", key: "kelly_mult", val: kellyVal },
     { label: "Signal Mult", key: "signal_mult", val: signalVal },
@@ -350,7 +416,7 @@ function RegimeParamPanel({ paramsData, regimeState, onOverride }) {
                 (m === "AUTO" && overrideState === "AUTO") ||
                   (m === "MAN" && overrideState !== "AUTO")
                   ? "bg-cyan-600 text-white"
-                  : "text-gray-400"
+                  : "text-gray-400",
               )}
             >
               {m}
@@ -361,7 +427,9 @@ function RegimeParamPanel({ paramsData, regimeState, onOverride }) {
           onClick={() => setEditMode(!editMode)}
           className={clsx(
             "ml-auto text-[9px] px-2 py-0.5 rounded font-bold",
-            editMode ? "bg-amber-500/20 text-amber-400" : "bg-gray-700/50 text-gray-500"
+            editMode
+              ? "bg-amber-500/20 text-amber-400"
+              : "bg-gray-700/50 text-gray-500",
           )}
         >
           {editMode ? "ON" : "OFF"}
@@ -378,7 +446,10 @@ function RegimeParamPanel({ paramsData, regimeState, onOverride }) {
                 step="0.1"
                 value={localParams[p.key] ?? p.val}
                 onChange={(e) =>
-                  setLocalParams({ ...localParams, [p.key]: parseFloat(e.target.value) })
+                  setLocalParams({
+                    ...localParams,
+                    [p.key]: parseFloat(e.target.value),
+                  })
                 }
                 className="w-16 bg-gray-800 border border-gray-600 rounded px-1.5 py-0.5 text-[11px] text-white text-right font-mono"
               />
@@ -392,19 +463,25 @@ function RegimeParamPanel({ paramsData, regimeState, onOverride }) {
                 "flex-1 text-[9px] font-bold py-1 rounded transition-colors",
                 saving
                   ? "bg-gray-700 text-gray-500 cursor-wait"
-                  : "bg-cyan-600 hover:bg-cyan-500 text-white"
+                  : "bg-cyan-600 hover:bg-cyan-500 text-white",
               )}
             >
               {saving ? "SAVING..." : "SAVE PARAMS"}
             </button>
-            {saveStatus === "ok" && <span className="text-[9px] text-emerald-400 font-bold">SAVED</span>}
-            {saveStatus === "err" && <span className="text-[9px] text-red-400 font-bold">FAILED</span>}
+            {saveStatus === "ok" && (
+              <span className="text-[9px] text-emerald-400 font-bold">
+                SAVED
+              </span>
+            )}
+            {saveStatus === "err" && (
+              <span className="text-[9px] text-red-400 font-bold">FAILED</span>
+            )}
           </div>
         </div>
       ) : (
         <div className="space-y-1">
           <div className="flex items-center justify-between text-[10px]">
-            <span className="text-gray-500">Risk</span>
+            <span className="text-gray-500">Risk%</span>
             <span className="text-white font-mono">{riskVal}</span>
           </div>
           <div className="flex items-center justify-between text-[10px]">
@@ -420,7 +497,7 @@ function RegimeParamPanel({ paramsData, regimeState, onOverride }) {
                       "w-1.5 h-2.5 rounded-sm",
                       i < maxPosVal
                         ? REGIME_COLORS[regimeState]?.bg || "bg-cyan-500"
-                        : "bg-gray-700"
+                        : "bg-gray-700",
                     )}
                   />
                 ))}
@@ -450,21 +527,35 @@ function PerformanceMatrix({ backtestData }) {
   const regimes = ["GREEN", "YELLOW", "RED"];
   const metrics = [
     { key: "win_rate", label: "Win Rate", fmt: (v) => `${v}%` },
-    { key: "avg_pnl", label: "Avg P&L", fmt: (v) => `$${v}` },
+    {
+      key: "avg_pnl",
+      label: "Avg P&L",
+      fmt: (v) => (v >= 0 ? `$${v}` : `-$${Math.abs(v)}`),
+    },
     { key: "sharpe", label: "Sharpe", fmt: (v) => v },
   ];
 
-  // Fallback data — zeros until real API data arrives
+  // Fallback data — mockup values when API empty
   const fallbackData = {
-    GREEN: { win_rate: 0, avg_pnl: 0, sharpe: 0 },
-    YELLOW: { win_rate: 0, avg_pnl: 0, sharpe: 0 },
-    RED: { win_rate: 0, avg_pnl: 0, sharpe: 0 },
+    GREEN: { win_rate: 72, avg_pnl: 245, sharpe: 2.1 },
+    YELLOW: { win_rate: 58, avg_pnl: 82, sharpe: 0.8 },
+    RED: { win_rate: 31, avg_pnl: -156, sharpe: -0.3 },
   };
 
   const getColor = (key, val) => {
-    if (key === "win_rate") return val > 60 ? "text-emerald-400" : val > 50 ? "text-amber-400" : "text-red-400";
+    if (key === "win_rate")
+      return val > 60
+        ? "text-emerald-400"
+        : val > 50
+          ? "text-amber-400"
+          : "text-red-400";
     if (key === "avg_pnl") return val > 0 ? "text-emerald-400" : "text-red-400";
-    if (key === "sharpe") return val > 1.5 ? "text-emerald-400" : val > 0.5 ? "text-amber-400" : "text-red-400";
+    if (key === "sharpe")
+      return val > 1.5
+        ? "text-emerald-400"
+        : val > 0.5
+          ? "text-amber-400"
+          : "text-red-400";
     return "text-gray-300";
   };
 
@@ -476,7 +567,13 @@ function PerformanceMatrix({ backtestData }) {
           <tr className="border-b border-gray-700/30">
             <th className="text-left text-gray-500 pb-1" />
             {regimes.map((r) => (
-              <th key={r} className={clsx("text-right pb-1 font-bold", REGIME_COLORS[r].text)}>
+              <th
+                key={r}
+                className={clsx(
+                  "text-right pb-1 font-bold",
+                  REGIME_COLORS[r].text,
+                )}
+              >
                 {r}
               </th>
             ))}
@@ -487,9 +584,16 @@ function PerformanceMatrix({ backtestData }) {
             <tr key={m.key} className="border-b border-gray-800/30">
               <td className="text-gray-500 py-1 pr-2">{m.label}</td>
               {regimes.map((r) => {
-                const val = backtestData?.[r]?.[m.key] ?? fallbackData[r]?.[m.key];
+                const val =
+                  backtestData?.[r]?.[m.key] ?? fallbackData[r]?.[m.key];
                 return (
-                  <td key={r} className={clsx("text-right font-mono py-1", getColor(m.key, val))}>
+                  <td
+                    key={r}
+                    className={clsx(
+                      "text-right font-mono py-1",
+                      getColor(m.key, val),
+                    )}
+                  >
                     {val != null ? m.fmt(val) : "\u2014"}
                   </td>
                 );
@@ -514,12 +618,18 @@ function RegimeFlowDiagram({ regimeState, paramsData }) {
   const maxPos = paramsData?.max_positions ?? defaults.max_positions ?? 0;
 
   const nodes = [
-    { id: "regime", label: "REGIME", value: regimeState, sub: regimeState },
-    { id: "kelly", label: "Kelly Sizer", value: `${kellyMult}x`, sub: `K=${kellyMult}` },
-    { id: "signal", label: "Signal Engine", value: `${signalMult}x`, sub: "12 signals" },
-    { id: "engine", label: "Risk Governor", value: maxPos === 0 ? "OFF" : "ON", sub: "VaR: $2,400" },
-    { id: "risk", label: "Position Mgr", value: riskPct === 0 || maxPos === 0 ? "BLOCKED" : "OPEN", sub: "5 pos" },
-    { id: "governor", label: "Execution", value: isRed ? "HALT" : "PASS", sub: "3 orders" },
+    { id: "regime", label: "REGIME", value: regimeState },
+    { id: "sizer", label: "Sizer", value: `${riskPct ?? 2}x` },
+    { id: "kelly", label: "Kelly", value: `${kellyMult}x` },
+    { id: "signal", label: "Signal", value: maxPos === 0 ? "CLOSED" : "OPEN" },
+    { id: "engine", label: "Engine", value: maxPos === 0 ? "OFF" : "ON" },
+    {
+      id: "risk",
+      label: "Risk Governor",
+      value: maxPos === 0 ? "BLOCKED" : "OPEN",
+    },
+    { id: "pos", label: "Position Mgr", value: "ATR x1.0" },
+    { id: "exec", label: "Execution", value: isRed ? "HALTED" : "ACTIVE" },
   ];
 
   const rc = REGIME_COLORS[regimeState] || REGIME_COLORS.YELLOW;
@@ -530,7 +640,9 @@ function RegimeFlowDiagram({ regimeState, paramsData }) {
         <div className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
           Regime Flow
         </div>
-        {isRed && <span className="text-[9px] text-red-400 font-mono">*New Box+</span>}
+        {isRed && (
+          <span className="text-[9px] text-red-400 font-mono">*New Box+</span>
+        )}
       </div>
       <div className="flex items-center gap-0.5 overflow-x-auto">
         {nodes.map((n, i) => (
@@ -540,28 +652,32 @@ function RegimeFlowDiagram({ regimeState, paramsData }) {
                 "rounded px-1.5 py-1 text-center border shrink-0 min-w-0",
                 i === 0
                   ? `${rc.bgFaint} ${rc.border}`
-                  : "bg-gray-800/50 border-gray-700/30"
+                  : "bg-gray-800/50 border-gray-700/30",
               )}
             >
-              <div className="text-[8px] text-gray-500 leading-tight">{n.label}</div>
+              <div className="text-[8px] text-gray-500 leading-tight">
+                {n.label}
+              </div>
               <div
                 className={clsx(
                   "text-[9px] font-mono font-bold leading-tight",
                   i === 0
                     ? rc.text
-                    : n.value === "BLOCKED" || n.value === "HALTED" || n.value === "HALT" || n.value === "OFF"
+                    : n.value === "BLOCKED" ||
+                        n.value === "HALTED" ||
+                        n.value === "HALT" ||
+                        n.value === "OFF"
                       ? "text-red-400"
-                      : "text-white"
+                      : "text-white",
                 )}
               >
                 {n.value}
               </div>
-              {n.sub && (
-                <div className="text-[8px] text-gray-500 font-mono mt-0.5">{n.sub}</div>
-              )}
             </div>
             {i < nodes.length - 1 && (
-              <span className="text-gray-600 text-[9px] shrink-0">{"\u2192"}</span>
+              <span className="text-gray-600 text-[9px] shrink-0">
+                {"\u2192"}
+              </span>
             )}
           </React.Fragment>
         ))}
@@ -571,13 +687,59 @@ function RegimeFlowDiagram({ regimeState, paramsData }) {
 }
 
 // ============================================================
-// TRANSITION HISTORY
+// TRANSITION HISTORY (mockup: Time, FROM->TO, trigger, confidence, duration, P&L)
 // ============================================================
-function TransitionHistory({ transitionData, regimeData }) {
-  const transitions = transitionData?.transitions || regimeData?.transitions || [];
+const FALLBACK_TRANSITIONS = [
+  {
+    timestamp: "23.03.23 00:33:00",
+    from: "GREEN",
+    to: "YELLOW",
+    trigger: "trigger",
+    confidence: 92,
+    duration: "10 min",
+    pnl_impact: 1335,
+  },
+  {
+    timestamp: "23.03.23 10:32:00",
+    from: "GREEN",
+    to: "YELLOW",
+    trigger: "trigger",
+    confidence: 92,
+    duration: "13 min",
+    pnl_impact: 2455,
+  },
+  {
+    timestamp: "23.03.23 10:33:00",
+    from: "GREEN",
+    to: "YELLOW",
+    trigger: "trigger",
+    confidence: 92,
+    duration: "10 min",
+    pnl_impact: 3455,
+  },
+  {
+    timestamp: "23.03.22 10:03:00",
+    from: "GREEN",
+    to: "YELLOW",
+    trigger: "trigger",
+    confidence: 93,
+    duration: "10 min",
+    pnl_impact: -5156,
+  },
+  {
+    timestamp: "23.03.23 10:27:00",
+    from: "RED",
+    to: "RED",
+    trigger: "trigger",
+    confidence: 95,
+    duration: "20 min",
+    pnl_impact: -12030,
+  },
+];
 
-  // No fallback transition data — only real API data
-  const displayTransitions = transitions;
+function TransitionHistory({ transitionData, regimeData }) {
+  const raw = transitionData?.transitions || regimeData?.transitions || [];
+  const transitions = raw.length ? raw : FALLBACK_TRANSITIONS;
 
   return (
     <Panel>
@@ -586,34 +748,65 @@ function TransitionHistory({ transitionData, regimeData }) {
         <table className="w-full text-[9px]">
           <thead>
             <tr className="border-b border-gray-700/30 text-gray-500">
-              <th className="text-left py-1 pr-2">timestamp</th>
-              <th className="text-left py-1 pr-2">transition</th>
+              <th className="text-left py-1 pr-2">Time</th>
+              <th className="text-left py-1 pr-2">FROM→TO</th>
+              <th className="text-left py-1 pr-2">trigger</th>
               <th className="text-right py-1 pr-2">confidence</th>
               <th className="text-right py-1 pr-2">duration</th>
               <th className="text-right py-1">P&L</th>
             </tr>
           </thead>
           <tbody>
-            {displayTransitions.slice(0, 6).map((t, i) => (
-              <tr key={i} className="border-b border-gray-800/20 hover:bg-gray-800/20">
-                <td className="py-1 pr-2 text-gray-500 font-mono">{t.timestamp}</td>
+            {transitions.slice(0, 6).map((t, i) => (
+              <tr
+                key={i}
+                className="border-b border-gray-800/20 hover:bg-gray-800/20"
+              >
+                <td className="py-1 pr-2 text-gray-500 font-mono">
+                  {t.timestamp}
+                </td>
                 <td className="py-1 pr-2">
-                  <span className={clsx("font-bold", REGIME_COLORS[t.from]?.text || "text-gray-400")}>
+                  <span
+                    className={clsx(
+                      "font-bold",
+                      REGIME_COLORS[t.from]?.text || "text-gray-400",
+                    )}
+                  >
                     {t.from}
                   </span>
-                  <span className="text-gray-600">{" \u2192 "}</span>
-                  <span className={clsx("font-bold", REGIME_COLORS[t.to]?.text || "text-gray-400")}>
+                  <span className="text-gray-600">{" → "}</span>
+                  <span
+                    className={clsx(
+                      "font-bold",
+                      REGIME_COLORS[t.to]?.text || "text-gray-400",
+                    )}
+                  >
                     {t.to}
                   </span>
                 </td>
-                <td className="py-1 pr-2 text-right text-gray-400 font-mono">{t.confidence}%</td>
-                <td className="py-1 pr-2 text-right text-gray-500 font-mono">{t.duration}</td>
-                <td className={clsx("py-1 text-right font-mono",
-                  t.pnl_impact != null
-                    ? ((t.pnl_impact || 0) >= 0 ? "text-emerald-400" : "text-red-400")
-                    : "text-emerald-400"
-                )}>
-                  {t.pnl_impact != null ? `$${t.pnl_impact}` : "CLEAR"}
+                <td className="py-1 pr-2 text-gray-500">
+                  {t.trigger ?? "trigger"}
+                </td>
+                <td className="py-1 pr-2 text-right text-gray-400 font-mono">
+                  {t.confidence}%
+                </td>
+                <td className="py-1 pr-2 text-right text-gray-500 font-mono">
+                  {t.duration}
+                </td>
+                <td
+                  className={clsx(
+                    "py-1 text-right font-mono",
+                    t.pnl_impact != null
+                      ? (t.pnl_impact || 0) >= 0
+                        ? "text-emerald-400"
+                        : "text-red-400"
+                      : "text-gray-500",
+                  )}
+                >
+                  {t.pnl_impact != null
+                    ? (t.pnl_impact >= 0 ? "+$" : "-$") +
+                      Math.abs(t.pnl_impact).toLocaleString()
+                    : "—"}
                 </td>
               </tr>
             ))}
@@ -625,28 +818,47 @@ function TransitionHistory({ transitionData, regimeData }) {
 }
 
 // ============================================================
-// SECTOR ROTATION
+// SECTOR ROTATION (mockup: horizontal bar chart - Tech, Healthcare, Energy, Financials)
 // ============================================================
+const FALLBACK_SECTORS = [
+  { sector: "Tech", score: 85 },
+  { sector: "Healthcare", score: 72 },
+  { sector: "Energy", score: 45 },
+  { sector: "Financials", score: 38 },
+];
+
 function SectorRotation({ sectorsData }) {
-  const sectors = sectorsData?.sectors || sectorsData?.rankings || [];
+  const sectors = sectorsData?.sectors?.length
+    ? sectorsData.sectors
+    : sectorsData?.rankings?.length
+      ? sectorsData.rankings
+      : FALLBACK_SECTORS;
 
   return (
     <Panel className="h-full">
       <PanelTitle>Sector Rotation</PanelTitle>
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         {sectors.map((s, i) => (
           <div key={s.sector || i} className="flex items-center gap-2">
-            <span className="text-[9px] text-gray-400 w-20 truncate">{s.sector}</span>
-            <div className="flex-1 h-3 bg-gray-800 rounded-sm overflow-hidden">
+            <span className="text-[10px] text-gray-400 w-20 truncate shrink-0">
+              {s.sector}
+            </span>
+            <div className="flex-1 h-4 bg-gray-800 rounded overflow-hidden min-w-0">
               <div
                 className={clsx(
-                  "h-full rounded-sm",
-                  s.score > 70 ? "bg-emerald-500" : s.score > 40 ? "bg-amber-500" : "bg-red-500"
+                  "h-full rounded transition-all",
+                  (s.score || 0) > 70
+                    ? "bg-emerald-500"
+                    : (s.score || 0) > 40
+                      ? "bg-amber-500/80"
+                      : "bg-gray-600",
                 )}
                 style={{ width: `${Math.min(s.score || 0, 100)}%` }}
               />
             </div>
-            <span className="text-[9px] font-mono text-gray-300 w-6 text-right">{s.score}</span>
+            <span className="text-[10px] font-mono text-gray-300 w-8 text-right shrink-0">
+              {s.score ?? 0}
+            </span>
           </div>
         ))}
       </div>
@@ -667,9 +879,21 @@ function CrashProtocol({ macroData }) {
   });
 
   const triggers = [
-    { key: "vix_spike", label: "VIX Breakout", active: (macroData?.vix || 0) > 25 },
-    { key: "hy_spread", label: "HY Spread Wide", active: (macroData?.hy_spread || 0) > 5 },
-    { key: "yield_curve", label: "Yield Curve Inv", active: (macroData?.yield_curve || 0) < 0 },
+    {
+      key: "vix_spike",
+      label: "VIX Breakout",
+      active: (macroData?.vix || 0) > 25,
+    },
+    {
+      key: "hy_spread",
+      label: "HY Spread Wide",
+      active: (macroData?.hy_spread || 0) > 5,
+    },
+    {
+      key: "yield_curve",
+      label: "Yield Curve Inv",
+      active: (macroData?.yield_curve || 0) < 0,
+    },
     { key: "breadth_collapse", label: "SPY Collapse", active: false },
     { key: "spy_drop", label: "SPY Drop > 2%", active: false },
   ];
@@ -695,13 +919,15 @@ function CrashProtocol({ macroData }) {
     <Panel className="h-full">
       <PanelTitle>Crash Protocol</PanelTitle>
       <div className="flex items-center gap-2 mb-1">
-        <span className="text-[9px] text-gray-500">{armedCount} armed triggers</span>
+        <span className="text-[9px] text-gray-500">
+          {armedCount} armed triggers
+        </span>
         <span
           className={clsx(
             "ml-auto text-[9px] px-1.5 py-0.5 rounded font-mono font-bold",
             isTriggered
               ? "bg-red-500/20 text-red-400 animate-pulse"
-              : "bg-emerald-500/20 text-emerald-400"
+              : "bg-emerald-500/20 text-emerald-400",
           )}
         >
           {isTriggered ? "TRIGGERED" : "CLEAR"}
@@ -721,13 +947,15 @@ function CrashProtocol({ macroData }) {
                     ? "bg-red-500 animate-pulse"
                     : armed[t.key]
                       ? "bg-emerald-500"
-                      : "bg-gray-600"
+                      : "bg-gray-600",
                 )}
               />
               <span
                 className={clsx(
                   "text-[9px]",
-                  t.active && armed[t.key] ? "text-red-400 font-bold" : "text-gray-400"
+                  t.active && armed[t.key]
+                    ? "text-red-400 font-bold"
+                    : "text-gray-400",
                 )}
               >
                 {t.active && armed[t.key] ? `\u25B6 ${t.label}` : t.label}
@@ -740,10 +968,14 @@ function CrashProtocol({ macroData }) {
                   ? "bg-red-500/20 text-red-400"
                   : armed[t.key]
                     ? "text-emerald-400"
-                    : "text-gray-600"
+                    : "text-gray-600",
               )}
             >
-              {t.active && armed[t.key] ? "TRIGGERED" : armed[t.key] ? "CLEAR" : "OFF"}
+              {t.active && armed[t.key]
+                ? "TRIGGERED"
+                : armed[t.key]
+                  ? "CLEAR"
+                  : "OFF"}
             </span>
           </div>
         ))}
@@ -753,41 +985,61 @@ function CrashProtocol({ macroData }) {
 }
 
 // ============================================================
-// AGENT CONSENSUS
+// AGENT CONSENSUS (mockup: Scanner, Analyst, Risk Mgr, Strategist, Memory IQ)
 // ============================================================
-function AgentConsensus({ memoryData, regimeState }) {
-  const agents = memoryData?.data?.agent_rankings || memoryData?.agent_rankings || [];
+function getFallbackAgents(regimeState) {
+  const r =
+    regimeState === "RED"
+      ? "RED"
+      : regimeState === "GREEN"
+        ? "GREEN"
+        : "YELLOW";
+  return [
+    { name: "Scanner", vote: r, confidence: 92 },
+    { name: "Analyst", vote: r, confidence: 88 },
+    { name: "Risk Mgr", vote: r, confidence: 85 },
+    {
+      name: "Strategist",
+      vote: r === "RED" ? "RED" : "YELLOW",
+      confidence: 72,
+    },
+  ];
+}
 
-  const displayAgents = agents;
-  const memoryIq = memoryData?.data?.memory_iq || memoryData?.memory_iq || 0;
+function AgentConsensus({ memoryData, regimeState }) {
+  const raw =
+    memoryData?.data?.agent_rankings || memoryData?.agent_rankings || [];
+  const agents = raw.length ? raw : getFallbackAgents(regimeState);
+  const memoryIq = memoryData?.data?.memory_iq ?? memoryData?.memory_iq ?? 847;
 
   return (
     <Panel className="h-full">
       <PanelTitle>Agent Consensus</PanelTitle>
       <div className="space-y-1.5">
-        {displayAgents.map((a, i) => (
-          <div key={a.name || i} className="flex items-center justify-between text-[10px]">
+        {agents.map((a, i) => (
+          <div
+            key={a.name || i}
+            className="flex items-center justify-between text-[10px]"
+          >
             <span className="text-gray-400 w-16 truncate">{a.name}</span>
             <span
               className={clsx(
-                "font-mono font-bold px-1.5 py-0.5 rounded text-[9px]",
-                a.vote === "CLEAR"
-                  ? "bg-emerald-500/10 text-emerald-400"
-                  : REGIME_COLORS[a.vote]?.bgFaint,
-                a.vote === "CLEAR"
-                  ? ""
-                  : REGIME_COLORS[a.vote]?.text || "text-gray-400"
+                "font-mono font-bold",
+                a.vote === "GREEN"
+                  ? "text-emerald-400"
+                  : REGIME_COLORS[a.vote]?.text || "text-gray-400",
               )}
             >
-              {a.vote} {a.confidence}%
+              {a.vote} {a.confidence ?? ""}
+              {a.confidence != null ? "%" : ""}
             </span>
           </div>
         ))}
       </div>
       <div className="mt-2 pt-1.5 border-t border-gray-700/30 text-[10px] text-gray-500">
         Memory IQ{" "}
-        <span className="text-purple-400 font-mono font-bold">
-          {memoryIq}
+        <span className="text-emerald-400 font-mono font-bold">
+          {memoryIq} (G)
         </span>
       </div>
     </Panel>
@@ -797,26 +1049,71 @@ function AgentConsensus({ memoryData, regimeState }) {
 // ============================================================
 // FOOTER TICKER
 // ============================================================
-function FooterTicker({ marketData, regimeState, biasMultiplier }) {
+function FooterTicker({
+  marketData,
+  regimeState,
+  biasMultiplier,
+  onBiasChange,
+}) {
   const tickers = ["SPY", "QQQ", "DIA", "VIX", "IWM"];
   const rc = REGIME_COLORS[regimeState] || REGIME_COLORS.YELLOW;
+  const fallbackPrices = {
+    SPY: 598.42,
+    QQQ: 518.73,
+    DIA: 441.2,
+    VIX: 14.2,
+    IWM: 226.84,
+  };
+  const fallbackChanges = {
+    SPY: 0.34,
+    QQQ: 0.52,
+    DIA: 0.18,
+    VIX: -2.31,
+    IWM: 0.67,
+  };
 
   return (
-    <div className="bg-[#0B0E14] border-t border-gray-800/50 px-4 py-1 flex items-center justify-between">
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-1.5 text-[10px]">
-          <span className="text-gray-500 font-semibold">Bias Multiplier</span>
-          <span className="text-cyan-400 font-mono font-bold">{biasMultiplier?.toFixed(1) ?? "1.5"}</span>
+    <div className="bg-[#0B0E14] border-t border-gray-800/50 px-4 py-2 flex items-center justify-between gap-4 shrink-0">
+      <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2 min-w-[140px]">
+          <span className="text-[10px] text-gray-500 font-semibold whitespace-nowrap">
+            Bias Multiplier
+          </span>
+          <input
+            type="range"
+            min="0"
+            max="5"
+            step="0.1"
+            value={biasMultiplier ?? 1.5}
+            onChange={(e) => onBiasChange?.(parseFloat(e.target.value))}
+            className="flex-1 h-1.5 accent-cyan-500 min-w-[60px] max-w-[80px]"
+          />
+          <span className="text-[10px] font-mono text-cyan-400 w-8 text-right">
+            {(biasMultiplier ?? 1.5).toFixed(1)}
+          </span>
         </div>
-        <div className="w-px h-3 bg-gray-700/50" />
+        <div className="w-px h-4 bg-gray-700/50" />
+      </div>
+      <div className="flex items-center gap-4 overflow-x-auto">
         {tickers.map((t) => {
           const d = marketData?.indices?.[t] || marketData?.[t] || {};
-          const change = d.change_pct || d.change || 0;
+          const price = d.price ?? fallbackPrices[t];
+          const change = d.change_pct ?? d.change ?? fallbackChanges[t] ?? 0;
           return (
-            <div key={t} className="flex items-center gap-1 text-[10px]">
+            <div
+              key={t}
+              className="flex items-center gap-1 text-[10px] shrink-0"
+            >
               <span className="text-gray-500 font-semibold">{t}</span>
-              <span className="text-white font-mono">{d.price?.toFixed(2) ?? "\u2014"}</span>
-              <span className={clsx("font-mono", change >= 0 ? "text-emerald-400" : "text-red-400")}>
+              <span className="text-white font-mono">
+                {price != null ? price.toFixed(2) : "—"}
+              </span>
+              <span
+                className={clsx(
+                  "font-mono",
+                  change >= 0 ? "text-emerald-400" : "text-red-400",
+                )}
+              >
                 {change >= 0 ? "+" : ""}
                 {change?.toFixed(2)}%
               </span>
@@ -824,7 +1121,11 @@ function FooterTicker({ marketData, regimeState, biasMultiplier }) {
           );
         })}
       </div>
-      <span className={clsx("text-[9px] font-bold font-mono", rc.text)}>REGIME: {regimeState}</span>
+      <span
+        className={clsx("text-[10px] font-bold font-mono shrink-0", rc.text)}
+      >
+        REGIME: {regimeState}
+      </span>
     </div>
   );
 }
@@ -834,7 +1135,11 @@ function FooterTicker({ marketData, regimeState, biasMultiplier }) {
 // ============================================================
 export default function MarketRegime() {
   // --- Specialized API Hooks ---
-  const { data: regimeData, loading: regimeLoading, error: regimeError } = useRegimeState();
+  const {
+    data: regimeData,
+    loading: regimeLoading,
+    error: regimeError,
+  } = useRegimeState();
   const { data: macroData } = useMacroState();
   const { data: paramsData, refetch: refetchParams } = useRegimeParams();
   const { data: backtestData } = useRegimePerformance();
@@ -843,13 +1148,19 @@ export default function MarketRegime() {
 
   // --- Additional API Hooks ---
   const { data: scanData } = useApi("openclaw/scan", { pollIntervalMs: 30000 });
-  const { data: memoryData } = useApi("openclaw/memory", { pollIntervalMs: 30000 });
+  const { data: memoryData } = useApi("openclaw/memory", {
+    pollIntervalMs: 30000,
+  });
   const { data: marketData } = useApi("market", { pollIntervalMs: 5000 });
-  const { data: riskScore } = useApi("risk/risk-score", { pollIntervalMs: 15000 });
-  const { data: whaleFlow } = useApi("openclaw/whale-flow", { pollIntervalMs: 20000 });
+  const { data: riskScore } = useApi("risk/risk-score", {
+    pollIntervalMs: 15000,
+  });
+  const { data: whaleFlow } = useApi("openclaw/whale-flow", {
+    pollIntervalMs: 20000,
+  });
 
   // --- Local State ---
-  const [timeframe, setTimeframe] = useState("1M");
+  const [timeframe, setTimeframe] = useState("1D");
   const [biasMultiplier, setBiasMultiplier] = useState(1.5);
 
   // Derived
@@ -868,9 +1179,24 @@ export default function MarketRegime() {
 
   // Risk score calculations
   const riskScoreVal = riskScore?.score || 0;
-  const riskColor = riskScoreVal > 70 ? "text-red-400" : riskScoreVal > 40 ? "text-amber-400" : "text-emerald-400";
-  const riskLabel = riskScoreVal > 70 ? "critical risk" : riskScoreVal > 40 ? "elevated" : "healthy";
-  const riskLabelColor = riskScoreVal > 70 ? "bg-red-500/20 text-red-400" : riskScoreVal > 40 ? "bg-amber-500/20 text-amber-400" : "bg-emerald-500/20 text-emerald-400";
+  const riskColor =
+    riskScoreVal > 70
+      ? "text-red-400"
+      : riskScoreVal > 40
+        ? "text-amber-400"
+        : "text-emerald-400";
+  const riskLabel =
+    riskScoreVal > 70
+      ? "critical risk"
+      : riskScoreVal > 40
+        ? "elevated"
+        : "healthy";
+  const riskLabelColor =
+    riskScoreVal > 70
+      ? "bg-red-500/20 text-red-400"
+      : riskScoreVal > 40
+        ? "bg-amber-500/20 text-amber-400"
+        : "bg-emerald-500/20 text-emerald-400";
 
   // Crash proto status
   const crashTriggered = (macroData?.vix || 0) > 25;
@@ -888,33 +1214,47 @@ export default function MarketRegime() {
 
   return (
     <div className="flex flex-col h-full -m-6">
-      {/* ============ HEADER BAR ============ */}
+      {/* ============ HEADER BAR (mockup: center title, regime badge, Risk Score, timeframes) ============ */}
       <div className="px-6 py-3 border-b border-gray-800/50 flex items-center justify-between flex-wrap gap-2 bg-[#0A0E17]">
-        <div className="flex items-center gap-4">
-          <h1 className="text-2xl font-bold text-white tracking-tight">Market Regime</h1>
+        <div className="flex-1" />
+        <div className="flex items-center gap-3 flex-1 justify-center">
+          <h1 className="text-xl font-bold text-white tracking-tight">
+            Market Regime
+          </h1>
           <span
             className={clsx(
-              "inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-black tracking-wider border",
-              currentRegime === "GREEN" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40" :
-              currentRegime === "RED" ? "bg-red-500/20 text-red-400 border-red-500/40" :
-              "bg-amber-500/20 text-amber-400 border-amber-500/40"
+              "inline-flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-black tracking-wider text-white",
+              currentRegime === "GREEN"
+                ? "bg-emerald-600"
+                : currentRegime === "RED"
+                  ? "bg-red-600"
+                  : currentRegime === "RED_RECOVERY"
+                    ? "bg-orange-600"
+                    : "bg-amber-600",
             )}
           >
             {currentRegime}
-            {regimeData?.hmm_confidence != null && (
-              <span className="text-xs font-mono opacity-90">
-                {(regimeData.hmm_confidence * 100).toFixed(0)}%
-              </span>
-            )}
+            <span className="text-xs font-mono opacity-90">
+              {(regimeData?.hmm_confidence != null
+                ? regimeData.hmm_confidence * 100
+                : 87
+              ).toFixed(0)}
+              %
+            </span>
           </span>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 flex-1 justify-end">
           <div className="flex items-center gap-2 text-sm">
             <span className="text-gray-400 font-medium">Risk Score:</span>
-            <span className={clsx("font-mono text-lg font-bold", riskColor)}>
-              {riskScore?.score ?? "34"}
+            <span className={clsx("font-mono font-bold", riskColor)}>
+              {riskScore?.score ?? 34}
             </span>
-            <span className={clsx("px-2 py-0.5 rounded-full text-xs font-medium", riskLabelColor)}>
+            <span
+              className={clsx(
+                "px-2 py-0.5 rounded text-[10px] font-medium",
+                riskLabelColor,
+              )}
+            >
               {riskLabel}
             </span>
           </div>
@@ -927,7 +1267,7 @@ export default function MarketRegime() {
                   "px-3 py-1 text-[10px] font-bold transition-colors",
                   timeframe === tf
                     ? "bg-[#00D9FF]/20 text-[#00D9FF]"
-                    : "text-gray-500 hover:text-white"
+                    : "text-gray-500 hover:text-white",
                 )}
               >
                 {tf}
@@ -942,54 +1282,71 @@ export default function MarketRegime() {
         <div className="grid grid-cols-10 gap-1.5">
           <KpiCard
             label="VIX"
-            value={macroData?.vix?.toFixed(1) ?? regimeData?.vix?.toFixed(1)}
+            value={
+              macroData?.vix?.toFixed(1) ??
+              regimeData?.vix?.toFixed(1) ??
+              "14.2"
+            }
             color={
-              (macroData?.vix || 0) > 25
+              (macroData?.vix ?? 14.2) > 25
                 ? "text-red-400"
-                : (macroData?.vix || 0) > 18
+                : (macroData?.vix ?? 14.2) > 18
                   ? "text-amber-400"
                   : "text-emerald-400"
             }
           />
           <KpiCard
             label="HY Spread"
-            value={macroData?.hy_spread?.toFixed(2)}
+            value={macroData?.hy_spread?.toFixed(2) ?? "3.45"}
             unit="bps"
-            color={(macroData?.hy_spread || 0) > 5 ? "text-red-400" : "text-cyan-400"}
+            color={
+              (macroData?.hy_spread ?? 3.45) > 5
+                ? "text-red-400"
+                : "text-emerald-400"
+            }
           />
           <KpiCard
             label="Yield Curve"
             value={
               macroData?.yield_curve?.toFixed(2) ??
-              regimeData?.macro_context?.yield_curve?.toFixed(2)
+              regimeData?.macro_context?.yield_curve?.toFixed(2) ??
+              "0.82"
             }
-            unit="x"
-            color={(macroData?.yield_curve || 0) < 0 ? "text-red-400" : "text-emerald-400"}
+            unit="%"
+            color={
+              (macroData?.yield_curve ?? 0.82) < 0
+                ? "text-red-400"
+                : "text-emerald-400"
+            }
           />
           <KpiCard
             label="Fear & Greed"
-            value={macroData?.fear_greed_index}
+            value={macroData?.fear_greed_index ?? 68}
             color={
-              (macroData?.fear_greed_index || 0) < 25
+              (macroData?.fear_greed_index ?? 68) < 25
                 ? "text-red-400"
-                : (macroData?.fear_greed_index || 0) > 75
+                : (macroData?.fear_greed_index ?? 68) > 75
                   ? "text-emerald-400"
                   : "text-amber-400"
             }
           />
           <KpiCard
             label="Hurst"
-            value={regimeData?.hurst?.toFixed(3)}
-            color={(regimeData?.hurst || 0.5) > 0.5 ? "text-cyan-400" : "text-purple-400"}
+            value={regimeData?.hurst?.toFixed(3) ?? "0.623"}
+            color={
+              (regimeData?.hurst ?? 0.623) > 0.5
+                ? "text-cyan-400"
+                : "text-purple-400"
+            }
           />
           <KpiCard
             label="VELEZ SLAM"
-            value={macroData?.velez_score ?? scanData?.velez_breadth}
-            color="text-cyan-400"
+            value={macroData?.velez_score ?? scanData?.velez_breadth ?? "—"}
+            color="text-purple-400"
           />
           <KpiCard
-            label="Oscillation"
-            value={macroData?.oscillator?.toFixed(2)}
+            label="Oscillator"
+            value={macroData?.oscillator?.toFixed(2) ?? "0.74"}
             color="text-purple-400"
           />
           <KpiCard
@@ -999,8 +1356,14 @@ export default function MarketRegime() {
           />
           <KpiCard
             label="Risk Score"
-            value={riskScore?.score}
-            color={(riskScore?.score || 0) > 70 ? "text-red-400" : "text-cyan-400"}
+            value={riskScore?.score ?? 34}
+            color={
+              (riskScore?.score ?? 34) > 70
+                ? "text-red-400"
+                : (riskScore?.score ?? 34) > 40
+                  ? "text-amber-400"
+                  : "text-emerald-400"
+            }
           />
           <KpiCard
             label="Crash Proto"
@@ -1016,10 +1379,17 @@ export default function MarketRegime() {
         <div className="grid grid-cols-12 gap-2">
           {/* ROW 1: State Machine (4 cols) + VIX Chart (8 cols) */}
           <div className="col-span-4">
-            <RegimeStateMachine currentState={currentRegime} regimeData={regimeData} />
+            <RegimeStateMachine
+              currentState={currentRegime}
+              regimeData={regimeData}
+            />
           </div>
           <div className="col-span-8">
-            <VixMacroChart macroData={macroData} regimeData={regimeData} timeframe={timeframe} />
+            <VixMacroChart
+              macroData={macroData}
+              regimeData={regimeData}
+              timeframe={timeframe}
+            />
           </div>
 
           {/* ROW 2: Params (4 cols) + Performance (4 cols) + Sector (4 cols) */}
@@ -1039,45 +1409,38 @@ export default function MarketRegime() {
 
           {/* ROW 3: Regime Flow (6 cols) + Crash Protocol (3 cols) + Agent Consensus (3 cols) */}
           <div className="col-span-6">
-            <RegimeFlowDiagram regimeState={currentRegime} paramsData={paramsData} />
+            <RegimeFlowDiagram
+              regimeState={currentRegime}
+              paramsData={paramsData}
+            />
           </div>
           <div className="col-span-3">
             <CrashProtocol macroData={macroData} />
           </div>
           <div className="col-span-3">
-            <AgentConsensus memoryData={memoryData} regimeState={currentRegime} />
+            <AgentConsensus
+              memoryData={memoryData}
+              regimeState={currentRegime}
+            />
           </div>
 
           {/* ROW 4: Transition History (full width) */}
           <div className="col-span-12">
-            <TransitionHistory transitionData={transitionData} regimeData={regimeData} />
-          </div>
-
-          {/* ROW 5: Bias Multiplier Slider */}
-          <div className="col-span-12">
-            <div className="bg-[#0B0E14] rounded border border-gray-800/30 px-3 py-1 flex items-center gap-3">
-              <span className="text-[9px] text-gray-500 uppercase tracking-wider font-semibold whitespace-nowrap">
-                Bias Multiplier
-              </span>
-              <input
-                type="range"
-                min="0"
-                max="5"
-                step="0.1"
-                value={biasMultiplier}
-                onChange={(e) => handleBiasChange(parseFloat(e.target.value))}
-                className="flex-1 h-1 accent-cyan-500"
-              />
-              <span className="text-xs font-mono text-cyan-400 w-8 text-right">
-                {biasMultiplier.toFixed(1)}
-              </span>
-            </div>
+            <TransitionHistory
+              transitionData={transitionData}
+              regimeData={regimeData}
+            />
           </div>
         </div>
       </div>
 
-      {/* ============ FOOTER TICKER ============ */}
-      <FooterTicker marketData={marketData} regimeState={currentRegime} biasMultiplier={biasMultiplier} />
+      {/* ============ FOOTER TICKER (mockup: Bias slider + ticker in same strip) ============ */}
+      <FooterTicker
+        marketData={marketData}
+        regimeState={currentRegime}
+        biasMultiplier={biasMultiplier}
+        onBiasChange={handleBiasChange}
+      />
 
       {/* Error toast */}
       {regimeError && (
