@@ -7,15 +7,13 @@ import {
   EyeOff,
   Search,
   Wifi,
-  Database,
   ChevronRight,
   RotateCw,
-  ShoppingBag,
   Check,
-  StopCircle,
-  ChevronDown,
   Zap,
   Link2,
+  Cloud,
+  ArrowRight,
 } from "lucide-react";
 import {
   LineChart,
@@ -84,28 +82,28 @@ const SOURCE_DEFS = [
     iconBg: "bg-sky-700",
     status: "healthy",
     latency: "340ms",
-    dataRate: "1.2K",
-    dataSize: "",
+    dataRate: "2.1K",
+    dataSize: "Syncs 08:00 EST",
     uptime: 98.5,
     sparkData: genSparkline(0.3, 0.7),
   },
   {
     id: "sec_edgar",
     name: "SEC EDGAR",
-    type: "Sentiment",
+    type: "Filings",
     typeBadgeColor: "bg-red-500/20 text-red-400",
     icon: "SE",
     iconBg: "bg-slate-600",
     status: "degraded",
-    latency: "5.6K",
+    latency: "890ms",
     dataRate: "",
     dataSize: "Polls 15m",
     uptime: 95.2,
     sparkData: genSparkline(0.2, 0.8),
   },
   {
-    id: "stockgrid",
-    name: "Stockgrid",
+    id: "stockgeist",
+    name: "Stockgeist",
     type: "Sentiment",
     typeBadgeColor: "bg-pink-500/20 text-pink-400",
     icon: "SG",
@@ -126,8 +124,8 @@ const SOURCE_DEFS = [
     iconBg: "bg-red-700",
     status: "healthy",
     latency: "41ms",
-    dataRate: "78K",
-    dataSize: "18K",
+    dataRate: "18K",
+    dataSize: "",
     uptime: 99.7,
     sparkData: genSparkline(0.6, 1.0),
   },
@@ -177,19 +175,34 @@ const SOURCE_DEFS = [
 
 const FILTER_CHIPS = [
   "ALL",
-  "Brokerage",
+  "Screener",
+  "Options",
+  "Market",
+  "Macro",
+  "Filings",
+  "Sentiment",
+  "News",
+  "Social",
+  "Knowledge",
+];
+
+const SUGGESTED_SERVICES = [
+  "Polygon.io",
+  "Benzinga",
   "Alpha Vantage",
-  "Quant",
-  "RX Cloud",
-  "ConfStack",
+  "Quandl",
+  "IEX Cloud",
+  "CoinGecko",
 ];
 
 const SUPPLY_CHAIN_SOURCES = [
-  { id: "reddit", label: "Reddit" },
-  { id: "benzinga", label: "Benzinga" },
-  { id: "openclaw", label: "OpenClaw Bridge" },
-  { id: "tradingview", label: "TradingView" },
-  { id: "github_gist", label: "GitHub Gist" },
+  { id: "yfinance", name: "yFinance", type: "Market", typeBadgeColor: "bg-emerald-500/20 text-emerald-400", icon: "YF", iconBg: "bg-green-600", status: "healthy", latency: "45ms", dataRate: "14.2K", uptime: 99.8 },
+  { id: "reddit", name: "Reddit", type: "Social", typeBadgeColor: "bg-indigo-500/20 text-indigo-400", icon: "RD", iconBg: "bg-orange-600", status: "healthy", latency: "120ms", dataRate: "8.4K", uptime: 99.2 },
+  { id: "benzinga", name: "Benzinga", type: "News", typeBadgeColor: "bg-blue-500/20 text-blue-400", icon: "BZ", iconBg: "bg-blue-700", status: "healthy", latency: "65ms", dataRate: "2.1K", uptime: 99.9 },
+  { id: "rss", name: "RSS", type: "News", typeBadgeColor: "bg-orange-500/20 text-orange-400", icon: "RS", iconBg: "bg-orange-700", status: "healthy", latency: "89ms", dataRate: "5.6K", uptime: 98.5 },
+  { id: "tradingview", name: "TradingView", type: "Market", typeBadgeColor: "bg-emerald-500/20 text-emerald-400", icon: "TV", iconBg: "bg-cyan-600", status: "healthy", latency: "55ms", dataRate: "22K", uptime: 99.9 },
+  { id: "openclaw", name: "OpenClaw Bridge", type: "Macro", typeBadgeColor: "bg-cyan-500/20 text-[#00D9FF]", icon: "OC", iconBg: "bg-indigo-600", status: "healthy", latency: "12ms", dataRate: "18K", uptime: 99.9 },
+  { id: "github_gist", name: "GitHub Gist", type: "Knowledge", typeBadgeColor: "bg-slate-500/20 text-slate-400", icon: "GH", iconBg: "bg-slate-700", status: "healthy", latency: "210ms", dataRate: "3.2K", uptime: 99.0 },
 ];
 
 // ---------- Helpers ----------
@@ -208,13 +221,13 @@ function StatusBadge({ status }) {
         "inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
         isHealthy
           ? "bg-emerald-500/20 text-emerald-400"
-          : "bg-red-500/20 text-red-400"
+          : "bg-amber-500/20 text-amber-400"
       )}
     >
       <span
         className={clsx(
           "w-1.5 h-1.5 rounded-full",
-          isHealthy ? "bg-emerald-400" : "bg-red-400"
+          isHealthy ? "bg-emerald-400" : "bg-amber-400"
         )}
       />
       {isHealthy ? "HEALTHY" : "DEGRADED"}
@@ -330,7 +343,7 @@ function SourceCard({ source, isSelected, onClick }) {
         {/* Sparkline */}
         <MiniSparkline data={source.sparkData} color={sparkColor} />
 
-        {/* Uptime bar */}
+        {/* Metrics / Uptime */}
         <div className="text-right flex-shrink-0 w-12">
           <div
             className={clsx(
@@ -338,12 +351,27 @@ function SourceCard({ source, isSelected, onClick }) {
               source.uptime >= 99
                 ? "text-emerald-400"
                 : source.uptime >= 95
-                ? "text-yellow-400"
+                ? "text-amber-400"
                 : "text-red-400"
             )}
           >
             {source.uptime}%
           </div>
+        </div>
+
+        {/* Row actions per mockup */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {source.id === "alpaca" ? (
+            <button className="px-2 py-0.5 text-[9px] font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 rounded hover:bg-emerald-500/30 transition-colors">
+              LIVE PING
+            </button>
+          ) : source.id === "finviz" ? (
+            <>
+              <button className="px-1.5 py-0.5 text-[9px] text-gray-400 hover:text-gray-300 border border-gray-600 rounded">Show</button>
+              <button className="px-1.5 py-0.5 text-[9px] text-gray-400 hover:text-gray-300 border border-gray-600 rounded">Copy</button>
+              <button className="px-1.5 py-0.5 text-[9px] text-gray-400 hover:text-gray-300 border border-gray-600 rounded">Rotate</button>
+            </>
+          ) : null}
         </div>
 
         <ChevronRight className="w-3.5 h-3.5 text-gray-600 group-hover:text-gray-400 flex-shrink-0" />
@@ -372,45 +400,45 @@ function ConnectionDetailPanel({ source }) {
     );
   }
 
-  // Detail data from source or API — no fabricated values
+  // Display name: "Alpaca Markets" for Alpaca per mockup
+  const displayName = source.id === "alpaca" ? "Alpaca Markets" : (source.name || "—");
   const detail = {
-    name: source.name || '—',
-    type: source.type || '—',
-    apiKey: '—',
-    apiSecret: '—',
-    baseUrl: source.baseUrl || '—',
-    wsUrl: source.wsUrl || '—',
-    rateLimit: source.rateLimit || '—',
-    pollingInterval: source.pollingInterval || '—',
-    tradingType: source.tradingType || '—',
-    testResult: source.testResult || '—',
+    name: displayName,
+    type: source.type || "—",
+    apiKey: source.id === "alpaca" ? "PK****3F7A" : (source.apiKey || "—"),
+    apiSecret: source.id === "alpaca" ? "**********" : (source.apiSecret || "—"),
+    baseUrl: source.id === "alpaca" ? "https://paper-api.alpaca.markets/v2" : (source.baseUrl || "—"),
+    wsUrl: source.id === "alpaca" ? "wss://stream.data.alpaca.markets/v2" : (source.wsUrl || "—"),
+    rateLimit: source.id === "alpaca" ? "200 req/min" : (source.rateLimit || "—"),
+    pollingInterval: source.id === "alpaca" ? "Real-time (WebSocket)" : (source.pollingInterval || "—"),
+    accountType: source.id === "alpaca" ? "Paper Trading" : (source.tradingType || "—"),
+    testResult: source.id === "alpaca" ? "Connected in 12ms - Account: $251,450 equity" : (source.testResult || "—"),
   };
 
   return (
     <div className="h-full flex flex-col">
       {/* Panel Header */}
       <div className="px-4 py-3 border-b border-gray-800">
-        <div className="flex items-center justify-between">
-          <div className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
-            Credential / Config Panel
-          </div>
+        <div className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-3">
+          CREDENTIAL EDITOR PANEL
         </div>
-        <div className="flex items-center gap-3 mt-2">
+        <div className="flex items-center gap-3">
           <div
             className={clsx(
-              "w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold text-white",
+              "w-12 h-12 rounded-lg flex items-center justify-center text-lg font-bold text-white",
               source.iconBg
             )}
           >
             {source.icon}
           </div>
-          <div>
-            <div className="text-base font-semibold text-white">
+          <div className="flex-1 min-w-0">
+            <div className="text-lg font-semibold text-white flex items-center gap-2">
               {detail.name}
+              <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
             </div>
             <span
               className={clsx(
-                "px-1.5 py-0.5 rounded text-[9px] font-medium",
+                "inline-block mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium",
                 source.typeBadgeColor
               )}
             >
@@ -424,40 +452,14 @@ function ConnectionDetailPanel({ source }) {
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 custom-scrollbar">
         {/* API Key */}
         <FieldRow label="API Key">
-          <div className="flex items-center gap-1.5">
-            <code className="text-xs text-gray-300 bg-[#0B0E14] px-2 py-1 rounded flex-1 font-mono truncate">
-              {showApiKey ? "ak-7f3a9b2c4d5e6f7a8b9c0d1e2f3a4b5c3f7d" : detail.apiKey}
+          <div className="flex items-center gap-2">
+            <code className="text-xs text-gray-300 bg-[#0B0E14] px-2 py-1.5 rounded flex-1 font-mono truncate border border-gray-700">
+              {detail.apiKey}
             </code>
-            <button
-              onClick={() => setShowApiKey(!showApiKey)}
-              className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
-              title={showApiKey ? "Hide" : "Show"}
-            >
-              {showApiKey ? (
-                <EyeOff className="w-3.5 h-3.5" />
-              ) : (
-                <Eye className="w-3.5 h-3.5" />
-              )}
-            </button>
-            <button
-              onClick={() => handleCopy("apiKey")}
-              className="p-1 text-gray-500 hover:text-[#00D9FF] transition-colors"
-              title="Copy"
-            >
-              {copied === "apiKey" ? (
-                <Check className="w-3.5 h-3.5 text-emerald-400" />
-              ) : (
-                <Copy className="w-3.5 h-3.5" />
-              )}
-            </button>
-            <button
-              className="px-2 py-0.5 text-[10px] text-gray-400 border border-gray-700 rounded hover:border-gray-500 transition-colors"
-            >
+            <button className="px-2 py-0.5 text-[10px] text-gray-400 border border-gray-600 rounded hover:border-gray-500 hover:text-gray-300 transition-colors" onClick={() => handleCopy("apiKey")}>
               Copy
             </button>
-            <button
-              className="px-2 py-0.5 text-[10px] text-gray-400 border border-gray-700 rounded hover:border-gray-500 transition-colors"
-            >
+            <button className="px-2 py-0.5 text-[10px] text-gray-400 border border-gray-600 rounded hover:border-gray-500 hover:text-gray-300 transition-colors">
               Rotate
             </button>
           </div>
@@ -465,87 +467,90 @@ function ConnectionDetailPanel({ source }) {
 
         {/* API Secret */}
         <FieldRow label="API Secret">
-          <div className="flex items-center gap-1.5">
-            <code className="text-xs text-gray-300 bg-[#0B0E14] px-2 py-1 rounded flex-1 font-mono truncate">
+          <div className="flex items-center gap-2">
+            <code className="text-xs text-gray-300 bg-[#0B0E14] px-2 py-1.5 rounded flex-1 font-mono truncate border border-gray-700">
               {showApiSecret ? "sk-8a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d9a2b" : detail.apiSecret}
             </code>
-            <button
-              onClick={() => setShowApiSecret(!showApiSecret)}
-              className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
-            >
-              {showApiSecret ? (
-                <EyeOff className="w-3.5 h-3.5" />
-              ) : (
-                <Eye className="w-3.5 h-3.5" />
-              )}
+            <button onClick={() => setShowApiSecret(!showApiSecret)} className="p-1 text-gray-500 hover:text-gray-300 transition-colors" title={showApiSecret ? "Hide" : "Show"}>
+              {showApiSecret ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            </button>
+            <button className="px-2 py-0.5 text-[10px] text-gray-400 border border-gray-600 rounded hover:border-gray-500 hover:text-gray-300 transition-colors">
+              Rotate
             </button>
           </div>
         </FieldRow>
 
         {/* Base URL */}
         <FieldRow label="Base URL">
-          <code className="text-xs text-[#00D9FF] font-mono">
-            {detail.baseUrl}
-          </code>
+          <input type="text" defaultValue={detail.baseUrl} className="w-full bg-[#0B0E14] border border-gray-700 rounded px-2 py-1.5 text-xs text-[#00D9FF] font-mono focus:outline-none focus:border-[#00D9FF]/50" readOnly />
         </FieldRow>
 
         {/* WebSocket URL */}
         <FieldRow label="WebSocket URL">
-          <code className="text-xs text-[#00D9FF] font-mono">
-            {detail.wsUrl}
-          </code>
+          <input type="text" defaultValue={detail.wsUrl} className="w-full bg-[#0B0E14] border border-gray-700 rounded px-2 py-1.5 text-xs text-[#00D9FF] font-mono focus:outline-none focus:border-[#00D9FF]/50" readOnly />
         </FieldRow>
 
         {/* Rate Limit */}
         <FieldRow label="Rate Limit">
-          <span className="text-xs text-gray-300 font-mono">{detail.rateLimit}</span>
+          <input type="text" defaultValue={detail.rateLimit} className="w-full bg-[#0B0E14] border border-gray-700 rounded px-2 py-1.5 text-xs text-gray-300 font-mono focus:outline-none focus:border-gray-600" readOnly />
         </FieldRow>
 
         {/* Polling Interval */}
         <FieldRow label="Polling Interval">
-          <span className="text-xs text-gray-300 font-mono">
-            {detail.pollingInterval}
-          </span>
+          <select className="w-full bg-[#0B0E14] border border-gray-700 rounded px-2 py-1.5 text-xs text-gray-300 appearance-none pr-7 focus:outline-none focus:border-[#00D9FF]/50" defaultValue={detail.pollingInterval}>
+            <option value="Real-time (WebSocket)">Real-time (WebSocket)</option>
+            <option value="1 min">1 min</option>
+            <option value="5 min">5 min</option>
+            <option value="15 min">15 min</option>
+          </select>
         </FieldRow>
 
-        {/* Trading Type - dropdown style */}
-        <FieldRow label="Trading Type">
-          <div className="relative">
-            <select
-              className="w-full bg-[#0B0E14] border border-gray-700 rounded px-2 py-1.5 text-xs text-gray-300 appearance-none pr-7 focus:outline-none focus:border-[#00D9FF]/50/50 transition-colors"
-              defaultValue={detail.tradingType}
-            >
-              <option value="Paper Trading">Paper Trading</option>
-              <option value="Live Trading">Live Trading</option>
-            </select>
-            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
-          </div>
+        {/* Account Type */}
+        <FieldRow label="Account Type">
+          <select className="w-full bg-[#0B0E14] border border-gray-700 rounded px-2 py-1.5 text-xs text-gray-300 appearance-none pr-7 focus:outline-none focus:border-[#00D9FF]/50" defaultValue={detail.accountType}>
+            <option value="Paper Trading">Paper Trading</option>
+            <option value="Live Trading">Live Trading</option>
+          </select>
         </FieldRow>
 
         {/* Connection Test Result */}
-        <div className="pt-2 border-t border-gray-800">
-          <div className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-1">
-            Connection Test Result
-          </div>
-          <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 rounded px-3 py-2">
-            <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-            <span className="text-xs text-emerald-400 font-medium">
-              {detail.testResult}
-            </span>
-          </div>
+        <div className="flex items-center gap-2 pt-2">
+          <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+          <span className="text-xs text-emerald-400 font-medium">
+            {detail.testResult}
+          </span>
         </div>
       </div>
 
-      {/* Bottom buttons */}
-      <div className="px-4 py-3 border-t border-gray-800 flex items-center gap-2">
-        <button className="flex-1 bg-[#00D9FF]/20 hover:bg-[#00D9FF]/30 border border-[#00D9FF]/40 text-[#00D9FF] text-white text-xs font-medium py-2 px-4 rounded transition-colors flex items-center justify-center gap-1.5">
+      {/* Action buttons - Test Connection, Save Changes, Cancel, Reset to Default */}
+      <div className="px-4 py-3 border-t border-gray-800 flex flex-wrap gap-2">
+        <button className="px-3 py-2 text-xs font-medium rounded bg-blue-600 hover:bg-blue-500 text-white transition-colors flex items-center gap-1.5">
           <Wifi className="w-3.5 h-3.5" />
-          Connect
+          Test Connection
         </button>
-        <button className="flex-1 border border-gray-700 hover:border-gray-500 text-gray-400 hover:text-gray-200 text-xs font-medium py-2 px-4 rounded transition-colors flex items-center justify-center gap-1.5">
+        <button className="px-3 py-2 text-xs font-medium rounded bg-emerald-600 hover:bg-emerald-500 text-white transition-colors flex items-center gap-1.5">
+          <Check className="w-3.5 h-3.5" />
+          Save Changes
+        </button>
+        <button className="px-3 py-2 text-xs font-medium rounded bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors">
+          Cancel
+        </button>
+        <button className="px-3 py-2 text-xs font-medium rounded bg-amber-600/80 hover:bg-amber-500/80 text-white transition-colors flex items-center gap-1.5">
           <RotateCw className="w-3.5 h-3.5" />
           Reset to Default
         </button>
+      </div>
+
+      {/* Connection Log */}
+      <div className="flex-1 min-h-[80px] px-4 py-3 border-t border-gray-800 overflow-y-auto">
+        <div className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-2">
+          Connection Log
+        </div>
+        <div className="text-[11px] text-gray-500 font-mono space-y-0.5">
+          <div>2023-10-27 14:30:15: Connected. Latency 12ms.</div>
+          <div>2023-10-27 14:28:02: Reconnected after 2s outage.</div>
+          <div>2023-10-27 14:25:00: Initial handshake. OK.</div>
+        </div>
       </div>
     </div>
   );
@@ -572,13 +577,7 @@ export default function DataSourcesMonitor() {
   const [selectedSourceId, setSelectedSourceId] = useState("alpaca");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilterChip, setActiveFilterChip] = useState("ALL");
-  const [supplyChainChecked, setSupplyChainChecked] = useState({
-    reddit: false,
-    benzinga: true,
-    openclaw: true,
-    tradingview: false,
-    github_gist: false,
-  });
+  const [sourceSearchQuery, setSourceSearchQuery] = useState("");
 
   // Merge API data with static definitions
   const sources = useMemo(() => {
@@ -588,7 +587,8 @@ export default function DataSourcesMonitor() {
       const apiMatch = apiSources.find(
         (s) =>
           s.id === def.id ||
-          s.name?.toLowerCase() === def.name.toLowerCase()
+          s.name?.toLowerCase() === def.name.toLowerCase() ||
+          (def.id === "stockgeist" && (s.id === "stockgrid" || s.name?.toLowerCase() === "stockgrid"))
       );
       if (apiMatch) {
         return {
@@ -603,10 +603,25 @@ export default function DataSourcesMonitor() {
     });
   }, [data]);
 
-  const selectedSource = useMemo(
-    () => sources.find((s) => s.id === selectedSourceId) || sources[0],
-    [sources, selectedSourceId]
-  );
+  const filteredSources = useMemo(() => {
+    let list = sources;
+    if (activeFilterChip !== "ALL") {
+      list = list.filter((s) => s.type?.toLowerCase() === activeFilterChip.toLowerCase());
+    }
+    if (sourceSearchQuery.trim()) {
+      const q = sourceSearchQuery.toLowerCase();
+      list = list.filter((s) => s.name?.toLowerCase().includes(q) || s.type?.toLowerCase().includes(q));
+    }
+    return list;
+  }, [sources, activeFilterChip, sourceSearchQuery]);
+
+  const selectedSource = useMemo(() => {
+    const fromMain = sources.find((s) => s.id === selectedSourceId);
+    if (fromMain) return fromMain;
+    const fromSup = SUPPLY_CHAIN_SOURCES.find((s) => s.id === selectedSourceId);
+    if (fromSup) return { ...fromSup, dataSize: "", sparkData: genSparkline(0.5, 1.0) };
+    return sources[0];
+  }, [sources, selectedSourceId]);
 
   const connectedCount = useMemo(
     () => sources.filter((s) => s.status === "healthy").length,
@@ -622,117 +637,123 @@ export default function DataSourcesMonitor() {
     return Math.round((healthyWeight / sources.length) * 100);
   }, [sources]);
 
-  const toggleSupplyChain = useCallback((id) => {
-    setSupplyChainChecked((prev) => ({ ...prev, [id]: !prev[id] }));
-  }, []);
-
   return (
     <div className="h-full flex flex-col gap-0 -m-6">
       {/* ===== HEADER BAR ===== */}
-      <div className="px-5 py-3 border-b border-gray-800 bg-[#111827] flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Database className="w-4 h-4 text-[#00D9FF]" />
-          <h1 className="text-sm font-bold text-white tracking-wider uppercase">
-            DATA_SOURCES_MANAGER
-          </h1>
+      <div className="px-5 py-3 border-b border-gray-800 bg-[#111827]">
+        <h1 className="text-base font-bold text-white tracking-wider uppercase text-center">
+          DATA_SOURCES_MANAGER
+        </h1>
+        {/* Top Metrics Row */}
+        <div className="flex items-center justify-between mt-3 flex-wrap gap-x-6 gap-y-2">
+          <div className="flex items-center gap-4 text-xs">
+            <div className="flex items-center gap-1.5">
+              <Check className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="text-gray-500">Connected:</span>
+              <span className="font-medium text-emerald-400">{connectedCount}/{sources.length} sources</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <RefreshCw className="w-3 h-3 text-emerald-400" />
+              <span className="text-gray-500">System Health:</span>
+              <span className="font-medium text-emerald-400">{healthPct}%</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <ArrowRight className="w-3 h-3 text-gray-500" />
+              <span className="text-gray-500">Ingestion:</span>
+              <span className="font-medium text-gray-300">4.2K rec/min</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-[11px] font-medium text-emerald-400">WS Connected</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span className="text-[11px] font-medium text-emerald-400">API Healthy</span>
+            </span>
+            <button
+              onClick={refetch}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#00D9FF]/20 hover:bg-[#00D9FF]/30 border border-[#00D9FF]/40 text-[#00D9FF] text-white text-xs font-medium rounded transition-colors"
+            >
+              <RefreshCw className="w-3 h-3" />
+              Refresh
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          {/* WS Connected badge */}
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[11px] font-medium text-emerald-400">WS Connected</span>
-          </span>
-          {/* API Healthy badge */}
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            <span className="text-[11px] font-medium text-emerald-400">API Healthy</span>
-          </span>
-          {/* Refresh button */}
-          <button
-            onClick={refetch}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#00D9FF]/20 hover:bg-[#00D9FF]/30 border border-[#00D9FF]/40 text-[#00D9FF] text-white text-xs font-medium rounded transition-colors"
-          >
-            <RefreshCw className="w-3 h-3" />
-            Refresh
-          </button>
+        {/* OpenClaw / WS row */}
+        <div className="flex items-center gap-4 mt-2 text-xs">
+          <div className="flex items-center gap-1.5 text-emerald-400">
+            <Link2 className="w-3 h-3" />
+            <span>OpenClaw Bridge: CONNECTED</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-emerald-400">
+            <Zap className="w-3 h-3" />
+            <span>WS: CONNECTED</span>
+          </div>
         </div>
-      </div>
-
-      {/* ===== TOP METRICS BAR ===== */}
-      <div className="px-5 py-2.5 border-b border-gray-800 bg-[#0B0E14] flex items-center gap-6 text-xs">
-        <MetricPill
-          label="Connected"
-          value={`${connectedCount}/${sources.length} sources`}
-        />
-        <span className="text-gray-700">|</span>
-        <MetricPill label="System Health" value={`${healthPct}%`} />
-        <span className="text-gray-700">|</span>
-        <MetricPill label="Ingestion" value="4.2K rec/min" />
-        <span className="text-gray-700">|</span>
-        <MetricPill
-          label="OpenClaw Bridge"
-          value="CONNECTED"
-          valueColor="text-emerald-400"
-          icon={<Link2 className="w-3 h-3 text-emerald-400" />}
-        />
-        <span className="text-gray-700">|</span>
-        <MetricPill
-          label="WS"
-          value="CONNECTED"
-          valueColor="text-emerald-400"
-          icon={<Zap className="w-3 h-3 text-emerald-400" />}
-        />
       </div>
 
       {/* ===== AI-POWERED ADD SOURCE INPUT ===== */}
       <div className="px-5 py-3 border-b border-gray-800 bg-[#0B0E14]">
-        <div className="aurora-card p-3 mb-3">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-2">AI-POWERED ADD SOURCE</h3>
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search for data source to add..."
-              className="flex-1 bg-[#0B0E14] border border-gray-700 rounded-md px-3 py-1.5 text-sm text-white placeholder-gray-600 focus:border-[#00D9FF]/50 focus:outline-none"
-            />
-            <button className="px-3 py-1.5 bg-cyan-500/20 text-[#00D9FF] border border-[#00D9FF]/50/30 rounded-md text-xs font-bold hover:bg-cyan-500/30">Add</button>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-700 rounded-md text-xs text-gray-400 hover:text-gray-200 hover:border-gray-500 transition-colors whitespace-nowrap">
-              <ShoppingBag className="w-3.5 h-3.5" />
-              Shop API store
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-2">AI-POWERED ADD SOURCE INPUT</h3>
+        <div className="flex items-start gap-3">
+          <div className="flex-1 flex flex-col gap-2">
+            <div className="flex items-center gap-2 bg-[#0B0E14] border border-[#00D9FF]/30 rounded-md overflow-hidden focus-within:border-[#00D9FF]/60">
+              <Search className="w-4 h-4 text-gray-500 ml-3 flex-shrink-0" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Type a service name, URL, or paste API docs link..."
+                className="flex-1 bg-transparent px-2 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none min-w-0"
+              />
+            </div>
+            <button className="self-start px-3 py-1 text-xs font-medium text-[#00D9FF] hover:text-[#00D9FF]/80 transition-colors">
+              Or browse...
             </button>
           </div>
-          <div className="flex gap-2 mt-2">
-            {['Polygon.io', 'Benzinga', 'Quandl', 'Alpha Vantage', 'IEX Cloud'].map(s => (
-              <button key={s} className="px-2 py-0.5 text-[9px] font-mono text-gray-500 border border-gray-700 rounded-md hover:border-[#00D9FF]/50 hover:text-[#00D9FF]">
-                {s}
-              </button>
-            ))}
+          <div className="w-48 flex-shrink-0 h-[72px] border border-gray-700 rounded-md border-dashed flex flex-col items-center justify-center gap-1 bg-[#0f1219]/50 hover:border-gray-600 transition-colors cursor-pointer">
+            <Cloud className="w-6 h-6 text-gray-500" />
+            <span className="text-[10px] text-gray-500 font-mono">Drop API docs or config file</span>
           </div>
         </div>
+        <div className="flex flex-wrap gap-2 mt-3">
+          {SUGGESTED_SERVICES.map((s) => (
+            <button key={s} className="px-3 py-1 text-[11px] font-mono text-gray-400 border border-gray-700 rounded-full hover:border-[#00D9FF]/50 hover:text-[#00D9FF] transition-colors">
+              {s}
+            </button>
+          ))}
+        </div>
 
-        {/* Filter chips + Stop API scan */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1">
+        {/* Filter chips + Search */}
+        <div className="flex items-center justify-between gap-4 mt-4">
+          <div className="flex items-center gap-1 flex-wrap">
             {FILTER_CHIPS.map((chip) => (
               <button
                 key={chip}
                 onClick={() => setActiveFilterChip(chip)}
                 className={clsx(
-                  "px-3 py-1 rounded text-[11px] font-medium transition-colors",
+                  "px-2.5 py-1 rounded text-[10px] font-medium transition-colors",
                   activeFilterChip === chip
-                    ? "bg-cyan-500/20 text-[#00D9FF] border border-[#00D9FF]/50/40"
-                    : "text-gray-500 hover:text-gray-300 border border-transparent hover:border-gray-700"
+                    ? "bg-gray-700 text-white"
+                    : "text-gray-400 hover:text-gray-300 bg-transparent"
                 )}
               >
-                {chip}
+                [{chip}]
               </button>
             ))}
           </div>
-          <button className="flex items-center gap-1.5 px-3 py-1 text-[11px] text-red-400 hover:text-red-300 border border-red-500/30 rounded hover:border-red-500/50 transition-colors">
-            <StopCircle className="w-3 h-3" />
-            Stop API scan
-          </button>
+          <div className="flex items-center">
+            <Search className="w-3.5 h-3.5 text-gray-500 mr-1.5" />
+            <input
+              type="text"
+              value={sourceSearchQuery}
+              onChange={(e) => setSourceSearchQuery(e.target.value)}
+              placeholder="Search"
+              className="w-24 bg-[#0B0E14] border border-gray-700 rounded px-2 py-1 text-[11px] text-gray-300 placeholder-gray-500 focus:border-gray-600 focus:outline-none"
+            />
+          </div>
         </div>
       </div>
 
@@ -740,8 +761,13 @@ export default function DataSourcesMonitor() {
       <div className="flex-1 flex min-h-0">
         {/* Left column - Source list */}
         <div className="w-[58%] border-r border-gray-800 flex flex-col">
+          <div className="px-4 py-2 border-b border-gray-800">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
+              SOURCE LIST
+            </h3>
+          </div>
           <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-1.5">
-            {sources.map((source) => (
+            {filteredSources.map((source) => (
               <SourceCard
                 key={source.id}
                 source={source}
@@ -751,27 +777,36 @@ export default function DataSourcesMonitor() {
             ))}
           </div>
 
-          {/* SUPPLY CHAIN OVERVIEW */}
+          {/* SUPPLEMENTARY */}
           <div className="px-4 py-3 border-t border-gray-800">
             <div className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-2">
-              Supply Chain Overview
+              SUPPLEMENTARY
             </div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+            <div className="space-y-1.5">
               {SUPPLY_CHAIN_SOURCES.map((sup) => (
-                <label
+                <button
                   key={sup.id}
-                  className="flex items-center gap-1.5 cursor-pointer group"
+                  onClick={() => setSelectedSourceId(sup.id)}
+                  className={clsx(
+                    "w-full text-left px-3 py-2 rounded-lg border transition-all duration-150",
+                    selectedSourceId === sup.id
+                      ? "bg-cyan-500/10 border-[#00D9FF]/50"
+                      : "bg-[#0B0E14] border-gray-800 hover:border-gray-600"
+                  )}
                 >
-                  <input
-                    type="checkbox"
-                    checked={supplyChainChecked[sup.id] || false}
-                    onChange={() => toggleSupplyChain(sup.id)}
-                    className="w-3 h-3 rounded border-gray-600 bg-[#0B0E14] text-[#00D9FF] focus:ring-0 focus:ring-offset-0 accent-cyan-500"
-                  />
-                  <span className="text-[11px] text-gray-400 group-hover:text-gray-200 transition-colors">
-                    {sup.label}
-                  </span>
-                </label>
+                  <div className="flex items-center gap-3">
+                    <div className={clsx("w-7 h-7 rounded flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0", sup.iconBg)}>
+                      {sup.icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-semibold text-gray-100">{sup.name}</span>
+                      <span className={clsx("ml-2 px-1.5 py-0.5 rounded text-[9px]", sup.typeBadgeColor)}>{sup.type}</span>
+                    </div>
+                    <StatusBadge status={sup.status} />
+                    <span className="text-[10px] text-gray-500 font-mono">{sup.latency}</span>
+                    <span className="text-[10px] text-emerald-400 font-mono">{sup.uptime}%</span>
+                  </div>
+                </button>
               ))}
             </div>
           </div>
@@ -787,8 +822,7 @@ export default function DataSourcesMonitor() {
       <div className="px-5 py-2 border-t border-gray-800 bg-[#080c14] flex items-center justify-between text-[10px] text-gray-600">
         <div className="flex items-center gap-4">
           <span>
-            <span className="text-gray-500">FRED Macro Data:</span> Syncs daily
-            at 08:00 EST
+            <span className="text-gray-500">FRED Macro Data:</span> Syncs daily at 08:00 EST
           </span>
           <span className="text-gray-700">|</span>
           <span>
@@ -796,30 +830,10 @@ export default function DataSourcesMonitor() {
           </span>
         </div>
         <div className="flex items-center gap-4">
-          <span>System telemetry: 10:33</span>
-          <span>Idle: 4/11</span>
-          <span>
-            {new Date().toLocaleTimeString("en-US", {
-              hour12: false,
-              hour: "2-digit",
-              minute: "2-digit",
-              second: "2-digit",
-            })}
-          </span>
+          <span>System telemetry: 1039 WSI: 93rb APII 0.00</span>
         </div>
       </div>
     </div>
   );
 }
 
-// ---------- Small sub-components ----------
-
-function MetricPill({ label, value, valueColor = "text-gray-300", icon }) {
-  return (
-    <div className="flex items-center gap-1.5">
-      {icon}
-      <span className="text-gray-500">{label}:</span>
-      <span className={clsx("font-medium", valueColor)}>{value}</span>
-    </div>
-  );
-}
