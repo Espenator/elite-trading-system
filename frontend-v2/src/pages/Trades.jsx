@@ -173,10 +173,11 @@ export default function Trades() {
     return [];
   }, [ordersData]);
 
-  // Account metrics
-  const nav = accountData?.equity || accountData?.portfolio_value || portfolioData?.totalEquity || 0;
-  const dayPnl = accountData?.profit_loss || portfolioData?.dayPnL || 0;
-  const buyingPower = accountData?.buying_power || accountData?.daytrading_buying_power || 0;
+  // Account metrics — use Number() to handle string values from Alpaca API.
+  // Prefer portfolio endpoint (always returns numeric totalEquity) over raw account.
+  const nav = Number(portfolioData?.totalEquity) || Number(accountData?.equity) || Number(accountData?.portfolio_value) || 0;
+  const dayPnl = Number(portfolioData?.dayPnL) || Number(accountData?.profit_loss) || 0;
+  const buyingPower = Number(accountData?.buying_power) || Number(accountData?.daytrading_buying_power) || 0;
 
   // Margin available as percentage (mockup shows "82%")
   const marginAvailRaw = accountData?.regt_buying_power

@@ -11,6 +11,9 @@ On startup, always fetches snapshots so the system has current prices
 regardless of market session. During off-hours, polls snapshots on a
 configurable interval so the UI always shows real (not mock) data.
 
+When WebSocket fails (connection limit, library issues), falls back to
+snapshot polling that works regardless of market open/closed state.
+
 Requires env vars: ALPACA_API_KEY, ALPACA_SECRET_KEY
 """
 import asyncio
@@ -29,6 +32,15 @@ _REGULAR_CLOSE = 16     # 4:00 PM ET
 _POST_MARKET_CLOSE = 20 # 8:00 PM ET
 
 
+def _get_et_hour() -> int:
+    """Get current hour in US/Eastern, handling DST correctly."""
+    try:
+        from zoneinfo import ZoneInfo
+    except ImportError:
+        from backports.zoneinfo import ZoneInfo
+    return datetime.now(ZoneInfo("America/New_York")).hour
+
+
 class AlpacaStreamService:
     """Alpaca WebSocket client with snapshot fallback for 24/7 coverage."""
 
@@ -36,7 +48,7 @@ class AlpacaStreamService:
     INITIAL_RECONNECT_DELAY = 2  # seconds
     SNAPSHOT_POLL_INTERVAL = 30  # seconds between snapshot polls off-hours
     SNAPSHOT_BATCH_SIZE = 50  # symbols per snapshot API call
-    # When Alpaca returns "connection limit exceeded", fall back to mock after this many failures
+    # When Alpaca returns "connection limit exceeded", fall back after this many failures
     CONNECTION_LIMIT_FALLBACK_AFTER = int(
         os.getenv("ALPACA_STREAM_FALLBACK_AFTER_LIMIT", "1")
     )
@@ -61,6 +73,7 @@ class AlpacaStreamService:
         self._session = "unknown"  # "pre", "regular", "post", "closed"
         self._snapshot_task: Optional[asyncio.Task] = None
         self._connection_limit_failures = 0
+        self._ws_fallback_to_snapshots = False  # True when WS fails and we poll instead
 
     async def start(self) -> None:
         """Start streaming with clock-aware mode selection.
@@ -108,15 +121,16 @@ class AlpacaStreamService:
             try:
                 await self._check_clock()
 
-                if self._market_is_open:
+                if self._market_is_open and not self._ws_fallback_to_snapshots:
                     # Market open: use WebSocket for real-time bars
                     logger.info("Market OPEN — switching to WebSocket streaming")
                     await self._connect_and_stream(api_key, secret_key)
                 else:
-                    # Market closed: poll snapshots
+                    # Market closed OR WebSocket failed: poll snapshots
+                    reason = "WS fallback" if self._ws_fallback_to_snapshots else f"session={self._session}"
                     logger.info(
-                        "Market CLOSED (session=%s) — polling snapshots every %ds",
-                        self._session, self.SNAPSHOT_POLL_INTERVAL,
+                        "Polling snapshots every %ds (%s)",
+                        self.SNAPSHOT_POLL_INTERVAL, reason,
                     )
                     await self._run_snapshot_poll_loop()
 
@@ -130,7 +144,7 @@ class AlpacaStreamService:
                         'Install: pip install "websockets>=10.4,<14" then restart. '
                         "Falling back to snapshot polling."
                     )
-                    await self._run_snapshot_poll_loop()
+                    self._ws_fallback_to_snapshots = True
                     continue
                 raise
             except ValueError as e:
@@ -145,11 +159,11 @@ class AlpacaStreamService:
                         logger.warning(
                             "Alpaca data stream: connection limit exceeded (%d time(s)). "
                             "Only one WebSocket per account is allowed. "
-                            "Falling back to snapshot polling instead of mock data.",
+                            "Falling back to snapshot polling (real data, every %ds).",
                             self._connection_limit_failures,
+                            self.SNAPSHOT_POLL_INTERVAL,
                         )
-                        # Fall back to snapshot polling (real data), not mock
-                        await self._run_snapshot_poll_loop()
+                        self._ws_fallback_to_snapshots = True
                         continue
                     logger.warning(
                         "Alpaca data stream: %s. Backing off %ds.",
@@ -176,9 +190,8 @@ class AlpacaStreamService:
             clock = await alpaca_service.get_clock()
             if clock:
                 self._market_is_open = clock.get("is_open", False)
-                # Determine session from timestamps
-                now = datetime.now(timezone.utc)
-                hour_et = (now.hour - 5) % 24  # rough ET offset
+                # Determine session using proper US/Eastern timezone (handles DST)
+                hour_et = _get_et_hour()
 
                 if self._market_is_open:
                     self._session = "regular"
@@ -291,20 +304,24 @@ class AlpacaStreamService:
         }
 
     async def _run_snapshot_poll_loop(self) -> None:
-        """Poll snapshots on interval while market is closed.
+        """Poll snapshots on interval. Works in ALL market states.
 
-        Exits when market opens (checked every poll cycle).
+        When in WS fallback mode: polls continuously regardless of market state.
+        When market is closed: polls until market opens, then exits so main loop
+        can switch to WebSocket.
         """
         while self._running:
+            # Fetch snapshots FIRST, then sleep (ensures immediate data on entry)
+            await self._fetch_and_publish_snapshots()
             await asyncio.sleep(self.SNAPSHOT_POLL_INTERVAL)
 
-            # Check if market has opened — if so, exit to switch to WebSocket
+            # Check if we should exit this loop
             await self._check_clock()
-            if self._market_is_open:
-                logger.info("Market opened — exiting snapshot poll loop")
+            if self._market_is_open and not self._ws_fallback_to_snapshots:
+                # Market opened and WS is available — exit to switch to WebSocket
+                logger.info("Market opened — exiting snapshot poll loop for WebSocket")
                 return
-
-            await self._fetch_and_publish_snapshots()
+            # Otherwise keep polling (WS fallback or market closed)
 
     async def _connect_and_stream(self, api_key: str, secret_key: str) -> None:
         """Connect to Alpaca StockDataStream and subscribe to bars."""
@@ -315,7 +332,7 @@ class AlpacaStreamService:
                 "alpaca-py not installed — run: pip install alpaca-py>=0.30.0. "
                 "Falling back to snapshot polling."
             )
-            await self._run_snapshot_poll_loop()
+            self._ws_fallback_to_snapshots = True
             return
 
         feed_str = os.getenv("ALPACA_FEED", "sip")
@@ -410,6 +427,7 @@ class AlpacaStreamService:
             "mock_mode": self._use_mock,
             "session": self._session,
             "market_is_open": self._market_is_open,
+            "ws_fallback": self._ws_fallback_to_snapshots,
             "symbols_count": len(self.symbols),
             "bars_received": self._bars_received,
             "snapshots_fetched": self._snapshots_fetched,

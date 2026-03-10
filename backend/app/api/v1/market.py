@@ -28,7 +28,7 @@ _finviz_available = bool(settings.FINVIZ_API_KEY)
 
 # In-memory cache to reduce Finviz API calls (Dashboard polls every 5s)
 _INDICES_CACHE: Dict[str, Any] = {}
-_INDICES_CACHE_TTL_SEC = 120  # Serve cached result for 120s before refetch
+_INDICES_CACHE_TTL_SEC = 30  # Serve cached result for 30s before refetch (paid Finviz Elite)
 
 # Map display id -> ticker for quote fetch (matches Dashboard TickerStrip indexMap)
 INDEX_SYMBOLS = [
@@ -62,6 +62,27 @@ def _parse_float(val: Any, default: float = 0.0) -> float:
         return float(val)
     except (TypeError, ValueError):
         return default
+
+
+def _make_index_entry(
+    id_: str,
+    close: float | None,
+    change: float | None,
+    source: str = "finviz",
+) -> Dict[str, Any]:
+    """Build a single index entry with all fields the frontend expects.
+
+    Frontend TickerStrip reads: price, value, change, changePct, last.
+    """
+    return {
+        "id": id_,
+        "value": f"{close:.2f}" if close else None,
+        "price": round(close, 2) if close else None,
+        "last": round(close, 2) if close else None,
+        "change": round(change, 2) if change is not None else None,
+        "changePct": round(change, 2) if change is not None else None,
+        "source": source,
+    }
 
 
 def _get_cached_indices() -> List[Dict[str, Any]] | None:
@@ -112,14 +133,9 @@ async def _alpaca_snapshot_indices() -> List[Dict[str, Any]]:
                     ((close - prev_close) / prev_close) * 100
                     if prev_close and close else None
                 )
-                result.append({
-                    "id": item["id"],
-                    "value": f"{close:.2f}" if close else None,
-                    "change": round(change, 2) if change is not None else None,
-                    "source": "alpaca",
-                })
+                result.append(_make_index_entry(item["id"], close, change, "alpaca"))
             else:
-                result.append({"id": item["id"], "value": None, "change": None})
+                result.append(_make_index_entry(item["id"], None, None, "alpaca"))
         return result
     except Exception as e:
         logger.warning("Alpaca snapshot fallback failed: %s", e)
@@ -147,7 +163,7 @@ async def get_market_root() -> Dict[str, Any]:
             try:
                 quotes = await finviz.get_quote_data(ticker=item["ticker"], timeframe="d", duration="d5")
                 if not quotes or not isinstance(quotes, list):
-                    result.append({"id": item["id"], "value": None, "change": None})
+                    result.append(_make_index_entry(item["id"], None, None))
                 else:
                     row = quotes[-1] if quotes else {}
                     prev = quotes[-2] if len(quotes) >= 2 else {}
@@ -157,14 +173,10 @@ async def get_market_root() -> Dict[str, Any]:
                     close = _parse_float(row.get(close_key))
                     prev_close = _parse_float(prev.get(close_key)) if prev else close
                     change = ((close - prev_close) / prev_close) * 100 if prev_close and close else None
-                    result.append({
-                        "id": item["id"],
-                        "value": f"{close:.2f}" if close else None,
-                        "change": round(change, 2) if change is not None else None,
-                    })
+                    result.append(_make_index_entry(item["id"], close, change))
             except Exception as e:
                 logger.debug("Market root fetch %s: %s", item["ticker"], e)
-                result.append({"id": item["id"], "value": None, "change": None})
+                result.append(_make_index_entry(item["id"], None, None))
             await asyncio.sleep(_DELAY_BETWEEN_REQUESTS_SEC)
 
     # If Finviz produced no data, use Alpaca fallback
@@ -221,7 +233,7 @@ async def get_indices() -> Dict[str, Any]:
             quotes = ticker_data.get(item["ticker"])
             try:
                 if not quotes or not isinstance(quotes, list):
-                    result.append({"id": item["id"], "value": None, "change": None})
+                    result.append(_make_index_entry(item["id"], None, None))
                 else:
                     row = quotes[-1] if quotes else {}
                     prev = quotes[-2] if len(quotes) >= 2 else {}
@@ -237,14 +249,10 @@ async def get_indices() -> Dict[str, Any]:
                         change = ((close - prev_close) / prev_close) * 100
                     else:
                         change = None
-                    result.append({
-                        "id": item["id"],
-                        "value": f"{close:.2f}" if close else None,
-                        "change": round(change, 2) if change is not None else None,
-                    })
+                    result.append(_make_index_entry(item["id"], close, change))
             except Exception as e:
                 logger.warning("Indices parse %s: %s", item["ticker"], e)
-                result.append({"id": item["id"], "value": None, "change": None})
+                result.append(_make_index_entry(item["id"], None, None))
 
     # If Finviz produced no data (or no API key), use Alpaca fallback
     if not result or all(r.get("value") is None for r in result):

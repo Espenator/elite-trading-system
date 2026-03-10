@@ -1064,6 +1064,38 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         log.debug("Flywheel scheduler not started: %s", e)
 
+    # 3c. Auto-backfill if DuckDB has 0 indicator/feature rows (first-run bootstrap)
+    try:
+        from app.data.duckdb_storage import duckdb_store
+        _health = duckdb_store.health_check()
+        _indicator_rows = 0
+        for t in (_health.get("tables") or []):
+            if t.get("name") in ("daily_indicators", "daily_features"):
+                _indicator_rows += t.get("rows", 0)
+        if _indicator_rows == 0:
+            log.info("DuckDB has 0 indicator/feature rows — scheduling auto-backfill")
+
+            async def _auto_backfill():
+                await asyncio.sleep(30)  # Let API server start first
+                try:
+                    from app.services.data_ingestion import data_ingestion
+                    from app.modules.symbol_universe import get_tracked_symbols
+                    symbols = get_tracked_symbols()[:20] or [
+                        "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA",
+                        "TSLA", "META", "SPY", "QQQ", "IWM",
+                    ]
+                    log.info("Auto-backfill starting for %d symbols (30 days)...", len(symbols))
+                    report = await data_ingestion.ingest_all(symbols, days=30)
+                    ohlcv = report.get("ohlcv", {}).get("total_rows", 0)
+                    indicators = report.get("indicators", 0)
+                    log.info("Auto-backfill complete: %d OHLCV, %d indicators", ohlcv, indicators)
+                except Exception as e:
+                    log.warning("Auto-backfill failed (non-fatal): %s", e)
+
+            asyncio.create_task(_auto_backfill())
+    except Exception:
+        pass
+
     # 4-6. Background tasks (legacy + monitoring)
     # BUG FIX 2: tick_task must ALWAYS run — it does Alpaca data ingestion into DuckDB,
     # NOT LLM work. Without it, no data flows into the database regardless of market hours.
