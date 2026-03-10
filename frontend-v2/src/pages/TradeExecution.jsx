@@ -147,7 +147,7 @@ export default function TradeExecution() {
       .map(c => {
         const time = c.time || c.timestamp || c.t;
         if (!time) return null;
-        const tStr = typeof time === 'string' ? time.slice(0, 10) : time;
+        const raw = typeof time === 'string' ? time.slice(0, 10) : time; const tStr = typeof raw === 'string' && raw.includes('/') ? (() => { const p = raw.split('/'); return p.length === 3 && p[2].length === 4 ? `${p[2]}-${p[0].padStart(2,'0')}-${p[1].padStart(2,'0')}` : raw; })() : raw;
         return { time: tStr, open: c.open ?? c.o, high: c.high ?? c.h, low: c.low ?? c.l, close: c.close ?? c.c };
       })
       .filter(c => c && c.open != null)
