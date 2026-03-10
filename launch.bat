@@ -10,18 +10,20 @@ echo.
 cd /d "%~dp0desktop"
 
 :: Check if node_modules exists
-if not exist "node_modules" (
-    echo Installing Electron dependencies (first run)...
-    call npm install
-    if errorlevel 1 (
-        echo ERROR: npm install failed. Make sure Node.js 18+ is installed.
-        echo Download from: https://nodejs.org/
-        pause
-        exit /b 1
-    )
+if not exist "node_modules" goto :install
+goto :start
+
+:install
+echo Installing Electron dependencies (first run)...
+call npm install
+if errorlevel 1 (
+    echo ERROR: npm install failed. Make sure Node.js 18+ is installed.
+    echo Download from: https://nodejs.org/
+    pause
+    exit /b 1
 )
 
-:: Launch Electron app
+:start
 echo Starting Embodier Trader...
 call npm start
 
