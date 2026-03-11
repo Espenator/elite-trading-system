@@ -145,13 +145,13 @@ const API_CONFIG = {
     deviceInfo:       "/system/device",
 
     // ---- CNS ROUTES ----
-    cnsHomeostasis:            "/cns/homeostasis",
-    cnsCircuitBreaker:         "/cns/circuit-breaker",
+    cnsHomeostasis:            "/cns/homeostasis/vitals",
+    cnsCircuitBreaker:         "/cns/circuit-breaker/status",
     cnsAgentsHealth:           "/cns/agents/health",
     cnsPostmortems:            "/cns/postmortems",
     cnsPostmortemsAttribution: "/cns/postmortems/attribution",
     cnsDirectives:             "/cns/directives",
-    cnsLastVerdict:            "/cns/last-verdict",
+    cnsLastVerdict:            "/cns/council/last-verdict",
     cnsProfitBrain:            "/cns/profit-brain",
 
     // ---- COGNITIVE TELEMETRY ----
