@@ -34,11 +34,20 @@ _AUTH_TOKEN: Optional[str] = None
 _AUTH_INITIALIZED = False
 
 
+def reset_auth_cache():
+    """Reset the auth token cache. Useful for tests that set API_AUTH_TOKEN dynamically."""
+    global _AUTH_TOKEN, _AUTH_INITIALIZED
+    _AUTH_TOKEN = None
+    _AUTH_INITIALIZED = False
+
+
 def _get_auth_token() -> Optional[str]:
-    """Lazy-load the auth token from settings (single source of truth)."""
+    """Lazy-load the auth token. Env var overrides settings (supports test injection)."""
     global _AUTH_TOKEN, _AUTH_INITIALIZED
     if not _AUTH_INITIALIZED:
-        _AUTH_TOKEN = (settings.API_AUTH_TOKEN or "").strip() or None
+        import os
+        env_token = os.environ.get("API_AUTH_TOKEN", "").strip()
+        _AUTH_TOKEN = env_token or (settings.API_AUTH_TOKEN or "").strip() or None
         _AUTH_INITIALIZED = True
         if _AUTH_TOKEN:
             logger.info("API authentication enabled (token configured)")

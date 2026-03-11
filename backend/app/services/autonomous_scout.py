@@ -260,7 +260,8 @@ class AutonomousScoutService:
             watchlist_data = await asyncio.to_thread(_fetch_watchlist_data, pending)
 
             for symbol in pending:
-                row = watchlist_data.get(symbol)
+                try:
+                    row = watchlist_data.get(symbol)
 
                     if not row:
                         # No data yet — ingest it

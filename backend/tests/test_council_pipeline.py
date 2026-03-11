@@ -22,44 +22,63 @@ from unittest.mock import AsyncMock, MagicMock, patch
 @pytest.mark.asyncio
 async def test_auth_required_in_paper_mode():
     """Verify auth is required even in paper mode (Audit Task 1)."""
+    import os
     from app.core.security import require_auth, _get_auth_token
     from fastapi import HTTPException
 
-    # Reset cached token
     import app.core.security as sec
     sec._AUTH_INITIALIZED = False
     sec._AUTH_TOKEN = None
 
-    with patch.object(sec, 'settings') as mock_settings:
-        mock_settings.API_AUTH_TOKEN = ""
-        mock_settings.TRADING_MODE = "paper"
-        sec._AUTH_INITIALIZED = False
+    # Clear env var so _get_auth_token falls through to (empty) settings
+    saved = os.environ.pop("API_AUTH_TOKEN", None)
+    try:
+        with patch.object(sec, 'settings') as mock_settings:
+            mock_settings.API_AUTH_TOKEN = ""
+            mock_settings.TRADING_MODE = "paper"
+            sec._AUTH_INITIALIZED = False
 
-        mock_request = MagicMock()
-        with pytest.raises(HTTPException) as exc_info:
-            await require_auth(mock_request, None)
-        assert exc_info.value.status_code == 403
+            mock_request = MagicMock()
+            with pytest.raises(HTTPException) as exc_info:
+                await require_auth(mock_request, None)
+            assert exc_info.value.status_code == 403
+    finally:
+        if saved is not None:
+            os.environ["API_AUTH_TOKEN"] = saved
+        sec._AUTH_INITIALIZED = False
+        sec._AUTH_TOKEN = None
 
 
 @pytest.mark.asyncio
 async def test_auth_passes_with_valid_token():
     """Verify auth passes with correct token."""
+    import os
     from app.core.security import require_auth
     import app.core.security as sec
 
     sec._AUTH_INITIALIZED = False
     sec._AUTH_TOKEN = None
 
-    with patch.object(sec, 'settings') as mock_settings:
-        mock_settings.API_AUTH_TOKEN = "test-secret-token"
-        mock_settings.TRADING_MODE = "paper"
-        sec._AUTH_INITIALIZED = False
+    saved = os.environ.pop("API_AUTH_TOKEN", None)
+    try:
+        os.environ["API_AUTH_TOKEN"] = "test-secret-token"
+        with patch.object(sec, 'settings') as mock_settings:
+            mock_settings.API_AUTH_TOKEN = "test-secret-token"
+            mock_settings.TRADING_MODE = "paper"
+            sec._AUTH_INITIALIZED = False
 
-        mock_request = MagicMock()
-        mock_creds = MagicMock()
-        mock_creds.credentials = "test-secret-token"
-        result = await require_auth(mock_request, mock_creds)
-        assert result == "test-secret-token"
+            mock_request = MagicMock()
+            mock_creds = MagicMock()
+            mock_creds.credentials = "test-secret-token"
+            result = await require_auth(mock_request, mock_creds)
+            assert result == "test-secret-token"
+    finally:
+        if saved is not None:
+            os.environ["API_AUTH_TOKEN"] = saved
+        else:
+            os.environ.pop("API_AUTH_TOKEN", None)
+        sec._AUTH_INITIALIZED = False
+        sec._AUTH_TOKEN = None
 
 
 # ── Test: Order rejection when equity unavailable (Task 7) ──
