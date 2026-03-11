@@ -4,14 +4,14 @@ import react from "@vitejs/plugin-react";
 // Allow backend port override (e.g. VITE_BACKEND_URL=http://localhost:8000)
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "VITE_");
-  const backendUrl = env.VITE_BACKEND_URL || env.VITE_API_URL || "http://localhost:8080";
+  const backendUrl = env.VITE_BACKEND_URL || env.VITE_API_URL || "http://localhost:8000";
   const wsBackend = backendUrl.replace(/^http/, "ws");
 
   return {
     plugins: [react()],
     server: {
       host: true,
-      port: parseInt(env.VITE_PORT || "3000"),
+      port: parseInt(env.VITE_PORT || "5173"),
       strictPort: false,
       proxy: {
         "/api": {
