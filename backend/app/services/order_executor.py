@@ -11,11 +11,15 @@ Pipeline:
 Risk gates (all must pass before execution):
   1. Council verdict is execution_ready with direction != hold
   2. Mock source guard (never trade on fake/mock data)
-  3. Real Kelly position sizing from DuckDB trade stats (not hardcoded)
-  4. Portfolio heat check (total exposure < max_heat)
+  3. Daily trade limit not exceeded
+  4. Per-symbol cooldown (no rapid-fire orders)
   5. Drawdown check (not breached)
-  6. Per-symbol cooldown (no rapid-fire orders)
-  7. Daily trade limit not exceeded
+  5b. Degraded mode guard
+  5c. Kill switch / entries frozen
+  6. Real Kelly position sizing from DuckDB trade stats (not hardcoded)
+  7. Portfolio heat check (total exposure < max_heat)
+  8. Viability gate (expected cost vs edge)
+  9. Risk Governor (sector caps, correlation guard, regime gate, stop enforcement)
 
 Connects to:
   - trade_stats_service.py -> real historical stats for Kelly
@@ -382,6 +386,45 @@ class OrderExecutor:
                     return
         except Exception as e:
             logger.debug("Viability check failed: %s", e)
+
+        # -- Gate 9: Risk Governor (sector concentration, correlation, regime, stop enforcement) --
+        try:
+            from app.modules.openclaw.execution.risk_governor import get_governor, OrderRequest
+            from app.utils.sector_lookup import get_sector_or_none
+            sector = get_sector_or_none(symbol)
+            gov_order = OrderRequest(
+                ticker=symbol,
+                side="buy" if direction in ("buy", "long") else "sell",
+                shares=kelly_result["qty"],
+                price=price,
+                stop_loss=kelly_result.get("stop_loss", 0) or 0,
+                take_profit=kelly_result.get("take_profit", 0) or 0,
+                composite_score=score,
+                sector=sector,
+                regime=regime,
+            )
+            gov = get_governor()
+            gov_decision = await asyncio.get_event_loop().run_in_executor(
+                None, gov.approve, gov_order
+            )
+            if not gov_decision.approved:
+                self._reject(
+                    symbol, score,
+                    f"RiskGovernor REJECTED: {gov_decision.reason}",
+                    ExecutionDenyReason.PORTFOLIO_RISK_LIMIT,
+                )
+                return
+            # Governor may reduce shares
+            if gov_decision.approved_shares < kelly_result["qty"]:
+                logger.info(
+                    "RiskGovernor reduced %s shares: %d -> %d",
+                    symbol, kelly_result["qty"], gov_decision.approved_shares,
+                )
+                kelly_result["qty"] = gov_decision.approved_shares
+        except ImportError:
+            logger.debug("RiskGovernor not available, skipping")
+        except Exception as e:
+            logger.warning("RiskGovernor check failed: %s", e)
 
         # -- All gates passed: build ExecutionDecision (required for any submit)
         qty = kelly_result["qty"]

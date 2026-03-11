@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 # ---- OpenClaw regime multipliers (matches signal_engine.py) ----
+# Supports both named regimes (BULLISH/BEARISH) and HMM regimes (GREEN/YELLOW/RED)
 _REGIME_MULTIPLIERS: Dict[str, float] = {
     "BULLISH": 1.10,
     "RISK_ON": 1.05,
@@ -36,6 +37,10 @@ _REGIME_MULTIPLIERS: Dict[str, float] = {
     "BEARISH": 0.50,
     "CRISIS": 0.25,
     "UNKNOWN": 0.80,
+    # HMM regime mappings (from Bayesian regime detector)
+    "GREEN": 1.05,      # Favorable conditions
+    "YELLOW": 0.65,     # Caution - reduce size
+    "RED": 0.35,        # Danger - minimal size
 }
 
 # Short-side regime multipliers (inverted: bearish boosts shorts)
@@ -47,6 +52,10 @@ _SHORT_REGIME_MULTIPLIERS: Dict[str, float] = {
     "BEARISH": 1.10,
     "CRISIS": 1.15,
     "UNKNOWN": 0.80,
+    # HMM regime mappings (inverted for shorts)
+    "GREEN": 0.70,      # Less favorable for shorts
+    "YELLOW": 1.00,     # Neutral for shorts
+    "RED": 1.10,        # Favorable for shorts
 }
 
 

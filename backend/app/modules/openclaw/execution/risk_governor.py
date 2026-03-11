@@ -312,6 +312,13 @@ class RiskGovernor:
 
     def _check_sector_concentration(self, order: OrderRequest) -> tuple[bool, str]:
         if not order.sector:
+            # Attempt sector lookup from static mapping
+            try:
+                from app.utils.sector_lookup import get_sector_or_none
+                order.sector = get_sector_or_none(order.ticker)
+            except Exception:
+                pass
+        if not order.sector:
             return True, "sector_conc: no sector data (skip)"
         count = sum(1 for p in self.open_positions.values()
                     if p.get("sector", "").lower() == order.sector.lower())
@@ -322,6 +329,12 @@ class RiskGovernor:
 
     def _check_correlation(self, order: OrderRequest) -> tuple[bool, str]:
         # Lightweight check: same-sector positions count as correlated
+        if not order.sector:
+            try:
+                from app.utils.sector_lookup import get_sector_or_none
+                order.sector = get_sector_or_none(order.ticker)
+            except Exception:
+                pass
         if not order.sector:
             return True, "correlation: no sector (skip)"
         same_sector_value = sum(
