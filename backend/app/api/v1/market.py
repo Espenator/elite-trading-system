@@ -187,6 +187,8 @@ async def get_market_root() -> Dict[str, Any]:
 
     _set_cached_indices(result)
     return {"indices": result, "marketIndices": result}
+
+
 async def _fetch_one_ticker(ticker: str) -> Dict[str, Any]:
     """Fetch quote data for a single ticker with semaphore throttling."""
     async with _FINVIZ_SEMAPHORE:
@@ -207,7 +209,7 @@ async def get_indices() -> Dict[str, Any]:
     """
     cached = _get_cached_indices()
     if cached is not None:
-        return {"indices": cached}
+        return {"indices": cached, "marketIndices": cached}
 
     result: List[Dict[str, Any]] = []
 
@@ -261,7 +263,7 @@ async def get_indices() -> Dict[str, Any]:
             result = alpaca_result
 
     _set_cached_indices(result)
-    return {"indices": result}
+    return {"indices": result, "marketIndices": result}
 
 
 @router.get("/order-book")

@@ -522,8 +522,30 @@ async def get_conference_status():
 
 @router.get("/consensus")
 async def get_consensus():
-    """Agent consensus for Performance Analytics. Same data as conference when available."""
-    return await get_conference_status()
+    """Agent consensus for Dashboard. Returns votes as array + top-level verdict/agreement."""
+    conf = await get_conference_status()
+    last = conf.get("last_conference") or {}
+    # Convert votes object {agent: vote_str} to array [{name, vote, confidence}]
+    votes_obj = last.get("votes") or {}
+    votes_array = [
+        {"name": agent, "vote": v if isinstance(v, str) else (v.get("vote", "HOLD") if isinstance(v, dict) else "HOLD"),
+         "confidence": (v.get("confidence", 50) if isinstance(v, dict) else 50)}
+        for agent, v in votes_obj.items()
+    ] if isinstance(votes_obj, dict) else []
+    verdict = last.get("verdict", "N/A")
+    confidence = last.get("confidence", 0)
+    return {
+        "votes": votes_array,
+        "agents": votes_array,
+        "verdict": verdict,
+        "consensus": verdict,
+        "agreement_percent": confidence,
+        "agreement": confidence,
+        "ticker": last.get("ticker", "N/A"),
+        "pipeline": conf.get("pipeline", []),
+        "current_stage": conf.get("current_stage", "idle"),
+        "total_conferences": conf.get("total_conferences", 0),
+    }
 
 
 # --- Team Status ---

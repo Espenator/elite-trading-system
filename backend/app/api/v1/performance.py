@@ -315,9 +315,21 @@ def performance_equity(limit_trades: int = 5000) -> Dict[str, Any]:
             )
 
         if not points:
-            return {"hasData": False, "message": "No realized PnL rows found.", "points": [], "note": note}
+            return {"hasData": False, "message": "No realized PnL rows found.", "points": [], "equity_curve": [], "equity": [], "note": note}
 
-        return {"hasData": True, "message": "OK", "points": points, "note": note, "source": {"table": table}}
+        # Build chart-friendly equity curve [{time, value}] for frontend
+        equity_curve = [
+            {"time": p.get("date") or str(p.get("index", i)), "value": p.get("equity", 0)}
+            for i, p in enumerate(points)
+        ]
+        return {
+            "hasData": True, "message": "OK",
+            "points": points,
+            "equity_curve": equity_curve,
+            "equity": equity_curve,
+            "note": note,
+            "source": {"table": table},
+        }
     finally:
         conn.close()
 
