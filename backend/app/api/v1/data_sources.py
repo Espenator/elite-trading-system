@@ -108,6 +108,10 @@ class DataSourceRead(DataSourceBase):
     last_latency_ms: Optional[float] = None
     last_error: Optional[str] = None
     has_credentials: bool = False
+    # Frontend-friendly aliases
+    latency: Optional[float] = None
+    dataRate: Optional[str] = None
+    uptime: Optional[float] = None
 
 
 class DataSourceCreate(BaseModel):
@@ -284,11 +288,33 @@ DEFAULT_SOURCES: Dict[str, Dict[str, Any]] = {
     "benzinga": {
         "id": "benzinga",
         "name": "Benzinga",
-        "type": "rest",
+        "type": "scraper",
         "category": "news",
-        "base_url": "https://api.benzinga.com",
-        "required_keys": ["token"],
-        "test_endpoint": "/api/v2/news?pageSize=1",
+        "base_url": "https://www.benzinga.com",
+        "required_keys": ["email", "password"],
+        "test_endpoint": "",
+        "status": "active",
+        "enabled": True,
+    },
+    "squeezemetrics": {
+        "id": "squeezemetrics",
+        "name": "SqueezeMetrics",
+        "type": "scraper",
+        "category": "options",
+        "base_url": "https://squeezemetrics.com",
+        "required_keys": [],
+        "test_endpoint": "",
+        "status": "active",
+        "enabled": True,
+    },
+    "capitol_trades": {
+        "id": "capitol_trades",
+        "name": "Capitol Trades",
+        "type": "scraper",
+        "category": "insider",
+        "base_url": "https://www.capitoltrades.com",
+        "required_keys": [],
+        "test_endpoint": "",
         "status": "active",
         "enabled": True,
     },
@@ -393,6 +419,7 @@ def _save_sources(sources: Dict[str, Dict[str, Any]]):
 def _source_to_read(src: Dict[str, Any]) -> DataSourceRead:
     creds_key = f"{DB_CREDS_PREFIX}{src['id']}"
     has_creds = bool(db_service.get_config(creds_key))
+    lat_ms = src.get("last_latency_ms")
     return DataSourceRead(
         id=src["id"],
         name=src["name"],
@@ -404,9 +431,12 @@ def _source_to_read(src: Dict[str, Any]) -> DataSourceRead:
         status=src.get("status", "pending"),
         enabled=src.get("enabled", True),
         last_test=src.get("last_test"),
-        last_latency_ms=src.get("last_latency_ms"),
+        last_latency_ms=lat_ms,
         last_error=src.get("last_error"),
         has_credentials=has_creds,
+        latency=lat_ms,
+        dataRate="active" if src.get("status") == "healthy" else None,
+        uptime=100.0 if src.get("status") == "healthy" else (0.0 if src.get("status") == "error" else None),
     )
 
 

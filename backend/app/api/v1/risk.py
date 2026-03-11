@@ -230,7 +230,8 @@ async def get_risk_proposal(symbol: str):
 @router.get("/history")
 async def get_risk_history():
     """Return historical risk metrics for chart."""
-    return _get_risk_history()
+    entries = _get_risk_history()
+    return {"history": entries}
 
 
 @router.put("", dependencies=[Depends(require_auth)])
@@ -930,14 +931,15 @@ async def correlation_matrix():
     try:
         positions = await alpaca_service.get_positions() or []
         symbols = [p.get("symbol", "") for p in positions[:10]]
-        # Return structure for frontend rendering
-        matrix = {}
+        # Return 2D array for frontend matrix[ri][ci] access
+        matrix = []
         for s in symbols:
-            matrix[s] = {s2: (1.0 if s == s2 else 0.0) for s2 in symbols}
+            row = [1.0 if s == s2 else 0.0 for s2 in symbols]
+            matrix.append(row)
         return {"symbols": symbols, "matrix": matrix}
     except Exception as e:
         logger.error("Correlation matrix error: %s", e)
-        return {"symbols": [], "matrix": {}}
+        return {"symbols": [], "matrix": []}
 
 
 @router.get("/var-histogram")

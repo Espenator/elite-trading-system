@@ -187,6 +187,8 @@ async def get_market_root() -> Dict[str, Any]:
 
     _set_cached_indices(result)
     return {"indices": result, "marketIndices": result}
+
+
 async def _fetch_one_ticker(ticker: str) -> Dict[str, Any]:
     """Fetch quote data for a single ticker with semaphore throttling."""
     async with _FINVIZ_SEMAPHORE:
@@ -207,7 +209,7 @@ async def get_indices() -> Dict[str, Any]:
     """
     cached = _get_cached_indices()
     if cached is not None:
-        return {"indices": cached}
+        return {"indices": cached, "marketIndices": cached}
 
     result: List[Dict[str, Any]] = []
 
@@ -261,18 +263,29 @@ async def get_indices() -> Dict[str, Any]:
             result = alpaca_result
 
     _set_cached_indices(result)
-    return {"indices": result}
+    return {"indices": result, "marketIndices": result}
 
 
 @router.get("/order-book")
 async def get_order_book(symbol: str = "SPY"):
-    """TODO: Implement real order book from market data provider.
-    Returns L2 order book for TradeExecution page."""
-    return {"symbol": symbol, "bids": [], "asks": [], "status": "stub"}
+    """L2 order book for TradeExecution page.
+    Requires Alpaca Pro data subscription for real L2 data."""
+    return {
+        "symbol": symbol.upper(),
+        "bids": [],
+        "asks": [],
+        "status": "not_available",
+        "message": "L2 order book requires Alpaca Pro data subscription",
+    }
 
 
 @router.get("/price-ladder")
 async def get_price_ladder(symbol: str = "SPY"):
-    """TODO: Implement real price ladder from market data provider.
-    Returns price ladder for TradeExecution page."""
-    return {"symbol": symbol, "levels": [], "status": "stub"}
+    """Price ladder for TradeExecution page.
+    Requires Alpaca Pro data subscription for real L2 data."""
+    return {
+        "symbol": symbol.upper(),
+        "levels": [],
+        "status": "not_available",
+        "message": "Price ladder requires Alpaca Pro data subscription",
+    }

@@ -2,7 +2,7 @@
 
 import logging
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import httpx
 
@@ -129,6 +129,89 @@ class UnusualWhalesService:
 
         return data
 
+    async def get_top_flow_alerts(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Fetch top flow alerts by premium, limited to `limit` results.
+        Returns list of alert dicts with ticker, premium, put_call fields.
+        Used by FlowHunterScout.
+        """
+        try:
+            data = await self.get_flow_alerts()
+            if isinstance(data, dict):
+                items = data.get("data") or data.get("items") or data.get("alerts") or []
+            elif isinstance(data, list):
+                items = data
+            else:
+                return []
+            # Normalize and sort by premium descending
+            results = []
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                results.append(item)
+            results.sort(
+                key=lambda x: float(x.get("premium", 0) or x.get("total_premium", 0) or 0),
+                reverse=True,
+            )
+            return results[:limit]
+        except Exception as e:
+            logger.debug("get_top_flow_alerts error: %s", e)
+            return []
+
+    async def get_congressional_trades(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Fetch congressional trades, limited to `limit` results.
+        Wraps get_congress_trades() with normalization for CongressScout.
+        """
+        try:
+            data = await self.get_congress_trades()
+            if isinstance(data, dict):
+                items = data.get("data") or data.get("trades") or data.get("items") or []
+            elif isinstance(data, list):
+                items = data
+            else:
+                return []
+            return [item for item in items if isinstance(item, dict)][:limit]
+        except Exception as e:
+            logger.debug("get_congressional_trades error: %s", e)
+            return []
+
+    async def get_gex_levels(self, limit: int = 15) -> List[Dict[str, Any]]:
+        """
+        Fetch GEX (Gamma Exposure) levels for top symbols.
+        Used by GammaScout for gamma squeeze detection.
+        """
+        try:
+            self._validate_api_key()
+            url = f"{self.base_url}/stock/gamma-exposure"
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                r = await client.get(url, headers=self._headers())
+            r.raise_for_status()
+            data = r.json() if r.content else []
+            if isinstance(data, dict):
+                items = data.get("data") or data.get("items") or data.get("levels") or []
+            elif isinstance(data, list):
+                items = data
+            else:
+                return []
+
+            try:
+                bus = get_message_bus()
+                if bus._running:
+                    await bus.publish("perception.gex", {
+                        "type": "gex_levels",
+                        "levels": items[:limit],
+                        "source": "unusual_whales_service",
+                        "timestamp": time.time(),
+                    })
+            except Exception:
+                pass
+
+            return [item for item in items if isinstance(item, dict)][:limit]
+        except Exception as e:
+            logger.debug("get_gex_levels error: %s", e)
+            return []
+
     async def get_darkpool_flow(self) -> Any:
         """Fetch dark pool transaction data (paid plan)."""
         self._validate_api_key()
@@ -151,3 +234,17 @@ class UnusualWhalesService:
             pass
 
         return data
+
+
+# ---------------------------------------------------------------------------
+# Singleton getter — used by scouts and other services
+# ---------------------------------------------------------------------------
+_unusual_whales_service: Optional[UnusualWhalesService] = None
+
+
+def get_unusual_whales_service() -> UnusualWhalesService:
+    """Return singleton UnusualWhalesService instance."""
+    global _unusual_whales_service
+    if _unusual_whales_service is None:
+        _unusual_whales_service = UnusualWhalesService()
+    return _unusual_whales_service

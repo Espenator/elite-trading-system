@@ -93,8 +93,8 @@ _AGENTS_TEMPLATE = [
         "id": 1,
         "name": "Market Data Agent",
         "status": "running",
-        "cpuPercent": 12,
-        "memoryMb": 256,
+        "cpuPercent": 0,
+        "memoryMb": 0,
         "uptime": "0m",
         "lastActionTimestamp": None,
         "lastAction": "Awaiting first tick",
@@ -110,8 +110,8 @@ _AGENTS_TEMPLATE = [
         "id": 2,
         "name": "Signal Generation Agent",
         "status": "running",
-        "cpuPercent": 18,
-        "memoryMb": 512,
+        "cpuPercent": 0,
+        "memoryMb": 0,
         "uptime": "0m",
         "lastActionTimestamp": None,
         "lastAction": "Awaiting first tick",
@@ -127,8 +127,8 @@ _AGENTS_TEMPLATE = [
         "id": 3,
         "name": "ML Learning Agent",
         "status": "running",
-        "cpuPercent": 8,
-        "memoryMb": 2048,
+        "cpuPercent": 0,
+        "memoryMb": 0,
         "uptime": "0m",
         "lastActionTimestamp": None,
         "lastAction": "Awaiting first inference",
@@ -140,8 +140,8 @@ _AGENTS_TEMPLATE = [
         "id": 4,
         "name": "Sentiment Agent",
         "status": "running",
-        "cpuPercent": 5,
-        "memoryMb": 384,
+        "cpuPercent": 0,
+        "memoryMb": 0,
         "uptime": "0m",
         "lastActionTimestamp": None,
         "lastAction": "Awaiting first poll",
@@ -156,8 +156,8 @@ _AGENTS_TEMPLATE = [
         "id": 5,
         "name": "YouTube Knowledge Agent",
         "status": "running",
-        "cpuPercent": 3,
-        "memoryMb": 128,
+        "cpuPercent": 0,
+        "memoryMb": 0,
         "uptime": "0m",
         "lastActionTimestamp": None,
         "lastAction": "Awaiting first ingestion",
@@ -506,24 +506,58 @@ async def get_conference_status():
     conference_data = db_service.get_config("last_conference")
     pipeline_stages = ["Researcher", "RiskOfficer", "Adversary", "Arbitrator"]
 
+    # Build votes as array for frontend (LastConference expects [{agent, vote}])
+    votes_obj = conference_data.get("votes", {}) if conference_data else {}
+    votes_array = [
+        {"agent": agent, "vote": v if isinstance(v, (int, float)) else 50}
+        for agent, v in votes_obj.items()
+    ] if isinstance(votes_obj, dict) else []
+
+    last_conf = {
+        "ticker": conference_data.get("ticker", "N/A") if conference_data else "N/A",
+        "symbol": conference_data.get("ticker", "N/A") if conference_data else "N/A",
+        "verdict": conference_data.get("verdict", "N/A") if conference_data else "N/A",
+        "confidence": conference_data.get("confidence", 0) if conference_data else 0,
+        "duration": conference_data.get("duration", 0) if conference_data else 0,
+        "votes": votes_array,
+    }
+
     return {
         "pipeline": pipeline_stages,
         "current_stage": db_service.get_config("conference_current_stage") or "idle",
-        "last_conference": {
-            "ticker": conference_data.get("ticker", "N/A") if conference_data else "N/A",
-            "verdict": conference_data.get("verdict", "N/A") if conference_data else "N/A",
-            "confidence": conference_data.get("confidence", 0) if conference_data else 0,
-            "duration": conference_data.get("duration", 0) if conference_data else 0,
-            "votes": conference_data.get("votes", {}) if conference_data else {},
-        },
+        "last_conference": last_conf,
+        "current": last_conf,
+        "conference": last_conf,
         "total_conferences": int(db_service.get_config("conference_count") or 0),
     }
 
 
 @router.get("/consensus")
 async def get_consensus():
-    """Agent consensus for Performance Analytics. Same data as conference when available."""
-    return await get_conference_status()
+    """Agent consensus for Dashboard. Returns votes as array + top-level verdict/agreement."""
+    conf = await get_conference_status()
+    last = conf.get("last_conference") or {}
+    # Convert votes object {agent: vote_str} to array [{name, vote, confidence}]
+    votes_obj = last.get("votes") or {}
+    votes_array = [
+        {"name": agent, "vote": v if isinstance(v, str) else (v.get("vote", "HOLD") if isinstance(v, dict) else "HOLD"),
+         "confidence": (v.get("confidence", 50) if isinstance(v, dict) else 50)}
+        for agent, v in votes_obj.items()
+    ] if isinstance(votes_obj, dict) else []
+    verdict = last.get("verdict", "N/A")
+    confidence = last.get("confidence", 0)
+    return {
+        "votes": votes_array,
+        "agents": votes_array,
+        "verdict": verdict,
+        "consensus": verdict,
+        "agreement_percent": confidence,
+        "agreement": confidence,
+        "ticker": last.get("ticker", "N/A"),
+        "pipeline": conf.get("pipeline", []),
+        "current_stage": conf.get("current_stage", "idle"),
+        "total_conferences": conf.get("total_conferences", 0),
+    }
 
 
 # --- Team Status ---
@@ -564,17 +598,13 @@ async def get_drift_metrics():
     except Exception:
         pass
 
-    # Return structure matching mockup even without real data
+    # No drift data available — return honest empty state
     return {
-        "metrics": [
-            {"name": "volume_sma_ratio", "value": 0.24, "sparkline": [], "status": "ok"},
-            {"name": "atr_normalized", "value": 0.22, "sparkline": [], "status": "ok"},
-            {"name": "macd_histogram", "value": 0.15, "sparkline": [], "status": "ok"},
-            {"name": "vwap_distance", "value": 0.11, "sparkline": [], "status": "ok"},
-            {"name": "rsi_14", "value": 0.08, "sparkline": [], "status": "ok"},
-        ],
-        "mean_psi": 0.119,
+        "metrics": [],
+        "mean_psi": 0.0,
         "drift_detected": False,
+        "status": "no_data",
+        "message": "Drift monitor not available — no metrics collected yet",
     }
 
 
@@ -613,8 +643,9 @@ async def get_system_alerts():
         if metrics.get("memoryMb", 0) > 3500:
             alerts.append({"level": "AMBER", "message": f"GPU memory at {metrics['memoryMb']}MB — approaching threshold"})
 
-    # Add info alerts
-    alerts.append({"level": "INFO", "message": "Bridge latency normalized — 23ms avg"})
+    # Add system status info
+    if not alerts:
+        alerts.append({"level": "INFO", "message": "All agents operating normally"})
 
     return {"alerts": alerts}
 
@@ -626,13 +657,14 @@ async def get_agent_resources():
     agents = _get_all_agents()
     resources = []
 
+    real_metrics = _get_process_metrics()
     for agent in agents:
         status = _effective_status(agent["id"])
         resources.append({
             "agent": agent["name"],
-            "cpu_pct": agent.get("cpu_pct", round(5 + agent["id"] * 7.5, 1)),
-            "mem_mb": agent.get("mem_mb", 180 + agent["id"] * 150),
-            "tokens_hr": agent.get("tokens_hr", 1500 + agent["id"] * 1800),
+            "cpu_pct": real_metrics["cpuPercent"] if real_metrics else 0,
+            "mem_mb": real_metrics["memoryMb"] if real_metrics else 0,
+            "tokens_hr": 0,
             "status": status,
         })
 
@@ -701,7 +733,7 @@ async def get_hitl_stats():
         **_hitl_stats,
         "total": total,
         "approval_rate": round(_hitl_stats["approved"] / max(total, 1), 3),
-        "avg_review_time_sec": 12.4,
+        "avg_review_time_sec": 0,
         "buffer_fill_pct": round(len(_hitl_buffer) / 50 * 100, 1),
     }
 
@@ -730,17 +762,14 @@ async def get_all_agent_config():
             "accuracy_pct": config.get("accuracy_pct", 0),
             "reach_trades": config.get("reach_trades", 0),
         })
-    # Also include council agents
+    # Include all council agents from canonical registry
     try:
+        from app.council.registry import get_agents as get_council_agents
         from app.council.weight_learner import get_weight_learner
         learner = get_weight_learner()
         weights = learner.get_weights()
-        council_agents = [
-            "market_perception", "flow_perception", "regime", "intermarket",
-            "rsi", "bbv", "ema_trend", "relative_strength", "cycle_timing",
-            "hypothesis", "strategy", "risk", "execution", "critic",
-        ]
-        for i, name in enumerate(council_agents):
+        council_agent_names = get_council_agents()
+        for i, name in enumerate(council_agent_names):
             aid = 100 + i
             config = _agent_configs.get(str(aid), {})
             result.append({
@@ -855,23 +884,42 @@ async def get_agent_attribution():
 
 @router.get("/elo-leaderboard")
 async def get_elo_leaderboard():
-    """ELO leaderboard with history."""
-    agents = _get_all_agents()
+    """ELO leaderboard with history — sources weights from Bayesian WeightLearner."""
     leaderboard = []
+    # Pull real council agent weights as ELO proxy
+    try:
+        from app.council.weight_learner import get_weight_learner
+        learner = get_weight_learner()
+        weights = learner.get_weights()
+        for name, weight in weights.items():
+            leaderboard.append({
+                "rank": 0,
+                "agent_id": name,
+                "name": name.replace("_", " ").title(),
+                "elo": int(1500 * weight),
+                "weight": round(weight, 3),
+                "win_rate": 0,
+                "games": 0,
+                "streak": 0,
+            })
+    except Exception:
+        pass
+    # Also include the 5 tick agents
+    agents = _get_all_agents()
     for agent in agents:
         leaderboard.append({
             "rank": 0,
             "agent_id": agent["id"],
             "name": agent["name"],
-            "elo": agent.get("elo", 1500),
-            "win_rate": agent.get("win_pct", 50),
+            "elo": 1500,
+            "win_rate": 0,
             "games": 0,
             "streak": 0,
         })
     leaderboard.sort(key=lambda x: x["elo"], reverse=True)
     for i, entry in enumerate(leaderboard):
         entry["rank"] = i + 1
-    return {"leaderboard": leaderboard}
+    return leaderboard
 
 
 @router.get("/ws-channels")
@@ -901,7 +949,7 @@ async def get_flow_anomalies():
     """Detected anomalies in data flow between agents."""
     return {
         "anomalies": [],
-        "total_flows_monitored": 24,
+        "total_flows_monitored": 0,
         "anomaly_count": 0,
         "last_check": datetime.now(timezone.utc).isoformat(),
     }

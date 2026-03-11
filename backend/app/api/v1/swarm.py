@@ -641,6 +641,7 @@ async def managed_positions_status():
 # ML Scorer (P1 — live model status)
 # ------------------------------------------------------------------
 
+@router.get("/ml-scorer/status")
 @router.get("/ml/scorer/status")
 async def ml_scorer_status():
     """Get ML live scorer status: model loaded, predictions made, accuracy."""

@@ -71,3 +71,44 @@ class FredService:
         if not obs or obs[0].get("value") == ".":
             return None
         return {"date": obs[0].get("date"), "value": obs[0].get("value")}
+
+    async def get_latest_macro_snapshot(self) -> Dict[str, Any]:
+        """
+        Get a snapshot of key macro indicators: VIX, 10Y Treasury, 2Y Treasury.
+        Used by MacroScout for regime detection and yield curve analysis.
+
+        Returns dict with keys: vix, treasury_10y, treasury_2y.
+        Values default to 0 if unavailable.
+        """
+        snapshot: Dict[str, Any] = {"vix": 0, "treasury_10y": 0, "treasury_2y": 0}
+
+        # FRED series IDs for key macro indicators
+        series_map = {
+            "vix": "VIXCLS",           # CBOE Volatility Index
+            "treasury_10y": "DGS10",   # 10-Year Treasury Constant Maturity Rate
+            "treasury_2y": "DGS2",     # 2-Year Treasury Constant Maturity Rate
+        }
+
+        for key, series_id in series_map.items():
+            try:
+                obs = await self.get_latest_value(series_id)
+                if obs and obs.get("value"):
+                    snapshot[key] = float(obs["value"])
+            except Exception as e:
+                logger.debug("FRED macro snapshot %s (%s) error: %s", key, series_id, e)
+
+        return snapshot
+
+
+# ---------------------------------------------------------------------------
+# Singleton getter — used by scouts and other services
+# ---------------------------------------------------------------------------
+_fred_service: Optional[FredService] = None
+
+
+def get_fred_service() -> FredService:
+    """Return singleton FredService instance."""
+    global _fred_service
+    if _fred_service is None:
+        _fred_service = FredService()
+    return _fred_service

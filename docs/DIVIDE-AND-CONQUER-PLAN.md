@@ -1,9 +1,10 @@
 # Divide & Conquer — Two-PC Production Sprint
 
-> **Date:** March 11, 2026
+> **Date:** March 11, 2026 | **Updated:** March 11, 2026 (evening)
 > **Goal:** Get Embodier Trader v5.0 to autonomous 24/7 paper trading
 > **Base plan:** PLAN.md (8 phases, 15-23 sessions estimated)
 > **Strategy:** Split work by PC role. Run in parallel. Halve the timeline.
+> **Progress:** Phase 1 COMPLETE. Phase 1.5 COMPLETE. **Lane A COMPLETE** (A0-A9, all 14 pages wired). Lane B not started.
 
 ---
 
@@ -26,19 +27,20 @@
 **Owner:** PC1 Claude
 **Phases:** 2 (Frontend Wiring), 6 (UI Controls), 7 (Monitoring)
 
-| # | Task | Phase | Est. |
-|---|------|-------|------|
-| A1 | Dashboard page: wire all 6 API calls, verify real data | 2.1 | 1 session |
-| A2 | Agent Command Center: wire 16 API calls across 10 tabs | 2.2 | 2 sessions |
-| A3 | Signal Intelligence + Sentiment: wire real signals/sentiment | 2.3-2.4 | 1 session |
-| A4 | Data Sources + ML Brain: wire health checks and flywheel | 2.5-2.6 | 1 session |
-| A5 | Screener, Backtest, Performance, Market Regime pages | 2.7-2.10 | 2 sessions |
-| A6 | Trades, Risk, Trade Execution, Settings pages | 2.11-2.14 | 2 sessions |
-| A7 | Wire all UI buttons to real backend actions (Phase 6 full) | 6.1-6.2 | 2 sessions |
-| A8 | Slack notifications (OpenClaw + TradingView bots) | 7.1 | 1 session |
-| A9 | Health monitoring + auto-restart (start-embodier.ps1) | 7.2-7.3 | 1 session |
+| # | Task | Phase | Est. | Status |
+|---|------|-------|------|--------|
+| A0 | Endpoint audit + route mismatch fixes + scraper services | 2.0 | 1 session | **DONE** |
+| A1 | Dashboard page: wire all 18 API calls, fix response shapes | 2.1 | 1 session | **DONE** |
+| A2 | Agent Command Center: wire 16 API calls across 10 tabs | 2.2 | 2 sessions | **DONE** |
+| A3 | Signal Intelligence + Sentiment: verify all endpoints | 2.3-2.4 | 1 session | **DONE** |
+| A4 | Data Sources + ML Brain: add alias fields, fix KPIs | 2.5-2.6 | 1 session | **DONE** |
+| A5 | Screener, Backtest, Performance, Market Regime pages | 2.7-2.10 | 2 sessions | **DONE** |
+| A6 | Trades, Risk, Trade Execution, Settings pages | 2.11-2.14 | 2 sessions | **DONE** |
+| A7 | Wire all UI buttons to real backend actions | 6.1-6.2 | 2 sessions | **DONE** |
+| A8 | Slack notifications + TradingView webhook receiver | 7.1 | 1 session | **DONE** |
+| A9 | Health monitoring + auto-restart script | 7.2-7.3 | 1 session | **DONE** |
 
-**Total: ~13 sessions**
+**Total: ~13 sessions — ALL COMPLETE**
 
 ---
 

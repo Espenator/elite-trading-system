@@ -38,9 +38,16 @@ AGENTS: List[str] = [
     "risk",
     "execution",
     "portfolio_optimizer_agent",
-    # Post-stages
+    # Stage 5.5: Debate + Red Team
+    "bull_debater",
+    "bear_debater",
+    "red_team",
+    # Stage 6
     "critic",
+    # Stage 7
     "arbiter",
+    # Background enrichment
+    "alt_data_agent",
 ]
 
 # DAG layout: list of stages, each stage is list of agent IDs (parallel within stage)
@@ -58,6 +65,7 @@ DAG_STAGES: List[List[str]] = [
     ["hypothesis", "layered_memory_agent"],
     ["strategy"],
     ["risk", "execution", "portfolio_optimizer_agent"],
+    ["bull_debater", "bear_debater", "red_team"],
     ["critic"],
     ["arbiter"],
 ]

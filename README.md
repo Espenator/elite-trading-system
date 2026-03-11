@@ -10,14 +10,14 @@
 
 React + FastAPI full-stack trading application with 14-route V3 widescreen dashboard, DuckDB database, **35-agent council DAG** with Bayesian weight learning, 12 Academic Edge Swarms (P0-P4), Alpaca + Finviz + Unusual Whales integrations, XGBoost ML pipeline, event-driven council-controlled order execution, and gRPC brain service for local Ollama LLM inference.
 
-## Current State (March 11, 2026)
+## Current State (March 11, 2026) — Deep Audit Complete
 
 | Area | Count | Status |
 |------|-------|--------|
 | Frontend pages | 14 (all sidebar routes) | **ALL COMPLETE** -- pixel-matched to mockups, no mock data |
 | Frontend components | 12 shared + 5 agent-tab | All wired, no orphaned imports |
 | Backend API routes | **34** files in api/v1/ | All mounted in main.py (including brain, triage, ingestion firehose, awareness) |
-| Backend services | **68+** (incl. subdirs) | llm_clients, data_sources, scanning, trading, etc. |
+| Backend services | **72+** (incl. subdirs) | llm_clients, data_sources, scanning, trading, scrapers, etc. |
 | Council agents | **35 agents** in 7-stage DAG | 11 Core + 12 Academic Edge (P0-P4) + 6 Supplemental + 3 Debate + 3 others |
 | Council intelligence | WeightLearner + CouncilGate + SelfAwareness + Homeostasis | Bayesian self-learning agent weights |
 | Council subsystems | 15 orchestration files | runner, arbiter, blackboard, task_spawner, shadow_tracker, etc. |
@@ -29,6 +29,25 @@ React + FastAPI full-stack trading application with 14-route V3 widescreen dashb
 | Authentication | Bearer token | **Fail-closed** -- live trading endpoints protected |
 | WebSocket | 5 pages wired | **ACTIVE** -- bridges for signals, orders, council, market data |
 | Electron desktop app | `desktop/` | **BUILD-READY** -- See [build plan](docs/ELECTRON-DESKTOP-BUILD-PLAN.md) |
+| Production readiness | ~65% | Architecture solid, enforcement gaps identified |
+
+### Deep Audit Summary (March 11, 2026)
+
+A line-by-line audit of the entire codebase (council, execution, risk, data, infra) found:
+
+**Architecture is fundamentally sound.** All 33+ agents are real implementations. Bayesian weight learning, event pipeline, Kelly sizing all work correctly. Sub-1s council latency.
+
+**Critical gaps preventing maximum profits:**
+- Signal gate threshold too aggressive (filters 20-40% of profitable signals)
+- 10 circuit breakers exist but only 1 (drawdown) is enforced
+- Regime params computed but ignored by order executor
+- 3 of 12 scouts crash on first cycle (missing service methods)
+- No daily data backfill (DuckDB starts empty, scanners produce nothing)
+- Weight learner drops 50%+ of outcomes due to strict confidence filter
+- Only market orders placed (pays full bid-ask spread)
+- Short signal generation inverted (blocks bearish setups)
+
+**See `PLAN.md` for the complete 5-phase enhancement plan (Phases A-E, 13-18 sessions).**
 
 ## Council Architecture (35 Agents)
 
@@ -304,32 +323,55 @@ elite-trading-system/
 └── docker-compose.yml          # Full stack via Docker
 ```
 
-## What Is NOT Done (TODO)
+## What Is NOT Done (TODO) — Post Deep Audit
 
-### P0 -- Critical (Blocks Trading) - ALL COMPLETE
-- [x] Fix TurboScanner score scale (0.0-1.0 vs CouncilGate 65.0 threshold)
-- [x] Fix double `council.verdict` publication (runner.py + council_gate.py)
-- [x] Wire UnusualWhales flow to MessageBus so council can see it
-- [x] Start backend for first time (`uvicorn app.main:app`)
+### Phase A: Stop the Bleeding (P0 -- Blocks Safe Trading)
+- [ ] Fix 3 scout crashes (missing service methods in unusual_whales, sec_edgar, fred)
+- [ ] Create startup data backfill orchestrator (DuckDB starts empty)
+- [ ] Wire regime params to order executor (RED regime max_pos=0 is ignored)
+- [ ] Enforce all 10 circuit breakers (only drawdown enforced today)
+- [ ] Add VIX-based regime fallback (bridge offline = YELLOW is dangerous)
+- [ ] Add paper/live account safety check on startup
+- [ ] Fix DuckDB async lock race condition
 
-### P1 -- High (Blocks Full Intelligence) - ALL COMPLETE
-- [x] Call SelfAwareness Bayesian tracking (286 lines of dead code)
-- [x] Call IntelligenceCache.start() at startup
-- [x] Wire brain_service gRPC to hypothesis_agent
-- [x] Establish WebSocket real-time data connectivity
-- [x] Wire 12 new Academic Edge agents into runner.py DAG stages
+### Phase B: Unlock Alpha (P0 -- Direct Profit Impact)
+- [ ] Calibrate signal gate threshold (65 is too aggressive, 55 regime-adaptive)
+- [ ] Fix short signal generation (inverted `100 - blended`)
+- [ ] Smart cooldown (regime-adaptive 30-300s, separate buy/sell)
+- [ ] Priority queue for concurrent council evaluations
+- [ ] Limit orders for positions > $5K
+- [ ] Partial fill re-execution
+- [ ] Fix viability gate (uses signal score as edge proxy)
+- [ ] Fix portfolio heat check (procyclical)
 
-### P2 -- Medium
-- [ ] Add JWT authentication for live trading endpoints
-- [ ] Visual polish pass in browser at 2560px target resolution
-- [ ] Wire WebSocket real-time data to Live Activity Feed, Blackboard Feed
-- [ ] Update agent_config.py to include weights for 6 supplemental agents explicitly
-- [ ] Signal scoring weights calibration from historical data
+### Phase C: Sharpen the Brain (P1 -- Intelligence Quality)
+- [ ] Lower weight learner confidence floor (0.5 → 0.2)
+- [ ] Regime-stratified weight learning
+- [ ] Confidence calibration (Brier score)
+- [ ] Wire debate votes to weight learner
+- [ ] Council decision audit trail in DuckDB
+- [ ] Fix trade stats R-multiple (assumes 2% stop)
+- [ ] Wire homeostasis mode to Kelly sizing
+- [ ] Regime-adaptive thresholds everywhere
+- [ ] Publish all data sources to MessageBus
 
-### P3 -- Low
-- [ ] Build CircuitBreaker reflexes (brainstem <50ms)
-- [ ] Multi-timeframe analysis in real-time path
-- [ ] Clean up remaining OpenClaw dead code
+### Phase D: Continuous Intelligence (P1)
+- [ ] Autonomous daily data backfill
+- [ ] Rate limiting framework for all external APIs
+- [ ] MessageBus dead-letter queue + alerting
+- [ ] Scraper resilience (session refresh, circuit breaker)
+
+### Phase E: Production Hardening (P2)
+- [ ] End-to-end integration test (bar → outcome → weight update)
+- [ ] Emergency flatten with retry + fallback
+- [ ] Position manager startup sync with Alpaca
+- [ ] Desktop packaging (Electron + PyInstaller)
+
+### Previously Completed
+- [x] Fix TurboScanner score scale, double council.verdict, UW MessageBus wiring
+- [x] Start backend, SelfAwareness, IntelligenceCache, brain_service gRPC, WebSocket
+- [x] All 14 frontend pages wired, 28 action buttons verified
+- [x] Mock data removal, scraper services, API key configuration
 
 ## Frontend Pages (14)
 
@@ -424,6 +466,9 @@ All pages in frontend-v2/src/pages/. All use useApi() hook. No mock data. **ALL 
 - **FRED** -- Economic macro data
 - **SEC EDGAR** -- Company filings, insider transactions
 - **NewsAPI** -- Breaking news headlines
+- **Benzinga** (web scraper) -- Earnings calendar + transcripts
+- **SqueezeMetrics** (web scraper) -- DIX/GEX dark pool indicators
+- **Capitol Trades** (UW API + scraper) -- Congressional trade disclosures
 
 ## Hardware (Dual-PC Setup)
 
@@ -583,14 +628,14 @@ pwsh .\start-embodier.ps1
 ### CNS Layers
 | Layer | Speed | Component | Status |
 |-------|-------|-----------|--------|
-| Brainstem | <50ms | CircuitBreaker reflexes | 🔴 P3 TODO |
-| Spinal Cord | ~1500ms | 35-agent council DAG | ✅ BUILT |
+| Brainstem | <50ms | CircuitBreaker reflexes | 🔴 EXISTS BUT UNENFORCED (only drawdown active) |
+| Spinal Cord | ~1500ms | 35-agent council DAG | ✅ BUILT -- all agents real implementations |
 | Cortex | 300-800ms | hypothesis + critic via gRPC | ✅ WIRED |
-| Thalamus | — | BlackboardState shared memory | 🔴 P1 TODO |
-| Autonomic | nightly | WeightLearner + jobs/scheduler | ✅ BUILT |
-| PNS Sensory | real-time | Alpaca WS, UW, FinViz, FRED | ✅ BUILT |
-| Discovery | streaming | StreamingDiscoveryEngine | 🟡 Issue #38 |
-| PNS Motor | — | OrderExecutor → Alpaca | ✅ BUILT |
+| Thalamus | — | BlackboardState shared memory | 🟡 BUILT but not wired to sizing |
+| Autonomic | nightly | WeightLearner + jobs/scheduler | 🟡 BUILT -- confidence floor too strict (0.5) |
+| PNS Sensory | real-time | Alpaca WS, UW, FinViz, FRED | 🟡 BUILT -- 5 sources don't publish to MessageBus |
+| Discovery | streaming | StreamingDiscoveryEngine + Scouts | 🔴 3 of 12 scouts crash (missing methods) |
+| PNS Motor | — | OrderExecutor → Alpaca | 🟡 BUILT -- regime params not enforced |
 
 ---
 
@@ -635,10 +680,13 @@ AgentVote(
 | Source | Use | Library |
 |--------|-----|---------|
 | Alpaca Markets | Market data + order execution | alpaca-py |
-| Unusual Whales | Options flow + institutional | REST API |
+| Unusual Whales | Options flow, dark pool, congressional trades | REST API |
 | FinViz | Screener + fundamentals + VIX proxy | finviz |
 | FRED | Macro economic data | fredapi |
 | SEC EDGAR | Company filings | REST API |
+| Benzinga | Earnings calendar + transcripts | Web scraper (httpx) |
+| SqueezeMetrics | DIX/GEX dark pool indicators | Web scraper (httpx) |
+| Capitol Trades | Congressional trading disclosures | UW API + web scraper |
 | News API / Discord / X | Social sentiment | REST API |
 | YouTube | Transcript intelligence | ytdl / transcript API |
 
@@ -734,25 +782,26 @@ async def evaluate(features: dict, context: dict = None) -> AgentVote:
 
 ---
 
-## 📋 Current Roadmap (March 2026)
+## Current Roadmap (March 2026)
 
-### ✅ Completed
-- P0: CouncilGate — signal pipeline connected end-to-end
-- P2: Feature keys — EMA-5/10/20, VIX, sector breadth
-- P7: brain_service gRPC wired to hypothesis_agent
-- P8: Bayesian WeightLearner — agents learn from trade outcomes
+### Completed
+- Backend health, startup fixes, mock data removal
+- All 14 frontend pages wired to backend
+- 28 action buttons verified
+- CouncilGate signal pipeline end-to-end
+- brain_service gRPC wired to hypothesis_agent
+- Bayesian WeightLearner built
+- Scraper services created (Benzinga, SqueezeMetrics, Capitol Trades)
+- Health monitoring + Slack notification service
 
-### 🔴 In Progress / Next
-- **Issue #38**: Continuous Discovery Architecture
-  - E1: StreamingDiscoveryEngine (Alpaca `*` streams, dynamic universe)
-  - E2: 12 Dedicated Scout Agents
-  - E3: HyperSwarm continuous triage
-  - E4: Multi-Tier Council (Fast <200ms + Deep <2s)
-- P1: BlackboardState — inter-stage shared memory
-- P3: CircuitBreaker reflexes (brainstem <50ms)
-- P4: OpenClaw cleanup — extract useful logic
-- P5: TaskSpawner — dynamic agent registry
-- P6: Agent Command Center ACC rewrite
+### Next Up (from Deep Audit)
+- **Phase A: Stop the Bleeding** — Fix scout crashes, data backfill, enforce regime params + circuit breakers
+- **Phase B: Unlock Alpha** — Calibrate signal gate, fix shorts, smart cooldown, limit orders, partial fills
+- **Phase C: Sharpen the Brain** — Fix weight learner, confidence calibration, regime-adaptive thresholds
+- **Phase D: Continuous Intelligence** — Autonomous backfill, rate limiting, scraper resilience
+- **Phase E: Production Hardening** — E2E test, emergency flatten, desktop packaging
+
+See `PLAN.md` for the complete plan with 40 specific issues and fix priorities.
 
 ---
 

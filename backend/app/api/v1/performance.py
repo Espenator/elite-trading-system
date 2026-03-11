@@ -119,13 +119,30 @@ def performance_root(limit_trades: int = 5000) -> Dict[str, Any]:
     win_rate = metrics.get("winRate") if metrics.get("winRate") is not None else 0
     max_dd = metrics.get("maxDrawdown") if metrics.get("maxDrawdown") is not None else 0
 
+    total_return_pct = (metrics.get("netPnl") or 0) / max(abs(last_equity), 1) * 100 if last_equity else 0
+
+    # Build KPI block for PerformanceAnalytics page
+    kpi = {
+        "totalReturn": round(total_return_pct, 2),
+        "sharpe": 0,
+        "sortino": 0,
+        "calmar": 0,
+        "winRate": win_rate,
+        "profitFactor": metrics.get("profitFactor"),
+        "maxDrawdown": max_dd,
+        "avgWin": metrics.get("avgWin"),
+        "avgLoss": metrics.get("avgLoss"),
+        "totalTrades": metrics.get("totalTrades", 0),
+        "netPnl": metrics.get("netPnl"),
+    }
+
     return {
         "hasData": summary.get("hasData", False),
         "message": summary.get("message", ""),
         "portfolioValue": last_equity,
         "totalValue": last_equity,
         "dailyPnL": None,
-        "totalReturnPct": (metrics.get("netPnl") or 0) / max(abs(last_equity), 1) * 100 if last_equity else 0,
+        "totalReturnPct": round(total_return_pct, 2),
         "winRate": win_rate,
         "win_rate": win_rate,
         "sharpeRatio": 0,
@@ -134,8 +151,16 @@ def performance_root(limit_trades: int = 5000) -> Dict[str, Any]:
         "maxDrawdown": max_dd,
         "max_drawdown": max_dd,
         "equityCurve": equity_curve,
+        "equity": equity_curve,
         "sectors": None,
         "lastUpdated": summary.get("lastUpdated"),
+        # PerformanceAnalytics page expected keys
+        "kpi": kpi,
+        "pnlBySymbol": [],
+        "rollingRisk": [],
+        "convexity": [],
+        "rrExpectancy": [],
+        "strategy": {},
     }
 
 
@@ -315,9 +340,21 @@ def performance_equity(limit_trades: int = 5000) -> Dict[str, Any]:
             )
 
         if not points:
-            return {"hasData": False, "message": "No realized PnL rows found.", "points": [], "note": note}
+            return {"hasData": False, "message": "No realized PnL rows found.", "points": [], "equity_curve": [], "equity": [], "note": note}
 
-        return {"hasData": True, "message": "OK", "points": points, "note": note, "source": {"table": table}}
+        # Build chart-friendly equity curve [{time, value}] for frontend
+        equity_curve = [
+            {"time": p.get("date") or str(p.get("index", i)), "value": p.get("equity", 0)}
+            for i, p in enumerate(points)
+        ]
+        return {
+            "hasData": True, "message": "OK",
+            "points": points,
+            "equity_curve": equity_curve,
+            "equity": equity_curve,
+            "note": note,
+            "source": {"table": table},
+        }
     finally:
         conn.close()
 
@@ -474,9 +511,9 @@ def risk_metrics() -> Dict[str, Any]:
             "kelly_edge": round(kelly_edge, 4),
             "kelly_optimal_fraction": round(kelly_fraction, 4),
             "kelly_half_fraction": round(kelly_fraction * 0.5, 4),
-                    "risk_reward_ratio": round(avg_win / avg_loss, 2) if avg_loss > 0 else 0,
-        "expectancy": round(win_rate * avg_win - (1 - win_rate) * avg_loss, 4),
-        "trading_grade": "A" if sharpe > 2 else "B" if sharpe > 1 else "C" if sharpe > 0.5 else "D",
+            "risk_reward_ratio": round(avg_win / avg_loss, 2) if avg_loss > 0 else 0,
+            "expectancy": round(win_rate * avg_win - (1 - win_rate) * avg_loss, 4),
+            "trading_grade": "A" if sharpe > 2 else "B" if sharpe > 1 else "C" if sharpe > 0.5 else "D",
         }
     finally:
         conn.close()

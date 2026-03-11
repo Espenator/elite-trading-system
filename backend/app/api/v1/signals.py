@@ -313,7 +313,7 @@ async def get_kelly_ranked():
     """
     raw_signals, _ = _get_raw_signals_and_feats()
     if not raw_signals or len(raw_signals) == 0:
-        return []
+        return {"kelly": [], "kellyRanked": []}
 
     ranked = []
     for s in raw_signals:
@@ -333,9 +333,11 @@ async def get_kelly_ranked():
                 "kelly_score": round(edge * quality, 4),
                 "kelly_fraction": round(kelly.raw_kelly, 4),
                 "position_size_pct": round(kelly.final_pct, 4),
+                "optimalFraction": round(kelly.final_pct, 4),
                 "prob_up": round(prob, 3),
                 "action": "BUY" if prob > 0.6 else "HOLD",
             })
 
     ranked.sort(key=lambda x: x["kelly_score"], reverse=True)
-    return ranked[:20]
+    top = ranked[:20]
+    return {"kelly": top, "kellyRanked": top}

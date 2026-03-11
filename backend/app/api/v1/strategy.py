@@ -207,11 +207,34 @@ async def get_regime_params():
     except Exception:
         pass
 
-    # Priority: manual override > live bridge > DB config > YELLOW default
+    # VIX-based regime fallback when bridge is offline (US3 fix)
+    vix_regime = None
+    if not live_regime and not override:
+        try:
+            from app.services.fred_service import get_fred_service
+            fred = get_fred_service()
+            vix_obs = await fred.get_latest_value("VIXCLS")
+            if vix_obs and vix_obs.get("value"):
+                vix = float(vix_obs["value"])
+                if vix >= 40:
+                    vix_regime = "CRISIS"
+                elif vix >= 30:
+                    vix_regime = "RED"
+                elif vix >= 20:
+                    vix_regime = "YELLOW"
+                else:
+                    vix_regime = "GREEN"
+                logger.info("VIX-based regime fallback: VIX=%.1f -> %s", vix, vix_regime)
+        except Exception as e:
+            logger.debug("VIX regime fallback unavailable: %s", e)
+
+    # Priority: manual override > live bridge > VIX fallback > YELLOW default
     if override:
         regime = override
     elif live_regime:
         regime = live_regime
+    elif vix_regime:
+        regime = vix_regime
     else:
         regime = "YELLOW"
 
@@ -219,6 +242,7 @@ async def get_regime_params():
     return {
         "regime": regime,
         "is_override": override is not None,
+        "vix_fallback": vix_regime is not None and not override and not live_regime,
         "kelly_scale": params["kelly_scale"],
         "kelly_mult": params["kelly_scale"],
         "max_position_pct": params["max_pos"] * 0.01 if isinstance(params["max_pos"], int) and params["max_pos"] > 1 else params["max_pos"],
