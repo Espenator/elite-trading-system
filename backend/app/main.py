@@ -747,6 +747,40 @@ async def _start_event_driven_pipeline():
             except Exception as e:
                 log.warning("MarketWideSweep failed to start: %s", e)
 
+        await asyncio.sleep(3)
+
+        # D1: Autonomous data backfill (startup + daily scheduler)
+        try:
+            from app.services.data_ingestion import data_ingestion
+            log.info("Starting startup data backfill (252 days)...")
+            report = await data_ingestion.run_startup_backfill(days=252)
+            log.info(
+                "\u2705 Startup backfill complete: %d symbols, %.1fs",
+                report.get("symbol_count", 0),
+                report.get("elapsed_seconds", 0),
+            )
+            # Start daily/weekly scheduler loop
+            asyncio.create_task(
+                _supervised_loop("data_ingestion_scheduler", data_ingestion.scheduler_loop)
+            )
+            log.info("\u2705 DataIngestion scheduler started (daily 4:30AM + weekly Sunday)")
+        except Exception as e:
+            log.warning("Data backfill/scheduler failed to start: %s", e)
+
+        await asyncio.sleep(2)
+
+        # D5: Session Scanner (pre-market gaps + after-hours earnings)
+        try:
+            from app.services.session_scanner import get_session_scanner
+            _session_scanner = get_session_scanner()
+            await _session_scanner.start(message_bus=_message_bus)
+            log.info(
+                "\u2705 SessionScanner started (session=%s)",
+                _session_scanner._detect_session(),
+            )
+        except Exception as e:
+            log.warning("SessionScanner failed to start: %s", e)
+
         log.info("\u2705 All deferred heavy services started")
 
     asyncio.create_task(_start_deferred_services())

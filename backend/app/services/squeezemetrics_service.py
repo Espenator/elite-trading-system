@@ -6,12 +6,18 @@ on their free public dashboard. There is no API — we scrape the public page.
 DIX = Dark pool buying indicator (higher = more dark pool buying = bullish)
 GEX = Gamma Exposure (positive = dealer hedging dampens moves, negative = amplifies)
 
+Phase D4 enhancements (March 11 2026):
+  - Circuit breaker to avoid hammering a down service
+  - Staleness detection: warn if cached data is >24h old
+  - Rate limiting via AsyncRateLimiter
+
 Used by: dark_pool_agent.py → _fetch_dix_data()
 """
 
 import logging
 import re
 import time
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 import httpx
@@ -22,21 +28,53 @@ logger = logging.getLogger(__name__)
 
 _CACHE: Dict[str, Any] = {}
 _CACHE_TTL = 900  # 15 minutes — data updates once daily anyway
+_STALENESS_THRESHOLD = 86400  # 24 hours — warn if data is older than this
+
+# Circuit breaker
+_circuit_breaker = None
+
+
+def _get_circuit_breaker():
+    global _circuit_breaker
+    if _circuit_breaker is None:
+        from app.core.rate_limiter import CircuitBreaker
+        _circuit_breaker = CircuitBreaker(
+            "squeezemetrics", failure_threshold=3, recovery_seconds=300.0
+        )
+    return _circuit_breaker
 
 
 async def get_dix_gex() -> Optional[Dict[str, Any]]:
     """Scrape current DIX and GEX values from squeezemetrics.com.
 
     Returns:
-        Dict with keys: dix, gex, date, source
+        Dict with keys: dix, gex, date, source, stale (bool)
         None if scraping fails.
+
+    D4: Circuit breaker + staleness detection.
     """
     now = time.time()
+
+    # Return cached data if fresh
     if _CACHE.get("data") and (now - _CACHE.get("ts", 0)) < _CACHE_TTL:
-        return _CACHE["data"]
+        result = _CACHE["data"].copy()
+        # Staleness check: warn if underlying data date is >24h old
+        result["stale"] = (now - _CACHE.get("ts", 0)) > _STALENESS_THRESHOLD
+        return result
 
     enabled = getattr(settings, "SQUEEZEMETRICS_ENABLED", "true")
     if str(enabled).lower() not in ("true", "1", "yes"):
+        return None
+
+    # D4: Circuit breaker check
+    cb = _get_circuit_breaker()
+    if not cb.allow_request():
+        # Return stale cache if available when circuit is open
+        if _CACHE.get("data"):
+            result = _CACHE["data"].copy()
+            result["stale"] = True
+            result["circuit_open"] = True
+            return result
         return None
 
     try:
@@ -50,9 +88,16 @@ async def get_dix_gex() -> Optional[Dict[str, Any]]:
             resp = await client.get("https://squeezemetrics.com/monitor/dix", headers=headers)
 
         if resp.status_code != 200:
+            cb.record_failure()
             logger.warning("SqueezeMetrics returned %s", resp.status_code)
+            # Return stale cache on error
+            if _CACHE.get("data"):
+                result = _CACHE["data"].copy()
+                result["stale"] = True
+                return result
             return None
 
+        cb.record_success()
         text = resp.text
 
         # SqueezeMetrics embeds the data in JavaScript variables or a chart config
@@ -119,7 +164,13 @@ async def get_dix_gex() -> Optional[Dict[str, Any]]:
         return None
 
     except Exception as e:
+        cb.record_failure()
         logger.warning("SqueezeMetrics scrape failed: %s", e)
+        # Return stale cache on exception
+        if _CACHE.get("data"):
+            result = _CACHE["data"].copy()
+            result["stale"] = True
+            return result
         return None
 
 

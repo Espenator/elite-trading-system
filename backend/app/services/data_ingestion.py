@@ -10,17 +10,25 @@ Data flow:
     FRED API               -> macro_data
     Order fills            -> trade_outcomes
 
+Phase D1 enhancements (March 11 2026):
+  - Startup backfill: 252 days for all tracked symbols on boot
+  - Daily scheduler: incremental backfill at 4:30 AM ET
+  - Weekly full refresh: technical indicators at midnight Sunday
+  - Rate-limited: uses AsyncRateLimiter for Alpaca (200/min)
+  - Batched symbol fetching: 50 symbols per Alpaca multi-bar request
+
 Usage:
     from app.services.data_ingestion import data_ingestion
     await data_ingestion.ingest_daily_bars(["AAPL", "MSFT"], days=252)
     await data_ingestion.ingest_all(["AAPL", "MSFT"])
+    await data_ingestion.run_startup_backfill()
 
 Fixes Issue #25 Task 4.
 """
 
 import asyncio
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -101,65 +109,83 @@ class DataIngestionService:
         results = {}
         all_rows = []
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            for symbol in symbols:
-                try:
-                    page_token = None
-                    symbol_rows = []
+        from app.core.rate_limiter import get_rate_limiter
+        limiter = get_rate_limiter("alpaca")
 
-                    max_pages = 100  # Safety limit to prevent infinite pagination
-                    page_count = 0
-                    while page_count < max_pages:
-                        page_count += 1
-                        params = {
-                            "start": start_str,
-                            "end": end_str,
-                            "timeframe": "1Day",
-                            "limit": "10000",
-                            "adjustment": "split",
-                            "feed": "sip",
-                        }
-                        if page_token:
-                            params["page_token"] = page_token
+        # Batch symbols into groups of 50 for multi-bar endpoint
+        batch_size = 50
+        for batch_start in range(0, len(symbols), batch_size):
+            batch = symbols[batch_start:batch_start + batch_size]
 
-                        resp = await client.get(
-                            f"{ALPACA_DATA_BASE_URL}/stocks/{symbol}/bars",
-                            headers=headers,
-                            params=params,
+            try:
+                async with limiter:
+                    async with httpx.AsyncClient(timeout=60.0) as client:
+                        # Use multi-symbol bars endpoint for efficiency
+                        page_token = None
+                        batch_rows = []
+                        max_pages = 100
+                        page_count = 0
+
+                        while page_count < max_pages:
+                            page_count += 1
+                            params = {
+                                "symbols": ",".join(batch),
+                                "start": start_str,
+                                "end": end_str,
+                                "timeframe": "1Day",
+                                "limit": "10000",
+                                "adjustment": "split",
+                                "feed": "sip",
+                            }
+                            if page_token:
+                                params["page_token"] = page_token
+
+                            resp = await client.get(
+                                f"{ALPACA_DATA_BASE_URL}/stocks/bars",
+                                headers=headers,
+                                params=params,
+                            )
+
+                            if resp.status_code != 200:
+                                logger.warning(
+                                    "Alpaca multi-bars batch: HTTP %s", resp.status_code
+                                )
+                                break
+
+                            data = resp.json()
+                            bars_map = data.get("bars") or {}
+
+                            for symbol, bars in bars_map.items():
+                                for bar in bars:
+                                    batch_rows.append({
+                                        "symbol": symbol,
+                                        "date": bar["t"][:10],
+                                        "open": bar["o"],
+                                        "high": bar["h"],
+                                        "low": bar["l"],
+                                        "close": bar["c"],
+                                        "volume": bar["v"],
+                                        "source": "alpaca",
+                                    })
+
+                            page_token = data.get("next_page_token")
+                            if not page_token:
+                                break
+
+                        all_rows.extend(batch_rows)
+                        # Count per symbol
+                        for row in batch_rows:
+                            s = row["symbol"]
+                            results[s] = results.get(s, 0) + 1
+                        logger.info(
+                            "Alpaca multi-bars batch (%d symbols): %d rows",
+                            len(batch), len(batch_rows),
                         )
 
-                        if resp.status_code != 200:
-                            logger.warning(
-                                "Alpaca bars %s: HTTP %s", symbol, resp.status_code
-                            )
-                            break
-
-                        data = resp.json()
-                        bars = data.get("bars") or []
-
-                        for bar in bars:
-                            symbol_rows.append({
-                                "symbol": symbol,
-                                "date": bar["t"][:10],
-                                "open": bar["o"],
-                                "high": bar["h"],
-                                "low": bar["l"],
-                                "close": bar["c"],
-                                "volume": bar["v"],
-                                "source": "alpaca",
-                            })
-
-                        page_token = data.get("next_page_token")
-                        if not page_token:
-                            break
-
-                    all_rows.extend(symbol_rows)
-                    results[symbol] = len(symbol_rows)
-                    logger.info("Alpaca bars %s: %d days fetched", symbol, len(symbol_rows))
-
-                except Exception as exc:
-                    logger.error("Alpaca bars %s failed: %s", symbol, exc)
-                    results[symbol] = 0
+            except Exception as exc:
+                logger.error("Alpaca multi-bars batch failed: %s", exc)
+                for s in batch:
+                    results.setdefault(s, 0)
 
         if all_rows:
             df = pd.DataFrame(all_rows)
@@ -579,6 +605,156 @@ class DataIngestionService:
 
         logger.info("Full ingestion complete: %s", report)
         return report
+
+
+    # ------------------------------------------------------------------
+    # D1: Startup backfill orchestrator
+    # ------------------------------------------------------------------
+
+    async def run_startup_backfill(self, days: int = 252) -> Dict[str, Any]:
+        """Run full 252-day backfill on startup for all tracked symbols.
+
+        Called from main.py lifespan. Runs in background so API server
+        is responsive immediately.
+        """
+        logger.info("=== STARTUP BACKFILL: fetching %d days of history ===", days)
+        start = datetime.now(timezone.utc)
+
+        # Get tracked symbols
+        symbols = self._get_tracked_symbols()
+        if not symbols:
+            logger.warning("No tracked symbols found — skipping startup backfill")
+            return {"skipped": True, "reason": "no_symbols"}
+
+        logger.info("Backfilling %d symbols...", len(symbols))
+
+        report = await self.ingest_all(symbols, days=days)
+        elapsed = (datetime.now(timezone.utc) - start).total_seconds()
+        report["elapsed_seconds"] = round(elapsed, 1)
+        report["symbol_count"] = len(symbols)
+
+        logger.info(
+            "=== STARTUP BACKFILL COMPLETE: %d symbols, %.1fs ===",
+            len(symbols), elapsed,
+        )
+        return report
+
+    async def run_daily_incremental(self) -> Dict[str, Any]:
+        """Daily incremental backfill — fetch last 5 trading days.
+
+        Scheduled at 4:30 AM ET to catch any gaps from the previous session.
+        """
+        logger.info("=== DAILY INCREMENTAL BACKFILL ===")
+        symbols = self._get_tracked_symbols()
+        if not symbols:
+            return {"skipped": True}
+
+        report = await self.ingest_all(symbols, days=7)  # 7 calendar days ~= 5 trading days
+        logger.info("Daily incremental complete: %d symbols", len(symbols))
+        return report
+
+    async def run_weekly_indicator_refresh(self) -> int:
+        """Weekly full indicator recompute — runs at midnight Sunday.
+
+        Recomputes all technical indicators from stored OHLCV data.
+        """
+        logger.info("=== WEEKLY INDICATOR REFRESH ===")
+        symbols = self._get_tracked_symbols()
+        count = await asyncio.to_thread(
+            self.compute_and_store_indicators, symbols, lookback_days=400
+        )
+        logger.info("Weekly indicator refresh: %d rows computed", count)
+        return count
+
+    def _get_tracked_symbols(self) -> List[str]:
+        """Get the current list of tracked symbols from the symbol universe."""
+        try:
+            from app.modules.symbol_universe import get_tracked_symbols
+            symbols = get_tracked_symbols()
+            if symbols:
+                return symbols
+        except Exception:
+            pass
+
+        # Fallback: read from DuckDB
+        try:
+            conn = self.store._get_conn()
+            df = conn.execute(
+                "SELECT DISTINCT symbol FROM daily_ohlcv ORDER BY symbol"
+            ).fetchdf()
+            if not df.empty:
+                return df["symbol"].tolist()
+        except Exception:
+            pass
+
+        # Last resort: core symbols
+        return [
+            "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META",
+            "SPY", "QQQ", "IWM", "DIA", "TLT", "GLD", "VIX",
+        ]
+
+    # ------------------------------------------------------------------
+    # D1: Background scheduler loop
+    # ------------------------------------------------------------------
+
+    async def scheduler_loop(self) -> None:
+        """Background loop that runs daily/weekly ingestion tasks.
+
+        Schedule:
+          - Daily at 4:30 AM ET: incremental backfill (7 calendar days)
+          - Weekly at midnight Sunday: full indicator refresh (400 days)
+
+        This runs forever and should be launched as a background task
+        from main.py's lifespan.
+        """
+        import calendar
+
+        logger.info("DataIngestion scheduler started")
+        last_daily_date = None
+        last_weekly_date = None
+
+        while True:
+            await asyncio.sleep(60)  # Check every minute
+            try:
+                # Use ET (UTC-5 / UTC-4 depending on DST)
+                # Approximate: use UTC-5 (EST) for simplicity
+                now_utc = datetime.now(timezone.utc)
+                now_et = now_utc - timedelta(hours=5)
+                today = now_et.date()
+                hour = now_et.hour
+                minute = now_et.minute
+                weekday = now_et.weekday()  # 0=Monday, 6=Sunday
+
+                # Daily at 4:30 AM ET (weekdays only)
+                if (
+                    hour == 4 and 30 <= minute < 31
+                    and weekday < 5  # Mon-Fri
+                    and last_daily_date != today
+                ):
+                    last_daily_date = today
+                    logger.info("Scheduler: triggering daily incremental backfill")
+                    try:
+                        await self.run_daily_incremental()
+                    except Exception:
+                        logger.exception("Scheduler: daily backfill failed")
+
+                # Weekly at midnight Sunday (weekday=6, hour=0)
+                if (
+                    weekday == 6 and hour == 0 and 0 <= minute < 1
+                    and last_weekly_date != today
+                ):
+                    last_weekly_date = today
+                    logger.info("Scheduler: triggering weekly indicator refresh")
+                    try:
+                        await self.run_weekly_indicator_refresh()
+                    except Exception:
+                        logger.exception("Scheduler: weekly refresh failed")
+
+            except asyncio.CancelledError:
+                logger.info("DataIngestion scheduler cancelled")
+                return
+            except Exception:
+                logger.exception("DataIngestion scheduler error")
 
 
 # ---------------------------------------------------------------------------

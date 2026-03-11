@@ -153,6 +153,13 @@ class MessageBus:
         self._error_count: int = 0
         self._start_time: Optional[float] = None
 
+        # D3: Dead-letter queue — stores events that failed all handler retries
+        self._dlq: List[Dict[str, Any]] = []
+        self._dlq_max = 500  # Cap DLQ to prevent unbounded growth
+        self._capacity_alert_sent = False
+        self._capacity_alert_threshold = 0.80  # Alert at 80% queue capacity
+        self._handler_timeout = 10.0  # Per-handler timeout in seconds (D3)
+
         # Redis bridge state
         self._redis_url: str = ""
         self._redis_pub: Any = None       # redis.asyncio.Redis (publisher)
@@ -278,12 +285,26 @@ class MessageBus:
 
         event = {"topic": topic, "data": data, "timestamp": time.time()}
 
+        # D3: Check capacity and alert at 80%
+        queue_usage = self._queue.qsize() / max(self._queue.maxsize, 1)
+        if queue_usage >= self._capacity_alert_threshold and not self._capacity_alert_sent:
+            self._capacity_alert_sent = True
+            logger.warning(
+                "MessageBus queue at %.0f%% capacity (%d/%d) — backpressure risk",
+                queue_usage * 100, self._queue.qsize(), self._queue.maxsize,
+            )
+            # Try Slack alert (fire-and-forget)
+            asyncio.ensure_future(self._send_capacity_alert(queue_usage))
+        elif queue_usage < 0.5 and self._capacity_alert_sent:
+            self._capacity_alert_sent = False  # Reset alert when queue drains
+
         # Local delivery (always)
         try:
             self._queue.put_nowait(event)
         except asyncio.QueueFull:
             self._error_count += 1
-            logger.error("MessageBus queue FULL — dropping event on '%s'", topic)
+            logger.error("MessageBus queue FULL — sending to DLQ on '%s'", topic)
+            self._add_to_dlq(event, reason="queue_full")
 
         # Redis bridge (cross-PC delivery)
         if self._redis_connected and topic in self.REDIS_BRIDGED_TOPICS:
@@ -325,15 +346,33 @@ class MessageBus:
     async def _safe_call(
         self, handler: EventHandler, data: Dict[str, Any], topic: str
     ) -> None:
-        """Call handler with error isolation — one bad handler won't crash others."""
+        """Call handler with error isolation + timeout (D3).
+
+        Per-handler timeout prevents one slow handler from blocking all
+        event processing. Failed events go to the dead-letter queue.
+        """
+        handler_name = handler.__qualname__ if hasattr(handler, '__qualname__') else str(handler)
         try:
-            await handler(data)
+            await asyncio.wait_for(handler(data), timeout=self._handler_timeout)
+        except asyncio.TimeoutError:
+            self._error_count += 1
+            logger.warning(
+                "Handler %s TIMED OUT on topic '%s' (limit=%.1fs)",
+                handler_name, topic, self._handler_timeout,
+            )
+            self._add_to_dlq(
+                {"topic": topic, "data": data, "timestamp": time.time()},
+                reason=f"handler_timeout:{handler_name}",
+            )
         except Exception:
             self._error_count += 1
             logger.exception(
                 "Handler %s failed on topic '%s'",
-                handler.__qualname__ if hasattr(handler, '__qualname__') else str(handler),
-                topic,
+                handler_name, topic,
+            )
+            self._add_to_dlq(
+                {"topic": topic, "data": data, "timestamp": time.time()},
+                reason=f"handler_error:{handler_name}",
             )
 
     async def _drain(self) -> None:
@@ -346,6 +385,45 @@ class MessageBus:
             for handler in handlers:
                 await self._safe_call(handler, data, topic)
             self._queue.task_done()
+
+    # ------------------------------------------------------------------
+    # D3: Dead-letter queue + capacity alerting
+    # ------------------------------------------------------------------
+
+    def _add_to_dlq(self, event: Dict[str, Any], reason: str) -> None:
+        """Add a failed event to the dead-letter queue."""
+        dlq_entry = {
+            "event": event,
+            "reason": reason,
+            "failed_at": time.time(),
+        }
+        self._dlq.append(dlq_entry)
+        # Cap DLQ size — drop oldest entries
+        while len(self._dlq) > self._dlq_max:
+            self._dlq.pop(0)
+
+    def get_dlq(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Return recent DLQ entries for monitoring."""
+        return self._dlq[-limit:]
+
+    def clear_dlq(self) -> int:
+        """Clear the DLQ. Returns count of cleared entries."""
+        count = len(self._dlq)
+        self._dlq.clear()
+        return count
+
+    async def _send_capacity_alert(self, usage: float) -> None:
+        """Send Slack alert when queue capacity is high."""
+        try:
+            from app.services.slack_notification_service import get_slack_service
+            slack = get_slack_service()
+            await slack.send_alert(
+                f"MessageBus queue at {usage:.0%} capacity "
+                f"({self._queue.qsize()}/{self._queue.maxsize}). "
+                f"Check for slow handlers or burst traffic."
+            )
+        except Exception:
+            pass  # Never let alerting break the bus
 
     # ------------------------------------------------------------------
     # Redis bridge
@@ -550,16 +628,24 @@ class MessageBus:
     def get_metrics(self) -> Dict[str, Any]:
         """Return bus metrics for monitoring dashboard."""
         uptime = time.time() - self._start_time if self._start_time else 0
+        queue_usage = self._queue.qsize() / max(self._queue.maxsize, 1)
         return {
             "running": self._running,
             "uptime_seconds": round(uptime, 1),
             "queue_depth": self._queue.qsize(),
             "queue_max": self._queue.maxsize,
+            "queue_usage_pct": round(queue_usage * 100, 1),
             "events_by_topic": dict(self._metrics),
             "total_events": sum(self._metrics.values()),
             "total_errors": self._error_count,
             "subscribers": {
                 topic: len(handlers) for topic, handlers in self._subscribers.items()
+            },
+            # D3: Dead-letter queue
+            "dlq": {
+                "size": len(self._dlq),
+                "max": self._dlq_max,
+                "capacity_alert_active": self._capacity_alert_sent,
             },
             # Redis bridge metrics
             "redis": {
