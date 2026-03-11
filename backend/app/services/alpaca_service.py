@@ -92,6 +92,56 @@ class AlpacaService:
 
     # ── helpers ──────────────────────────────────────────────────────────────────
 
+    async def validate_account_safety(self) -> Dict[str, Any]:
+        """Validate that account type matches TRADING_MODE (US8 fix).
+
+        On startup, fetches the actual Alpaca account and verifies:
+        - Paper mode uses paper account URL
+        - Live mode uses live account URL
+        - Returns validation result dict
+
+        If mismatch detected, logs CRITICAL warning. Caller should decide
+        whether to block trading.
+        """
+        result = {"valid": True, "mode": self.trading_mode, "warnings": []}
+        if not self._is_configured():
+            result["valid"] = False
+            result["warnings"].append("Alpaca API keys not configured")
+            return result
+
+        try:
+            account = await self.get_account()
+            if not account:
+                result["valid"] = False
+                result["warnings"].append("Cannot fetch Alpaca account — refusing to trade")
+                return result
+
+            # Check if base URL matches expected mode
+            is_paper_url = "paper-api" in self.base_url or "paper" in self.base_url
+            if self.trading_mode == "paper" and not is_paper_url:
+                result["valid"] = False
+                result["warnings"].append(
+                    f"CRITICAL: TRADING_MODE=paper but base_url={self.base_url} is NOT paper API. "
+                    "This could result in REAL MONEY trades!"
+                )
+                logger.critical("PAPER/LIVE MISMATCH: mode=%s url=%s", self.trading_mode, self.base_url)
+            elif self.trading_mode == "live" and is_paper_url:
+                result["warnings"].append(
+                    f"TRADING_MODE=live but using paper API URL: {self.base_url}"
+                )
+
+            logger.info(
+                "Account safety check: mode=%s, url=%s, equity=$%.2f, valid=%s",
+                self.trading_mode, self.base_url,
+                float(account.get("equity", 0)), result["valid"],
+            )
+        except Exception as e:
+            result["valid"] = False
+            result["warnings"].append(f"Account validation failed: {e}")
+            logger.error("Account safety validation error: %s", e)
+
+        return result
+
     def _is_configured(self) -> bool:
         return bool(self.api_key and self.secret_key)
 

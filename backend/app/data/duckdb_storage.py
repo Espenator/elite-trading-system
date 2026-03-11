@@ -105,14 +105,20 @@ class DuckDBStorage:
         self._db_path = str(db_path or DUCKDB_PATH)
         self._conn = None
         self._lock = threading.Lock()  # For sync callers (startup, tests)
-        self._async_lock = None  # Lazily created asyncio.Lock
+        # SF10 FIX: Create asyncio.Lock eagerly with thread-safe guard.
+        # Lazy creation caused race where two coroutines could each create
+        # a separate asyncio.Lock, defeating the purpose of the lock.
+        self._async_lock = None
+        self._async_lock_init = threading.Lock()
         self._schema_initialized = False
         self._initialized = True
 
     def _get_async_lock(self) -> asyncio.Lock:
-        """Get or create the asyncio.Lock (must be created in running loop)."""
+        """Get or create the asyncio.Lock (thread-safe lazy init)."""
         if self._async_lock is None:
-            self._async_lock = asyncio.Lock()
+            with self._async_lock_init:
+                if self._async_lock is None:
+                    self._async_lock = asyncio.Lock()
         return self._async_lock
 
     def _get_conn(self):

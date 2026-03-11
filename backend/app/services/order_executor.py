@@ -275,6 +275,65 @@ class OrderExecutor:
             price,
         )
 
+        # -- Gate 2b: Regime enforcement (US2/US3 fix) --
+        # Fetch regime params and enforce max_positions=0 (RED/CRISIS blocks all new entries)
+        try:
+            from app.api.v1.strategy import REGIME_PARAMS
+            regime_key = regime.upper() if regime else "YELLOW"
+            regime_params = REGIME_PARAMS.get(regime_key, REGIME_PARAMS.get("YELLOW", {}))
+            max_positions = regime_params.get("max_pos", 5)
+            kelly_scale = regime_params.get("kelly_scale", 1.0)
+
+            if max_positions == 0 or kelly_scale == 0:
+                self._reject(
+                    symbol, score,
+                    f"Regime {regime_key} blocks new entries (max_pos={max_positions}, kelly_scale={kelly_scale})",
+                    ExecutionDenyReason.REGIME_BLOCKED,
+                )
+                return
+
+            # Apply regime signal multiplier to score for downstream gates
+            signal_mult = regime_params.get("signal_mult", 1.0)
+            score = score * signal_mult
+        except Exception as e:
+            logger.debug("Regime enforcement check failed (non-fatal): %s", e)
+
+        # -- Gate 2c: Circuit breaker enforcement (US1 fix) --
+        # Check live risk metrics against circuit breaker thresholds
+        try:
+            alpaca = self._get_alpaca_service()
+            account = await alpaca.get_account()
+            positions = await alpaca.get_positions()
+            if account and positions:
+                equity = float(account.get("equity", 0))
+                buying_power = float(account.get("buying_power", 0))
+                total_exposure = sum(abs(float(p.get("market_value", 0))) for p in (positions or []))
+
+                if equity > 0:
+                    # Leverage check (max 2x)
+                    leverage = total_exposure / equity
+                    if leverage > 2.0:
+                        self._reject(
+                            symbol, score,
+                            f"Circuit breaker: leverage {leverage:.1f}x > 2.0x max",
+                            ExecutionDenyReason.CIRCUIT_BREAKER,
+                        )
+                        return
+
+                    # Concentration check (max 25% single position)
+                    if positions:
+                        max_pos_val = max(abs(float(p.get("market_value", 0))) for p in positions)
+                        concentration = max_pos_val / equity
+                        if concentration > 0.25:
+                            self._reject(
+                                symbol, score,
+                                f"Circuit breaker: top position {concentration:.0%} > 25% max",
+                                ExecutionDenyReason.CIRCUIT_BREAKER,
+                            )
+                            return
+        except Exception as e:
+            logger.debug("Circuit breaker check failed (non-fatal): %s", e)
+
         # -- Gate 3: Daily trade limit --
         self._check_daily_reset()
         if self._daily_trade_count >= self.max_daily_trades:

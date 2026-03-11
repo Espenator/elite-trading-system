@@ -28,6 +28,8 @@ class ExecutionDenyReason(str, Enum):
     VIABILITY_DENIED = "viability_denied"  # slippage/liquidity > edge threshold
     KILL_SWITCH_ACTIVE = "kill_switch_active"
     PORTFOLIO_RISK_LIMIT = "portfolio_risk_limit"
+    REGIME_BLOCKED = "regime_blocked"
+    CIRCUIT_BREAKER = "circuit_breaker"
 
 
 @dataclass

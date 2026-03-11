@@ -128,6 +128,46 @@ def _init_ml_singletons():
     return initialized
 
 
+async def _supervised_loop(name: str, coro_factory, max_consecutive_failures: int = 3):
+    """Supervisor wrapper for background loops (SF9 fix).
+
+    On crash: log error, wait 5s, respawn. After max_consecutive_failures,
+    stop retrying and alert.
+    """
+    consecutive_failures = 0
+    while True:
+        try:
+            await coro_factory()
+            consecutive_failures = 0  # Reset on clean exit (shouldn't normally happen)
+            return
+        except asyncio.CancelledError:
+            log.info("Supervised loop '%s' cancelled", name)
+            return
+        except Exception:
+            consecutive_failures += 1
+            log.exception(
+                "Background loop '%s' crashed (failure %d/%d) — restarting in 5s",
+                name, consecutive_failures, max_consecutive_failures,
+            )
+            if consecutive_failures >= max_consecutive_failures:
+                log.critical(
+                    "Background loop '%s' failed %d times consecutively — giving up. "
+                    "Check logs and restart the server.",
+                    name, consecutive_failures,
+                )
+                # Try to alert via Slack
+                try:
+                    from app.services.slack_notification_service import get_slack_service
+                    slack = get_slack_service()
+                    await slack.send_alert(
+                        f"CRITICAL: Background loop '{name}' crashed {consecutive_failures}x. Manual restart needed."
+                    )
+                except Exception:
+                    pass
+                return
+            await asyncio.sleep(5)
+
+
 async def _drift_check_loop():
     """Periodic drift check loop -- runs every 60 minutes."""
     await asyncio.sleep(300)
@@ -384,9 +424,27 @@ async def _start_event_driven_pipeline():
         await _message_bus.subscribe("signal.generated", _signal_to_verdict_fallback)
         log.info("\u2705 Signal->Verdict fallback subscriber registered (CouncilGate bypass)")
 
+    # 3.5 Paper/Live safety gate (US8 fix)
+    # Validate Alpaca account type matches TRADING_MODE before enabling auto-execute
+    auto_execute = os.getenv("AUTO_EXECUTE_TRADES", "false").lower() == "true"
+    if auto_execute:
+        try:
+            from app.services.alpaca_service import alpaca_service
+            safety = await alpaca_service.validate_account_safety()
+            if not safety.get("valid"):
+                log.critical(
+                    "SAFETY: Account validation FAILED — forcing SHADOW mode. Warnings: %s",
+                    safety.get("warnings", []),
+                )
+                auto_execute = False  # Force shadow mode on safety failure
+            else:
+                for w in safety.get("warnings", []):
+                    log.warning("Account safety warning: %s", w)
+        except Exception as e:
+            log.warning("Account safety check failed (non-fatal): %s", e)
+
     # 4. OrderExecutor (subscribes to council.verdict)
     from app.services.order_executor import OrderExecutor
-    auto_execute = os.getenv("AUTO_EXECUTE_TRADES", "false").lower() == "true"
     _order_executor = OrderExecutor(
         message_bus=_message_bus,
         auto_execute=auto_execute,
@@ -1089,12 +1147,18 @@ async def lifespan(app: FastAPI):
         try:
             from app.data.duckdb_storage import duckdb_store
             _health = duckdb_store.health_check()
+            _ohlcv_rows = 0
             _indicator_rows = 0
             for t in (_health.get("tables") or []):
+                if t.get("name") == "daily_ohlcv":
+                    _ohlcv_rows += t.get("rows", 0)
                 if t.get("name") in ("daily_indicators", "daily_features"):
                     _indicator_rows += t.get("rows", 0)
-            if _indicator_rows == 0:
-                log.info("DuckDB has 0 indicator/feature rows — scheduling auto-backfill")
+            if _ohlcv_rows == 0 or _indicator_rows == 0:
+                log.info(
+                    "DuckDB data starvation detected (ohlcv=%d, indicators=%d) — scheduling auto-backfill",
+                    _ohlcv_rows, _indicator_rows,
+                )
 
                 async def _auto_backfill():
                     await asyncio.sleep(30)  # Let API server start first
@@ -1110,10 +1174,17 @@ async def lifespan(app: FastAPI):
                         ohlcv = report.get("ohlcv", {}).get("total_rows", 0)
                         indicators = report.get("indicators", 0)
                         log.info("Auto-backfill complete: %d OHLCV, %d indicators", ohlcv, indicators)
+                        # Verify DuckDB has data now — re-check health
+                        post_health = duckdb_store.health_check()
+                        for t in (post_health.get("tables") or []):
+                            if t.get("name") == "daily_ohlcv":
+                                log.info("Post-backfill daily_ohlcv: %d rows", t.get("rows", 0))
                     except Exception as e:
                         log.warning("Auto-backfill failed (non-fatal): %s", e)
 
                 asyncio.create_task(_auto_backfill())
+            else:
+                log.info("DuckDB data OK: %d OHLCV rows, %d indicator rows — skipping backfill", _ohlcv_rows, _indicator_rows)
         except Exception:
             pass
 
@@ -1123,10 +1194,17 @@ async def lifespan(app: FastAPI):
     # drift_task is ML-specific and can safely remain gated on LLM_ENABLED.
     _llm_on = os.getenv("LLM_ENABLED", "true").lower() == "true"
     _bg_loops = os.getenv("BACKGROUND_LOOPS", "true").lower() in ("1", "true", "yes")
-    tick_task = asyncio.create_task(_market_data_tick_loop()) if _bg_loops else None
-    drift_task = asyncio.create_task(_drift_check_loop()) if (_llm_on and _bg_loops) else None
+    # Wrap background loops in supervisor for crash recovery (SF9 fix)
+    tick_task = asyncio.create_task(
+        _supervised_loop("market_data_tick", _market_data_tick_loop)
+    ) if _bg_loops else None
+    drift_task = asyncio.create_task(
+        _supervised_loop("drift_check", _drift_check_loop)
+    ) if (_llm_on and _bg_loops) else None
     heartbeat_task = asyncio.create_task(heartbeat_loop())
-    risk_monitor_task = asyncio.create_task(_risk_monitor_loop()) if _bg_loops else None
+    risk_monitor_task = asyncio.create_task(
+        _supervised_loop("risk_monitor", _risk_monitor_loop)
+    ) if _bg_loops else None
     if not _bg_loops:
         log.info("\u26A0\uFE0F Background loops disabled (BACKGROUND_LOOPS=false)")
 
