@@ -566,6 +566,15 @@ async def _start_event_driven_pipeline():
     except Exception as e:
         log.warning("OffHoursMonitor failed to start: %s", e)
 
+    # 19. DataSourceHealthAggregator (unified health + Slack alerts)
+    try:
+        from app.services.data_source_health_aggregator import get_health_aggregator
+        _health_agg = get_health_aggregator(message_bus=_message_bus)
+        await _health_agg.start()
+        log.info("\u2705 DataSourceHealthAggregator started")
+    except Exception as e:
+        log.warning("DataSourceHealthAggregator failed to start: %s", e)
+
     # -- DEFERRED HEAVY SERVICES -----------------------------------------------
     # These services are LLM-heavy, do bulk HTTP fetches, or process thousands
     # of symbols. Starting them immediately saturates the asyncio event loop
@@ -1309,6 +1318,13 @@ app.include_router(brain.router, prefix="/api/v1/brain", tags=["brain"])
 app.include_router(awareness.router, prefix="/api/v1", tags=["awareness"])
 app.include_router(blackboard_routes.router, prefix="/api/v1/blackboard", tags=["blackboard"])
 app.include_router(triage.router, prefix="/api/v1/triage", tags=["triage"])
+
+# Unified health monitoring endpoint
+try:
+    from app.api.v1 import health as health_api
+    app.include_router(health_api.router, tags=["health"])
+except Exception as _e:
+    log.warning("Health API router failed to register: %s", _e)
 
 
 @app.get("/api/v1/ws/registry", tags=["websocket"])
