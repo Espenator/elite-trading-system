@@ -6,15 +6,21 @@ Each scout:
   - Publishes health ticks to ``scout.heartbeat`` every 30 s
   - Is stateless between runs (idempotent)
   - Handles its own errors without crashing the task loop
+  - Applies backpressure when the MessageBus queue is congested (B-fix)
 """
 import asyncio
 import logging
+import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
+# Backpressure thresholds (configurable via env)
+_BACKPRESSURE_PCT = float(os.getenv("SCOUT_BACKPRESSURE_PCT", "60"))   # Pause publishing above this %
+_MAX_PER_CYCLE = int(os.getenv("SCOUT_MAX_PER_CYCLE", "20"))           # Max discoveries per cycle
 
 
 @dataclass
@@ -123,11 +129,34 @@ class BaseScout(ABC):
     async def _run_loop(self) -> None:
         while self._running:
             try:
+                # Backpressure: wait if queue is congested before even running cycle
+                await self._wait_for_backpressure()
+
                 payloads = await self.scout()
                 self._stats["cycles_run"] += 1
+                published = 0
                 for payload in payloads or []:
+                    if published >= _MAX_PER_CYCLE:
+                        self._stats["throttled"] = self._stats.get("throttled", 0) + 1
+                        logger.debug(
+                            "Scout %s hit per-cycle cap (%d), deferring remaining",
+                            self.name, _MAX_PER_CYCLE,
+                        )
+                        break
+                    # Re-check backpressure between publishes
+                    if self._is_queue_congested():
+                        self._stats["backpressure_skips"] = (
+                            self._stats.get("backpressure_skips", 0) + 1
+                        )
+                        logger.info(
+                            "Scout %s pausing mid-cycle — queue congested", self.name
+                        )
+                        break
                     await self._publish(payload)
+                    published += 1
                     self._stats["discoveries_made"] += 1
+                    # Yield to event loop between publishes to avoid starving consumers
+                    await asyncio.sleep(0)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
@@ -151,6 +180,32 @@ class BaseScout(ABC):
                 except Exception as exc:
                     logger.debug("%s heartbeat failed: %s", self.name, exc)
 
+    def _is_queue_congested(self) -> bool:
+        """Return True if MessageBus queue is above backpressure threshold."""
+        if not self._bus:
+            return False
+        try:
+            return self._bus.queue_usage_pct >= _BACKPRESSURE_PCT
+        except Exception:
+            return False
+
+    async def _wait_for_backpressure(self, max_wait: float = 30.0) -> None:
+        """Block until queue drops below backpressure threshold (or timeout)."""
+        if not self._is_queue_congested():
+            return
+        logger.info(
+            "Scout %s waiting — MessageBus queue at %.0f%% (threshold %.0f%%)",
+            self.name, self._bus.queue_usage_pct, _BACKPRESSURE_PCT,
+        )
+        waited = 0.0
+        while self._running and self._is_queue_congested() and waited < max_wait:
+            await asyncio.sleep(1.0)
+            waited += 1.0
+        if waited >= max_wait:
+            logger.warning(
+                "Scout %s backpressure timeout (%.0fs) — skipping cycle", self.name, max_wait
+            )
+
     async def _publish(self, payload: DiscoveryPayload) -> None:
         if not self._bus:
             return
@@ -168,4 +223,10 @@ class BaseScout(ABC):
     # ──────────────────────────────────────────────────────────────────────
 
     def get_stats(self) -> Dict[str, Any]:
-        return dict(self._stats)
+        stats = dict(self._stats)
+        if self._bus:
+            try:
+                stats["queue_usage_pct"] = round(self._bus.queue_usage_pct, 1)
+            except Exception:
+                pass
+        return stats
