@@ -22,11 +22,7 @@ class DiscordChannelAgent(BaseChannelAgent):
             max_queue_size=int(os.getenv("DISCORD_FIREHOSE_QUEUE", "2000")),
         )
         self._bus = message_bus
-        self._bridge = DiscordSwarmBridge(
-            message_bus=message_bus,
-            on_signal=self._on_discord_signal,
-            publish_to_bus=False,
-        )
+        self._bridge = DiscordSwarmBridge(message_bus=message_bus)
 
     async def start(self) -> None:
         await super().start()

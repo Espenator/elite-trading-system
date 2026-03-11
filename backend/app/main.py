@@ -334,10 +334,13 @@ async def _start_event_driven_pipeline():
     # 2d. ScoutRegistry — E2: 12 dedicated continuous scout agents.
     # Started here (adjacent to E1/E3) so all three discovery-pipeline stages
     # are live before any downstream consumers (SwarmSpawner, HyperSwarm) start.
-    from app.services.scouts.registry import get_scout_registry
-    _scout_registry = get_scout_registry()
-    await _scout_registry.start(message_bus=_message_bus)
-    log.info("\u2705 ScoutRegistry started (%d scouts)", _scout_registry.scout_count)
+    if os.getenv("SCOUTS_ENABLED", "true").lower() in ("1", "true", "yes"):
+        from app.services.scouts.registry import get_scout_registry
+        _scout_registry = get_scout_registry()
+        await _scout_registry.start(message_bus=_message_bus)
+        log.info("\u2705 ScoutRegistry started (%d scouts)", _scout_registry.scout_count)
+    else:
+        log.info("\u26A0\uFE0F ScoutRegistry skipped (SCOUTS_ENABLED=false)")
 
     # 3. CouncilGate (subscribes to signal.generated, invokes council)
     # Disable when LLM or council is off — council calls LLM which blocks when Ollama is down.
@@ -599,11 +602,14 @@ async def _start_event_driven_pipeline():
     log.info("\u2705 ExpectedMoveService started (%d symbols)", len(get_expected_move_service()._levels) or 18)
 
     # 18. TurboScanner — parallel multi-source 60s scanner (10 concurrent DuckDB screens)
-    from app.services.turbo_scanner import get_turbo_scanner
-    _turbo_scanner = get_turbo_scanner()
-    _turbo_scanner._bus = _message_bus
-    await _turbo_scanner.start()
-    log.info("\u2705 TurboScanner started (interval=%ds)", _turbo_scanner._scan_interval)
+    if os.getenv("TURBO_SCANNER_ENABLED", "true").lower() in ("1", "true", "yes"):
+        from app.services.turbo_scanner import get_turbo_scanner
+        _turbo_scanner = get_turbo_scanner()
+        _turbo_scanner._bus = _message_bus
+        await _turbo_scanner.start()
+        log.info("\u2705 TurboScanner started (interval=%ds)", _turbo_scanner._scan_interval)
+    else:
+        log.info("\u26A0\uFE0F TurboScanner skipped (TURBO_SCANNER_ENABLED=false)")
 
     # 19. HyperSwarm — 50+ concurrent micro-swarms via local Ollama
     if _llm_enabled:
@@ -629,11 +635,14 @@ async def _start_event_driven_pipeline():
     # 21. MarketWideSweep — batch Alpaca ingest + 10 SQL screens across full market
     # BUG FIX 3: Always start — batch Alpaca ingest + SQL screens, no LLM dependency.
     # This is critical for populating DuckDB with market-wide data.
-    from app.services.market_wide_sweep import get_market_sweep
-    _market_sweep = get_market_sweep()
-    _market_sweep._bus = _message_bus
-    await _market_sweep.start()
-    log.info("\u2705 MarketWideSweep started (universe=%d symbols)", len(_market_sweep._universe))
+    if os.getenv("MARKET_SWEEP_ENABLED", "true").lower() in ("1", "true", "yes"):
+        from app.services.market_wide_sweep import get_market_sweep
+        _market_sweep = get_market_sweep()
+        _market_sweep._bus = _message_bus
+        await _market_sweep.start()
+        log.info("\u2705 MarketWideSweep started (universe=%d symbols)", len(_market_sweep._universe))
+    else:
+        log.info("\u26A0\uFE0F MarketWideSweep skipped (MARKET_SWEEP_ENABLED=false)")
 
     # 22. UnifiedProfitEngine — single adaptive scorer replacing 5 competing brains
     # Subscribes to signal.generated and does synchronous DuckDB queries for ML scoring.
@@ -1065,46 +1074,53 @@ async def lifespan(app: FastAPI):
         log.debug("Flywheel scheduler not started: %s", e)
 
     # 3c. Auto-backfill if DuckDB has 0 indicator/feature rows (first-run bootstrap)
-    try:
-        from app.data.duckdb_storage import duckdb_store
-        _health = duckdb_store.health_check()
-        _indicator_rows = 0
-        for t in (_health.get("tables") or []):
-            if t.get("name") in ("daily_indicators", "daily_features"):
-                _indicator_rows += t.get("rows", 0)
-        if _indicator_rows == 0:
-            log.info("DuckDB has 0 indicator/feature rows — scheduling auto-backfill")
+    _auto_backfill_enabled = os.getenv("AUTO_BACKFILL", "true").lower() in ("1", "true", "yes")
+    if not _auto_backfill_enabled:
+        log.info("\u26A0\uFE0F Auto-backfill skipped (AUTO_BACKFILL=false)")
+    if _auto_backfill_enabled:
+        try:
+            from app.data.duckdb_storage import duckdb_store
+            _health = duckdb_store.health_check()
+            _indicator_rows = 0
+            for t in (_health.get("tables") or []):
+                if t.get("name") in ("daily_indicators", "daily_features"):
+                    _indicator_rows += t.get("rows", 0)
+            if _indicator_rows == 0:
+                log.info("DuckDB has 0 indicator/feature rows — scheduling auto-backfill")
 
-            async def _auto_backfill():
-                await asyncio.sleep(30)  # Let API server start first
-                try:
-                    from app.services.data_ingestion import data_ingestion
-                    from app.modules.symbol_universe import get_tracked_symbols
-                    symbols = get_tracked_symbols()[:20] or [
-                        "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA",
-                        "TSLA", "META", "SPY", "QQQ", "IWM",
-                    ]
-                    log.info("Auto-backfill starting for %d symbols (30 days)...", len(symbols))
-                    report = await data_ingestion.ingest_all(symbols, days=30)
-                    ohlcv = report.get("ohlcv", {}).get("total_rows", 0)
-                    indicators = report.get("indicators", 0)
-                    log.info("Auto-backfill complete: %d OHLCV, %d indicators", ohlcv, indicators)
-                except Exception as e:
-                    log.warning("Auto-backfill failed (non-fatal): %s", e)
+                async def _auto_backfill():
+                    await asyncio.sleep(30)  # Let API server start first
+                    try:
+                        from app.services.data_ingestion import data_ingestion
+                        from app.modules.symbol_universe import get_tracked_symbols
+                        symbols = get_tracked_symbols()[:20] or [
+                            "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA",
+                            "TSLA", "META", "SPY", "QQQ", "IWM",
+                        ]
+                        log.info("Auto-backfill starting for %d symbols (30 days)...", len(symbols))
+                        report = await data_ingestion.ingest_all(symbols, days=30)
+                        ohlcv = report.get("ohlcv", {}).get("total_rows", 0)
+                        indicators = report.get("indicators", 0)
+                        log.info("Auto-backfill complete: %d OHLCV, %d indicators", ohlcv, indicators)
+                    except Exception as e:
+                        log.warning("Auto-backfill failed (non-fatal): %s", e)
 
-            asyncio.create_task(_auto_backfill())
-    except Exception:
-        pass
+                asyncio.create_task(_auto_backfill())
+        except Exception:
+            pass
 
     # 4-6. Background tasks (legacy + monitoring)
     # BUG FIX 2: tick_task must ALWAYS run — it does Alpaca data ingestion into DuckDB,
     # NOT LLM work. Without it, no data flows into the database regardless of market hours.
     # drift_task is ML-specific and can safely remain gated on LLM_ENABLED.
     _llm_on = os.getenv("LLM_ENABLED", "true").lower() == "true"
-    tick_task = asyncio.create_task(_market_data_tick_loop())  # Always run
-    drift_task = asyncio.create_task(_drift_check_loop()) if _llm_on else None
+    _bg_loops = os.getenv("BACKGROUND_LOOPS", "true").lower() in ("1", "true", "yes")
+    tick_task = asyncio.create_task(_market_data_tick_loop()) if _bg_loops else None
+    drift_task = asyncio.create_task(_drift_check_loop()) if (_llm_on and _bg_loops) else None
     heartbeat_task = asyncio.create_task(heartbeat_loop())
-    risk_monitor_task = asyncio.create_task(_risk_monitor_loop())
+    risk_monitor_task = asyncio.create_task(_risk_monitor_loop()) if _bg_loops else None
+    if not _bg_loops:
+        log.info("\u26A0\uFE0F Background loops disabled (BACKGROUND_LOOPS=false)")
 
     log.info("=" * 60)
     log.info("Embodier Trader v%s ONLINE — PRODUCTION (Council-Controlled Intelligence)", settings.APP_VERSION)
