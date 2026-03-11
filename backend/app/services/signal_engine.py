@@ -230,6 +230,118 @@ def _compute_composite_score(quotes: List[dict]) -> Tuple[float, str]:
     return round(composite, 1), label
 
 
+def _compute_short_composite_score(quotes: List[dict]) -> Tuple[float, str]:
+    """Compute independent short signal score 0-100 from quote rows.
+
+    Unlike the long score, this scores BEARISH setups directly:
+    - RSI overbought = short opportunity (not bearish penalty)
+    - Bearish candles = confirmation of selling pressure
+    - Negative momentum = trend continuation for shorts
+    - Bearish divergence = high-conviction reversal short
+    - High volume on down bars = distribution signal
+    """
+    if not quotes or not isinstance(quotes, list):
+        return 0.0, "No data"
+
+    rows = []
+    for r in quotes:
+        if not isinstance(r, dict):
+            continue
+        row = {}
+        for k, v in r.items():
+            row[k.strip().lower() if isinstance(k, str) else k] = v
+        rows.append(row)
+
+    if not rows:
+        return 0.0, "No data"
+
+    last = rows[-1]
+    open_val = _numeric(last.get("open"))
+    close_val = _numeric(last.get("close"))
+    high_val = _numeric(last.get("high"))
+    low_val = _numeric(last.get("low"))
+
+    # Negative momentum = bullish for shorts (score increases)
+    if open_val and open_val > 0:
+        momentum_pct = (close_val - open_val) / open_val * 100
+        # Flip: negative momentum = positive short score
+        short_momentum = max(-20, min(25, -momentum_pct * 0.5))
+    else:
+        short_momentum = 0.0
+
+    # Bearish candle patterns = confirmation
+    if close_val < open_val:
+        pattern_score = 15
+        pattern_label = "BearCandle"
+    elif close_val > open_val:
+        pattern_score = -10  # Bullish candle = bad for shorts
+        pattern_label = "BullCandle"
+    else:
+        pattern_score = 0
+        pattern_label = "Doji"
+
+    # Volatility expansion on downside
+    if low_val and low_val > 0 and high_val > low_val:
+        range_pct = (high_val - low_val) / low_val * 100
+        # Wide range + bearish = good for shorts
+        range_score = max(-3, min(5, (range_pct - 2) * 0.4))
+        if close_val < open_val:
+            range_score = abs(range_score)  # Boost if bearish
+    else:
+        range_score = 0.0
+
+    closes = [_numeric(r.get("close")) for r in rows if _numeric(r.get("close")) > 0]
+    volumes = [_numeric(r.get("volume")) for r in rows]
+
+    # RSI: overbought = short opportunity
+    rsi = _compute_rsi(closes) if len(closes) >= 15 else 50.0
+    rsi_score = 0.0
+    if rsi > 75:
+        rsi_score = 15.0  # Extreme overbought = strong short signal
+    elif rsi > 70:
+        rsi_score = 10.0
+    elif rsi > 60:
+        rsi_score = 3.0
+    elif rsi < 30:
+        rsi_score = -15.0  # Oversold = bad for shorts
+
+    # MACD: negative histogram = trend confirmation for shorts
+    _, _, macd_hist = _compute_macd(closes)
+    macd_score = max(-8, min(10, -macd_hist * 80))  # Flip sign
+
+    # Volume on down bars = distribution
+    vol_score = 0.0
+    if len(volumes) >= 5:
+        avg_vol = sum(volumes[:-1]) / max(1, len(volumes) - 1)
+        if avg_vol > 0:
+            rel_vol = volumes[-1] / avg_vol
+            if close_val < open_val:
+                # High volume + bearish = distribution
+                vol_score = max(0, min(12, (rel_vol - 1.0) * 15))
+            else:
+                # High volume + bullish = bad for shorts
+                vol_score = min(0, max(-8, -(rel_vol - 1.0) * 10))
+
+    # Bearish divergence (price making highs, RSI making lows)
+    rsi_series = []
+    if len(closes) >= 15:
+        for i in range(14, len(closes)):
+            rsi_series.append(_compute_rsi(closes[:i + 1]))
+    div_score = 0.0
+    div_label = ""
+    if rsi_series:
+        _, dl = _detect_divergence(closes, rsi_series)
+        if dl == "BearDiv":
+            div_score = 12.0
+            div_label = "+BearDiv"
+
+    composite = 50.0 + short_momentum + pattern_score + range_score + rsi_score + macd_score + vol_score + div_score
+    composite = max(0.0, min(100.0, composite))
+
+    label = f"SHORT:{pattern_label}{div_label}"
+    return round(composite, 1), label
+
+
 async def _get_openclaw_context() -> Tuple[str, Dict[str, Dict[str, float]]]:
     """Fetch OpenClaw regime + 5-pillar candidate scores."""
     try:
@@ -520,14 +632,15 @@ class EventDrivenSignalEngine:
                     symbol, final_score, label, data.get("close", 0), self._regime_state,
                 )
 
-            # SHORT signal: generate when bear score exceeds threshold
-        bear_score = max(0.0, min(100.0, (100.0 - blended) * self._bear_regime_mult))
+        # SHORT signal: independent bearish scoring (B2 fix — replaces naive 100-blended inversion)
+        short_score_raw, short_label = _compute_short_composite_score(history)
+        bear_score = max(0.0, min(100.0, short_score_raw * self._bear_regime_mult))
         if bear_score >= self.SIGNAL_THRESHOLD:
             self._signals_generated += 1
             short_signal_data = {
                 "symbol": symbol,
                 "score": round(bear_score, 1),
-                "label": f"SHORT:{label}",
+                "label": short_label,
                 "direction": "sell",
                 "price": data.get("close", 0),
                 "volume": data.get("volume", 0),
@@ -542,7 +655,7 @@ class EventDrivenSignalEngine:
             if bear_score >= 80:
                 logger.info(
                     "\u26a1 HIGH SHORT signal: %s score=%.1f (%s) @ $%.2f [regime=%s]",
-                    symbol, bear_score, label, data.get("close", 0), self._regime_state,
+                    symbol, bear_score, short_label, data.get("close", 0), self._regime_state,
                 )
 
     async def _refresh_regime(self) -> None:

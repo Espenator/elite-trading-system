@@ -4,7 +4,7 @@
 > **Goal:** Get Embodier Trader v5.0 to autonomous 24/7 paper trading
 > **Base plan:** PLAN.md (8 phases, 15-23 sessions estimated)
 > **Strategy:** Split work by PC role. Run in parallel. Halve the timeline.
-> **Progress:** Phase 1 COMPLETE. Phase 1.5 COMPLETE. **Lane A COMPLETE** (A0-A9, all 14 pages wired). Lane B not started.
+> **Progress:** Phase 1 COMPLETE. **Lane A COMPLETE** (A0-A9). **Lane B COMPLETE** (B1-B9). **Phase A COMPLETE** (Stop the Bleeding). Now: Phase B+D (PC2) + Phase C (PC1) in parallel.
 
 ---
 
@@ -51,19 +51,17 @@
 
 | # | Task | Phase | Est. |
 |---|------|-------|------|
-| B1 | Audit all 35 council agents — verify real data, fix neutrals | 3.1 | 2 sessions |
-| B2 | Brain Service LLM integration — test InferCandidateContext | 3.2 | 1 session |
-| B3 | Fix agents returning neutral votes (add fallback data fetching) | 3.2 | 1 session |
-| B4 | Auto-trade loop: enable OrderExecutor, test full pipeline | 4.1 | 2 sessions |
-| B5 | PositionManager: trailing stops, time exits, partial TP | 4.2 | 1 session |
-| B6 | OutcomeTracker + WeightLearner feedback loop | 4.3 | 1 session |
-| B7 | Risk guardrails: circuit breaker, heat limits, sector caps | 4.4 | 1 session |
-| B8 | Off-hours data: pre-market, after-hours, overnight, weekend | 5.2 | 1 session |
-| B9 | Data source health monitoring + Slack alerts | 5.3 | 1 session |
-| B10 | ML engine: XGBoost retrain pipeline, walk-forward validation | Bonus | 1 session |
-| B11 | LLM dispatcher: model pinning, task affinity, GPU routing | Bonus | 1 session |
+| B1 | Audit all 35 council agents — verify real data, fix neutrals | 3.1 | 2 sessions | **DONE** |
+| B2 | Brain Service LLM integration — test InferCandidateContext | 3.2 | 1 session | **DONE** |
+| B3 | Fix agents returning neutral votes (add fallback data fetching) | 3.2 | 1 session | **DONE** |
+| B4 | Auto-trade loop: enable OrderExecutor, test full pipeline | 4.1 | 2 sessions | **DONE** |
+| B5 | PositionManager: trailing stops, time exits, partial TP | 4.2 | 1 session | **DONE** (pre-existing) |
+| B6 | OutcomeTracker + WeightLearner feedback loop | 4.3 | 1 session | **DONE** (pre-existing) |
+| B7 | Risk guardrails: circuit breaker, heat limits, sector caps | 4.4 | 1 session | **DONE** |
+| B8 | Off-hours data: pre-market, after-hours, overnight, weekend | 5.2 | 1 session | **DONE** |
+| B9 | Data source health monitoring + Slack alerts | 5.3 | 1 session | **DONE** |
 
-**Total: ~13 sessions**
+**Total: ~13 sessions — ALL COMPLETE**
 
 ---
 
@@ -102,7 +100,63 @@
 
 ---
 
-## ProfitTrader (PC2) — Immediate Next Actions
+## Phase 2: Deep Audit Enhancement Lanes (March 11, 2026 — Evening)
+
+> **Merged:** ESPENMAIN's `debug-production-readiness` branch (Phase A complete, 65→75% ready)
+> **Lane B (B1-B9)** merged alongside. All original lanes done. Now tackling deep audit phases.
+
+### Assignment: Who Does What
+
+| Phase | Owner | Description | Est. Sessions | Status |
+|-------|-------|-------------|---------------|--------|
+| **Phase A** | ESPENMAIN | Stop the Bleeding — critical fixes | 2-3 | **DONE** |
+| **Phase B** | **ProfitTrader (PC2)** | Unlock Alpha — remove profit blockers | 3-4 | **IN PROGRESS** |
+| **Phase C** | **ESPENMAIN (PC1)** | Sharpen the Brain — weight learner, calibration, audit trail | 3-4 | **NOT STARTED** |
+| **Phase D** | **ProfitTrader (PC2)** | Continuous Intelligence — backfill, rate limiting, resilience | 3-4 | **NOT STARTED** |
+| **Phase E** | **Both** | Production Hardening — E2E test, desktop packaging | 2-3 | **NOT STARTED** |
+
+### Phase B Tasks (ProfitTrader — THIS SESSION)
+
+| # | Task | Key Files | Status |
+|---|------|-----------|--------|
+| B1 | Calibrate signal gate threshold (regime-adaptive 55/65/75) | council_gate.py | |
+| B2 | Fix short signal generation (remove `100 - blended` inversion) | signal_engine.py | |
+| B3 | Smart cooldown (regime-adaptive 30s/120s/300s) | council_gate.py | |
+| B4 | Priority queue for concurrency (sort by score, max 5) | council_gate.py | |
+| B5 | Limit orders for size (>$5K = limit at NBBO mid) | order_executor.py | |
+| B6 | Partial fill re-execution (resubmit remainder, max 3 retries) | order_executor.py | |
+| B7 | Fix viability gate (use real win rate, not signal score) | order_executor.py | |
+| B8 | Fix portfolio heat (use buying_power / initial equity) | order_executor.py | |
+
+### Phase C Tasks (ESPENMAIN)
+
+| # | Task | Key Files |
+|---|------|-----------|
+| C1 | Fix weight learner confidence floor (0.5→0.2) + regime-stratified | weight_learner.py |
+| C2 | Add confidence calibration (Brier score per agent) | weight_learner.py |
+| C3 | Wire debate votes to learning | runner.py |
+| C4 | Council decision audit trail (DuckDB log + API) | council_gate.py, new endpoint |
+| C5 | Fix trade stats R-multiple (real stop, not assumed 2%) | trade_stats_service.py |
+| C6 | Wire homeostasis to sizing | homeostasis.py, order_executor.py |
+| C7 | Regime-adaptive thresholds (RSI, Kelly, max trades, arbiter) | multiple |
+| C8 | Data source MessageBus publishing (FRED, EDGAR, etc.) | multiple services |
+| C9 | Silent failure alerting (degraded council runs) | council_gate.py, feature_aggregator.py |
+
+### Phase D Tasks (ProfitTrader — AFTER Phase B)
+
+| # | Task | Key Files |
+|---|------|-----------|
+| D1 | Autonomous data backfill (252 days on startup + daily 4:30AM) | data_ingestion.py |
+| D2 | Rate limiting framework (per-service asyncio.Semaphore) | new utility |
+| D3 | MessageBus resilience (dead-letter queue, alert at 80%) | message_bus.py |
+| D4 | Scraper resilience (session refresh, circuit breaker) | benzinga, squeezemetrics |
+| D5 | Pre-market / after-hours scanning (4AM gap scanner, 4:30PM earnings) | new service |
+
+---
+
+## ARCHIVED: Original ProfitTrader Session Plans (COMPLETED)
+
+
 
 ### Session 1: Council Agent Audit (B1 — Part 1)
 

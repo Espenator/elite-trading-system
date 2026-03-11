@@ -5,14 +5,17 @@ with score >= gate_threshold the full 33-agent council is invoked.
 If the council verdict is execution_ready the signal is re-published as
 council.verdict which the OrderExecutor listens on.
 
-This replaces the old direct signal → order path with an intelligent
-agent-council-controlled decision layer.
+Phase B enhancements (March 11 2026):
+  B1: Regime-adaptive gate threshold (BULLISH=55, NEUTRAL=65, BEARISH=75)
+  B3: Regime-adaptive cooldown (BULLISH=30s, NEUTRAL=120s, CRISIS=300s)
+  B4: Priority queue — when concurrency full, queue top signals by score
 
 Pipeline:
   AlpacaStream → MessageBus → SignalEngine → **CouncilGate** → Council → OrderExecutor
   market_data.bar → signal.generated → council evaluation → council.verdict → order
 """
 import asyncio
+import heapq
 import logging
 import os
 import time
@@ -21,6 +24,35 @@ from typing import Any, Dict, Optional
 from app.core.score_semantics import coerce_gate_threshold_0_100, coerce_signal_score_0_100
 
 logger = logging.getLogger(__name__)
+
+# Regime-adaptive gate thresholds: lower in bullish (cast wider net),
+# higher in bearish (only high-conviction signals)
+_REGIME_GATE_THRESHOLDS: Dict[str, float] = {
+    "BULLISH": 55.0,
+    "RISK_ON": 58.0,
+    "NEUTRAL": 65.0,
+    "RISK_OFF": 70.0,
+    "BEARISH": 75.0,
+    "CRISIS": 75.0,
+    "GREEN": 55.0,
+    "YELLOW": 65.0,
+    "RED": 75.0,
+    "UNKNOWN": 65.0,
+}
+
+# Regime-adaptive cooldown: shorter in momentum markets, longer in crisis
+_REGIME_COOLDOWNS: Dict[str, int] = {
+    "BULLISH": 30,
+    "RISK_ON": 45,
+    "NEUTRAL": 120,
+    "RISK_OFF": 180,
+    "BEARISH": 240,
+    "CRISIS": 300,
+    "GREEN": 30,
+    "YELLOW": 120,
+    "RED": 300,
+    "UNKNOWN": 120,
+}
 
 
 class CouncilGate:
@@ -31,26 +63,28 @@ class CouncilGate:
     message_bus : MessageBus
         The async event bus.
     gate_threshold : float
-        Minimum signal score (0-100) to trigger council evaluation (default 65.0).
+        Base minimum signal score (0-100); overridden by regime-adaptive thresholds.
     max_concurrent : int
-        Maximum concurrent council evaluations to prevent overload.
+        Maximum concurrent council evaluations (overflow goes to priority queue).
     cooldown_seconds : int
-        Per-symbol cooldown between council evaluations.
+        Base per-symbol cooldown; overridden by regime-adaptive cooldowns.
     """
 
     def __init__(
         self,
         message_bus,
         gate_threshold: float = 65.0,
-        max_concurrent: int = 3,
+        max_concurrent: int = 5,
         cooldown_seconds: int = 120,
     ):
         self.message_bus = message_bus
-        self.gate_threshold = coerce_gate_threshold_0_100(
+        self.base_gate_threshold = coerce_gate_threshold_0_100(
             gate_threshold, context="CouncilGate"
         )
+        self.gate_threshold = self.base_gate_threshold
         self.max_concurrent = max_concurrent
         self.cooldown_seconds = cooldown_seconds
+        self._current_regime = "UNKNOWN"
 
         self._running = False
         self._start_time: Optional[float] = None
@@ -60,18 +94,23 @@ class CouncilGate:
         self._councils_invoked = 0
         self._cooldown_skips = 0
         self._concurrency_skips = 0
+        self._queue_dispatched = 0
         self._councils_passed = 0
         self._councils_vetoed = 0
         self._councils_held = 0
+        # Priority queue: (-score, timestamp, symbol, signal_data)
+        self._priority_queue: list = []
+        self._queue_drain_task: Optional[asyncio.Task] = None
 
     async def start(self) -> None:
         """Subscribe to signal.generated and begin gating."""
         self._running = True
         self._start_time = time.time()
         await self.message_bus.subscribe("signal.generated", self._on_signal)
+        self._queue_drain_task = asyncio.create_task(self._drain_queue_loop())
         logger.info(
-            "CouncilGate started — threshold=%.2f, max_concurrent=%d, cooldown=%ds",
-            self.gate_threshold,
+            "CouncilGate started — base_threshold=%.1f, max_concurrent=%d, cooldown=%ds (regime-adaptive)",
+            self.base_gate_threshold,
             self.max_concurrent,
             self.cooldown_seconds,
         )
@@ -79,15 +118,26 @@ class CouncilGate:
     async def stop(self) -> None:
         """Unsubscribe and stop."""
         self._running = False
+        if self._queue_drain_task and not self._queue_drain_task.done():
+            self._queue_drain_task.cancel()
         await self.message_bus.unsubscribe("signal.generated", self._on_signal)
         logger.info(
-            "CouncilGate stopped — %d signals, %d councils, %d passed, %d vetoed, %d held",
+            "CouncilGate stopped — %d signals, %d councils, %d passed, %d vetoed, %d held, %d queued",
             self._signals_received,
             self._councils_invoked,
             self._councils_passed,
             self._councils_vetoed,
             self._councils_held,
+            self._queue_dispatched,
         )
+
+    def _get_regime_threshold(self) -> float:
+        """Return regime-adaptive gate threshold."""
+        return _REGIME_GATE_THRESHOLDS.get(self._current_regime, self.base_gate_threshold)
+
+    def _get_regime_cooldown(self) -> int:
+        """Return regime-adaptive cooldown in seconds."""
+        return _REGIME_COOLDOWNS.get(self._current_regime, self.cooldown_seconds)
 
     async def _on_signal(self, signal_data: Dict[str, Any]) -> None:
         """Handle incoming signal — gate and invoke council if warranted."""
@@ -98,6 +148,11 @@ class CouncilGate:
         symbol = signal_data.get("symbol", "")
         score = signal_data.get("score", 0)
         source = signal_data.get("source", "")
+
+        # Track regime from signal data for adaptive thresholds
+        regime = signal_data.get("regime", "")
+        if regime:
+            self._current_regime = regime
 
         if not symbol:
             return
@@ -112,28 +167,55 @@ class CouncilGate:
             logger.debug("CouncilGate: skipping mock signal for %s", symbol)
             return
 
-        # Gate 2: Score threshold
-        if score_f < self.gate_threshold:
+        # Gate 2: Regime-adaptive score threshold (B1)
+        threshold = self._get_regime_threshold()
+        if score_f < threshold:
             return
 
-        # Gate 3: Per-symbol cooldown
+        # Gate 3: Regime-adaptive per-symbol cooldown (B3)
         now = time.time()
+        cooldown = self._get_regime_cooldown()
         last_eval = self._symbol_last_eval.get(symbol, 0)
-        if now - last_eval < self.cooldown_seconds:
+        if now - last_eval < cooldown:
             self._cooldown_skips += 1
             return
 
-        # Gate 4: Concurrency limit
+        # Gate 4: Concurrency — if full, queue by priority instead of dropping (B4)
         if self._semaphore.locked():
-            self._concurrency_skips += 1
-            logger.debug(
-                "CouncilGate: max concurrent evaluations reached, skipping %s",
-                symbol,
+            # Push to priority queue (highest score first via negative score)
+            heapq.heappush(
+                self._priority_queue,
+                (-score_f, now, symbol, signal_data),
             )
+            # Cap queue at 20 to prevent unbounded growth
+            while len(self._priority_queue) > 20:
+                heapq.heappop(self._priority_queue)
+            self._concurrency_skips += 1
             return
 
         # Launch council evaluation (non-blocking)
         asyncio.create_task(self._evaluate_with_council(symbol, signal_data))
+
+    async def _drain_queue_loop(self) -> None:
+        """Periodically drain the priority queue when semaphore slots open (B4)."""
+        while self._running:
+            await asyncio.sleep(2)
+            while self._priority_queue and not self._semaphore.locked():
+                neg_score, enqueue_time, symbol, signal_data = heapq.heappop(
+                    self._priority_queue
+                )
+                # Skip if signal is stale (>60s old)
+                if time.time() - enqueue_time > 60:
+                    continue
+                # Skip if symbol was evaluated while queued
+                cooldown = self._get_regime_cooldown()
+                last_eval = self._symbol_last_eval.get(symbol, 0)
+                if time.time() - last_eval < cooldown:
+                    continue
+                self._queue_dispatched += 1
+                asyncio.create_task(
+                    self._evaluate_with_council(symbol, signal_data)
+                )
 
     async def _evaluate_with_council(
         self, symbol: str, signal_data: Dict[str, Any]
@@ -245,13 +327,18 @@ class CouncilGate:
         return {
             "running": self._running,
             "uptime_seconds": round(uptime, 1),
-            "gate_threshold": self.gate_threshold,
+            "regime": self._current_regime,
+            "gate_threshold": self._get_regime_threshold(),
+            "base_gate_threshold": self.base_gate_threshold,
             "max_concurrent": self.max_concurrent,
-            "cooldown_seconds": self.cooldown_seconds,
+            "cooldown_seconds": self._get_regime_cooldown(),
+            "base_cooldown_seconds": self.cooldown_seconds,
             "signals_received": self._signals_received,
             "councils_invoked": self._councils_invoked,
             "cooldown_skips": self._cooldown_skips,
             "concurrency_skips": self._concurrency_skips,
+            "queue_dispatched": self._queue_dispatched,
+            "queue_pending": len(self._priority_queue),
             "councils_passed": self._councils_passed,
             "councils_vetoed": self._councils_vetoed,
             "councils_held": self._councils_held,
