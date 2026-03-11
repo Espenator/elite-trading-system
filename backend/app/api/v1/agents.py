@@ -97,8 +97,8 @@ _AGENTS_TEMPLATE = [
         "memoryMb": 256,
         "uptime": "0m",
         "lastActionTimestamp": None,
-        "lastAction": "Pulled FRED CPI, SEC 8-K for AAPL",
-        "currentTask": "Scanning Finviz Elite + Alpaca bars (next in 45s)",
+        "lastAction": "Awaiting first tick",
+        "currentTask": "Idle — waiting for first scan cycle",
         "description": "Scans Finviz Elite, Alpaca, Unusual Whales; pulls FRED economic data, SEC EDGAR filings. Runs every 60s during market hours.",
         "config": {
             "runIntervalSec": 60,
@@ -114,8 +114,8 @@ _AGENTS_TEMPLATE = [
         "memoryMb": 512,
         "uptime": "0m",
         "lastActionTimestamp": None,
-        "lastAction": "Generated composite score 87 for MSFT (Bull Flag)",
-        "currentTask": "Applying momentum algo to S&P 500 watchlist",
+        "lastAction": "Awaiting first tick",
+        "currentTask": "Idle — waiting for signal generation cycle",
         "description": "Takes raw data from Market Data Agent; applies technical analysis, chart patterns, momentum algos; generates composite signal scores (0-100).",
         "config": {
             "minCompositeScore": 70,
@@ -131,8 +131,8 @@ _AGENTS_TEMPLATE = [
         "memoryMb": 2048,
         "uptime": "0m",
         "lastActionTimestamp": None,
-        "lastAction": "Inference batch completed (142 tickers)",
-        "currentTask": "Idle until next Sunday retrain",
+        "lastAction": "Awaiting first inference",
+        "currentTask": "Idle — waiting for next retrain cycle",
         "description": "XGBoost/LightGBM on GPU via CUDA. Trains on historical outcomes. Sunday full retrain (schedulable). Flywheel: outcome resolver feeds accuracy back.",
         "config": {"retrainDay": "sunday", "minAccuracy": 0.65, "gpuEnabled": True},
     },
@@ -144,8 +144,8 @@ _AGENTS_TEMPLATE = [
         "memoryMb": 384,
         "uptime": "0m",
         "lastActionTimestamp": None,
-        "lastAction": "Aggregated sentiment for NVDA: 78 (Stockgeist + News + X)",
-        "currentTask": "Polling Discord channels",
+        "lastAction": "Awaiting first poll",
+        "currentTask": "Idle — waiting for sentiment poll cycle",
         "description": "Aggregates from Stockgeist, News API, Discord, X (Twitter). NLP sentiment scoring per ticker; unusual sentiment spike detection.",
         "config": {
             "sources": ["stockgeist", "news_api", "discord", "twitter"],
@@ -160,51 +160,14 @@ _AGENTS_TEMPLATE = [
         "memoryMb": 128,
         "uptime": "0m",
         "lastActionTimestamp": None,
-        "lastAction": "Extracted 5 ideas from 'Top 5 Swing Trade Setups'",
-        "currentTask": "Processing: 'Fed Rate Decision Analysis'",
+        "lastAction": "Awaiting first ingestion",
+        "currentTask": "Idle — waiting for transcript processing",
         "description": "Ingests transcripts from financial YouTube videos; extracts trading ideas, technical analysis concepts; feeds into ML feature engineering. 24/7 self-learning flywheel.",
         "config": {"channels": 8, "autoProcess": True, "extractAlgos": True},
     },
 ]
 
-_DEFAULT_LOGS = [
-    {
-        "time": "13:02:15",
-        "agent": "Market Data Agent",
-        "message": "Pulled FRED CPI, SEC 8-K for AAPL",
-        "level": "info",
-    },
-    {
-        "time": "13:01:48",
-        "agent": "Signal Generation Agent",
-        "message": "Composite score 87 for MSFT (Bull Flag)",
-        "level": "success",
-    },
-    {
-        "time": "13:00:30",
-        "agent": "ML Learning Agent",
-        "message": "Inference batch completed (142 tickers)",
-        "level": "info",
-    },
-    {
-        "time": "12:58:12",
-        "agent": "Sentiment Agent",
-        "message": "Aggregated sentiment for NVDA: 78",
-        "level": "success",
-    },
-    {
-        "time": "12:55:00",
-        "agent": "YouTube Knowledge Agent",
-        "message": "Extracted 5 ideas from 'Top 5 Swing Trade Setups'",
-        "level": "success",
-    },
-    {
-        "time": "12:52:30",
-        "agent": "Market Data Agent",
-        "message": "Unusual Whales flow spike on SPY",
-        "level": "warning",
-    },
-]
+_DEFAULT_LOGS: list = []  # No mock logs — real activity populates via _append_log()
 
 
 def _get_all_agents():
@@ -942,3 +905,30 @@ async def get_flow_anomalies():
         "anomaly_count": 0,
         "last_check": datetime.now(timezone.utc).isoformat(),
     }
+
+
+# --- Weight & Toggle Endpoints (SignalIntelligenceV3 page) ---
+@router.put("/{agent_id}/weight", dependencies=[Depends(require_auth)])
+async def update_agent_weight(agent_id: int, payload: dict):
+    """Update the weight/priority of an agent, scanner, or intel module."""
+    weight = payload.get("weight", 1.0)
+    config = _agent_configs.get(str(agent_id), {})
+    config["weight"] = float(weight)
+    _agent_configs[str(agent_id)] = config
+    db_service.set_config(f"agent_{agent_id}_weight", weight)
+    agent_name = next((a["name"] for a in _AGENTS_TEMPLATE if a["id"] == agent_id), f"Agent-{agent_id}")
+    _append_log(agent_name, f"Weight updated to {weight}", "info")
+    await broadcast_ws("agents", {"type": "weight_updated", "agent_id": agent_id, "weight": weight})
+    return {"ok": True, "agent_id": agent_id, "weight": weight}
+
+
+@router.post("/{agent_id}/toggle", dependencies=[Depends(require_auth)])
+async def toggle_agent(agent_id: int, payload: dict = {}):
+    """Toggle an agent, scanner, or intel module active/inactive."""
+    active = payload.get("active", True)
+    new_status = "running" if active else "stopped"
+    _set_agent_status(agent_id, new_status)
+    agent_name = next((a["name"] for a in _AGENTS_TEMPLATE if a["id"] == agent_id), f"Agent-{agent_id}")
+    _append_log(agent_name, f"Toggled to {new_status}", "info")
+    await broadcast_ws("agents", {"type": "status_changed", "agent_id": agent_id, "status": new_status})
+    return {"ok": True, "agent_id": agent_id, "status": new_status, "active": active}

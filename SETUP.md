@@ -54,6 +54,24 @@ Every subsequent launch auto-updates from git — just like Spotify, Discord, or
 
 Both IPs are DHCP-reserved on the AT&T BGW320-505 router (192.168.1.254).
 
+### Alpaca Accounts (Paper Trading)
+
+| Label | Machine | Purpose | Env Key |
+|-------|---------|---------|---------|
+| ESPENMAIN | PC1 | Trading (portfolio execution) | `ALPACA_KEY_1` |
+| Profit Trader | PC2 | Discovery scanning | `ALPACA_KEY_2` |
+
+Both use `https://paper-api.alpaca.markets/v2`. Keys are in `backend/.env` (gitignored).
+
+### Slack Bots (Embodier Trader Workspace)
+
+| Bot | App ID | Purpose |
+|-----|--------|---------|
+| OpenClaw | A0AF9HSCQ6S | Multi-agent swarm notifications |
+| TradingView Alerts | A0AFQ89RVEV | Inbound TradingView webhook alerts |
+
+Slack workspace tokens expire every 12h. Refresh at https://api.slack.com/apps
+
 > See also: [docs/NETWORK_TWO_PC_SETUP.md](docs/NETWORK_TWO_PC_SETUP.md) and [docs/AI_TWO_PC_CODING_GUIDE.md](docs/AI_TWO_PC_CODING_GUIDE.md)
 
 ## Ports
@@ -62,7 +80,8 @@ Both IPs are DHCP-reserved on the AT&T BGW320-505 router (192.168.1.254).
 |---------|------|--------|
 | Backend API | 8000 | http://localhost:8000 |
 | API Docs | 8000 | http://localhost:8000/docs |
-| Frontend | — | Served by Electron (no separate port) |
+| Frontend (Vite dev) | 5173 | http://localhost:5173 |
+| Frontend (Electron) | -- | Served by Electron (no separate port) |
 | Mobile PWA | 8765 | http://192.168.1.105:8765 (iPhone) |
 
 ## Environment / API Keys
@@ -71,6 +90,13 @@ API keys are stored in Electron's config store (managed via the setup wizard).
 A `backend/.env` file is auto-generated from the wizard settings.
 
 To edit keys later: **Embodier Trader menu > Settings > API Keys**
+
+For manual launch, this will:
+1. Create a Python venv and install deps (first run only)
+2. Start the FastAPI backend on port 8000
+3. Install npm packages and start Vite on port 5173 (first run only)
+4. Open http://localhost:5173 in your browser
+5. Auto-restart if either service crashes (up to 3 times)
 
 ### Required for Live Trading
 - `ALPACA_API_KEY` + `ALPACA_SECRET_KEY` (from [alpaca.markets](https://alpaca.markets))

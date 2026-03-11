@@ -182,6 +182,10 @@ const API_CONFIG = {
     agentWsChannels:      "/agents/ws-channels",
     agentFlowAnomalies:   "/agents/flow-anomalies",
 
+    // ---- Signal Intelligence aliases (weight/toggle use agents router) ----
+    scanners: "/agents",  // Scanner weight/toggle -> agents/{id}/weight, agents/{id}/toggle
+    intels: "/agents",    // Intel weight/toggle -> agents/{id}/weight, agents/{id}/toggle
+
     // ---- FLYWHEEL SCHEDULER ----
     flywheelScheduler:    "/flywheel/scheduler",
     flywheelKpis:         "/flywheel/kpis",

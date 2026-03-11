@@ -8,6 +8,7 @@ if __name__ == "__main__":
         host=settings.HOST,
         port=settings.effective_port,
         reload=settings.DEBUG,
-        log_level=settings.LOG_LEVEL.lower()
+        log_level=settings.LOG_LEVEL.lower(),
+        loop="asyncio",  # uvloop causes CPU spin with many concurrent tasks
     )
 

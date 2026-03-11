@@ -6,11 +6,26 @@ Provides endpoints for:
   - Monitoring swarm status and results
   - Managing Discord channel monitoring
 """
+import math
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Optional
 
 from app.core.security import require_auth
+
+
+def _sanitize_floats(obj):
+    """Replace inf/nan floats with None for JSON serialization."""
+    if isinstance(obj, float):
+        if math.isinf(obj) or math.isnan(obj):
+            return None
+        return obj
+    if isinstance(obj, dict):
+        return {k: _sanitize_floats(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize_floats(v) for v in obj]
+    return obj
 
 router = APIRouter()
 
@@ -486,7 +501,7 @@ async def intelligence_status():
 async def turbo_scanner_status():
     """Get TurboScanner status: scan rate, signals found, volatile mode."""
     from app.services.turbo_scanner import get_turbo_scanner
-    return get_turbo_scanner().get_status()
+    return _sanitize_floats(get_turbo_scanner().get_status())
 
 
 @router.get("/turbo/signals")

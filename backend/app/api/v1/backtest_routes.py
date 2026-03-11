@@ -32,21 +32,35 @@ class BacktestRequest(BaseModel):
 @router.get("/runs")
 def get_backtest_runs():
     """
-    Return list of recent backtest runs (stub). Used by Backtesting page for run history.
+    Return list of recent backtest runs from the backtest engine database.
+    Used by Backtesting page for run history.
     """
-    return {
-        "runs": [
-            {"id": "R001", "strategy": "MeanReversionV2", "status": "Running"},
-            {"id": "R002", "strategy": "ArbitrageAlpha", "status": "Completed"},
-            {"id": "R003", "strategy": "TrendFollowerV1", "status": "Failed"},
-            {"id": "R004", "strategy": "VolSurfaceBeta", "status": "Running"},
-        ],
-        "runHistory": [
-            {"date": "2023-11-28", "strategy": "MeanReversionV1", "pnl": 5200},
-            {"date": "2023-11-20", "strategy": "ArbitrageAlpha", "pnl": 3150},
-            {"date": "2023-11-15", "strategy": "TrendFollowerV1", "pnl": -1800},
-        ],
-    }
+    import logging
+    logger = logging.getLogger(__name__)
+    try:
+        from app.services.backtest_engine import BacktestEngine
+        engine = BacktestEngine()
+        conn = engine._conn()
+        # Check if backtest_runs table exists
+        tables = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='backtest_runs'"
+        ).fetchone()
+        if tables:
+            rows = conn.execute(
+                "SELECT id, strategy, status, created_at, pnl FROM backtest_runs ORDER BY created_at DESC LIMIT 20"
+            ).fetchall()
+            runs = [dict(r) for r in rows]
+            history = [
+                {"date": r["created_at"][:10], "strategy": r["strategy"], "pnl": r.get("pnl", 0)}
+                for r in runs if r.get("status") == "Completed"
+            ]
+            conn.close()
+            return {"runs": runs, "runHistory": history}
+        conn.close()
+    except Exception as e:
+        logger.debug("backtest runs lookup: %s", e)
+
+    return {"runs": [], "runHistory": [], "message": "No backtests have been run yet."}
 
 
 @router.get("/")

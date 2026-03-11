@@ -76,6 +76,7 @@ class SourceCategory(str, Enum):
     ALERTS = "alerts"
     BRIDGE = "bridge"
     STORAGE = "storage"
+    LLM = "llm"
     CUSTOM = "custom"
 
 
