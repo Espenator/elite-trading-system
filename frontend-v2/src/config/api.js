@@ -197,16 +197,6 @@ const API_CONFIG = {
   },
 };
 
-/** WebSocket channel names for ws.on(channel, handler) — must match backend WS topics */
-export const WS_CHANNELS = {
-  market: "market",
-  signals: "signals",
-  risk: "risk",
-  trades: "trades",
-  council_verdict: "council_verdict",
-  macro: "macro",
-};
-
 /**
  * Load auth token from Electron preload bridge when running in desktop app.
  * No-op in browser; in Electron, preload can expose getAuthToken() and we set localStorage.
