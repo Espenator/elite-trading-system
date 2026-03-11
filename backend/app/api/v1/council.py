@@ -1,7 +1,7 @@
-"""Council API — evaluate symbols through the 13-agent council.
+"""Council API — evaluate symbols through the 35-agent council DAG.
 
 POST /api/v1/council/evaluate  -> full DecisionPacket
-GET  /api/v1/council/status    -> council configuration (13 agents, 7 stages)
+GET  /api/v1/council/status    -> council configuration (35 agents, 7 stages)
 GET  /api/v1/council/latest    -> most recent DecisionPacket
 GET  /api/v1/council/weights   -> current agent weights (Bayesian-updated)
 POST /api/v1/council/weights/reset -> reset weights to defaults
@@ -49,7 +49,7 @@ def _check_rate_limit():
 
 @router.post("/evaluate", dependencies=[Depends(require_auth)])
 async def evaluate_symbol(req: CouncilEvalRequest):
-    """Run the 13-agent council on a symbol and return DecisionPacket."""
+    """Run the 35-agent council on a symbol and return DecisionPacket."""
     global _latest_decision
     _check_rate_limit()
     try:

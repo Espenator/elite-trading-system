@@ -83,7 +83,7 @@ class OrderExecutor:
     """Event-driven order executor subscribing to council.verdict.
 
     Now listens to council.verdict (from CouncilGate) instead of raw
-    signal.generated, ensuring every trade is approved by the 13-agent
+    signal.generated, ensuring every trade is approved by the 35-agent
     council before execution.
 
     Parameters
@@ -661,8 +661,14 @@ class OrderExecutor:
             avg_loss_pct = stats["avg_loss_pct"]
             trade_count = stats["trade_count"]
             stats_source = stats["data_source"]
-        except Exception:
-            # Conservative fallback with Bayesian priors
+        except Exception as e:
+            # Conservative fallback with Bayesian priors — log so operators know
+            logger.warning(
+                "Kelly sizing for %s falling back to conservative defaults "
+                "(trade_stats unavailable: %s). Sizes will be sub-optimal "
+                "until real trade history accumulates.",
+                symbol, e,
+            )
             win_rate = 0.45
             avg_win_pct = 0.025
             avg_loss_pct = 0.018
