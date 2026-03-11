@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "localhost")
 OLLAMA_PORT = int(os.getenv("OLLAMA_PORT", "11434"))
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
-OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "30"))
+OLLAMA_MODEL = os.getenv("BRAIN_OLLAMA_MODEL", os.getenv("OLLAMA_MODEL", "mistral:7b"))
+OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "60"))
 
 OLLAMA_URL = f"http://{OLLAMA_HOST}:{OLLAMA_PORT}"
 
