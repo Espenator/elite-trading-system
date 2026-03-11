@@ -18,15 +18,21 @@ and the system needs tuning to run autonomously 24/7.
 ---
 
 ## Phase 1: Backend Health Audit — Verify Every Service Actually Works
-**Priority: P0 | Estimated: 2-3 sessions**
+**Priority: P0 | Estimated: 2-3 sessions | STATUS: COMPLETE**
 
-### 1.1 Start the backend and capture ALL startup logs
-- Run `uvicorn app.main:app --host 0.0.0.0 --port 8000` and capture full output
-- Identify which of the 25+ services start successfully vs fail
-- Fix any import errors, missing dependencies, or config issues
-- Verify DuckDB schema initializes with all required tables
+### 1.1 Start the backend and capture ALL startup logs — DONE (March 11)
+- **Fixed**: DiscordSwarmBridge init crash (unexpected kwargs)
+- **Fixed**: SourceCategory enum missing 'llm' → pydantic 500 on /data-sources/
+- **Fixed**: TurboScanner blocking event loop (10 sync DuckDB scans as async def)
+  - Renamed to _sync methods, wrapped in asyncio.to_thread()
+- **Fixed**: uvloop CPU spin (35-90%) — added loop='asyncio' to both server entry points
+- **Fixed**: UnboundLocalError for _turbo_scanner/_market_sweep when env-gated
+- **Fixed**: float('inf') in swarm/turbo/status JSON — added _sanitize_floats()
+- **Added**: Env-var gates for heavy services (SCOUTS_ENABLED, TURBO_SCANNER_ENABLED, etc.)
+- All 25+ services now start without errors
 
-### 1.2 Test critical API endpoints return real data (not skeleton)
+### 1.2 Test critical API endpoints return real data (not skeleton) — DONE (March 11)
+Tested 63 endpoints: 60x 200 OK, 2x 422 (expected query params), 1x 405 (POST-only).
 For each of these core endpoints, hit them and verify real data:
 
 | Endpoint | Expected Data | What to check |
@@ -50,16 +56,18 @@ For each of these core endpoints, hit them and verify real data:
 | GET /api/v1/swarm/hyper/status | HyperSwarm status | From swarm |
 | GET /health | Full system health | Pipeline + DuckDB |
 
-### 1.3 Identify and fix endpoints returning mock/skeleton data
-Many route files have endpoints that return hardcoded dictionaries instead of
-calling real services. These need to be wired to actual service calls.
-
-Known suspects (from code patterns like `return {"status": "ok", ...}`):
-- agents.py endpoints (swarm-topology, consensus, conference, teams, drift)
-- sentiment.py (may aggregate from services that aren't running)
-- cognitive.py (may return stubs)
-- cns.py (some endpoints may be stub implementations)
-- blackboard_routes.py (may not be connected to blackboard.py)
+### 1.3 Identify and fix endpoints returning mock/skeleton data — DONE (March 11)
+- **Fixed**: logs.py — replaced 8 hardcoded fake log entries with real Python logging
+  ring buffer (RingBufferHandler in logging_config.py captures last 500 records)
+- **Fixed**: backtest_routes.py /runs — replaced fake R001-R004 with real DB query
+- **Fixed**: agents.py — removed _DEFAULT_LOGS mock activity entries and fake
+  lastAction/currentTask strings; now shows honest "Awaiting first tick" until real ticks run
+- **Kept**: agents.py template structure (5 agent definitions) — valid, overlaid with
+  real psutil metrics and persisted DB status. Not mock data, just agent registry.
+- **Kept**: backtest analysis endpoints (results, optimization, etc.) — return empty
+  structures when no backtests have been run. Honest empty, not fake data.
+- **Verified clean**: portfolio.py, risk endpoints, market endpoints, alpaca endpoints
+  all return real data from actual services
 
 ---
 
