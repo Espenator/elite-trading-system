@@ -4,7 +4,7 @@
 > **Goal:** Get Embodier Trader v5.0 to autonomous 24/7 paper trading
 > **Base plan:** PLAN.md (8 phases, 15-23 sessions estimated)
 > **Strategy:** Split work by PC role. Run in parallel. Halve the timeline.
-> **Progress:** Phase 1 COMPLETE. **Lane A COMPLETE** (A0-A9). **Lane B COMPLETE** (B1-B9). **Phase A COMPLETE** (Stop the Bleeding). Now: Phase B+D (PC2) + Phase C (PC1) in parallel.
+> **Progress:** Phase 1 COMPLETE. **Lane A COMPLETE** (A0-A9). **Lane B COMPLETE** (B1-B9). **Phase A COMPLETE**. **Phase B COMPLETE** (8 profit blockers fixed). **Phase D COMPLETE** (5 resilience fixes). Now: Phase C (PC1) + Phase E (Both) remaining.
 
 ---
 
@@ -110,23 +110,23 @@
 | Phase | Owner | Description | Est. Sessions | Status |
 |-------|-------|-------------|---------------|--------|
 | **Phase A** | ESPENMAIN | Stop the Bleeding — critical fixes | 2-3 | **DONE** |
-| **Phase B** | **ProfitTrader (PC2)** | Unlock Alpha — remove profit blockers | 3-4 | **IN PROGRESS** |
-| **Phase C** | **ESPENMAIN (PC1)** | Sharpen the Brain — weight learner, calibration, audit trail | 3-4 | **NOT STARTED** |
-| **Phase D** | **ProfitTrader (PC2)** | Continuous Intelligence — backfill, rate limiting, resilience | 3-4 | **NOT STARTED** |
+| **Phase B** | **ProfitTrader (PC2)** | Unlock Alpha — remove profit blockers | 3-4 | **DONE** (commit 7d92105) |
+| **Phase C** | **ESPENMAIN (PC1)** | Sharpen the Brain — weight learner, calibration, audit trail | 3-4 | **IN PROGRESS** |
+| **Phase D** | **ProfitTrader (PC2)** | Continuous Intelligence — backfill, rate limiting, resilience | 3-4 | **DONE** (commit 0facd10) |
 | **Phase E** | **Both** | Production Hardening — E2E test, desktop packaging | 2-3 | **NOT STARTED** |
 
-### Phase B Tasks (ProfitTrader — THIS SESSION)
+### Phase B Tasks (ProfitTrader — COMPLETE)
 
 | # | Task | Key Files | Status |
 |---|------|-----------|--------|
-| B1 | Calibrate signal gate threshold (regime-adaptive 55/65/75) | council_gate.py | |
-| B2 | Fix short signal generation (remove `100 - blended` inversion) | signal_engine.py | |
-| B3 | Smart cooldown (regime-adaptive 30s/120s/300s) | council_gate.py | |
-| B4 | Priority queue for concurrency (sort by score, max 5) | council_gate.py | |
-| B5 | Limit orders for size (>$5K = limit at NBBO mid) | order_executor.py | |
-| B6 | Partial fill re-execution (resubmit remainder, max 3 retries) | order_executor.py | |
-| B7 | Fix viability gate (use real win rate, not signal score) | order_executor.py | |
-| B8 | Fix portfolio heat (use buying_power / initial equity) | order_executor.py | |
+| B1 | Calibrate signal gate threshold (regime-adaptive 55/65/75) | council_gate.py | **DONE** |
+| B2 | Fix short signal generation (remove `100 - blended` inversion) | signal_engine.py | **DONE** |
+| B3 | Smart cooldown (regime-adaptive 30s/120s/300s) | council_gate.py | **DONE** |
+| B4 | Priority queue for concurrency (sort by score, max 5) | council_gate.py | **DONE** |
+| B5 | Limit orders for size (>$5K = limit at NBBO mid) | order_executor.py | **DONE** |
+| B6 | Partial fill re-execution (resubmit remainder, max 3 retries) | order_executor.py | **DONE** |
+| B7 | Fix viability gate (use real win rate, not signal score) | order_executor.py | **DONE** |
+| B8 | Fix portfolio heat (use buying_power / initial equity) | order_executor.py | **DONE** |
 
 ### Phase C Tasks (ESPENMAIN)
 
@@ -142,15 +142,15 @@
 | C8 | Data source MessageBus publishing (FRED, EDGAR, etc.) | multiple services |
 | C9 | Silent failure alerting (degraded council runs) | council_gate.py, feature_aggregator.py |
 
-### Phase D Tasks (ProfitTrader — AFTER Phase B)
+### Phase D Tasks (ProfitTrader — COMPLETE)
 
-| # | Task | Key Files |
-|---|------|-----------|
-| D1 | Autonomous data backfill (252 days on startup + daily 4:30AM) | data_ingestion.py |
-| D2 | Rate limiting framework (per-service asyncio.Semaphore) | new utility |
-| D3 | MessageBus resilience (dead-letter queue, alert at 80%) | message_bus.py |
-| D4 | Scraper resilience (session refresh, circuit breaker) | benzinga, squeezemetrics |
-| D5 | Pre-market / after-hours scanning (4AM gap scanner, 4:30PM earnings) | new service |
+| # | Task | Key Files | Status |
+|---|------|-----------|--------|
+| D1 | Autonomous data backfill (252 days on startup + daily 4:30AM) | data_ingestion.py | **DONE** |
+| D2 | Rate limiting framework (per-service asyncio.Semaphore) | app/core/rate_limiter.py (NEW) | **DONE** |
+| D3 | MessageBus resilience (dead-letter queue, alert at 80%) | message_bus.py | **DONE** |
+| D4 | Scraper resilience (session refresh, circuit breaker) | benzinga, squeezemetrics | **DONE** |
+| D5 | Pre-market / after-hours scanning (4AM gap scanner, 4:30PM earnings) | app/services/session_scanner.py (NEW) | **DONE** |
 
 ---
 
