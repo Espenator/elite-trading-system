@@ -212,6 +212,14 @@ class OrderExecutor:
             return
 
         self._signals_received += 1
+        # E5: Update real-time gauges
+        try:
+            from app.core.metrics import gauge_set
+            gauge_set("signals_received_total", float(self._signals_received))
+            gauge_set("signals_executed_total", float(self._signals_executed))
+            gauge_set("daily_trade_count", float(self._daily_trade_count))
+        except Exception:
+            pass
 
         # Idempotency: deduplicate identical verdicts (message replay protection)
         import hashlib, time as _t
@@ -1258,3 +1266,185 @@ class OrderExecutor:
             "previous": "auto_execute" if previous else "shadow",
             "current": "auto_execute" if enabled else "shadow",
         }
+
+    # ------------------------------------------------------------------
+    # E2: Emergency Flatten — resilient position liquidation
+    # ------------------------------------------------------------------
+
+    async def emergency_flatten(self, reason: str = "manual") -> Dict[str, Any]:
+        """Close ALL open positions with retry + Slack alerting.
+
+        On Alpaca outage:
+          - Retry 3x per position with exponential backoff (2s, 4s, 8s)
+          - If still failing: queue market-order liquidation for recovery
+          - Alert operator via Slack immediately
+
+        Returns summary dict with closed/failed/queued counts.
+        """
+        logger.critical("EMERGENCY FLATTEN triggered — reason: %s", reason)
+
+        alpaca = self._get_alpaca_service()
+        result = {
+            "reason": reason,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "positions_found": 0,
+            "closed": [],
+            "failed": [],
+            "queued_for_recovery": [],
+        }
+
+        # Step 1: Alert immediately
+        await self._slack_alert(
+            f"EMERGENCY FLATTEN triggered: {reason}",
+            level="critical",
+        )
+
+        # Step 2: Fetch all open positions
+        positions = None
+        for attempt in range(3):
+            try:
+                positions = await alpaca.get_positions()
+                if positions is not None:
+                    break
+            except Exception as e:
+                logger.warning("Failed to fetch positions (attempt %d/3): %s", attempt + 1, e)
+                await asyncio.sleep(2 ** attempt)
+
+        if not positions:
+            msg = "Cannot fetch positions from Alpaca — queueing blind flatten"
+            logger.error(msg)
+            await self._slack_alert(msg, level="critical")
+            # Queue a close_all_positions call for when Alpaca recovers
+            result["queued_for_recovery"].append({
+                "action": "close_all_positions",
+                "reason": "fetch_positions_failed",
+            })
+            asyncio.create_task(self._retry_flatten_until_success(reason))
+            return result
+
+        result["positions_found"] = len(positions)
+
+        if not positions:
+            logger.info("Emergency flatten: no open positions found")
+            await self._slack_alert("Emergency flatten: no positions to close")
+            return result
+
+        # Step 3: Close each position with retry
+        for pos in positions:
+            symbol = pos.get("symbol", "unknown")
+            qty = pos.get("qty", "0")
+            side = pos.get("side", "long")
+            close_side = "sell" if side == "long" else "buy"
+            closed = False
+
+            for attempt in range(3):
+                try:
+                    resp = await alpaca.create_order(
+                        symbol=symbol,
+                        qty=str(abs(int(float(qty)))),
+                        side=close_side,
+                        type="market",
+                        time_in_force="day",
+                    )
+                    if resp:
+                        logger.info("Flatten CLOSED: %s %s qty=%s", symbol, close_side, qty)
+                        result["closed"].append({"symbol": symbol, "qty": qty, "attempt": attempt + 1})
+                        closed = True
+                        break
+                except Exception as e:
+                    delay = 2 ** attempt
+                    logger.warning(
+                        "Flatten %s failed (attempt %d/3): %s — retrying in %ds",
+                        symbol, attempt + 1, e, delay,
+                    )
+                    await asyncio.sleep(delay)
+
+            if not closed:
+                logger.error("Flatten FAILED for %s after 3 attempts — queuing for recovery", symbol)
+                result["failed"].append({"symbol": symbol, "qty": qty})
+                result["queued_for_recovery"].append({
+                    "action": "close_position",
+                    "symbol": symbol,
+                    "qty": qty,
+                    "side": close_side,
+                })
+
+        # Step 4: If any failed, start recovery task
+        if result["failed"]:
+            asyncio.create_task(
+                self._retry_failed_closes(result["queued_for_recovery"], reason)
+            )
+
+        # Step 5: Final Slack summary
+        summary = (
+            f"Emergency Flatten complete: "
+            f"{len(result['closed'])} closed, "
+            f"{len(result['failed'])} failed (queued for retry)"
+        )
+        logger.info(summary)
+        await self._slack_alert(summary, level="critical")
+
+        # Publish event
+        if self.message_bus:
+            await self.message_bus.publish("emergency.flatten", result)
+
+        return result
+
+    async def _retry_flatten_until_success(self, reason: str) -> None:
+        """Background task: keep trying close_all_positions until Alpaca responds."""
+        alpaca = self._get_alpaca_service()
+        for attempt in range(10):
+            delay = min(30 * (2 ** attempt), 300)  # 30s, 60s, 120s, 240s, 300s cap
+            await asyncio.sleep(delay)
+            try:
+                resp = await alpaca.close_all_positions()
+                if resp is not None:
+                    msg = f"Recovery flatten succeeded on attempt {attempt + 1}"
+                    logger.info(msg)
+                    await self._slack_alert(msg, level="critical")
+                    return
+            except Exception as e:
+                logger.warning("Recovery flatten attempt %d failed: %s", attempt + 1, e)
+
+        msg = "Recovery flatten EXHAUSTED all 10 retries — MANUAL INTERVENTION REQUIRED"
+        logger.critical(msg)
+        await self._slack_alert(msg, level="critical")
+
+    async def _retry_failed_closes(self, queued: List[Dict], reason: str) -> None:
+        """Background task: retry individual failed position closes."""
+        alpaca = self._get_alpaca_service()
+        for item in queued:
+            if item.get("action") != "close_position":
+                continue
+            symbol = item["symbol"]
+            for attempt in range(5):
+                delay = min(15 * (2 ** attempt), 120)
+                await asyncio.sleep(delay)
+                try:
+                    resp = await alpaca.create_order(
+                        symbol=symbol,
+                        qty=item["qty"],
+                        side=item["side"],
+                        type="market",
+                        time_in_force="day",
+                    )
+                    if resp:
+                        logger.info("Recovery close succeeded for %s (attempt %d)", symbol, attempt + 1)
+                        break
+                except Exception as e:
+                    logger.warning("Recovery close %s attempt %d: %s", symbol, attempt + 1, e)
+            else:
+                logger.critical("FAILED to close %s after 5 recovery attempts", symbol)
+                await self._slack_alert(
+                    f"CRITICAL: Cannot close {symbol} — manual intervention needed",
+                    level="critical",
+                )
+
+    async def _slack_alert(self, message: str, level: str = "info") -> None:
+        """Send alert via Slack (best-effort, never blocks)."""
+        try:
+            from app.services.slack_service import send_slack_message
+            prefix = {"critical": "🚨", "warning": "⚠️"}.get(level, "ℹ️")
+            await send_slack_message(f"{prefix} {message}")
+        except Exception:
+            logger.debug("Slack alert failed (non-fatal): %s", message)

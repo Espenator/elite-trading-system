@@ -4,7 +4,7 @@
 > **Goal:** Get Embodier Trader v5.0 to autonomous 24/7 paper trading
 > **Base plan:** PLAN.md (8 phases, 15-23 sessions estimated)
 > **Strategy:** Split work by PC role. Run in parallel. Halve the timeline.
-> **Progress:** Phase 1 COMPLETE. **Lane A COMPLETE** (A0-A9). **Lane B COMPLETE** (B1-B9). **Phase A COMPLETE**. **Phase B COMPLETE** (8 profit blockers fixed). **Phase D COMPLETE** (5 resilience fixes). Now: Phase C (PC1) + Phase E (Both) remaining.
+> **Progress:** Phase 1 COMPLETE. **Lane A COMPLETE** (A0-A9). **Lane B COMPLETE** (B1-B9). **Phase A COMPLETE**. **Phase B COMPLETE** (8 profit blockers fixed). **Phase D COMPLETE** (5 resilience fixes). **Phase E IN PROGRESS** — PC2 takes E2-E5 (backend hardening), PC1 takes E1+E6 (integration test + desktop). Phase C (PC1) also in progress.
 
 ---
 
@@ -113,7 +113,7 @@
 | **Phase B** | **ProfitTrader (PC2)** | Unlock Alpha — remove profit blockers | 3-4 | **DONE** (commit 7d92105) |
 | **Phase C** | **ESPENMAIN (PC1)** | Sharpen the Brain — weight learner, calibration, audit trail | 3-4 | **IN PROGRESS** |
 | **Phase D** | **ProfitTrader (PC2)** | Continuous Intelligence — backfill, rate limiting, resilience | 3-4 | **DONE** (commit 0facd10) |
-| **Phase E** | **Both** | Production Hardening — E2E test, desktop packaging | 2-3 | **NOT STARTED** |
+| **Phase E** | **Both** | Production Hardening — E2E test, desktop packaging | 2-3 | **IN PROGRESS** |
 
 ### Phase B Tasks (ProfitTrader — COMPLETE)
 
@@ -151,6 +151,24 @@
 | D3 | MessageBus resilience (dead-letter queue, alert at 80%) | message_bus.py | **DONE** |
 | D4 | Scraper resilience (session refresh, circuit breaker) | benzinga, squeezemetrics | **DONE** |
 | D5 | Pre-market / after-hours scanning (4AM gap scanner, 4:30PM earnings) | app/services/session_scanner.py (NEW) | **DONE** |
+
+### Phase E Tasks (Split Between Both PCs)
+
+**ProfitTrader (PC2) — Backend Hardening:**
+
+| # | Task | Key Files | Status |
+|---|------|-----------|--------|
+| E2 | Emergency flatten resilience (retry 3x + queue + Slack alert) | order_executor.py | **DONE** |
+| E3 | Position manager startup sync (fetch Alpaca positions on boot) | position_manager.py | **DONE** |
+| E4 | Alpaca WebSocket circuit breaker (10 failures → REST fallback) | alpaca_stream_service.py | **DONE** |
+| E5 | Comprehensive logging & observability (/api/v1/metrics endpoint) | metrics_api.py (NEW), main.py | **DONE** |
+
+**ESPENMAIN (PC1) — Integration Test & Desktop:**
+
+| # | Task | Key Files | Status |
+|---|------|-----------|--------|
+| E1 | End-to-end integration test (bar → signal → council → order → outcome) | new test script | **NOT STARTED** |
+| E6 | Desktop packaging (Electron + PyInstaller, Windows Task Scheduler) | desktop/, scripts/ | **NOT STARTED** |
 
 ---
 

@@ -52,6 +52,10 @@ class AlpacaStreamService:
     CONNECTION_LIMIT_FALLBACK_AFTER = int(
         os.getenv("ALPACA_STREAM_FALLBACK_AFTER_LIMIT", "1")
     )
+    # E4: Circuit breaker — permanent REST fallback after N consecutive WS failures
+    WS_CIRCUIT_BREAKER_THRESHOLD = int(
+        os.getenv("ALPACA_WS_CIRCUIT_BREAKER_THRESHOLD", "10")
+    )
 
     def __init__(self, message_bus, symbols: Optional[List[str]] = None, api_key: str = None, secret_key: str = None):
         self.message_bus = message_bus
@@ -74,6 +78,9 @@ class AlpacaStreamService:
         self._snapshot_task: Optional[asyncio.Task] = None
         self._connection_limit_failures = 0
         self._ws_fallback_to_snapshots = False  # True when WS fails and we poll instead
+        # E4: Consecutive WS reconnection failure counter
+        self._consecutive_ws_failures = 0
+        self._ws_circuit_open = False  # True = permanently on REST until manual reset
 
     async def start(self) -> None:
         """Start streaming with clock-aware mode selection.
@@ -174,10 +181,28 @@ class AlpacaStreamService:
                     continue
                 raise
             except Exception:
+                self._consecutive_ws_failures += 1
                 logger.exception(
-                    "AlpacaStreamService error — reconnecting in %ds",
+                    "AlpacaStreamService error (failure %d/%d) — reconnecting in %ds",
+                    self._consecutive_ws_failures,
+                    self.WS_CIRCUIT_BREAKER_THRESHOLD,
                     self._reconnect_delay,
                 )
+
+                # E4: Circuit breaker — after N consecutive failures, stop trying
+                if self._consecutive_ws_failures >= self.WS_CIRCUIT_BREAKER_THRESHOLD:
+                    self._ws_circuit_open = True
+                    self._ws_fallback_to_snapshots = True
+                    msg = (
+                        f"WebSocket circuit breaker OPEN after "
+                        f"{self._consecutive_ws_failures} consecutive failures. "
+                        f"Falling back to REST polling permanently. "
+                        f"Manual reset required via reset_ws_circuit_breaker()."
+                    )
+                    logger.critical(msg)
+                    await self._slack_alert(msg, level="critical")
+                    continue
+
                 await asyncio.sleep(self._reconnect_delay)
                 self._reconnect_delay = min(
                     self._reconnect_delay * 2, self.MAX_RECONNECT_DELAY
@@ -381,6 +406,8 @@ class AlpacaStreamService:
 
         self._stream.subscribe_bars(_handle_bar, *self.symbols)
         logger.info("Alpaca WebSocket connected — subscribed to %d symbols", len(self.symbols))
+        # E4: Reset failure counter on successful connection
+        self._consecutive_ws_failures = 0
         await self._stream._run_forever()
 
     async def _run_mock_stream(self) -> None:
@@ -414,6 +441,38 @@ class AlpacaStreamService:
             self._bars_received, self._snapshots_fetched,
         )
 
+    def reset_ws_circuit_breaker(self) -> Dict[str, Any]:
+        """Manually reset the WebSocket circuit breaker.
+
+        E4: After the circuit breaker trips (10 consecutive WS failures),
+        the service permanently falls back to REST polling. Call this to
+        allow WebSocket reconnection attempts again.
+        """
+        was_open = self._ws_circuit_open
+        self._ws_circuit_open = False
+        self._ws_fallback_to_snapshots = False
+        self._consecutive_ws_failures = 0
+        self._reconnect_delay = self.INITIAL_RECONNECT_DELAY
+        self._connection_limit_failures = 0
+        logger.info(
+            "WebSocket circuit breaker RESET (was %s)",
+            "OPEN" if was_open else "CLOSED",
+        )
+        return {
+            "previous_state": "open" if was_open else "closed",
+            "current_state": "closed",
+            "message": "Circuit breaker reset — WebSocket will attempt reconnection on next cycle",
+        }
+
+    async def _slack_alert(self, message: str, level: str = "info") -> None:
+        """Send alert via Slack (best-effort, never blocks)."""
+        try:
+            from app.services.slack_service import send_slack_message
+            prefix = {"critical": "🚨", "warning": "⚠️"}.get(level, "ℹ️")
+            await send_slack_message(f"{prefix} AlpacaStream: {message}")
+        except Exception:
+            logger.debug("Slack alert failed (non-fatal)")
+
     def update_symbols(self, symbols: List[str]) -> None:
         """Update the symbol watchlist (takes effect on next reconnect/poll)."""
         self.symbols = symbols
@@ -428,6 +487,9 @@ class AlpacaStreamService:
             "session": self._session,
             "market_is_open": self._market_is_open,
             "ws_fallback": self._ws_fallback_to_snapshots,
+            "ws_circuit_breaker_open": self._ws_circuit_open,
+            "consecutive_ws_failures": self._consecutive_ws_failures,
+            "ws_circuit_breaker_threshold": self.WS_CIRCUIT_BREAKER_THRESHOLD,
             "symbols_count": len(self.symbols),
             "bars_received": self._bars_received,
             "snapshots_fetched": self._snapshots_fetched,

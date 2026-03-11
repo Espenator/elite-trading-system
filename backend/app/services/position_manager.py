@@ -89,7 +89,87 @@ class PositionManager:
             await self._bus.subscribe("market_data.bar", self._on_bar)
             await self._bus.subscribe("order.submitted", self._on_order)
             await self._bus.subscribe("order.filled", self._on_fill)
-        logger.info("PositionManager started — trailing stops + time exits active")
+
+        # E3: Sync existing positions from Alpaca on startup
+        synced = await self._sync_from_alpaca()
+        logger.info(
+            "PositionManager started — %d positions synced from Alpaca, "
+            "trailing stops + time exits active",
+            synced,
+        )
+
+    async def _sync_from_alpaca(self) -> int:
+        """Fetch all open positions from Alpaca and initialize trailing stops.
+
+        E3: On startup, reconcile local state with broker state so that
+        positions opened before a crash/restart are still managed.
+        Returns the number of positions synced.
+        """
+        try:
+            from app.services.alpaca_service import alpaca_service
+            positions = await alpaca_service.get_positions()
+        except Exception as e:
+            logger.warning("Startup position sync failed: %s", e)
+            return 0
+
+        if not positions:
+            return 0
+
+        synced = 0
+        for pos in positions:
+            symbol = pos.get("symbol", "")
+            if not symbol or symbol in self._positions:
+                continue  # Already tracked
+
+            try:
+                entry_price = float(pos.get("avg_entry_price", 0))
+                current_price = float(pos.get("current_price", 0) or entry_price)
+                qty = abs(int(float(pos.get("qty", 0))))
+                side_str = pos.get("side", "long")
+                side = "buy" if side_str == "long" else "sell"
+
+                if entry_price <= 0 or qty <= 0:
+                    continue
+
+                # Estimate ATR as 2% of price (will be refined by incoming bars)
+                atr = entry_price * 0.02
+
+                # Calculate trailing stop from current price high/low watermark
+                if side == "buy":
+                    high_watermark = max(entry_price, current_price)
+                    trail = high_watermark - atr * self.ATR_TRAIL_MULT
+                else:
+                    low_watermark = min(entry_price, current_price)
+                    trail = low_watermark + atr * self.ATR_TRAIL_MULT
+
+                managed = ManagedPosition(
+                    symbol=symbol,
+                    side=side,
+                    entry_price=entry_price,
+                    qty=qty,
+                    order_id=pos.get("asset_id", "synced"),
+                    is_shadow=False,
+                    opened_at=time.time(),  # Approximate; real open time not in positions API
+                    initial_stop=trail,
+                    trailing_stop=trail,
+                    take_profit=0,  # No TP info from positions API
+                    atr=atr,
+                )
+                managed.highest_price = max(entry_price, current_price)
+                managed.lowest_price = min(entry_price, current_price)
+
+                self._positions[symbol] = managed
+                self._stats["total_managed"] += 1
+                synced += 1
+
+                logger.info(
+                    "Synced position: %s %s %d @ $%.2f (trail=$%.2f, current=$%.2f)",
+                    symbol, side, qty, entry_price, trail, current_price,
+                )
+            except (ValueError, TypeError, KeyError) as e:
+                logger.debug("Skip position sync for %s: %s", symbol, e)
+
+        return synced
 
     async def stop(self) -> None:
         self._running = False
