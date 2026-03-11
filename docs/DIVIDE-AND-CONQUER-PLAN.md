@@ -4,7 +4,7 @@
 > **Goal:** Get Embodier Trader v5.0 to autonomous 24/7 paper trading
 > **Base plan:** PLAN.md (8 phases, 15-23 sessions estimated)
 > **Strategy:** Split work by PC role. Run in parallel. Halve the timeline.
-> **Progress:** Phase 1 COMPLETE. **Lane A COMPLETE** (A0-A9). **Lane B COMPLETE** (B1-B9). **Phase A COMPLETE**. **Phase B COMPLETE** (8 profit blockers fixed). **Phase D COMPLETE** (5 resilience fixes). **Phase E IN PROGRESS** — PC2 takes E2-E5 (backend hardening), PC1 takes E1+E6 (integration test + desktop). Phase C (PC1) also in progress.
+> **Progress:** Phase 1 COMPLETE. **Lane A COMPLETE** (A0-A9). **Lane B COMPLETE** (B1-B9). **Phase A COMPLETE**. **Phase B COMPLETE** (8 profit blockers fixed). **Phase D COMPLETE** (5 resilience fixes). **Phase E**: PC2 DONE (E2-E5 backend hardening + E6 desktop packaging). PC1 remaining: E1 (integration test). Phase C (PC1) also in progress.
 
 ---
 
@@ -168,7 +168,7 @@
 | # | Task | Key Files | Status |
 |---|------|-----------|--------|
 | E1 | End-to-end integration test (bar → signal → council → order → outcome) | new test script | **NOT STARTED** |
-| E6 | Desktop packaging (Electron + PyInstaller, Windows Task Scheduler) | desktop/, scripts/ | **NOT STARTED** |
+| E6 | Desktop packaging (Electron + PyInstaller, Windows Task Scheduler) | desktop/, scripts/ | **DONE** (PC2) |
 
 ---
 

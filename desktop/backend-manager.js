@@ -206,13 +206,24 @@ function startBackend() {
         stdio: ["ignore", "pipe", "pipe"],
       });
     } else {
-      // Venv or system python
+      // Venv or system python — use run_server.py for consistent startup
+      // (handles loop="asyncio", access_log, .env loading)
       const python = config.python;
-      backendProcess = spawn(
-        python,
-        ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", String(port)],
-        { cwd: config.cwd, env, stdio: ["ignore", "pipe", "pipe"] }
-      );
+      const runServer = path.join(BACKEND_DIR, "run_server.py");
+      if (fs.existsSync(runServer)) {
+        backendProcess = spawn(
+          python,
+          [runServer],
+          { cwd: config.cwd, env, stdio: ["ignore", "pipe", "pipe"] }
+        );
+      } else {
+        // Fallback: direct uvicorn
+        backendProcess = spawn(
+          python,
+          ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", String(port)],
+          { cwd: config.cwd, env, stdio: ["ignore", "pipe", "pipe"] }
+        );
+      }
     }
 
     backendProcess.stdout.on("data", (data) => {

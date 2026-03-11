@@ -93,7 +93,7 @@ function completeSetup(config) {
   store.set("deviceName", config.deviceName);
   store.set("deviceRole", config.deviceRole);
   store.set("peerDevices", config.peerDevices || []);
-  store.set("backendPort", config.backendPort || 8000);
+  store.set("backendPort", config.backendPort || 8001);
   store.set("brainHost", config.brainHost || "localhost");
   store.set("brainPort", config.brainPort || 50051);
   store.set("apiKeys", config.apiKeys || {});
@@ -137,7 +137,7 @@ function removePeerDevice(peerId) {
 }
 
 function getBackendPort() {
-  return store.get("backendPort") || 8000;
+  return store.get("backendPort") || 8001;
 }
 
 function getApiKeys() {
@@ -178,7 +178,7 @@ function generateEnvFile(config) {
   const tradingMode = config.tradingMode || "paper";
   const isLive = tradingMode === "live";
   const peerAddr = config.peerDevices?.[0]?.address || "";
-  const peerPort = config.peerDevices?.[0]?.port || 8000;
+  const peerPort = config.peerDevices?.[0]?.port || 8001;
 
   const lines = [
     "# Embodier Trader — Auto-generated .env",
@@ -187,7 +187,7 @@ function generateEnvFile(config) {
     "",
     "# --- Server ---",
     `HOST=0.0.0.0`,
-    `PORT=${config.backendPort || 8000}`,
+    `PORT=${config.backendPort || 8001}`,
     `ENVIRONMENT=production`,
     "",
     "# --- Trading Mode ---",
