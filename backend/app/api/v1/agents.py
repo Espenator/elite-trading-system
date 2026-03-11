@@ -506,16 +506,28 @@ async def get_conference_status():
     conference_data = db_service.get_config("last_conference")
     pipeline_stages = ["Researcher", "RiskOfficer", "Adversary", "Arbitrator"]
 
+    # Build votes as array for frontend (LastConference expects [{agent, vote}])
+    votes_obj = conference_data.get("votes", {}) if conference_data else {}
+    votes_array = [
+        {"agent": agent, "vote": v if isinstance(v, (int, float)) else 50}
+        for agent, v in votes_obj.items()
+    ] if isinstance(votes_obj, dict) else []
+
+    last_conf = {
+        "ticker": conference_data.get("ticker", "N/A") if conference_data else "N/A",
+        "symbol": conference_data.get("ticker", "N/A") if conference_data else "N/A",
+        "verdict": conference_data.get("verdict", "N/A") if conference_data else "N/A",
+        "confidence": conference_data.get("confidence", 0) if conference_data else 0,
+        "duration": conference_data.get("duration", 0) if conference_data else 0,
+        "votes": votes_array,
+    }
+
     return {
         "pipeline": pipeline_stages,
         "current_stage": db_service.get_config("conference_current_stage") or "idle",
-        "last_conference": {
-            "ticker": conference_data.get("ticker", "N/A") if conference_data else "N/A",
-            "verdict": conference_data.get("verdict", "N/A") if conference_data else "N/A",
-            "confidence": conference_data.get("confidence", 0) if conference_data else 0,
-            "duration": conference_data.get("duration", 0) if conference_data else 0,
-            "votes": conference_data.get("votes", {}) if conference_data else {},
-        },
+        "last_conference": last_conf,
+        "current": last_conf,
+        "conference": last_conf,
         "total_conferences": int(db_service.get_config("conference_count") or 0),
     }
 
@@ -907,7 +919,7 @@ async def get_elo_leaderboard():
     leaderboard.sort(key=lambda x: x["elo"], reverse=True)
     for i, entry in enumerate(leaderboard):
         entry["rank"] = i + 1
-    return {"leaderboard": leaderboard}
+    return leaderboard
 
 
 @router.get("/ws-channels")

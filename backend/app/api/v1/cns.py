@@ -88,20 +88,26 @@ async def agents_health():
     try:
         from app.council.self_awareness import get_self_awareness
         sa = get_self_awareness()
+        status_dict = sa.get_status()
+        # Convert dict to array for frontend .map() compatibility
+        agents_list = [
+            {"name": name, "agent_name": name, **data}
+            for name, data in status_dict.items()
+        ]
         return {
-            "agents": sa.get_status(),
+            "agents": agents_list,
             "summary": {
-                "total_agents": len(sa.get_status()),
-                "hibernated": sum(1 for a in sa.get_status().values() if a.get("skip")),
+                "total_agents": len(status_dict),
+                "hibernated": sum(1 for a in status_dict.values() if a.get("skip")),
                 "on_probation": sum(
-                    1 for a in sa.get_status().values()
+                    1 for a in status_dict.values()
                     if a.get("streak", {}).get("status") == "PROBATION"
                 ),
             },
         }
     except Exception as e:
         logger.error("Agent health failed: %s", e)
-        return {"agents": {}, "summary": {"total_agents": 0, "hibernated": 0, "on_probation": 0}}
+        return {"agents": [], "summary": {"total_agents": 0, "hibernated": 0, "on_probation": 0}}
 
 
 @router.get("/agents/{name}/history")
