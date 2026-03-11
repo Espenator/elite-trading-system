@@ -29,6 +29,7 @@ router = APIRouter()
 
 # ─── Homeostasis ───
 
+@router.get("/homeostasis")
 @router.get("/homeostasis/vitals")
 async def homeostasis_vitals():
     """Get system vitals and current homeostasis mode."""
@@ -56,6 +57,7 @@ async def homeostasis_vitals():
 
 # ─── Circuit Breaker ───
 
+@router.get("/circuit-breaker")
 @router.get("/circuit-breaker/status")
 async def circuit_breaker_status():
     """Get circuit breaker thresholds and current status."""
@@ -374,7 +376,7 @@ async def profit_brain_status():
         prefrontal["agent_count"] = len(status)
         prefrontal["hibernated"] = sum(1 for a in status.values() if a.get("skip"))
     except Exception:
-        prefrontal["agent_count"] = 17
+        prefrontal["agent_count"] = 0
         prefrontal["hibernated"] = 0
     brain["prefrontal_cortex"] = prefrontal
 
@@ -437,6 +439,7 @@ async def profit_brain_status():
     return brain
 
 
+@router.get("/last-verdict")
 @router.get("/council/last-verdict")
 async def council_last_verdict():
     """Get the latest council verdict (alias for council/latest with extra metadata)."""
