@@ -202,10 +202,53 @@ Or use the launcher: `.\start-embodier.ps1`
 - **data_sources.py**: Added squeezemetrics + capitol_trades entries; updated benzinga from REST to scraper
 - **settings_service.py**: Added benzingaEmail, benzingaPassword, squeezeMetricsEnabled env mappings
 
+### Frontend-Backend Full Wiring (March 11, 2026) — Phase 2 COMPLETE (Lane A)
+All 14 frontend pages audited for API response shape mismatches. Fixes applied:
+
+**A1 Dashboard** (18 API calls):
+- `signals.py`: kelly-ranked returns `{kelly, kellyRanked}` wrapper with `optimalFraction`
+- `market.py`: added `marketIndices` key to cached and Alpaca fallback paths
+- `performance.py`: added `equity_curve`/`equity` alias keys to `/performance/equity`
+- `agents.py`: consensus returns votes as array + top-level verdict/agreement
+
+**A2 Agent Command Center** (16 API calls, 10 tabs):
+- `agents.py`: conference endpoint adds `current`/`conference` top-level keys, votes as array
+- `agents.py`: elo-leaderboard returns array directly (frontend checks `Array.isArray`)
+- `cns.py`: agents/health converts dict→array for frontend `.map()` compatibility
+
+**A3 Signal Intelligence + Sentiment**: No mismatches found (all endpoints return expected shapes)
+
+**A4 Data Sources + ML Brain**:
+- `data_sources.py`: added `latency`/`dataRate`/`uptime` alias fields to DataSourceRead
+- `flywheel.py`: added 6 missing KPI fields (activeModels, walkForwardAcc, etc.)
+- `training.py`: made StartTrainingRequest fields optional for quick retrain
+
+**A5 Screener, Backtest, Performance, Market Regime**:
+- `backtest_routes.py`: added `periods`/`series`/`distribution`/`regimes` alias keys
+- `performance.py`: added `kpi`/`equity`/`pnlBySymbol`/`rollingRisk` keys for PerformanceAnalytics
+- `openclaw.py`: added `yield_curve` to macro endpoint
+
+**A6 Trades, Risk, Trade Execution, Settings**:
+- `risk.py`: wrapped /history response in `{history: [...]}`; correlation-matrix returns 2D array
+- `quotes.py`: added `/options-chain` stub endpoint for Trade Execution
+
+**A7 UI Buttons**: All action endpoints verified (agent start/stop/restart, orders, emergency-stop, flatten)
+
+**A8 Slack + Webhooks**:
+- Created `slack_notification_service.py` — sends signals, alerts, executions to Slack
+- Created `webhooks.py` — TradingView alert receiver + generic signal webhook
+- Registered webhooks router in `main.py`
+
+**A9 Health Monitor**:
+- Created `scripts/health_monitor.py` — polls `/healthz`, auto-restarts on 3 consecutive failures
+
 ## Production Readiness Status
 - See `PLAN.md` for the full 8-phase production readiness plan
 - See `docs/DIVIDE-AND-CONQUER-PLAN.md` for PC1/PC2 task division
 - **Phase 1: Backend Health** — COMPLETE
 - **Phase 1.5: Debug & Data Sources** — COMPLETE (mock removal, scraper services, API keys)
-- **Phase 2: Frontend Wiring** — IN PROGRESS (endpoint audit done, route aliases fixed, 5 endpoints added)
-- **Phase 3-8**: Not started (Council, Auto-Trade, Data Firehose, UI Controls, Monitoring, Desktop)
+- **Phase 2: Frontend Wiring** — COMPLETE (all 14 pages audited + fixed, Lane A tasks A1-A9 done)
+- **Phase 6: UI Controls** — COMPLETE (action buttons wired, webhook receiver)
+- **Phase 7: Monitoring** — COMPLETE (health monitor script, /healthz + /readyz endpoints)
+- **Phase 3-5**: Not started (Council DAG on PC2, Auto-Trade on PC2, Data Firehose on PC2)
+- **Phase 8**: Not started (Desktop packaging)
