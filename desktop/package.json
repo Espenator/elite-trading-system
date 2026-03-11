@@ -23,7 +23,16 @@
     "files": [
       "main.js",
       "preload.js",
+      "backend-manager.js",
+      "device-config.js",
+      "peer-monitor.js",
+      "service-orchestrator.js",
+      "ollama-fallback.js",
+      "auto-updater.js",
+      "mobile-server.js",
+      "tray.js",
       "pages/**",
+      "icons/**",
       "assets/**",
       "node_modules/**"
     ],
@@ -49,6 +58,11 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
     }
+  },
+  "dependencies": {
+    "electron-log": "^5.3.0",
+    "electron-store": "^10.0.0",
+    "electron-updater": "^6.3.0"
   },
   "devDependencies": {
     "electron": "^36.0.0",
