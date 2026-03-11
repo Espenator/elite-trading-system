@@ -80,6 +80,7 @@ from app.api.v1 import (
     awareness,
     blackboard_routes,
     triage,
+    webhooks,
 )
 from app.api import ingestion
 from app.api.v1 import ingestion_firehose
@@ -1271,6 +1272,7 @@ app.include_router(brain.router, prefix="/api/v1/brain", tags=["brain"])
 app.include_router(awareness.router, prefix="/api/v1", tags=["awareness"])
 app.include_router(blackboard_routes.router, prefix="/api/v1/blackboard", tags=["blackboard"])
 app.include_router(triage.router, prefix="/api/v1/triage", tags=["triage"])
+app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["webhooks"])
 
 
 @app.get("/api/v1/ws/registry", tags=["websocket"])
