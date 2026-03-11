@@ -1563,6 +1563,17 @@ export default function Backtesting() {
               </tbody>
             </table>
           </div>
+          <ResponsiveContainer width="100%" height={130}>
+            <BarChart data={parallelRuns} layout="vertical">
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(42,52,68,0.3)" />
+              <XAxis type="number" stroke="#6B7280" tick={{ fontSize: 10 }} />
+              <YAxis type="category" dataKey="name" stroke="#6B7280" tick={{ fontSize: 9 }} width={90} />
+              <Tooltip content={<DarkTooltip />} />
+              <Bar dataKey="sharpe" name="Sharpe">
+                {parallelRuns.map((r, i) => <Cell key={r.name || `cell-${i}`} fill={r.color} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </Card>
 
         {/* Trade P&L Distribution */}

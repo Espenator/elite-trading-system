@@ -197,33 +197,43 @@ class TurboScanner:
             await asyncio.sleep(self._scan_interval)
 
     async def _run_all_scans(self) -> List[ScanSignal]:
-        """Run ALL scan sources in parallel."""
-        tasks = [
-            self._scan_duckdb_technicals(),
-            self._scan_duckdb_volume_spikes(),
-            self._scan_duckdb_momentum(),
-            self._scan_duckdb_rsi_extremes(),
-            self._scan_duckdb_macd_crosses(),
-            self._scan_sector_divergence(),
-            self._scan_vix_regime(),
-            self._scan_options_flow_anomalies(),
-            self._scan_mean_reversion_setups(),
-            self._scan_gap_reversals(),
+        """Run ALL scan sources off the event loop (DuckDB is blocking I/O).
+
+        DuckDB queries share a single connection, so they serialize anyway.
+        Running them in a thread via asyncio.to_thread keeps the event loop
+        free for HTTP requests and prevents event loop blocking.
+        """
+        return await asyncio.to_thread(self._run_all_scans_sync)
+
+    def _run_all_scans_sync(self) -> List[ScanSignal]:
+        """Synchronous scan runner -- called from a thread to avoid blocking the event loop."""
+        scan_methods = [
+            self._scan_duckdb_technicals_sync,
+            self._scan_duckdb_volume_spikes_sync,
+            self._scan_duckdb_momentum_sync,
+            self._scan_duckdb_rsi_extremes_sync,
+            self._scan_duckdb_macd_crosses_sync,
+            self._scan_sector_divergence_sync,
+            self._scan_vix_regime_sync,
+            self._scan_options_flow_anomalies_sync,
+            self._scan_mean_reversion_setups_sync,
+            self._scan_gap_reversals_sync,
         ]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
         signals = []
-        for result in results:
-            if isinstance(result, list):
-                signals.extend(result)
-            elif isinstance(result, Exception):
-                logger.debug("Scan task failed: %s", result)
+        for method in scan_methods:
+            try:
+                result = method()
+                if isinstance(result, list):
+                    signals.extend(result)
+            except Exception as e:
+                logger.debug("Scan task failed: %s", e)
         return signals
 
     # ──────────────────────────────────────────────────────────────────────
     # DuckDB-Powered Scans (scan thousands of symbols in milliseconds)
     # ──────────────────────────────────────────────────────────────────────
 
-    async def _scan_duckdb_technicals(self) -> List[ScanSignal]:
+    def _scan_duckdb_technicals_sync(self) -> List[ScanSignal]:
         """Find breakout setups: price above key SMAs + strong ADX."""
         try:
             from app.data.duckdb_storage import duckdb_store
@@ -281,7 +291,7 @@ class TurboScanner:
             logger.debug("DuckDB technical scan: %s", e)
             return []
 
-    async def _scan_duckdb_volume_spikes(self) -> List[ScanSignal]:
+    def _scan_duckdb_volume_spikes_sync(self) -> List[ScanSignal]:
         """Find symbols with unusual volume (>2x 20-day average)."""
         try:
             from app.data.duckdb_storage import duckdb_store
@@ -321,7 +331,7 @@ class TurboScanner:
             logger.debug("Volume spike scan: %s", e)
             return []
 
-    async def _scan_duckdb_momentum(self) -> List[ScanSignal]:
+    def _scan_duckdb_momentum_sync(self) -> List[ScanSignal]:
         """Find symbols with strong momentum (5d + 20d returns)."""
         try:
             from app.data.duckdb_storage import duckdb_store
@@ -367,7 +377,7 @@ class TurboScanner:
             logger.debug("Momentum scan: %s", e)
             return []
 
-    async def _scan_duckdb_rsi_extremes(self) -> List[ScanSignal]:
+    def _scan_duckdb_rsi_extremes_sync(self) -> List[ScanSignal]:
         """Find RSI extremes for reversal setups."""
         try:
             from app.data.duckdb_storage import duckdb_store
@@ -418,7 +428,7 @@ class TurboScanner:
             logger.debug("RSI extreme scan: %s", e)
             return []
 
-    async def _scan_duckdb_macd_crosses(self) -> List[ScanSignal]:
+    def _scan_duckdb_macd_crosses_sync(self) -> List[ScanSignal]:
         """Find fresh MACD crossovers."""
         try:
             from app.data.duckdb_storage import duckdb_store
@@ -471,7 +481,7 @@ class TurboScanner:
             logger.debug("MACD cross scan: %s", e)
             return []
 
-    async def _scan_sector_divergence(self) -> List[ScanSignal]:
+    def _scan_sector_divergence_sync(self) -> List[ScanSignal]:
         """Find sectors diverging from SPY — rotation opportunities."""
         try:
             from app.data.duckdb_storage import duckdb_store
@@ -542,7 +552,7 @@ class TurboScanner:
             logger.debug("Sector divergence scan: %s", e)
             return []
 
-    async def _scan_vix_regime(self) -> List[ScanSignal]:
+    def _scan_vix_regime_sync(self) -> List[ScanSignal]:
         """Detect VIX regime changes — spikes, collapses, term structure shifts."""
         try:
             from app.data.duckdb_storage import duckdb_store
@@ -617,7 +627,7 @@ class TurboScanner:
             logger.debug("VIX regime scan: %s", e)
             return []
 
-    async def _scan_options_flow_anomalies(self) -> List[ScanSignal]:
+    def _scan_options_flow_anomalies_sync(self) -> List[ScanSignal]:
         """Find unusual options activity patterns in DuckDB."""
         try:
             from app.data.duckdb_storage import duckdb_store
@@ -664,7 +674,7 @@ class TurboScanner:
             logger.debug("Options flow anomaly scan: %s", e)
             return []
 
-    async def _scan_mean_reversion_setups(self) -> List[ScanSignal]:
+    def _scan_mean_reversion_setups_sync(self) -> List[ScanSignal]:
         """Find overextended symbols ready to snap back."""
         try:
             from app.data.duckdb_storage import duckdb_store
@@ -718,7 +728,7 @@ class TurboScanner:
             logger.debug("Mean reversion scan: %s", e)
             return []
 
-    async def _scan_gap_reversals(self) -> List[ScanSignal]:
+    def _scan_gap_reversals_sync(self) -> List[ScanSignal]:
         """Find gap-up/gap-down reversal candidates."""
         try:
             from app.data.duckdb_storage import duckdb_store

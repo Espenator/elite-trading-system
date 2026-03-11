@@ -1,5 +1,6 @@
 """Signals API: ML predictions for buy/sell timing (research doc)."""
 
+import asyncio
 import logging
 from datetime import date
 from pathlib import Path
@@ -71,8 +72,8 @@ async def get_signals(as_of: date | None = None):
     if as_of is None:
         as_of = date.today()
 
-    # Try ML model signals first
-    raw_signals, _ = _get_raw_signals_and_feats(as_of)
+    # Try ML model signals first (run sync DB query in thread)
+    raw_signals, _ = await asyncio.to_thread(_get_raw_signals_and_feats, as_of)
     if raw_signals and len(raw_signals) > 0:
         signals = []
         for s in raw_signals:

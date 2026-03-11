@@ -641,24 +641,26 @@ class OutcomeTracker:
 
     async def _get_current_prices(self, symbols: List[str]) -> Dict[str, float]:
         """Get current prices for symbols from DuckDB or Alpaca."""
-        prices = {}
-        try:
-            import duckdb
-            db_path = "/home/user/elite-trading-system/data/market_data.duckdb"
-            conn = duckdb.connect(db_path, read_only=True)
-            for sym in symbols:
-                try:
-                    row = conn.execute(
-                        "SELECT close FROM daily_bars WHERE symbol = ? ORDER BY date DESC LIMIT 1",
-                        [sym],
-                    ).fetchone()
-                    if row:
-                        prices[sym] = float(row[0])
-                except Exception:
-                    pass
-            conn.close()
-        except Exception:
-            pass
+        def _fetch_prices_sync(syms):
+            result = {}
+            try:
+                from app.data.duckdb_storage import duckdb_store
+                conn = duckdb_store._get_conn()
+                for sym in syms:
+                    try:
+                        row = conn.execute(
+                            "SELECT close FROM daily_ohlcv WHERE symbol = ? ORDER BY date DESC LIMIT 1",
+                            [sym],
+                        ).fetchone()
+                        if row:
+                            result[sym] = float(row[0])
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            return result
+
+        prices = await asyncio.to_thread(_fetch_prices_sync, symbols)
 
         # Fallback: try Alpaca quotes
         if len(prices) < len(symbols):

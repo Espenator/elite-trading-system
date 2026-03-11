@@ -1,95 +1,25 @@
 // Embodier Trader — Electron main process
-// Launches the FastAPI backend and serves the React frontend
+// Launches services via ServiceOrchestrator, monitors peers, and serves the UI.
+// PC1 (ESPENMAIN): primary controller — runs council, ml-engine, event-pipeline
+// PC2 (ProfitTrader): secondary — runs brain-service (Ollama/gRPC), scanner
 
 const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell } = require('electron');
-const { spawn, execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-const http = require('http');
-const https = require('https');
+
+const deviceConfig = require('./device-config');
+const backendManager = require('./backend-manager');
+const { serviceOrchestrator } = require('./service-orchestrator');
+const { peerMonitor } = require('./peer-monitor');
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
-const BACKEND_PORT = 8000;
-const FRONTEND_PORT = 3000;
 
 let mainWindow = null;
+let setupWindow = null;
 let splashWindow = null;
 let tray = null;
-let backendProcess = null;
-let backendReady = false;
 
-// ── Backend Health Check ───────────────────────────────────────────────────────
-function checkBackend(url, retries = 30, interval = 2000) {
-  return new Promise((resolve, reject) => {
-    let attempts = 0;
-    const check = () => {
-      const req = (url.startsWith('https') ? https : http).get(url, (res) => {
-        if (res.statusCode === 200 || res.statusCode === 404) {
-          resolve();
-        } else {
-          retry();
-        }
-      });
-      req.on('error', retry);
-      req.setTimeout(2000, () => { req.destroy(); retry(); });
-    };
-    const retry = () => {
-      attempts++;
-      if (attempts >= retries) {
-        reject(new Error(`Backend not ready after ${retries} attempts`));
-      } else {
-        setTimeout(check, interval);
-      }
-    };
-    check();
-  });
-}
-
-// ── Backend Launcher ──────────────────────────────────────────────────────────
-function startBackend() {
-  const isWindows = process.platform === 'win32';
-  const resourcesPath = process.resourcesPath || path.join(__dirname, '..');
-
-  // In packaged app, backend is bundled via PyInstaller
-  const backendExe = isWindows
-    ? path.join(resourcesPath, 'backend', 'embodier-backend', 'embodier-backend.exe')
-    : path.join(resourcesPath, 'backend', 'embodier-backend', 'embodier-backend');
-
-  // In dev, use the Python venv
-  const devPython = isWindows
-    ? path.join(__dirname, '..', 'backend', 'venv', 'Scripts', 'python.exe')
-    : path.join(__dirname, '..', 'backend', 'venv', 'bin', 'python');
-  const devScript = path.join(__dirname, '..', 'backend', 'run.py');
-
-  let cmd, args, cwd;
-
-  if (!isDev && fs.existsSync(backendExe)) {
-    cmd = backendExe;
-    args = [];
-    cwd = path.dirname(backendExe);
-  } else if (fs.existsSync(devPython)) {
-    cmd = devPython;
-    args = [devScript];
-    cwd = path.join(__dirname, '..', 'backend');
-  } else {
-    console.error('Backend executable not found');
-    return null;
-  }
-
-  const env = { ...process.env, PORT: String(BACKEND_PORT) };
-  const proc = spawn(cmd, args, { cwd, env, stdio: 'pipe' });
-
-  proc.stdout.on('data', (d) => console.log('[backend]', d.toString().trim()));
-  proc.stderr.on('data', (d) => console.error('[backend]', d.toString().trim()));
-  proc.on('exit', (code) => {
-    console.log(`Backend exited with code ${code}`);
-    backendReady = false;
-  });
-
-  return proc;
-}
-
-// ── Splash Window ─────────────────────────────────────────────────────────────
+// ── Splash Window ─────────────────────────────────────────────────────────
 function createSplashWindow() {
   splashWindow = new BrowserWindow({
     width: 480,
@@ -105,8 +35,36 @@ function createSplashWindow() {
   splashWindow.show();
 }
 
-// ── Main Window ───────────────────────────────────────────────────────────────
+function closeSplash() {
+  if (splashWindow) {
+    splashWindow.close();
+    splashWindow = null;
+  }
+}
+
+// ── Setup Wizard Window ───────────────────────────────────────────────────
+function createSetupWindow() {
+  setupWindow = new BrowserWindow({
+    width: 640,
+    height: 720,
+    frame: false,
+    center: true,
+    resizable: false,
+    backgroundColor: '#0a0e1a',
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js'),
+    },
+  });
+  setupWindow.loadFile(path.join(__dirname, 'pages', 'setup.html'));
+  setupWindow.show();
+}
+
+// ── Main Window ───────────────────────────────────────────────────────────
 function createMainWindow() {
+  const port = deviceConfig.getBackendPort();
+
   mainWindow = new BrowserWindow({
     width: 1920,
     height: 1080,
@@ -124,23 +82,18 @@ function createMainWindow() {
   });
 
   if (isDev) {
-    // In dev, load from Vite dev server
-    mainWindow.loadURL("http://localhost:3000");
+    mainWindow.loadURL('http://localhost:3000');
   } else {
-    // In production, serve the built frontend through the backend
-    const frontendPath = path.join(process.resourcesPath || __dirname, "frontend", "index.html");
+    const frontendPath = path.join(process.resourcesPath || __dirname, 'frontend', 'index.html');
     if (fs.existsSync(frontendPath)) {
       mainWindow.loadFile(frontendPath);
     } else {
-      mainWindow.loadURL(`http://localhost:${BACKEND_PORT}`);
+      mainWindow.loadURL(`http://localhost:${port}`);
     }
   }
 
   mainWindow.once('ready-to-show', () => {
-    if (splashWindow) {
-      splashWindow.close();
-      splashWindow = null;
-    }
+    closeSplash();
     mainWindow.show();
     if (isDev) mainWindow.webContents.openDevTools({ mode: 'detach' });
   });
@@ -155,43 +108,169 @@ function createMainWindow() {
     shell.openExternal(url);
     return { action: 'deny' };
   });
+
+  // Forward cluster events to frontend via IPC
+  peerMonitor.on('peer-connected', (data) => {
+    mainWindow?.webContents.send('cluster-event', { type: 'peer-connected', ...data });
+  });
+  peerMonitor.on('peer-degraded', (data) => {
+    mainWindow?.webContents.send('cluster-event', { type: 'peer-degraded', ...data });
+  });
+  peerMonitor.on('peer-lost', (data) => {
+    mainWindow?.webContents.send('cluster-event', { type: 'peer-lost', ...data });
+  });
+  peerMonitor.on('peer-recovered', (data) => {
+    mainWindow?.webContents.send('cluster-event', { type: 'peer-recovered', ...data });
+  });
 }
 
-// ── Tray ──────────────────────────────────────────────────────────────────────
+// ── Tray ──────────────────────────────────────────────────────────────────
 function createTray() {
-  const iconPath = path.join(__dirname, 'assets', 'icon.png');
-  const icon = fs.existsSync(iconPath) ? nativeImage.createFromPath(iconPath) : nativeImage.createEmpty();
-  tray = new Tray(icon.resize({ width: 16, height: 16 }));
+  const iconPath = path.join(__dirname, 'icons', 'icon.png');
+  let icon;
+  if (fs.existsSync(iconPath)) {
+    icon = nativeImage.createFromPath(iconPath);
+  } else {
+    icon = nativeImage.createEmpty();
+  }
+  tray = new Tray(icon.isEmpty() ? icon : icon.resize({ width: 16, height: 16 }));
+
+  const role = deviceConfig.getDeviceRole();
+  const name = deviceConfig.getDeviceName();
 
   const menu = Menu.buildFromTemplate([
+    { label: `${name} (${role})`, enabled: false },
+    { type: 'separator' },
     { label: 'Open Embodier Trader', click: () => { mainWindow?.show(); mainWindow?.focus(); } },
+    {
+      label: 'Cluster Status',
+      click: () => {
+        const health = peerMonitor.getClusterHealth();
+        const status = serviceOrchestrator.getStatus();
+        console.log('[Cluster]', JSON.stringify(health, null, 2));
+        console.log('[Services]', JSON.stringify(status, null, 2));
+      },
+    },
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() },
   ]);
 
-  tray.setToolTip('Embodier Trader');
+  tray.setToolTip(`Embodier Trader — ${name}`);
   tray.setContextMenu(menu);
   tray.on('click', () => { mainWindow?.show(); mainWindow?.focus(); });
 }
 
-// ── App Lifecycle ─────────────────────────────────────────────────────────────
-app.whenReady().then(async () => {
-  createSplashWindow();
-  createTray();
+// ── Boot Sequence ─────────────────────────────────────────────────────────
+async function bootSystem() {
+  const role = deviceConfig.getDeviceRole();
+  console.log(`[main] Booting as ${deviceConfig.getDeviceName()} (role: ${role})`);
 
-  // Start backend
-  backendProcess = startBackend();
-
-  // Wait for backend to be ready
   try {
-    await checkBackend(`http://localhost:${BACKEND_PORT}/health`);
-    backendReady = true;
-    console.log('Backend ready');
-  } catch (e) {
-    console.error('Backend health check failed:', e.message);
+    // Initialize services via orchestrator (handles dependency ordering,
+    // peer monitoring, and fallback activation)
+    await serviceOrchestrator.initialize(role);
+    console.log('[main] All services started');
+  } catch (err) {
+    console.error('[main] Service startup failed:', err.message);
   }
 
   createMainWindow();
+}
+
+// ── IPC Handlers ──────────────────────────────────────────────────────────
+function registerIpcHandlers() {
+  // Device config
+  ipcMain.handle('get-device-config', () => deviceConfig.getFullConfig());
+  ipcMain.handle('get-system-info', () => deviceConfig.getSystemInfo());
+
+  // Backend control
+  ipcMain.handle('get-backend-status', () => backendManager.getStatus());
+  ipcMain.handle('restart-backend', async () => {
+    await backendManager.stopBackend();
+    await backendManager.startBackend();
+    return backendManager.getStatus();
+  });
+
+  // API keys
+  ipcMain.handle('get-api-keys', () => deviceConfig.getApiKeys());
+  ipcMain.handle('set-api-keys', (_e, keys) => { deviceConfig.setApiKeys(keys); return true; });
+  ipcMain.handle('set-trading-mode', (_e, mode) => { deviceConfig.setTradingMode(mode); return true; });
+
+  // Peer devices
+  ipcMain.handle('get-peer-devices', () => deviceConfig.getPeerDevices());
+  ipcMain.handle('add-peer-device', (_e, peer) => { deviceConfig.addPeerDevice(peer); return true; });
+  ipcMain.handle('remove-peer-device', (_e, id) => { deviceConfig.removePeerDevice(id); return true; });
+
+  // Auth
+  ipcMain.handle('get-auth-token', () => deviceConfig.getAuthToken());
+
+  // App info
+  ipcMain.handle('get-version', () => app.getVersion());
+  ipcMain.handle('get-app-version', () => app.getVersion());
+  ipcMain.handle('open-external', (_e, url) => shell.openExternal(url));
+  ipcMain.handle('open-data-dir', () => {
+    const dataDir = backendManager.getDataDir();
+    shell.openPath(dataDir);
+    return dataDir;
+  });
+
+  // Cluster status (for frontend dashboard)
+  ipcMain.handle('get-cluster-health', () => peerMonitor.getClusterHealth());
+  ipcMain.handle('get-orchestrator-status', () => serviceOrchestrator.getStatus());
+
+  // Updates (stub — wired in auto-updater.js)
+  ipcMain.handle('check-for-updates', () => ({ available: false }));
+
+  // Window controls
+  ipcMain.on('window-minimize', () => mainWindow?.minimize());
+  ipcMain.on('window-maximize', () => {
+    if (mainWindow?.isMaximized()) mainWindow.unmaximize();
+    else mainWindow?.maximize();
+  });
+  ipcMain.on('window-close', () => mainWindow?.close());
+
+  // Setup wizard completion
+  ipcMain.on('setup-complete', async (_event, config) => {
+    console.log('[main] Setup wizard completed:', config.deviceName, config.deviceRole);
+
+    // Save configuration via device-config
+    deviceConfig.completeSetup(config);
+
+    // Generate .env file for the backend
+    const envContent = deviceConfig.generateEnvFile(config);
+    const envPath = path.join(__dirname, '..', 'backend', '.env');
+    try {
+      fs.writeFileSync(envPath, envContent, 'utf8');
+      console.log('[main] Generated backend/.env');
+    } catch (err) {
+      console.error('[main] Failed to write .env:', err.message);
+    }
+
+    // Close setup wizard, show splash, boot system
+    if (setupWindow) {
+      setupWindow.close();
+      setupWindow = null;
+    }
+
+    createSplashWindow();
+    await bootSystem();
+  });
+}
+
+// ── App Lifecycle ─────────────────────────────────────────────────────────
+app.whenReady().then(async () => {
+  registerIpcHandlers();
+  createTray();
+
+  if (deviceConfig.isFirstRun()) {
+    // First run → show setup wizard (no splash)
+    console.log('[main] First run detected — launching setup wizard');
+    createSetupWindow();
+  } else {
+    // Normal boot → splash then services
+    createSplashWindow();
+    await bootSystem();
+  }
 });
 
 app.on('window-all-closed', () => {
@@ -199,16 +278,19 @@ app.on('window-all-closed', () => {
 });
 
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
-  else mainWindow?.show();
-});
-
-app.on('before-quit', () => {
-  if (backendProcess) {
-    backendProcess.kill();
+  if (BrowserWindow.getAllWindows().length === 0) {
+    if (deviceConfig.isFirstRun()) createSetupWindow();
+    else createMainWindow();
+  } else {
+    mainWindow?.show();
   }
 });
 
-// IPC handlers
-ipcMain.handle('get-app-version', () => app.getVersion());
-ipcMain.handle('open-external', (_, url) => shell.openExternal(url));
+app.on('before-quit', async () => {
+  console.log('[main] Shutting down...');
+  try {
+    await serviceOrchestrator.shutdown();
+  } catch (err) {
+    console.error('[main] Shutdown error:', err.message);
+  }
+});

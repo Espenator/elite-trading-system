@@ -265,7 +265,7 @@ class MarketWideSweep:
             from app.data.duckdb_storage import duckdb_store
             df = pd.DataFrame(all_rows)
             df["date"] = pd.to_datetime(df["date"]).dt.date
-            duckdb_store.upsert_ohlcv(df)
+            await asyncio.to_thread(duckdb_store.upsert_ohlcv, df)
             self._stats["total_symbols_ingested"] += len(set(df["symbol"]))
             logger.info("Batch ingested %d bars for %d symbols", len(df), len(set(df["symbol"])))
 

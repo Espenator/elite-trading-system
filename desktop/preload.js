@@ -43,12 +43,19 @@ contextBridge.exposeInMainWorld("embodier", {
   openExternal: (url) => ipcRenderer.invoke("open-external", url),
   openDataDir: () => ipcRenderer.invoke("open-data-dir"),
 
+  // Cluster / orchestrator
+  getClusterHealth: () => ipcRenderer.invoke("get-cluster-health"),
+  getOrchestratorStatus: () => ipcRenderer.invoke("get-orchestrator-status"),
+
   // Events from main process
   onBackendStatus: (callback) => {
     ipcRenderer.on("backend-status", (_event, status) => callback(status));
   },
   onUpdateAvailable: (callback) => {
     ipcRenderer.on("update-available", (_event, info) => callback(info));
+  },
+  onClusterEvent: (callback) => {
+    ipcRenderer.on("cluster-event", (_event, data) => callback(data));
   },
 
   // Platform detection

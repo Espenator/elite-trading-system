@@ -61,8 +61,10 @@ _SKIP_WORDS = {
 class DiscordSwarmBridge:
     """Monitors Discord channels and spawns analysis swarms from signals."""
 
-    def __init__(self, message_bus=None):
+    def __init__(self, message_bus=None, on_signal=None, publish_to_bus=True):
         self._bus = message_bus
+        self._on_signal_callback = on_signal
+        self._publish_to_bus = publish_to_bus
         self._running = False
         self._task: Optional[asyncio.Task] = None
         self._token = os.getenv("DISCORD_USER_TOKEN", "")
@@ -303,19 +305,30 @@ class DiscordSwarmBridge:
         """Trigger a swarm analysis from a Discord signal."""
         self._stats["swarms_triggered"] += 1
 
+        payload = {
+            "source": "discord",
+            "symbols": symbols,
+            "direction": direction,
+            "reasoning": reasoning,
+            "raw_content": raw_content,
+            "metadata": {
+                "channel": channel,
+                "source_type": source_type,
+            },
+            "priority": 4,
+        }
+
+        # Route through callback if set (DiscordChannelAgent mode)
+        if self._on_signal_callback:
+            try:
+                await self._on_signal_callback(payload)
+            except Exception as e:
+                logger.warning("Discord on_signal callback failed: %s", e)
+            if not self._publish_to_bus:
+                return
+
         if self._bus:
-            await self._bus.publish("swarm.idea", {
-                "source": "discord",
-                "symbols": symbols,
-                "direction": direction,
-                "reasoning": reasoning,
-                "raw_content": raw_content,
-                "metadata": {
-                    "channel": channel,
-                    "source_type": source_type,
-                },
-                "priority": 4,  # Discord signals get slightly higher priority
-            })
+            await self._bus.publish("swarm.idea", payload)
         else:
             try:
                 from app.services.swarm_spawner import get_swarm_spawner, SwarmIdea

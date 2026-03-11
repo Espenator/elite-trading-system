@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import log from "@/utils/logger";
 import { useApi } from "../hooks/useApi";
-import { getApiUrl, getAuthHeaders, WS_CHANNELS } from "../config/api";
+import { getApiUrl, getAuthHeaders } from "../config/api";
 import CNSVitals from "../components/dashboard/CNSVitals";
 import ProfitBrainBar from "../components/dashboard/ProfitBrainBar";
 import ws from "../services/websocket";
@@ -772,13 +773,14 @@ const SORT_PILLS = [
 const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1D", "1W"];
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   // --- STATE ---
   const [activeSortKey, setActiveSortKey] = useState("Composite Score");
   const [selectedSymbol, setSelectedSymbol] = useState("SPY"); // default so Price Action chart loads
   const [activeTimeframe, setActiveTimeframe] = useState("1h");
   const [autoExec, setAutoExec] = useState(false);
 
-  // --- WebSocket connection (Dashboard renders outside Layout, so must connect here) ---
+  // --- WebSocket connection (Layout handles this now, but keep as safety net) ---
   useEffect(() => {
     ws.connect();
     return () => ws.disconnect();
@@ -791,11 +793,10 @@ export default function Dashboard() {
     loading: sigLoading,
     error: sigErr,
     isStale: sigStale,
-    refetch: refetchSignals,
   } = useApi("signals", { pollIntervalMs: 15000 });
   const { data: kellyData, error: kellyErr } = useApi("kellyRanked", { pollIntervalMs: 30000 });
-  const { data: portfolioData, error: portfolioErr, refetch: refetchPortfolio } = useApi("portfolio", { pollIntervalMs: 15000 });
-  const { data: indicesData, error: indicesErr, refetch: refetchIndices } = useApi("marketIndices", {
+  const { data: portfolioData, error: portfolioErr } = useApi("portfolio", { pollIntervalMs: 15000 });
+  const { data: indicesData, error: indicesErr } = useApi("marketIndices", {
     pollIntervalMs: 15000,
   });
   const { data: openclawData, error: openclawErr } = useApi("openclaw", { pollIntervalMs: 30000 });
@@ -805,7 +806,7 @@ export default function Dashboard() {
   const { data: agentsData } = useApi("agents", { pollIntervalMs: 30000 });
   const { data: consensusData } = useApi("agentConsensus", { pollIntervalMs: 20000 });
   const { data: performanceEquityData } = useApi("performanceEquity", { pollIntervalMs: 30000 });
-  const { data: riskScoreData, refetch: refetchRiskScore } = useApi("riskScore", {
+  const { data: riskScoreData } = useApi("riskScore", {
     pollIntervalMs: 30000,
   });
   const { data: alertsData } = useApi("systemAlerts", {
@@ -838,17 +839,6 @@ export default function Dashboard() {
     pollIntervalMs: 10000,
     enabled: !!selectedSymbol,
   });
-
-  // --- WebSocket live updates (reduce polling latency for key channels) ---
-  useEffect(() => {
-    const unsubs = [
-      ws.on(WS_CHANNELS.market, () => refetchIndices()),
-      ws.on(WS_CHANNELS.signals, () => refetchSignals()),
-      ws.on(WS_CHANNELS.risk, () => refetchRiskScore()),
-      ws.on(WS_CHANNELS.trades, () => refetchPortfolio()),
-    ];
-    return () => unsubs.forEach((fn) => fn());
-  }, [refetchIndices, refetchSignals, refetchRiskScore, refetchPortfolio]);
 
   // --- SORT MAP (all 15 pills) ---
   const SORT_MAP = useMemo(
@@ -1006,7 +996,7 @@ export default function Dashboard() {
   }, [processedSignals]);
 
   const handleSpawnAgent = useCallback(() => {
-    window.location.href = "/agents";
+    navigate("/agents");
   }, []);
 
   // --- KEYBOARD SHORTCUTS ---
@@ -1103,7 +1093,7 @@ export default function Dashboard() {
   // Only show boot screen on very first load (no data AND no error yet)
   if (sigLoading && !signalsData && !sigErr)
     return (
-      <div className="h-screen w-full bg-[#0B0E14] flex items-center justify-center text-[#00D9FF] font-mono text-xs">
+      <div className="h-full w-full bg-[#0B0E14] flex items-center justify-center text-[#00D9FF] font-mono text-xs">
         INITIALIZING EMBODIER NEURAL NET...
       </div>
     );
@@ -1119,7 +1109,7 @@ export default function Dashboard() {
   ].filter(Boolean);
 
   return (
-    <div className="flex flex-col h-screen w-full bg-[#0B0E14] text-[#e5e7eb] font-sans text-[9px] leading-tight overflow-y-auto selection:bg-[#00D9FF]/30">
+    <div className="-m-6 -mb-10 flex flex-col h-[calc(100%+3.5rem)] w-[calc(100%+3rem)] bg-[#0B0E14] text-[#e5e7eb] font-sans text-[9px] leading-tight overflow-y-auto selection:bg-[#00D9FF]/30">
       {/* API ERROR BANNER */}
       {criticalErrors.length > 0 && (
         <div className="px-4 py-1.5 bg-red-500/10 border-b border-red-500/30 text-red-400 text-[10px] flex items-center gap-2 shrink-0">
@@ -1129,33 +1119,105 @@ export default function Dashboard() {
       )}
       {/* TOP HEADER BAR */}
       <header className="flex items-center justify-between px-4 py-1.5 border-b border-[rgba(42,52,68,0.5)] bg-[#111827] shrink-0">
-        <div className="flex items-center gap-2 pr-4 border-r border-[rgba(42,52,68,0.5)]">
-          <HexagonLogo />
-          <h1 className="text-xs font-bold text-[#00D9FF] tracking-widest">
-            EMBODIER TRADER
-          </h1>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 pr-4 border-r border-[rgba(42,52,68,0.5)]">
+            <HexagonLogo />
+            <h1 className="text-xs font-bold text-white tracking-widest">
+              EMBODIER TRADER
+            </h1>
+          </div>
+          {/* Regime Badges */}
+          <div
+            className={`px-2 py-0.5 rounded font-bold tracking-wider ${openclaw.regime === "BEAR" ? "bg-red-500/20 text-red-400 border border-red-500/50" : "bg-green-500/20 text-green-400 border border-green-500/50"}`}
+          >
+            {openclaw.regime || "\u2014"}
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-[#94a3b8]">SCORE</span>
+            <div className="w-6 h-6 rounded-full border-2 border-green-400 flex items-center justify-center text-[10px] font-mono text-green-400">
+              {openclaw.compositeScore != null && openclaw.compositeScore !== "" ? openclaw.compositeScore : "\u2014"}
+            </div>
+          </div>
+          {/* Risk Score Badge */}
+          <div
+            className={`px-2 py-0.5 rounded font-bold ${(riskScore.score ?? riskScore.risk_score ?? 0) > 70 ? "bg-red-500/20 text-red-400 border border-red-500/50" : (riskScore.score ?? riskScore.risk_score ?? 0) > 40 ? "bg-amber-500/20 text-amber-400 border border-amber-500/50" : "bg-green-500/20 text-green-400 border border-green-500/50"}`}
+          >
+            RISK {riskScore.score ?? riskScore.risk_score ?? "\u2014"}
+          </div>
+          {/* Sentiment Badge */}
+          <div
+            className={`px-2 py-0.5 rounded font-bold ${(globalSentiment.score ?? 0) >= 60 ? "bg-green-500/20 text-green-400" : (globalSentiment.score ?? 0) >= 40 ? "bg-amber-500/20 text-amber-400" : "bg-red-500/20 text-red-400"}`}
+          >
+            SENT {globalSentiment.score ?? globalSentiment.value ?? "\u2014"}
+          </div>
         </div>
-        {/* KPIs — mockup order: SPX, NDAQ, DOW, BTC | Equity, P/L, Deployed, Signals | Regime | Sharpe, Kelly, Alpha | Hi John */}
+        {/* KPIs */}
         <div className="flex items-center gap-4 font-mono text-[10px]">
-          <div className="flex gap-3">
-            <span>SPX <span className={Number(indices.SPX?.change ?? 0) >= 0 ? "text-green-400" : "text-red-400"}>{indices.SPX?.change != null ? `${Number(indices.SPX.change) >= 0 ? "+" : ""}${indices.SPX.change}%` : "\u2014"}</span></span>
-            <span>NDAQ <span className={Number(indices.NDAQ?.change ?? 0) >= 0 ? "text-green-400" : "text-red-400"}>{indices.NDAQ?.change != null ? `${Number(indices.NDAQ.change) >= 0 ? "+" : ""}${indices.NDAQ.change}%` : "\u2014"}</span></span>
-            <span>DOW <span className={Number(indices.DOW?.change ?? indices.DIA?.change ?? 0) >= 0 ? "text-green-400" : "text-red-400"}>{indices.DOW?.change != null ? `${Number(indices.DOW.change) >= 0 ? "+" : ""}${indices.DOW.change}%` : indices.DIA?.change != null ? `${Number(indices.DIA.change) >= 0 ? "+" : ""}${indices.DIA.change}%` : "\u2014"}</span></span>
-            <span>BTC <span className={Number(indices.BTC?.change ?? 0) >= 0 ? "text-green-400" : "text-red-400"}>{indices.BTC?.change != null ? `${Number(indices.BTC.change) >= 0 ? "+" : ""}${indices.BTC.change}%` : "\u2014"}</span></span>
+          <div className="flex gap-3 text-[#94a3b8]">
+            <span>
+              SPX{" "}
+              <span className="text-green-400">
+                +{indices.SPX?.change || "\u2014"}%
+              </span>
+            </span>
+            <span>
+              NDAQ{" "}
+              <span className="text-red-400">
+                {indices.NDAQ?.change || "\u2014"}%
+              </span>
+            </span>
+            <span>
+              BTC{" "}
+              <span className="text-green-400">
+                +{indices.BTC?.change || "\u2014"}%
+              </span>
+            </span>
           </div>
-          <div className="w-px h-4 bg-[#1e293b]" />
+          <div className="w-px h-4 bg-[#1e293b]"></div>
           <div className="flex gap-4">
-            <span>Equity <span className="text-white">{portfolio.totalEquity != null ? `$${Number(portfolio.totalEquity).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : "\u2014"}</span></span>
-            <span>P/L <span className={Number(portfolio.dayPnL ?? 0) >= 0 ? "text-green-400" : "text-red-400"}>{portfolio.dayPnL != null ? `${Number(portfolio.dayPnL) >= 0 ? "+" : ""}$${Number(portfolio.dayPnL).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : "\u2014"}</span></span>
-            <span>Deployed <span className="text-white">{portfolio.deployedPercent != null ? `${Number(portfolio.deployedPercent).toFixed(1)}M` : "0.0M"}</span></span>
-            <span>Signals <span className="text-white">{processedSignals.length}</span></span>
-            <span>Regime <span className="text-[#00D9FF] font-bold">{openclaw.regime || "BULL"}</span></span>
-            <span>Sharpe <span className="text-white">{performance.sharpe != null ? Number(performance.sharpe).toFixed(2) : "\u2014"}</span></span>
-            <span>Kelly <span className="text-white">{processedSignals[0]?.kellyPercent != null ? `${Number(processedSignals[0].kellyPercent).toFixed(1)}%` : "10.3%"}</span></span>
-            <span>Alpha <span className="text-green-400">+{performance.alpha != null ? Number(performance.alpha).toFixed(1) : "5.5"}%</span></span>
+            <span>
+              Equity{" "}
+              <span className="text-white font-mono">
+                ${Number(portfolio.totalEquity ?? 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </span>
+            </span>
+            <span>
+              P&L{" "}
+              <span className={`font-mono ${Number(portfolio.dayPnL ?? 0) >= 0 ? "text-green-400" : "text-red-400"}`}>
+                {Number(portfolio.dayPnL ?? 0) >= 0 ? "+" : ""}${Number(portfolio.dayPnL ?? 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </span>
+            </span>
+            <span>
+              Deployed{" "}
+              <span className="text-[#00D9FF] font-mono">
+                {Number(portfolio.deployedPercent ?? 0).toFixed(1)}%
+              </span>
+            </span>
+            <span>
+              Sharpe{" "}
+              <span className="text-[#00D9FF] font-mono">
+                {performance.sharpe != null && performance.sharpe !== "" ? Number(performance.sharpe) : "0"}
+              </span>
+            </span>
+            <span>
+              Alpha{" "}
+              <span className="text-green-400 font-mono">
+                +{performance.alpha != null && performance.alpha !== "" ? Number(performance.alpha) : "0"}%
+              </span>
+            </span>
+            <span>
+              Win{" "}
+              <span className="text-green-400 font-mono">
+                {performance.winRate != null && performance.winRate !== "" ? Number(performance.winRate) : "0"}%
+              </span>
+            </span>
+            <span>
+              MaxDD{" "}
+              <span className="text-red-400 font-mono">
+                {performance.maxDrawdown != null && performance.maxDrawdown !== "" ? Number(performance.maxDrawdown) : "0"}%
+              </span>
+            </span>
           </div>
-          <div className="w-px h-4 bg-[#1e293b]" />
-          <span className="text-white">Hi John</span>
         </div>
       </header>
 
@@ -1173,33 +1235,48 @@ export default function Dashboard() {
       {/* MAIN CONTENT AREA: Center Table + Right Panel */}
       <main className="flex flex-1 overflow-hidden">
 
-        {/* CENTER COLUMN: Table (dominant area) */}
+        {/* CENTER COLUMN: Sort Pills + Table (dominant area) */}
         <section className="flex flex-col flex-1 min-w-0 border-r border-[rgba(42,52,68,0.5)] bg-[#0B0E14]">
-          {/* Toolbar per mockup: Select All, Filter, Group, Timesframe, OrderFlow, Threshold, Refine, Execute */}
-          <div className="flex items-center gap-2 px-2 py-1.5 border-b border-[rgba(42,52,68,0.5)] bg-[#111827] shrink-0">
-            <button className="px-2 py-0.5 rounded border border-[#374151] text-[8px] text-[#94a3b8] hover:bg-[#1e293b]/50">Select All</button>
-            <button className="px-2 py-0.5 rounded border border-[#374151] text-[8px] text-[#94a3b8] hover:bg-[#1e293b]/50">Filter</button>
-            <select className="px-2 py-0.5 rounded border border-[#374151] text-[8px] text-[#94a3b8] bg-[#0B0E14] appearance-none cursor-pointer">
-              <option>Group</option>
-            </select>
-            <select
-              value={activeTimeframe}
-              onChange={(e) => setActiveTimeframe(e.target.value)}
-              className="px-2 py-0.5 rounded border border-[#374151] text-[8px] text-[#94a3b8] bg-[#0B0E14] appearance-none cursor-pointer"
-            >
-              <option value="">Timesframe</option>
+          {/* Sort Pills Row */}
+          <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-[rgba(42,52,68,0.5)] bg-[#111827] shrink-0 overflow-x-auto no-scrollbar">
+            {SORT_PILLS.map((pill) => (
+              <button
+                key={pill}
+                onClick={() => setActiveSortKey(pill)}
+                className={`whitespace-nowrap px-2 py-0.5 rounded-sm border text-[8px] ${activeSortKey === pill ? "bg-[#00D9FF]/20 text-[#00D9FF] border-[#00D9FF]/50" : "bg-transparent text-[#94a3b8] border-[#374151] hover:border-[#64748b]"} transition-colors`}
+              >
+                {pill}
+              </button>
+            ))}
+          </div>
+
+          {/* Timeframe + Status Row */}
+          <div className="flex items-center justify-between px-2 py-1 border-b border-[rgba(42,52,68,0.5)] bg-[#111827] shrink-0 text-[#94a3b8] font-mono">
+            <div className="flex items-center gap-1">
+              <span className="text-[8px]">TF:</span>
               {TIMEFRAMES.map((tf) => (
-                <option key={tf} value={tf}>{tf}</option>
+                <button
+                  key={tf}
+                  onClick={() => setActiveTimeframe(tf)}
+                  className={`px-1.5 py-0.5 rounded-sm text-[8px] ${activeTimeframe === tf ? "bg-[#1e293b] text-white" : "hover:bg-[#1e293b]/50"}`}
+                >
+                  {tf}
+                </button>
               ))}
-            </select>
-            <select className="px-2 py-0.5 rounded border border-[#374151] text-[8px] text-[#94a3b8] bg-[#0B0E14] appearance-none cursor-pointer">
-              <option>OrderFlow</option>
-            </select>
-            <select className="px-2 py-0.5 rounded border border-[#374151] text-[8px] text-[#94a3b8] bg-[#0B0E14] appearance-none cursor-pointer">
-              <option>Threshold</option>
-            </select>
-            <button className="px-2 py-0.5 rounded border border-[#374151] text-[8px] text-[#94a3b8] hover:bg-[#1e293b]/50">Refine</button>
-            <button onClick={handleRunScan} className="px-2 py-0.5 rounded bg-emerald-600/80 text-white text-[8px] font-bold hover:bg-emerald-600">Execute</button>
+            </div>
+            <div className="flex items-center gap-3 text-[8px]">
+              <button
+                onClick={() => setAutoExec(!autoExec)}
+                className="flex items-center gap-1 cursor-pointer hover:text-white transition-colors"
+              >
+                <div className={`w-1.5 h-1.5 rounded-full ${autoExec ? "bg-green-500 animate-pulse" : "bg-red-500"}`} />
+                Auto-Exec: {autoExec ? "ON" : "OFF"}
+              </button>
+              <span className="flex items-center gap-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> LIVE
+              </span>
+              <span>Flywheel: {flywheel.accuracy ?? (flywheel.accuracy30d != null ? Math.round(Number(flywheel.accuracy30d) * 100) : 0)}%</span>
+            </div>
           </div>
 
           {/* MAIN SIGNALS TABLE */}
@@ -1207,80 +1284,68 @@ export default function Dashboard() {
             <table className="w-full text-left font-mono whitespace-nowrap">
               <thead className="sticky top-0 bg-[#111827] text-[10px] uppercase text-slate-500 border-b border-[rgba(42,52,68,0.5)] shadow-md z-10">
                 <tr>
-                  <th className="px-1.5 py-1 font-semibold">CMP</th>
-                  <th className="px-1.5 py-1 font-semibold">Flow</th>
-                  <th className="px-1.5 py-1 font-semibold">Status</th>
-                  <th className="px-1.5 py-1 font-semibold">Source</th>
-                  <th className="px-1.5 py-1 font-semibold">Symbol</th>
-                  <th className="px-1.5 py-1 font-semibold">Direction</th>
-                  <th className="px-1.5 py-1 font-semibold">TriggerID</th>
-                  <th className="px-1.5 py-1 font-semibold">Level</th>
-                  <th className="px-1.5 py-1 font-semibold">Liquidity</th>
-                  <th className="px-1.5 py-1 font-semibold">Quant</th>
-                  <th className="px-1.5 py-1 font-semibold">Bid</th>
-                  <th className="px-1.5 py-1 font-semibold">Ask</th>
-                  <th className="px-1.5 py-1 font-semibold">Delta</th>
-                  <th className="px-1.5 py-1 font-semibold">Gamma</th>
-                  <th className="px-1.5 py-1 font-semibold">Vega</th>
-                  <th className="px-1.5 py-1 font-semibold">Theta</th>
-                  <th className="px-1.5 py-1 font-semibold">Rho</th>
-                  <th className="px-1.5 py-1 font-semibold">IV</th>
-                  <th className="px-1.5 py-1 font-semibold">Volume</th>
-                  <th className="px-1.5 py-1 font-semibold">P/L</th>
-                  <th className="px-1.5 py-1 font-semibold">Actions</th>
+                  <th className="px-1.5 py-1 font-semibold">Sym</th>
+                  <th className="px-1.5 py-1 font-semibold">Dir</th>
+                  <th className="px-1.5 py-1 font-semibold">Score</th>
+                  <th className="px-1.5 py-1 font-semibold">Regime</th>
+                  <th className="px-1.5 py-1 font-semibold">ML</th>
+                  <th className="px-1.5 py-1 font-semibold">Sent</th>
+                  <th className="px-1.5 py-1 font-semibold">Tech</th>
+                  <th className="px-1.5 py-1 font-semibold">Agent</th>
+                  <th className="px-1.5 py-1 font-semibold">Swarm</th>
+                  <th className="px-1.5 py-1 font-semibold">SHAP</th>
+                  <th className="px-1.5 py-1 font-semibold">Kelly</th>
+                  <th className="px-1.5 py-1 font-semibold">Entry</th>
+                  <th className="px-1.5 py-1 font-semibold">Tgt</th>
+                  <th className="px-1.5 py-1 font-semibold">Stop</th>
+                  <th className="px-1.5 py-1 font-semibold">R-Mult</th>
+                  <th className="px-1.5 py-1 font-semibold">P&L</th>
+                  <th className="px-1.5 py-1 font-semibold">Sec</th>
+                  <th className="px-1.5 py-1 font-semibold">Mom</th>
+                  <th className="px-1.5 py-1 font-semibold">Vol</th>
+                  <th className="px-1.5 py-1 font-semibold">News</th>
+                  <th className="px-1.5 py-1 font-semibold">Pat</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#1e293b]/50">
                 {processedSignals.map((sig, idx) => {
                   const isSelected = selectedSymbol === sig.symbol;
                   const isLong = sig.direction === "LONG";
-                  const dirLabel = isLong ? "BULL" : "BEAR";
                   const dirColor = isLong ? "text-green-400" : "text-red-400";
-                  const flowColor = sig.score >= 70 ? "#10b981" : sig.score >= 50 ? "#3b82f6" : "#ef4444";
-                  const pnl = sig.expPnL != null ? Number(sig.expPnL) : (idx % 3 === 0 ? -120 : idx % 3 === 1 ? 30 : 750);
-                  const pnlColor = pnl >= 0 ? "text-green-400" : "text-red-400";
                   return (
                     <tr
                       key={sig.symbol + idx}
                       onClick={() => setSelectedSymbol(sig.symbol)}
                       className={`cursor-pointer hover:bg-[#1e293b]/30 transition-colors ${isSelected ? "bg-[#164e63]/30 border-l-2 border-[#00D9FF]" : "border-l-2 border-transparent"}`}
                     >
-                      <td className="px-1.5 py-1 text-[0.65rem] text-[#64748b] font-mono">—</td>
-                      <td className="px-1.5 py-1">
-                        <div className="w-12 h-2 bg-[#1e293b] rounded overflow-hidden flex">
-                          <div className="h-full" style={{ width: `${Math.min(sig.score || 0, 100)}%`, backgroundColor: flowColor }} />
-                        </div>
-                      </td>
-                      <td className="px-1.5 py-1">
-                        <div className="flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-green-500" /><span className="text-[0.6rem] text-[#94a3b8]">T1</span>
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" /><span className="text-[0.6rem] text-[#94a3b8]">T2</span>
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-500" /><span className="text-[0.6rem] text-[#94a3b8]">T3</span>
-                        </div>
-                      </td>
-                      <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">{sig.leadAgent || "UW"}</td>
                       <td className="px-1.5 py-1 text-[0.65rem] text-white font-bold font-mono">{sig.symbol}</td>
-                      <td className={`px-1.5 py-1 text-[0.65rem] font-mono font-bold ${dirColor}`}>{dirLabel}</td>
-                      <td className="px-1.5 py-1 text-[0.65rem] text-[#64748b] font-mono">{sig.symbol}{idx}</td>
-                      <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">{sig.entry != null ? Number(sig.entry).toFixed(2) : "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">—</td>
-                      <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">100</td>
-                      <td className="px-1.5 py-1 text-[0.65rem] text-green-400 font-mono">{sig.entry != null ? (Number(sig.entry) - 0.01).toFixed(2) : "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-[0.65rem] text-red-400 font-mono">{sig.entry != null ? (Number(sig.entry) + 0.01).toFixed(2) : "\u2014"}</td>
-                      <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">—</td>
-                      <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">—</td>
-                      <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">—</td>
-                      <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">—</td>
-                      <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">—</td>
-                      <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">—</td>
-                      <td className="px-1.5 py-1 text-[0.65rem] text-[#00D9FF] font-mono">{sig.volSpike ? `${sig.volSpike}x` : "\u2014"}</td>
-                      <td className={`px-1.5 py-1 text-[0.65rem] font-mono ${pnlColor}`}>{pnl >= 0 ? `+${pnl}` : pnl}</td>
-                      <td className="px-1.5 py-1">
-                        <div className="flex gap-0.5">
-                          <button className="px-1 py-0.5 text-[0.6rem] bg-[#00D9FF]/20 text-[#00D9FF] rounded border border-[#00D9FF]/30 hover:bg-[#00D9FF]/30">MOD</button>
-                          <button className="px-1 py-0.5 text-[0.6rem] bg-red-500/20 text-red-400 rounded border border-red-500/30 hover:bg-red-500/30">REM</button>
+                      <td className={`px-1.5 py-1 text-[0.65rem] font-mono ${dirColor}`}>{isLong ? "L" : "S"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem]">
+                        <div className="flex items-center gap-1">
+                          <span className={`font-mono ${sig.score >= 90 ? "text-green-400" : "text-[#00D9FF]"}`}>{sig.score}</span>
+                          <div className="w-12 h-1.5 bg-[#1e293b] rounded-full overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${sig.score}%`, backgroundColor: sig.score >= 85 ? "#10b981" : sig.score >= 70 ? "#00D9FF" : sig.score >= 50 ? "#f59e0b" : "#ef4444" }} />
+                          </div>
                         </div>
                       </td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">{sig.scores?.regime || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">{sig.scores?.ml || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">{sig.scores?.sentiment || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">{sig.scores?.technical || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#00D9FF] truncate max-w-[80px] font-mono">{sig.leadAgent || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">{sig.swarmVote || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#64748b] truncate max-w-[60px] font-mono">{sig.topShap || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#00D9FF] font-mono">{sig.kellyPercent ?? 0}%</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#94a3b8] font-mono">{sig.entry != null ? `$${Number(sig.entry).toFixed(2)}` : "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-green-400 font-mono">{sig.target != null ? `$${Number(sig.target).toFixed(2)}` : "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-red-400 font-mono">{sig.stop != null ? `$${Number(sig.stop).toFixed(2)}` : "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-white font-mono">{sig.rMultiple != null ? `${Number(sig.rMultiple).toFixed(1)}:1` : "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-green-400 font-mono">{sig.expPnL != null ? `+$${Number(sig.expPnL).toLocaleString()}` : "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#64748b] font-mono">{sig.sector?.substring(0, 3) || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-green-400 font-mono">+{sig.momentum || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#00D9FF] font-mono">{sig.volSpike || "\u2014"}x</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#64748b] truncate max-w-[50px] font-mono">{sig.newsImpact || "\u2014"}</td>
+                      <td className="px-1.5 py-1 text-[0.65rem] text-[#00D9FF] truncate max-w-[60px] font-mono">{sig.pattern || "\u2014"}</td>
                     </tr>
                   );
                 })}
@@ -1288,26 +1353,19 @@ export default function Dashboard() {
             </table>
           </div>
 
-          {/* Table footer per mockup: 25 rows. 15.0 LT (In-Day Stat) | 0:27 | Prep est 0.02s | Daily 97% | Week 71.02% */}
-          <div className="px-2 py-1 border-t border-[rgba(42,52,68,0.5)] bg-[#111827] shrink-0 text-[8px] font-mono text-[#64748b]">
-            {processedSignals.length} rows. 15.0 LT (In-Day Stat) | 0:27 | Prep est 0.02s | Daily 97% | Week 71.02%
-          </div>
-
-          {/* Bottom buttons per mockup: EXECUTE X 99 (green), EXIT ALL (red) */}
+          {/* Inline Action Buttons Row */}
           <div className="flex items-center gap-2 px-2 py-1.5 border-t border-[rgba(42,52,68,0.5)] bg-[#111827] shrink-0">
-            <button onClick={handleExecTop5} className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-1.5 rounded text-[9px] font-bold">
-              EXECUTE X {Math.min(99, processedSignals.length)}
-            </button>
-            <button onClick={handleFlatten} className="bg-red-600/80 hover:bg-red-600 text-white px-4 py-1.5 rounded text-[9px] font-bold border border-red-500/50">
-              EXIT ALL
-            </button>
-            <div className="flex-1" />
-            <button onClick={handleRunScan} className="bg-[#1e293b] hover:bg-[#374151] text-[#94a3b8] px-2 py-0.5 rounded text-[8px] font-mono border border-[#374151]">
+            <button onClick={handleRunScan} className="bg-[#1e293b] hover:bg-[#374151] text-white px-3 py-1 rounded text-[8px] font-mono border border-[#374151]">
               Run Scan [F5]
             </button>
-            <button onClick={handleExportCSV} className="bg-[#1e293b] hover:bg-[#374151] text-[#94a3b8] px-2 py-0.5 rounded text-[8px] font-mono border border-[#374151]">
+            <button onClick={handleExportCSV} className="bg-[#1e293b] hover:bg-[#374151] text-white px-3 py-1 rounded text-[8px] font-mono border border-[#374151]">
               Export CSV [F7]
             </button>
+            <button onClick={handleExecTop5} className="bg-cyan-900/60 hover:bg-cyan-800 text-[#00D9FF] px-3 py-1 rounded text-[8px] font-mono border border-cyan-700/50">
+              Exec Top 5
+            </button>
+            <div className="flex-1" />
+            <span className="text-[8px] font-mono text-[#64748b]">{processedSignals.length} signals</span>
           </div>
 
           {/* Alerts Bar */}
@@ -1323,139 +1381,53 @@ export default function Dashboard() {
           )}
         </section>
 
-        {/* RIGHT COLUMN: per mockup 02 — TOP TRADE IDEAS, AGENT COMPOSITION, SWARM CONCENSUS PER TIKER, NEWS & PATTERN TRIGGERS, FDI CHECK */}
-        <section className="flex flex-col w-[32%] bg-[#0B0E14] overflow-y-auto custom-scrollbar p-2 gap-2">
-          {/* 1. TOP TRADE IDEAS — circular chart, metrics, EXECUTE NOW, SCALE, LIMIT */}
-          <div className="rounded-md border border-[rgba(42,52,68,0.5)] bg-[#111827] p-2.5">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-2">TOP TRADE IDEAS</h3>
-            <div className="flex gap-3">
+        {/* RIGHT COLUMN: Intelligence Panel (~32%) */}
+        <section className="flex flex-col w-[32%] bg-[#111827] overflow-y-auto custom-scrollbar">
+          {/* Swarm Consensus Bars (prominent at top per mockup) — GET /api/v1/agents/consensus */}
+          <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5 space-y-1.5">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">SWARM CONSENSUS</h3>
+            {(swarmForConsensus.agents || []).slice(0, 6).map((agent, i) => (
+              <ConsensusBar
+                key={i}
+                label={agent.name || `Agent ${i + 1}`}
+                buyPct={agent.vote === "BUY" ? agent.confidence || 50 : 100 - (agent.confidence || 50)}
+                sellPct={agent.vote === "SELL" ? agent.confidence || 50 : 0}
+              />
+            ))}
+            {(!swarmForConsensus.agents || swarmForConsensus.agents.length === 0) && (
+              <div className="text-[8px] text-[#64748b] font-mono py-2 text-center">
+                Awaiting swarm agent data...
+              </div>
+            )}
+          </div>
+
+          {/* Signal Strength Bar Chart */}
+          <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5">
+            <SignalBarChart
+              signals={processedSignals.slice(0, 20)}
+              selectedSymbol={selectedSymbol}
+              onSelect={setSelectedSymbol}
+            />
+          </div>
+
+          {/* Regime Donut + Trades Donut Row */}
+          <div className="flex gap-2 border-b border-[rgba(42,52,68,0.5)] p-2.5">
+            <div className="flex-1 flex flex-col items-center">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-1">REGIME</span>
+              <RegimeDonut regime={openclaw.regime} score={openclaw.compositeScore} />
+            </div>
+            <div className="flex-1 flex flex-col items-center">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-1">TOP TRADES</span>
               <TopTradesDonut
                 buyCount={swarm.buyCount || processedSignals.filter((s) => s.direction === "LONG").length}
                 sellCount={swarm.sellCount || processedSignals.filter((s) => s.direction === "SHORT").length}
                 holdCount={swarm.holdCount || Math.max(1, processedSignals.length - processedSignals.filter((s) => s.direction === "LONG").length - processedSignals.filter((s) => s.direction === "SHORT").length)}
               />
-              <div className="flex-1 space-y-0.5 text-[9px] font-mono">
-                <div className="text-green-400">+0.85 P/L</div>
-                <div className="text-green-400">P/L +15.5</div>
-                <div className="text-white">K2.13</div>
-                <div className="text-green-400">Alpha +5.5</div>
-                <div className="text-[#94a3b8]">Volume +1.5M</div>
-                <div className="text-[#94a3b8]">Risk 2.1</div>
-                <div className="text-[#94a3b8]">Reward 3.5</div>
-                <div className="text-white">$150.00</div>
-                <div className="text-[#94a3b8]">Target 12% (+2.5%)</div>
-                <div className="text-[#94a3b8]">Gain 1.5% (RX12)</div>
-                <div className="text-[0.65rem] text-[#64748b] mt-1 truncate">Lorem ipsum dolor sit amet, consectetur.</div>
-              </div>
-            </div>
-            <div className="flex gap-2 mt-2">
-              <button onClick={() => selectedSignal && handleExecute(selectedSignal.direction === "SHORT" ? "SELL" : "BUY")} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-1 rounded text-[9px] font-bold">EXECUTE NOW</button>
-              <button className="flex-1 bg-[#1e293b] hover:bg-[#374151] text-[#94a3b8] py-1 rounded text-[9px] border border-[#374151]">SCALE</button>
-              <button className="flex-1 bg-[#1e293b] hover:bg-[#374151] text-[#94a3b8] py-1 rounded text-[9px] border border-[#374151]">LIMIT</button>
             </div>
           </div>
 
-          {/* 2. AGENT COMPOSITION — Agent, Symbol, S, Q, TP, SL, P/L, Actions */}
-          <div className="rounded-md border border-[rgba(42,52,68,0.5)] bg-[#111827] p-2.5">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-2">AGENT COMPOSITION</h3>
-            <table className="w-full text-[8px] font-mono">
-              <thead>
-                <tr className="text-[#64748b] border-b border-[#1e293b]">
-                  <th className="text-left py-0.5">Agent</th><th className="text-left py-0.5">Symbol</th><th className="text-left py-0.5">S</th><th className="text-left py-0.5">Q</th><th className="text-left py-0.5">TP</th><th className="text-left py-0.5">SL</th><th className="text-left py-0.5">P/L</th><th className="text-left py-0.5">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {((swarm.agents || swarmForConsensus.agents || []).length > 0
-                  ? (swarm.agents || swarmForConsensus.agents).slice(0, 4)
-                  : [{ name: "Aghra" }, { name: "Traxex" }, { name: "Slark" }, { name: "Crystal" }]
-                ).map((a, i) => (
-                  <tr key={i} className="border-b border-[#1e293b]/50">
-                    <td className="py-0.5 text-white">{a.name || `Agent ${i + 1}`}</td>
-                    <td className="py-0.5 text-[#00D9FF]">{processedSignals[i]?.symbol || "SPX"}</td>
-                    <td className="py-0.5 text-green-400">L</td>
-                    <td className="py-0.5 text-white">10</td>
-                    <td className="py-0.5 text-[#94a3b8]">1.5R</td>
-                    <td className="py-0.5 text-[#94a3b8]">1.0R</td>
-                    <td className="py-0.5 text-green-400">+12.00</td>
-                    <td className="py-0.5">
-                      <button className="text-[#00D9FF] hover:text-cyan-300 text-[0.65rem]">MOD</button>
-                      <span className="mx-1 text-[#374151]">|</span>
-                      <button className="text-red-400 hover:text-red-300 text-[0.65rem]">REM</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="flex gap-1 mt-1">
-              <button className="text-[8px] text-[#64748b] hover:text-[#94a3b8]">Zoom</button>
-              <button className="text-[8px] text-[#64748b] hover:text-[#94a3b8]">Edit</button>
-              <button className="text-[8px] text-[#64748b] hover:text-[#94a3b8]">Recalculate</button>
-            </div>
-          </div>
-
-          {/* 3. SWARM CONSENSUS PER TIKER — horizontal bars */}
-          <div className="rounded-md border border-[rgba(42,52,68,0.5)] bg-[#111827] p-2.5">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-2">SWARM CONSENSUS PER TIKER</h3>
-            <div className="space-y-1">
-              {(processedSignals.slice(0, 6)).map((sig, i) => {
-                const isBuy = sig.direction === "LONG";
-                return (
-                  <div key={sig.symbol} className="flex items-center gap-2">
-                    <span className="w-12 text-[8px] font-mono text-[#94a3b8]">{sig.symbol}</span>
-                    <div className="flex-1 h-3 bg-[#1e293b] rounded overflow-hidden flex">
-                      <div className="h-full bg-green-500" style={{ width: isBuy ? `${(sig.score || 0)}%` : "0%" }} />
-                      <div className="h-full bg-red-500" style={{ width: !isBuy ? `${100 - (sig.score || 0)}%` : "0%" }} />
-                    </div>
-                    <span className={`text-[8px] font-mono w-16 text-right ${isBuy ? "text-green-400" : "text-red-400"}`}>
-                      {(sig.score || 0).toFixed(2)} {isBuy ? "BUY" : "SELL"}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="flex gap-1 mt-2">
-              <button className="text-[8px] text-[#64748b] hover:text-[#94a3b8]">Daily</button>
-              <button className="text-[8px] text-[#64748b] hover:text-[#94a3b8]">Weekly</button>
-              <button className="text-[8px] text-[#64748b] hover:text-[#94a3b8]">Monthly</button>
-            </div>
-          </div>
-
-          {/* 4. NEWS & PATTERN TRIGGERS */}
-          <div className="rounded-md border border-[rgba(42,52,68,0.5)] bg-[#111827] p-2.5">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-2">NEWS & PATTERN TRIGGERS</h3>
-            <div className="space-y-1 text-[8px]">
-              {["Bloomberg", "Reuters", "FED", "AVD", "Benzinga", "Your Data"].map((src, i) => (
-                <div key={src} className="flex justify-between items-start gap-2 py-0.5 border-b border-[#1e293b]/30 last:border-0">
-                  <span className="text-[#94a3b8] shrink-0">{src}</span>
-                  <span className="text-[#64748b] truncate flex-1">Headline or pattern description</span>
-                  <span className={`shrink-0 font-mono ${i % 3 === 0 ? "text-green-400" : "text-red-400"}`}>{i % 3 === 0 ? "+1000.00" : "-300.00"}</span>
-                </div>
-              ))}
-            </div>
-            <div className="flex gap-1 mt-2">
-              <button className="text-[8px] text-[#64748b] hover:text-[#94a3b8]">Filter</button>
-              <button className="text-[8px] text-[#64748b] hover:text-[#94a3b8]">Clear</button>
-            </div>
-          </div>
-
-          {/* 5. FDI CHECK (Selected) */}
-          <div className="rounded-md border border-[rgba(42,52,68,0.5)] bg-[#111827] p-2.5">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-2">FDI CHECK (Selected)</h3>
-            <div className="space-y-1 text-[9px] font-mono">
-              <div className="text-green-400">Price $2,500 (+2.5%)</div>
-              <div className="text-red-400">Max Drawdown -0.1%</div>
-              <div className="text-green-400">Trade Confidence 98% CONSENSUS</div>
-              <div className="text-[#94a3b8]">NVDA 27.21 / 0.99x</div>
-              <div className="text-[#94a3b8]">SPX 25.12 / 0.81x</div>
-            </div>
-            <div className="flex gap-2 mt-2">
-              <button className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-1 rounded text-[9px] font-bold">APPROVE BID</button>
-              <button className="flex-1 bg-red-600/80 hover:bg-red-600 text-white py-1 rounded text-[9px] font-bold">REJECT BID</button>
-            </div>
-          </div>
-
-          {/* Legacy detail panels removed — mockup uses TOP TRADE IDEAS, AGENT COMPOSITION, etc. only */}
-          {false && selectedSignal && (
+          {/* Selected Symbol Detail Panel */}
+          {selectedSignal && (
             <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5 space-y-2">
               {/* Symbol Header */}
               <div className="flex justify-between items-center">
@@ -1531,8 +1503,8 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Risk & Order Proposal — hidden per mockup fidelity */}
-          {false && selectedSignal && (
+          {/* Risk & Order Proposal */}
+          {selectedSignal && (
             <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5 space-y-2">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">RISK & ORDER PROPOSAL</h3>
               <div className="font-mono text-[8px]">
@@ -1610,13 +1582,13 @@ export default function Dashboard() {
                     .then(() => alert(`Stop Limit order placed: ${selectedSymbol}`))
                     .catch(e => alert(`Stop Limit order failed: ${e.message}`));
                 }} className="bg-[#1e293b] hover:bg-cyan-900 text-[#00D9FF] py-1 rounded text-[8px]">Stop Limit</button>
-                <button onClick={() => { window.location.href = "/trade-execution"; }} className="bg-[#1e293b] hover:bg-amber-900 text-[#f59e0b] py-1 rounded text-[8px]">Modify</button>
+                <button onClick={() => { navigate("/trade-execution"); }} className="bg-[#1e293b] hover:bg-amber-900 text-[#f59e0b] py-1 rounded text-[8px]">Modify</button>
               </div>
             </div>
           )}
 
-          {/* Cognitive Intelligence Status (ETBI) — hidden per mockup fidelity */}
-          {false && (() => {
+          {/* Cognitive Intelligence Status (ETBI) */}
+          {(() => {
             const cog = cognitiveData || {};
             const metrics = cog.metrics || {};
             const recentSnaps = cog.recent_snapshots || [];
@@ -1632,7 +1604,7 @@ export default function Dashboard() {
               <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5 space-y-1.5">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">COGNITIVE INTELLIGENCE</h3>
-                  <button onClick={() => { window.location.href = "/cognitive-dashboard"; }} className="text-[7px] text-[#00D9FF] hover:text-white transition-colors">View Full →</button>
+                  <button onClick={() => { navigate("/dashboard"); }} className="text-[7px] text-[#00D9FF] hover:text-white transition-colors">View Full →</button>
                 </div>
                 <div className="grid grid-cols-2 gap-1 font-mono text-[8px]">
                   <div className="flex items-center gap-1.5">
@@ -1664,43 +1636,31 @@ export default function Dashboard() {
             );
           })()}
 
-          {/* Equity Curve + Flywheel — hidden per mockup fidelity */}
-          {false && (
-            <>
-              <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-1">EQUITY CURVE</h3>
-                <MiniEquityCurve points={performance.equityCurve} />
-              </div>
-              <div className="p-2.5">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-2">ML FLYWHEEL</h3>
-                <FlywheelPipeline flywheel={flywheel} />
-              </div>
-            </>
-          )}
+          {/* Equity Curve + Flywheel (bottom of right panel) */}
+          <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-1">EQUITY CURVE</h3>
+            <MiniEquityCurve points={performance.equityCurve} />
+          </div>
+
+          <div className="p-2.5">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-2">ML FLYWHEEL</h3>
+            <FlywheelPipeline flywheel={flywheel} />
+          </div>
         </section>
       </main>
 
-      {/* BOTTOM ACTION BAR — mockup: RUN SCAN, DEBATE, BROKER, EXECUTE, HELP/DOCS, PAUSE, EMERGENCY STOP | CPU, GPU, RAM, NET, PID */}
-      <footer className="flex items-center justify-between px-3 py-1 bg-[#0B0E14] border-t border-[rgba(42,52,68,0.5)] shrink-0 font-mono text-[8px] text-[#94a3b8]">
+      {/* BOTTOM ACTION BAR */}
+      <footer className="flex items-center px-3 py-1 bg-[#0B0E14] border-t border-[rgba(42,52,68,0.5)] shrink-0 font-mono text-[8px] text-[#94a3b8]">
         <div className="flex gap-2">
-          <button onClick={handleRunScan} className="bg-[#1e293b] hover:bg-[#374151] text-white px-2 py-0.5 rounded border border-[#374151]">
-            RUN SCAN
+          <button onClick={handleSpawnAgent} className="bg-[#1e293b] hover:bg-[#374151] text-white px-2 py-0.5 rounded border border-[#374151]">
+            Spawn Agent [N]
           </button>
-          <button className="bg-[#1e293b] hover:bg-[#374151] text-white px-2 py-0.5 rounded border border-[#374151]">DEBATE</button>
-          <button className="bg-[#1e293b] hover:bg-[#374151] text-white px-2 py-0.5 rounded border border-[#374151]">BROKER</button>
-          <button onClick={handleExecTop5} className="bg-[#1e293b] hover:bg-[#374151] text-white px-2 py-0.5 rounded border border-[#374151]">EXECUTE</button>
-          <button className="bg-[#1e293b] hover:bg-[#374151] text-white px-2 py-0.5 rounded border border-[#374151]">HELP / DOCS</button>
-          <button className="bg-[#1e293b] hover:bg-[#374151] text-white px-2 py-0.5 rounded border border-[#374151]">PAUSE</button>
-          <button onClick={handleEmergencyStop} className="bg-red-900/70 text-red-400 px-3 py-0.5 rounded font-bold border border-red-700/50">
+          <button onClick={handleFlatten} className="bg-amber-900/60 text-[#f59e0b] px-2 py-0.5 rounded border border-amber-700/50">
+            Flatten All
+          </button>
+          <button onClick={handleEmergencyStop} className="bg-red-900/70 text-red-400 px-2 py-0.5 rounded font-bold border border-red-700/50">
             EMERGENCY STOP
           </button>
-        </div>
-        <div className="flex items-center gap-3">
-          <span>CPU: {performance.cpu ?? "6.9"}%</span>
-          <span>GPU: {performance.gpu ?? "82"}%</span>
-          <span>RAM: {performance.ram ?? "12.0"}GB</span>
-          <span>NET: {performance.net ?? "98"}Mbps</span>
-          <span>PID: 2471</span>
         </div>
       </footer>
 

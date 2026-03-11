@@ -212,6 +212,21 @@ async def get_scan_results():
     return data
 
 
+@router.post("/scan", dependencies=[Depends(require_auth)])
+async def trigger_scan(body: dict = {}):
+    """
+    Trigger a manual scan refresh.
+    Frontend sends: { scannerId: "turbo_scanner" }
+    """
+    scanner_id = body.get("scannerId", "default")
+    logger.info("Manual scan triggered: scanner=%s", scanner_id)
+
+    # Re-fetch scan data from bridge
+    data = await openclaw_bridge.get_scan_results()
+    candidates = len(data.get("candidates", [])) if data else 0
+    return {"ok": True, "scanner": scanner_id, "candidates": candidates}
+
+
 @router.get("/regime")
 async def get_regime():
     """

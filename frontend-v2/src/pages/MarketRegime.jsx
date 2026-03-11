@@ -1140,8 +1140,9 @@ export default function MarketRegime() {
     data: regimeData,
     loading: regimeLoading,
     error: regimeError,
+    refetch: refetchRegime,
   } = useRegimeState();
-  const { data: macroData } = useMacroState();
+  const { data: macroData, refetch: refetchMacro } = useMacroState();
   const { data: paramsData, refetch: refetchParams } = useRegimeParams();
   const { data: backtestData } = useRegimePerformance();
   const { data: sectorsData } = useSectorRotation();
@@ -1152,7 +1153,7 @@ export default function MarketRegime() {
   const { data: memoryData } = useApi("openclaw/memory", {
     pollIntervalMs: 30000,
   });
-  const { data: marketData } = useApi("market", { pollIntervalMs: 5000 });
+  const { data: marketData, refetch: refetchMarket } = useApi("market", { pollIntervalMs: 5000 });
   const { data: riskScore } = useApi("risk/risk-score", {
     pollIntervalMs: 15000,
   });

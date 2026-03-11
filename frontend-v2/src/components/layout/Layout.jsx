@@ -1,9 +1,8 @@
 // LAYOUT WRAPPER - Embodier.ai Trading Intelligence System
 // CNS-aware layout: WebSocket + homeostasis + circuit breaker context for all pages.
 // BUG 1 FIX: Sidebar collapsed state is owned here and passed down as props.
-// BUG 2 FIX: StatusFooter now wired to real API data instead of red defaults.
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Outlet } from 'react-router-dom';
 import Header from './Header';
 import Sidebar from './Sidebar';
@@ -12,39 +11,46 @@ import StatusFooter from './StatusFooter';
 import { CNSProvider, useCNS } from '../../hooks/useCNS';
 import { useApi } from '../../hooks/useApi';
 import ws from '../../services/websocket';
-import { getApiUrl } from '../../config/api';
-
-const API_HEALTH_POLL_MS = 20000;
 
 function LayoutInner() {
-  const { wsConnected } = useCNS();
+  const { wsConnected, mode } = useCNS();
+
+  // Poll system status + market indices for the footer bar
+  const { data: systemData } = useApi("system", { pollIntervalMs: 15000 });
+  const { data: indicesData } = useApi("marketIndices", { pollIntervalMs: 30000 });
+
+  // Track API health — if system endpoint responds, API is up
+  const [apiHealthy, setApiHealthy] = useState(false);
+  useEffect(() => {
+    setApiHealthy(!!systemData);
+  }, [systemData]);
+
+  // Derive footer props from live data
+  const agentCount = systemData?.activeAgents ?? systemData?.active_agents ?? 0;
+  const regime = systemData?.regime ?? mode ?? "GREEN";
+
+  // Build ticker items from market indices data
+  const tickerItems = useMemo(() => {
+    const raw = indicesData?.indices || indicesData?.marketIndices || indicesData;
+    if (!Array.isArray(raw)) return undefined; // let StatusFooter use defaults
+    const items = raw
+      .filter((e) => e.price != null || e.value != null)
+      .map((e) => ({
+        symbol: e.id || e.symbol,
+        price: e.price ?? e.value ?? "--",
+        change: e.changePct != null || e.change != null
+          ? `${(e.changePct ?? e.change) >= 0 ? "+" : ""}${Number(e.changePct ?? e.change).toFixed(2)}%`
+          : null,
+        changeColor: (e.changePct ?? e.change ?? 0) >= 0 ? "green" : "red",
+      }));
+    return items.length > 0 ? items : undefined;
+  }, [indicesData]);
 
   // BUG 1 FIX: Layout owns the sidebar collapsed state
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  // Footer status: derive from CNS + lightweight API health poll
-  const [apiStatus, setApiStatus] = useState('red');
 
   const handleToggleSidebar = useCallback(() => {
     setSidebarCollapsed(prev => !prev);
-  }, []);
-
-  // Lightweight API health check for footer "API Healthy / Down"
-  useEffect(() => {
-    let cancelled = false;
-    const check = async () => {
-      try {
-        const res = await fetch(getApiUrl('status'), { method: 'GET' });
-        if (!cancelled) setApiStatus(res.ok ? 'green' : 'red');
-      } catch {
-        if (!cancelled) setApiStatus('red');
-      }
-    };
-    check();
-    const id = setInterval(check, API_HEALTH_POLL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
   }, []);
 
   return (
@@ -62,8 +68,12 @@ function LayoutInner() {
           <Outlet />
         </main>
         <StatusFooter
-          wsStatus={wsConnected ? 'green' : 'red'}
-          apiStatus={apiStatus}
+          wsStatus={wsConnected ? "green" : "red"}
+          apiStatus={apiHealthy ? "green" : "red"}
+          mlStatus={agentCount > 0 ? "green" : "amber"}
+          agentCount={agentCount}
+          regime={regime}
+          tickerItems={tickerItems}
         />
       </div>
 

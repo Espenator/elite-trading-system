@@ -18,6 +18,7 @@ Usage:
 Fixes Issue #25 Task 4.
 """
 
+import asyncio
 import logging
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
@@ -163,7 +164,7 @@ class DataIngestionService:
         if all_rows:
             df = pd.DataFrame(all_rows)
             df["date"] = pd.to_datetime(df["date"]).dt.date
-            self.store.upsert_ohlcv(df)
+            await asyncio.to_thread(self.store.upsert_ohlcv, df)
             logger.info("Persisted %d total OHLCV rows to DuckDB", len(df))
 
         results["total_rows"] = len(all_rows)
@@ -355,7 +356,7 @@ class DataIngestionService:
             agg_df["pcr_volume"] = agg_df["put_volume"] / (agg_df["call_volume"] + 1)
             agg_df["source"] = "unusual_whales"
 
-            self.store.upsert_options_flow(agg_df)
+            await asyncio.to_thread(self.store.upsert_options_flow, agg_df)
             logger.info("Persisted %d options flow rows to DuckDB", len(agg_df))
             return len(agg_df)
 
@@ -417,7 +418,7 @@ class DataIngestionService:
                 df[col] = np.nan
 
         # Try to get SPY/QQQ close from DuckDB (already ingested via Alpaca)
-        try:
+        def _merge_etf(df_in):
             conn = self.store._get_conn()
             for etf in ["SPY", "QQQ"]:
                 etf_df = conn.execute(f"""
@@ -428,11 +429,15 @@ class DataIngestionService:
                 """).fetchdf()
                 if not etf_df.empty:
                     etf_df["date"] = pd.to_datetime(etf_df["date"]).dt.date
-                    df = df.merge(etf_df, on="date", how="left", suffixes=("", "_ohlcv"))
+                    df_in = df_in.merge(etf_df, on="date", how="left", suffixes=("", "_ohlcv"))
                     ohlcv_col = f"{etf.lower()}_close_ohlcv"
-                    if ohlcv_col in df.columns:
-                        df[f"{etf.lower()}_close"] = df[f"{etf.lower()}_close"].fillna(df[ohlcv_col])
-                        df = df.drop(columns=[ohlcv_col])
+                    if ohlcv_col in df_in.columns:
+                        df_in[f"{etf.lower()}_close"] = df_in[f"{etf.lower()}_close"].fillna(df_in[ohlcv_col])
+                        df_in = df_in.drop(columns=[ohlcv_col])
+            return df_in
+
+        try:
+            df = await asyncio.to_thread(_merge_etf, df)
         except Exception as exc:
             logger.debug("SPY/QQQ merge from DuckDB failed: %s", exc)
 
@@ -444,7 +449,7 @@ class DataIngestionService:
                 df[col] = np.nan
         df = df[macro_cols]
 
-        self.store.upsert_macro(df)
+        await asyncio.to_thread(self.store.upsert_macro, df)
         logger.info("Persisted %d macro rows to DuckDB", len(df))
         return len(df)
 
@@ -491,36 +496,38 @@ class DataIngestionService:
             elif side in ("sell", "sell_short"):
                 sells[symbol].append(entry)
 
-        count = 0
-        for symbol in buys:
-            for buy in buys[symbol]:
-                matching_sells = [
-                    s for s in sells.get(symbol, [])
-                    if s["date"] >= buy["date"]
-                ]
-                if matching_sells:
-                    sell = matching_sells[0]
-                    pnl = (sell["price"] - buy["price"]) * buy["qty"]
-                    # This is a percentage return, not a true R-multiple
-                    # (R-multiple requires stop distance: pnl / risk_per_share)
-                    pct_return = (sell["price"] - buy["price"]) / (buy["price"] + 1e-10)
+        def _match_and_insert(buys_d, sells_d):
+            """Match buy→sell fills and insert outcomes (sync, runs in thread)."""
+            cnt = 0
+            for sym in buys_d:
+                for buy in buys_d[sym]:
+                    matching = [
+                        s for s in sells_d.get(sym, [])
+                        if s["date"] >= buy["date"]
+                    ]
+                    if matching:
+                        sell = matching[0]
+                        pnl = (sell["price"] - buy["price"]) * buy["qty"]
+                        pct_return = (sell["price"] - buy["price"]) / (buy["price"] + 1e-10)
+                        self.store.insert_trade_outcome({
+                            "symbol": sym,
+                            "direction": "LONG",
+                            "entry_date": buy["date"],
+                            "exit_date": sell["date"],
+                            "entry_price": buy["price"],
+                            "exit_price": sell["price"],
+                            "shares": int(round(buy["qty"])),
+                            "pnl": pnl,
+                            "r_multiple": pct_return,
+                            "outcome": "WIN" if pnl > 0 else "LOSS",
+                            "resolved": True,
+                            "resolved_at": datetime.utcnow().isoformat(),
+                        })
+                        cnt += 1
+                        sells_d[sym].remove(sell)
+            return cnt
 
-                    self.store.insert_trade_outcome({
-                        "symbol": symbol,
-                        "direction": "LONG",
-                        "entry_date": buy["date"],
-                        "exit_date": sell["date"],
-                        "entry_price": buy["price"],
-                        "exit_price": sell["price"],
-                        "shares": int(round(buy["qty"])),  # DB column is INTEGER; fractional rounded
-                        "pnl": pnl,
-                        "r_multiple": pct_return,
-                        "outcome": "WIN" if pnl > 0 else "LOSS",
-                        "resolved": True,
-                        "resolved_at": datetime.utcnow().isoformat(),
-                    })
-                    count += 1
-                    sells[symbol].remove(sell)
+        count = await asyncio.to_thread(_match_and_insert, buys, sells)
 
         if count:
             logger.info("Recorded %d trade outcomes to DuckDB", count)
@@ -556,7 +563,7 @@ class DataIngestionService:
         report["ohlcv"] = await self.ingest_daily_bars(symbols, days=days)
 
         # 2. Indicators (computed from freshly ingested OHLCV)
-        report["indicators"] = self.compute_and_store_indicators(symbols)
+        report["indicators"] = await asyncio.to_thread(self.compute_and_store_indicators, symbols)
 
         # 3. Options flow
         report["options_flow"] = await self.ingest_options_flow()
@@ -567,8 +574,8 @@ class DataIngestionService:
         # 5. Trade outcomes
         report["trade_outcomes"] = await self.ingest_trade_outcomes()
 
-        # Health check
-        report["duckdb_health"] = self.store.health_check()
+        # Health check (sync DuckDB call → run in thread)
+        report["duckdb_health"] = await asyncio.to_thread(self.store.health_check)
 
         logger.info("Full ingestion complete: %s", report)
         return report

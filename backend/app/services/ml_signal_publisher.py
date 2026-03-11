@@ -95,7 +95,7 @@ class MLSignalPublisher:
         return []
 
     async def _fetch_and_publish(self) -> None:
-        signals = self._fetch_stage4_signals()
+        signals = await asyncio.to_thread(self._fetch_stage4_signals)
         self._last_run_ts = time.time()
         count = 0
         for s in signals:

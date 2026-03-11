@@ -201,6 +201,42 @@ async def stop_training(run_id: str):
     return {"runId": f"MT-{run_db_id:06d}", "message": "Stop requested"}
 
 
+@router.post("/retrain", dependencies=[Depends(require_auth)])
+async def retrain_model(body: dict, background_tasks: BackgroundTasks):
+    """
+    Trigger a retrain for a specific model by ID.
+    Frontend sends: { modelId: "xgboost_v2" }
+    Maps to the existing training pipeline with defaults.
+    """
+    model_id = body.get("modelId", "xgboost_default")
+    if training_store.has_active_run():
+        raise HTTPException(
+            status_code=409, detail="A training run is already in progress"
+        )
+
+    run_db_id = training_store.create_run(
+        TrainingRunCreate(
+            model_name=model_id,
+            dataset_source="retrain",
+            algorithm=body.get("algorithm", "xgboost"),
+            epochs=int(body.get("epochs", 100)),
+            validation_split=body.get("validationSplit", "20%"),
+            params={"modelId": model_id, "trigger": "manual_retrain"},
+        )
+    )
+
+    req = StartTrainingRequest(
+        modelName=model_id,
+        datasetSource="retrain",
+        algorithm=body.get("algorithm", "xgboost"),
+        epochs=int(body.get("epochs", 100)),
+        validationSplit=body.get("validationSplit", "20%"),
+    )
+    background_tasks.add_task(_run_training_job, run_db_id, req)
+
+    return {"ok": True, "runId": f"MT-{run_db_id:06d}", "message": f"Retrain started for {model_id}"}
+
+
 @router.get("/models/compare", response_model=List[dict])
 async def get_model_comparison(limit: int = 20):
     """List model comparison metrics from models_registry (real DB-backed)."""

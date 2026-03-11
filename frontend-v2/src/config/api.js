@@ -14,6 +14,7 @@
  * FIX LOG:
  *   Bug #3  (Mar 10 2026): blackboard was mapped to /openclaw — corrected to /cns/blackboard/current
  *   Bug #8  (Mar 10 2026): getWsUrl now uses channel param for correct WS routing
+ *   Bug #10 (Mar 10 2026): WS_CHANNELS + initAuthFromElectron dropped in purge — restored
  *   Bug #19 (prev):        kellySizer/positionSizing needed /risk prefix — fixed
  *   Bug #24 (prev):        preTradeCheck needed /{ticker} in path — fixed in useApi.js
  */
@@ -141,6 +142,7 @@ const API_CONFIG = {
 
     // ---- DEVICE & SYSTEM ----
     "system/health":  "/system",
+    deviceInfo:       "/system/device",
 
     // ---- CNS ROUTES ----
     cnsHomeostasis:            "/cns/homeostasis",
@@ -151,6 +153,14 @@ const API_CONFIG = {
     cnsDirectives:             "/cns/directives",
     cnsLastVerdict:            "/cns/last-verdict",
     cnsProfitBrain:            "/cns/profit-brain",
+
+    // ---- COGNITIVE TELEMETRY ----
+    cognitiveDashboard:    "/cognitive/dashboard",
+    cognitiveSnapshots:    "/cognitive/snapshots",
+    cognitiveCalibration:  "/cognitive/calibration",
+
+    // ---- LOGS ----
+    "logs/system":         "/logs",
 
     // ---- SWARM ----
     swarmTurboStatus:     "/swarm/turbo/status",
@@ -170,9 +180,20 @@ const API_CONFIG = {
     agentAttribution:     "/agents/attribution",
     agentEloLeaderboard:  "/agents/elo-leaderboard",
     agentWsChannels:      "/agents/ws-channels",
+    agentFlowAnomalies:   "/agents/flow-anomalies",
+
+    // ---- Signal Intelligence aliases (weight/toggle use agents router) ----
+    scanners: "/agents",  // Scanner weight/toggle -> agents/{id}/weight, agents/{id}/toggle
+    intels: "/agents",    // Intel weight/toggle -> agents/{id}/weight, agents/{id}/toggle
 
     // ---- FLYWHEEL SCHEDULER ----
     flywheelScheduler:    "/flywheel/scheduler",
+    flywheelKpis:         "/flywheel/kpis",
+    flywheelPerformance:  "/flywheel/performance",
+    flywheelSignals:      "/flywheel/signals/staged",
+    flywheelModels:       "/flywheel/models",
+    flywheelLogs:         "/flywheel/logs",
+    flywheelFeatures:     "/flywheel/features",
   },
 };
 
@@ -204,21 +225,36 @@ export function initAuthFromElectron() {
  * @returns {string} Full URL string
  */
 export function getApiUrl(endpoint) {
-  const path = API_CONFIG.endpoints[endpoint];
-  if (!path) return null;
-  return `${API_CONFIG.BASE_URL}${API_CONFIG.API_PREFIX}${path}`;
+  const ep = typeof endpoint === "string" ? endpoint.trim() : "";
+  if (ep.startsWith("/api/v1")) {
+    return `${API_CONFIG.BASE_URL}${ep}`;
+  }
+  const path = API_CONFIG.endpoints[ep];
+  if (path) {
+    return `${API_CONFIG.BASE_URL}${API_CONFIG.API_PREFIX}${path}`;
+  }
+  // Fallback: treat as raw path, ensure leading slash
+  if (import.meta.env.DEV) {
+    console.warn(`[api] Unmapped endpoint "${ep}" — using fallback. Add to api.js endpoints.`);
+  }
+  const rawPath = ep.startsWith("/") ? ep : `/${ep}`;
+  return `${API_CONFIG.BASE_URL}${API_CONFIG.API_PREFIX}${rawPath}`;
 }
 
 /**
- * Get WebSocket base URL.
+ * Get WebSocket URL for a channel.
  * FIX #8 (Mar 10 2026): channel param now used for topic routing.
+ * Backend uses a single /ws endpoint; client subscribes via { type: 'subscribe', channel }.
  * @param {string} [channel] - WS topic/channel name
  */
 export function getWsUrl(channel) {
-  const base = API_CONFIG.WS_URL || (typeof window !== 'undefined'
-    ? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`
-    : 'ws://localhost:8000');
-  return channel ? `${base}/ws/${channel}` : `${base}/ws`;
+  const base = API_CONFIG.WS_URL || (typeof window !== "undefined"
+    ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}`
+    : "ws://localhost:8000");
+  const token = (typeof localStorage !== "undefined" && localStorage.getItem("auth_token")) ||
+                import.meta.env.VITE_API_AUTH_TOKEN || "";
+  const wsBase = token ? `${base}/ws?token=${encodeURIComponent(token)}` : `${base}/ws`;
+  return wsBase;
 }
 
 export function getWsBaseUrl() {
@@ -226,12 +262,59 @@ export function getWsBaseUrl() {
 }
 
 /**
- * Auth headers — Bearer token from localStorage.
+ * Auth headers — Bearer token from localStorage or env var.
  * Returns empty object if no token (unauthenticated requests allowed for read-only).
  */
 export function getAuthHeaders() {
-  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('auth_token') : null;
+  const token =
+    (typeof localStorage !== "undefined" && localStorage.getItem("auth_token")) ||
+    import.meta.env.VITE_API_AUTH_TOKEN ||
+    null;
   return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+/**
+ * WebSocket channel names for real-time subscriptions.
+ * FIX #10 (Mar 10 2026): Restored — was dropped in purge commit, breaking
+ * Dashboard, MarketRegime, RiskIntelligence, TradeExecution imports.
+ */
+export const WS_CHANNELS = {
+  agents:          "agents",
+  datasources:     "data_sources",
+  signals:         "signals",
+  trades:          "trades",
+  logs:            "logs",
+  sentiment:       "sentiment",
+  risk:            "risk",
+  kelly:           "kelly",
+  alignment:       "alignment",
+  council:         "council",
+  council_verdict: "council_verdict",
+  homeostasis:     "homeostasis",
+  circuit_breaker: "circuit_breaker",
+  market:          "market",
+  swarm:           "swarm",
+  macro:           "macro",
+};
+
+/**
+ * Initialize auth token from Electron preload bridge.
+ * FIX #10 (Mar 10 2026): Restored — was dropped in purge, breaking main.jsx import.
+ * Call once on app init in Electron context; no-op in browser/dev.
+ */
+let _cachedAuthToken = null;
+
+export async function initAuthFromElectron() {
+  if (typeof window !== "undefined" && window.embodier?.getAuthToken) {
+    try {
+      _cachedAuthToken = await window.embodier.getAuthToken();
+      if (_cachedAuthToken && typeof localStorage !== "undefined") {
+        localStorage.setItem("auth_token", _cachedAuthToken);
+      }
+    } catch {
+      // Not in Electron — silently ignore
+    }
+  }
 }
 
 export default API_CONFIG;
