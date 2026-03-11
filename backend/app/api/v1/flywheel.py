@@ -104,11 +104,25 @@ async def get_flywheel_logs():
 async def get_flywheel_kpis():
     """Flywheel KPIs for ML Brain page. Stub when no pipeline data."""
     data = _get_flywheel_data()
+    accuracy = round((data.get("accuracy30d") or 0) * 100, 1)
     return {
         "flywheel": {
-            "accuracy": round((data.get("accuracy30d") or 0) * 100, 1),
+            "accuracy": accuracy,
             "resolvedSignals": data.get("resolvedSignals", 0),
             "pendingResolution": data.get("pendingResolution", 0),
+            # Frontend KPI fields
+            "active_models": 0,
+            "activeModels": 0,
+            "walk_forward": accuracy,
+            "walkForwardAcc": accuracy,
+            "ignitions_total": data.get("resolvedSignals", 0),
+            "trainingSessions": 0,
+            "flywheel_cycles": 0,
+            "flywheelCycles": 0,
+            "feature_store_sync": 0,
+            "featureStore": 0,
+            "win_prob_threshold": 0.6,
+            "winRateThresh": 0.6,
         }
     }
 

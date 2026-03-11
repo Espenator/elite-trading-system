@@ -23,11 +23,12 @@ router = APIRouter()
 
 # --- Request models (keep frontend contract) ---------------------------------
 class StartTrainingRequest(BaseModel):
-    modelName: str
-    datasetSource: str
-    algorithm: str
+    modelName: str = "lstm_daily"
+    datasetSource: str = "daily_features"
+    algorithm: str = "lstm"
     epochs: int = 100
     validationSplit: str = "20%"
+    type: Optional[str] = None  # "retrain" for quick retrain from ML Brain page
 
 
 class SaveConfigRequest(BaseModel):
