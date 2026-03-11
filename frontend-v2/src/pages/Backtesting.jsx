@@ -1331,6 +1331,7 @@ export default function Backtesting() {
               <div className="flex gap-1">
                 {["BULL", "SIDEWAYS"].map((r) => (
                   <button
+                    type="button"
                     key={r}
                     onClick={() => setRegimeFilter(r)}
                     className={clsx(
@@ -1459,9 +1460,9 @@ export default function Backtesting() {
       {/* ============================================================ */}
       <Card
         title={
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
             PERFORMANCE KPI MEGA STRIP
-          </h3>
+          </span>
         }
         noPadding
       >
@@ -1501,14 +1502,15 @@ export default function Backtesting() {
         {/* Equity Curve - Lightweight Charts (mockup: 1M/3M/6M/1Y/ALL filters) */}
         <Card
           title={
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
               EQUITY CURVE - LIGHTWEIGHT CHARTS
-            </h3>
+            </span>
           }
           action={
             <div className="flex gap-0.5">
               {["1M", "3M", "6M", "1Y", "ALL"].map((tf) => (
                 <button
+                  type="button"
                   key={tf}
                   onClick={() => setEquityTimeframe(tf)}
                   className={clsx(
@@ -1535,9 +1537,9 @@ export default function Backtesting() {
         {/* Parallel Run Manager (mockup: Run | Strategy Name | Status table) */}
         <Card
           title={
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
               PARALLEL RUN MANAGER
-            </h3>
+            </span>
           }
           className="xl:col-span-1"
         >
@@ -1579,9 +1581,9 @@ export default function Backtesting() {
         {/* Trade P&L Distribution */}
         <Card
           title={
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
               TRADE P&L DISTRIBUTION
-            </h3>
+            </span>
           }
           loading={loadTd}
           className="xl:col-span-1"
@@ -1595,9 +1597,9 @@ export default function Backtesting() {
         {/* Rolling Sharpe Ratio (24M) - mockup */}
         <Card
           title={
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
               ROLLING SHARPE RATIO (24M)
-            </h3>
+            </span>
           }
           loading={loadRs}
           className="xl:col-span-1"
@@ -1611,9 +1613,9 @@ export default function Backtesting() {
         {/* Walk Forward Analysis */}
         <Card
           title={
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
               WALK FORWARD ANALYSIS
-            </h3>
+            </span>
           }
           loading={loadWf}
           className="xl:col-span-1"
@@ -1674,9 +1676,9 @@ export default function Backtesting() {
         {/* Market Regime Performance (mockup: BULL 65.5% $450 avg, BEAR 42.0% -$120 avg, SIDEWAYS 51.1% $80 avg) */}
         <Card
           title={
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
               MARKET REGIME PERFORMANCE
-            </h3>
+            </span>
           }
           loading={loadRegime}
           className="col-span-1"
@@ -1715,9 +1717,9 @@ export default function Backtesting() {
         {/* Monte Carlo Simulation */}
         <Card
           title={
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
               MONTE CARLO SIMULATION (50 PATHS)
-            </h3>
+            </span>
           }
           loading={loadMc}
           className="col-span-1"
@@ -1776,9 +1778,9 @@ export default function Backtesting() {
         {/* Parameter Optimization Heatmap */}
         <Card
           title={
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
               PARAMETER OPTIMIZATION HEATMAP
-            </h3>
+            </span>
           }
           loading={loadOpt}
           className="col-span-1"
@@ -1884,9 +1886,9 @@ export default function Backtesting() {
         {/* Strategy Builder - ReactFlow */}
         <Card
           title={
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
               STRATEGY BUILDER - REACTFLOW
-            </h3>
+            </span>
           }
           noPadding
           className="col-span-1"
@@ -1919,9 +1921,9 @@ export default function Backtesting() {
       {/* ============================================================ */}
       <Card
         title={
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
             TRADE-BY-TRADE LOG
-          </h3>
+          </span>
         }
         action={
           <div className="flex gap-2">
@@ -1951,9 +1953,9 @@ export default function Backtesting() {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
         <Card
           title={
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
               RUN HISTORY & EXPORT
-            </h3>
+            </span>
           }
           action={
             <Button size="sm" variant="primary" leftIcon={Download}>
@@ -1974,9 +1976,9 @@ export default function Backtesting() {
 
         <Card
           title={
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
               OPENCLAW SWARM CONSENSUS
-            </h3>
+            </span>
           }
         >
           <div className="overflow-x-auto">

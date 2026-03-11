@@ -280,11 +280,21 @@ function SourceCard({ source, isSelected, onClick }) {
   const sparkColor =
     source.status === "degraded" ? "#f87171" : "#22d3ee";
 
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onClick?.();
+    }
+  };
+
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={handleKeyDown}
       className={clsx(
-        "w-full text-left px-3 py-2.5 rounded-lg border transition-all duration-150 group",
+        "w-full text-left px-3 py-2.5 rounded-lg border transition-all duration-150 group cursor-pointer",
         isSelected
           ? "bg-cyan-500/10 border-[#00D9FF]/50/50"
           : "bg-[#0B0E14] border-gray-800 hover:border-gray-600"
@@ -360,23 +370,23 @@ function SourceCard({ source, isSelected, onClick }) {
         </div>
 
         {/* Row actions per mockup */}
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
           {source.id === "alpaca" ? (
-            <button className="px-2 py-0.5 text-[9px] font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 rounded hover:bg-emerald-500/30 transition-colors">
+            <button type="button" className="px-2 py-0.5 text-[9px] font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 rounded hover:bg-emerald-500/30 transition-colors">
               LIVE PING
             </button>
           ) : source.id === "finviz" ? (
             <>
-              <button className="px-1.5 py-0.5 text-[9px] text-gray-400 hover:text-gray-300 border border-gray-600 rounded">Show</button>
-              <button className="px-1.5 py-0.5 text-[9px] text-gray-400 hover:text-gray-300 border border-gray-600 rounded">Copy</button>
-              <button className="px-1.5 py-0.5 text-[9px] text-gray-400 hover:text-gray-300 border border-gray-600 rounded">Rotate</button>
+              <button type="button" className="px-1.5 py-0.5 text-[9px] text-gray-400 hover:text-gray-300 border border-gray-600 rounded">Show</button>
+              <button type="button" className="px-1.5 py-0.5 text-[9px] text-gray-400 hover:text-gray-300 border border-gray-600 rounded">Copy</button>
+              <button type="button" className="px-1.5 py-0.5 text-[9px] text-gray-400 hover:text-gray-300 border border-gray-600 rounded">Rotate</button>
             </>
           ) : null}
         </div>
 
         <ChevronRight className="w-3.5 h-3.5 text-gray-600 group-hover:text-gray-400 flex-shrink-0" />
       </div>
-    </button>
+    </div>
   );
 }
 

@@ -214,7 +214,8 @@ export default function RiskIntelligence() {
   }, [handleRefresh]);
 
   // ─── DERIVED VALUES ───────────────────────────────────────────────────────
-  const riskScore = riskScoreData?.score ?? riskData?.risk_score ?? 0;
+  const rawScore = riskScoreData?.score ?? riskData?.risk_score ?? 0;
+  const riskScore = (typeof rawScore === 'number' && !Number.isNaN(rawScore)) ? rawScore : Number(rawScore) || 0;
   const grade = gradeFromScore(riskScore);
   const systemStatus = riskData?.system_status ?? 'UNKNOWN';
 
@@ -276,14 +277,15 @@ export default function RiskIntelligence() {
     { label: 'Vol Regime', value: riskData?.vol_regime_score ?? 35, max: 100, color: C.green },
   ];
 
-  // AI Agent risk monitors
+  // AI Agent risk monitors (guard against NaN from API)
+  const safeNum = (v, fallback = 0) => (typeof v === 'number' && !Number.isNaN(v) ? v : fallback);
   const agentMonitors = [
-    { label: 'Monte Carlo P(profit)', value: monte.prob_profit, color: C.green },
-    { label: 'MC Median Return', value: Math.max(0, monte.median_return + 50), color: C.cyan },
-    { label: 'Ruin Probability', value: Math.min(monte.ruin_probability * 10, 100), color: C.red },
-    { label: 'Max DD (P95)', value: Math.min(Math.abs(monte.max_dd_p95) * 3, 100), color: C.amber },
-    { label: 'Kelly Edge', value: Math.min((kelly.edge ?? 0) * 1000, 100), color: C.purple },
-    { label: 'Win Rate', value: (kelly.win_rate ?? 0) * 100, color: C.green },
+    { label: 'Monte Carlo P(profit)', value: safeNum(monte.prob_profit, 0), color: C.green },
+    { label: 'MC Median Return', value: Math.max(0, safeNum(monte.median_return, 0) + 50), color: C.cyan },
+    { label: 'Ruin Probability', value: Math.min(safeNum(monte.ruin_probability, 0) * 10, 100), color: C.red },
+    { label: 'Max DD (P95)', value: Math.min(Math.abs(safeNum(monte.max_dd_p95, 0)) * 3, 100), color: C.amber },
+    { label: 'Kelly Edge', value: Math.min(safeNum(kelly.edge, 0) * 1000, 100), color: C.purple },
+    { label: 'Win Rate', value: safeNum(kelly.win_rate, 0) * 100, color: C.green },
   ];
 
   // 90-day risk history — show only real API data, no fabricated fallback

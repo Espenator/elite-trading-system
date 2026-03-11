@@ -2,7 +2,7 @@
 // RiskWidgets.jsx — Embodier Trader | Risk Intelligence Visualization Components
 // Exports: CorrelationMatrixHeatmap, ParameterSweepsPanel
 // =============================================================================
-import { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 
 // ─── COLOR PALETTE (mirrors RiskIntelligence.jsx) ───────────────────────────
 const C = {
@@ -168,10 +168,9 @@ export function CorrelationMatrixHeatmap({
 
           {/* Data rows */}
           {assets.map((rowSym, ri) => (
-            <>
+            <React.Fragment key={`row-${ri}`}>
               {/* Row header */}
               <div
-                key={`row-${ri}`}
                 style={{
                   gridColumn: 1,
                   gridRow: ri + 2,
@@ -245,7 +244,7 @@ export function CorrelationMatrixHeatmap({
                   </div>
                 );
               })}
-            </>
+            </React.Fragment>
           ))}
         </div>
       </div>
