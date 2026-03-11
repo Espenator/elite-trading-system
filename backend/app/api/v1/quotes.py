@@ -198,6 +198,19 @@ async def get_order_book(
     }
 
 
+@router.get("/{ticker}/options-chain")
+async def get_options_chain(ticker: str = Path(...)):
+    """Options chain for Trade Execution page. Requires Alpaca options subscription."""
+    return {
+        "symbol": ticker.upper(),
+        "calls": [],
+        "puts": [],
+        "expirations": [],
+        "status": "not_available",
+        "message": "Options chain requires Alpaca options data subscription",
+    }
+
+
 @router.get("/{ticker}", response_model=Dict[str, Any])
 async def get_quote_data(
     ticker: str = Path(..., description="Stock ticker symbol (e.g., MSFT)"),

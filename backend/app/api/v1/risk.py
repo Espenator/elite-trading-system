@@ -230,7 +230,8 @@ async def get_risk_proposal(symbol: str):
 @router.get("/history")
 async def get_risk_history():
     """Return historical risk metrics for chart."""
-    return _get_risk_history()
+    entries = _get_risk_history()
+    return {"history": entries}
 
 
 @router.put("", dependencies=[Depends(require_auth)])
