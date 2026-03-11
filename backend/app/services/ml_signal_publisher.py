@@ -68,7 +68,7 @@ class MLSignalPublisher:
         # 2) DuckDB fallback if table exists
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             try:
                 rows = conn.execute("""
                     SELECT symbol, direction, win_probability, created_at

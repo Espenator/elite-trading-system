@@ -237,7 +237,7 @@ def _get_regime_snapshot() -> Dict[str, Any]:
     """
     try:
         from app.data.duckdb_storage import duckdb_store
-        conn = duckdb_store._get_conn()
+        conn = duckdb_store.get_thread_cursor()
 
         # VIX level
         vix_row = conn.execute(
@@ -291,7 +291,7 @@ def _get_flow_features(symbol: str) -> Dict[str, float]:
     """Get options flow features if available."""
     try:
         from app.data.duckdb_storage import duckdb_store
-        conn = duckdb_store._get_conn()
+        conn = duckdb_store.get_thread_cursor()
         row = conn.execute(
             """SELECT call_volume, put_volume, net_premium, pcr_volume, total_premium
                FROM options_flow
@@ -320,7 +320,7 @@ def _get_indicator_features(symbol: str) -> Dict[str, float]:
     """
     try:
         from app.data.duckdb_storage import duckdb_store
-        conn = duckdb_store._get_conn()
+        conn = duckdb_store.get_thread_cursor()
 
         # Check which columns exist in the table
         try:
@@ -416,7 +416,7 @@ def _get_intermarket_features(symbol: str = "") -> Dict[str, float]:
     features: Dict[str, float] = {}
     try:
         from app.data.duckdb_storage import duckdb_store
-        conn = duckdb_store._get_conn()
+        conn = duckdb_store.get_thread_cursor()
 
         # --- daily returns for benchmark ETFs ---
         for ticker, key in benchmarks.items():
@@ -587,7 +587,7 @@ async def aggregate(
         ohlcv_rows = []
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             df = conn.execute(
                 """SELECT date, open, high, low, close, volume
                    FROM daily_ohlcv

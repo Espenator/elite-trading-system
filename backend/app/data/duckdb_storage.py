@@ -195,6 +195,18 @@ class DuckDBStorage:
         """
         return self._get_conn()
 
+    def get_thread_cursor(self):
+        """Get a DuckDB cursor safe for use in thread-pool workers.
+
+        DuckDB connections are NOT thread-safe. When running queries from
+        asyncio.to_thread() or concurrent.futures thread pools, callers
+        MUST use cursor() instead of the raw connection to avoid segfaults.
+
+        The cursor is backed by the same connection but provides isolation.
+        """
+        conn = self._get_conn()
+        return conn.cursor()
+
     def close(self):
         """Close the DuckDB connection.
 

@@ -195,7 +195,7 @@ class AutonomousScoutService:
         try:
             def _query_movers():
                 from app.data.duckdb_storage import duckdb_store
-                conn = duckdb_store._get_conn()
+                conn = duckdb_store.get_thread_cursor()
                 query = """
                     SELECT symbol, close, volume,
                            close / NULLIF(LAG(close, 5) OVER (PARTITION BY symbol ORDER BY date), 0) - 1 as ret_5d,
@@ -239,7 +239,7 @@ class AutonomousScoutService:
         try:
             def _fetch_watchlist_data(symbols_list):
                 from app.data.duckdb_storage import duckdb_store
-                conn = duckdb_store._get_conn()
+                conn = duckdb_store.get_thread_cursor()
                 results = {}
                 for sym in symbols_list:
                     try:
@@ -260,7 +260,8 @@ class AutonomousScoutService:
             watchlist_data = await asyncio.to_thread(_fetch_watchlist_data, pending)
 
             for symbol in pending:
-                row = watchlist_data.get(symbol)
+                try:
+                    row = watchlist_data.get(symbol)
 
                     if not row:
                         # No data yet — ingest it
@@ -279,7 +280,7 @@ class AutonomousScoutService:
                         source="scout",
                         symbols=[symbol],
                         direction="unknown",
-                        reasoning=f"Watchlist periodic scan",
+                        reasoning="Watchlist periodic scan",
                     )
                 except Exception as e:
                     logger.debug("Watchlist scan error for %s: %s", symbol, e)
@@ -293,7 +294,7 @@ class AutonomousScoutService:
 
             def _query_backtestable():
                 from app.data.duckdb_storage import duckdb_store
-                conn = duckdb_store._get_conn()
+                conn = duckdb_store.get_thread_cursor()
                 return conn.execute("""
                     SELECT DISTINCT symbol, COUNT(*) as bars,
                            MAX(date) as latest_date

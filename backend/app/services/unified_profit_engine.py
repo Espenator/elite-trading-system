@@ -215,7 +215,7 @@ class UnifiedProfitEngine:
         """Get ML score from DuckDB data."""
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             rows = conn.execute(
                 "SELECT open, high, low, close, volume FROM daily_ohlcv "
                 "WHERE symbol = ? ORDER BY date DESC LIMIT 50",

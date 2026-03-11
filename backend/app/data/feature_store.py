@@ -22,9 +22,13 @@ class FeatureStore:
     """DuckDB-backed feature store for ML pipeline."""
 
     def _get_conn(self):
-        """Get DuckDB connection from the shared storage instance."""
+        """Get a DuckDB cursor safe for use in any thread context.
+
+        Returns a cursor (not raw connection) to avoid segfaults when
+        called from concurrent.futures or asyncio.to_thread workers.
+        """
         from app.data.duckdb_storage import duckdb_store
-        return duckdb_store._get_conn()
+        return duckdb_store.get_thread_cursor()
 
     @staticmethod
     def _compute_hash(feature_dict: Dict[str, Any]) -> str:

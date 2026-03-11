@@ -89,7 +89,7 @@ class MemoryBank:
         # Persist to DuckDB
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             conn.execute("""
                 INSERT INTO agent_memories
                 (memory_id, agent_name, trade_id, symbol, timestamp, regime,
@@ -207,7 +207,7 @@ class MemoryBank:
         # Update DuckDB
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             conn.execute("""
                 UPDATE agent_memories
                 SET outcome_r_multiple = ?, was_correct = ?
@@ -245,7 +245,7 @@ class MemoryBank:
         """Load memories from DuckDB."""
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
 
             query = "SELECT * FROM agent_memories WHERE agent_name = ?"
             params = [agent_name]

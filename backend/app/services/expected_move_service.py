@@ -147,7 +147,7 @@ class ExpectedMoveService:
     def _calculate_all_levels_sync(self):
         """Sync helper — runs in thread pool."""
         from app.data.duckdb_storage import duckdb_store
-        conn = duckdb_store._get_conn()
+        conn = duckdb_store.get_thread_cursor()
         results = {}
 
         for symbol in EXPECTED_MOVE_SYMBOLS:

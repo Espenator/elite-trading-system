@@ -31,7 +31,7 @@ def migrate_feature_store(dry_run: bool = False):
     """
     from app.data.duckdb_storage import duckdb_store
 
-    conn = duckdb_store._get_conn()
+    conn = duckdb_store.get_thread_cursor()
 
     logger.info("Starting feature store versioning migration...")
 

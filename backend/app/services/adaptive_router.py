@@ -322,7 +322,7 @@ class HybridLLMRouter:
             return
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             for call in self._call_buffer:
                 conn.execute("""
                     INSERT INTO llm_calls
@@ -343,7 +343,7 @@ class HybridLLMRouter:
         """Load adaptive routing stats from DuckDB."""
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             rows = conn.execute(
                 "SELECT agent_name, provider, avg_accuracy, avg_latency_ms, total_cost, call_count "
                 "FROM adaptive_routing"
@@ -371,7 +371,7 @@ class HybridLLMRouter:
         """
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             items = (
                 [(agent_name, self._adaptive_stats.get(agent_name, {}))]
                 if agent_name and agent_name in self._adaptive_stats

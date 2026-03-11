@@ -957,7 +957,7 @@ class OrderExecutor:
             from app.features.feature_aggregator import aggregate
             # Use cached features if available
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             row = conn.execute(
                 "SELECT atr_14 FROM technical_indicators "
                 "WHERE symbol = ? ORDER BY date DESC LIMIT 1",

@@ -258,7 +258,7 @@ class CorrelationRadar:
         try:
             def _sync():
                 from app.data.duckdb_storage import duckdb_store
-                conn = duckdb_store._get_conn()
+                conn = duckdb_store.get_thread_cursor()
                 return conn.execute("""
                     SELECT symbol, date, close, volume
                     FROM daily_ohlcv
@@ -278,7 +278,7 @@ class CorrelationRadar:
         try:
             def _sync():
                 from app.data.duckdb_storage import duckdb_store
-                conn = duckdb_store._get_conn()
+                conn = duckdb_store.get_thread_cursor()
                 return conn.execute("""
                     SELECT symbol, date, rsi_14, macd, bb_upper, bb_lower, bb_mid,
                            sma_20, sma_50, adx_14

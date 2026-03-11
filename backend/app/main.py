@@ -211,7 +211,7 @@ def _get_recent_features():
     """Pull recent feature rows from DuckDB for drift detection."""
     try:
         from app.data.duckdb_storage import duckdb_store
-        conn = duckdb_store._get_conn()
+        conn = duckdb_store.get_thread_cursor()
         df = conn.execute("SELECT * FROM features ORDER BY ts DESC LIMIT 200").fetchdf()
         return df if not df.empty else None
     except Exception:

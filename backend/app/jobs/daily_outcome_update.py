@@ -26,7 +26,7 @@ def _get_state() -> dict:
     """Load job state from DuckDB. Returns {} if not run before or DB unavailable."""
     try:
         from app.data.duckdb_storage import duckdb_store
-        conn = duckdb_store._get_conn()
+        conn = duckdb_store.get_thread_cursor()
         row = conn.execute(
             "SELECT last_run_date, last_run_ts, last_result FROM job_state WHERE job_name = ?",
             [JOB_NAME],
@@ -46,7 +46,7 @@ def _save_state(today: str, result: dict) -> None:
     """Persist job state to DuckDB."""
     try:
         from app.data.duckdb_storage import duckdb_store
-        conn = duckdb_store._get_conn()
+        conn = duckdb_store.get_thread_cursor()
         result_json = json.dumps(result)
         conn.execute(
             """

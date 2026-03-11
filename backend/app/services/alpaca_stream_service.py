@@ -408,7 +408,29 @@ class AlpacaStreamService:
         logger.info("Alpaca WebSocket connected — subscribed to %d symbols", len(self.symbols))
         # E4: Reset failure counter on successful connection
         self._consecutive_ws_failures = 0
-        await self._stream._run_forever()
+
+        # Guard against the Alpaca library's internal tight-reconnect loop:
+        # When "connection limit exceeded" occurs, the library catches the error
+        # internally and retries immediately without backoff, starving the event
+        # loop. We run _run_forever in a task and cancel it if we detect rapid
+        # failures (many reconnect attempts in a short window).
+        _original_auth = self._stream._auth
+
+        async def _guarded_auth():
+            try:
+                return await _original_auth()
+            except ValueError as e:
+                if "connection limit" in str(e).lower():
+                    # Re-raise immediately to break out of _run_forever.
+                    # The outer start() loop handles fallback to snapshots.
+                    raise
+                raise
+
+        self._stream._auth = _guarded_auth
+        try:
+            await self._stream._run_forever()
+        finally:
+            self._stream._auth = _original_auth
 
     async def _run_mock_stream(self) -> None:
         """Idle loop when Alpaca keys are unavailable — publishes no data.

@@ -246,7 +246,7 @@ class PatternLibrary:
     def _fetch_pattern_data(self):
         """Fetch all data needed for pattern scanning (sync, runs in thread)."""
         from app.data.duckdb_storage import duckdb_store
-        conn = duckdb_store._get_conn()
+        conn = duckdb_store.get_thread_cursor()
 
         latest = conn.execute("""
             SELECT o.symbol, o.date, o.close, o.open, o.high, o.low, o.volume,
@@ -428,7 +428,7 @@ class PatternLibrary:
         await asyncio.sleep(30)  # Wait for DuckDB to be ready
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
 
             # Get historical OHLCV data
             df = conn.execute("""

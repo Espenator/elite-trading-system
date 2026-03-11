@@ -645,7 +645,7 @@ class OutcomeTracker:
             result = {}
             try:
                 from app.data.duckdb_storage import duckdb_store
-                conn = duckdb_store._get_conn()
+                conn = duckdb_store.get_thread_cursor()
                 for sym in syms:
                     try:
                         row = conn.execute(

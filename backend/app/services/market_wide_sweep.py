@@ -93,7 +93,7 @@ class MarketWideSweep:
         """Run a synchronous DuckDB query off the event loop via to_thread."""
         def _sync():
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             return conn.execute(query).fetchdf()
         return await asyncio.to_thread(_sync)
 

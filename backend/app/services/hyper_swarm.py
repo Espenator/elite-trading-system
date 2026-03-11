@@ -287,7 +287,7 @@ REASON: [one sentence]"""
         def _query() -> Optional[tuple]:
             from app.data.duckdb_storage import duckdb_store
 
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             return conn.execute(
                 """
                 SELECT t.rsi_14, t.adx_14, t.macd, t.sma_20, t.sma_50, t.sma_200,

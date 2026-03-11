@@ -313,7 +313,7 @@ class HeuristicEngine:
         """Persist a heuristic to DuckDB."""
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             conn.execute("""
                 INSERT OR REPLACE INTO heuristics
                 (heuristic_id, agent_name, regime, pattern_name, description,
@@ -334,7 +334,7 @@ class HeuristicEngine:
         """Load heuristics from DuckDB."""
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             rows = conn.execute("SELECT * FROM heuristics WHERE active = TRUE").fetchall()
             cols = [desc[0] for desc in conn.description] if rows else []
             for row in rows:

@@ -237,7 +237,7 @@ class KnowledgeGraph:
     def _persist_edge(self, edge: KnowledgeEdge) -> None:
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             conn.execute("""
                 INSERT OR REPLACE INTO knowledge_edges
                 (edge_id, source_heuristic_id, target_heuristic_id,
@@ -253,7 +253,7 @@ class KnowledgeGraph:
     def _load_from_store(self) -> None:
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             rows = conn.execute("SELECT * FROM knowledge_edges").fetchall()
             cols = [desc[0] for desc in conn.description] if rows else []
             for row in rows:

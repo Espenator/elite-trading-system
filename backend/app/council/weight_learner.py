@@ -402,7 +402,7 @@ class WeightLearner:
         """Audit log for dropped learner inputs (observable, diagnosable)."""
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS learner_dropped_input_audit (
                     id INTEGER PRIMARY KEY,
@@ -432,7 +432,7 @@ class WeightLearner:
         """Persist learner update provenance: outcome IDs used, learner version, timestamp, quality score."""
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS learner_provenance (
                     id INTEGER PRIMARY KEY,
@@ -473,7 +473,7 @@ class WeightLearner:
         try:
             from app.data.duckdb_storage import duckdb_store
             import json
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS trade_attribution (
                     id INTEGER PRIMARY KEY,
@@ -534,7 +534,7 @@ class WeightLearner:
         """Load persisted weights from DuckDB."""
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             # Create table if not exists
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS agent_weights (
@@ -562,7 +562,7 @@ class WeightLearner:
         """Save current weights to DuckDB."""
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS agent_weights (
                     agent_name VARCHAR PRIMARY KEY,

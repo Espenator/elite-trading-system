@@ -237,7 +237,7 @@ class TurboScanner:
         """Find breakout setups: price above key SMAs + strong ADX."""
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             df = conn.execute("""
                 SELECT t.symbol, t.rsi_14, t.macd, t.macd_signal, t.adx_14,
                        t.sma_20, t.sma_50, t.sma_200,
@@ -295,7 +295,7 @@ class TurboScanner:
         """Find symbols with unusual volume (>2x 20-day average)."""
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             df = conn.execute("""
                 WITH vol_stats AS (
                     SELECT symbol, date, close, volume,
@@ -335,7 +335,7 @@ class TurboScanner:
         """Find symbols with strong momentum (5d + 20d returns)."""
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             df = conn.execute("""
                 WITH rets AS (
                     SELECT symbol, date, close,
@@ -381,7 +381,7 @@ class TurboScanner:
         """Find RSI extremes for reversal setups."""
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             df = conn.execute("""
                 SELECT t.symbol, t.rsi_14, t.bb_upper, t.bb_lower, o.close
                 FROM technical_indicators t
@@ -432,7 +432,7 @@ class TurboScanner:
         """Find fresh MACD crossovers."""
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             df = conn.execute("""
                 WITH macd_data AS (
                     SELECT t.symbol, t.date, t.macd, t.macd_signal,
@@ -485,7 +485,7 @@ class TurboScanner:
         """Find sectors diverging from SPY — rotation opportunities."""
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
 
             sectors = ["XLK", "XLF", "XLE", "XLV", "XLI", "XLP", "XLY", "XLU", "XLRE", "XLB", "XLC", "SPY"]
             placeholders = ",".join([f"'{s}'" for s in sectors])
@@ -556,7 +556,7 @@ class TurboScanner:
         """Detect VIX regime changes — spikes, collapses, term structure shifts."""
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             df = conn.execute("""
                 SELECT date, vix_close
                 FROM macro_data
@@ -631,7 +631,7 @@ class TurboScanner:
         """Find unusual options activity patterns in DuckDB."""
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             df = conn.execute("""
                 WITH flow_stats AS (
                     SELECT symbol, date,
@@ -678,7 +678,7 @@ class TurboScanner:
         """Find overextended symbols ready to snap back."""
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             df = conn.execute("""
                 WITH stats AS (
                     SELECT symbol, date, close,
@@ -732,7 +732,7 @@ class TurboScanner:
         """Find gap-up/gap-down reversal candidates."""
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             df = conn.execute("""
                 WITH gaps AS (
                     SELECT symbol, date, open, close, volume,
@@ -792,7 +792,7 @@ class TurboScanner:
         global UNIVERSE_TIER_2
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
             df = conn.execute("""
                 SELECT symbol, SUM(volume) as total_vol
                 FROM daily_ohlcv

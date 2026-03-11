@@ -83,7 +83,7 @@ class TradeStatsService:
         """Query trade_outcomes from DuckDB and compute statistics."""
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
 
             # Ensure table exists
             tables = [
@@ -218,7 +218,7 @@ class TradeStatsService:
         """Record a trade outcome to DuckDB for future stats."""
         try:
             from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            conn = duckdb_store.get_thread_cursor()
 
             # Create table if needed
             conn.execute("""

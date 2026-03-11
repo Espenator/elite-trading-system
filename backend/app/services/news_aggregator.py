@@ -309,7 +309,7 @@ class NewsAggregator:
         try:
             def _sync_query():
                 from app.data.duckdb_storage import duckdb_store
-                conn = duckdb_store._get_conn()
+                conn = duckdb_store.get_thread_cursor()
                 return conn.execute("""
                     WITH changes AS (
                         SELECT date,
