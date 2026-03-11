@@ -25,43 +25,67 @@ async def evaluate(
     """Evaluate intermarket correlations and risk regime."""
     f = features.get("features", features)
 
-    # Cross-asset correlation features
-    spy_uvxy_corr = float(f.get("spy_uvxy_correlation", -0.85))
-    spy_ief_corr = float(f.get("spy_ief_correlation", -0.3))
-    spy_iwm_corr = float(f.get("spy_iwm_correlation", 0.9))
-    ticker_spy_corr = float(f.get("ticker_spy_correlation", 0.7))
+    # Cross-asset correlation features — NO false defaults.
+    # If the key is absent, we have no real data for that metric.
+    _MISSING = "__MISSING__"
+    spy_uvxy_raw = f.get("spy_uvxy_correlation", _MISSING)
+    spy_ief_raw = f.get("spy_ief_correlation", _MISSING)
+    spy_iwm_raw = f.get("spy_iwm_correlation", _MISSING)
+
+    has_correlations = spy_uvxy_raw != _MISSING or spy_iwm_raw != _MISSING
+
+    spy_uvxy_corr = float(spy_uvxy_raw) if spy_uvxy_raw != _MISSING else None
+    spy_ief_corr = float(spy_ief_raw) if spy_ief_raw != _MISSING else None
+    spy_iwm_corr = float(spy_iwm_raw) if spy_iwm_raw != _MISSING else None
+    ticker_spy_corr_raw = f.get("ticker_spy_correlation", _MISSING)
+    ticker_spy_corr = float(ticker_spy_corr_raw) if ticker_spy_corr_raw != _MISSING else None
     beta = float(f.get("beta", 1.0) or 1.0)
 
     # VIX data
     vix_level = float(f.get("vix_level", 0) or f.get("vix", 0))
     vix_change = float(f.get("vix_change_pct", 0))
 
-    # Sector breadth
-    sector_bullish_pct = float(f.get("sector_bullish_pct", 50))
+    # Sector breadth — None means no data
+    sector_raw = f.get("sector_bullish_pct", _MISSING)
+    sector_bullish_pct = float(sector_raw) if sector_raw != _MISSING else None
+
+    # If no correlation data AND no VIX data, abstain entirely
+    if not has_correlations and vix_level == 0 and sector_bullish_pct is None:
+        return AgentVote(
+            agent_name=NAME,
+            direction="hold",
+            confidence=0.1,
+            reasoning="No intermarket data available — abstaining",
+            weight=WEIGHT,
+            metadata={"data_available": False, "score": 0},
+        )
 
     score = 0
     reasons = []
 
     # SPY-UVXY divergence (normally deeply negative; less negative = fear)
-    if spy_uvxy_corr > -0.5:
-        score -= 2
-        reasons.append(f"SPY-UVXY divergence r={spy_uvxy_corr:.2f} (fear)")
-    elif spy_uvxy_corr < -0.8:
-        score += 1
-        reasons.append(f"SPY-UVXY normal r={spy_uvxy_corr:.2f}")
+    if spy_uvxy_corr is not None:
+        if spy_uvxy_corr > -0.5:
+            score -= 2
+            reasons.append(f"SPY-UVXY divergence r={spy_uvxy_corr:.2f} (fear)")
+        elif spy_uvxy_corr < -0.8:
+            score += 1
+            reasons.append(f"SPY-UVXY normal r={spy_uvxy_corr:.2f}")
 
     # SPY-IEF (flight to safety when strongly negative)
-    if spy_ief_corr < -0.5:
-        score -= 1
-        reasons.append(f"Flight to safety SPY-IEF r={spy_ief_corr:.2f}")
+    if spy_ief_corr is not None:
+        if spy_ief_corr < -0.5:
+            score -= 1
+            reasons.append(f"Flight to safety SPY-IEF r={spy_ief_corr:.2f}")
 
     # SPY-IWM (breadth weakness when decorrelating)
-    if spy_iwm_corr < 0.7:
-        score -= 1
-        reasons.append(f"Small-cap weakness SPY-IWM r={spy_iwm_corr:.2f}")
-    elif spy_iwm_corr > 0.9:
-        score += 1
-        reasons.append(f"Broad participation SPY-IWM r={spy_iwm_corr:.2f}")
+    if spy_iwm_corr is not None:
+        if spy_iwm_corr < 0.7:
+            score -= 1
+            reasons.append(f"Small-cap weakness SPY-IWM r={spy_iwm_corr:.2f}")
+        elif spy_iwm_corr > 0.9:
+            score += 1
+            reasons.append(f"Broad participation SPY-IWM r={spy_iwm_corr:.2f}")
 
     # VIX regime
     if vix_level > 30:
@@ -75,12 +99,13 @@ async def evaluate(
         reasons.append(f"VIX={vix_level:.0f} (complacent)")
 
     # Sector breadth
-    if sector_bullish_pct > 70:
-        score += 1
-        reasons.append(f"Sector breadth={sector_bullish_pct:.0f}% bullish")
-    elif sector_bullish_pct < 30:
-        score -= 1
-        reasons.append(f"Sector breadth={sector_bullish_pct:.0f}% bearish")
+    if sector_bullish_pct is not None:
+        if sector_bullish_pct > 70:
+            score += 1
+            reasons.append(f"Sector breadth={sector_bullish_pct:.0f}% bullish")
+        elif sector_bullish_pct < 30:
+            score -= 1
+            reasons.append(f"Sector breadth={sector_bullish_pct:.0f}% bearish")
 
     # Beta adjustment: high-beta stocks amplify regime signal
     if abs(score) >= 2 and beta > 1.3:
@@ -118,16 +143,17 @@ async def evaluate(
         agent_name=NAME,
         direction=direction,
         confidence=round(min(0.85, confidence), 2),
-        reasoning="; ".join(reasons[:5]),
+        reasoning="; ".join(reasons[:5]) if reasons else "Intermarket: limited data",
         weight=WEIGHT,
         metadata={
+            "data_available": True,
             "regime": regime,
             "beta": round(beta, 2),
-            "spy_uvxy_corr": round(spy_uvxy_corr, 3),
-            "spy_ief_corr": round(spy_ief_corr, 3),
-            "spy_iwm_corr": round(spy_iwm_corr, 3),
+            "spy_uvxy_corr": round(spy_uvxy_corr, 3) if spy_uvxy_corr is not None else None,
+            "spy_ief_corr": round(spy_ief_corr, 3) if spy_ief_corr is not None else None,
+            "spy_iwm_corr": round(spy_iwm_corr, 3) if spy_iwm_corr is not None else None,
             "vix_level": round(vix_level, 1),
-            "sector_bullish_pct": round(sector_bullish_pct, 1),
+            "sector_bullish_pct": round(sector_bullish_pct, 1) if sector_bullish_pct is not None else None,
             "score": score,
         },
     )

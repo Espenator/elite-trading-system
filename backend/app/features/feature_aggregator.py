@@ -329,8 +329,29 @@ def _get_indicator_features(symbol: str) -> Dict[str, float]:
     return {}
 
 
-def _get_intermarket_features() -> Dict[str, float]:
-    """Get intermarket correlation data (SPY, VIX, DXY, TLT, GLD)."""
+def _rolling_correlation(xs: List[float], ys: List[float], window: int = 20) -> float:
+    """Compute Pearson correlation over last `window` observations."""
+    n = min(len(xs), len(ys), window)
+    if n < 5:
+        return 0.0
+    x = xs[-n:]
+    y = ys[-n:]
+    mx = sum(x) / n
+    my = sum(y) / n
+    cov = sum((xi - mx) * (yi - my) for xi, yi in zip(x, y))
+    sx = sum((xi - mx) ** 2 for xi in x) ** 0.5
+    sy = sum((yi - my) ** 2 for yi in y) ** 0.5
+    if sx < 1e-12 or sy < 1e-12:
+        return 0.0
+    return cov / (sx * sy)
+
+
+def _get_intermarket_features(symbol: str = "") -> Dict[str, float]:
+    """Get intermarket returns, correlations, and beta.
+
+    Returns daily returns for SPY/VIX/DXY/TLT/GLD, plus rolling 20-day
+    correlations for SPY-UVXY, SPY-IEF, SPY-IWM, and ticker-vs-SPY beta.
+    """
     benchmarks = {
         "SPY": "intermarket_spy",
         "VIX": "intermarket_vix",
@@ -338,10 +359,18 @@ def _get_intermarket_features() -> Dict[str, float]:
         "TLT": "intermarket_tlt",
         "GLD": "intermarket_gld",
     }
-    features = {}
+    # Pairs whose rolling correlation the intermarket_agent needs
+    corr_pairs = {
+        ("SPY", "UVXY"): "spy_uvxy_correlation",
+        ("SPY", "IEF"): "spy_ief_correlation",
+        ("SPY", "IWM"): "spy_iwm_correlation",
+    }
+    features: Dict[str, float] = {}
     try:
         from app.data.duckdb_storage import duckdb_store
         conn = duckdb_store._get_conn()
+
+        # --- daily returns for benchmark ETFs ---
         for ticker, key in benchmarks.items():
             row = conn.execute(
                 "SELECT close FROM daily_ohlcv WHERE symbol = ? "
@@ -354,8 +383,84 @@ def _get_intermarket_features() -> Dict[str, float]:
                 if prev > 0:
                     features[f"{key}_return"] = (last / prev) - 1
                     features[f"{key}_price"] = last
-    except Exception:
-        pass
+
+        # --- rolling correlations for risk-regime detection ---
+        _return_cache: Dict[str, List[float]] = {}
+
+        def _get_returns(ticker: str) -> List[float]:
+            if ticker in _return_cache:
+                return _return_cache[ticker]
+            rows = conn.execute(
+                "SELECT close FROM daily_ohlcv WHERE symbol = ? "
+                "ORDER BY date DESC LIMIT 25",
+                [ticker],
+            ).fetchall()
+            if rows and len(rows) >= 5:
+                closes = [_safe_float(r[0]) for r in reversed(rows) if r[0]]
+                rets = [
+                    (closes[i] / closes[i - 1] - 1)
+                    for i in range(1, len(closes))
+                    if closes[i - 1] > 0
+                ]
+            else:
+                rets = []
+            _return_cache[ticker] = rets
+            return rets
+
+        for (t1, t2), feat_key in corr_pairs.items():
+            r1 = _get_returns(t1)
+            r2 = _get_returns(t2)
+            if len(r1) >= 5 and len(r2) >= 5:
+                features[feat_key] = round(_rolling_correlation(r1, r2), 4)
+            # else: key absent → agent detects missing data
+
+        # --- VIX level (absolute, not just return) ---
+        vix_row = conn.execute(
+            "SELECT close FROM daily_ohlcv WHERE symbol = 'VIX' "
+            "ORDER BY date DESC LIMIT 1",
+        ).fetchone()
+        if vix_row:
+            features["vix_level"] = _safe_float(vix_row[0])
+
+        # --- ticker-vs-SPY beta and correlation ---
+        if symbol:
+            ticker_rets = _get_returns(symbol.upper())
+            spy_rets = _get_returns("SPY")
+            if len(ticker_rets) >= 5 and len(spy_rets) >= 5:
+                corr = _rolling_correlation(ticker_rets, spy_rets)
+                features["ticker_spy_correlation"] = round(corr, 4)
+                # beta = cov(ticker, spy) / var(spy)
+                n = min(len(ticker_rets), len(spy_rets), 20)
+                tx = ticker_rets[-n:]
+                sx = spy_rets[-n:]
+                ms = sum(sx) / n
+                cov = sum((ti - sum(tx) / n) * (si - ms) for ti, si in zip(tx, sx)) / n
+                var_s = sum((si - ms) ** 2 for si in sx) / n
+                if var_s > 1e-12:
+                    features["beta"] = round(cov / var_s, 4)
+
+        # --- sector breadth (count bullish sectors from XLK,XLF,XLV,XLE,XLI,XLY,XLP,XLU,XLC,XLRE,XLB) ---
+        sectors = ["XLK", "XLF", "XLV", "XLE", "XLI", "XLY", "XLP", "XLU", "XLC", "XLRE", "XLB"]
+        bullish = 0
+        total = 0
+        for sec in sectors:
+            sec_rows = conn.execute(
+                "SELECT close FROM daily_ohlcv WHERE symbol = ? "
+                "ORDER BY date DESC LIMIT 6",
+                [sec],
+            ).fetchall()
+            if sec_rows and len(sec_rows) >= 6:
+                last_c = _safe_float(sec_rows[0][0])
+                prev_5 = _safe_float(sec_rows[5][0])
+                if prev_5 > 0:
+                    total += 1
+                    if last_c > prev_5:
+                        bullish += 1
+        if total > 0:
+            features["sector_bullish_pct"] = round(100.0 * bullish / total, 1)
+
+    except Exception as e:
+        logger.warning("Intermarket features error: %s", e)
     return features
 
 
@@ -464,7 +569,7 @@ async def aggregate(
             regime_features=_get_regime_snapshot(),
             flow_features=_get_flow_features(symbol),
             indicator_features=indicator_features,
-            intermarket_features=_get_intermarket_features(),
+            intermarket_features=_get_intermarket_features(symbol),
             cycle_features=_get_cycle_features(ohlcv_rows),
         )
 
