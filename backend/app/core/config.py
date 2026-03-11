@@ -238,7 +238,7 @@ class Settings(BaseSettings):
     BRAIN_PORT: int = 50051
     # PC1 fallback: local Ollama when Brain Service unreachable (Electron: process/health only; no trading logic)
     OLLAMA_URL: str = ""  # Empty = use OLLAMA_BASE_URL (e.g. http://localhost:11434)
-    OLLAMA_MODEL: str = "llama3.2"
+    OLLAMA_MODEL: str = "mistral:7b"
 
     # ── Multi-LLM Intelligence Layer ─────────────────────
     PERPLEXITY_API_KEY: str = ""
@@ -247,7 +247,7 @@ class Settings(BaseSettings):
     PERPLEXITY_ENABLED: bool = True
     ANTHROPIC_API_KEY: str = ""
     ANTHROPIC_MODEL: str = "claude-sonnet-4-20250514"
-    LOCAL_LLM_MODEL: str = "qwen3:14b"
+    LOCAL_LLM_MODEL: str = "qwen2.5:14b"
     LLM_ENABLED: bool = True
     LLM_PREFER_LOCAL: bool = True
     LLM_ROUTER_ENABLED: bool = True
@@ -256,7 +256,7 @@ class Settings(BaseSettings):
     # ── Dual-PC Ollama Configuration ──────────────────────
     OLLAMA_PC2_URL: str = "http://localhost:11434"  # PC-2 endpoint (set to PC-2 IP for dual-PC)
     OLLAMA_SMALL_MODEL: str = "mistral:7b"          # PC-1: fast, <200ms, ~4GB VRAM
-    OLLAMA_LARGE_MODEL: str = "llama3:70b-q4_K_M"   # PC-2: complex, ~40GB VRAM
+    OLLAMA_LARGE_MODEL: str = "qwen2.5:32b"           # PC-2: complex, ~20GB VRAM
 
     # ── Cluster / Multi-PC ────────────────────────────────
     CLUSTER_PC2_HOST: str = ""  # Empty = single-PC mode
@@ -275,9 +275,9 @@ class Settings(BaseSettings):
 
     # ── Model Pinning (Asymmetric Routing) ────────────────
     # PC1 (Master / Rapid Responder): fast tactical models
-    MODEL_PIN_PC1: str = "llama3.2,mistral:7b"  # Comma-separated models pinned to PC1
+    MODEL_PIN_PC1: str = "mistral:7b"  # Comma-separated models pinned to PC1
     # PC2 (Heavy Compute): deep thinking models
-    MODEL_PIN_PC2: str = "deepseek-r1:14b,mixtral:8x7b"  # Comma-separated models pinned to PC2
+    MODEL_PIN_PC2: str = "qwen2.5:14b,qwen2.5:32b,deepseek-r1:8b"  # Comma-separated models pinned to PC2
     # Task → node affinity (task:node pairs, comma-separated)
     # Tasks: regime_classification,signal_scoring,risk_check → pc1
     # Tasks: trade_thesis,strategy_critic,deep_postmortem → pc2
@@ -286,7 +286,7 @@ class Settings(BaseSettings):
     # ── LLM Dispatcher ────────────────────────────────────
     LLM_DISPATCHER_ENABLED: bool = True
     LLM_DISPATCHER_HEARTBEAT_TIMEOUT: int = 3  # Missed heartbeats before marking OFFLINE
-    LLM_DISPATCHER_FALLBACK_MODEL: str = "llama3.2"  # Downgrade to this when PC2 dies
+    LLM_DISPATCHER_FALLBACK_MODEL: str = "mistral:7b"  # Downgrade to this when PC2 dies
     LLM_DISPATCHER_GPU_UTIL_THRESHOLD: float = 85.0  # Route away if GPU util > this %
 
     # ── Adaptive Router Settings ──────────────────────────

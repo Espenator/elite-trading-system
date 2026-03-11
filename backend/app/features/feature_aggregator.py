@@ -225,16 +225,64 @@ def _compute_extended_indicators(ohlcv_rows: list) -> Dict[str, float]:
 
 
 def _get_regime_snapshot() -> Dict[str, Any]:
-    """Get current market regime from regime service if available."""
+    """Classify market regime from VIX level + SPY trend.
+
+    Regime ladder (VIX-driven, trend-confirmed):
+        VIX < 15  + SPY uptrend   → bullish        (conf 0.8)
+        VIX < 15  + SPY flat/down → trending_up     (conf 0.6)
+        VIX 15-20                 → normal          (conf 0.5)
+        VIX 20-30 + SPY downtrend → volatile        (conf 0.7)
+        VIX 20-30 + SPY flat/up   → choppy          (conf 0.5)
+        VIX > 30                  → bearish          (conf 0.8)
+    """
     try:
-        from app.services.regime_service import get_current_regime
-        regime = get_current_regime()
-        if regime:
-            return {
-                "regime": str(regime.get("regime", "unknown")),
-                "regime_confidence": _safe_float(regime.get("confidence", 0.5)),
-            }
-    except (ImportError, Exception):
+        from app.data.duckdb_storage import duckdb_store
+        conn = duckdb_store._get_conn()
+
+        # VIX level
+        vix_row = conn.execute(
+            "SELECT close FROM daily_ohlcv WHERE symbol = 'VIX' "
+            "ORDER BY date DESC LIMIT 1"
+        ).fetchone()
+        vix = _safe_float(vix_row[0]) if vix_row else 0
+
+        # SPY 20-day return for trend
+        spy_rows = conn.execute(
+            "SELECT close FROM daily_ohlcv WHERE symbol = 'SPY' "
+            "ORDER BY date DESC LIMIT 21"
+        ).fetchall()
+        spy_return_20d = 0.0
+        if len(spy_rows) >= 21:
+            spy_return_20d = (spy_rows[0][0] - spy_rows[20][0]) / spy_rows[20][0] if spy_rows[20][0] else 0
+
+        uptrend = spy_return_20d > 0.01
+        downtrend = spy_return_20d < -0.01
+
+        if vix <= 0:
+            return {"regime": "unknown", "regime_confidence": 0.0, "vix_close": 0}
+
+        if vix > 30:
+            regime, conf = "bearish", 0.8
+        elif vix > 20:
+            if downtrend:
+                regime, conf = "volatile", 0.7
+            else:
+                regime, conf = "choppy", 0.5
+        elif vix > 15:
+            regime, conf = "normal", 0.5
+        else:
+            if uptrend:
+                regime, conf = "bullish", 0.8
+            else:
+                regime, conf = "trending_up", 0.6
+
+        return {
+            "regime": regime,
+            "regime_confidence": conf,
+            "vix_close": vix,
+            "spy_return_20d": round(spy_return_20d, 4),
+        }
+    except Exception:
         pass
     return {"regime": "unknown", "regime_confidence": 0.0}
 
