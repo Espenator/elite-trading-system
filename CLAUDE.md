@@ -157,9 +157,35 @@ Or use the launcher: `.\start-embodier.ps1`
 | Sidebar/layout fix | `Layout.jsx`, `Sidebar.jsx`, `App.jsx` |
 | Auth fix | `core/security.py`, `backend/.env` |
 
-## Recent Fixes (March 10, 2026)
+## Recent Fixes (March 10-11, 2026)
 - Moved Dashboard route inside `<Layout />` to get correct v3 sidebar
 - Removed duplicate mini-sidebar from Dashboard.jsx
 - Expanded WebSocket `WS_ALLOWED_CHANNELS` whitelist (10 → 23 channels)
 - Replaced `window.location.href` with React Router `navigate()` in Dashboard
 - Fixed broken `/cognitive-dashboard` route → `/dashboard`
+
+### Backend Stability Fixes (March 11, 2026) — Phase 1 Complete
+- **uvloop CPU spin fix**: Added `loop='asyncio'` to both `run_server.py` and `start_server.py` — uvloop causes 35-90% CPU with many concurrent asyncio tasks
+- **DiscordSwarmBridge crash**: Removed unsupported kwargs (`on_signal`, `publish_to_bus`) from `discord_channel_agent.py`
+- **TurboScanner event loop blocking**: Renamed 10 DuckDB scan methods from async to sync, wrapped in `asyncio.to_thread()`
+- **SourceCategory enum**: Added `LLM = "llm"` to `data_sources.py` (pydantic 500 fix)
+- **JSON float('inf')**: Added `_sanitize_floats()` to `swarm.py` for TurboScanner data
+- **Service gating**: Added env-var gates (`SCOUTS_ENABLED`, `TURBO_SCANNER_ENABLED`, `MARKET_SWEEP_ENABLED`, `AUTO_BACKFILL`, `BACKGROUND_LOOPS`)
+
+### Mock Data Removal (March 11, 2026) — Phase 1.3 Complete
+- **logs.py**: Replaced 8 hardcoded fake entries with real Python logging ring buffer (RingBufferHandler, 500 entries)
+- **backtest_routes.py /runs**: Replaced fake R001-R004 with real DB query
+- **agents.py**: Removed `_DEFAULT_LOGS` mock activity; honest "Awaiting first tick" defaults
+
+### Frontend-Backend Wiring (March 11, 2026) — Phase 2 In Progress
+- All 63 endpoints tested: 60x 200 OK
+- Frontend builds with no errors (14 pages)
+- Added 5 missing backend endpoints: PUT /strategy/regime-params, POST /training/retrain, POST /openclaw/scan, PUT /agents/{id}/weight, POST /agents/{id}/toggle
+- Added `scanners`/`intels` aliases in `api.js` → agents router
+- API_AUTH_TOKEN set in `.env` (required for state-changing endpoints)
+
+## Production Readiness Status
+- See `PLAN.md` for the full 8-phase production readiness plan
+- **Phase 1: Backend Health** — COMPLETE
+- **Phase 2: Frontend Wiring** — IN PROGRESS (endpoint audit done, 5 missing endpoints added)
+- **Phase 3-8**: Not started (Council, Auto-Trade, Data Firehose, UI Controls, Monitoring, Desktop)

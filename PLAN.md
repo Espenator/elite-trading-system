@@ -72,7 +72,22 @@ For each of these core endpoints, hit them and verify real data:
 ---
 
 ## Phase 2: Frontend ↔ Backend Wiring — Every Page Shows Real Data
-**Priority: P0 | Estimated: 3-5 sessions**
+**Priority: P0 | Estimated: 3-5 sessions | STATUS: IN PROGRESS**
+
+### 2.0 Endpoint Wiring Audit — DONE (March 11)
+- Tested all 63 backend endpoints: 60x 200, 2x 422 (expected), 1x 405 (expected)
+- Frontend build: SUCCESS (all 14 pages compile, no errors)
+- Vite proxy: correctly routes /api → backend:8000, /ws → WebSocket
+- useApi hook: solid with dedup, concurrency limiting, stale-while-revalidate
+- **Added 5 missing endpoints** that frontend expected but backend lacked:
+  - PUT /strategy/regime-params (Market Regime page save)
+  - POST /training/retrain (Signal Intelligence retrain button)
+  - POST /openclaw/scan (manual scan trigger)
+  - PUT /agents/{id}/weight (agent/scanner/intel weight slider)
+  - POST /agents/{id}/toggle (agent/scanner/intel on/off toggle)
+- Added `scanners` and `intels` aliases in api.js → agents router
+- Set API_AUTH_TOKEN in .env (required for POST/PUT/DELETE endpoints)
+
 
 ### 2.1 Dashboard (Dashboard.jsx → /dashboard)
 API calls: market/indices, portfolio, signals, performance/equity, performance/trades, signals/heatmap
