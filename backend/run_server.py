@@ -24,6 +24,7 @@ def main():
         port=port,
         log_level="info",
         access_log=False,
+        loop="asyncio",  # uvloop causes CPU spin with many concurrent tasks
     )
 
 
