@@ -231,6 +231,38 @@ async def get_regime_params():
     }
 
 
+@router.put("/regime-params", dependencies=[Depends(require_auth)])
+async def update_regime_params(body: dict):
+    """
+    Update regime parameter overrides.
+    Frontend sends: { regime, risk_pct, max_positions, kelly_mult, signal_mult }
+    Persists custom params to DB and broadcasts update via WebSocket.
+    """
+    regime = body.get("regime")
+    if regime and regime in REGIME_PARAMS:
+        # Update the in-memory params with user overrides
+        params = REGIME_PARAMS[regime]
+        if "risk_pct" in body:
+            params["risk_pct"] = float(body["risk_pct"])
+        if "max_positions" in body:
+            params["max_pos"] = int(body["max_positions"])
+        if "kelly_mult" in body:
+            params["kelly_scale"] = float(body["kelly_mult"])
+        if "signal_mult" in body:
+            params["signal_mult"] = float(body["signal_mult"])
+        if "min_edge" in body:
+            params["min_edge"] = float(body["min_edge"])
+
+    # Persist to DB
+    from app.services.database import db_service
+    db_service.set_config("regime_params_overrides", body)
+
+    # Broadcast update
+    await broadcast_ws("macro", {"type": "regime_params_updated", "params": body})
+
+    return {"ok": True, "updated": body}
+
+
 # ----------------------------------------------------------------
 # Pre-Trade Risk Guard: checks drawdown + risk score before execution
 # ----------------------------------------------------------------

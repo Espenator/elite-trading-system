@@ -186,6 +186,10 @@ const API_CONFIG = {
     agentEloLeaderboard: "/agents/elo-leaderboard",
     agentWsChannels: "/agents/ws-channels",
     agentFlowAnomalies: "/agents/flow-anomalies",
+
+    // ---- Signal Intelligence aliases (weight/toggle use agents router) ----
+    scanners: "/agents",  // Scanner weight/toggle → agents/{id}/weight, agents/{id}/toggle
+    intels: "/agents",    // Intel weight/toggle → agents/{id}/weight, agents/{id}/toggle
   },
 };
 

@@ -905,3 +905,30 @@ async def get_flow_anomalies():
         "anomaly_count": 0,
         "last_check": datetime.now(timezone.utc).isoformat(),
     }
+
+
+# --- Weight & Toggle Endpoints (SignalIntelligenceV3 page) ---
+@router.put("/{agent_id}/weight", dependencies=[Depends(require_auth)])
+async def update_agent_weight(agent_id: int, payload: dict):
+    """Update the weight/priority of an agent, scanner, or intel module."""
+    weight = payload.get("weight", 1.0)
+    config = _agent_configs.get(str(agent_id), {})
+    config["weight"] = float(weight)
+    _agent_configs[str(agent_id)] = config
+    db_service.set_config(f"agent_{agent_id}_weight", weight)
+    agent_name = next((a["name"] for a in _AGENTS_TEMPLATE if a["id"] == agent_id), f"Agent-{agent_id}")
+    _append_log(agent_name, f"Weight updated to {weight}", "info")
+    await broadcast_ws("agents", {"type": "weight_updated", "agent_id": agent_id, "weight": weight})
+    return {"ok": True, "agent_id": agent_id, "weight": weight}
+
+
+@router.post("/{agent_id}/toggle", dependencies=[Depends(require_auth)])
+async def toggle_agent(agent_id: int, payload: dict = {}):
+    """Toggle an agent, scanner, or intel module active/inactive."""
+    active = payload.get("active", True)
+    new_status = "running" if active else "stopped"
+    _set_agent_status(agent_id, new_status)
+    agent_name = next((a["name"] for a in _AGENTS_TEMPLATE if a["id"] == agent_id), f"Agent-{agent_id}")
+    _append_log(agent_name, f"Toggled to {new_status}", "info")
+    await broadcast_ws("agents", {"type": "status_changed", "agent_id": agent_id, "status": new_status})
+    return {"ok": True, "agent_id": agent_id, "status": new_status, "active": active}
