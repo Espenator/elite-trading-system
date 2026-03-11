@@ -19,6 +19,7 @@ Architecture:
 import asyncio
 import logging
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -102,7 +103,7 @@ class OutcomeTracker:
         self._running = False
         self._poll_task: Optional[asyncio.Task] = None
         self._open_positions: Dict[str, TrackedPosition] = {}  # order_id -> position
-        self._closed: List[TrackedPosition] = []
+        self._closed: deque = deque(maxlen=self.MAX_HISTORY)
         self._stats = self._load_stats()
         self._price_cache = None  # PriceCacheService, set in start()
 
@@ -310,8 +311,6 @@ class OutcomeTracker:
             pos = self._open_positions.pop(oid, None)
             if pos:
                 self._closed.append(pos)
-                if len(self._closed) > self.MAX_HISTORY:
-                    self._closed = self._closed[-self.MAX_HISTORY:]
 
     def _check_shadow_exit(self, pos: TrackedPosition, current_price: float, now: float) -> bool:
         """Check if a shadow position should be closed."""

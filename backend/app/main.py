@@ -361,11 +361,14 @@ async def _start_event_driven_pipeline():
     log.info("\u2705 EventDrivenSignalEngine started")
 
     # 2b. StreamingDiscoveryEngine — E1: real-time anomaly detection from market bars
-    from app.services.streaming_discovery import get_streaming_discovery_engine
-    _streaming_discovery = get_streaming_discovery_engine()
-    _streaming_discovery._bus = _message_bus
-    await _streaming_discovery.start()
-    log.info("\u2705 StreamingDiscoveryEngine started (5 detectors, 3-gate emit)")
+    if os.getenv("STREAMING_DISCOVERY_ENABLED", "true").lower() in ("1", "true", "yes"):
+        from app.services.streaming_discovery import get_streaming_discovery_engine
+        _streaming_discovery = get_streaming_discovery_engine()
+        _streaming_discovery._bus = _message_bus
+        await _streaming_discovery.start()
+        log.info("\u2705 StreamingDiscoveryEngine started (5 detectors, 3-gate emit)")
+    else:
+        log.info("\u26A0\uFE0F StreamingDiscoveryEngine skipped (STREAMING_DISCOVERY_ENABLED=false)")
 
     # 2c. IdeaTriageService — E3: dedup, priority scoring, adaptive threshold
     from app.services.idea_triage import get_idea_triage_service
@@ -499,39 +502,67 @@ async def _start_event_driven_pipeline():
     # Without this, snapshots published by AlpacaStreamService flow through the event pipeline
     # but never reach the database — the data_ingestion.ingest_all path uses separate HTTP calls.
     # BUG FIX 11: Uses async_insert() instead of sync conn.execute() to avoid blocking the event loop.
+    # PERF FIX: Batch writes every 5 seconds instead of per-bar to reduce DuckDB lock contention
+    # and thread pool usage (~8 writes/sec → 1 batch write every 5s).
+    _bar_write_buffer: list = []
+    _bar_buffer_lock = asyncio.Lock()
+
     async def _persist_bar_to_duckdb(bar_data):
-        """Write a market_data.bar event to DuckDB daily_ohlcv table (non-blocking)."""
-        try:
-            from app.data.duckdb_storage import duckdb_store
-            symbol = bar_data.get("symbol")
-            timestamp = bar_data.get("timestamp", "")
-            if not symbol or not timestamp:
-                return
+        """Buffer a market_data.bar event for batched DuckDB write."""
+        symbol = bar_data.get("symbol")
+        timestamp = bar_data.get("timestamp", "")
+        if not symbol or not timestamp:
+            return
+        date_str = str(timestamp)[:10]
+        row = (
+            symbol,
+            date_str,
+            float(bar_data.get("open") or 0),
+            float(bar_data.get("high") or 0),
+            float(bar_data.get("low") or 0),
+            float(bar_data.get("close") or 0),
+            int(bar_data.get("volume") or 0),
+            bar_data.get("source", "stream"),
+        )
+        async with _bar_buffer_lock:
+            _bar_write_buffer.append(row)
 
-            # Extract date from timestamp (could be ISO format or date string)
-            date_str = str(timestamp)[:10]  # YYYY-MM-DD
+    async def _flush_bar_buffer():
+        """Flush buffered bars to DuckDB every 5 seconds."""
+        from app.data.duckdb_storage import duckdb_store
+        while True:
+            await asyncio.sleep(5)
+            async with _bar_buffer_lock:
+                if not _bar_write_buffer:
+                    continue
+                batch = list(_bar_write_buffer)
+                _bar_write_buffer.clear()
+            try:
+                # Deduplicate by (symbol, date) — keep latest bar per symbol per day
+                seen = {}
+                for row in batch:
+                    seen[(row[0], row[1])] = row
+                deduped = list(seen.values())
 
-            await duckdb_store.async_insert(
-                """
-                INSERT OR REPLACE INTO daily_ohlcv (symbol, date, open, high, low, close, volume, source)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                [
-                    symbol,
-                    date_str,
-                    float(bar_data.get("open") or 0),
-                    float(bar_data.get("high") or 0),
-                    float(bar_data.get("low") or 0),
-                    float(bar_data.get("close") or 0),
-                    int(bar_data.get("volume") or 0),
-                    bar_data.get("source", "stream"),
-                ],
-            )
-        except Exception as e:
-            log.debug("DuckDB bar persist failed: %s", e)
+                def _batch_insert():
+                    conn = duckdb_store._get_conn()
+                    with duckdb_store._lock:
+                        for row in deduped:
+                            conn.execute(
+                                "INSERT OR REPLACE INTO daily_ohlcv "
+                                "(symbol, date, open, high, low, close, volume, source) "
+                                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                                list(row),
+                            )
+
+                await asyncio.to_thread(_batch_insert)
+                log.debug("Flushed %d bars to DuckDB (%d unique)", len(batch), len(deduped))
+            except Exception as e:
+                log.debug("DuckDB bar batch persist failed: %s", e)
 
     await _message_bus.subscribe("market_data.bar", _persist_bar_to_duckdb)
-    log.info("\u2705 market_data.bar -> DuckDB persistence subscriber active")
+    asyncio.create_task(_flush_bar_buffer())
+    log.info("\u2705 market_data.bar -> DuckDB batched persistence active (5s flush)")
 
     # 5c. BUG FIX 8: Bridge market_data.bar events to WebSocket "market" channel.
     # Without this, the frontend Dashboard gets NO real-time price updates through

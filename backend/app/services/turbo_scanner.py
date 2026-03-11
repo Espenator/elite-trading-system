@@ -25,7 +25,7 @@ Design:
 import asyncio
 import logging
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -115,7 +115,7 @@ class TurboScanner:
         self._running = False
         self._task: Optional[asyncio.Task] = None
         self._scan_interval = SCAN_INTERVAL_NORMAL
-        self._signals_history: List[ScanSignal] = []
+        self._signals_history: deque = deque(maxlen=500)
         self._seen_today: Set[str] = set()  # symbol+type dedup
         self._last_scan_time = 0.0
         self._volatile_mode = False
@@ -180,8 +180,7 @@ class TurboScanner:
                     self._stats["by_type"][signal.signal_type] += 1
                     await self._emit_signal(signal)
 
-                # Trim history
-                self._signals_history = self._signals_history[-500:]
+                # deque(maxlen=500) handles history trimming automatically
 
                 logger.info(
                     "TurboScan #%d: %d raw signals, %d actionable, %.0fms",

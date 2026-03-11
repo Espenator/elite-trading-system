@@ -308,6 +308,14 @@ class StreamingDiscoveryEngine:
         self._stats["detections_fired"] += len(fired)
 
         if len(fired) >= MIN_GATES:
+            # Backpressure: skip emission when MessageBus queue is congested
+            if self._bus and hasattr(self._bus, "queue_usage_pct"):
+                try:
+                    if self._bus.queue_usage_pct >= 60:
+                        self._stats["events_suppressed"] += 1
+                        return
+                except Exception:
+                    pass
             event = self._build_event(symbol, data, fired)
             self._stats["events_emitted"] += 1
             await self._emit(event)
