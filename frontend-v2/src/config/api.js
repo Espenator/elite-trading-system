@@ -67,6 +67,7 @@ const API_CONFIG = {
     logs:             "/logs",
     alerts:           "/alerts",
     patterns:         "/patterns",
+    settings:         "/settings",
     openclaw:         "/openclaw",
     market:           "/market",
     marketIndices:    "/market/indices",

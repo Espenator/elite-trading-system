@@ -40,7 +40,12 @@ export function useSettings() {
         clearTimeout(timeout);
       }
     } catch (err) {
-      setError(err);
+      // Don't surface raw "signal is aborted" / timeout; show a friendly message
+      if (err.name === "AbortError" || (err.message && err.message.toLowerCase().includes("aborted"))) {
+        setError(new Error("Request timed out. Check that the backend is running and try again."));
+      } else {
+        setError(err);
+      }
     } finally {
       setLoading(false);
     }
