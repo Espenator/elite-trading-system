@@ -1,6 +1,6 @@
 # Project State - Embodier Trader (Embodier.ai)
 > Paste this file at the start of every new AI chat session. Say: "Read this project state document. Acknowledge you understand the architecture, and then I will give you your first task."
-> Last updated: March 11, 2026 (evening)
+> Last updated: March 11, 2026 (deep audit)
 
 ## Identity
 - **Project**: Embodier Trader by Embodier.ai
@@ -78,22 +78,35 @@ Both IPs are DHCP-reserved on the AT&T BGW320-505 router (192.168.1.254).
 
 Slack tokens expire every 12h — refresh at https://api.slack.com/apps. Config in `backend/.env`.
 
-## LATEST STATE (March 11, 2026) — v4.1.0-dev
+## LATEST STATE (March 11, 2026) — v4.1.0-dev (Deep Audit Complete)
 
 ### Current Architecture Snapshot
-- **Council**: 35-agent DAG in 7 stages (11 Core + 12 Academic Edge P0–P4 + 6 Supplemental + 3 Debate + 3 others). CouncilGate invokes full council on every signal (score ≥ 65).
-- **Backend**: 34 API route files in api/v1/; 68+ services (including llm_clients, data_sources, scanning, trading subdirs). brain_service exists and is wired (hypothesis_agent → gRPC).
+- **Council**: 35-agent DAG in 7 stages. All agents are real implementations (not stubs). CouncilGate invokes full council on every signal (score >= 65).
+- **Backend**: 34 API route files in api/v1/; 68+ services. brain_service wired (hypothesis_agent → gRPC).
 - **Tests**: 666 passing (backend pytest). CI GREEN.
 - **Auth**: Bearer token auth, fail-closed for live trading.
 - **WebSocket**: Active; 5 pages wired (signals, orders, council, market data).
-- **Desktop**: Electron app in `desktop/` — BUILD-READY (not in progress).
-- **LLM Intelligence**: 3-tier router — Ollama (routine) → Perplexity (sonar-pro) → Claude (claude-sonnet-4-20250514). Claude reserved for 6 deep-reasoning tasks: strategy_critic, strategy_evolution, deep_postmortem, trade_thesis, overnight_analysis, directive_evolution.
-- **Infrastructure**: Two-PC LAN setup (ESPENMAIN + ProfitTrader); all external API keys configured and active in backend/.env.
+- **Desktop**: Electron app in `desktop/` — BUILD-READY.
+- **LLM Intelligence**: 3-tier router — Ollama (routine) → Perplexity (sonar-pro) → Claude. Claude reserved for 6 deep-reasoning tasks.
+- **Production Readiness**: ~65%. Architecture solid, enforcement gaps identified.
+
+### Deep Audit Results (March 11, 2026)
+A line-by-line audit of the entire codebase found 40 specific issues in 4 categories:
+- **10 Profit Killers**: signal gate too aggressive, shorts inverted, cooldown too long, market-only orders, partial fills lost
+- **10 Silent Failures**: 3 scouts crash, no data backfill, agents silently return HOLD, weight learner drops 50%+ outcomes
+- **10 Unenforced Safeguards**: 9 of 10 circuit breakers advisory-only, regime params ignored, no paper/live safety check
+- **10 Intelligence Gaps**: no regime-adaptive thresholds, no confidence calibration, debate not wired to learning
+
+**What IS working well**: All 33+ agents real, Bayesian weights correct, VETO enforced, sub-1s latency, Kelly math sound, 3-tier LLM router, 666 tests GREEN.
+
+**See `PLAN.md` for the complete 5-phase enhancement plan (Phases A-E, 13-18 sessions).**
 
 ### Resolved Blockers (no longer blocking)
 - Backend startup (uvicorn) — resolved.
 - WebSocket connectivity — resolved; bridges active.
 - Auth for live trading — Bearer token, fail-closed.
+- Frontend-backend wiring — all 14 pages audited and fixed.
+- Mock data — all removed, replaced with real data sources.
 
 ### Historical: v3.2.0 (March 5, 2026) — Council-Controlled Pipeline
 Council was expanded to 17 agents; CouncilGate bridged SignalEngine → Council → OrderExecutor. Pipeline is now 35-agent (see Council Architecture below).
@@ -133,31 +146,55 @@ The codebase had five separate agent/decision systems. As of v3.2.0, Systems 2 a
 - **What's built**: Bayesian WeightLearner (P8), CouncilGate pipeline (P0)
 - **What's remaining**: BlackboardState (P1), CircuitBreaker (P3), TaskSpawner (P5)
 
-## ROADMAP: Unification into CNS Architecture
+## ROADMAP: Enhancement Plan (from Deep Audit)
 
 ### COMPLETED
-- [x] **P0**: Wire Council to Event Pipeline — CouncilGate bridges SignalEngine → Council → OrderExecutor
-- [x] **P2**: Add Missing Feature Keys — EMA-5/10/20, intermarket, cycle, VIX, sector breadth
-- [x] **P8**: Agent Self-Awareness — Bayesian WeightLearner with trade outcome learning
-- [x] Fix stale docstrings in council files and status endpoint
+- [x] Wire Council to Event Pipeline (CouncilGate)
+- [x] Add Missing Feature Keys (EMA-5/10/20, intermarket, cycle, VIX, sector breadth)
+- [x] Bayesian WeightLearner with trade outcome learning
+- [x] Wire brain_service gRPC to hypothesis_agent
+- [x] Backend health, mock data removal, frontend wiring (all 14 pages)
+- [x] UI controls, Slack notification service, health monitoring
+- [x] 28 action buttons verified, 5 missing endpoints added
 
-### NEW PRIORITY: Continuous Discovery Architecture (Issue #38)
-- [ ] **E1**: Streaming Discovery Engine — Alpaca `*` trade/news streams, dynamic universe
-- [ ] **E2**: 12 Dedicated Scout Agents — all data sources active, always running
-- [ ] **E3**: HyperSwarm Continuous Triage — priority queue, adaptive threshold
-- [ ] **E4**: Multi-Tier Council — Fast (5 agents <200ms) + Deep (35 agents <2s)
-- [ ] **E5**: Dynamic Universe — 500-2000 symbols, self-healing, sector-aware
-- [ ] **E6**: Dual-Mode Agents — every analyst gets scout() background mode
-- [ ] **E7**: Feedback-Driven Amplification — signal DNA, win registry, scout priming
-- [ ] **E8**: Multi-Timeframe Scanning — 5min to weekly parallel scan loops
+### Phase A: Stop the Bleeding (P0 — fix critical failures)
+- [ ] Fix 3 scout crashes (missing service methods)
+- [ ] Create startup data backfill orchestrator
+- [ ] Wire regime params to order executor
+- [ ] Enforce all 10 circuit breakers
+- [ ] VIX-based regime fallback
+- [ ] Paper/live account safety check
+- [ ] Fix DuckDB async lock race condition
+- [ ] Background loop supervisor/respawn
 
-### REMAINING (Lower Priority — After Discovery Architecture)
-- [ ] **P1**: Build BlackboardState — shared state across DAG stages, later stages read earlier conclusions
-- [ ] **P3**: Build CircuitBreaker Reflexes (brainstem <50ms) — flash crash, VIX spike, drawdown limits
-- [ ] **P4**: Clean Up OpenClaw — extract useful logic, delete dead Flask app
-- [ ] **P5**: Build TaskSpawner — dynamic agent registry replacing hardcoded imports
-- [ ] **P6**: Unify Agent Command Center — show real 35-agent council state
-- [x] **P7**: Wire brain_service gRPC — connect Ollama to hypothesis_agent (DONE)
+### Phase B: Unlock Alpha (P0 — remove profit blockers)
+- [ ] Calibrate signal gate threshold (regime-adaptive)
+- [ ] Fix short signal generation
+- [ ] Smart cooldown (regime-adaptive, separate buy/sell)
+- [ ] Priority queue for concurrent council evaluations
+- [ ] Limit orders for large positions
+- [ ] Partial fill re-execution
+- [ ] Fix viability gate and portfolio heat check
+
+### Phase C: Sharpen the Brain (P1 — intelligence quality)
+- [ ] Fix weight learner (lower confidence floor, regime-stratified, symmetric loss)
+- [ ] Confidence calibration (Brier score)
+- [ ] Wire debate to learning, council audit trail
+- [ ] Fix trade stats R-multiple, wire homeostasis to sizing
+- [ ] Regime-adaptive thresholds everywhere
+- [ ] Publish all data sources to MessageBus
+
+### Phase D: Continuous Intelligence (P1)
+- [ ] Autonomous daily data backfill
+- [ ] Rate limiting framework
+- [ ] MessageBus dead-letter queue
+- [ ] Scraper resilience
+
+### Phase E: Production Hardening (P2)
+- [ ] End-to-end integration test
+- [ ] Emergency flatten with retry
+- [ ] Position manager startup sync
+- [ ] Desktop packaging
 
 ### BLOCKERS — ALL RESOLVED
 - [x] **BLOCKER-1**: Start backend for first time (uvicorn app.main:app) — RESOLVED
@@ -263,23 +300,22 @@ AlpacaStreamService
 6. Council Gate: signal.generated -> CouncilGate -> run_council() -> council.verdict -> OrderExecutor
 7. Weight Learning: WeightLearner.update(agent, won) adjusts Bayesian alpha/beta -> arbiter uses learned weights
 
-## Current State (March 11, 2026 — v4.1.0-dev)
+## Current State (March 11, 2026 — v4.1.0-dev, Deep Audit Complete)
 - CI: 666 tests passing (backend pytest), GREEN
-- Version: 4.1.0-dev. Backend startup, WebSocket, and auth blockers resolved.
-- Frontend: 14 pages, all pixel-matched to mockups, wired to real API hooks
-- Backend: 34 API routes (brain, triage, ingestion firehose, awareness, etc. mounted), 68+ service files (incl. subdirs)
-- Council: 35-agent DAG + arbiter + runner + CouncilGate + WeightLearner; brain_service wired to hypothesis_agent
-- LLM: 3-tier router (Ollama → Perplexity sonar-pro → Claude claude-sonnet-4-20250514); Claude for 6 deep-reasoning tasks only
+- Version: 4.1.0-dev. All startup, WebSocket, auth blockers resolved. Deep audit complete.
+- Production Readiness: ~65%. Architecture solid, enforcement gaps identified.
+- Frontend: 14 pages, all pixel-matched to mockups, wired to real API hooks, 28 action buttons verified
+- Backend: 34 API routes, 68+ service files, all mounted and responding
+- Council: 35-agent DAG — all agents are real implementations (not stubs). Sub-1s latency.
+- Key Issue: Safeguards exist but not enforced (circuit breakers, regime params, correlation checks)
+- Key Issue: Signal gate filters 20-40% of profitable signals; shorts inverted; weight learner too strict
+- Key Issue: 3 scouts crash on first cycle; no data backfill; 5 data sources don't publish to MessageBus
+- LLM: 3-tier router (Ollama → Perplexity → Claude); Claude for 6 deep-reasoning tasks only
 - Auth: Bearer token, fail-closed for live trading
-- WebSocket: Active; 5 pages wired (signals, orders, council, market data)
-- Desktop: `desktop/` — BUILD-READY (Electron)
-- Discovery: TurboScanner + HyperSwarm + AutonomousScout + UW agents — polling; streaming planned (Issue #38)
-- Knowledge: MemoryBank + HeuristicEngine + KnowledgeGraph (wired to outcome tracker)
-- Event Pipeline: MessageBus + CouncilGate + SignalEngine + OrderExecutor running
-- Kelly Sizing: Real DuckDB stats (no hardcoded values); Mock Guard: OrderExecutor rejects mock-source trades
-- Infrastructure: Two-PC LAN (ESPENMAIN 192.168.1.105 + ProfitTrader 192.168.1.116), all API keys configured
-- Slack: OpenClaw (A0AF9HSCQ6S) + TradingView Alerts (A0AFQ89RVEV) bots active in Embodier Trader workspace
-- External APIs: Alpaca (2 keys), Finviz, FRED, NewsAPI, Unusual Whales, Perplexity, Anthropic, Resend — all ACTIVE
+- Kelly Sizing: Real DuckDB stats; Mock Guard active; R-multiple assumes 2% stop (needs fix)
+- Infrastructure: Two-PC LAN, all API keys configured
+- Next Steps: Phase A (fix critical failures) → Phase B (unlock alpha) → Phase C (sharpen brain) → Phase D (data) → Phase E (harden)
+- Full plan: See PLAN.md (40 specific issues, 5 phases, 13-18 sessions)
 
 ## UI MOCKUP FIDELITY AUDIT (Mar 6, 2026)
 
