@@ -198,18 +198,6 @@ const API_CONFIG = {
 };
 
 /**
- * Load auth token from Electron preload bridge when running in desktop app.
- * No-op in browser; in Electron, preload can expose getAuthToken() and we set localStorage.
- */
-export function initAuthFromElectron() {
-  if (typeof window === "undefined") return;
-  try {
-    const token = window.electronAPI?.getAuthToken?.();
-    if (token) localStorage.setItem("auth_token", token);
-  } catch (_) {}
-}
-
-/**
  * Resolve an endpoint key to a full URL.
  * @param {string} endpoint - Key from API_CONFIG.endpoints
  * @returns {string} Full URL string
