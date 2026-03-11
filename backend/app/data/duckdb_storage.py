@@ -327,6 +327,19 @@ class DuckDBStorage:
             )
         """)
 
+        # Migrate existing features table: add columns that may be missing
+        for col, typedef in [
+            ("pipeline_version", "VARCHAR DEFAULT '1.0.0'"),
+            ("schema_version", "VARCHAR DEFAULT '1.0'"),
+            ("feature_count", "INTEGER DEFAULT 0"),
+            ("feature_hash", "VARCHAR"),
+            ("timeframe", "VARCHAR DEFAULT '1d'"),
+        ]:
+            try:
+                conn.execute(f"ALTER TABLE features ADD COLUMN {col} {typedef}")
+            except Exception:
+                pass  # Column already exists
+
         conn.execute("""
             CREATE TABLE IF NOT EXISTS model_evals (
                 eval_id VARCHAR PRIMARY KEY,

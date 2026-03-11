@@ -20,7 +20,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 _env_path = Path(__file__).resolve().parent.parent / ".env"
-load_dotenv(_env_path, override=False)
+load_dotenv(_env_path, override=True)
 
 from fastapi import FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
@@ -509,54 +509,7 @@ async def _start_event_driven_pipeline():
         _alpaca_stream = _stream_manager
         log.info("\u2705 AlpacaStreamManager launched for %d symbols", len(symbols))
 
-    # 8. SwarmSpawner — spawns analysis swarms from ideas
-    # Skip when LLM disabled — _run_swarm does synchronous DuckDB ingest + LLM council
-    # which blocks the entire async event loop and deadlocks the server.
-    if _llm_enabled:
-        from app.services.swarm_spawner import get_swarm_spawner
-        _swarm_spawner = get_swarm_spawner()
-        _swarm_spawner._bus = _message_bus
-        await _swarm_spawner.start()
-        log.info("\u2705 SwarmSpawner started (%d workers)", _swarm_spawner.MAX_CONCURRENT_SWARMS)
-    else:
-        log.info("\u26A0\uFE0F SwarmSpawner skipped (LLM_ENABLED=false)")
-
-    # 9. KnowledgeIngestionService — connect to message bus
-    from app.services.knowledge_ingest import knowledge_ingest
-    knowledge_ingest.set_message_bus(_message_bus)
-    log.info("\u2705 KnowledgeIngestionService connected to MessageBus")
-
-    # 10. AutonomousScoutService — proactive opportunity discovery
-    if _llm_enabled:
-        from app.services.autonomous_scout import get_scout_service
-        _scout_service = get_scout_service()
-        _scout_service._bus = _message_bus
-        await _scout_service.start()
-        log.info("\u2705 AutonomousScoutService started (%d scouts)", len(_scout_service._tasks))
-    else:
-        log.info("\u26A0\uFE0F AutonomousScoutService skipped (LLM_ENABLED=false)")
-
-    # 11. DiscordSwarmBridge — Discord channels -> swarm analysis
-    if _llm_enabled:
-        from app.services.discord_swarm_bridge import get_discord_bridge
-        _discord_bridge = get_discord_bridge()
-        _discord_bridge._bus = _message_bus
-        await _discord_bridge.start()
-        log.info("\u2705 DiscordSwarmBridge started (%d channels)", len(_discord_bridge._channels))
-    else:
-        log.info("\u26A0\uFE0F DiscordSwarmBridge skipped (LLM_ENABLED=false)")
-
-    # 12. GeopoliticalRadar — continuous macro event detection
-    if _llm_enabled:
-        from app.services.geopolitical_radar import get_geopolitical_radar
-        _geo_radar = get_geopolitical_radar()
-        _geo_radar._bus = _message_bus
-        await _geo_radar.start()
-        log.info("\u2705 GeopoliticalRadar started (alert_level=%s)", _geo_radar._alert_level)
-    else:
-        log.info("\u26A0\uFE0F GeopoliticalRadar skipped (LLM_ENABLED=false)")
-
-    # 13. Swarm result -> WebSocket bridge
+    # -- WS bridges for swarm/macro (register immediately, services start deferred) --
     async def _bridge_swarm_to_ws(result_data):
         try:
             from app.websocket_manager import broadcast_ws
@@ -565,9 +518,7 @@ async def _start_event_driven_pipeline():
             log.debug("WS swarm broadcast failed: %s", e)
 
     await _message_bus.subscribe("swarm.result", _bridge_swarm_to_ws)
-    log.info("\u2705 Swarm->WebSocket bridge active")
 
-    # 14. Macro event -> WebSocket bridge
     async def _bridge_macro_to_ws(event_data):
         try:
             from app.websocket_manager import broadcast_ws
@@ -576,74 +527,152 @@ async def _start_event_driven_pipeline():
             log.debug("WS macro broadcast failed: %s", e)
 
     await _message_bus.subscribe("scout.discovery", _bridge_macro_to_ws)
-    log.info("\u2705 MacroEvent->WebSocket bridge active")
+    log.info("\u2705 Swarm/Macro->WebSocket bridges registered")
 
-    # 15. CorrelationRadar — cross-asset correlation breaks + sector rotation
-    # BUG FIX 3: Always start — uses sync DuckDB queries, no LLM dependency.
+    # -- Lightweight services (DuckDB-only, no LLM) -- start immediately --
+
+    # 15. CorrelationRadar
     from app.services.correlation_radar import get_correlation_radar, KEY_PAIRS
     _corr_radar = get_correlation_radar()
     _corr_radar._bus = _message_bus
     await _corr_radar.start()
     log.info("\u2705 CorrelationRadar started (%d key pairs)", len(KEY_PAIRS))
 
-    # 16. PatternLibrary — discovers and validates recurring patterns
-    # BUG FIX 3: Always start — DuckDB pattern discovery, no LLM dependency.
+    # 16. PatternLibrary
     from app.services.pattern_library import get_pattern_library
     _pattern_lib = get_pattern_library()
     _pattern_lib._bus = _message_bus
     await _pattern_lib.start()
     log.info("\u2705 PatternLibrary started (%d patterns)", len(_pattern_lib._patterns))
 
-    # 17. ExpectedMoveService — options-derived reversal zones
-    # BUG FIX 3: Always start — options data processing, no LLM dependency.
+    # 17. ExpectedMoveService
     from app.services.expected_move_service import get_expected_move_service
     _em_service = get_expected_move_service()
     _em_service._bus = _message_bus
     await _em_service.start()
     log.info("\u2705 ExpectedMoveService started (%d symbols)", len(get_expected_move_service()._levels) or 18)
 
-    # 18. TurboScanner — parallel multi-source 60s scanner (10 concurrent DuckDB screens)
-    if os.getenv("TURBO_SCANNER_ENABLED", "true").lower() in ("1", "true", "yes"):
-        from app.services.turbo_scanner import get_turbo_scanner
-        _turbo_scanner = get_turbo_scanner()
-        _turbo_scanner._bus = _message_bus
-        await _turbo_scanner.start()
-        log.info("\u2705 TurboScanner started (interval=%ds)", _turbo_scanner._scan_interval)
-    else:
-        log.info("\u26A0\uFE0F TurboScanner skipped (TURBO_SCANNER_ENABLED=false)")
+    # 9. KnowledgeIngestionService
+    from app.services.knowledge_ingest import knowledge_ingest
+    knowledge_ingest.set_message_bus(_message_bus)
+    log.info("\u2705 KnowledgeIngestionService connected to MessageBus")
 
-    # 19. HyperSwarm — 50+ concurrent micro-swarms via local Ollama
-    if _llm_enabled:
-        from app.services.hyper_swarm import get_hyper_swarm
-        _hyper_swarm = get_hyper_swarm()
-        _hyper_swarm._bus = _message_bus
-        await _hyper_swarm.start()
-        log.info("\u2705 HyperSwarm started (%d workers, %d Ollama nodes)", len(_hyper_swarm._workers), len(_hyper_swarm._ollama_urls))
-    else:
-        log.info("\u26A0\uFE0F HyperSwarm skipped (LLM_ENABLED=false)")
+    # -- DEFERRED HEAVY SERVICES -----------------------------------------------
+    # These services are LLM-heavy, do bulk HTTP fetches, or process thousands
+    # of symbols. Starting them immediately saturates the asyncio event loop
+    # and makes the HTTP server unresponsive for 30-60s after startup.
+    # Solution: launch them in a background task after a delay so the API
+    # server is fully ready to serve health checks and council evaluations.
+    _deferred_startup_delay = int(os.getenv("DEFERRED_STARTUP_DELAY", "15"))
 
-    # 20. NewsAggregator — 8+ RSS/API news sources every 60s
-    # Publishes swarm.idea + signal.generated events → sync DuckDB processing.
-    if _llm_enabled:
-        from app.services.news_aggregator import get_news_aggregator
-        _news_agg = get_news_aggregator()
-        _news_agg._bus = _message_bus
-        await _news_agg.start()
-        log.info("\u2705 NewsAggregator started (%d RSS feeds)", 9)
-    else:
-        log.info("\u26A0\uFE0F NewsAggregator skipped (LLM_ENABLED=false)")
+    async def _start_deferred_services():
+        """Start heavy background services after the API server is ready."""
+        await asyncio.sleep(_deferred_startup_delay)
+        log.info("Starting deferred heavy services (after %ds delay)...", _deferred_startup_delay)
 
-    # 21. MarketWideSweep — batch Alpaca ingest + 10 SQL screens across full market
-    # BUG FIX 3: Always start — batch Alpaca ingest + SQL screens, no LLM dependency.
-    # This is critical for populating DuckDB with market-wide data.
-    if os.getenv("MARKET_SWEEP_ENABLED", "true").lower() in ("1", "true", "yes"):
-        from app.services.market_wide_sweep import get_market_sweep
-        _market_sweep = get_market_sweep()
-        _market_sweep._bus = _message_bus
-        await _market_sweep.start()
-        log.info("\u2705 MarketWideSweep started (universe=%d symbols)", len(_market_sweep._universe))
-    else:
-        log.info("\u26A0\uFE0F MarketWideSweep skipped (MARKET_SWEEP_ENABLED=false)")
+        # 8. SwarmSpawner
+        if _llm_enabled:
+            try:
+                from app.services.swarm_spawner import get_swarm_spawner
+                _swarm_spawner = get_swarm_spawner()
+                _swarm_spawner._bus = _message_bus
+                await _swarm_spawner.start()
+                log.info("\u2705 SwarmSpawner started (%d workers)", _swarm_spawner.MAX_CONCURRENT_SWARMS)
+            except Exception as e:
+                log.warning("SwarmSpawner failed to start: %s", e)
+
+        await asyncio.sleep(2)  # Yield to event loop between heavy services
+
+        # 10. AutonomousScoutService
+        if _llm_enabled:
+            try:
+                from app.services.autonomous_scout import get_scout_service
+                _scout_service = get_scout_service()
+                _scout_service._bus = _message_bus
+                await _scout_service.start()
+                log.info("\u2705 AutonomousScoutService started (%d scouts)", len(_scout_service._tasks))
+            except Exception as e:
+                log.warning("AutonomousScoutService failed to start: %s", e)
+
+        # 11. DiscordSwarmBridge
+        if _llm_enabled:
+            try:
+                from app.services.discord_swarm_bridge import get_discord_bridge
+                _discord_bridge = get_discord_bridge()
+                _discord_bridge._bus = _message_bus
+                await _discord_bridge.start()
+                log.info("\u2705 DiscordSwarmBridge started (%d channels)", len(_discord_bridge._channels))
+            except Exception as e:
+                log.warning("DiscordSwarmBridge failed to start: %s", e)
+
+        await asyncio.sleep(2)
+
+        # 12. GeopoliticalRadar
+        if _llm_enabled:
+            try:
+                from app.services.geopolitical_radar import get_geopolitical_radar
+                _geo_radar = get_geopolitical_radar()
+                _geo_radar._bus = _message_bus
+                await _geo_radar.start()
+                log.info("\u2705 GeopoliticalRadar started (alert_level=%s)", _geo_radar._alert_level)
+            except Exception as e:
+                log.warning("GeopoliticalRadar failed to start: %s", e)
+
+        await asyncio.sleep(2)
+
+        # 18. TurboScanner
+        if os.getenv("TURBO_SCANNER_ENABLED", "true").lower() in ("1", "true", "yes"):
+            try:
+                from app.services.turbo_scanner import get_turbo_scanner
+                _turbo_scanner = get_turbo_scanner()
+                _turbo_scanner._bus = _message_bus
+                await _turbo_scanner.start()
+                log.info("\u2705 TurboScanner started (interval=%ds)", _turbo_scanner._scan_interval)
+            except Exception as e:
+                log.warning("TurboScanner failed to start: %s", e)
+
+        await asyncio.sleep(2)
+
+        # 19. HyperSwarm
+        if _llm_enabled:
+            try:
+                from app.services.hyper_swarm import get_hyper_swarm
+                _hyper_swarm = get_hyper_swarm()
+                _hyper_swarm._bus = _message_bus
+                await _hyper_swarm.start()
+                log.info("\u2705 HyperSwarm started (%d workers, %d Ollama nodes)", len(_hyper_swarm._workers), len(_hyper_swarm._ollama_urls))
+            except Exception as e:
+                log.warning("HyperSwarm failed to start: %s", e)
+
+        await asyncio.sleep(2)
+
+        # 20. NewsAggregator
+        if _llm_enabled:
+            try:
+                from app.services.news_aggregator import get_news_aggregator
+                _news_agg = get_news_aggregator()
+                _news_agg._bus = _message_bus
+                await _news_agg.start()
+                log.info("\u2705 NewsAggregator started (%d RSS feeds)", 9)
+            except Exception as e:
+                log.warning("NewsAggregator failed to start: %s", e)
+
+        await asyncio.sleep(3)
+
+        # 21. MarketWideSweep
+        if os.getenv("MARKET_SWEEP_ENABLED", "true").lower() in ("1", "true", "yes"):
+            try:
+                from app.services.market_wide_sweep import get_market_sweep
+                _market_sweep = get_market_sweep()
+                _market_sweep._bus = _message_bus
+                await _market_sweep.start()
+                log.info("\u2705 MarketWideSweep started (universe=%d symbols)", len(_market_sweep._universe))
+            except Exception as e:
+                log.warning("MarketWideSweep failed to start: %s", e)
+
+        log.info("\u2705 All deferred heavy services started")
+
+    asyncio.create_task(_start_deferred_services())
 
     # 22. UnifiedProfitEngine — single adaptive scorer replacing 5 competing brains
     # Subscribes to signal.generated and does synchronous DuckDB queries for ML scoring.

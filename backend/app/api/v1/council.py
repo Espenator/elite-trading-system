@@ -6,6 +6,7 @@ GET  /api/v1/council/latest    -> most recent DecisionPacket
 GET  /api/v1/council/weights   -> current agent weights (Bayesian-updated)
 POST /api/v1/council/weights/reset -> reset weights to defaults
 """
+import asyncio
 import logging
 import time
 from typing import Any, Dict, Optional
@@ -55,16 +56,22 @@ async def evaluate_symbol(req: CouncilEvalRequest):
     try:
         from app.council.runner import run_council
 
-        decision = await run_council(
-            symbol=req.symbol,
-            timeframe=req.timeframe,
-            features=req.features,
-            context=req.context or {},
+        decision = await asyncio.wait_for(
+            run_council(
+                symbol=req.symbol,
+                timeframe=req.timeframe,
+                features=req.features,
+                context=req.context or {},
+            ),
+            timeout=120.0,  # Hard 2-minute cap on full council evaluation
         )
 
         result = decision.to_dict()
         _latest_decision = result
         return result
+    except asyncio.TimeoutError:
+        logger.error("Council evaluation timed out for %s (120s limit)", req.symbol)
+        raise HTTPException(status_code=504, detail="Council evaluation timed out (120s)")
     except Exception as e:
         logger.error("Council evaluation failed: %s", e)
         raise HTTPException(status_code=500, detail="Council evaluation failed")

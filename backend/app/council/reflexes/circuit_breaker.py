@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 # Default thresholds (overridden by directives/settings)
 _DEFAULTS = {
     "cb_vix_spike_threshold": 35.0,
-    "cb_daily_drawdown_limit": 0.03,  # 3%
+    "cb_daily_drawdown_limit": float(os.getenv("CB_DAILY_DRAWDOWN_LIMIT", "0.03")),  # 3% default, configurable
     "cb_flash_crash_threshold": 0.05,  # 5% in 5min
     "cb_max_positions": 10,
     "cb_max_single_position_pct": 0.20,  # 20%

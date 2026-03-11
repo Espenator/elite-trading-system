@@ -65,12 +65,15 @@ class IntelligenceOrchestrator:
             "errors": [],
         }
 
-        # ── Social sentiment pre-fetch (sync, fast) ──────────────────────────
+        # ── Social sentiment pre-fetch (sync → thread to avoid blocking event loop)
         try:
             from app.modules.social_news_engine.aggregators import aggregate_all
             from app.modules.social_news_engine.sentiment import score_text, score_to_0_100
             from app.modules.social_news_engine.config import DEFAULT_SOURCES
-            social_items = aggregate_all([symbol], DEFAULT_SOURCES)
+            social_items = await asyncio.wait_for(
+                asyncio.to_thread(aggregate_all, [symbol], DEFAULT_SOURCES),
+                timeout=8.0,
+            )
             if social_items:
                 texts = [it.get("text", "") for it in social_items if it.get("text")]
                 raw = score_text(" ".join(texts), use_vader=True) if texts else 0.0

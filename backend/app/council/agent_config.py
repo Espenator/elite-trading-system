@@ -10,6 +10,7 @@ Usage:
         ...
 """
 import logging
+import os
 from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
@@ -67,7 +68,7 @@ _DEFAULTS: Dict[str, Any] = {
 
     # Circuit Breaker thresholds
     "cb_vix_spike_threshold": 35.0,
-    "cb_daily_drawdown_limit": 0.03,
+    "cb_daily_drawdown_limit": float(os.getenv("CB_DAILY_DRAWDOWN_LIMIT", "0.03")),
     "cb_flash_crash_threshold": 0.05,
     "cb_max_positions": 10,
     "cb_max_single_position_pct": 0.20,
