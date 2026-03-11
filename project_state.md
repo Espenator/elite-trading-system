@@ -1,6 +1,6 @@
 # Project State - Embodier Trader (Embodier.ai)
 > Paste this file at the start of every new AI chat session. Say: "Read this project state document. Acknowledge you understand the architecture, and then I will give you your first task."
-> Last updated: March 10, 2026
+> Last updated: March 11, 2026
 
 ## Identity
 - **Project**: Embodier Trader by Embodier.ai
@@ -12,7 +12,70 @@
 - **Philosophy**: Embodied Intelligence — the system IS profit, not seeking it. It operates as a conscious profit-seeking being with a Central Nervous System (CNS) architecture.
 - **Current Focus**: Council runs 35-agent DAG; 34 API routes; 68+ services; 666 tests passing; Bearer auth fail-closed; WebSocket active (5 pages); desktop BUILD-READY.
 
-## LATEST STATE (March 10, 2026) — v4.1.0-dev
+## Two-PC Development Setup
+
+### PC1: ESPENMAIN (Primary)
+| Item | Value |
+|------|-------|
+| Hostname | ESPENMAIN |
+| LAN IP | 192.168.1.105 |
+| Role | Primary — backend API, frontend, DuckDB, trading execution |
+| Repo path | `C:\Users\Espen\elite-trading-system` |
+| Backend path | `C:\Users\Espen\elite-trading-system\backend` |
+| Frontend path | `C:\Users\Espen\elite-trading-system\frontend-v2` |
+| Python venv | `C:\Users\Espen\elite-trading-system\backend\venv` |
+| Alpaca account | ESPENMAIN — Key 1 (portfolio trading) |
+
+### PC2: ProfitTrader (Secondary)
+| Item | Value |
+|------|-------|
+| Hostname | ProfitTrader |
+| LAN IP | 192.168.1.116 |
+| Role | Secondary — GPU training, ML inference, brain_service (gRPC) |
+| Repo path | `C:\Users\ProfitTrader\elite-trading-system` |
+| Backend path | `C:\Users\ProfitTrader\elite-trading-system\backend` |
+| Frontend path | `C:\Users\ProfitTrader\elite-trading-system\frontend-v2` |
+| Python venv | `C:\Users\ProfitTrader\elite-trading-system\backend\venv` |
+| Alpaca account | Profit Trader — Key 2 (discovery scanning) |
+
+Both IPs are DHCP-reserved on the AT&T BGW320-505 router (192.168.1.254).
+
+### Ports & URLs
+| Service | Port | URL |
+|---------|------|-----|
+| Backend API | 8000 | http://localhost:8000 |
+| API Docs (Swagger) | 8000 | http://localhost:8000/docs |
+| Frontend (Vite) | 5173 | http://localhost:5173 |
+| Brain Service (gRPC) | 50051 | localhost:50051 |
+| Ollama | 11434 | http://localhost:11434 |
+| Redis (optional) | 6379 | redis://localhost:6379 |
+
+### External API Services (all in backend/.env, gitignored)
+
+| Service | Env Var | Required? | Status |
+|---------|---------|-----------|--------|
+| Alpaca (Key 1 — ESPENMAIN) | `ALPACA_API_KEY` | YES (core) | **ACTIVE** — paper trading |
+| Alpaca (Key 2 — ProfitTrader) | `ALPACA_KEY_2` | No (discovery) | **ACTIVE** — discovery scanning |
+| Finviz Elite | `FINVIZ_API_KEY` | No | **ACTIVE** |
+| FRED | `FRED_API_KEY` | No | **ACTIVE** |
+| NewsAPI | `NEWS_API_KEY` | No | **ACTIVE** |
+| Unusual Whales | `UNUSUAL_WHALES_API_KEY` | No | **ACTIVE** |
+| Perplexity | `PERPLEXITY_API_KEY` | No (LLM tier 2) | **ACTIVE** — sonar-pro |
+| Anthropic (Claude) | `ANTHROPIC_API_KEY` | No (LLM tier 3) | **ACTIVE** — 6 deep tasks |
+| Resend (email) | `RESEND_API_KEY` | No | **ACTIVE** |
+| StockGeist | `STOCKGEIST_API_KEY` | No | Not configured |
+| YouTube | `YOUTUBE_API_KEY` | No | Not configured |
+
+### Slack Bots (Embodier Trader Workspace)
+
+| Bot | App ID | Purpose |
+|-----|--------|---------|
+| OpenClaw | A0AF9HSCQ6S | Multi-agent swarm notifications |
+| TradingView Alerts | A0AFQ89RVEV | Inbound TradingView webhook alerts |
+
+Slack tokens expire every 12h — refresh at https://api.slack.com/apps. Config in `backend/.env`.
+
+## LATEST STATE (March 11, 2026) — v4.1.0-dev
 
 ### Current Architecture Snapshot
 - **Council**: 35-agent DAG in 7 stages (11 Core + 12 Academic Edge P0–P4 + 6 Supplemental + 3 Debate + 3 others). CouncilGate invokes full council on every signal (score ≥ 65).
@@ -21,7 +84,8 @@
 - **Auth**: Bearer token auth, fail-closed for live trading.
 - **WebSocket**: Active; 5 pages wired (signals, orders, council, market data).
 - **Desktop**: Electron app in `desktop/` — BUILD-READY (not in progress).
-- **LLM Intelligence**: 3-tier router — Ollama (routine) → Perplexity → Claude. Claude reserved for 6 deep-reasoning tasks: strategy_critic, strategy_evolution, deep_postmortem, trade_thesis, overnight_analysis, directive_evolution.
+- **LLM Intelligence**: 3-tier router — Ollama (routine) → Perplexity (sonar-pro) → Claude (claude-sonnet-4-20250514). Claude reserved for 6 deep-reasoning tasks: strategy_critic, strategy_evolution, deep_postmortem, trade_thesis, overnight_analysis, directive_evolution.
+- **Infrastructure**: Two-PC LAN setup (ESPENMAIN + ProfitTrader); all external API keys configured and active in backend/.env.
 
 ### Resolved Blockers (no longer blocking)
 - Backend startup (uvicorn) — resolved.
@@ -192,13 +256,13 @@ AlpacaStreamService
 6. Council Gate: signal.generated -> CouncilGate -> run_council() -> council.verdict -> OrderExecutor
 7. Weight Learning: WeightLearner.update(agent, won) adjusts Bayesian alpha/beta -> arbiter uses learned weights
 
-## Current State (March 10, 2026 — v4.1.0-dev)
+## Current State (March 11, 2026 — v4.1.0-dev)
 - CI: 666 tests passing (backend pytest), GREEN
 - Version: 4.1.0-dev. Backend startup, WebSocket, and auth blockers resolved.
 - Frontend: 14 pages, all pixel-matched to mockups, wired to real API hooks
 - Backend: 34 API routes (brain, triage, ingestion firehose, awareness, etc. mounted), 68+ service files (incl. subdirs)
 - Council: 35-agent DAG + arbiter + runner + CouncilGate + WeightLearner; brain_service wired to hypothesis_agent
-- LLM: 3-tier router (Ollama → Perplexity → Claude); Claude for 6 deep-reasoning tasks only
+- LLM: 3-tier router (Ollama → Perplexity sonar-pro → Claude claude-sonnet-4-20250514); Claude for 6 deep-reasoning tasks only
 - Auth: Bearer token, fail-closed for live trading
 - WebSocket: Active; 5 pages wired (signals, orders, council, market data)
 - Desktop: `desktop/` — BUILD-READY (Electron)
@@ -206,6 +270,9 @@ AlpacaStreamService
 - Knowledge: MemoryBank + HeuristicEngine + KnowledgeGraph (wired to outcome tracker)
 - Event Pipeline: MessageBus + CouncilGate + SignalEngine + OrderExecutor running
 - Kelly Sizing: Real DuckDB stats (no hardcoded values); Mock Guard: OrderExecutor rejects mock-source trades
+- Infrastructure: Two-PC LAN (ESPENMAIN 192.168.1.105 + ProfitTrader 192.168.1.116), all API keys configured
+- Slack: OpenClaw (A0AF9HSCQ6S) + TradingView Alerts (A0AFQ89RVEV) bots active in Embodier Trader workspace
+- External APIs: Alpaca (2 keys), Finviz, FRED, NewsAPI, Unusual Whales, Perplexity, Anthropic, Resend — all ACTIVE
 
 ## UI MOCKUP FIDELITY AUDIT (Mar 6, 2026)
 

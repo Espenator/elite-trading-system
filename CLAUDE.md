@@ -1,6 +1,6 @@
 # CLAUDE.md — Embodier Trader (Elite Trading System)
 # This file is read automatically by Claude Code at session start.
-# Last updated: March 10, 2026 — v4.1.0-dev
+# Last updated: March 11, 2026 — v4.1.0-dev
 
 ## Project Identity
 - **Name**: Embodier Trader by Embodier.ai

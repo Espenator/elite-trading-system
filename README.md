@@ -1,6 +1,6 @@
 # Elite Trading System
 ### Embodier.ai — Full-Stack AI Trading Intelligence Platform
-**Version 4.1.0-dev** | Last Updated: March 10, 2026
+**Version 4.1.0-dev** | Last Updated: March 11, 2026
 
 CI Status: GREEN — 666 tests passing (backend pytest)
 Frontend: **ALL 14 PAGES COMPLETE** — pixel-fidelity match to 23 mockup images. Build clean.
@@ -11,7 +11,7 @@ Council: **35-agent DAG** in 7 stages — council-controlled trading via Council
 
 React + FastAPI full-stack trading application with 14-route V3 widescreen dashboard, DuckDB database, **35-agent council DAG** with Bayesian weight learning, 12 Academic Edge Swarms (P0–P4), Alpaca + Finviz + Unusual Whales integrations, XGBoost ML pipeline, event-driven council-controlled order execution, and gRPC brain service for local Ollama LLM inference.
 
-## Current State (March 10, 2026)
+## Current State (March 11, 2026)
 
 | Area | Count | Status |
 |------|-------|--------|
@@ -380,9 +380,71 @@ All pages in frontend-v2/src/pages/. All use useApi() hook. No mock data. **ALL 
 - **NewsAPI** — Breaking news headlines
 
 ## Hardware (Dual-PC Setup)
-- **PC 1 (ESPENMAIN)**: Development + Frontend + Backend API
-- **PC 2**: RTX GPU cluster for ML training + Ollama inference (brain_service)
-- Connected via gRPC (brain_service port 50051)
+
+### PC1: ESPENMAIN (Primary)
+| Item | Value |
+|------|-------|
+| Hostname | ESPENMAIN |
+| LAN IP | 192.168.1.105 |
+| Role | Primary — backend API, frontend, DuckDB, trading execution |
+| Repo path | `C:\Users\Espen\elite-trading-system` |
+| Backend path | `C:\Users\Espen\elite-trading-system\backend` |
+| Frontend path | `C:\Users\Espen\elite-trading-system\frontend-v2` |
+| Python venv | `C:\Users\Espen\elite-trading-system\backend\venv` |
+| Alpaca account | ESPENMAIN — Key 1 (portfolio trading) |
+
+### PC2: ProfitTrader (Secondary)
+| Item | Value |
+|------|-------|
+| Hostname | ProfitTrader |
+| LAN IP | 192.168.1.116 |
+| Role | Secondary — GPU training, ML inference, brain_service (gRPC) |
+| Repo path | `C:\Users\ProfitTrader\elite-trading-system` |
+| Backend path | `C:\Users\ProfitTrader\elite-trading-system\backend` |
+| Frontend path | `C:\Users\ProfitTrader\elite-trading-system\frontend-v2` |
+| Python venv | `C:\Users\ProfitTrader\elite-trading-system\backend\venv` |
+| Alpaca account | Profit Trader — Key 2 (discovery scanning) |
+
+Both IPs are DHCP-reserved on the AT&T BGW320-505 router (192.168.1.254). Connected via gRPC (brain_service port 50051).
+
+### Ports & URLs (Both PCs)
+| Service | Port | URL |
+|---------|------|-----|
+| Backend API | 8000 | http://localhost:8000 |
+| API Docs (Swagger) | 8000 | http://localhost:8000/docs |
+| Frontend (Vite) | 5173 | http://localhost:5173 |
+| Brain Service (gRPC) | 50051 | localhost:50051 |
+| Ollama | 11434 | http://localhost:11434 |
+| Redis (optional) | 6379 | redis://localhost:6379 |
+
+## External API Services
+
+All API keys live in `backend/.env` (gitignored). Services degrade gracefully if keys are missing. See `backend/.env.example` for the full template.
+
+| Service | Env Var | Required? | Status |
+|---------|---------|-----------|--------|
+| Alpaca Markets (Key 1 — ESPENMAIN) | `ALPACA_API_KEY` / `ALPACA_SECRET_KEY` | YES (core) | **ACTIVE** — paper trading |
+| Alpaca Markets (Key 2 — ProfitTrader) | `ALPACA_KEY_2` / `ALPACA_SECRET_2` | No (discovery) | **ACTIVE** — discovery scanning |
+| Finviz Elite | `FINVIZ_API_KEY` | No | **ACTIVE** |
+| FRED | `FRED_API_KEY` | No | **ACTIVE** |
+| NewsAPI | `NEWS_API_KEY` | No | **ACTIVE** |
+| Unusual Whales | `UNUSUAL_WHALES_API_KEY` | No | **ACTIVE** |
+| Perplexity | `PERPLEXITY_API_KEY` | No (LLM tier 2) | **ACTIVE** — sonar-pro model |
+| Anthropic (Claude) | `ANTHROPIC_API_KEY` | No (LLM tier 3) | **ACTIVE** — 6 deep-reasoning tasks |
+| Resend (email) | `RESEND_API_KEY` | No | **ACTIVE** |
+| StockGeist | `STOCKGEIST_API_KEY` | No | Not configured |
+| YouTube | `YOUTUBE_API_KEY` | No | Not configured |
+| X / Twitter | `X_API_KEY` | No | Not configured |
+| Discord | `DISCORD_BOT_TOKEN` | No | Not configured |
+
+## Slack Bots (Embodier Trader Workspace)
+
+| Bot | App ID | Purpose | Status |
+|-----|--------|---------|--------|
+| OpenClaw | A0AF9HSCQ6S | Multi-agent swarm notifications | **ACTIVE** |
+| TradingView Alerts | A0AFQ89RVEV | Inbound TradingView webhook alerts | **ACTIVE** |
+
+Slack workspace tokens expire every 12 hours. Refresh at https://api.slack.com/apps. Config in `backend/.env` (gitignored).
 
 ## Quick Start
 
