@@ -1,6 +1,6 @@
 # CLAUDE.md — Embodier Trader (Elite Trading System)
 # This file is read automatically by Claude Code at session start.
-# Last updated: March 11, 2026 — v4.1.0-dev
+# Last updated: March 11, 2026 (evening) — v4.1.0-dev
 
 ## Project Identity
 - **Name**: Embodier Trader by Embodier.ai
@@ -50,7 +50,7 @@ Note: Vite may fall back to 5174 or 3001 if 5173 is in use.
 - **Backend**: Python 3.11+, FastAPI, DuckDB, uvicorn
 - **Frontend**: React 18 (Vite), TailwindCSS, Lightweight Charts, react-router-dom v6
 - **Council**: 35-agent DAG with Bayesian-weighted arbiter (7 stages)
-- **Data Sources**: Alpaca Markets, Unusual Whales, FinViz, FRED, SEC EDGAR, NewsAPI
+- **Data Sources**: Alpaca Markets, Unusual Whales, FinViz, FRED, SEC EDGAR, NewsAPI, Benzinga (scraper), SqueezeMetrics (scraper), Capitol Trades (scraper)
 - **LLM**: 3-tier router — Ollama (routine) → Perplexity (search) → Claude (deep reasoning)
 - **Event Pipeline**: MessageBus → CouncilGate → Council → OrderExecutor
 - **Database**: DuckDB (analytics), in-memory state
@@ -78,16 +78,19 @@ Slack tokens are short-lived (12h expiry) and must be refreshed via Slack API co
 
 All API keys live in `backend/.env` (NEVER commit real keys). Services degrade gracefully if keys are missing:
 
-| Service | Env Var | Required? |
-|---------|---------|-----------|
-| Alpaca Markets | `ALPACA_API_KEY` / `ALPACA_SECRET_KEY` | YES (core) |
-| Finviz Elite | `FINVIZ_API_KEY` | No |
-| FRED | `FRED_API_KEY` | No |
-| NewsAPI | `NEWS_API_KEY` | No |
-| Unusual Whales | `UNUSUAL_WHALES_API_KEY` | No |
-| Perplexity | `PERPLEXITY_API_KEY` | No (LLM tier 2) |
-| Anthropic (Claude) | `ANTHROPIC_API_KEY` | No (LLM tier 3) |
-| Resend (email) | `RESEND_API_KEY` | No |
+| Service | Env Var | Required? | Status |
+|---------|---------|-----------|--------|
+| Alpaca Markets | `ALPACA_API_KEY` / `ALPACA_SECRET_KEY` | YES (core) | Needs key |
+| Finviz Elite | `FINVIZ_API_KEY` | No | Needs key |
+| FRED | `FRED_API_KEY` | No | **CONFIGURED** |
+| NewsAPI | `NEWS_API_KEY` | No | **CONFIGURED** |
+| Unusual Whales | `UNUSUAL_WHALES_API_KEY` | No | **CONFIGURED** |
+| Perplexity | `PERPLEXITY_API_KEY` | No (LLM tier 2) | Needs key |
+| Anthropic (Claude) | `ANTHROPIC_API_KEY` | No (LLM tier 3) | Needs key |
+| Resend (email) | `RESEND_API_KEY` | No | **CONFIGURED** |
+| Benzinga (scraper) | `BENZINGA_EMAIL` / `BENZINGA_PASSWORD` | No | **CONFIGURED** — web scraper, no API key |
+| SqueezeMetrics (scraper) | `SQUEEZEMETRICS_ENABLED` | No | **CONFIGURED** — scrapes public DIX/GEX |
+| Capitol Trades (scraper) | — (uses UW API) | No | **CONFIGURED** — via Unusual Whales + scrape fallback |
 
 ## Architecture Quick Reference
 
@@ -184,8 +187,25 @@ Or use the launcher: `.\start-embodier.ps1`
 - Added `scanners`/`intels` aliases in `api.js` → agents router
 - API_AUTH_TOKEN set in `.env` (required for state-changing endpoints)
 
+### Production Debug Session (March 11, 2026 evening) — Phase 1.5
+- **Mock data removal (agents.py)**: Removed fake CPU/memory metrics, fake drift PSI values, fake "Bridge latency 23ms" alert; replaced with real psutil metrics
+- **Council registry fix**: Added 4 missing agents (bull_debater, bear_debater, red_team, alt_data) to `registry.py`; added Stage 5.5 (debate) to DAG_STAGES
+- **agents.py all-config**: Now uses canonical 33-agent registry instead of only listing 14
+- **ELO leaderboard**: Sources from real WeightLearner Bayesian weights instead of hardcoded 1500
+- **Route alias fixes**: Added backend aliases for 4 frontend path mismatches:
+  - `/cns/homeostasis` → `/cns/homeostasis/vitals`
+  - `/cns/circuit-breaker` → `/cns/circuit-breaker/status`
+  - `/cns/last-verdict` → `/cns/council/last-verdict`
+  - `/swarm/ml-scorer/status` → `/swarm/ml/scorer/status`
+- **New scraper services**: Created `benzinga_service.py`, `squeezemetrics_service.py`, `capitol_trades_service.py`, `senate_stock_watcher_service.py` — all 4 were referenced by council agents but missing
+- **API keys configured** in `.env`: FRED, NewsAPI, Unusual Whales, Resend, Benzinga (email/pass)
+- **data_sources.py**: Added squeezemetrics + capitol_trades entries; updated benzinga from REST to scraper
+- **settings_service.py**: Added benzingaEmail, benzingaPassword, squeezeMetricsEnabled env mappings
+
 ## Production Readiness Status
 - See `PLAN.md` for the full 8-phase production readiness plan
+- See `docs/DIVIDE-AND-CONQUER-PLAN.md` for PC1/PC2 task division
 - **Phase 1: Backend Health** — COMPLETE
-- **Phase 2: Frontend Wiring** — IN PROGRESS (endpoint audit done, 5 missing endpoints added)
+- **Phase 1.5: Debug & Data Sources** — COMPLETE (mock removal, scraper services, API keys)
+- **Phase 2: Frontend Wiring** — IN PROGRESS (endpoint audit done, route aliases fixed, 5 endpoints added)
 - **Phase 3-8**: Not started (Council, Auto-Trade, Data Firehose, UI Controls, Monitoring, Desktop)

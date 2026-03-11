@@ -17,7 +17,7 @@ React + FastAPI full-stack trading application with 14-route V3 widescreen dashb
 | Frontend pages | 14 (all sidebar routes) | **ALL COMPLETE** -- pixel-matched to mockups, no mock data |
 | Frontend components | 12 shared + 5 agent-tab | All wired, no orphaned imports |
 | Backend API routes | **34** files in api/v1/ | All mounted in main.py (including brain, triage, ingestion firehose, awareness) |
-| Backend services | **68+** (incl. subdirs) | llm_clients, data_sources, scanning, trading, etc. |
+| Backend services | **72+** (incl. subdirs) | llm_clients, data_sources, scanning, trading, scrapers, etc. |
 | Council agents | **35 agents** in 7-stage DAG | 11 Core + 12 Academic Edge (P0-P4) + 6 Supplemental + 3 Debate + 3 others |
 | Council intelligence | WeightLearner + CouncilGate + SelfAwareness + Homeostasis | Bayesian self-learning agent weights |
 | Council subsystems | 15 orchestration files | runner, arbiter, blackboard, task_spawner, shadow_tracker, etc. |
@@ -424,6 +424,9 @@ All pages in frontend-v2/src/pages/. All use useApi() hook. No mock data. **ALL 
 - **FRED** -- Economic macro data
 - **SEC EDGAR** -- Company filings, insider transactions
 - **NewsAPI** -- Breaking news headlines
+- **Benzinga** (web scraper) -- Earnings calendar + transcripts
+- **SqueezeMetrics** (web scraper) -- DIX/GEX dark pool indicators
+- **Capitol Trades** (UW API + scraper) -- Congressional trade disclosures
 
 ## Hardware (Dual-PC Setup)
 
@@ -635,10 +638,13 @@ AgentVote(
 | Source | Use | Library |
 |--------|-----|---------|
 | Alpaca Markets | Market data + order execution | alpaca-py |
-| Unusual Whales | Options flow + institutional | REST API |
+| Unusual Whales | Options flow, dark pool, congressional trades | REST API |
 | FinViz | Screener + fundamentals + VIX proxy | finviz |
 | FRED | Macro economic data | fredapi |
 | SEC EDGAR | Company filings | REST API |
+| Benzinga | Earnings calendar + transcripts | Web scraper (httpx) |
+| SqueezeMetrics | DIX/GEX dark pool indicators | Web scraper (httpx) |
+| Capitol Trades | Congressional trading disclosures | UW API + web scraper |
 | News API / Discord / X | Social sentiment | REST API |
 | YouTube | Transcript intelligence | ytdl / transcript API |
 

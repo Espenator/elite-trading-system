@@ -1,6 +1,6 @@
 # API Key Inventory & Two-PC Setup Guide
 
-> Last updated: 2026-03-07
+> Last updated: 2026-03-11
 > Repo: elite-trading-system
 > PC1 (ESPENMAIN): 192.168.1.105 - Primary trading + fast inference
 > PC2 (ProfitTrader): 192.168.1.116 - Heavy compute + ML
@@ -27,7 +27,7 @@ The only differences are cluster/network settings (which PC is master vs worker)
 
 | Service | Env Var | Code File | Status | Get Key At | PC1 | PC2 |
 |---------|---------|-----------|--------|------------|-----|-----|
-| Unusual Whales | `UNUSUAL_WHALES_API_KEY` | unusual_whales_service.py | NEEDS KEY | https://unusualwhales.com/pricing | YES | YES |
+| Unusual Whales | `UNUSUAL_WHALES_API_KEY` | unusual_whales_service.py | **CONFIGURED** | https://unusualwhales.com/pricing | YES | YES |
 | Finviz Elite | `FINVIZ_API_KEY` | finviz_service.py | NEEDS KEY | https://elite.finviz.com/ | YES | YES |
 | Discord Bot | `DISCORD_BOT_TOKEN` | discord_swarm_bridge.py | NEEDS KEY | https://discord.com/developers/applications | YES | NO |
 | Discord Channels | `DISCORD_CHANNEL_IDS` | discord_swarm_bridge.py | NEEDS CONFIG | Get from Discord channel settings | YES | NO |
@@ -44,9 +44,9 @@ The only differences are cluster/network settings (which PC is master vs worker)
 
 | Service | Env Var | Code File | Status | Get Key At | PC1 | PC2 |
 |---------|---------|-----------|--------|------------|-----|-----|
-| FRED | `FRED_API_KEY` | fred_service.py | NEEDS KEY | https://fred.stlouisfed.org/docs/api/api_key.html | YES | YES |
-| SEC EDGAR | `SEC_EDGAR_USER_AGENT` | sec_edgar_service.py | NEEDS CONFIG | Free - just set name + email | YES | YES |
-| News API | `NEWS_API_KEY` | news_aggregator.py | NEEDS KEY | https://newsapi.org/ | YES | YES |
+| FRED | `FRED_API_KEY` | fred_service.py | **CONFIGURED** | https://fred.stlouisfed.org/docs/api/api_key.html | YES | YES |
+| SEC EDGAR | `SEC_EDGAR_USER_AGENT` | sec_edgar_service.py | **CONFIGURED** | Free - just set name + email | YES | YES |
+| News API | `NEWS_API_KEY` | news_aggregator.py | **CONFIGURED** | https://newsapi.org/ | YES | YES |
 | StockGeist | `STOCKGEIST_API_KEY` | social_perception_agent.py | NEEDS KEY | https://stockgeist.ai/ | YES | NO |
 
 ### TIER 5: P1 AGENTS (Next Week)
@@ -61,8 +61,17 @@ The only differences are cluster/network settings (which PC is master vs worker)
 
 | Service | Env Var | Code File | Status | Get Key At | PC1 | PC2 |
 |---------|---------|-----------|--------|------------|-----|-----|
-| Resend (email) | `RESEND_API_KEY` | config.py | OPTIONAL | https://resend.com/ | YES | NO |
+| Resend (email) | `RESEND_API_KEY` | config.py | **CONFIGURED** | https://resend.com/ | YES | NO |
 | Telegram | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | config.py | OPTIONAL | https://core.telegram.org/bots | YES | NO |
+
+### TIER 6B: WEB SCRAPERS (No API Keys — March 11, 2026)
+
+| Service | Env Var | Code File | Status | URL | PC1 | PC2 |
+|---------|---------|-----------|--------|-----|-----|-----|
+| Benzinga | `BENZINGA_EMAIL` / `BENZINGA_PASSWORD` | benzinga_service.py | **CONFIGURED** | https://www.benzinga.com | YES | NO |
+| SqueezeMetrics | `SQUEEZEMETRICS_ENABLED` | squeezemetrics_service.py | **CONFIGURED** | https://squeezemetrics.com | YES | YES |
+| Capitol Trades | (uses UW API) | capitol_trades_service.py | **CONFIGURED** | https://www.capitoltrades.com | YES | YES |
+| Senate Stock Watcher | (no key needed) | senate_stock_watcher_service.py | **CONFIGURED** | https://senatestockwatcher.com | YES | YES |
 
 ### TIER 7: CLUSTER / MULTI-PC
 

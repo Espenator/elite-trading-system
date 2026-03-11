@@ -1,6 +1,6 @@
 # Project State - Embodier Trader (Embodier.ai)
 > Paste this file at the start of every new AI chat session. Say: "Read this project state document. Acknowledge you understand the architecture, and then I will give you your first task."
-> Last updated: March 11, 2026
+> Last updated: March 11, 2026 (evening)
 
 ## Identity
 - **Project**: Embodier Trader by Embodier.ai
@@ -54,15 +54,18 @@ Both IPs are DHCP-reserved on the AT&T BGW320-505 router (192.168.1.254).
 
 | Service | Env Var | Required? | Status |
 |---------|---------|-----------|--------|
-| Alpaca (Key 1 — ESPENMAIN) | `ALPACA_API_KEY` | YES (core) | **ACTIVE** — paper trading |
-| Alpaca (Key 2 — ProfitTrader) | `ALPACA_KEY_2` | No (discovery) | **ACTIVE** — discovery scanning |
-| Finviz Elite | `FINVIZ_API_KEY` | No | **ACTIVE** |
-| FRED | `FRED_API_KEY` | No | **ACTIVE** |
-| NewsAPI | `NEWS_API_KEY` | No | **ACTIVE** |
-| Unusual Whales | `UNUSUAL_WHALES_API_KEY` | No | **ACTIVE** |
-| Perplexity | `PERPLEXITY_API_KEY` | No (LLM tier 2) | **ACTIVE** — sonar-pro |
-| Anthropic (Claude) | `ANTHROPIC_API_KEY` | No (LLM tier 3) | **ACTIVE** — 6 deep tasks |
-| Resend (email) | `RESEND_API_KEY` | No | **ACTIVE** |
+| Alpaca (Key 1 — ESPENMAIN) | `ALPACA_API_KEY` | YES (core) | Needs key on this env |
+| Alpaca (Key 2 — ProfitTrader) | `ALPACA_KEY_2` | No (discovery) | Needs key on this env |
+| Finviz Elite | `FINVIZ_API_KEY` | No | Needs key |
+| FRED | `FRED_API_KEY` | No | **CONFIGURED** |
+| NewsAPI | `NEWS_API_KEY` | No | **CONFIGURED** |
+| Unusual Whales | `UNUSUAL_WHALES_API_KEY` | No | **CONFIGURED** |
+| Perplexity | `PERPLEXITY_API_KEY` | No (LLM tier 2) | Needs key |
+| Anthropic (Claude) | `ANTHROPIC_API_KEY` | No (LLM tier 3) | Needs key |
+| Resend (email) | `RESEND_API_KEY` | No | **CONFIGURED** |
+| Benzinga (scraper) | `BENZINGA_EMAIL` / `BENZINGA_PASSWORD` | No | **CONFIGURED** — web scraper |
+| SqueezeMetrics (scraper) | `SQUEEZEMETRICS_ENABLED` | No | **CONFIGURED** — public DIX/GEX |
+| Capitol Trades (scraper) | — (via UW API) | No | **CONFIGURED** — UW congress + scrape fallback |
 | StockGeist | `STOCKGEIST_API_KEY` | No | Not configured |
 | YouTube | `YOUTUBE_API_KEY` | No | Not configured |
 
@@ -180,10 +183,14 @@ The codebase had five separate agent/decision systems. As of v3.2.0, Systems 2 a
 ## Data Sources (CRITICAL - NO yfinance)
 
 - Alpaca Markets (alpaca-py) — Market data + order execution
-- Unusual Whales — Options flow + institutional activity
+- Unusual Whales — Options flow, dark pool, congressional trades
 - FinViz (finviz) — Screener, fundamentals, VIX proxy
 - FRED — Economic macro data
 - SEC EDGAR — Company filings
+- Benzinga (web scraper) — Earnings calendar + transcripts
+- SqueezeMetrics (web scraper) — DIX/GEX dark pool indicators
+- Capitol Trades (web scraper + UW API) — Congressional trading disclosures
+- Senate Stock Watcher (JSON API) — Secondary congressional trades fallback
 - StockGeist / News API / Discord / X — Social sentiment (via council agents)
 - YouTube — Transcript intelligence (via council agent)
 

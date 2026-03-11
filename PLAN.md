@@ -1,6 +1,6 @@
 # Production Readiness Plan — Embodier Trader v4.1.0 → v5.0.0
 # Goal: 100% shippable, autonomous 24/7 trading with real data firehose
-# Generated: March 11, 2026
+# Generated: March 11, 2026 | Updated: March 11, 2026 (evening)
 
 ---
 
@@ -87,6 +87,18 @@ For each of these core endpoints, hit them and verify real data:
   - POST /agents/{id}/toggle (agent/scanner/intel on/off toggle)
 - Added `scanners` and `intels` aliases in api.js → agents router
 - Set API_AUTH_TOKEN in .env (required for POST/PUT/DELETE endpoints)
+
+### 2.0.1 Route Path Mismatch Fixes — DONE (March 11 evening)
+- Fixed 4 frontend-backend path mismatches (404 risks):
+  - `/cns/homeostasis` → added alias for `/cns/homeostasis/vitals`
+  - `/cns/circuit-breaker` → added alias for `/cns/circuit-breaker/status`
+  - `/cns/last-verdict` → added alias for `/cns/council/last-verdict`
+  - `/swarm/ml-scorer/status` → added alias for `/swarm/ml/scorer/status`
+- Removed hardcoded mock data from agents.py (fake CPU/memory, drift PSI, alerts)
+- Fixed council registry: added 4 missing agents + Stage 5.5 to DAG_STAGES
+- Sourced ELO leaderboard from real WeightLearner Bayesian weights
+- Created 4 missing scraper services (benzinga, squeezemetrics, capitol_trades, senate_stock_watcher)
+- Configured API keys in .env: FRED, NewsAPI, Unusual Whales, Resend, Benzinga
 
 
 ### 2.1 Dashboard (Dashboard.jsx → /dashboard)
