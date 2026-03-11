@@ -557,6 +557,15 @@ async def _start_event_driven_pipeline():
     knowledge_ingest.set_message_bus(_message_bus)
     log.info("\u2705 KnowledgeIngestionService connected to MessageBus")
 
+    # 18. OffHoursMonitor (gap detection, data freshness, session-aware quality)
+    try:
+        from app.services.off_hours_monitor import get_off_hours_monitor
+        _off_hours = get_off_hours_monitor(message_bus=_message_bus)
+        await _off_hours.start()
+        log.info("\u2705 OffHoursMonitor started (session=%s)", _off_hours._detect_session())
+    except Exception as e:
+        log.warning("OffHoursMonitor failed to start: %s", e)
+
     # -- DEFERRED HEAVY SERVICES -----------------------------------------------
     # These services are LLM-heavy, do bulk HTTP fetches, or process thousands
     # of symbols. Starting them immediately saturates the asyncio event loop

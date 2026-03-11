@@ -952,3 +952,36 @@ async def ai_detect_provider(payload: AIDetectRequest):
         template=None,
         suggestion="Unknown provider. Use POST /data-sources to add as custom source.",
     )
+
+
+# ---------------------------------------------------------------------------
+# Off-Hours Data Monitor endpoints
+# ---------------------------------------------------------------------------
+
+@router.get("/off-hours/status")
+async def off_hours_status():
+    """Get current off-hours data monitoring status."""
+    try:
+        from app.services.off_hours_monitor import get_off_hours_monitor
+        monitor = get_off_hours_monitor()
+        return monitor.get_status()
+    except Exception as e:
+        return {"error": str(e), "running": False}
+
+
+@router.get("/off-hours/gaps")
+async def off_hours_gaps():
+    """Get overnight gaps detected today."""
+    try:
+        from app.services.off_hours_monitor import get_off_hours_monitor
+        monitor = get_off_hours_monitor()
+        gaps = monitor.get_gaps_today()
+        risk_symbols = monitor.get_gap_risk_symbols()
+        return {
+            "gaps": gaps,
+            "risk_symbols": risk_symbols,
+            "total": len(gaps),
+            "session": monitor._detect_session(),
+        }
+    except Exception as e:
+        return {"error": str(e), "gaps": [], "risk_symbols": []}
