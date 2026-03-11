@@ -380,6 +380,7 @@ async def get_macro_state():
             "vix": regime_data.get("vix"),
             "hy_spread": macro_context.get("hy_spread"),
             "fear_greed_index": macro_context.get("fear_greed_index"),
+            "yield_curve": macro_context.get("yield_curve"),
         }
     except Exception as e:
         logger.warning(f"[OPENCLAW] Macro state error: {e}")

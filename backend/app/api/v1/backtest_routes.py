@@ -294,10 +294,12 @@ def get_backtest_optimization():
 @router.get("/walk-forward")
 def get_backtest_walk_forward():
     """Walk-forward analysis with in-sample/out-of-sample windows."""
+    windows: list = []
     return {
-        "windows": [],
+        "windows": windows,
+        "periods": windows,
         "avgDegradation": 0,
-        "robustnessScore": 0
+        "robustnessScore": 0,
     }
 
 
@@ -342,16 +344,20 @@ def get_backtest_drawdown_analysis():
 @router.get("/rolling-sharpe")
 def get_backtest_rolling_sharpe():
     """Rolling Sharpe ratio time series for strategy evaluation."""
+    periods: list = []
     return {
-        "periods": []
+        "periods": periods,
+        "series": periods,
     }
 
 
 @router.get("/trade-distribution")
 def get_backtest_trade_distribution():
     """P&L distribution histogram for backtest trades."""
+    buckets: list = []
     return {
-        "buckets": [],
+        "buckets": buckets,
+        "distribution": buckets,
         "mean": 0,
         "median": 0,
         "skew": 0,
@@ -443,22 +449,29 @@ async def get_backtest_regime_performance():
                             "trade_count": total,
                         }
 
+                regime_stats["regimes"] = [
+                    {"regime": k, **v} for k, v in regime_stats.items() if k != "regimes"
+                ]
                 return regime_stats
 
         except Exception as e:
             logger.debug(f"Alpaca regime performance fallback: {e}")
 
         # Final fallback: return empty structure (no mock data)
-        return {
+        empty = {
             "GREEN": {"win_rate": None, "avg_pnl": None, "sharpe": None, "trade_count": 0},
             "YELLOW": {"win_rate": None, "avg_pnl": None, "sharpe": None, "trade_count": 0},
             "RED": {"win_rate": None, "avg_pnl": None, "sharpe": None, "trade_count": 0},
         }
+        empty["regimes"] = [{"regime": k, **v} for k, v in empty.items() if k != "regimes"]
+        return empty
 
     except Exception as e:
         logger.error(f"Regime performance error: {e}")
-        return {
+        empty = {
             "GREEN": {"win_rate": None, "avg_pnl": None, "sharpe": None, "trade_count": 0},
             "YELLOW": {"win_rate": None, "avg_pnl": None, "sharpe": None, "trade_count": 0},
             "RED": {"win_rate": None, "avg_pnl": None, "sharpe": None, "trade_count": 0},
         }
+        empty["regimes"] = [{"regime": k, **v} for k, v in empty.items() if k != "regimes"]
+        return empty

@@ -119,13 +119,30 @@ def performance_root(limit_trades: int = 5000) -> Dict[str, Any]:
     win_rate = metrics.get("winRate") if metrics.get("winRate") is not None else 0
     max_dd = metrics.get("maxDrawdown") if metrics.get("maxDrawdown") is not None else 0
 
+    total_return_pct = (metrics.get("netPnl") or 0) / max(abs(last_equity), 1) * 100 if last_equity else 0
+
+    # Build KPI block for PerformanceAnalytics page
+    kpi = {
+        "totalReturn": round(total_return_pct, 2),
+        "sharpe": 0,
+        "sortino": 0,
+        "calmar": 0,
+        "winRate": win_rate,
+        "profitFactor": metrics.get("profitFactor"),
+        "maxDrawdown": max_dd,
+        "avgWin": metrics.get("avgWin"),
+        "avgLoss": metrics.get("avgLoss"),
+        "totalTrades": metrics.get("totalTrades", 0),
+        "netPnl": metrics.get("netPnl"),
+    }
+
     return {
         "hasData": summary.get("hasData", False),
         "message": summary.get("message", ""),
         "portfolioValue": last_equity,
         "totalValue": last_equity,
         "dailyPnL": None,
-        "totalReturnPct": (metrics.get("netPnl") or 0) / max(abs(last_equity), 1) * 100 if last_equity else 0,
+        "totalReturnPct": round(total_return_pct, 2),
         "winRate": win_rate,
         "win_rate": win_rate,
         "sharpeRatio": 0,
@@ -134,8 +151,16 @@ def performance_root(limit_trades: int = 5000) -> Dict[str, Any]:
         "maxDrawdown": max_dd,
         "max_drawdown": max_dd,
         "equityCurve": equity_curve,
+        "equity": equity_curve,
         "sectors": None,
         "lastUpdated": summary.get("lastUpdated"),
+        # PerformanceAnalytics page expected keys
+        "kpi": kpi,
+        "pnlBySymbol": [],
+        "rollingRisk": [],
+        "convexity": [],
+        "rrExpectancy": [],
+        "strategy": {},
     }
 
 
