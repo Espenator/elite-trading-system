@@ -9,6 +9,7 @@ Usage:
     from app.features.feature_aggregator import aggregate
     fv = await aggregate("AAPL", datetime.now(), "1d")
 """
+import asyncio
 import hashlib
 import json
 import logging
@@ -428,45 +429,46 @@ async def aggregate(
     if ts is None:
         ts = datetime.now(timezone.utc)
 
-    # Get OHLCV data from DuckDB
-    ohlcv_rows = []
-    try:
-        from app.data.duckdb_storage import duckdb_store
-        conn = duckdb_store._get_conn()
-        df = conn.execute(
-            """SELECT date, open, high, low, close, volume
-               FROM daily_ohlcv
-               WHERE symbol = ?
-               ORDER BY date DESC
-               LIMIT 60""",
-            [symbol.upper()],
-        ).fetchdf()
-        if not df.empty:
-            ohlcv_rows = df.sort_values("date").to_dict("records")
-    except Exception as e:
-        logger.warning("Failed to fetch OHLCV for %s: %s", symbol, e)
+    # Run all blocking DB + computation in thread pool
+    def _build_sync():
+        ohlcv_rows = []
+        try:
+            from app.data.duckdb_storage import duckdb_store
+            conn = duckdb_store._get_conn()
+            df = conn.execute(
+                """SELECT date, open, high, low, close, volume
+                   FROM daily_ohlcv
+                   WHERE symbol = ?
+                   ORDER BY date DESC
+                   LIMIT 60""",
+                [symbol.upper()],
+            ).fetchdf()
+            if not df.empty:
+                ohlcv_rows = df.sort_values("date").to_dict("records")
+        except Exception as e:
+            logger.warning("Failed to fetch OHLCV for %s: %s", symbol, e)
 
-    # Compute features
-    indicator_features = _get_indicator_features(symbol)
-    # Fill gaps with computed indicators from OHLCV (EMA 5/10/20, prev RSI, etc.)
-    extended = _compute_extended_indicators(ohlcv_rows)
-    for k, v in extended.items():
-        if k not in indicator_features:
-            indicator_features[k] = v
+        indicator_features = _get_indicator_features(symbol)
+        extended = _compute_extended_indicators(ohlcv_rows)
+        for k, v in extended.items():
+            if k not in indicator_features:
+                indicator_features[k] = v
 
-    fv = FeatureVector(
-        symbol=symbol.upper(),
-        timestamp=ts.isoformat() if isinstance(ts, datetime) else str(ts),
-        timeframe=timeframe,
-        price_features=_compute_price_features(ohlcv_rows),
-        volume_features=_compute_volume_features(ohlcv_rows),
-        volatility_features=_compute_volatility_features(ohlcv_rows),
-        regime_features=_get_regime_snapshot(),
-        flow_features=_get_flow_features(symbol),
-        indicator_features=_get_indicator_features(symbol),
-        intermarket_features=_get_intermarket_features(),
-        cycle_features=_get_cycle_features(ohlcv_rows),
-    )
+        return FeatureVector(
+            symbol=symbol.upper(),
+            timestamp=ts.isoformat() if isinstance(ts, datetime) else str(ts),
+            timeframe=timeframe,
+            price_features=_compute_price_features(ohlcv_rows),
+            volume_features=_compute_volume_features(ohlcv_rows),
+            volatility_features=_compute_volatility_features(ohlcv_rows),
+            regime_features=_get_regime_snapshot(),
+            flow_features=_get_flow_features(symbol),
+            indicator_features=indicator_features,
+            intermarket_features=_get_intermarket_features(),
+            cycle_features=_get_cycle_features(ohlcv_rows),
+        )
+
+    fv = await asyncio.to_thread(_build_sync)
 
     # Persist to feature store if requested
     if persist:

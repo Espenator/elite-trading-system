@@ -243,47 +243,51 @@ class PatternLibrary:
                 logger.warning("PatternLibrary scan error: %s", e)
             await asyncio.sleep(self._scan_interval)
 
+    def _fetch_pattern_data(self):
+        """Fetch all data needed for pattern scanning (sync, runs in thread)."""
+        from app.data.duckdb_storage import duckdb_store
+        conn = duckdb_store._get_conn()
+
+        latest = conn.execute("""
+            SELECT o.symbol, o.date, o.close, o.open, o.high, o.low, o.volume,
+                   t.rsi_14, t.macd, t.bb_upper, t.bb_lower, t.bb_mid,
+                   t.sma_20, t.sma_50, t.adx_14
+            FROM daily_ohlcv o
+            LEFT JOIN technical_indicators t ON o.symbol = t.symbol AND o.date = t.date
+            WHERE o.date >= CURRENT_DATE - INTERVAL '10 days'
+            ORDER BY o.symbol, o.date
+        """).fetchdf()
+
+        macro = conn.execute("""
+            SELECT date, vix_close, breadth_ratio
+            FROM macro_data
+            WHERE date >= CURRENT_DATE - INTERVAL '10 days'
+            ORDER BY date DESC
+            LIMIT 10
+        """).fetchdf()
+
+        flow = conn.execute("""
+            SELECT call_volume, put_volume
+            FROM options_flow
+            WHERE date = (SELECT MAX(date) FROM options_flow)
+            LIMIT 1
+        """).fetchdf()
+
+        return latest, macro, flow
+
     async def _scan_for_active_patterns(self):
         """Check current market conditions against all active patterns."""
         try:
-            from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
-
-            # Get latest data
-            latest = conn.execute("""
-                SELECT o.symbol, o.date, o.close, o.open, o.high, o.low, o.volume,
-                       t.rsi_14, t.macd, t.bb_upper, t.bb_lower, t.bb_mid,
-                       t.sma_20, t.sma_50, t.adx_14
-                FROM daily_ohlcv o
-                LEFT JOIN technical_indicators t ON o.symbol = t.symbol AND o.date = t.date
-                WHERE o.date >= CURRENT_DATE - INTERVAL '10 days'
-                ORDER BY o.symbol, o.date
-            """).fetchdf()
+            latest, macro, flow = await asyncio.to_thread(self._fetch_pattern_data)
 
             if latest.empty:
                 return
-
-            # Get macro data for VIX patterns
-            macro = conn.execute("""
-                SELECT date, vix_close, breadth_ratio
-                FROM macro_data
-                WHERE date >= CURRENT_DATE - INTERVAL '10 days'
-                ORDER BY date DESC
-                LIMIT 10
-            """).fetchdf()
 
             vix_level = float(macro["vix_close"].iloc[0]) if not macro.empty and not pd.isna(macro["vix_close"].iloc[0]) else None
             vix_prev = float(macro["vix_close"].iloc[1]) if len(macro) > 1 and not pd.isna(macro["vix_close"].iloc[1]) else None
             vix_change = (vix_level / vix_prev - 1) if vix_level and vix_prev else 0
             breadth = float(macro["breadth_ratio"].iloc[0]) if not macro.empty and not pd.isna(macro["breadth_ratio"].iloc[0]) else 0.5
 
-            # Options flow for put/call ratio
-            flow = conn.execute("""
-                SELECT call_volume, put_volume
-                FROM options_flow
-                WHERE date = (SELECT MAX(date) FROM options_flow)
-                LIMIT 1
-            """).fetchdf()
             pcr = 1.0
             if not flow.empty:
                 cv = float(flow["call_volume"].iloc[0] or 1)

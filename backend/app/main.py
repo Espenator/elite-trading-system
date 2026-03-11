@@ -10,6 +10,7 @@ Enhanced with:
 - Bayesian weight learning from trade outcomes
 """
 import asyncio
+import concurrent.futures
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -140,7 +141,7 @@ async def _drift_check_loop():
             monitor = get_drift_monitor()
             drift_status = monitor.get_status()
             if drift_status.get("reference_set"):
-                live_df = _get_recent_features()
+                live_df = await asyncio.to_thread(_get_recent_features)
                 metrics = get_flywheel_metrics()
                 accuracy = metrics.get("accuracy_30d")
                 if live_df is not None and not live_df.empty:
@@ -1002,6 +1003,12 @@ async def _stop_event_driven_pipeline():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize data schema on startup; start background loops."""
+    # 0. Increase thread pool for concurrent DuckDB queries (20+ background services)
+    loop = asyncio.get_running_loop()
+    loop.set_default_executor(concurrent.futures.ThreadPoolExecutor(max_workers=64))
+    loop.slow_callback_duration = 0.5  # Log any callback blocking > 500ms
+    log.info("Thread pool set to 64 workers for async DuckDB operations")
+
     # 1. Data schema
     try:
         from app.data.storage import init_schema

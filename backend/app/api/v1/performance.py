@@ -100,13 +100,13 @@ def _safe_float(x: Any) -> Optional[float]:
 
 
 @router.get("")
-async def performance_root(limit_trades: int = 5000) -> Dict[str, Any]:
+def performance_root(limit_trades: int = 5000) -> Dict[str, Any]:
     """
     Dashboard-friendly combined performance: summary metrics + equity curve.
     GET /api/v1/performance returns this. Frontend expects portfolioValue, winRate, equityCurve, etc.
     """
-    summary = await performance_summary(limit_trades=limit_trades)
-    equity_res = await performance_equity(limit_trades=limit_trades)
+    summary = performance_summary(limit_trades=limit_trades)
+    equity_res = performance_equity(limit_trades=limit_trades)
 
     metrics = summary.get("metrics") or {}
     points = equity_res.get("points") or []
@@ -150,7 +150,7 @@ def _iso_date_only(s: Any) -> Optional[str]:
 
 
 @router.get("/health")
-async def performance_health() -> Dict[str, Any]:
+def performance_health() -> Dict[str, Any]:
     conn = _conn()
     try:
         tables = _list_tables(conn)
@@ -166,7 +166,7 @@ async def performance_health() -> Dict[str, Any]:
 
 
 @router.get("/summary")
-async def performance_summary(limit_trades: int = 5000) -> Dict[str, Any]:
+def performance_summary(limit_trades: int = 5000) -> Dict[str, Any]:
     """
     Returns realized performance metrics from the detected trade table.
     If no table/data exists, returns null metrics and a clear message.
@@ -270,7 +270,7 @@ async def performance_summary(limit_trades: int = 5000) -> Dict[str, Any]:
 
 
 @router.get("/equity")
-async def performance_equity(limit_trades: int = 5000) -> Dict[str, Any]:
+def performance_equity(limit_trades: int = 5000) -> Dict[str, Any]:
     """
     Equity curve computed from realized trade PnL in chronological order if possible.
     If no timestamp column is detected, it uses row order (truthfully noted).
@@ -323,7 +323,7 @@ async def performance_equity(limit_trades: int = 5000) -> Dict[str, Any]:
 
 
 @router.get("/trades")
-async def performance_trades(limit: int = 200) -> Dict[str, Any]:
+def performance_trades(limit: int = 200) -> Dict[str, Any]:
     """
     Recent trades (raw rows shaped into a stable response).
     Only returns fields that actually exist in the detected table.
@@ -387,7 +387,7 @@ async def performance_trades(limit: int = 200) -> Dict[str, Any]:
 
 
 @router.get("/risk-metrics")
-async def risk_metrics() -> Dict[str, Any]:
+def risk_metrics() -> Dict[str, Any]:
     """
     Compute portfolio risk metrics from actual trade history:
     - Sharpe ratio, Sortino ratio, Calmar ratio

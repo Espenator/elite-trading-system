@@ -197,27 +197,41 @@ class TurboScanner:
             await asyncio.sleep(self._scan_interval)
 
     async def _run_all_scans(self) -> List[ScanSignal]:
-        """Run ALL scan sources in parallel."""
-        tasks = [
-            self._scan_duckdb_technicals(),
-            self._scan_duckdb_volume_spikes(),
-            self._scan_duckdb_momentum(),
-            self._scan_duckdb_rsi_extremes(),
-            self._scan_duckdb_macd_crosses(),
-            self._scan_sector_divergence(),
-            self._scan_vix_regime(),
-            self._scan_options_flow_anomalies(),
-            self._scan_mean_reversion_setups(),
-            self._scan_gap_reversals(),
-        ]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        signals = []
-        for result in results:
-            if isinstance(result, list):
-                signals.extend(result)
-            elif isinstance(result, Exception):
-                logger.debug("Scan task failed: %s", result)
-        return signals
+        """Run ALL scan sources in a thread to avoid blocking the event loop.
+
+        DuckDB queries share a single connection, so they serialize anyway.
+        Running them in a thread keeps the event loop free for HTTP requests.
+        """
+        def _run_all_sync():
+            """Execute all scans sequentially in a worker thread."""
+            signals = []
+            scan_fns = [
+                self._scan_duckdb_technicals,
+                self._scan_duckdb_volume_spikes,
+                self._scan_duckdb_momentum,
+                self._scan_duckdb_rsi_extremes,
+                self._scan_duckdb_macd_crosses,
+                self._scan_sector_divergence,
+                self._scan_vix_regime,
+                self._scan_options_flow_anomalies,
+                self._scan_mean_reversion_setups,
+                self._scan_gap_reversals,
+            ]
+            for fn in scan_fns:
+                try:
+                    # These are async def but don't await — step through the coroutine
+                    coro = fn()
+                    try:
+                        coro.send(None)
+                    except StopIteration as e:
+                        result = e.value
+                        if isinstance(result, list):
+                            signals.extend(result)
+                except Exception as e:
+                    logger.debug("Scan task failed: %s", e)
+            return signals
+
+        return await asyncio.to_thread(_run_all_sync)
 
     # ──────────────────────────────────────────────────────────────────────
     # DuckDB-Powered Scans (scan thousands of symbols in milliseconds)

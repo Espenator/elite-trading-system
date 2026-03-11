@@ -193,21 +193,22 @@ class AutonomousScoutService:
     async def _duckdb_screener(self):
         """Fallback screener using local DuckDB data."""
         try:
-            from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            def _query_movers():
+                from app.data.duckdb_storage import duckdb_store
+                conn = duckdb_store._get_conn()
+                query = """
+                    SELECT symbol, close, volume,
+                           close / NULLIF(LAG(close, 5) OVER (PARTITION BY symbol ORDER BY date), 0) - 1 as ret_5d,
+                           volume / NULLIF(AVG(volume) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING), 0) as vol_ratio
+                    FROM daily_ohlcv
+                    WHERE date >= CURRENT_DATE - INTERVAL '5 days'
+                    QUALIFY ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) = 1
+                    ORDER BY ABS(ret_5d) DESC
+                    LIMIT 20
+                """
+                return conn.execute(query).fetchdf()
 
-            # Find symbols with strong recent momentum + volume surge
-            query = """
-                SELECT symbol, close, volume,
-                       close / NULLIF(LAG(close, 5) OVER (PARTITION BY symbol ORDER BY date), 0) - 1 as ret_5d,
-                       volume / NULLIF(AVG(volume) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING), 0) as vol_ratio
-                FROM daily_ohlcv
-                WHERE date >= CURRENT_DATE - INTERVAL '5 days'
-                QUALIFY ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) = 1
-                ORDER BY ABS(ret_5d) DESC
-                LIMIT 20
-            """
-            df = conn.execute(query).fetchdf()
+            df = await asyncio.to_thread(_query_movers)
             if df.empty:
                 return
 
@@ -218,7 +219,6 @@ class AutonomousScoutService:
                 ret_5d = row.get("ret_5d", 0) or 0
                 vol_ratio = row.get("vol_ratio", 0) or 0
 
-                # Trigger on significant movers with volume
                 if abs(ret_5d) > 0.05 and vol_ratio > 1.5:
                     self._discovered.add(symbol)
                     direction = "bullish" if ret_5d > 0 else "bearish"
@@ -237,23 +237,30 @@ class AutonomousScoutService:
             return
 
         try:
-            from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
+            def _fetch_watchlist_data(symbols_list):
+                from app.data.duckdb_storage import duckdb_store
+                conn = duckdb_store._get_conn()
+                results = {}
+                for sym in symbols_list:
+                    try:
+                        row = conn.execute("""
+                            SELECT ti.*, o.close, o.volume
+                            FROM technical_indicators ti
+                            JOIN daily_ohlcv o ON ti.symbol = o.symbol AND ti.date = o.date
+                            WHERE ti.symbol = ?
+                            ORDER BY ti.date DESC
+                            LIMIT 1
+                        """, [sym]).fetchone()
+                        results[sym] = row
+                    except Exception:
+                        results[sym] = None
+                return results
 
-            for symbol in self._watchlist:
-                if symbol in self._discovered:
-                    continue
+            pending = [s for s in self._watchlist if s not in self._discovered]
+            watchlist_data = await asyncio.to_thread(_fetch_watchlist_data, pending)
 
-                try:
-                    # Get latest indicators
-                    row = conn.execute("""
-                        SELECT ti.*, o.close, o.volume
-                        FROM technical_indicators ti
-                        JOIN daily_ohlcv o ON ti.symbol = o.symbol AND ti.date = o.date
-                        WHERE ti.symbol = ?
-                        ORDER BY ti.date DESC
-                        LIMIT 1
-                    """, [symbol]).fetchone()
+            for symbol in pending:
+                row = watchlist_data.get(symbol)
 
                     if not row:
                         # No data yet — ingest it
@@ -282,21 +289,22 @@ class AutonomousScoutService:
     async def _backtest_scout_loop(self):
         """Proactively backtest symbols to build historical knowledge."""
         try:
-            from app.data.duckdb_storage import duckdb_store
             from app.services.data_ingestion import data_ingestion
 
-            conn = duckdb_store._get_conn()
+            def _query_backtestable():
+                from app.data.duckdb_storage import duckdb_store
+                conn = duckdb_store._get_conn()
+                return conn.execute("""
+                    SELECT DISTINCT symbol, COUNT(*) as bars,
+                           MAX(date) as latest_date
+                    FROM daily_ohlcv
+                    GROUP BY symbol
+                    HAVING bars > 30
+                    ORDER BY latest_date DESC
+                    LIMIT 50
+                """).fetchdf()
 
-            # Find symbols we have data for but haven't backtested recently
-            symbols_with_data = conn.execute("""
-                SELECT DISTINCT symbol, COUNT(*) as bars,
-                       MAX(date) as latest_date
-                FROM daily_ohlcv
-                GROUP BY symbol
-                HAVING bars > 30
-                ORDER BY latest_date DESC
-                LIMIT 50
-            """).fetchdf()
+            symbols_with_data = await asyncio.to_thread(_query_backtestable)
 
             if symbols_with_data.empty:
                 return
@@ -308,7 +316,7 @@ class AutonomousScoutService:
                     continue
 
                 try:
-                    await data_ingestion.compute_and_store_indicators([symbol])
+                    await asyncio.to_thread(data_ingestion.compute_and_store_indicators, [symbol])
                     self._discovered.add(symbol)
                     await self._trigger_swarm(
                         source="scout",
@@ -329,7 +337,7 @@ class AutonomousScoutService:
         try:
             from app.services.data_ingestion import data_ingestion
             await data_ingestion.ingest_daily_bars([symbol], days=60)
-            await data_ingestion.compute_and_store_indicators([symbol])
+            await asyncio.to_thread(data_ingestion.compute_and_store_indicators, [symbol])
             logger.info("Auto-ingested data for %s", symbol)
         except Exception as e:
             logger.debug("Auto-ingest failed for %s: %s", symbol, e)

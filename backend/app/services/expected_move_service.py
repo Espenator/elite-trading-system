@@ -139,46 +139,49 @@ class ExpectedMoveService:
     async def _calculate_all_levels(self):
         """Calculate expected move levels for all tracked symbols."""
         try:
-            from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store._get_conn()
-
-            for symbol in EXPECTED_MOVE_SYMBOLS:
-                try:
-                    # Get recent price data
-                    df = conn.execute("""
-                        SELECT date, close, high, low, volume
-                        FROM daily_ohlcv
-                        WHERE symbol = ? AND date >= CURRENT_DATE - INTERVAL '30 days'
-                        ORDER BY date
-                    """, [symbol]).fetchdf()
-
-                    if df.empty or len(df) < 10:
-                        continue
-
-                    current_price = float(df["close"].iloc[-1])
-                    closes = df["close"].values.astype(float)
-
-                    # Get ATR for volatility estimation
-                    atr_df = conn.execute("""
-                        SELECT atr_14
-                        FROM technical_indicators
-                        WHERE symbol = ? AND atr_14 IS NOT NULL
-                        ORDER BY date DESC
-                        LIMIT 1
-                    """, [symbol]).fetchdf()
-
-                    atr = float(atr_df["atr_14"].iloc[0]) if not atr_df.empty else None
-
-                    # Calculate expected move
-                    level = self._calculate_expected_move(symbol, current_price, closes, atr)
-                    if level:
-                        self._levels[symbol] = level
-
-                except Exception as e:
-                    logger.debug("EM calculation error for %s: %s", symbol, e)
-
+            levels = await asyncio.to_thread(self._calculate_all_levels_sync)
+            self._levels.update(levels)
         except Exception as e:
             logger.debug("EM scan error: %s", e)
+
+    def _calculate_all_levels_sync(self):
+        """Sync helper — runs in thread pool."""
+        from app.data.duckdb_storage import duckdb_store
+        conn = duckdb_store._get_conn()
+        results = {}
+
+        for symbol in EXPECTED_MOVE_SYMBOLS:
+            try:
+                df = conn.execute("""
+                    SELECT date, close, high, low, volume
+                    FROM daily_ohlcv
+                    WHERE symbol = ? AND date >= CURRENT_DATE - INTERVAL '30 days'
+                    ORDER BY date
+                """, [symbol]).fetchdf()
+
+                if df.empty or len(df) < 10:
+                    continue
+
+                current_price = float(df["close"].iloc[-1])
+                closes = df["close"].values.astype(float)
+
+                atr_df = conn.execute("""
+                    SELECT atr_14
+                    FROM technical_indicators
+                    WHERE symbol = ? AND atr_14 IS NOT NULL
+                    ORDER BY date DESC
+                    LIMIT 1
+                """, [symbol]).fetchdf()
+
+                atr = float(atr_df["atr_14"].iloc[0]) if not atr_df.empty else None
+
+                level = self._calculate_expected_move(symbol, current_price, closes, atr)
+                if level:
+                    results[symbol] = level
+            except Exception as e:
+                logger.debug("EM calculation error for %s: %s", symbol, e)
+
+        return results
 
     def _calculate_expected_move(
         self,

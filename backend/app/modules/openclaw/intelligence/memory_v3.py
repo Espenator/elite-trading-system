@@ -1760,7 +1760,8 @@ class MemoryV3:
                 msg = await asyncio.wait_for(queue.get(), timeout=5.0)
                 if isinstance(msg, BlackboardMessage) and not msg.is_expired():
                     p = msg.payload
-                    self.record_outcome(
+                    await asyncio.to_thread(
+                        self.record_outcome,
                         ticker=p.get('ticker', ''),
                         source=p.get('source', msg.source_agent),
                         won=p.get('won', False),
