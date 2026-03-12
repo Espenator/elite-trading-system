@@ -315,10 +315,28 @@ def train_xgboost(
     base_params: Dict[str, Any] = {
         "objective": "binary:logistic",
         "eval_metric": ["logloss", "error"],
-        "tree_method": "gpu_hist" if use_gpu else "hist",
         "verbosity": 1,
         "seed": 42,
     }
+
+    # GPU acceleration: use device='cuda' (XGBoost 2.0+) with gpu_hist,
+    # falling back to CPU hist if GPU init fails at runtime.
+    if use_gpu:
+        try:
+            import xgboost as _xgb_check
+            # Verify GPU actually works by creating a tiny DMatrix + train
+            _test_dm = _xgb_check.DMatrix(np.array([[1.0]]), label=np.array([0]))
+            _test_params = {"tree_method": "gpu_hist", "device": f"cuda:{gpu_id}", "max_depth": 1}
+            _xgb_check.train(_test_params, _test_dm, num_boost_round=1, verbose_eval=False)
+            base_params["tree_method"] = "gpu_hist"
+            base_params["device"] = f"cuda:{gpu_id}"
+            log.info("XGBoost GPU verified — using gpu_hist on cuda:%d", gpu_id)
+        except Exception as gpu_err:
+            log.warning("XGBoost GPU probe failed (%s) — falling back to CPU hist", gpu_err)
+            use_gpu = False
+            base_params["tree_method"] = "hist"
+    else:
+        base_params["tree_method"] = "hist"
 
     # Risk-adjusted custom objective (anti-reward-hacking)
     if use_risk_adjusted:
@@ -330,9 +348,8 @@ def train_xgboost(
         except ImportError:
             log.warning("risk_adjusted_objective not available, using default logistic")
 
-    if use_gpu:
-        base_params["gpu_id"] = gpu_id
-    log.info("XGBoost GPU: %s  tree_method: %s", use_gpu, base_params["tree_method"])
+    log.info("XGBoost GPU: %s  tree_method: %s  device: %s",
+             use_gpu, base_params["tree_method"], base_params.get("device", "cpu"))
 
     # --- grid search with CV -------------------------------------------
     grid = param_grid or DEFAULT_PARAM_GRID

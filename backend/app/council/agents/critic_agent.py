@@ -1,5 +1,9 @@
 """Critic Agent — post-trade learning signals (skips during pre-trade eval).
 
+GPU Channel 7: Routes LLM inference through brain_client (gRPC to PC2)
+for GPU-accelerated postmortem analysis. Falls back to local LLM router
+if brain service is unavailable.
+
 Writes postmortem to DuckDB after every post-trade evaluation.
 """
 import logging
@@ -61,63 +65,128 @@ async def evaluate(
         lessons.append("Large loss — review entry conditions and stop placement")
         performance_score = 0.1
 
-    # Try brain service for deeper analysis (sends blackboard + outcome)
+    # GPU Channel 7: Route critic LLM inference through brain_client (PC2)
+    # Fallback chain: brain_client (PC2 GPU) → local LLM router → Claude deep reasoning → rule-based only
     critic_analysis = ""
+    inference_source = "rule_based"
     blackboard = context.get("blackboard")
+
+    # Build rich entry context (shared across all fallback tiers)
+    entry_ctx = context.get("entry_context", {})
+    if blackboard:
+        entry_ctx = {
+            **entry_ctx,
+            "blackboard_snapshot": blackboard.to_snapshot(),
+            "council_decision_id": blackboard.council_decision_id,
+        }
+
+    # --- Tier 1: brain_client (PC2 GPU via gRPC) ---
+    brain_succeeded = False
     try:
         from app.services.brain_client import get_brain_client
         import json
 
         client = get_brain_client()
         if client.enabled:
-            # Build rich entry context from blackboard
-            entry_ctx = context.get("entry_context", {})
-            if blackboard:
-                entry_ctx = {
-                    **entry_ctx,
-                    "blackboard_snapshot": blackboard.to_snapshot(),
-                    "council_decision_id": blackboard.council_decision_id,
-                }
-
             result = await client.critic(
                 trade_id=trade_outcome.get("trade_id", "unknown"),
                 symbol=symbol,
                 entry_context=json.dumps(entry_ctx, default=str),
                 outcome_json=json.dumps(trade_outcome, default=str),
             )
-            if result.get("lessons"):
-                lessons.extend(result["lessons"][:3])
-            if result.get("performance_score", 0) > 0:
-                performance_score = result["performance_score"]
-            critic_analysis = result.get("analysis", "")
-        else:
-            # Fallback: try Claude deep reasoning for postmortem
-            try:
-                from app.services.claude_reasoning import get_claude_reasoning
-                reasoning_svc = get_claude_reasoning()
-                agent_votes = context.get("all_votes", [])
-                market_ctx = {}
-                if blackboard:
-                    market_ctx = blackboard.to_snapshot()
-                deep_result = await reasoning_svc.deep_postmortem(
-                    trade=trade_outcome,
-                    market_context=market_ctx,
-                    agent_votes=agent_votes,
-                )
-                if not deep_result.get("error"):
-                    data = deep_result.get("data", {})
-                    if data.get("lessons"):
-                        lessons.extend([l["lesson"] for l in data["lessons"][:3] if isinstance(l, dict)])
-                    if data.get("overall_score") is not None:
+            if not result.get("error"):
+                if result.get("lessons"):
+                    lessons.extend(result["lessons"][:3])
+                if result.get("performance_score", 0) > 0:
+                    performance_score = result["performance_score"]
+                critic_analysis = result.get("analysis", "")
+                inference_source = "brain_pc2"
+                brain_succeeded = True
+                logger.debug("Critic used brain_client (PC2 GPU) for %s", symbol)
+            else:
+                logger.debug("Brain critic returned error: %s", result.get("error"))
+    except Exception as e:
+        logger.debug("Critic brain_client unavailable: %s", e)
+
+    # --- Tier 2: Local LLM router (Ollama on localhost) ---
+    if not brain_succeeded:
+        try:
+            import json
+            from app.services.llm_router import get_llm_router, Tier
+
+            router = get_llm_router()
+            prompt = (
+                f"Post-trade analysis for {symbol}:\n"
+                f"Direction: {trade_outcome.get('direction', '?')}, "
+                f"R-multiple: {r_multiple:.2f}, PnL: ${pnl:,.2f}\n"
+                f"Entry context: {json.dumps(entry_ctx, default=str)[:800]}\n\n"
+                f"Return JSON: {{\"lessons\": [str], \"performance_score\": 0.0-1.0, "
+                f"\"analysis\": str}}"
+            )
+            result = await router.route_with_fallback(
+                tier=Tier.BRAINSTEM,
+                messages=[
+                    {"role": "system", "content": "You are a trade postmortem analyst. Return valid JSON only."},
+                    {"role": "user", "content": prompt},
+                ],
+                task="critic_postmortem",
+                temperature=0.2,
+                max_tokens=512,
+            )
+            if not result.error and result.content:
+                import re
+                parsed = None
+                try:
+                    parsed = json.loads(result.content.strip())
+                except json.JSONDecodeError:
+                    match = re.search(r'\{.*\}', result.content, re.DOTALL)
+                    if match:
                         try:
-                            performance_score = float(data["overall_score"]) / 100
+                            parsed = json.loads(match.group())
+                        except json.JSONDecodeError:
+                            pass
+                if parsed:
+                    if parsed.get("lessons"):
+                        lessons.extend(parsed["lessons"][:3])
+                    if parsed.get("performance_score", 0) > 0:
+                        try:
+                            performance_score = float(parsed["performance_score"])
                         except (ValueError, TypeError):
                             pass
-                    critic_analysis = data.get("key_takeaway", "")
-            except Exception as deep_err:
-                logger.debug("Claude deep postmortem not available: %s", deep_err)
-    except Exception as e:
-        logger.debug("Critic brain analysis not available: %s", e)
+                    critic_analysis = parsed.get("analysis", "")
+                    inference_source = f"local_llm/{result.tier}"
+                    brain_succeeded = True
+                    logger.debug("Critic used local LLM router for %s", symbol)
+        except Exception as llm_err:
+            logger.debug("Critic local LLM router unavailable: %s", llm_err)
+
+    # --- Tier 3: Claude deep reasoning (expensive, last resort) ---
+    if not brain_succeeded:
+        try:
+            from app.services.claude_reasoning import get_claude_reasoning
+            reasoning_svc = get_claude_reasoning()
+            agent_votes = context.get("all_votes", [])
+            market_ctx = {}
+            if blackboard:
+                market_ctx = blackboard.to_snapshot()
+            deep_result = await reasoning_svc.deep_postmortem(
+                trade=trade_outcome,
+                market_context=market_ctx,
+                agent_votes=agent_votes,
+            )
+            if not deep_result.get("error"):
+                data = deep_result.get("data", {})
+                if data.get("lessons"):
+                    lessons.extend([l["lesson"] for l in data["lessons"][:3] if isinstance(l, dict)])
+                if data.get("overall_score") is not None:
+                    try:
+                        performance_score = float(data["overall_score"]) / 100
+                    except (ValueError, TypeError):
+                        pass
+                critic_analysis = data.get("key_takeaway", "")
+                inference_source = "claude_deep"
+        except Exception as deep_err:
+            logger.debug("Claude deep postmortem not available: %s", deep_err)
 
     # Write postmortem to DuckDB
     try:
@@ -151,5 +220,6 @@ async def evaluate(
             "r_multiple": r_multiple,
             "lessons": lessons,
             "performance_score": performance_score,
+            "inference_source": inference_source,
         },
     )
