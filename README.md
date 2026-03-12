@@ -2,7 +2,7 @@
 ### Embodier.ai — Full-Stack AI Trading Intelligence Platform
 **Version 5.0.0** | Last Updated: March 12, 2026
 
-> **Version**: v5.0.0 | **Status**: Production-Ready (~95%) | **CI**: 977+ tests GREEN
+> **Version**: v5.0.0 | **Status**: Production-Ready (~95%) | **CI**: 1,044 tests GREEN[](url)
 >
 > The system IS profit. A conscious profit-seeking being with a Central Nervous System (CNS) architecture.
 
@@ -21,13 +21,13 @@ React + FastAPI full-stack trading application with 14-route V3 widescreen dashb
 | Council agents | **35 agents** in 7-stage DAG | 11 Core + 12 Academic Edge (P0-P4) + 6 Supplemental + 3 Debate + 3 others |
 | Council intelligence | WeightLearner + CouncilGate + SelfAwareness + Homeostasis | Bayesian self-learning agent weights |
 | Council subsystems | 15 orchestration files | runner, arbiter, blackboard, task_spawner, shadow_tracker, etc. |
-| Tests | **977+ passing** | Backend pytest + frontend build |
+| Tests | **1,044 passing** | Backend pytest + frontend build |
 | LLM Intelligence | 3-tier router | Ollama -> Perplexity -> Claude; Claude reserved for 6 deep-reasoning tasks |
 | Brain service | gRPC + Ollama | **WIRED** -- hypothesis_agent calls brain gRPC |
 | Event pipeline | MessageBus + CouncilGate + SignalEngine + OrderExecutor | BUILT -- council-controlled trading |
 | Database | DuckDB (WAL mode, pooling) | BUILT |
 | Authentication | Bearer token | **Fail-closed** -- live trading endpoints protected |
-| WebSocket | 5 pages wired | **ACTIVE** -- bridges for signals, orders, council, market data |
+| WebSocket | 25 channels, 5 pages wired | **ACTIVE** -- bridges for signals, orders, council, market data |
 | Electron desktop app | `desktop/` | **BUILD-READY** -- See [build plan](docs/ELECTRON-DESKTOP-BUILD-PLAN.md) |
 | Production readiness | ~95% (All phases A+B+C+D+E complete) | All critical gaps resolved, system production-ready |
 
@@ -35,7 +35,7 @@ React + FastAPI full-stack trading application with 14-route V3 widescreen dashb
 
 A line-by-line audit of the entire codebase (council, execution, risk, data, infra) found:
 
-**Architecture is fundamentally sound.** All 33+ agents are real implementations. Bayesian weight learning, event pipeline, Kelly sizing all work correctly. Sub-1s council latency.
+**Architecture is fundamentally sound.** All 35 agents are real implementations. Bayesian weight learning, event pipeline, Kelly sizing all work correctly. Sub-1s council latency.
 
 **All critical gaps have been resolved (Phases A-E):**
 - [x] Signal gate threshold regime-adaptive (55/65/75 by regime) — Phase B
@@ -213,7 +213,7 @@ brain_service (gRPC + Ollama) is wired; the router directs traffic by task type.
 - Brain service gRPC wired to hypothesis_agent (line 21)
 - WebSocket bridges active (signals, orders, council, market data)
 - All 12 Academic Edge agents wired into runner.py DAG stages
-- 666 tests passing (100% pass rate, backend pytest)
+- 1,044 tests passing (100% pass rate, backend pytest)
 
 **System Status:** Council now runs 35 agents across 7 stages. All P0 and P1 tasks complete.
 
@@ -286,7 +286,7 @@ elite-trading-system/
 │   │       ├── unusual_whales_service.py
 │   │       ├── sec_edgar_service.py
 │   │       └── signal_engine.py
-│   ├── tests/                  # 977+ pytest tests (CI GREEN)
+│   ├── tests/                  # 1,044 pytest tests (CI GREEN)
 │   └── requirements.txt
 ├── brain_service/              # gRPC LLM inference server (PC2 / RTX GPU)
 │   ├── server.py               # gRPC server
@@ -463,7 +463,7 @@ All pages in frontend-v2/src/pages/. All use useApi() hook. No mock data. **ALL 
 | Authentication | Bearer token auth, fail-closed for live trading |
 | Event Pipeline | MessageBus -> CouncilGate -> Council -> OrderExecutor |
 | Desktop | Electron (desktop/) -- BUILD-READY |
-| CI/CD | GitHub Actions -- pytest + npm build (977+ tests) |
+| CI/CD | GitHub Actions -- pytest + npm build (1,044 tests) |
 | Infra | Docker, docker-compose.yml, Redis (where used) |
 
 ## Data Sources
@@ -720,7 +720,7 @@ AgentVote(
 | Brain Service | gRPC + Ollama on RTX GPU (PC2) |
 | LLM Router | Ollama (routine) → Perplexity → Claude (6 deep tasks) |
 | Event Pipeline | MessageBus → CouncilGate → Council → OrderExecutor |
-| CI/CD | GitHub Actions, 977+ tests, pytest |
+| CI/CD | GitHub Actions, 1,044 tests, pytest |
 | Auth | Bearer token, fail-closed for live trading |
 | Desktop | Electron (desktop/) — BUILD-READY |
 | Infra | Docker, docker-compose.yml |
@@ -862,4 +862,4 @@ Paste `project_state.md` into the chat and acknowledge you've read it before ask
 7. ✅ New agents do NOT get veto power
 8. ✅ CouncilGate is the ONLY path to order execution
 9. ✅ Read `project_state.md` before every coding session
-10. ✅ CI must stay GREEN (977+ tests)
+10. ✅ CI must stay GREEN (1,044 tests)
