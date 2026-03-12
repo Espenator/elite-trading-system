@@ -40,18 +40,29 @@ class ChannelsOrchestrator:
             news.name: news,
         }
 
-        for agent in self._agents.values():
-            await agent.start()
+        # Start all channel agents in parallel — mirrors intelligence_orchestrator pattern
+        results = await asyncio.gather(
+            *[agent.start() for agent in self._agents.values()],
+            return_exceptions=True,
+        )
+        failed = [
+            name for name, result in zip(self._agents.keys(), results)
+            if isinstance(result, Exception)
+        ]
+        if failed:
+            logger.warning("ChannelsOrchestrator: %d agents failed to start: %s", len(failed), failed)
 
-        logger.info("ChannelsOrchestrator started (%d agents)", len(self._agents))
+        logger.info(
+            "ChannelsOrchestrator started (%d/%d agents)",
+            len(self._agents) - len(failed), len(self._agents),
+        )
 
     async def stop(self) -> None:
         self._running = False
-        for agent in self._agents.values():
-            try:
-                await agent.stop()
-            except Exception:
-                pass
+        await asyncio.gather(
+            *[agent.stop() for agent in self._agents.values()],
+            return_exceptions=True,
+        )
         logger.info("ChannelsOrchestrator stopped")
 
     def is_running(self) -> bool:

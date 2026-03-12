@@ -19,6 +19,7 @@ class AlpacaChannelAgent(BaseChannelAgent):
             router=router,
             message_bus=message_bus,
             max_queue_size=int(os.getenv("ALPACA_FIREHOSE_QUEUE", "5000")),
+            num_workers=int(os.getenv("ALPACA_FIREHOSE_WORKERS", "4")),
         )
         self._bus = message_bus
         self._subscribed = False

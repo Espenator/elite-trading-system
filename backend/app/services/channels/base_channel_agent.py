@@ -41,6 +41,7 @@ class BaseChannelAgent:
         router: Any,
         message_bus: Any,
         max_queue_size: int = 2000,
+        num_workers: int = 1,
         retry: Optional[RetryPolicy] = None,
         breaker: Optional[CircuitBreaker] = None,
         heartbeat_topic: str = "ingest.health",
@@ -51,6 +52,7 @@ class BaseChannelAgent:
         self._router = router
         self._bus = message_bus
         self._queue: asyncio.Queue[SensoryEvent] = asyncio.Queue(maxsize=max_queue_size)
+        self._num_workers = max(1, num_workers)
         self._retry = retry or RetryPolicy()
         self._breaker = breaker or CircuitBreaker()
         self._heartbeat_topic = heartbeat_topic
@@ -59,7 +61,7 @@ class BaseChannelAgent:
 
         self._running = False
         self._paused = False
-        self._worker_task: Optional[asyncio.Task] = None
+        self._worker_tasks: list[asyncio.Task] = []
         self._heartbeat_task: Optional[asyncio.Task] = None
 
         self._consecutive_failures = 0
@@ -80,19 +82,23 @@ class BaseChannelAgent:
         if self._running:
             return
         self._running = True
-        self._worker_task = asyncio.create_task(self._worker_loop())
+        self._worker_tasks = [
+            asyncio.create_task(self._worker_loop())
+            for _ in range(self._num_workers)
+        ]
         self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
-        logger.info("ChannelAgent started: %s", self.name)
+        logger.info(
+            "ChannelAgent started: %s (%d workers, queue=%d)",
+            self.name, self._num_workers, self._queue.maxsize,
+        )
 
     async def stop(self) -> None:
         self._running = False
-        for t in (self._worker_task, self._heartbeat_task):
-            if t:
-                t.cancel()
-                try:
-                    await t
-                except asyncio.CancelledError:
-                    pass
+        all_tasks = self._worker_tasks + ([self._heartbeat_task] if self._heartbeat_task else [])
+        for t in all_tasks:
+            t.cancel()
+        await asyncio.gather(*all_tasks, return_exceptions=True)
+        self._worker_tasks = []
         logger.info("ChannelAgent stopped: %s", self.name)
 
     async def pause(self) -> None:
