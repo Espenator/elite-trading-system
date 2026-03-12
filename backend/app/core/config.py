@@ -386,7 +386,7 @@ class Settings(BaseSettings):
     # ── Outcome / Learning integrity ────────────────────────
     # Shadow timeout policy: "timeout_censored" (do not count toward win/loss/Kelly/weights)
     # or "mark_to_market" (resolve at last known price; requires reliable price source)
-    OUTCOME_TIMEOUT_POLICY: str = "mark_to_market"
+    OUTCOME_TIMEOUT_POLICY: str = "timeout_censored"
 
     # ── Degraded mode (real-time truth for operator) ─────────
     # When True, OrderExecutor may AUTO-execute even if brain reports degraded (use with caution).

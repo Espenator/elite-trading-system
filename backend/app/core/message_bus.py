@@ -52,18 +52,19 @@ class MessageBus:
     # PUBLISH_ONLY = published but no subscriber yet — NEEDS_WIRING in Phase B-E
     # PLANNED = reserved for upcoming features — no publisher or subscriber yet
     #
-    # WIRED (14 topics):
+    # WIRED (18 topics):
     #   market_data.bar, market_data.quote, signal.generated, order.submitted,
     #   order.filled, order.cancelled, council.verdict, outcome.resolved,
     #   perception.unusualwhales, swarm.idea, swarm.result, scout.discovery,
-    #   triage.escalated, symbol.prep.requested
+    #   triage.escalated, symbol.prep.requested,
+    #   unusual_whales.flow, unusual_whales.congress, unusual_whales.darkpool,
+    #   unusual_whales.insider (via UWChannelAgent)
     #
-    # PUBLISH_ONLY (20 topics — publishers exist but no subscriber wired yet):
+    # PUBLISH_ONLY (16 topics — publishers exist but no subscriber wired yet):
     #   signal.unified, scout.heartbeat, triage.dropped, swarm.spawned,
     #   knowledge.ingested, hitl.approval_needed, perception.finviz.screener,
     #   finviz.screener, perception.macro, perception.edgar,
-    #   unusual_whales.flow, unusual_whales.congress, unusual_whales.darkpool,
-    #   unusual_whales.insider, perception.gex, signal.external, alert.health,
+    #   perception.gex, signal.external, alert.health,
     #   position.partial_exit, position.closed, symbol.prep.ready
     #
     # PLANNED (20 topics — reserved, no publisher or subscriber yet):
@@ -95,6 +96,11 @@ class MessageBus:
         "scout.discovery",
         "triage.escalated",
         "symbol.prep.requested",
+        # ── WIRED via UWChannelAgent (channels/orchestrator.py) ──
+        "unusual_whales.flow",
+        "unusual_whales.congress",
+        "unusual_whales.darkpool",
+        "unusual_whales.insider",
         # ── PUBLISH_ONLY (publisher exists, subscriber needed) ──
         "signal.unified",
         "scout.heartbeat",
@@ -106,10 +112,6 @@ class MessageBus:
         "finviz.screener",
         "perception.macro",
         "perception.edgar",
-        "unusual_whales.flow",
-        "unusual_whales.congress",
-        "unusual_whales.darkpool",
-        "unusual_whales.insider",
         "perception.gex",
         "signal.external",
         "alert.health",
