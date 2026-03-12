@@ -123,7 +123,8 @@ async def council_weights():
             "last_update": learner.last_update,
         }
     except Exception as e:
-        return {"status": "weight_learner_unavailable", "error": str(e)}
+        logger.warning("Weight learner unavailable: %s", e)
+        return {"status": "weight_learner_unavailable", "error": "Service unavailable"}
 
 
 @router.post("/weights/reset", dependencies=[Depends(require_auth)])
@@ -135,4 +136,92 @@ async def reset_weights():
         learner.reset()
         return {"status": "ok", "weights": learner.get_weights()}
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        logger.warning("Weight reset failed: %s", e)
+        return {"status": "error", "error": "Service unavailable"}
+
+
+# ── Phase C Endpoints ──────────────────────────────────────────────────
+
+
+@router.get("/history")
+async def council_history(symbol: str = "", limit: int = 100):
+    """Return council decision audit trail from DuckDB (C4)."""
+    try:
+        from app.data.duckdb_storage import duckdb_store
+        conn = duckdb_store.get_thread_cursor()
+        if symbol:
+            rows = conn.execute(
+                "SELECT * FROM council_decisions WHERE symbol = ? "
+                "ORDER BY timestamp DESC LIMIT ?",
+                [symbol.upper(), min(limit, 500)],
+            ).fetchdf().to_dict(orient="records")
+        else:
+            rows = conn.execute(
+                "SELECT * FROM council_decisions ORDER BY timestamp DESC LIMIT ?",
+                [min(limit, 500)],
+            ).fetchdf().to_dict(orient="records")
+        return {"decisions": rows, "count": len(rows)}
+    except Exception as e:
+        logger.debug("Council history unavailable: %s", e)
+        return {"decisions": [], "count": 0, "status": "unavailable"}
+
+
+@router.get("/decision/{decision_id}")
+async def council_decision_detail(decision_id: str):
+    """Return full detail of a single council decision (C4)."""
+    try:
+        import json
+        from app.data.duckdb_storage import duckdb_store
+        conn = duckdb_store.get_thread_cursor()
+        row = conn.execute(
+            "SELECT * FROM council_decisions WHERE decision_id = ?",
+            [decision_id],
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Decision not found")
+        cols = [d[0] for d in conn.description]
+        result = dict(zip(cols, row))
+        # Parse JSON columns
+        for col in ("agent_votes", "execution_result"):
+            if col in result and isinstance(result[col], str):
+                try:
+                    result[col] = json.loads(result[col])
+                except Exception:
+                    pass
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.debug("Decision detail unavailable: %s", e)
+        raise HTTPException(status_code=500, detail="Service unavailable")
+
+
+@router.get("/debates")
+async def council_debates(limit: int = 50):
+    """Return debate history (C3)."""
+    try:
+        from app.data.duckdb_storage import duckdb_store
+        conn = duckdb_store.get_thread_cursor()
+        rows = conn.execute(
+            "SELECT * FROM debate_history ORDER BY timestamp DESC LIMIT ?",
+            [min(limit, 200)],
+        ).fetchdf().to_dict(orient="records")
+        return {"debates": rows, "count": len(rows)}
+    except Exception as e:
+        logger.debug("Debate history unavailable: %s", e)
+        return {"debates": [], "count": 0, "status": "unavailable"}
+
+
+@router.get("/calibration")
+async def agent_calibration():
+    """Return Brier score calibration data per agent (C2)."""
+    try:
+        from app.data.duckdb_storage import duckdb_store
+        conn = duckdb_store.get_thread_cursor()
+        rows = conn.execute(
+            "SELECT * FROM agent_calibration ORDER BY brier_score ASC"
+        ).fetchdf().to_dict(orient="records")
+        return {"calibration": rows, "count": len(rows)}
+    except Exception as e:
+        logger.debug("Calibration data unavailable: %s", e)
+        return {"calibration": [], "count": 0, "status": "unavailable"}

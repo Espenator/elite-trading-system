@@ -49,7 +49,7 @@ async def get_latest_features(
         return {"status": "ok", **result}
     except Exception as e:
         logger.exception("Error fetching features for %s", symbol)
-        return {"status": "error", "message": str(e)}
+        return {"status": "error", "message": "Internal server error"}
 
 
 @router.post("/compute", dependencies=[Depends(require_auth)])
@@ -61,7 +61,7 @@ async def compute_features(req: FeatureComputeRequest):
         return {"status": "ok", **fv.to_dict()}
     except Exception as e:
         logger.exception("Error computing features for %s", req.symbol)
-        return {"status": "error", "message": str(e)}
+        return {"status": "error", "message": "Internal server error"}
 
 
 @router.get("/versions")
@@ -84,7 +84,7 @@ async def get_available_versions(
         }
     except Exception as e:
         logger.exception("Error fetching available versions")
-        return {"status": "error", "message": str(e)}
+        return {"status": "error", "message": "Internal server error"}
 
 
 @router.get("/compatibility")
@@ -103,4 +103,4 @@ async def check_version_compatibility(
         return {"status": "ok", **compat}
     except Exception as e:
         logger.exception("Error checking version compatibility")
-        return {"status": "error", "message": str(e)}
+        return {"status": "error", "message": "Internal server error"}

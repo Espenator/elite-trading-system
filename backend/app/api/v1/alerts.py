@@ -128,7 +128,7 @@ async def test_email_alert():
             msg = err_body.get("message", str(err_body))
         except Exception:
             msg = e.response.text or str(e)
-        raise HTTPException(status_code=502, detail=f"Resend API error: {msg}")
+        raise HTTPException(status_code=502, detail="Resend API error")
     except Exception as e:
         logger.exception("Resend send failed")
         raise HTTPException(status_code=502, detail="Failed to send email")
@@ -202,3 +202,45 @@ async def evaluate_alerts(signals: list[dict] = None):
         "total_triggered": len(triggered),
         "alerts": triggered,
     }
+
+
+# ── Phase C (C9): Silent failure alerts endpoint ─────────────────────
+
+
+@router.get("/recent")
+async def recent_alerts(type: str = "", limit: int = 50):
+    """Return recent silent failure alerts (C9).
+
+    Query params:
+        type: Filter by alert type (agent_failure, data_starvation, council_degraded)
+        limit: Max results (default 50)
+    """
+    try:
+        from app.data.duckdb_storage import duckdb_store
+        conn = duckdb_store.get_thread_cursor()
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS silent_failure_alerts (
+                id INTEGER PRIMARY KEY,
+                alert_type VARCHAR,
+                agent_name VARCHAR DEFAULT '',
+                exception_type VARCHAR DEFAULT '',
+                message VARCHAR DEFAULT '',
+                missing_features VARCHAR DEFAULT '',
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        if type:
+            rows = conn.execute(
+                "SELECT * FROM silent_failure_alerts WHERE alert_type = ? "
+                "ORDER BY timestamp DESC LIMIT ?",
+                [type, min(limit, 500)],
+            ).fetchdf().to_dict(orient="records")
+        else:
+            rows = conn.execute(
+                "SELECT * FROM silent_failure_alerts ORDER BY timestamp DESC LIMIT ?",
+                [min(limit, 500)],
+            ).fetchdf().to_dict(orient="records")
+        return {"alerts": rows, "count": len(rows)}
+    except Exception as e:
+        logger.debug("Silent failure alerts unavailable: %s", e)
+        return {"alerts": [], "count": 0, "status": "unavailable"}

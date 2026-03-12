@@ -20,9 +20,10 @@ async def system_health():
         agg = get_health_aggregator()
         return agg.get_health()
     except Exception as e:
+        logger.warning("Health aggregator unavailable: %s", e)
         return {
             "overall_status": "unknown",
-            "error": str(e),
+            "error": "Service unavailable",
             "total_sources": 0,
             "healthy": 0,
             "degraded": 0,
@@ -38,7 +39,8 @@ async def alert_status():
         alerter = get_slack_alerter()
         return alerter.get_status()
     except Exception as e:
-        return {"enabled": False, "error": str(e)}
+        logger.warning("Slack alerter status unavailable: %s", e)
+        return {"enabled": False, "error": "Service unavailable"}
 
 
 @router.get("/incidents")
@@ -53,4 +55,5 @@ async def recent_incidents():
             "overall_status": health.get("overall_status", "unknown"),
         }
     except Exception as e:
-        return {"incidents": [], "error": str(e)}
+        logger.warning("Health incidents unavailable: %s", e)
+        return {"incidents": [], "error": "Service unavailable"}

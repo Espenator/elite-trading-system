@@ -220,7 +220,8 @@ async def get_flywheel_engine():
     except ImportError:
         engine_status["model_registry"] = {"status": "not_installed"}
     except Exception as e:
-        engine_status["model_registry"] = {"status": "error", "message": str(e)}
+        logger.warning("Model registry error: %s", e)
+        engine_status["model_registry"] = {"status": "error", "message": "unavailable"}
 
     # Drift Monitor status
     try:
@@ -230,7 +231,8 @@ async def get_flywheel_engine():
     except ImportError:
         engine_status["drift_monitor"] = {"status": "not_installed"}
     except Exception as e:
-        engine_status["drift_monitor"] = {"status": "error", "message": str(e)}
+        logger.warning("Drift monitor error: %s", e)
+        engine_status["drift_monitor"] = {"status": "error", "message": "unavailable"}
 
     # Feature Pipeline manifest
     try:
@@ -246,7 +248,8 @@ async def get_flywheel_engine():
     except ImportError:
         engine_status["feature_pipeline"] = {"status": "not_installed"}
     except Exception as e:
-        engine_status["feature_pipeline"] = {"status": "error", "message": str(e)}
+        logger.warning("Feature pipeline error: %s", e)
+        engine_status["feature_pipeline"] = {"status": "error", "message": "unavailable"}
 
     return engine_status
 
@@ -261,7 +264,8 @@ async def get_registry_status():
     except ImportError:
         return {"status": "not_installed", "message": "model_registry module not available"}
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        logger.warning("Registry status error: %s", e)
+        return {"status": "error", "message": "Service unavailable"}
 
 
 @router.get("/drift")
@@ -276,7 +280,8 @@ async def get_drift_status():
     except ImportError:
         return {"status": "not_installed", "message": "drift_detector module not available"}
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        logger.warning("Drift status error: %s", e)
+        return {"status": "error", "message": "Service unavailable"}
 
 
 @router.get("/feature-pipeline-status")
@@ -300,7 +305,8 @@ async def get_feature_pipeline_status():
     except ImportError:
         return {"status": "not_installed", "message": "feature_pipeline module not available"}
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        logger.warning("Feature pipeline status error: %s", e)
+        return {"status": "error", "message": "Service unavailable"}
 
 
 # -----------------------------------------------------------------
@@ -398,4 +404,5 @@ async def get_scheduler_status():
     except ImportError:
         return {"enabled": False, "running": False, "jobs": [], "error": "scheduler not installed"}
     except Exception as e:
-        return {"enabled": False, "running": False, "jobs": [], "error": str(e)}
+        logger.warning("Scheduler status error: %s", e)
+        return {"enabled": False, "running": False, "jobs": [], "error": "Service unavailable"}

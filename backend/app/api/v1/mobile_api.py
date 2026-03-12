@@ -171,7 +171,8 @@ async def emergency_action(body: EmergencyAction, _token: str = Depends(_require
                 await ex.kill_switch(reason=body.reason or "Mobile kill switch")
                 return {"status": "executed", "action": "kill_switch"}
         except Exception as e:
-            raise HTTPException(500, str(e))
+            log.error("Kill switch failed: %s", e)
+            raise HTTPException(500, "Internal server error")
         return {"status": "no_executor", "action": "kill_switch"}
 
     if body.action in ("pause", "resume"):

@@ -86,6 +86,15 @@ _DEFAULTS: Dict[str, Any] = {
     "weight_execution": 1.3,
     "weight_critic": 0.5,
 
+    # Agent weights — Supplemental (6 agents, Phase C I5)
+    # Default Beta(2,2) = 0.5 neutral starting weight
+    "weight_rsi": 1.0,
+    "weight_bbv": 0.9,
+    "weight_ema_trend": 1.1,
+    "weight_relative_strength": 0.9,
+    "weight_cycle_timing": 0.8,
+    "weight_intermarket": 0.9,
+
     # Agent weights — Academic Edge Swarms (P0-P4)
     # P0: GEX / Options Flow Swarm
     "weight_gex_agent": 0.9,

@@ -14,6 +14,9 @@ const { peerMonitor } = require('./peer-monitor');
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
+// Fix Electron cache permission error — set cache path before any window creation
+app.setPath('cache', path.join(app.getPath('userData'), 'Cache'));
+
 let mainWindow = null;
 let setupWindow = null;
 let splashWindow = null;

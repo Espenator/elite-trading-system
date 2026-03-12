@@ -214,13 +214,20 @@ class TradeStatsService:
         regime: str = "NEUTRAL",
         signal_score: float = 0.0,
         kelly_pct: float = 0.0,
+        stop_price: float = 0.0,
+        trade_id: str = "",
     ) -> None:
-        """Record a trade outcome to DuckDB for future stats."""
+        """Record a trade outcome to DuckDB for future stats.
+
+        Phase C (C5): Uses actual stop_price from bracket order for R-multiple
+        instead of fixed 2% assumption. Trades without stop_price use 2% fallback
+        and are flagged with r_multiple_estimated=True.
+        """
         try:
             from app.data.duckdb_storage import duckdb_store
             conn = duckdb_store.get_thread_cursor()
 
-            # Create table if needed
+            # Create table if needed (Phase C: added stop_price, trade_id, r_multiple_estimated)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS trade_outcomes (
                     id INTEGER PRIMARY KEY,
@@ -235,9 +242,22 @@ class TradeStatsService:
                     regime VARCHAR,
                     signal_score DOUBLE,
                     kelly_pct DOUBLE,
+                    stop_price DOUBLE DEFAULT 0,
+                    trade_id VARCHAR DEFAULT '',
+                    r_multiple_estimated BOOLEAN DEFAULT TRUE,
                     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+            # Add columns if they don't exist (migration for existing tables)
+            for col, dtype, default in [
+                ("stop_price", "DOUBLE", "0"),
+                ("trade_id", "VARCHAR", "''"),
+                ("r_multiple_estimated", "BOOLEAN", "TRUE"),
+            ]:
+                try:
+                    conn.execute(f"ALTER TABLE trade_outcomes ADD COLUMN {col} {dtype} DEFAULT {default}")
+                except Exception:
+                    pass  # Column already exists
 
             if side == "buy":
                 pnl = (exit_price - entry_price) * qty
@@ -246,19 +266,32 @@ class TradeStatsService:
                 pnl = (entry_price - exit_price) * qty
                 pnl_pct = (entry_price / exit_price - 1) if exit_price > 0 else 0
 
-            # R-multiple: pnl relative to risk (approximated as 2% stop)
-            risk = entry_price * 0.02 * qty
+            # Phase C (C5): R-multiple using actual stop_price when available
+            r_multiple_estimated = True
+            if stop_price and stop_price > 0 and entry_price > 0:
+                # Real R-multiple from bracket order stop
+                if side == "buy":
+                    risk_per_share = abs(entry_price - stop_price)
+                else:
+                    risk_per_share = abs(stop_price - entry_price)
+                risk = risk_per_share * qty
+                r_multiple_estimated = False
+            else:
+                # Fallback: approximate as 2% stop
+                risk = entry_price * 0.02 * qty
             r_multiple = pnl / risk if risk > 0 else 0
 
             conn.execute(
                 """INSERT INTO trade_outcomes
                    (symbol, side, entry_price, exit_price, qty,
-                    pnl, pnl_pct, r_multiple, regime, signal_score, kelly_pct)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    pnl, pnl_pct, r_multiple, regime, signal_score, kelly_pct,
+                    stop_price, trade_id, r_multiple_estimated)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 [
                     symbol.upper(), side, entry_price, exit_price, qty,
                     round(pnl, 2), round(pnl_pct, 6), round(r_multiple, 4),
                     regime, signal_score, kelly_pct,
+                    stop_price or 0, trade_id or "", r_multiple_estimated,
                 ],
             )
 

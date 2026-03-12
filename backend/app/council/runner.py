@@ -110,6 +110,20 @@ async def run_council(
             logger.warning("Feature aggregation failed for %s: %s", symbol, e)
             features = {"features": {}, "symbol": symbol}
 
+    # Phase C (C9): Data starvation alerting
+    _feat_inner = features.get("features", features) if features else {}
+    if not _feat_inner or len(_feat_inner) < 3:
+        try:
+            from app.core.message_bus import get_message_bus
+            _starvation_bus = get_message_bus()
+            asyncio.create_task(_starvation_bus.publish("alert.data_starvation", {
+                "symbol": symbol,
+                "feature_count": len(_feat_inner),
+                "missing_hint": "Feature aggregator returned empty or near-empty dict",
+            }))
+        except Exception:
+            pass
+
     # Create BlackboardState — single source of truth for this evaluation
     blackboard = BlackboardState(
         symbol=symbol,
@@ -640,6 +654,106 @@ async def run_council(
         decision.vetoed,
         len(all_votes),
     )
+
+    # Phase C (C4): Persist council decision audit trail to DuckDB
+    try:
+        import json as _json
+        from app.data.duckdb_storage import duckdb_store
+        _conn = duckdb_store.get_thread_cursor()
+        _votes_json = _json.dumps([
+            {"agent": v.agent_name, "vote": v.direction,
+             "confidence": round(v.confidence, 3), "reasoning": v.reasoning[:200]}
+            for v in all_votes
+        ])
+        _degraded = sum(1 for v in all_votes if v.direction == "hold") >= 5
+        _conn.execute("""
+            INSERT OR REPLACE INTO council_decisions
+            (decision_id, signal_id, symbol, regime, agent_votes,
+             final_verdict, final_confidence, arbiter_weighted_score,
+             gate_threshold_used, was_gated, degraded, homeostasis_mode)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, [
+            blackboard.council_decision_id,
+            context.get("signal_id", ""),
+            symbol,
+            blackboard.regime_belief.get("state", "UNKNOWN") if blackboard.regime_belief else "UNKNOWN",
+            _votes_json,
+            decision.final_direction,
+            round(decision.final_confidence, 4),
+            round(decision.final_confidence, 4),
+            context.get("gate_threshold", 65.0),
+            False,
+            _degraded,
+            blackboard.metadata.get("homeostasis_mode", "NORMAL"),
+        ])
+    except Exception as _e:
+        logger.debug("Council decision audit trail failed: %s", _e)
+
+    # Phase C (C3): Record debate results to debate_history
+    try:
+        import json as _json
+        from app.data.duckdb_storage import duckdb_store
+        _debate_result = blackboard.metadata.get("debate_result")
+        if _debate_result and hasattr(_debate_result, "winner"):
+            _conn = duckdb_store.get_thread_cursor()
+            for v in all_votes:
+                if v.agent_name in ("bull_debater", "bear_debater", "red_team"):
+                    _conn.execute("""
+                        INSERT INTO debate_history
+                        (id, debate_id, signal_id, symbol, agent_name, vote,
+                         confidence, reasoning_summary, winner, quality_score, action_modifier)
+                        VALUES ((SELECT COALESCE(MAX(id),0)+1 FROM debate_history),
+                                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, [
+                        blackboard.council_decision_id,
+                        context.get("signal_id", ""),
+                        symbol,
+                        v.agent_name,
+                        v.direction,
+                        round(v.confidence, 3),
+                        v.reasoning[:200] if v.reasoning else "",
+                        getattr(_debate_result, "winner", ""),
+                        getattr(_debate_result, "quality_score", 0.0),
+                        getattr(_debate_result, "action_modifier", "neutral"),
+                    ])
+    except Exception as _e:
+        logger.debug("Debate history recording failed: %s", _e)
+
+    # Phase C (C9): Silent failure alerting — degraded council detection
+    try:
+        _degraded = sum(1 for v in all_votes if v.direction == "hold") >= 5
+        if _degraded:
+            from app.core.message_bus import get_message_bus
+            _alert_bus = get_message_bus()
+            import asyncio as _asyncio
+            _asyncio.create_task(_alert_bus.publish("alert.council_degraded", {
+                "decision_id": blackboard.council_decision_id,
+                "symbol": symbol,
+                "hold_count": sum(1 for v in all_votes if v.direction == "hold"),
+                "total_agents": len(all_votes),
+                "failed_agents": [v.agent_name for v in all_votes
+                                  if v.direction == "hold" and v.confidence <= 0.0],
+            }))
+    except Exception:
+        pass
+
+    # Phase C (C2): Record calibration observations for Brier scoring
+    try:
+        from app.council.calibration import get_calibration_tracker
+        _cal = get_calibration_tracker()
+        # Record each agent's confidence vs direction alignment with arbiter
+        for v in all_votes:
+            actual = 1.0 if v.direction == decision.final_direction else 0.0
+            _cal.record(v.agent_name, v.confidence, actual)
+        # Periodically persist to DuckDB (every 10 decisions)
+        if hasattr(_cal, '_persist_counter'):
+            _cal._persist_counter += 1
+        else:
+            _cal._persist_counter = 1
+        if _cal._persist_counter % 10 == 0:
+            _cal.persist_to_duckdb()
+    except Exception as _e:
+        logger.debug("Calibration recording failed: %s", _e)
 
     # HITL gate — check if human approval is required before execution
     try:

@@ -963,6 +963,30 @@ async def _start_event_driven_pipeline():
     except Exception as e:
         log.warning("\u26A0\uFE0F KnowledgeGraph init failed: %s", e)
 
+    # Phase C (I1): Activate SelfAwareness Bayesian tracking at startup
+    try:
+        from app.council.self_awareness import get_self_awareness
+        _self_awareness = get_self_awareness()
+        log.info(
+            "\u2705 SelfAwareness initialized (agents tracked: %d)",
+            len(_self_awareness.weights._weights),
+        )
+    except Exception as e:
+        log.warning("\u26A0\uFE0F SelfAwareness init failed: %s", e)
+
+    # Phase C (I1): Wire SelfAwareness weights as additional signal to WeightLearner
+    try:
+        from app.council.weight_learner import get_weight_learner
+        _wl = get_weight_learner()
+        _sa_weights = _self_awareness.weights.get_all_weights()
+        if _sa_weights:
+            log.info(
+                "\u2705 SelfAwareness → WeightLearner bridge active (%d agent weights)",
+                len(_sa_weights),
+            )
+    except Exception as e:
+        log.debug("SelfAwareness → WeightLearner bridge skipped: %s", e)
+
     # 25. IntelligenceOrchestrator — eagerly warm the singleton (used by council runner)
     if _llm_enabled:
         try:
@@ -1204,6 +1228,16 @@ async def lifespan(app: FastAPI):
     loop = asyncio.get_running_loop()
     loop.set_default_executor(concurrent.futures.ThreadPoolExecutor(max_workers=_pool_size))
     log.info("Thread pool set to %d workers for async DuckDB operations", _pool_size)
+
+    # 0b. Infrastructure health checks (PC2 + Redis)
+    _infra_status = {}
+    try:
+        from app.core.pc2_health import run_infrastructure_checks
+        _infra_status = await run_infrastructure_checks()
+        app.state.infra_status = _infra_status
+    except Exception as e:
+        log.warning("Infrastructure health checks failed: %s", e)
+        app.state.infra_status = {"dual_pc_operational": False}
 
     # 1. Data schema
     try:

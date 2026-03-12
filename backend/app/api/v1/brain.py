@@ -1,11 +1,13 @@
 """Brain health API: ideas/sec, signals/sec, council stats, order stats, queue depths, degraded mode."""
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any, Dict, List
 
 from fastapi import APIRouter
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Age in seconds beyond which market data is considered stale for degraded mode
@@ -101,7 +103,8 @@ def get_degraded_status() -> Dict[str, Any]:
         pass  # PriceCacheService not installed — skip market_data check
     except Exception as e:
         reasons.append("market_data_stale")
-        details["market_data_stale"] = {"reason": "price_cache_unavailable", "error": str(e)}
+        logger.warning("Price cache unavailable: %s", e)
+        details["market_data_stale"] = {"reason": "price_cache_unavailable", "error": "unavailable"}
 
     # Risk: optional — add risk_stale if risk service exposes last_update and it's old
     try:

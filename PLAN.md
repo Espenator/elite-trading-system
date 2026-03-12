@@ -154,54 +154,54 @@ Fix the issues that prevent the system from functioning at all or cause catastro
 ---
 
 ### Phase B: UNLOCK ALPHA (Remove Profit Blockers)
-**Priority: P0 | Estimated: 3-4 sessions | STATUS: NOT STARTED**
+**Priority: P0 | Estimated: 3-4 sessions | STATUS: COMPLETE (March 12, 2026)**
 
 Remove artificial constraints that filter out profitable opportunities.
 
-#### B1. Calibrate Signal Gate (PK1)
-- Sweep gate threshold from 45-75 using historical signal data
-- Make threshold regime-adaptive: BULLISH=55, NEUTRAL=65, BEARISH=75
-- Add per-symbol hit rate feedback to adjust threshold dynamically
+#### B1. Calibrate Signal Gate (PK1) — DONE
+- ~~Sweep gate threshold from 45-75 using historical signal data~~
+- Regime-adaptive thresholds: BULLISH=55, NEUTRAL=65, BEARISH=75, CRISIS=75 (`council_gate.py`)
+- Score coercion via `coerce_signal_score_0_100()` ensures 0-100 scale
 
-#### B2. Fix Short Signal Generation (PK2)
-- Rework short score computation to properly score bearish setups
-- Short score should be its own composite (RSI overbought + volume distribution + trend exhaustion)
-- Remove `100 - blended` inversion
+#### B2. Fix Short Signal Generation (PK2) — DONE
+- Independent `_compute_short_composite_score()` in `signal_engine.py`
+- Short score: RSI overbought + bearish candle + negative momentum + MACD histogram + distribution volume + bearish divergence
+- Removed `100 - blended` inversion
 
-#### B3. Smart Cooldown (PK3)
-- Reduce cooldown from 120s to 30s for momentum regime
-- Separate buy/sell cooldowns (allow reversal entries)
-- Regime-adaptive: BULLISH=30s, NEUTRAL=120s, CRISIS=300s
+#### B3. Smart Cooldown (PK3) — DONE
+- Regime-adaptive: BULLISH=30s, NEUTRAL=120s, CRISIS=300s (`council_gate.py`)
+- Separate buy/sell cooldowns per symbol — `_symbol_direction_last_eval["AAPL:buy"]` / `["AAPL:sell"]`
+- A BUY cooldown no longer blocks a SELL on the same symbol
 
-#### B4. Priority Queue for Concurrency (PK4)
-- Replace FIFO concurrency limiter with priority queue (sort by signal score)
-- Increase max concurrent council evaluations from 3 to 5
-- At market open, highest-score signals get priority
+#### B4. Priority Queue for Concurrency (PK4) — DONE
+- heapq priority queue (highest score first) replaces FIFO drop
+- max_concurrent=5 (default), burst_concurrent=8 during market open (9:30-10:00 ET)
+- Queue cap=20, stale signal expiry=60s, drain loop=2s interval
 
-#### B5. Limit Orders for Size (PK5)
-- For positions > $5K, use limit orders at NBBO midpoint
-- For positions < $5K, keep market orders (speed matters more)
-- Add TWAP option for positions > $25K
+#### B5. Limit Orders for Size (PK5) — DONE
+- <= $5K: market order (speed)
+- $5K-$25K: limit order at NBBO mid proxy
+- > $25K: TWAP (4 slices, 30s intervals, limit orders)
 
-#### B6. Partial Fill Re-Execution (PK6)
-- After fill monitoring, check `filled_qty < requested_qty`
-- If partial fill, resubmit remainder as new market order
-- Cap re-execution attempts at 3
+#### B6. Partial Fill Re-Execution (PK6) — DONE
+- `_poll_for_fill()` checks `filled_qty < requested_qty`
+- `_re_execute_remainder()` resubmits as market order
+- Max 3 retries per partial fill
 
-#### B7. Fix Viability Gate (PK7)
-- Replace signal-score-as-edge with actual DuckDB win rate for symbol
-- For new symbols, use sector-average win rate as prior
-- Reduce viability rejection from 30% to <5%
+#### B7. Fix Viability Gate (PK7) — DONE
+- Real edge from DuckDB trade history (`trade_stats_service`)
+- Kelly edge formula: `p*b - q` where `b = avg_win/avg_loss`
+- Min edge floor lowered to 0.5% (from 5%) to reduce false rejects
 
-#### B8. Fix Portfolio Heat (PK8)
-- Use `buying_power / initial_portfolio_value` not spot equity
-- During drawdowns, heat check should loosen (contrarian opportunity)
-- Add separate `crisis_max_heat` parameter
+#### B8. Fix Portfolio Heat (PK8) — DONE
+- Uses `last_equity` (start-of-day) as denominator, not spot equity
+- Prevents procyclical heat — drawdowns don't inflate heat ratio
+- Falls back to spot equity when last_equity unavailable
 
 ---
 
 ### Phase C: SHARPEN THE BRAIN (Intelligence Improvements)
-**Priority: P1 | Estimated: 3-4 sessions | STATUS: NOT STARTED**
+**Priority: P1 | Estimated: 3-4 sessions | STATUS: COMPLETE (March 12, 2026)**
 
 Make the council smarter by fixing the feedback loop and adding regime awareness.
 

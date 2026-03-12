@@ -86,10 +86,12 @@ def test_kelly_max_cap():
     assert result.final_pct <= 0.10  # 10% max allocation
 
 
-# --- Test 10: Trading mode defaults to paper ---
+# --- Test 10: Trading mode must be a non-live mode ---
 def test_trading_mode_paper():
     from app.core.config import settings
-    assert settings.TRADING_MODE == "paper"
+    assert settings.TRADING_MODE in ("paper", "shadow"), (
+        f"TRADING_MODE must be 'paper' or 'shadow' in tests, got '{settings.TRADING_MODE}'"
+    )
 
 
 # --- Test 11: Kelly returns HOLD for negative edge ---

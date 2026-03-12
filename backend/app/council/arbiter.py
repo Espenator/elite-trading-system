@@ -45,11 +45,27 @@ def _get_learned_weights() -> Dict[str, float]:
 
     Returns empty dict if learner is unavailable (arbiter will use
     each agent's static weight from their module-level WEIGHT constant).
+
+    Phase C (I1): Also applies SelfAwareness streak multiplier
+    (PROBATION=0.25x, HIBERNATION=0x) to learned weights.
     """
     try:
         from app.council.weight_learner import get_weight_learner
         learner = get_weight_learner()
-        return learner.get_weights()
+        weights = learner.get_weights()
+
+        # Apply SelfAwareness streak multipliers
+        try:
+            from app.council.self_awareness import get_self_awareness
+            sa = get_self_awareness()
+            for agent_name in list(weights.keys()):
+                mult = sa.streaks.get_weight_multiplier(agent_name)
+                if mult < 1.0:
+                    weights[agent_name] *= mult
+        except Exception:
+            pass  # SelfAwareness unavailable
+
+        return weights
     except Exception:
         return {}
 
@@ -82,6 +98,17 @@ def arbitrate(
         for v in votes:
             if v.agent_name in learned_weights:
                 v.weight = learned_weights[v.agent_name]
+
+    # Phase C (C2): Apply Brier score calibration penalty
+    try:
+        from app.council.calibration import get_calibration_tracker
+        cal = get_calibration_tracker()
+        for v in votes:
+            penalty = cal.get_weight_penalty(v.agent_name)
+            if penalty < 1.0:
+                v.weight *= penalty
+    except Exception:
+        pass  # Calibration unavailable
 
     # Collect vetoes
     veto_reasons = []

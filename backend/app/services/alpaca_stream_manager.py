@@ -71,9 +71,9 @@ class AlpacaStreamManager:
         self._streams[role_label] = stream
         self._stream_tasks[role_label] = asyncio.create_task(stream.start())
         logger.info(
-            "AlpacaStreamManager: PC_ROLE=%s, %s stream (%d symbols), key=...%s",
+            "AlpacaStreamManager: PC_ROLE=%s, %s stream (%d symbols), key=%s***",
             pool.pc_role, role_label, len(syms),
-            ws_key.api_key[-4:] if len(ws_key.api_key) >= 4 else "****",
+            ws_key.api_key[:4] if len(ws_key.api_key) >= 4 else "****",
         )
 
     async def _start_multi_key(self, keys: List) -> None:

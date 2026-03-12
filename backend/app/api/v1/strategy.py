@@ -332,7 +332,8 @@ async def pre_trade_check(symbol: str = "", side: str = "buy"):
             allowed = False
             reasons.append(f"Risk score {score} < minimum {settings.MIN_RISK_SCORE}")
     except Exception as e:
-        reasons.append(f"Risk score unavailable: {e}")
+        logger.warning("Risk score check failed: %s", e)
+        reasons.append("Risk score unavailable")
 
     # 6. Drawdown check
     try:
@@ -342,7 +343,8 @@ async def pre_trade_check(symbol: str = "", side: str = "buy"):
             allowed = False
             reasons.append(f"Drawdown breached: {dd_data.get('daily_pnl_pct', 0):.2f}%")
     except Exception as e:
-        reasons.append(f"Drawdown check unavailable: {e}")
+        logger.warning("Drawdown check failed: %s", e)
+        reasons.append("Drawdown check unavailable")
 
     return {
         "allowed": allowed,

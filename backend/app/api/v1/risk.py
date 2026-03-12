@@ -58,7 +58,10 @@ def _safe_float(val: Any, default: float = 0.0) -> float:
 
 
 def _get_risk_config() -> dict:
-    stored = db_service.get_config("risk")
+    try:
+        stored = db_service.get_config("risk")
+    except Exception:
+        stored = None
     if not stored or not isinstance(stored, dict):
         return {**DEFAULT_RISK}
     return {**DEFAULT_RISK, **stored}
@@ -66,7 +69,10 @@ def _get_risk_config() -> dict:
 
 def _get_risk_history() -> list:
     """Return list of { date, maxDailyLoss, var } from config."""
-    stored = db_service.get_config("risk_history")
+    try:
+        stored = db_service.get_config("risk_history")
+    except Exception:
+        stored = None
     if not stored or not isinstance(stored, list):
         return []
     return stored
@@ -184,15 +190,22 @@ async def _compute_live_risk(config: dict) -> dict:
 async def get_risk():
     """Return risk parameters + live risk snapshot from Alpaca."""
     config = _get_risk_config()
-    live = await _compute_live_risk(config)
+    try:
+        live = await _compute_live_risk(config)
+    except Exception as exc:
+        logger.warning("Live risk computation failed: %s", exc)
+        live = {}
 
     response = {**config, **live}
 
     # Persist today's snapshot for the history chart
-    _append_risk_snapshot(
-        live.get("potentialDailyLoss", 0),
-        live.get("var95", 0),
-    )
+    try:
+        _append_risk_snapshot(
+            live.get("potentialDailyLoss", 0),
+            live.get("var95", 0),
+        )
+    except Exception:
+        pass
 
     try:
         await broadcast_ws("risk", {"type": "risk_snapshot", "data": response})
@@ -662,8 +675,20 @@ async def drawdown_check_status():
             ),
         }
     except Exception as e:
-        logger.error("Drawdown check error: %s", e)
-        raise HTTPException(status_code=500, detail="Drawdown check failed")
+        logger.warning("Drawdown check error (Alpaca unavailable): %s", e)
+        return {
+            "trading_allowed": True,
+            "warning": "Alpaca not connected",
+            "equity": 0,
+            "last_equity": 0,
+            "daily_pnl": 0,
+            "daily_pnl_pct": 0,
+            "max_daily_drawdown": _safe_float(config.get("maxDailyDrawdown"), 5.0),
+            "max_daily_loss": _safe_float(config.get("maxDailyLossPct"), 2.0),
+            "drawdown_breached": False,
+            "loss_breached": False,
+            "status": "OK",
+        }
 
 
 # --- V3 Risk Intelligence Enhanced Endpoints ---
@@ -908,7 +933,7 @@ async def risk_shield_status():
         }
     except Exception as e:
         logger.error("Risk shield status error: %s", e)
-        return {"shield_active": False, "error": str(e)}
+        return {"shield_active": False, "error": "Service unavailable"}
 
 
 @router.get("/equity-curve")
@@ -998,7 +1023,8 @@ async def emergency_action(action: str):
             await alpaca_service.close_all_positions()
             return {"status": "flattened", "message": "All positions closed"}
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            logger.error("Emergency flatten failed: %s", e)
+            return {"status": "error", "message": "Flatten operation failed"}
     return {"status": "unknown", "message": f"Unknown action: {action}"}
 
 

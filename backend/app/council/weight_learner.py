@@ -29,8 +29,8 @@ from typing import Any, Dict, List, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 # Minimum confidence (0–1) for an outcome to be used for learning when STRICT_LEARNER_INPUTS is True
-# Lowered from 0.5 to 0.35 to retain 30-40% more outcomes for learning (Tier 2 alpha recovery)
-LEARNER_MIN_CONFIDENCE = 0.35
+# Phase C: Lowered from 0.35 to 0.20 to retain 80%+ of outcomes for learning
+LEARNER_MIN_CONFIDENCE = 0.20
 
 # Default weights for all agents (core + academic edge agents)
 DEFAULT_WEIGHTS: Dict[str, float] = {
@@ -96,7 +96,7 @@ class WeightLearner:
         learning_rate: float = 0.05,
         min_weight: float = 0.2,
         max_weight: float = 2.5,
-        decay_rate: float = 0.001,
+        decay_rate: float = 0.005,  # Phase C: increased from 0.001 for faster regime adaptation
     ):
         self.learning_rate = learning_rate
         self.min_weight = min_weight
@@ -104,6 +104,11 @@ class WeightLearner:
         self.decay_rate = decay_rate
 
         self._weights: Dict[str, float] = dict(DEFAULT_WEIGHTS)
+        # Phase C: Regime-stratified weights — separate Beta(α,β) per regime
+        # key = (agent_name, regime) -> {"alpha": float, "beta": float}
+        self._regime_weights: Dict[str, Dict[str, Dict[str, float]]] = defaultdict(
+            lambda: defaultdict(lambda: {"alpha": 2.0, "beta": 2.0})
+        )
         self._decision_history: List[Dict[str, Any]] = []
         self.update_count: int = 0
         self.last_update: Optional[str] = None
@@ -132,12 +137,21 @@ class WeightLearner:
 
         Called by CouncilGate after each council evaluation.
         The outcome is recorded later when the trade resolves.
+        Phase C: records trade_id and regime for proper attribution.
         """
+        # Phase C: Use decision_id as trade_id for unique matching
+        trade_id = getattr(decision, "decision_id", "") or ""
+        if not trade_id:
+            # Fallback: generate from symbol + timestamp
+            trade_id = f"{decision.symbol}:{decision.timestamp}"
+
         record = {
+            "trade_id": trade_id,
             "symbol": decision.symbol,
             "timestamp": decision.timestamp,
             "final_direction": decision.final_direction,
             "final_confidence": decision.final_confidence,
+            "regime": getattr(decision, "regime", "UNKNOWN") or "UNKNOWN",
             "votes": [
                 {
                     "agent_name": v.agent_name,
@@ -184,6 +198,18 @@ class WeightLearner:
             return False, "low_confidence"
         return True, "ok"
 
+    def get_regime_weight(self, agent_name: str, regime: str) -> float:
+        """Get regime-stratified weight for an agent (Phase C).
+
+        Returns the Beta distribution mean for the agent in the given regime.
+        Falls back to the global weight if no regime data available.
+        """
+        if regime and agent_name in self._regime_weights:
+            rw = self._regime_weights[agent_name].get(regime)
+            if rw and (rw["alpha"] + rw["beta"]) > 4.0:  # Enough data
+                return rw["alpha"] / (rw["alpha"] + rw["beta"])
+        return self._weights.get(agent_name, 1.0)
+
     def update_from_outcome(
         self,
         symbol: str,
@@ -198,6 +224,7 @@ class WeightLearner:
         is_censored: bool = False,
         confidence: float = 1.0,
         outcome_id: Optional[str] = None,
+        trade_id: Optional[str] = None,
     ) -> Dict[str, float]:
         """Update weights based on a trade outcome.
 
@@ -259,12 +286,18 @@ class WeightLearner:
             logger.debug("WeightLearner: outcome censored, skipping weight update for %s", symbol)
             return self._weights
 
-        # Find matching decision
+        # Phase C: Match by trade_id first (unique), fall back to symbol match
         matched = None
-        for d in reversed(self._decision_history):
-            if d["symbol"].upper() == symbol.upper():
-                matched = d
-                break
+        if trade_id:
+            for d in reversed(self._decision_history):
+                if d.get("trade_id") == trade_id:
+                    matched = d
+                    break
+        if not matched:
+            for d in reversed(self._decision_history):
+                if d["symbol"].upper() == symbol.upper():
+                    matched = d
+                    break
 
         if not matched:
             logger.debug(
@@ -282,6 +315,9 @@ class WeightLearner:
             )
         else:
             correct_direction = outcome_direction
+
+        # Phase C: Use regime at trade entry time (not current regime)
+        entry_regime = matched.get("regime", "UNKNOWN")
 
         # Magnitude factor: larger wins/losses have more learning impact
         magnitude = 1.0
@@ -301,16 +337,17 @@ class WeightLearner:
                 continue  # Skip agents with negligible contribution
 
             aligned = vote["direction"] == correct_direction
-            confidence = vote["confidence"]
+            vote_confidence = vote["confidence"]
             lr = self.learning_rate * magnitude
 
             old_weight = self._weights[agent]
             if aligned:
                 # Reward: increase weight proportional to confidence
-                new_weight = old_weight * (1.0 + lr * confidence)
+                new_weight = old_weight * (1.0 + lr * vote_confidence)
             else:
-                # Penalize: decrease weight proportional to confidence
-                new_weight = old_weight * (1.0 - lr * confidence)
+                # Phase C: Symmetric penalty — penalize as strongly as reward
+                # (Previously biased toward positive boost)
+                new_weight = old_weight * (1.0 - lr * vote_confidence)
 
             # Clamp
             new_weight = max(self.min_weight, min(self.max_weight, new_weight))
@@ -321,6 +358,14 @@ class WeightLearner:
                 "aligned": aligned,
                 "direction": vote["direction"],
             }
+
+            # Phase C: Update regime-stratified Beta(α,β) distribution
+            if entry_regime and entry_regime != "UNKNOWN":
+                rw = self._regime_weights[agent][entry_regime]
+                if aligned:
+                    rw["alpha"] += 1.0 * magnitude
+                else:
+                    rw["beta"] += 1.0 * magnitude
 
         # ── Auxiliary learning from debate + red team ─────────────────────
         # If bear correctly predicted loss → increase bear debater weight

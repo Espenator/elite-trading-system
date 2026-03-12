@@ -1,6 +1,6 @@
 # Project State - Embodier Trader (Embodier.ai)
 > Paste this file at the start of every new AI chat session. Say: "Read this project state document. Acknowledge you understand the architecture, and then I will give you your first task."
-> Last updated: March 11, 2026 (Phase A complete)
+> Last updated: March 12, 2026 (Phase A complete, CLAUDE.md audit, .env restore, 5 boot fixes)
 
 ## Identity
 - **Project**: Embodier Trader by Embodier.ai
@@ -8,9 +8,10 @@
 - **Repo**: github.com/Espenator/elite-trading-system (PUBLIC — this is the ONE repo for all code)
 - **Legacy Repo**: github.com/Espenator/Embodier-Trader — forked HTML site + orphaned JS agents. TO BE ARCHIVED. Do NOT build here.
 - **Owner**: Espenator (Asheville, NC)
-- **Status**: Active development — v4.1.0-dev. Backend startup, WebSocket, and auth blockers resolved.
+- **Status**: Active development — v4.1.0-dev. Phase A complete. All critical startup blockers resolved.
 - **Philosophy**: Embodied Intelligence — the system IS profit, not seeking it. It operates as a conscious profit-seeking being with a Central Nervous System (CNS) architecture.
-- **Current Focus**: Council runs 35-agent DAG; 34 API routes; 68+ services; 666 tests passing; Bearer auth fail-closed; WebSocket active (5 pages); desktop BUILD-READY.
+- **Current Focus**: Council runs 35-agent DAG; 43 API route files (364+ endpoints); 72+ services; 666+ tests passing; Bearer auth fail-closed; WebSocket active (25 channels); desktop BUILD-READY.
+- **Latest Session Fixes**: Phase B: UNLOCK ALPHA complete — regime-adaptive gate thresholds (B1), independent short scoring (B2), separate buy/sell cooldowns (B3), priority queue with market open burst 5→8 (B4), tiered order types market/limit/TWAP (B5), partial fill re-execution (B6), DuckDB viability gate (B7), last_equity heat check (B8), UW options flow wired to MessageBus (0c). 921 tests passing.
 
 ## Two-PC Development Setup
 
@@ -80,17 +81,20 @@ Both IPs are DHCP-reserved on the AT&T BGW320-505 router (192.168.1.254).
 
 Slack tokens expire every 12h — refresh at https://api.slack.com/apps. Config in `backend/.env`.
 
-## LATEST STATE (March 11, 2026) — v4.1.0-dev (Phase A Complete)
+## LATEST STATE (March 12, 2026) — v4.1.0-dev (Phase A Complete)
 
 ### Current Architecture Snapshot
 - **Council**: 35-agent DAG in 7 stages. All agents are real implementations (not stubs). CouncilGate invokes full council on every signal (score >= 65).
-- **Backend**: 34 API route files in api/v1/; 68+ services. brain_service wired (hypothesis_agent → gRPC).
-- **Tests**: 666 passing (backend pytest). CI GREEN.
+- **Backend**: 43 API route files in api/v1/ (364+ endpoints); 72+ services (incl. subdirs: scouts, llm_clients, channel_agents, firehose_agents, integrations). brain_service wired (hypothesis_agent → gRPC).
+- **Tests**: 666+ passing (backend pytest). CI GREEN.
 - **Auth**: Bearer token auth, fail-closed for live trading.
-- **WebSocket**: Active; 5 pages wired (signals, orders, council, market data).
+- **WebSocket**: Active; 25 channels with token auth, heartbeat (30s/60s). 5 pages wired.
 - **Desktop**: Electron app in `desktop/` — BUILD-READY.
 - **LLM Intelligence**: 3-tier router — Ollama (routine) → Perplexity (sonar-pro) → Claude. Claude reserved for 6 deep-reasoning tasks.
-- **Production Readiness**: ~65%. Architecture solid, enforcement gaps identified.
+- **Data Sources**: 10 active (Alpaca, UW, Finviz, FRED, EDGAR, NewsAPI, Benzinga, SqueezeMetrics, Capitol Trades, Senate Stock Watcher).
+- **Scouts**: 12 continuous discovery scouts (Phase A1 fixed 5 crashes).
+- **Production Readiness**: ~65%. Architecture solid, enforcement gaps identified. Phase A closed critical gaps.
+- **CLAUDE.md files**: Root + frontend-v2 + backend + council + brain_service (comprehensive audit March 12).
 
 ### Deep Audit Results (March 11, 2026)
 A line-by-line audit of the entire codebase found 40 specific issues in 4 categories:
@@ -160,14 +164,14 @@ The codebase had five separate agent/decision systems. As of v3.2.0, Systems 2 a
 - [x] 28 action buttons verified, 5 missing endpoints added
 
 ### Phase A: Stop the Bleeding (P0 — COMPLETE March 11, 2026)
-- [x] Fix 5 scout crashes (added missing service methods + singleton getters to 3 services)
-- [x] Enhanced startup data backfill (checks daily_ohlcv, not just indicators)
-- [x] Wire regime params to order executor (Gate 2b: RED/CRISIS blocks entries)
-- [x] Enforce circuit breakers in order executor (Gate 2c: leverage 2x + concentration 25%)
-- [x] VIX-based regime fallback (VIX>=40=CRISIS, >=30=RED, >=20=YELLOW, <20=GREEN)
-- [x] Paper/live account safety check (forces SHADOW mode on mismatch)
-- [x] Fix DuckDB async lock race condition (thread-safe double-checked locking)
-- [x] Background loop supervisor/respawn (3 retries + Slack alert)
+- [x] A1: Fix 5 scout crashes (added missing service methods + singleton getters to 3 services)
+- [x] A2: Enhanced startup data backfill (checks daily_ohlcv, not just indicators)
+- [x] A3: Wire regime params to order executor (Gate 2b: RED/CRISIS blocks entries)
+- [x] A4: Enforce circuit breakers in order executor (Gate 2c: leverage 2x + concentration 25%)
+- [x] A5: VIX-based regime fallback (VIX>=40=CRISIS, >=30=RED, >=20=YELLOW, <20=GREEN)
+- [x] A6: Paper/live account safety check (forces SHADOW mode on mismatch)
+- [x] A7: Fix DuckDB async lock race condition (thread-safe double-checked locking)
+- [x] A8: Background loop supervisor/respawn (3 retries + Slack alert)
 
 ### Phase B: Unlock Alpha (P0 — remove profit blockers)
 - [ ] Calibrate signal gate threshold (regime-adaptive)
@@ -178,13 +182,20 @@ The codebase had five separate agent/decision systems. As of v3.2.0, Systems 2 a
 - [ ] Partial fill re-execution
 - [ ] Fix viability gate and portfolio heat check
 
-### Phase C: Sharpen the Brain (P1 — intelligence quality)
-- [ ] Fix weight learner (lower confidence floor, regime-stratified, symmetric loss)
-- [ ] Confidence calibration (Brier score)
-- [ ] Wire debate to learning, council audit trail
-- [ ] Fix trade stats R-multiple, wire homeostasis to sizing
-- [ ] Regime-adaptive thresholds everywhere
-- [ ] Publish all data sources to MessageBus
+### Phase C: Sharpen the Brain — COMPLETE (March 12, 2026)
+- [x] Fix weight learner (confidence floor 0.20, regime-stratified Beta(α,β), symmetric loss, trade_id matching)
+- [x] Confidence calibration (Brier score tracking per agent, 20% penalty for poorly calibrated)
+- [x] Wire debate to learning, council decision audit trail (DuckDB tables + API endpoints)
+- [x] Fix trade stats R-multiple (actual stop_price, r_multiple_estimated flag)
+- [x] Wire homeostasis to position sizing (AGGRESSIVE/NORMAL/DEFENSIVE/HALTED multipliers)
+- [x] Regime-adaptive thresholds centralized in config/regime_thresholds.py
+- [x] Publish all 5 data sources to MessageBus (FRED, SEC EDGAR, SqueezeMetrics, Benzinga, Capitol Trades)
+- [x] Silent failure alerting (alert.agent_failure, alert.data_starvation, alert.council_degraded)
+- [x] Activate SelfAwareness Bayesian tracking (Issue #48)
+- [x] IntelligenceCache.start() at startup (Issue #49)
+- [x] 12 Academic Edge agents in runner.py DAG (Issue #50)
+- [x] brain_service gRPC wired to hypothesis_agent (Issue #51)
+- [x] Explicit weights for 6 supplemental agents (Issue #52)
 
 ### Phase D: Continuous Intelligence (P1)
 - [ ] Autonomous daily data backfill
@@ -302,12 +313,12 @@ AlpacaStreamService
 6. Council Gate: signal.generated -> CouncilGate -> run_council() -> council.verdict -> OrderExecutor
 7. Weight Learning: WeightLearner.update(agent, won) adjusts Bayesian alpha/beta -> arbiter uses learned weights
 
-## Current State (March 11, 2026 — v4.1.0-dev, Phase A Complete)
-- CI: 666 tests passing (backend pytest), GREEN
-- Version: 4.1.0-dev. Deep audit + Phase A critical fixes complete.
-- Production Readiness: ~75%. Critical enforcement gaps closed, scout crashes fixed, safety gates active.
+## Current State (March 12, 2026 — v4.1.0-dev, Phase A Complete)
+- CI: 666+ tests passing (backend pytest), GREEN
+- Version: 4.1.0-dev. Deep audit + Phase A critical fixes + CLAUDE.md audit complete.
+- Production Readiness: ~65%. Critical enforcement gaps closed, scout crashes fixed, safety gates active.
 - Frontend: 14 pages, all pixel-matched to mockups, wired to real API hooks, 28 action buttons verified
-- Backend: 34 API routes, 68+ service files, all mounted and responding
+- Backend: 43 API route files (364+ endpoints), 72+ service files, all mounted and responding
 - Council: 35-agent DAG — all agents are real implementations (not stubs). Sub-1s latency.
 - Phase A Fixes Applied: Regime enforcement, circuit breakers, paper/live safety, DuckDB lock, background supervisor, scout crashes, data backfill
 - Remaining: Signal gate needs calibration; shorts inverted; weight learner too strict; no limit orders
@@ -315,6 +326,7 @@ AlpacaStreamService
 - Auth: Bearer token, fail-closed for live trading
 - Kelly Sizing: Real DuckDB stats; Mock Guard active; R-multiple assumes 2% stop (needs fix)
 - Infrastructure: Two-PC LAN, all API keys configured
+- Latest commit: f4be8c1 "fix: DuckDB thread-safety segfault + TurboScanner deque slice bug"
 - Next Steps: Phase B (unlock alpha) → Phase C (sharpen brain) → Phase D (data) → Phase E (harden)
 - Full plan: See PLAN.md (40 specific issues, 5 phases, 10-15 remaining sessions)
 

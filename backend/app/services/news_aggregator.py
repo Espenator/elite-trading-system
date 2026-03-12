@@ -528,7 +528,7 @@ class NewsAggregator:
             "rss_feeds": len(RSS_FEEDS),
             "seen_hashes": len(self._seen_hashes),
             "stats": dict(self._stats),
-            "recent_news": [n.to_dict() for n in self._news_history[-20:]],
+            "recent_news": [n.to_dict() for n in list(self._news_history)[-20:]],
             "recent_breaking": [
                 n.to_dict() for n in self._news_history if n.urgency == "breaking"
             ][-10:],

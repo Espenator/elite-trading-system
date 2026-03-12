@@ -1,6 +1,7 @@
 """FRED (Federal Reserve Economic Data) API service."""
 
 import logging
+import time
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -96,6 +97,20 @@ class FredService:
                     snapshot[key] = float(obs["value"])
             except Exception as e:
                 logger.debug("FRED macro snapshot %s (%s) error: %s", key, series_id, e)
+
+        # C8: Publish macro snapshot to MessageBus
+        try:
+            from app.core.message_bus import get_message_bus
+            bus = get_message_bus()
+            if bus._running:
+                await bus.publish("macro.fred", {
+                    "type": "macro_snapshot",
+                    "data": snapshot,
+                    "source": "fred_service",
+                    "timestamp": time.time(),
+                })
+        except Exception:
+            pass
 
         return snapshot
 

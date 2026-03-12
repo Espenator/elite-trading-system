@@ -1,8 +1,11 @@
 """Data and model status API (research doc: dashboard monitoring)."""
 
+import logging
+
 from fastapi import APIRouter
 from app.data.storage import get_conn, DB_PATH
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -59,5 +62,6 @@ def get_data_status():
             pass
         conn.close()
     except Exception as e:
-        result["error"] = str(e)
+        logger.warning("Status check error: %s", e)
+        result["error"] = "Service unavailable"
     return result

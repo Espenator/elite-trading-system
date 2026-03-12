@@ -127,7 +127,7 @@ async def agent_history(name: str):
         }
     except Exception as e:
         logger.error("Agent history failed for %s: %s", name, e)
-        raise HTTPException(status_code=500, detail=f"Agent history failed: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 class OverrideStatusRequest(BaseModel):
@@ -156,7 +156,8 @@ async def override_agent_status(name: str, req: OverrideStatusRequest):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Override agent status failed for %s: %s", name, e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 class OverrideWeightRequest(BaseModel):
@@ -179,7 +180,8 @@ async def override_agent_weight(name: str, req: OverrideWeightRequest):
             "distribution": sa.weights.get_distribution(name),
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Override agent weight failed for %s: %s", name, e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # ─── Blackboard ───
@@ -304,7 +306,8 @@ async def update_directive(filename: str, req: DirectiveUpdateRequest):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Directive save failed: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # ─── Council Last Verdict ───
