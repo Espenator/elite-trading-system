@@ -1,6 +1,6 @@
 # Project State - Embodier Trader (Embodier.ai)
 > Paste this file at the start of every new AI chat session. Say: "Read this project state document. Acknowledge you understand the architecture, and then I will give you your first task."
-> Last updated: March 12, 2026 (Phase A complete, CLAUDE.md audit complete)
+> Last updated: March 12, 2026 (Phase A complete, CLAUDE.md audit, .env restore, 5 boot fixes)
 
 ## Identity
 - **Project**: Embodier Trader by Embodier.ai
@@ -11,7 +11,7 @@
 - **Status**: Active development — v4.1.0-dev. Phase A complete. All critical startup blockers resolved.
 - **Philosophy**: Embodied Intelligence — the system IS profit, not seeking it. It operates as a conscious profit-seeking being with a Central Nervous System (CNS) architecture.
 - **Current Focus**: Council runs 35-agent DAG; 43 API route files (364+ endpoints); 72+ services; 666+ tests passing; Bearer auth fail-closed; WebSocket active (25 channels); desktop BUILD-READY.
-- **Latest Commit**: f4be8c1 "fix: DuckDB thread-safety segfault + TurboScanner deque slice bug"
+- **Latest Session Fixes**: .env restored with all keys + generated secrets, deque slice bugs fixed (3 files), 6 missing MessageBus topics added, daily_features DuckDB table created, Electron cache path fix, zero-subscriber topic audit (14 wired / 20 publish-only / 20+ planned)
 
 ## Two-PC Development Setup
 

@@ -345,6 +345,43 @@ class DuckDBStorage:
             )
         """)
 
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS daily_features (
+                symbol VARCHAR NOT NULL,
+                date DATE NOT NULL,
+                close DOUBLE,
+                return_1d DOUBLE,
+                return_5d DOUBLE,
+                ma_10 DOUBLE,
+                ma_20 DOUBLE,
+                ma_10_dist DOUBLE,
+                ma_20_dist DOUBLE,
+                vol_20 DOUBLE,
+                vol_rel DOUBLE,
+                rsi_14 DOUBLE,
+                macd DOUBLE,
+                macd_signal DOUBLE,
+                atr_14 DOUBLE,
+                bb_upper DOUBLE,
+                bb_lower DOUBLE,
+                adx_14 DOUBLE,
+                target DOUBLE,
+                PRIMARY KEY (symbol, date)
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS daily_predictions (
+                symbol VARCHAR NOT NULL,
+                date DATE NOT NULL,
+                model_id VARCHAR,
+                prediction DOUBLE,
+                confidence DOUBLE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (symbol, date, model_id)
+            )
+        """)
+
         # Migrate existing features table: add columns that may be missing
         for col, typedef in [
             ("pipeline_version", "VARCHAR DEFAULT '1.0.0'"),

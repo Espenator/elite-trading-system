@@ -47,69 +47,102 @@ class MessageBus:
     modes — callers never need to know which transport is active.
     """
 
+    # ── Zero-Subscriber Audit (March 12, 2026) ──────────────────────────────
+    # WIRED = has both publisher(s) and subscriber(s) — working end-to-end
+    # PUBLISH_ONLY = published but no subscriber yet — NEEDS_WIRING in Phase B-E
+    # PLANNED = reserved for upcoming features — no publisher or subscriber yet
+    #
+    # WIRED (14 topics):
+    #   market_data.bar, market_data.quote, signal.generated, order.submitted,
+    #   order.filled, order.cancelled, council.verdict, outcome.resolved,
+    #   perception.unusualwhales, swarm.idea, swarm.result, scout.discovery,
+    #   triage.escalated, symbol.prep.requested
+    #
+    # PUBLISH_ONLY (20 topics — publishers exist but no subscriber wired yet):
+    #   signal.unified, scout.heartbeat, triage.dropped, swarm.spawned,
+    #   knowledge.ingested, hitl.approval_needed, perception.finviz.screener,
+    #   finviz.screener, perception.macro, perception.edgar,
+    #   unusual_whales.flow, unusual_whales.congress, unusual_whales.darkpool,
+    #   unusual_whales.insider, perception.gex, signal.external, alert.health,
+    #   position.partial_exit, position.closed, symbol.prep.ready
+    #
+    # PLANNED (20 topics — reserved, no publisher or subscriber yet):
+    #   model.updated, risk.alert, system.heartbeat, cluster.telemetry,
+    #   cluster.node_status, perception.flow.uw_analysis, perception.flow.whale,
+    #   perception.scanner.daily, perception.scanner.pullback,
+    #   perception.scanner.rebound, perception.scanner.short_squeeze,
+    #   perception.scanner.accumulation, perception.scanner.sector,
+    #   perception.scanner.earnings, perception.scanner.expected_move,
+    #   perception.world_intel, perception.regime.openclaw, perception.regime.hmm,
+    #   perception.macro.openclaw, signal.openclaw.composite,
+    #   signal.openclaw.ensemble, ingest.raw, ingest.health, ingest.dlq,
+    #   ingest.to_awareness, ingest.awareness_enriched
+    # ──────────────────────────────────────────────────────────────────────────
+
     VALID_TOPICS = {
+        # ── WIRED (publisher + subscriber active) ──
         "market_data.bar",
         "market_data.quote",
         "signal.generated",
         "order.submitted",
         "order.filled",
         "order.cancelled",
+        "council.verdict",
+        "outcome.resolved",
+        "perception.unusualwhales",
+        "swarm.idea",
+        "swarm.result",
+        "scout.discovery",
+        "triage.escalated",
+        "symbol.prep.requested",
+        # ── PUBLISH_ONLY (publisher exists, subscriber needed) ──
+        "signal.unified",
+        "scout.heartbeat",
+        "triage.dropped",
+        "swarm.spawned",
+        "knowledge.ingested",
+        "hitl.approval_needed",
+        "perception.finviz.screener",
+        "finviz.screener",
+        "perception.macro",
+        "perception.edgar",
+        "unusual_whales.flow",
+        "unusual_whales.congress",
+        "unusual_whales.darkpool",
+        "unusual_whales.insider",
+        "perception.gex",
+        "signal.external",
+        "alert.health",
+        "position.partial_exit",
+        "position.closed",
+        "symbol.prep.ready",
+        # ── PLANNED (reserved for Phase B-E features) ──
         "model.updated",
         "risk.alert",
         "system.heartbeat",
-        "council.verdict",
-        "hitl.approval_needed",
-        # Swarm intelligence topics
-        "swarm.idea",           # New idea submitted for analysis
-        "swarm.spawned",        # Swarm spawned and running
-        "swarm.result",         # Swarm analysis complete
-        "knowledge.ingested",   # New knowledge fed into the system
-        "scout.discovery",      # Scout found an opportunity
-        "scout.heartbeat",      # Scout agent health tick (E2)
-        # Triage layer topics (E3)
-        "triage.escalated",     # Idea passed quality gate → HyperSwarm
-        "triage.dropped",       # Idea below threshold (audit trail)
-        # Cluster telemetry topics
-        "cluster.telemetry",    # GPU/VRAM/Ollama stats from cluster nodes
-        "cluster.node_status",  # Node online/offline/degraded transitions
-        # Outcome tracking
-        "outcome.resolved",     # Position outcome resolved (win/loss/scratch)
-        # Perception layer — data source topics
-        "perception.unusualwhales",     # UnusualWhales alerts (options flow, dark pool, congress)
-                        "unusual_whales.flow",           # UnusualWhales options flow alerts (agent-facing)
-        "unusual_whales.congress",       # UnusualWhales congress trading activity
-        "unusual_whales.darkpool",       # UnusualWhales dark pool transactions
-        "perception.finviz.screener",   # Finviz screener results (bulk from service)
-        "finviz.screener",              # Finviz adapter per-row SourceEvent
-        "perception.macro",             # FRED macro data (CPI, unemployment, VIX, 10Y yield)
-        "perception.edgar",             # SEC EDGAR filings
-        # OpenClaw graduated scanner topics
-        "perception.flow.uw_analysis",  # UW agents analysis
-        "perception.flow.whale",        # Whale flow detection
-        "perception.scanner.daily",     # Daily scanner results
-        "perception.scanner.pullback",  # Pullback detector
-        "perception.scanner.rebound",   # Rebound detector
-        "perception.scanner.short_squeeze",  # Short squeeze detector
-        "perception.scanner.accumulation",   # AMD accumulation detector
-        "perception.scanner.sector",    # Sector rotation
-        "perception.scanner.earnings",  # Earnings calendar
-        "perception.scanner.expected_move",  # FOM expected moves
-        "perception.world_intel",       # Sensorium world intelligence
-        "perception.regime.openclaw",   # OpenClaw regime detection
-        "perception.regime.hmm",        # HMM regime detection
-        "perception.macro.openclaw",    # OpenClaw macro context
-        "signal.openclaw.composite",    # OpenClaw composite scorer (0-100)
-        "signal.openclaw.ensemble",     # OpenClaw ensemble scorer (ML)
-        "signal.unified",               # UnifiedProfitEngine output
-        # Firehose ingestion topics
+        "cluster.telemetry",
+        "cluster.node_status",
+        "perception.flow.uw_analysis",
+        "perception.flow.whale",
+        "perception.scanner.daily",
+        "perception.scanner.pullback",
+        "perception.scanner.rebound",
+        "perception.scanner.short_squeeze",
+        "perception.scanner.accumulation",
+        "perception.scanner.sector",
+        "perception.scanner.earnings",
+        "perception.scanner.expected_move",
+        "perception.world_intel",
+        "perception.regime.openclaw",
+        "perception.regime.hmm",
+        "perception.macro.openclaw",
+        "signal.openclaw.composite",
+        "signal.openclaw.ensemble",
         "ingest.raw",
         "ingest.health",
         "ingest.dlq",
         "ingest.to_awareness",
         "ingest.awareness_enriched",
-        # Symbol prep (Phase 2 — hot-path purity)
-        "symbol.prep.requested",
-        "symbol.prep.ready",
     }
 
     # Topics bridged through Redis when cluster mode is active.
