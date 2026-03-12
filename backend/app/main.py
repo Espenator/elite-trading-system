@@ -1722,6 +1722,57 @@ async def readiness():
     except Exception:
         checks["services"] = "registry_unavailable"
 
+    # Ollama LLM availability (v5.0.0 audit)
+    try:
+        import httpx
+        ollama_url = getattr(settings, "OLLAMA_BASE_URL", "http://localhost:11434")
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            resp = await client.get(f"{ollama_url}/api/tags")
+            if resp.status_code == 200:
+                models = resp.json().get("models", [])
+                checks["ollama"] = {"status": "ok", "models_loaded": len(models)}
+            else:
+                checks["ollama"] = {"status": "degraded", "http_code": resp.status_code}
+    except Exception:
+        checks["ollama"] = {"status": "unavailable"}
+
+    # Redis connectivity (v5.0.0 audit)
+    redis_url = getattr(settings, "REDIS_URL", "").strip()
+    if redis_url:
+        try:
+            import socket
+            from urllib.parse import urlparse
+            parsed = urlparse(redis_url)
+            host = parsed.hostname or "localhost"
+            port = parsed.port or 6379
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(2)
+            sock.connect((host, port))
+            sock.sendall(b"PING\r\n")
+            data = sock.recv(64)
+            sock.close()
+            checks["redis"] = "ok" if b"PONG" in data else "degraded"
+        except Exception:
+            checks["redis"] = "unavailable"
+            redis_required = getattr(settings, "REDIS_REQUIRED", False)
+            if redis_required:
+                ready = False
+    else:
+        checks["redis"] = "not_configured"
+
+    # Brain Service / PC2 gRPC (v5.0.0 audit)
+    try:
+        brain_host = getattr(settings, "BRAIN_HOST", "localhost")
+        brain_port = int(getattr(settings, "BRAIN_PORT", 50051))
+        import socket
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(2)
+        result = sock.connect_ex((brain_host, brain_port))
+        sock.close()
+        checks["brain_service"] = "ok" if result == 0 else "unavailable"
+    except Exception:
+        checks["brain_service"] = "unavailable"
+
     status_code = 200 if ready else 503
     return JSONResponse(
         status_code=status_code,

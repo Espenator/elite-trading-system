@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     # ── App ─────────────────────────────────────────────────
     APP_NAME: str = "Embodier Trader"
     PROJECT_NAME: str = "Embodier Trader"
-    APP_VERSION: str = "4.1.0-dev"  # Single source of truth for version
+    APP_VERSION: str = "5.0.0"  # Single source of truth for version
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
     ENVIRONMENT: str = "production"
@@ -281,6 +281,7 @@ class Settings(BaseSettings):
     # Set to enable real-time pub/sub between PC1 and PC2.
     # Leave empty for local-only MessageBus (single-PC mode).
     REDIS_URL: str = ""  # e.g., redis://192.168.1.105:6379/0
+    REDIS_REQUIRED: bool = False  # True = /readyz fails when Redis is down (production)
     SCANNER_OLLAMA_URLS: str = "http://localhost:11434,http://192.168.1.116:11434"
 
     # ── GPU Telemetry ─────────────────────────────────────
@@ -321,6 +322,7 @@ class Settings(BaseSettings):
     # ── Knowledge System Settings ─────────────────────────
     KNOWLEDGE_SYSTEM_ENABLED: bool = True
     KNOWLEDGE_EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
+    EMBEDDING_DEVICE: str = ""  # "cuda", "cuda:0", "cpu", or "" for auto-detect
     KNOWLEDGE_HEURISTIC_MIN_SAMPLE: int = 25
     KNOWLEDGE_HEURISTIC_MIN_WIN_RATE: float = 0.55
 
@@ -400,7 +402,7 @@ class Settings(BaseSettings):
     # Learner accepts only valid/attributable outcomes; drop low-quality with audit.
     STRICT_LEARNER_INPUTS: bool = True
     # Startup fails (or hard-degraded) if critical pipeline topics lack required subscribers.
-    FAIL_ON_CRITICAL_SUBSCRIBER_MISSING: bool = False
+    FAIL_ON_CRITICAL_SUBSCRIBER_MISSING: bool = True
     # Portfolio-level hard limits (exposure, concentration, daily loss, drawdown).
     ENABLE_PORTFOLIO_RISK_GOVERNOR: bool = True
     # Pre-trade slippage/liquidity viability gate (deny when expected cost > edge).

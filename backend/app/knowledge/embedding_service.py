@@ -30,7 +30,13 @@ class EmbeddingEngine:
             from sentence_transformers import SentenceTransformer
             import torch
 
-            device = "cuda:0" if torch.cuda.is_available() else "cpu"
+            # Respect EMBEDDING_DEVICE from config; auto-detect if empty
+            from app.core.config import settings
+            cfg_device = getattr(settings, "EMBEDDING_DEVICE", "").strip()
+            if cfg_device:
+                device = cfg_device
+            else:
+                device = "cuda:0" if torch.cuda.is_available() else "cpu"
             self._model = SentenceTransformer(self._model_name, device=device)
             self._device = device
             logger.info("EmbeddingEngine loaded %s on %s", self._model_name, device)
