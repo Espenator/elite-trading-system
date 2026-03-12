@@ -51,8 +51,19 @@ class CircuitBreaker:
             self.position_limit_check(blackboard),
             self.market_hours_check(blackboard),
         ]
-        results = await asyncio.gather(*checks)
+        try:
+            # Circuit breakers MUST complete within 5s — they're safety-critical
+            results = await asyncio.wait_for(
+                asyncio.gather(*checks, return_exceptions=True),
+                timeout=5.0,
+            )
+        except asyncio.TimeoutError:
+            logger.error("Circuit breaker check_all TIMED OUT — halting for safety")
+            return "Circuit breaker timeout — halting as precaution"
         for reason in results:
+            if isinstance(reason, Exception):
+                logger.warning("Circuit breaker check raised: %s", reason)
+                continue
             if reason:
                 logger.warning("Circuit breaker FIRED: %s", reason)
                 return reason

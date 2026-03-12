@@ -286,16 +286,23 @@ class WeightLearner:
             logger.debug("WeightLearner: outcome censored, skipping weight update for %s", symbol)
             return self._weights
 
-        # Phase C: Match by trade_id first (unique), fall back to symbol match
+        # Phase C: Match by trade_id first (unique), then outcome_id, fall back to symbol match
         matched = None
         if trade_id:
             for d in reversed(self._decision_history):
                 if d.get("trade_id") == trade_id:
                     matched = d
                     break
-        if not matched:
+        if not matched and outcome_id:
+            # Callers may pass trade_id as outcome_id — check both fields
             for d in reversed(self._decision_history):
-                if d["symbol"].upper() == symbol.upper():
+                if d.get("trade_id") == outcome_id or d.get("outcome_id") == outcome_id:
+                    matched = d
+                    break
+        if not matched:
+            sym_upper = symbol.strip().upper()
+            for d in reversed(self._decision_history):
+                if d["symbol"].strip().upper() == sym_upper:
                     matched = d
                     break
 

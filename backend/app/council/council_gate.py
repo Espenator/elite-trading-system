@@ -304,11 +304,25 @@ class CouncilGate:
                     "source": "council_gate",
                 }
 
-                decision = await run_council(
-                    symbol=symbol,
-                    timeframe="1d",
-                    context=context,
-                )
+                # Global council timeout: 90s max (individual agents timeout at 30s,
+                # but cumulative stages + intelligence + debate can stack up)
+                _council_timeout = float(os.environ.get("COUNCIL_GLOBAL_TIMEOUT", "90"))
+                try:
+                    decision = await asyncio.wait_for(
+                        run_council(
+                            symbol=symbol,
+                            timeframe="1d",
+                            context=context,
+                        ),
+                        timeout=_council_timeout,
+                    )
+                except asyncio.TimeoutError:
+                    self._councils_vetoed += 1
+                    logger.error(
+                        "⏰ Council GLOBAL TIMEOUT for %s after %.0fs — vetoing",
+                        symbol, _council_timeout,
+                    )
+                    return
 
                 # Process council verdict
                 if decision.vetoed:

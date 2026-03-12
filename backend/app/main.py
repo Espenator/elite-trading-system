@@ -431,13 +431,15 @@ async def _start_event_driven_pipeline():
         # Without this, signal.generated has NO trading consumer and nothing executes.
         async def _signal_to_verdict_fallback(signal_data):
             """Bypass council — convert signal.generated directly to council.verdict format."""
-            score = signal_data.get("score", 0)
-            if score < 0.65:  # Still gate on minimum score
+            from app.core.score_semantics import coerce_signal_score_0_100, score_to_final_confidence_0_1
+            raw_score = signal_data.get("score", 0)
+            score_100 = coerce_signal_score_0_100(raw_score, context="signal_to_verdict_fallback")
+            if score_100 < 65.0:  # Gate on minimum score (0-100 scale)
                 return
             await _message_bus.publish("council.verdict", {
                 "symbol": signal_data.get("symbol", ""),
                 "final_direction": signal_data.get("label", "long"),
-                "final_confidence": min(score, 1.0),
+                "final_confidence": score_to_final_confidence_0_1(score_100, context="signal_to_verdict_fallback"),
                 "execution_ready": True,
                 "vetoed": False,
                 "votes": [],
@@ -966,14 +968,16 @@ async def _start_event_driven_pipeline():
     # 24b. outcome.resolved subscribers — close the feedback loop (Audit Bug #12)
     async def _on_outcome_resolved(outcome_data):
         """Feed resolved outcomes to WeightLearner and SelfAwareness.
-        IMPORTANT: Skip censored outcomes to protect learning integrity."""
-        if outcome_data.get("is_censored", False):
+        Censored outcomes are passed through with is_censored flag — WeightLearner
+        defends itself (skips weight updates for censored). This preserves monitoring
+        data and respects mark_to_market policy where timeouts carry valid PnL."""
+        is_censored = outcome_data.get("is_censored", False)
+        if is_censored:
             log.info(
-                "⏭️ Skipping censored outcome for %s (reason: %s)",
+                "⚠️ Censored outcome for %s (reason: %s) — passing to WeightLearner with is_censored=True",
                 outcome_data.get("symbol", "?"),
                 outcome_data.get("close_reason", "unknown"),
             )
-            return
         try:
             from app.council.weight_learner import get_weight_learner
             learner = get_weight_learner()
@@ -982,9 +986,14 @@ async def _start_event_driven_pipeline():
                 outcome_direction="win" if outcome_data.get("pnl_pct", 0) > 0.001 else "loss",
                 pnl=outcome_data.get("pnl", 0.0),
                 r_multiple=outcome_data.get("r_multiple", 0.0),
+                is_censored=is_censored,
             )
         except Exception as e:
             log.debug("WeightLearner outcome update failed: %s", e)
+
+        if is_censored:
+            # SelfAwareness should NOT learn from censored outcomes
+            return
 
         try:
             from app.council.self_awareness import get_self_awareness
@@ -1473,13 +1482,65 @@ async def lifespan(app: FastAPI):
         log.info("\u26A0\uFE0F Background loops disabled (BACKGROUND_LOOPS=false)")
 
     # Event loop watchdog — logs every 5s to detect freezes
+    # 30. Wire critical PUBLISH_ONLY subscribers (Audit Item 2)
+    # These events were published into the void — now they have handlers.
+    async def _on_hitl_approval_needed(data):
+        """Log HITL requests and alert operator — human must approve before trade."""
+        log.warning(
+            "🛑 HITL APPROVAL NEEDED: %s %s confidence=%.1f — awaiting human decision",
+            data.get("symbol", "?"), data.get("direction", "?"),
+            data.get("confidence", 0),
+        )
+        # Forward to alert.health for dashboard visibility
+        try:
+            await _message_bus.publish("alert.health", {
+                "level": "warning",
+                "source": "hitl",
+                "message": f"Trade approval needed: {data.get('symbol', '?')} {data.get('direction', '?')}",
+                "data": data,
+            })
+        except Exception:
+            pass
+
+    async def _on_position_closed(data):
+        """Track closed positions for portfolio analytics and risk recalculation."""
+        log.info(
+            "📊 Position CLOSED: %s pnl=%.2f (%.2f%%) reason=%s",
+            data.get("symbol", "?"), data.get("pnl", 0),
+            data.get("pnl_pct", 0) * 100, data.get("close_reason", "?"),
+        )
+
+    async def _on_position_partial_exit(data):
+        """Log partial exits for position tracking."""
+        log.info(
+            "📉 Partial EXIT: %s qty_closed=%s remaining=%s",
+            data.get("symbol", "?"), data.get("qty_closed", "?"),
+            data.get("qty_remaining", "?"),
+        )
+
+    async def _on_symbol_prep_ready(data):
+        """Symbol preparation complete — ready for signal generation."""
+        log.info(
+            "✅ Symbol PREP READY: %s (features=%d)",
+            data.get("symbol", "?"), len(data.get("features", {})),
+        )
+
+    await _message_bus.subscribe("hitl.approval_needed", _on_hitl_approval_needed)
+    await _message_bus.subscribe("position.closed", _on_position_closed)
+    await _message_bus.subscribe("position.partial_exit", _on_position_partial_exit)
+    await _message_bus.subscribe("symbol.prep.ready", _on_symbol_prep_ready)
+    log.info("✅ 4 critical PUBLISH_ONLY subscribers wired (hitl, position.closed/partial, symbol.prep.ready)")
+
+    _heartbeat_interval = int(os.getenv("HEARTBEAT_INTERVAL_SECONDS", "30"))
+
     async def _event_loop_watchdog():
         import time as _time
         _tick = 0
         while True:
             _tick += 1
-            log.info("🫀 EventLoop heartbeat #%d (alive at T+%ds)", _tick, _tick * 5)
-            await asyncio.sleep(5)
+            if _tick <= 3 or _tick % 12 == 0:  # Log first 3 then every ~6 min
+                log.info("🫀 EventLoop heartbeat #%d (alive at T+%ds)", _tick, _tick * _heartbeat_interval)
+            await asyncio.sleep(_heartbeat_interval)
 
     asyncio.create_task(_event_loop_watchdog())
 

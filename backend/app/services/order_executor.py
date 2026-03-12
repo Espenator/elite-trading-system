@@ -134,6 +134,7 @@ class OrderExecutor:
 
         # State tracking
         self._running = False
+        self._flatten_lock = asyncio.Lock()  # Prevent duplicate emergency flatten calls
         self._start_time: Optional[float] = None
         self._orders: collections.deque = collections.deque(maxlen=10000)
         self._daily_trade_count = 0
@@ -856,6 +857,29 @@ class OrderExecutor:
             # Wait between slices (except after the last one)
             if i < slice_count - 1:
                 await asyncio.sleep(self.TWAP_INTERVAL_SECONDS)
+                # Refresh limit price between slices to avoid stale pricing
+                # (market may have moved during the interval)
+                try:
+                    fresh_price = await self._get_fresh_price(decision.symbol)
+                    if fresh_price and fresh_price > 0:
+                        # Adjust limit price: use NBBO mid, bounded within 0.5% of original
+                        drift_pct = abs(fresh_price - limit_price) / limit_price
+                        if drift_pct < 0.005:  # Within 0.5% — update silently
+                            limit_price = round(fresh_price, 2)
+                        elif drift_pct < 0.02:  # 0.5-2% drift — update with warning
+                            logger.warning(
+                                "TWAP price drift %.2f%% for %s: $%.2f → $%.2f",
+                                drift_pct * 100, decision.symbol, limit_price, fresh_price,
+                            )
+                            limit_price = round(fresh_price, 2)
+                        else:
+                            # >2% drift — suspicious, keep original price
+                            logger.error(
+                                "TWAP price drift %.2f%% for %s TOO LARGE — keeping $%.2f",
+                                drift_pct * 100, decision.symbol, limit_price,
+                            )
+                except Exception as e:
+                    logger.debug("TWAP price refresh failed for %s: %s", decision.symbol, e)
 
         if filled_total > 0:
             self._daily_trade_count += 1
@@ -877,6 +901,31 @@ class OrderExecutor:
             self._signals_rejected += 1
             _emit_execution_attempt("auto_execute", "rejected")
             logger.error("TWAP execution failed entirely for %s", decision.symbol)
+
+    async def _get_fresh_price(self, symbol: str) -> Optional[float]:
+        """Get latest price from PriceCacheService or Alpaca snapshot."""
+        # Try PriceCacheService first (fastest — in-memory)
+        try:
+            from app.services.price_cache_service import get_price_cache
+            cache = get_price_cache()
+            if cache:
+                cached = cache.get_price(symbol)
+                if cached and cached > 0:
+                    return cached
+        except Exception:
+            pass
+        # Fall back to Alpaca latest quote
+        try:
+            alpaca = self._get_alpaca_service()
+            snapshot = await alpaca.get_latest_quote(symbol)
+            if snapshot:
+                bid = snapshot.get("bid_price", 0)
+                ask = snapshot.get("ask_price", 0)
+                if bid > 0 and ask > 0:
+                    return round((bid + ask) / 2, 2)  # NBBO midpoint
+        except Exception:
+            pass
+        return None
 
     # -- Fill Polling + Partial Fill Re-Execution (B6) --
     MAX_PARTIAL_FILL_RETRIES = 3
@@ -1443,8 +1492,25 @@ class OrderExecutor:
           - If still failing: queue market-order liquidation for recovery
           - Alert operator via Slack immediately
 
+        Dedup: Uses _flatten_lock to prevent concurrent calls from creating
+        duplicate market orders (e.g., kill switch + risk breach firing together).
+
         Returns summary dict with closed/failed/queued counts.
         """
+        if self._flatten_lock.locked():
+            logger.warning("EMERGENCY FLATTEN already in progress — skipping duplicate call (reason: %s)", reason)
+            return {
+                "reason": reason,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "skipped": True,
+                "message": "Flatten already in progress",
+            }
+
+        async with self._flatten_lock:
+            return await self._emergency_flatten_impl(reason)
+
+    async def _emergency_flatten_impl(self, reason: str) -> Dict[str, Any]:
+        """Internal implementation of emergency flatten (called under lock)."""
         logger.critical("EMERGENCY FLATTEN triggered — reason: %s", reason)
 
         alpaca = self._get_alpaca_service()

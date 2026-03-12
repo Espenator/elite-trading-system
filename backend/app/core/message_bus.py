@@ -756,11 +756,22 @@ class MessageBus:
             if self._redis_errors <= 5 or self._redis_errors % 100 == 0:
                 logger.warning("MessageBus: Redis publish failed (%d total): %s", self._redis_errors, e)
 
-            # If we've had too many consecutive errors, try reconnecting
-            if self._redis_errors >= 10:
-                logger.warning("MessageBus: Redis errors threshold reached — attempting reconnect")
+            # If we've had too many consecutive errors, try reconnecting with backoff
+            REDIS_ERROR_THRESHOLD = 10
+            if self._redis_errors >= REDIS_ERROR_THRESHOLD:
+                # Exponential backoff: 2s, 4s, 8s, 16s, 30s max
+                reconnect_attempt = getattr(self, "_redis_reconnect_attempts", 0)
+                backoff = min(2 ** reconnect_attempt, 30)
+                logger.warning(
+                    "MessageBus: Redis errors threshold reached (%d) — reconnecting in %ds (attempt #%d)",
+                    self._redis_errors, backoff, reconnect_attempt + 1,
+                )
+                self._redis_reconnect_attempts = reconnect_attempt + 1
+                await asyncio.sleep(backoff)
                 await self._disconnect_redis()
                 await self._connect_redis()
+                if self._redis_connected:
+                    self._redis_reconnect_attempts = 0  # Reset on success
 
     async def _redis_listener(self) -> None:
         """Background task: listen for messages from other nodes via Redis."""
