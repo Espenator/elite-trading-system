@@ -59,20 +59,40 @@ task division, and setup instructions.
 ### PC1 (ESPENMAIN) — Add to `backend/.env`:
 
 ```env
-# Distributed computing
+# ── PC Role (CRITICAL: prevents WebSocket conflicts) ──
+PC_ROLE=primary
+
+# ── Alpaca Keys (Key 1 = trading, Key 2 = discovery REST only) ──
+# Key 1: ESPENMAIN account — used for portfolio trading + WebSocket
+ALPACA_API_KEY=<your-espenmain-api-key>
+ALPACA_SECRET_KEY=<your-espenmain-secret-key>
+ALPACA_KEY_1=<your-espenmain-api-key>
+ALPACA_SECRET_1=<your-espenmain-secret-key>
+
+# Key 2: ProfitTrader account — REST only on PC1 (no WebSocket!)
+# PC1 can use Key 2 for REST-only screener/snapshot calls
+# PC2 handles the WebSocket for this account
+ALPACA_KEY_2=<your-profittrader-api-key>
+ALPACA_SECRET_2=<your-profittrader-secret-key>
+
+ALPACA_BASE_URL=https://paper-api.alpaca.markets
+ALPACA_DATA_URL=https://data.alpaca.markets
+ALPACA_FEED=sip
+
+# ── Distributed computing ──
 BRAIN_ENABLED=true
 BRAIN_HOST=192.168.1.116
 BRAIN_PORT=50051
 
-# Dual Ollama instances
+# ── Dual Ollama instances ──
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_DEEP_PORT=11435
 
-# Ensemble ML
+# ── Ensemble ML ──
 ENSEMBLE_XGB_WEIGHT=0.6
 ENSEMBLE_LSTM_WEIGHT=0.4
 
-# Cluster
+# ── Cluster ──
 CLUSTER_PC2_HOST=192.168.1.116
 SCANNER_OLLAMA_URLS=http://localhost:11434,http://192.168.1.116:11434
 ```
@@ -80,17 +100,43 @@ SCANNER_OLLAMA_URLS=http://localhost:11434,http://192.168.1.116:11434
 ### PC2 (ProfitTrader) — Add to `backend/.env`:
 
 ```env
-# Brain Service
+# ── PC Role (CRITICAL: prevents WebSocket conflicts) ──
+PC_ROLE=secondary
+
+# ── Alpaca Keys (Key 2 = discovery scanning + WebSocket) ──
+# Key 2: ProfitTrader account — used for discovery WS + REST
+ALPACA_API_KEY=<your-profittrader-api-key>
+ALPACA_SECRET_KEY=<your-profittrader-secret-key>
+ALPACA_KEY_2=<your-profittrader-api-key>
+ALPACA_SECRET_2=<your-profittrader-secret-key>
+
+ALPACA_BASE_URL=https://paper-api.alpaca.markets
+ALPACA_DATA_URL=https://data.alpaca.markets
+ALPACA_FEED=sip
+
+# ── Brain Service ──
 BRAIN_PORT=50051
 BRAIN_MAX_WORKERS=8
 LOG_LEVEL=INFO
 
-# Ollama (heavy models)
+# ── Ollama (heavy models) ──
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=qwen2.5:32b
 
-# GPU
+# ── GPU ──
 CUDA_VISIBLE_DEVICES=0
+```
+
+### Why PC_ROLE Matters
+
+```
+⚠️  Without PC_ROLE, BOTH PCs would try to open WebSocket on the SAME
+    Alpaca account → Alpaca disconnects one (1 WS per account per endpoint).
+
+✅  With PC_ROLE:
+    PC1 (primary)   → opens WS on Key 1 only (ESPENMAIN account)
+    PC2 (secondary) → opens WS on Key 2 only (ProfitTrader account)
+    → No conflicts, 2 concurrent WebSocket streams, 2x throughput
 ```
 
 ## Setup Instructions
@@ -220,22 +266,25 @@ Everything keeps working — just slower (back to single-PC performance).
 | Single-symbol bars | One API call per symbol | get_multi_bars() — 200 symbols/call | **200x fewer API calls** |
 | No screener | Full universe scan via REST | get_most_actives() + get_market_movers() | **Pre-filtered candidates** |
 
-### Dual WebSocket Architecture (Key1 + Key2)
+### Dual WebSocket Architecture (PC1 + PC2, No Conflicts)
 
 ```
-┌─── Key 1 (ESPENMAIN — Trading) ─────────────────┐
-│ WebSocket: Watched symbols (portfolio + signals) │
-│ REST: Orders, positions, account                 │
-│ Rate: 8,000 req/min dedicated                    │
+┌─── PC1: ESPENMAIN (PC_ROLE=primary) ────────────┐
+│ Key 1 WebSocket: Portfolio symbols (positions)   │
+│ Key 1 REST: Orders, positions, account           │
+│ Key 2 REST: Screener, snapshots (no WS!)         │
+│ Rate: 8,000 req/min per key = 16,000 total REST  │
 └──────────────────────────────────────────────────┘
 
-┌─── Key 2 (ProfitTrader — Discovery) ────────────┐
-│ WebSocket: Discovery universe (top 500 tickers)  │
-│ REST: Snapshots, bars, screener                  │
+┌─── PC2: ProfitTrader (PC_ROLE=secondary) ───────┐
+│ Key 2 WebSocket: Discovery universe (500+ syms)  │
+│ Key 2 REST: Bars, snapshots for scanning         │
 │ Rate: 8,000 req/min dedicated                    │
+│ Data published to MessageBus → PC1 via gRPC      │
 └──────────────────────────────────────────────────┘
 
-Combined: 16,000 req/min + 2 concurrent WebSocket streams
+Combined: 24,000 req/min REST + 2 concurrent WebSocket streams
+(Each WebSocket on a DIFFERENT Alpaca account = no disconnects)
 ```
 
 ### New AlpacaService Methods

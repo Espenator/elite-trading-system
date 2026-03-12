@@ -230,6 +230,13 @@ class Settings(BaseSettings):
     BRIDGE_GIST_ID: str = ""  # Gist ID for bridge sync
     OLLAMA_BASE_URL: str = "http://localhost:11434"  # Backward compat; prefer OLLAMA_URL for PC1 fallback
 
+    # ── Cluster / PC Role ───────────────────────────────────
+    # PC_ROLE controls which Alpaca keys this machine uses for WebSocket/REST:
+    #   "primary"   — PC1 (ESPENMAIN): Key 1 (trading), serves frontend/API
+    #   "secondary" — PC2 (ProfitTrader): Key 2 (discovery scanning), runs brain_service
+    # If unset, defaults to "primary" (single-PC mode).
+    PC_ROLE: str = "primary"
+
     # ── Canonical LLM contract ─────────────────────────────
     # PC2: Brain Service (gRPC) — primary trading intelligence entrypoint
     BRAIN_SERVICE_URL: str = ""  # e.g. localhost:50051; empty = derive from BRAIN_HOST:BRAIN_PORT

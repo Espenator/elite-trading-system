@@ -3,17 +3,19 @@
 Each Alpaca account allows exactly 1 WebSocket connection per endpoint.
 Multiple keys = multiple WebSocket streams = 1000+ symbols in real-time.
 
-Roles:
-    trading      — Portfolio symbols only (from Alpaca positions API)
-    discovery_a  — Top 500 high-priority symbols
-    discovery_b  — Next 500 symbols (rotating universe)
+Two-PC Architecture (prevents WebSocket conflicts):
+    PC1 (PC_ROLE=primary):   Key 1 only → trading role (portfolio WS + REST)
+    PC2 (PC_ROLE=secondary): Key 2 only → discovery role (discovery WS + REST)
 
-Backward compatible: if no ALPACA_KEY_1/2/3 are set, falls back to the
-single ALPACA_API_KEY / ALPACA_SECRET_KEY pair with role 'trading'.
+    Each PC opens WebSocket on ITS OWN key only. No conflicts because
+    Alpaca allows 1 WS per account per endpoint — each PC uses a different account.
+
+Single-PC fallback: if only ALPACA_API_KEY is set, uses it with role 'trading'.
 
 Part of #39 — E0.1
 """
 import logging
+import os
 import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
@@ -53,7 +55,7 @@ class AlpacaKeyConfig:
         }
 
 
-_ROLE_ORDER = ["trading", "discovery_a", "discovery_b"]
+_ROLE_ORDER = ["trading", "discovery", "discovery_rest", "discovery_a", "discovery_b"]
 
 
 class AlpacaKeyPool:
@@ -64,44 +66,81 @@ class AlpacaKeyPool:
         self._load_keys()
 
     def _load_keys(self) -> None:
-        """Load keys from settings, falling back to single-key mode."""
+        """Load keys from settings, filtered by PC_ROLE to prevent WS conflicts.
+
+        Two-PC key assignment:
+            PC_ROLE=primary   → loads Key 1 as 'trading' (portfolio WS + orders)
+            PC_ROLE=secondary → loads Key 2 as 'discovery' (discovery WS + scanning)
+
+        This ensures each PC only opens WebSocket on its OWN Alpaca account,
+        avoiding the 1-WS-per-account-per-endpoint limit conflict.
+        """
+        pc_role = os.getenv("PC_ROLE", "primary").lower()
+        self._pc_role = pc_role
+
         try:
             from app.core.config import settings
-            pairs = [
-                (settings.ALPACA_KEY_1, settings.ALPACA_SECRET_1, "trading"),
-                (settings.ALPACA_KEY_2, settings.ALPACA_SECRET_2, "discovery_a"),
-                (settings.ALPACA_KEY_3, settings.ALPACA_SECRET_3, "discovery_b"),
-            ]
-            for api_key, secret_key, role in pairs:
-                if api_key and secret_key:
-                    self._keys[role] = AlpacaKeyConfig(
-                        api_key=api_key,
-                        secret_key=secret_key,
-                        role=role,
-                    )
+            pc_role = getattr(settings, "PC_ROLE", pc_role).lower()
+            self._pc_role = pc_role
 
-            # Fallback: single-key mode using ALPACA_API_KEY
-            if not self._keys:
-                api_key = settings.ALPACA_API_KEY
-                secret_key = settings.ALPACA_SECRET_KEY
-                if api_key and secret_key:
+            if pc_role == "secondary":
+                # PC2: only load Key 2 for discovery scanning
+                if settings.ALPACA_KEY_2 and settings.ALPACA_SECRET_2:
+                    self._keys["discovery"] = AlpacaKeyConfig(
+                        api_key=settings.ALPACA_KEY_2,
+                        secret_key=settings.ALPACA_SECRET_2,
+                        role="discovery",
+                    )
+                elif settings.ALPACA_API_KEY and settings.ALPACA_SECRET_KEY:
+                    # Fallback: use default key as discovery
+                    self._keys["discovery"] = AlpacaKeyConfig(
+                        api_key=settings.ALPACA_API_KEY,
+                        secret_key=settings.ALPACA_SECRET_KEY,
+                        role="discovery",
+                    )
+                logger.info(
+                    "AlpacaKeyPool: PC2 (secondary) mode — discovery key only"
+                )
+            else:
+                # PC1 (primary): load Key 1 for trading
+                if settings.ALPACA_KEY_1 and settings.ALPACA_SECRET_1:
                     self._keys["trading"] = AlpacaKeyConfig(
-                        api_key=api_key,
-                        secret_key=secret_key,
+                        api_key=settings.ALPACA_KEY_1,
+                        secret_key=settings.ALPACA_SECRET_1,
+                        role="trading",
+                    )
+                elif settings.ALPACA_API_KEY and settings.ALPACA_SECRET_KEY:
+                    # Fallback: single-key mode
+                    self._keys["trading"] = AlpacaKeyConfig(
+                        api_key=settings.ALPACA_API_KEY,
+                        secret_key=settings.ALPACA_SECRET_KEY,
                         role="trading",
                     )
 
+                # PC1 can also load Key 2 for REST-only discovery calls
+                # (no WebSocket — that's PC2's job)
+                if settings.ALPACA_KEY_2 and settings.ALPACA_SECRET_2:
+                    self._keys["discovery_rest"] = AlpacaKeyConfig(
+                        api_key=settings.ALPACA_KEY_2,
+                        secret_key=settings.ALPACA_SECRET_2,
+                        role="discovery_rest",
+                    )
+
+                logger.info(
+                    "AlpacaKeyPool: PC1 (primary) mode — trading key%s",
+                    " + discovery REST key" if "discovery_rest" in self._keys else "",
+                )
+
         except Exception as e:
             logger.warning("AlpacaKeyPool: failed to load from settings: %s", e)
-            # Last resort: try os.environ directly
-            import os
             api_key = os.getenv("ALPACA_API_KEY", "")
             secret_key = os.getenv("ALPACA_SECRET_KEY", "")
             if api_key and secret_key:
-                self._keys["trading"] = AlpacaKeyConfig(
+                role = "discovery" if pc_role == "secondary" else "trading"
+                self._keys[role] = AlpacaKeyConfig(
                     api_key=api_key,
                     secret_key=secret_key,
-                    role="trading",
+                    role=role,
                 )
 
         if self._keys:
@@ -166,6 +205,11 @@ class AlpacaKeyPool:
             )
 
     @property
+    def pc_role(self) -> str:
+        """Return this machine's PC role (primary or secondary)."""
+        return getattr(self, "_pc_role", "primary")
+
+    @property
     def is_multi_key(self) -> bool:
         """True if more than one key is configured."""
         return len(self._keys) > 1
@@ -174,9 +218,22 @@ class AlpacaKeyPool:
     def key_count(self) -> int:
         return len(self._keys)
 
+    def get_ws_key(self) -> Optional[AlpacaKeyConfig]:
+        """Get the key this PC should use for WebSocket connections.
+
+        PC1 (primary)   → trading key (portfolio symbols)
+        PC2 (secondary) → discovery key (discovery universe)
+
+        Only ONE key per PC opens a WebSocket — prevents account conflicts.
+        """
+        if self.pc_role == "secondary":
+            return self._keys.get("discovery")
+        return self._keys.get("trading")
+
     def get_status(self) -> Dict:
         """Return pool status for health checks."""
         return {
+            "pc_role": self.pc_role,
             "key_count": len(self._keys),
             "is_multi_key": self.is_multi_key,
             "keys": {role: key.to_dict() for role, key in self._keys.items()},

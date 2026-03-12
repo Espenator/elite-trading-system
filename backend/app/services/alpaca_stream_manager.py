@@ -1,18 +1,13 @@
-"""AlpacaStreamManager — Orchestrate multiple WebSocket streams.
+"""AlpacaStreamManager — Orchestrate WebSocket streams per PC role.
 
-Manages one AlpacaStreamService per API key, each covering a different
-symbol universe. Replaces the single AlpacaStreamService as the top-level
-stream coordinator in main.py.
+Two-PC Architecture (prevents WebSocket conflicts):
+    PC1 (PC_ROLE=primary):   Key 1 WebSocket → portfolio symbols
+    PC2 (PC_ROLE=secondary): Key 2 WebSocket → discovery universe
 
-Architecture:
-    trading      key → portfolio symbols only (from Alpaca positions API)
-    discovery_a  key → top 500 high-priority symbols
-    discovery_b  key → next 500 symbols (rotating universe)
+Each PC opens exactly ONE WebSocket on ITS OWN Alpaca account.
+Alpaca allows 1 WS per account per endpoint — this prevents disconnects.
 
 All streams publish to the SAME MessageBus topic 'market_data.bar'.
-
-If only 1 key is configured, behaves exactly like the current
-AlpacaStreamService (backward compatible).
 
 Part of #39 — E0.2
 """
@@ -36,38 +31,50 @@ class AlpacaStreamManager:
         self._start_time: Optional[float] = None
 
     async def start(self) -> None:
-        """Start all streams based on configured keys."""
+        """Start WebSocket stream using THIS PC's assigned key only.
+
+        PC1 (primary)   → Key 1 WS for portfolio symbols
+        PC2 (secondary) → Key 2 WS for discovery universe
+
+        Each PC opens exactly ONE WebSocket. No conflicts.
+        """
         from app.services.alpaca_key_pool import get_alpaca_key_pool
         from app.services.alpaca_stream_service import AlpacaStreamService
 
         pool = get_alpaca_key_pool()
-        keys = pool.get_all_keys()
+        ws_key = pool.get_ws_key()
 
-        if not keys:
-            logger.warning("AlpacaStreamManager: no API keys configured, skipping")
+        if not ws_key:
+            logger.warning("AlpacaStreamManager: no WebSocket key for PC_ROLE=%s, skipping", pool.pc_role)
             return
 
         self._running = True
         self._start_time = time.time()
 
-        if pool.is_multi_key:
-            # Multi-key mode: distribute symbols across streams
-            await self._start_multi_key(keys)
+        # Determine symbols based on PC role
+        if pool.pc_role == "secondary":
+            # PC2: stream discovery universe symbols
+            syms = self._symbols
+            role_label = "discovery"
         else:
-            # Single-key mode: behave exactly like the old AlpacaStreamService
-            key = keys[0]
-            stream = AlpacaStreamService(
-                self.message_bus,
-                symbols=self._symbols,
-                api_key=key.api_key,
-                secret_key=key.secret_key,
-            )
-            self._streams[key.role] = stream
-            self._stream_tasks[key.role] = asyncio.create_task(stream.start())
-            logger.info(
-                "AlpacaStreamManager: single-key mode (%d symbols)",
-                len(self._symbols),
-            )
+            # PC1: stream portfolio symbols (watched + positions)
+            portfolio = await self._get_portfolio_symbols()
+            syms = portfolio if portfolio else self._symbols[:50]
+            role_label = "trading"
+
+        stream = AlpacaStreamService(
+            self.message_bus,
+            symbols=syms,
+            api_key=ws_key.api_key,
+            secret_key=ws_key.secret_key,
+        )
+        self._streams[role_label] = stream
+        self._stream_tasks[role_label] = asyncio.create_task(stream.start())
+        logger.info(
+            "AlpacaStreamManager: PC_ROLE=%s, %s stream (%d symbols), key=...%s",
+            pool.pc_role, role_label, len(syms),
+            ws_key.api_key[-4:] if len(ws_key.api_key) >= 4 else "****",
+        )
 
     async def _start_multi_key(self, keys: List) -> None:
         """Start streams with symbol distribution across multiple keys."""
@@ -192,8 +199,12 @@ class AlpacaStreamManager:
             except Exception:
                 stream_statuses[role] = {"error": "status unavailable"}
 
+        from app.services.alpaca_key_pool import get_alpaca_key_pool
+        pool = get_alpaca_key_pool()
+
         return {
             "running": self._running,
+            "pc_role": pool.pc_role,
             "stream_count": len(self._streams),
             "total_bars_received": total_bars,
             "uptime_seconds": round(uptime, 1),
