@@ -1196,6 +1196,16 @@ async def lifespan(app: FastAPI):
     loop.set_default_executor(concurrent.futures.ThreadPoolExecutor(max_workers=64))
     log.info("Thread pool set to 64 workers for async DuckDB operations")
 
+    # 0b. Infrastructure health checks (PC2 + Redis)
+    _infra_status = {}
+    try:
+        from app.core.pc2_health import run_infrastructure_checks
+        _infra_status = await run_infrastructure_checks()
+        app.state.infra_status = _infra_status
+    except Exception as e:
+        log.warning("Infrastructure health checks failed: %s", e)
+        app.state.infra_status = {"dual_pc_operational": False}
+
     # 1. Data schema
     try:
         from app.data.storage import init_schema

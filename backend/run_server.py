@@ -23,11 +23,17 @@ import uvicorn
 def main():
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "8001"))
+    workers = int(os.getenv("UVICORN_WORKERS", "1"))
 
+    # Multi-worker: Set UVICORN_WORKERS=4 in .env to use i7 cores on PC1.
+    # NOTE: workers>1 spawns separate processes (no shared in-memory state).
+    # DuckDB WAL mode handles concurrent reads safely; writes are serialized
+    # per-process via _write_lock. Default=1 is safe for current architecture.
     uvicorn.run(
         "app.main:app",
         host=host,
         port=port,
+        workers=workers,
         log_level="info",
         access_log=False,
         loop="asyncio",  # uvloop causes CPU spin with many concurrent tasks

@@ -1,7 +1,20 @@
 """
-Agent Command Center API — status and control of the 5 operational tick agents.
-GET returns agents + logs; POST start/stop/pause/restart update persisted status and append to activity log.
-Note: These are the 5 data-collection tick agents. The 11-agent council DAG is at /council/status.
+Agent Command Center API — status and control of the 5 data-collection tick agents.
+
+⚠️  ARCHITECTURE NOTE (March 2026 audit):
+These 5 "System 1" template agents are LEGACY polling shims from the pre-event-driven
+architecture. The real trading intelligence runs through:
+  - 35-agent council DAG (see /api/v1/council/status)
+  - Event-driven pipeline: AlpacaStream → MessageBus → SignalEngine → CouncilGate
+  - <1s latency for 800+ symbols via WebSocket
+
+These polling agents remain because:
+  1. Market Data Agent (id=1) still handles non-WebSocket sources (Finviz, FRED, EDGAR)
+  2. Frontend AgentCommandCenter polls GET /agents every 15s for status display
+  3. The tick functions call real services (market_data_agent, signal_engine, ml_engine)
+
+The GET endpoints and status display are actively used by the frontend.
+The POST start/stop/tick endpoints are rarely called manually.
 """
 
 import logging
