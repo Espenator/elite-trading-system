@@ -34,6 +34,46 @@ class TestIngestionHealth503:
         if r.status_code == 503:
             assert "unhealthy" in (r.json().get("detail") or "").lower() or "503" in str(r.status_code)
 
+    def test_ingestion_health_returns_503_when_health_check_raises(self, client):
+        """When DuckDB health_check raises, endpoint must return 503 (not 500 or 200)."""
+        original_health = None
+        try:
+            from app.data import duckdb_storage
+            original_health = duckdb_storage.duckdb_store.health_check
+
+            def failing_health():
+                raise RuntimeError("DuckDB unavailable")
+
+            duckdb_storage.duckdb_store.health_check = failing_health
+            r = client.get("/api/ingestion/health")
+            assert r.status_code == 503
+            data = r.json()
+            assert "detail" in data
+            assert "unhealthy" in (data.get("detail") or "").lower()
+        finally:
+            if original_health is not None:
+                duckdb_storage.duckdb_store.health_check = original_health
+
+    def test_ingestion_health_returns_503_when_status_error_in_body(self, client):
+        """When health_check returns {\"status\": \"error\"}, endpoint must return 503."""
+        from app.data import duckdb_storage
+
+        original_health = None
+        try:
+            original_health = duckdb_storage.duckdb_store.health_check
+
+            def error_status_health():
+                return {"status": "error", "message": "degraded"}
+
+            duckdb_storage.duckdb_store.health_check = error_status_health
+            r = client.get("/api/ingestion/health")
+            assert r.status_code == 503
+            data = r.json()
+            assert "detail" in data
+        finally:
+            if original_health is not None:
+                duckdb_storage.duckdb_store.health_check = original_health
+
 
 class TestAgentsPayloadNormalized:
     """GET /agents must include statusDisplay, cpu, mem for frontend."""
