@@ -28,14 +28,18 @@ export default function useTradeExecution() {
   // ─── Order Form State ──────────────────────────────────
   const [orderForm, setOrderForm] = useState({
     symbol: 'SPY',
+    side: 'buy',
+    orderType: 'market',
+    timeInForce: 'day',
+    quantity: 1,
+    limitPrice: '',
+    stopPrice: '',
     strategy: 'Iron Condor',
     callStrikes: { call: [0, 0], put: [0, 0] },
     putStrikes: { call: [0, 0], put: [0, 0] },
-    quantity: 1,
-    quantityType: 'Contracts',
-    limitPrice: 0,
-    stopPrice: 0,
+    quantityType: 'shares',
   });
+  const [recentOrders, setRecentOrders] = useState([]);
 
   const wsRef = useRef(null);
   const pollRef = useRef(null);
@@ -43,13 +47,14 @@ export default function useTradeExecution() {
   // ─── Fetch All Data ────────────────────────────────────
   const fetchAll = useCallback(async () => {
     try {
-      const [portfolioRes, positionsRes, orderBookRes, ladderRes, newsRes, statusRes] = await Promise.allSettled([
+      const [portfolioRes, positionsRes, orderBookRes, ladderRes, newsRes, statusRes, recentRes] = await Promise.allSettled([
         tradeExecutionService.getPortfolio(),
         tradeExecutionService.getPositions(),
         tradeExecutionService.getOrderBook(orderForm.symbol),
         tradeExecutionService.getPriceLadder(orderForm.symbol),
         tradeExecutionService.getNewsFeed(),
         tradeExecutionService.getSystemStatus(),
+        tradeExecutionService.getRecentOrders(10),
       ]);
 
       if (portfolioRes.status === 'fulfilled') setPortfolio(portfolioRes.value);
@@ -58,6 +63,7 @@ export default function useTradeExecution() {
       if (ladderRes.status === 'fulfilled') setPriceLadder(ladderRes.value);
       if (newsRes.status === 'fulfilled') setNewsFeed(newsRes.value);
       if (statusRes.status === 'fulfilled') setSystemStatus(statusRes.value);
+      if (recentRes.status === 'fulfilled') setRecentOrders(recentRes.value || []);
       setLastUpdate(new Date());
     } catch (err) {
       log.warn('[useTradeExecution] Fetch error, using defaults:', err.message);
@@ -195,29 +201,33 @@ export default function useTradeExecution() {
     }
   }, [orderForm, fetchAll]);
 
-  const executeAdvancedOrder = useCallback(async () => {
+  const submitOrder = useCallback(async (overrides = {}) => {
+    const payload = {
+      symbol: (overrides.symbol ?? orderForm.symbol).toString().trim().toUpperCase(),
+      side: (overrides.side ?? orderForm.side).toLowerCase(),
+      type: (overrides.type ?? overrides.orderType ?? orderForm.orderType ?? 'market').toLowerCase(),
+      time_in_force: (overrides.time_in_force ?? overrides.timeInForce ?? orderForm.timeInForce ?? 'day').toLowerCase(),
+      quantity: Number(overrides.quantity ?? orderForm.quantity) || 1,
+      limit_price: overrides.limit_price ?? orderForm.limitPrice,
+      stop_price: overrides.stop_price ?? orderForm.stopPrice,
+    };
     setLoading(true);
     setError(null);
     try {
-      const result = await tradeExecutionService.executeAdvancedOrder({
-        symbol: orderForm.symbol,
-        strategy: orderForm.strategy,
-        callStrikes: orderForm.callStrikes,
-        putStrikes: orderForm.putStrikes,
-        quantity: orderForm.quantity,
-        limitPrice: orderForm.limitPrice,
-        stopPrice: orderForm.stopPrice,
-      });
-      setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `${orderForm.strategy} executed: ${orderForm.symbol} x${orderForm.quantity}`, type: 'success' }, ...prev]);
+      const result = await tradeExecutionService.executeOrder(payload);
+      setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `Order placed: ${payload.symbol} ${payload.side} ${payload.type} x${payload.quantity}`, type: 'success' }, ...prev]);
       await fetchAll();
       return result;
     } catch (err) {
-      setError(err.message);
-      setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `Advanced order failed: ${err.message}`, type: 'error' }, ...prev]);
+      setError(err?.message || 'Order failed');
+      setSystemStatus(prev => [{ time: new Date().toLocaleTimeString(), text: `Order failed: ${err?.message}`, type: 'error' }, ...prev]);
+      throw err;
     } finally {
       setLoading(false);
     }
   }, [orderForm, fetchAll]);
+
+  const executeAdvancedOrder = useCallback(async () => submitOrder(), [submitOrder]);
 
   const closePositionAction = useCallback(async (symbol, side) => {
     setLoading(true);
@@ -260,6 +270,7 @@ export default function useTradeExecution() {
     positions,
     newsFeed,
     systemStatus,
+    recentOrders,
     selectedRow,
     setSelectedRow,
     orderForm,
@@ -267,6 +278,7 @@ export default function useTradeExecution() {
     loading,
     error,
     lastUpdate,
+    submitOrder,
     executeMarketBuy,
     executeMarketSell,
     executeLimitBuy,

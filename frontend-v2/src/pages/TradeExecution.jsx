@@ -1,10 +1,11 @@
 import React, { useEffect, useCallback, useRef, useState } from 'react';
+import { toast } from 'react-toastify';
 import useTradeExecution from '../hooks/useTradeExecution';
 import { getApiUrl, getAuthHeaders, WS_CHANNELS } from '../config/api';
 import { useApi } from '../hooks/useApi';
 import ws from '../services/websocket';
 import clsx from 'clsx';
-import { Minus, Plus } from 'lucide-react';
+import { Minus, Plus, Power } from 'lucide-react';
 import { VisualPriceLadder, CouncilDecisionPanel } from '../components/dashboard/TradeExecutionWidgets';
 
 /* ────────────────────────────────────────────────────────────
@@ -64,12 +65,52 @@ const FormInput = ({ value, onChange, type = 'text', step, readOnly, className, 
    ──────────────────────────────────────────────────────────── */
 export default function TradeExecution() {
   const {
-    portfolio, priceLadder, orderBook, positions, newsFeed, systemStatus,
+    portfolio, priceLadder, orderBook, positions, newsFeed, systemStatus, recentOrders,
     selectedRow, setSelectedRow, orderForm, updateOrderForm, loading,
-    executeMarketBuy, executeMarketSell, executeLimitBuy, executeLimitSell,
+    submitOrder, executeMarketBuy, executeMarketSell, executeLimitBuy, executeLimitSell,
     executeStopLoss, executeAdvancedOrder, closePosition, adjustPosition,
     refresh: refreshTradeData,
   } = useTradeExecution();
+
+  const [confirmModalOpen, setConfirmModalOpen] = useState(false);
+  const [confirmPayload, setConfirmPayload] = useState(null);
+  const [killSwitchModalOpen, setKillSwitchModalOpen] = useState(false);
+  const [killSwitchStep, setKillSwitchStep] = useState(1);
+  const [killSwitchLoading, setKillSwitchLoading] = useState(false);
+
+  const openConfirmModal = useCallback(() => {
+    setConfirmPayload({ symbol: orderForm.symbol, side: orderForm.side, orderType: orderForm.orderType || 'market', quantity: orderForm.quantity, limitPrice: orderForm.limitPrice, stopPrice: orderForm.stopPrice, timeInForce: orderForm.timeInForce || 'day' });
+    setConfirmModalOpen(true);
+  }, [orderForm]);
+
+  const doSubmitOrder = useCallback(async () => {
+    if (!confirmPayload) return;
+    try {
+      await submitOrder({ symbol: confirmPayload.symbol, side: confirmPayload.side, orderType: confirmPayload.orderType, quantity: confirmPayload.quantity, limit_price: confirmPayload.limitPrice, stop_price: confirmPayload.stopPrice, timeInForce: confirmPayload.timeInForce });
+      setConfirmModalOpen(false);
+      setConfirmPayload(null);
+      refreshTradeData();
+    } catch (e) {
+      // toast handled by hook
+    }
+  }, [confirmPayload, submitOrder, refreshTradeData]);
+
+  const handleKillSwitch = useCallback(async () => {
+    if (killSwitchStep === 1) { setKillSwitchStep(2); return; }
+    setKillSwitchLoading(true);
+    try {
+      const { emergencyStop } = await import('../services/tradeExecutionService');
+      await emergencyStop();
+      setKillSwitchModalOpen(false);
+      setKillSwitchStep(1);
+      refreshTradeData();
+      toast.success('Kill switch executed — all orders cancelled, positions closed.', { theme: 'dark' });
+    } catch (err) {
+      toast.error(`Kill switch failed: ${err?.message || 'network error'}`, { theme: 'dark' });
+    } finally {
+      setKillSwitchLoading(false);
+    }
+  }, [killSwitchStep, refreshTradeData]);
 
   // --- WebSocket live updates for trade execution ---
   useEffect(() => {
@@ -169,47 +210,12 @@ export default function TradeExecution() {
     if (unique.length) inst.series.setData(unique);
   }, [candleData]);
 
-  /* -- Alignment Preflight -- */
-  const [preflightLoading, setPreflightLoading] = useState(false);
-  const runAlignmentPreflight = async (side = 'buy') => {
-    setPreflightLoading(true);
-    try {
-      const res = await fetch(getApiUrl('alignment/evaluate'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify({ symbol: orderForm?.symbol || 'SPY', side, quantity: orderForm?.quantity || 1, strategy: 'manual' }),
-      });
-      if (!res.ok) throw new Error('Alignment preflight failed');
-      return await res.json();
-    } catch (err) {
-      return { allowed: true, blockedBy: 'NETWORK_ERROR', summary: err.message };
-    } finally {
-      setPreflightLoading(false);
-    }
-  };
-
-  const withPreflight = async (side, action) => {
-    const verdict = await runAlignmentPreflight(side);
-    if (verdict?.allowed === false) {
-      if (!window.confirm(`Alignment blocked: ${verdict.summary || verdict.blockedBy}\n\nOverride and execute anyway?`)) return;
-    }
-    return action();
-  };
-
   /* -- Keyboard Shortcuts -- */
   const handleKeyDown = useCallback((e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
     if (!e.ctrlKey && !e.metaKey) return;
-    switch (e.key.toUpperCase()) {
-      case 'B': e.preventDefault(); if (window.confirm(`Market BUY ${orderForm.symbol} x${orderForm.quantity}?`)) withPreflight('buy', executeMarketBuy); break;
-      case 'S': e.preventDefault(); if (window.confirm(`Market SELL ${orderForm.symbol} x${orderForm.quantity}?`)) withPreflight('sell', executeMarketSell); break;
-      case 'L': e.preventDefault(); withPreflight('buy', executeLimitBuy); break;
-      case 'O': e.preventDefault(); withPreflight('sell', executeLimitSell); break;
-      case 'T': e.preventDefault(); executeStopLoss(); break;
-      case 'E': e.preventDefault(); withPreflight('buy', executeAdvancedOrder); break;
-      default: break;
-    }
-  }, [executeMarketBuy, executeMarketSell, executeLimitBuy, executeLimitSell, executeStopLoss, executeAdvancedOrder, orderForm.symbol, orderForm.quantity]);
+    if (e.key.toUpperCase() === 'B' || e.key.toUpperCase() === 'S') { e.preventDefault(); openConfirmModal(); }
+  }, [openConfirmModal]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
@@ -227,67 +233,21 @@ export default function TradeExecution() {
   const newsArr   = Array.isArray(newsFeed) ? newsFeed : [];
   const statusArr = Array.isArray(systemStatus) ? systemStatus : [systemStatus].filter(Boolean);
 
-  /* ── Fallback: Price Ladder (5-column with bid/ask depth bars) ── */
-  const displayLadder = ladderArr.length > 0 ? ladderArr : (() => {
-    const base = 4449.50;
-    const mid = 9;
-    return Array.from({ length: 20 }, (_, i) => {
-      const price = (base - i * 0.50).toFixed(2);
-      const isCurrent = i === mid;
-      const isAsk = i < mid;
-      const isBid = i > mid;
-      return {
-        row: i + 1, price,
-        bidSize: isBid ? 0 : (isCurrent ? 3100000 : 0),
-        askSize: isAsk ? 0 : (isCurrent ? 3200000 : 0),
-        side: isCurrent ? 'current' : (isBid ? 'bid' : 'ask'),
-        isCurrent,
-      };
-    });
-  })();
-  const maxBidSz = Math.max(...displayLadder.map(r => r.side === 'bid' ? (r.bidSize || r.size || 0) : 0), 1);
-  const maxAskSz = Math.max(...displayLadder.map(r => r.side === 'ask' ? (r.askSize || r.size || 0) : 0), 1);
+  /* ── Price Ladder: real data only; empty state in UI ── */
+  const displayLadder = ladderArr.length > 0 ? ladderArr : [];
+  const maxBidSz = displayLadder.length ? Math.max(...displayLadder.map(r => r.side === 'bid' ? (r.bidSize || r.size || 0) : 0), 1) : 1;
+  const maxAskSz = displayLadder.length ? Math.max(...displayLadder.map(r => r.side === 'ask' ? (r.askSize || r.size || 0) : 0), 1) : 1;
 
-  /* ── Fallback: Order Book (mockup: Bid/Size/Total, Ask/Size/Total) ── */
+  /* ── Order Book: real data only ── */
   const bookBids = orderBook?.bids || [];
   const bookAsks = orderBook?.asks || [];
-  const displayBookBids = bookBids.length > 0 ? bookBids.slice(0, 10) : [
-    { price: 4450.25, size: 310, total: 310 },
-    { price: 4450.50, size: 85, total: 395 },
-    { price: 4449.75, size: 120, total: 515 },
-    { price: 4449.50, size: 45, total: 560 },
-    { price: 4449.25, size: 200, total: 760 },
-  ];
-  const displayBookAsks = bookAsks.length > 0 ? bookAsks.slice(0, 10) : [
-    { price: 4450.50, size: 72, total: 72 },
-    { price: 4450.75, size: 95, total: 167 },
-    { price: 4451.50, size: 38, total: 205 },
-    { price: 4451.75, size: 110, total: 315 },
-    { price: 4452.00, size: 60, total: 375 },
-  ];
+  const displayBookBids = bookBids.slice(0, 10);
+  const displayBookAsks = bookAsks.slice(0, 10);
 
-  /* ── Fallback: News Feed (mockup: timestamp first, colored dot, headline) ── */
-  const displayNews = newsArr.length > 0 ? newsArr : [
-    { time: '09:30:05', text: 'FED official comments on interest rates cause market volatility.', type: 'info' },
-    { time: '09:25:45', text: 'Strong economic data released, boosting sentiment.', type: 'positive' },
-    { time: '09:15:30', text: 'Breaking: Geopolitical tensions escalate, impacting oil prices.', type: 'negative' },
-    { time: '09:10:15', text: 'Earnings Alert: XYZ Inc. reports Q2 results, beats estimates.', type: 'warning' },
-  ];
-
-  /* ── Fallback: System Status Log (mockup: timestamp, dot, message) ── */
-  const displayStatus = statusArr.length > 0 ? statusArr : [
-    { time: '09:30:12', text: 'Order #123456 executed successfully (SPX, Buy, 50 contracts).', type: 'success' },
-    { time: '09:30:08', text: 'Connected to market data feed: Latency 8ms.', type: 'info' },
-    { time: '09:30:02', text: 'Warning: High market volatility detected.', type: 'warning' },
-    { time: '09:30:00', text: 'System initialized. All services online.', type: 'success' },
-    { time: '09:29:55', text: 'User Logged In: ELITE status confirmed.', type: 'info' },
-  ];
-
-  /* ── Fallback: Positions (mockup: Symbol, Side, Qty, Avg Price, Current Price, P/L, Actions) ── */
-  const displayPositions = posArr.length > 0 ? posArr : [
-    { symbol: 'SPX', side: 'Long',  quantity: 10, avgPrice: 4450.25, currentPrice: 4450.25, pnl: 7625 },
-    { symbol: 'SPX', side: 'Short', quantity: 10, avgPrice: 4450.25, currentPrice: 4450.25, pnl: 7625 },
-  ];
+  /* ── News, Status, Positions: real data only (no mock) ── */
+  const displayNews = newsArr;
+  const displayStatus = statusArr;
+  const displayPositions = posArr;
 
   /* Strike helpers */
   const callIdx = orderForm.callStrikeIdx ?? 0;
@@ -308,54 +268,76 @@ export default function TradeExecution() {
   return (
     <div className="flex flex-col overflow-hidden -m-6" style={{ height: 'calc(100vh - 64px)' }}>
 
-      {/* ═══════ HEADER BAR ═══════ */}
+      {/* ═══════ HEADER BAR (Account info) ═══════ */}
       <div className="h-[42px] bg-[#111827] border-b border-[rgba(42,52,68,0.5)] flex items-center px-5 gap-5 shrink-0 relative">
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-400 to-transparent" />
         <span className="font-mono text-sm font-bold text-white uppercase tracking-widest">TRADE EXECUTION</span>
         <div className="flex items-center gap-5 ml-auto font-mono text-[10px]">
-          <span><span className="text-gray-500 mr-1">Portfolio:</span><span className="text-white">{fmtUsd(portfolio.value || 1580420.55)}</span></span>
+          <span><span className="text-gray-500 mr-1">Buying power:</span><span className="text-white">{fmtUsd(portfolio?.buyingPower ?? portfolio?.value)}</span></span>
           <span className="text-gray-700">|</span>
-          <span><span className="text-gray-500 mr-1">Daily P/L:</span><span className="text-[#00e676]">+{fmtUsd(portfolio.dailyPnl || 12500.80)}</span></span>
+          <span><span className="text-gray-500 mr-1">Equity:</span><span className="text-white">{fmtUsd(portfolio?.value)}</span></span>
           <span className="text-gray-700">|</span>
-          <span><span className="text-gray-500 mr-1">Status:</span><span className="px-2 py-0.5 rounded text-[9px] font-bold bg-[#00D9FF]/25 text-[#00D9FF]">{portfolio.status || 'ELITE'}</span></span>
+          <span><span className="text-gray-500 mr-1">Cash:</span><span className="text-white">{fmtUsd(portfolio?.cash)}</span></span>
           <span className="text-gray-700">|</span>
-          <span><span className="text-gray-500 mr-1">Latency:</span><span className="text-white">{portfolio.latency || 8}ms</span></span>
+          <span><span className="text-gray-500 mr-1">Status:</span><span className="px-2 py-0.5 rounded text-[9px] font-bold bg-[#00D9FF]/25 text-[#00D9FF]">{portfolio?.status ?? '—'}</span></span>
+          <span className="text-gray-700">|</span>
+          <button type="button" onClick={() => setKillSwitchModalOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded font-mono text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/40 hover:bg-red-500/30 transition-colors" title="Emergency: close all positions and cancel all orders"><Power className="w-3.5 h-3.5" />KILL SWITCH</button>
         </div>
       </div>
 
+      {killSwitchModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" role="dialog" aria-modal="true" onClick={() => setKillSwitchModalOpen(false)}>
+          <div className="w-full max-w-md rounded-lg border border-red-500/40 bg-[#111827] p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-red-400 mb-2">Emergency Stop</h2>
+            {killSwitchStep === 1 ? (
+              <>
+                <p className="text-sm text-gray-300 mb-4">This will cancel all open orders and close all positions. Are you sure?</p>
+                <div className="flex gap-3 justify-end">
+                  <button type="button" onClick={() => setKillSwitchModalOpen(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-[rgba(42,52,68,0.6)] text-gray-300 border border-[rgba(42,52,68,0.8)]">Cancel</button>
+                  <button type="button" onClick={handleKillSwitch} className="px-4 py-2 rounded-lg text-sm font-bold bg-red-600 text-white border border-red-500 hover:bg-red-700">Continue</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-red-300 mb-2 font-semibold">Second confirmation</p>
+                <p className="text-sm text-gray-300 mb-4">All positions will be closed and all orders cancelled. Click &quot;Execute emergency stop&quot; to proceed.</p>
+                <div className="flex gap-3 justify-end">
+                  <button type="button" onClick={() => setKillSwitchStep(1)} disabled={killSwitchLoading} className="px-4 py-2 rounded-lg text-sm font-medium bg-[rgba(42,52,68,0.6)] text-gray-300 border">Back</button>
+                  <button type="button" onClick={handleKillSwitch} disabled={killSwitchLoading} className="px-4 py-2 rounded-lg text-sm font-bold bg-red-600 text-white border border-red-500 disabled:opacity-50">{killSwitchLoading ? 'Executing…' : 'Execute emergency stop'}</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {confirmModalOpen && confirmPayload && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" role="dialog" aria-modal="true" onClick={() => setConfirmModalOpen(false)}>
+          <div className="w-full max-w-md rounded-lg border border-[rgba(42,52,68,0.8)] bg-[#111827] p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-white mb-2">Confirm order</h2>
+            <div className="font-mono text-sm text-gray-300 space-y-1 mb-4">
+              <p><span className="text-gray-500">Symbol:</span> {confirmPayload.symbol}</p>
+              <p><span className="text-gray-500">Side:</span> {confirmPayload.side?.toUpperCase()}</p>
+              <p><span className="text-gray-500">Type:</span> {confirmPayload.orderType}</p>
+              <p><span className="text-gray-500">Quantity:</span> {confirmPayload.quantity}</p>
+              {confirmPayload.limitPrice != null && confirmPayload.limitPrice !== '' && <p><span className="text-gray-500">Limit price:</span> {fmtUsd(Number(confirmPayload.limitPrice))}</p>}
+              {confirmPayload.stopPrice != null && confirmPayload.stopPrice !== '' && <p><span className="text-gray-500">Stop price:</span> {fmtUsd(Number(confirmPayload.stopPrice))}</p>}
+              <p><span className="text-gray-500">Time in force:</span> {confirmPayload.timeInForce?.toUpperCase() || 'DAY'}</p>
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button type="button" onClick={() => { setConfirmModalOpen(false); setConfirmPayload(null); }} disabled={loading} className="px-4 py-2 rounded-lg text-sm font-medium bg-[rgba(42,52,68,0.6)] text-gray-300 border">Cancel</button>
+              <button type="button" onClick={doSubmitOrder} disabled={loading} className="px-4 py-2 rounded-lg text-sm font-bold bg-[#00D9FF] text-black disabled:opacity-50">{loading ? 'Placing…' : 'Place order'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ═══════ QUICK EXECUTION BAR ═══════ */}
       <div className="h-10 bg-[#111827]/80 border-b border-[rgba(42,52,68,0.5)] flex items-center px-4 gap-2 shrink-0">
-        <span className="font-mono text-[9px] text-gray-500 uppercase tracking-[1px] mr-2">Quick Execution</span>
-        {/* Market Buy */}
-        <button
-          onClick={() => { if (window.confirm(`Market BUY ${orderForm.symbol} x${orderForm.quantity}?`)) withPreflight('buy', executeMarketBuy); }}
-          disabled={loading || preflightLoading}
-          className="px-3.5 py-[5px] rounded-[3px] font-mono text-[9px] font-semibold bg-[#00e676] text-black hover:brightness-[1.2] hover:-translate-y-px transition-all disabled:opacity-50 flex items-center gap-1.5"
-        >Market Buy <span className="text-[7px] bg-black/30 px-[3px] py-px rounded-sm">B</span></button>
-        {/* Market Sell */}
-        <button
-          onClick={() => { if (window.confirm(`Market SELL ${orderForm.symbol} x${orderForm.quantity}?`)) withPreflight('sell', executeMarketSell); }}
-          disabled={loading || preflightLoading}
-          className="px-3.5 py-[5px] rounded-[3px] font-mono text-[9px] font-semibold bg-[#ff3860] text-white hover:brightness-[1.2] hover:-translate-y-px transition-all disabled:opacity-50 flex items-center gap-1.5"
-        >Market Sell <span className="text-[7px] bg-black/30 px-[3px] py-px rounded-sm">S</span></button>
-        {/* Limit Buy */}
-        <button
-          onClick={() => withPreflight('buy', executeLimitBuy)}
-          disabled={loading || preflightLoading}
-          className="px-3.5 py-[5px] rounded-[3px] font-mono text-[9px] font-semibold bg-transparent border border-[#00e676] text-[#00e676] hover:brightness-[1.2] hover:-translate-y-px transition-all disabled:opacity-50 flex items-center gap-1.5"
-        >Limit Buy <span className="text-[7px] bg-black/30 px-[3px] py-px rounded-sm">L</span></button>
-        {/* Limit Sell */}
-        <button
-          onClick={() => withPreflight('sell', executeLimitSell)}
-          disabled={loading || preflightLoading}
-          className="px-3.5 py-[5px] rounded-[3px] font-mono text-[9px] font-semibold bg-transparent border border-[#ff3860] text-[#ff3860] hover:brightness-[1.2] hover:-translate-y-px transition-all disabled:opacity-50 flex items-center gap-1.5"
-        >Limit Sell <span className="text-[7px] bg-black/30 px-[3px] py-px rounded-sm">O</span></button>
-        {/* Stop Loss */}
-        <button
-          onClick={executeStopLoss}
-          disabled={loading || preflightLoading}
-          className="px-3.5 py-[5px] rounded-[3px] font-mono text-[9px] font-semibold bg-transparent border border-[#ffab00] text-[#ffab00] hover:brightness-[1.2] hover:-translate-y-px transition-all disabled:opacity-50 flex items-center gap-1.5"
-        >Stop Loss <span className="text-[7px] bg-black/30 px-[3px] py-px rounded-sm">T</span></button>
+        <span className="font-mono text-[9px] text-gray-500 uppercase tracking-[1px] mr-2">Quick</span>
+        <button onClick={() => { updateOrderForm({ side: 'buy', orderType: 'market' }); openConfirmModal(); }} disabled={loading || !orderForm.symbol || orderForm.quantity < 1} className="px-3.5 py-[5px] rounded-[3px] font-mono text-[9px] font-semibold bg-[#00e676] text-black hover:brightness-[1.2] disabled:opacity-50">Market Buy</button>
+        <button onClick={() => { updateOrderForm({ side: 'sell', orderType: 'market' }); openConfirmModal(); }} disabled={loading || !orderForm.symbol || orderForm.quantity < 1} className="px-3.5 py-[5px] rounded-[3px] font-mono text-[9px] font-semibold bg-[#ff3860] text-white hover:brightness-[1.2] disabled:opacity-50">Market Sell</button>
+        <button onClick={openConfirmModal} disabled={loading} className="px-3.5 py-[5px] rounded-[3px] font-mono text-[9px] font-semibold bg-[#00D9FF]/20 text-[#00D9FF] border border-[#00D9FF]/50 hover:bg-[#00D9FF]/30 disabled:opacity-50">Submit order</button>
       </div>
 
       {/* ═══════ MAIN 4-COLUMN GRID ═══════
@@ -379,7 +361,9 @@ export default function TradeExecution() {
         <div className="bg-[#111827]/80 flex flex-col overflow-hidden">
           <PanelHead>Multi-Price Ladder</PanelHead>
           <div className="flex-1 overflow-y-auto">
-            {displayLadder.map((row, i) => {
+            {displayLadder.length === 0 ? (
+              <div className="flex items-center justify-center h-full text-[10px] text-gray-500 font-mono">No ladder data</div>
+            ) : displayLadder.map((row, i) => {
               const price = parseFloat(row.price) || 0;
               const isCurrent = row.isCurrent || row.side === 'current';
               const isAbove = row.side === 'ask' && !isCurrent;
@@ -488,12 +472,26 @@ export default function TradeExecution() {
               </div>
             </FormField>
 
-            {/* Execute button -- cyan/teal gradient matching mockup */}
+            {/* Execute button — opens confirmation modal */}
             <button
-              onClick={() => withPreflight('buy', executeAdvancedOrder)}
-              disabled={loading}
-              className="w-full py-3 mt-3.5 rounded font-mono text-[13px] font-bold text-black uppercase tracking-[1px] bg-gradient-to-br from-[#007a8a] to-[#00d4e8] hover:brightness-[1.15] hover:-translate-y-px transition-all disabled:opacity-50 disabled:cursor-wait shadow-[0_4px_20px_rgba(0,212,232,0.15)] hover:shadow-[0_6px_30px_rgba(0,212,232,0.3)] flex items-center justify-center gap-2"
-            >{loading ? 'Executing...' : <>Execute Order <span className="text-[9px] bg-black/25 px-[4px] py-px rounded-sm">E</span></>}</button>
+              onClick={openConfirmModal}
+              disabled={loading || !orderForm.symbol || orderForm.quantity < 1}
+              className="w-full py-3 mt-3.5 rounded font-mono text-[13px] font-bold text-black uppercase tracking-[1px] bg-gradient-to-br from-[#007a8a] to-[#00d4e8] hover:brightness-[1.15] hover:-translate-y-px transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_4px_20px_rgba(0,212,232,0.15)] hover:shadow-[0_6px_30px_rgba(0,212,232,0.3)] flex items-center justify-center gap-2"
+            >{loading ? 'Placing…' : <>Place order (confirm) <span className="text-[9px] bg-black/25 px-[4px] py-px rounded-sm">E</span></>}</button>
+
+            {recentOrders?.length > 0 && (
+              <div className="mt-3 pt-2 border-t border-[rgba(42,52,68,0.5)]">
+                <div className="font-mono text-[9px] text-gray-500 uppercase tracking-wider mb-1.5">Recent orders</div>
+                <div className="space-y-1 max-h-24 overflow-y-auto">
+                  {recentOrders.slice(0, 10).map((o, i) => (
+                    <div key={o.id || i} className="flex justify-between gap-2 font-mono text-[9px]">
+                      <span className="text-[#00D9FF] truncate">{o.symbol ?? o.symbol_id ?? '—'}</span>
+                      <span className={clsx('shrink-0', (o.filled_qty ?? o.filled_quantity) > 0 ? 'text-[#00e676]' : 'text-gray-400')}>{o.status ?? '—'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
         {/* VisualPriceLadder — narrow adjacent column (~1/4 width) */}

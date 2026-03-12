@@ -120,6 +120,7 @@ const API_CONFIG = {
     "alpaca/activities":"/alpaca/activities",
     "orders/advanced": "/orders/advanced",
     "orders/emergency-stop": "/orders/emergency-stop",
+    "orders/recent": "/orders/recent",
     "riskShield/emergency-action": "/risk-shield/emergency-action",
 
     // ---- ALIGNMENT ENGINE ----

@@ -75,23 +75,36 @@ export const getPriceLadder = async (symbol = 'SPX') => {
   return data.levels || [];
 };
 
+export const getRecentOrders = async (limit = 10) => {
+  const res = await fetch(`${getApiUrl('orders/recent')}?limit=${limit}`, { headers: getAuthHeaders() });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+};
+
+export const emergencyStop = async () => {
+  const res = await fetch(getApiUrl('orders/emergency-stop'), { method: 'POST', headers: getAuthHeaders() });
+  if (!res.ok) throw new Error(`Emergency stop failed: ${res.status}`);
+  return res.json();
+};
+
 // ─── Order Execution ───────────────────────────────────────
 export const executeOrder = async (order) => {
   const body = {
     symbol: order.symbol,
     side: order.side || 'buy',
-    type: order.type || 'market',
-    time_in_force: order.time_in_force || 'day',
-    qty: String(order.quantity || order.qty || 1),
+    type: (order.type || order.orderType || 'market').toLowerCase(),
+    time_in_force: (order.time_in_force || order.timeInForce || 'day').toLowerCase(),
+    qty: String(order.quantity ?? order.qty ?? 1),
   };
-  if (order.limit_price) body.limit_price = String(order.limit_price);
-  if (order.stop_price) body.stop_price = String(order.stop_price);
+  if (order.limit_price != null && order.limit_price !== '') body.limit_price = String(order.limit_price);
+  if (order.stop_price != null && order.stop_price !== '') body.stop_price = String(order.stop_price);
   const res = await fetch(getApiUrl('orders/advanced'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  if (!res.ok) { const errBody = await res.json().catch(() => ({})); throw new Error(errBody.detail?.message || errBody.detail || `HTTP ${res.status}`); }
   return res.json();
 };
 
@@ -147,6 +160,16 @@ export const getSystemStatus = async () => {
   return [{ time: new Date().toLocaleTimeString(), text: `System ${data.status || 'ok'} — latency ${data.latency || 0}ms`, type: data.status === 'ok' ? 'info' : 'warning' }];
 };
 
+// ─── Emergency Stop (Kill Switch) ──────────────────────────
+export const emergencyStop = async () => {
+  const res = await fetch(getApiUrl('orders/emergency-stop'), {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error(`Emergency stop failed: ${res.status}`);
+  return res.json();
+};
+
 // ─── WebSocket ─────────────────────────────────────────────
 // Use the singleton AppWebSocket from websocket.js instead of creating a standalone connection.
 // This avoids duplicate WS connections and leverages the shared reconnect/heartbeat logic.
@@ -175,11 +198,13 @@ export const createTradeWebSocket = (onMessage, onError) => {
 export default {
   getPortfolio,
   getPositions,
+  getRecentOrders,
   closePosition,
   adjustPosition,
   getOrderBook,
   getPriceLadder,
   executeOrder,
+  emergencyStop,
   marketBuy,
   marketSell,
   limitBuy,
