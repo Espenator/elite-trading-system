@@ -4,6 +4,7 @@ import useTradeExecution from '../hooks/useTradeExecution';
 import { getApiUrl, getAuthHeaders, WS_CHANNELS } from '../config/api';
 import { useApi } from '../hooks/useApi';
 import ws from '../services/websocket';
+import { emergencyStop as emergencyStopApi } from '../services/tradeExecutionService';
 import clsx from 'clsx';
 import { Minus, Plus, Power } from 'lucide-react';
 import { VisualPriceLadder, CouncilDecisionPanel } from '../components/dashboard/TradeExecutionWidgets';
@@ -99,8 +100,7 @@ export default function TradeExecution() {
     if (killSwitchStep === 1) { setKillSwitchStep(2); return; }
     setKillSwitchLoading(true);
     try {
-      const { emergencyStop } = await import('../services/tradeExecutionService');
-      await emergencyStop();
+      await emergencyStopApi();
       setKillSwitchModalOpen(false);
       setKillSwitchStep(1);
       refreshTradeData();

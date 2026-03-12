@@ -100,6 +100,13 @@ async def run_council(
     if context is None:
         context = {}
 
+    # Structured logging: unique eval_id per council run
+    try:
+        from app.core.logging_config import eval_id, generate_eval_id
+        eval_id.set(generate_eval_id())
+    except Exception:
+        pass
+
     # Auto-compute features if not provided
     if features is None:
         try:

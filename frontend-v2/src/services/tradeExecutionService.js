@@ -160,16 +160,6 @@ export const getSystemStatus = async () => {
   return [{ time: new Date().toLocaleTimeString(), text: `System ${data.status || 'ok'} — latency ${data.latency || 0}ms`, type: data.status === 'ok' ? 'info' : 'warning' }];
 };
 
-// ─── Emergency Stop (Kill Switch) ──────────────────────────
-export const emergencyStop = async () => {
-  const res = await fetch(getApiUrl('orders/emergency-stop'), {
-    method: 'POST',
-    headers: getAuthHeaders(),
-  });
-  if (!res.ok) throw new Error(`Emergency stop failed: ${res.status}`);
-  return res.json();
-};
-
 // ─── WebSocket ─────────────────────────────────────────────
 // Use the singleton AppWebSocket from websocket.js instead of creating a standalone connection.
 // This avoids duplicate WS connections and leverages the shared reconnect/heartbeat logic.

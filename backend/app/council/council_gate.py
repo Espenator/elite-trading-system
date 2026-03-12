@@ -1,9 +1,13 @@
 """Council Gate — bridges SignalEngine → Council → OrderExecutor.
 
 Subscribes to signal.generated on the MessageBus.  When a signal arrives
-with score >= gate_threshold the full 33-agent council is invoked.
-If the council verdict is execution_ready the signal is re-published as
-council.verdict which the OrderExecutor listens on.
+with score >= gate_threshold (regime-adaptive: 55/65/75) the full 35-agent
+council is invoked. If the council verdict is execution_ready the result
+is published as council.verdict which the OrderExecutor subscribes to.
+
+Concurrency: _semaphore limits simultaneous council runs; overflow goes to
+a priority queue (by score). Per-symbol per-direction cooldown prevents
+rapid duplicate evaluations for the same symbol/side.
 
 Phase B enhancements (March 11 2026):
   B1: Regime-adaptive gate threshold (BULLISH=55, NEUTRAL=65, BEARISH=75)
@@ -270,6 +274,11 @@ class CouncilGate:
         self, symbol: str, signal_data: Dict[str, Any]
     ) -> None:
         """Run the full 13-agent council for the symbol."""
+        try:
+            from app.core.logging_config import trace_id, generate_trace_id
+            trace_id.set(generate_trace_id())
+        except Exception:
+            pass
         async with self._semaphore:
             direction = signal_data.get("direction", "buy")
             now_ts = time.time()
