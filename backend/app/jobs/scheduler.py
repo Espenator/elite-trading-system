@@ -4,6 +4,8 @@ Schedules:
   - Daily 18:00 UTC: outcome update
   - Weekly Sunday 20:00 UTC: walk-forward training
   - Weekly Sunday 22:00 UTC: champion/challenger evaluation
+  - Daily 09:30 UTC (4:30 AM ET): incremental data backfill (D1)
+  - Daily 05:00 UTC (midnight ET): overnight FRED/SEC refresh (D5)
 
 Only starts when SCHEDULER_ENABLED=true.
 """
@@ -43,6 +45,36 @@ def _run_weekly_eval():
         log.info("Scheduled champion_challenger_eval: %s", result.get("status"))
     except Exception as e:
         log.exception("Scheduled champion_challenger_eval failed: %s", e)
+
+
+def _run_daily_backfill():
+    """D1: Daily incremental backfill at 4:30 AM ET (09:30 UTC)."""
+    import asyncio
+    from app.services.data_ingestion import data_ingestion
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.ensure_future(data_ingestion.run_daily_incremental())
+        else:
+            asyncio.run(data_ingestion.run_daily_incremental())
+        log.info("Scheduled daily_backfill triggered")
+    except Exception as e:
+        log.exception("Scheduled daily_backfill failed: %s", e)
+
+
+def _run_overnight_refresh():
+    """D5: Overnight FRED macro + SEC refresh at midnight ET (05:00 UTC)."""
+    import asyncio
+    from app.services.data_ingestion import data_ingestion
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.ensure_future(data_ingestion.ingest_macro_data(days=30))
+        else:
+            asyncio.run(data_ingestion.ingest_macro_data(days=30))
+        log.info("Scheduled overnight_refresh triggered")
+    except Exception as e:
+        log.exception("Scheduled overnight_refresh failed: %s", e)
 
 
 def start_scheduler() -> Optional[object]:
@@ -94,8 +126,26 @@ def start_scheduler() -> Optional[object]:
         replace_existing=True,
     )
 
+    # D1: Daily at 09:30 UTC (4:30 AM ET) — incremental data backfill
+    _scheduler.add_job(
+        _run_daily_backfill,
+        CronTrigger(hour=9, minute=30, timezone="UTC", day_of_week="mon-fri"),
+        id="daily_backfill",
+        name="Daily Incremental Backfill",
+        replace_existing=True,
+    )
+
+    # D5: Daily at 05:00 UTC (midnight ET) — overnight FRED/SEC refresh
+    _scheduler.add_job(
+        _run_overnight_refresh,
+        CronTrigger(hour=5, minute=0, timezone="UTC", day_of_week="mon-fri"),
+        id="overnight_refresh",
+        name="Overnight FRED/SEC Refresh",
+        replace_existing=True,
+    )
+
     _scheduler.start()
-    log.info("Flywheel scheduler started with 3 jobs")
+    log.info("Flywheel scheduler started with %d jobs", len(_scheduler.get_jobs()))
 
     return _scheduler
 

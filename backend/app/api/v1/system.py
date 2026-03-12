@@ -207,6 +207,111 @@ async def gpu_raw():
 # ---------------------------------------------------------------------------
 # /device  — Device identity for multi-PC setups
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# /rate-limits  (D2 — per-service rate limiter status)
+# ---------------------------------------------------------------------------
+@router.get("/rate-limits")
+async def rate_limits():
+    """Return status of all registered per-service rate limiters."""
+    try:
+        from app.core.rate_limiter import get_all_limiter_statuses
+        return {"limiters": get_all_limiter_statuses()}
+    except Exception as e:
+        log.debug("rate-limits failed: %s", e)
+        return {"limiters": []}
+
+
+# ---------------------------------------------------------------------------
+# /circuit-breakers  (D4 — scraper circuit breaker status)
+# ---------------------------------------------------------------------------
+@router.get("/circuit-breakers")
+async def circuit_breakers():
+    """Return status of all registered circuit breakers."""
+    try:
+        from app.core.rate_limiter import get_all_circuit_breaker_statuses
+        return {"circuit_breakers": get_all_circuit_breaker_statuses()}
+    except Exception as e:
+        log.debug("circuit-breakers failed: %s", e)
+        return {"circuit_breakers": []}
+
+
+# ---------------------------------------------------------------------------
+# /backfill/status  (D1 — backfill orchestrator status)
+# ---------------------------------------------------------------------------
+@router.get("/backfill/status")
+async def backfill_status():
+    """Return backfill orchestrator status including TurboScanner gate."""
+    try:
+        from app.services.backfill_orchestrator import backfill_orchestrator
+        return backfill_orchestrator.get_status()
+    except Exception as e:
+        log.debug("backfill status failed: %s", e)
+        return {"status": "unavailable", "error": str(e)}
+
+
+# ---------------------------------------------------------------------------
+# /dlq  (D3 — Dead-letter queue inspection + replay)
+# ---------------------------------------------------------------------------
+@router.get("/dlq")
+async def dlq_list(limit: int = 50):
+    """Return recent dead-letter queue entries."""
+    try:
+        from app.core.message_bus import get_message_bus
+        bus = get_message_bus()
+        entries = await bus.get_dlq(limit=limit)
+        return {
+            "count": len(entries),
+            "entries": entries,
+        }
+    except Exception as e:
+        log.debug("dlq list failed: %s", e)
+        return {"count": 0, "entries": []}
+
+
+@router.post("/dlq/replay")
+async def dlq_replay(topic: str = None, limit: int = 50):
+    """Replay dead-letter queue entries back onto the MessageBus."""
+    try:
+        from app.core.message_bus import get_message_bus
+        bus = get_message_bus()
+        count = await bus.replay_dlq(topic=topic, limit=limit)
+        return {"replayed": count, "filter_topic": topic}
+    except Exception as e:
+        log.warning("dlq replay failed: %s", e)
+        return {"replayed": 0, "error": str(e)}
+
+
+@router.delete("/dlq")
+async def dlq_clear():
+    """Clear the dead-letter queue."""
+    try:
+        from app.core.message_bus import get_message_bus
+        bus = get_message_bus()
+        count = bus.clear_dlq()
+        return {"cleared": count}
+    except Exception as e:
+        log.warning("dlq clear failed: %s", e)
+        return {"cleared": 0, "error": str(e)}
+
+
+# ---------------------------------------------------------------------------
+# /session-scanner  (D5 — session scanner status)
+# ---------------------------------------------------------------------------
+@router.get("/session-scanner")
+async def session_scanner_status():
+    """Return pre-market/after-hours session scanner status."""
+    try:
+        from app.services.session_scanner import get_session_scanner
+        scanner = get_session_scanner()
+        return scanner.get_status()
+    except Exception as e:
+        log.debug("session-scanner status failed: %s", e)
+        return {"running": False, "error": str(e)}
+
+
+# ---------------------------------------------------------------------------
+# /device  — Device identity for multi-PC setups
+# ---------------------------------------------------------------------------
 @router.get("/device")
 async def device_info():
     """Return this device's identity and system info for the Electron shell and Settings UI."""
