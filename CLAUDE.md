@@ -11,16 +11,18 @@
 
 ## Two-PC Development Setup
 
+**Paths:** Use **repo-relative** paths everywhere (e.g. `backend/`, `frontend-v2/`). See `PATH-STANDARD.md` for the single source of truth. Machine-specific absolute paths: `PATH-MAP.md`.
+
 ### PC1: ESPENMAIN (Primary)
 | Item | Value |
 |------|-------|
 | Hostname | ESPENMAIN |
 | LAN IP | 192.168.1.105 |
 | Role | Primary — backend API, frontend, DuckDB, trading execution |
-| Repo path | `C:\Users\Espen\elite-trading-system` |
-| Backend | `C:\Users\Espen\elite-trading-system\backend` |
-| Frontend | `C:\Users\Espen\elite-trading-system\frontend-v2` |
-| Python venv | `C:\Users\Espen\elite-trading-system\backend\venv` |
+| Repo root | Workspace root. Canonical: ESPENMAIN `C:\Users\Espen\elite-trading-system`, ProfitTrader `C:\Users\ProfitTrader\elite-trading-system`. See PATH-STANDARD.md. |
+| Backend | `backend/` |
+| Frontend | `frontend-v2/` |
+| Python venv | `backend/venv` |
 | Alpaca account | ESPENMAIN (paper trading) — Key 1 |
 
 ### PC2: ProfitTrader (Secondary)
@@ -29,7 +31,7 @@
 | Hostname | ProfitTrader |
 | LAN IP | 192.168.1.116 |
 | Role | Secondary — GPU training, ML inference, brain_service (gRPC) |
-| Repo path | `C:\Users\ProfitTrader\elite-trading-system` |
+| Repo root | Workspace root on PC2 (see PATH-STANDARD.md) |
 | Alpaca account | Profit Trader (discovery) — Key 2 |
 
 Both IPs are DHCP-reserved on the AT&T BGW320-505 router (192.168.1.254).
@@ -121,33 +123,36 @@ AlpacaStream → SignalEngine → CouncilGate → Council (35 agents) → OrderE
 
 ## Rules (CRITICAL — do not violate)
 
-1. **No mock data** in production components — all data via real API endpoints
-2. **All frontend data** via `useApi()` hook — never raw fetch or hardcoded values
-3. **No yfinance** anywhere — removed from requirements, use Alpaca/FinViz/UW
-4. **Python 4-space indentation** — never tabs
-5. **Council agents** must return `AgentVote` schema from `council/schemas.py`
-6. **VETO_AGENTS** = `{"risk", "execution"}` only — no other agent can veto
-7. **CouncilGate** bridges signals to council — do NOT bypass
-8. **Discovery must be continuous** — no polling-based scanners (Issue #38)
-9. **Scouts publish to `swarm.idea`** topic on MessageBus
-10. **ONE repo** — all code in Espenator/elite-trading-system
-11. **No secrets in committed files** — all keys in `.env` (gitignored)
-12. **Dashboard route** must be inside `<Layout />` wrapper in App.jsx (fixes sidebar)
+1. **Paths:** Use repo-relative paths in docs and when referring to files (e.g. `backend/app/main.py`). Workspace root = repo root. See `PATH-STANDARD.md`.
+2. **No mock data** in production components — all data via real API endpoints
+3. **All frontend data** via `useApi()` hook — never raw fetch or hardcoded values
+4. **No yfinance** anywhere — removed from requirements, use Alpaca/FinViz/UW
+5. **Python 4-space indentation** — never tabs
+6. **Council agents** must return `AgentVote` schema from `council/schemas.py`
+7. **VETO_AGENTS** = `{"risk", "execution"}` only — no other agent can veto
+8. **CouncilGate** bridges signals to council — do NOT bypass
+9. **Discovery must be continuous** — no polling-based scanners (Issue #38)
+10. **Scouts publish to `swarm.idea`** topic on MessageBus
+11. **ONE repo** — all code in Espenator/elite-trading-system
+12. **No secrets in committed files** — all keys in `.env` (gitignored)
+13. **Dashboard route** must be inside `<Layout />` wrapper in App.jsx (fixes sidebar)
 
-## Quick Start (PowerShell on ESPENMAIN)
+## Quick Start (PowerShell)
+
+From **repo root** (workspace root in Cursor/Claude):
 
 ```powershell
 # Terminal 1 — Backend
-cd C:\Users\Espen\elite-trading-system\backend
-venv\Scripts\Activate.ps1
+cd backend
+.\venv\Scripts\Activate.ps1
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 # Terminal 2 — Frontend
-cd C:\Users\Espen\elite-trading-system\frontend-v2
+cd frontend-v2
 npm run dev
 ```
 
-Or use the launcher: `.\start-embodier.ps1`
+Or from repo root: `.\start-embodier.ps1` (launcher derives paths from script location)
 
 ## Key Files for Common Tasks
 

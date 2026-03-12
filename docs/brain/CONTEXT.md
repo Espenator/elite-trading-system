@@ -85,7 +85,7 @@ elite-trading-system/
 
 ### GitHub
 - **Repo:** https://github.com/Espenator/elite-trading-system (public)
-- **Local clone:** `Trading/elite-trading-system/`
+- **Canonical clone (ESPENMAIN):** `C:\Users\Espen\elite-trading-system`. See PATH-STANDARD.md.
 - **Full audit:** `elite-trading-system/ANALYSIS-SUMMARY.txt`
 
 ---

@@ -2,12 +2,18 @@
 # Run this in PowerShell on your Windows machine to fix GitHub push auth
 # for both git CLI and Cursor IDE.
 #
-# Usage:
-#   cd C:\Users\Espen\Dev\elite-trading-system
+# Usage (from repo root):
+#   cd C:\Users\Espen\elite-trading-system
 #   .\scripts\fix-git-auth.ps1
 
 $ErrorActionPreference = "Stop"
-$repoDir = "C:\Users\Espen\Dev\elite-trading-system"
+# Repo root = parent of scripts/ when run from repo; else canonical ESPENMAIN path
+$scriptDir = $PSScriptRoot
+$repoDir = if ($scriptDir -and (Test-Path (Join-Path (Split-Path -Parent $scriptDir) ".git"))) {
+    Split-Path -Parent $scriptDir
+} else {
+    "C:\Users\Espen\elite-trading-system"
+}
 
 Write-Host "`n=== Git Push Auth Fix ===" -ForegroundColor Cyan
 Write-Host "This script configures GitHub authentication so both"

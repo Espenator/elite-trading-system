@@ -81,7 +81,7 @@
 
 ```powershell
 # Backend — config check (from backend dir, with venv activated)
-cd f:\workspace\Espen\elite-trading-system\backend
+cd C:\Users\Espen\elite-trading-system\backend
 .\.venv\Scripts\Activate.ps1   # or: .\venv\Scripts\Activate.ps1
 python -c "from app.core.config import settings; print('PORT', settings.effective_port)"
 
@@ -93,7 +93,7 @@ python start_server.py
 python -m pytest tests/ -v --tb=short -x -q
 
 # Frontend — install and dev (from repo root)
-cd f:\workspace\Espen\elite-trading-system\frontend-v2
+cd C:\Users\Espen\elite-trading-system\frontend-v2
 npm install
 npm run dev
 # Then open http://localhost:3000 (or VITE_PORT) and check Settings, Dashboard, Data Sources, etc.

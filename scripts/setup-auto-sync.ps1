@@ -16,16 +16,18 @@
     automatically pull the latest code.
 
 .NOTES
-    Run from ESPENMAIN as Administrator:
+    Run from ESPENMAIN as Administrator (from repo root):
         Right-click PowerShell > Run as Administrator
-        cd C:\Users\Espen\elite-trading-system
+        cd <repo root>   # e.g. C:\Users\Espen\elite-trading-system
         .\scripts\setup-auto-sync.ps1
+
+    Paths: Use -PC1RepoPath / -PC2RepoPath if your clone is elsewhere. See PATH-STANDARD.md.
 #>
 
 [CmdletBinding()]
 param(
-    # Override if your repo path differs
-    [string]$PC1RepoPath   = "C:\Users\Espen\elite-trading-system",
+    # Repo root on this PC (PC1). Default: parent of scripts/ when run from repo.
+    [string]$PC1RepoPath   = "",
     [string]$PC2RepoPath   = "C:\Users\ProfitTrader\elite-trading-system",
     [string]$PC2IP         = "192.168.1.116",
     [string]$PC2Hostname   = "ProfitTrader",
@@ -37,6 +39,12 @@ param(
 $ErrorActionPreference = "Stop"
 $ScriptPath = $PSScriptRoot
 if (-not $ScriptPath) { $ScriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path }
+# Default PC1 repo root = parent of scripts/ when run from repo
+if (-not $PC1RepoPath -and $ScriptPath) {
+    $maybeRepo = Split-Path -Parent $ScriptPath
+    if (Test-Path (Join-Path $maybeRepo ".git")) { $PC1RepoPath = $maybeRepo }
+}
+if (-not $PC1RepoPath) { $PC1RepoPath = "C:\Users\Espen\elite-trading-system" }
 $AutoPullScript = Join-Path $ScriptPath "auto-pull.ps1"
 
 # ─────────────────────────────────────────────

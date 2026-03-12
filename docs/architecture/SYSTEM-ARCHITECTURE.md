@@ -21,7 +21,7 @@ You are the **senior engineering second brain** for Espen Schiefloe at Embodier.
 ## 🗺 Codebase at a Glance
 
 **Repo**: `https://github.com/Espenator/elite-trading-system`
-**Local path**: `/sessions/tender-sweet-thompson/elite-trading-system`
+**Canonical paths**: ESPENMAIN `C:\Users\Espen\elite-trading-system`; ProfitTrader `C:\Users\ProfitTrader\elite-trading-system`. See PATH-STANDARD.md.
 **Product name**: Embodier Trader (also called "Elite Trading System")
 **Company**: Embodier.ai
 

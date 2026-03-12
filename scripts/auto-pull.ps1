@@ -13,8 +13,11 @@
     Path to the local git repo. Defaults based on hostname.
 
 .EXAMPLE
-    # Manual run:
-    .\auto-pull.ps1 -RepoPath "C:\Users\Espen\elite-trading-system"
+    # From repo root (auto-detects repo):
+    .\scripts\auto-pull.ps1
+
+    # Override path:
+    .\scripts\auto-pull.ps1 -RepoPath "C:\Users\Espen\elite-trading-system"
 
     # Installed by setup-auto-sync.ps1 as a scheduled task
 #>
@@ -25,13 +28,22 @@ param(
     [string]$LogFile  = "$env:TEMP\embodier-auto-sync.log"
 )
 
-# Auto-detect repo path based on hostname if not provided
+# Auto-detect repo path: script in scripts/ => parent is repo root; else use hostname or env
 if (-not $RepoPath) {
-    $hostname = $env:COMPUTERNAME
-    switch ($hostname) {
-        "ESPENMAIN"    { $RepoPath = "C:\Users\Espen\elite-trading-system" }
-        "PROFITTRADER" { $RepoPath = "C:\Users\ProfitTrader\elite-trading-system" }
-        default        { $RepoPath = "$env:USERPROFILE\elite-trading-system" }
+    $scriptDir = $PSScriptRoot
+    if ($scriptDir) {
+        $maybeRepo = Split-Path -Parent $scriptDir
+        if (Test-Path (Join-Path $maybeRepo ".git")) {
+            $RepoPath = $maybeRepo
+        }
+    }
+    if (-not $RepoPath) {
+        $hostname = $env:COMPUTERNAME
+        switch ($hostname) {
+            "ESPENMAIN"    { $RepoPath = "C:\Users\Espen\elite-trading-system" }
+            "PROFITTRADER" { $RepoPath = "C:\Users\ProfitTrader\elite-trading-system" }
+            default        { $RepoPath = if ($env:REPO_ROOT) { $env:REPO_ROOT } else { "$env:USERPROFILE\elite-trading-system" } }
+        }
     }
 }
 

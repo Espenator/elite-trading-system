@@ -14,6 +14,8 @@
 
 ## Two-PC Development Setup
 
+Paths: canonical only (see **PATH-STANDARD.md**). No alternate paths in docs.
+
 ### PC1: ESPENMAIN (Primary)
 | Item | Value |
 |------|-------|

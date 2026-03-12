@@ -472,6 +472,8 @@ All pages in frontend-v2/src/pages/. All use useApi() hook. No mock data. **ALL 
 
 ## Hardware (Dual-PC Setup)
 
+Path convention: all docs use these canonical paths. See **PATH-STANDARD.md** and **PATH-MAP.md**.
+
 ### PC1: ESPENMAIN (Primary)
 | Item | Value |
 |------|-------|

@@ -82,7 +82,7 @@ This master skill gives you the big picture. For deep dives, read the specialize
 ## 📁 Codebase Map
 
 **Repo**: `https://github.com/Espenator/elite-trading-system`
-**Local**: `/sessions/tender-sweet-thompson/elite-trading-system`
+**Canonical paths**: ESPENMAIN `C:\Users\Espen\elite-trading-system`; ProfitTrader `C:\Users\ProfitTrader\elite-trading-system`. See PATH-STANDARD.md.
 
 ### Key Directories
 
