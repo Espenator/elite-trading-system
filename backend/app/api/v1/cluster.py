@@ -5,8 +5,11 @@ telemetry, and LLM dispatcher state.
 
 Part of #39 — E0.5 + E1.7
 """
+import logging
+
 from fastapi import APIRouter
 
+logger = logging.getLogger(__name__)
 router = APIRouter(tags=["cluster"])
 
 
@@ -36,7 +39,8 @@ async def cluster_telemetry():
         from app.services.gpu_telemetry import get_gpu_telemetry
         return get_gpu_telemetry().get_status()
     except Exception as e:
-        return {"error": str(e), "enabled": False}
+        logger.warning("GPU telemetry unavailable: %s", e)
+        return {"error": "Service unavailable", "enabled": False}
 
 
 @router.get("/dispatcher")
@@ -46,7 +50,8 @@ async def cluster_dispatcher():
         from app.services.llm_dispatcher import get_llm_dispatcher
         return get_llm_dispatcher().get_status()
     except Exception as e:
-        return {"error": str(e), "enabled": False}
+        logger.warning("LLM dispatcher unavailable: %s", e)
+        return {"error": "Service unavailable", "enabled": False}
 
 
 @router.get("/pinning")
@@ -56,4 +61,5 @@ async def cluster_pinning():
         from app.services.model_pinning import get_model_pinning
         return get_model_pinning().get_status()
     except Exception as e:
-        return {"error": str(e)}
+        logger.warning("Model pinning unavailable: %s", e)
+        return {"error": "Service unavailable"}

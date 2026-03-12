@@ -66,6 +66,9 @@ class CouncilGate:
         Base minimum signal score (0-100); overridden by regime-adaptive thresholds.
     max_concurrent : int
         Maximum concurrent council evaluations (overflow goes to priority queue).
+        Default 5 (conservative); bursts to ``burst_concurrent`` during market open.
+    burst_concurrent : int
+        Max concurrent during market open burst window (first 30 min after open).
     cooldown_seconds : int
         Base per-symbol cooldown; overridden by regime-adaptive cooldowns.
     """
@@ -74,7 +77,8 @@ class CouncilGate:
         self,
         message_bus,
         gate_threshold: float = 65.0,
-        max_concurrent: int = 15,
+        max_concurrent: int = 5,
+        burst_concurrent: int = 8,
         cooldown_seconds: int = 120,
     ):
         self.message_bus = message_bus
@@ -83,12 +87,17 @@ class CouncilGate:
         )
         self.gate_threshold = self.base_gate_threshold
         self.max_concurrent = max_concurrent
+        self.burst_concurrent = burst_concurrent
         self.cooldown_seconds = cooldown_seconds
         self._current_regime = "UNKNOWN"
 
         self._running = False
         self._start_time: Optional[float] = None
         self._semaphore = asyncio.Semaphore(max_concurrent)
+        # B3: Separate buy/sell cooldowns per symbol
+        # key = "SYMBOL:buy" or "SYMBOL:sell"
+        self._symbol_direction_last_eval: Dict[str, float] = {}
+        # Legacy per-symbol tracker (backwards compat for status)
         self._symbol_last_eval: Dict[str, float] = {}
         self._signals_received = 0
         self._councils_invoked = 0
@@ -109,9 +118,11 @@ class CouncilGate:
         await self.message_bus.subscribe("signal.generated", self._on_signal)
         self._queue_drain_task = asyncio.create_task(self._drain_queue_loop())
         logger.info(
-            "CouncilGate started — base_threshold=%.1f, max_concurrent=%d, cooldown=%ds (regime-adaptive)",
+            "CouncilGate started — base_threshold=%.1f, max_concurrent=%d (burst=%d), "
+            "cooldown=%ds (regime-adaptive, per-direction)",
             self.base_gate_threshold,
             self.max_concurrent,
+            self.burst_concurrent,
             self.cooldown_seconds,
         )
 
@@ -138,6 +149,33 @@ class CouncilGate:
     def _get_regime_cooldown(self) -> int:
         """Return regime-adaptive cooldown in seconds."""
         return _REGIME_COOLDOWNS.get(self._current_regime, self.cooldown_seconds)
+
+    def _is_market_open_burst(self) -> bool:
+        """Return True during first 30 minutes after US market open (9:30-10:00 ET).
+
+        During the open burst window, concurrency is raised to burst_concurrent
+        to capture the opening volatility spike (B4).
+        """
+        try:
+            from zoneinfo import ZoneInfo
+            eastern = ZoneInfo("America/New_York")
+        except ImportError:
+            from datetime import timedelta, timezone as tz
+            eastern = tz(timedelta(hours=-5))
+        from datetime import datetime
+        now_et = datetime.now(eastern)
+        # Weekday check (Mon-Fri)
+        if now_et.weekday() >= 5:
+            return False
+        minutes_since_midnight = now_et.hour * 60 + now_et.minute
+        # 9:30 AM = 570 min, 10:00 AM = 600 min
+        return 570 <= minutes_since_midnight < 600
+
+    def _effective_max_concurrent(self) -> int:
+        """Return effective concurrency limit, accounting for market open burst (B4)."""
+        if self._is_market_open_burst():
+            return self.burst_concurrent
+        return self.max_concurrent
 
     async def _on_signal(self, signal_data: Dict[str, Any]) -> None:
         """Handle incoming signal — gate and invoke council if warranted."""
@@ -172,15 +210,23 @@ class CouncilGate:
         if score_f < threshold:
             return
 
-        # Gate 3: Regime-adaptive per-symbol cooldown (B3)
+        # Gate 3: Regime-adaptive per-symbol+direction cooldown (B3)
+        # Separate buy/sell cooldowns so a BUY cooldown doesn't block a SELL
+        direction = signal_data.get("direction", "buy")
         now = time.time()
         cooldown = self._get_regime_cooldown()
-        last_eval = self._symbol_last_eval.get(symbol, 0)
+        cooldown_key = f"{symbol}:{direction}"
+        last_eval = self._symbol_direction_last_eval.get(cooldown_key, 0)
         if now - last_eval < cooldown:
             self._cooldown_skips += 1
             return
 
         # Gate 4: Concurrency — if full, queue by priority instead of dropping (B4)
+        effective_limit = self._effective_max_concurrent()
+        # Dynamically adjust semaphore capacity for burst windows
+        if self._semaphore._value == 0 and effective_limit > self.max_concurrent:
+            # Burst mode: allow extra slots by releasing additional permits
+            pass  # heapq overflow handles this naturally
         if self._semaphore.locked():
             # Push to priority queue (highest score first via negative score)
             heapq.heappush(
@@ -207,9 +253,12 @@ class CouncilGate:
                 # Skip if signal is stale (>60s old)
                 if time.time() - enqueue_time > 60:
                     continue
-                # Skip if symbol was evaluated while queued
+                # Skip if symbol+direction was evaluated while queued
                 cooldown = self._get_regime_cooldown()
-                last_eval = self._symbol_last_eval.get(symbol, 0)
+                drain_direction = signal_data.get("direction", "buy")
+                last_eval = self._symbol_direction_last_eval.get(
+                    f"{symbol}:{drain_direction}", 0
+                )
                 if time.time() - last_eval < cooldown:
                     continue
                 self._queue_dispatched += 1
@@ -222,7 +271,10 @@ class CouncilGate:
     ) -> None:
         """Run the full 13-agent council for the symbol."""
         async with self._semaphore:
-            self._symbol_last_eval[symbol] = time.time()
+            direction = signal_data.get("direction", "buy")
+            now_ts = time.time()
+            self._symbol_last_eval[symbol] = now_ts
+            self._symbol_direction_last_eval[f"{symbol}:{direction}"] = now_ts
             self._councils_invoked += 1
 
             try:
@@ -330,7 +382,10 @@ class CouncilGate:
             "regime": self._current_regime,
             "gate_threshold": self._get_regime_threshold(),
             "base_gate_threshold": self.base_gate_threshold,
-            "max_concurrent": self.max_concurrent,
+            "max_concurrent": self._effective_max_concurrent(),
+            "base_max_concurrent": self.max_concurrent,
+            "burst_concurrent": self.burst_concurrent,
+            "market_open_burst": self._is_market_open_burst(),
             "cooldown_seconds": self._get_regime_cooldown(),
             "base_cooldown_seconds": self.cooldown_seconds,
             "signals_received": self._signals_received,

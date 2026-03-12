@@ -10,6 +10,7 @@ When API keys are updated via the Settings UI, changes propagate to:
   3. The backend/.env file (so next restart also picks them up)
 """
 import json
+import logging
 import os
 import re
 from datetime import datetime
@@ -18,6 +19,8 @@ from typing import Any, Dict, Optional
 
 from app.core.config import settings, _ENV_FILE
 from app.services.database import db_service
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULTS: Dict[str, Dict[str, Any]] = {
@@ -686,6 +689,8 @@ def _write_env_key(env_key: str, value: str) -> None:
 
     # Also push into os.environ for OpenClaw config.py reads
     os.environ[env_key] = str(value)
+    # Log key name only — never log the value (may contain secrets)
+    logger.info("Updated env key: %s", env_key)
 
 
 def _sync_runtime_settings(env_key: str, value: Any) -> None:

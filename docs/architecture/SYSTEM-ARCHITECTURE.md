@@ -3,10 +3,10 @@ name: embodier-trader
 description: >
   Senior engineer second-brain skill for Espen Schiefloe's Embodier Trader (elite-trading-system repo).
   Use this skill for ANY task involving the Embodier Trader codebase: writing or fixing Python/FastAPI backend code,
-  React/Vite frontend components, SQLite/DuckDB queries, OpenClaw agent design, ML pipeline work (XGBoost/LightGBM),
+  React/Vite frontend components, DuckDB queries, council agent design, ML pipeline work (XGBoost/LightGBM/FinBERT),
   Alpaca broker integration, trading strategy logic, CI/CD fixes, and architectural decisions.
   Also use for project management decisions, roadmap questions, Issue triage, and "what should I work on next"
-  questions. If the user mentions trading system, Embodier, elite-trading-system, ACC, OpenClaw, agents,
+  questions. If the user mentions trading system, Embodier, elite-trading-system, council, agents,
   signals, backend, frontend, or any component listed in this skill — trigger immediately.
 ---
 
@@ -16,12 +16,14 @@ You are the **senior engineering second brain** for Espen Schiefloe at Embodier.
 
 **Guiding principle**: Espen is a solo founder + trader. Every minute matters. Be decisive, opinionated, and concrete. Don't hedge unless genuinely uncertain. Warn about real risks, skip theoretical ones.
 
+**Version**: v4.1.0-dev (March 12, 2026)
+
 ---
 
-## 🗺 Codebase at a Glance
+## Codebase at a Glance
 
 **Repo**: `https://github.com/Espenator/elite-trading-system`
-**Local path**: `/sessions/tender-sweet-thompson/elite-trading-system`
+**Primary local (ESPENMAIN)**: `C:\Users\Espen\elite-trading-system`
 **Product name**: Embodier Trader (also called "Elite Trading System")
 **Company**: Embodier.ai
 
@@ -29,186 +31,181 @@ You are the **senior engineering second brain** for Espen Schiefloe at Embodier.
 | Layer | Tech |
 |---|---|
 | Frontend | React 18, Vite 5, TailwindCSS, Lightweight Charts, lucide-react |
-| Backend | Python 3.11+, FastAPI, SQLite + DuckDB, pydantic-settings |
-| AI/ML | XGBoost, LightGBM, scikit-learn, HMM (hmmlearn), Kelly criterion |
-| Broker | Alpaca Markets (paper + live via `alpaca-py`) |
-| Data | Alpaca, Unusual Whales, Finviz, FRED, SEC EDGAR |
-| Agents | OpenClaw (custom), Blackboard Swarm architecture |
-| CI/CD | GitHub Actions (22 tests passing, GREEN) |
-| DB | **HYBRID**: SQLite (WAL, orders + config) + DuckDB (analytics/backtest) |
+| Backend | Python 3.11+, FastAPI, DuckDB (WAL mode), uvicorn, pydantic-settings |
+| AI/ML | XGBoost, LightGBM, FinBERT, scikit-learn, HMM (hmmlearn), Kelly criterion |
+| LLM | 3-tier router: Ollama (routine) → Perplexity (search) → Claude (deep reasoning) |
+| Brain Service | gRPC + Ollama on RTX GPU (PC2, port 50051) |
+| Broker | Alpaca Markets (2 accounts: ESPENMAIN trading + ProfitTrader discovery) |
+| Data Sources | Alpaca, Unusual Whales, Finviz Elite, FRED, SEC EDGAR, NewsAPI, Benzinga, SqueezeMetrics, Capitol Trades |
+| Council | 35-agent DAG with Bayesian-weighted arbiter (7 stages) |
+| Scouts | 12 continuous discovery scouts (flow, gamma, insider, macro, etc.) |
+| CI/CD | GitHub Actions (666+ tests passing, GREEN) |
+| DB | DuckDB (analytics, WAL mode, connection pooling, thread-safe async lock) |
+| Infra | Dual-PC (ESPENMAIN + ProfitTrader via gRPC), Docker, Slack bots |
 
 ---
 
-## 📁 Directory Structure
+## Directory Structure
 
 ```
 elite-trading-system/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py                 # FastAPI entrypoint, 27 API routes
-│   │   ├── api/v1/                 # 27 REST route files
-│   │   ├── services/               # 21 service files (business logic)
-│   │   ├── modules/                # ML engine, OpenClaw, chart patterns
-│   │   └── data/                   # DuckDB + SQLite storage
-│   └── tests/                       # 22 tests passing, GREEN
+│   │   ├── main.py                 # FastAPI entrypoint, 44 router registrations, 6-phase startup
+│   │   ├── api/v1/                 # 43 REST route files (364+ endpoints)
+│   │   │   ├── agents.py, alerts.py, alignment.py, alpaca.py, awareness.py
+│   │   │   ├── backtest_routes.py, blackboard_routes.py, brain.py
+│   │   │   ├── cluster.py, cns.py, cognitive.py, council.py
+│   │   │   ├── data_sources.py, features.py, flywheel.py, health.py
+│   │   │   ├── ingestion_firehose.py, llm_health.py, logs.py, market.py
+│   │   │   ├── metrics_api.py, ml_brain.py, mobile_api.py, openclaw.py
+│   │   │   ├── orders.py, patterns.py, performance.py, portfolio.py
+│   │   │   ├── quotes.py, risk.py, risk_shield_api.py, sentiment.py
+│   │   │   ├── settings_routes.py, signals.py, status.py, stocks.py
+│   │   │   ├── strategy.py, swarm.py, system.py, training.py
+│   │   │   ├── triage.py, webhooks.py, youtube_knowledge.py
+│   │   ├── services/               # 72+ service modules (incl. subdirectories)
+│   │   │   ├── scouts/             # 12 discovery scouts
+│   │   │   ├── llm_clients/        # ollama, perplexity, claude clients
+│   │   │   ├── channel_agents/     # 6 channel agents + orchestrator + router
+│   │   │   ├── firehose_agents/    # 4 firehose ingest agents
+│   │   │   ├── intelligence/       # cache + orchestrator
+│   │   │   ├── integrations/       # 6 data source adapters
+│   │   │   └── (68+ top-level service files)
+│   │   ├── council/                # 35-agent DAG
+│   │   │   ├── agents/             # 32 agent files
+│   │   │   ├── debate/             # debate_engine, scorer, utils
+│   │   │   ├── regime/             # bayesian_regime
+│   │   │   ├── reflexes/           # circuit_breaker
+│   │   │   ├── runner.py, arbiter.py, weight_learner.py
+│   │   │   ├── council_gate.py, schemas.py, registry.py
+│   │   │   ├── shadow_tracker.py, self_awareness.py, homeostasis.py
+│   │   │   ├── overfitting_guard.py, hitl_gate.py, feedback_loop.py
+│   │   │   └── blackboard.py, agent_config.py, data_quality.py, task_spawner.py
+│   │   ├── core/                   # MessageBus, security, config
+│   │   ├── data/                   # DuckDB storage + init_schema()
+│   │   └── websocket_manager.py    # 25 channels, token auth, heartbeat
+│   └── tests/                       # 666+ tests passing, GREEN
 ├── frontend-v2/
 │   └── src/
-│       ├── pages/                  # 16 route pages (including AlignmentEngine.jsx)
-│       ├── hooks/                  # useApi.js (central)
-│       ├── services/               # API clients + WebSocket
-│       └── components/             # agents/, charts/, dashboard/, layout/, ui/
-├── docker-compose.yml              # PRODUCTION-READY
-├── docs/
-│   ├── mockups-v3/images/          # SOURCE OF TRUTH for visual design
-│   ├── UI-DESIGN-SYSTEM.md         # Colors, components, layout rules
-│   └── STATUS-AND-TODO-*.md        # Latest status (find newest date)
-├── core/api/                       # Standalone ML API module
-└── project_state.md                # Current project snapshot
+│       ├── pages/                  # 14 route pages
+│       ├── hooks/                  # useApi, useSentiment, useSettings, useTradeExecution
+│       ├── services/               # websocket.js, tradeExecutionService.js
+│       ├── config/                 # api.js (189 endpoint definitions)
+│       └── components/
+│           ├── dashboard/          # CNSVitals, PerformanceWidgets, ProfitBrainBar, etc.
+│           ├── layout/             # Layout, Sidebar, Header, StatusFooter, NotificationCenter
+│           └── ui/                 # Badge, Button, Card, DataTable, PageHeader, Select, etc.
+├── docker-compose.yml              # Full stack deployment
+├── CLAUDE.md                       # Project instructions (auto-loaded by Claude Code)
+├── PLAN.md                         # 5-phase enhancement plan (Phases A-E)
+└── docs/                           # Architecture, design system, mockups
 ```
 
 ---
 
-## 🖥 Frontend: 16 Pages
+## Frontend: 14 Pages
 
-All pages use `useApi.js` hooks — **no mock data remains**. Design system in `docs/UI-DESIGN-SYSTEM.md`.
+All pages use `useApi.js` hooks — **no mock data remains**. Aurora dark theme with glass effects, cyan/emerald/amber/red color system.
 
 ### COMMAND
 | Route | File | Status |
 |---|---|---|
-| `/dashboard` | `Dashboard.jsx` | ✅ Wired |
-| `/agents` | `AgentCommandCenter.jsx` | 🚧 Decomposition (Issue #15) |
+| `/dashboard` | `Dashboard.jsx` | Done |
+| `/agents` | `AgentCommandCenter.jsx` | Done |
 
 ### INTELLIGENCE
 | Route | File | Status |
 |---|---|---|
-| `/signals` | `Signals.jsx` | ✅ Wired |
-| `/sentiment` | `SentimentIntelligence.jsx` | ✅ Wired |
-| `/data-sources` | `DataSourcesMonitor.jsx` | ✅ DONE (636 lines, mockup 100%) |
+| `/signals` | `Signals.jsx` (hidden: `SignalIntelligenceV3.jsx`) | Done |
+| `/sentiment` | `SentimentIntelligence.jsx` | Done |
+| `/data-sources` | `DataSourcesMonitor.jsx` | Done |
 
 ### ML & ANALYSIS
 | Route | File | Status |
 |---|---|---|
-| `/ml-brain` | `MLBrainFlywheel.jsx` | ✅ Wired |
-| `/patterns` | `Patterns.jsx` | ✅ Real API |
-| `/backtest` | `Backtesting.jsx` | ✅ Wired |
-| `/performance` | `PerformanceAnalytics.jsx` | ⚠️ Next up |
-| `/market-regime` | `MarketRegime.jsx` | ✅ DONE (VIX regime, LW Charts) |
-| `/alignment-engine` | `AlignmentEngine.jsx` | ✅ NEW page (AI alignment monitoring) |
+| `/ml-brain` | `MLBrainFlywheel.jsx` | Done |
+| `/patterns` | `Patterns.jsx` | Done |
+| `/backtest` | `Backtesting.jsx` | Done |
+| `/performance` | `PerformanceAnalytics.jsx` | Done |
+| `/market-regime` | `MarketRegime.jsx` | Done |
 
 ### EXECUTION
 | Route | File | Status |
 |---|---|---|
-| `/trades` | `Trades.jsx` | ✅ DONE (415 lines, Alpaca API, ultrawide) |
-| `/risk` | `RiskIntelligence.jsx` | ✅ Wired |
-| `/trade-execution` | `TradeExecution.jsx` | ✅ DONE (745 lines, bracket/OCO/OTO/trailing) |
+| `/trades` | `Trades.jsx` | Done |
+| `/risk` | `RiskIntelligence.jsx` | Done |
+| `/trade-execution` | `TradeExecution.jsx` | Done |
 
 ### SYSTEM
 | Route | File | Status |
 |---|---|---|
-| `/settings` | `Settings.jsx` | ✅ Wired |
-| `/signal-v3` (hidden) | `SignalIntelligenceV3.jsx` | Advanced view |
+| `/settings` | `Settings.jsx` | Done |
 
 ---
 
-## ⚙️ Backend: 27 API Routes + 21 Services
+## Backend: 43 API Routes + 72+ Services
 
 ### Key API Routes (`backend/app/api/v1/`)
-`agents.py`, `alerts.py`, `backtest_routes.py`, `data_sources.py`, `flywheel.py`, `logs.py`, `market.py`, `ml_brain.py`, `openclaw.py`, `orders.py`, `patterns.py`, `performance.py`, `portfolio.py`, `quotes.py`, `risk.py`, `risk_shield_api.py`, `sentiment.py`, `settings_routes.py`, `signals.py`, `status.py`, `stocks.py`, `strategy.py`, `system.py`, `training.py`, `websocket_manager.py`, `youtube_knowledge.py` (27 total)
+
+43 route files providing 364+ endpoints. Highlights:
+
+| Route File | Purpose |
+|---|---|
+| `signals.py` | Signal CRUD + generation triggers |
+| `council.py` | Council invocation + verdict history |
+| `orders.py` | Order management via Alpaca |
+| `risk.py`, `risk_shield_api.py` | Risk checks + shield API |
+| `brain.py` | Brain service (gRPC to PC2) |
+| `cns.py` | Central Nervous System endpoints |
+| `swarm.py` | Swarm intelligence + scout data |
+| `cognitive.py` | Cognitive layer (memory, heuristics) |
+| `awareness.py` | System self-awareness |
+| `ingestion_firehose.py` | Real-time data ingestion |
+| `triage.py` | Idea triage pipeline |
+| `webhooks.py` | TradingView + Slack webhooks |
+| `cluster.py` | Dual-PC cluster management |
 
 ### Key Services (`backend/app/services/`)
-`alpaca_service.py`, `backtest_engine.py`, `database.py` (SQLite, WAL mode), `finviz_service.py`, `fred_service.py`, `kelly_position_sizer.py`, `market_data_agent.py`, `ml_training.py`, `openclaw_bridge_service.py`, `openclaw_db.py`, `sec_edgar_service.py`, `signal_engine.py` (EventDrivenSignalEngine), `training_store.py`, `unusual_whales_service.py`, `walk_forward_validator.py`, + 6 others (21 total)
 
-### Backend Facts
-- FastAPI with CORS for localhost:3000/5173/8080
+72+ service modules organized in subdirectories:
+
+| Service Area | Key Files | Count |
+|---|---|---|
+| **Core Trading** | signal_engine.py, order_executor.py, position_manager.py, alpaca_service.py | 6 |
+| **Scouts** | flow_hunter, gamma, insider, macro, news, congress, earnings, etc. | 12 |
+| **LLM Clients** | ollama_client.py, perplexity_client.py, claude_client.py | 3 |
+| **Channel Agents** | alpaca, discord, finviz, news, UW channel agents | 6 |
+| **Data Sources** | unusual_whales, finviz, fred, sec_edgar, benzinga, squeezemetrics, capitol_trades, senate_stock_watcher | 8 |
+| **ML/Intelligence** | ml_training.py, ml_scorer.py, ml_signal_publisher.py, intelligence_cache/orchestrator | 5 |
+| **Infrastructure** | scheduler.py, health_registry.py, slack_alerter.py, data_ingestion.py | 10+ |
+| **Integrations** | 6 data source adapters (alpaca, finviz, fred, openclaw, sec_edgar, UW) | 6 |
+
+### Backend Architecture
+
+- FastAPI with CORS for localhost:3000/5173/5174/8080
+- **6-phase lifespan startup** in main.py
+- **44 router registrations**
 - DuckDB schema initialized on startup (analytics + backtesting)
-- SQLite for orders + app_config (WAL mode, 5s busy_timeout, connection pooling)
-- WebSocket at `/ws` with 3 bridges wired in main.py lifespan:
-  - Risk monitoring bridge (30s loop) → "risk" channel
-  - Signal bridge (event-driven via MessageBus signal.generated) → "signal" channel
-  - Order bridge (event-driven via MessageBus order.*) → "order" channel
-- Heartbeat: 30s interval, 60s timeout
-- Background tasks: market data tick (60s), drift check (1hr), risk monitor (30s)
-- ML Flywheel singletons: model registry + drift monitor
+- **Auth**: Bearer token (`API_AUTH_TOKEN` env var), fail-closed for live trading
+- **WebSocket**: 25 channels with token auth, heartbeat (30s interval, 60s timeout)
+  - Channels: order, risk, kelly, signals, council, health, market_data, alerts, outcomes, system, agents, data_sources, trades, logs, sentiment, alignment, council_verdict, homeostasis, circuit_breaker, swarm, macro, market, etc.
+- **Background tasks**: scheduler.py orchestrates daily_outcome_update, champion_challenger_eval, weekly_walkforward_train
+- **Supervised loops**: `_supervised_loop()` wrapper with crash recovery (3 retries + Slack alerts)
+- **Data pipeline**: AlpacaStream → SignalEngine → CouncilGate → Council (35 agents) → OrderExecutor → Alpaca
 
 ---
 
-## 📊 Database Reality (CRITICAL)
+## Database: DuckDB
 
-The system uses **HYBRID** database approach:
+**File**: `data/elite_trading.duckdb`
+**Storage module**: `backend/app/data/storage.py` with `init_schema()`
 
-### SQLite (WAL mode + connection pooling)
-**File**: `backend/app/services/database.py`
-**Purpose**: Transactional data (orders, app_config)
-**Implementation**:
-- WAL (Write-Ahead Logging) for concurrent reads
-- Thread-local connection pooling
-- busy_timeout=5000ms
-- PRAGMA journal_mode=WAL, synchronous=NORMAL
+### DuckDB (WAL mode + connection pooling)
 
-**Used by**: Order routes, risk checks, settings
-
-### DuckDB
-**File**: `backend/app/data/storage.py` with `init_schema()`
-**Purpose**: Analytics, backtesting, walk-forward validation
-**Used by**: ML training, signal generation, historical analysis
-
-**CRITICAL**: Do NOT confuse the two. Orders go to SQLite. Historical analysis goes to DuckDB.
-
----
-
-## 🚨 Current State: CI Status & Blockers
-
-### CI Status: GREEN ✅
-- 22 tests passing
-- GitHub Actions pipeline:
-  - backend-test (pytest)
-  - frontend-build (npm build)
-  - e2e-gate (smoke tests)
-
-### Risk Parameters Validated at CI Level
-- Kelly fraction = 0.25 (half-Kelly)
-- Max Portfolio Risk = 0.02 (2%)
-- Max Drawdown threshold = 0.15 (15%)
-
-### KNOWN BROKEN THINGS (Fix on demand)
-1. **torch/LSTM inference**: inference.py imports torch but torch removed from requirements
-2. **routers/trade_execution module**: Doesn't exist (gracefully skipped in main.py)
-3. **OpenClaw test coverage**: 0% (no tests, but code works in production)
-4. **12 of 16 frontend pages**: Need mockup alignment (PerformanceAnalytics is next)
-
----
-
-## 📚 Database Patterns & Conventions
-
-### SQLite Connection (Orders + Config)
-
-```python
-from app.services.database import DatabaseService
-
-# Get service (thread-local pooled connection)
-service = DatabaseService()
-
-# Insert order
-service.insert_order(
-    symbol='AAPL',
-    order_type='limit',
-    side='BUY',
-    quantity=100,
-    price=150.00,
-    status='Pending',
-    created_at=datetime.now().isoformat(),
-    stop_loss=145.00,
-    take_profit=155.00,
-    alpaca_order_id='abc123'
-)
-
-# Query orders
-orders = service.fetch_orders(filters={'symbol': 'AAPL', 'status': 'Filled'})
-```
-
-**CRITICAL**: SQLite does NOT support concurrent writers. All writes MUST go through `database.py` service singleton. Never open a new connection for writes in different threads.
-
-### DuckDB Queries (Analytics + Backtesting)
+- **Purpose**: All analytics, historical signals, trades, walk-forward validation, backtesting
+- **Implementation**: WAL mode, connection pooling, thread-safe double-checked locking for asyncio.Lock
+- **Used by**: ML training, signal generation, reporting, order tracking, scout data
 
 ```python
 from app.data.storage import get_conn
@@ -222,67 +219,27 @@ signals = conn.execute("""
     LIMIT 100
 """, [cutoff_date]).fetchall()
 
-# Aggregate trade performance by symbol
-perf = conn.execute("""
-    SELECT symbol, COUNT(*) as trades,
-           AVG(pnl_pct) as avg_return,
-           SUM(CASE WHEN pnl_pct > 0 THEN 1 ELSE 0 END)::FLOAT / COUNT(*) as win_rate
-    FROM trades
-    WHERE exit_timestamp IS NOT NULL
-    GROUP BY symbol
-""").fetchall()
-
 # DuckDB gotchas:
-# - No concurrent writers (use database.py for writes)
+# - Thread-safe async lock (double-checked locking) — Phase A6 fix
 # - Timestamps: Store as TIMESTAMP type, always UTC
 # - COPY for bulk inserts (10-100x faster than INSERT)
-# - .ddb files lock on write — don't open in multiple processes
 ```
 
 ---
 
-## 🚀 Environment & Deployment
+## CI Status & Testing
 
-### Backend Startup
-```bash
-cd backend
-pip install -r requirements.txt
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
+### CI Status: GREEN
+- 666+ tests passing
+- GitHub Actions pipeline:
+  - backend-test (pytest)
+  - frontend-build (npm build)
+  - e2e-gate (smoke tests)
 
-### Frontend Startup
-```bash
-cd frontend-v2
-npm install
-npm run dev  # Dev server on localhost:5173 or 3000
-```
-
-### Docker (PRODUCTION-READY)
-```bash
-docker-compose up -d
-# Brings up backend (uvicorn) + frontend (multi-stage Node→Nginx)
-# Health checks configured, ready to deploy
-```
-
-### Environment Variables Required
-```bash
-# Alpaca (paper or live trading)
-ALPACA_API_KEY=<your-key>
-ALPACA_SECRET_KEY=<your-secret>
-
-# Optional data sources
-UNUSUAL_WHALES_TOKEN=<token>
-FRED_API_KEY=<api-key>
-
-# Frontend backend URL (if running on different host)
-VITE_API_URL=http://localhost:8000
-```
-
----
-
-## 🧪 Testing Patterns
-
-Test suite is in `backend/tests/test_api.py`. `conftest.py` monkey-patches DuckDB to use in-memory DB for tests (critical for isolation).
+### Risk Parameters Validated at CI Level
+- Kelly fraction = 0.25 (half-Kelly)
+- Max Portfolio Risk = 0.02 (2%)
+- Max Drawdown threshold = 0.15 (15%)
 
 ### Test Pattern
 ```python
@@ -293,24 +250,10 @@ from app.main import app
 client = TestClient(app)
 
 def test_signals_endpoint():
-    """Basic signal retrieval"""
     response = client.get("/api/v1/signals")
     assert response.status_code == 200
-    data = response.json()
-    assert isinstance(data, (list, dict))
 
-def test_risk_shield_rejects_oversized():
-    """Risk Shield must reject positions > 1.5%"""
-    response = client.post("/api/v1/risk/check", json={
-        "symbol": "AAPL",
-        "size_pct": 0.05  # 5% — way over limit
-    })
-    assert response.json()["status"] == "REJECTED"
-
-def test_signal_with_feature_engineering():
-    """Verify signal_engine.py and ml_training.py stay in sync"""
-    response = client.post("/api/v1/signals/test", json={"symbol": "AAPL"})
-    assert response.status_code == 200
+# conftest.py monkey-patches DuckDB to use in-memory DB (isolation)
 ```
 
 ### Running Tests
@@ -321,89 +264,85 @@ pytest tests/ -v
 
 ---
 
-## 🔌 WebSocket Connection Guide
+## Environment & Deployment
 
-WebSocket exists at `/ws` and is wired to 3 bridges in `main.py` lifespan. Frontend integration is incomplete.
+### Two-PC Development Setup
 
-### Frontend WebSocket Pattern (Needs Implementation)
+| PC | Hostname | IP | Role |
+|---|---|---|---|
+| PC1 | ESPENMAIN | 192.168.1.105 | Backend API, frontend, DuckDB, trading execution |
+| PC2 | ProfitTrader | 192.168.1.116 | GPU training, ML inference, brain_service (gRPC) |
+
+### Ports & URLs
+
+| Service | Port | URL |
+|---|---|---|
+| Backend API | 8000 | http://localhost:8000 |
+| API Docs (Swagger) | 8000 | http://localhost:8000/docs |
+| Frontend (Vite) | 5173 | http://localhost:5173 |
+| Brain Service (gRPC) | 50051 | localhost:50051 |
+| Ollama | 11434 | http://localhost:11434 |
+
+### Backend Startup
+```powershell
+cd C:\Users\Espen\elite-trading-system\backend
+venv\Scripts\Activate.ps1
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+### Frontend Startup
+```powershell
+cd C:\Users\Espen\elite-trading-system\frontend-v2
+npm run dev
+```
+
+### Docker
+```bash
+docker-compose up -d
+# Full stack: backend (uvicorn) + frontend (multi-stage Node→Nginx)
+```
+
+### Environment Variables
+See `backend/.env.example` for full template. Key vars:
+
+| Service | Env Var | Required? |
+|---|---|---|
+| Alpaca | `ALPACA_API_KEY` / `ALPACA_SECRET_KEY` | YES (core) |
+| Unusual Whales | `UNUSUAL_WHALES_API_KEY` | No (configured) |
+| FRED | `FRED_API_KEY` | No (configured) |
+| NewsAPI | `NEWS_API_KEY` | No (configured) |
+| Resend | `RESEND_API_KEY` | No (configured) |
+| Perplexity | `PERPLEXITY_API_KEY` | No (LLM tier 2) |
+| Anthropic | `ANTHROPIC_API_KEY` | No (LLM tier 3) |
+| Finviz | `FINVIZ_API_KEY` | No |
+
+---
+
+## WebSocket Integration
+
+WebSocket at `/ws` with 25 channel whitelist, token auth, heartbeat.
+
+### Frontend WebSocket
 ```javascript
-// services/websocket.js
-const WS_URL = process.env.VITE_WS_URL || 'ws://localhost:8000/ws';
+// frontend-v2/src/services/websocket.js
+// Manages connections, channel subscriptions, auto-reconnect
+// Used by 5+ pages: signals, orders, council, market data, dashboard
 
-class TradingWebSocket {
-    constructor() {
-        this.ws = null;
-        this.backoffDelay = 1000;
-        this.maxBackoff = 30000;
-    }
+// frontend-v2/src/config/api.js
+// WS_CHANNELS defines all frontend channel subscriptions
+```
 
-    connect() {
-        this.ws = new WebSocket(WS_URL);
-
-        this.ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            switch(data.type) {
-                case 'signal_update':
-                    this.onSignalUpdate(data);
-                    break;
-                case 'trade_executed':
-                    this.onTradeExecuted(data);
-                    break;
-                case 'risk_alert':
-                    this.onRiskAlert(data);
-                    break;
-            }
-        };
-
-        this.ws.onclose = () => {
-            // Auto-reconnect with exponential backoff
-            setTimeout(() => this.connect(), this.backoffDelay);
-            this.backoffDelay = Math.min(this.backoffDelay * 1.5, this.maxBackoff);
-        };
-    }
-
-    disconnect() {
-        if (this.ws) this.ws.close();
-    }
-}
-
-export default new TradingWebSocket();
+### Backend WebSocket
+```python
+# backend/app/websocket_manager.py
+# 25 channels: order, risk, kelly, signals, council, health, etc.
+# Token auth, heartbeat (30s/60s), channel validation
+# broadcast_ws(channel, data) to push updates
 ```
 
 ---
 
-## 🧠 How to Behave as Senior Engineer
-
-### For Code Tasks
-1. Write complete, working code — not pseudocode
-2. Specify exact file paths: e.g., `backend/app/api/v1/signals.py` line 42
-3. Match existing patterns — look at neighboring code first
-4. Flag assumptions — if guessing, say so
-5. One thing at a time — don't refactor while fixing bugs
-
-### For Bug Fixes
-1. Diagnose root cause first — don't shotgun fixes
-2. Provide minimal fix — don't rewrite the file
-3. Explain why it broke — prevent recurrence
-4. Suggest a test — that would have caught this bug
-
-### For New Features
-1. Start with API contract (endpoint, request/response shapes)
-2. Then service layer (business logic)
-3. Then route (thin HTTP wrapper)
-4. Then frontend (useApi hook + component)
-5. Then test (minimum: smoke test)
-
-### For "What Should I Work On?" Questions
-1. Check latest `docs/STATUS-AND-TODO-*.md` (find newest date)
-2. Check `project_state.md`
-3. Check recent git log
-4. Suggest highest-leverage next step
-5. Always verify against current state, not this doc
-
----
-
-## 📐 Code Conventions & Patterns
+## Code Conventions & Patterns
 
 ### Frontend
 ```javascript
@@ -412,8 +351,8 @@ import { useApi } from '../hooks/useApi';
 const { data, loading, error } = useApi('/api/v1/endpoint');
 
 // Never write mock data — all data comes from real API
-// Tailwind for styling — no custom CSS unless absolutely necessary
-// Lightweight Charts for financial charts (not recharts)
+// TailwindCSS for styling — Aurora dark theme, glass effects
+// Lightweight Charts for financial charts
 // lucide-react for icons
 ```
 
@@ -423,55 +362,55 @@ const { data, loading, error } = useApi('/api/v1/endpoint');
 from fastapi import APIRouter, HTTPException
 router = APIRouter(prefix="/api/v1/resource", tags=["resource"])
 
-# Database access — SQLite for orders, DuckDB for analytics
-from app.services.database import DatabaseService
+# Database access — DuckDB for everything
 from app.data.storage import get_conn
 
-# Pydantic for request/response models
-from pydantic import BaseModel
+# Council agents — must return AgentVote
+from app.council.schemas import AgentVote
 
 # CRITICAL: Use 4 spaces, NEVER tabs
-# Always run: uvicorn app.main:app --reload after changes
 ```
-
-### Design System
-- Dark theme, widescreen-first (V3)
-- Color palette from approved mockups — don't deviate
-- Ultrawide command strip layouts for execution pages
-- Sidebar defined in `frontend-v2/src/components/layout/Sidebar.jsx`
 
 ---
 
-## 🏗 Development Rules (MUST FOLLOW)
+## Development Rules (MUST FOLLOW)
 
 1. **Test locally before pushing**: `uvicorn app.main:app` + `npm run build`
 2. **Python indentation**: 4 spaces ALWAYS — NEVER tabs
 3. **No mock data**: All frontend data via `useApi` hooks to real backend
-4. **Databases**: SQLite for orders (WAL mode), DuckDB for analytics
+4. **No yfinance**: Removed — use Alpaca/FinViz/UW
 5. **ML is XGBoost + LightGBM**: No PyTorch (removed)
-6. **Broker is Alpaca**: Not yfinance (removed)
-7. **Follow mockup designs**: `docs/mockups-v3/images/` are source of truth
+6. **Broker is Alpaca**: Two accounts (ESPENMAIN + ProfitTrader)
+7. **Council agents return AgentVote**: From `council/schemas.py`
+8. **VETO_AGENTS = {"risk", "execution"}**: No other agent can veto
+9. **CouncilGate bridges signals to council**: Do NOT bypass
+10. **Discovery is continuous**: 12 scouts, no polling
 
 ---
 
-## 📊 Key Engineering Facts
+## Key Engineering Facts
 
-1. **signal_engine.py and ml_training.py MUST stay in sync** — Feature engineering happens in BOTH files. This is the #1 source of bugs.
-2. **The conftest.py monkey-patches DuckDB** — Tests use in-memory DB, not files
-3. **The WebSocket at `/ws` is wired but frontend integration is incomplete**
-4. **DuckDB doesn't support concurrent writers** — All writes go through database.py
-5. **The HMM model needs re-initialization daily** — State carries over incorrectly otherwise
+1. **signal_engine.py and ml_training.py MUST stay in sync** — Feature engineering in BOTH files
+2. **The conftest.py monkey-patches DuckDB** — Tests use in-memory DB
+3. **WebSocket has 25 channels** — All validated against whitelist
+4. **DuckDB uses thread-safe double-checked locking** — Phase A6 fix
+5. **HMM model needs re-initialization daily** — State carries over incorrectly
 6. **Alpaca paper trading has rate limits** — 200 requests/minute
-7. **Status docs are always outdated by commit time** — Check git log + actual code state
-8. **MessageBus has 9 topics** — market_data.bar, signal.generated, order.*, risk.alert, model.updated, system.heartbeat
+7. **3-tier LLM router**: Ollama (routine) → Perplexity (search) → Claude (deep reasoning, 6 tasks only)
+8. **Brain service on PC2**: gRPC + Ollama on RTX GPU, wired to hypothesis_agent
+9. **12 scouts run continuously**: flow_hunter, gamma, insider, macro, news, congress, etc.
+10. **`_supervised_loop()` wrapper**: All background tasks auto-recover (3 retries + Slack alerts)
+11. **Order executor enforces Gate 2b (regime) and Gate 2c (circuit breakers)** — Phase A fix
+12. **VIX-based regime fallback** when OpenClaw bridge is offline
+13. **Status docs are always outdated** — Check git log + actual code state
 
 ---
 
-## 🔗 Key References
+## Key References
 
+- Project instructions: `CLAUDE.md` (auto-loaded, primary source of truth)
+- Enhancement plan: `PLAN.md` (Phases A-E)
 - Full repo context: `AI-CONTEXT-GUIDE.md`, `REPO-MAP.md`
 - Frontend architecture: `frontend-v2/src/V3-ARCHITECTURE.md`
 - Design system: `docs/UI-DESIGN-SYSTEM.md`
-- Current status: `docs/STATUS-AND-TODO-*.md` (check latest date)
-- Project state: `project_state.md`
-- Backend API reference: `backend/README.md`
+- PC1/PC2 division: `docs/DIVIDE-AND-CONQUER-PLAN.md`

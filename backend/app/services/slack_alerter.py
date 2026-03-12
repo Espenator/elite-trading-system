@@ -73,7 +73,7 @@ class SlackAlerter:
             return False
 
         # Throttle check
-        alert_hash = hashlib.md5(f"{title}:{source}".encode()).hexdigest()
+        alert_hash = hashlib.sha256(f"{title}:{source}".encode()).hexdigest()
         now = time.time()
         last_sent = self._sent_alerts.get(alert_hash, 0)
         if now - last_sent < self._throttle_sec:

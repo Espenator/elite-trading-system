@@ -26,7 +26,8 @@ async def alpaca_root():
             "equity": data.get("equity"),
         }
     except Exception as e:
-        return {"connected": False, "error": str(e)}
+        logger.warning("Alpaca connection check failed: %s", e)
+        return {"connected": False, "error": "Broker unavailable"}
 
 
 @router.get("/account")
@@ -39,7 +40,7 @@ async def get_account():
         return result
     except Exception as e:
         logger.error("alpaca/account failed: %s", e)
-        raise HTTPException(status_code=502, detail=f"Broker unavailable: {e}")
+        raise HTTPException(status_code=502, detail="Broker unavailable")
 
 
 @router.get("/positions")
@@ -52,7 +53,7 @@ async def get_positions():
         return result
     except Exception as e:
         logger.error("alpaca/positions failed: %s", e)
-        raise HTTPException(status_code=502, detail=f"Broker unavailable: {e}")
+        raise HTTPException(status_code=502, detail="Broker unavailable")
 
 
 @router.get("/orders")
@@ -65,7 +66,7 @@ async def get_orders(status: str = "open", limit: int = 50):
         return result
     except Exception as e:
         logger.error("alpaca/orders failed: %s", e)
-        raise HTTPException(status_code=502, detail=f"Broker unavailable: {e}")
+        raise HTTPException(status_code=502, detail="Broker unavailable")
 
 
 @router.get("/activities")
@@ -97,7 +98,7 @@ async def get_clock():
         return result
     except Exception as e:
         logger.error("alpaca/clock failed: %s", e)
-        return {"is_open": False, "error": str(e)}
+        return {"is_open": False, "error": "Broker unavailable"}
 
 
 @router.get("/snapshots")
@@ -163,7 +164,7 @@ async def close_position(symbol: str, qty: Optional[str] = None, percentage: Opt
         return result or {"status": "closed", "symbol": symbol}
     except Exception as e:
         logger.error("alpaca/close_position failed: %s", e)
-        raise HTTPException(status_code=502, detail=f"Broker error: {e}")
+        raise HTTPException(status_code=502, detail="Broker error")
 
 
 @router.delete("/positions", dependencies=[Depends(require_auth)])
@@ -174,4 +175,4 @@ async def close_all_positions():
         return result or {"status": "all_closed"}
     except Exception as e:
         logger.error("alpaca/close_all_positions failed: %s", e)
-        raise HTTPException(status_code=502, detail=f"Broker error: {e}")
+        raise HTTPException(status_code=502, detail="Broker error")

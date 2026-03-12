@@ -132,7 +132,7 @@ async def get_portfolio():
         return {
             "positions": [],
             "history": [],
-            "error": f"Portfolio unavailable: {e}",
+            "error": "Portfolio unavailable",
             "totalEquity": 0,
             "dayPnL": 0,
             "deployedPercent": 0,

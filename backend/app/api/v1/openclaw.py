@@ -152,7 +152,8 @@ async def ingest_signals(
         body_bytes = await request.body()
         payload = json.loads(body_bytes)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid JSON: {e}")
+        logger.warning("Invalid JSON in OpenClaw request: %s", e)
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
     # HMAC signature verification
     if x_bridge_signature:
@@ -325,7 +326,7 @@ async def get_memory_health():
         raise
     except Exception as e:
         raise HTTPException(
-            status_code=500, detail=f"Failed to fetch memory status: {str(e)}"
+            status_code=500, detail="Failed to fetch memory status"
         )
 
 
@@ -350,7 +351,7 @@ async def get_memory_recall(
         raise
     except Exception as e:
         raise HTTPException(
-            status_code=500, detail=f"Failed to fetch memory recall: {str(e)}"
+            status_code=500, detail="Failed to fetch memory recall"
         )
 
 
@@ -571,7 +572,8 @@ async def spawn_team(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("OpenClaw team management error: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/llm-flow", summary="Get LLM Alert Stream for Agent Command Center")

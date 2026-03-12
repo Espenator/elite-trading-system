@@ -40,7 +40,8 @@ def get_metrics():
         from app.core.metrics import get_metrics as _get_core_metrics
         result["core"] = _get_core_metrics()
     except Exception as e:
-        result["core"] = {"error": str(e)}
+        logger.warning("Core metrics unavailable: %s", e)
+        result["core"] = {"error": "unavailable"}
 
     # MessageBus metrics
     try:
@@ -48,7 +49,8 @@ def get_metrics():
         bus = get_message_bus()
         result["message_bus"] = bus.get_metrics()
     except Exception as e:
-        result["message_bus"] = {"error": str(e)}
+        logger.warning("MessageBus metrics unavailable: %s", e)
+        result["message_bus"] = {"error": "unavailable"}
 
     # OrderExecutor metrics
     try:
@@ -70,7 +72,8 @@ def get_metrics():
         else:
             result["order_executor"] = {"status": "not_started"}
     except Exception as e:
-        result["order_executor"] = {"error": str(e)}
+        logger.warning("OrderExecutor metrics unavailable: %s", e)
+        result["order_executor"] = {"error": "unavailable"}
 
     # PositionManager metrics
     try:
@@ -78,7 +81,8 @@ def get_metrics():
         pm = get_position_manager()
         result["position_manager"] = pm.get_status()
     except Exception as e:
-        result["position_manager"] = {"error": str(e)}
+        logger.warning("PositionManager metrics unavailable: %s", e)
+        result["position_manager"] = {"error": "unavailable"}
 
     # AlpacaStreamService metrics
     try:
@@ -92,7 +96,8 @@ def get_metrics():
                 streams.append(svc.get_status())
         result["alpaca_streams"] = streams if streams else {"status": "not_found"}
     except Exception as e:
-        result["alpaca_streams"] = {"error": str(e)}
+        logger.warning("Alpaca streams metrics unavailable: %s", e)
+        result["alpaca_streams"] = {"error": "unavailable"}
 
     # SessionScanner metrics
     try:
@@ -100,7 +105,8 @@ def get_metrics():
         scanner = get_session_scanner()
         result["session_scanner"] = scanner.get_status()
     except Exception as e:
-        result["session_scanner"] = {"error": str(e)}
+        logger.warning("SessionScanner metrics unavailable: %s", e)
+        result["session_scanner"] = {"error": "unavailable"}
 
     # CouncilGate metrics
     try:
@@ -113,7 +119,8 @@ def get_metrics():
         else:
             result["council_gate"] = {"status": "available"}
     except Exception as e:
-        result["council_gate"] = {"error": str(e)}
+        logger.warning("CouncilGate metrics unavailable: %s", e)
+        result["council_gate"] = {"error": "unavailable"}
 
     # SignalEngine metrics
     try:
@@ -126,7 +133,8 @@ def get_metrics():
         else:
             result["signal_engine"] = {"status": "available"}
     except Exception as e:
-        result["signal_engine"] = {"error": str(e)}
+        logger.warning("SignalEngine metrics unavailable: %s", e)
+        result["signal_engine"] = {"error": "unavailable"}
 
     # Pipeline summary (derived)
     try:
@@ -161,7 +169,8 @@ def get_prometheus_metrics():
         from app.core.metrics import format_prometheus
         return format_prometheus()
     except Exception as e:
-        return f"# Error: {e}\n"
+        logger.warning("Prometheus metrics error: %s", e)
+        return "# Error: metrics unavailable\n"
 
 
 @router.get("/pipeline")
@@ -196,7 +205,8 @@ def get_pipeline_metrics():
 
         return {"pipeline_metrics": pipeline, "timestamp": datetime.now(timezone.utc).isoformat()}
     except Exception as e:
-        return {"error": str(e)}
+        logger.warning("Pipeline metrics error: %s", e)
+        return {"error": "Service unavailable"}
 
 
 @router.post("/emergency-flatten")
@@ -214,7 +224,7 @@ async def trigger_emergency_flatten(reason: str = "api_trigger"):
         return result
     except Exception as e:
         logger.exception("Emergency flatten API error")
-        return {"error": str(e), "status": "failed"}
+        return {"error": "Internal server error", "status": "failed"}
 
 
 @router.post("/ws-circuit-breaker/reset")
@@ -232,4 +242,5 @@ def reset_ws_circuit_breaker():
                 results.append({attr: svc.reset_ws_circuit_breaker()})
         return {"results": results} if results else {"error": "No stream services found"}
     except Exception as e:
-        return {"error": str(e)}
+        logger.warning("WS circuit breaker reset error: %s", e)
+        return {"error": "Service unavailable"}

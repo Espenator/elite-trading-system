@@ -562,19 +562,27 @@ class OrderExecutor:
             await self._shadow_execute(decision)
 
     # -- Order Type Selection (B5) --
-    # Notional threshold for limit orders: positions > $5K use limit at NBBO midpoint
+    # Tiered order types by notional size:
+    #   <= $5K:  market (speed matters more than spread)
+    #   $5K-$25K: limit at NBBO mid proxy
+    #   > $25K:  TWAP (split into child slices to reduce market impact)
     LIMIT_ORDER_NOTIONAL_THRESHOLD = 5_000.0
+    TWAP_NOTIONAL_THRESHOLD = 25_000.0
+    TWAP_SLICE_COUNT = 4
+    TWAP_INTERVAL_SECONDS = 30
 
     def _select_order_type(self, price: float, qty: int) -> tuple:
         """Select order type based on position notional (B5).
 
         Returns (order_type, limit_price):
-          - Notional <= $5K: market order (speed matters more)
-          - Notional > $5K: limit order at price (NBBO mid proxy) to save spread
+          - Notional <= $5K:  market order (speed)
+          - $5K < notional <= $25K: limit order at price (spread savings)
+          - Notional > $25K:  "twap" — handled by _execute_twap()
         """
         notional = price * qty
+        if notional > self.TWAP_NOTIONAL_THRESHOLD:
+            return "twap", round(price, 2)
         if notional > self.LIMIT_ORDER_NOTIONAL_THRESHOLD:
-            # Use limit at current price (assumes price is near NBBO mid)
             return "limit", round(price, 2)
         return "market", None
 
@@ -584,6 +592,11 @@ class OrderExecutor:
         client_order_id = f"et-{decision.symbol}-{uuid.uuid4().hex[:8]}"
         price = decision.price
         order_type, limit_price = self._select_order_type(price, decision.qty)
+
+        # B5: TWAP execution — split large orders into time-weighted slices
+        if order_type == "twap":
+            await self._execute_twap(decision, client_order_id, limit_price)
+            return
 
         record = OrderRecord(
             order_id="",
@@ -740,6 +753,104 @@ class OrderExecutor:
         payload["order_type"] = record.order_type
         await self.message_bus.publish("order.submitted", payload)
         await self._notify_frontend(record, sim_fill_price, "shadow")
+
+    # -- TWAP Execution (B5) --
+    async def _execute_twap(
+        self, decision: ExecutionDecision, parent_order_id: str, limit_price: float
+    ) -> None:
+        """Execute large order via time-weighted average price slicing (B5).
+
+        Splits into TWAP_SLICE_COUNT child limit orders spaced
+        TWAP_INTERVAL_SECONDS apart to reduce market impact on >$25K positions.
+        """
+        total_qty = decision.qty
+        slice_count = min(self.TWAP_SLICE_COUNT, total_qty)
+        base_slice = total_qty // slice_count
+        remainder = total_qty % slice_count
+
+        alpaca = self._get_alpaca_service()
+        filled_total = 0
+        price = decision.price
+
+        logger.info(
+            "TWAP: splitting %d x %s into %d slices @ %ds intervals "
+            "(notional=$%.0f)",
+            total_qty, decision.symbol, slice_count,
+            self.TWAP_INTERVAL_SECONDS, total_qty * price,
+        )
+
+        for i in range(slice_count):
+            slice_qty = base_slice + (1 if i < remainder else 0)
+            if slice_qty < 1:
+                continue
+
+            child_id = f"{parent_order_id}-tw{i}"
+            try:
+                result = await alpaca.create_order(
+                    symbol=decision.symbol,
+                    qty=str(slice_qty),
+                    side="buy" if decision.direction == "buy" else "sell",
+                    type="limit",
+                    limit_price=str(round(limit_price, 2)),
+                    time_in_force="day",
+                    client_order_id=child_id,
+                )
+                if result:
+                    filled_total += slice_qty
+                    record = OrderRecord(
+                        order_id=result.get("id", ""),
+                        client_order_id=child_id,
+                        symbol=decision.symbol,
+                        side="buy" if decision.direction == "buy" else "sell",
+                        qty=slice_qty,
+                        order_type="limit",
+                        limit_price=limit_price,
+                        stop_loss=decision.stop_loss if i == 0 else None,
+                        take_profit=decision.take_profit if i == 0 else None,
+                        signal_score=decision.signal_score,
+                        council_confidence=decision.council_confidence,
+                        kelly_pct=decision.kelly_pct,
+                        regime=decision.regime,
+                        status="submitted",
+                        timestamp=time.time(),
+                        sizing_metadata={"twap_slice": i, "parent": parent_order_id},
+                    )
+                    self._orders.append(record)
+                    asyncio.create_task(self._poll_for_fill(record, max_attempts=15))
+
+                    logger.info(
+                        "TWAP slice %d/%d: %d x %s @ $%.2f",
+                        i + 1, slice_count, slice_qty, decision.symbol, limit_price,
+                    )
+            except Exception as e:
+                logger.warning(
+                    "TWAP slice %d failed for %s: %s", i + 1, decision.symbol, e
+                )
+
+            # Wait between slices (except after the last one)
+            if i < slice_count - 1:
+                await asyncio.sleep(self.TWAP_INTERVAL_SECONDS)
+
+        if filled_total > 0:
+            self._daily_trade_count += 1
+            self._signals_executed += 1
+            self._symbol_last_trade[decision.symbol] = time.time()
+            self._total_notional += filled_total * price
+            _emit_execution_attempt("auto_execute", "submitted")
+
+            payload = decision.to_order_payload(
+                order_id=f"twap-{parent_order_id}",
+                client_order_id=parent_order_id,
+            )
+            payload["timestamp"] = time.time()
+            payload["source"] = "order_executor"
+            payload["order_type"] = "twap"
+            payload["twap_slices"] = slice_count
+            await self.message_bus.publish("order.submitted", payload)
+        else:
+            self._signals_rejected += 1
+            _emit_execution_attempt("auto_execute", "rejected")
+            logger.error("TWAP execution failed entirely for %s", decision.symbol)
 
     # -- Fill Polling + Partial Fill Re-Execution (B6) --
     MAX_PARTIAL_FILL_RETRIES = 3
