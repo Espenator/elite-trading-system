@@ -311,7 +311,7 @@ async def discover_sentiment():
         return {"ok": True, "discovered": len(items), "results": items}
     except Exception as e:
         logger.error("Sentiment auto-discover failed: %s", e)
-        return {"ok": False, "error": str(e), "discovered": 0}
+        return {"ok": False, "error": "Service unavailable", "discovered": 0}
 
 
 @router.delete("/{ticker}", dependencies=[Depends(require_auth)])

@@ -128,7 +128,7 @@ async def test_email_alert():
             msg = err_body.get("message", str(err_body))
         except Exception:
             msg = e.response.text or str(e)
-        raise HTTPException(status_code=502, detail=f"Resend API error: {msg}")
+        raise HTTPException(status_code=502, detail="Resend API error")
     except Exception as e:
         logger.exception("Resend send failed")
         raise HTTPException(status_code=502, detail="Failed to send email")

@@ -73,8 +73,8 @@ class AlpacaService:
                     self.api_key = trading_key.api_key
                     self.secret_key = trading_key.secret_key
                     logger.info(
-                        "AlpacaService: using key pool trading key (suffix: ...%s)",
-                        trading_key.api_key[-4:] if len(trading_key.api_key) >= 4 else "***",
+                        "AlpacaService: using key pool trading key (%s***)",
+                        trading_key.api_key[:4] if len(trading_key.api_key) >= 4 else "***",
                     )
             except Exception as e:
                 logger.warning("AlpacaService: key pool fallback failed: %s", e)

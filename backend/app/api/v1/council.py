@@ -123,7 +123,8 @@ async def council_weights():
             "last_update": learner.last_update,
         }
     except Exception as e:
-        return {"status": "weight_learner_unavailable", "error": str(e)}
+        logger.warning("Weight learner unavailable: %s", e)
+        return {"status": "weight_learner_unavailable", "error": "Service unavailable"}
 
 
 @router.post("/weights/reset", dependencies=[Depends(require_auth)])
@@ -135,4 +136,5 @@ async def reset_weights():
         learner.reset()
         return {"status": "ok", "weights": learner.get_weights()}
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        logger.warning("Weight reset failed: %s", e)
+        return {"status": "error", "error": "Service unavailable"}

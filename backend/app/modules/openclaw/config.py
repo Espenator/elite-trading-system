@@ -438,22 +438,22 @@ AGENT_REGISTRY = {
 #  swarm can still run in degraded mode.
 # ============================================================
 _REQUIRED_KEYS = [
-    ("ALPACA_API_KEY",  ALPACA_API_KEY,  "Alpaca trading/data will not work"),
-    ("ALPACA_SECRET_KEY", ALPACA_SECRET_KEY, "Alpaca trading/data will not work"),
+    ("ALPACA_API_KEY",  bool(ALPACA_API_KEY),  "Alpaca trading/data will not work"),
+    ("ALPACA_SECRET_KEY", bool(ALPACA_SECRET_KEY), "Alpaca trading/data will not work"),
 ]
 _OPTIONAL_KEYS = [
-    ("SLACK_BOT_TOKEN",        SLACK_BOT_TOKEN,        "Slack alerts disabled"),
-    ("UNUSUALWHALES_API_KEY",  UNUSUALWHALES_API_KEY,  "Whale flow agent disabled"),
-    ("FINVIZ_API_KEY",         FINVIZ_API_KEY,         "Finviz scanner will use fallback"),
-    ("FRED_API_KEY",           FRED_API_KEY,           "Macro context limited"),
-    ("PERPLEXITY_API_KEY",     PERPLEXITY_API_KEY,     "Cloud LLM disabled, local-only"),
-    ("DISCORD_BOT_TOKEN",      DISCORD_BOT_TOKEN,      "Discord listener disabled"),
-    ("GIST_TOKEN",             GIST_TOKEN,             "AI Bridge disabled"),
-    ("OPENCLAW_DB_PATH", OPENCLAW_DB_PATH, "Database trade logging uses default path"),
-    ("ELITE_API_URL",           ELITE_API_URL,           "Embodier Trader bridge disabled"),
-  ("STOCKGEIST_TOKEN",        STOCKGEIST_TOKEN,        "StockGeist sentiment disabled"),
-  ("NEWS_API_KEY",            NEWS_API_KEY,            "News API disabled"),
-  ("X_BEARER_TOKEN",          X_BEARER_TOKEN,          "X/Twitter sentiment disabled"),
+    ("SLACK_BOT_TOKEN",        bool(SLACK_BOT_TOKEN),        "Slack alerts disabled"),
+    ("UNUSUALWHALES_API_KEY",  bool(UNUSUALWHALES_API_KEY),  "Whale flow agent disabled"),
+    ("FINVIZ_API_KEY",         bool(FINVIZ_API_KEY),         "Finviz scanner will use fallback"),
+    ("FRED_API_KEY",           bool(FRED_API_KEY),           "Macro context limited"),
+    ("PERPLEXITY_API_KEY",     bool(PERPLEXITY_API_KEY),     "Cloud LLM disabled, local-only"),
+    ("DISCORD_BOT_TOKEN",      bool(DISCORD_BOT_TOKEN),      "Discord listener disabled"),
+    ("GIST_TOKEN",             bool(GIST_TOKEN),             "AI Bridge disabled"),
+    ("OPENCLAW_DB_PATH", bool(OPENCLAW_DB_PATH), "Database trade logging uses default path"),
+    ("ELITE_API_URL",           bool(ELITE_API_URL),           "Embodier Trader bridge disabled"),
+    ("STOCKGEIST_TOKEN",        bool(STOCKGEIST_TOKEN),        "StockGeist sentiment disabled"),
+    ("NEWS_API_KEY",            bool(NEWS_API_KEY),            "News API disabled"),
+    ("X_BEARER_TOKEN",          bool(X_BEARER_TOKEN),          "X/Twitter sentiment disabled"),
 ]
 
 _log = logging.getLogger("config")

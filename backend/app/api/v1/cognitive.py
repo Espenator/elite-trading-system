@@ -23,7 +23,7 @@ async def get_dashboard():
         return get_cognitive_dashboard()
     except Exception as e:
         logger.error("Failed to get cognitive dashboard: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/snapshots")
@@ -36,7 +36,7 @@ async def get_recent_snapshots(limit: int = 50):
         return {"snapshots": snapshots[-limit:], "total": len(snapshots)}
     except Exception as e:
         logger.error("Failed to get cognitive snapshots: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/calibration")
@@ -60,7 +60,7 @@ async def get_calibration():
         }
     except Exception as e:
         logger.error("Failed to get calibration data: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/record-outcome", dependencies=[Depends(require_auth)])
@@ -81,4 +81,4 @@ async def record_trade_outcome(payload: dict):
         raise HTTPException(status_code=400, detail=f"Missing field: {e}")
     except Exception as e:
         logger.error("Failed to record outcome: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")

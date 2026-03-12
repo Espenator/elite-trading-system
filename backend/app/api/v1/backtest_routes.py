@@ -1,3 +1,4 @@
+import logging
 
 from datetime import date
 from pydantic import BaseModel
@@ -12,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.core.security import require_auth
 from app.websocket_manager import broadcast_ws
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -186,10 +188,11 @@ async def run_backtest_post(request: BacktestRequest):
             {
                 "type": "backtest_failed",
                 "strategy": request.strategy,
-                "error": str(e),
+                "error": "Backtest failed",
             },
         )
-        raise HTTPException(status_code=500, detail=f"Backtest failed: {e}")
+        logger.error("Backtest failed: %s", e)
+        raise HTTPException(status_code=500, detail="Backtest failed")
 
 
 # -----------------------------------------------------------------
@@ -259,7 +262,8 @@ async def compare_kelly_sizing(request: BacktestRequest):
             },
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Kelly comparison failed: {e}")
+        logger.error("Kelly comparison failed: %s", e)
+        raise HTTPException(status_code=500, detail="Kelly comparison failed")
 
 
 # ----------------------------------------------------------------------

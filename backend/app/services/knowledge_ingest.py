@@ -426,11 +426,55 @@ class KnowledgeIngestionService:
             logger.debug("YouTube transcript fetch failed: %s", e)
         return ""
 
+    @staticmethod
+    def _is_safe_url(url: str) -> bool:
+        """Validate URL to prevent SSRF — block private/internal networks."""
+        import ipaddress
+        from urllib.parse import urlparse
+
+        try:
+            parsed = urlparse(url)
+        except Exception:
+            return False
+
+        # Only allow http/https schemes
+        if parsed.scheme not in ("http", "https"):
+            return False
+
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+
+        # Block obvious internal hostnames
+        blocked_hosts = {"localhost", "127.0.0.1", "0.0.0.0", "[::1]", "metadata.google.internal"}
+        if hostname.lower() in blocked_hosts:
+            return False
+
+        # Resolve hostname and block private IP ranges
+        try:
+            import socket
+            resolved = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+            for family, _type, _proto, _canon, sockaddr in resolved:
+                ip = ipaddress.ip_address(sockaddr[0])
+                if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                    return False
+        except (socket.gaierror, ValueError):
+            return False
+
+        return True
+
     async def _fetch_url_content(self, url: str) -> str:
-        """Fetch and extract text content from a URL."""
+        """Fetch and extract text content from a URL (with SSRF protection)."""
+        if not self._is_safe_url(url):
+            logger.warning("URL blocked by SSRF filter: %s", url)
+            return ""
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                async with session.get(
+                    url,
+                    timeout=aiohttp.ClientTimeout(total=15),
+                    allow_redirects=False,
+                ) as resp:
                     if resp.status != 200:
                         return ""
                     html = await resp.text()

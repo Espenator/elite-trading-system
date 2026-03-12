@@ -499,16 +499,23 @@
       ? `Peer: ${config.peerDevices[0].name} (${config.peerDevices[0].address || 'no IP'})`
       : 'No peer devices';
 
+    const esc = (s) => {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    };
+    const llmApis = [config.apiKeys.anthropicApiKey && 'Claude', config.apiKeys.perplexityApiKey && 'Perplexity'].filter(Boolean).join(', ') || 'None (Ollama local only)';
+    const dataSources = [config.apiKeys.finvizEmail && 'Finviz', config.apiKeys.fredApiKey && 'FRED', config.apiKeys.newsApiKey && 'News API', config.apiKeys.unusualWhalesToken && 'UW', config.apiKeys.stockgeistToken && 'Stockgeist', config.apiKeys.discordBotToken && 'Discord', config.apiKeys.xBearerToken && 'X/Twitter', config.apiKeys.youtubeApiKey && 'YouTube'].filter(Boolean).join(', ') || 'None (will use defaults)';
     document.getElementById('summary').innerHTML = [
-      `<strong>Device:</strong> ${config.deviceName}`,
-      `<strong>Role:</strong> ${config.deviceRole}`,
-      `<strong>Backend Port:</strong> ${config.backendPort}`,
-      `<strong>Trading Mode:</strong> ${config.tradingMode}`,
-      `<strong>Brain Service:</strong> ${config.brainHost === 'disabled' ? 'Disabled' : config.brainHost}`,
-      `<strong>Network:</strong> ${peerLine}`,
-      `<strong>Alpaca:</strong> ${hasAlpaca}`,
-      `<strong>LLM APIs:</strong> ${[config.apiKeys.anthropicApiKey && 'Claude', config.apiKeys.perplexityApiKey && 'Perplexity'].filter(Boolean).join(', ') || 'None (Ollama local only)'}`,
-      `<strong>Data Sources:</strong> ${[config.apiKeys.finvizEmail && 'Finviz', config.apiKeys.fredApiKey && 'FRED', config.apiKeys.newsApiKey && 'News API', config.apiKeys.unusualWhalesToken && 'UW', config.apiKeys.stockgeistToken && 'Stockgeist', config.apiKeys.discordBotToken && 'Discord', config.apiKeys.xBearerToken && 'X/Twitter', config.apiKeys.youtubeApiKey && 'YouTube'].filter(Boolean).join(', ') || 'None (will use defaults)'}`,
+      `<strong>Device:</strong> ${esc(config.deviceName)}`,
+      `<strong>Role:</strong> ${esc(config.deviceRole)}`,
+      `<strong>Backend Port:</strong> ${esc(String(config.backendPort))}`,
+      `<strong>Trading Mode:</strong> ${esc(config.tradingMode)}`,
+      `<strong>Brain Service:</strong> ${esc(config.brainHost === 'disabled' ? 'Disabled' : config.brainHost)}`,
+      `<strong>Network:</strong> ${esc(peerLine)}`,
+      `<strong>Alpaca:</strong> ${esc(hasAlpaca)}`,
+      `<strong>LLM APIs:</strong> ${esc(llmApis)}`,
+      `<strong>Data Sources:</strong> ${esc(dataSources)}`,
     ].join('<br>');
   }
 
