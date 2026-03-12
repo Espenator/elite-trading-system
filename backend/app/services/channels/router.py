@@ -47,6 +47,27 @@ class SensoryRouter:
         self._metrics["events_routed"] += 1
         return topics
 
+    async def route_batch(self, events: List[SensoryEvent]) -> int:
+        """Route a batch of events with a single asyncio.gather across all publishes.
+
+        More efficient than calling route_and_publish N times because it
+        collects ALL topic/payload pairs from ALL events and fires them
+        in one gather call, minimizing event-loop round-trips.
+        """
+        all_publishes: List[Any] = []
+        for event in events:
+            topics, payloads = self._route(event)
+            for topic, payload in zip(topics, payloads):
+                all_publishes.append(self._bus.publish(topic, payload))
+
+        if len(all_publishes) == 1:
+            await all_publishes[0]
+        elif all_publishes:
+            await asyncio.gather(*all_publishes)
+
+        self._metrics["events_routed"] += len(events)
+        return len(events)
+
     def _route(self, event: SensoryEvent) -> Tuple[List[str], List[Dict[str, Any]]]:
         topics: List[str] = []
         payloads: List[Dict[str, Any]] = []

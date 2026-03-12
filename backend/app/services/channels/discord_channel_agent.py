@@ -20,6 +20,7 @@ class DiscordChannelAgent(BaseChannelAgent):
             router=router,
             message_bus=message_bus,
             max_queue_size=int(os.getenv("DISCORD_FIREHOSE_QUEUE", "2000")),
+            batch_size=int(os.getenv("DISCORD_FIREHOSE_BATCH", "8")),
         )
         self._bus = message_bus
         self._bridge = DiscordSwarmBridge(message_bus=message_bus)
