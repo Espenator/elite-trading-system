@@ -252,3 +252,39 @@ def get_rate_limiter(service: str, **overrides) -> AsyncRateLimiter:
 def get_all_limiter_statuses() -> list:
     """Return status of all registered rate limiters."""
     return [limiter.get_status() for limiter in _limiters.values()]
+
+
+# ---------------------------------------------------------------------------
+# Global registry of circuit breakers (D4)
+# ---------------------------------------------------------------------------
+_breakers: Dict[str, CircuitBreaker] = {}
+
+# Default circuit breaker settings per scraper service
+_DEFAULT_BREAKER_SETTINGS = {
+    "benzinga": {"failure_threshold": 5, "recovery_seconds": 120.0, "half_open_max": 2},
+    "squeezemetrics": {"failure_threshold": 3, "recovery_seconds": 300.0, "half_open_max": 1},
+    "capitol_trades": {"failure_threshold": 5, "recovery_seconds": 180.0, "half_open_max": 2},
+    "finviz": {"failure_threshold": 5, "recovery_seconds": 60.0, "half_open_max": 2},
+    "newsapi": {"failure_threshold": 5, "recovery_seconds": 60.0, "half_open_max": 2},
+    "edgar": {"failure_threshold": 3, "recovery_seconds": 120.0, "half_open_max": 1},
+}
+
+
+def get_circuit_breaker(service: str, **overrides) -> CircuitBreaker:
+    """Get or create a circuit breaker for a service.
+
+    Uses defaults from _DEFAULT_BREAKER_SETTINGS, can be overridden with kwargs.
+    """
+    if service not in _breakers:
+        defaults = _DEFAULT_BREAKER_SETTINGS.get(
+            service,
+            {"failure_threshold": 5, "recovery_seconds": 60.0, "half_open_max": 2},
+        )
+        defaults.update(overrides)
+        _breakers[service] = CircuitBreaker(name=service, **defaults)
+    return _breakers[service]
+
+
+def get_all_circuit_breaker_statuses() -> list:
+    """Return status of all registered circuit breakers."""
+    return [cb.get_status() for cb in _breakers.values()]
