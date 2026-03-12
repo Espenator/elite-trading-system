@@ -263,7 +263,7 @@ class GPUTelemetryDaemon:
 
     async def _collect_local(self) -> NodeTelemetry:
         """Collect telemetry for the local node."""
-        gpu = _read_local_gpu()
+        gpu = await asyncio.to_thread(_read_local_gpu)
         loaded_models = await _read_ollama_processes(self._local_url)
 
         return NodeTelemetry(

@@ -317,6 +317,7 @@ class MessageBus:
     async def _process_events(self) -> None:
         """Main event processing loop — dispatches events to subscribers."""
         logger.info("MessageBus event loop started")
+        _batch_counter = 0
         while self._running:
             try:
                 event = await asyncio.wait_for(self._queue.get(), timeout=1.0)
@@ -342,6 +343,12 @@ class MessageBus:
 
             self._metrics[topic] += 1
             self._queue.task_done()
+
+            # Yield to event loop every 20 events so HTTP requests get served
+            _batch_counter += 1
+            if _batch_counter >= 20:
+                _batch_counter = 0
+                await asyncio.sleep(0)
 
     async def _safe_call(
         self, handler: EventHandler, data: Dict[str, Any], topic: str

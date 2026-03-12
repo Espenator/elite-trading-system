@@ -112,8 +112,10 @@ class AlpacaStreamService:
         self._running = True
         self._start_time = time.time()
 
-        # Always seed snapshots on startup
-        await self._fetch_and_publish_snapshots()
+        # Seed snapshots in background so the HTTP server stays responsive.
+        # The snapshot seed publishes 1000+ bar events which cascade into
+        # signal processing and would otherwise starve the event loop.
+        asyncio.create_task(self._fetch_and_publish_snapshots())
 
         # Check market clock and enter appropriate mode
         await self._check_clock()
@@ -260,10 +262,14 @@ class AlpacaStreamService:
                 for symbol, snap in snapshots.items():
                     bar_data = self._snapshot_to_bar(symbol, snap)
                     if bar_data:
+                        bar_data["_source"] = "snapshot"
                         await self.message_bus.publish("market_data.bar", bar_data)
                         self._bars_received += 1
                         self._snapshots_fetched += 1
                         self._last_bar_time = time.time()
+
+                # Real delay between batches so event loop can serve HTTP
+                await asyncio.sleep(0.2)
 
             if self._snapshots_fetched > 0:
                 logger.info(

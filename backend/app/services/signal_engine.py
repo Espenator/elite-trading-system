@@ -539,6 +539,10 @@ class EventDrivenSignalEngine:
         if not self._running:
             return
 
+        # Skip snapshot-seeded bars — they're for price cache only, not signals
+        if data.get("_source") == "snapshot":
+            return
+
         symbol = data.get("symbol", "")
         if not symbol:
             return

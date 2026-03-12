@@ -281,6 +281,8 @@ class StreamingDiscoveryEngine:
     # ──────────────────────────────────────────────────────────────────────
 
     async def _on_bar(self, data: Dict[str, Any]) -> None:
+        if data.get("_source") == "snapshot":
+            return
         symbol = data.get("symbol", data.get("S", ""))
         if not symbol:
             return

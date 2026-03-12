@@ -427,37 +427,41 @@ class PatternLibrary:
         """Run historical backtest on all patterns to set hit rates."""
         await asyncio.sleep(30)  # Wait for DuckDB to be ready
         try:
-            from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store.get_thread_cursor()
-
-            # Get historical OHLCV data
-            df = conn.execute("""
-                SELECT o.symbol, o.date, o.open, o.close, o.high, o.low, o.volume,
-                       t.rsi_14, t.bb_upper, t.bb_lower
-                FROM daily_ohlcv o
-                LEFT JOIN technical_indicators t ON o.symbol = t.symbol AND o.date = t.date
-                WHERE o.date >= CURRENT_DATE - INTERVAL '365 days'
-                ORDER BY o.symbol, o.date
-            """).fetchdf()
-
-            if df.empty:
-                return
-
-            # Backtest simple patterns
-            for pattern_id, pattern in self._patterns.items():
-                if pattern.pattern_type == "reversal" and "return_1d" in pattern.conditions:
-                    self._backtest_return_pattern(pattern, df)
-                elif pattern.pattern_type == "reversal" and "rsi_14" in pattern.conditions:
-                    self._backtest_rsi_pattern(pattern, df)
-                elif pattern.pattern_type == "reversal" and "consecutive_down_days" in pattern.conditions:
-                    self._backtest_consecutive_pattern(pattern, df)
-
-            logger.info(
-                "PatternLibrary backtest complete: %d patterns validated",
-                sum(1 for p in self._patterns.values() if p.sample_size > 0),
-            )
+            await asyncio.to_thread(self._run_backtest_sync)
         except Exception as e:
             logger.debug("Pattern backtest error: %s", e)
+
+    def _run_backtest_sync(self):
+        """Synchronous backtest work — runs in a thread to avoid blocking the event loop."""
+        from app.data.duckdb_storage import duckdb_store
+        conn = duckdb_store.get_thread_cursor()
+
+        # Get historical OHLCV data
+        df = conn.execute("""
+            SELECT o.symbol, o.date, o.open, o.close, o.high, o.low, o.volume,
+                   t.rsi_14, t.bb_upper, t.bb_lower
+            FROM daily_ohlcv o
+            LEFT JOIN technical_indicators t ON o.symbol = t.symbol AND o.date = t.date
+            WHERE o.date >= CURRENT_DATE - INTERVAL '365 days'
+            ORDER BY o.symbol, o.date
+        """).fetchdf()
+
+        if df.empty:
+            return
+
+        # Backtest simple patterns
+        for pattern_id, pattern in self._patterns.items():
+            if pattern.pattern_type == "reversal" and "return_1d" in pattern.conditions:
+                self._backtest_return_pattern(pattern, df)
+            elif pattern.pattern_type == "reversal" and "rsi_14" in pattern.conditions:
+                self._backtest_rsi_pattern(pattern, df)
+            elif pattern.pattern_type == "reversal" and "consecutive_down_days" in pattern.conditions:
+                self._backtest_consecutive_pattern(pattern, df)
+
+        logger.info(
+            "PatternLibrary backtest complete: %d patterns validated",
+            sum(1 for p in self._patterns.values() if p.sample_size > 0),
+        )
 
     def _backtest_return_pattern(self, pattern: MarketPattern, df: pd.DataFrame):
         """Backtest a return-based pattern."""

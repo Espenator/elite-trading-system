@@ -5,6 +5,9 @@ Starts the FastAPI server via uvicorn.
 import os
 import sys
 
+# Debug: detect event loop blocking (any callback >0.5s)
+# os.environ["PYTHONASYNCIODEBUG"] = "1"  # Disabled — massive overhead on Windows ProactorEventLoop
+
 # When running as PyInstaller bundle, set the working directory
 if getattr(sys, "frozen", False):
     os.chdir(os.path.dirname(sys.executable))

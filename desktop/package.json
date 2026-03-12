@@ -37,19 +37,47 @@
       "node_modules/**"
     ],
     "extraResources": [
-      { "from": "../backend/dist/embodier-backend", "to": "backend/embodier-backend" },
-      { "from": "../frontend-v2/dist", "to": "frontend" }
+      {
+        "from": "../backend/dist/embodier-backend",
+        "to": "backend/embodier-backend"
+      },
+      {
+        "from": "../frontend-v2/dist",
+        "to": "frontend"
+      }
     ],
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "assets/icon.ico"
     },
     "mac": {
-      "target": [{ "target": "dmg", "arch": ["x64", "arm64"] }],
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
       "icon": "assets/icon.icns"
     },
     "linux": {
-      "target": [{ "target": "AppImage", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "assets/icon.png"
     },
     "nsis": {
@@ -61,7 +89,7 @@
   },
   "dependencies": {
     "electron-log": "^5.3.0",
-    "electron-store": "^10.0.0",
+    "electron-store": "^8.2.0",
     "electron-updater": "^6.3.0"
   },
   "devDependencies": {

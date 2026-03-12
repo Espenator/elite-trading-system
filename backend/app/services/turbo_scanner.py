@@ -790,10 +790,10 @@ class TurboScanner:
     async def _load_tier2_universe(self):
         """Load top 200 liquid symbols from DuckDB."""
         global UNIVERSE_TIER_2
-        try:
+        def _query():
             from app.data.duckdb_storage import duckdb_store
             conn = duckdb_store.get_thread_cursor()
-            df = conn.execute("""
+            return conn.execute("""
                 SELECT symbol, SUM(volume) as total_vol
                 FROM daily_ohlcv
                 WHERE date >= CURRENT_DATE - INTERVAL '10 days'
@@ -802,6 +802,8 @@ class TurboScanner:
                 ORDER BY total_vol DESC
                 LIMIT 200
             """).fetchdf()
+        try:
+            df = await asyncio.to_thread(_query)
             if not df.empty:
                 UNIVERSE_TIER_2 = df["symbol"].tolist()
                 self._tier2_loaded = True

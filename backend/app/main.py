@@ -16,6 +16,7 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+
 # Load .env into os.environ BEFORE any other imports
 from dotenv import load_dotenv
 
@@ -314,6 +315,8 @@ async def _start_event_driven_pipeline():
     # Feature flags — disable heavy LLM/swarm services when Ollama isn't running
     _llm_enabled = os.getenv("LLM_ENABLED", "true").lower() == "true"
     _council_enabled = os.getenv("COUNCIL_ENABLED", "true").lower() == "true"
+    log.info("Feature flags: LLM_ENABLED=%s (raw=%r), COUNCIL_ENABLED=%s",
+             _llm_enabled, os.getenv("LLM_ENABLED"), _council_enabled)
 
     # 0. Node Discovery (non-blocking) — must run before other services
     from app.services.node_discovery import NodeDiscovery
@@ -751,22 +754,26 @@ async def _start_event_driven_pipeline():
         await asyncio.sleep(3)
 
         # D1: Autonomous data backfill (startup + daily scheduler)
-        try:
-            from app.services.data_ingestion import data_ingestion
-            log.info("Starting startup data backfill (252 days)...")
-            report = await data_ingestion.run_startup_backfill(days=252)
-            log.info(
-                "\u2705 Startup backfill complete: %d symbols, %.1fs",
-                report.get("symbol_count", 0),
-                report.get("elapsed_seconds", 0),
-            )
-            # Start daily/weekly scheduler loop
-            asyncio.create_task(
-                _supervised_loop("data_ingestion_scheduler", data_ingestion.scheduler_loop)
-            )
-            log.info("\u2705 DataIngestion scheduler started (daily 4:30AM + weekly Sunday)")
-        except Exception as e:
-            log.warning("Data backfill/scheduler failed to start: %s", e)
+        if os.getenv("STARTUP_BACKFILL_ENABLED", "true").lower() in ("1", "true", "yes"):
+            async def _run_backfill():
+                try:
+                    from app.services.data_ingestion import data_ingestion
+                    log.info("Starting startup data backfill (252 days) in background...")
+                    report = await data_ingestion.run_startup_backfill(days=252)
+                    log.info(
+                        "\u2705 Startup backfill complete: %d symbols, %.1fs",
+                        report.get("symbol_count", 0),
+                        report.get("elapsed_seconds", 0),
+                    )
+                    asyncio.create_task(
+                        _supervised_loop("data_ingestion_scheduler", data_ingestion.scheduler_loop)
+                    )
+                    log.info("\u2705 DataIngestion scheduler started (daily 4:30AM + weekly Sunday)")
+                except Exception as e:
+                    log.warning("Data backfill/scheduler failed to start: %s", e)
+            asyncio.create_task(_run_backfill())
+        else:
+            log.info("\u26a0\ufe0f Startup backfill skipped (STARTUP_BACKFILL_ENABLED=false)")
 
         await asyncio.sleep(2)
 
@@ -1156,7 +1163,6 @@ async def lifespan(app: FastAPI):
     # 0. Increase thread pool for concurrent DuckDB queries (20+ background services)
     loop = asyncio.get_running_loop()
     loop.set_default_executor(concurrent.futures.ThreadPoolExecutor(max_workers=64))
-    loop.slow_callback_duration = 0.5  # Log any callback blocking > 500ms
     log.info("Thread pool set to 64 workers for async DuckDB operations")
 
     # 1. Data schema
@@ -1289,6 +1295,17 @@ async def lifespan(app: FastAPI):
     ) if _bg_loops else None
     if not _bg_loops:
         log.info("\u26A0\uFE0F Background loops disabled (BACKGROUND_LOOPS=false)")
+
+    # Event loop watchdog — logs every 5s to detect freezes
+    async def _event_loop_watchdog():
+        import time as _time
+        _tick = 0
+        while True:
+            _tick += 1
+            log.info("🫀 EventLoop heartbeat #%d (alive at T+%ds)", _tick, _tick * 5)
+            await asyncio.sleep(5)
+
+    asyncio.create_task(_event_loop_watchdog())
 
     log.info("=" * 60)
     log.info("Embodier Trader v%s ONLINE — PRODUCTION (Council-Controlled Intelligence)", settings.APP_VERSION)
