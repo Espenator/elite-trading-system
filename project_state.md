@@ -1,6 +1,6 @@
 # Project State - Embodier Trader (Embodier.ai)
 > Paste this file at the start of every new AI chat session. Say: "Read this project state document. Acknowledge you understand the architecture, and then I will give you your first task."
-> Last updated: March 12, 2026 (v5.0.0 — Phases A+B+C+E complete)
+> Last updated: March 12, 2026 (v5.0.0 — ALL Phases A+B+C+D+E complete. 1,044 tests passing. CI GREEN.)
 
 ## Identity
 - **Project**: Embodier Trader by Embodier.ai
@@ -8,9 +8,9 @@
 - **Repo**: github.com/Espenator/elite-trading-system (PUBLIC — this is the ONE repo for all code)
 - **Legacy Repo**: github.com/Espenator/Embodier-Trader — forked HTML site + orphaned JS agents. TO BE ARCHIVED. Do NOT build here.
 - **Owner**: Espenator (Asheville, NC)
-- **Status**: v5.0.0 — Phases A+B+C+E complete. Production-ready.
+- **Status**: v5.0.0 — ALL Phases A+B+C+D+E complete. Production-ready (~95%).
 - **Philosophy**: Embodied Intelligence — the system IS profit, not seeking it. It operates as a conscious profit-seeking being with a Central Nervous System (CNS) architecture.
-- **Current Focus**: Council runs 35-agent DAG; 43 API route files (364+ endpoints); 72+ services; 977+ tests; Bearer auth fail-closed; WebSocket active (25 channels); desktop BUILD-READY; E2E pipeline tested; Slack notifications wired to all trading events.
+- **Current Focus**: Council runs 35-agent DAG; 43 API route files (364+ endpoints); 72+ services; 1,044 tests; Bearer auth fail-closed; WebSocket active (25 channels); desktop BUILD-READY; E2E pipeline tested; Slack notifications wired to all trading events. 1,459+ commits. CI GREEN (3 jobs: backend-test + frontend-build + e2e-gate).BUILD-READY; E2E pipeline tested; Slack notifications wired to all trading events.
 - **Latest Session Fixes**: Slack notification bridges wired (council.verdict, order.submitted, order.filled, signal.generated, alert.* → Slack channels). Fixed 3 broken Slack imports. Fixed device-config.js .env regeneration bug (hardcoded API key defaults). Fixed weight learner test_symmetric_penalty. All phases (A+B+C+D+E) complete.
 
 ## Two-PC Development Setup
