@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     PORT: int = Field(default=8000, alias="PORT")
     BACKEND_PORT: Optional[int] = None
     FRONTEND_PORT: int = 3000
+    UVICORN_WORKERS: int = 4  # PC1: match P-cores (only used when DEBUG=False)
     # CORS: Set CORS_ORIGINS env var to add production/custom origins.
     # Localhost origins are always included (Electron app connects via localhost).
     CORS_ORIGINS: str = ""

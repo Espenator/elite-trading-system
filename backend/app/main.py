@@ -336,6 +336,23 @@ async def _start_event_driven_pipeline():
     await _message_bus.start()
     log.info("\u2705 MessageBus started")
 
+    # 1a. Redis startup health check (PC1: REDIS_URL required for cross-PC MessageBus)
+    _redis_url = getattr(settings, "REDIS_URL", "") or os.getenv("REDIS_URL", "")
+    if _redis_url:
+        try:
+            import redis.asyncio as aioredis
+            _r = aioredis.from_url(_redis_url.strip(), socket_connect_timeout=3)
+            await _r.ping()
+            await _r.close()
+            log.info("\u2705 Redis OK at %s", _redis_url.split("@")[-1] if "@" in _redis_url else _redis_url)
+        except Exception as e:
+            if os.getenv("REDIS_REQUIRED", "").lower() in ("1", "true", "yes"):
+                log.critical("Redis required but unavailable: %s — set REDIS_REQUIRED=false to allow startup", e)
+                raise
+            log.warning("Redis unavailable (%s) — MessageBus running local-only. PC2 needs REDIS_URL=redis://192.168.1.105:6379", e)
+    else:
+        log.info("REDIS_URL not set — MessageBus local-only (set redis://localhost:6379 on PC1 for dual-PC)")
+
     # 1b. GPU Telemetry Daemon — broadcasts to cluster.telemetry
     from app.services.gpu_telemetry import GPUTelemetryDaemon
     _gpu_telemetry_daemon = GPUTelemetryDaemon(message_bus=_message_bus)
