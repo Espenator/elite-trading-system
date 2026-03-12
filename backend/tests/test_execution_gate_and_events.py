@@ -203,5 +203,6 @@ def test_run_startup_integrity_check_returns_details():
     assert "critical_topics" in details
     bus_empty = type("Bus", (), {"_subscribers": {}})()
     ok2, details2 = run_startup_integrity_check(bus_empty)
-    assert ok2 is True  # does not fail unless FAIL_ON_CRITICAL_SUBSCRIBER_MISSING
+    # FAIL_ON_CRITICAL_SUBSCRIBER_MISSING is now True in production config
+    assert ok2 is False
     assert len(details2.get("missing", [])) > 0

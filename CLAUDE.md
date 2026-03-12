@@ -1,6 +1,6 @@
 # CLAUDE.md — Embodier Trader (Elite Trading System)
 # This file is read automatically by Claude Code at session start.
-# Last updated: March 12, 2026 — v5.0.0 (All phases complete: A+B+C+E)
+# Last updated: March 12, 2026 — v5.0.0 (All phases complete: A+B+C+D+E)
 
 ## 1. Identity
 
@@ -38,15 +38,15 @@
 | Metric | Value |
 |--------|-------|
 | Version | v5.0.0 |
-| Tests | 977+ passing (pytest), CI GREEN |
+| Tests | 1,044 passing (pytest), CI GREEN |
 | Council agents | 35 (7-stage DAG) |
 | Backend services | 72+ (incl. subdirs) |
 | API route files | 43 in api/v1/ (364+ endpoints) |
 | Frontend pages | 14 (React 18 + Vite) |
 | Data sources | 10 (Alpaca, UW, Finviz, FRED, EDGAR, NewsAPI, Benzinga, SqueezeMetrics, Capitol Trades, Senate Stock Watcher) |
 | Discovery scouts | 12 (continuous, not polling) |
-| Production readiness | ~95% (Phase A+B+C+E complete, D deferred) |
-| Commits | 1,424+ |
+| Production readiness | ~95% (ALL Phases A+B+C+D+E complete) |
+| Commits | 1,459+ |
 
 ## 3. Architecture Overview — CNS Layers
 
@@ -56,8 +56,8 @@
 | Spinal Cord | ~1500ms | 35-agent council DAG (7 parallel stages) | BUILT — all agents are real implementations |
 | Cortex | 300-800ms | 3-tier LLM: Ollama → Perplexity → Claude | WIRED — hypothesis + critic via brain gRPC |
 | Thalamus | — | `blackboard.py` shared memory across DAG stages | BUILT |
-| Autonomic | nightly | WeightLearner Bayesian Beta(α,β) + scheduler jobs | BUILT — confidence floor too strict (0.5) |
-| PNS Sensory | real-time | Alpaca WS, UW, FinViz, FRED, EDGAR, NewsAPI | BUILT — 5 sources don't publish to MessageBus |
+| Autonomic | nightly | WeightLearner Bayesian Beta(α,β) + scheduler jobs | BUILT — confidence floor 0.20, regime-stratified |
+| PNS Sensory | real-time | Alpaca WS, UW, FinViz, FRED, EDGAR, NewsAPI | BUILT — ALL sources publish to MessageBus |
 | Discovery | streaming | 12 Scout Agents (continuous, Issue #38) | BUILT — Phase A fixed 5 scout crashes |
 | PNS Motor | — | OrderExecutor → Alpaca (via council.verdict) | BUILT — Gate 2b regime + Gate 2c circuit breakers |
 
@@ -92,7 +92,7 @@ C:\Users\Espen\elite-trading-system\
 │   │   ├── jobs/                   # scheduler, daily_outcome, walkforward
 │   │   ├── modules/                # openclaw/, ml_engine/
 │   │   └── websocket_manager.py    # 25 channels, token auth, heartbeat
-│   └── tests/                      # 977+ tests passing
+│   └── tests/                      # 1,044 tests passing
 ├── frontend-v2/                    # React 18 + Vite + TailwindCSS
 │   └── src/
 │       ├── pages/                  # 14 route pages
@@ -325,7 +325,7 @@ Full template: `backend/.env.example`
 
 ```bash
 cd backend
-python -m pytest --tb=short -q       # Run all 666+ tests
+python -m pytest --tb=short -q       # Run all 1,044 tests
 python -m pytest tests/test_api.py -v # Run specific test file
 ```
 
@@ -390,7 +390,7 @@ See `PLAN.md` for full details (40 issues, 5 phases, 13-18 sessions).
 4. Event-driven architecture achieves sub-1s council latency
 5. Kelly criterion implementation is mathematically sound
 6. 3-tier LLM router (Ollama → Perplexity → Claude)
-7. 977+ tests passing, CI GREEN
+7. 1,044 tests passing, CI GREEN
 8. HITL gate, bracket orders, shadow tracking all working
 
 ## 16. Coding Rules for AI Sessions
