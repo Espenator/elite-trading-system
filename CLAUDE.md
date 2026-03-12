@@ -15,7 +15,7 @@
 | Metric | Value |
 |--------|-------|
 | Version | v4.1.0-dev |
-| Tests | 950+ passing (pytest), CI GREEN |
+| Tests | 982+ passing (pytest), CI GREEN |
 | Council agents | 35 (7-stage DAG) |
 | Backend services | 72+ (incl. subdirs) |
 | API route files | 43 in api/v1/ (364+ endpoints) |
@@ -344,7 +344,7 @@ See `PLAN.md` for full details (40 issues, 5 phases, 13-18 sessions).
 | A | Stop the Bleeding | **COMPLETE** | Scout crashes fixed, regime enforcement, circuit breakers, safety gates, DuckDB lock, supervisor |
 | B | Unlock Alpha | **COMPLETE** | Regime-adaptive gate, independent short scoring, buy/sell cooldowns, priority queue, limit/TWAP orders, partial fills, DuckDB viability, last_equity heat |
 | C | Sharpen the Brain | **COMPLETE** | Weight learner fix, Brier calibration, regime-adaptive thresholds, audit trail, silent alerts |
-| D | Continuous Intelligence | NOT STARTED | Autonomous backfill, rate limiting, scraper resilience |
+| D | Continuous Intelligence | **COMPLETE** | Backfill orchestrator, rate limiter registry, DLQ resilience, circuit breakers, session scanner scheduling |
 | E | Production Hardening | NOT STARTED | E2E test, emergency flatten, desktop packaging |
 
 ### Top Issues Blocking Profits

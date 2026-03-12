@@ -126,6 +126,9 @@ class MessageBus:
         "alert.agent_failure",
         "alert.data_starvation",
         "alert.council_degraded",
+        # ── D5: Pre-market / after-hours scanning ──
+        "perception.premarket_gaps",
+        "perception.afterhours_earnings",
         # ── PLANNED (reserved for Phase B-E features) ──
         "model.updated",
         "risk.alert",

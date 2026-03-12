@@ -258,34 +258,39 @@ Make the council smarter by fixing the feedback loop and adding regime awareness
 ---
 
 ### Phase D: CONTINUOUS INTELLIGENCE (Data Firehose)
-**Priority: P1 | Estimated: 3-4 sessions | STATUS: NOT STARTED**
+**Priority: P1 | Estimated: 3-4 sessions | STATUS: COMPLETE (March 12, 2026)**
 
 Make data flow continuously so the brain is always informed.
 
-#### D1. Autonomous Data Backfill
-- On startup: backfill 252 trading days of daily bars for all tracked symbols
-- Daily at 4:30 AM ET: incremental backfill for previous trading day
-- Weekly at midnight Sunday: full refresh of technical indicators
+#### D1. Autonomous Data Backfill — COMPLETE
+- `services/backfill_orchestrator.py`: TurboScanner gate (>= 50 rows/symbol)
+- `data_ingestion.py`: run_startup_backfill(252 days), run_daily_incremental()
+- `scheduler.py`: daily_backfill job at 09:30 UTC (4:30 AM ET, Mon-Fri)
+- API: `GET /api/v1/system/backfill/status` — gate status + ingestion report
 
-#### D2. Rate Limiting Framework
-- Add per-service rate limiters: Alpaca (200/min), FRED (120/min), SEC EDGAR (10/sec)
-- Use `asyncio.Semaphore` per service with configurable limits
-- Track rate limit headroom and alert when approaching limits
+#### D2. Rate Limiting Framework — COMPLETE
+- `core/rate_limiter.py`: AsyncRateLimiter (token bucket) + per-service defaults
+- Services: Alpaca 8000/min, FRED 120/min, EDGAR 10/min, UW 30/min, etc.
+- API: `GET /api/v1/system/rate-limits` — all limiter statuses
 
-#### D3. MessageBus Resilience
-- Add dead-letter queue for dropped events
-- Alert when queue depth > 8000 (80% of 10K limit)
-- Add message replay capability for audit/debugging
+#### D3. MessageBus Resilience — COMPLETE
+- DLQ: in-memory (500 cap) + Redis Streams persistent fallback
+- Capacity alerting at 80% queue depth (Slack notification)
+- Per-handler timeout (10s) prevents blocking
+- API: `GET /api/v1/system/dlq`, `POST /api/v1/system/dlq/replay`, `DELETE /api/v1/system/dlq`
+- Topic audit: 14 WIRED, 20 PUBLISH_ONLY, 20 PLANNED — documented in message_bus.py
 
-#### D4. Scraper Resilience
-- Benzinga: add session refresh on 401/403 (not just initial login)
-- SqueezeMetrics: add fallback parsing patterns, alert on parse failure
-- All scrapers: add circuit breaker pattern (5 failures → stop trying for 30 min)
+#### D4. Scraper Resilience — COMPLETE
+- `core/rate_limiter.py`: CircuitBreaker class (CLOSED→OPEN→HALF_OPEN→CLOSED)
+- Registry: `get_circuit_breaker(service)` with per-scraper defaults
+- Benzinga: 5 failures / 120s recovery, SqueezeMetrics: 3 failures / 300s recovery
+- API: `GET /api/v1/system/circuit-breakers` — all breaker statuses
 
-#### D5. Pre-Market / After-Hours Scanning
-- 4:00 AM ET: Start pre-market gap scanner (Alpaca pre-market data)
-- 4:30 PM ET: Start after-hours earnings reaction scanner
-- Overnight: Run FRED data refresh, SEC filing check, strategy evolution
+#### D5. Pre-Market / After-Hours Scanning — COMPLETE
+- `session_scanner.py`: pre-market gaps (>2%), after-hours earnings (>3%)
+- `scheduler.py`: overnight_refresh job at 05:00 UTC (midnight ET, Mon-Fri)
+- MessageBus topics: `perception.premarket_gaps`, `perception.afterhours_earnings`
+- API: `GET /api/v1/system/session-scanner` — scanner status
 
 ---
 
