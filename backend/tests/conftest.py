@@ -3,11 +3,13 @@ import os
 import pytest
 from httpx import AsyncClient, ASGITransport
 
-# Set test environment variables before importing app
+# Set test environment variables before importing app (order matters: before any app import)
 os.environ["TRADING_MODE"] = "paper"
 os.environ["ALPACA_API_KEY"] = "test_key"
 os.environ["ALPACA_SECRET_KEY"] = "test_secret"
 os.environ["API_AUTH_TOKEN"] = "test_auth_token_for_tests"
+# Use in-memory DuckDB so tests don't lock the file and are isolated (CI parallel workers, local runs)
+os.environ["DUCKDB_PATH"] = ":memory:"
 
 from app.main import app  # noqa: E402
 from app.core.security import reset_auth_cache  # noqa: E402

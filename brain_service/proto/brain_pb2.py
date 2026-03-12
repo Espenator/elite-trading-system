@@ -24,25 +24,51 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0b\x62rain.proto\x12\x05\x62rain\"h\n\x0cInferRequest\x12\x0e\n\x06symbol\x18\x01 \x01(\t\x12\x11\n\ttimeframe\x18\x02 \x01(\t\x12\x14\n\x0c\x66\x65\x61ture_json\x18\x03 \x01(\t\x12\x0e\n\x06regime\x18\x04 \x01(\t\x12\x0f\n\x07\x63ontext\x18\x05 \x01(\t\"r\n\rInferResponse\x12\x0f\n\x07summary\x18\x01 \x01(\t\x12\x12\n\nconfidence\x18\x02 \x01(\x02\x12\x12\n\nrisk_flags\x18\x03 \x03(\t\x12\x19\n\x11reasoning_bullets\x18\x04 \x03(\t\x12\r\n\x05\x65rror\x18\x05 \x01(\t\"^\n\rCriticRequest\x12\x10\n\x08trade_id\x18\x01 \x01(\t\x12\x0e\n\x06symbol\x18\x02 \x01(\t\x12\x15\n\rentry_context\x18\x03 \x01(\t\x12\x14\n\x0coutcome_json\x18\x04 \x01(\t\"]\n\x0e\x43riticResponse\x12\x10\n\x08\x61nalysis\x18\x01 \x01(\t\x12\x0f\n\x07lessons\x18\x02 \x03(\t\x12\x19\n\x11performance_score\x18\x03 \x01(\x02\x12\r\n\x05\x65rror\x18\x04 \x01(\t\"\x1c\n\x0c\x45mbedRequest\x12\x0c\n\x04text\x18\x01 \x01(\t\"1\n\rEmbedResponse\x12\x11\n\tembedding\x18\x01 \x03(\x02\x12\r\n\x05\x65rror\x18\x02 \x01(\t2\xc7\x01\n\x0c\x42rainService\x12\x42\n\x15InferCandidateContext\x12\x13.brain.InferRequest\x1a\x14.brain.InferResponse\x12?\n\x10\x43riticPostmortem\x12\x14.brain.CriticRequest\x1a\x15.brain.CriticResponse\x12\x32\n\x05\x45mbed\x12\x13.brain.EmbedRequest\x1a\x14.brain.EmbedResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0b\x62rain.proto\x12\x05\x62rain\"h\n\x0cInferRequest\x12\x0e\n\x06symbol\x18\x01 \x01(\t\x12\x11\n\ttimeframe\x18\x02 \x01(\t\x12\x14\n\x0c\x66\x65\x61ture_json\x18\x03 \x01(\t\x12\x0e\n\x06regime\x18\x04 \x01(\t\x12\x0f\n\x07\x63ontext\x18\x05 \x01(\t\"\xd0\x01\n\rInferResponse\x12\x0f\n\x07summary\x18\x01 \x01(\t\x12\x12\n\nconfidence\x18\x02 \x01(\x02\x12\x12\n\nrisk_flags\x18\x03 \x03(\t\x12\x19\n\x11reasoning_bullets\x18\x04 \x03(\t\x12\r\n\x05\x65rror\x18\x05 \x01(\t\x12\x11\n\tdirection\x18\x06 \x01(\t\x12\x11\n\treasoning\x18\x07 \x01(\t\x12\x1a\n\x12supporting_signals\x18\x08 \x03(\t\x12\x1a\n\x12invalidation_notes\x18\t \x03(\t\"^\n\rCriticRequest\x12\x10\n\x08trade_id\x18\x01 \x01(\t\x12\x0e\n\x06symbol\x18\x02 \x01(\t\x12\x15\n\rentry_context\x18\x03 \x01(\t\x12\x14\n\x0coutcome_json\x18\x04 \x01(\t\"t\n\x0e\x43riticResponse\x12\x10\n\x08\x61nalysis\x18\x01 \x01(\t\x12\x0f\n\x07lessons\x18\x02 \x03(\t\x12\x19\n\x11performance_score\x18\x03 \x01(\x02\x12\r\n\x05\x65rror\x18\x04 \x01(\t\x12\x15\n\rkey_takeaways\x18\x05 \x03(\t\"\x1c\n\x0c\x45mbedRequest\x12\x0c\n\x04text\x18\x01 \x01(\t\"1\n\rEmbedResponse\x12\x11\n\tembedding\x18\x01 \x03(\x02\x12\r\n\x05\x65rror\x18\x02 \x01(\t\"\x98\x01\n\x0e\x41gentVoteProto\x12\x12\n\nagent_name\x18\x01 \x01(\t\x12\x11\n\tdirection\x18\x02 \x01(\t\x12\x12\n\nconfidence\x18\x03 \x01(\x02\x12\x11\n\treasoning\x18\x04 \x01(\t\x12\x0c\n\x04veto\x18\x05 \x01(\x08\x12\x13\n\x0bveto_reason\x18\x06 \x01(\t\x12\x15\n\rmetadata_json\x18\x07 \x01(\t\"\x88\x01\n\x13\x43ouncilStageRequest\x12\x0e\n\x06symbol\x18\x01 \x01(\t\x12\x11\n\ttimeframe\x18\x02 \x01(\t\x12\x14\n\x0c\x66\x65\x61ture_json\x18\x03 \x01(\t\x12\x14\n\x0c\x63ontext_json\x18\x04 \x01(\t\x12\r\n\x05stage\x18\x05 \x01(\x05\x12\x13\n\x0b\x61gent_types\x18\x06 \x03(\t\"e\n\x14\x43ouncilStageResponse\x12$\n\x05votes\x18\x01 \x03(\x0b\x32\x15.brain.AgentVoteProto\x12\x18\n\x10stage_latency_ms\x18\x02 \x01(\x02\x12\r\n\x05\x65rror\x18\x03 \x01(\t\"4\n\x0e\x46\x65\x61tureRequest\x12\x0f\n\x07symbols\x18\x01 \x03(\t\x12\x11\n\ttimeframe\x18\x02 \x01(\t\"\xb8\x01\n\x0f\x46\x65\x61tureResponse\x12\x43\n\x0f\x66\x65\x61ture_vectors\x18\x01 \x03(\x0b\x32*.brain.FeatureResponse.FeatureVectorsEntry\x12\x1a\n\x12\x63ompute_latency_ms\x18\x02 \x01(\x02\x12\r\n\x05\x65rror\x18\x03 \x01(\t\x1a\x35\n\x13\x46\x65\x61tureVectorsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"A\n\x0bScanRequest\x12\x0f\n\x07symbols\x18\x01 \x03(\t\x12\x0e\n\x06regime\x18\x02 \x01(\t\x12\x11\n\tmin_score\x18\x03 \x01(\x02\"\x84\x01\n\rScanCandidate\x12\x0e\n\x06symbol\x18\x01 \x01(\t\x12\x14\n\x0csignal_score\x18\x02 \x01(\x02\x12\x11\n\tdirection\x18\x03 \x01(\t\x12\r\n\x05label\x18\x04 \x01(\t\x12\x14\n\x0cvolume_surge\x18\x05 \x01(\x02\x12\x15\n\rmetadata_json\x18\x06 \x01(\t\"y\n\x0cScanResponse\x12(\n\ncandidates\x18\x01 \x03(\x0b\x32\x14.brain.ScanCandidate\x12\x17\n\x0fsymbols_scanned\x18\x02 \x01(\x05\x12\x17\n\x0fscan_latency_ms\x18\x03 \x01(\x02\x12\r\n\x05\x65rror\x18\x04 \x01(\t\"P\n\x11\x42\x61tchScoreRequest\x12\x0f\n\x07symbols\x18\x01 \x03(\t\x12\x14\n\x0c\x66\x65\x61ture_json\x18\x02 \x01(\t\x12\x14\n\x0c\x66\x65\x61ture_cols\x18\x03 \x03(\t\"e\n\x0bSymbolScore\x12\x0e\n\x06symbol\x18\x01 \x01(\t\x12\x0f\n\x07prob_up\x18\x02 \x01(\x02\x12\x10\n\x08xgb_prob\x18\x03 \x01(\x02\x12\x11\n\tlstm_prob\x18\x04 \x01(\x02\x12\x10\n\x08\x65nsemble\x18\x05 \x01(\x08\"c\n\x12\x42\x61tchScoreResponse\x12\"\n\x06scores\x18\x01 \x03(\x0b\x32\x12.brain.SymbolScore\x12\x1a\n\x12scoring_latency_ms\x18\x02 \x01(\x02\x12\r\n\x05\x65rror\x18\x03 \x01(\t2\xd1\x03\n\x0c\x42rainService\x12\x42\n\x15InferCandidateContext\x12\x13.brain.InferRequest\x1a\x14.brain.InferResponse\x12?\n\x10\x43riticPostmortem\x12\x14.brain.CriticRequest\x1a\x15.brain.CriticResponse\x12\x32\n\x05\x45mbed\x12\x13.brain.EmbedRequest\x1a\x14.brain.EmbedResponse\x12J\n\x0fRunCouncilStage\x12\x1a.brain.CouncilStageRequest\x1a\x1b.brain.CouncilStageResponse\x12@\n\x0f\x43omputeFeatures\x12\x15.brain.FeatureRequest\x1a\x16.brain.FeatureResponse\x12\x37\n\x0cScanUniverse\x12\x12.brain.ScanRequest\x1a\x13.brain.ScanResponse\x12\x41\n\nBatchScore\x12\x18.brain.BatchScoreRequest\x1a\x19.brain.BatchScoreResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'brain_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
+  _globals['_FEATURERESPONSE_FEATUREVECTORSENTRY']._loaded_options = None
+  _globals['_FEATURERESPONSE_FEATUREVECTORSENTRY']._serialized_options = b'8\001'
   _globals['_INFERREQUEST']._serialized_start=22
   _globals['_INFERREQUEST']._serialized_end=126
-  _globals['_INFERRESPONSE']._serialized_start=128
-  _globals['_INFERRESPONSE']._serialized_end=242
-  _globals['_CRITICREQUEST']._serialized_start=244
-  _globals['_CRITICREQUEST']._serialized_end=338
-  _globals['_CRITICRESPONSE']._serialized_start=340
-  _globals['_CRITICRESPONSE']._serialized_end=433
-  _globals['_EMBEDREQUEST']._serialized_start=435
-  _globals['_EMBEDREQUEST']._serialized_end=463
-  _globals['_EMBEDRESPONSE']._serialized_start=465
-  _globals['_EMBEDRESPONSE']._serialized_end=514
-  _globals['_BRAINSERVICE']._serialized_start=517
-  _globals['_BRAINSERVICE']._serialized_end=716
+  _globals['_INFERRESPONSE']._serialized_start=129
+  _globals['_INFERRESPONSE']._serialized_end=337
+  _globals['_CRITICREQUEST']._serialized_start=339
+  _globals['_CRITICREQUEST']._serialized_end=433
+  _globals['_CRITICRESPONSE']._serialized_start=435
+  _globals['_CRITICRESPONSE']._serialized_end=551
+  _globals['_EMBEDREQUEST']._serialized_start=553
+  _globals['_EMBEDREQUEST']._serialized_end=581
+  _globals['_EMBEDRESPONSE']._serialized_start=583
+  _globals['_EMBEDRESPONSE']._serialized_end=632
+  _globals['_AGENTVOTEPROTO']._serialized_start=635
+  _globals['_AGENTVOTEPROTO']._serialized_end=787
+  _globals['_COUNCILSTAGEREQUEST']._serialized_start=790
+  _globals['_COUNCILSTAGEREQUEST']._serialized_end=926
+  _globals['_COUNCILSTAGERESPONSE']._serialized_start=928
+  _globals['_COUNCILSTAGERESPONSE']._serialized_end=1029
+  _globals['_FEATUREREQUEST']._serialized_start=1031
+  _globals['_FEATUREREQUEST']._serialized_end=1083
+  _globals['_FEATURERESPONSE']._serialized_start=1086
+  _globals['_FEATURERESPONSE']._serialized_end=1270
+  _globals['_FEATURERESPONSE_FEATUREVECTORSENTRY']._serialized_start=1217
+  _globals['_FEATURERESPONSE_FEATUREVECTORSENTRY']._serialized_end=1270
+  _globals['_SCANREQUEST']._serialized_start=1272
+  _globals['_SCANREQUEST']._serialized_end=1337
+  _globals['_SCANCANDIDATE']._serialized_start=1340
+  _globals['_SCANCANDIDATE']._serialized_end=1472
+  _globals['_SCANRESPONSE']._serialized_start=1474
+  _globals['_SCANRESPONSE']._serialized_end=1595
+  _globals['_BATCHSCOREREQUEST']._serialized_start=1597
+  _globals['_BATCHSCOREREQUEST']._serialized_end=1677
+  _globals['_SYMBOLSCORE']._serialized_start=1679
+  _globals['_SYMBOLSCORE']._serialized_end=1780
+  _globals['_BATCHSCORERESPONSE']._serialized_start=1782
+  _globals['_BATCHSCORERESPONSE']._serialized_end=1881
+  _globals['_BRAINSERVICE']._serialized_start=1884
+  _globals['_BRAINSERVICE']._serialized_end=2349
 # @@protoc_insertion_point(module_scope)

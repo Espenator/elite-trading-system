@@ -21,7 +21,9 @@ import os
 import time
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
+
+from app.core.security import require_auth
 from fastapi.responses import PlainTextResponse
 
 router = APIRouter(prefix="/api/v1/metrics", tags=["metrics"])
@@ -111,7 +113,7 @@ def get_metrics():
 
     # CouncilGate metrics
     try:
-        from app.services.council_gate import get_council_gate
+        from app.council.council_gate import get_council_gate
         gate = get_council_gate()
         if hasattr(gate, "get_metrics"):
             result["council_gate"] = gate.get_metrics()
@@ -160,28 +162,28 @@ def get_metrics():
     except Exception:
         result["pipeline_summary"] = {}
 
-    # E5: Additional production metrics
+    # E5: Council latency percentiles (from council_health rolling window; fallback to gauges)
     try:
-        # council_latency_ms percentiles
-        from app.core.metrics import get_gauges
-        gauges = get_gauges()
-        council_latencies = []
-        for key, val in gauges.items():
-            if key[0] == "council_latency_ms":
-                council_latencies.append(val)
-        if council_latencies:
-            sorted_lat = sorted(council_latencies)
-            n = len(sorted_lat)
-            result["council_latency_percentiles"] = {
-                "p50": sorted_lat[int(n * 0.5)] if n > 0 else 0,
-                "p95": sorted_lat[int(n * 0.95)] if n > 0 else 0,
-                "p99": sorted_lat[int(n * 0.99)] if n > 0 else 0,
-                "sample_count": n,
-            }
-        else:
-            result["council_latency_percentiles"] = {"p50": 0, "p95": 0, "p99": 0, "sample_count": 0}
+        from app.council.council_health import get_latency_percentiles
+        result["council_latency_percentiles"] = get_latency_percentiles()
     except Exception:
-        result["council_latency_percentiles"] = {"error": "unavailable"}
+        try:
+            from app.core.metrics import get_gauges
+            gauges = get_gauges()
+            council_latencies = [val for key, val in gauges.items() if key[0] == "council_latency_ms"]
+            if council_latencies:
+                sorted_lat = sorted(council_latencies)
+                n = len(sorted_lat)
+                result["council_latency_percentiles"] = {
+                    "p50": sorted_lat[int(n * 0.5)] if n > 0 else 0,
+                    "p95": sorted_lat[int(n * 0.95)] if n > 0 else 0,
+                    "p99": sorted_lat[int(n * 0.99)] if n > 0 else 0,
+                    "sample_count": n,
+                }
+            else:
+                result["council_latency_percentiles"] = {"p50": 0, "p95": 0, "p99": 0, "sample_count": 0}
+        except Exception:
+            result["council_latency_percentiles"] = {"error": "unavailable"}
 
     # E5: Weight learner stats
     try:
@@ -253,21 +255,13 @@ def get_pipeline_metrics():
         return {"error": "Service unavailable"}
 
 
-@router.post("/emergency-flatten")
-async def trigger_emergency_flatten(
-    reason: str = "api_trigger",
-    authorization: str = Header(None),
-):
+@router.post("/emergency-flatten", dependencies=[Depends(require_auth)])
+async def trigger_emergency_flatten(reason: str = "api_trigger"):
     """Trigger emergency flatten of all positions.
 
     E2: Closes all open positions with retry + Slack alert.
-    Requires Bearer token auth via Authorization header.
+    Requires Bearer token (API_AUTH_TOKEN). Fail-closed if token not set.
     """
-    # E2a: Verify Bearer token
-    expected_token = f"Bearer {os.getenv('TRADING_AUTH_TOKEN', '')}"
-    if not authorization or authorization != expected_token:
-        raise HTTPException(status_code=403, detail="Unauthorized")
-
     try:
         import app.main as _main
         _executor_instance = getattr(_main, "_order_executor", None)
@@ -280,11 +274,12 @@ async def trigger_emergency_flatten(
         return {"error": "Internal server error", "status": "failed"}
 
 
-@router.post("/ws-circuit-breaker/reset")
+@router.post("/ws-circuit-breaker/reset", dependencies=[Depends(require_auth)])
 def reset_ws_circuit_breaker():
     """Reset the WebSocket circuit breaker to allow reconnection attempts.
 
     E4: After 10 consecutive WS failures, call this to reset.
+    Requires Bearer token (API_AUTH_TOKEN).
     """
     try:
         import app.main as _main

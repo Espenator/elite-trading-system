@@ -6,9 +6,10 @@ quote data for price. Merges OpenClaw regime + 5-pillar candidate scores when av
 Applies momentum and simple pattern logic; outputs composite signal scores
 0-100 for logging and downstream (ML, alerts).
 
-v2: Added EventDrivenSignalEngine class that subscribes to MessageBus events
-for <1s latency signal generation. Original run_tick() preserved for backward
-compatibility with the Agent Command Center polling loop.
+v2: EventDrivenSignalEngine subscribes to market_data.bar on MessageBus; on each bar
+it computes features, long/short composite scores (regime-adaptive), and publishes
+signal.generated when score >= threshold. CouncilGate then invokes the council.
+Original run_tick() preserved for Agent Command Center polling.
 """
 import asyncio
 import logging
@@ -521,8 +522,9 @@ class EventDrivenSignalEngine:
         self._running = True
         self._start_time = time.time()
         await self.message_bus.subscribe("market_data.bar", self._on_new_bar)
+        await self.message_bus.subscribe("macro.fred", self._on_macro_data)
         logger.info(
-            "EventDrivenSignalEngine started — subscribed to market_data.bar "
+            "EventDrivenSignalEngine started — subscribed to market_data.bar, macro.fred "
             "(threshold=%d, history=%d bars)",
             self.SIGNAL_THRESHOLD,
             self.MAX_BAR_HISTORY,
@@ -532,6 +534,7 @@ class EventDrivenSignalEngine:
         """Stop processing."""
         self._running = False
         await self.message_bus.unsubscribe("market_data.bar", self._on_new_bar)
+        await self.message_bus.unsubscribe("macro.fred", self._on_macro_data)
         logger.info(
             "EventDrivenSignalEngine stopped — %d signals from %d bars",
             self._signals_generated,
@@ -665,6 +668,12 @@ class EventDrivenSignalEngine:
                     "\u26a1 HIGH SHORT signal: %s score=%.1f (%s) @ $%.2f [regime=%s]",
                     symbol, bear_score, short_label, data.get("close", 0), self._regime_state,
                 )
+
+    async def _on_macro_data(self, data: Dict[str, Any]) -> None:
+        """On macro/VIX data, re-evaluate regime immediately (event-driven)."""
+        if not self._running:
+            return
+        asyncio.create_task(self._refresh_regime())
 
     async def _refresh_regime(self) -> None:
         """Background refresh of OpenClaw regime context."""

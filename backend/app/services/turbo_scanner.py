@@ -30,6 +30,11 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    ZoneInfo = None  # type: ignore
+
 import numpy as np
 import pandas as pd
 
@@ -40,7 +45,9 @@ logger = logging.getLogger(__name__)
 # Configuration — Tunable for your 2-PC setup
 # ═══════════════════════════════════════════════════════════════════════════════
 
-SCAN_INTERVAL_NORMAL = 60       # Seconds between scans (normal market)
+SCAN_INTERVAL_NORMAL = 60       # Seconds between scans (outside market hours)
+SCAN_INTERVAL_MARKET_HOURS = 15  # 10–15s during market hours (reduce blindness to fast moves)
+SCAN_INTERVAL_MARKET_OPEN = 5   # 5s during 9:30–10:00 ET (richest alpha window)
 SCAN_INTERVAL_VOLATILE = 30     # During high VIX / active events
 SCAN_INTERVAL_PREMARKET = 120   # Pre/post market
 BATCH_SIZE_ALPACA = 50          # Symbols per Alpaca bars request (max efficient batch)
@@ -115,6 +122,7 @@ class TurboScanner:
         self._running = False
         self._task: Optional[asyncio.Task] = None
         self._scan_interval = SCAN_INTERVAL_NORMAL
+        self._base_scan_interval = SCAN_INTERVAL_NORMAL
         self._signals_history: deque = deque(maxlen=500)
         self._seen_today: Set[str] = set()  # symbol+type dedup
         self._last_scan_time = 0.0
@@ -149,6 +157,22 @@ class TurboScanner:
             except asyncio.CancelledError:
                 pass
         logger.info("TurboScanner stopped")
+
+    def _get_scan_interval_for_session(self) -> int:
+        """Return scan interval (seconds) from session: 5s market open, 15s market hours, 60s else."""
+        if not ZoneInfo:
+            return self._base_scan_interval
+        try:
+            et = datetime.now(ZoneInfo("America/New_York"))
+            h, m = et.hour, et.minute
+            minutes = h * 60 + m
+            if 570 <= minutes < 600:   # 9:30–10:00 ET
+                return SCAN_INTERVAL_MARKET_OPEN
+            if 600 <= minutes < 930:  # 10:00–15:30 ET
+                return SCAN_INTERVAL_MARKET_HOURS
+            return SCAN_INTERVAL_NORMAL
+        except Exception:
+            return self._base_scan_interval
 
     # ──────────────────────────────────────────────────────────────────────
     # Main Scan Loop
@@ -193,6 +217,8 @@ class TurboScanner:
             except Exception as e:
                 logger.warning("TurboScanner scan error: %s", e)
 
+            # Adaptive interval: 5s at market open, 15s during market hours, 60s otherwise
+            self._scan_interval = self._get_scan_interval_for_session()
             await asyncio.sleep(self._scan_interval)
 
     async def _run_all_scans(self) -> List[ScanSignal]:

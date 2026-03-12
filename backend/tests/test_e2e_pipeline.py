@@ -84,9 +84,14 @@ async def test_e2e_swarm_idea_to_order_submitted():
         await hyper_swarm.start()
 
     # 3. CouncilGate — stub run_council so we don't need full DAG/LLM
+    import uuid
+    from datetime import datetime, timezone
+    _e2e_decision_id = f"e2e-{uuid.uuid4().hex[:12]}"
+
     async def _stub_run_council(symbol=None, timeframe=None, context=None, **kwargs):
         from types import SimpleNamespace
         sym = symbol or kwargs.get("symbol", "E2E")
+        ts = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         d = SimpleNamespace(
             vetoed=False,
             veto_reasons=[],
@@ -104,11 +109,14 @@ async def test_e2e_swarm_idea_to_order_submitted():
                 "execution_ready": True,
                 "votes": [1],
                 "council_reasoning": "e2e stub",
+                "council_decision_id": _e2e_decision_id,
+                "timestamp": ts,
             },
         )
         return d
 
-    with patch("app.council.runner.run_council", side_effect=_stub_run_council):
+    with patch("app.council.runner.run_council", side_effect=_stub_run_council), \
+         patch("app.services.trade_execution_router._is_market_open", return_value=(True, None)):
         gate = CouncilGate(
             message_bus=bus,
             gate_threshold=0.0,
@@ -116,6 +124,11 @@ async def test_e2e_swarm_idea_to_order_submitted():
             cooldown_seconds=0,
         )
         await gate.start()
+
+        # 3b. TradeExecutionRouter — validates council.verdict and publishes execution.validated_verdict (OrderExecutor subscribes to that)
+        from app.services.trade_execution_router import TradeExecutionRouter
+        router = TradeExecutionRouter(message_bus=bus, expiry_seconds=60)
+        await router.start()
 
         # 4. OrderExecutor — shadow mode; mock Kelly/trade_stats so SizingGate passes
         executor = OrderExecutor(
@@ -161,6 +174,7 @@ async def test_e2e_swarm_idea_to_order_submitted():
                 break
 
         await executor.stop()
+        await router.stop()
         await gate.stop()
 
     await hyper_swarm.stop()

@@ -159,12 +159,16 @@ class DecisionPacket:
     execution_ready: bool
     council_reasoning: str
     council_decision_id: str = ""  # links to BlackboardState
+    ttl_seconds: int = 30  # decision TTL; enforce in OrderExecutor
+    created_at: str = ""  # ISO timestamp when council run started (blackboard created_at)
 
     # ── ETBI Cognitive Extensions ──────────────────────────────────────────
     cognitive: CognitiveMeta = field(default_factory=CognitiveMeta)
     active_hypothesis: Optional[Dict[str, Any]] = None  # hypothesis agent's output
     semantic_context: Optional[Dict[str, Any]] = None  # recalled heuristics/memories
     experimental_history: List[Dict[str, Any]] = field(default_factory=list)  # recent explore outcomes
+    # Postmortem: compact blackboard snapshot for closed-trade audit (set by runner)
+    blackboard_snapshot: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         d = {
@@ -181,6 +185,8 @@ class DecisionPacket:
             "council_reasoning": self.council_reasoning,
             "vote_count": len(self.votes),
             "cognitive": self.cognitive.to_dict(),
+            "ttl_seconds": self.ttl_seconds,
+            "created_at": self.created_at,
         }
         if self.council_decision_id:
             d["council_decision_id"] = self.council_decision_id
@@ -190,4 +196,6 @@ class DecisionPacket:
             d["semantic_context"] = self.semantic_context
         if self.experimental_history:
             d["experimental_history"] = self.experimental_history[-10:]  # last 10
+        if self.blackboard_snapshot:
+            d["blackboard_snapshot"] = self.blackboard_snapshot
         return d

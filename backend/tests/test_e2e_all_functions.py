@@ -176,6 +176,8 @@ class TestCNSAndStrategy:
 
 
 class TestPortfolioDataSourcesSentiment:
+    """Read-only endpoints; accept 5xx in CI when services are unavailable."""
+
     def test_portfolio_returns_200_or_502(self, client):
         r = client.get("/api/v1/portfolio")
         assert r.status_code in (200, 502)
@@ -183,10 +185,10 @@ class TestPortfolioDataSourcesSentiment:
     def test_data_sources_list_returns_200_or_5xx(self, client):
         try:
             r = client.get("/api/v1/data-sources/")
-            assert r.status_code in (200, 422, 500)
-        except Exception:
-            # Backend may raise ValidationError if a source has category not in DataSourceRead enum (e.g. 'options')
-            pytest.skip("data-sources endpoint can raise when source category is not in enum")
+            assert r.status_code in (200, 422, 500), f"Got {r.status_code}"
+        except Exception as e:
+            # ValidationError when source category not in enum; skip to avoid flakiness
+            pytest.skip(f"data-sources endpoint: {e!r}")
 
     def test_sentiment_returns_200(self, client):
         r = client.get("/api/v1/sentiment")
@@ -214,10 +216,36 @@ class TestEmergencyStop:
         assert data.get("status") == "emergency_stop_executed"
 
 
+class TestMetricsEmergencyFlatten:
+    """POST /api/v1/metrics/emergency-flatten requires Bearer auth (fail-closed)."""
+
+    def test_emergency_flatten_requires_auth(self, client):
+        r = client.post("/api/v1/metrics/emergency-flatten")
+        assert r.status_code in (401, 403)
+
+    def test_emergency_flatten_with_auth_returns_2xx_or_5xx(self, client, auth_headers):
+        r = client.post("/api/v1/metrics/emergency-flatten", headers=auth_headers)
+        # 200 if executor ready and flatten ran; 200 with error key if executor not init; 500 on error
+        assert r.status_code in (200, 500)
+        if r.status_code == 200:
+            data = r.json()
+            assert "status" in data or "error" in data
+
+
 class TestRiskShieldEmergencyAction:
     def test_risk_shield_emergency_action_requires_auth(self, client):
-        r = client.post("/api/v1/risk-shield/emergency-action", json={"action": "kill_switch"})
+        r = client.post("/api/v1/risk-shield/emergency-action", json={"action": "kill_switch", "confirm": True})
         assert r.status_code == 401
+
+    def test_risk_shield_kill_switch_requires_confirm(self, client, auth_headers):
+        """Kill switch requires confirm=True (double-confirmation)."""
+        r = client.post(
+            "/api/v1/risk-shield/emergency-action",
+            json={"action": "kill_switch"},
+            headers=auth_headers,
+        )
+        assert r.status_code == 400
+        assert "confirm" in (r.json().get("detail") or "").lower()
 
     def test_risk_shield_kill_switch_with_auth(self, client, auth_headers):
         with patch(
@@ -227,7 +255,7 @@ class TestRiskShieldEmergencyAction:
         ):
             r = client.post(
                 "/api/v1/risk-shield/emergency-action",
-                json={"action": "kill_switch"},
+                json={"action": "kill_switch", "confirm": True},
                 headers=auth_headers,
             )
         assert r.status_code == 200
@@ -276,6 +304,24 @@ class TestOrderAdvancedRequiresAuth:
             json={"symbol": "AAPL", "side": "buy", "qty": "1", "type": "market"},
         )
         assert r.status_code == 401
+
+    def test_orders_advanced_rejects_invalid_symbol(self, client, auth_headers):
+        """Pydantic validation: invalid symbol format returns 422."""
+        r = client.post(
+            "/api/v1/orders/advanced",
+            json={"symbol": "invalid!!", "side": "buy", "type": "market"},
+            headers=auth_headers,
+        )
+        assert r.status_code == 422
+
+    def test_orders_advanced_rejects_invalid_order_type(self, client, auth_headers):
+        """Pydantic validation: order type must be market/limit/stop/stop_limit."""
+        r = client.post(
+            "/api/v1/orders/advanced",
+            json={"symbol": "AAPL", "side": "buy", "type": "invalid_type"},
+            headers=auth_headers,
+        )
+        assert r.status_code == 422
 
 
 class TestAlignmentPreflight:

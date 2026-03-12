@@ -1,10 +1,11 @@
 import React, { useEffect, useCallback, useRef, useState } from 'react';
+import { toast } from 'react-toastify';
 import useTradeExecution from '../hooks/useTradeExecution';
 import { getApiUrl, getAuthHeaders, WS_CHANNELS } from '../config/api';
 import { useApi } from '../hooks/useApi';
 import ws from '../services/websocket';
 import clsx from 'clsx';
-import { Minus, Plus } from 'lucide-react';
+import { Minus, Plus, Power } from 'lucide-react';
 import { VisualPriceLadder, CouncilDecisionPanel } from '../components/dashboard/TradeExecutionWidgets';
 
 /* ────────────────────────────────────────────────────────────
@@ -115,6 +116,15 @@ export default function TradeExecution() {
   const chartInstanceRef = useRef(null);
   const [chartTimeframe, setChartTimeframe] = useState('1M');
   const [builderTab, setBuilderTab] = useState('Advanced');
+  const [killSwitchModalOpen, setKillSwitchModalOpen] = useState(false);
+  const [killSwitchLoading, setKillSwitchLoading] = useState(false);
+
+  useEffect(() => {
+    if (!killSwitchModalOpen) return;
+    const onKey = (e) => { if (e.key === 'Escape') setKillSwitchModalOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [killSwitchModalOpen]);
 
   /* -- Chart init -- */
   useEffect(() => {
@@ -196,6 +206,22 @@ export default function TradeExecution() {
     return action();
   };
 
+  const handleKillSwitch = useCallback(async () => {
+    setKillSwitchLoading(true);
+    try {
+      const res = await fetch(getApiUrl('orders/emergency-stop'), { method: 'POST', headers: getAuthHeaders() });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.detail || data?.message || `HTTP ${res.status}`);
+      toast.error('Kill Switch activated — orders cancelled, positions closed.');
+      setKillSwitchModalOpen(false);
+      refreshTradeData();
+    } catch (err) {
+      toast.error(err?.message || 'Kill Switch request failed');
+    } finally {
+      setKillSwitchLoading(false);
+    }
+  }, [refreshTradeData]);
+
   /* -- Keyboard Shortcuts -- */
   const handleKeyDown = useCallback((e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
@@ -227,67 +253,19 @@ export default function TradeExecution() {
   const newsArr   = Array.isArray(newsFeed) ? newsFeed : [];
   const statusArr = Array.isArray(systemStatus) ? systemStatus : [systemStatus].filter(Boolean);
 
-  /* ── Fallback: Price Ladder (5-column with bid/ask depth bars) ── */
-  const displayLadder = ladderArr.length > 0 ? ladderArr : (() => {
-    const base = 4449.50;
-    const mid = 9;
-    return Array.from({ length: 20 }, (_, i) => {
-      const price = (base - i * 0.50).toFixed(2);
-      const isCurrent = i === mid;
-      const isAsk = i < mid;
-      const isBid = i > mid;
-      return {
-        row: i + 1, price,
-        bidSize: isBid ? 0 : (isCurrent ? 3100000 : 0),
-        askSize: isAsk ? 0 : (isCurrent ? 3200000 : 0),
-        side: isCurrent ? 'current' : (isBid ? 'bid' : 'ask'),
-        isCurrent,
-      };
-    });
-  })();
+  /* ── Data from API only (no mock fallbacks) ── */
+  const displayLadder = ladderArr;
   const maxBidSz = Math.max(...displayLadder.map(r => r.side === 'bid' ? (r.bidSize || r.size || 0) : 0), 1);
   const maxAskSz = Math.max(...displayLadder.map(r => r.side === 'ask' ? (r.askSize || r.size || 0) : 0), 1);
 
-  /* ── Fallback: Order Book (mockup: Bid/Size/Total, Ask/Size/Total) ── */
   const bookBids = orderBook?.bids || [];
   const bookAsks = orderBook?.asks || [];
-  const displayBookBids = bookBids.length > 0 ? bookBids.slice(0, 10) : [
-    { price: 4450.25, size: 310, total: 310 },
-    { price: 4450.50, size: 85, total: 395 },
-    { price: 4449.75, size: 120, total: 515 },
-    { price: 4449.50, size: 45, total: 560 },
-    { price: 4449.25, size: 200, total: 760 },
-  ];
-  const displayBookAsks = bookAsks.length > 0 ? bookAsks.slice(0, 10) : [
-    { price: 4450.50, size: 72, total: 72 },
-    { price: 4450.75, size: 95, total: 167 },
-    { price: 4451.50, size: 38, total: 205 },
-    { price: 4451.75, size: 110, total: 315 },
-    { price: 4452.00, size: 60, total: 375 },
-  ];
+  const displayBookBids = bookBids.slice(0, 10);
+  const displayBookAsks = bookAsks.slice(0, 10);
 
-  /* ── Fallback: News Feed (mockup: timestamp first, colored dot, headline) ── */
-  const displayNews = newsArr.length > 0 ? newsArr : [
-    { time: '09:30:05', text: 'FED official comments on interest rates cause market volatility.', type: 'info' },
-    { time: '09:25:45', text: 'Strong economic data released, boosting sentiment.', type: 'positive' },
-    { time: '09:15:30', text: 'Breaking: Geopolitical tensions escalate, impacting oil prices.', type: 'negative' },
-    { time: '09:10:15', text: 'Earnings Alert: XYZ Inc. reports Q2 results, beats estimates.', type: 'warning' },
-  ];
-
-  /* ── Fallback: System Status Log (mockup: timestamp, dot, message) ── */
-  const displayStatus = statusArr.length > 0 ? statusArr : [
-    { time: '09:30:12', text: 'Order #123456 executed successfully (SPX, Buy, 50 contracts).', type: 'success' },
-    { time: '09:30:08', text: 'Connected to market data feed: Latency 8ms.', type: 'info' },
-    { time: '09:30:02', text: 'Warning: High market volatility detected.', type: 'warning' },
-    { time: '09:30:00', text: 'System initialized. All services online.', type: 'success' },
-    { time: '09:29:55', text: 'User Logged In: ELITE status confirmed.', type: 'info' },
-  ];
-
-  /* ── Fallback: Positions (mockup: Symbol, Side, Qty, Avg Price, Current Price, P/L, Actions) ── */
-  const displayPositions = posArr.length > 0 ? posArr : [
-    { symbol: 'SPX', side: 'Long',  quantity: 10, avgPrice: 4450.25, currentPrice: 4450.25, pnl: 7625 },
-    { symbol: 'SPX', side: 'Short', quantity: 10, avgPrice: 4450.25, currentPrice: 4450.25, pnl: 7625 },
-  ];
+  const displayNews = newsArr;
+  const displayStatus = statusArr;
+  const displayPositions = posArr;
 
   /* Strike helpers */
   const callIdx = orderForm.callStrikeIdx ?? 0;
@@ -313,15 +291,55 @@ export default function TradeExecution() {
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-400 to-transparent" />
         <span className="font-mono text-sm font-bold text-white uppercase tracking-widest">TRADE EXECUTION</span>
         <div className="flex items-center gap-5 ml-auto font-mono text-[10px]">
-          <span><span className="text-gray-500 mr-1">Portfolio:</span><span className="text-white">{fmtUsd(portfolio.value || 1580420.55)}</span></span>
+          <span><span className="text-gray-500 mr-1">Portfolio:</span><span className="text-white">{fmtUsd(portfolio?.value)}</span></span>
           <span className="text-gray-700">|</span>
-          <span><span className="text-gray-500 mr-1">Daily P/L:</span><span className="text-[#00e676]">+{fmtUsd(portfolio.dailyPnl || 12500.80)}</span></span>
+          <span><span className="text-gray-500 mr-1">Daily P/L:</span><span className="text-[#00e676]">{portfolio?.dailyPnl != null ? (portfolio.dailyPnl >= 0 ? '+' : '') + fmtUsd(portfolio.dailyPnl) : '—'}</span></span>
           <span className="text-gray-700">|</span>
-          <span><span className="text-gray-500 mr-1">Status:</span><span className="px-2 py-0.5 rounded text-[9px] font-bold bg-[#00D9FF]/25 text-[#00D9FF]">{portfolio.status || 'ELITE'}</span></span>
+          <span><span className="text-gray-500 mr-1">Status:</span><span className="px-2 py-0.5 rounded text-[9px] font-bold bg-[#00D9FF]/25 text-[#00D9FF]">{portfolio?.status ?? '—'}</span></span>
           <span className="text-gray-700">|</span>
-          <span><span className="text-gray-500 mr-1">Latency:</span><span className="text-white">{portfolio.latency || 8}ms</span></span>
+          <span><span className="text-gray-500 mr-1">Latency:</span><span className="text-white">{portfolio?.latency != null ? `${portfolio.latency}ms` : '—'}</span></span>
+          <span className="text-gray-700">|</span>
+          <button
+            type="button"
+            onClick={() => setKillSwitchModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded font-mono text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/40 hover:bg-red-500/30 transition-colors"
+            title="Emergency: close all positions and halt trading"
+          >
+            <Power className="w-3.5 h-3.5" />
+            KILL SWITCH
+          </button>
         </div>
       </div>
+
+      {/* Kill Switch confirmation modal */}
+      {killSwitchModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="kill-switch-title" onClick={() => setKillSwitchModalOpen(false)}>
+          <div className="w-full max-w-md rounded-lg border border-red-500/40 bg-[#111827] p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h2 id="kill-switch-title" className="text-lg font-bold text-red-400 mb-2">Kill Switch</h2>
+            <p className="text-sm text-gray-300 mb-4">
+              This will close all positions and halt trading. Are you absolutely sure?
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => setKillSwitchModalOpen(false)}
+                disabled={killSwitchLoading}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-[rgba(42,52,68,0.6)] text-gray-300 border border-[rgba(42,52,68,0.8)] hover:bg-[rgba(42,52,68,0.8)] disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleKillSwitch}
+                disabled={killSwitchLoading}
+                className="px-4 py-2 rounded-lg text-sm font-bold bg-red-600 text-white border border-red-500 hover:bg-red-700 disabled:opacity-50"
+              >
+                {killSwitchLoading ? 'Activating…' : 'Yes, activate Kill Switch'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ═══════ QUICK EXECUTION BAR ═══════ */}
       <div className="h-10 bg-[#111827]/80 border-b border-[rgba(42,52,68,0.5)] flex items-center px-4 gap-2 shrink-0">
@@ -379,7 +397,9 @@ export default function TradeExecution() {
         <div className="bg-[#111827]/80 flex flex-col overflow-hidden">
           <PanelHead>Multi-Price Ladder</PanelHead>
           <div className="flex-1 overflow-y-auto">
-            {displayLadder.map((row, i) => {
+            {displayLadder.length === 0 ? (
+              <div className="p-4 text-center font-mono text-[10px] text-gray-500">No price ladder data</div>
+            ) : displayLadder.map((row, i) => {
               const price = parseFloat(row.price) || 0;
               const isCurrent = row.isCurrent || row.side === 'current';
               const isAbove = row.side === 'ask' && !isCurrent;
@@ -446,7 +466,11 @@ export default function TradeExecution() {
 
             <FormField label="Symbol:">
               <FormSelect value={orderForm.symbol} onChange={e => updateOrderForm({ symbol: e.target.value })}>
-                {symbols.map(s => <option key={s} value={s}>{s}</option>)}
+                {symbols.length === 0 ? (
+                  <option value="">No symbols (check data source)</option>
+                ) : (
+                  symbols.map(s => <option key={s} value={s}>{s}</option>)
+                )}
               </FormSelect>
             </FormField>
 
@@ -512,6 +536,10 @@ export default function TradeExecution() {
         <div className="bg-[#111827]/80 flex flex-col overflow-hidden">
           <PanelHead>Live Order Book</PanelHead>
           <div className="flex-1 overflow-y-auto">
+            {displayBookBids.length === 0 && displayBookAsks.length === 0 ? (
+              <div className="p-4 text-center font-mono text-[10px] text-gray-500">No order book data</div>
+            ) : (
+            <>
             <table className="w-full border-collapse">
               <thead>
                 <tr>
@@ -549,6 +577,8 @@ export default function TradeExecution() {
                 ))}
               </tbody>
             </table>
+            </>
+            )}
           </div>
         </div>
 
@@ -584,7 +614,9 @@ export default function TradeExecution() {
           <div className="flex-1 bg-[#111827]/80 flex flex-col overflow-hidden min-h-0">
             <PanelHead>News Feed</PanelHead>
             <div className="flex-1 overflow-y-auto">
-              {displayNews.map((item, i) => {
+              {displayNews.length === 0 ? (
+                <div className="p-4 text-center font-mono text-[10px] text-gray-500">No news feed</div>
+              ) : displayNews.map((item, i) => {
                 const dotColor =
                   item.type === 'negative' || item.type === 'error' ? 'bg-[#ff3860]' :
                   item.type === 'warning' ? 'bg-[#ffab00]' :
@@ -618,7 +650,9 @@ export default function TradeExecution() {
                 </tr>
               </thead>
               <tbody>
-                {displayPositions.map((pos, i) => {
+                {displayPositions.length === 0 ? (
+                  <tr><td colSpan={7} className="px-2 py-4 text-center font-mono text-[10px] text-gray-500">No positions</td></tr>
+                ) : displayPositions.map((pos, i) => {
                   const side = pos.side || (pos.quantity > 0 ? 'Long' : 'Short');
                   const pnl = pos.pnl ?? pos.unrealizedPl ?? pos.pnl_impact ?? 0;
                   const pnlClr = pnl >= 0 ? 'text-[#00e676]' : 'text-[#ff3860]';
@@ -648,7 +682,9 @@ export default function TradeExecution() {
         <div className="bg-[#111827]/80 flex flex-col overflow-hidden">
           <PanelHead>System Status Log</PanelHead>
           <div className="flex-1 overflow-y-auto px-2.5 py-1.5 font-mono text-[8px]">
-            {displayStatus.map((item, i) => {
+            {displayStatus.length === 0 ? (
+              <div className="py-4 text-center text-gray-500">No status log</div>
+            ) : displayStatus.map((item, i) => {
               const dotColor =
                 item.type === 'success' ? 'bg-[#00e676]' :
                 item.type === 'warning' ? 'bg-[#ffab00]' :

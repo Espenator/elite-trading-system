@@ -13,6 +13,9 @@ Phase B enhancements (March 11 2026):
 Pipeline:
   AlpacaStream → MessageBus → SignalEngine → **CouncilGate** → Council → OrderExecutor
   market_data.bar → signal.generated → council evaluation → council.verdict → order
+
+Main handler: _handle_signal() — checks threshold (regime-adaptive), cooldown (per symbol+direction),
+and concurrency (semaphore + priority queue). Publishes council.verdict only from here (single source).
 """
 import asyncio
 import heapq
@@ -24,6 +27,14 @@ from typing import Any, Dict, Optional
 from app.core.score_semantics import coerce_gate_threshold_0_100, coerce_signal_score_0_100
 
 logger = logging.getLogger(__name__)
+
+# Singleton for health/metrics (set by main when CouncilGate is created)
+_gate_instance: Optional["CouncilGate"] = None
+
+
+def get_council_gate() -> Optional["CouncilGate"]:
+    """Return the global CouncilGate instance (set by main on startup)."""
+    return _gate_instance
 
 # Regime-adaptive gate thresholds: lower in bullish (cast wider net),
 # higher in bearish (only high-conviction signals)
@@ -81,6 +92,8 @@ class CouncilGate:
         burst_concurrent: int = 8,
         cooldown_seconds: int = 120,
     ):
+        global _gate_instance
+        _gate_instance = self
         self.message_bus = message_bus
         self.base_gate_threshold = coerce_gate_threshold_0_100(
             gate_threshold, context="CouncilGate"
@@ -110,6 +123,10 @@ class CouncilGate:
         # Priority queue: (-score, timestamp, symbol, signal_data)
         self._priority_queue: list = []
         self._queue_drain_task: Optional[asyncio.Task] = None
+        # Track active council tasks for graceful shutdown
+        self._active_council_tasks: set = set()
+        # Last council evaluation timestamp (UTC epoch) for health endpoint
+        self._last_council_ts: Optional[float] = None
 
     async def start(self) -> None:
         """Subscribe to signal.generated and begin gating."""
@@ -127,10 +144,29 @@ class CouncilGate:
         )
 
     async def stop(self) -> None:
-        """Unsubscribe and stop."""
+        """Unsubscribe, cancel pending council evaluations, and stop."""
         self._running = False
         if self._queue_drain_task and not self._queue_drain_task.done():
             self._queue_drain_task.cancel()
+            try:
+                await asyncio.wait_for(self._queue_drain_task, timeout=1.0)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                pass
+        # Cancel in-flight council evaluations (graceful shutdown)
+        if self._active_council_tasks:
+            for task in list(self._active_council_tasks):
+                task.cancel()
+            done, _ = await asyncio.wait(
+                self._active_council_tasks,
+                timeout=3.0,
+                return_when=asyncio.ALL_COMPLETED,
+            )
+            for t in done:
+                try:
+                    t.result()
+                except asyncio.CancelledError:
+                    pass
+            self._active_council_tasks.clear()
         await self.message_bus.unsubscribe("signal.generated", self._on_signal)
         logger.info(
             "CouncilGate stopped — %d signals, %d councils, %d passed, %d vetoed, %d held, %d queued",
@@ -239,8 +275,10 @@ class CouncilGate:
             self._concurrency_skips += 1
             return
 
-        # Launch council evaluation (non-blocking)
-        asyncio.create_task(self._evaluate_with_council(symbol, signal_data))
+        # Launch council evaluation (non-blocking); track for graceful shutdown
+        task = asyncio.create_task(self._evaluate_with_council(symbol, signal_data))
+        self._active_council_tasks.add(task)
+        task.add_done_callback(self._active_council_tasks.discard)
 
     async def _drain_queue_loop(self) -> None:
         """Periodically drain the priority queue when semaphore slots open (B4)."""
@@ -262,9 +300,9 @@ class CouncilGate:
                 if time.time() - last_eval < cooldown:
                     continue
                 self._queue_dispatched += 1
-                asyncio.create_task(
-                    self._evaluate_with_council(symbol, signal_data)
-                )
+                t = asyncio.create_task(self._evaluate_with_council(symbol, signal_data))
+                self._active_council_tasks.add(t)
+                t.add_done_callback(self._active_council_tasks.discard)
 
     async def _evaluate_with_council(
         self, symbol: str, signal_data: Dict[str, Any]
@@ -279,10 +317,51 @@ class CouncilGate:
 
             try:
                 from app.council.runner import run_council
+                from app.council.reflexes.circuit_breaker import circuit_breaker
+                from app.council.blackboard import BlackboardState
+                from app.council.schemas import DecisionPacket, CognitiveMeta
+                from datetime import datetime, timezone
 
                 score = signal_data.get("score", 0)
                 regime = signal_data.get("regime", "UNKNOWN")
                 price = signal_data.get("close", signal_data.get("price", 0))
+
+                # Pre-council safety reflex: run before any deliberation; skip council if unsafe
+                minimal_blackboard = BlackboardState(
+                    symbol=symbol,
+                    raw_features={"features": dict(signal_data)},
+                )
+                halt_reason = await circuit_breaker.check_all(minimal_blackboard)
+                if halt_reason:
+                    self._councils_invoked += 1
+                    self._councils_vetoed += 1
+                    timestamp_iso = datetime.now(timezone.utc).isoformat()
+                    safe_hold = DecisionPacket(
+                        symbol=symbol,
+                        timeframe="1d",
+                        timestamp=timestamp_iso,
+                        votes=[],
+                        final_direction="hold",
+                        final_confidence=0.0,
+                        vetoed=True,
+                        veto_reasons=[f"Pre-council safety: {halt_reason}"],
+                        risk_limits={},
+                        execution_ready=False,
+                        council_reasoning=f"HOLD by pre-council safety reflex: {halt_reason}",
+                        council_decision_id=minimal_blackboard.council_decision_id,
+                        cognitive=CognitiveMeta(),
+                    )
+                    verdict_data = safe_hold.to_dict()
+                    verdict_data["signal_data"] = signal_data
+                    verdict_data["price"] = price
+                    verdict_data["sizing_deferred_to_executor"] = False
+                    await self.message_bus.publish("council.verdict", verdict_data)
+                    logger.warning(
+                        "CouncilGate: pre-council safety fired for %s — HOLD (no council): %s",
+                        symbol,
+                        halt_reason,
+                    )
+                    return
 
                 logger.info(
                     "\u2699 CouncilGate: invoking council for %s "
@@ -322,9 +401,35 @@ class CouncilGate:
                         "⏰ Council GLOBAL TIMEOUT for %s after %.0fs — vetoing",
                         symbol, _council_timeout,
                     )
+                    # Publish halted verdict so WebSocket clients get consistent payload
+                    halt_verdict = {
+                        "symbol": symbol,
+                        "timeframe": "1d",
+                        "timestamp": "",
+                        "votes": [],
+                        "final_direction": "hold",
+                        "final_confidence": 0.0,
+                        "vetoed": True,
+                        "veto_reasons": ["global_timeout"],
+                        "risk_limits": {},
+                        "execution_ready": False,
+                        "council_reasoning": "Council evaluation timed out",
+                        "council_decision_id": "",
+                        "halt_reason": "timeout",
+                    }
+                    halt_verdict["signal_data"] = signal_data
+                    halt_verdict["price"] = price
+                    await self.message_bus.publish("council.verdict", halt_verdict)
                     return
 
-                # Process council verdict
+                # Update last council timestamp for health endpoint
+                self._last_council_ts = time.time()
+
+                verdict_data = decision.to_dict()
+                verdict_data["signal_data"] = signal_data
+                verdict_data["price"] = price
+
+                # Process council verdict — publish all outcomes for consistent WS broadcast
                 if decision.vetoed:
                     self._councils_vetoed += 1
                     logger.info(
@@ -332,6 +437,9 @@ class CouncilGate:
                         symbol,
                         "; ".join(decision.veto_reasons),
                     )
+                    verdict_data["execution_ready"] = False
+                    verdict_data["halt_reason"] = "vetoed"
+                    await self.message_bus.publish("council.verdict", verdict_data)
                     return
 
                 if decision.final_direction == "hold":
@@ -341,6 +449,9 @@ class CouncilGate:
                         symbol,
                         decision.final_confidence * 100,
                     )
+                    verdict_data["execution_ready"] = False
+                    verdict_data["halt_reason"] = "hold"
+                    await self.message_bus.publish("council.verdict", verdict_data)
                     return
 
                 if not decision.execution_ready:
@@ -352,16 +463,15 @@ class CouncilGate:
                         decision.final_direction,
                         decision.final_confidence * 100,
                     )
+                    verdict_data["execution_ready"] = False
+                    verdict_data["halt_reason"] = "hold"
+                    await self.message_bus.publish("council.verdict", verdict_data)
                     return
 
                 # Council approved — publish verdict for OrderExecutor
                 # Sizing gate is applied canonically in OrderExecutor (Kelly must pass before submit).
                 self._councils_passed += 1
-                verdict_data = decision.to_dict()
-                verdict_data["signal_data"] = signal_data
-                verdict_data["price"] = price
                 verdict_data["sizing_deferred_to_executor"] = True  # SizingGate runs in OrderExecutor
-
                 await self.message_bus.publish("council.verdict", verdict_data)
 
                 logger.info(
@@ -414,4 +524,13 @@ class CouncilGate:
             "pass_rate": (
                 round(self._councils_passed / max(self._councils_invoked, 1), 3)
             ),
+            "last_council_ts": self._last_council_ts,
         }
+
+    def get_last_council_ts(self) -> Optional[float]:
+        """Return UTC epoch timestamp of last council evaluation (for health)."""
+        return self._last_council_ts
+
+    def get_metrics(self) -> Dict[str, Any]:
+        """Return gate metrics for /api/v1/metrics (same as get_status plus latency-friendly keys)."""
+        return self.get_status()

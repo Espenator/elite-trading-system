@@ -2,15 +2,17 @@
 
 Replaces the raw features dict with a structured object that each
 stage writes to. The blackboard is the single source of truth for
-the entire council evaluation pipeline.
+one council decision cycle. Created at the start of run_council(),
+passed through each stage, and used by the arbiter for full context.
 
 Usage:
     bb = BlackboardState(symbol="AAPL", raw_features=features)
+    # council_decision_id is set at creation; agents attach blackboard_ref to votes
     # Stage 1 agents write perceptions
     bb.perceptions["market_perception"] = vote.to_dict()
-    # Stage 2 writes hypothesis
+    # Stage 3/4/5/6 write hypothesis, strategy, risk, execution, critic
     bb.hypothesis = vote.to_dict()
-    # etc.
+    # TTL: bb.is_expired, bb.remaining_ttl_seconds() for enforcement
 """
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -20,10 +22,12 @@ import uuid
 
 @dataclass
 class BlackboardState:
-    """Shared context for a single council evaluation.
+    """Shared state for a single council decision cycle.
 
-    Created at the start of run_council() and passed through all stages.
-    Each agent reads upstream data and writes its output to the appropriate field.
+    Created at the start of run_council(); council_decision_id is set at creation.
+    Passed through all stages; agents read from raw_features/context and write
+    stage outputs to perceptions, hypothesis, strategy, risk_assessment,
+    execution_plan, critic_review. Arbiter can inspect full blackboard context.
     """
 
     symbol: str
@@ -169,10 +173,10 @@ class BlackboardState:
         "macro_regime": "NORMAL",    # "RISK_ON" | "NORMAL" | "CAUTIOUS" | "RISK_OFF" | "CRISIS"
     })
 
-    # Identity and lifecycle
+    # Identity and lifecycle (decision TTL semantics)
     council_decision_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    ttl_seconds: int = 30  # decision expires after 30s
+    ttl_seconds: int = 30  # decision expires after 30s; enforce in OrderExecutor
 
     # ── ETBI Cognitive Telemetry ──────────────────────────────────────────
     cognitive_mode: str = "exploit"  # "explore" | "exploit" | "defensive"
@@ -184,9 +188,14 @@ class BlackboardState:
 
     @property
     def is_expired(self) -> bool:
-        """Check if this blackboard has exceeded its TTL."""
+        """Check if this blackboard has exceeded its TTL (for decision TTL semantics)."""
         elapsed = (datetime.now(timezone.utc) - self.created_at).total_seconds()
         return elapsed > self.ttl_seconds
+
+    def remaining_ttl_seconds(self) -> float:
+        """Seconds until TTL expiry; 0 or negative if already expired."""
+        elapsed = (datetime.now(timezone.utc) - self.created_at).total_seconds()
+        return max(0.0, self.ttl_seconds - elapsed)
 
     @property
     def features(self) -> Dict[str, Any]:
@@ -199,6 +208,8 @@ class BlackboardState:
             "council_decision_id": self.council_decision_id,
             "symbol": self.symbol,
             "timestamp": self.timestamp.isoformat(),
+            "created_at": self.created_at.isoformat(),
+            "ttl_seconds": self.ttl_seconds,
             "perceptions": self.perceptions,
             "hypothesis": self.hypothesis,
             "strategy": self.strategy,
@@ -212,7 +223,6 @@ class BlackboardState:
             "knowledge_context": self.knowledge_context,
             "cognitive_mode": self.cognitive_mode,
             "stage_latencies": {k: round(v, 1) for k, v in self.stage_latencies.items()},
-            "ttl_seconds": self.ttl_seconds,
             "metadata": self.metadata,
         }
 
@@ -222,10 +232,24 @@ class BlackboardState:
             "council_decision_id": self.council_decision_id,
             "symbol": self.symbol,
             "timestamp": self.timestamp.isoformat(),
+            "created_at": self.created_at.isoformat(),
+            "ttl_seconds": self.ttl_seconds,
             "perceptions": self.perceptions,
             "hypothesis": self.hypothesis,
             "strategy": self.strategy,
             "risk_assessment": self.risk_assessment,
             "execution_plan": self.execution_plan,
             "critic_review": self.critic_review,
+        }
+
+    def to_log_safe(self) -> Dict[str, Any]:
+        """Minimal dict safe for structured logging (no large payloads)."""
+        return {
+            "council_decision_id": self.council_decision_id,
+            "symbol": self.symbol,
+            "timestamp": self.timestamp.isoformat(),
+            "created_at": self.created_at.isoformat(),
+            "ttl_seconds": self.ttl_seconds,
+            "remaining_ttl_seconds": round(self.remaining_ttl_seconds(), 1),
+            "stage_latencies": {k: round(v, 1) for k, v in self.stage_latencies.items()},
         }

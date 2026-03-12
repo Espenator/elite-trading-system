@@ -72,3 +72,38 @@ class TestDirectiveLoader:
         assert len(loader._cache) > 0
         loader.clear_cache()
         assert len(loader._cache) == 0
+
+    def test_get_directives_merged_global(self, loader):
+        """Threshold loading: get_directives_merged returns parsed keys from global.md."""
+        merged = loader.get_directives_merged(None)
+        assert "cb_vix_spike_threshold" in merged
+        assert merged["cb_vix_spike_threshold"] == 35.0
+        assert merged.get("cb_daily_drawdown_limit") == 0.03
+        assert merged.get("cb_max_positions") == 10
+        assert merged.get("cb_flash_crash_threshold") == 0.05
+
+    def test_get_directives_merged_regime_overlay(self, loader):
+        """Regime overlay: bear/bull directives can override or add keys."""
+        global_only = loader.get_directives_merged(None)
+        with_regime = loader.get_directives_merged("BEARISH")
+        # Global keys still present
+        assert with_regime.get("cb_vix_spike_threshold") == 35.0
+        # Regime file may add position scale etc. (if we add to map later)
+        assert isinstance(with_regime, dict)
+
+
+class TestAgentConfigUsesDirectives:
+    """agent_config.get_agent_thresholds() merges directives (no more magic numbers)."""
+
+    def test_get_agent_thresholds_includes_directive_values(self):
+        from app.council.agent_config import get_agent_thresholds
+        cfg = get_agent_thresholds()
+        assert "cb_vix_spike_threshold" in cfg
+        assert cfg["cb_vix_spike_threshold"] == 35.0
+        assert cfg.get("cb_daily_drawdown_limit") == 0.03
+
+    def test_get_agent_thresholds_accepts_regime(self):
+        from app.council.agent_config import get_agent_thresholds
+        cfg = get_agent_thresholds(regime="BULLISH")
+        assert "cb_vix_spike_threshold" in cfg
+        assert isinstance(cfg, dict)

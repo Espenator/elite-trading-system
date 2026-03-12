@@ -10,14 +10,13 @@ Endpoints:
 """
 import json
 import logging
-from fastapi import APIRouter, HTTPException, Body, Depends, Request
-from app.core.security import require_auth
-# slowapi rate limiting handled at app level (main.py)
-# from slowapi.util import get_remote_address  # moved to app-level
-
-# _limiter removed — rate limiting handled at app level
-from pydantic import BaseModel, Field
+import re
 from typing import List, Dict, Optional, Any
+
+from fastapi import APIRouter, HTTPException, Body, Depends, Request
+from pydantic import BaseModel, Field, field_validator
+
+from app.core.security import require_auth
 
 from app.services.database import db_service
 from app.services.alpaca_service import alpaca_service
@@ -26,9 +25,17 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+# Symbol validation: 1-10 uppercase letters or BRK.A style (used by AdvancedOrderRequest)
+_SYMBOL_PATTERN = re.compile(r"^[A-Z]{1,10}(\.[A-Z]{1,2})?$")
+
 # ── Pydantic models ─────────────────────────────────────────────────────
+# Valid order types for trading (security audit: restrict to allowed set)
+ALLOWED_ORDER_TYPES = {"market", "limit", "stop", "stop_limit"}
+ALLOWED_SIDES = {"buy", "sell"}
+
+
 class AdvancedOrderRequest(BaseModel):
-    """Full Alpaca v2 order request."""
+    """Full Alpaca v2 order request. Validated for symbol, type, quantity."""
     symbol: str
     side: str = "buy"
     type: str = "market"
@@ -45,6 +52,49 @@ class AdvancedOrderRequest(BaseModel):
     take_profit: Optional[Dict[str, Any]] = None
     stop_loss: Optional[Dict[str, Any]] = None
 
+    @field_validator("symbol", mode="before")
+    @classmethod
+    def symbol_upper(cls, v: str) -> str:
+        if not v or not isinstance(v, str):
+            raise ValueError("Symbol is required")
+        s = v.strip().upper()
+        if not _SYMBOL_PATTERN.match(s):
+            raise ValueError("Invalid symbol: 1-10 uppercase letters or BRK.A style")
+        return s
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def type_allowed(cls, v: str) -> str:
+        if v and isinstance(v, str) and v.lower() in ALLOWED_ORDER_TYPES:
+            return v.lower()
+        raise ValueError(f"Order type must be one of {sorted(ALLOWED_ORDER_TYPES)}")
+
+    @field_validator("side", mode="before")
+    @classmethod
+    def side_allowed(cls, v: str) -> str:
+        if v and isinstance(v, str) and v.lower() in ALLOWED_SIDES:
+            return v.lower()
+        raise ValueError(f"Side must be one of {sorted(ALLOWED_SIDES)}")
+
+    @field_validator("qty", mode="before")
+    @classmethod
+    def qty_positive(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or (isinstance(v, str) and v.strip() == ""):
+            return v
+        try:
+            n = float(v)
+            if n <= 0 or n != int(n):
+                raise ValueError("Quantity must be a positive integer")
+            if n > 1_000_000:
+                raise ValueError("Quantity exceeds position limit (1000000)")
+            return v
+        except (TypeError, ValueError) as e:
+            if "Quantity" in str(e):
+                raise
+            raise ValueError("Quantity must be numeric")
+
+    model_config = {"str_strip_whitespace": True}
+
 
 class ReplaceOrderRequest(BaseModel):
     """PATCH fields for order replacement."""
@@ -57,12 +107,7 @@ class ReplaceOrderRequest(BaseModel):
 
 
 
-# ── Input Validation Models (Audit Task 13) ──────────────────────────────
-import re
-
-# Valid stock symbol pattern: 1-10 uppercase letters, optionally with dots (BRK.A)
-_SYMBOL_PATTERN = re.compile(r'^[A-Z]{1,10}(\.[A-Z]{1,2})?$')
-
+# ── Input Validation (for GET/query params) ───────────────────────────────
 def _validate_symbol(symbol: str) -> str:
     """Validate and normalize a stock symbol."""
     if not symbol or not isinstance(symbol, str):

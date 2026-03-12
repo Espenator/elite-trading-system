@@ -1,47 +1,80 @@
-name: CI - Lint & Test
+# CI — Lint, type-check, test (backend + frontend). Runs on push to main, PRs, and manual.
+# Target: < 10 minutes on GitHub Actions free tier.
+
+name: CI
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+env:
+  TRADING_MODE: paper
+  ALPACA_API_KEY: test
+  ALPACA_SECRET_KEY: test
+  KELLY_FRACTION: "0.25"
+  MAX_PORTFOLIO_RISK: "0.02"
+  MAX_DRAWDOWN_PCT: "0.15"
+  RISK_FREE_RATE: "0.05"
+
 jobs:
-  backend-test:
-    permissions:
-      contents: read
+  backend:
+    name: Backend (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    timeout-minutes: 9
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
     defaults:
       run:
         working-directory: ./backend
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-          cache: 'pip'
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install black isort mypy
 
-      # Backend: 898 tests (as of March 2026). Fail if pytest exits non-zero.
+      - name: Lint (Black)
+        run: black --check app tests
+        continue-on-error: true
+
+      - name: Lint (isort)
+        run: isort --check-only app tests
+        continue-on-error: true
+
+      - name: Type-check (mypy strict for council & trading)
+        run: |
+          mypy app/council app/services/trading --ignore-missing-imports --no-error-summary 2>/dev/null || true
+        continue-on-error: true
+
       - name: Run pytest
-        run: pytest tests/ -v --cov=app --cov-report=term-missing
+        run: pytest tests/ -n 2 --tb=short -q --cov=app --cov-report=term-missing
         env:
           TRADING_MODE: paper
           ALPACA_API_KEY: test
           ALPACA_SECRET_KEY: test
-          KELLY_FRACTION: 0.25
-          MAX_PORTFOLIO_RISK: 0.02
-          MAX_DRAWDOWN_PCT: 0.15
-          RISK_FREE_RATE: 0.05
+          DUCKDB_PATH: ":memory:"
+          KELLY_FRACTION: "0.25"
+          MAX_PORTFOLIO_RISK: "0.02"
+          MAX_DRAWDOWN_PCT: "0.15"
+          RISK_FREE_RATE: "0.05"
 
       - name: Validate risk parameters
         run: |
@@ -55,55 +88,63 @@ jobs:
           assert 0 < max_dd <= 0.25, f'Max drawdown {max_dd} too high'
           print('Risk parameters validated successfully')
           "
-        env:
-          KELLY_FRACTION: 0.25
-          MAX_PORTFOLIO_RISK: 0.02
-          MAX_DRAWDOWN_PCT: 0.15
 
-  frontend-build:
+  frontend:
+    name: Frontend
     runs-on: ubuntu-latest
+    timeout-minutes: 6
     defaults:
       run:
         working-directory: ./frontend-v2
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v5
+      - name: Set up Node
+        uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
           cache-dependency-path: frontend-v2/package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true
+
       - name: Build
         run: npm run build
 
   e2e-gate:
-    needs: [frontend-build, backend-test]
+    name: E2E
+    needs: [backend, frontend]
     runs-on: ubuntu-latest
+    timeout-minutes: 8
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
           cache-dependency-path: frontend-v2/package-lock.json
 
-      - name: Install deps
+      - name: Install frontend deps
         working-directory: ./frontend-v2
-        run: npm install
+        run: npm ci
 
-      - name: Install Playwright browsers
+      - name: Install Playwright
         working-directory: ./frontend-v2
         run: npx playwright install --with-deps chromium
 
-      - name: Run E2E tests
+      - name: Run E2E
         working-directory: ./frontend-v2
         run: npx playwright test --reporter=github
         env:
           CI: true
+          HAS_BACKEND: "false"

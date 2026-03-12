@@ -611,6 +611,28 @@ class DataIngestionService:
     # D1: Startup backfill orchestrator
     # ------------------------------------------------------------------
 
+    async def ensure_minimal_ohlcv_for_scanner(
+        self,
+        symbols: Optional[List[str]] = None,
+        days: int = 1,
+    ) -> Dict[str, Any]:
+        """Fetch minimal OHLCV (e.g. last 24h) so TurboScanner has data on cold start.
+
+        Call this before starting TurboScanner so the first scan does not hit empty DuckDB.
+        """
+        default_symbols = [
+            "SPY", "QQQ", "IWM", "DIA", "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA",
+            "TSLA", "META", "AMD", "XLK", "XLF", "TLT", "GLD", "VIX",
+        ]
+        syms = symbols or default_symbols
+        logger.info("Minimal OHLCV backfill for scanner: %d symbols, %d day(s)", len(syms), days)
+        start = datetime.now(timezone.utc)
+        report = await self.ingest_all(syms, days=days)
+        elapsed = (datetime.now(timezone.utc) - start).total_seconds()
+        report["elapsed_seconds"] = round(elapsed, 1)
+        report["symbol_count"] = len(syms)
+        return report
+
     async def run_startup_backfill(self, days: int = 252) -> Dict[str, Any]:
         """Run full 252-day backfill on startup for all tracked symbols.
 

@@ -267,6 +267,8 @@ class TaskSpawner:
             from app.core.message_bus import get_message_bus
             bus = get_message_bus()
             asyncio.create_task(bus.publish("alert.agent_failure", {
+                "message": f"Agent {agent_name} failed: {exc_type} — {exc_msg[:200]}",
+                "severity": "AMBER",
                 "agent_name": agent_name,
                 "exception_type": exc_type,
                 "exception_message": exc_msg[:500],

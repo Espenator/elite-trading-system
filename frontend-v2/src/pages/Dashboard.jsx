@@ -1,3 +1,9 @@
+/**
+ * Dashboard — main landing page. All data via useApi() (no mock data).
+ * Layout: ticker strip -> CNS vitals + profit brain bar -> signal cards -> performance/risk widgets.
+ * useApi keys: councilLatest, signals, status, performance, risk, indices (see config/api.js).
+ * WebSocket: optional real-time updates for council, orders, market data when connected.
+ */
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import log from "@/utils/logger";
@@ -5,6 +11,7 @@ import { useApi } from "../hooks/useApi";
 import { getApiUrl, getAuthHeaders } from "../config/api";
 import CNSVitals from "../components/dashboard/CNSVitals";
 import ProfitBrainBar from "../components/dashboard/ProfitBrainBar";
+import PageSkeleton from "../components/ui/PageSkeleton";
 import ws from "../services/websocket";
 
 // --- TOP TICKER STRIP (scrolling market tickers) ---
@@ -839,6 +846,8 @@ export default function Dashboard() {
     pollIntervalMs: 10000,
     enabled: !!selectedSymbol,
   });
+  const { data: councilHealthData } = useApi("councilHealth", { pollIntervalMs: 15000 });
+  const { data: dataSourcesHealthData } = useApi("dataSourcesHealth", { pollIntervalMs: 15000 });
 
   // --- SORT MAP (all 15 pills) ---
   const SORT_MAP = useMemo(
@@ -1090,13 +1099,14 @@ export default function Dashboard() {
   const globalSentiment = sentimentData?.sentiment || sentimentData || {};
 
   // --- LOADING / ERROR STATES ---
-  // Only show boot screen on very first load (no data AND no error yet)
-  if (sigLoading && !signalsData && !sigErr)
+  // Only show skeleton on very first load (no data AND no error yet)
+  if (sigLoading && !signalsData && !sigErr) {
     return (
-      <div className="h-full w-full bg-[#0B0E14] flex items-center justify-center text-[#00D9FF] font-mono text-xs">
-        INITIALIZING EMBODIER NEURAL NET...
+      <div className="h-full w-full bg-[#0B0E14] p-6">
+        <PageSkeleton lines={12} />
       </div>
     );
+  }
   /* sigErr no longer blocks the entire page — we show a banner instead
      so that non-signal panels (portfolio, risk, etc.) remain usable. */
 
@@ -1223,6 +1233,51 @@ export default function Dashboard() {
 
       {/* SCROLLING TICKER STRIP */}
       <TickerStrip indices={indices} signals={processedSignals} />
+
+      {/* System Health card (council + data sources observability) */}
+      {(() => {
+        const last = councilHealthData?.last_evaluation;
+        const agents = last?.agents ?? {};
+        const healthyAgents = agents.voted_successfully ?? 0;
+        const totalAgents = agents.total_registered ?? 35;
+        const sources = dataSourcesHealthData?.sources ?? [];
+        const healthySources = sources.filter((s) => s.status === "HEALTHY" || s.status === "DEGRADED").length;
+        const totalSources = sources.length || 10;
+        const agentPct = totalAgents ? (healthyAgents / totalAgents) * 100 : 0;
+        const sourcePct = totalSources ? (healthySources / totalSources) * 100 : 0;
+        let status = "HEALTHY";
+        let dotColor = "#10b981";
+        if (agentPct < 60 || sourcePct < 70) {
+          status = "CRITICAL";
+          dotColor = "#ef4444";
+        } else if (agentPct < 80 || sourcePct < 90 || healthySources < totalSources) {
+          status = "DEGRADED";
+          dotColor = "#f59e0b";
+        }
+        return (
+          <div className="mx-4 mt-1 mb-0 px-3 py-2 rounded-md border border-[rgba(42,52,68,0.5)] bg-[#111827] shrink-0">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">System Health</span>
+                <span className="flex items-center gap-1" title={status}>
+                  <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: dotColor }} />
+                  <span className="text-[10px] font-mono text-slate-300">{status}</span>
+                </span>
+              </div>
+              <div className="flex items-center gap-4 text-[10px] font-mono text-slate-400">
+                <span>Council: {healthyAgents}/{totalAgents} agents</span>
+                <span>Data: {healthySources}/{totalSources} sources</span>
+                {last?.latency_ms != null && (
+                  <span>Last council: {last.latency_ms}ms</span>
+                )}
+                {last?.verdict && (
+                  <span className="text-[#00D9FF]">Verdict: {last.verdict}</span>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Signal-error banner (non-blocking) */}
       {sigErr && (

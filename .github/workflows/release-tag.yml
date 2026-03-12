@@ -1,0 +1,41 @@
+# Release tagging: when main is green, manually trigger to tag as vX.Y.Z.
+# Creates a git tag and pushes it. Use from Actions tab → Run workflow → "Release" → input version.
+
+name: Release Tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Semver tag (e.g. v5.0.1)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  tag-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate version format
+        run: |
+          v="${{ github.event.inputs.version }}"
+          if [[ ! "$v" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Version must be semver: vX.Y.Z (e.g. v5.0.1)"
+            exit 1
+          fi
+          echo "Tagging: $v"
+
+      - name: Create and push tag
+        run: |
+          v="${{ github.event.inputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$v" -m "Release $v"
+          git push origin "$v"

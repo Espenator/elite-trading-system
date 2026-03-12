@@ -77,3 +77,50 @@ async def test_alignment_preflight_rejects_oversized(client, auth_headers):
     assert resp.status_code == 200
     data = resp.json()
     assert data.get("allowed") is False
+
+
+@pytest.mark.anyio
+async def test_council_health_returns_structure(client):
+    """GET /api/v1/council/health returns last_evaluation + rolling_24h."""
+    resp = await client.get("/api/v1/council/health")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "last_evaluation" in data
+    assert "rolling_24h" in data
+    assert "evaluations" in data["rolling_24h"]
+
+
+@pytest.mark.anyio
+async def test_council_agents_performance_returns_structure(client):
+    """GET /api/v1/council/agents/performance returns agents list."""
+    resp = await client.get("/api/v1/council/agents/performance")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "agents" in data
+    assert "broken_agents" in data
+    assert "always_hold_agents" in data
+
+
+@pytest.mark.anyio
+async def test_health_sub_endpoints(client):
+    """GET /api/v1/health/* programmatic sub-checks return expected structure."""
+    for path in ("", "/broker", "/brain", "/database", "/data-sources"):
+        resp = await client.get(f"/api/v1/health{path}")
+        assert resp.status_code == 200, f"health{path} returned {resp.status_code}"
+        data = resp.json()
+        assert isinstance(data, dict)
+    resp = await client.get("/api/v1/health/readiness")
+    assert resp.status_code in (200, 503)
+    data = resp.json()
+    assert "status" in data
+    assert "checks" in data
+
+
+@pytest.mark.anyio
+async def test_data_sources_health_returns_structure(client):
+    """GET /api/v1/data-sources/health returns sources list."""
+    resp = await client.get("/api/v1/data-sources/health")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "sources" in data
+    assert isinstance(data["sources"], list)

@@ -1,13 +1,18 @@
 """
 risk_shield_api.py — RiskShield Emergency Controls API
 Wires the RiskShield UI to OpenClaw risk_governor.py (474 lines)
-Maps 9 safety checks to UI checklist, portfolio heatmap, emergency controls
+Maps 9 safety checks to UI checklist, portfolio heatmap, emergency controls.
+
+Security: Kill switch requires double-confirmation (confirm=True) and rate limit (1/min).
 """
-from fastapi import APIRouter, HTTPException, Depends
-from app.core.security import require_auth
-from pydantic import BaseModel
-from typing import Optional, Dict, Any, List
 import logging
+import time
+from typing import Optional, Dict, Any, List
+
+from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
+
+from app.core.security import require_auth
 
 from app.services.alpaca_service import alpaca_service
 from app.services.database import db_service
@@ -40,6 +45,12 @@ async def risk_shield_overview():
 class EmergencyActionReq(BaseModel):
     action: str  # 'kill_switch', 'hedge_all', 'reduce_50', 'freeze_entries'
     value: Optional[bool] = None
+    confirm: Optional[bool] = False  # Required True for kill_switch (double-confirmation)
+
+
+# Rate limit: prevent accidental repeated kill switch (1 per 60 seconds)
+_last_kill_switch_time: float = 0.0
+_KILL_SWITCH_COOLDOWN_SEC = 60
 
 
 def is_entries_frozen() -> bool:
@@ -118,11 +129,25 @@ async def get_risk_shield_status() -> Dict[str, Any]:
 async def execute_emergency_action(payload: EmergencyActionReq):
     """
     Executes tactical emergency commands via Alpaca API.
+    Kill switch requires confirm=True (double-confirmation) and is rate-limited to 1/min.
     """
+    global _last_kill_switch_time
     action = payload.action
 
     try:
         if action == "kill_switch":
+            if payload.confirm is not True:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Kill switch requires explicit confirmation. Send confirm: true in the request body.",
+                )
+            now = time.monotonic()
+            if now - _last_kill_switch_time < _KILL_SWITCH_COOLDOWN_SEC:
+                raise HTTPException(
+                    status_code=429,
+                    detail=f"Kill switch rate limit: one execution per {_KILL_SWITCH_COOLDOWN_SEC} seconds. Wait before retrying.",
+                )
+            _last_kill_switch_time = now
             return await _execute_kill_switch()
         elif action == "hedge_all":
             return _hedge_all_stub()

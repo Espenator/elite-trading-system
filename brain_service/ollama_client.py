@@ -30,12 +30,16 @@ Context: {context}
 Features:
 {feature_json}
 
-Respond in this exact JSON format:
+Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
 {{
-  "summary": "brief 1-2 sentence assessment",
+  "direction": "buy" or "sell" or "hold",
   "confidence": 0.0 to 1.0 float,
+  "reasoning": "1-3 sentence explanation of the hypothesis",
+  "summary": "brief 1-2 sentence assessment",
   "risk_flags": ["list", "of", "risk", "flags"],
-  "reasoning_bullets": ["bullet1", "bullet2", "bullet3"]
+  "reasoning_bullets": ["bullet1", "bullet2", "bullet3"],
+  "supporting_signals": ["optional signal 1", "optional signal 2"],
+  "invalidation_notes": ["what would invalidate this thesis"]
 }}
 """
 
@@ -48,11 +52,12 @@ Entry Context: {entry_context}
 Outcome:
 {outcome_json}
 
-Respond in this exact JSON format:
+Respond with ONLY valid JSON in this exact format (no markdown, no extra text):
 {{
   "analysis": "detailed analysis of the trade",
   "lessons": ["lesson1", "lesson2", "lesson3"],
-  "performance_score": 0.0 to 1.0 float
+  "performance_score": 0.0 to 1.0 float,
+  "key_takeaways": ["takeaway1", "takeaway2"]
 }}
 """
 
@@ -60,10 +65,14 @@ Respond in this exact JSON format:
 def _fallback_infer() -> Dict[str, Any]:
     """Return low-confidence fallback when Ollama is unavailable."""
     return {
+        "direction": "hold",
+        "reasoning": "LLM unavailable — using fallback assessment",
         "summary": "LLM unavailable — using fallback assessment",
         "confidence": 0.1,
         "risk_flags": ["llm_unavailable"],
         "reasoning_bullets": ["Ollama service not reachable", "Defaulting to low confidence"],
+        "supporting_signals": [],
+        "invalidation_notes": [],
     }
 
 
@@ -73,6 +82,7 @@ def _fallback_critic() -> Dict[str, Any]:
         "analysis": "LLM unavailable — no critic analysis",
         "lessons": ["Ollama service not reachable"],
         "performance_score": 0.0,
+        "key_takeaways": [],
     }
 
 
@@ -123,19 +133,30 @@ async def infer_candidate_context(
 
             parsed = _parse_json_response(response_text)
             if parsed:
+                direction = str(parsed.get("direction", "hold")).strip().lower()
+                if direction not in ("buy", "sell", "hold"):
+                    direction = "hold"
                 return {
+                    "direction": direction,
+                    "reasoning": str(parsed.get("reasoning", parsed.get("summary", "No reasoning"))),
                     "summary": str(parsed.get("summary", "No summary")),
                     "confidence": max(0.0, min(1.0, float(parsed.get("confidence", 0.5)))),
                     "risk_flags": list(parsed.get("risk_flags", [])),
                     "reasoning_bullets": list(parsed.get("reasoning_bullets", [])),
+                    "supporting_signals": list(parsed.get("supporting_signals", []))[:10],
+                    "invalidation_notes": list(parsed.get("invalidation_notes", []))[:10],
                 }
 
             logger.warning("Ollama response not parseable as JSON, using raw text")
             return {
+                "direction": "hold",
+                "reasoning": response_text[:200],
                 "summary": response_text[:200],
                 "confidence": 0.3,
                 "risk_flags": ["unparseable_response"],
                 "reasoning_bullets": [response_text[:100]],
+                "supporting_signals": [],
+                "invalidation_notes": [],
             }
     except httpx.ConnectError:
         logger.warning("Ollama not reachable at %s", OLLAMA_URL)
@@ -183,12 +204,14 @@ async def critic_postmortem(
                     "performance_score": max(
                         0.0, min(1.0, float(parsed.get("performance_score", 0.0)))
                     ),
+                    "key_takeaways": list(parsed.get("key_takeaways", []))[:10],
                 }
 
             return {
                 "analysis": response_text[:500],
                 "lessons": [],
                 "performance_score": 0.0,
+                "key_takeaways": [],
             }
     except Exception as e:
         logger.warning("Ollama critic error: %s", e)

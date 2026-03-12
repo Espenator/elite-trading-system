@@ -69,10 +69,14 @@ class BrainServiceServicer(brain_pb2_grpc.BrainServiceServicer):
                 context=request.context,
             )
             return brain_pb2.InferResponse(
-                summary=result["summary"],
-                confidence=result["confidence"],
-                risk_flags=result["risk_flags"],
-                reasoning_bullets=result["reasoning_bullets"],
+                summary=result.get("summary", ""),
+                confidence=result.get("confidence", 0.1),
+                risk_flags=result.get("risk_flags", []),
+                reasoning_bullets=result.get("reasoning_bullets", []),
+                direction=result.get("direction", "hold"),
+                reasoning=result.get("reasoning", result.get("summary", "")),
+                supporting_signals=result.get("supporting_signals", []),
+                invalidation_notes=result.get("invalidation_notes", []),
             )
         except Exception as e:
             logger.exception("InferCandidateContext error: %s", e)
@@ -81,6 +85,8 @@ class BrainServiceServicer(brain_pb2_grpc.BrainServiceServicer):
                 confidence=0.1,
                 risk_flags=["internal_error"],
                 error=str(e),
+                direction="hold",
+                reasoning="Internal error",
             )
 
     async def CriticPostmortem(self, request, context):
@@ -97,9 +103,10 @@ class BrainServiceServicer(brain_pb2_grpc.BrainServiceServicer):
                 outcome_json=request.outcome_json,
             )
             return brain_pb2.CriticResponse(
-                analysis=result["analysis"],
-                lessons=result["lessons"],
-                performance_score=result["performance_score"],
+                analysis=result.get("analysis", ""),
+                lessons=result.get("lessons", []),
+                performance_score=result.get("performance_score", 0.0),
+                key_takeaways=result.get("key_takeaways", []),
             )
         except Exception as e:
             logger.exception("CriticPostmortem error: %s", e)

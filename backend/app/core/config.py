@@ -147,6 +147,11 @@ class Settings(BaseSettings):
     STOCKGEIST_API_KEY: str = ""
     STOCKGEIST_BASE_URL: str = "https://api.stockgeist.ai"
 
+    # ── Feature aggregation ─────────────────────────────────
+    FEATURE_STALE_BAR_MAX_AGE_SECONDS: float = 172800.0  # 2 days; bar older = stale, council can HOLD
+    FEATURE_USE_FINVIZ_LIVE: bool = False  # If True and FINVIZ_API_KEY set, augment quote from Finviz
+    FEATURE_AGGREGATOR_WORKERS: int = 4  # ThreadPool size for parallel provider fetches
+
     # ── News API ────────────────────────────────────────────
     NEWS_API_KEY: str = ""
 

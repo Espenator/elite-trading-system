@@ -143,10 +143,14 @@ class CircuitBreaker:
 def _stub_infer_response(tag: str = "brain_disabled") -> Dict[str, Any]:
     """Stub response when brain is disabled or unavailable. Always low-confidence and tagged."""
     return {
+        "direction": "hold",
+        "reasoning": "Brain service disabled or unavailable",
         "summary": "Brain service disabled or unavailable",
         "confidence": 0.1,
         "risk_flags": [tag],
         "reasoning_bullets": ["LLM hypothesis not available"],
+        "supporting_signals": [],
+        "invalidation_notes": [],
         "error": "",
         "degraded_mode": True,
     }
@@ -158,6 +162,7 @@ def _stub_critic_response() -> Dict[str, Any]:
         "analysis": "Brain service disabled or unavailable",
         "lessons": [],
         "performance_score": 0.0,
+        "key_takeaways": [],
         "error": "",
     }
 
@@ -268,14 +273,31 @@ class BrainClient:
             latency_ms = (time.monotonic() - _t0) * 1000
             self._circuit.record_success(latency_ms=latency_ms)
             logger.debug("Brain infer %s: %.0fms", symbol, latency_ms)
-            return {
+            out = {
                 "summary": response.summary,
                 "confidence": response.confidence,
                 "risk_flags": list(response.risk_flags),
                 "reasoning_bullets": list(response.reasoning_bullets),
-                "error": response.error,
+                "error": response.error or "",
                 "latency_ms": round(latency_ms, 1),
             }
+            if getattr(response, "direction", None):
+                out["direction"] = response.direction or "hold"
+            if getattr(response, "reasoning", None):
+                out["reasoning"] = response.reasoning or response.summary
+            if getattr(response, "supporting_signals", None):
+                out["supporting_signals"] = list(response.supporting_signals)
+            else:
+                out["supporting_signals"] = []
+            if getattr(response, "invalidation_notes", None):
+                out["invalidation_notes"] = list(response.invalidation_notes)
+            else:
+                out["invalidation_notes"] = []
+            if "direction" not in out:
+                out["direction"] = "hold"
+            if "reasoning" not in out:
+                out["reasoning"] = out.get("summary", "")
+            return out
         except asyncio.TimeoutError:
             logger.warning("Brain infer timed out after %ds", BRAIN_REQUEST_TIMEOUT)
             self._circuit.record_failure()
@@ -328,12 +350,17 @@ class BrainClient:
                 timeout=BRAIN_REQUEST_TIMEOUT,
             )
             self._circuit.record_success()
-            return {
+            out = {
                 "analysis": response.analysis,
                 "lessons": list(response.lessons),
                 "performance_score": response.performance_score,
-                "error": response.error,
+                "error": response.error or "",
             }
+            if getattr(response, "key_takeaways", None):
+                out["key_takeaways"] = list(response.key_takeaways)
+            else:
+                out["key_takeaways"] = []
+            return out
         except asyncio.TimeoutError:
             self._circuit.record_failure()
             return {**_stub_critic_response(), "error": "timeout"}

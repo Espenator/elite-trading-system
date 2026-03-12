@@ -9,10 +9,14 @@ Usage:
     df = duckdb_store.get_training_window(["AAPL", "MSFT"], "2025-01-01", "2026-01-01")
 
 Fixes Issue #25 — DuckDB query engine for feature pipeline.
+
+Tests: set DUCKDB_PATH=:memory: (or a temp path) before importing app to avoid
+file locks and isolate test data.
 """
 
 import asyncio
 import logging
+import os
 import threading
 from datetime import date, datetime
 from functools import partial
@@ -27,8 +31,12 @@ logger = logging.getLogger(__name__)
 # DuckDB connection management
 # ---------------------------------------------------------------------------
 DB_DIR = Path(__file__).resolve().parent.parent.parent / "data"
-DB_DIR.mkdir(parents=True, exist_ok=True)
-DUCKDB_PATH = DB_DIR / "analytics.duckdb"
+_env_path = os.environ.get("DUCKDB_PATH")
+if _env_path:
+    DUCKDB_PATH = _env_path
+else:
+    DB_DIR.mkdir(parents=True, exist_ok=True)
+    DUCKDB_PATH = str(DB_DIR / "analytics.duckdb")
 
 _lock = threading.Lock()
 
@@ -453,9 +461,15 @@ class DuckDBStorage:
                 agent_votes VARCHAR,
                 blackboard_snapshot VARCHAR,
                 critic_analysis VARCHAR,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                resolved_at TIMESTAMP
             )
         """)
+        # Migration: add resolved_at if table existed without it
+        try:
+            conn.execute("ALTER TABLE postmortems ADD COLUMN resolved_at TIMESTAMP")
+        except Exception:
+            pass
 
         # Ingestion events table for tracking adapter ingestion
         conn.execute("""
@@ -497,6 +511,7 @@ class DuckDBStorage:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_ti_date ON technical_indicators (date)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_flow_date ON options_flow (date)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_outcomes_symbol ON trade_outcomes (symbol, entry_date)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_outcomes_resolved_at ON trade_outcomes (resolved_at)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_features_symbol_ts ON features (symbol, ts)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_features_pipeline_version ON features (pipeline_version)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_model_evals_model ON model_evals (model_id)")
@@ -987,18 +1002,23 @@ class DuckDBStorage:
     # ------------------------------------------------------------------
 
     def insert_postmortem(self, postmortem: Dict) -> None:
-        """Record a council postmortem after trade exit."""
+        """Record a council postmortem after trade exit (closed-trade feedback loop)."""
         import json
         with self._write_lock:
             conn = self._get_conn()
+            # id must be unique; use council_decision_id or fallback
+            pm_id = postmortem.get("id") or postmortem.get("council_decision_id", "") or str(
+                hash((postmortem.get("symbol", ""), postmortem.get("resolved_at", "")))
+            )
+            resolved_at = postmortem.get("resolved_at")  # ISO str or None
             conn.execute("""
-                INSERT INTO postmortems
+                INSERT OR REPLACE INTO postmortems
                 (id, council_decision_id, symbol, direction, confidence,
                  entry_price, exit_price, pnl, agent_votes,
-                 blackboard_snapshot, critic_analysis, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                 blackboard_snapshot, critic_analysis, created_at, resolved_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
             """, [
-                postmortem["id"],
+                pm_id,
                 postmortem.get("council_decision_id", ""),
                 postmortem["symbol"],
                 postmortem.get("direction", ""),
@@ -1009,21 +1029,37 @@ class DuckDBStorage:
                 json.dumps(postmortem.get("agent_votes", []), default=str),
                 json.dumps(postmortem.get("blackboard_snapshot", {}), default=str),
                 postmortem.get("critic_analysis", ""),
+                resolved_at,
             ])
 
-    def get_postmortems(self, symbol: Optional[str] = None, limit: int = 50) -> pd.DataFrame:
-        """Fetch postmortems, optionally filtered by symbol."""
+    def get_postmortems(
+        self, symbol: Optional[str] = None, limit: int = 50
+    ) -> List[Dict]:
+        """Fetch postmortems as list of dicts (API-friendly). Optionally filter by symbol."""
         cur = self._get_conn().cursor()
         try:
             if symbol:
-                return cur.execute(
+                df = cur.execute(
                     "SELECT * FROM postmortems WHERE symbol = ? ORDER BY created_at DESC LIMIT ?",
                     [symbol, limit],
                 ).fetchdf()
-            return cur.execute(
-                "SELECT * FROM postmortems ORDER BY created_at DESC LIMIT ?",
-                [limit],
-            ).fetchdf()
+            else:
+                df = cur.execute(
+                    "SELECT * FROM postmortems ORDER BY created_at DESC LIMIT ?",
+                    [limit],
+                ).fetchdf()
+            if df is None or df.empty:
+                return []
+            # Convert to list of dicts; serialize timestamps and leave JSON columns as-is for API
+            rows = df.to_dict("records")
+            out = []
+            for r in rows:
+                d = dict(r)
+                for k, v in list(d.items()):
+                    if hasattr(v, "isoformat"):
+                        d[k] = v.isoformat() if v is not None else None
+                out.append(d)
+            return out
         finally:
             cur.close()
 

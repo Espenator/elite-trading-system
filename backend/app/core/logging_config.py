@@ -18,20 +18,29 @@ from threading import Lock
 
 from app.core.config import settings
 
-# Context variable for request correlation ID
+# Context variable for request correlation ID (same as trace_id for request-scoped)
 correlation_id: ContextVar[str] = ContextVar("correlation_id", default="-")
+# Council evaluation ID (per council run; set in runner)
+eval_id: ContextVar[str] = ContextVar("eval_id", default="-")
+# Trace ID for trade pipeline pass (request or council run)
+trace_id: ContextVar[str] = ContextVar("trace_id", default="-")
 
 
 class JSONFormatter(logging.Formatter):
     """JSON log formatter for production."""
 
     def format(self, record: logging.LogRecord) -> str:
+        trace = trace_id.get("-")
+        if trace == "-":
+            trace = correlation_id.get("-")
         log_dict = {
             "ts": self.formatTime(record, self.datefmt),
             "level": record.levelname,
             "logger": record.name,
             "msg": record.getMessage(),
             "correlation_id": correlation_id.get("-"),
+            "trace_id": trace,
+            "eval_id": eval_id.get("-"),
         }
         if record.exc_info and record.exc_info[0]:
             log_dict["exception"] = self.formatException(record.exc_info)
@@ -119,6 +128,8 @@ class RingBufferHandler(logging.Handler):
             elif "order" in name or "execution" in name:
                 source, log_type = "execution", "trade"
 
+            cid = correlation_id.get("-")
+            eid = eval_id.get("-")
             entry = {
                 "ts": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
                 "level": record.levelname.lower(),
@@ -129,6 +140,8 @@ class RingBufferHandler(logging.Handler):
                 "ticker": None,
                 "confidence": None,
                 "pnlImpact": "—",
+                "correlation_id": cid if cid != "-" else None,
+                "council_decision_id": eid if eid != "-" else None,
             }
             with self._lock:
                 self._buffer.append(entry)

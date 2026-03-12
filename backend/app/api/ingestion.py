@@ -53,10 +53,18 @@ async def run_backfill(req: BackfillRequest):
 
 @router.get("/health")
 async def ingestion_health():
-    """Check DuckDB health and table row counts. Returns 503 when unhealthy for readiness probes."""
+    """Check DuckDB health and table row counts. Returns 503 when unhealthy for readiness probes.
+    Never returns 200 with body {\"status\": \"error\"}; use 503 for any failure or degraded state.
+    """
     try:
         from app.data.duckdb_storage import duckdb_store
-        return duckdb_store.health_check()
+        result = duckdb_store.health_check()
+        # Never return 200 with status=error (readiness probes expect 503 on failure)
+        if isinstance(result, dict) and result.get("status") == "error":
+            raise HTTPException(status_code=503, detail="Ingestion/DuckDB unhealthy")
+        return result
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("ingestion_health failed: %s", e)
         raise HTTPException(status_code=503, detail="Ingestion/DuckDB unhealthy")

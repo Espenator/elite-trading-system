@@ -11,6 +11,7 @@
  *   // In components: const { mode, verdict, circuitBreaker } = useCNS();
  */
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { toast } from 'react-toastify';
 import ws from '../services/websocket';
 import { useHomeostasis, useCircuitBreakerStatus, useCnsLastVerdict } from './useApi';
 
@@ -35,6 +36,7 @@ export function CNSProvider({ children }) {
   const [circuitBreakerFired, setCircuitBreakerFired] = useState(null);
   const [latestVerdict, setLatestVerdict] = useState(null);
   const [wsConnected, setWsConnected] = useState(false);
+  const [wsState, setWsState] = useState('disconnected'); // 'disconnected' | 'connecting' | 'connected' | 'reconnecting'
 
   // Notification queue — components subscribe to this
   const [notifications, setNotifications] = useState([]);
@@ -100,22 +102,33 @@ export function CNSProvider({ children }) {
   useEffect(() => {
     const unsubs = [];
 
-    // Global connection status
+    // Global connection status + state for UI (green / yellow / red)
     unsubs.push(ws.on('*', (ev) => {
-      if (ev.type === 'connected') setWsConnected(true);
-      if (ev.type === 'disconnected') setWsConnected(false);
+      if (ev.type === 'connected') {
+        setWsConnected(true);
+        setWsState('connected');
+      }
+      if (ev.type === 'disconnected') {
+        setWsConnected(false);
+        setWsState('disconnected');
+      }
+      if (ev.type === 'connecting') setWsState('connecting');
+      if (ev.type === 'reconnecting') setWsState('reconnecting');
     }));
+    // Sync initial state in case WS already connected
+    const s = ws.getState?.() ?? (ws.isConnected() ? 'connected' : 'disconnected');
+    setWsState(s);
+    setWsConnected(s === 'connected');
 
     // Council verdicts
     unsubs.push(ws.on('council_verdict', (data) => {
       setLatestVerdict(data);
-      const dir = data?.direction || 'hold';
-      const conf = data?.confidence || 0;
+      const dir = data?.direction || data?.final_direction || 'hold';
+      const conf = data?.confidence ?? data?.final_confidence ?? 0;
       const sym = data?.symbol || '???';
-      addNotification(CNS_EVENTS.COUNCIL_VERDICT, {
-        message: `Council verdict: ${sym} → ${dir.toUpperCase()} (${(conf * 100).toFixed(0)}%)`,
-        ...data,
-      });
+      const msg = `Council verdict: ${sym} → ${(dir || '').toString().toUpperCase()} (${(conf * 100).toFixed(0)}%)`;
+      addNotification(CNS_EVENTS.COUNCIL_VERDICT, { message: msg, ...data });
+      toast.info(`Council evaluation complete: ${msg}`, { autoClose: 5000 });
     }));
 
     // Homeostasis mode changes via WS
@@ -138,11 +151,13 @@ export function CNSProvider({ children }) {
     // Circuit breaker events
     unsubs.push(ws.on('circuit_breaker', (data) => {
       if (data?.fired) {
-        setCircuitBreakerFired(data.reason || 'Unknown');
+        const reason = data.reason || 'Unknown';
+        setCircuitBreakerFired(reason);
         addNotification(CNS_EVENTS.CIRCUIT_BREAKER_FIRE, {
-          message: `Circuit breaker fired: ${data.reason}`,
+          message: `Circuit breaker fired: ${reason}`,
           ...data,
         });
+        toast.error(`Circuit breaker triggered: ${reason}`, { autoClose: 8000 });
       }
     }));
 
@@ -159,10 +174,9 @@ export function CNSProvider({ children }) {
     // Trade events
     unsubs.push(ws.on('trades', (data) => {
       if (data?.type === 'fill' || data?.status === 'filled') {
-        addNotification(CNS_EVENTS.TRADE_EXECUTED, {
-          message: `Trade filled: ${data.symbol || '???'} ${data.side || ''} @ ${data.price || ''}`,
-          ...data,
-        });
+        const msg = `Trade filled: ${data.symbol || '???'} ${data.side || ''} @ ${data.price ?? ''}`;
+        addNotification(CNS_EVENTS.TRADE_EXECUTED, { message: msg, ...data });
+        toast.success(msg, { autoClose: 6000 });
       }
     }));
 
@@ -177,6 +191,7 @@ export function CNSProvider({ children }) {
     circuitBreakerFired,
     latestVerdict,
     wsConnected,
+    wsState,
 
     // Notifications
     notifications,
@@ -208,6 +223,7 @@ export function useCNS() {
       circuitBreakerFired: null,
       latestVerdict: null,
       wsConnected: false,
+      wsState: 'disconnected',
       notifications: [],
       unreadCount: 0,
       addNotification: () => {},

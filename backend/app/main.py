@@ -17,11 +17,13 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 
-# Load .env into os.environ BEFORE any other imports
+# Load .env into os.environ BEFORE any other imports.
+# override=False so CI/deploy env vars take precedence over .env (production-friendly).
 from dotenv import load_dotenv
 
 _env_path = Path(__file__).resolve().parent.parent / ".env"
-load_dotenv(_env_path, override=True)
+if _env_path.exists():
+    load_dotenv(_env_path, override=False)
 
 from fastapi import FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
@@ -282,6 +284,7 @@ _alpaca_stream_task = None
 _event_signal_engine = None
 _council_gate = None
 _order_executor = None
+_trade_router = None
 _council_evaluator = None
 _node_discovery = None
 _stream_manager = None
@@ -304,13 +307,27 @@ async def _start_event_driven_pipeline():
     6. AlpacaStreamManager -- multi-key WebSocket bars -> market_data.bar events
     """
     global _message_bus, _alpaca_stream, _event_signal_engine
-    global _council_gate, _order_executor, _alpaca_stream_task
+    global _council_gate, _order_executor, _trade_router, _alpaca_stream_task
     global _node_discovery, _stream_manager
     global _gpu_telemetry_daemon, _llm_dispatcher
 
     log.info("=" * 60)
     log.info("\U0001f680 Starting Event-Driven Pipeline (Council-Controlled)")
     log.info("=" * 60)
+
+    # Production env validation summary (no secrets logged)
+    _tm = (getattr(settings, "TRADING_MODE", "paper") or "paper").lower()
+    _auth_set = bool((getattr(settings, "API_AUTH_TOKEN", "") or "").strip())
+    _alpaca_configured = bool(
+        (getattr(settings, "ALPACA_API_KEY", "") or "").strip()
+        and (getattr(settings, "ALPACA_SECRET_KEY", "") or "").strip()
+    )
+    log.info(
+        "Env: TRADING_MODE=%s, API_AUTH_TOKEN=%s, Alpaca=%s",
+        _tm,
+        "set" if _auth_set else "unset",
+        "configured" if _alpaca_configured else "not_configured",
+    )
 
     # Feature flags — disable heavy LLM/swarm services when Ollama isn't running
     _llm_enabled = os.getenv("LLM_ENABLED", "true").lower() == "true"
@@ -451,25 +468,44 @@ async def _start_event_driven_pipeline():
         log.info("\u2705 Signal->Verdict fallback subscriber registered (CouncilGate bypass)")
 
     # 3.5 Paper/Live safety gate (US8 fix)
-    # Validate Alpaca account type matches TRADING_MODE before enabling auto-execute
+    # Validate Alpaca account type matches TRADING_MODE before enabling auto-execute.
+    # Always run validation on startup when Alpaca is configured (log mismatch even in shadow).
     auto_execute = os.getenv("AUTO_EXECUTE_TRADES", "false").lower() == "true"
-    if auto_execute:
-        try:
-            from app.services.alpaca_service import alpaca_service
-            safety = await alpaca_service.validate_account_safety()
-            if not safety.get("valid"):
-                log.critical(
-                    "SAFETY: Account validation FAILED — forcing SHADOW mode. Warnings: %s",
-                    safety.get("warnings", []),
-                )
+    try:
+        from app.services.alpaca_service import alpaca_service
+        safety = await alpaca_service.validate_account_safety()
+        if safety.get("warnings"):
+            for w in safety.get("warnings", []):
+                log.warning("Account safety: %s", w)
+        if not safety.get("valid"):
+            log.critical(
+                "SAFETY: Account validation FAILED — %s",
+                safety.get("warnings", ["see warnings above"]),
+            )
+            if auto_execute:
                 auto_execute = False  # Force shadow mode on safety failure
-            else:
-                for w in safety.get("warnings", []):
-                    log.warning("Account safety warning: %s", w)
-        except Exception as e:
-            log.warning("Account safety check failed (non-fatal): %s", e)
+        elif safety.get("valid") and not safety.get("warnings"):
+            log.info("Account safety check OK (mode=%s)", safety.get("mode", "unknown"))
+    except Exception as e:
+        log.warning("Account safety check failed (non-fatal): %s", e)
+        if auto_execute:
+            auto_execute = False
 
-    # 4. OrderExecutor (subscribes to council.verdict)
+    # 4. TradeExecutionRouter — validates council.verdict (decision_id, expiry, market hours, veto) and publishes execution.validated_verdict
+    # Start before OrderExecutor so verdicts flow: council.verdict → router → execution.validated_verdict → OrderExecutor
+    try:
+        from app.services.trade_execution_router import TradeExecutionRouter
+        _trade_router = TradeExecutionRouter(
+            message_bus=_message_bus,
+            expiry_seconds=int(os.getenv("EXECUTION_DECISION_EXPIRY_SECONDS", "30")),
+        )
+        await _trade_router.start()
+        log.info("\u2705 TradeExecutionRouter started (council.verdict \u2192 execution.validated_verdict)")
+    except Exception as e:
+        _trade_router = None
+        log.warning("TradeExecutionRouter failed to start: %s — verdicts will not reach OrderExecutor", e)
+
+    # 5. OrderExecutor (subscribes to execution.validated_verdict; paper/live via AUTO_EXECUTE_TRADES and Alpaca URL)
     from app.services.order_executor import OrderExecutor
     _order_executor = OrderExecutor(
         message_bus=_message_bus,
@@ -487,7 +523,7 @@ async def _start_event_driven_pipeline():
         "AUTO" if auto_execute else "SHADOW",
     )
 
-    # 5. WebSocket bridges (forward events to frontend)
+    # 6. WebSocket bridges (forward events to frontend)
     async def _bridge_signal_to_ws(signal_data):
         try:
             from app.websocket_manager import broadcast_ws
@@ -512,13 +548,17 @@ async def _start_event_driven_pipeline():
 
     async def _bridge_council_to_ws(verdict_data):
         try:
-            from app.websocket_manager import broadcast_ws
-            await broadcast_ws("council", {"type": "council_verdict", "verdict": verdict_data})
+            from app.council.verdict_broadcast import (
+                build_compact_verdict_payload,
+                broadcast_council_verdict,
+            )
+            payload = build_compact_verdict_payload(verdict_data)
+            await broadcast_council_verdict(payload)
         except Exception as e:
             log.debug("WS council broadcast failed: %s", e)
 
     await _message_bus.subscribe("council.verdict", _bridge_council_to_ws)
-    log.info("\u2705 Council->WebSocket bridge active")
+    log.info("\u2705 Council->WebSocket bridge active (channel council_verdict)")
 
     # 6. Slack notification bridges (forward critical events to Slack)
     async def _bridge_council_to_slack(verdict_data):
@@ -843,8 +883,15 @@ async def _start_event_driven_pipeline():
 
         await asyncio.sleep(2)
 
-        # 18. TurboScanner
+        # 18. TurboScanner (after minimal OHLCV so first scan does not hit empty DuckDB)
         if os.getenv("TURBO_SCANNER_ENABLED", "true").lower() in ("1", "true", "yes"):
+            try:
+                from app.services.data_ingestion import data_ingestion
+                log.info("Ensuring minimal OHLCV for TurboScanner (cold-start fix)...")
+                await data_ingestion.ensure_minimal_ohlcv_for_scanner(days=1)
+                log.info("\u2705 Minimal OHLCV backfill complete — starting TurboScanner")
+            except Exception as e:
+                log.warning("Minimal OHLCV backfill failed (non-fatal): %s", e)
             try:
                 from app.services.turbo_scanner import get_turbo_scanner
                 _turbo_scanner = get_turbo_scanner()
@@ -987,6 +1034,7 @@ async def _start_event_driven_pipeline():
                 pnl=outcome_data.get("pnl", 0.0),
                 r_multiple=outcome_data.get("r_multiple", 0.0),
                 is_censored=is_censored,
+                trade_id=outcome_data.get("council_decision_id") or outcome_data.get("order_id"),
             )
         except Exception as e:
             log.debug("WeightLearner outcome update failed: %s", e)
@@ -1166,7 +1214,7 @@ async def _start_event_driven_pipeline():
 async def _stop_event_driven_pipeline():
     """Graceful shutdown of event-driven components (reverse order)."""
     global _message_bus, _alpaca_stream, _alpaca_stream_task
-    global _event_signal_engine, _council_gate, _order_executor
+    global _event_signal_engine, _council_gate, _order_executor, _trade_router
     global _node_discovery, _stream_manager
     global _gpu_telemetry_daemon, _llm_dispatcher
     global _price_cache, _channels_orch, _ml_pub
@@ -1319,12 +1367,31 @@ async def _stop_event_driven_pipeline():
             pass
     if _order_executor:
         await _order_executor.stop()
+    if _trade_router:
+        try:
+            await _trade_router.stop()
+        except Exception:
+            pass
     if _council_gate:
         await _council_gate.stop()
     if _event_signal_engine:
         await _event_signal_engine.stop()
     if _message_bus:
         await _message_bus.stop()
+
+    # Close all WebSocket connections with proper close frame (graceful shutdown)
+    try:
+        from app.websocket_manager import close_all_connections
+        await close_all_connections()
+    except Exception as e:
+        log.warning("WebSocket close_all_connections: %s", e)
+
+    # Flush DuckDB (close flushes; ensure no lock contention)
+    try:
+        from app.data.duckdb_storage import duckdb_store
+        duckdb_store.close()
+    except Exception as e:
+        log.debug("DuckDB close during shutdown: %s", e)
 
     await asyncio.sleep(0.25)
     log.info("Event-driven pipeline shutdown complete")

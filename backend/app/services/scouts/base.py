@@ -143,15 +143,13 @@ class BaseScout(ABC):
                             self.name, _MAX_PER_CYCLE,
                         )
                         break
-                    # Re-check backpressure between publishes
+                    # Re-check backpressure: at 90% only brief pause (let queue absorb), don't drop payloads
                     if self._is_queue_congested():
                         self._stats["backpressure_skips"] = (
                             self._stats.get("backpressure_skips", 0) + 1
                         )
-                        logger.info(
-                            "Scout %s pausing mid-cycle — queue congested", self.name
-                        )
-                        break
+                        await asyncio.sleep(0.1)  # Brief pause, then continue publishing
+                        # No break — queue absorbs burst; we only slow down slightly
                     await self._publish(payload)
                     published += 1
                     self._stats["discoveries_made"] += 1

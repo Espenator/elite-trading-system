@@ -7,14 +7,24 @@ vote correctly get higher weights; agents that are wrong get dampened.
 This is the recursive self-learning loop that makes Embodier Trader
 a profit-consciousness entity — the system learns from every decision.
 
+Key methods: get_weights() (used by arbiter), update_from_outcome() (feedback_loop),
+get_decision_by_trade_id() (postmortem context), _load_from_store()/_persist_to_store() (DuckDB).
+Regime-stratified weights per (agent, regime) for regime-adaptive learning.
+
 Algorithm:
     For each agent vote in a completed trade:
         if agent_direction aligned with outcome:
             weight *= (1 + learning_rate * confidence)
         else:
             weight *= (1 - learning_rate * confidence)
-    Normalize weights so mean = 1.0 (preserves relative scaling).
+    Clamp to [min_weight, max_weight] (default 0.2–2.5). Normalize mean = 1.0.
     Persist to DuckDB for durability across restarts.
+
+Decay/reset rules (explainable, bounded):
+    - _apply_decay(): after each update, weights decay toward DEFAULT_WEIGHTS by decay_rate
+      (default 0.005) to limit overfitting to recent outcomes.
+    - reset(): restores all weights to DEFAULT_WEIGHTS and persists (auditable).
+    - Arbiter consumes get_weights() only; behavior remains deterministic and auditable.
 
 Input quality gates (STRICT_LEARNER_INPUTS): required attribution, confidence
 threshold, invalid/censored filtered; dropped inputs are audited and metrics emitted.
@@ -133,14 +143,15 @@ class WeightLearner:
         logger.info("WeightLearner: weights reset to defaults")
 
     def record_decision(self, decision) -> None:
-        """Record a council decision for later outcome matching.
+        """Record a council decision for later outcome matching and postmortem.
 
         Called by CouncilGate after each council evaluation.
         The outcome is recorded later when the trade resolves.
         Phase C: records trade_id and regime for proper attribution.
+        Stores blackboard_snapshot when present for postmortem write on close.
         """
-        # Phase C: Use decision_id as trade_id for unique matching
-        trade_id = getattr(decision, "decision_id", "") or ""
+        # Phase C: Use council_decision_id as trade_id for unique matching (DecisionPacket has council_decision_id)
+        trade_id = getattr(decision, "council_decision_id", "") or getattr(decision, "decision_id", "") or ""
         if not trade_id:
             # Fallback: generate from symbol + timestamp
             trade_id = f"{decision.symbol}:{decision.timestamp}"
@@ -161,11 +172,24 @@ class WeightLearner:
                 }
                 for v in decision.votes
             ],
+            "blackboard_snapshot": getattr(decision, "blackboard_snapshot", None),
         }
         self._decision_history.append(record)
         # Keep only last 500 decisions in memory
         if len(self._decision_history) > 500:
             self._decision_history = self._decision_history[-500:]
+
+    def get_decision_by_trade_id(self, trade_id: str) -> Optional[Dict[str, Any]]:
+        """Return the most recent decision record matching trade_id for postmortem.
+
+        Used by OutcomeTracker when a position resolves to build postmortem context.
+        """
+        if not trade_id:
+            return None
+        for d in reversed(self._decision_history):
+            if d.get("trade_id") == trade_id:
+                return d
+        return None
 
     def _validate_learner_input(
         self,
@@ -282,6 +306,10 @@ class WeightLearner:
             )
             return self._weights
 
+        logger.info(
+            "[LEARNING-TRACE] WeightLearner.update_from_outcome accepted symbol=%s outcome_id=%s",
+            symbol, outcome_id,
+        )
         if is_censored:
             logger.debug("WeightLearner: outcome censored, skipping weight update for %s", symbol)
             return self._weights

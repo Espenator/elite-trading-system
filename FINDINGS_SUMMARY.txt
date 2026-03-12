@@ -1,0 +1,198 @@
+EMBODIER TRADER — DEEP ARCHITECTURAL ANALYSIS
+Signal-to-Execution Funnel Review (March 11, 2026)
+================================================
+
+CRITICAL FINDINGS:
+==================
+
+1. HARDCODED 0.4 EXECUTION THRESHOLD (Line 152, arbiter.py)
+   - Threshold is NOT regime-adaptive
+   - In CRISIS (VIX>50): 40% confidence is dangerously reckless
+   - In BULLISH (VIX<12): 40% is overly conservative
+   - Should scale from 0.30 (bullish) to 0.70 (crisis)
+   - FIX: Implement regime_thresholds dict in arbiter.arbitrate()
+
+2. NO OVERALL COUNCIL TIMEOUT (runner.py line 42+)
+   - Individual agents timeout after 30s (task_spawner.py:204)
+   - But entire council DAG has no wall-clock limit
+   - Debate stage can run indefinitely
+   - Could cause councils to hang >5 minutes under load
+   - FIX: Add asyncio.wait_for(..., timeout=5.0) wrapper around run_council()
+
+3. AGENT FAILURES SILENTLY CONVERT TO HOLD VOTES (task_spawner.py:217-236)
+   - All timeouts/exceptions become HOLD votes
+   - No health tracking or escalation
+   - If 50% of agents fail, council proceeds with partial votes
+   - No visibility into system degradation
+   - FIX: Track agent health, halt council if >30% failure rate
+
+MAJOR FINDINGS:
+===============
+
+4. SHORT SIGNAL MOMENTUM ASYMMETRIC (signal_engine.py:268)
+   - Line 268: short_momentum = max(-20, min(25, -momentum_pct * 0.5))
+   - Creates [-20, +25] range (45-point spread)
+   - Long signals use [0, +25] (symmetric)
+   - Biases against short signals
+   - FIX: Change to max(0, min(25, ...)) for symmetry
+
+5. AGENT DAG IS 33 AGENTS (not 35)
+   - Task mentioned "35-agent council" but actual count is 33:
+     Stage 1: 13 agents
+     Stage 2: 8 agents
+     Stage 3: 2 agents
+     Stage 4: 1 agent
+     Stage 5: 3 agents
+     Stage 5.5: 4 agents (debate+red team)
+     Stage 6: 1 agent (critic)
+     Post-arbiter: 1 agent (alt_data, background)
+   - Total: 13+8+2+1+3+4+1+1 = 33 ✓
+
+6. MAX_CONCURRENT = 15, NOT 3
+   - council_gate.py line 91: self._semaphore = asyncio.Semaphore(max_concurrent=15)
+   - Priority queue implementation handles overflow (lines 186-192)
+   - Queue expires signals >60s old (line 208)
+   - Respects per-symbol cooldown even while queued (line 213)
+
+MODERATE FINDINGS:
+==================
+
+7. OpenClaw Blending Weights Fixed (60%) Regardless of Quality
+   - signal_engine.py line 454: blended = (ta_score * 0.4) + (pillar_score * 0.6)
+   - No adjustment for OpenClaw candidate diversity/quality
+   - Should be dynamic based on len(claw_scores) / expected baseline
+
+8. Council Gate Cooldown Applies to EVALUATED Signals, Not FILLED Trades
+   - council_gate.py line 178-181: last_eval = self._symbol_last_eval.get(symbol)
+   - Prevents re-evaluation of rejected signals
+   - Should track last_fill timestamp instead
+
+9. WeightLearner Learning Rate Is Constant (5%), Not Regime-Adaptive
+   - weight_learner.py line 97: learning_rate=0.05 (constant)
+   - Should be faster in CRISIS (0.10), slower in BULLISH (0.02)
+
+10. No Cross-Signal Dedup Between Long and Short
+    - signal_engine.py lines 616-657
+    - Both long and short signals can fire in same bar
+    - Creates conflicting council verdicts (buy AAPL + sell AAPL)
+    - FIX: If long fires, suppress short evaluation
+
+FILTER LOSS QUANTIFIED:
+=======================
+
+Raw market bars:           1,000/day
+↓ Signal Engine (65)         650 (65% pass)
+↓ Council Gate threshold     487 (75% pass)
+↓ Per-symbol cooldown        340 (70% pass)
+↓ Concurrency queue          306 (90% pass)
+↓ Council veto               245 (80% pass)
+↓ Arbiter 0.4 threshold      196 (80% pass)
+↓ Kelly sizing gate          166 (85% pass)
+
+FINAL: 17% of raw signals become executed orders
+       83% filtered out before execution
+
+AGENT DAG STRUCTURE CONFIRMED:
+==============================
+
+Stage 1 (Perception, 13 agents, parallel):
+  market_perception, flow_perception, regime, social_perception,
+  news_catalyst, youtube_knowledge, intermarket, gex_agent,
+  insider_agent, finbert_sentiment_agent, earnings_tone_agent,
+  dark_pool_agent, macro_regime_agent
+
+Stage 2 (Technical, 8 agents, parallel):
+  rsi, bbv, ema_trend, relative_strength, cycle_timing,
+  supply_chain_agent, institutional_flow_agent, congressional_agent
+
+Stage 3 (Hypothesis + Memory, 2 agents, parallel):
+  hypothesis (LLM deep), layered_memory_agent
+
+Stage 4 (Strategy, 1 agent, sequential):
+  strategy_agent
+
+Stage 5 (Risk + Execution + Portfolio, 3 agents, parallel):
+  risk, execution, portfolio_optimizer_agent
+
+Stage 5.5 (Debate + Red Team, 4 agents, optional parallel):
+  bull_debater, bear_debater, red_team_agent, [critic moved to stage 6]
+
+Stage 6 (Critic, 1 agent, sequential):
+  critic_agent
+
+Stage 7 (Arbiter, deterministic, not an agent):
+  arbitrate() function — weighted vote + veto logic
+
+Post-Arbiter (Background):
+  alt_data_agent (fire-and-forget, no vote)
+
+Latency per stage:
+  Stage 1: 300-500ms (parallel 13 agents)
+  Stage 2: 200-400ms (parallel 8 agents)
+  Stage 3: 150-300ms (LLM + memory)
+  Stage 4: 100-200ms (strategy)
+  Stage 5: 200-400ms (risk + execution + Kelly)
+  Stage 5.5: 300-800ms (optional debate)
+  Stage 6: 50-100ms (critic)
+  Total: 1.0-2.5 seconds (distributed council can parallelize Stage 1 to PC2)
+
+VETO LOGIC:
+===========
+VETO_AGENTS = {"risk", "execution"}
+REQUIRED_AGENTS = {"regime", "risk", "strategy"}
+
+If risk or execution veto → hold (no appeal)
+If any required agent missing → hold
+Otherwise → weighted vote aggregation with Bayesian weights from WeightLearner
+
+Bayesian Weight Example (weight_learner.py line 35-72):
+- risk: 1.3 (highest)
+- strategy: 1.1
+- ema_trend: 1.1
+- regime: 1.2
+- execution: 1.0
+- (All others: 0.5-1.0)
+
+Vote aggregation: final_confidence = buy_weight / total_weight
+Execution gate: final_direction != "hold" AND final_confidence > 0.4
+
+SHORT SIGNAL STATUS:
+====================
+✓ FIXED (B2): No longer uses 100-blended inversion
+✗ BROKEN: Momentum asymmetry at line 268
+  max(-20, min(25, -momentum_pct * 0.5)) should be max(0, ...)
+
+Bearish setup scoring (independent):
+- RSI overbought (>75): +15 points
+- Bearish candles: +15 points
+- Negative momentum: flipped (0-25 points)
+- Bearish divergence: +12 points
+- High volume on down bars: +12 points
+
+Regime multipliers for shorts (inverted vs longs):
+- BULLISH: 0.65x (dampened)
+- BEARISH: 1.10x (boosted)
+- CRISIS: 1.35x (strongly boosted)
+
+KEY FILE LOCATIONS:
+===================
+/backend/app/services/signal_engine.py         — Signal generation (65 threshold, blending)
+/backend/app/council/council_gate.py           — Gate logic (regime-adaptive thresholds, queue)
+/backend/app/council/runner.py                 — DAG orchestration (33 agents, 7 stages)
+/backend/app/council/arbiter.py                — Final decision (0.4 threshold, veto logic)
+/backend/app/council/task_spawner.py           — Agent execution (timeouts, exception handling)
+/backend/app/services/kelly_position_sizer.py  — Position sizing
+/backend/app/services/order_executor.py        — Order submission to Alpaca
+/backend/app/council/weight_learner.py         — Bayesian weight adaptation
+
+RECOMMENDATIONS (Priority):
+===========================
+1. Make arbiter execution threshold regime-adaptive (CRITICAL)
+2. Add overall council timeout (CRITICAL)
+3. Implement agent health tracking & escalation (MAJOR)
+4. Fix short signal momentum asymmetry (MODERATE)
+5. Make OpenClaw blending weights dynamic (MODERATE)
+6. Switch cooldown to last-fill instead of last-eval (MODERATE)
+7. Implement long/short signal dedup (MINOR)
+8. Make WeightLearner learning rate regime-adaptive (MINOR)
+

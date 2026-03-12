@@ -2,6 +2,8 @@
 
 Uses Bayesian-updated weights from WeightLearner (self-learning).
 Falls back to static agent weights if learner is unavailable.
+Optional blackboard allows arbiter to inspect full council context (perceptions,
+hypothesis, strategy, risk, execution, critic) for future logic or logging.
 
 Rules:
 1. VETO from risk_agent or execution_agent -> hold, vetoed=True
@@ -11,9 +13,12 @@ Rules:
 5. Final confidence = weighted average of non-vetoing agents
 """
 import logging
-from typing import Dict, List
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 from app.council.schemas import AgentVote, DecisionPacket
+
+if TYPE_CHECKING:
+    from app.council.blackboard import BlackboardState
 
 logger = logging.getLogger(__name__)
 
@@ -75,17 +80,21 @@ def arbitrate(
     timeframe: str,
     timestamp: str,
     votes: List[AgentVote],
+    blackboard: Optional["BlackboardState"] = None,
 ) -> DecisionPacket:
     """Apply deterministic arbiter rules to produce final decision.
 
     Uses Bayesian-learned weights when available, otherwise falls back
-    to each agent's static WEIGHT constant.
+    to each agent's static WEIGHT constant. When blackboard is provided,
+    arbiter can inspect full context (perceptions, hypothesis, strategy,
+    risk, execution, critic); behavior is unchanged for backward compatibility.
 
     Args:
         symbol: Ticker symbol
         timeframe: Timeframe
         timestamp: ISO timestamp
-        votes: List of AgentVote from all 13 agents
+        votes: List of AgentVote from all council agents
+        blackboard: Optional shared state from runner (single source of truth)
 
     Returns:
         DecisionPacket with final decision

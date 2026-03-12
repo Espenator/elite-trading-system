@@ -1,8 +1,9 @@
 """Hypothesis Agent — LLM-powered hypothesis via Brain Service.
 
-GPU Channel 6: Parallel LLM hypothesis generation — fires 4 concurrent
-Ollama calls (bullish thesis, bearish thesis, catalyst analysis, risk
-assessment) and synthesizes results. Requires OLLAMA_NUM_PARALLEL=4 on PC2.
+Uses full BlackboardState as context. Structured output (direction, confidence,
+reasoning, supporting_signals, invalidation_notes) is strictly validated;
+timeouts/unavailable/malformed responses fall back to deterministic logic with
+reduced confidence. Logging indicates LLM-backed vs fallback-based inference.
 """
 import asyncio
 import json
@@ -11,16 +12,66 @@ from typing import Any, Dict, List
 
 from app.council.agent_config import get_agent_thresholds
 from app.council.schemas import AgentVote
+from app.services.brain_response_validator import validate_hypothesis_response
 
 logger = logging.getLogger(__name__)
 
 NAME = "hypothesis"
 
 
+def _build_blackboard_context(context: Dict[str, Any], regime: str, directives_text: str) -> str:
+    """Build full BlackboardState (or equivalent) as JSON for brain service input."""
+    blackboard = context.get("blackboard")
+    if not blackboard:
+        return json.dumps({"regime": regime, "directives": directives_text[:2000] if directives_text else "", **context}, default=str)
+    # Full blackboard snapshot: perceptions, stage votes, regime, directives, metadata
+    payload = {
+        "council_decision_id": getattr(blackboard, "council_decision_id", ""),
+        "perceptions": getattr(blackboard, "perceptions", {}),
+        "regime": regime,
+        "stage1": context.get("stage1", {}),
+        "stage2": context.get("stage2", {}),
+        "directives": directives_text[:2000] if directives_text else "",
+        "metadata": getattr(blackboard, "metadata", {}),
+    }
+    if hasattr(blackboard, "to_dict"):
+        snapshot = blackboard.to_dict()
+        payload["blackboard_snapshot"] = snapshot
+    elif hasattr(blackboard, "to_snapshot"):
+        payload["blackboard_snapshot"] = blackboard.to_snapshot()
+    return json.dumps(payload, default=str)
+
+
+def _deterministic_fallback(
+    symbol: str, features: Dict[str, Any], cfg: Dict[str, Any], reason: str
+) -> AgentVote:
+    """Safe fallback when brain times out or returns invalid data. Reduces confidence."""
+    f = features.get("features", features)
+    rsi = f.get("rsi_14") if f.get("rsi_14") is not None else f.get("ind_rsi_14", 50)
+    try:
+        rsi_f = float(rsi)
+    except (TypeError, ValueError):
+        rsi_f = 50.0
+    direction = "hold"
+    if rsi_f < 35:
+        direction = "buy"
+    elif rsi_f > 65:
+        direction = "sell"
+    confidence = 0.25  # Safe reduced confidence for fallback
+    return AgentVote(
+        agent_name=NAME,
+        direction=direction,
+        confidence=confidence,
+        reasoning=f"Fallback (no LLM): {reason}. RSI={rsi_f:.0f} → {direction}.",
+        weight=cfg["weight_hypothesis"],
+        metadata={"inference_source": "fallback", "brain_enabled": False, "fallback_reason": reason},
+    )
+
+
 async def evaluate(
     symbol: str, timeframe: str, features: Dict[str, Any], context: Dict[str, Any]
 ) -> AgentVote:
-    """Call brain_client for LLM inference when enabled; otherwise stub."""
+    """Call brain_client for LLM inference; validate response; fallback on timeout/invalid."""
     cfg = get_agent_thresholds()
 
     try:
@@ -28,23 +79,16 @@ async def evaluate(
 
         client = get_brain_client()
         if not client.enabled:
-            # Fallback: try LLM router brainstem tier
             try:
                 return await _hypothesis_via_router(symbol, timeframe, features, context, cfg)
             except Exception:
-                return AgentVote(
-                    agent_name=NAME,
-                    direction="hold",
-                    confidence=0.1,
-                    reasoning="Brain service disabled and LLM router unavailable",
-                    weight=cfg["weight_hypothesis"],
-                    metadata={"brain_enabled": False, "router_fallback": False},
+                logger.info("Hypothesis: inference=fallback (brain disabled, router unavailable)")
+                return _deterministic_fallback(
+                    symbol, features, cfg, "brain disabled and LLM router unavailable"
                 )
 
         feature_json = json.dumps(features.get("features", features), default=str)
         regime = str(features.get("features", {}).get("regime", "unknown"))
-
-        # Load trading directives for current regime
         directives_text = ""
         try:
             from app.council.directives.loader import directive_loader
@@ -52,18 +96,7 @@ async def evaluate(
         except Exception:
             pass
 
-        # Build rich context from blackboard (perceptions + regime + features + directives)
-        blackboard = context.get("blackboard")
-        if blackboard:
-            brain_context = json.dumps({
-                "perceptions": blackboard.perceptions,
-                "regime": regime,
-                "council_decision_id": blackboard.council_decision_id,
-                "stage1_votes": context.get("stage1", {}),
-                "directives": directives_text[:2000] if directives_text else "",
-            }, default=str)
-        else:
-            brain_context = json.dumps(context, default=str) if context else ""
+        brain_context = _build_blackboard_context(context, regime, directives_text)
 
         result = await client.infer(
             symbol=symbol,
@@ -73,56 +106,53 @@ async def evaluate(
             context=brain_context,
         )
 
-        # Map LLM confidence to direction (coerce to float for safety)
-        try:
-            llm_conf = float(result.get("confidence", 0.5))
-        except (ValueError, TypeError):
-            llm_conf = 0.5
-        risk_flags = result.get("risk_flags", [])
-
-        if "llm_unavailable" in risk_flags or "brain_disabled" in risk_flags:
-            return AgentVote(
-                agent_name=NAME,
-                direction="hold",
-                confidence=0.1,
-                reasoning=result.get("summary", "LLM unavailable"),
-                weight=cfg["weight_hypothesis"],
-                metadata={"brain_enabled": True, "error": result.get("error", "")},
+        validated = validate_hypothesis_response(result)
+        if validated.is_fallback:
+            logger.info(
+                "Hypothesis: inference=fallback (brain returned fallback/stub or error) for %s",
+                symbol,
+            )
+            return _deterministic_fallback(
+                symbol, features, cfg,
+                result.get("error") or "brain fallback/stub",
             )
 
-        if llm_conf > cfg["llm_buy_confidence_threshold"]:
-            direction = "buy"
-        elif llm_conf < cfg["llm_sell_confidence_threshold"]:
-            direction = "sell"
-        else:
-            direction = "hold"
+        # Optional: if validated direction disagrees with threshold, still use validated
+        direction = validated.direction
+        confidence = round(validated.confidence, 2)
+        reasoning = validated.reasoning
+        if validated.reasoning_bullets:
+            reasoning += " | " + "; ".join(validated.reasoning_bullets[:3])
+        if validated.supporting_signals:
+            reasoning += " [Signals: " + "; ".join(validated.supporting_signals[:3]) + "]"
+        if validated.invalidation_notes:
+            reasoning += " [Risks: " + "; ".join(validated.invalidation_notes[:2]) + "]"
 
-        reasoning = result.get("summary", "No summary")
-        bullets = result.get("reasoning_bullets", [])
-        if bullets:
-            reasoning += " | " + "; ".join(bullets[:3])
-
+        logger.info(
+            "Hypothesis: inference=LLM-backed for %s direction=%s confidence=%.2f",
+            symbol, direction, confidence,
+        )
         return AgentVote(
             agent_name=NAME,
             direction=direction,
-            confidence=round(llm_conf, 2),
-            reasoning=reasoning,
+            confidence=confidence,
+            reasoning=reasoning[:500],
             weight=cfg["weight_hypothesis"],
             metadata={
+                "inference_source": "brain_llm",
                 "brain_enabled": True,
-                "risk_flags": risk_flags,
+                "risk_flags": validated.risk_flags,
+                "supporting_signals": validated.supporting_signals[:5],
+                "invalidation_notes": validated.invalidation_notes[:5],
             },
         )
 
+    except asyncio.TimeoutError:
+        logger.warning("Hypothesis: inference=fallback (timeout) for %s", symbol)
+        return _deterministic_fallback(symbol, features, cfg, "timeout")
     except Exception as e:
-        logger.warning("Hypothesis agent error: %s", e)
-        return AgentVote(
-            agent_name=NAME,
-            direction="hold",
-            confidence=0.1,
-            reasoning=f"Hypothesis error: {e}",
-            weight=cfg["weight_hypothesis"],
-        )
+        logger.warning("Hypothesis agent error (using fallback): %s", e)
+        return _deterministic_fallback(symbol, features, cfg, str(e))
 
 
 def _build_intel_context(context: Dict[str, Any]) -> str:

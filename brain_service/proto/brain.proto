@@ -34,6 +34,11 @@ message InferResponse {
   repeated string risk_flags = 3;
   repeated string reasoning_bullets = 4;
   string error = 5;
+  // Structured hypothesis output (validated by backend)
+  string direction = 6;                    // "buy" | "sell" | "hold"
+  string reasoning = 7;                    // Full reasoning text
+  repeated string supporting_signals = 8;  // Optional supporting signals
+  repeated string invalidation_notes = 9; // Optional invalidation/risk notes
 }
 
 message CriticRequest {
@@ -48,6 +53,7 @@ message CriticResponse {
   repeated string lessons = 2;
   float performance_score = 3;
   string error = 4;
+  repeated string key_takeaways = 5;  // Structured postmortem takeaways
 }
 
 message EmbedRequest {

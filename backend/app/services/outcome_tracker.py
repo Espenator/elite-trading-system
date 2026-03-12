@@ -55,6 +55,7 @@ class TrackedPosition:
     take_profit: Optional[float]
     is_shadow: bool
     opened_at: float  # time.time()
+    council_decision_id: str = ""  # for learning-loop: match outcome to council decision
     # Filled when closed:
     exit_price: Optional[float] = None
     pnl: float = 0.0
@@ -85,6 +86,7 @@ class TrackedPosition:
             "retry_scheduled_at": self.retry_scheduled_at,
             "opened_at": self.opened_at,
             "closed_at": self.closed_at,
+            "council_decision_id": self.council_decision_id,
         }
 
 
@@ -192,9 +194,14 @@ class OutcomeTracker:
             take_profit=data.get("take_profit"),
             is_shadow=is_shadow,
             opened_at=data.get("timestamp", time.time()),
+            council_decision_id=data.get("council_decision_id", ""),
         )
         self._open_positions[order_id] = pos
         self._stats["total_tracked"] += 1
+        logger.info(
+            "[LEARNING-TRACE] OutcomeTracker._on_order order_id=%s symbol=%s council_decision_id=%s",
+            order_id, pos.symbol, pos.council_decision_id or "(none)",
+        )
         logger.info(
             "Tracking %s position: %s %s @ $%.2f (SL=$%.2f, TP=$%.2f)",
             "shadow" if is_shadow else "live",
@@ -505,11 +512,16 @@ class OutcomeTracker:
             except Exception as e:
                 logger.debug("Knowledge refresh error: %s", e)
 
-        # Feed to council feedback loop + trigger weight update
+        # Feed to council feedback loop + trigger weight update (use council_decision_id for matching)
         try:
             from app.council.feedback_loop import record_outcome as council_record, update_agent_weights
+            trade_id_for_learning = pos.council_decision_id or pos.order_id
+            logger.info(
+                "[LEARNING-TRACE] OutcomeTracker._resolve_position feeding outcome trade_id=%s symbol=%s outcome=%s",
+                trade_id_for_learning, pos.symbol, outcome,
+            )
             council_record(
-                trade_id=pos.order_id,
+                trade_id=trade_id_for_learning,
                 symbol=pos.symbol,
                 outcome=outcome,
                 r_multiple=pos.r_multiple,
@@ -517,7 +529,7 @@ class OutcomeTracker:
             # Fire learning update on EVERY resolved outcome (not every 5th).
             # Pass outcome data so WeightLearner.update_from_outcome() fires.
             outcome_data = {
-                "trade_id": pos.order_id,
+                "trade_id": trade_id_for_learning,
                 "symbol": pos.symbol,
                 "outcome": outcome,
                 "r_multiple": pos.r_multiple,
@@ -532,6 +544,54 @@ class OutcomeTracker:
                 )
         except Exception as e:
             logger.debug("Council feedback error: %s", e)
+
+        # Postmortem feedback loop: persist closed-trade record with council context
+        try:
+            from app.data.duckdb_storage import duckdb_store
+            from app.council.weight_learner import get_weight_learner
+            decision_id = pos.council_decision_id or pos.order_id
+            resolved_at_utc = datetime.now(timezone.utc).isoformat()
+            decision_ctx = None
+            try:
+                learner = get_weight_learner()
+                decision_ctx = learner.get_decision_by_trade_id(decision_id)
+            except Exception:
+                pass
+            direction = getattr(pos, "side", "buy")
+            confidence = 1.0
+            agent_votes = []
+            blackboard_snapshot = {}
+            if decision_ctx:
+                direction = decision_ctx.get("final_direction", direction)
+                confidence = decision_ctx.get("final_confidence", confidence)
+                agent_votes = [
+                    {
+                        "agent_name": v.get("agent_name", ""),
+                        "direction": v.get("direction", "hold"),
+                        "confidence": v.get("confidence", 0),
+                        "weight": v.get("weight", 1.0),
+                    }
+                    for v in decision_ctx.get("votes", [])
+                ]
+                blackboard_snapshot = decision_ctx.get("blackboard_snapshot") or {}
+            postmortem = {
+                "id": decision_id,
+                "council_decision_id": decision_id,
+                "symbol": pos.symbol,
+                "direction": direction,
+                "confidence": confidence,
+                "entry_price": pos.entry_price,
+                "exit_price": pos.exit_price,
+                "pnl": pos.pnl,
+                "agent_votes": agent_votes,
+                "blackboard_snapshot": blackboard_snapshot,
+                "critic_analysis": "",
+                "resolved_at": resolved_at_utc,
+            }
+            duckdb_store.insert_postmortem(postmortem)
+            logger.debug("Postmortem recorded for %s %s (decision_id=%s)", pos.symbol, outcome, decision_id[:16] if decision_id else "")
+        except Exception as e:
+            logger.debug("Postmortem write failed: %s", e)
 
         # Wire SelfAwareness Bayesian tracking (Audit Bug #8)
         try:

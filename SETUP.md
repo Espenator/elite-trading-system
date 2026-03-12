@@ -107,6 +107,112 @@ For manual launch, this will:
 - Discord, X/Twitter, YouTube (social sentiment)
 - Perplexity AI, Anthropic Claude (LLM council)
 
+## Backend local startup (developers)
+
+**Entrypoint:** `backend/app/main.py` — FastAPI app is `app.main:app`.
+
+**Exact commands (from repo root):**
+
+```powershell
+# 1. Backend (Terminal 1)
+cd backend
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+**Env:** `backend/.env` is optional. If missing, the app still starts; set at least for live/data features:
+
+- **Minimal (API starts):** `TRADING_MODE=paper`, `ALPACA_API_KEY`, `ALPACA_SECRET_KEY` (use placeholders like `test`/`test` for health checks only).
+- **Copy template:** `copy backend\.env.example backend\.env` then edit. Never commit `.env`.
+
+**Health check after start:**
+
+```powershell
+curl -s http://localhost:8000/health
+curl -s http://localhost:8000/api/v1/health
+```
+
+Optional integrations (Brain, Redis, data sources) degrade gracefully if unset or unreachable. See [docs/RUNBOOK.md](docs/RUNBOOK.md) for full start/stop and troubleshooting.
+
+## Pre-commit Hooks (optional)
+
+Format and lint before every commit:
+
+```powershell
+# One-time install (requires Python 3.11+)
+pip install pre-commit
+pre-commit install
+
+# Backend: Black + isort (run from repo root)
+cd backend && black app tests && isort app tests
+
+# Frontend: ESLint + Prettier
+cd frontend-v2 && npm run lint
+```
+
+Pre-commit runs automatically on `git commit`. Config: [.pre-commit-config.yaml](.pre-commit-config.yaml). Backend style: [backend/pyproject.toml](backend/pyproject.toml).
+
+## Automated Deployment
+
+### PC1 (ESPENMAIN)
+
+From repo root (e.g. `C:\Users\Espen\elite-trading-system`):
+
+```powershell
+.\scripts\deploy-pc1.ps1
+```
+
+This: pulls `main`, installs backend deps, stops backend/frontend on 8000/5173, starts backend and frontend in new windows, runs a health check. Rollback: `.\scripts\deploy-pc1.ps1 -Rollback`.
+
+### PC2 (ProfitTrader)
+
+From repo root on PC2:
+
+```powershell
+.\scripts\deploy-pc2.ps1
+```
+
+This: pulls `main`, installs backend + brain_service deps, restarts brain_service (gRPC :50051), checks port. Rollback: `.\scripts\deploy-pc2.ps1 -Rollback`.
+
+### Rollback to a specific ref
+
+```powershell
+.\scripts\rollback.ps1           # revert to HEAD~1
+.\scripts\rollback.ps1 v5.0.0   # revert to tag
+```
+
+### Post-deploy smoke tests
+
+```powershell
+.\scripts\smoke-test.ps1
+# Or against another host:
+.\scripts\smoke-test.ps1 -BaseUrl http://192.168.1.105:8000
+```
+
+Verifies: `/health`, `/api/v1/health`, `/api/v1/council/status`, `/readyz`.
+
+## Docker (full stack)
+
+From repo root:
+
+```bash
+docker-compose up -d
+```
+
+Starts: **backend** (:8000), **brain** (:50051), **redis** (:6379). Backend uses `BRAIN_HOST=brain` and `REDIS_URL=redis://redis:6379`. Health checks are defined for all three services. To verify:
+
+```bash
+docker-compose ps
+curl http://localhost:8000/healthz
+```
+
+## CI and release tagging
+
+- **CI** (`.github/workflows/ci.yml`): runs on push to `main`, pull requests, and manual trigger. Backend: Black, isort, mypy (council + trading), pytest on Python 3.11 and 3.12. Frontend: lint, build. E2E: Playwright. Target: &lt; 10 minutes.
+- **Release tag**: In GitHub Actions, run workflow **Release Tag**, enter version (e.g. `v5.0.1`). Creates and pushes the tag. Use when `main` is green.
+
 ## Troubleshooting
 
 ### Embodier Trader won't start

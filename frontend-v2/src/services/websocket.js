@@ -27,6 +27,8 @@ class AppWebSocket {
     if (this.ws?.readyState === WebSocket.OPEN) return;
     this._intentionalClose = false;
     this.state = "connecting";
+    if (this.handlers.has("*"))
+      this.handlers.get("*").forEach((fn) => fn({ type: "connecting" }));
     const url = getWsBaseUrl();
     try {
       this.ws = new WebSocket(url);
@@ -88,6 +90,8 @@ class AppWebSocket {
           this._reconnectAttempts < MAX_RECONNECT_ATTEMPTS
         ) {
           this.state = "reconnecting";
+          if (this.handlers.has("*"))
+            this.handlers.get("*").forEach((fn) => fn({ type: "reconnecting" }));
           const delay = Math.min(
             RECONNECT_DELAY_MS * Math.pow(1.5, this._reconnectAttempts),
             MAX_RECONNECT_DELAY
@@ -179,6 +183,11 @@ class AppWebSocket {
 
   isConnected() {
     return this.ws?.readyState === WebSocket.OPEN;
+  }
+
+  /** Current state: "disconnected" | "connecting" | "connected" | "reconnecting" */
+  getState() {
+    return this.state;
   }
 
   // --- Kelly channel subscriptions ---

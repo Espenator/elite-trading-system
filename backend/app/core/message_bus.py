@@ -25,6 +25,9 @@ Usage (unchanged — all subscribers work exactly as before):
     await bus.subscribe('market_data.bar', my_handler)
     await bus.publish('market_data.bar', {'symbol': 'AAPL', ...})
     await bus.stop()
+
+Publish path: event is put on the in-process asyncio queue (or Redis for cluster topics);
+subscribers are invoked asynchronously. Rate limits and DLQ apply per topic when configured.
 """
 import asyncio
 import json
@@ -32,7 +35,13 @@ import logging
 import os
 import time
 from collections import defaultdict
+from datetime import datetime
 from typing import Any, Callable, Coroutine, Dict, List, Optional, Set
+
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    ZoneInfo = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +97,8 @@ class MessageBus:
         "order.filled",
         "order.cancelled",
         "council.verdict",
+        "execution.validated_verdict",
+        "execution.result",
         "outcome.resolved",
         "perception.unusualwhales",
         "swarm.idea",
@@ -193,11 +204,20 @@ class MessageBus:
 
     # Per-topic rate limits (events/second).  Topics not listed are unlimited.
     # Override via env: MSGBUS_RATE_LIMIT_SWARM_IDEA=50
+    # Adaptive: market open 3x, power hour 2x, off-hours 0.5x (see _rate_limit_multiplier).
     TOPIC_RATE_LIMITS: Dict[str, float] = {
         "swarm.idea": float(os.environ.get("MSGBUS_RATE_LIMIT_SWARM_IDEA", "50")),
         "scout.heartbeat": float(os.environ.get("MSGBUS_RATE_LIMIT_SCOUT_HEARTBEAT", "10")),
         "triage.dropped": float(os.environ.get("MSGBUS_RATE_LIMIT_TRIAGE_DROPPED", "20")),
         "cluster.telemetry": float(os.environ.get("MSGBUS_RATE_LIMIT_CLUSTER_TELEMETRY", "10")),
+    }
+
+    # Time-of-day multipliers (ET): higher limits when alpha is richest
+    _RATE_LIMIT_MULTIPLIERS = {
+        "market_open": 3.0,   # 9:30–10:00 ET
+        "normal": 1.0,        # 10:00–15:30 ET
+        "power_hour": 2.0,    # 15:30–16:00 ET
+        "off_hours": 0.5,
     }
 
     def __init__(self, max_queue_size: int = 10_000):
@@ -395,14 +415,35 @@ class MessageBus:
     # Per-topic rate limiting (token bucket)
     # ------------------------------------------------------------------
 
+    def _rate_limit_multiplier(self) -> float:
+        """Return current time-of-day multiplier (ET): market_open 3x, power_hour 2x, off_hours 0.5x."""
+        if not ZoneInfo:
+            return 1.0
+        try:
+            et = datetime.now(ZoneInfo("America/New_York"))
+            h, m = et.hour, et.minute
+            minutes = h * 60 + m
+            # 9:30 = 570, 10:00 = 600, 15:30 = 930, 16:00 = 960
+            if 570 <= minutes < 600:
+                return self._RATE_LIMIT_MULTIPLIERS["market_open"]
+            if 930 <= minutes < 960:
+                return self._RATE_LIMIT_MULTIPLIERS["power_hour"]
+            if 600 <= minutes < 930:
+                return self._RATE_LIMIT_MULTIPLIERS["normal"]
+            return self._RATE_LIMIT_MULTIPLIERS["off_hours"]
+        except Exception:
+            return 1.0
+
     def _check_rate_limit(self, topic: str) -> bool:
         """Return True if this event is allowed under the topic rate limit.
 
-        Uses a simple token-bucket algorithm: tokens refill at TOPIC_RATE_LIMITS[topic]
-        per second, burst size equals the rate (1 second worth of tokens).
+        Uses token-bucket with time-of-day adaptive rate (ET): higher limits at
+        market open and power hour, lower off-hours.
         """
         now = time.time()
-        rate = self.TOPIC_RATE_LIMITS[topic]
+        base_rate = self.TOPIC_RATE_LIMITS[topic]
+        mult = self._rate_limit_multiplier()
+        rate = base_rate * mult
         burst = max(rate, 10.0)  # Allow at least 10-event bursts
 
         # Initialize on first call

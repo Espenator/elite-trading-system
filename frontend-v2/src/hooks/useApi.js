@@ -1,7 +1,9 @@
 /**
- * Generic fetch hook for API calls.
- * Uses config/api.js getApiUrl(endpoint).
- * Optional polling when pollIntervalMs > 0.
+ * useApi — universal data-fetch hook for all dashboard and page API calls.
+ * Uses config/api.js getApiUrl(endpoint) for URL and getAuthHeaders() for Bearer token.
+ * Optional polling when pollIntervalMs > 0; polling pauses when tab is hidden (visibility API).
+ * In-memory cache (stale-while-revalidate) and per-URL in-flight deduplication reduce load.
+ * Concurrency limited to MAX_CONCURRENT to avoid browser connection exhaustion.
  *
  * FIX LOG (Mar 10 2026):
  *  - AbortSignal.any fallback was dropping user abort signal (memory leaks on unmount)

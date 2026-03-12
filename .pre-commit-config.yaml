@@ -1,0 +1,51 @@
+# Pre-commit hooks for Embodier Trader. Install: pre-commit install
+# Run manually: pre-commit run --all-files
+# See SETUP.md for setup instructions.
+
+default_language_version:
+  python: python3.11
+
+repos:
+  # Backend: Black
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+        name: black (backend)
+        files: ^backend/
+        args: [--config=backend/pyproject.toml]
+        pass_filenames: true
+
+  # Backend: isort
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        name: isort (backend)
+        files: ^backend/
+
+  # Backend: mypy (council + trading; optional, can be slow)
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy (council, services/trading)
+        entry: bash -c 'cd backend && mypy app/council app/services/trading --ignore-missing-imports 2>/dev/null || true'
+        language: system
+        pass_filenames: false
+
+  # Frontend: ESLint
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint (frontend-v2)
+        entry: bash -c 'cd frontend-v2 && npm run lint 2>/dev/null || true'
+        language: system
+        files: ^frontend-v2/.*\.(js|jsx|ts|tsx)$
+
+  # Frontend: Prettier
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        name: prettier (frontend-v2)
+        files: ^frontend-v2/.*\.(js|jsx|ts|tsx|json|css|md)$

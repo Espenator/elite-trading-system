@@ -1,17 +1,18 @@
 """Critic Agent — post-trade learning signals (skips during pre-trade eval).
 
 GPU Channel 7: Routes LLM inference through brain_client (gRPC to PC2)
-for GPU-accelerated postmortem analysis. Falls back to local LLM router
-if brain service is unavailable.
-
-Writes postmortem to DuckDB after every post-trade evaluation.
+for structured postmortem analysis. Responses are strictly validated;
+timeouts/unavailable use rule-based fallback. Postmortem write can run
+asynchronously so the agent returns without blocking.
 """
+import asyncio
 import logging
 import uuid
 from typing import Any, Dict
 
 from app.council.agent_config import get_agent_thresholds
 from app.council.schemas import AgentVote
+from app.services.brain_response_validator import validate_critic_response
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +81,7 @@ async def evaluate(
             "council_decision_id": blackboard.council_decision_id,
         }
 
-    # --- Tier 1: brain_client (PC2 GPU via gRPC) ---
+    # --- Tier 1: brain_client (PC2 GPU via gRPC) — structured postmortem ---
     brain_succeeded = False
     try:
         from app.services.brain_client import get_brain_client
@@ -94,17 +95,20 @@ async def evaluate(
                 entry_context=json.dumps(entry_ctx, default=str),
                 outcome_json=json.dumps(trade_outcome, default=str),
             )
-            if not result.get("error"):
-                if result.get("lessons"):
-                    lessons.extend(result["lessons"][:3])
-                if result.get("performance_score", 0) > 0:
-                    performance_score = result["performance_score"]
-                critic_analysis = result.get("analysis", "")
+            validated = validate_critic_response(result)
+            if not validated.is_fallback and not result.get("error"):
+                if validated.lessons:
+                    lessons.extend(validated.lessons[:3])
+                if validated.performance_score > 0:
+                    performance_score = validated.performance_score
+                critic_analysis = validated.analysis
+                if validated.key_takeaways:
+                    lessons.extend(validated.key_takeaways[:2])
                 inference_source = "brain_pc2"
                 brain_succeeded = True
-                logger.debug("Critic used brain_client (PC2 GPU) for %s", symbol)
+                logger.info("Critic: inference=LLM-backed (brain_pc2) for %s", symbol)
             else:
-                logger.debug("Brain critic returned error: %s", result.get("error"))
+                logger.debug("Critic: brain returned fallback or error: %s", result.get("error"))
     except Exception as e:
         logger.debug("Critic brain_client unavailable: %s", e)
 
@@ -146,17 +150,16 @@ async def evaluate(
                         except json.JSONDecodeError:
                             pass
                 if parsed:
-                    if parsed.get("lessons"):
-                        lessons.extend(parsed["lessons"][:3])
-                    if parsed.get("performance_score", 0) > 0:
-                        try:
-                            performance_score = float(parsed["performance_score"])
-                        except (ValueError, TypeError):
-                            pass
-                    critic_analysis = parsed.get("analysis", "")
-                    inference_source = f"local_llm/{result.tier}"
-                    brain_succeeded = True
-                    logger.debug("Critic used local LLM router for %s", symbol)
+                    validated = validate_critic_response(parsed)
+                    if not validated.is_fallback:
+                        if validated.lessons:
+                            lessons.extend(validated.lessons[:3])
+                        if validated.performance_score > 0:
+                            performance_score = validated.performance_score
+                        critic_analysis = validated.analysis
+                        inference_source = f"local_llm/{result.tier}"
+                        brain_succeeded = True
+                        logger.info("Critic: inference=LLM-backed (local_llm) for %s", symbol)
         except Exception as llm_err:
             logger.debug("Critic local LLM router unavailable: %s", llm_err)
 
@@ -188,27 +191,38 @@ async def evaluate(
         except Exception as deep_err:
             logger.debug("Claude deep postmortem not available: %s", deep_err)
 
-    # Write postmortem to DuckDB
-    try:
-        from app.data.duckdb_storage import duckdb_store
-        postmortem = {
-            "id": str(uuid.uuid4()),
-            "council_decision_id": blackboard.council_decision_id if blackboard else "",
-            "symbol": symbol,
-            "direction": trade_outcome.get("direction", ""),
-            "confidence": trade_outcome.get("confidence", 0.0),
-            "entry_price": trade_outcome.get("entry_price", 0.0),
-            "exit_price": trade_outcome.get("exit_price", 0.0),
-            "pnl": pnl,
-            "agent_votes": context.get("all_votes", []),
-            "blackboard_snapshot": blackboard.to_snapshot() if blackboard else {},
-            "critic_analysis": critic_analysis or "; ".join(lessons[:3]),
-        }
-        duckdb_store.insert_postmortem(postmortem)
-        logger.info("Postmortem written for %s: R=%.2f, PnL=$%.2f", symbol, r_multiple, pnl)
-    except Exception as e:
-        logger.debug("Postmortem write failed: %s", e)
+    # Write postmortem to DuckDB (non-blocking when possible)
+    def _write_postmortem():
+        try:
+            from app.data.duckdb_storage import duckdb_store
+            postmortem = {
+                "id": str(uuid.uuid4()),
+                "council_decision_id": blackboard.council_decision_id if blackboard else "",
+                "symbol": symbol,
+                "direction": trade_outcome.get("direction", ""),
+                "confidence": trade_outcome.get("confidence", 0.0),
+                "entry_price": trade_outcome.get("entry_price", 0.0),
+                "exit_price": trade_outcome.get("exit_price", 0.0),
+                "pnl": pnl,
+                "agent_votes": context.get("all_votes", []),
+                "blackboard_snapshot": blackboard.to_snapshot() if blackboard else {},
+                "critic_analysis": critic_analysis or "; ".join(lessons[:3]),
+            }
+            duckdb_store.insert_postmortem(postmortem)
+            logger.info("Postmortem written for %s: R=%.2f, PnL=$%.2f", symbol, r_multiple, pnl)
+        except Exception as e:
+            logger.debug("Postmortem write failed: %s", e)
 
+    try:
+        asyncio.create_task(asyncio.to_thread(_write_postmortem))
+    except Exception:
+        try:
+            _write_postmortem()
+        except Exception as e:
+            logger.debug("Postmortem write failed: %s", e)
+
+    if inference_source == "rule_based":
+        logger.info("Critic: inference=fallback (rule-based only) for %s", symbol)
     return AgentVote(
         agent_name=NAME,
         direction="hold",

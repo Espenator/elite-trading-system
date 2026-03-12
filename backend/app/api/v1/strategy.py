@@ -184,6 +184,8 @@ REGIME_PARAMS = {
     "NEUTRAL": {"kelly_scale": 1.0, "max_pos": 5, "risk_pct": 1.5, "signal_mult": 1.0, "min_edge": 0.05, "desc": "Alias for YELLOW"},
     "BEAR": {"kelly_scale": 0.25, "max_pos": 0, "risk_pct": 0.0, "signal_mult": 0.85, "min_edge": 0.12, "desc": "Alias for RED"},
     "CRISIS": {"kelly_scale": 0.0, "max_pos": 0, "risk_pct": 0.0, "signal_mult": 0.0, "min_edge": 1.0, "desc": "Full cash, zero exposure"},
+    # E2E test regime (permissive so test can assert order.submitted)
+    "HYPERSWARM": {"kelly_scale": 1.0, "max_pos": 5, "risk_pct": 1.5, "signal_mult": 1.0, "min_edge": 0.03, "desc": "E2E test regime"},
 }
 
 
@@ -228,7 +230,7 @@ async def get_regime_params():
         except Exception as e:
             logger.debug("VIX regime fallback unavailable: %s", e)
 
-    # Priority: manual override > live bridge > VIX fallback > YELLOW default
+    # Priority: manual override > live bridge > VIX fallback > RED default (safe when offline)
     if override:
         regime = override
     elif live_regime:
@@ -236,9 +238,9 @@ async def get_regime_params():
     elif vix_regime:
         regime = vix_regime
     else:
-        regime = "YELLOW"
+        regime = "RED"  # Conservative when regime detection offline — avoid trading blind
 
-    params = REGIME_PARAMS.get(regime, REGIME_PARAMS["YELLOW"])
+    params = REGIME_PARAMS.get(regime, REGIME_PARAMS["RED"])
     return {
         "regime": regime,
         "is_override": override is not None,

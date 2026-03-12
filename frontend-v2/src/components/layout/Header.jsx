@@ -25,6 +25,7 @@ import {
   Gauge,
 } from "lucide-react";
 import { useCNS, CNS_EVENTS } from "../../hooks/useCNS";
+import { useApi } from "../../hooks/useApi";
 
 // ── Mode badge colours ────────────────────────────────────────────────────────
 const MODE_COLORS = {
@@ -113,6 +114,7 @@ export default function Header() {
     circuitBreakerFired,
     latestVerdict,
     wsConnected,
+    wsState = 'disconnected',
     notifications = [],
     unreadCount = 0,
     markRead,
@@ -120,6 +122,22 @@ export default function Header() {
     marketRegime,
     regimePct,
   } = useCNS();
+
+  const { data: councilHealthData } = useApi("councilHealth", { pollIntervalMs: 15000 });
+  const { data: dataSourcesHealthData } = useApi("dataSourcesHealth", { pollIntervalMs: 15000 });
+
+  const last = councilHealthData?.last_evaluation;
+  const agents = last?.agents ?? {};
+  const healthyAgents = agents.voted_successfully ?? 0;
+  const totalAgents = agents.total_registered ?? 35;
+  const sources = dataSourcesHealthData?.sources ?? [];
+  const healthySources = sources.filter((s) => s.status === "HEALTHY" || s.status === "DEGRADED").length;
+  const totalSources = sources.length || 10;
+  const agentPct = totalAgents ? (healthyAgents / totalAgents) * 100 : 100;
+  const sourcePct = totalSources ? (healthySources / totalSources) * 100 : 100;
+  let healthDotColor = "#10b981";
+  if (agentPct < 60 || sourcePct < 70) healthDotColor = "#ef4444";
+  else if (agentPct < 80 || sourcePct < 90) healthDotColor = "#f59e0b";
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu]           = useState(false);
@@ -171,27 +189,66 @@ export default function Header() {
 
       {/* ── Center: CNS Status ──────────────────────────────────────────── */}
       <div className="flex items-center gap-2">
-        {/* WS Connection */}
+        {/* System health: green = >80% agents + sources, yellow = degraded, red = critical */}
+        <span
+          className="w-2.5 h-2.5 rounded-full flex-shrink-0 animate-pulse"
+          style={{ background: healthDotColor }}
+          title={`Council ${healthyAgents}/${totalAgents} · Data ${healthySources}/${totalSources}`}
+        />
+        {/* WS Connection: green = connected, yellow = reconnecting/connecting, red = disconnected */}
         <StatusPill
-          bg={wsConnected ? "rgba(16,185,129,0.10)" : "rgba(239,68,68,0.10)"}
-          border={wsConnected ? "rgba(16,185,129,0.35)" : "rgba(239,68,68,0.35)"}
+          bg={
+            wsState === "connected"
+              ? "rgba(16,185,129,0.10)"
+              : wsState === "reconnecting" || wsState === "connecting"
+              ? "rgba(245,158,11,0.12)"
+              : "rgba(239,68,68,0.10)"
+          }
+          border={
+            wsState === "connected"
+              ? "rgba(16,185,129,0.35)"
+              : wsState === "reconnecting" || wsState === "connecting"
+              ? "rgba(245,158,11,0.35)"
+              : "rgba(239,68,68,0.35)"
+          }
         >
-          {wsConnected ? (
+          {wsState === "connected" ? (
             <Wifi className="w-3.5 h-3.5" style={{ color: "#10B981" }} />
+          ) : wsState === "reconnecting" || wsState === "connecting" ? (
+            <Wifi className="w-3.5 h-3.5 animate-pulse" style={{ color: "#F59E0B" }} />
           ) : (
             <WifiOff className="w-3.5 h-3.5 animate-pulse" style={{ color: "#EF4444" }} />
           )}
           <span
             className="text-xs font-bold tracking-wider"
-            style={{ color: wsConnected ? "#10B981" : "#EF4444" }}
+            style={{
+              color:
+                wsState === "connected"
+                  ? "#10B981"
+                  : wsState === "reconnecting" || wsState === "connecting"
+                  ? "#F59E0B"
+                  : "#EF4444",
+            }}
           >
-            {wsConnected ? "WS" : "WS"}
+            WS
           </span>
           <span
             className="text-[10px]"
-            style={{ color: wsConnected ? "#10B981" : "#EF4444", opacity: 0.8 }}
+            style={{
+              color:
+                wsState === "connected"
+                  ? "#10B981"
+                  : wsState === "reconnecting" || wsState === "connecting"
+                  ? "#F59E0B"
+                  : "#EF4444",
+              opacity: 0.8,
+            }}
           >
-            {wsConnected ? "LIVE" : "DOWN"}
+            {wsState === "connected"
+              ? "LIVE"
+              : wsState === "reconnecting" || wsState === "connecting"
+              ? "RECONNECTING"
+              : "DOWN"}
           </span>
         </StatusPill>
 

@@ -1,5 +1,9 @@
 """Council Runner — orchestrates the 33-agent DAG and arbiter.
 
+Entry point: run_council(symbol, timeframe, features?, context?) -> DecisionPacket.
+Flow: features/blackboard -> homeostasis/circuit_breaker -> Stage 1..7 -> arbitrate -> DecisionPacket.
+All agents are invoked via TaskSpawner; stages run in order with parallel execution within each stage.
+
 DAG execution order (parallel within stages):
   Stage 1: Perception + Academic Edge P0/P1/P2 (parallel — 13 agents)
     [market_perception, flow_perception, regime, social_perception,
@@ -110,19 +114,60 @@ async def run_council(
             logger.warning("Feature aggregation failed for %s: %s", symbol, e)
             features = {"features": {}, "symbol": symbol}
 
-    # Phase C (C9): Data starvation alerting
+    # Phase C (C9): Data starvation alerting (with message+severity for Slack)
     _feat_inner = features.get("features", features) if features else {}
+    _data_quality = features.get("data_quality") or {}
+    _quality_score = _data_quality.get("quality_score", 1.0)
     if not _feat_inner or len(_feat_inner) < 3:
         try:
             from app.core.message_bus import get_message_bus
             _starvation_bus = get_message_bus()
             asyncio.create_task(_starvation_bus.publish("alert.data_starvation", {
+                "message": f"Data starvation: feature count={len(_feat_inner)} for {symbol}",
+                "severity": "RED",
                 "symbol": symbol,
                 "feature_count": len(_feat_inner),
                 "missing_hint": "Feature aggregator returned empty or near-empty dict",
             }))
         except Exception:
             pass
+    elif _quality_score < 0.3:
+        try:
+            from app.core.message_bus import get_message_bus
+            _starvation_bus = get_message_bus()
+            asyncio.create_task(_starvation_bus.publish("alert.data_starvation", {
+                "message": f"Data quality low for {symbol}: quality_score={_quality_score:.2f}",
+                "severity": "AMBER",
+                "symbol": symbol,
+                "quality_score": _quality_score,
+                "features_missing": _data_quality.get("features_missing", []),
+            }))
+        except Exception:
+            pass
+
+    # Insufficient data (no OHLCV or stale): degrade to HOLD — no trade on empty/stale features
+    _is_sufficient = _data_quality.get("is_sufficient", True)
+    if not _is_sufficient:
+        _reason = _data_quality.get("missing_data_reason", "insufficient_data")
+        logger.info(
+            "Council skipping evaluation for %s: data insufficient (%s); returning HOLD",
+            symbol, _reason,
+        )
+        _blackboard = BlackboardState(symbol=symbol, raw_features=features or {})
+        return DecisionPacket(
+            symbol=symbol,
+            timeframe=timeframe,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            votes=[],
+            final_direction="hold",
+            final_confidence=0.0,
+            vetoed=False,
+            veto_reasons=[],
+            risk_limits={},
+            execution_ready=False,
+            council_reasoning=f"Data insufficient for trading: {_reason}",
+            council_decision_id=_blackboard.council_decision_id,
+        )
 
     # Create BlackboardState — single source of truth for this evaluation
     blackboard = BlackboardState(
@@ -131,6 +176,14 @@ async def run_council(
     )
     blackboard.council_start_ms = time.monotonic() * 1000
     context["blackboard"] = blackboard
+
+    # Structured logging: eval_id and trace_id for correlation
+    try:
+        from app.core.logging_config import eval_id, trace_id
+        _token_eval = eval_id.set(blackboard.council_decision_id)
+        _token_trace = trace_id.set(blackboard.council_decision_id)
+    except Exception:
+        _token_eval = _token_trace = None
 
     timestamp = datetime.now(timezone.utc).isoformat()
 
@@ -629,23 +682,36 @@ async def run_council(
             symbol=symbol,
             timeframe=timeframe,
             timestamp=timestamp,
+            votes=all_votes,
             final_direction="hold",
             final_confidence=0.0,
-            execution_ready=False,
-            reasoning="Council critically degraded — too many agents failed",
             vetoed=True,
-            veto_reason=f"{health_report['failed_count']}/{health_report['total_agents']} agents failed",
-            votes=[v.to_dict() for v in all_votes],
+            veto_reasons=[f"{health_report['failed_count']}/{health_report['total_agents']} agents failed"],
+            risk_limits={},
+            execution_ready=False,
+            council_reasoning="Council critically degraded — too many agents failed",
+            council_decision_id=blackboard.council_decision_id,
+            ttl_seconds=blackboard.ttl_seconds,
+            created_at=blackboard.created_at.isoformat(),
         )
-        decision.council_decision_id = blackboard.council_decision_id
         return decision
 
-    # Stage 7: Arbiter
-    decision = arbitrate(symbol, timeframe, timestamp, all_votes)
+    # Stage 7: Arbiter (pass blackboard so arbiter can inspect full context)
+    decision = arbitrate(symbol, timeframe, timestamp, all_votes, blackboard=blackboard)
     decision.council_decision_id = blackboard.council_decision_id
+    decision.ttl_seconds = blackboard.ttl_seconds
+    decision.created_at = blackboard.created_at.isoformat()
 
     # ── ETBI: Populate cognitive telemetry on DecisionPacket ────────────
     total_latency = time.monotonic() * 1000 - blackboard.council_start_ms
+    # Observability: record council latency and stage timings for metrics
+    try:
+        from app.core.metrics import gauge_set
+        gauge_set("council_latency_ms", round(total_latency, 2))
+        for stage_name, stage_ms in blackboard.stage_latencies.items():
+            gauge_set("council_stage_duration_ms", round(stage_ms, 2), {"stage": stage_name})
+    except Exception:
+        pass
     cognitive = CognitiveMeta(
         mode=blackboard.cognitive_mode,
         hypothesis_diversity=CognitiveMeta.compute_diversity(all_votes),
@@ -657,6 +723,7 @@ async def run_council(
     decision.cognitive = cognitive
     decision.active_hypothesis = blackboard.hypothesis
     decision.semantic_context = blackboard.knowledge_context
+    decision.blackboard_snapshot = blackboard.to_snapshot()
 
     logger.info(
         "Council decision for %s [%s]: %s @ %.0f%% confidence (vetoed=%s, agents=%d)",
@@ -732,21 +799,41 @@ async def run_council(
     except Exception as _e:
         logger.debug("Debate history recording failed: %s", _e)
 
-    # Phase C (C9): Silent failure alerting — degraded council detection
+    # Phase C (C9): Silent failure alerting — degraded when >20% agents are failure-HOLDs
     try:
-        _degraded = sum(1 for v in all_votes if v.direction == "hold") >= 5
-        if _degraded:
+        from app.council.council_health import update_after_evaluation, classify_votes
+        total_reg = 35  # from registry
+        total_latency = time.monotonic() * 1000 - blackboard.council_start_ms
+        update_after_evaluation(
+            decision_id=blackboard.council_decision_id,
+            symbol=symbol,
+            verdict=decision.final_direction,
+            latency_ms=total_latency,
+            votes=all_votes,
+            total_registered=total_reg,
+        )
+        classification = classify_votes(all_votes, total_reg)
+        if classification["is_degraded"]:
             from app.core.message_bus import get_message_bus
             _alert_bus = get_message_bus()
-            import asyncio as _asyncio
-            _asyncio.create_task(_alert_bus.publish("alert.council_degraded", {
+            failed_list = [v.agent_name for v in all_votes
+                           if v.direction == "hold" and (v.confidence <= 0.1 or "timeout" in (v.reasoning or "").lower() or "error" in (v.reasoning or "").lower())]
+            asyncio.create_task(_alert_bus.publish("alert.council_degraded", {
+                "message": f"Council degraded: {classification['voted_successfully']}/{total_reg} agents healthy ({len(failed_list)} failed)",
+                "severity": "RED" if classification["is_critical"] else "AMBER",
                 "decision_id": blackboard.council_decision_id,
                 "symbol": symbol,
-                "hold_count": sum(1 for v in all_votes if v.direction == "hold"),
-                "total_agents": len(all_votes),
-                "failed_agents": [v.agent_name for v in all_votes
-                                  if v.direction == "hold" and v.confidence <= 0.0],
+                "hold_count": len(failed_list),
+                "total_agents": total_reg,
+                "failed_agents": failed_list,
             }))
+        # Publish council.health for dashboard/observability
+        try:
+            from app.council.council_health import get_health
+            _health_bus = get_message_bus()
+            asyncio.create_task(_health_bus.publish("council.health", get_health()))
+        except Exception:
+            pass
     except Exception:
         pass
 
@@ -793,14 +880,14 @@ async def run_council(
     except Exception as e:
         logger.debug("HITL gate check failed (proceeding): %s", e)
 
-    # Record decision in feedback loop for learning
+    # Record decision in feedback loop for learning (trade_id = council_decision_id for outcome matching)
     try:
         from app.council.feedback_loop import record_decision
         record_decision(
             symbol=symbol,
             final_direction=decision.final_direction,
             votes=[v.to_dict() for v in all_votes],
-            trade_id=context.get("trade_id"),
+            trade_id=context.get("trade_id") or blackboard.council_decision_id,
         )
     except Exception as e:
         logger.debug("Feedback loop record failed: %s", e)

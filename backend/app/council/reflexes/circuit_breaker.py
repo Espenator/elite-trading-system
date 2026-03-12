@@ -3,7 +3,10 @@
 These are fast (<50ms) safety checks that can halt trading instantly.
 If any check fires, the council is skipped entirely and a HOLD is returned.
 
-Thresholds are loaded from agent_config (settings service / directives).
+Evaluates: flash crash, VIX/volatility spike, daily drawdown limit,
+position limit, market-hours check, data/connectivity sanity.
+
+Thresholds are loaded from directives (global + regime overlay) via agent_config.
 """
 import asyncio
 import logging
@@ -15,18 +18,19 @@ from app.council.blackboard import BlackboardState
 
 logger = logging.getLogger(__name__)
 
-# Default thresholds (overridden by directives/settings)
+# Default thresholds (overridden by directives / agent_config)
 _DEFAULTS = {
     "cb_vix_spike_threshold": 35.0,
-    "cb_daily_drawdown_limit": float(os.getenv("CB_DAILY_DRAWDOWN_LIMIT", "0.03")),  # 3% default, configurable
-    "cb_flash_crash_threshold": 0.05,  # 5% in 5min
+    "cb_daily_drawdown_limit": float(os.getenv("CB_DAILY_DRAWDOWN_LIMIT", "0.03")),
+    "cb_flash_crash_threshold": 0.05,
     "cb_max_positions": 10,
-    "cb_max_single_position_pct": 0.20,  # 20%
+    "cb_max_single_position_pct": 0.20,
+    "cb_data_connectivity_min_sources_healthy": 1,  # at least 1 critical source (e.g. alpaca) not DEGRADED
 }
 
 
 def _get_thresholds() -> dict:
-    """Load circuit breaker thresholds from settings, falling back to defaults."""
+    """Load circuit breaker thresholds from directives/agent_config, falling back to defaults."""
     try:
         from app.council.agent_config import get_agent_thresholds
         cfg = get_agent_thresholds()
@@ -50,6 +54,7 @@ class CircuitBreaker:
             self.daily_drawdown_limit(blackboard),
             self.position_limit_check(blackboard),
             self.market_hours_check(blackboard),
+            self.data_connectivity_sanity(blackboard),
         ]
         try:
             # Circuit breakers MUST complete within 5s — they're safety-critical
@@ -141,6 +146,30 @@ class CircuitBreaker:
         if hour_et < 4 or hour_et >= 20:
             return f"Market closed: off-hours (ET hour={hour_et})"
 
+        return None
+
+    async def data_connectivity_sanity(self, blackboard: BlackboardState) -> Optional[str]:
+        """Require at least one critical data source (e.g. Alpaca) not DEGRADED.
+
+        If the broker/data health registry reports DEGRADED for critical sources,
+        halt to avoid trading on stale or failing data. Best-effort: if registry
+        is unavailable, we do not block.
+        """
+        try:
+            from app.services.data_source_health_registry import get_health
+            health = get_health()
+            sources = health.get("sources", [])
+            critical_names = {"alpaca"}
+            degraded = [
+                s["name"] for s in sources
+                if s.get("name") in critical_names and s.get("status") == "DEGRADED"
+            ]
+            if degraded:
+                return (
+                    f"Data/connectivity sanity: critical source(s) DEGRADED: {', '.join(degraded)}"
+                )
+        except Exception as e:
+            logger.debug("Data connectivity check skipped: %s", e)
         return None
 
 

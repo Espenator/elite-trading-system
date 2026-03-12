@@ -128,22 +128,33 @@ The council is the profit-critical decision engine. Every trade signal passes th
 | arbiter.py | 6.4 KB | Deterministic BUY/SELL/HOLD with Bayesian weights |
 | agent_config.py | 5.4 KB | Settings-driven thresholds for all 35 agents |
 
-## Trade Pipeline (v5.0.0 -- Council-Controlled)
+## Trade Pipeline (v5.0.0 — Council-Controlled)
 
-```
-AlpacaStreamService
-  -> market_data.bar
-  -> EventDrivenSignalEngine
-  -> signal.generated (score >= 65)
-  -> CouncilGate (invokes 35-agent council)
-  -> council.verdict (BUY/SELL/HOLD with Bayesian-weighted confidence)
-  -> OrderExecutor (real DuckDB stats, real ATR, mock-source guard)
-  -> order.submitted
-  -> WebSocket bridges
-  -> Frontend
+```mermaid
+flowchart LR
+  subgraph Ingest
+    A[AlpacaStreamService] --> B[market_data.bar]
+  end
+  subgraph Signal
+    B --> C[EventDrivenSignalEngine]
+    C --> D[signal.generated<br/>score ≥ threshold]
+  end
+  subgraph Council
+    D --> E[CouncilGate]
+    E --> F[35-Agent DAG<br/>7 stages]
+    F --> G[council.verdict<br/>BUY/SELL/HOLD]
+  end
+  subgraph Execute
+    G --> H[OrderExecutor<br/>Gate 2b/2c, Kelly, ATR]
+    H --> I[order.submitted]
+  end
+  subgraph UI
+    I --> J[WebSocket bridges]
+    J --> K[Frontend]
+  end
 ```
 
-Every signal passes through the full 35-agent council before any trade is executed. No hardcoded data -- Kelly sizing uses real DuckDB trade statistics, ATR comes from real feature data, and the mock-source guard prevents trading on fake data.
+Every signal passes through the full 35-agent council before any trade is executed. No hardcoded data — Kelly sizing uses real DuckDB trade statistics, ATR comes from real feature data, and the mock-source guard prevents trading on fake data.
 
 ## Council DAG (35 Agents, 7 Stages)
 
@@ -544,24 +555,22 @@ All API keys live in `backend/.env` (gitignored). Services degrade gracefully if
 
 All trading events are bridged from MessageBus to Slack via `slack_notification_service.py`. Tokens expire every 12h — refresh at https://api.slack.com/apps. Config in `backend/.env` (gitignored).
 
-## Quick Start
+## Quick Start (3 commands — fresh clone)
+
+From repo root after cloning:
 
 ```bash
-# Clone
-git clone https://github.com/Espenator/elite-trading-system.git
-cd elite-trading-system
+# 1. Backend: install deps, copy env, start API
+cd backend && pip install -r requirements.txt && cp .env.example .env && uvicorn app.main:app --host 0.0.0.0 --port 8000
 
-# Backend setup
-cd backend
-pip install -r requirements.txt
-cp .env.example .env  # Edit .env with Alpaca API keys
-python start_server.py
+# 2. Frontend (new terminal): install and run dev server
+cd frontend-v2 && npm install && npm run dev
 
-# Frontend setup (new terminal)
-cd frontend-v2
-npm install
-npm run dev
+# 3. (Optional) Brain service on PC2: gRPC LLM inference
+cd brain_service && pip install -r requirements.txt && python server.py
 ```
+
+Edit `backend/.env` with at least `ALPACA_API_KEY` and `ALPACA_SECRET_KEY` before running live/paper trading. See [SETUP.md](SETUP.md) for full setup.
 
 > **Legacy repo** `github.com/Espenator/Embodier-Trader` is ARCHIVED. Do NOT commit there.
 
@@ -812,11 +821,27 @@ See `PLAN.md` for historical details on all 40 specific issues resolved.
 
 ---
 
+## For AI Agents
+
+**Read `project_state.md` first** in every new session. It is the single source of truth for:
+
+- Current version, what's working, what's broken, what's next
+- File path conventions (repo-relative paths), naming and test conventions
+- Known issues and severity
+- Council architecture, event pipeline, and key code patterns
+
+Paste `project_state.md` into the chat and acknowledge you've read it before asking for code changes. See also [docs/COUNCIL-ARCHITECTURE.md](docs/COUNCIL-ARCHITECTURE.md) for the 35-agent DAG and [docs/API-REFERENCE.md](docs/API-REFERENCE.md) for all API routes.
+
+---
+
 ## 📄 Key Documents
 
 | File | Purpose |
 |------|--------|
 | `project_state.md` | 🔴 **START HERE** — paste into every AI session |
+| `docs/API-REFERENCE.md` | All 43 API routes by domain |
+| `docs/COUNCIL-ARCHITECTURE.md` | 35-agent DAG, weights, debate, how to add an agent |
+| `docs/RUNBOOK.md` | Operations: start/stop, health, emergency flatten, API keys |
 | `REPO-MAP.md` | Complete file inventory with descriptions |
 | `SETUP.md` | Detailed setup instructions |
 | `docs/MOCKUP-FIDELITY-AUDIT.md` | UI mockup vs code comparison |

@@ -445,6 +445,17 @@ def _source_to_read(src: Dict[str, Any]) -> DataSourceRead:
 # ---------------------------------------------------------------------------
 
 
+@router.get("/health")
+async def data_sources_health():
+    """Return health matrix for all 10 canonical data sources (CLAUDE.md Section 10)."""
+    try:
+        from app.services.data_source_health_registry import get_health
+        return get_health()
+    except Exception as e:
+        logger.debug("Data sources health unavailable: %s", e)
+        return {"sources": []}
+
+
 @router.get("/", response_model=List[DataSourceRead])
 async def list_sources():
     """List all 18 data sources with live health status."""

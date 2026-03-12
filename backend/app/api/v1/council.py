@@ -48,11 +48,27 @@ def _check_rate_limit():
     _eval_timestamps.append(now)
 
 
+async def _broadcast_verdict_safe(verdict_dict: dict, halt_reason: Optional[str] = None):
+    """Broadcast compact verdict to WebSocket; never raise (WS failures must not break pipeline)."""
+    try:
+        from app.council.verdict_broadcast import (
+            build_compact_verdict_payload,
+            broadcast_council_verdict,
+        )
+        payload = build_compact_verdict_payload(verdict_dict, halt_reason=halt_reason)
+        await broadcast_council_verdict(payload)
+    except Exception as e:
+        logger.debug("Council verdict broadcast failed (non-fatal): %s", e)
+
+
 @router.post("/evaluate", dependencies=[Depends(require_auth)])
 async def evaluate_symbol(req: CouncilEvalRequest):
-    """Run the 35-agent council on a symbol and return DecisionPacket."""
+    """Run the 35-agent council on a symbol and return DecisionPacket.
+    On completion (or timeout/halt), broadcasts a compact verdict to WebSocket channel council_verdict.
+    """
     global _latest_decision
     _check_rate_limit()
+    symbol = (req.symbol or "").upper()
     try:
         from app.council.runner import run_council
 
@@ -68,12 +84,40 @@ async def evaluate_symbol(req: CouncilEvalRequest):
 
         result = decision.to_dict()
         _latest_decision = result
+        # Broadcast verdict to WebSocket (best-effort; do not block response)
+        halt_reason = None
+        if decision.vetoed:
+            halt_reason = "vetoed"
+        elif decision.final_direction == "hold" or not decision.execution_ready:
+            halt_reason = "hold"
+        asyncio.create_task(_broadcast_verdict_safe(result, halt_reason=halt_reason))
         return result
     except asyncio.TimeoutError:
         logger.error("Council evaluation timed out for %s (120s limit)", req.symbol)
+        # Emit halted verdict so clients see consistent payload
+        halt_payload = {
+            "council_decision_id": "",
+            "symbol": symbol,
+            "final_direction": "hold",
+            "final_confidence": 0.0,
+            "votes": [],
+            "execution_ready": False,
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
+        asyncio.create_task(_broadcast_verdict_safe(halt_payload, halt_reason="timeout"))
         raise HTTPException(status_code=504, detail="Council evaluation timed out (120s)")
     except Exception as e:
         logger.error("Council evaluation failed: %s", e)
+        halt_payload = {
+            "council_decision_id": "",
+            "symbol": symbol,
+            "final_direction": "hold",
+            "final_confidence": 0.0,
+            "votes": [],
+            "execution_ready": False,
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
+        asyncio.create_task(_broadcast_verdict_safe(halt_payload, halt_reason="error"))
         raise HTTPException(status_code=500, detail="Council evaluation failed")
 
 
@@ -225,3 +269,31 @@ async def agent_calibration():
     except Exception as e:
         logger.debug("Calibration data unavailable: %s", e)
         return {"calibration": [], "count": 0, "status": "unavailable"}
+
+
+# ── Health observability (Prompt 3) ────────────────────────────────────────
+
+
+@router.get("/health")
+async def council_health():
+    """Return council health: last evaluation + rolling 24h stats."""
+    try:
+        from app.council.council_health import get_health
+        return get_health()
+    except Exception as e:
+        logger.debug("Council health unavailable: %s", e)
+        return {
+            "last_evaluation": None,
+            "rolling_24h": {"evaluations": 0, "avg_healthy_agents": 0, "avg_latency_ms": 0, "p95_latency_ms": 0, "worst_degradation": None},
+        }
+
+
+@router.get("/agents/performance")
+async def council_agents_performance():
+    """Return per-agent performance (vote counts, failures, Brier, health)."""
+    try:
+        from app.council.council_health import get_agents_performance
+        return get_agents_performance()
+    except Exception as e:
+        logger.debug("Agents performance unavailable: %s", e)
+        return {"agents": [], "broken_agents": [], "always_hold_agents": []}

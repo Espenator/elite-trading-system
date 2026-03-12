@@ -193,6 +193,18 @@ def get_connection_count() -> int:
     return len(_ws_connections)
 
 
+async def close_all_connections():
+    """Close all WebSocket connections with proper close frame (code 1000 = normal)."""
+    n = len(_ws_connections)
+    for ws in list(_ws_connections):
+        try:
+            await ws.close(code=1000, reason="Server shutting down")
+        except Exception:
+            pass
+        remove_connection(ws)
+    logger.info("WebSocket: closed all %d connections", n)
+
+
 def get_channel_info() -> dict:
     """Return channel subscription counts for monitoring."""
     return {

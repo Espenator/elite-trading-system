@@ -7,6 +7,7 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import Layout from "./components/layout/Layout";
 import ErrorBoundary from "./components/ErrorBoundary";
+import PageSkeleton from "./components/ui/PageSkeleton";
 // CNSProvider is provided by Layout — no need to import here
 
 // Per-page error boundary that preserves navigation chrome
@@ -50,14 +51,11 @@ const TradeExecution = lazy(() => import("./pages/TradeExecution"));
 // SYSTEM section
 const Settings = lazy(() => import("./pages/Settings"));
 
-// ----------- LOADING FALLBACK -----------
+// ----------- LOADING FALLBACK (shimmer skeleton) -----------
 function PageLoader() {
   return (
-    <div className="flex items-center justify-center h-full">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
-        <span className="text-xs text-gray-400">Loading module...</span>
-      </div>
+    <div className="flex flex-col h-full p-6">
+      <PageSkeleton lines={12} className="max-w-2xl" />
     </div>
   );
 }

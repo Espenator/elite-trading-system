@@ -1,20 +1,22 @@
-"""Feature Aggregator — produce clean, stable feature vectors.
+"""Feature Aggregator — produce clean, stable feature vectors from real data.
 
 Combines OHLCV data, technical indicators, volume metrics, regime snapshot,
 flow features, and intermarket/cycle data into a unified FeatureVector
-used by all 13 council agents, XGBoost training, LLM hypothesis prompts,
-and critic postmortems.
+used by all 35 council agents. All data comes from configured providers
+(DuckDB-backed); no mock data. Missing or stale data is surfaced via
+data_freshness and provider_health so the council can HOLD instead of
+trading on silent zero defaults.
 
 Usage:
     from app.features.feature_aggregator import aggregate
-    fv = await aggregate("AAPL", datetime.now(), "1d")
+    fv = await aggregate("AAPL", datetime.now(timezone.utc), "1d")
+    d = fv.to_dict()  # includes data_quality, data_freshness, provider_health
 """
 import asyncio
 import hashlib
 import json
 import logging
 import math
-from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -22,9 +24,53 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 
+# Expected feature keys for data_quality (council agents rely on these)
+EXPECTED_FEATURE_KEYS = frozenset({
+    "last_close", "return_1d", "return_5d", "return_20d",
+    "last_volume", "volume_surge_ratio", "volume_trend_5d",
+    "atr_14", "atr_pct", "volatility_20d", "rsi_14",
+    "regime", "regime_confidence", "vix_close", "vix_level",
+    "intermarket_spy_return", "intermarket_vix_return", "ticker_spy_correlation",
+    "spy_uvxy_correlation", "sector_bullish_pct", "beta",
+    "cycle_position", "cycle_bars_since_low",
+})
+
+
+def _compute_data_quality(
+    merged: Dict[str, Any],
+    is_sufficient: bool = True,
+    missing_data_reason: str = "",
+    provider_health: Optional[Dict[str, Any]] = None,
+    data_freshness: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Compute data_quality dict for observability and agent context.
+
+    When is_sufficient is False, council should treat as HOLD (no trade on stale/missing data).
+    """
+    present = set(merged.keys())
+    missing = list(EXPECTED_FEATURE_KEYS - present)
+    total_expected = max(len(EXPECTED_FEATURE_KEYS), 1)
+    present_count = len(present)
+    quality_score = round(min(1.0, present_count / total_expected), 2)
+    out = {
+        "total_features_expected": total_expected,
+        "features_present": present_count,
+        "features_missing": missing[:15],
+        "quality_score": quality_score,
+        "stale_features": [],
+        "is_sufficient": is_sufficient,
+        "missing_data_reason": missing_data_reason or "",
+    }
+    if provider_health:
+        out["provider_health"] = provider_health
+    if data_freshness:
+        out["data_freshness"] = data_freshness
+    return out
+
+
 @dataclass
 class FeatureVector:
-    """Typed feature vector with stable hash."""
+    """Typed feature vector with stable hash, freshness and provider health."""
 
     symbol: str
     timestamp: str
@@ -38,6 +84,9 @@ class FeatureVector:
     intermarket_features: Dict[str, float] = field(default_factory=dict)
     cycle_features: Dict[str, float] = field(default_factory=dict)
     raw: Dict[str, Any] = field(default_factory=dict)
+    data_quality: Optional[Dict[str, Any]] = None
+    data_freshness: Optional[Dict[str, Any]] = None
+    provider_health: Optional[Dict[str, Any]] = None
 
     def _all_features(self) -> Dict[str, Any]:
         """Merge all feature dicts into one."""
@@ -60,8 +109,15 @@ class FeatureVector:
         }
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary representation."""
-        return self._all_features()
+        """Convert to dictionary; includes data_quality, data_freshness, provider_health when set."""
+        out = self._all_features()
+        if self.data_quality is not None:
+            out["data_quality"] = self.data_quality
+        if self.data_freshness is not None:
+            out["data_freshness"] = self.data_freshness
+        if self.provider_health is not None:
+            out["provider_health"] = self.provider_health
+        return out
 
     @property
     def hash(self) -> str:
@@ -562,82 +618,163 @@ def _get_cycle_features(ohlcv_rows: list) -> Dict[str, float]:
     }
 
 
+def _parse_utc_iso(s: str) -> Optional[datetime]:
+    """Parse UTC ISO string to datetime; return None if invalid."""
+    if not s:
+        return None
+    try:
+        s = s.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(s)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except Exception:
+        return None
+
+
 async def aggregate(
     symbol: str,
     ts: Optional[datetime] = None,
     timeframe: str = "1d",
     persist: bool = False,
 ) -> FeatureVector:
-    """Aggregate all features for a symbol into a FeatureVector.
+    """Aggregate all features for a symbol from real providers; no mock data.
 
-    Args:
-        symbol: Ticker symbol
-        ts: Timestamp (defaults to now)
-        timeframe: Timeframe for features
-        persist: If True, store to DuckDB feature store
-
-    Returns:
-        FeatureVector with all available features for 13 council agents
+    When OHLCV is missing or stale, price/volume/volatility are left empty
+    (no silent zeros). data_freshness and provider_health let the council
+    distinguish fresh vs stale vs missing and degrade to HOLD.
     """
     if ts is None:
         ts = datetime.now(timezone.utc)
+    ts_utc = ts.replace(tzinfo=timezone.utc) if ts.tzinfo is None else ts
+    ts_iso = ts_utc.isoformat().replace("+00:00", "Z")
 
-    # Run all blocking DB + computation in thread pool
-    # Level 1A: Parallelized — independent data fetches run concurrently
-    # via ThreadPoolExecutor, reducing 50-150ms → 20-50ms
     def _build_sync():
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-
-        ohlcv_rows = []
-        try:
-            from app.data.duckdb_storage import duckdb_store
-            conn = duckdb_store.get_thread_cursor()
-            df = conn.execute(
-                """SELECT date, open, high, low, close, volume
-                   FROM daily_ohlcv
-                   WHERE symbol = ?
-                   ORDER BY date DESC
-                   LIMIT 60""",
-                [symbol.upper()],
-            ).fetchdf()
-            if not df.empty:
-                ohlcv_rows = df.sort_values("date").to_dict("records")
-        except Exception as e:
-            logger.warning("Failed to fetch OHLCV for %s: %s", symbol, e)
-
-        # Parallelize independent fetches: regime, flow, indicators,
-        # intermarket all hit DuckDB independently (workers from FEATURE_AGGREGATOR_WORKERS)
+        from concurrent.futures import ThreadPoolExecutor
+        from app.features.providers import (
+            fetch_ohlcv,
+            fetch_regime,
+            fetch_flow,
+            fetch_indicators,
+            fetch_intermarket,
+            get_stale_bar_max_age_seconds,
+        )
         try:
             from app.core.config import settings
             _nworkers = getattr(settings, "FEATURE_AGGREGATOR_WORKERS", 4)
         except Exception:
             _nworkers = 4
+
+        provider_timeout = 5
+        ohlcv_rows: List[Dict[str, Any]] = []
+        last_bar_utc = ""
+        ohlcv_ok = False
+        ohlcv_error = ""
+        regime_features: Dict[str, Any] = {}
+        regime_ok = False
+        regime_last = ""
+        regime_error = ""
+        flow_features: Dict[str, float] = {}
+        flow_ok = False
+        flow_last = ""
+        flow_error = ""
+        indicator_features: Dict[str, float] = {}
+        indicators_ok = False
+        indicators_last = ""
+        indicators_error = ""
+        intermarket_features: Dict[str, float] = {}
+        intermarket_ok = False
+        intermarket_last = ""
+        intermarket_error = ""
+
         with ThreadPoolExecutor(max_workers=max(1, _nworkers), thread_name_prefix="feat") as pool:
-            f_regime = pool.submit(_get_regime_snapshot)
-            f_flow = pool.submit(_get_flow_features, symbol)
-            f_indicators = pool.submit(_get_indicator_features, symbol)
-            f_intermarket = pool.submit(_get_intermarket_features, symbol)
+            f_ohlcv = pool.submit(fetch_ohlcv, symbol.upper(), 60)
+            f_regime = pool.submit(fetch_regime)
+            f_flow = pool.submit(fetch_flow, symbol.upper())
+            f_ind = pool.submit(fetch_indicators, symbol.upper())
+            f_int = pool.submit(fetch_intermarket, symbol.upper())
 
-            # These depend on ohlcv_rows so run in main thread
-            price_features = _compute_price_features(ohlcv_rows)
-            volume_features = _compute_volume_features(ohlcv_rows)
-            volatility_features = _compute_volatility_features(ohlcv_rows)
-            cycle_features = _get_cycle_features(ohlcv_rows)
+            try:
+                ohlcv_rows, last_bar_utc, ohlcv_ok, ohlcv_error = f_ohlcv.result(timeout=provider_timeout)
+            except Exception as e:
+                logger.warning("OHLCV provider timeout/error for %s: %s", symbol, e)
+                ohlcv_error = f"timeout:{type(e).__name__}"
+            try:
+                regime_features, regime_last, regime_ok, regime_error = f_regime.result(timeout=provider_timeout)
+            except Exception as e:
+                logger.warning("Regime provider timeout/error: %s", e)
+                regime_features = {"regime": "unknown", "regime_confidence": 0.0}
+                regime_error = f"timeout:{type(e).__name__}"
+            try:
+                flow_features, flow_last, flow_ok, flow_error = f_flow.result(timeout=provider_timeout)
+            except Exception as e:
+                logger.warning("Flow provider timeout/error for %s: %s", symbol, e)
+                flow_error = f"timeout:{type(e).__name__}"
+            try:
+                indicator_features, indicators_last, indicators_ok, indicators_error = f_ind.result(timeout=provider_timeout)
+            except Exception as e:
+                logger.warning("Indicators provider timeout/error for %s: %s", symbol, e)
+                indicators_error = f"timeout:{type(e).__name__}"
+            try:
+                intermarket_features, intermarket_last, intermarket_ok, intermarket_error = f_int.result(timeout=provider_timeout)
+            except Exception as e:
+                logger.warning("Intermarket provider timeout/error: %s", e)
+                intermarket_error = f"timeout:{type(e).__name__}"
 
-            # Collect parallel results
-            regime_features = f_regime.result(timeout=5)
-            flow_features = f_flow.result(timeout=5)
-            indicator_features = f_indicators.result(timeout=5)
-            intermarket_features = f_intermarket.result(timeout=5)
-
-        extended = _compute_extended_indicators(ohlcv_rows)
+        # Only compute price/volume/volatility/cycle from real OHLCV; no zero defaults when missing
+        if not ohlcv_ok or not ohlcv_rows:
+            if not ohlcv_error:
+                ohlcv_error = "no_ohlcv"
+            logger.info("Feature aggregation: no OHLCV for %s (%s); omitting price/volume/volatility", symbol, ohlcv_error)
+        price_features = _compute_price_features(ohlcv_rows) if ohlcv_rows else {}
+        volume_features = _compute_volume_features(ohlcv_rows) if ohlcv_rows else {}
+        volatility_features = _compute_volatility_features(ohlcv_rows) if len(ohlcv_rows) >= 2 else {}
+        cycle_features = _get_cycle_features(ohlcv_rows) if ohlcv_rows else {}
+        extended = _compute_extended_indicators(ohlcv_rows) if ohlcv_rows else {}
         for k, v in extended.items():
             if k not in indicator_features:
                 indicator_features[k] = v
 
+        # Strip sentinel keys from indicator_features if provider failed
+        indicator_features = {k: v for k, v in indicator_features.items() if not k.startswith("_")}
+
+        # Data freshness: bar age and staleness
+        stale_threshold = get_stale_bar_max_age_seconds()
+        now_utc = datetime.now(timezone.utc)
+        last_dt = _parse_utc_iso(last_bar_utc)
+        age_seconds = (now_utc - last_dt).total_seconds() if last_dt else float("inf")
+        is_stale = (not last_bar_utc) or (age_seconds > stale_threshold)
+        stale_reason = ""
+        if not last_bar_utc:
+            stale_reason = "no_bar"
+        elif is_stale:
+            stale_reason = "stale_bar"
+
+        data_freshness = {
+            "last_bar_utc": last_bar_utc or "",
+            "age_seconds": round(age_seconds, 1) if last_bar_utc else None,
+            "is_stale": is_stale,
+            "stale_reason": stale_reason,
+        }
+
+        provider_health = {
+            "ohlcv": {"ok": ohlcv_ok, "last_updated_utc": last_bar_utc, "error": ohlcv_error or None, "stale": is_stale},
+            "regime": {"ok": regime_ok, "last_updated_utc": regime_last, "error": regime_error or None},
+            "flow": {"ok": flow_ok, "last_updated_utc": flow_last, "error": flow_error or None},
+            "indicators": {"ok": indicators_ok, "last_updated_utc": indicators_last, "error": indicators_error or None},
+            "intermarket": {"ok": intermarket_ok, "last_updated_utc": intermarket_last, "error": intermarket_error or None},
+        }
+
+        is_sufficient = ohlcv_ok and bool(ohlcv_rows) and not is_stale
+        missing_data_reason = ""
+        if not ohlcv_ok or not ohlcv_rows:
+            missing_data_reason = ohlcv_error or "no_ohlcv"
+        elif is_stale:
+            missing_data_reason = "stale_ohlcv"
+
         return FeatureVector(
             symbol=symbol.upper(),
-            timestamp=ts.isoformat() if isinstance(ts, datetime) else str(ts),
+            timestamp=ts_iso,
             timeframe=timeframe,
             price_features=price_features,
             volume_features=volume_features,
@@ -647,21 +784,59 @@ async def aggregate(
             indicator_features=indicator_features,
             intermarket_features=intermarket_features,
             cycle_features=cycle_features,
-        )
+            data_freshness=data_freshness,
+            provider_health=provider_health,
+        ), is_sufficient, missing_data_reason, provider_health, data_freshness
 
-    fv = await asyncio.to_thread(_build_sync)
+    result = await asyncio.to_thread(_build_sync)
+    fv = result[0]
+    is_sufficient = result[1]
+    missing_data_reason = result[2]
+    provider_health = result[3]
+    data_freshness = result[4]
 
-    # Persist to feature store if requested
+    merged = {}
+    merged.update(fv.price_features)
+    merged.update(fv.volume_features)
+    merged.update(fv.volatility_features)
+    merged.update(fv.regime_features)
+    merged.update(fv.flow_features)
+    merged.update(fv.indicator_features)
+    merged.update(fv.intermarket_features)
+    merged.update(fv.cycle_features)
+    fv.data_quality = _compute_data_quality(
+        merged,
+        is_sufficient=is_sufficient,
+        missing_data_reason=missing_data_reason,
+        provider_health=provider_health,
+        data_freshness=data_freshness,
+    )
+
     if persist:
         try:
             from app.data.feature_store import feature_store
-            feature_store.store_features(
-                symbol, ts, timeframe, fv.to_dict()["features"]
-            )
+            feature_store.store_features(symbol, ts_utc, timeframe, merged)
         except Exception as e:
             logger.warning("Failed to persist features for %s: %s", symbol, e)
 
+    # Optional: augment with live Finviz quote when enabled (async; no mock; skip on failure)
+    try:
+        from app.core.config import settings
+        if getattr(settings, "FEATURE_USE_FINVIZ_LIVE", False) and fv.price_features and symbol:
+            from app.services.finviz_service import FinvizService
+            svc = FinvizService()
+            quotes = await svc.get_quote_data(ticker=symbol.upper(), timeframe="d", duration="d1")
+            if quotes and isinstance(quotes, (list, dict)):
+                q = quotes[0] if isinstance(quotes, list) and quotes else quotes
+                close_val = q.get("close") or q.get("Close")
+                if close_val is not None:
+                    fv.price_features["last_close"] = _safe_float(close_val)
+                    merged["last_close"] = fv.price_features["last_close"]
+    except Exception as e:
+        logger.debug("Optional Finviz live quote skipped for %s: %s", symbol, e)
+
     logger.debug(
-        "Aggregated %d features for %s", fv.to_dict()["feature_count"], symbol
+        "Aggregated %d features for %s; sufficient=%s",
+        fv.to_dict()["feature_count"], symbol, is_sufficient,
     )
     return fv

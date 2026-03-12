@@ -127,6 +127,10 @@ def record_outcome(
     if matching:
         _update_agent_stats(store, matching, outcome)
         logger.info(
+            "[LEARNING-TRACE] feedback_loop.record_outcome matched trade_id=%s symbol=%s -> %s (R=%.2f)",
+            trade_id, symbol, outcome, r_multiple,
+        )
+        logger.info(
             "Feedback loop: %s %s -> %s (R=%.2f). Agent stats updated.",
             symbol, matching["final_direction"], outcome, r_multiple,
         )
@@ -204,6 +208,10 @@ def update_agent_weights(
             confidence = outcome.get("confidence", 1.0)
 
             try:
+                logger.info(
+                    "[LEARNING-TRACE] feedback_loop.update_agent_weights calling weight_learner.update_from_outcome trade_id=%s symbol=%s",
+                    trade_id, symbol,
+                )
                 updated = learner.update_from_outcome(
                     symbol=symbol,
                     outcome_direction=outcome_direction,
@@ -211,6 +219,11 @@ def update_agent_weights(
                     r_multiple=r_multiple,
                     confidence=confidence,
                     outcome_id=trade_id,
+                    trade_id=trade_id,
+                )
+                logger.info(
+                    "[LEARNING-TRACE] weight_learner.update_from_outcome returned %d updated weights for %s",
+                    len(updated), symbol,
                 )
                 logger.info(
                     "WEIGHT UPDATE: %s %s (pnl=%.2f, R=%.2f). "

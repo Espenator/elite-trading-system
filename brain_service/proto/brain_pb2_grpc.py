@@ -49,13 +49,34 @@ class BrainServiceStub(object):
                 request_serializer=brain__pb2.EmbedRequest.SerializeToString,
                 response_deserializer=brain__pb2.EmbedResponse.FromString,
                 _registered_method=True)
+        self.RunCouncilStage = channel.unary_unary(
+                '/brain.BrainService/RunCouncilStage',
+                request_serializer=brain__pb2.CouncilStageRequest.SerializeToString,
+                response_deserializer=brain__pb2.CouncilStageResponse.FromString,
+                _registered_method=True)
+        self.ComputeFeatures = channel.unary_unary(
+                '/brain.BrainService/ComputeFeatures',
+                request_serializer=brain__pb2.FeatureRequest.SerializeToString,
+                response_deserializer=brain__pb2.FeatureResponse.FromString,
+                _registered_method=True)
+        self.ScanUniverse = channel.unary_unary(
+                '/brain.BrainService/ScanUniverse',
+                request_serializer=brain__pb2.ScanRequest.SerializeToString,
+                response_deserializer=brain__pb2.ScanResponse.FromString,
+                _registered_method=True)
+        self.BatchScore = channel.unary_unary(
+                '/brain.BrainService/BatchScore',
+                request_serializer=brain__pb2.BatchScoreRequest.SerializeToString,
+                response_deserializer=brain__pb2.BatchScoreResponse.FromString,
+                _registered_method=True)
 
 
 class BrainServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def InferCandidateContext(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """Original RPCs
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -68,6 +89,34 @@ class BrainServiceServicer(object):
 
     def Embed(self, request, context):
         """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def RunCouncilStage(self, request, context):
+        """Level 3A: Distributed council — PC2 runs perception agents (Stage 1)
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ComputeFeatures(self, request, context):
+        """Level 3B: Feature computation offload — PC2 computes features via GPU
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ScanUniverse(self, request, context):
+        """Level 3C: Discovery scanning — PC2 runs parallel universe scanner
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def BatchScore(self, request, context):
+        """Level 2B: Batch ML scoring — PC2 scores multiple symbols via GPU
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -89,6 +138,26 @@ def add_BrainServiceServicer_to_server(servicer, server):
                     servicer.Embed,
                     request_deserializer=brain__pb2.EmbedRequest.FromString,
                     response_serializer=brain__pb2.EmbedResponse.SerializeToString,
+            ),
+            'RunCouncilStage': grpc.unary_unary_rpc_method_handler(
+                    servicer.RunCouncilStage,
+                    request_deserializer=brain__pb2.CouncilStageRequest.FromString,
+                    response_serializer=brain__pb2.CouncilStageResponse.SerializeToString,
+            ),
+            'ComputeFeatures': grpc.unary_unary_rpc_method_handler(
+                    servicer.ComputeFeatures,
+                    request_deserializer=brain__pb2.FeatureRequest.FromString,
+                    response_serializer=brain__pb2.FeatureResponse.SerializeToString,
+            ),
+            'ScanUniverse': grpc.unary_unary_rpc_method_handler(
+                    servicer.ScanUniverse,
+                    request_deserializer=brain__pb2.ScanRequest.FromString,
+                    response_serializer=brain__pb2.ScanResponse.SerializeToString,
+            ),
+            'BatchScore': grpc.unary_unary_rpc_method_handler(
+                    servicer.BatchScore,
+                    request_deserializer=brain__pb2.BatchScoreRequest.FromString,
+                    response_serializer=brain__pb2.BatchScoreResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -172,6 +241,114 @@ class BrainService(object):
             '/brain.BrainService/Embed',
             brain__pb2.EmbedRequest.SerializeToString,
             brain__pb2.EmbedResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def RunCouncilStage(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/brain.BrainService/RunCouncilStage',
+            brain__pb2.CouncilStageRequest.SerializeToString,
+            brain__pb2.CouncilStageResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ComputeFeatures(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/brain.BrainService/ComputeFeatures',
+            brain__pb2.FeatureRequest.SerializeToString,
+            brain__pb2.FeatureResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ScanUniverse(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/brain.BrainService/ScanUniverse',
+            brain__pb2.ScanRequest.SerializeToString,
+            brain__pb2.ScanResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def BatchScore(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/brain.BrainService/BatchScore',
+            brain__pb2.BatchScoreRequest.SerializeToString,
+            brain__pb2.BatchScoreResponse.FromString,
             options,
             channel_credentials,
             insecure,

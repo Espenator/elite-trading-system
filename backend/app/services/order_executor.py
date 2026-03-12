@@ -8,14 +8,14 @@ Pipeline:
   AlpacaStream -> SignalEngine -> CouncilGate -> Council -> **OrderExecutor** -> Alpaca
   market_data.bar -> signal.generated -> council.verdict -> order.submitted
 
-Risk gates (all must pass before execution):
+Risk gates (all must pass before execution; see _should_execute / gate checks in _handle_verdict):
   1. Council verdict is execution_ready with direction != hold
   2. Mock source guard (never trade on fake/mock data)
   3. Daily trade limit not exceeded
   4. Per-symbol cooldown (no rapid-fire orders)
   5. Drawdown check (not breached)
   5b. Degraded mode guard
-  5c. Kill switch / entries frozen
+  5c. Kill switch / entries frozen (Gate 2c circuit breakers)
   6. Real Kelly position sizing from DuckDB trade stats (not hardcoded)
   7. Portfolio heat check (total exposure < max_heat)
   8. Viability gate (expected cost vs edge)
@@ -182,8 +182,8 @@ class OrderExecutor:
         """Subscribe to council.verdict and begin processing."""
         self._running = True
         self._start_time = time.time()
-        # Primary: listen to council-approved verdicts
-        await self.message_bus.subscribe("council.verdict", self._on_council_verdict)
+        # Primary: listen to router-validated verdicts (TradeExecutionRouter validates council.verdict first)
+        await self.message_bus.subscribe("execution.validated_verdict", self._on_council_verdict)
         mode = "AUTO-EXECUTE" if self.auto_execute else "SHADOW (dry-run)"
         logger.info(
             "OrderExecutor started in %s mode (council-controlled) -- "
@@ -198,7 +198,7 @@ class OrderExecutor:
     async def stop(self) -> None:
         """Unsubscribe and stop processing."""
         self._running = False
-        await self.message_bus.unsubscribe("council.verdict", self._on_council_verdict)
+        await self.message_bus.unsubscribe("execution.validated_verdict", self._on_council_verdict)
         logger.info(
             "OrderExecutor stopped -- %d signals received, %d executed, %d rejected",
             self._signals_received,
@@ -208,11 +208,12 @@ class OrderExecutor:
 
     # -- Main Council Verdict Handler --
     async def _on_council_verdict(self, verdict_data: Dict[str, Any]) -> None:
-        """Process a council.verdict event through risk gates and execute."""
+        """Process an execution.validated_verdict event (from TradeExecutionRouter) through risk gates and execute."""
         if not self._running:
             return
 
         self._signals_received += 1
+        _cid = verdict_data.get("council_decision_id", "") or ""
         # E5: Update real-time gauges
         try:
             from app.core.metrics import gauge_set
@@ -239,6 +240,33 @@ class OrderExecutor:
             k: v for k, v in self._recent_verdict_hashes.items() if _now - v < 120
         }
 
+        # Decision TTL: reject verdicts older than ttl_seconds (council decision expiry)
+        created_at_str = verdict_data.get("created_at", "")
+        ttl_seconds = verdict_data.get("ttl_seconds", 0)
+        if created_at_str and ttl_seconds > 0:
+            try:
+                # Parse ISO timestamp (Z -> +00:00 for Python 3.10 compat)
+                s = created_at_str.replace("Z", "+00:00")
+                created_dt = datetime.fromisoformat(s)
+                if created_dt.tzinfo is None:
+                    created_dt = created_dt.replace(tzinfo=timezone.utc)
+                elapsed = (datetime.now(timezone.utc) - created_dt).total_seconds()
+                if elapsed > ttl_seconds:
+                    logger.warning(
+                        "Council verdict TTL expired for %s: created_at=%s, elapsed=%.1fs > ttl=%ds",
+                        verdict_data.get("symbol", "?"), created_at_str[:19], elapsed, ttl_seconds,
+                    )
+                    self._reject(
+                        verdict_data.get("symbol", "?"),
+                        verdict_data.get("signal_data", {}).get("score", 0),
+                        "Decision TTL expired",
+                        ExecutionDenyReason.DECISION_EXPIRED,
+                        council_decision_id=_cid,
+                    )
+                    return
+            except (ValueError, TypeError):
+                pass  # Missing or invalid created_at — proceed (backward compat)
+
         symbol = verdict_data.get("symbol", "")
         direction = verdict_data.get("final_direction", "hold")
         confidence = verdict_data.get("final_confidence", 0)
@@ -254,17 +282,19 @@ class OrderExecutor:
                 score,
                 "Missing symbol or invalid price",
                 ExecutionDenyReason.MISSING_SYMBOL_PRICE,
+                council_decision_id=_cid,
             )
             return
 
         # -- Gate 1: Council must approve --
         if direction == "hold":
-            self._reject(symbol, score, "Council hold", ExecutionDenyReason.COUNCIL_HOLD)
+            self._reject(symbol, score, "Council hold", ExecutionDenyReason.COUNCIL_HOLD, council_decision_id=_cid)
             return
         if not execution_ready:
             self._reject(
                 symbol, score, "Council not execution_ready",
                 ExecutionDenyReason.COUNCIL_NOT_READY,
+                council_decision_id=_cid,
             )
             return
 
@@ -274,6 +304,7 @@ class OrderExecutor:
             self._reject(
                 symbol, score, "Mock data source -- refusing to trade",
                 ExecutionDenyReason.MOCK_SOURCE,
+                council_decision_id=_cid,
             )
             return
 
@@ -296,8 +327,8 @@ class OrderExecutor:
             """Gate 2b: Regime enforcement."""
             try:
                 from app.api.v1.strategy import REGIME_PARAMS
-                regime_key = regime.upper() if regime else "YELLOW"
-                regime_params = REGIME_PARAMS.get(regime_key, REGIME_PARAMS.get("YELLOW", {}))
+                regime_key = regime.upper() if regime else "RED"
+                regime_params = REGIME_PARAMS.get(regime_key, REGIME_PARAMS.get("RED", {}))
                 max_positions = regime_params.get("max_pos", 5)
                 kelly_scale = regime_params.get("kelly_scale", 1.0)
                 if max_positions == 0 or kelly_scale == 0:
@@ -370,14 +401,14 @@ class OrderExecutor:
 
         # Evaluate results: first rejection wins
         if regime_result[0] == "reject":
-            self._reject(symbol, score, regime_result[1], regime_result[2])
+            self._reject(symbol, score, regime_result[1], regime_result[2], council_decision_id=_cid)
             return
         # Apply regime signal multiplier
         signal_mult = regime_result[3] if regime_result[3] is not None else 1.0
         score = score * signal_mult
 
         if cb_result[0] == "reject":
-            self._reject(symbol, score, cb_result[1], cb_result[2])
+            self._reject(symbol, score, cb_result[1], cb_result[2], council_decision_id=_cid)
             return
 
         # -- Gate 2d: Regime position count limit --
@@ -410,6 +441,7 @@ class OrderExecutor:
             self._reject(
                 symbol, score, "Daily trade limit reached",
                 ExecutionDenyReason.DAILY_LIMIT,
+                council_decision_id=_cid,
             )
             return
 
@@ -420,6 +452,7 @@ class OrderExecutor:
             self._reject(
                 symbol, score, f"Cooldown active ({remaining}s remaining)",
                 ExecutionDenyReason.COOLDOWN,
+                council_decision_id=_cid,
             )
             return
 
@@ -428,11 +461,12 @@ class OrderExecutor:
             self._reject(
                 symbol, score, "Drawdown limit breached",
                 ExecutionDenyReason.DRAWDOWN,
+                council_decision_id=_cid,
             )
             return
 
         if dks_result[0] == "reject":
-            self._reject(symbol, score, dks_result[1], dks_result[2])
+            self._reject(symbol, score, dks_result[1], dks_result[2], council_decision_id=_cid)
             return
 
         # -- Gate 6: Canonical SizingGate — Kelly (or deterministic sizing) must be binding
@@ -442,6 +476,7 @@ class OrderExecutor:
                 symbol, score,
                 kelly_result.get("reject_reason", "Sizing rejected"),
                 ExecutionDenyReason.SIZING_REJECTED,
+                council_decision_id=_cid,
             )
             return
         if kelly_result["action"] == "HOLD" or kelly_result.get("kelly_pct", 0) <= 0:
@@ -450,6 +485,7 @@ class OrderExecutor:
                 f"SizingGate BLOCKED: Kelly HOLD (edge={kelly_result.get('edge', 0):.4f}, "
                 f"source={kelly_result.get('stats_source', 'unknown')})",
                 ExecutionDenyReason.SIZING_HOLD,
+                council_decision_id=_cid,
             )
             return
 
@@ -466,6 +502,7 @@ class OrderExecutor:
                     symbol, score,
                     f"Homeostasis HALTED mode — no new positions (mode={homeo_mode})",
                     ExecutionDenyReason.REGIME_BLOCKED,
+                    council_decision_id=_cid,
                 )
                 return
             if homeo_scale != 1.0:
@@ -503,6 +540,7 @@ class OrderExecutor:
                         symbol, score,
                         reason or "Viability gate: expected cost exceeds edge",
                         ExecutionDenyReason.VIABILITY_DENIED,
+                        council_decision_id=_cid,
                     )
                     return
         except Exception as e:
@@ -533,6 +571,7 @@ class OrderExecutor:
                     symbol, score,
                     f"RiskGovernor REJECTED: {gov_decision.reason}",
                     ExecutionDenyReason.PORTFOLIO_RISK_LIMIT,
+                    council_decision_id=_cid,
                 )
                 return
             # Governor may reduce shares
@@ -554,6 +593,7 @@ class OrderExecutor:
                 symbol, score,
                 f"Computed qty < 1 (kelly_pct={kelly_result['kelly_pct']:.4f})",
                 ExecutionDenyReason.QTY_INVALID,
+                council_decision_id=_cid,
             )
             return
 
@@ -581,6 +621,7 @@ class OrderExecutor:
             },
             risk_checks_passed=drawdown_ok,
             verdict_timestamp=time.time(),
+            council_decision_id=verdict_data.get("council_decision_id", ""),
         )
 
         if self.auto_execute:
@@ -693,7 +734,22 @@ class OrderExecutor:
                 payload["timestamp"] = time.time()
                 payload["source"] = "order_executor"
                 payload["order_type"] = record.order_type
+                logger.info(
+                    "[LEARNING-TRACE] order.submitted order_id=%s symbol=%s council_decision_id=%s",
+                    record.order_id, decision.symbol, getattr(decision, "council_decision_id", "") or "(none)",
+                )
                 await self.message_bus.publish("order.submitted", payload)
+                await self.message_bus.publish("execution.result", {
+                    "council_decision_id": getattr(decision, "council_decision_id", "") or "",
+                    "success": True,
+                    "order_id": record.order_id,
+                    "client_order_id": record.client_order_id,
+                    "symbol": decision.symbol,
+                    "side": decision.side,
+                    "mode": "live" if self.auto_execute else "paper",
+                    "requested_at": record.timestamp,
+                    "resolved_at": time.time(),
+                })
                 await self._notify_frontend(record, price, "submitted")
                 asyncio.create_task(self._poll_for_fill(record))
             else:
@@ -701,16 +757,55 @@ class OrderExecutor:
                 record.reject_reason = "Alpaca returned no data"
                 self._signals_rejected += 1
                 _emit_execution_attempt("auto_execute", "rejected")
+                try:
+                    from app.core.metrics import counter_inc
+                    counter_inc("execution_error_total", {"reason": "no_response"})
+                except Exception:
+                    pass
                 logger.error(
                     "Order submission failed for %s -- no response from Alpaca",
                     record.symbol,
                 )
+                await self.message_bus.publish("execution.result", {
+                    "council_decision_id": getattr(decision, "council_decision_id", "") or "",
+                    "success": False,
+                    "order_id": "",
+                    "client_order_id": record.client_order_id,
+                    "symbol": decision.symbol,
+                    "side": decision.side,
+                    "error_code": ExecutionDenyReason.BROKER_ERROR.value,
+                    "error_message": "Alpaca returned no data",
+                    "mode": "live" if self.auto_execute else "paper",
+                    "requested_at": record.timestamp,
+                    "resolved_at": time.time(),
+                })
         except Exception as e:
             record.status = "failed"
             record.reject_reason = str(e)
             self._signals_rejected += 1
             _emit_execution_attempt("auto_execute", "rejected")
+            try:
+                from app.core.metrics import counter_inc
+                counter_inc("execution_error_total", {"reason": "exception"})
+            except Exception:
+                pass
             logger.exception("Order execution error for %s: %s", record.symbol, e)
+            try:
+                await self.message_bus.publish("execution.result", {
+                    "council_decision_id": getattr(decision, "council_decision_id", "") or "",
+                    "success": False,
+                    "order_id": "",
+                    "client_order_id": getattr(record, "client_order_id", ""),
+                    "symbol": decision.symbol,
+                    "side": decision.side,
+                    "error_code": ExecutionDenyReason.BROKER_ERROR.value,
+                    "error_message": str(e),
+                    "mode": "live" if self.auto_execute else "paper",
+                    "requested_at": getattr(record, "timestamp", time.time()),
+                    "resolved_at": time.time(),
+                })
+            except Exception:
+                pass
 
     async def _shadow_execute(self, decision: ExecutionDecision) -> None:
         """Log what WOULD be executed without placing an actual order. Requires ExecutionDecision."""
@@ -779,6 +874,17 @@ class OrderExecutor:
         payload["source"] = "order_executor_shadow"
         payload["order_type"] = record.order_type
         await self.message_bus.publish("order.submitted", payload)
+        await self.message_bus.publish("execution.result", {
+            "council_decision_id": getattr(decision, "council_decision_id", "") or "",
+            "success": True,
+            "order_id": f"shadow-{client_order_id}",
+            "client_order_id": client_order_id,
+            "symbol": decision.symbol,
+            "side": decision.side,
+            "mode": "paper",
+            "requested_at": record.timestamp,
+            "resolved_at": time.time(),
+        })
         await self._notify_frontend(record, sim_fill_price, "shadow")
 
     # -- TWAP Execution (B5) --
@@ -1341,8 +1447,9 @@ class OrderExecutor:
         score: float,
         reason: str,
         deny_reason: Optional[ExecutionDenyReason] = None,
+        council_decision_id: Optional[str] = None,
     ) -> None:
-        """Log a rejected signal and emit gate-denied metric."""
+        """Log a rejected signal, emit gate-denied metric, and publish execution.result for audit."""
         self._signals_rejected += 1
         if deny_reason is not None:
             _emit_gate_denied(deny_reason.value)
@@ -1353,6 +1460,27 @@ class OrderExecutor:
             "\u26d4 Signal REJECTED: %s score=%.1f reason=%s deny=%s",
             symbol, score, reason, deny_reason.value if deny_reason else "unknown",
         )
+        try:
+            loop = asyncio.get_running_loop()
+            cid = (council_decision_id or "").strip()
+            mode = "live" if self.auto_execute else "paper"
+            loop.create_task(self.message_bus.publish("execution.result", {
+                "council_decision_id": cid,
+                "success": False,
+                "order_id": "",
+                "client_order_id": "",
+                "symbol": symbol,
+                "side": "",
+                "error_code": deny_reason.value if deny_reason else "rejected",
+                "error_message": reason,
+                "mode": mode,
+                "requested_at": time.time(),
+                "resolved_at": time.time(),
+            }))
+        except RuntimeError:
+            pass
+        except Exception as e:
+            logger.debug("Failed to publish execution.result for reject: %s", e)
 
     def _record_fill_outcome(self, record: OrderRecord, fill_price: float) -> None:
         """Wire filled order to trade_stats_service and weight_learner."""

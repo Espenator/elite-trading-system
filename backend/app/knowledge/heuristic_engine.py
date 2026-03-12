@@ -79,7 +79,7 @@ class HeuristicEngine:
     and generates heuristics that meet statistical thresholds.
     """
 
-    MIN_SAMPLE = 25
+    MIN_SAMPLE = 10  # Phase C / arch review: lowered from 25 to form heuristics with fewer outcomes
     MIN_WIN_RATE = 0.55
     CONFIDENCE_THRESHOLD = 0.65
     DEACTIVATION_THRESHOLD = 0.3

@@ -49,6 +49,10 @@ class TestBrainClientDisabled:
         assert result["confidence"] == 0.1
         assert "brain_disabled" in result["risk_flags"]
         assert result["summary"] != ""
+        assert result.get("direction") == "hold"
+        assert "reasoning" in result
+        assert result.get("supporting_signals") == []
+        assert result.get("invalidation_notes") == []
 
     @pytest.mark.anyio
     async def test_critic_returns_stub(self, client):

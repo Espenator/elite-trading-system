@@ -137,6 +137,9 @@ const API_CONFIG = {
     councilLatest:    "/council/latest",
     "council/status": "/council/status",
     councilWeights:   "/council/weights",
+    councilHealth:    "/council/health",
+    councilAgentsPerformance: "/council/agents/performance",
+    dataSourcesHealth: "/data-sources/health",
 
     // ---- FEATURE STORE ----
     featuresLatest:   "/features/latest",

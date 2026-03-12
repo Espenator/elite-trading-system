@@ -11,7 +11,7 @@ Usage:
 """
 import logging
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +72,7 @@ _DEFAULTS: Dict[str, Any] = {
     "cb_flash_crash_threshold": 0.05,
     "cb_max_positions": 10,
     "cb_max_single_position_pct": 0.20,
+    "cb_data_connectivity_min_sources_healthy": 1,
 
     # Agent weights — Core Council
     "weight_market_perception": 1.0,
@@ -159,21 +160,35 @@ _DEFAULTS: Dict[str, Any] = {
 }
 
 
-def get_agent_thresholds() -> Dict[str, Any]:
-    """Load agent thresholds from settings service, falling back to defaults.
+def get_agent_thresholds(regime: Optional[str] = None) -> Dict[str, Any]:
+    """Load agent thresholds from directives (global + regime overlay) and settings.
 
-    Reads from 'council' settings category. Any key not found in settings
-    falls back to the hardcoded default above.
+    Order of precedence: _DEFAULTS < directives (global, then regime overlay) <
+    settings service (council category). So thresholds are no longer scattered
+    magic numbers; they are discoverable via directives and testable.
+
+    Args:
+        regime: Optional market regime (e.g. BULLISH, BEARISH) for regime-specific
+            directive overlay. If None, only global directives are applied.
     """
+    merged = dict(_DEFAULTS)
+    try:
+        from app.council.directives.loader import directive_loader
+        directives = directive_loader.get_directives_merged(regime)
+        for k, v in directives.items():
+            if k in _DEFAULTS:
+                merged[k] = v
+    except Exception as e:
+        logger.debug("Directives load failed (using defaults): %s", e)
     try:
         from app.services.settings_service import get_settings_by_category
         stored = get_settings_by_category("council")
-        # Merge: stored values override defaults
-        merged = {**_DEFAULTS, **{k: v for k, v in stored.items() if k in _DEFAULTS}}
-        return merged
+        for k, v in stored.items():
+            if k in _DEFAULTS and v is not None:
+                merged[k] = v
     except Exception:
-        # Settings service not available (startup, tests, etc.)
-        return _DEFAULTS.copy()
+        pass
+    return merged
 
 
 def get_agent_weight(agent_name: str) -> float:
