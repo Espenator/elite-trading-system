@@ -194,6 +194,73 @@ If PC2 goes offline:
 
 Everything keeps working — just slower (back to single-PC performance).
 
+## Alpaca API Optimization (Algo Trader Plus — $99/mo)
+
+### What You're Paying For vs What Was Used
+
+| Capability | Plan Limit | Old Code | New Code |
+|---|---|---|---|
+| REST requests/min | **10,000** | 200 (wasting 98%) | **8,000** (80% headroom) |
+| Concurrent requests | **50+** | 10 | **50** |
+| WebSocket subscriptions | **Unlimited** | Limited | Unlimited |
+| WebSocket connections | 1 per account | 1 | **2** (Key1 + Key2) |
+| Multi-symbol bars | Yes | 1 symbol/call | **200 symbols/call** |
+| Screener API | Yes | Not used | **get_most_actives()** |
+| Market movers API | Yes | Not used | **get_market_movers()** |
+| SIP feed (real-time) | Yes | Used | Used |
+
+### Bottlenecks Fixed
+
+| Bottleneck | Before | After | Impact |
+|---|---|---|---|
+| HTTP client recreation | New SSL handshake per call (~100ms) | Persistent connection pool (keep-alive) | **~50-100ms saved per call** |
+| Rate limiter too low | 200 req/min (Basic plan config) | 8,000 req/min (Algo Trader Plus) | **40x more throughput** |
+| Concurrent requests | 10 max in-flight | 50 max in-flight | **5x parallelism** |
+| Snapshot fetches | Sequential batches (50 syms each) | Parallel asyncio.gather all batches | **3-5x faster snapshot seed** |
+| Single-symbol bars | One API call per symbol | get_multi_bars() — 200 symbols/call | **200x fewer API calls** |
+| No screener | Full universe scan via REST | get_most_actives() + get_market_movers() | **Pre-filtered candidates** |
+
+### Dual WebSocket Architecture (Key1 + Key2)
+
+```
+┌─── Key 1 (ESPENMAIN — Trading) ─────────────────┐
+│ WebSocket: Watched symbols (portfolio + signals) │
+│ REST: Orders, positions, account                 │
+│ Rate: 8,000 req/min dedicated                    │
+└──────────────────────────────────────────────────┘
+
+┌─── Key 2 (ProfitTrader — Discovery) ────────────┐
+│ WebSocket: Discovery universe (top 500 tickers)  │
+│ REST: Snapshots, bars, screener                  │
+│ Rate: 8,000 req/min dedicated                    │
+└──────────────────────────────────────────────────┘
+
+Combined: 16,000 req/min + 2 concurrent WebSocket streams
+```
+
+### New AlpacaService Methods
+
+```python
+# Multi-symbol bars — 200 symbols in one call
+bars = await alpaca_service.get_multi_bars(
+    ["AAPL", "MSFT", "GOOGL", ...],  # up to 200
+    timeframe="1Day", limit=60
+)
+
+# Batch snapshots — auto-splits into parallel batches
+snaps = await alpaca_service.get_multi_snapshots(
+    symbols,  # any number — auto-batched
+    feed="sip"
+)
+
+# Screener — pre-filtered high-volume tickers
+actives = await alpaca_service.get_most_actives(by="volume", top=50)
+
+# Market movers — top gainers/losers
+movers = await alpaca_service.get_market_movers(top=20)
+# Returns {"gainers": [...], "losers": [...]}
+```
+
 ## Future Enhancements (Level 4)
 
 - **Ray cluster**: Distributed asyncio across both PCs

@@ -7,7 +7,7 @@ Provides two primitives:
 Usage:
     from app.core.rate_limiter import get_rate_limiter, CircuitBreaker
 
-    limiter = get_rate_limiter("alpaca", max_per_minute=200)
+    limiter = get_rate_limiter("alpaca")
     async with limiter:
         resp = await client.get(...)
 
@@ -18,6 +18,11 @@ Usage:
             cb.record_success()
         except Exception:
             cb.record_failure()
+
+Alpaca Algo Trader Plus ($99/mo) limits:
+  - REST: 10,000 requests/minute
+  - WebSocket: unlimited symbol subscriptions
+  - 1 WebSocket connection per account per endpoint
 """
 
 import asyncio
@@ -216,8 +221,12 @@ class CircuitBreaker:
 _limiters: Dict[str, AsyncRateLimiter] = {}
 
 # Default rate limits per service
+# Alpaca Algo Trader Plus plan: 10,000 req/min REST, unlimited WS subs.
+# Previous default of 200/min was for Basic plan — wasting 98% of paid capacity.
+# We use 8,000/min as headroom (80% of 10K) to avoid 429s at burst edges.
 _DEFAULT_LIMITS = {
-    "alpaca": {"max_per_minute": 200, "max_concurrent": 10},
+    "alpaca": {"max_per_minute": 8000, "max_concurrent": 50},
+    "alpaca_data": {"max_per_minute": 8000, "max_concurrent": 50},
     "fred": {"max_per_minute": 120, "max_concurrent": 5},
     "edgar": {"max_per_minute": 10, "max_concurrent": 2},
     "unusual_whales": {"max_per_minute": 30, "max_concurrent": 3},
