@@ -431,3 +431,237 @@ export function LogsTelemetryTab() {
     </div>
   );
 }
+
+// ========== SUPPLEMENTARY REMAINING TAB (12 sections — real API only) ==========
+export function SupplementaryRemainingTab() {
+  const [severityFilter, setSeverityFilter] = useState("all");
+  const [ackSet, setAckSet] = useState(new Set());
+  const [selectedPostmortem, setSelectedPostmortem] = useState(null);
+  const [weightsDraft, setWeightsDraft] = useState(null);
+  const [weightsSaving, setWeightsSaving] = useState(false);
+
+  const { data: driftData } = useApi("drift", { pollIntervalMs: 60000 });
+  const { data: alertsData, refetch: refetchAlerts } = useApi("systemAlerts", { pollIntervalMs: 30000 });
+  const { data: directivesData } = useApi("cnsDirectives");
+  const { data: lastVerdictData } = useApi("cnsLastVerdict", { pollIntervalMs: 30000 });
+  const { data: postmortemsData } = useApi("cnsPostmortems", { pollIntervalMs: 30000 });
+  const { data: attributionData } = useApi("cnsPostmortemsAttribution", { pollIntervalMs: 60000 });
+  const { data: cognitiveDashboardData } = useApi("cognitiveDashboard");
+  const { data: cognitiveSnapshotsData } = useApi("cognitiveSnapshots");
+  const { data: calibrationData } = useApi("cognitiveCalibration");
+  const { data: councilStatusData } = useApi("council/status");
+  const { data: councilWeightsData, refetch: refetchWeights } = useApi("councilWeights");
+  const { data: logsData } = useApi("logs/system");
+
+  const directives = directivesData?.directives ?? [];
+  const lastVerdict = lastVerdictData?.verdict ?? lastVerdictData;
+  const postmortems = postmortemsData?.postmortems ?? [];
+  const attribution = attributionData?.attribution ?? {};
+  const snapshots = cognitiveSnapshotsData?.snapshots ?? [];
+  const weights = weightsDraft ?? councilWeightsData?.weights ?? {};
+  const logsRaw = logsData?.logs ?? [];
+  const alertsList = Array.isArray(alertsData?.alerts) ? alertsData.alerts : [];
+  const alertsFiltered = alertsList.filter((a, i) => !ackSet.has(`${a.agent_id ?? i}-${(a.message || "").slice(0, 40)}`));
+
+  const handleAck = (a, i) => {
+    setAckSet((s) => new Set(s).add(`${a.agent_id ?? i}-${(a.message || "").slice(0, 40)}`));
+    refetchAlerts();
+  };
+
+  const handleSaveWeights = async () => {
+    if (!weightsDraft || weightsSaving) return;
+    setWeightsSaving(true);
+    try {
+      const res = await fetch(getApiUrl("councilWeights"), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ weights: weightsDraft }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast.success("Council weights saved.");
+      setWeightsDraft(null);
+      refetchWeights();
+    } catch (e) {
+      toast.error(e?.message || "Save failed");
+    } finally {
+      setWeightsSaving(false);
+    }
+  };
+
+  const driftHistory = driftData?.history ?? driftData?.drift_history ?? [];
+  const levelColors = { info: "text-cyan-400", warn: "text-amber-400", error: "text-red-400", debug: "text-gray-500" };
+  const severityOpts = ["all", "debug", "info", "warn", "error"];
+  const logsFiltered = severityFilter === "all" ? logsRaw : logsRaw.filter((l) => (l.level || "").toLowerCase() === severityFilter);
+
+  return (
+    <div className="space-y-4 pb-6">
+      <div className="aurora-card p-3">
+        <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2 flex items-center gap-2"><TrendingUp className="w-3.5 h-3.5" /> Agent Drift</h3>
+        {driftHistory.length > 0 ? (
+          <div className="h-32 flex items-end gap-0.5">
+            {driftHistory.slice(-24).map((d, i) => {
+              const psiVal = d.psi_scores && typeof d.psi_scores === "object" && Object.keys(d.psi_scores).length > 0 ? Object.values(d.psi_scores)[0] : null;
+              const pct = d.data_drift_detected ? 100 : psiVal != null ? Math.min(100, Number(psiVal) * 200) : 15;
+              return <div key={i} className="flex-1 min-w-0 rounded-t bg-cyan-500/30 hover:bg-cyan-500/50" style={{ height: `${pct}%` }} title={d.timestamp || ""} />;
+            })}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-[10px] text-gray-500">
+            <span>Status: {driftData?.status ?? "no_data"}</span>
+            {driftData?.mean_psi != null && <span>Mean PSI: {Number(driftData.mean_psi).toFixed(3)}</span>}
+            {driftData?.drift_detected != null && <span>{driftData.drift_detected ? "Drift detected" : "No drift"}</span>}
+          </div>
+        )}
+        {driftData?.message && <p className="text-[9px] text-gray-500 mt-1">{driftData.message}</p>}
+      </div>
+
+      <div className="aurora-card p-3">
+        <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2 flex items-center gap-2"><AlertTriangle className="w-3.5 h-3.5" /> System Alerts</h3>
+        <div className="space-y-2 max-h-48 overflow-y-auto">
+          {alertsFiltered.length === 0 ? <p className="text-[10px] text-gray-500">No active alerts</p> : alertsFiltered.map((a, i) => (
+            <div key={i} className="flex items-center justify-between gap-2 bg-[#0B0E14] rounded p-2 border border-gray-800">
+              <div className="min-w-0 flex-1">
+                <span className={`text-[9px] font-bold uppercase ${a.level === "RED" ? "text-red-400" : a.level === "AMBER" ? "text-amber-400" : "text-cyan-400"}`}>{a.level}</span>
+                <span className="text-[10px] text-gray-400 ml-1">{a.agent_id != null ? `Agent ${a.agent_id}` : ""}</span>
+                <p className="text-[10px] text-white truncate">{a.message}</p>
+              </div>
+              <button className="shrink-0 px-2 py-1 text-[9px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded" onClick={() => handleAck(a, i)}>Acknowledge</button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="aurora-card p-3">
+        <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2 flex items-center gap-2"><Target className="w-3.5 h-3.5" /> CNS Directives</h3>
+        <div className="space-y-2">
+          {directives.length === 0 ? <p className="text-[10px] text-gray-500">No directives</p> : directives.map((d) => (
+            <div key={d.filename} className="bg-[#0B0E14] rounded p-2 border border-gray-800">
+              <div className="text-[10px] font-mono text-cyan-400">{d.filename}</div>
+              <pre className="text-[9px] text-gray-400 mt-1 whitespace-pre-wrap truncate max-h-20 overflow-hidden">{d.content}</pre>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="aurora-card p-3">
+        <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2 flex items-center gap-2"><CheckCircle className="w-3.5 h-3.5" /> Last Council Verdict</h3>
+        {!lastVerdict ? <p className="text-[10px] text-gray-500">No verdict yet</p> : (
+          <div className="bg-[#0B0E14] rounded p-3 border border-gray-800 space-y-1">
+            <div className="flex items-center gap-2 text-[10px]">
+              <span className="text-cyan-400 font-mono">{lastVerdict.symbol ?? "—"}</span>
+              <span className={`font-bold ${lastVerdict.final_direction === "buy" ? "text-emerald-400" : lastVerdict.final_direction === "sell" ? "text-red-400" : "text-amber-400"}`}>{(lastVerdict.final_direction ?? "hold").toUpperCase()}</span>
+              <span className="text-gray-500">{(lastVerdict.final_confidence ?? 0) * 100}%</span>
+            </div>
+            {lastVerdict.votes?.length > 0 && <p className="text-[9px] text-gray-400">Rationale: {lastVerdict.votes.slice(0, 2).map((v) => v.reasoning).filter(Boolean).join("; ").slice(0, 120)}…</p>}
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="aurora-card p-3">
+          <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Postmortems</h3>
+          <div className="space-y-1 max-h-40 overflow-y-auto">
+            {postmortems.length === 0 ? <p className="text-[10px] text-gray-500">None</p> : postmortems.map((pm, i) => (
+              <button key={i} type="button" className="w-full text-left rounded p-1.5 hover:bg-cyan-500/10 text-[10px] text-cyan-400" onClick={() => setSelectedPostmortem(pm)}>{pm.symbol ?? pm.trade_id ?? `#${i + 1}`} — {pm.outcome ?? "—"}</button>
+            ))}
+          </div>
+        </div>
+        <div className="aurora-card p-3">
+          <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Postmortem Attribution</h3>
+          <div className="space-y-1 max-h-40 overflow-y-auto text-[9px]">
+            {Object.entries(attribution).length === 0 ? <p className="text-gray-500">No attribution data</p> : Object.entries(attribution).slice(0, 10).map(([agent, s]) => (
+              <div key={agent} className="flex justify-between"><span className="text-cyan-400 truncate">{agent}</span><span>{s.total_votes ?? 0} votes</span></div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {selectedPostmortem && (
+        <div className="aurora-card p-3 border border-cyan-500/30">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="text-xs font-bold text-white uppercase">Postmortem Detail</h3>
+            <button type="button" className="text-[9px] text-gray-500 hover:text-white" onClick={() => setSelectedPostmortem(null)}>Close</button>
+          </div>
+          <pre className="text-[9px] text-gray-400 whitespace-pre-wrap overflow-auto max-h-48 bg-[#0B0E14] p-2 rounded">{JSON.stringify(selectedPostmortem, null, 2)}</pre>
+        </div>
+      )}
+
+      <div className="aurora-card p-3">
+        <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2 flex items-center gap-2"><Brain className="w-3.5 h-3.5" /> Cognitive Dashboard</h3>
+        {!cognitiveDashboardData ? <p className="text-[10px] text-gray-500">Loading…</p> : (
+          <div className="grid grid-cols-3 gap-2 text-[10px]">
+            {typeof cognitiveDashboardData === "object" && Object.entries(cognitiveDashboardData).filter(([k]) => !k.startsWith("_")).slice(0, 9).map(([k, v]) => (
+              <div key={k} className="bg-[#0B0E14] rounded p-2"><span className="text-gray-500">{k}</span><div className="text-cyan-400 font-mono">{typeof v === "object" ? JSON.stringify(v).slice(0, 40) : String(v)}</div></div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="aurora-card p-3">
+        <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Cognitive Snapshots</h3>
+        <div className="max-h-24 overflow-y-auto text-[9px] text-gray-400">
+          {snapshots.length === 0 ? "No snapshots" : snapshots.slice(-5).map((s, i) => <div key={i}>{typeof s === "object" ? JSON.stringify(s).slice(0, 80) : String(s)}</div>)}
+        </div>
+      </div>
+
+      <div className="aurora-card p-3">
+        <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Calibration (predicted vs actual)</h3>
+        {!calibrationData ? <p className="text-[10px] text-gray-500">No calibration data</p> : (
+          <div className="space-y-2">
+            {calibrationData.brier_score != null && <p className="text-[10px] text-cyan-400">Brier score: {calibrationData.brier_score}</p>}
+            {Array.isArray(calibrationData.recent_predictions) && calibrationData.recent_predictions.length > 0 ? (
+              <div className="h-24 flex items-end gap-0.5">
+                {calibrationData.recent_predictions.slice(-20).map((p, i) => (
+                  <div key={i} className="flex-1 min-w-0 rounded-t bg-cyan-500/40" style={{ height: `${(p.predicted_conf ?? 0) * 100}%` }} title={`pred: ${p.predicted_conf} actual: ${p.actual}`} />
+                ))}
+              </div>
+            ) : <p className="text-[9px] text-gray-500">No prediction history</p>}
+          </div>
+        )}
+      </div>
+
+      <div className="aurora-card p-3">
+        <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2 flex items-center gap-2"><Users className="w-3.5 h-3.5" /> Council Status</h3>
+        {!councilStatusData ? <p className="text-[10px] text-gray-500">Loading…</p> : (
+          <div className="flex flex-wrap gap-2 text-[10px]">
+            <span className="text-gray-500">Agents: <span className="text-white">{councilStatusData.agent_count ?? "—"}</span></span>
+            <span className="text-gray-500">Stages: {(councilStatusData.dag_stages ?? []).length}</span>
+            {councilStatusData.agent_weights && Object.keys(councilStatusData.agent_weights).length > 0 && <span className="text-cyan-400">Weights loaded</span>}
+          </div>
+        )}
+      </div>
+
+      <div className="aurora-card p-3">
+        <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2">Council Weights</h3>
+        <div className="flex flex-wrap gap-2 mb-2">
+          {Object.entries(weights).slice(0, 16).map(([name, w]) => (
+            <div key={name} className="flex items-center gap-1 text-[9px]">
+              <span className="w-24 truncate text-gray-400">{name}</span>
+              <input type="number" step="0.1" min="0" max="3" className="w-12 bg-[#0B0E14] border border-gray-700 rounded px-1 text-white" value={Number(w)} onChange={(e) => setWeightsDraft((d) => ({ ...(d ?? weights), [name]: parseFloat(e.target.value) || 0 }))} />
+            </div>
+          ))}
+        </div>
+        <button className="px-3 py-1.5 text-[10px] bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded disabled:opacity-50" onClick={handleSaveWeights} disabled={weightsSaving || !weightsDraft}>Save</button>
+      </div>
+
+      <div className="aurora-card p-3">
+        <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2 flex items-center gap-2"><Terminal className="w-3.5 h-3.5" /> System Logs</h3>
+        <div className="flex gap-2 mb-2">
+          {severityOpts.map((s) => (
+            <button key={s} className={`px-2 py-1 text-[9px] rounded uppercase ${severityFilter === s ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "text-gray-500 border border-gray-700"}`} onClick={() => setSeverityFilter(s)}>{s}</button>
+          ))}
+        </div>
+        <div className="max-h-[300px] overflow-y-auto font-mono text-[10px] space-y-0.5">
+          {logsFiltered.length === 0 ? <p className="text-gray-500">No logs</p> : logsFiltered.map((l, i) => (
+            <div key={i} className="flex gap-2 hover:bg-cyan-500/5 px-1 py-0.5 rounded">
+              <span className="text-gray-600 shrink-0 w-20">{(l.ts || "").slice(11, 23)}</span>
+              <span className={`shrink-0 w-10 font-bold ${levelColors[(l.level || "info").toLowerCase()] || "text-gray-400"}`}>{(l.level || "info").toUpperCase()}</span>
+              <span className="text-purple-400 shrink-0 w-20 truncate">{l.source ?? l.agent ?? "—"}</span>
+              <span className="text-gray-300 flex-1 truncate">{l.message ?? JSON.stringify(l)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}

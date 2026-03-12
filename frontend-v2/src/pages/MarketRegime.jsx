@@ -1125,7 +1125,7 @@ function FooterTicker({
       <span
         className={clsx("text-[10px] font-bold font-mono shrink-0", rc.text)}
       >
-        REGIME: {regimeState}
+        REGIME: {regimeState ? getRegimeDisplay(regimeState).label : "—"}
       </span>
     </div>
   );
@@ -1442,8 +1442,35 @@ export default function MarketRegime() {
               regimeData={regimeData}
             />
           </div>
+
+          {/* ROW 5: Macro, Whale Flow, Risk Gauges, Health, Scanner, Memory */}
+          <div className="col-span-4">
+            <MacroIndicatorsPanel macroData={macroData} />
+          </div>
+          <div className="col-span-2">
+            <WhaleFlowPanel whaleFlowData={whaleFlow} />
+          </div>
+          <div className="col-span-3">
+            <RiskGaugesPanel gaugesData={riskGauges} />
+          </div>
+          <div className="col-span-3">
+            <OpenClawHealthPanel healthData={healthData} />
+          </div>
+          <div className="col-span-4">
+            <ScannerPanel scanData={scanData} />
+          </div>
+          <div className="col-span-8">
+            <MemoryContextPanel memoryData={memoryData} />
+          </div>
         </div>
       </div>
+
+      <RegimeOverrideModal
+        open={overrideModalOpen}
+        onClose={() => setOverrideModalOpen(false)}
+        currentOverride={currentOverride}
+        onConfirm={handleRegimeOverrideConfirm}
+      />
 
       {/* ============ FOOTER TICKER (mockup: Bias slider + ticker in same strip) ============ */}
       <FooterTicker

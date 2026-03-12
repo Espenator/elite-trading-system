@@ -169,47 +169,15 @@ export default function TradeExecution() {
     if (unique.length) inst.series.setData(unique);
   }, [candleData]);
 
-  /* -- Alignment Preflight -- */
-  const [preflightLoading, setPreflightLoading] = useState(false);
-  const runAlignmentPreflight = async (side = 'buy') => {
-    setPreflightLoading(true);
-    try {
-      const res = await fetch(getApiUrl('alignment/evaluate'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify({ symbol: orderForm?.symbol || 'SPY', side, quantity: orderForm?.quantity || 1, strategy: 'manual' }),
-      });
-      if (!res.ok) throw new Error('Alignment preflight failed');
-      return await res.json();
-    } catch (err) {
-      return { allowed: true, blockedBy: 'NETWORK_ERROR', summary: err.message };
-    } finally {
-      setPreflightLoading(false);
-    }
-  };
-
-  const withPreflight = async (side, action) => {
-    const verdict = await runAlignmentPreflight(side);
-    if (verdict?.allowed === false) {
-      if (!window.confirm(`Alignment blocked: ${verdict.summary || verdict.blockedBy}\n\nOverride and execute anyway?`)) return;
-    }
-    return action();
-  };
-
   /* -- Keyboard Shortcuts -- */
   const handleKeyDown = useCallback((e) => {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
     if (!e.ctrlKey && !e.metaKey) return;
-    switch (e.key.toUpperCase()) {
-      case 'B': e.preventDefault(); if (window.confirm(`Market BUY ${orderForm.symbol} x${orderForm.quantity}?`)) withPreflight('buy', executeMarketBuy); break;
-      case 'S': e.preventDefault(); if (window.confirm(`Market SELL ${orderForm.symbol} x${orderForm.quantity}?`)) withPreflight('sell', executeMarketSell); break;
-      case 'L': e.preventDefault(); withPreflight('buy', executeLimitBuy); break;
-      case 'O': e.preventDefault(); withPreflight('sell', executeLimitSell); break;
-      case 'T': e.preventDefault(); executeStopLoss(); break;
-      case 'E': e.preventDefault(); withPreflight('buy', executeAdvancedOrder); break;
-      default: break;
+    if (e.key.toUpperCase() === 'B' || e.key.toUpperCase() === 'S') {
+      e.preventDefault();
+      openConfirmModal();
     }
-  }, [executeMarketBuy, executeMarketSell, executeLimitBuy, executeLimitSell, executeStopLoss, executeAdvancedOrder, orderForm.symbol, orderForm.quantity]);
+  }, [openConfirmModal]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);

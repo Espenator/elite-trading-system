@@ -393,15 +393,52 @@ export default function MLBrainFlywheel() {
             <div className="w-1 h-6 bg-[#00D9FF] rounded-full" />
             <h1 className="text-xl font-bold text-white tracking-tight">ML Brain &amp; Flywheel</h1>
           </div>
-          <button
-            onClick={handleRetrain}
-            disabled={isRetraining}
-            className="flex items-center gap-2 px-4 py-2 bg-[#0B0E14] border border-[#00D9FF]/40 rounded-lg text-[#00D9FF] text-sm font-bold hover:bg-[#00D9FF]/10 hover:shadow-[0_0_12px_rgba(0,217,255,0.3)] transition-all disabled:opacity-50"
-          >
-            <RotateCcw className={`w-4 h-4 ${isRetraining ? 'animate-spin' : ''}`} />
-            {isRetraining ? 'Retraining...' : 'Retrain Models'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowComputeConfirm(true)}
+              disabled={computePending}
+              className="flex items-center gap-2 px-3 py-2 bg-[#0B0E14] border border-gray-600 rounded-lg text-gray-300 text-sm font-medium hover:border-[#00D9FF]/40 transition-colors disabled:opacity-50"
+            >
+              <Cpu className={computePending ? 'animate-pulse' : ''} />
+              {computePending ? 'Computing...' : 'Compute features'}
+            </button>
+            <button
+              onClick={() => setShowRetrainConfirm(true)}
+              disabled={isRetraining}
+              className="flex items-center gap-2 px-4 py-2 bg-[#0B0E14] border border-[#00D9FF]/40 rounded-lg text-[#00D9FF] text-sm font-bold hover:bg-[#00D9FF]/10 hover:shadow-[0_0_12px_rgba(0,217,255,0.3)] transition-all disabled:opacity-50"
+            >
+              <RotateCcw className={`w-4 h-4 ${isRetraining ? 'animate-spin' : ''}`} />
+              {isRetraining ? 'Retraining...' : 'Retrain Models'}
+            </button>
+          </div>
         </div>
+
+        {showRetrainConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowRetrainConfirm(false)}>
+            <div className="bg-[#0B0E14] border border-gray-700 rounded-lg p-6 max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
+              <h3 className="text-lg font-semibold text-white mb-2">Start model retrain?</h3>
+              <p className="text-sm text-gray-400 mb-4">This will queue a new training job. Existing runs may be affected.</p>
+              <div className="flex justify-end gap-2">
+                <Button variant="secondary" onClick={() => setShowRetrainConfirm(false)}>Cancel</Button>
+                <Button onClick={handleRetrainConfirm}>Confirm retrain</Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showComputeConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowComputeConfirm(false)}>
+            <div className="bg-[#0B0E14] border border-gray-700 rounded-lg p-6 max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
+              <h3 className="text-lg font-semibold text-white mb-2">Compute features</h3>
+              <p className="text-sm text-gray-400 mb-2">Symbol to compute feature vector for (1d):</p>
+              <input type="text" value={computeSymbol} onChange={e => setComputeSymbol(e.target.value)} placeholder="AAPL" className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white font-mono mb-4" />
+              <div className="flex justify-end gap-2">
+                <Button variant="secondary" onClick={() => setShowComputeConfirm(false)}>Cancel</Button>
+                <Button onClick={handleComputeConfirm}>Compute</Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ================================================================ */}
         {/* KPI STRIP - 6 cards matching mockup */}
@@ -425,14 +462,81 @@ export default function MLBrainFlywheel() {
                   {kpi.val}
                 </span>
                 {kpi.hasSparkline && (
-                  <div className="w-14 h-5 opacity-50">
-                    <MiniSparkline color={kpi.sparkColor} height={20} />
+                  <div className="w-14 h-5 opacity-70">
+                    <MiniSparkline color={kpi.sparkColor} height={20} history={kpi.history} />
                   </div>
                 )}
               </div>
               <div className="text-[9px] text-gray-600 mt-1">{kpi.sub}</div>
             </div>
           ))}
+        </div>
+
+        {/* ================================================================ */}
+        {/* SCHEDULER + TRAINING PIPELINE */}
+        {/* ================================================================ */}
+        <div className="grid grid-cols-2 gap-4 shrink-0">
+          <div className="bg-[#0B0E14] border border-gray-800/60 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Calendar className="w-4 h-4 text-[#00D9FF]" />
+              <h3 className="text-sm font-semibold text-white">Flywheel Scheduler</h3>
+            </div>
+            {apiScheduler?.enabled ? (
+              <div className="space-y-2 font-mono text-xs">
+                <p className="text-gray-400">Next runs:</p>
+                {schedulerJobs.length === 0 ? (
+                  <p className="text-gray-500">No jobs configured</p>
+                ) : (
+                  schedulerJobs.map((job) => (
+                    <div key={job.id} className="flex justify-between text-gray-300">
+                      <span>{job.name ?? job.id}</span>
+                      <span className="text-[#00D9FF]">{job.next_run ? new Date(job.next_run).toLocaleString() : '—'}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-sm">Scheduler disabled or unavailable</p>
+            )}
+          </div>
+          <div className="bg-[#0B0E14] border border-gray-800/60 rounded-lg p-4 overflow-hidden">
+            <div className="flex items-center gap-2 mb-3">
+              <ListChecks className="w-4 h-4 text-[#00D9FF]" />
+              <h3 className="text-sm font-semibold text-white">Training pipeline</h3>
+            </div>
+            {activeProgress && (
+              <div className="mb-3 flex items-center gap-2 text-emerald-400 text-xs font-mono">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Running: {activeProgress.runId} — Epochs {activeProgress.progress?.epochsCompleted ?? 0}/{activeProgress.progress?.totalEpochs ?? 0}
+              </div>
+            )}
+            <div className="overflow-x-auto max-h-32 overflow-y-auto">
+              <table className="w-full text-left font-mono text-[10px]">
+                <thead className="text-gray-500 border-b border-gray-800/40">
+                  <tr>
+                    <th className="py-1 pr-2">Run</th>
+                    <th className="py-1 pr-2">Model</th>
+                    <th className="py-1 pr-2">Status</th>
+                    <th className="py-1 pr-2">Accuracy</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800/20">
+                  {trainingRuns.length === 0 ? (
+                    <tr><td colSpan={4} className="py-2 text-gray-500">No training runs</td></tr>
+                  ) : (
+                    trainingRuns.slice(0, 8).map((r) => (
+                      <tr key={r.runId}>
+                        <td className="py-1 pr-2 text-gray-400">{r.runId}</td>
+                        <td className="py-1 pr-2 text-white">{r.modelName ?? '—'}</td>
+                        <td className="py-1 pr-2">{r.status ?? '—'}</td>
+                        <td className="py-1 pr-2 text-[#00D9FF]">{r.accuracy ?? '—'}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
 
         {/* ================================================================ */}
