@@ -165,6 +165,7 @@ Or from repo root: `.\start-embodier.ps1` (launcher derives paths from script lo
 | WebSocket fix | `websocket_manager.py`, `frontend-v2/src/services/websocket.js` |
 | Sidebar/layout fix | `Layout.jsx`, `Sidebar.jsx`, `App.jsx` |
 | Auth fix | `core/security.py`, `backend/.env` |
+| Git push/pull setup | `docs/GIT-PUSH-SETUP.md`, `scripts/set-git-remote-from-token.ps1`, `.github-token` or `GITHUB_TOKEN` |
 
 ## Completed Work (March 10-11, 2026)
 

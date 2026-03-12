@@ -3,6 +3,7 @@
 # ── Environment (AUDIT FIX Task 16: catch ALL .env variants) ──
 .env*
 !.env.example
+.github-token
 backend/.env*
 !backend/.env.example
 APIFINAL*.env

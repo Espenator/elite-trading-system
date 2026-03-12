@@ -5,6 +5,10 @@
 # Usage (from repo root):
 #   cd C:\Users\Espen\elite-trading-system
 #   .\scripts\fix-git-auth.ps1
+#
+# Alternative (token from file or env): put PAT in .github-token or GITHUB_TOKEN,
+# then run: .\scripts\set-git-remote-from-token.ps1
+# See docs/GIT-PUSH-SETUP.md.
 
 $ErrorActionPreference = "Stop"
 # Repo root = parent of scripts/ when run from repo; else canonical ESPENMAIN path
