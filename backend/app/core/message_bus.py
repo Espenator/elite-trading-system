@@ -331,7 +331,13 @@ class MessageBus:
             self._queue.put_nowait(event)
         except asyncio.QueueFull:
             self._error_count += 1
-            logger.error("MessageBus queue FULL — sending to DLQ on '%s'", topic)
+            # Rate-limit queue-full logging: log every 500th event per topic
+            # to prevent log spam from overwhelming the event loop
+            key = f"_qfull_{topic}"
+            cnt = getattr(self, key, 0) + 1
+            setattr(self, key, cnt)
+            if cnt == 1 or cnt % 500 == 0:
+                logger.error("MessageBus queue FULL — DLQ on '%s' (x%d)", topic, cnt)
             self._add_to_dlq(event, reason="queue_full")
 
         # Redis bridge (cross-PC delivery)

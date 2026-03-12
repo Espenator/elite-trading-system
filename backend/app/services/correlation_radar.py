@@ -589,9 +589,9 @@ class CorrelationRadar:
             "scan_interval": self._scan_interval,
             "stats": dict(self._stats),
             "correlation_cache": {k: round(v, 3) for k, v in self._correlation_cache.items()},
-            "recent_breaks": [b.to_dict() for b in self._break_history[-5:]],
-            "recent_rotations": [r.to_dict() for r in self._rotation_history[-5:]],
-            "recent_reversions": [r.to_dict() for r in self._reversion_history[-5:]],
+            "recent_breaks": [b.to_dict() for b in list(self._break_history)[-5:]],
+            "recent_rotations": [r.to_dict() for r in list(self._rotation_history)[-5:]],
+            "recent_reversions": [r.to_dict() for r in list(self._reversion_history)[-5:]],
         }
 
     def get_correlation_matrix(self) -> Dict[str, Any]:
@@ -605,10 +605,10 @@ class CorrelationRadar:
         }
 
     def get_rotation_signals(self, limit: int = 20) -> List[Dict]:
-        return [r.to_dict() for r in self._rotation_history[-limit:]]
+        return [r.to_dict() for r in list(self._rotation_history)[-limit:]]
 
     def get_reversion_signals(self, limit: int = 20) -> List[Dict]:
-        return [r.to_dict() for r in self._reversion_history[-limit:]]
+        return [r.to_dict() for r in list(self._reversion_history)[-limit:]]
 
 
 # Module-level singleton

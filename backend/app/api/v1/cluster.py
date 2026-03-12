@@ -7,7 +7,7 @@ Part of #39 — E0.5 + E1.7
 """
 from fastapi import APIRouter
 
-router = APIRouter(prefix="/api/v1/cluster", tags=["cluster"])
+router = APIRouter(tags=["cluster"])
 
 
 @router.get("/status")

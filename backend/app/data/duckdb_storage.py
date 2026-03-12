@@ -104,7 +104,14 @@ class DuckDBStorage:
 
         self._db_path = str(db_path or DUCKDB_PATH)
         self._conn = None
-        self._lock = threading.RLock()  # Reentrant — upsert methods hold lock around _get_conn()
+        # WRITE lock: serializes all DuckDB writes (upserts, inserts).
+        # READ operations use conn.cursor() which is safe for concurrent reads
+        # via DuckDB's MVCC — no lock needed for reads.
+        self._write_lock = threading.Lock()
+        # Connection init lock: protects lazy connection creation only
+        self._conn_lock = threading.Lock()
+        # Keep _lock as alias for backwards compat (async_execute etc.)
+        self._lock = self._write_lock
         # SF10 FIX: Create asyncio.Lock eagerly with thread-safe guard.
         # Lazy creation caused race where two coroutines could each create
         # a separate asyncio.Lock, defeating the purpose of the lock.
@@ -125,8 +132,11 @@ class DuckDBStorage:
         """Thread-safe connection (sync callers).
 
         Lazily creates the connection and initializes schema on first use.
+        Uses _conn_lock (lightweight) — NOT the write lock.
         """
-        with self._lock:
+        if self._conn is not None:
+            return self._conn
+        with self._conn_lock:
             if self._conn is None:
                 duckdb = _get_duckdb()
                 self._conn = duckdb.connect(self._db_path)
@@ -138,35 +148,40 @@ class DuckDBStorage:
             return self._conn
 
     async def async_execute(self, query: str, params=None):
-        """Execute a DuckDB query without blocking the event loop.
+        """Execute a DuckDB read query without blocking the event loop.
 
-        Wraps the blocking DuckDB call in asyncio.to_thread() so it runs
-        in the thread pool, preventing event loop stalls when 23+ services
-        are all doing concurrent reads/writes.
+        Uses cursor (no write lock) for reads via DuckDB MVCC.
         """
         def _run():
-            conn = self._get_conn()
-            with self._lock:
+            cur = self._get_conn().cursor()
+            try:
                 if params:
-                    return conn.execute(query, params).fetchall()
-                return conn.execute(query).fetchall()
+                    return cur.execute(query, params).fetchall()
+                return cur.execute(query).fetchall()
+            finally:
+                cur.close()
         return await asyncio.to_thread(_run)
 
     async def async_execute_df(self, query: str, params=None):
-        """Execute a DuckDB query and return a DataFrame without blocking the event loop."""
+        """Execute a DuckDB read query and return a DataFrame without blocking."""
         def _run():
-            conn = self._get_conn()
-            with self._lock:
+            cur = self._get_conn().cursor()
+            try:
                 if params:
-                    return conn.execute(query, params).fetchdf()
-                return conn.execute(query).fetchdf()
+                    return cur.execute(query, params).fetchdf()
+                return cur.execute(query).fetchdf()
+            finally:
+                cur.close()
         return await asyncio.to_thread(_run)
 
     async def async_insert(self, query: str, params=None):
-        """Execute an INSERT/UPDATE without blocking the event loop."""
+        """Execute an INSERT/UPDATE without blocking the event loop.
+
+        Uses write lock to serialize writes.
+        """
         def _run():
-            conn = self._get_conn()
-            with self._lock:
+            with self._write_lock:
+                conn = self._get_conn()
                 if params:
                     conn.execute(query, params)
                 else:
@@ -212,7 +227,7 @@ class DuckDBStorage:
 
         Called on shutdown. Safe to call multiple times.
         """
-        with self._lock:
+        with self._write_lock:
             if self._conn is not None:
                 try:
                     self._conn.close()
@@ -569,7 +584,7 @@ class DuckDBStorage:
         """
         if df.empty:
             return 0
-        with self._lock:
+        with self._write_lock:
             conn = self._get_conn()
             conn.execute("CREATE OR REPLACE TEMP TABLE _staging AS SELECT * FROM daily_ohlcv LIMIT 0")
             conn.execute("INSERT INTO _staging SELECT * FROM df")
@@ -584,7 +599,7 @@ class DuckDBStorage:
         """Insert or update technical indicator data."""
         if df.empty:
             return 0
-        with self._lock:
+        with self._write_lock:
             conn = self._get_conn()
             conn.execute("INSERT OR REPLACE INTO technical_indicators SELECT * FROM df")
         logger.info("Upserted %d indicator rows", len(df))
@@ -594,7 +609,7 @@ class DuckDBStorage:
         """Insert or update options flow data from Unusual Whales."""
         if df.empty:
             return 0
-        with self._lock:
+        with self._write_lock:
             conn = self._get_conn()
             conn.execute("INSERT OR REPLACE INTO options_flow SELECT * FROM df")
         logger.info("Upserted %d options flow rows", len(df))
@@ -604,7 +619,7 @@ class DuckDBStorage:
         """Insert or update macro data from FRED."""
         if df.empty:
             return 0
-        with self._lock:
+        with self._write_lock:
             conn = self._get_conn()
             conn.execute("INSERT OR REPLACE INTO macro_data SELECT * FROM df")
         logger.info("Upserted %d macro rows", len(df))
@@ -612,7 +627,7 @@ class DuckDBStorage:
 
     def insert_trade_outcome(self, trade: Dict) -> None:
         """Record a trade outcome for ML label generation."""
-        with self._lock:
+        with self._write_lock:
             conn = self._get_conn()
             conn.execute("""
                 INSERT INTO trade_outcomes
@@ -647,24 +662,13 @@ class DuckDBStorage:
         """Fetch joined OHLCV + indicators + flow + macro for training.
 
         This is the primary method called by FeaturePipeline.
-
-        Args:
-            symbols: List of tickers
-            start_date: YYYY-MM-DD
-            end_date: YYYY-MM-DD
-            include_indicators: Join technical indicators
-            include_flow: Join options flow data
-            include_macro: Join macro data
-
-        Returns:
-            DataFrame with columns ready for FeaturePipeline.generate()
+        Uses cursor (no write lock) — reads are safe via DuckDB MVCC.
         """
         placeholders = ",".join(["?" for _ in symbols])
         params = symbols + [start_date, end_date]
 
-        with self._lock:
-            conn = self._get_conn()
-
+        cur = self._get_conn().cursor()
+        try:
             query = f"""
                 SELECT o.symbol, o.date, o.open, o.high, o.low, o.close, o.volume
                 FROM daily_ohlcv o
@@ -672,14 +676,14 @@ class DuckDBStorage:
                   AND o.date BETWEEN ? AND ?
                 ORDER BY o.symbol, o.date
             """
-            df = conn.execute(query, params).fetchdf()
+            df = cur.execute(query, params).fetchdf()
 
             if df.empty:
                 logger.warning("No OHLCV data for %s between %s and %s", symbols, start_date, end_date)
                 return df
 
             if include_indicators:
-                ti = conn.execute(f"""
+                ti = cur.execute(f"""
                     SELECT * FROM technical_indicators
                     WHERE symbol IN ({placeholders})
                       AND date BETWEEN ? AND ?
@@ -688,7 +692,7 @@ class DuckDBStorage:
                     df = df.merge(ti, on=["symbol", "date"], how="left")
 
             if include_flow:
-                flow = conn.execute(f"""
+                flow = cur.execute(f"""
                     SELECT * FROM options_flow
                     WHERE symbol IN ({placeholders})
                       AND date BETWEEN ? AND ?
@@ -697,12 +701,14 @@ class DuckDBStorage:
                     df = df.merge(flow, on=["symbol", "date"], how="left")
 
             if include_macro:
-                macro = conn.execute("""
+                macro = cur.execute("""
                     SELECT * FROM macro_data
                     WHERE date BETWEEN ? AND ?
                 """, [start_date, end_date]).fetchdf()
                 if not macro.empty:
                     df = df.merge(macro, on="date", how="left")
+        finally:
+            cur.close()
 
         logger.info(
             "Training window: %d rows, %d symbols, %d columns, %s to %s",
@@ -717,16 +723,14 @@ class DuckDBStorage:
     ) -> pd.DataFrame:
         """Fetch latest N days of data for real-time inference.
 
-        Identical schema to get_training_window but uses relative date range.
+        Uses cursor (no write lock) — reads are safe via DuckDB MVCC.
         """
         placeholders = ",".join(["?" for _ in symbols])
-        # Sanitize lookback_days to prevent SQL injection
         lookback_days = max(1, min(int(lookback_days), 5000))
 
-        with self._lock:
-            conn = self._get_conn()
-
-            df = conn.execute(f"""
+        cur = self._get_conn().cursor()
+        try:
+            df = cur.execute(f"""
                 SELECT o.symbol, o.date, o.open, o.high, o.low, o.close, o.volume
                 FROM daily_ohlcv o
                 WHERE o.symbol IN ({placeholders})
@@ -734,9 +738,8 @@ class DuckDBStorage:
                 ORDER BY o.symbol, o.date
             """, symbols).fetchdf()
 
-            # Join indicators
             if not df.empty:
-                ti = conn.execute(f"""
+                ti = cur.execute(f"""
                     SELECT * FROM technical_indicators
                     WHERE symbol IN ({placeholders})
                       AND date >= CURRENT_DATE - INTERVAL '{lookback_days}' DAY
@@ -744,7 +747,7 @@ class DuckDBStorage:
                 if not ti.empty:
                     df = df.merge(ti, on=["symbol", "date"], how="left")
 
-                flow = conn.execute(f"""
+                flow = cur.execute(f"""
                     SELECT * FROM options_flow
                     WHERE symbol IN ({placeholders})
                       AND date >= CURRENT_DATE - INTERVAL '{lookback_days}' DAY
@@ -752,37 +755,45 @@ class DuckDBStorage:
                 if not flow.empty:
                     df = df.merge(flow, on=["symbol", "date"], how="left")
 
-                macro = conn.execute(f"""
+                macro = cur.execute(f"""
                     SELECT * FROM macro_data
                     WHERE date >= CURRENT_DATE - INTERVAL '{lookback_days}' DAY
                 """).fetchdf()
                 if not macro.empty:
                     df = df.merge(macro, on="date", how="left")
+        finally:
+            cur.close()
 
         return df
 
     def get_unresolved_trades(self) -> pd.DataFrame:
         """Fetch trades that need outcome resolution."""
-        with self._lock:
-            conn = self._get_conn()
-            return conn.execute("""
+        cur = self._get_conn().cursor()
+        try:
+            return cur.execute("""
                 SELECT * FROM trade_outcomes
                 WHERE resolved = FALSE
                 ORDER BY entry_date
             """).fetchdf()
+        finally:
+            cur.close()
 
     def get_symbol_count(self) -> int:
         """Count distinct symbols in OHLCV data."""
-        with self._lock:
-            conn = self._get_conn()
-            result = conn.execute("SELECT COUNT(DISTINCT symbol) FROM daily_ohlcv").fetchone()
+        cur = self._get_conn().cursor()
+        try:
+            result = cur.execute("SELECT COUNT(DISTINCT symbol) FROM daily_ohlcv").fetchone()
+        finally:
+            cur.close()
         return result[0] if result else 0
 
     def get_date_range(self) -> Tuple[Optional[str], Optional[str]]:
         """Get min/max dates in OHLCV data."""
-        with self._lock:
-            conn = self._get_conn()
-            result = conn.execute("SELECT MIN(date), MAX(date) FROM daily_ohlcv").fetchone()
+        cur = self._get_conn().cursor()
+        try:
+            result = cur.execute("SELECT MIN(date), MAX(date) FROM daily_ohlcv").fetchone()
+        finally:
+            cur.close()
         if result and result[0]:
             return str(result[0]), str(result[1])
         return None, None
@@ -794,7 +805,7 @@ class DuckDBStorage:
     def insert_postmortem(self, postmortem: Dict) -> None:
         """Record a council postmortem after trade exit."""
         import json
-        with self._lock:
+        with self._write_lock:
             conn = self._get_conn()
             conn.execute("""
                 INSERT INTO postmortems
@@ -818,29 +829,33 @@ class DuckDBStorage:
 
     def get_postmortems(self, symbol: Optional[str] = None, limit: int = 50) -> pd.DataFrame:
         """Fetch postmortems, optionally filtered by symbol."""
-        with self._lock:
-            conn = self._get_conn()
+        cur = self._get_conn().cursor()
+        try:
             if symbol:
-                return conn.execute(
+                return cur.execute(
                     "SELECT * FROM postmortems WHERE symbol = ? ORDER BY created_at DESC LIMIT ?",
                     [symbol, limit],
                 ).fetchdf()
-            return conn.execute(
+            return cur.execute(
                 "SELECT * FROM postmortems ORDER BY created_at DESC LIMIT ?",
                 [limit],
             ).fetchdf()
+        finally:
+            cur.close()
 
     def get_postmortem_count(self) -> int:
         """Count total postmortems."""
-        with self._lock:
-            conn = self._get_conn()
-            result = conn.execute("SELECT COUNT(*) FROM postmortems").fetchone()
+        cur = self._get_conn().cursor()
+        try:
+            result = cur.execute("SELECT COUNT(*) FROM postmortems").fetchone()
+        finally:
+            cur.close()
         return result[0] if result else 0
 
     def health_check(self) -> Dict:
         """Return storage health metrics."""
-        with self._lock:
-            conn = self._get_conn()
+        cur = self._get_conn().cursor()
+        try:
             tables = {
                 "ohlcv_rows": "daily_ohlcv",
                 "indicator_rows": "technical_indicators",
@@ -854,9 +869,11 @@ class DuckDBStorage:
             counts = {}
             total = 0
             for key, table in tables.items():
-                count = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+                count = cur.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
                 counts[key] = count
                 total += count
+        finally:
+            cur.close()
         return {
             "db_path": self._db_path,
             **counts,
