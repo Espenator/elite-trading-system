@@ -6,6 +6,7 @@
 const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const http = require('http');
 
 const deviceConfig = require('./device-config');
 const backendManager = require('./backend-manager');
@@ -13,6 +14,7 @@ const { serviceOrchestrator } = require('./service-orchestrator');
 const { peerMonitor } = require('./peer-monitor');
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+let appQuitting = false;
 
 // Fix Electron cache permission error — set cache path before any window creation
 app.setPath('cache', path.join(app.getPath('userData'), 'Cache'));
@@ -45,6 +47,36 @@ function closeSplash() {
   }
 }
 
+// ── URL Availability Check ────────────────────────────────────────────────
+/**
+ * Polls a URL until it responds with HTTP 2xx/3xx.
+ * Used to wait for Vite dev server before loading it in BrowserWindow.
+ */
+function waitForUrl(url, timeoutMs = 30000) {
+  const startTime = Date.now();
+  return new Promise((resolve, reject) => {
+    function check() {
+      if (appQuitting) { reject(new Error('App is quitting')); return; }
+      if (Date.now() - startTime > timeoutMs) {
+        reject(new Error(`Timed out waiting for ${url} after ${timeoutMs / 1000}s`));
+        return;
+      }
+      const req = http.get(url, (res) => {
+        // Consume response data to free up memory
+        res.resume();
+        if (res.statusCode >= 200 && res.statusCode < 400) {
+          resolve();
+        } else {
+          setTimeout(check, 500);
+        }
+      });
+      req.on('error', () => setTimeout(check, 500));
+      req.setTimeout(2000, () => { req.destroy(); setTimeout(check, 500); });
+    }
+    check();
+  });
+}
+
 // ── Setup Wizard Window ───────────────────────────────────────────────────
 function createSetupWindow() {
   setupWindow = new BrowserWindow({
@@ -65,7 +97,7 @@ function createSetupWindow() {
 }
 
 // ── Main Window ───────────────────────────────────────────────────────────
-function createMainWindow() {
+async function createMainWindow() {
   const port = deviceConfig.getBackendPort();
 
   mainWindow = new BrowserWindow({
@@ -84,25 +116,9 @@ function createMainWindow() {
     },
   });
 
-  if (isDev) {
-    mainWindow.loadURL('http://localhost:3000');
-  } else {
-    const frontendPath = path.join(process.resourcesPath || __dirname, 'frontend', 'index.html');
-    if (fs.existsSync(frontendPath)) {
-      mainWindow.loadFile(frontendPath);
-    } else {
-      mainWindow.loadURL(`http://localhost:${port}`);
-    }
-  }
-
-  mainWindow.once('ready-to-show', () => {
-    closeSplash();
-    mainWindow.show();
-    if (isDev) mainWindow.webContents.openDevTools({ mode: 'detach' });
-  });
-
+  // ── Close / external-link handlers (always needed) ──
   mainWindow.on('close', (e) => {
-    if (process.platform !== 'darwin') return;
+    if (process.platform !== 'darwin' || appQuitting) return;
     e.preventDefault();
     mainWindow.hide();
   });
@@ -112,7 +128,7 @@ function createMainWindow() {
     return { action: 'deny' };
   });
 
-  // Forward cluster events to frontend via IPC
+  // ── Forward cluster events to frontend via IPC ──
   peerMonitor.on('peer-connected', (data) => {
     mainWindow?.webContents.send('cluster-event', { type: 'peer-connected', ...data });
   });
@@ -125,6 +141,115 @@ function createMainWindow() {
   peerMonitor.on('peer-recovered', (data) => {
     mainWindow?.webContents.send('cluster-event', { type: 'peer-recovered', ...data });
   });
+
+  // ── Dev mode: bulletproof Vite connection ──────────────────────────────
+  if (isDev) {
+    const devUrl = 'http://localhost:3000';
+    let devToolsOpened = false;
+    let loadRetryCount = 0;
+    const MAX_LOAD_RETRIES = 30;
+    const RETRY_DELAY_MS = 2000;
+
+    // 1) Show loading page immediately (so user never sees blank)
+    mainWindow.loadFile(path.join(__dirname, 'pages', 'loading.html'));
+
+    mainWindow.once('ready-to-show', () => {
+      closeSplash();
+      mainWindow.show();
+    });
+
+    // 2) Retry on failed loads (safety net for Vite restarts / network hiccups)
+    mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+      if (appQuitting || !mainWindow || mainWindow.isDestroyed()) return;
+
+      // Only retry for our dev URL, not for the loading page
+      if (validatedURL && validatedURL.startsWith('http://localhost')) {
+        loadRetryCount++;
+        if (loadRetryCount <= MAX_LOAD_RETRIES) {
+          console.log(`[main] Load failed: ${errorDescription} — retry ${loadRetryCount}/${MAX_LOAD_RETRIES} in ${RETRY_DELAY_MS / 1000}s`);
+          setTimeout(() => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.loadURL(devUrl);
+            }
+          }, RETRY_DELAY_MS);
+        } else {
+          console.error(`[main] Gave up after ${MAX_LOAD_RETRIES} retries — showing loading page`);
+          mainWindow.loadFile(path.join(__dirname, 'pages', 'loading.html'));
+        }
+      }
+    });
+
+    // 3) Open DevTools once the real app loads
+    mainWindow.webContents.on('did-finish-load', () => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      const currentUrl = mainWindow.webContents.getURL();
+      if (currentUrl.startsWith('http://localhost:3000') && !devToolsOpened) {
+        devToolsOpened = true;
+        loadRetryCount = 0; // Reset retries on success
+        console.log('[main] Vite app loaded successfully');
+        mainWindow.webContents.openDevTools({ mode: 'detach' });
+      }
+    });
+
+    // 4) Poll for Vite in background, then redirect when ready
+    console.log('[main] Dev mode — polling for Vite at', devUrl);
+    try {
+      await waitForUrl(devUrl, 60000);
+      console.log('[main] Vite dev server detected — loading app');
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.loadURL(devUrl);
+      }
+    } catch (err) {
+      console.warn('[main] Vite not detected after 60s:', err.message);
+      // Loading page is already shown with instructions — user can start Vite manually
+      // Keep polling in background (non-blocking) so if they start Vite later, it auto-loads
+      continuousVitePoll(devUrl);
+    }
+
+  // ── Production mode: load from dist or backend ─────────────────────────
+  } else {
+    const frontendPath = path.join(process.resourcesPath || __dirname, 'frontend', 'index.html');
+    const distPath = path.join(__dirname, '..', 'frontend-v2', 'dist', 'index.html');
+
+    if (fs.existsSync(frontendPath)) {
+      mainWindow.loadFile(frontendPath);
+    } else if (fs.existsSync(distPath)) {
+      mainWindow.loadFile(distPath);
+    } else {
+      mainWindow.loadURL(`http://localhost:${port}`);
+    }
+
+    mainWindow.once('ready-to-show', () => {
+      closeSplash();
+      mainWindow.show();
+    });
+  }
+}
+
+/**
+ * Keeps polling for Vite in the background after the initial timeout.
+ * If Vite becomes available later, auto-redirect the main window.
+ */
+function continuousVitePoll(devUrl) {
+  const pollInterval = setInterval(() => {
+    if (appQuitting || !mainWindow || mainWindow.isDestroyed()) {
+      clearInterval(pollInterval);
+      return;
+    }
+
+    const req = http.get(devUrl, (res) => {
+      res.resume();
+      if (res.statusCode >= 200 && res.statusCode < 400) {
+        console.log('[main] Vite dev server detected (background poll) — loading app');
+        clearInterval(pollInterval);
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.loadURL(devUrl);
+        }
+      }
+    });
+    req.on('error', () => {}); // Vite still not up, keep polling
+    req.setTimeout(2000, () => req.destroy());
+  }, 3000);
 }
 
 // ── Tray ──────────────────────────────────────────────────────────────────
@@ -177,7 +302,7 @@ async function bootSystem() {
     console.error('[main] Service startup failed:', err.message);
   }
 
-  createMainWindow();
+  await createMainWindow();
 }
 
 // ── IPC Handlers ──────────────────────────────────────────────────────────
@@ -303,6 +428,7 @@ app.on('activate', () => {
 });
 
 app.on('before-quit', async () => {
+  appQuitting = true;
   console.log('[main] Shutting down...');
   try {
     await serviceOrchestrator.shutdown();
