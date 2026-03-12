@@ -1,5 +1,11 @@
 """Kelly Criterion Position Sizing for Signal Engine.
 
+Phase 4: Bayesian Kelly Enhancement.
+- Beta distributions for win rate uncertainty quantification
+- Regime-conditional Kelly fractions (BULLISH=0.6f*, etc.)
+- Portfolio heat cap at 0.6 (60% total allocation)
+- DuckDB audit trail for Kelly parameter distributions
+
 Replaces fixed allocation (e.g. 3% trailing stops) with mathematically
 optimal position sizing based on historical win rates and R-multiples.
 Uses Half-Kelly by default to reduce drawdown risk.
@@ -14,61 +20,174 @@ Connects to:
     - alpaca_service.py (receives kelly_size_pct for order execution)
     - trade_outcomes table (historical stats for win_rate / R-multiples)
     - frontend-v2/src/pages/RiskIntelligence.jsx (displays position sizes)
-
-Based on Perplexity model council recommendation (Intelligence Layer #3).
 """
 from __future__ import annotations
 
+import json
 import logging
 import math
-from dataclasses import dataclass
-from typing import Dict, Optional
+import time
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
-# ---- OpenClaw regime multipliers (matches signal_engine.py) ----
-# Supports both named regimes (BULLISH/BEARISH) and HMM regimes (GREEN/YELLOW/RED)
-_REGIME_MULTIPLIERS: Dict[str, float] = {
-    "BULLISH": 1.10,
-    "RISK_ON": 1.05,
-    "NEUTRAL": 1.00,
-    "RISK_OFF": 0.70,
-    "BEARISH": 0.50,
-    "CRISIS": 0.25,
-    "UNKNOWN": 0.80,
-    # HMM regime mappings (from Bayesian regime detector)
-    "GREEN": 1.05,      # Favorable conditions
-    "YELLOW": 0.65,     # Caution - reduce size
-    "RED": 0.35,        # Danger - minimal size
+# ── Phase 4: Bayesian Beta Distribution for Win Rate ─────────────────────────
+
+@dataclass
+class BetaDistribution:
+    """Beta distribution for Bayesian win rate estimation.
+
+    Alpha = prior wins + observed wins
+    Beta  = prior losses + observed losses
+
+    The posterior mean gives a shrinkage estimator that naturally handles
+    small sample sizes (pulls toward prior) and converges to MLE for
+    large samples.
+    """
+    alpha: float = 2.0   # Prior: 2 wins (weakly informative)
+    beta: float = 2.0    # Prior: 2 losses (weakly informative)
+
+    @property
+    def mean(self) -> float:
+        """Posterior mean: E[p] = α / (α + β)."""
+        total = self.alpha + self.beta
+        return self.alpha / total if total > 0 else 0.5
+
+    @property
+    def variance(self) -> float:
+        """Posterior variance: Var[p] = αβ / ((α+β)²(α+β+1))."""
+        ab = self.alpha + self.beta
+        if ab <= 0:
+            return 0.25
+        return (self.alpha * self.beta) / (ab * ab * (ab + 1))
+
+    @property
+    def std(self) -> float:
+        """Posterior standard deviation."""
+        return math.sqrt(self.variance)
+
+    @property
+    def n_observations(self) -> float:
+        """Effective number of observations (excluding prior)."""
+        return max(0, self.alpha + self.beta - 4.0)  # Prior contributes 4
+
+    def update(self, wins: int, losses: int) -> None:
+        """Update posterior with new observations."""
+        self.alpha += wins
+        self.beta += losses
+
+    def credible_interval(self, level: float = 0.95) -> tuple:
+        """Approximate credible interval using Normal approximation.
+
+        For large samples, Beta ≈ Normal(mean, variance).
+        Returns (lower, upper) bounds at given level.
+        """
+        from math import sqrt
+        z = 1.96 if level >= 0.95 else 1.645  # 95% or 90%
+        m = self.mean
+        s = self.std
+        return (max(0, m - z * s), min(1, m + z * s))
+
+    def conservative_estimate(self, percentile: float = 0.05) -> float:
+        """Conservative win rate estimate (lower bound of credible interval).
+
+        Uses the lower percentile to be risk-averse when data is limited.
+        """
+        z = 1.645  # ~5th percentile of Normal
+        return max(0, self.mean - z * self.std)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "alpha": round(self.alpha, 4),
+            "beta": round(self.beta, 4),
+            "mean": round(self.mean, 4),
+            "std": round(self.std, 4),
+            "n_observations": round(self.n_observations, 1),
+            "conservative_estimate": round(self.conservative_estimate(), 4),
+        }
+
+    @classmethod
+    def from_stats(
+        cls,
+        win_rate: float,
+        trade_count: int,
+        prior_alpha: float = 2.0,
+        prior_beta: float = 2.0,
+    ) -> BetaDistribution:
+        """Create from observed win rate and trade count.
+
+        Combines prior (weakly informative) with observed data.
+        """
+        wins = int(win_rate * trade_count)
+        losses = trade_count - wins
+        return cls(alpha=prior_alpha + wins, beta=prior_beta + losses)
+
+
+# ── Phase 4: Regime-Conditional Kelly Fractions ──────────────────────────────
+# These replace the old multiplicative regime multipliers with fractions
+# of f* (full Kelly). This gives tighter risk control per regime.
+
+_REGIME_KELLY_FRACTIONS: Dict[str, float] = {
+    "BULLISH": 0.60,     # 60% of f* — confident, full swing
+    "RISK_ON": 0.55,
+    "NEUTRAL": 0.50,     # 50% of f* — standard Half-Kelly
+    "RISK_OFF": 0.35,
+    "BEARISH": 0.30,     # 30% of f* — conservative in downtrends
+    "CRISIS": 0.15,      # 15% of f* — minimal exposure
+    "UNKNOWN": 0.25,     # 25% of f* — uncertain = cautious
+    # HMM regime mappings
+    "GREEN": 0.55,
+    "YELLOW": 0.35,
+    "RED": 0.20,
 }
 
-# Short-side regime multipliers (inverted: bearish boosts shorts)
-_SHORT_REGIME_MULTIPLIERS: Dict[str, float] = {
-    "BULLISH": 0.50,
-    "RISK_ON": 0.70,
-    "NEUTRAL": 1.00,
-    "RISK_OFF": 1.05,
-    "BEARISH": 1.10,
-    "CRISIS": 1.15,
-    "UNKNOWN": 0.80,
-    # HMM regime mappings (inverted for shorts)
-    "GREEN": 0.70,      # Less favorable for shorts
-    "YELLOW": 1.00,     # Neutral for shorts
-    "RED": 1.10,        # Favorable for shorts
+# Short-side fractions (inverted: bearish allows larger shorts)
+_SHORT_REGIME_KELLY_FRACTIONS: Dict[str, float] = {
+    "BULLISH": 0.25,
+    "RISK_ON": 0.30,
+    "NEUTRAL": 0.50,
+    "RISK_OFF": 0.55,
+    "BEARISH": 0.60,
+    "CRISIS": 0.50,
+    "UNKNOWN": 0.25,
+    "GREEN": 0.30,
+    "YELLOW": 0.50,
+    "RED": 0.55,
 }
+
+# Legacy multipliers kept for backward compatibility in size_signal()
+_REGIME_MULTIPLIERS: Dict[str, float] = {
+    "BULLISH": 1.10, "RISK_ON": 1.05, "NEUTRAL": 1.00,
+    "RISK_OFF": 0.70, "BEARISH": 0.50, "CRISIS": 0.25, "UNKNOWN": 0.80,
+    "GREEN": 1.05, "YELLOW": 0.65, "RED": 0.35,
+}
+_SHORT_REGIME_MULTIPLIERS: Dict[str, float] = {
+    "BULLISH": 0.50, "RISK_ON": 0.70, "NEUTRAL": 1.00,
+    "RISK_OFF": 1.05, "BEARISH": 1.10, "CRISIS": 1.15, "UNKNOWN": 0.80,
+    "GREEN": 0.70, "YELLOW": 1.00, "RED": 1.10,
+}
+
+# Phase 4: Total portfolio Kelly allocation cap (never exceed 60% of capital)
+PORTFOLIO_KELLY_CAP = 0.60
 
 
 @dataclass
 class PositionSize:
     """Result of a Kelly calculation."""
-    raw_kelly: float          # Unmodified Kelly fraction
+    raw_kelly: float          # Unmodified Kelly fraction (f*)
     half_kelly: float         # Half-Kelly (safety adjustment)
-    regime_adjusted: float    # After OpenClaw regime multiplier
-    final_pct: float          # After max cap
+    regime_adjusted: float    # After regime-conditional fraction
+    final_pct: float          # After max cap + portfolio heat
     edge: float               # Mathematical edge (expected value per $1)
     regime: str               # Current market regime
     action: str               # BUY / SELL / HOLD based on edge
+    # Phase 4: Bayesian fields
+    bayesian_win_rate: float = 0.0      # Beta posterior mean
+    bayesian_uncertainty: float = 0.0   # Beta posterior std
+    kelly_fraction_used: float = 0.5    # Regime-conditional fraction of f*
+    portfolio_heat_scale: float = 1.0   # Scale factor from portfolio heat cap
 
 
 class KellyPositionSizer:
@@ -120,8 +239,15 @@ class KellyPositionSizer:
         regime: str = "NEUTRAL",
         side: str = "buy",
         trade_count: int = 100,
+        current_positions: Optional[Dict[str, float]] = None,
     ) -> PositionSize:
-        """Compute optimal position size.
+        """Compute optimal position size using Bayesian Kelly criterion.
+
+        Phase 4 Enhancement:
+        - Uses Beta distribution posterior for win rate uncertainty
+        - Applies regime-conditional Kelly fractions (not multiplicative)
+        - Enforces portfolio heat cap (0.6 total allocation)
+        - Stores parameter distributions for audit trail
 
         Parameters
         ----------
@@ -129,7 +255,9 @@ class KellyPositionSizer:
         avg_win_pct   : average winning trade as decimal (e.g. 0.035 = 3.5%)
         avg_loss_pct  : average losing trade as decimal (e.g. 0.015 = 1.5%)
         regime        : current OpenClaw market regime
+        side          : "buy" or "sell"/"short"
         trade_count   : number of historical trades in the sample
+        current_positions : dict of {symbol: allocation_pct} for portfolio heat check
 
         Returns
         -------
@@ -155,13 +283,25 @@ class KellyPositionSizer:
                 edge=0.0, regime=regime, action="HOLD",
             )
 
+        # ── Phase 4: Bayesian win rate via Beta distribution ─────────
+        beta_dist = BetaDistribution.from_stats(
+            win_rate=win_rate,
+            trade_count=trade_count,
+        )
+        # Use conservative estimate (lower credible bound) when data is limited
+        if trade_count < 50:
+            bayesian_win_rate = beta_dist.conservative_estimate()
+        else:
+            bayesian_win_rate = beta_dist.mean
+
         # R-ratio (risk-reward)
         r_ratio = abs(avg_win_pct / avg_loss_pct)
 
-        # Kelly formula: W - (1 - W) / R
-        raw_kelly = win_rate - ((1.0 - win_rate) / r_ratio)
+        # Kelly formula using Bayesian win rate: W - (1 - W) / R
+        raw_kelly = bayesian_win_rate - ((1.0 - bayesian_win_rate) / r_ratio)
 
-        # Mathematical edge per $1 risked
+        # Mathematical edge per $1 risked — use OBSERVED win rate for edge detection
+        # (Bayesian shrinkage is for conservative sizing, not edge existence check)
         edge = (win_rate * avg_win_pct) - ((1.0 - win_rate) * avg_loss_pct)
 
         # Negative edge = no trade
@@ -174,19 +314,38 @@ class KellyPositionSizer:
                 edge=round(edge, 4),
                 regime=regime,
                 action="HOLD",
+                bayesian_win_rate=round(bayesian_win_rate, 4),
+                bayesian_uncertainty=round(beta_dist.std, 4),
             )
 
-        # Half-Kelly for safety
-        half_kelly = raw_kelly * 0.5 if self.use_half_kelly else raw_kelly
+        # ── Phase 4: Regime-conditional Kelly fraction (replaces Half-Kelly × multiplier) ──
+        frac_table = (
+            _SHORT_REGIME_KELLY_FRACTIONS
+            if side.lower() in ("sell", "short")
+            else _REGIME_KELLY_FRACTIONS
+        )
+        kelly_fraction = frac_table.get(regime.upper(), 0.25)
 
-        # Apply OpenClaw regime multiplier
-        mult_table = _SHORT_REGIME_MULTIPLIERS if side.lower() in ("sell", "short") else _REGIME_MULTIPLIERS
-        regime_mult = mult_table.get(regime.upper(), 0.80)
-        regime_adjusted = half_kelly * regime_mult
+        # Apply regime fraction to full Kelly
+        half_kelly = raw_kelly * 0.5  # Record standard half-kelly for reference
+        regime_adjusted = raw_kelly * kelly_fraction
 
         # Cap at max allocation
-        final_pct = min(regime_adjusted, self.max_allocation)
+        capped_pct = min(regime_adjusted, self.max_allocation)
 
+        # ── Phase 4: Portfolio heat cap — proportional shrinkage ──────
+        heat_scale = 1.0
+        if current_positions:
+            current_heat = sum(current_positions.values())
+            remaining_capacity = max(0.0, PORTFOLIO_KELLY_CAP - current_heat)
+            if remaining_capacity <= 0:
+                capped_pct = 0.0
+                heat_scale = 0.0
+            elif capped_pct > remaining_capacity:
+                heat_scale = remaining_capacity / capped_pct
+                capped_pct = remaining_capacity
+
+        final_pct = capped_pct
         action = ("SELL" if side.lower() in ("sell", "short") else "BUY") if final_pct > 0 else "HOLD"
 
         result = PositionSize(
@@ -197,14 +356,86 @@ class KellyPositionSizer:
             edge=round(edge, 4),
             regime=regime,
             action=action,
+            bayesian_win_rate=round(bayesian_win_rate, 4),
+            bayesian_uncertainty=round(beta_dist.std, 4),
+            kelly_fraction_used=kelly_fraction,
+            portfolio_heat_scale=round(heat_scale, 4),
         )
 
         logger.info(
-            "Kelly sizing: edge=%.4f raw=%.4f half=%.4f regime=%s(x%.2f) final=%.4f -> %s",
-            edge, raw_kelly, half_kelly, regime, regime_mult, final_pct, action,
+            "Bayesian Kelly: edge=%.4f raw_f*=%.4f regime=%s(frac=%.2f) "
+            "bayesian_wr=%.4f±%.4f heat_scale=%.2f final=%.4f -> %s",
+            edge, raw_kelly, regime, kelly_fraction,
+            bayesian_win_rate, beta_dist.std, heat_scale, final_pct, action,
+        )
+
+        # ── Phase 4: Audit trail to DuckDB ───────────────────────────
+        self._audit_kelly_params(
+            regime=regime,
+            beta_dist=beta_dist,
+            raw_kelly=raw_kelly,
+            kelly_fraction=kelly_fraction,
+            final_pct=final_pct,
+            trade_count=trade_count,
+            heat_scale=heat_scale,
         )
 
         return result
+
+    def _audit_kelly_params(
+        self,
+        regime: str,
+        beta_dist: BetaDistribution,
+        raw_kelly: float,
+        kelly_fraction: float,
+        final_pct: float,
+        trade_count: int,
+        heat_scale: float,
+    ) -> None:
+        """Store Kelly parameter distributions in DuckDB for audit trail."""
+        try:
+            from app.data.duckdb_storage import duckdb_store
+            conn = duckdb_store.get_thread_cursor()
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS kelly_audit (
+                    id INTEGER PRIMARY KEY,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    regime VARCHAR,
+                    beta_alpha DOUBLE,
+                    beta_beta DOUBLE,
+                    bayesian_win_rate DOUBLE,
+                    bayesian_uncertainty DOUBLE,
+                    raw_kelly DOUBLE,
+                    kelly_fraction DOUBLE,
+                    final_pct DOUBLE,
+                    trade_count INTEGER,
+                    heat_scale DOUBLE,
+                    beta_params_json VARCHAR
+                )
+            """)
+            conn.execute(
+                """INSERT INTO kelly_audit
+                   (id, regime, beta_alpha, beta_beta, bayesian_win_rate,
+                    bayesian_uncertainty, raw_kelly, kelly_fraction,
+                    final_pct, trade_count, heat_scale, beta_params_json)
+                   VALUES ((SELECT COALESCE(MAX(id),0)+1 FROM kelly_audit),
+                           ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                [
+                    regime,
+                    round(beta_dist.alpha, 4),
+                    round(beta_dist.beta, 4),
+                    round(beta_dist.mean, 4),
+                    round(beta_dist.std, 4),
+                    round(raw_kelly, 4),
+                    kelly_fraction,
+                    round(final_pct, 4),
+                    trade_count,
+                    round(heat_scale, 4),
+                    json.dumps(beta_dist.to_dict()),
+                ],
+            )
+        except Exception as e:
+            logger.debug("Kelly audit trail failed: %s", e)
 
     # ------------------------------------------------------------------
     def size_signal(
@@ -495,16 +726,34 @@ class KellyPositionSizer:
         self,
         position_pct: float,
         current_positions: Dict[str, float],
-        max_heat: float = 0.25,
+        max_heat: float = 0.60,
     ) -> Dict:
-        """Check total portfolio heat (sum of all position sizes)."""
+        """Check total portfolio heat (sum of all Kelly allocations).
+
+        Phase 4: Default cap raised to 0.60 (60% of capital) as the
+        Bayesian Kelly fractions already enforce per-regime risk limits.
+        When approaching the cap, positions get proportionally smaller.
+        """
         current_heat = sum(current_positions.values())
         remaining = max(0.0, max_heat - current_heat)
-        allowed_pct = min(position_pct, remaining)
+
+        # Proportional shrinkage: as heat approaches cap, scale new positions down
+        if remaining <= 0:
+            allowed_pct = 0.0
+            shrinkage_factor = 0.0
+        elif current_heat > max_heat * 0.8:
+            # Within 80-100% of cap: proportional reduction
+            shrinkage_factor = remaining / (max_heat * 0.2)
+            allowed_pct = min(position_pct * shrinkage_factor, remaining)
+        else:
+            shrinkage_factor = 1.0
+            allowed_pct = min(position_pct, remaining)
+
         return {
             "allowed": allowed_pct > 0.005,
             "adjusted_pct": round(allowed_pct, 4),
             "current_heat": round(current_heat, 4),
             "max_heat": max_heat,
             "remaining_capacity": round(remaining, 4),
+            "shrinkage_factor": round(shrinkage_factor, 4),
         }

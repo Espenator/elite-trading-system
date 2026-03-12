@@ -1488,6 +1488,17 @@ async def lifespan(app: FastAPI):
     if not _bg_loops:
         log.info("\u26A0\uFE0F Background loops disabled (BACKGROUND_LOOPS=false)")
 
+    # Phase 4: Regime Publisher — broadcasts current regime every 60s
+    _regime_pub_task = None
+    if _bg_loops:
+        try:
+            from app.council.regime_publisher import get_regime_publisher
+            _regime_pub = get_regime_publisher()
+            await _regime_pub.start()
+            log.info("RegimePublisher started (60s interval)")
+        except Exception as e:
+            log.debug("RegimePublisher not started: %s", e)
+
     # Event loop watchdog — logs every 5s to detect freezes
     # 30. Wire critical PUBLISH_ONLY subscribers (Audit Item 2)
     # These events were published into the void — now they have handlers.
@@ -1584,6 +1595,14 @@ async def lifespan(app: FastAPI):
                     await task
                 except asyncio.CancelledError:
                     pass
+        # Stop regime publisher
+        try:
+            from app.council.regime_publisher import get_regime_publisher
+            _rp = get_regime_publisher()
+            await _rp.stop()
+        except Exception:
+            pass
+
         # Stop intelligence cache background loop
         try:
             from app.services.intelligence_cache import get_intelligence_cache
