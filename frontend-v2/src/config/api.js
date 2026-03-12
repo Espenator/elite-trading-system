@@ -100,6 +100,7 @@ const API_CONFIG = {
     "openclaw/regime":         "/openclaw/regime",
     "openclaw/macro":          "/openclaw/macro",
     "strategy/regime-params":  "/strategy/regime-params",
+    "strategy/controls":       "/strategy/controls",
     "backtest/regime":         "/backtest/regime",
     "openclaw/sectors":        "/openclaw/sectors",
     "openclaw/scan":           "/openclaw/scan",

@@ -603,23 +603,67 @@ export default function MLBrainFlywheel() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800/20">
-                  {displaySignals.map((row, idx) => (
+                  {signalsData.length === 0 ? (
+                    <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-500 text-xs">No staged signals</td></tr>
+                  ) : (
+                  signalsData.map((row, idx) => (
                     <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
-                      <td className="px-3 py-1.5 text-white font-bold text-[11px]">{row.symbol}</td>
+                      <td className="px-3 py-1.5 text-white font-bold text-[11px]">{row.symbol ?? row.ticker}</td>
                       <td className="px-2 py-1.5">
-                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${(row.dir === 'LONG' || row.dir === 'long') ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
-                          {row.dir?.toUpperCase()}
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${(row.dir === 'LONG' || row.dir === 'long' || row.direction === 'long') ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                          {(row.dir ?? row.direction ?? '—').toString().toUpperCase()}
                         </span>
                       </td>
-                      <WinProbBar value={row.winProb} dir={row.dir} />
-                      <td className="px-2 py-1.5 text-gray-300">{row.compression}</td>
-                      <td className="px-2 py-1.5 text-gray-300">{row.velezScore}</td>
-                      <td className="px-2 py-1.5 text-right text-[#00D9FF]">{row.volRatio}</td>
+                      <WinProbBar value={row.winProb ?? row.win_prob} dir={row.dir ?? row.direction} />
+                      <td className="px-2 py-1.5 text-gray-300">{row.compression ?? '—'}</td>
+                      <td className="px-2 py-1.5 text-gray-300">{row.velezScore ?? '—'}</td>
+                      <td className="px-2 py-1.5 text-right text-[#00D9FF]">{row.volRatio ?? '—'}</td>
                     </tr>
-                  ))}
+                  )))}
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+
+        {/* ================================================================ */}
+        {/* FEATURE STORE */}
+        {/* ================================================================ */}
+        <div className="bg-[#0B0E14] border border-gray-800/60 rounded-lg overflow-hidden shrink-0">
+          <div className="px-4 py-3 border-b border-gray-800/40 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Database className="w-4 h-4 text-[#00D9FF]" />
+              <h3 className="text-sm font-semibold text-white">Feature store</h3>
+              {apiFeatures?.flywheel?.version && (
+                <span className="text-[10px] text-gray-500 font-mono">v{apiFeatures.flywheel.version}</span>
+              )}
+            </div>
+          </div>
+          <div className="overflow-x-auto max-h-40 overflow-y-auto">
+            <table className="w-full text-left font-mono text-[10px]">
+              <thead className="sticky top-0 bg-[#0B0E14] text-gray-500 border-b border-gray-800/40">
+                <tr>
+                  <th className="px-3 py-2">Name</th>
+                  <th className="px-2 py-2">Source</th>
+                  <th className="px-2 py-2">Pipeline version</th>
+                  <th className="px-2 py-2">Freshness</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-800/20">
+                {featuresData.length === 0 ? (
+                  <tr><td colSpan={4} className="px-3 py-4 text-center text-gray-500">No feature pipeline data. Run feature compute or backfill.</td></tr>
+                ) : (
+                  featuresData.map((f, i) => (
+                    <tr key={f.name ?? i}>
+                      <td className="px-3 py-1.5 text-white">{f.name ?? '—'}</td>
+                      <td className="px-2 py-1.5 text-gray-400">{f.source ?? '—'}</td>
+                      <td className="px-2 py-1.5 text-gray-400">{f.pipeline_version ?? '—'}</td>
+                      <td className="px-2 py-1.5 text-[#00D9FF]">{f.freshness ?? '—'}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
 

@@ -393,88 +393,71 @@ export default function TradeExecution() {
           </div>
         </div>
 
-        {/* ═══ COL 2 ROW 1: ADVANCED ORDER BUILDER + VISUAL PRICE LADDER ═══ */}
+        {/* ═══ COL 2 ROW 1: ORDER ENTRY + RECENT ORDERS ═══ */}
         <div className="bg-[rgba(42,52,68,0.5)] flex flex-row overflow-hidden" style={{ gap: '1px' }}>
         <div className="bg-[#111827]/80 flex flex-col overflow-hidden" style={{ flex: '3 1 0%' }}>
-          <PanelHead>Advanced Order Builder</PanelHead>
+          <PanelHead>Order entry</PanelHead>
           <div className="flex-1 overflow-y-auto p-3.5">
-            {/* Tabs */}
-            <div className="flex gap-0 mb-3.5 border-b border-[rgba(42,52,68,0.5)]">
-              {['Advanced', 'Strategy', 'News'].map(tab => (
-                <button
-                  key={tab}
-                  onClick={() => setBuilderTab(tab)}
-                  className={clsx(
-                    'px-3.5 py-[5px] text-[10px] border-b-2 transition-colors cursor-pointer',
-                    builderTab === tab ? 'text-[#00D9FF] border-[#00D9FF]' : 'text-gray-500 border-transparent hover:text-[#c8d6e5]',
-                  )}
-                >{tab}</button>
-              ))}
-            </div>
-
             <FormField label="Symbol:">
-              <FormSelect value={orderForm.symbol} onChange={e => updateOrderForm({ symbol: e.target.value })}>
-                {symbols.map(s => <option key={s} value={s}>{s}</option>)}
-              </FormSelect>
-            </FormField>
-
-            <FormField label="Strategy:">
-              <FormSelect value={orderForm.strategy} onChange={e => updateOrderForm({ strategy: e.target.value })}>
-                {STRATEGIES.map(s => <option key={s} value={s}>{s}</option>)}
-              </FormSelect>
-            </FormField>
-
-            {/* Call with +/- stepper */}
-            <FormField label="Call:">
-              <div className="flex-1 flex items-center gap-1">
-                <button onClick={() => updateOrderForm({ callStrikeIdx: Math.max(callIdx - 1, 0) })} className="w-6 h-6 flex items-center justify-center bg-[#0B0E14] border border-[rgba(42,52,68,0.5)] rounded-[3px] text-gray-500 hover:border-[#00D9FF] hover:text-[#00D9FF] transition-colors shrink-0"><Minus className="w-3 h-3" /></button>
-                <FormInput readOnly value={curCall} className="flex-1 text-center" />
-                <button onClick={() => updateOrderForm({ callStrikeIdx: Math.min(callIdx + 1, displayCallStrikes.length - 1) })} className="w-6 h-6 flex items-center justify-center bg-[#0B0E14] border border-[rgba(42,52,68,0.5)] rounded-[3px] text-gray-500 hover:border-[#00D9FF] hover:text-[#00D9FF] transition-colors shrink-0"><Plus className="w-3 h-3" /></button>
+              <div className="flex-1 relative">
+                <FormInput value={symbolSearch || orderForm.symbol} onChange={(e) => { setSymbolSearch(e.target.value); setSymbolDropdownOpen(true); }} onFocus={() => setSymbolDropdownOpen(true)} onBlur={() => setTimeout(() => setSymbolDropdownOpen(false), 180)} placeholder="e.g. SPY" />
+                {symbolDropdownOpen && (
+                  <div className="absolute top-full left-0 right-0 mt-0.5 max-h-40 overflow-y-auto bg-[#0B0E14] border border-[rgba(42,52,68,0.8)] rounded-[3px] z-10 shadow-lg">
+                    {(symbolSearch ? symbolSuggestions : symbols.slice(0, 15)).map((s) => (
+                      <button key={s} type="button" className="w-full px-2.5 py-1.5 text-left font-mono text-[10px] text-white hover:bg-[#00D9FF]/15" onClick={() => { updateOrderForm({ symbol: s }); setSymbolSearch(''); setSymbolDropdownOpen(false); }}>{s}</button>
+                    ))}
+                  </div>
+                )}
               </div>
             </FormField>
-
-            {/* Put with +/- stepper */}
-            <FormField label="Put:">
-              <div className="flex-1 flex items-center gap-1">
-                <button onClick={() => updateOrderForm({ putStrikeIdx: Math.max(putIdx - 1, 0) })} className="w-6 h-6 flex items-center justify-center bg-[#0B0E14] border border-[rgba(42,52,68,0.5)] rounded-[3px] text-gray-500 hover:border-[#00D9FF] hover:text-[#00D9FF] transition-colors shrink-0"><Minus className="w-3 h-3" /></button>
-                <FormInput readOnly value={curPut} className="flex-1 text-center" />
-                <button onClick={() => updateOrderForm({ putStrikeIdx: Math.min(putIdx + 1, displayPutStrikes.length - 1) })} className="w-6 h-6 flex items-center justify-center bg-[#0B0E14] border border-[rgba(42,52,68,0.5)] rounded-[3px] text-gray-500 hover:border-[#00D9FF] hover:text-[#00D9FF] transition-colors shrink-0"><Plus className="w-3 h-3" /></button>
+            {currentQuote && (
+              <div className="flex gap-4 mb-2.5 font-mono text-[10px]">
+                <span><span className="text-gray-500">Bid:</span> <span className="text-[#00e676]">{fmtUsd(currentQuote.bp ?? currentQuote.bid_price)}</span></span>
+                <span><span className="text-gray-500">Ask:</span> <span className="text-[#ff3860]">{fmtUsd(currentQuote.ap ?? currentQuote.ask_price)}</span></span>
+                <span><span className="text-gray-500">Last:</span> <span className="text-white">{fmtUsd(currentQuote.lp ?? currentQuote.last_price)}</span></span>
               </div>
-            </FormField>
-
+            )}
+            <FormField label="Side:"><FormSelect value={orderForm.side} onChange={e => updateOrderForm({ side: e.target.value })}><option value="buy">Buy</option><option value="sell">Sell</option></FormSelect></FormField>
+            <FormField label="Type:"><FormSelect value={orderForm.orderType} onChange={e => updateOrderForm({ orderType: e.target.value })}>{ORDER_TYPES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</FormSelect></FormField>
             <FormField label="Quantity:">
               <div className="flex-1 flex items-center gap-1.5">
-                <FormInput type="number" value={orderForm.quantity} onChange={e => updateOrderForm({ quantity: parseInt(e.target.value) || 0 })} className="flex-1" />
-                <span className="text-[9px] text-gray-500 shrink-0">Contracts</span>
+                <FormInput type="number" min={1} value={orderForm.quantity} onChange={e => updateOrderForm({ quantity: Math.max(0, parseInt(e.target.value, 10) || 0) })} className="flex-1" />
+                {kellyRecommendedQty != null && <button type="button" onClick={applyKellyQty} className="text-[9px] text-[#00D9FF] hover:underline shrink-0">Use Kelly ({kellyRecommendedQty})</button>}
               </div>
             </FormField>
-
-            <FormField label="Limit:">
-              <div className="flex-1 flex gap-2">
-                <FormInput type="number" step="0.01" value={orderForm.limitPrice} onChange={e => updateOrderForm({ limitPrice: parseFloat(e.target.value) || 0 })} className="flex-1" placeholder="1.55" />
-                <FormInput type="number" step="0.01" value={orderForm.stopPrice} onChange={e => updateOrderForm({ stopPrice: parseFloat(e.target.value) || 0 })} className="flex-1" placeholder="1.00" />
+            {(orderForm.orderType === 'limit' || orderForm.orderType === 'stop_limit') && <FormField label="Limit price:"><FormInput type="number" step="0.01" min={0} value={orderForm.limitPrice} onChange={e => updateOrderForm({ limitPrice: e.target.value })} className="flex-1" placeholder="0.00" /></FormField>}
+            {(orderForm.orderType === 'stop' || orderForm.orderType === 'stop_limit') && <FormField label="Stop price:"><div className="flex-1 flex items-center gap-1"><FormInput type="number" step="0.01" min={0} value={orderForm.stopPrice} onChange={e => updateOrderForm({ stopPrice: e.target.value })} className="flex-1" placeholder="0.00" /><button type="button" onClick={suggestDynamicStop} className="text-[9px] text-[#00D9FF] hover:underline shrink-0">Suggest</button></div></FormField>}
+            <FormField label="Time in force:"><FormSelect value={orderForm.timeInForce} onChange={e => updateOrderForm({ timeInForce: e.target.value })}>{TIF_OPTIONS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}</FormSelect></FormField>
+            <div className="mb-2.5">
+              <div className="flex items-center gap-2 mb-1">
+                <button type="button" onClick={runPreTradeCheck} disabled={preTradeCheckLoading || !orderForm.symbol} className="text-[10px] font-mono text-[#00D9FF] hover:underline disabled:opacity-50">Run pre-trade check</button>
+                {preTradeCheckResult != null && <span className={clsx('font-mono text-[9px] font-semibold', preTradeCheckResult.allowed ? 'text-[#00e676]' : 'text-[#ff3860]')}>{preTradeCheckResult.allowed ? 'Approved' : 'Rejected'}</span>}
               </div>
-            </FormField>
-
-            {/* Execute button -- cyan/teal gradient matching mockup */}
-            <button
-              onClick={() => withPreflight('buy', executeAdvancedOrder)}
-              disabled={loading}
-              className="w-full py-3 mt-3.5 rounded font-mono text-[13px] font-bold text-black uppercase tracking-[1px] bg-gradient-to-br from-[#007a8a] to-[#00d4e8] hover:brightness-[1.15] hover:-translate-y-px transition-all disabled:opacity-50 disabled:cursor-wait shadow-[0_4px_20px_rgba(0,212,232,0.15)] hover:shadow-[0_6px_30px_rgba(0,212,232,0.3)] flex items-center justify-center gap-2"
-            >{loading ? 'Executing...' : <>Execute Order <span className="text-[9px] bg-black/25 px-[4px] py-px rounded-sm">E</span></>}</button>
+              {preTradeCheckResult?.reasons?.length > 0 && <ul className="text-[9px] text-gray-400 list-disc list-inside mb-1">{preTradeCheckResult.reasons.map((r, i) => <li key={i}>{r}</li>)}</ul>}
+              {preTradeCheckResult?.allowed === false && <label className="flex items-center gap-1.5 text-[9px] text-amber-400"><input type="checkbox" checked={preTradeCheckOverride} onChange={e => setPreTradeCheckOverride(e.target.checked)} />Override and allow submission</label>}
+            </div>
+            {maxSharesByRisk != null && <p className="font-mono text-[9px] text-gray-500 mb-1">Max shares (risk): {maxSharesByRisk}</p>}
+            {orderForm.quantity > 0 && maxSharesByRisk != null && orderForm.quantity > maxSharesByRisk && (
+              <div className="mb-2 flex items-center gap-2">
+                <span className="text-[9px] text-amber-400">Quantity exceeds risk-based max.</span>
+                <label className="flex items-center gap-1 text-[9px] text-amber-400"><input type="checkbox" checked={riskOverrideAck} onChange={e => setRiskOverrideAck(e.target.checked)} />Acknowledge override</label>
+              </div>
+            )}
+            <button onClick={openConfirmModal} disabled={loading || !canSubmit || (preTradeCheckResult?.allowed === false && !preTradeCheckOverride) || (orderForm.quantity > (maxSharesByRisk ?? Infinity) && !riskOverrideAck)} className="w-full py-3 mt-2 rounded font-mono text-[13px] font-bold text-black uppercase tracking-[1px] bg-gradient-to-br from-[#007a8a] to-[#00d4e8] hover:brightness-[1.15] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">{loading ? 'Placing…' : 'Place order (confirm)'}</button>
           </div>
         </div>
-        {/* VisualPriceLadder — narrow adjacent column (~1/4 width) */}
-        <div className="bg-[#111827]/80 flex flex-col overflow-hidden" style={{ flex: '1 1 0%', minWidth: 180 }}>
-          <VisualPriceLadder
-            entry={0}
-            stop={0}
-            target={0}
-            currentPrice={0}
-            symbol=""
-          />
+        <div className="bg-[#111827]/80 flex flex-col overflow-hidden" style={{ flex: '1 1 0%', minWidth: 200 }}>
+          <PanelHead>Recent orders</PanelHead>
+          <div className="flex-1 overflow-y-auto p-2 font-mono text-[9px]">
+            {recentOrders.length === 0 ? <p className="text-gray-500 p-2">No recent orders</p> : recentOrders.map((o, i) => (
+              <div key={o.id || i} className="py-1.5 border-b border-[rgba(42,52,68,0.3)] flex justify-between gap-2">
+                <span className="text-[#00D9FF] truncate">{o.symbol ?? o.symbol_id ?? '—'}</span>
+                <span className={clsx('shrink-0', (o.filled_qty ?? o.filled_quantity) > 0 ? 'text-[#00e676]' : 'text-gray-400')}>{o.status ?? '—'}</span>
+              </div>
+            ))}
+          </div>
         </div>
-        </div>{/* /col2-flex-row */}
+        </div>
 
         {/* ═══ COL 3 ROW 1: LIVE ORDER BOOK ═══ */}
         <div className="bg-[#111827]/80 flex flex-col overflow-hidden">

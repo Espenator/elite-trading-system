@@ -436,6 +436,14 @@ export async function postBiasOverride(biasMultiplier) {
   });
 }
 
+/** POST strategy/controls to set regimeOverride (BULL, BEAR, NEUTRAL, CRISIS). Requires confirmation. */
+export async function postRegimeOverride(regimeOverride) {
+  return apiFetch(getApiUrl('strategy/controls'), {
+    method: 'POST',
+    body: JSON.stringify({ regimeOverride }),
+  });
+}
+
 // ---- CNS Hooks ----
 
 export function useHomeostasis(pollMs = 30000) {
