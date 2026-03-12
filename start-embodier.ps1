@@ -4,10 +4,10 @@
 #
 # WHAT THIS DOES:
 #   1. Kills ALL zombie Python/Node processes from previous runs
-#   2. Frees ports 8000 and 5173 if anything holds them
+#   2. Frees ports 8000 and 5173 (retries until no process holds them)
 #   3. Clears DuckDB lock files that cause "file in use" errors
 #   4. Creates .env files if missing
-#   5. Verifies port is free before starting
+#   5. Waits for port 8000 to be free (retries ~10x; handles TIME_WAIT/PID 0)
 #   6. Starts frontend + backend, auto-opens browser
 #   7. Ctrl+C cleanly stops everything
 
@@ -36,51 +36,63 @@ Write-Host "  [1/6] Cleaning up stale processes..." -ForegroundColor Yellow
 
 $killedCount = 0
 
-# Kill stale Python processes (uvicorn, start_server, etc)
+# Kill stale Python processes (uvicorn, start_server, etc) and their children
 Get-Process python -ErrorAction SilentlyContinue | ForEach-Object {
     try {
         $cmd = (Get-CimInstance Win32_Process -Filter "ProcessId=$($_.Id)" -ErrorAction SilentlyContinue).CommandLine
         if ($cmd -and ($cmd -match "elite-trading-system" -or $cmd -match "uvicorn" -or $cmd -match "start_server")) {
-            Stop-Process -Id $_.Id -Force
+            & taskkill /F /T /PID $_.Id 2>$null | Out-Null
             $script:killedCount++
         }
     } catch {}
 }
 
-# Kill stale Node/Vite processes
+# Kill stale Node/Vite processes and their children
 Get-Process node -ErrorAction SilentlyContinue | ForEach-Object {
     try {
         $cmd = (Get-CimInstance Win32_Process -Filter "ProcessId=$($_.Id)" -ErrorAction SilentlyContinue).CommandLine
         if ($cmd -and ($cmd -match "elite-trading-system" -or $cmd -match "vite")) {
-            Stop-Process -Id $_.Id -Force
+            & taskkill /F /T /PID $_.Id 2>$null | Out-Null
             $script:killedCount++
         }
     } catch {}
 }
 
-# Force-free the backend and frontend ports
-foreach ($p in @($BackendPort, $FrontendPort)) {
-    Get-NetTCPConnection -LocalPort $p -ErrorAction SilentlyContinue |
-        Select-Object -ExpandProperty OwningProcess -Unique |
-        Where-Object { $_ -ne 0 } |
-        ForEach-Object {
-            Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue
-            $script:killedCount++
-            Write-Host "    Freed port $p (PID $_)" -ForegroundColor Gray
-        }
+# Force-free the backend and frontend ports (kill process tree so uvicorn/vite children release ports)
+$portsToFree = @($BackendPort, $FrontendPort)
+$maxPortRetries = 8
+$portRetryDelay = 2
+for ($r = 0; $r -lt $maxPortRetries; $r++) {
+    $anyKilled = $false
+    foreach ($p in $portsToFree) {
+        Get-NetTCPConnection -LocalPort $p -ErrorAction SilentlyContinue |
+            Where-Object { $_.OwningProcess -and $_.OwningProcess -ne 0 } |
+            Select-Object -ExpandProperty OwningProcess -Unique |
+            ForEach-Object {
+                $pidToKill = $_
+                # Kill process tree (parent + children) so uvicorn reloader + workers all exit
+                & taskkill /F /T /PID $pidToKill 2>$null | Out-Null
+                $script:killedCount++
+                $anyKilled = $true
+                Write-Host "    Freed port $p (PID $pidToKill + tree)" -ForegroundColor Gray
+            }
+    }
+    if (-not $anyKilled) { break }
+    Start-Sleep -Seconds $portRetryDelay
 }
 
 if ($killedCount -gt 0) {
     Write-Host "    Killed $killedCount stale process(es)" -ForegroundColor Gray
+    Write-Host "    Waiting 5s for ports and DuckDB to release..." -ForegroundColor DarkGray
 } else {
     Write-Host "    No stale processes found" -ForegroundColor Gray
 }
 
-# Let OS release sockets and file handles
-Start-Sleep -Seconds 2
+# Let OS release sockets and file handles (longer wait if we killed anything)
+Start-Sleep -Seconds $(if ($killedCount -gt 0) { 5 } else { 3 })
 
 # ----------------------------------------------------------------
-# PHASE 2: Clear DuckDB lock files
+# PHASE 2: Clear DuckDB lock files (backend/data/*.duckdb.wal, *.duckdb.tmp)
 # ----------------------------------------------------------------
 Write-Host "  [2/6] Clearing DuckDB locks..." -ForegroundColor Yellow
 
@@ -91,6 +103,7 @@ Get-ChildItem -Path $BackendDir -Include "*.duckdb.wal","*.duckdb.tmp" -Recurse 
     $lockCount++
 }
 if ($lockCount -eq 0) { Write-Host "    No stale locks found" -ForegroundColor Gray }
+else { Start-Sleep -Seconds 1 }
 
 # ----------------------------------------------------------------
 # PHASE 3: Ensure .env files exist
@@ -122,14 +135,53 @@ if (-not (Test-Path $frontendEnv)) {
 }
 
 # ----------------------------------------------------------------
-# PHASE 4: Verify backend port is truly free
+# PHASE 3b: Ensure backend venv exists (fresh clone)
+# ----------------------------------------------------------------
+if (-not (Test-Path $PythonExe)) {
+    Write-Host "  [3b] Backend venv not found." -ForegroundColor Yellow
+    Write-Host "    Create it with:" -ForegroundColor Gray
+    Write-Host "      cd $BackendDir" -ForegroundColor Gray
+    Write-Host "      python -m venv venv" -ForegroundColor Gray
+    Write-Host "      .\venv\Scripts\pip.exe install -r requirements.txt" -ForegroundColor Gray
+    Write-Host "    See docs/PC1-SETUP.md for full run & verify steps." -ForegroundColor Gray
+    Read-Host "  Press Enter to exit"
+    exit 1
+}
+
+# ----------------------------------------------------------------
+# PHASE 4: Verify backend port is free (retry until free or give up)
 # ----------------------------------------------------------------
 Write-Host "  [4/6] Verifying port $BackendPort is free..." -ForegroundColor Yellow
 
-$portCheck = Get-NetTCPConnection -LocalPort $BackendPort -ErrorAction SilentlyContinue
-if ($portCheck) {
-    Write-Host "    ERROR: Port $BackendPort still in use!" -ForegroundColor Red
-    Write-Host "    PIDs: $($portCheck.OwningProcess -join ', ')" -ForegroundColor Red
+$maxVerifyRetries = 10
+$verifyDelay = 4
+$portFree = $false
+for ($v = 0; $v -lt $maxVerifyRetries; $v++) {
+    $conns = Get-NetTCPConnection -LocalPort $BackendPort -ErrorAction SilentlyContinue
+    if (-not $conns) {
+        $portFree = $true
+        break
+    }
+    $pids = $conns.OwningProcess | Where-Object { $_ -ne 0 } | Select-Object -Unique
+    if ($pids) {
+        foreach ($pid in $pids) {
+            & taskkill /F /T /PID $pid 2>$null | Out-Null
+            Write-Host "    Killed PID $pid (tree) holding port $BackendPort" -ForegroundColor Gray
+        }
+    } else {
+        # PID 0 = socket in TIME_WAIT or system; just wait for OS to release
+        if ($v -eq 0) {
+            Write-Host "    Port in TIME_WAIT, waiting for OS to release..." -ForegroundColor Gray
+        }
+    }
+    if ($v -lt $maxVerifyRetries - 1) {
+        Start-Sleep -Seconds $verifyDelay
+    }
+}
+
+if (-not $portFree) {
+    Write-Host "    ERROR: Port $BackendPort still in use after ${maxVerifyRetries} retries." -ForegroundColor Red
+    Write-Host "    Close any app using port $BackendPort (e.g. another terminal running uvicorn) and try again." -ForegroundColor Yellow
     Read-Host "  Press Enter to exit"
     exit 1
 }
@@ -150,6 +202,7 @@ Start-Sleep -Seconds 3
 # PHASE 6: Start backend in THIS terminal
 # ----------------------------------------------------------------
 Write-Host "  [6/6] Starting backend on :$BackendPort..." -ForegroundColor Yellow
+Write-Host "    (Run only ONE instance - close other Embodier windows first)" -ForegroundColor DarkGray
 Write-Host ""
 Write-Host "  ============================================" -ForegroundColor Green
 Write-Host "    Backend:   http://localhost:$BackendPort/docs" -ForegroundColor White
@@ -158,6 +211,7 @@ Write-Host "    Dashboard: http://localhost:$FrontendPort/dashboard" -Foreground
 Write-Host "  ============================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Backend logs below. Ctrl+C stops everything." -ForegroundColor DarkGray
+Write-Host "  If you see 'DuckDB file in use' or 'connection limit exceeded', close other Embodier windows and restart." -ForegroundColor DarkGray
 Write-Host ""
 
 # Auto-open browser after backend has time to start
@@ -167,7 +221,7 @@ $null = Start-Job -ScriptBlock {
     Start-Process "http://localhost:$port/dashboard"
 } -ArgumentList $FrontendPort
 
-# Run backend — this blocks until Ctrl+C
+# Run backend (this blocks until Ctrl+C)
 try {
     Set-Location $BackendDir
     & $PythonExe start_server.py

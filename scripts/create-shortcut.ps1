@@ -4,7 +4,10 @@
     Run once after cloning or pulling the repo.
 
 .NOTES
-    Run from PowerShell: .\scripts\create-shortcut.ps1
+    Run from repo root (cd to repo first):
+      cd C:\Users\Espen\Dev\elite-trading-system
+      .\scripts\create-shortcut.ps1
+    Or one line:  cd C:\Users\Espen\Dev\elite-trading-system; .\scripts\create-shortcut.ps1
 #>
 
 $ErrorActionPreference = "Stop"

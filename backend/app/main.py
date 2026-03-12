@@ -1368,7 +1368,14 @@ async def lifespan(app: FastAPI):
             health.get("total_rows", 0),
         )
     except Exception as e:
-        log.warning("DuckDB init skipped: %s", e)
+        err_msg = str(e).lower()
+        if "already open" in err_msg or "file is already open" in err_msg:
+            log.warning(
+                "DuckDB init skipped (file in use by another process). "
+                "Close any other Embodier Trader window or Python process using this repo, then restart."
+            )
+        else:
+            log.warning("DuckDB init skipped: %s", e)
 
     # 1b. Ingestion framework (incremental adapters)
     try:
