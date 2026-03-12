@@ -459,26 +459,113 @@ class MessageBus:
     # ------------------------------------------------------------------
 
     def _add_to_dlq(self, event: Dict[str, Any], reason: str) -> None:
-        """Add a failed event to the dead-letter queue."""
+        """Add a failed event to the dead-letter queue.
+
+        If Redis is connected, also persists to Redis Stream 'etbus:dlq'
+        with approximate trimming at 1000 entries. In-memory DLQ is kept
+        as fallback when Redis is unavailable.
+        """
         dlq_entry = {
             "event": event,
             "reason": reason,
             "failed_at": time.time(),
         }
+        # In-memory DLQ (always — fallback for Redis-down)
         self._dlq.append(dlq_entry)
-        # Cap DLQ size — drop oldest entries
         while len(self._dlq) > self._dlq_max:
             self._dlq.pop(0)
 
-    def get_dlq(self, limit: int = 50) -> List[Dict[str, Any]]:
-        """Return recent DLQ entries for monitoring."""
+        # Persistent DLQ via Redis Streams
+        if self._redis_connected and self._redis_pub:
+            try:
+                payload = json.dumps(dlq_entry, default=str)
+                # Fire-and-forget — schedule coroutine on the running loop
+                asyncio.ensure_future(
+                    self._redis_pub.xadd(
+                        "etbus:dlq",
+                        {"payload": payload},
+                        maxlen=1000,
+                        approximate=True,
+                    )
+                )
+            except Exception as e:
+                logger.debug("DLQ Redis Stream write failed: %s", e)
+
+    async def get_dlq(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Return recent DLQ entries for monitoring.
+
+        Reads from Redis Stream 'etbus:dlq' when connected (persistent),
+        falls back to in-memory DLQ otherwise.
+        """
+        if self._redis_connected and self._redis_pub:
+            try:
+                entries = await self._redis_pub.xrevrange(
+                    "etbus:dlq", count=limit,
+                )
+                results = []
+                for entry_id, fields in entries:
+                    try:
+                        parsed = json.loads(fields.get("payload", "{}"))
+                        parsed["_stream_id"] = entry_id
+                        results.append(parsed)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                # Return in chronological order (xrevrange gives newest first)
+                return list(reversed(results))
+            except Exception as e:
+                logger.debug("DLQ Redis Stream read failed, using in-memory: %s", e)
+        return self._dlq[-limit:]
+
+    def get_dlq_sync(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Synchronous DLQ access (in-memory only). For non-async callers."""
         return self._dlq[-limit:]
 
     def clear_dlq(self) -> int:
         """Clear the DLQ. Returns count of cleared entries."""
         count = len(self._dlq)
         self._dlq.clear()
+        # Also trim Redis stream if connected
+        if self._redis_connected and self._redis_pub:
+            try:
+                asyncio.ensure_future(
+                    self._redis_pub.xtrim("etbus:dlq", maxlen=0)
+                )
+            except Exception:
+                pass
         return count
+
+    async def replay_dlq(self, topic: str = None, limit: int = 50) -> int:
+        """Replay DLQ entries by re-publishing them to the local bus.
+
+        Reads from Redis Stream when connected, otherwise from in-memory DLQ.
+        Optionally filters by topic. Returns count of replayed events.
+
+        Usage:
+            count = await bus.replay_dlq(topic="signal.generated", limit=20)
+        """
+        entries = await self.get_dlq(limit=limit)
+        replayed = 0
+        for entry in entries:
+            event = entry.get("event", {})
+            event_topic = event.get("topic", "")
+            event_data = event.get("data", {})
+
+            if not event_topic or not event_data:
+                continue
+            if topic and event_topic != topic:
+                continue
+
+            try:
+                await self.publish(event_topic, event_data)
+                replayed += 1
+            except Exception as e:
+                logger.warning("DLQ replay failed for %s: %s", event_topic, e)
+
+        logger.info(
+            "DLQ replay complete: %d/%d events replayed (filter=%s)",
+            replayed, len(entries), topic or "all",
+        )
+        return replayed
 
     async def _send_capacity_alert(self, usage: float) -> None:
         """Send Slack alert when queue capacity is high."""
@@ -743,6 +830,7 @@ class MessageBus:
                 "node_id": self._node_id or None,
                 "publish_errors": self._redis_errors,
                 "bridged_topics": len(self.REDIS_BRIDGED_TOPICS),
+                "dlq_persistent": self._redis_connected,  # DLQ uses Redis Streams when connected
             },
         }
 
