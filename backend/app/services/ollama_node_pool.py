@@ -68,12 +68,29 @@ class OllamaNodePool:
         self._load_nodes()
 
     def _load_nodes(self) -> None:
-        """Load Ollama node URLs from environment."""
+        """Load Ollama node URLs from environment.
+
+        Supports dual-instance mode: set OLLAMA_FAST_PORT and OLLAMA_DEEP_PORT
+        to run two Ollama instances on the same machine (e.g., 11434 for fast
+        7B models, 11435 for deep 14B+ models). This prevents long-running
+        deep reasoning requests from blocking fast reflexive inference.
+        """
         env_urls = os.getenv("SCANNER_OLLAMA_URLS", "")
         if env_urls:
             urls = [u.strip().rstrip("/") for u in env_urls.split(",") if u.strip()]
         else:
             urls = list(DEFAULT_OLLAMA_URLS)
+
+        # Dual-instance support: auto-register second Ollama port if configured
+        deep_port = os.getenv("OLLAMA_DEEP_PORT", "")
+        if deep_port:
+            deep_url = f"http://localhost:{deep_port}"
+            if deep_url not in urls:
+                urls.append(deep_url)
+                logger.info(
+                    "OllamaNodePool: dual-instance mode — fast=%s, deep=%s",
+                    urls[0], deep_url,
+                )
 
         for url in urls:
             self._nodes[url] = OllamaNodeStats(url=url)

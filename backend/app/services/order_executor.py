@@ -287,64 +287,97 @@ class OrderExecutor:
             price,
         )
 
-        # -- Gate 2b: Regime enforcement (US2/US3 fix) --
-        # Fetch regime params and enforce max_positions=0 (RED/CRISIS blocks all new entries)
-        try:
-            from app.api.v1.strategy import REGIME_PARAMS
-            regime_key = regime.upper() if regime else "YELLOW"
-            regime_params = REGIME_PARAMS.get(regime_key, REGIME_PARAMS.get("YELLOW", {}))
-            max_positions = regime_params.get("max_pos", 5)
-            kelly_scale = regime_params.get("kelly_scale", 1.0)
+        # -- Gates 2b-5c: Parallel independent checks (Level 1C optimization) --
+        # Regime, circuit breaker, drawdown, degraded, and kill switch are
+        # all independent checks. Run them concurrently to cut gate latency ~2x.
 
-            if max_positions == 0 or kelly_scale == 0:
-                self._reject(
-                    symbol, score,
-                    f"Regime {regime_key} blocks new entries (max_pos={max_positions}, kelly_scale={kelly_scale})",
-                    ExecutionDenyReason.REGIME_BLOCKED,
+        async def _check_regime():
+            """Gate 2b: Regime enforcement."""
+            try:
+                from app.api.v1.strategy import REGIME_PARAMS
+                regime_key = regime.upper() if regime else "YELLOW"
+                regime_params = REGIME_PARAMS.get(regime_key, REGIME_PARAMS.get("YELLOW", {}))
+                max_positions = regime_params.get("max_pos", 5)
+                kelly_scale = regime_params.get("kelly_scale", 1.0)
+                if max_positions == 0 or kelly_scale == 0:
+                    return ("reject", f"Regime {regime_key} blocks new entries (max_pos={max_positions}, kelly_scale={kelly_scale})",
+                            ExecutionDenyReason.REGIME_BLOCKED, None)
+                signal_mult = regime_params.get("signal_mult", 1.0)
+                return ("pass", "", None, signal_mult)
+            except Exception as e:
+                logger.debug("Regime enforcement check failed (non-fatal): %s", e)
+                return ("pass", "", None, 1.0)
+
+        async def _check_circuit_breaker():
+            """Gate 2c: Circuit breaker enforcement."""
+            try:
+                alpaca = self._get_alpaca_service()
+                account, positions = await asyncio.gather(
+                    alpaca.get_account(), alpaca.get_positions()
                 )
-                return
+                if account and positions:
+                    equity = float(account.get("equity", 0))
+                    total_exposure = sum(abs(float(p.get("market_value", 0))) for p in (positions or []))
+                    if equity > 0:
+                        leverage = total_exposure / equity
+                        if leverage > 2.0:
+                            return ("reject", f"Circuit breaker: leverage {leverage:.1f}x > 2.0x max",
+                                    ExecutionDenyReason.CIRCUIT_BREAKER)
+                        if positions:
+                            max_pos_val = max(abs(float(p.get("market_value", 0))) for p in positions)
+                            concentration = max_pos_val / equity
+                            if concentration > 0.25:
+                                return ("reject", f"Circuit breaker: top position {concentration:.0%} > 25% max",
+                                        ExecutionDenyReason.CIRCUIT_BREAKER)
+            except Exception as e:
+                logger.debug("Circuit breaker check failed (non-fatal): %s", e)
+            return ("pass", "", None)
 
-            # Apply regime signal multiplier to score for downstream gates
-            signal_mult = regime_params.get("signal_mult", 1.0)
-            score = score * signal_mult
-        except Exception as e:
-            logger.debug("Regime enforcement check failed (non-fatal): %s", e)
+        async def _check_degraded_and_killswitch():
+            """Gates 5b+5c: Degraded mode + kill switch."""
+            if self.auto_execute:
+                try:
+                    import os
+                    from app.api.v1.brain import get_degraded_status
+                    status = get_degraded_status()
+                    override = os.getenv("DEGRADED_MODE_OVERRIDE", "false").strip().lower() in ("1", "true", "yes")
+                    if status.get("degraded") and not override:
+                        return ("reject",
+                                "Degraded mode active (reasons: %s). Set DEGRADED_MODE_OVERRIDE=true to override."
+                                % ", ".join(status.get("reasons", [])),
+                                ExecutionDenyReason.DEGRADED)
+                except Exception as e:
+                    logger.debug("Degraded check failed: %s", e)
+            try:
+                from app.core.config import settings
+                if getattr(settings, "ENABLE_KILL_SWITCH", True):
+                    from app.api.v1.risk_shield_api import is_entries_frozen
+                    if is_entries_frozen():
+                        return ("reject", "Kill switch / entries frozen — new orders blocked",
+                                ExecutionDenyReason.KILL_SWITCH_ACTIVE)
+            except Exception as e:
+                logger.debug("Kill switch check failed: %s", e)
+            return ("pass", "", None)
 
-        # -- Gate 2c: Circuit breaker enforcement (US1 fix) --
-        # Check live risk metrics against circuit breaker thresholds
-        try:
-            alpaca = self._get_alpaca_service()
-            account = await alpaca.get_account()
-            positions = await alpaca.get_positions()
-            if account and positions:
-                equity = float(account.get("equity", 0))
-                buying_power = float(account.get("buying_power", 0))
-                total_exposure = sum(abs(float(p.get("market_value", 0))) for p in (positions or []))
+        # Run all independent gates in parallel
+        regime_result, cb_result, drawdown_ok, dks_result = await asyncio.gather(
+            _check_regime(),
+            _check_circuit_breaker(),
+            self._check_drawdown(),
+            _check_degraded_and_killswitch(),
+        )
 
-                if equity > 0:
-                    # Leverage check (max 2x)
-                    leverage = total_exposure / equity
-                    if leverage > 2.0:
-                        self._reject(
-                            symbol, score,
-                            f"Circuit breaker: leverage {leverage:.1f}x > 2.0x max",
-                            ExecutionDenyReason.CIRCUIT_BREAKER,
-                        )
-                        return
+        # Evaluate results: first rejection wins
+        if regime_result[0] == "reject":
+            self._reject(symbol, score, regime_result[1], regime_result[2])
+            return
+        # Apply regime signal multiplier
+        signal_mult = regime_result[3] if regime_result[3] is not None else 1.0
+        score = score * signal_mult
 
-                    # Concentration check (max 25% single position)
-                    if positions:
-                        max_pos_val = max(abs(float(p.get("market_value", 0))) for p in positions)
-                        concentration = max_pos_val / equity
-                        if concentration > 0.25:
-                            self._reject(
-                                symbol, score,
-                                f"Circuit breaker: top position {concentration:.0%} > 25% max",
-                                ExecutionDenyReason.CIRCUIT_BREAKER,
-                            )
-                            return
-        except Exception as e:
-            logger.debug("Circuit breaker check failed (non-fatal): %s", e)
+        if cb_result[0] == "reject":
+            self._reject(symbol, score, cb_result[1], cb_result[2])
+            return
 
         # -- Gate 3: Daily trade limit --
         self._check_daily_reset()
@@ -366,7 +399,6 @@ class OrderExecutor:
             return
 
         # -- Gate 5: Drawdown check --
-        drawdown_ok = await self._check_drawdown()
         if not drawdown_ok:
             self._reject(
                 symbol, score, "Drawdown limit breached",
@@ -374,38 +406,9 @@ class OrderExecutor:
             )
             return
 
-        # -- Gate 5b: Degraded mode — refuse AUTO execution when brain reports degraded (default: no override)
-        if self.auto_execute:
-            try:
-                import os
-                from app.api.v1.brain import get_degraded_status
-                status = get_degraded_status()
-                override = os.getenv("DEGRADED_MODE_OVERRIDE", "false").strip().lower() in ("1", "true", "yes")
-                if status.get("degraded") and not override:
-                    self._reject(
-                        symbol, score,
-                        "Degraded mode active (reasons: %s). Set DEGRADED_MODE_OVERRIDE=true to override."
-                        % ", ".join(status.get("reasons", [])),
-                        ExecutionDenyReason.DEGRADED,
-                    )
-                    return
-            except Exception as e:
-                logger.debug("Degraded check failed: %s", e)
-
-        # -- Gate 5c: Kill switch — block new entries when risk shield has frozen entries
-        try:
-            from app.core.config import settings
-            if getattr(settings, "ENABLE_KILL_SWITCH", True):
-                from app.api.v1.risk_shield_api import is_entries_frozen
-                if is_entries_frozen():
-                    self._reject(
-                        symbol, score,
-                        "Kill switch / entries frozen — new orders blocked",
-                        ExecutionDenyReason.KILL_SWITCH_ACTIVE,
-                    )
-                    return
-        except Exception as e:
-            logger.debug("Kill switch check failed: %s", e)
+        if dks_result[0] == "reject":
+            self._reject(symbol, score, dks_result[1], dks_result[2])
+            return
 
         # -- Gate 6: Canonical SizingGate — Kelly (or deterministic sizing) must be binding
         kelly_result = await self._compute_kelly_size(symbol, score, regime, price, direction)

@@ -342,6 +342,165 @@ class BrainClient:
             self._circuit.record_failure()
             return {**_stub_critic_response(), "error": str(e)}
 
+    # ── Level 3A: Distributed Council Stage ─────────────────────────────
+
+    async def run_council_stage(
+        self,
+        symbol: str,
+        timeframe: str = "1d",
+        feature_json: str = "{}",
+        context_json: str = "{}",
+        stage: int = 1,
+        agent_types: Optional[list] = None,
+    ) -> Dict[str, Any]:
+        """Run a council stage on PC2 via gRPC.
+
+        Returns dict with votes list and stage_latency_ms.
+        Falls back to empty votes if brain is unavailable.
+        """
+        if not self.enabled:
+            return {"votes": [], "error": "brain_disabled"}
+
+        if not self._circuit.can_execute():
+            return {"votes": [], "error": "circuit_breaker_open"}
+
+        try:
+            self._ensure_channel()
+            if self._stub is None:
+                self._circuit.record_failure()
+                return {"votes": [], "error": "grpc_not_connected"}
+
+            import sys
+            from pathlib import Path
+            proto_dir = (
+                Path(__file__).resolve().parent.parent.parent.parent
+                / "brain_service" / "proto"
+            )
+            if str(proto_dir) not in sys.path:
+                sys.path.insert(0, str(proto_dir))
+            from proto import brain_pb2
+
+            request = brain_pb2.CouncilStageRequest(
+                symbol=symbol,
+                timeframe=timeframe,
+                feature_json=feature_json,
+                context_json=context_json,
+                stage=stage,
+                agent_types=agent_types or [],
+            )
+            _t0 = time.monotonic()
+            response = await asyncio.wait_for(
+                self._stub.RunCouncilStage(request),
+                timeout=BRAIN_REQUEST_TIMEOUT,
+            )
+            latency_ms = (time.monotonic() - _t0) * 1000
+            self._circuit.record_success(latency_ms=latency_ms)
+
+            import json
+            votes = []
+            for v in response.votes:
+                votes.append({
+                    "agent_name": v.agent_name,
+                    "direction": v.direction,
+                    "confidence": v.confidence,
+                    "reasoning": v.reasoning,
+                    "veto": v.veto,
+                    "veto_reason": v.veto_reason,
+                    "metadata": json.loads(v.metadata_json) if v.metadata_json else {},
+                })
+
+            logger.info(
+                "Distributed stage %d for %s: %d votes, %.0fms",
+                stage, symbol, len(votes), latency_ms,
+            )
+            return {
+                "votes": votes,
+                "stage_latency_ms": response.stage_latency_ms,
+                "latency_ms": round(latency_ms, 1),
+            }
+        except asyncio.TimeoutError:
+            self._circuit.record_failure()
+            return {"votes": [], "error": "timeout"}
+        except Exception as e:
+            logger.warning("Brain run_council_stage error: %s", e)
+            self._circuit.record_failure()
+            return {"votes": [], "error": str(e)}
+
+    # ── Level 3C: Universe Scanner ──────────────────────────────────────
+
+    async def scan_universe(
+        self,
+        symbols: list,
+        regime: str = "UNKNOWN",
+        min_score: float = 55.0,
+    ) -> Dict[str, Any]:
+        """Request PC2 to scan symbols for trading opportunities.
+
+        Returns dict with candidates list and scan_latency_ms.
+        """
+        if not self.enabled:
+            return {"candidates": [], "error": "brain_disabled"}
+
+        if not self._circuit.can_execute():
+            return {"candidates": [], "error": "circuit_breaker_open"}
+
+        try:
+            self._ensure_channel()
+            if self._stub is None:
+                self._circuit.record_failure()
+                return {"candidates": [], "error": "grpc_not_connected"}
+
+            import sys
+            from pathlib import Path
+            proto_dir = (
+                Path(__file__).resolve().parent.parent.parent.parent
+                / "brain_service" / "proto"
+            )
+            if str(proto_dir) not in sys.path:
+                sys.path.insert(0, str(proto_dir))
+            from proto import brain_pb2
+
+            request = brain_pb2.ScanRequest(
+                symbols=symbols,
+                regime=regime,
+                min_score=min_score,
+            )
+            _t0 = time.monotonic()
+            response = await asyncio.wait_for(
+                self._stub.ScanUniverse(request),
+                timeout=60,  # Scanning can take longer
+            )
+            latency_ms = (time.monotonic() - _t0) * 1000
+            self._circuit.record_success(latency_ms=latency_ms)
+
+            candidates = []
+            for c in response.candidates:
+                candidates.append({
+                    "symbol": c.symbol,
+                    "signal_score": c.signal_score,
+                    "direction": c.direction,
+                    "label": c.label,
+                    "volume_surge": c.volume_surge,
+                })
+
+            logger.info(
+                "Universe scan: %d/%d candidates in %.0fms",
+                len(candidates), response.symbols_scanned, latency_ms,
+            )
+            return {
+                "candidates": candidates,
+                "symbols_scanned": response.symbols_scanned,
+                "scan_latency_ms": response.scan_latency_ms,
+                "latency_ms": round(latency_ms, 1),
+            }
+        except asyncio.TimeoutError:
+            self._circuit.record_failure()
+            return {"candidates": [], "error": "timeout"}
+        except Exception as e:
+            logger.warning("Brain scan_universe error: %s", e)
+            self._circuit.record_failure()
+            return {"candidates": [], "error": str(e)}
+
     async def close(self):
         """Close the gRPC channel."""
         if self._channel:
@@ -357,6 +516,9 @@ class BrainClient:
             "port": self.port,
             "circuit_state": self._circuit.state.value,
             "failure_count": self._circuit.failure_count,
+            "distributed_rpcs": [
+                "run_council_stage", "scan_universe",
+            ],
         }
 
 

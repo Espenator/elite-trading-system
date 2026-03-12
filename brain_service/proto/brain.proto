@@ -2,9 +2,22 @@ syntax = "proto3";
 package brain;
 
 service BrainService {
+  // Original RPCs
   rpc InferCandidateContext(InferRequest) returns (InferResponse);
   rpc CriticPostmortem(CriticRequest) returns (CriticResponse);
   rpc Embed(EmbedRequest) returns (EmbedResponse);
+
+  // Level 3A: Distributed council — PC2 runs perception agents (Stage 1)
+  rpc RunCouncilStage(CouncilStageRequest) returns (CouncilStageResponse);
+
+  // Level 3B: Feature computation offload — PC2 computes features via GPU
+  rpc ComputeFeatures(FeatureRequest) returns (FeatureResponse);
+
+  // Level 3C: Discovery scanning — PC2 runs parallel universe scanner
+  rpc ScanUniverse(ScanRequest) returns (ScanResponse);
+
+  // Level 2B: Batch ML scoring — PC2 scores multiple symbols via GPU
+  rpc BatchScore(BatchScoreRequest) returns (BatchScoreResponse);
 }
 
 message InferRequest {
@@ -44,4 +57,91 @@ message EmbedRequest {
 message EmbedResponse {
   repeated float embedding = 1;
   string error = 2;
+}
+
+// ── Level 3A: Distributed Council Stage ────────────────────────────────
+
+message AgentVoteProto {
+  string agent_name = 1;
+  string direction = 2;     // "buy", "sell", "hold"
+  float confidence = 3;     // 0.0 - 1.0
+  string reasoning = 4;
+  bool veto = 5;
+  string veto_reason = 6;
+  string metadata_json = 7; // JSON-encoded agent metadata
+}
+
+message CouncilStageRequest {
+  string symbol = 1;
+  string timeframe = 2;
+  string feature_json = 3;       // JSON feature vector
+  string context_json = 4;       // JSON context dict
+  int32 stage = 5;               // Stage number (1, 2, 3, etc.)
+  repeated string agent_types = 6; // Which agents to run
+}
+
+message CouncilStageResponse {
+  repeated AgentVoteProto votes = 1;
+  float stage_latency_ms = 2;
+  string error = 3;
+}
+
+// ── Level 3B: Feature Computation ──────────────────────────────────────
+
+message FeatureRequest {
+  repeated string symbols = 1;
+  string timeframe = 2;
+}
+
+message FeatureResponse {
+  // Map of symbol -> JSON feature vector
+  map<string, string> feature_vectors = 1;
+  float compute_latency_ms = 2;
+  string error = 3;
+}
+
+// ── Level 3C: Universe Scanner ─────────────────────────────────────────
+
+message ScanRequest {
+  repeated string symbols = 1;       // Universe to scan
+  string regime = 2;                 // Current market regime
+  float min_score = 3;               // Minimum signal score to report
+}
+
+message ScanCandidate {
+  string symbol = 1;
+  float signal_score = 2;
+  string direction = 3;             // "long" or "short"
+  string label = 4;                 // Human-readable signal label
+  float volume_surge = 5;
+  string metadata_json = 6;         // JSON extra data
+}
+
+message ScanResponse {
+  repeated ScanCandidate candidates = 1;
+  int32 symbols_scanned = 2;
+  float scan_latency_ms = 3;
+  string error = 4;
+}
+
+// ── Level 2B: Batch ML Scoring ─────────────────────────────────────────
+
+message BatchScoreRequest {
+  repeated string symbols = 1;
+  string feature_json = 2;          // JSON DataFrame-like structure
+  repeated string feature_cols = 3;
+}
+
+message SymbolScore {
+  string symbol = 1;
+  float prob_up = 2;
+  float xgb_prob = 3;
+  float lstm_prob = 4;
+  bool ensemble = 5;
+}
+
+message BatchScoreResponse {
+  repeated SymbolScore scores = 1;
+  float scoring_latency_ms = 2;
+  string error = 3;
 }
