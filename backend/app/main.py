@@ -531,10 +531,12 @@ async def _start_event_driven_pipeline():
             _bar_write_buffer.append(row)
 
     async def _flush_bar_buffer():
-        """Flush buffered bars to DuckDB every 5 seconds."""
+        """Flush buffered bars to DuckDB (interval from BAR_BUFFER_FLUSH_SEC)."""
         from app.data.duckdb_storage import duckdb_store
+        from app.core.config import settings
+        flush_sec = getattr(settings, "BAR_BUFFER_FLUSH_SEC", 5.0)
         while True:
-            await asyncio.sleep(5)
+            await asyncio.sleep(flush_sec)
             async with _bar_buffer_lock:
                 if not _bar_write_buffer:
                     continue
@@ -565,7 +567,12 @@ async def _start_event_driven_pipeline():
 
     await _message_bus.subscribe("market_data.bar", _persist_bar_to_duckdb)
     asyncio.create_task(_flush_bar_buffer())
-    log.info("\u2705 market_data.bar -> DuckDB batched persistence active (5s flush)")
+    try:
+        from app.core.config import settings as _bar_settings
+        _bar_flush_sec = getattr(_bar_settings, "BAR_BUFFER_FLUSH_SEC", 5.0)
+    except Exception:
+        _bar_flush_sec = 5.0
+    log.info("\u2705 market_data.bar -> DuckDB batched persistence active (%.1fs flush)", _bar_flush_sec)
 
     # 5c. BUG FIX 8: Bridge market_data.bar events to WebSocket "market" channel.
     # Without this, the frontend Dashboard gets NO real-time price updates through
@@ -1191,10 +1198,12 @@ async def _stop_event_driven_pipeline():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize data schema on startup; start background loops."""
-    # 0. Increase thread pool for concurrent DuckDB queries (20+ background services)
+    # 0. Thread pool for concurrent DuckDB/blocking work (tunable via ASYNCIO_THREAD_POOL_WORKERS)
+    from app.core.config import settings
+    _pool_size = getattr(settings, "ASYNCIO_THREAD_POOL_WORKERS", 64)
     loop = asyncio.get_running_loop()
-    loop.set_default_executor(concurrent.futures.ThreadPoolExecutor(max_workers=64))
-    log.info("Thread pool set to 64 workers for async DuckDB operations")
+    loop.set_default_executor(concurrent.futures.ThreadPoolExecutor(max_workers=_pool_size))
+    log.info("Thread pool set to %d workers for async DuckDB operations", _pool_size)
 
     # 1. Data schema
     try:

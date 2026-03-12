@@ -244,6 +244,20 @@ class DuckDBStorage:
             )
         """)
 
+        # Symbol/asset registry (DATABASE-DESIGN-REVIEW) — one row per symbol, drive backfill from here
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS symbol_registry (
+                symbol VARCHAR NOT NULL PRIMARY KEY,
+                asset_class VARCHAR DEFAULT 'us_equity',
+                name VARCHAR,
+                first_date DATE,
+                last_date DATE,
+                source VARCHAR DEFAULT 'alpaca',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         conn.execute("""
             CREATE TABLE IF NOT EXISTS technical_indicators (
                 symbol VARCHAR NOT NULL,
@@ -411,6 +425,7 @@ class DuckDBStorage:
         # Indexes for fast range scans
         conn.execute("CREATE INDEX IF NOT EXISTS idx_ohlcv_date ON daily_ohlcv (date)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_ohlcv_symbol ON daily_ohlcv (symbol)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_symbol_registry_asset_class ON symbol_registry (asset_class)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_ti_date ON technical_indicators (date)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_flow_date ON options_flow (date)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_outcomes_symbol ON trade_outcomes (symbol, entry_date)")
@@ -577,6 +592,7 @@ class DuckDBStorage:
                 INSERT OR REPLACE INTO daily_ohlcv
                 SELECT * FROM _staging
             """)
+            self._update_symbol_registry_from_ohlcv_impl(conn, df)
         logger.info("Upserted %d OHLCV rows", len(df))
         return len(df)
 
@@ -609,6 +625,63 @@ class DuckDBStorage:
             conn.execute("INSERT OR REPLACE INTO macro_data SELECT * FROM df")
         logger.info("Upserted %d macro rows", len(df))
         return len(df)
+
+    def upsert_symbol_registry(
+        self,
+        symbol: str,
+        asset_class: str = "us_equity",
+        name: Optional[str] = None,
+        first_date: Optional[date] = None,
+        last_date: Optional[date] = None,
+        source: str = "alpaca",
+    ) -> None:
+        """Insert or update one row in symbol_registry (DATABASE-DESIGN-REVIEW)."""
+        with self._lock:
+            conn = self._get_conn()
+            conn.execute("""
+                INSERT INTO symbol_registry (symbol, asset_class, name, first_date, last_date, source, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT (symbol) DO UPDATE SET
+                    asset_class = COALESCE(excluded.asset_class, symbol_registry.asset_class),
+                    name = COALESCE(excluded.name, symbol_registry.name),
+                    first_date = CASE
+                        WHEN symbol_registry.first_date IS NULL THEN excluded.first_date
+                        WHEN excluded.first_date IS NOT NULL AND excluded.first_date < symbol_registry.first_date THEN excluded.first_date
+                        ELSE symbol_registry.first_date END,
+                    last_date = CASE
+                        WHEN symbol_registry.last_date IS NULL THEN excluded.last_date
+                        WHEN excluded.last_date IS NOT NULL AND excluded.last_date > symbol_registry.last_date THEN excluded.last_date
+                        ELSE symbol_registry.last_date END,
+                    source = COALESCE(excluded.source, symbol_registry.source),
+                    updated_at = CURRENT_TIMESTAMP
+            """, [symbol.upper(), asset_class, name, first_date, last_date, source])
+
+    def _update_symbol_registry_from_ohlcv_impl(self, conn, df: pd.DataFrame) -> int:
+        """Update symbol_registry from OHLCV df. Caller must hold self._lock and pass conn."""
+        if df.empty or "symbol" not in df.columns or "date" not in df.columns:
+            return 0
+        agg = df.groupby("symbol").agg({"date": ["min", "max"]}).reset_index()
+        agg.columns = ["symbol", "first_date", "last_date"]
+        for _, row in agg.iterrows():
+            conn.execute("""
+                INSERT INTO symbol_registry (symbol, asset_class, first_date, last_date, source, updated_at)
+                VALUES (?, 'us_equity', ?, ?, 'alpaca', CURRENT_TIMESTAMP)
+                ON CONFLICT (symbol) DO UPDATE SET
+                    first_date = CASE WHEN symbol_registry.first_date IS NULL OR excluded.first_date < symbol_registry.first_date
+                        THEN excluded.first_date ELSE symbol_registry.first_date END,
+                    last_date = CASE WHEN symbol_registry.last_date IS NULL OR excluded.last_date > symbol_registry.last_date
+                        THEN excluded.last_date ELSE symbol_registry.last_date END,
+                    updated_at = CURRENT_TIMESTAMP
+            """, [str(row["symbol"]).upper(), row["first_date"], row["last_date"]])
+        return len(agg)
+
+    def update_symbol_registry_from_ohlcv_df(self, df: pd.DataFrame) -> int:
+        """Update symbol_registry first_date/last_date from an OHLCV DataFrame (symbol, date columns)."""
+        if df.empty or "symbol" not in df.columns or "date" not in df.columns:
+            return 0
+        with self._lock:
+            conn = self._get_conn()
+            return self._update_symbol_registry_from_ohlcv_impl(conn, df)
 
     def insert_trade_outcome(self, trade: Dict) -> None:
         """Record a trade outcome for ML label generation."""
@@ -843,6 +916,7 @@ class DuckDBStorage:
             conn = self._get_conn()
             tables = {
                 "ohlcv_rows": "daily_ohlcv",
+                "symbol_registry_rows": "symbol_registry",
                 "indicator_rows": "technical_indicators",
                 "flow_rows": "options_flow",
                 "macro_rows": "macro_data",

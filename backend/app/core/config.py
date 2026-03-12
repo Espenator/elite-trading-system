@@ -207,6 +207,11 @@ class Settings(BaseSettings):
     # ── Database ────────────────────────────────────────────
     DATABASE_URL: str = "duckdb:///data/elite_trading.duckdb"
 
+    # ── Efficiency / performance (EFFICIENCY-AND-HARDWARE-DESIGN.md) ──
+    ASYNCIO_THREAD_POOL_WORKERS: int = 64  # Default executor for DuckDB/blocking work
+    FEATURE_AGGREGATOR_WORKERS: int = 4    # Parallel DuckDB fetches per feature build (6–8 on i9)
+    BAR_BUFFER_FLUSH_SEC: float = 5.0      # Seconds between DuckDB bar batch writes
+
     # ── Google Sheets ───────────────────────────────────────
     GOOGLE_SHEETS_CREDENTIALS_FILE: str = ""
     GOOGLE_SHEETS_SPREADSHEET_ID: str = ""

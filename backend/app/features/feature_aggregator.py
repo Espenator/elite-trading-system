@@ -606,8 +606,13 @@ async def aggregate(
             logger.warning("Failed to fetch OHLCV for %s: %s", symbol, e)
 
         # Parallelize independent fetches: regime, flow, indicators,
-        # intermarket all hit DuckDB independently
-        with ThreadPoolExecutor(max_workers=4, thread_name_prefix="feat") as pool:
+        # intermarket all hit DuckDB independently (workers from FEATURE_AGGREGATOR_WORKERS)
+        try:
+            from app.core.config import settings
+            _nworkers = getattr(settings, "FEATURE_AGGREGATOR_WORKERS", 4)
+        except Exception:
+            _nworkers = 4
+        with ThreadPoolExecutor(max_workers=max(1, _nworkers), thread_name_prefix="feat") as pool:
             f_regime = pool.submit(_get_regime_snapshot)
             f_flow = pool.submit(_get_flow_features, symbol)
             f_indicators = pool.submit(_get_indicator_features, symbol)
