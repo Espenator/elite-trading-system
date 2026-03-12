@@ -1,0 +1,220 @@
+# =============================================================================
+# .cursorrules — Embodier Trader (elite-trading-system) v5.0.0
+# Auto-loaded by every Cursor agent session in this project.
+# Last updated: March 12, 2026
+# =============================================================================
+
+# MANDATORY: READ THESE FILES FIRST (in order)
+# 1. project_state.md  — current system state & architecture snapshot
+# 2. CLAUDE.md          — full AI agent operating manual (444 lines)
+# 3. PLAN.md            — 5-phase enhancement plan (40 issues, Phases A-E)
+# 4. ARCHITECTURAL-REVIEW-2026-03-11.md — deep audit findings
+
+# =============================================================================
+# SYSTEM IDENTITY
+# =============================================================================
+# Project: Embodier Trader by Embodier.ai
+# Repo: github.com/Espenator/elite-trading-system (PUBLIC — the ONE repo)
+# Owner: Espenator (Espen Schiefloe, Asheville NC)
+# Version: v5.0.0 — All phases (A+B+C+D+E) complete
+# Philosophy: Embodied Intelligence — the system IS profit, not seeking it.
+#             Central Nervous System (CNS) architecture.
+# Production Readiness: ~95%
+
+# =============================================================================
+# ARCHITECTURE OVERVIEW
+# =============================================================================
+# Backend:  Python 3.11, FastAPI, DuckDB (WAL mode), 43 API route files
+#           (364+ endpoints), 72+ services, uvicorn on port 8000
+# Frontend: React 18 + Vite + Tailwind CSS (Aurora dark theme) in frontend-v2/
+#           14 pages, useApi() hook for all data, Lightweight Charts
+# Council:  35-agent DAG in 7 stages with Bayesian-weighted arbiter
+#           runner.py (29.4 KB) orchestrates the full pipeline
+# Brain:    gRPC + Ollama on PC2 (ProfitTrader, 192.168.1.116, RTX GPU)
+# LLM:      3-tier router: Ollama (routine) -> Perplexity (search) -> Claude (deep)
+# Events:   MessageBus pub/sub in core/message_bus.py (25 channels)
+# Database: DuckDB with connection pooling via data/storage.py get_conn()
+# Auth:     Bearer token, fail-closed for live trading endpoints
+# Tests:    977+ passing (pytest backend + frontend build), CI GREEN
+# Desktop:  Electron app in desktop/ — BUILD-READY
+# Infra:    Two PCs — ESPENMAIN (PC1, primary) + ProfitTrader (PC2, GPU)
+
+# =============================================================================
+# TRADE PIPELINE (the money path — trace this for any pipeline work)
+# =============================================================================
+# AlpacaStreamService -> market_data.bar (MessageBus)
+#   -> EventDrivenSignalEngine (feature computation + ML scoring)
+#   -> signal.generated (score >= regime-adaptive threshold: 55/65/75)
+#   -> CouncilGate (invokes 35-agent council)
+#     -> Stage 1: Perception + Academic Edge (13 agents, parallel)
+#     -> Stage 2: Technical + Data Enrichment (8 agents, parallel)
+#     -> Stage 3: Hypothesis + Memory (2 agents, parallel)
+#     -> Stage 4: Strategy (1 agent)
+#     -> Stage 5: Risk + Execution + Portfolio (3 agents, parallel)
+#     -> Stage 5.5: Debate + Red Team (3 agents)
+#     -> Stage 6: Critic (1 agent)
+#     -> Stage 7: Arbiter (Bayesian-weighted BUY/SELL/HOLD)
+#   -> council.verdict
+#   -> OrderExecutor (Gate 2b regime -> Gate 2c breakers -> Kelly sizing)
+#   -> order.submitted -> WebSocket bridges -> Frontend
+#   -> order.filled -> OutcomeTracker -> WeightLearner.update_from_outcome()
+
+# =============================================================================
+# COUNCIL AGENTS (35 total across 7 stages)
+# =============================================================================
+# Core (11): market_perception, flow_perception, regime, social_perception,
+#   news_catalyst, youtube_knowledge, hypothesis, strategy, risk, execution, critic
+# Academic Edge (12): gex, insider, finbert_sentiment, earnings_tone, dark_pool,
+#   macro_regime, supply_chain, institutional_flow, congressional,
+#   portfolio_optimizer, layered_memory, alt_data
+# Supplemental (6): rsi, bbv, ema_trend, intermarket, relative_strength, cycle_timing
+# Debate (3): bull_debater, bear_debater, red_team
+# Special: arbiter (Stage 7, deterministic — not counted as voting agent)
+#
+# VETO_AGENTS = {"risk", "execution"} — ONLY these can veto
+# REQUIRED_AGENTS = {"regime", "risk", "strategy"} — must vote non-hold for trade
+# New agents should NOT have veto power.
+
+# =============================================================================
+# 16 OPEN GITHUB ISSUES (as of March 12, 2026)
+# =============================================================================
+# P0 CRITICAL:
+#   #45 — TurboScanner score scale mismatch (0.0-1.0 vs CouncilGate 65.0)
+#   #46 — Double council.verdict publication (runner.py + council_gate.py)
+#   #47 — UnusualWhales options flow not wired to MessageBus
+#   #70 — Meta-issue tracking #45, #46, #47
+#
+# P1 Enhancement:
+#   #49 — Call IntelligenceCache.start() at startup
+#   #50 — Wire 12 Academic Edge agents into runner.py DAG stages
+#   #51 — Wire brain_service gRPC to hypothesis_agent
+#   #52 — Add explicit weights for 6 supplemental agents
+#
+# P2 / Feature:
+#   #89 — Full Project Documentation Update (v3.5.0)
+#   #43 — Compute Pyramid Upgrade (LLMRouter, FinBERT, Kimi Critic)
+#   #24 — [UI] 100% Mockup Fidelity gap analysis
+#   #21 — [UI] Align 7 pages to 90%+ mockup fidelity
+#   #20 — [UI] Recharts to Lightweight Charts migration (7 pages)
+#   #8  — [AUDIT] Full Codebase Cleanup (mock data, hardcoded keys, dead code)
+#   #3  — [TIER-1] Replace training.py mock data with Real DB + ML
+#   #2  — [FRONTEND] Build ClawBot Panel (5 features)
+#
+# NOTE: Issues #49, #50, #51, #52 may already be fixed per Phase C completion
+# in project_state.md — VERIFY in code before working on them.
+
+# =============================================================================
+# KNOWN BUGS FROM ARCHITECTURAL REVIEW (verify before assuming fixed)
+# =============================================================================
+# BUG: Debate history persistence reads wrong attribute
+#   runner.py writes to blackboard.debate but reads blackboard.metadata["debate_result"]
+#   These are different attributes — debate data may never reach DuckDB.
+#
+# BUG: _on_outcome_resolved fallback credits ALL agents equally
+#   When agent_votes is empty (likely always), it credits 13 hardcoded agent names
+#   regardless of what they actually voted. This is anti-learning.
+#
+# BUG: 20 MessageBus topics are PUBLISH_ONLY (zero subscribers)
+#   Events published to these topics are silently dropped.
+#   Includes hitl.approval_needed — HITL approvals go nowhere.
+#
+# BUG: False degradation alerts
+#   runner.py has 2 degradation checks — one counts ALL holds (wrong),
+#   the other correctly counts only failure-holds (confidence <= 0.0).
+#
+# BUG: Calibration uses hasattr() monkey-patch — loses data on restart
+
+# =============================================================================
+# 17 GITHUB SECURITY ALERTS — must resolve before production
+# =============================================================================
+
+# =============================================================================
+# CODING RULES (MANDATORY — violating these breaks the system)
+# =============================================================================
+# 1.  NEVER import or use yfinance — removed from requirements
+# 2.  NEVER use mock/fake data in production components
+# 3.  ALWAYS use useApi() hook for frontend data — no direct fetch
+# 4.  ALWAYS use 4-space indentation in Python — never tabs
+# 5.  Council agents MUST return AgentVote schema from council/schemas.py
+# 6.  Agent pattern: module-level NAME + WEIGHT + async evaluate() -> AgentVote
+# 7.  Features access: f = features.get("features", features); f.get("key", default)
+# 8.  CouncilGate is the bridge — signals go through council before OrderExecutor
+# 9.  DuckDB: use get_conn() from data/storage.py — never raw connections
+# 10. MessageBus for all inter-service events — no direct service calls
+# 11. Bearer token auth on all live trading endpoints (API_AUTH_TOKEN)
+# 12. ONE repo: Espenator/elite-trading-system — NOT Embodier-Trader
+# 13. No secrets in committed files — all keys in backend/.env (gitignored)
+# 14. Paths: repo-relative only (backend/, frontend-v2/). See PATH-STANDARD.md
+# 15. Run tests before committing: cd backend && python -m pytest --tb=short -q
+# 16. Never delete passing tests — fix the underlying code
+# 17. Never change council DAG stage order without explicit instruction
+# 18. Discovery must be continuous, not polling — scouts publish to swarm.idea
+# 19. All frontend pages use Aurora dark theme — cyan/emerald/amber/red palette
+# 20. Dashboard route must be inside <DashboardLayout> wrapper in App.jsx
+
+# =============================================================================
+# KEY FILES FOR COMMON TASKS
+# =============================================================================
+# Frontend page:     App.jsx, the page .jsx, hooks/useApi.js, config/api.js
+# Backend API:       api/v1/<route>.py, services/<service>.py
+# Council/agent:     council/runner.py, council/arbiter.py, council/schemas.py
+# Pipeline:          council_gate.py, signal_engine.py, order_executor.py
+# Learning:          weight_learner.py, feedback_loop.py
+# WebSocket:         websocket_manager.py, frontend-v2/src/services/websocket.js
+# Events:            core/message_bus.py
+# Auth:              core/security.py, backend/.env
+# Startup:           backend/app/main.py (700+ lines, 24 numbered services)
+# Config:            config/regime_thresholds.py, council/agent_config.py
+
+# =============================================================================
+# TWO-PC SETUP
+# =============================================================================
+# PC1 ESPENMAIN (192.168.1.105): Backend API, frontend, DuckDB, trading
+#   Repo: C:\Users\Espen\elite-trading-system
+#   Alpaca: Key 1 (portfolio trading)
+#
+# PC2 ProfitTrader (192.168.1.116): GPU training, ML inference, brain_service
+#   Repo: C:\Users\ProfitTrader\elite-trading-system
+#   Alpaca: Key 2 (discovery scanning)
+#
+# Ports: Backend 8000, Frontend 5173, Brain gRPC 50051, Ollama 11434, Redis 6379
+
+# =============================================================================
+# DATA SOURCES (CRITICAL — NO yfinance)
+# =============================================================================
+# Alpaca Markets (alpaca-py) — OHLCV, quotes, orders, streaming
+# Unusual Whales — Options flow, dark pool, congressional trades
+# Finviz Elite — Screener, fundamentals, sector data
+# FRED — Macro indicators, yield curves, VIX
+# SEC EDGAR — Insider transactions, 13F filings
+# NewsAPI — Breaking news headlines
+# Benzinga (scraper) — Earnings calendar + transcripts
+# SqueezeMetrics (scraper) — DIX/GEX dark pool indicators
+# Capitol Trades (scraper + UW API) — Congressional trade disclosures
+# Senate Stock Watcher (JSON API) — Secondary congressional fallback
+# All sources degrade gracefully if keys missing.
+
+# =============================================================================
+# WHAT IS WORKING WELL (DO NOT BREAK)
+# =============================================================================
+# - All 35 council agents are real implementations (not stubs)
+# - Bayesian weight updates are mathematically correct
+# - VETO agents (risk, execution) properly enforced
+# - Event-driven architecture achieves sub-1s council latency
+# - Kelly criterion implementation is mathematically sound
+# - 3-tier LLM router (Ollama -> Perplexity -> Claude)
+# - 977+ tests passing, CI GREEN
+# - HITL gate, bracket orders, shadow tracking all working
+# - Regime enforcement: RED/CRISIS blocks entries (Gate 2b)
+# - Circuit breakers enforced in OrderExecutor (Gate 2c)
+# - Paper/live account safety check forces SHADOW on mismatch
+
+# =============================================================================
+# COMMON COMMANDS
+# =============================================================================
+# Backend:  cd backend && venv\Scripts\Activate.ps1 && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+# Frontend: cd frontend-v2 && npm run dev
+# Brain:    cd brain_service && python server.py  (on PC2)
+# Tests:    cd backend && python -m pytest --tb=short -q
+# Docker:   docker-compose up -d
+# Launcher: .\start-embodier.ps1  (PowerShell, from repo root)
