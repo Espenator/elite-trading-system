@@ -239,12 +239,25 @@ function registerIpcHandlers() {
     // Save configuration via device-config
     deviceConfig.completeSetup(config);
 
-    // Generate .env file for the backend
+    // Generate .env file for the backend (with safety guard)
     const envContent = deviceConfig.generateEnvFile(config);
     const envPath = path.join(__dirname, '..', 'backend', '.env');
     try {
-      fs.writeFileSync(envPath, envContent, 'utf8');
-      console.log('[main] Generated backend/.env');
+      // Safety: never overwrite a .env that has real Alpaca keys with one that doesn't
+      if (fs.existsSync(envPath)) {
+        const existing = fs.readFileSync(envPath, 'utf8');
+        const existingHasKeys = existing.includes('ALPACA_API_KEY=PK');
+        const newHasKeys = envContent.includes('ALPACA_API_KEY=PK');
+        if (existingHasKeys && !newHasKeys) {
+          console.log('[main] Skipping .env write — existing file has API keys, new one does not');
+        } else {
+          fs.writeFileSync(envPath, envContent, 'utf8');
+          console.log('[main] Updated backend/.env (keys preserved via defaults)');
+        }
+      } else {
+        fs.writeFileSync(envPath, envContent, 'utf8');
+        console.log('[main] Generated backend/.env');
+      }
     } catch (err) {
       console.error('[main] Failed to write .env:', err.message);
     }

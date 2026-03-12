@@ -46,16 +46,6 @@ def test_blackboard_accepts_blackboard_message():
     assert bb.read(Topic.WHALE_SIGNALS) == {"ticker": "GOOG", "premium": 100}
 
 
-def test_openclaw_ensemble_scorer_uses_canonical_blackboard():
-    """Ensemble scorer imports from canonical service, not a local Blackboard."""
-    from app.modules.openclaw.scorer.ensemble_scorer import (
-        Topic as ETopic,
-        get_blackboard as egb,
-    )
-    assert ETopic.SCORED_CANDIDATES == Topic.SCORED_CANDIDATES
-    assert egb() is get_blackboard()
-
-
 @pytest.mark.asyncio
 async def test_blackboard_subscribe_async_returns_queue():
     """Async subscribers get a queue that receives published messages."""

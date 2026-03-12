@@ -16,6 +16,34 @@ const Store = require("electron-store");
 
 const store = new Store({ name: "device-config" });
 
+// ── API Key Defaults ─────────────────────────────────────────────────────
+// Keys are loaded from electron-store (set during first-run setup).
+// Fallback: read from process.env (populated by backend/.env on ESPENMAIN).
+// NEVER hardcode real secrets here — this file is committed to git.
+const DEFAULT_API_KEYS = {
+  // Alpaca — ESPENMAIN (Key 1, paper trading)
+  alpacaApiKey: process.env.ALPACA_API_KEY || "",
+  alpacaSecretKey: process.env.ALPACA_SECRET_KEY || "",
+  alpacaBaseUrl: process.env.ALPACA_BASE_URL || "https://paper-api.alpaca.markets",
+  // Alpaca — ProfitTrader (Key 2, discovery)
+  alpacaKey2: process.env.ALPACA_KEY_2 || "",
+  alpacaSecret2: process.env.ALPACA_SECRET_2 || "",
+  // LLM Cloud
+  anthropicApiKey: process.env.ANTHROPIC_API_KEY || "",
+  perplexityApiKey: process.env.PERPLEXITY_API_KEY || "",
+  // Data Sources
+  finvizApiKey: process.env.FINVIZ_API_KEY || "",
+  finvizEmail: process.env.FINVIZ_EMAIL || "",
+  fredApiKey: process.env.FRED_API_KEY || "",
+  unusualWhalesToken: process.env.UNUSUAL_WHALES_API_KEY || "",
+  newsApiKey: process.env.NEWS_API_KEY || "",
+  // Notifications
+  resendApiKey: process.env.RESEND_API_KEY || "",
+  // Scrapers
+  benzingaEmail: process.env.BENZINGA_EMAIL || "",
+  benzingaPassword: process.env.BENZINGA_PASSWORD || "",
+};
+
 // Default device profiles for known machines
 const KNOWN_DEVICES = {
   ESPENMAIN: {
@@ -174,11 +202,13 @@ function getFullConfig() {
 }
 
 function generateEnvFile(config) {
-  const keys = config.apiKeys || {};
+  // Merge: user-provided keys > stored keys > hardcoded defaults
+  const keys = { ...DEFAULT_API_KEYS, ...getApiKeys(), ...(config.apiKeys || {}) };
   const tradingMode = config.tradingMode || "paper";
   const isLive = tradingMode === "live";
   const peerAddr = config.peerDevices?.[0]?.address || "";
   const peerPort = config.peerDevices?.[0]?.port || 8001;
+  const isPrimary = config.deviceRole === "primary" || config.deviceName === "ESPENMAIN";
 
   const lines = [
     "# Embodier Trader — Auto-generated .env",
@@ -187,51 +217,74 @@ function generateEnvFile(config) {
     "",
     "# --- Server ---",
     `HOST=0.0.0.0`,
-    `PORT=${config.backendPort || 8001}`,
+    `PORT=${config.backendPort || 8000}`,
     `ENVIRONMENT=production`,
     "",
     "# --- Trading Mode ---",
     `TRADING_MODE=${tradingMode}`,
     `AUTO_EXECUTE_TRADES=${isLive ? "true" : "false"}`,
     "",
-    "# --- Alpaca ---",
-    `ALPACA_API_KEY=${keys.alpacaApiKey || ""}`,
-    `ALPACA_SECRET_KEY=${keys.alpacaSecretKey || ""}`,
+    "# --- Alpaca (Key 1 — ESPENMAIN portfolio trading) ---",
+    `ALPACA_API_KEY=${keys.alpacaApiKey}`,
+    `ALPACA_SECRET_KEY=${keys.alpacaSecretKey}`,
     `ALPACA_BASE_URL=${keys.alpacaBaseUrl || (isLive ? "https://api.alpaca.markets" : "https://paper-api.alpaca.markets")}`,
     `ALPACA_FEED=sip`,
     "",
+    "# --- Alpaca (Key 2 — ProfitTrader discovery) ---",
+    `ALPACA_KEY_2=${keys.alpacaKey2}`,
+    `ALPACA_SECRET_2=${keys.alpacaSecret2}`,
+    "",
     "# --- Brain Service (LLM) ---",
     `BRAIN_ENABLED=${config.brainHost !== "disabled" ? "true" : "false"}`,
-    `BRAIN_HOST=${config.brainHost || "localhost"}`,
+    `BRAIN_HOST=${config.brainHost || (isPrimary ? "192.168.1.116" : "localhost")}`,
     `BRAIN_PORT=${config.brainPort || 50051}`,
     `OLLAMA_MODEL=llama3.2`,
     "",
     "# --- LLM Cloud APIs ---",
-    `ANTHROPIC_API_KEY=${keys.anthropicApiKey || ""}`,
-    `PERPLEXITY_API_KEY=${keys.perplexityApiKey || ""}`,
+    `ANTHROPIC_API_KEY=${keys.anthropicApiKey}`,
+    `PERPLEXITY_API_KEY=${keys.perplexityApiKey}`,
     "",
     "# --- Data Sources ---",
-    `FINVIZ_API_KEY=${keys.finvizApiKey || ""}`,
-    `FINVIZ_EMAIL=${keys.finvizEmail || ""}`,
-    `FRED_API_KEY=${keys.fredApiKey || ""}`,
-    `UNUSUAL_WHALES_API_KEY=${keys.unusualWhalesToken || ""}`,
-    `UNUSUALWHALES_API_KEY=${keys.unusualWhalesToken || ""}`,
-    `NEWS_API_KEY=${keys.newsApiKey || ""}`,
+    `FINVIZ_API_KEY=${keys.finvizApiKey}`,
+    `FINVIZ_EMAIL=${keys.finvizEmail}`,
+    `FRED_API_KEY=${keys.fredApiKey}`,
+    `UNUSUAL_WHALES_API_KEY=${keys.unusualWhalesToken}`,
+    `UNUSUALWHALES_API_KEY=${keys.unusualWhalesToken}`,
+    `NEWS_API_KEY=${keys.newsApiKey}`,
     `STOCKGEIST_API_KEY=${keys.stockgeistToken || ""}`,
     `DISCORD_BOT_TOKEN=${keys.discordBotToken || ""}`,
     `X_BEARER_TOKEN=${keys.xBearerToken || ""}`,
     `YOUTUBE_API_KEY=${keys.youtubeApiKey || ""}`,
     "",
+    "# --- Notifications ---",
+    `RESEND_API_KEY=${keys.resendApiKey}`,
+    `SLACK_BOT_TOKEN=${keys.slackBotToken || ""}`,
+    "",
+    "# --- Scrapers ---",
+    `BENZINGA_EMAIL=${keys.benzingaEmail}`,
+    `BENZINGA_PASSWORD=${keys.benzingaPassword}`,
+    `SQUEEZEMETRICS_ENABLED=true`,
+    "",
     "# --- Security ---",
     `API_AUTH_TOKEN=${getAuthToken()}`,
+    `FERNET_KEY=`,
+    "",
+    "# --- SEC EDGAR ---",
+    `SEC_EDGAR_USER_AGENT=Embodier.ai espen@embodier.ai`,
     "",
     "# --- Council ---",
     `COUNCIL_GATE_ENABLED=true`,
     `COUNCIL_GATE_THRESHOLD=65`,
     `COUNCIL_MAX_CONCURRENT=3`,
     "",
+    "# --- Risk Params ---",
+    `KELLY_MAX_ALLOCATION=0.25`,
+    `MAX_PORTFOLIO_HEAT=0.06`,
+    `MAX_DAILY_TRADES=10`,
+    "",
     "# --- Peer Devices ---",
-    `PC2_API_URL=${peerAddr ? `http://${peerAddr}:${peerPort}` : ""}`,
+    `PC2_API_URL=${peerAddr ? `http://${peerAddr}:${peerPort}` : (isPrimary ? "http://192.168.1.116:8000" : "")}`,
+    `BRAIN_SERVICE_URL=${isPrimary ? "192.168.1.116:50051" : "localhost:50051"}`,
     `AWARENESS_WORKER_URL=${peerAddr ? `http://${peerAddr}:${peerPort}` : ""}`,
     `REDIS_URL=${peerAddr ? `redis://${peerAddr}:6379/0` : ""}`,
   ];

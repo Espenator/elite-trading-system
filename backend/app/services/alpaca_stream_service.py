@@ -515,7 +515,7 @@ class AlpacaStreamService:
     async def _slack_alert(self, message: str, level: str = "info") -> None:
         """Send alert via Slack (best-effort, never blocks)."""
         try:
-            from app.services.slack_service import send_slack_message
+            from app.services.slack_notification_service import send_slack_message
             prefix = {"critical": "🚨", "warning": "⚠️"}.get(level, "ℹ️")
             await send_slack_message(f"{prefix} AlpacaStream: {message}")
         except Exception:

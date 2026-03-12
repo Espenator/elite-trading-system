@@ -10,8 +10,8 @@
 - **Owner**: Espenator (Asheville, NC)
 - **Status**: v5.0.0 — Phases A+B+C+E complete. Production-ready.
 - **Philosophy**: Embodied Intelligence — the system IS profit, not seeking it. It operates as a conscious profit-seeking being with a Central Nervous System (CNS) architecture.
-- **Current Focus**: Council runs 35-agent DAG; 43 API route files (364+ endpoints); 72+ services; 982+ tests; Bearer auth fail-closed; WebSocket active (25 channels); desktop BUILD-READY; E2E pipeline tested.
-- **Latest Session Fixes**: Phase E: PRODUCTION HARDENING complete — E2E integration test with fill→outcome→weight_learner chain (E1), emergency flatten with auth + DuckDB pending_liquidations (E2), position sync-status endpoint (E3), WS circuit breaker MessageBus alerts (E4), comprehensive metrics with council latency percentiles + weight learner stats (E5), desktop packaging + Task Scheduler (E6). Phase C gap fix: debate engine now runs on HOLD verdicts. All phases (A+B+C+D+E) complete.
+- **Current Focus**: Council runs 35-agent DAG; 43 API route files (364+ endpoints); 72+ services; 977+ tests; Bearer auth fail-closed; WebSocket active (25 channels); desktop BUILD-READY; E2E pipeline tested; Slack notifications wired to all trading events.
+- **Latest Session Fixes**: Slack notification bridges wired (council.verdict, order.submitted, order.filled, signal.generated, alert.* → Slack channels). Fixed 3 broken Slack imports. Fixed device-config.js .env regeneration bug (hardcoded API key defaults). Fixed weight learner test_symmetric_penalty. All phases (A+B+C+D+E) complete.
 
 ## Two-PC Development Setup
 

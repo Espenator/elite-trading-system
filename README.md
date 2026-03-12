@@ -2,7 +2,7 @@
 ### Embodier.ai — Full-Stack AI Trading Intelligence Platform
 **Version 5.0.0** | Last Updated: March 12, 2026
 
-> **Version**: v5.0.0 | **Status**: Production-Ready (~95%) | **CI**: 982+ tests GREEN
+> **Version**: v5.0.0 | **Status**: Production-Ready (~95%) | **CI**: 977+ tests GREEN
 >
 > The system IS profit. A conscious profit-seeking being with a Central Nervous System (CNS) architecture.
 
@@ -21,7 +21,7 @@ React + FastAPI full-stack trading application with 14-route V3 widescreen dashb
 | Council agents | **35 agents** in 7-stage DAG | 11 Core + 12 Academic Edge (P0-P4) + 6 Supplemental + 3 Debate + 3 others |
 | Council intelligence | WeightLearner + CouncilGate + SelfAwareness + Homeostasis | Bayesian self-learning agent weights |
 | Council subsystems | 15 orchestration files | runner, arbiter, blackboard, task_spawner, shadow_tracker, etc. |
-| Tests | **982+ passing** | Backend pytest + frontend build |
+| Tests | **977+ passing** | Backend pytest + frontend build |
 | LLM Intelligence | 3-tier router | Ollama -> Perplexity -> Claude; Claude reserved for 6 deep-reasoning tasks |
 | Brain service | gRPC + Ollama | **WIRED** -- hypothesis_agent calls brain gRPC |
 | Event pipeline | MessageBus + CouncilGate + SignalEngine + OrderExecutor | BUILT -- council-controlled trading |
@@ -275,7 +275,7 @@ elite-trading-system/
 │   │       ├── unusual_whales_service.py
 │   │       ├── sec_edgar_service.py
 │   │       └── signal_engine.py
-│   ├── tests/                  # 982+ pytest tests (CI GREEN)
+│   ├── tests/                  # 977+ pytest tests (CI GREEN)
 │   └── requirements.txt
 ├── brain_service/              # gRPC LLM inference server (PC2 / RTX GPU)
 │   ├── server.py               # gRPC server
@@ -452,7 +452,7 @@ All pages in frontend-v2/src/pages/. All use useApi() hook. No mock data. **ALL 
 | Authentication | Bearer token auth, fail-closed for live trading |
 | Event Pipeline | MessageBus -> CouncilGate -> Council -> OrderExecutor |
 | Desktop | Electron (desktop/) -- BUILD-READY |
-| CI/CD | GitHub Actions -- pytest + npm build (666 tests) |
+| CI/CD | GitHub Actions -- pytest + npm build (977+ tests) |
 | Infra | Docker, docker-compose.yml, Redis (where used) |
 
 ## Data Sources
@@ -527,14 +527,22 @@ All API keys live in `backend/.env` (gitignored). Services degrade gracefully if
 | X / Twitter | `X_API_KEY` | No | Not configured |
 | Discord | `DISCORD_BOT_TOKEN` | No | Not configured |
 
-## Slack Bots (Embodier Trader Workspace)
+## Slack Notifications (Embodier Trader Workspace)
 
 | Bot | App ID | Purpose | Status |
 |-----|--------|---------|--------|
 | OpenClaw | A0AF9HSCQ6S | Multi-agent swarm notifications | **ACTIVE** |
 | TradingView Alerts | A0AFQ89RVEV | Inbound TradingView webhook alerts | **ACTIVE** |
 
-Slack workspace tokens expire every 12 hours. Refresh at https://api.slack.com/apps. Config in `backend/.env` (gitignored).
+**Channel mapping:**
+
+| Channel | Events |
+|---------|--------|
+| `#trade-alerts` | Council verdicts (BUY/SELL), high-score signals (75+) |
+| `#oc-trade-desk` | Order executions, fills, position updates |
+| `#embodier-trader` | System alerts, health, circuit breakers, agent failures |
+
+All trading events are bridged from MessageBus to Slack via `slack_notification_service.py`. Tokens expire every 12h — refresh at https://api.slack.com/apps. Config in `backend/.env` (gitignored).
 
 ## Quick Start
 
@@ -703,7 +711,7 @@ AgentVote(
 | Brain Service | gRPC + Ollama on RTX GPU (PC2) |
 | LLM Router | Ollama (routine) → Perplexity → Claude (6 deep tasks) |
 | Event Pipeline | MessageBus → CouncilGate → Council → OrderExecutor |
-| CI/CD | GitHub Actions, 982+ tests, pytest |
+| CI/CD | GitHub Actions, 977+ tests, pytest |
 | Auth | Bearer token, fail-closed for live trading |
 | Desktop | Electron (desktop/) — BUILD-READY |
 | Infra | Docker, docker-compose.yml |
@@ -714,22 +722,22 @@ AgentVote(
 
 | Route | File | Status |
 |-------|------|--------|
-| `/dashboard` | Dashboard.jsx | 🟢 GOOD |
-| `/agents` | AgentCommandCenter.jsx | 🔴 ACC rewrite needed |
-| `/signal-intelligence-v3` | SignalIntelligenceV3.jsx | 🟢 GOOD |
-| `/sentiment` | SentimentIntelligence.jsx | 🟡 PARTIAL |
-| `/ml-brain` | MLBrainFlywheel.jsx | 🟢 GOOD |
-| `/patterns` | Patterns.jsx | 🟢 GOOD |
-| `/backtest` | Backtesting.jsx | 🟢 GOOD |
-| `/data-sources` | DataSourcesMonitor.jsx | 🟢 DONE |
-| `/market-regime` | MarketRegime.jsx | 🟢 DONE |
-| `/performance` | PerformanceAnalytics.jsx | 🟡 PARTIAL |
-| `/trade-execution` | TradeExecution.jsx | 🟡 PARTIAL |
-| `/risk` | RiskIntelligence.jsx | 🟡 PARTIAL |
-| `/settings` | Settings.jsx | 🟢 GOOD |
-| `/trades` | Trades.jsx | 🟢 DONE |
+| `/dashboard` | Dashboard.jsx | 🟢 COMPLETE |
+| `/agents` | AgentCommandCenter.jsx | 🟢 COMPLETE |
+| `/signal-intelligence-v3` | SignalIntelligenceV3.jsx | 🟢 COMPLETE |
+| `/sentiment` | SentimentIntelligence.jsx | 🟢 COMPLETE |
+| `/ml-brain` | MLBrainFlywheel.jsx | 🟢 COMPLETE |
+| `/patterns` | Patterns.jsx | 🟢 COMPLETE |
+| `/backtest` | Backtesting.jsx | 🟢 COMPLETE |
+| `/data-sources` | DataSourcesMonitor.jsx | 🟢 COMPLETE |
+| `/market-regime` | MarketRegime.jsx | 🟢 COMPLETE |
+| `/performance` | PerformanceAnalytics.jsx | 🟢 COMPLETE |
+| `/trade-execution` | TradeExecution.jsx | 🟢 COMPLETE |
+| `/risk` | RiskIntelligence.jsx | 🟢 COMPLETE |
+| `/settings` | Settings.jsx | 🟢 COMPLETE |
+| `/trades` | Trades.jsx | 🟢 COMPLETE |
 
-Full audit: `docs/MOCKUP-FIDELITY-AUDIT.md`
+All 14 pages rebuilt to V3 mockup pixel fidelity (March 6, 2026). Full audit: `docs/MOCKUP-FIDELITY-AUDIT.md`
 
 ---
 
@@ -829,4 +837,4 @@ See `PLAN.md` for historical details on all 40 specific issues resolved.
 7. ✅ New agents do NOT get veto power
 8. ✅ CouncilGate is the ONLY path to order execution
 9. ✅ Read `project_state.md` before every coding session
-10. ✅ CI must stay GREEN (982+ tests)
+10. ✅ CI must stay GREEN (977+ tests)

@@ -68,19 +68,29 @@ class TestWeightLearner:
         decision.final_confidence = 0.8
         decision.regime = "NEUTRAL"
         decision.decision_id = "sym-test-1"
-        vote = AgentVote(agent_name="strategy", direction="buy", confidence=0.9, reasoning="test")
-        decision.votes = [vote]
+        # "strategy" voted buy (wrong — trade lost, correct was sell) → PENALTY
+        # "risk" voted sell (correct — predicted the loss) → REWARD
+        vote1 = AgentVote(agent_name="strategy", direction="buy", confidence=0.9, reasoning="bullish")
+        vote2 = AgentVote(agent_name="risk", direction="sell", confidence=0.8, reasoning="bearish caution")
+        decision.votes = [vote1, vote2]
         wl.record_decision(decision)
 
-        initial_weight = wl.get_weight("strategy")
+        # Capture pre-update ratio (strategy / risk)
+        pre_ratio = wl.get_weight("strategy") / wl.get_weight("risk")
+
         wl.update_from_outcome(
             symbol="TSLA", outcome_direction="loss", trade_id="sym-test-1",
             confidence=0.8,
         )
-        loss_weight = wl.get_weight("strategy")
 
-        # Weight should decrease on loss (symmetric penalty)
-        assert loss_weight < initial_weight, "Loss should decrease weight"
+        # After a loss, the wrong agent (strategy) should lose ground RELATIVE
+        # to the correct agent (risk). Normalization preserves mean=1.0 across
+        # all 30+ agents, so absolute values shift — but the ratio must drop.
+        post_ratio = wl.get_weight("strategy") / wl.get_weight("risk")
+        assert post_ratio < pre_ratio, (
+            f"Wrong agent should lose ground relative to correct agent: "
+            f"ratio {post_ratio:.4f} should be < {pre_ratio:.4f}"
+        )
 
 
 # ── C2: Brier Score Calibration ──────────────────────────────────────────

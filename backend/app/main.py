@@ -518,6 +518,91 @@ async def _start_event_driven_pipeline():
     await _message_bus.subscribe("council.verdict", _bridge_council_to_ws)
     log.info("\u2705 Council->WebSocket bridge active")
 
+    # 6. Slack notification bridges (forward critical events to Slack)
+    async def _bridge_council_to_slack(verdict_data):
+        """Push every council BUY/SELL verdict to Slack (skip HOLD to reduce noise)."""
+        try:
+            from app.services.slack_notification_service import slack_service
+            direction = verdict_data.get("direction", "hold").upper()
+            if direction == "HOLD":
+                return  # Only alert on actionable decisions
+            symbol = verdict_data.get("symbol", "???")
+            confidence = verdict_data.get("confidence", 0)
+            if isinstance(confidence, (int, float)) and confidence < 1:
+                confidence *= 100  # normalize 0-1 to 0-100
+            await slack_service.send_council_verdict(symbol, direction, confidence)
+        except Exception as e:
+            log.debug("Slack council bridge failed: %s", e)
+
+    await _message_bus.subscribe("council.verdict", _bridge_council_to_slack)
+
+    async def _bridge_order_to_slack(order_data):
+        """Push order submissions to Slack."""
+        try:
+            from app.services.slack_notification_service import slack_service
+            symbol = order_data.get("symbol", "???")
+            side = order_data.get("side", "unknown")
+            qty = order_data.get("qty", 0)
+            price = order_data.get("price") or order_data.get("limit_price") or 0
+            await slack_service.send_trade_execution(symbol, side, qty, float(price))
+        except Exception as e:
+            log.debug("Slack order bridge failed: %s", e)
+
+    await _message_bus.subscribe("order.submitted", _bridge_order_to_slack)
+
+    async def _bridge_fill_to_slack(fill_data):
+        """Push order fills to Slack #executions."""
+        try:
+            from app.services.slack_notification_service import slack_service
+            symbol = fill_data.get("symbol", "???")
+            side = fill_data.get("side", "unknown")
+            qty = fill_data.get("filled_qty") or fill_data.get("qty", 0)
+            price = fill_data.get("filled_avg_price") or fill_data.get("price", 0)
+            from app.services.slack_notification_service import CH_EXECUTIONS
+            await slack_service._post_message(
+                CH_EXECUTIONS,
+                f":moneybag: Filled: {side.upper()} {qty}x *{symbol}* @ ${float(price):.2f}",
+            )
+        except Exception as e:
+            log.debug("Slack fill bridge failed: %s", e)
+
+    await _message_bus.subscribe("order.filled", _bridge_fill_to_slack)
+
+    async def _bridge_signal_to_slack(signal_data):
+        """Push high-score signals to Slack (score >= 75 only to reduce noise)."""
+        try:
+            from app.services.slack_notification_service import slack_service
+            score = signal_data.get("score", 0)
+            if score < 75:
+                return  # Only alert on strong signals
+            symbol = signal_data.get("symbol", "???")
+            direction = signal_data.get("direction", "LONG")
+            kelly = signal_data.get("kelly_pct", 0)
+            await slack_service.send_signal(symbol, direction, score, kelly)
+        except Exception as e:
+            log.debug("Slack signal bridge failed: %s", e)
+
+    await _message_bus.subscribe("signal.generated", _bridge_signal_to_slack)
+
+    async def _bridge_alert_to_slack(alert_data):
+        """Push system alerts (circuit breakers, agent failures) to Slack."""
+        try:
+            from app.services.slack_notification_service import slack_service
+            message = alert_data.get("message", str(alert_data))
+            level = alert_data.get("severity", "INFO")
+            await slack_service.send_alert(message, level=level)
+        except Exception as e:
+            log.debug("Slack alert bridge failed: %s", e)
+
+    for alert_topic in [
+        "alert.health", "alert.agent_failure",
+        "alert.data_starvation", "alert.council_degraded",
+        "alert.websocket_circuit_open",
+    ]:
+        await _message_bus.subscribe(alert_topic, _bridge_alert_to_slack)
+
+    log.info("\u2705 Slack bridges active (council, orders, fills, signals, alerts)")
+
     # 5b. BUG FIX 5: Subscribe to market_data.bar to persist snapshot/stream data to DuckDB.
     # Without this, snapshots published by AlpacaStreamService flow through the event pipeline
     # but never reach the database — the data_ingestion.ingest_all path uses separate HTTP calls.

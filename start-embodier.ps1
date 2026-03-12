@@ -25,7 +25,7 @@ $PythonExe   = Join-Path $BackendDir "venv\Scripts\python.exe"
 
 Write-Host ""
 Write-Host "  ============================================" -ForegroundColor DarkCyan
-Write-Host "    EMBODIER TRADER v4.1.0  Smart Launcher" -ForegroundColor DarkCyan
+Write-Host "    EMBODIER TRADER v5.0.0  Smart Launcher" -ForegroundColor DarkCyan
 Write-Host "  ============================================" -ForegroundColor DarkCyan
 Write-Host ""
 

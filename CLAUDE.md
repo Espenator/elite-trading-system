@@ -38,7 +38,7 @@
 | Metric | Value |
 |--------|-------|
 | Version | v5.0.0 |
-| Tests | 982+ passing (pytest), CI GREEN |
+| Tests | 977+ passing (pytest), CI GREEN |
 | Council agents | 35 (7-stage DAG) |
 | Backend services | 72+ (incl. subdirs) |
 | API route files | 43 in api/v1/ (364+ endpoints) |
@@ -92,7 +92,7 @@ C:\Users\Espen\elite-trading-system\
 │   │   ├── jobs/                   # scheduler, daily_outcome, walkforward
 │   │   ├── modules/                # openclaw/, ml_engine/
 │   │   └── websocket_manager.py    # 25 channels, token auth, heartbeat
-│   └── tests/                      # 666+ tests passing
+│   └── tests/                      # 977+ tests passing
 ├── frontend-v2/                    # React 18 + Vite + TailwindCSS
 │   └── src/
 │       ├── pages/                  # 14 route pages
@@ -390,7 +390,7 @@ See `PLAN.md` for full details (40 issues, 5 phases, 13-18 sessions).
 4. Event-driven architecture achieves sub-1s council latency
 5. Kelly criterion implementation is mathematically sound
 6. 3-tier LLM router (Ollama → Perplexity → Claude)
-7. 950+ tests passing, CI GREEN
+7. 977+ tests passing, CI GREEN
 8. HITL gate, bracket orders, shadow tracking all working
 
 ## 16. Coding Rules for AI Sessions
