@@ -6,8 +6,13 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   backend-test:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     defaults:
       run:
