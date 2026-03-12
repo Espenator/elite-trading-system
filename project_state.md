@@ -11,7 +11,7 @@
 - **Status**: Active development — v4.1.0-dev. Phase A complete. All critical startup blockers resolved.
 - **Philosophy**: Embodied Intelligence — the system IS profit, not seeking it. It operates as a conscious profit-seeking being with a Central Nervous System (CNS) architecture.
 - **Current Focus**: Council runs 35-agent DAG; 43 API route files (364+ endpoints); 72+ services; 666+ tests passing; Bearer auth fail-closed; WebSocket active (25 channels); desktop BUILD-READY.
-- **Latest Session Fixes**: .env restored with all keys + generated secrets, deque slice bugs fixed (3 files), 6 missing MessageBus topics added, daily_features DuckDB table created, Electron cache path fix, zero-subscriber topic audit (14 wired / 20 publish-only / 20+ planned)
+- **Latest Session Fixes**: Phase B: UNLOCK ALPHA complete — regime-adaptive gate thresholds (B1), independent short scoring (B2), separate buy/sell cooldowns (B3), priority queue with market open burst 5→8 (B4), tiered order types market/limit/TWAP (B5), partial fill re-execution (B6), DuckDB viability gate (B7), last_equity heat check (B8), UW options flow wired to MessageBus (0c). 921 tests passing.
 
 ## Two-PC Development Setup
 

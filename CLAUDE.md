@@ -109,7 +109,7 @@ AlpacaStreamService
       → Stage 6: Critic (1 agent)
       → Stage 7: Arbiter (Bayesian-weighted BUY/SELL/HOLD)
   → council.verdict
-  → OrderExecutor (Gate 2b regime check → Gate 2c circuit breakers → Alpaca bracket order)
+  → OrderExecutor (Gate 2b regime → Gate 2c breakers → Kelly sizing → Heat → Viability → market/limit/TWAP)
   → order.submitted
   → WebSocket bridges → Frontend
 ```
@@ -342,18 +342,18 @@ See `PLAN.md` for full details (40 issues, 5 phases, 13-18 sessions).
 | Phase | Name | Status | Summary |
 |-------|------|--------|---------|
 | A | Stop the Bleeding | **COMPLETE** | Scout crashes fixed, regime enforcement, circuit breakers, safety gates, DuckDB lock, supervisor |
-| B | Unlock Alpha | NOT STARTED | Calibrate gate, fix shorts, smart cooldown, limit orders, partial fills |
+| B | Unlock Alpha | **COMPLETE** | Regime-adaptive gate, independent short scoring, buy/sell cooldowns, priority queue, limit/TWAP orders, partial fills, DuckDB viability, last_equity heat |
 | C | Sharpen the Brain | NOT STARTED | Weight learner fix, confidence calibration, regime-adaptive thresholds |
 | D | Continuous Intelligence | NOT STARTED | Autonomous backfill, rate limiting, scraper resilience |
 | E | Production Hardening | NOT STARTED | E2E test, emergency flatten, desktop packaging |
 
 ### Top Issues Blocking Profits
 
-1. Signal gate threshold 65 filters 20-40% of profitable signals (council_gate.py)
-2. Short signals inverted — `100 - blended` blocks bearish setups (signal_engine.py)
+1. ~~Signal gate threshold 65 filters 20-40% of profitable signals~~ **FIXED** (Phase B — regime-adaptive: 55/65/75)
+2. ~~Short signals inverted — `100 - blended` blocks bearish setups~~ **FIXED** (Phase B — independent short composite)
 3. Weight learner drops 50%+ of outcomes due to 0.5 confidence floor (weight_learner.py)
-4. Only market orders — pays full bid-ask spread (order_executor.py)
-5. Partial fills never re-executed — 60-80% fill rate silently (order_executor.py)
+4. ~~Only market orders — pays full bid-ask spread~~ **FIXED** (Phase B — market/limit/TWAP by notional)
+5. ~~Partial fills never re-executed — 60-80% fill rate silently~~ **FIXED** (Phase B — 3 retries, market remainder)
 
 ### What IS Working Well (Do NOT Break)
 
@@ -363,7 +363,7 @@ See `PLAN.md` for full details (40 issues, 5 phases, 13-18 sessions).
 4. Event-driven architecture achieves sub-1s council latency
 5. Kelly criterion implementation is mathematically sound
 6. 3-tier LLM router (Ollama → Perplexity → Claude)
-7. 666+ tests passing, CI GREEN
+7. 921 tests passing, CI GREEN
 8. HITL gate, bracket orders, shadow tracking all working
 
 ## 16. Coding Rules for AI Sessions

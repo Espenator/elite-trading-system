@@ -172,10 +172,10 @@ bus.subscribe("council.verdict", my_handler)
 
 ```
 AlpacaStreamService → market_data.bar (MessageBus)
-  → EventDrivenSignalEngine → signal.generated (score >= 65)
-  → CouncilGate → run_council() (35 agents, 7 stages)
+  → EventDrivenSignalEngine → signal.generated (score >= regime-adaptive threshold)
+  → CouncilGate → run_council() (35 agents, 7 stages, per-direction cooldown)
   → council.verdict (BUY/SELL/HOLD + confidence)
-  → OrderExecutor (Gate 2b regime → Gate 2c breakers → Alpaca bracket order)
+  → OrderExecutor (Gates 2b-9 → Kelly sizing → market/limit/TWAP order)
   → order.submitted → WebSocket bridges → Frontend
 ```
 
@@ -183,7 +183,7 @@ AlpacaStreamService → market_data.bar (MessageBus)
 
 ```bash
 cd backend
-python -m pytest --tb=short -q          # All 666+ tests
+python -m pytest --tb=short -q          # All 921 tests
 python -m pytest tests/test_api.py -v   # Specific file
 python -m pytest -k "test_signals"      # By name pattern
 ```
@@ -221,4 +221,4 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
 5. **AgentVote schema required** — all agents must return it
 6. **No yfinance** — use Alpaca/FinViz/UW
 7. **No mock data** — all endpoints return real data
-8. **Run tests before/after changes** — maintain 666+ GREEN
+8. **Run tests before/after changes** — maintain 921 GREEN

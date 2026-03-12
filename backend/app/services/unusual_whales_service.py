@@ -63,6 +63,13 @@ class UnusualWhalesService:
                     "source": "unusual_whales_service",
                     "timestamp": time.time(),
                 })
+                # Also publish to canonical unusual_whales.flow topic (0c)
+                await bus.publish("unusual_whales.flow", {
+                    "type": "options_flow",
+                    "alerts": data,
+                    "source": "unusual_whales_service",
+                    "timestamp": time.time(),
+                })
         except Exception:
             pass
 
