@@ -119,7 +119,7 @@ function NLSpawnPrompt() {
       />
       <button
         className="mt-2 px-4 py-2 bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 rounded font-bold text-xs hover:bg-cyan-500/30 transition-all w-full"
-        onClick={() => toast.success("Executing spawn prompt...")}
+        onClick={() => toast.info("Spawn & scale APIs coming soon.")}
       >
         [ EXECUTE PROMPT ]
       </button>
@@ -144,12 +144,12 @@ function QuickSpawnGrid() {
   ];
   return (
     <div className="aurora-card p-3">
-      <h3 className="text-[10px] font-bold text-white uppercase tracking-wider mb-2">Quick Spawn Template Grid</h3>
+      <h3 className="text-[10px] font-bold text-white uppercase tracking-wider mb-2">Quick Spawn Template Grid <span className="text-gray-500 font-normal normal-case">(Coming soon)</span></h3>
       <div className="grid grid-cols-4 gap-2">
         {templates.map(t => (
           <button key={t.name}
             className={`flex flex-col items-center gap-1 p-2 rounded border bg-[#0B0E14]/50 hover:bg-cyan-500/10 transition-all ${t.color}`}
-            onClick={() => toast.info(`Spawning ${t.name}...`)}>
+            onClick={() => toast.info("Spawn & scale APIs coming soon.")}>
             <t.icon className="w-4 h-4" />
             <span className="text-[8px] text-center leading-tight">{t.name}</span>
           </button>

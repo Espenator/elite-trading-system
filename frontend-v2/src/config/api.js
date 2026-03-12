@@ -56,6 +56,7 @@ const API_CONFIG = {
     agents:           "/agents",
     dataSources:      "/data-sources/",
     sentiment:        "/sentiment",
+    "sentiment/discover": "/sentiment/discover",
     youtubeKnowledge: "/youtube-knowledge",
     flywheel:         "/flywheel",
     portfolio:        "/portfolio",
@@ -103,6 +104,7 @@ const API_CONFIG = {
     "openclaw/sectors":        "/openclaw/sectors",
     "openclaw/scan":           "/openclaw/scan",
     "openclaw/memory":         "/openclaw/memory",
+    "risk/config":             "/risk/config",
     "risk/risk-gauges":        "/risk/risk-gauges",
     "openclaw/macro/override":  "/openclaw/macro/override",
     "openclaw/health":         "/openclaw/health",
@@ -117,6 +119,8 @@ const API_CONFIG = {
     "alpaca/orders":   "/alpaca/orders",
     "alpaca/activities":"/alpaca/activities",
     "orders/advanced": "/orders/advanced",
+    "orders/emergency-stop": "/orders/emergency-stop",
+    "riskShield/emergency-action": "/risk-shield/emergency-action",
 
     // ---- ALIGNMENT ENGINE ----
     "alignment/settings":       "/alignment/settings",

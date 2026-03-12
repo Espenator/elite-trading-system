@@ -531,8 +531,8 @@ if __name__ == "__main__":
             log.error("Training returned None.")
     except Exception as exc:
         log.warning("v2 path failed (%s), trying legacy...", exc)
-        import duckdb
-        conn = duckdb.connect("elite_trading.duckdb", read_only=True)
+        from app.data.duckdb_storage import duckdb_store
+        conn = duckdb_store.get_thread_cursor()
         df = load_feature_frame(conn)
         if df.empty:
             log.error("No data in daily_features table.")
@@ -542,4 +542,3 @@ if __name__ == "__main__":
             )
             if result:
                 log.info("Training complete. Val accuracy: %.4f", result["val_accuracy"])
-        conn.close()

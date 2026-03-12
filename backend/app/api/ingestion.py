@@ -53,10 +53,10 @@ async def run_backfill(req: BackfillRequest):
 
 @router.get("/health")
 async def ingestion_health():
-    """Check DuckDB health and table row counts."""
+    """Check DuckDB health and table row counts. Returns 503 when unhealthy for readiness probes."""
     try:
         from app.data.duckdb_storage import duckdb_store
         return duckdb_store.health_check()
     except Exception as e:
         logger.error("ingestion_health failed: %s", e)
-        return {"status": "error", "detail": "Internal server error"}
+        raise HTTPException(status_code=503, detail="Ingestion/DuckDB unhealthy")

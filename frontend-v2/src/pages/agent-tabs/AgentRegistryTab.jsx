@@ -92,7 +92,7 @@ function AgentInspector({ agent }) {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-bold text-white">Agent Inspector: <span className="text-cyan-400">{agent.name}</span></h3>
-          <span className={`text-[10px] px-2 py-0.5 rounded ${agent.status === "Running" ? "bg-emerald-500/20 text-emerald-400" : agent.status === "Error" ? "bg-red-500/20 text-red-400" : "bg-gray-700 text-gray-400"}`}>{agent.status}</span>
+          <span className={`text-[10px] px-2 py-0.5 rounded ${(agent.statusDisplay ?? agent.status) === "Running" ? "bg-emerald-500/20 text-emerald-400" : (agent.statusDisplay ?? agent.status) === "Error" ? "bg-red-500/20 text-red-400" : "bg-gray-700 text-gray-400"}`}>{agent.statusDisplay ?? agent.status}</span>
         </div>
         <div className="flex gap-2 text-[10px] text-gray-500">
           <span>PID: {1942 + agent.id}</span>
@@ -193,7 +193,8 @@ export default function AgentRegistryTab({ agents }) {
   const filtered = useMemo(() => {
     return agentList.filter(a => {
       if (search && !a.name.toLowerCase().includes(search.toLowerCase())) return false;
-      if (statusFilter !== "All" && a.status !== statusFilter) return false;
+      const displayStatus = a.statusDisplay ?? a.status;
+      if (statusFilter !== "All" && displayStatus !== statusFilter) return false;
       if (typeFilter !== "All Types" && a.type !== typeFilter) return false;
       return true;
     });
@@ -252,14 +253,14 @@ export default function AgentRegistryTab({ agents }) {
                   onClick={() => setSelected(a)}>
                   <td className="py-1.5 px-1 text-left">
                     <div className="flex items-center gap-1.5">
-                      <span className={`w-1.5 h-1.5 rounded-full ${a.status === "Running" ? "bg-emerald-500" : a.status === "Error" ? "bg-red-500" : "bg-gray-600"}`} />
+                      <span className={`w-1.5 h-1.5 rounded-full ${(a.statusDisplay ?? a.status) === "Running" ? "bg-emerald-500" : (a.statusDisplay ?? a.status) === "Error" ? "bg-red-500" : "bg-gray-600"}`} />
                       <span className="text-white font-mono">{a.name}</span>
                     </div>
                   </td>
                   <td className="text-right px-1 text-gray-400">{a.type}</td>
-                  <td className={`text-right px-1 ${STATUS_COLORS[a.status]}`}>{a.status}</td>
-                  <td className={`text-right px-1 ${a.cpu > 80 ? "text-red-400" : a.cpu > 50 ? "text-amber-400" : "text-emerald-400"}`}>{a.cpu}%</td>
-                  <td className="text-right px-1 text-white">{a.mem}</td>
+                  <td className={`text-right px-1 ${STATUS_COLORS[a.statusDisplay ?? a.status]}`}>{a.statusDisplay ?? a.status}</td>
+                  <td className={`text-right px-1 ${(a.cpu ?? a.cpuPercent) > 80 ? "text-red-400" : (a.cpu ?? a.cpuPercent) > 50 ? "text-amber-400" : "text-emerald-400"}`}>{a.cpu ?? a.cpuPercent ?? 0}%</td>
+                  <td className="text-right px-1 text-white">{a.mem ?? a.memoryMb ?? 0}</td>
                   <td className="text-right px-1 text-white">{a.winRate}%</td>
                   <td className={`text-right px-1 ${Number(a.pnl) >= 0 ? "text-emerald-400" : "text-red-400"}`}>${a.pnl}</td>
                   <td className="text-right px-1 text-white">{a.elo}</td>
@@ -268,7 +269,7 @@ export default function AgentRegistryTab({ agents }) {
                   <td className="text-right px-1">
                     <div className="flex gap-0.5 justify-end">
                       <button className="p-0.5 hover:text-cyan-400 text-gray-600" onClick={e => { e.stopPropagation(); setSelected(a); }}><Eye className="w-3 h-3" /></button>
-                      <button className="p-0.5 hover:text-emerald-400 text-gray-600" onClick={async e => { e.stopPropagation(); try { if (a.status === "Running") { await agentApi.stop(a.id); toast.info(`Stopping ${a.name}`); } else { await agentApi.start(a.id); toast.success(`Starting ${a.name}`); } } catch (err) { toast.error(`Toggle failed: ${err.message}`); } }}><Play className="w-3 h-3" /></button>
+                      <button className="p-0.5 hover:text-emerald-400 text-gray-600" onClick={async e => { e.stopPropagation(); try { if ((a.statusDisplay ?? a.status) === "Running") { await agentApi.stop(a.id); toast.info(`Stopping ${a.name}`); } else { await agentApi.start(a.id); toast.success(`Starting ${a.name}`); } } catch (err) { toast.error(`Toggle failed: ${err.message}`); } }}><Play className="w-3 h-3" /></button>
                     </div>
                   </td>
                 </tr>

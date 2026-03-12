@@ -274,50 +274,40 @@ async def compare_kelly_sizing(request: BacktestRequest):
 
 @router.get("/results")
 def get_backtest_results():
-    """Full backtest results with equity curve, drawdown, trades, and all KPIs."""
-    return {
-        "totalPnl": 0, "pnlPct": 0, "sharpe": 0, "sortino": 0,
-        "calmar": 0, "maxDD": 0, "winRate": 0, "profitFactor": 0,
-        "avgWin": 0, "avgLoss": 0, "totalTrades": 0,
-        "avgDuration": "0h", "expectancy": 0, "kelly": 0,
-        "equityCurve": [], "drawdown": [], "trades": []
-    }
+    """Full backtest results with equity curve, drawdown, trades, and all KPIs. Not yet implemented."""
+    raise HTTPException(
+        status_code=501,
+        detail="Backtest results aggregation not implemented. Run a backtest via GET/POST /backtest/ to get metrics.",
+    )
 
 
 @router.get("/optimization")
 def get_backtest_optimization():
-    """Parameter optimization results with heatmap data."""
-    return {
-        "bestParams": {},
-        "heatmap": [],
-        "sensitivity": []
-    }
+    """Parameter optimization results with heatmap data. Not yet implemented."""
+    raise HTTPException(
+        status_code=501,
+        detail="Backtest parameter optimization not implemented.",
+    )
 
 
 @router.get("/walkforward")
 @router.get("/walk-forward")
 def get_backtest_walk_forward():
-    """Walk-forward analysis with in-sample/out-of-sample windows."""
-    windows: list = []
-    return {
-        "windows": windows,
-        "periods": windows,
-        "avgDegradation": 0,
-        "robustnessScore": 0,
-    }
+    """Walk-forward analysis with in-sample/out-of-sample windows. Not yet implemented."""
+    raise HTTPException(
+        status_code=501,
+        detail="Walk-forward backtest not implemented.",
+    )
 
 
 @router.get("/montecarlo")
 @router.get("/monte-carlo")
 def get_backtest_monte_carlo():
-    """Monte Carlo simulation with confidence intervals."""
-    return {
-        "paths": [],
-        "percentiles": {"p5": 0, "p25": 0, "p50": 0, "p75": 0, "p95": 0},
-        "ruinProbability": 0,
-        "medianReturn": 0,
-        "simulations": 0
-    }
+    """Monte Carlo simulation with confidence intervals. Not yet implemented."""
+    raise HTTPException(
+        status_code=501,
+        detail="Monte Carlo backtest not implemented.",
+    )
 
 
 @router.get("/correlation")

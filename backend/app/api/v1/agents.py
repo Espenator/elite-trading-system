@@ -222,6 +222,9 @@ async def get_agents():
             payload["cpuPercent"] = real_metrics["cpuPercent"]
             payload["memoryMb"] = real_metrics["memoryMb"]
             payload["uptime"] = real_metrics["uptime"]
+        payload["cpu"] = payload.get("cpuPercent", 0)
+        payload["mem"] = payload.get("memoryMb", 0)
+        payload["statusDisplay"] = (status or "stopped").capitalize()
         payload["last_tick_at"] = _get_last_tick_at(a["id"])
         stored_task = _get_current_task(a["id"])
         if stored_task:

@@ -40,16 +40,29 @@ class MLScorer:
         self._predictions_made = 0
         self._load_model()
 
+    def _model_path(self) -> Optional[Path]:
+        """Resolve model path: registry champion first, then fixed xgb_latest.json."""
+        try:
+            from app.modules.ml_engine.model_registry import get_registry
+            registry = get_registry()
+            champion_path = registry.get_champion_model_path("xgboost_daily")
+            if champion_path and Path(champion_path).exists():
+                return Path(champion_path)
+        except Exception as e:
+            logger.debug("MLScorer: registry champion not used: %s", e)
+        return _MODEL_FILE if _MODEL_FILE.exists() else None
+
     def _load_model(self) -> None:
-        """Load the trained XGBoost model if available."""
-        if not _MODEL_FILE.exists():
+        """Load the trained XGBoost model if available (registry champion or xgb_latest.json)."""
+        path = self._model_path()
+        if not path:
             logger.info("MLScorer: no model at %s — TA-only mode", _MODEL_FILE)
             return
 
         try:
             import xgboost as xgb
             self._model = xgb.Booster()
-            self._model.load_model(str(_MODEL_FILE))
+            self._model.load_model(str(path))
 
             # Load feature columns
             try:

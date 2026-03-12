@@ -5,13 +5,24 @@ import {
   CheckCircle, AlertTriangle, XCircle, Clock, Send, Filter, Search,
   TrendingUp, Cpu, Database, Server, Eye, Target, Shield,
 } from "lucide-react";
-import { useApi } from "../../hooks/useApi";
+import { useApi, useHitlBuffer } from "../../hooks/useApi";
 import ws from "../../services/websocket";
 import { toast } from "react-toastify";
+import { getApiUrl, getAuthHeaders } from "../../config/api";
+
+async function postHitlDecision(decisionId, action) {
+  const res = await fetch(`${getApiUrl("agents")}/hitl/${decisionId}/${action}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
 
 // ========== BLACKBOARD & COMMS TAB ==========
 export function BlackboardCommsTab() {
   const { data: busStatus } = useApi("system/event-bus/status");
+  const { data: hitlData, refetch: refetchHitl } = useHitlBuffer(15000);
   const [messages, setMessages] = useState([]);
   const feedRef = useRef([]);
 
@@ -39,11 +50,18 @@ export function BlackboardCommsTab() {
     { topic: "sentiment.update", subs: 5, rate: 2.1, status: "ok" },
   ];
 
-  const hitlBuffer = [
-    { id: 1, type: "TRADE", symbol: "TSLA", action: "BUY", confidence: 72, status: "pending" },
-    { id: 2, type: "RISK", symbol: "PORTFOLIO", action: "REDUCE", confidence: 85, status: "pending" },
-    { id: 3, type: "SCALE", symbol: "Scanner-Fleet", action: "SPAWN x3", confidence: 91, status: "approved" },
-  ];
+  const hitlBuffer = (() => {
+    if (!hitlData) return [];
+    const arr = Array.isArray(hitlData) ? hitlData : hitlData.items ?? hitlData.buffer ?? [];
+    return arr.map((d) => ({
+      id: d.id ?? d.decision_id ?? String(Math.random()),
+      type: d.type ?? "TRADE",
+      symbol: d.symbol ?? "—",
+      action: (d.direction ?? d.side ?? d.action ?? "—").toUpperCase(),
+      confidence: Math.round((d.confidence ?? 0) * (d.confidence != null && d.confidence <= 1 ? 100 : 1)),
+      status: d.status ?? "pending",
+    }));
+  })();
 
   return (
     <div className="grid grid-cols-12 gap-3">
@@ -98,8 +116,34 @@ export function BlackboardCommsTab() {
               <div className="text-[10px] text-white mb-1">{h.action} <span className="text-gray-500">({h.confidence}% conf)</span></div>
               {h.status === "pending" ? (
                 <div className="flex gap-1">
-                  <button className="px-2 py-0.5 text-[9px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded" onClick={() => toast.success(`Approved: ${h.action}`)}>Approve</button>
-                  <button className="px-2 py-0.5 text-[9px] bg-red-500/20 text-red-400 border border-red-500/30 rounded" onClick={() => toast.warning(`Rejected: ${h.action}`)}>Reject</button>
+                  <button
+                    className="px-2 py-0.5 text-[9px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded"
+                    onClick={async () => {
+                      try {
+                        await postHitlDecision(h.id, "approve");
+                        toast.success(`Approved: ${h.action}`);
+                        setTimeout(refetchHitl, 500);
+                      } catch (e) {
+                        toast.error(e?.message || "Approve failed");
+                      }
+                    }}
+                  >
+                    Approve
+                  </button>
+                  <button
+                    className="px-2 py-0.5 text-[9px] bg-red-500/20 text-red-400 border border-red-500/30 rounded"
+                    onClick={async () => {
+                      try {
+                        await postHitlDecision(h.id, "reject");
+                        toast.warning(`Rejected: ${h.action}`);
+                        setTimeout(refetchHitl, 500);
+                      } catch (e) {
+                        toast.error(e?.message || "Reject failed");
+                      }
+                    }}
+                  >
+                    Reject
+                  </button>
                 </div>
               ) : (
                 <span className="text-[9px] text-emerald-400">Approved</span>

@@ -341,22 +341,51 @@ function AgentHealthMatrix({ agents }) {
 
 // ─── QUICK ACTIONS (mockup 01: Restart All blue, Stop All red, Spawn Team green, Run Conference purple, Emergency Kill red) ────────────────────────────────────────────────────────────
 
-function QuickActions() {
+async function quickActionApi(path, method = "POST") {
+  const res = await fetch(getApiUrl("agents") + path, { method, headers: getAuthHeaders() });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
+  return res.json();
+}
+
+async function emergencyStopApi() {
+  const res = await fetch(getApiUrl("orders/emergency-stop"), { method: "POST", headers: getAuthHeaders() });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
+  return res.json();
+}
+
+function QuickActions({ onRefetch }) {
+  const [loading, setLoading] = useState(null);
+  const run = async (label, fn) => {
+    setLoading(label);
+    try {
+      await fn();
+      toast.success(`${label} completed`);
+      if (typeof onRefetch === "function") setTimeout(onRefetch, 500);
+    } catch (e) {
+      toast.error(`${label} failed: ${e?.message || "network error"}`);
+    } finally {
+      setLoading(null);
+    }
+  };
   const actions = [
-    { label: "Restart All",   color: "bg-[#3b82f6] text-white border-[#3b82f6]", action: "Restarting all agents..." },
-    { label: "Stop All",     color: "bg-[#ef4444] text-white border-[#ef4444]", action: "Stopping all agents..." },
-    { label: "Spawn Team",   color: "bg-[#10b981] text-white border-[#10b981]", action: "Spawning new team..." },
-    { label: "Run Conference", color: "bg-[#8b5cf6] text-white border-[#8b5cf6]", action: "Running conference..." },
-    { label: "Emergency Kill", color: "bg-[#ef4444] text-white border-[#ef4444]", action: "EMERGENCY KILL activated!" },
+    { label: "Restart All",   color: "bg-[#3b82f6] text-white border-[#3b82f6]", fn: () => quickActionApi("/batch/restart") },
+    { label: "Stop All",     color: "bg-[#ef4444] text-white border-[#ef4444]", fn: () => quickActionApi("/batch/stop") },
+    { label: "Spawn Team",   color: "bg-[#10b981] text-white border-[#10b981]", fn: () => quickActionApi("/batch/start") },
+    { label: "Run Conference", color: "bg-[#8b5cf6] text-white border-[#8b5cf6]", fn: () => { toast.info("Conference triggered via council; no dedicated endpoint."); } },
+    { label: "Emergency Kill", color: "bg-[#ef4444] text-white border-[#ef4444]", fn: emergencyStopApi },
   ];
   return (
     <div className="bg-[#111827] border border-[#1e293b] rounded-md p-3">
       <h3 className="text-xs font-bold uppercase tracking-wider mb-2 font-mono text-[#94a3b8]">QUICK ACTIONS</h3>
       <div className="flex flex-wrap gap-1.5">
         {actions.map(a => (
-          <button key={a.label} onClick={() => toast.info(a.action)}
-            className={`px-2.5 py-1 text-[10px] font-bold rounded border ${a.color} hover:opacity-90 transition-opacity`}>
-            {a.label}
+          <button
+            key={a.label}
+            disabled={loading != null}
+            onClick={() => run(a.label, a.fn)}
+            className={`px-2.5 py-1 text-[10px] font-bold rounded border ${a.color} hover:opacity-90 transition-opacity disabled:opacity-50`}
+          >
+            {loading === a.label ? "…" : a.label}
           </button>
         ))}
       </div>

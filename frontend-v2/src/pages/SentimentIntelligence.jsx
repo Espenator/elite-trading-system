@@ -169,6 +169,7 @@ export default function SentimentIntelligence() {
       refetch();
     } catch (err) {
       console.error('Auto Discover failed:', err);
+      toast.error('Auto Discover failed: ' + (err?.message || 'network error'));
     } finally {
       setDiscovering(false);
     }

@@ -93,9 +93,10 @@ def run() -> dict:
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
-    # 1. Resolve pending outcomes
+    # 1. Resolve pending outcomes and sync to flywheel_data (dashboard KPIs)
     try:
         from app.modules.ml_engine.outcome_resolver import get_flywheel_metrics
+        from app.services.database import db_service
 
         metrics = get_flywheel_metrics()
         result["resolved_count"] = metrics.get("resolved_count", 0)
@@ -107,6 +108,31 @@ def run() -> dict:
             "Flywheel metrics: resolved=%d acc_30d=%s acc_90d=%s",
             result["resolved_count"], result["accuracy_30d"], result["accuracy_90d"],
         )
+        # Sync outcome_resolver metrics into flywheel_data so ML Brain dashboard stays current
+        try:
+            stored = db_service.get_config("flywheel_data") or {}
+            history = list(stored.get("history") or [])
+            acc_30 = result["accuracy_30d"]
+            acc_90 = result["accuracy_90d"]
+            entry = {
+                "date": today,
+                "accuracy": round(float(acc_30 or acc_90 or 0), 4),
+            }
+            history.append(entry)
+            if len(history) > 365:
+                history = history[-365:]
+            updated = {
+                **stored,
+                "accuracy30d": float(acc_30) if acc_30 is not None else stored.get("accuracy30d", 0.0),
+                "accuracy90d": float(acc_90) if acc_90 is not None else stored.get("accuracy90d", 0.0),
+                "resolvedSignals": result["resolved_count"],
+                "pendingResolution": stored.get("pendingResolution", 0),
+                "history": history,
+            }
+            db_service.set_config("flywheel_data", updated)
+            log.debug("Synced flywheel_data from outcome_resolver")
+        except Exception as sync_err:
+            log.warning("Flywheel data sync failed: %s", sync_err)
     except Exception as e:
         log.warning("Outcome resolution failed: %s", e)
         result["error"] = str(e)

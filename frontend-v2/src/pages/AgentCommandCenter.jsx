@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useApi } from "../hooks/useApi";
 import { toast } from "react-toastify";
+import { getApiUrl, getAuthHeaders } from "../config/api";
 
 // Tab components (split for manageable file sizes)
 import SwarmOverviewTab from "./agent-tabs/SwarmOverviewTab";
@@ -140,7 +141,19 @@ export default function AgentCommandCenter() {
         <div className="flex items-center gap-4">
           <button
             className="px-4 py-1.5 text-[11px] font-bold bg-[#7f1d1d] text-[#f87171] border border-[#ef4444]/50 rounded-full hover:bg-[#991b1b] hover:shadow-[0_0_12px_rgba(239,68,68,0.3)] transition-all flex items-center gap-1.5 tracking-wider"
-            onClick={() => toast.error("KILL SWITCH activated — all agents halting!")}
+            onClick={async () => {
+              try {
+                const res = await fetch(getApiUrl("orders/emergency-stop"), { method: "POST", headers: getAuthHeaders() });
+                if (res.ok) {
+                  toast.error("KILL SWITCH activated — orders cancelled, positions closed.");
+                } else {
+                  const err = await res.json().catch(() => ({}));
+                  toast.error(err?.detail || `Emergency stop failed: ${res.status}`);
+                }
+              } catch (e) {
+                toast.error("KILL SWITCH request failed: " + (e?.message || "network error"));
+              }
+            }}
           >
             <Power className="w-3 h-3" />
             KILL SWITCH

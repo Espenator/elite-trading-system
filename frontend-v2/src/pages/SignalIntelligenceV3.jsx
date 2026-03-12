@@ -649,7 +649,7 @@ export default function SignalIntelligenceV3() {
     };
   }, [selectedSymbol, chartTimeframe]);
 
-  // --- SYNC API SIGNALS TO LOCAL STATE ---
+  // --- SYNC API SIGNALS TO LOCAL STATE (no mock data; empty state when API returns none) ---
   useEffect(() => {
     if (apiSignals) {
       const list = Array.isArray(apiSignals)
@@ -657,86 +657,7 @@ export default function SignalIntelligenceV3() {
         : apiSignals?.signals
           ? apiSignals.signals
           : [];
-      if (list.length > 0) {
-        setSignals(list.slice(0, 50));
-        return;
-      }
-    }
-    if (signals.length === 0) {
-      setSignals([
-        {
-          id: 1,
-          symbol: "NVDA",
-          score: 96,
-          dir: "LONG",
-          price: 145.2,
-          agent: "Signal Engine",
-        },
-        {
-          id: 2,
-          symbol: "AMD",
-          score: 86,
-          dir: "LONG",
-          price: 128.5,
-          agent: "Meta Architect",
-        },
-        {
-          id: 3,
-          symbol: "AMD",
-          score: 88,
-          dir: "LONG",
-          price: 128.5,
-          agent: "Meta Architect",
-        },
-        {
-          id: 4,
-          symbol: "TSLA",
-          score: 32,
-          dir: "SHORT",
-          price: 220.1,
-          agent: "Risk Governor",
-        },
-        {
-          id: 5,
-          symbol: "PLTR",
-          score: 91,
-          dir: "LONG",
-          price: 42.8,
-          agent: "Apex Orchestrator",
-        },
-        {
-          id: 6,
-          symbol: "SMCI",
-          score: 85,
-          dir: "LONG",
-          price: 890.0,
-          agent: "Relative Weakness",
-        },
-        {
-          id: 7,
-          symbol: "META",
-          score: 76,
-          dir: "LONG",
-          price: 575.3,
-          agent: "Signal Engine",
-        },
-        {
-          id: 8,
-          symbol: "BA",
-          score: 12,
-          dir: "SHORT",
-          price: 185.4,
-          agent: "Short Basket",
-        },
-        {
-          id: 9,
-          symbol: "AAPL",
-          score: 65,
-          dir: "LONG",
-          price: 245.1,
-          agent: "Meta Alchemist",
-        },
-      ]);
+      setSignals(list.length > 0 ? list.slice(0, 50) : []);
     }
   }, [apiSignals]);
 
