@@ -199,16 +199,104 @@ class WeightLearner:
         return True, "ok"
 
     def get_regime_weight(self, agent_name: str, regime: str) -> float:
-        """Get regime-stratified weight for an agent (Phase C).
+        """Get regime-stratified weight for an agent.
 
-        Returns the Beta distribution mean for the agent in the given regime.
-        Falls back to the global weight if no regime data available.
+        Phase 4: Returns the Beta distribution mean for the agent in the
+        given regime. Falls back to the global weight if no regime data.
         """
         if regime and agent_name in self._regime_weights:
             rw = self._regime_weights[agent_name].get(regime)
             if rw and (rw["alpha"] + rw["beta"]) > 4.0:  # Enough data
                 return rw["alpha"] / (rw["alpha"] + rw["beta"])
         return self._weights.get(agent_name, 1.0)
+
+    def get_regime_weights(self, regime: str) -> Dict[str, float]:
+        """Get all agent weights for a specific regime (Phase 4).
+
+        Returns a complete weight dict using regime-stratified Beta(α,β)
+        where available, falling back to global weights otherwise.
+        """
+        weights = {}
+        for agent_name in self._weights:
+            weights[agent_name] = self.get_regime_weight(agent_name, regime)
+        return weights
+
+    def get_regime_weight_matrix(self) -> Dict[str, Dict[str, float]]:
+        """Return the full regime × agent weight matrix for monitoring.
+
+        Returns {regime: {agent_name: weight}}.
+        """
+        regimes = set()
+        for agent_rw in self._regime_weights.values():
+            regimes.update(agent_rw.keys())
+
+        matrix = {}
+        for regime in sorted(regimes):
+            matrix[regime] = self.get_regime_weights(regime)
+        return matrix
+
+    def update_hierarchical(
+        self,
+        agent_name: str,
+        regime: str,
+        success: bool,
+        magnitude: float = 1.0,
+    ) -> None:
+        """Phase 4: Hierarchical prior update — agents sharing strategy groups
+        update together with a fraction of the learning signal.
+
+        Strategy groups: agents that analyze similar information get a
+        partial update when any group member learns. This implements
+        "hierarchical priors" — the group prior constrains individual agents.
+        """
+        # Primary update for the specific agent
+        rw = self._regime_weights[agent_name][regime]
+        if success:
+            rw["alpha"] += 1.0 * magnitude
+        else:
+            rw["beta"] += 1.0 * magnitude
+
+        # Hierarchical group update (0.2x strength)
+        group = self._get_strategy_group(agent_name)
+        if group:
+            for peer in group:
+                if peer == agent_name:
+                    continue
+                peer_rw = self._regime_weights[peer][regime]
+                if success:
+                    peer_rw["alpha"] += 0.2 * magnitude
+                else:
+                    peer_rw["beta"] += 0.2 * magnitude
+
+    @staticmethod
+    def _get_strategy_group(agent_name: str) -> List[str]:
+        """Return the strategy group for an agent (for hierarchical priors).
+
+        Agents that analyze similar information share a group.
+        """
+        STRATEGY_GROUPS = {
+            # Technical analysis group
+            "rsi": ["rsi", "bbv", "ema_trend", "relative_strength", "cycle_timing"],
+            "bbv": ["rsi", "bbv", "ema_trend", "relative_strength", "cycle_timing"],
+            "ema_trend": ["rsi", "bbv", "ema_trend", "relative_strength", "cycle_timing"],
+            "relative_strength": ["rsi", "bbv", "ema_trend", "relative_strength", "cycle_timing"],
+            "cycle_timing": ["rsi", "bbv", "ema_trend", "relative_strength", "cycle_timing"],
+            # Perception/sentiment group
+            "market_perception": ["market_perception", "social_perception", "finbert_sentiment_agent", "news_catalyst"],
+            "social_perception": ["market_perception", "social_perception", "finbert_sentiment_agent", "news_catalyst"],
+            "finbert_sentiment_agent": ["market_perception", "social_perception", "finbert_sentiment_agent", "news_catalyst"],
+            "news_catalyst": ["market_perception", "social_perception", "finbert_sentiment_agent", "news_catalyst"],
+            # Flow/institutional group
+            "flow_perception": ["flow_perception", "gex_agent", "dark_pool_agent", "institutional_flow_agent"],
+            "gex_agent": ["flow_perception", "gex_agent", "dark_pool_agent", "institutional_flow_agent"],
+            "dark_pool_agent": ["flow_perception", "gex_agent", "dark_pool_agent", "institutional_flow_agent"],
+            "institutional_flow_agent": ["flow_perception", "gex_agent", "dark_pool_agent", "institutional_flow_agent"],
+            # Macro/regime group
+            "regime": ["regime", "macro_regime_agent", "intermarket"],
+            "macro_regime_agent": ["regime", "macro_regime_agent", "intermarket"],
+            "intermarket": ["regime", "macro_regime_agent", "intermarket"],
+        }
+        return STRATEGY_GROUPS.get(agent_name, [])
 
     def update_from_outcome(
         self,
@@ -366,13 +454,15 @@ class WeightLearner:
                 "direction": vote["direction"],
             }
 
-            # Phase C: Update regime-stratified Beta(α,β) distribution
+            # Phase 4: Hierarchical regime-stratified update
+            # Updates the agent + its strategy group peers (at 0.2x strength)
             if entry_regime and entry_regime != "UNKNOWN":
-                rw = self._regime_weights[agent][entry_regime]
-                if aligned:
-                    rw["alpha"] += 1.0 * magnitude
-                else:
-                    rw["beta"] += 1.0 * magnitude
+                self.update_hierarchical(
+                    agent_name=agent,
+                    regime=entry_regime,
+                    success=aligned,
+                    magnitude=magnitude,
+                )
 
         # ── Auxiliary learning from debate + red team ─────────────────────
         # If bear correctly predicted loss → increase bear debater weight
@@ -612,9 +702,10 @@ class WeightLearner:
             logger.debug("WeightLearner: using defaults (store unavailable: %s)", e)
 
     def _persist_to_store(self) -> None:
-        """Save current weights to DuckDB."""
+        """Save current weights + regime weights to DuckDB."""
         try:
             from app.data.duckdb_storage import duckdb_store
+            import json
             conn = duckdb_store.get_thread_cursor()
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS agent_weights (
@@ -631,7 +722,31 @@ class WeightLearner:
                        VALUES (?, ?, ?, CURRENT_TIMESTAMP)""",
                     [agent, weight, self.update_count],
                 )
-            logger.debug("WeightLearner: persisted %d weights", len(self._weights))
+
+            # Phase 4: Persist regime weight matrix
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS agent_regime_weights (
+                    agent_name VARCHAR,
+                    regime VARCHAR,
+                    alpha DOUBLE,
+                    beta DOUBLE,
+                    mean_weight DOUBLE,
+                    last_update TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (agent_name, regime)
+                )
+            """)
+            for agent_name, regimes in self._regime_weights.items():
+                for regime, params in regimes.items():
+                    ab = params["alpha"] + params["beta"]
+                    mean_w = params["alpha"] / ab if ab > 0 else 0.5
+                    conn.execute(
+                        """INSERT OR REPLACE INTO agent_regime_weights
+                           (agent_name, regime, alpha, beta, mean_weight)
+                           VALUES (?, ?, ?, ?, ?)""",
+                        [agent_name, regime, params["alpha"], params["beta"], round(mean_w, 4)],
+                    )
+
+            logger.debug("WeightLearner: persisted %d global + regime weights", len(self._weights))
         except Exception as e:
             logger.debug("WeightLearner: persist failed: %s", e)
 
