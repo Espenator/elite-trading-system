@@ -156,14 +156,14 @@ def _safe_float(val: str) -> float | None:
 
 @router.get("/event-bus/status")
 async def event_bus_status():
-    """Return event bus metrics: topics, subscriber counts, message rates."""
+    """Return event bus metrics: topics, subscriber counts, message rates, and Redis bridge status."""
     try:
         from app.core.message_bus import get_message_bus
         bus = get_message_bus()
         metrics = bus.get_metrics()
         topics = []
         events_by_topic = metrics.get("events_by_topic", {})
-        subs_by_topic = metrics.get("subscribers_by_topic", {})
+        subs_by_topic = metrics.get("subscribers", {})
         for topic in sorted(set(list(events_by_topic.keys()) + list(subs_by_topic.keys()))):
             topics.append({
                 "topic": topic,
@@ -171,10 +171,14 @@ async def event_bus_status():
                 "msgRate": events_by_topic.get(topic, 0),
                 "lastMsg": f"{events_by_topic.get(topic, 0)} events processed",
             })
-        return {"running": metrics.get("running", False), "topics": topics}
+        return {
+            "running": metrics.get("running", False),
+            "topics": topics,
+            "redis": metrics.get("redis", {"connected": False}),
+        }
     except Exception as e:
         log.debug("event-bus status failed: %s", e)
-        return {"running": False, "topics": []}
+        return {"running": False, "topics": [], "redis": {"connected": False}}
 
 
 @router.get("/gpu")
