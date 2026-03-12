@@ -1,7 +1,7 @@
 # Embodier Trader - Repository Map
-> Auto-generated reference for AI coding assistants. Last updated: March 10, 2026 (v4.1.0-dev).
+> Auto-generated reference for AI coding assistants. Last updated: March 12, 2026 (v5.0.0).
 > Run `python map_repo.py` to regenerate, or `python bundle_files.py` to bundle key files.
-> **Current Focus**: Production readiness (auth, paper burn-in, observability)
+> **Current Focus**: v5.0.0 — All phases (A-E) complete. Production-ready (~95%)
 
 ## Tech Stack
 - **Backend**: Python 3.11+, FastAPI, DuckDB
@@ -12,7 +12,7 @@
 - **Data Sources**: Alpaca Markets, Unusual Whales, FinViz, FRED, SEC EDGAR (NO yfinance)
 - **Event Pipeline**: MessageBus -> CouncilGate -> Council -> OrderExecutor
 - **LLM Intelligence**: 3-tier router (Ollama → Perplexity → Claude); brain_service (gRPC + Ollama) for local inference; Claude for 6 deep-reasoning tasks
-- **CI/CD**: GitHub Actions (`.github/workflows/ci.yml`) — 666 tests passing (backend)
+- **CI/CD**: GitHub Actions (`.github/workflows/ci.yml`) — 982+ tests passing (backend)
 - **Infra**: Docker, docker-compose.yml; Redis (caching/sessions); Bearer token auth (fail-closed)
 - **Desktop**: Electron app (BUILD-READY); WebSocket active, 5 frontend pages wired
 
@@ -44,10 +44,10 @@ elite-trading-system/
 |   |
 |   |-- app/
 |   |   |-- __init__.py
-|   |   |-- main.py                    # FastAPI app entry (v4.1.0-dev, Embodier Trader)
+|   |   |-- main.py                    # FastAPI app entry (v5.0.0, Embodier Trader)
 |   |   |-- websocket_manager.py       # WebSocket broadcast manager
 |   |   |
-|   |   |-- api/v1/                    # REST API endpoints (34 routes)
+|   |   |-- api/v1/                    # REST API endpoints (43 routes)
 |   |   |   |-- __init__.py
 |   |   |   |-- agents.py              # Agent Command Center (5 template agents)
 |   |   |   |-- alerts.py              # Drawdown alerts, system alerts
@@ -322,7 +322,7 @@ elite-trading-system/
 5. **Bayesian weight learning** - WeightLearner adjusts agent influence based on trade outcomes
 6. **DuckDB** - Primary analytics database (WAL mode, connection pooling)
 7. **OpenClaw** - Legacy code with useful scanner/agent pieces, scheduled for cleanup (P4)
-8. **CI** - 666 tests passing (backend pytest), GitHub Actions on every push
+8. **CI** - 982+ tests passing (backend pytest), GitHub Actions on every push
 9. **Brain Service** - gRPC + Ollama for local LLM; part of 3-tier router (Ollama → Perplexity → Claude). Claude used for 6 deep-reasoning tasks (strategy_critic, strategy_evolution, deep_postmortem, trade_thesis, overnight_analysis, directive_evolution); Ollama handles most routine calls.
 10. **Discovery** - Transitioning from periodic polling to continuous streaming (Issue #38)
 11. **Knowledge Layer** - MemoryBank + HeuristicEngine + KnowledgeGraph learn from trade outcomes

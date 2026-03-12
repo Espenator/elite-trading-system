@@ -1,4 +1,6 @@
-# Embodier Trader - Status & TODO Update
+# Embodier Trader - Status & TODO Update (ARCHIVED)
+
+> **ARCHIVE NOTE (March 12, 2026)**: This document is a historical snapshot from before Phase E completion. The system is now at **v5.0.0** with all 5 phases (A+B+C+D+E) complete, 982+ tests passing, and CI GREEN. For current status, see `CLAUDE.md`, `PLAN.md`, and `project_state.md`.
 
 ## Date: March 9, 2026
 

@@ -1,10 +1,10 @@
 # Elite Trading System - Backend API
 
-**Last Updated: March 10, 2026**
+**Last Updated: March 12, 2026**
 
 FastAPI backend serving the Embodier.ai Elite Trading Intelligence System. Provides REST API endpoints for trading signals, order execution, agent management, ML training, backtesting, and real-time WebSocket data.
 
-> **Status: All route files and services coded. 666 tests passing. CI green (see `.github/workflows/ci.yml`). Auth (Bearer token, fail-closed), WebSocket, and backend startup are operational.**
+> **Status: All route files and services coded. 982+ tests passing. CI green (see `.github/workflows/ci.yml`). Auth (Bearer token, fail-closed), WebSocket, and backend startup are operational.**
 
 ---
 
@@ -35,7 +35,7 @@ Signals flow: **SignalEngine** → **CouncilGate** → **35-agent Council** (7 s
 backend/
   app/
     api/
-      v1/                  # 34 REST API route files (brain, triage, ingestion firehose, awareness, council, etc.)
+      v1/                  # 43 REST API route files (brain, triage, ingestion firehose, awareness, council, etc.)
         agents.py          # Agent management + lifecycle
         alerts.py          # System alerts
         backtest_routes.py # Strategy backtesting
