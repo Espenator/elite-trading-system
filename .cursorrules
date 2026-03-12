@@ -35,7 +35,7 @@
 # Events:   MessageBus pub/sub in core/message_bus.py (25 channels)
 # Database: DuckDB with connection pooling via data/storage.py get_conn()
 # Auth:     Bearer token, fail-closed for live trading endpoints
-# Tests:    977+ passing (pytest backend + frontend build), CI GREEN
+# Tests:    1,044 passing (pytest backend + frontend build), CI GREEN
 # Desktop:  Electron app in desktop/ — BUILD-READY
 # Infra:    Two PCs — ESPENMAIN (PC1, primary) + ProfitTrader (PC2, GPU)
 

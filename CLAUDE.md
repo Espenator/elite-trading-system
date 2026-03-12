@@ -1,6 +1,6 @@
 # CLAUDE.md — Embodier Trader (Elite Trading System)
 # This file is read automatically by Claude Code at session start.
-# Last updated: March 12, 2026 — v5.0.0 (All phases complete: A+B+C+E)
+# Last updated: March 12, 2026 — v5.0.0 (All phases complete: A+B+C+D+E)
 
 ## 1. Identity
 
@@ -38,15 +38,15 @@
 | Metric | Value |
 |--------|-------|
 | Version | v5.0.0 |
-| Tests | 977+ passing (pytest), CI GREEN |
+| Tests | 1,044 passing (pytest), CI GREEN |
 | Council agents | 35 (7-stage DAG) |
 | Backend services | 72+ (incl. subdirs) |
 | API route files | 43 in api/v1/ (364+ endpoints) |
 | Frontend pages | 14 (React 18 + Vite) |
 | Data sources | 10 (Alpaca, UW, Finviz, FRED, EDGAR, NewsAPI, Benzinga, SqueezeMetrics, Capitol Trades, Senate Stock Watcher) |
 | Discovery scouts | 12 (continuous, not polling) |
-| Production readiness | ~95% (Phase A+B+C+E complete, D deferred) |
-| Commits | 1,424+ |
+| Production readiness | ~95% (ALL Phases A+B+C+D+E complete) |
+| Commits | 1,459+ |
 
 ## 3. Architecture Overview — CNS Layers
 
