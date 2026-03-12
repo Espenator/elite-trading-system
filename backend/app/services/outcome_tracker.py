@@ -514,11 +514,22 @@ class OutcomeTracker:
                 outcome=outcome,
                 r_multiple=pos.r_multiple,
             )
-            # Auto-update agent weights every 5 resolved outcomes
-            if self._stats["total_resolved"] % 5 == 0:
-                new_weights = update_agent_weights()
-                if new_weights:
-                    logger.info("Agent weights updated from feedback: %s", new_weights)
+            # Fire learning update on EVERY resolved outcome (not every 5th).
+            # Pass outcome data so WeightLearner.update_from_outcome() fires.
+            outcome_data = {
+                "trade_id": pos.order_id,
+                "symbol": pos.symbol,
+                "outcome": outcome,
+                "r_multiple": pos.r_multiple,
+                "pnl": getattr(pos, "pnl", 0.0),
+                "confidence": getattr(pos, "confidence", 1.0),
+            }
+            new_weights = update_agent_weights(outcome=outcome_data)
+            if new_weights:
+                logger.info(
+                    "Agent weights updated: %s %s (R=%.2f)",
+                    pos.symbol, outcome, pos.r_multiple,
+                )
         except Exception as e:
             logger.debug("Council feedback error: %s", e)
 

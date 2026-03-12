@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 # Backpressure thresholds (configurable via env)
-_BACKPRESSURE_PCT = float(os.getenv("SCOUT_BACKPRESSURE_PCT", "60"))   # Pause publishing above this %
+_BACKPRESSURE_PCT = float(os.getenv("SCOUT_BACKPRESSURE_PCT", "90"))   # Pause at 90% (raised from 60% to avoid pausing during high-signal periods)
 _MAX_PER_CYCLE = int(os.getenv("SCOUT_MAX_PER_CYCLE", "20"))           # Max discoveries per cycle
 
 

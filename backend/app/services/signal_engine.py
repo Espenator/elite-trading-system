@@ -349,7 +349,11 @@ async def _get_openclaw_context() -> Tuple[str, Dict[str, Dict[str, float]]]:
 
         health = await openclaw_bridge.get_health()
         if not health.get("connected"):
-            return "UNKNOWN", {}
+            logger.warning(
+                "REGIME DETECTION OFFLINE — defaulting to RED (most conservative). "
+                "No new positions until regime detection recovers."
+            )
+            return "RED", {}
 
         regime = await openclaw_bridge.get_regime()
         candidates = await openclaw_bridge.get_top_candidates(n=50)
@@ -372,8 +376,8 @@ async def _get_openclaw_context() -> Tuple[str, Dict[str, Dict[str, float]]]:
 
         return regime_state, claw_scores
     except Exception as e:
-        logger.debug("OpenClaw context unavailable: %s", e)
-        return "UNKNOWN", {}
+        logger.warning("OpenClaw context unavailable (%s) — defaulting to RED", e)
+        return "RED", {}
 
 
 # =========================================================================
@@ -509,7 +513,7 @@ class EventDrivenSignalEngine:
         self._regime_mult = 1.0
         self._claw_scores: Dict[str, Dict[str, float]] = {}
         self._last_regime_refresh: float = 0
-        self._regime_refresh_interval = 300  # Refresh OpenClaw every 5 min
+        self._regime_refresh_interval = 60  # Refresh OpenClaw every 60s (5x faster regime awareness)
         self._bear_regime_mult = 1.0
 
     async def start(self) -> None:

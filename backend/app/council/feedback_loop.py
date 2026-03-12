@@ -173,18 +173,17 @@ def _update_agent_stats(
     store["agent_stats"] = stats
 
 
-def update_agent_weights() -> Dict[str, float]:
-    """Delegate weight updates to WeightLearner (single source of truth).
+def update_agent_weights(
+    outcome: Optional[Dict[str, Any]] = None,
+) -> Dict[str, float]:
+    """Update agent weights via WeightLearner using the latest outcome.
 
-    DEPRECATED: Previously computed weights independently using a simpler
-    0.5 + accuracy multiplier and persisted to settings_service. This
-    conflicted with WeightLearner which uses multiplicative Bayesian
-    updates (with debate/red-team auxiliary learning) and persists to
-    DuckDB agent_weights table. Both running simultaneously caused
-    oscillating weights as the last writer wins.
+    When an outcome dict is provided (from record_outcome), finds the
+    matching council decision and calls WeightLearner.update_from_outcome()
+    so Bayesian weight updates actually fire.
 
-    Now delegates entirely to WeightLearner. Kept as a thin wrapper
-    for backward compatibility with any callers.
+    Falls back to returning current weights if no outcome is provided
+    or if the matching decision can't be found.
 
     Returns:
         Dict of {agent_name: weight}
@@ -192,9 +191,43 @@ def update_agent_weights() -> Dict[str, float]:
     try:
         from app.council.weight_learner import get_weight_learner
         learner = get_weight_learner()
+
+        # If we have outcome data, actually fire the learning update
+        if outcome:
+            symbol = outcome.get("symbol", "UNKNOWN")
+            trade_id = outcome.get("trade_id", "")
+            r_multiple = outcome.get("r_multiple", 0.0)
+            pnl = outcome.get("pnl", outcome.get("profit", 0.0))
+            is_win = outcome.get("outcome", "") == "win" or pnl > 0
+
+            outcome_direction = "win" if is_win else "loss"
+            confidence = outcome.get("confidence", 1.0)
+
+            try:
+                updated = learner.update_from_outcome(
+                    symbol=symbol,
+                    outcome_direction=outcome_direction,
+                    pnl=pnl,
+                    r_multiple=r_multiple,
+                    confidence=confidence,
+                    outcome_id=trade_id,
+                )
+                logger.info(
+                    "WEIGHT UPDATE: %s %s (pnl=%.2f, R=%.2f). "
+                    "Updated %d agent weights via WeightLearner.",
+                    symbol, outcome_direction, pnl, r_multiple, len(updated),
+                )
+                return updated
+            except Exception as learn_err:
+                logger.warning(
+                    "WeightLearner update_from_outcome failed for %s: %s",
+                    symbol, learn_err,
+                )
+
+        # No outcome or learning failed — return current weights
         weights = learner.get_weights()
         logger.info(
-            "Feedback loop: delegated to WeightLearner (%d agents, %d updates)",
+            "Feedback loop: returning current weights (%d agents, %d updates)",
             len(weights), learner.update_count,
         )
         return weights

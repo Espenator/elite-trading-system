@@ -379,6 +379,30 @@ class OrderExecutor:
             self._reject(symbol, score, cb_result[1], cb_result[2])
             return
 
+        # -- Gate 2d: Regime position count limit --
+        # Prevents opening too many concurrent positions for the current regime.
+        _REGIME_MAX_POSITIONS = {
+            "CRISIS": 0, "RED": 0, "YELLOW": 5,
+            "NEUTRAL": 7, "GREEN": 6, "BULLISH": 8,
+        }
+        try:
+            regime_key = regime.upper() if regime else "RED"
+            max_pos = _REGIME_MAX_POSITIONS.get(regime_key, 5)
+            if max_pos > 0:
+                alpaca = self._get_alpaca_service()
+                current_positions = await alpaca.get_positions()
+                current_count = len(current_positions) if current_positions else 0
+                if current_count >= max_pos:
+                    self._reject(
+                        symbol, score,
+                        f"Regime position limit: {regime_key} allows max {max_pos}, "
+                        f"holding {current_count}",
+                        ExecutionDenyReason.REGIME_BLOCKED,
+                    )
+                    return
+        except Exception as e:
+            logger.debug("Regime position limit check failed (non-fatal): %s", e)
+
         # -- Gate 3: Daily trade limit --
         self._check_daily_reset()
         if self._daily_trade_count >= self.max_daily_trades:
