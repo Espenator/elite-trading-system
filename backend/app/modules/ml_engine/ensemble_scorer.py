@@ -56,10 +56,11 @@ class EnsembleScorer:
         self._lstm_model = None
         self._xgb_loaded = False
         self._lstm_loaded = False
+        self._xgb_use_gpu = False
         self._feature_cols: List[str] = []
 
     def _load_xgb(self) -> bool:
-        """Load best XGBoost model from artifacts."""
+        """Load best XGBoost model from artifacts with GPU acceleration."""
         if self._xgb_loaded:
             return self._xgb_model is not None
         self._xgb_loaded = True
@@ -72,6 +73,18 @@ class EnsembleScorer:
             if model_path.exists():
                 self._xgb_model = xgb.Booster()
                 self._xgb_model.load_model(str(model_path))
+                # Try to move model to GPU for faster inference
+                try:
+                    gpu_id = int(os.getenv("XGBOOST_GPU_ID", "0"))
+                    self._xgb_model.set_param({
+                        "tree_method": "gpu_hist",
+                        "device": f"cuda:{gpu_id}",
+                    })
+                    self._xgb_use_gpu = True
+                    logger.info("EnsembleScorer: XGBoost GPU inference enabled (cuda:%d)", gpu_id)
+                except Exception as gpu_err:
+                    self._xgb_use_gpu = False
+                    logger.info("EnsembleScorer: XGBoost CPU inference (GPU unavailable: %s)", gpu_err)
                 logger.info("EnsembleScorer: loaded XGBoost model from %s", model_path)
                 return True
             else:

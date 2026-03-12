@@ -29,7 +29,8 @@ from typing import Any, Dict, List, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 # Minimum confidence (0–1) for an outcome to be used for learning when STRICT_LEARNER_INPUTS is True
-LEARNER_MIN_CONFIDENCE = 0.5
+# Lowered from 0.5 to 0.35 to retain 30-40% more outcomes for learning (Tier 2 alpha recovery)
+LEARNER_MIN_CONFIDENCE = 0.35
 
 # Default weights for all agents (core + academic edge agents)
 DEFAULT_WEIGHTS: Dict[str, float] = {

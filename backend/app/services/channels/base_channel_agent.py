@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import random
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Awaitable, Callable, Dict, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from app.services.channels.schemas import SensoryEvent
 
@@ -32,7 +33,13 @@ class CircuitBreaker:
 
 
 class BaseChannelAgent:
-    """Base ingestion agent with bounded queue, retry/backoff, circuit breaker, and health."""
+    """Base ingestion agent with batch-drain processing, circuit breaker, and health.
+
+    Instead of N workers competing on a single queue, uses one worker that
+    drains up to ``batch_size`` events per cycle and processes them all
+    concurrently via ``asyncio.gather``.  This eliminates queue contention
+    and gives true parallelism proportional to batch size.
+    """
 
     def __init__(
         self,
@@ -41,16 +48,20 @@ class BaseChannelAgent:
         router: Any,
         message_bus: Any,
         max_queue_size: int = 2000,
+        batch_size: int = 1,
         retry: Optional[RetryPolicy] = None,
         breaker: Optional[CircuitBreaker] = None,
         heartbeat_topic: str = "ingest.health",
         dlq_topic: str = "ingest.dlq",
         on_enqueue: Optional[Callable[[SensoryEvent], Awaitable[None]]] = None,
+        # Legacy compat — ignored, batch_size replaces num_workers
+        num_workers: int = 1,
     ) -> None:
         self.name = name
         self._router = router
         self._bus = message_bus
         self._queue: asyncio.Queue[SensoryEvent] = asyncio.Queue(maxsize=max_queue_size)
+        self._batch_size = max(1, batch_size)
         self._retry = retry or RetryPolicy()
         self._breaker = breaker or CircuitBreaker()
         self._heartbeat_topic = heartbeat_topic
@@ -71,6 +82,8 @@ class BaseChannelAgent:
             "events_dropped_queue_full": 0,
             "events_failed": 0,
             "events_dlq": 0,
+            "batches_processed": 0,
+            "max_batch_seen": 0,
         }
         self._last_event_ts: Optional[str] = None
         self._last_error_ts: Optional[str] = None
@@ -82,17 +95,18 @@ class BaseChannelAgent:
         self._running = True
         self._worker_task = asyncio.create_task(self._worker_loop())
         self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
-        logger.info("ChannelAgent started: %s", self.name)
+        logger.info(
+            "ChannelAgent started: %s (batch=%d, queue=%d)",
+            self.name, self._batch_size, self._queue.maxsize,
+        )
 
     async def stop(self) -> None:
         self._running = False
-        for t in (self._worker_task, self._heartbeat_task):
-            if t:
-                t.cancel()
-                try:
-                    await t
-                except asyncio.CancelledError:
-                    pass
+        tasks = [t for t in (self._worker_task, self._heartbeat_task) if t]
+        for t in tasks:
+            t.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        self._worker_task = None
         logger.info("ChannelAgent stopped: %s", self.name)
 
     async def pause(self) -> None:
@@ -108,6 +122,7 @@ class BaseChannelAgent:
             "paused": self._paused,
             "queue_depth": self._queue.qsize(),
             "queue_max": self._queue.maxsize,
+            "batch_size": self._batch_size,
             "circuit_open": self._is_circuit_open(),
             "consecutive_failures": self._consecutive_failures,
             "last_event_ts": self._last_event_ts,
@@ -150,41 +165,94 @@ class BaseChannelAgent:
         if self._circuit_opened_at is None:
             self._circuit_opened_at = time.time()
 
+    # ------------------------------------------------------------------
+    # Core worker — batch drain + parallel process
+    # ------------------------------------------------------------------
+
+    def _drain_batch(self) -> List[SensoryEvent]:
+        """Non-blocking drain of up to batch_size events from the queue."""
+        batch: List[SensoryEvent] = []
+        for _ in range(self._batch_size):
+            try:
+                batch.append(self._queue.get_nowait())
+            except asyncio.QueueEmpty:
+                break
+        return batch
+
     async def _worker_loop(self) -> None:
         while self._running:
+            # Block on the first event (up to 1s) to avoid busy-spin
             try:
-                ev = await asyncio.wait_for(self._queue.get(), timeout=1.0)
+                first = await asyncio.wait_for(self._queue.get(), timeout=1.0)
             except asyncio.TimeoutError:
                 continue
             except asyncio.CancelledError:
                 break
 
-            try:
-                if self._paused:
-                    try:
-                        self._queue.put_nowait(ev)
-                    except asyncio.QueueFull:
-                        pass
-                    self._queue.task_done()
-                    continue
-                if self._is_circuit_open():
+            if self._paused:
+                try:
+                    self._queue.put_nowait(first)
+                except asyncio.QueueFull:
+                    pass
+                self._queue.task_done()
+                await asyncio.sleep(0.25)
+                continue
+
+            # Drain up to (batch_size - 1) more without blocking
+            batch = [first] + self._drain_batch()
+
+            if self._metrics["max_batch_seen"] < len(batch):
+                self._metrics["max_batch_seen"] = len(batch)
+            self._metrics["batches_processed"] += 1
+
+            if self._is_circuit_open():
+                for ev in batch:
                     await self._publish_dlq(ev, "circuit_open")
                     self._queue.task_done()
+                continue
+
+            # Fast path: use route_batch for the whole batch when no
+            # retries are needed (common case).  Falls back to per-event
+            # retry on failure.
+            if hasattr(self._router, "route_batch") and len(batch) > 1:
+                try:
+                    await self._router.route_batch(batch)
+                    self._consecutive_failures = 0
+                    now = _utc_iso()
+                    self._metrics["events_out"] += len(batch)
+                    self._last_event_ts = now
+                    for _ in batch:
+                        try:
+                            self._queue.task_done()
+                        except Exception:
+                            pass
                     continue
-                await self._process_with_retries(ev)
-                self._metrics["events_out"] += 1
-                self._last_event_ts = _utc_iso()
-            except Exception as exc:
-                self._metrics["events_failed"] += 1
-                self._last_error_ts = _utc_iso()
-                self._last_error = str(exc)[:300]
-            finally:
+                except Exception:
+                    # Batch failed — fall through to per-event retry
+                    pass
+
+            # Per-event processing with individual retry
+            results = await asyncio.gather(
+                *[self._process_one(ev) for ev in batch],
+                return_exceptions=True,
+            )
+
+            now = _utc_iso()
+            for ev, result in zip(batch, results):
+                if isinstance(result, Exception):
+                    self._metrics["events_failed"] += 1
+                    self._last_error_ts = now
+                    self._last_error = str(result)[:300]
+                else:
+                    self._metrics["events_out"] += 1
+                    self._last_event_ts = now
                 try:
                     self._queue.task_done()
                 except Exception:
                     pass
 
-    async def _process_with_retries(self, ev: SensoryEvent) -> None:
+    async def _process_one(self, ev: SensoryEvent) -> None:
+        """Process a single event through the router with retry."""
         last_exc: Optional[Exception] = None
         for attempt in range(self._retry.max_retries + 1):
             try:
@@ -194,9 +262,6 @@ class BaseChannelAgent:
             except Exception as exc:
                 last_exc = exc
                 self._consecutive_failures += 1
-                self._metrics["events_failed"] += 1
-                self._last_error_ts = _utc_iso()
-                self._last_error = str(exc)[:300]
                 if self._consecutive_failures >= self._breaker.failure_threshold:
                     self._open_circuit()
                     break
@@ -204,7 +269,8 @@ class BaseChannelAgent:
                     break
                 delay = min(
                     self._retry.max_delay_s,
-                    (self._retry.base_delay_s * (2**attempt)) + random.random() * self._retry.jitter_s,
+                    (self._retry.base_delay_s * (2 ** attempt))
+                    + random.random() * self._retry.jitter_s,
                 )
                 await asyncio.sleep(delay)
 
@@ -239,6 +305,7 @@ class BaseChannelAgent:
                         "agent": self.name,
                         "status": "paused" if self._paused else "running",
                         "queue_depth": self._queue.qsize(),
+                        "batch_size": self._batch_size,
                         "circuit_open": self._is_circuit_open(),
                         "metrics": dict(self._metrics),
                         "last_event_ts": self._last_event_ts,

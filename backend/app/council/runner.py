@@ -39,6 +39,47 @@ from app.services.cognitive_telemetry import (
 logger = logging.getLogger(__name__)
 
 
+def _check_council_health(votes: List[AgentVote], total_agents: int = 33) -> dict:
+    """Check council health — alert if >20% agents failed/degraded.
+
+    An agent is considered failed if it returned direction="hold" with
+    confidence=0.0 (the standard failure vote from task_spawner).
+    """
+    failed_agents = []
+    for vote in votes:
+        is_failure = (
+            vote.direction == "hold"
+            and vote.confidence <= 0.0
+            and not vote.veto
+        )
+        if is_failure:
+            failed_agents.append(vote.agent_name)
+
+    failure_rate = len(failed_agents) / max(total_agents, 1)
+    health = {
+        "total_agents": total_agents,
+        "healthy_count": len(votes) - len(failed_agents),
+        "failed_count": len(failed_agents),
+        "failure_rate": round(failure_rate, 3),
+        "failed_agents": failed_agents,
+        "is_degraded": failure_rate > 0.20,
+        "is_critically_degraded": failure_rate > 0.50,
+    }
+
+    if health["is_critically_degraded"]:
+        logger.critical(
+            "COUNCIL CRITICALLY DEGRADED: %d/%d agents failed (%.0f%%): %s",
+            len(failed_agents), total_agents, failure_rate * 100, failed_agents,
+        )
+    elif health["is_degraded"]:
+        logger.warning(
+            "COUNCIL DEGRADED: %d/%d agents failed (%.0f%%): %s",
+            len(failed_agents), total_agents, failure_rate * 100, failed_agents,
+        )
+
+    return health
+
+
 async def run_council(
     symbol: str,
     timeframe: str = "1d",
@@ -548,6 +589,29 @@ async def run_council(
     context["stage6"] = {stage6.agent_name: stage6.to_dict()}
     blackboard.critic_review = stage6.to_dict()
     blackboard.stage_latencies["stage6"] = time.monotonic() * 1000 - _stage_start
+
+    # Pre-arbiter: Council health check
+    health_report = _check_council_health(all_votes)
+    if health_report["is_critically_degraded"]:
+        logger.critical(
+            "Blocking council verdict — %d/%d agents failed (%s)",
+            health_report["failed_count"], health_report["total_agents"],
+            health_report["failed_agents"],
+        )
+        decision = DecisionPacket(
+            symbol=symbol,
+            timeframe=timeframe,
+            timestamp=timestamp,
+            final_direction="hold",
+            final_confidence=0.0,
+            execution_ready=False,
+            reasoning="Council critically degraded — too many agents failed",
+            vetoed=True,
+            veto_reason=f"{health_report['failed_count']}/{health_report['total_agents']} agents failed",
+            votes=[v.to_dict() for v in all_votes],
+        )
+        decision.council_decision_id = blackboard.council_decision_id
+        return decision
 
     # Stage 7: Arbiter
     decision = arbitrate(symbol, timeframe, timestamp, all_votes)

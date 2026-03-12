@@ -13,10 +13,20 @@ router = APIRouter(prefix="/api/v1/cluster", tags=["cluster"])
 @router.get("/status")
 async def cluster_status():
     """Return full cluster health: nodes, streams, GPU utilization,
-    model pinning, dispatcher, telemetry."""
+    model pinning, dispatcher, telemetry, and Redis bridge status."""
     from app.services.node_discovery import get_node_discovery
     discovery = get_node_discovery()
-    return discovery.get_cluster_status()
+    status = discovery.get_cluster_status()
+
+    # Enrich with Redis MessageBus bridge status
+    try:
+        from app.core.message_bus import get_message_bus
+        bus_metrics = get_message_bus().get_metrics()
+        status["redis"] = bus_metrics.get("redis", {})
+    except Exception:
+        status["redis"] = {"connected": False, "error": "message_bus unavailable"}
+
+    return status
 
 
 @router.get("/telemetry")

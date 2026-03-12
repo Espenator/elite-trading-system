@@ -22,6 +22,7 @@ class FinvizChannelAgent(BaseChannelAgent):
             router=router,
             message_bus=message_bus,
             max_queue_size=int(os.getenv("FINVIZ_FIREHOSE_QUEUE", "2000")),
+            batch_size=int(os.getenv("FINVIZ_FIREHOSE_BATCH", "16")),
         )
         self._bus = message_bus
         self._subscribed = False

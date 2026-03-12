@@ -104,7 +104,7 @@ class DuckDBStorage:
 
         self._db_path = str(db_path or DUCKDB_PATH)
         self._conn = None
-        self._lock = threading.Lock()  # For sync callers (startup, tests)
+        self._lock = threading.RLock()  # Reentrant — upsert methods hold lock around _get_conn()
         # SF10 FIX: Create asyncio.Lock eagerly with thread-safe guard.
         # Lazy creation caused race where two coroutines could each create
         # a separate asyncio.Lock, defeating the purpose of the lock.
@@ -569,13 +569,14 @@ class DuckDBStorage:
         """
         if df.empty:
             return 0
-        conn = self._get_conn()
-        conn.execute("CREATE OR REPLACE TEMP TABLE _staging AS SELECT * FROM daily_ohlcv LIMIT 0")
-        conn.execute("INSERT INTO _staging SELECT * FROM df")
-        conn.execute("""
-            INSERT OR REPLACE INTO daily_ohlcv
-            SELECT * FROM _staging
-        """)
+        with self._lock:
+            conn = self._get_conn()
+            conn.execute("CREATE OR REPLACE TEMP TABLE _staging AS SELECT * FROM daily_ohlcv LIMIT 0")
+            conn.execute("INSERT INTO _staging SELECT * FROM df")
+            conn.execute("""
+                INSERT OR REPLACE INTO daily_ohlcv
+                SELECT * FROM _staging
+            """)
         logger.info("Upserted %d OHLCV rows", len(df))
         return len(df)
 
@@ -583,8 +584,9 @@ class DuckDBStorage:
         """Insert or update technical indicator data."""
         if df.empty:
             return 0
-        conn = self._get_conn()
-        conn.execute("INSERT OR REPLACE INTO technical_indicators SELECT * FROM df")
+        with self._lock:
+            conn = self._get_conn()
+            conn.execute("INSERT OR REPLACE INTO technical_indicators SELECT * FROM df")
         logger.info("Upserted %d indicator rows", len(df))
         return len(df)
 
@@ -592,8 +594,9 @@ class DuckDBStorage:
         """Insert or update options flow data from Unusual Whales."""
         if df.empty:
             return 0
-        conn = self._get_conn()
-        conn.execute("INSERT OR REPLACE INTO options_flow SELECT * FROM df")
+        with self._lock:
+            conn = self._get_conn()
+            conn.execute("INSERT OR REPLACE INTO options_flow SELECT * FROM df")
         logger.info("Upserted %d options flow rows", len(df))
         return len(df)
 
@@ -601,30 +604,32 @@ class DuckDBStorage:
         """Insert or update macro data from FRED."""
         if df.empty:
             return 0
-        conn = self._get_conn()
-        conn.execute("INSERT OR REPLACE INTO macro_data SELECT * FROM df")
+        with self._lock:
+            conn = self._get_conn()
+            conn.execute("INSERT OR REPLACE INTO macro_data SELECT * FROM df")
         logger.info("Upserted %d macro rows", len(df))
         return len(df)
 
     def insert_trade_outcome(self, trade: Dict) -> None:
         """Record a trade outcome for ML label generation."""
-        conn = self._get_conn()
-        conn.execute("""
-            INSERT INTO trade_outcomes
-                (symbol, direction, entry_date, exit_date, entry_price, exit_price,
-                shares, pnl, r_multiple, outcome, stop_price, target_price,
-                signal_score, resolved, resolved_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, [
-            trade["symbol"], trade["direction"],
-            trade["entry_date"], trade.get("exit_date"),
-            trade["entry_price"], trade.get("exit_price"),
-            trade.get("shares", 0), trade.get("pnl", 0.0),
-            trade.get("r_multiple", 0.0), trade.get("outcome", "PENDING"),
-            trade.get("stop_price"), trade.get("target_price"),
-            trade.get("signal_score", 0.0),
-            trade.get("resolved", False), trade.get("resolved_at")
-        ])
+        with self._lock:
+            conn = self._get_conn()
+            conn.execute("""
+                INSERT INTO trade_outcomes
+                    (symbol, direction, entry_date, exit_date, entry_price, exit_price,
+                    shares, pnl, r_multiple, outcome, stop_price, target_price,
+                    signal_score, resolved, resolved_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, [
+                trade["symbol"], trade["direction"],
+                trade["entry_date"], trade.get("exit_date"),
+                trade["entry_price"], trade.get("exit_price"),
+                trade.get("shares", 0), trade.get("pnl", 0.0),
+                trade.get("r_multiple", 0.0), trade.get("outcome", "PENDING"),
+                trade.get("stop_price"), trade.get("target_price"),
+                trade.get("signal_score", 0.0),
+                trade.get("resolved", False), trade.get("resolved_at")
+            ])
 
     # ------------------------------------------------------------------
     # READ methods (called by feature pipeline and training)
@@ -654,48 +659,50 @@ class DuckDBStorage:
         Returns:
             DataFrame with columns ready for FeaturePipeline.generate()
         """
-        conn = self._get_conn()
         placeholders = ",".join(["?" for _ in symbols])
-
-        query = f"""
-            SELECT o.symbol, o.date, o.open, o.high, o.low, o.close, o.volume
-            FROM daily_ohlcv o
-            WHERE o.symbol IN ({placeholders})
-              AND o.date BETWEEN ? AND ?
-            ORDER BY o.symbol, o.date
-        """
         params = symbols + [start_date, end_date]
-        df = conn.execute(query, params).fetchdf()
 
-        if df.empty:
-            logger.warning("No OHLCV data for %s between %s and %s", symbols, start_date, end_date)
-            return df
+        with self._lock:
+            conn = self._get_conn()
 
-        if include_indicators:
-            ti = conn.execute(f"""
-                SELECT * FROM technical_indicators
-                WHERE symbol IN ({placeholders})
-                  AND date BETWEEN ? AND ?
-            """, params).fetchdf()
-            if not ti.empty:
-                df = df.merge(ti, on=["symbol", "date"], how="left")
+            query = f"""
+                SELECT o.symbol, o.date, o.open, o.high, o.low, o.close, o.volume
+                FROM daily_ohlcv o
+                WHERE o.symbol IN ({placeholders})
+                  AND o.date BETWEEN ? AND ?
+                ORDER BY o.symbol, o.date
+            """
+            df = conn.execute(query, params).fetchdf()
 
-        if include_flow:
-            flow = conn.execute(f"""
-                SELECT * FROM options_flow
-                WHERE symbol IN ({placeholders})
-                  AND date BETWEEN ? AND ?
-            """, params).fetchdf()
-            if not flow.empty:
-                df = df.merge(flow, on=["symbol", "date"], how="left")
+            if df.empty:
+                logger.warning("No OHLCV data for %s between %s and %s", symbols, start_date, end_date)
+                return df
 
-        if include_macro:
-            macro = conn.execute("""
-                SELECT * FROM macro_data
-                WHERE date BETWEEN ? AND ?
-            """, [start_date, end_date]).fetchdf()
-            if not macro.empty:
-                df = df.merge(macro, on="date", how="left")
+            if include_indicators:
+                ti = conn.execute(f"""
+                    SELECT * FROM technical_indicators
+                    WHERE symbol IN ({placeholders})
+                      AND date BETWEEN ? AND ?
+                """, params).fetchdf()
+                if not ti.empty:
+                    df = df.merge(ti, on=["symbol", "date"], how="left")
+
+            if include_flow:
+                flow = conn.execute(f"""
+                    SELECT * FROM options_flow
+                    WHERE symbol IN ({placeholders})
+                      AND date BETWEEN ? AND ?
+                """, params).fetchdf()
+                if not flow.empty:
+                    df = df.merge(flow, on=["symbol", "date"], how="left")
+
+            if include_macro:
+                macro = conn.execute("""
+                    SELECT * FROM macro_data
+                    WHERE date BETWEEN ? AND ?
+                """, [start_date, end_date]).fetchdf()
+                if not macro.empty:
+                    df = df.merge(macro, on="date", how="left")
 
         logger.info(
             "Training window: %d rows, %d symbols, %d columns, %s to %s",
@@ -712,65 +719,70 @@ class DuckDBStorage:
 
         Identical schema to get_training_window but uses relative date range.
         """
-        conn = self._get_conn()
         placeholders = ",".join(["?" for _ in symbols])
         # Sanitize lookback_days to prevent SQL injection
         lookback_days = max(1, min(int(lookback_days), 5000))
 
-        df = conn.execute(f"""
-            SELECT o.symbol, o.date, o.open, o.high, o.low, o.close, o.volume
-            FROM daily_ohlcv o
-            WHERE o.symbol IN ({placeholders})
-              AND o.date >= CURRENT_DATE - INTERVAL '{lookback_days}' DAY
-            ORDER BY o.symbol, o.date
-        """, symbols).fetchdf()
+        with self._lock:
+            conn = self._get_conn()
 
-        # Join indicators
-        if not df.empty:
-            ti = conn.execute(f"""
-                SELECT * FROM technical_indicators
-                WHERE symbol IN ({placeholders})
-                  AND date >= CURRENT_DATE - INTERVAL '{lookback_days}' DAY
+            df = conn.execute(f"""
+                SELECT o.symbol, o.date, o.open, o.high, o.low, o.close, o.volume
+                FROM daily_ohlcv o
+                WHERE o.symbol IN ({placeholders})
+                  AND o.date >= CURRENT_DATE - INTERVAL '{lookback_days}' DAY
+                ORDER BY o.symbol, o.date
             """, symbols).fetchdf()
-            if not ti.empty:
-                df = df.merge(ti, on=["symbol", "date"], how="left")
 
-            flow = conn.execute(f"""
-                SELECT * FROM options_flow
-                WHERE symbol IN ({placeholders})
-                  AND date >= CURRENT_DATE - INTERVAL '{lookback_days}' DAY
-            """, symbols).fetchdf()
-            if not flow.empty:
-                df = df.merge(flow, on=["symbol", "date"], how="left")
+            # Join indicators
+            if not df.empty:
+                ti = conn.execute(f"""
+                    SELECT * FROM technical_indicators
+                    WHERE symbol IN ({placeholders})
+                      AND date >= CURRENT_DATE - INTERVAL '{lookback_days}' DAY
+                """, symbols).fetchdf()
+                if not ti.empty:
+                    df = df.merge(ti, on=["symbol", "date"], how="left")
 
-            macro = conn.execute(f"""
-                SELECT * FROM macro_data
-                WHERE date >= CURRENT_DATE - INTERVAL '{lookback_days}' DAY
-            """).fetchdf()
-            if not macro.empty:
-                df = df.merge(macro, on="date", how="left")
+                flow = conn.execute(f"""
+                    SELECT * FROM options_flow
+                    WHERE symbol IN ({placeholders})
+                      AND date >= CURRENT_DATE - INTERVAL '{lookback_days}' DAY
+                """, symbols).fetchdf()
+                if not flow.empty:
+                    df = df.merge(flow, on=["symbol", "date"], how="left")
+
+                macro = conn.execute(f"""
+                    SELECT * FROM macro_data
+                    WHERE date >= CURRENT_DATE - INTERVAL '{lookback_days}' DAY
+                """).fetchdf()
+                if not macro.empty:
+                    df = df.merge(macro, on="date", how="left")
 
         return df
 
     def get_unresolved_trades(self) -> pd.DataFrame:
         """Fetch trades that need outcome resolution."""
-        conn = self._get_conn()
-        return conn.execute("""
-            SELECT * FROM trade_outcomes
-            WHERE resolved = FALSE
-            ORDER BY entry_date
-        """).fetchdf()
+        with self._lock:
+            conn = self._get_conn()
+            return conn.execute("""
+                SELECT * FROM trade_outcomes
+                WHERE resolved = FALSE
+                ORDER BY entry_date
+            """).fetchdf()
 
     def get_symbol_count(self) -> int:
         """Count distinct symbols in OHLCV data."""
-        conn = self._get_conn()
-        result = conn.execute("SELECT COUNT(DISTINCT symbol) FROM daily_ohlcv").fetchone()
+        with self._lock:
+            conn = self._get_conn()
+            result = conn.execute("SELECT COUNT(DISTINCT symbol) FROM daily_ohlcv").fetchone()
         return result[0] if result else 0
 
     def get_date_range(self) -> Tuple[Optional[str], Optional[str]]:
         """Get min/max dates in OHLCV data."""
-        conn = self._get_conn()
-        result = conn.execute("SELECT MIN(date), MAX(date) FROM daily_ohlcv").fetchone()
+        with self._lock:
+            conn = self._get_conn()
+            result = conn.execute("SELECT MIN(date), MAX(date) FROM daily_ohlcv").fetchone()
         if result and result[0]:
             return str(result[0]), str(result[1])
         return None, None
@@ -782,65 +794,69 @@ class DuckDBStorage:
     def insert_postmortem(self, postmortem: Dict) -> None:
         """Record a council postmortem after trade exit."""
         import json
-        conn = self._get_conn()
-        conn.execute("""
-            INSERT INTO postmortems
-            (id, council_decision_id, symbol, direction, confidence,
-             entry_price, exit_price, pnl, agent_votes,
-             blackboard_snapshot, critic_analysis, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        """, [
-            postmortem["id"],
-            postmortem.get("council_decision_id", ""),
-            postmortem["symbol"],
-            postmortem.get("direction", ""),
-            postmortem.get("confidence", 0.0),
-            postmortem.get("entry_price", 0.0),
-            postmortem.get("exit_price", 0.0),
-            postmortem.get("pnl", 0.0),
-            json.dumps(postmortem.get("agent_votes", []), default=str),
-            json.dumps(postmortem.get("blackboard_snapshot", {}), default=str),
-            postmortem.get("critic_analysis", ""),
-        ])
+        with self._lock:
+            conn = self._get_conn()
+            conn.execute("""
+                INSERT INTO postmortems
+                (id, council_decision_id, symbol, direction, confidence,
+                 entry_price, exit_price, pnl, agent_votes,
+                 blackboard_snapshot, critic_analysis, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """, [
+                postmortem["id"],
+                postmortem.get("council_decision_id", ""),
+                postmortem["symbol"],
+                postmortem.get("direction", ""),
+                postmortem.get("confidence", 0.0),
+                postmortem.get("entry_price", 0.0),
+                postmortem.get("exit_price", 0.0),
+                postmortem.get("pnl", 0.0),
+                json.dumps(postmortem.get("agent_votes", []), default=str),
+                json.dumps(postmortem.get("blackboard_snapshot", {}), default=str),
+                postmortem.get("critic_analysis", ""),
+            ])
 
     def get_postmortems(self, symbol: Optional[str] = None, limit: int = 50) -> pd.DataFrame:
         """Fetch postmortems, optionally filtered by symbol."""
-        conn = self._get_conn()
-        if symbol:
+        with self._lock:
+            conn = self._get_conn()
+            if symbol:
+                return conn.execute(
+                    "SELECT * FROM postmortems WHERE symbol = ? ORDER BY created_at DESC LIMIT ?",
+                    [symbol, limit],
+                ).fetchdf()
             return conn.execute(
-                "SELECT * FROM postmortems WHERE symbol = ? ORDER BY created_at DESC LIMIT ?",
-                [symbol, limit],
+                "SELECT * FROM postmortems ORDER BY created_at DESC LIMIT ?",
+                [limit],
             ).fetchdf()
-        return conn.execute(
-            "SELECT * FROM postmortems ORDER BY created_at DESC LIMIT ?",
-            [limit],
-        ).fetchdf()
 
     def get_postmortem_count(self) -> int:
         """Count total postmortems."""
-        conn = self._get_conn()
-        result = conn.execute("SELECT COUNT(*) FROM postmortems").fetchone()
+        with self._lock:
+            conn = self._get_conn()
+            result = conn.execute("SELECT COUNT(*) FROM postmortems").fetchone()
         return result[0] if result else 0
 
     def health_check(self) -> Dict:
         """Return storage health metrics."""
-        conn = self._get_conn()
-        tables = {
-            "ohlcv_rows": "daily_ohlcv",
-            "indicator_rows": "technical_indicators",
-            "flow_rows": "options_flow",
-            "macro_rows": "macro_data",
-            "trade_outcomes": "trade_outcomes",
-            "feature_rows": "features",
-            "model_eval_rows": "model_evals",
-            "postmortem_rows": "postmortems",
-        }
-        counts = {}
-        total = 0
-        for key, table in tables.items():
-            count = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-            counts[key] = count
-            total += count
+        with self._lock:
+            conn = self._get_conn()
+            tables = {
+                "ohlcv_rows": "daily_ohlcv",
+                "indicator_rows": "technical_indicators",
+                "flow_rows": "options_flow",
+                "macro_rows": "macro_data",
+                "trade_outcomes": "trade_outcomes",
+                "feature_rows": "features",
+                "model_eval_rows": "model_evals",
+                "postmortem_rows": "postmortems",
+            }
+            counts = {}
+            total = 0
+            for key, table in tables.items():
+                count = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+                counts[key] = count
+                total += count
         return {
             "db_path": self._db_path,
             **counts,

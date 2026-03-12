@@ -27,6 +27,7 @@ class UWChannelAgent(BaseChannelAgent):
             router=router,
             message_bus=message_bus,
             max_queue_size=int(os.getenv("UW_FIREHOSE_QUEUE", "3000")),
+            batch_size=int(os.getenv("UW_FIREHOSE_BATCH", "16")),
         )
         self._bus = message_bus
         self._subscribed = False

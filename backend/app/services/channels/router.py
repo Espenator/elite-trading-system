@@ -26,6 +26,8 @@ class SensoryRouter:
         self._awareness_mode = os.getenv("AWARENESS_MODE", "topic").strip().lower()
         self._awareness_url = os.getenv("PC2_BRAIN_URL", "") or os.getenv("AWARENESS_URL", "")
         self._awareness_timeout_s = float(os.getenv("AWARENESS_TIMEOUT_S", "6.0"))
+        self._awareness_semaphore = asyncio.Semaphore(10)  # Cap concurrent awareness calls
+        self._http_client: httpx.AsyncClient | None = None
 
     def get_metrics(self) -> Dict[str, Any]:
         return dict(self._metrics)
@@ -33,13 +35,38 @@ class SensoryRouter:
     async def route_and_publish(self, event: SensoryEvent) -> List[str]:
         topics, payloads = self._route(event)
 
-        published: List[str] = []
-        for topic, payload in zip(topics, payloads):
-            await self._bus.publish(topic, payload)
-            published.append(topic)
+        if len(topics) == 1:
+            # Fast path — skip gather overhead for single-topic events
+            await self._bus.publish(topics[0], payloads[0])
+        elif topics:
+            # Parallel publish to all topics simultaneously
+            await asyncio.gather(
+                *[self._bus.publish(t, p) for t, p in zip(topics, payloads)]
+            )
 
         self._metrics["events_routed"] += 1
-        return published
+        return topics
+
+    async def route_batch(self, events: List[SensoryEvent]) -> int:
+        """Route a batch of events with a single asyncio.gather across all publishes.
+
+        More efficient than calling route_and_publish N times because it
+        collects ALL topic/payload pairs from ALL events and fires them
+        in one gather call, minimizing event-loop round-trips.
+        """
+        all_publishes: List[Any] = []
+        for event in events:
+            topics, payloads = self._route(event)
+            for topic, payload in zip(topics, payloads):
+                all_publishes.append(self._bus.publish(topic, payload))
+
+        if len(all_publishes) == 1:
+            await all_publishes[0]
+        elif all_publishes:
+            await asyncio.gather(*all_publishes)
+
+        self._metrics["events_routed"] += len(events)
+        return len(events)
 
     def _route(self, event: SensoryEvent) -> Tuple[List[str], List[Dict[str, Any]]]:
         topics: List[str] = []
@@ -248,16 +275,25 @@ class SensoryRouter:
             return len(txt) >= 80
         return False
 
+    def _get_http_client(self) -> httpx.AsyncClient:
+        if self._http_client is None or self._http_client.is_closed:
+            self._http_client = httpx.AsyncClient(
+                timeout=httpx.Timeout(self._awareness_timeout_s),
+                limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+            )
+        return self._http_client
+
     async def _send_to_awareness_http(self, event: SensoryEvent) -> None:
         url = self._awareness_url.rstrip("/") + "/awareness/enrich"
         payload = {"events": [event.model_dump(mode="json")]}
-        try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(self._awareness_timeout_s)) as client:
+        async with self._awareness_semaphore:
+            try:
+                client = self._get_http_client()
                 resp = await client.post(url, json=payload)
                 if resp.status_code >= 400:
                     logger.debug("Awareness enrich HTTP %s: %s", resp.status_code, resp.text[:200])
                     return
                 data = resp.json()
-            await self._bus.publish("ingest.awareness_enriched", {"result": data, "event_id": event.event_id})
-        except Exception as exc:
-            logger.debug("Awareness HTTP failed: %s", exc)
+                await self._bus.publish("ingest.awareness_enriched", {"result": data, "event_id": event.event_id})
+            except Exception as exc:
+                logger.debug("Awareness HTTP failed: %s", exc)

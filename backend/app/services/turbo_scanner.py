@@ -864,11 +864,11 @@ class TurboScanner:
             "tier2_symbols": len(UNIVERSE_TIER_2),
             "signals_today": len(self._seen_today),
             "stats": {k: (dict(v) if isinstance(v, defaultdict) else v) for k, v in self._stats.items()},
-            "recent_signals": [s.to_dict() for s in self._signals_history[-20:]],
+            "recent_signals": [s.to_dict() for s in list(self._signals_history)[-20:]],
         }
 
     def get_signals(self, signal_type: str = None, limit: int = 50) -> List[Dict]:
-        signals = self._signals_history
+        signals = list(self._signals_history)
         if signal_type:
             signals = [s for s in signals if s.signal_type == signal_type]
         return [s.to_dict() for s in signals[-limit:]]

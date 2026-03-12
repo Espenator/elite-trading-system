@@ -23,6 +23,22 @@ REQUIRED_AGENTS = {"regime", "risk", "strategy"}
 # Agents with veto power
 VETO_AGENTS = {"risk", "execution"}
 
+# Regime-adaptive execution thresholds (replaces hardcoded 0.4)
+# Conservative in risky regimes, aggressive in favorable ones.
+REGIME_EXECUTION_THRESHOLDS = {
+    "BULLISH": 0.30,
+    "GREEN": 0.35,
+    "NEUTRAL": 0.40,
+    "YELLOW": 0.50,
+    "RED": 0.60,
+    "CRISIS": 0.70,
+}
+
+
+def _get_execution_threshold(regime: str = "NEUTRAL") -> float:
+    """Return regime-adaptive execution confidence threshold."""
+    return REGIME_EXECUTION_THRESHOLDS.get(regime.upper(), 0.50)
+
 
 def _get_learned_weights() -> Dict[str, float]:
     """Fetch Bayesian-updated weights from WeightLearner.
@@ -148,8 +164,14 @@ def arbitrate(
                 final_direction = "hold"
                 final_confidence = hold_weight / total_weight
 
-    # Execution readiness
-    execution_ready = final_direction != "hold" and final_confidence > 0.4
+    # Execution readiness — regime-adaptive threshold
+    # Extract regime from the regime agent vote (if available)
+    regime_vote = next((v for v in votes if v.agent_name == "regime"), None)
+    current_regime = "NEUTRAL"
+    if regime_vote and regime_vote.metadata:
+        current_regime = str(regime_vote.metadata.get("regime_state", regime_vote.metadata.get("regime", "NEUTRAL")))
+    exec_threshold = _get_execution_threshold(current_regime)
+    execution_ready = final_direction != "hold" and final_confidence > exec_threshold
     exec_vote = next((v for v in votes if v.agent_name == "execution"), None)
     if exec_vote:
         execution_ready = execution_ready and exec_vote.metadata.get(

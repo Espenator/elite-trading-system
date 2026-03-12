@@ -372,9 +372,9 @@ def _get_indicator_features(symbol: str) -> Dict[str, float]:
                 if val is not None:
                     result[f"ind_{col}"] = _safe_float(val)
             return result
-    except Exception:
-        pass
-    return {}
+    except Exception as e:
+        logger.error("Indicator feature aggregation failed: %s", e)
+    return {"_aggregation_failed": True, "_error": "indicator_features"}
 
 
 def _rolling_correlation(xs: List[float], ys: List[float], window: int = 20) -> float:
