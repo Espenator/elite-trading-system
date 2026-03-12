@@ -1,123 +1,193 @@
 ---
 name: agent-swarm-design
 description: >
-  Expert agent and swarm design skill for Espen Schiefloe's OpenClaw framework within Embodier Trader.
-  Guides best practices for designing multi-agent pipelines, blackboard swarm architecture, agent
-  communication patterns, debate protocols, and autonomous trading workflows. Use this skill whenever
-  Espen mentions: OpenClaw, agents, swarm, blackboard, multi-agent, agent debate, agent pipeline,
-  market data agent, signal agent, risk agent, ML agent, agent orchestration, autonomous trading,
-  event-driven signal engine, message bus, agent state, agent communication, blackboard pattern,
-  swarm intelligence, openclaw_bridge, agent_command_center, or asks about designing new agents,
-  improving agent coordination, debugging agent behavior, or structuring autonomous decision-making.
+  Expert agent and council design skill for Espen Schiefloe's Embodier Trader within the elite-trading-system.
+  Guides best practices for the 35-agent council DAG, Bayesian-weighted arbiter, 7-stage parallel pipeline,
+  debate protocol, MessageBus architecture, CouncilGate bridging, WeightLearner, 12 discovery scouts,
+  3-tier LLM router, brain service, and CNS (Central Nervous System) architecture. Use this skill whenever
+  Espen mentions: council, agents, swarm, DAG, arbiter, debate, red team, MessageBus, CouncilGate,
+  WeightLearner, shadow tracker, self-awareness, homeostasis, overfitting guard, HITL gate, scouts,
+  discovery, LLM router, brain service, gRPC, Ollama, CNS, brainstem, cortex, thalamus, blackboard,
+  AgentVote, veto agents, signal pipeline, event-driven, or asks about designing new agents, improving
+  agent coordination, debugging agent behavior, or structuring autonomous decision-making.
 ---
 
-# Agent & Swarm Design — OpenClaw Expert Guide
+# Agent & Council Design — Expert Guide
 
-You are Espen's **agent architecture specialist** for the OpenClaw framework. You understand distributed intelligence, blackboard architectures, agent coordination problems, and the specific challenges of autonomous trading systems. You think in terms of reliability, failure modes, graceful degradation, and measurable agent impact.
+You are Espen's **agent architecture specialist** for the Embodier Trader system. You understand the 35-agent council DAG, Bayesian-weighted arbitration, event-driven pipelines, and the specific challenges of autonomous trading systems. You think in terms of reliability, failure modes, graceful degradation, and measurable agent impact.
 
-**Core philosophy**: Agents should be **simple, specialized, and skeptical**. Each agent does ONE thing well. Multiple simple agents outperform one complex agent. Agents must challenge each other before any capital is deployed. Measure every agent's contribution.
+**Core philosophy**: Agents should be **simple, specialized, and skeptical**. Each agent does ONE thing well. Multiple simple agents outperform one complex agent. Agents must challenge each other before any capital is deployed. Measure every agent's contribution via Bayesian weights.
 
----
-
-## 🏗 OpenClaw Architecture Overview
-
-OpenClaw is **production-grade** with 7 clawbots + integration layer + real-time sensing + streaming.
-
-### 7 Clawbots (Core Agent Modules)
-
-Located in `backend/app/modules/openclaw/clawbots/`:
-
-1. **meta_agent_architect.py** (309 lines) — Code-generating meta-agent that SPAWNS new agents dynamically when market regimes change. Publishes SPAWN commands, subscribes to regime_updates. Generated agents follow strict safety patterns (no eval/exec, no file writes, no hardcoded secrets).
-
-2. **agent_apex_orchestrator.py** — Main orchestrator. Manages the 15-minute cycle, coordinates debate phase, routes proposals to Risk Shield.
-
-3. **agent_relative_weakness.py** — Analyzes relative strength/weakness across sectors and market cap cohorts. Feeds cross-sectional signal component.
-
-4. **agent_short_basket_compiler.py** — Identifies short candidates via fundamental deterioration + sentiment signals. Separates from long-only logic.
-
-5. **risk_governor.py** — Risk Shield implementation. Final veto power. Immutable hard limits: 1.5% max size, 8% max heat, 12% circuit breaker.
-
-6-7. Two additional specialized agents (exact purpose varies by deployment).
-
-### Integration Layer (7 Files)
-
-Located in `backend/app/modules/openclaw/integrations/`:
-
-- `api_data_bridge.py` — Bridges data APIs (Alpaca, Finviz, FRED, Unusual Whales) to agent system
-- `alpaca_client.py` — Broker order submission + portfolio state
-- `signal_parser.py` — Parses raw signals into standardized proposal format
-- `bridge_sender.py` — Sends agent decisions back to FastAPI routes
-- `db_logger.py` — Persists agent decisions + debate records to DuckDB
-- `discord_listener.py` — Optional Discord webhooks for real-time alerts
-- `lstm_bridge_service.py` — Legacy LSTM bridge (currently broken — torch removed)
-
-### Real-Time Sensing: Sensorium
-
-**world_intel/sensorium.py** — Real-time market data sensor. Continuously ingests:
-- Alpaca bar data (1-min, 5-min, hourly)
-- VIX levels + term structure
-- Sector rotation signals
-- Unusual flow indicators
-- Insider buying signals
-
-Publishes to **MessageBus** (see below).
-
-### Streaming Infrastructure (3 Files)
-
-Located in `backend/app/modules/openclaw/streaming/`:
-
-- `streaming_engine.py` — Core event loop, message dispatch
-- `session_monitor.py` — Tracks agent session health, metrics
-- `live_dashboard.py` — Real-time metrics for frontend WebSocket
+**Version**: v4.1.0-dev (March 12, 2026)
 
 ---
 
-## 📡 Event-Driven Signal Engine + MessageBus
+## CNS Architecture Overview (Central Nervous System)
 
-The system uses a **hybrid approach**:
+The Embodier Trader uses a **biological nervous system** metaphor for its architecture:
 
-### Event-Driven Signal Engine (`signal_engine.py`)
+| CNS Component | System Component | Purpose |
+|---|---|---|
+| **Brainstem** | `reflexes/circuit_breaker.py` | Automatic protective reflexes (leverage limits, concentration caps) |
+| **Spinal Cord** | Council DAG (35 agents, 7 stages) | Core decision-making pipeline — fast, parallel |
+| **Cortex** | 3-tier LLM router (Ollama → Perplexity → Claude) | Deep reasoning for complex situations |
+| **Thalamus** | `blackboard.py` | Shared state relay — all agents read/write here |
+| **Autonomic** | `weight_learner.py` (Bayesian Beta(α,β)) | Unconscious learning — agent weights converge over time |
+| **PNS Sensory** | Data ingestion, scouts, AlpacaStream | External data flowing in |
+| **PNS Motor** | OrderExecutor, Alpaca API | Actions flowing out (trades) |
+
+---
+
+## 35-Agent Council DAG
+
+The council is a **Directed Acyclic Graph** with 7 parallel stages. All agents return `AgentVote` from `council/schemas.py`. The arbiter combines votes using Bayesian-weighted scores.
+
+### Agent Registry (32 agent files → 35 registered agents)
+
+Located in `backend/app/council/agents/`:
+
+**Stage 1: Perception (5 agents)**
+| Agent | File | Purpose |
+|---|---|---|
+| Flow Perception | `flow_perception_agent.py` | Unusual Whales options flow analysis |
+| Market Perception | `market_perception_agent.py` | Broad market reading (price, volume, breadth) |
+| Social Perception | `social_perception_agent.py` | Social media + news sentiment |
+| Dark Pool | `dark_pool_agent.py` | Dark pool flow + DIX/GEX (SqueezeMetrics) |
+| GEX | `gex_agent.py` | Gamma exposure analysis |
+
+**Stage 2: Technical (4 agents)**
+| Agent | File | Purpose |
+|---|---|---|
+| RSI | `rsi_agent.py` | RSI-based signal generation |
+| EMA Trend | `ema_trend_agent.py` | Exponential moving average trend analysis |
+| BBV (Bollinger Band Volume) | `bbv_agent.py` | Bollinger + volume confluence |
+| Relative Strength | `relative_strength_agent.py` | Cross-sectional relative strength/weakness |
+
+**Stage 3: Hypothesis (3 agents)**
+| Agent | File | Purpose |
+|---|---|---|
+| Hypothesis | `hypothesis_agent.py` | LLM-powered hypothesis generation (brain service) |
+| Earnings Tone | `earnings_tone_agent.py` | Earnings call transcript sentiment |
+| News Catalyst | `news_catalyst_agent.py` | Breaking news catalyst detection |
+
+**Stage 4: Strategy (5 agents)**
+| Agent | File | Purpose |
+|---|---|---|
+| Strategy | `strategy_agent.py` | Core strategy signal synthesis |
+| Macro Regime | `macro_regime_agent.py` | Macro environment assessment (FRED, VIX) |
+| Regime | `regime_agent.py` | HMM/PELT regime classification |
+| Cycle Timing | `cycle_timing_agent.py` | Market cycle + seasonal timing |
+| Intermarket | `intermarket_agent.py` | Cross-market correlation analysis |
+
+**Stage 5: Risk & Execution (2 agents — VETO POWER)**
+| Agent | File | Purpose |
+|---|---|---|
+| **Risk** | `risk_agent.py` | **VETO AGENT** — position size, heat, drawdown checks |
+| **Execution** | `execution_agent.py` | **VETO AGENT** — liquidity, spread, fill probability |
+
+**VETO_AGENTS = {"risk", "execution"}** — Only these two can veto. No other agent can.
+
+**Stage 5.5: Academic Edge (6 agents)**
+| Agent | File | Purpose |
+|---|---|---|
+| Alt Data | `alt_data_agent.py` | Alternative data synthesis |
+| Congressional | `congressional_agent.py` | Congressional trading disclosures |
+| Insider | `insider_agent.py` | SEC Form 4 insider transactions |
+| Institutional Flow | `institutional_flow_agent.py` | 13F institutional positioning |
+| Supply Chain | `supply_chain_agent.py` | Supply chain disruption signals |
+| FinBERT Sentiment | `finbert_sentiment_agent.py` | Transformer-based financial NLP |
+
+**Stage 6: Debate & Red Team (3 agents)**
+| Agent | File | Purpose |
+|---|---|---|
+| Bull Debater | `bull_debater.py` | Argues FOR the trade proposal |
+| Bear Debater | `bear_debater.py` | Argues AGAINST (sees bull case, counters directly) |
+| Red Team | `red_team_agent.py` | Adversarial stress-testing of the thesis |
+
+**Stage 7: Synthesis (4 agents)**
+| Agent | File | Purpose |
+|---|---|---|
+| Critic | `critic_agent.py` | Final quality check on reasoning |
+| Portfolio Optimizer | `portfolio_optimizer_agent.py` | Portfolio-level position optimization |
+| Layered Memory | `layered_memory_agent.py` | Historical pattern matching from memory |
+| YouTube Knowledge | `youtube_knowledge_agent.py` | Knowledge base from financial education |
+
+### Arbiter (Final Decision)
+
+**File**: `council/arbiter.py`
+
+The arbiter combines all `AgentVote` responses using **Bayesian-weighted scores**:
 
 ```python
-class EventDrivenSignalEngine:
-    """
-    Subscribes to MessageBus events (market_data.bar topic).
-    Reacts with <1s latency to new market data bars.
-    Computes features + generates signals in real-time.
-    """
-    def __init__(self, message_bus):
-        self.bus = message_bus
-        self.bus.subscribe('market_data.bar', self.on_bar)
-
-    def on_bar(self, bar_event):
-        # Receive new OHLCV bar, compute features, generate signal
-        symbol = bar_event.symbol
-        features = self.compute_features(symbol)
-        score = self.ml_models.predict(features)
-        signal = {
-            'symbol': symbol,
-            'score': score,
-            'confidence': score_confidence(score),
-            'features': features,
-            'timestamp': bar_event.timestamp
-        }
-        if score >= MIN_SCORE_TO_REPORT:  # 70
-            self.bus.publish('signal.generated', signal)
-
-MIN_SCORE_TO_REPORT = 70
+# Each agent has a weight from WeightLearner: Beta(α, β)
+# Weight = α / (α + β) — converges toward agent's true accuracy
+# Agents that predict well get higher weights over time
+# VETO agents can reject regardless of weighted score
 ```
 
-**Features computed** (in real-time):
-- RSI(14), MACD(12/26/9)
-- Volume Score (vs 20-period average)
-- Pattern Detection: Head & Shoulders, pennants, triangles, flags
-- Regime multipliers: BULLISH=1.10x, BEARISH=0.80x, CRISIS=0.65x
+---
+
+## Council Orchestration (15 files)
+
+Located in `backend/app/council/`:
+
+| File | Purpose |
+|---|---|
+| `runner.py` | Council execution engine — runs 7-stage DAG |
+| `arbiter.py` | Bayesian-weighted final decision maker |
+| `schemas.py` | `AgentVote` schema — all agents MUST return this |
+| `council_gate.py` | Signal → Council bridge (threshold = 65) |
+| `weight_learner.py` | Bayesian Beta(α,β) weight updates |
+| `blackboard.py` | Shared state (Thalamus) — agents read/write |
+| `shadow_tracker.py` | Shadow mode tracking (paper trades) |
+| `self_awareness.py` | System self-monitoring and introspection |
+| `homeostasis.py` | System balance maintenance |
+| `overfitting_guard.py` | Detects overfitting in agent predictions |
+| `hitl_gate.py` | Human-in-the-loop gate (ready, not always active) |
+| `feedback_loop.py` | Trade outcome → agent weight feedback |
+| `registry.py` | Agent registration and discovery |
+| `agent_config.py` | Agent configuration and stage assignment |
+| `data_quality.py` | Input data quality validation |
+| `task_spawner.py` | Dynamic task creation |
+
+### Debate Engine (3 files)
+
+Located in `council/debate/`:
+
+| File | Purpose |
+|---|---|
+| `debate_engine.py` | Orchestrates Bull/Bear/RedTeam debate |
+| `debate_scorer.py` | Scores debate quality and argument strength |
+| `debate_utils.py` | Shared debate utilities |
+
+---
+
+## Event Pipeline
+
+```
+AlpacaStreamService → SignalEngine → CouncilGate → Council (35 agents, 7 stages) → OrderExecutor → Alpaca
+                                          ↕
+                                  MessageBus (pub/sub, 10K queue)
+                                          ↕
+                           12 Scouts → swarm.idea topic → IdeaTriage
+```
+
+### Event-Driven Execution (NOT 15-minute polling)
+
+The system is **event-driven with sub-1s council latency**:
+
+1. **AlpacaStreamService** receives real-time market data
+2. **SignalEngine** computes features + generates signal scores
+3. **CouncilGate** evaluates if signal crosses threshold (currently 65)
+4. **Council DAG** runs 7 parallel stages, all agents vote
+5. **Arbiter** combines Bayesian-weighted votes
+6. **OrderExecutor** submits bracket orders (with Gate 2b regime + Gate 2c circuit breakers)
 
 ### MessageBus Architecture (`core/message_bus.py`)
 
-**Central nervous system** of the entire system. High-performance async event router.
+Central nervous system event router. High-performance async.
 
-**9 core topics**:
+**Core topics**:
 ```
 market_data.bar         → New OHLCV bars from Alpaca
 market_data.quote       → Tick data
@@ -128,444 +198,260 @@ order.cancelled         → Order cancelled
 model.updated           → ML model retrained
 risk.alert              → Risk Shield rejections or warnings
 system.heartbeat        → 30s system health pulse
+swarm.idea              → Scout discovery ideas
 ```
 
-**Queue-based processing**:
-- Max 10,000 events in queue
-- Graceful shutdown with 5s drain timeout
-- Subscribers can be added/removed at runtime
-
-**Usage**:
-```python
-# Subscribe to signals
-bus.subscribe('signal.generated', on_signal)
-
-# Publish a bar event
-bus.publish('market_data.bar', bar_data)
-
-# Subscribers get called within ~100ms
-```
+**Queue**: Max 10,000 events, graceful shutdown with 5s drain timeout.
 
 ---
 
-## 🤖 Agent Hierarchy (4 Tiers)
+## 12 Discovery Scouts (Continuous)
 
-### Tier 1: Sensing Agents (Observers — no decisions)
+Located in `backend/app/services/scouts/`:
 
-#### Market Data Agent (`market_data_agent.py`)
+| Scout | File | Purpose |
+|---|---|---|
+| Flow Hunter | `flow_hunter.py` | Unusual options flow detection |
+| Gamma | `gamma.py` | Gamma exposure squeeze candidates |
+| Insider | `insider.py` | SEC Form 4 insider buying |
+| Macro | `macro.py` | FRED macro regime shifts |
+| News | `news.py` | Breaking news catalysts |
+| Congress | `congress.py` | Congressional trade disclosures |
+| Earnings | `earnings.py` | Upcoming earnings catalysts |
+| Sector Rotation | `sector_rotation.py` | Sector momentum shifts |
+| Sentiment | `sentiment.py` | Aggregate sentiment anomalies |
+| Short Squeeze | `short_squeeze.py` | Short interest + squeeze setups |
+| Correlation Break | `correlation_break.py` | Cross-asset correlation disruptions |
+| IPO | `ipo.py` | New IPO / SPAC opportunities |
 
-**Purpose**: Fetch fresh market data every 60 seconds.
+**CRITICAL**: Discovery is **continuous, not polling-based** (Issue #38). Scouts publish to `swarm.idea` topic on MessageBus.
 
-```python
-class MarketDataAgent:
-    def run(self):
-        # Fetch latest OHLCV for watchlist
-        prices = self.alpaca_client.get_bars(symbols, timeframe='1h')
+All scouts extend `base.py` and are registered via `registry.py`. Phase A1 fixed 5 crashing scouts by adding missing service methods.
 
-        # Compute macro indicators
-        vix = self.get_vix()
-        vix_slope = self.compute_vix_term_structure()
+---
 
-        # Detect regime via HMM
-        regime = self.hmm.predict(prices.returns)
+## 3-Tier LLM Intelligence Router
 
-        # Publish to blackboard
-        self.blackboard.write('market_data', {
-            'prices': prices,
-            'vix': vix,
-            'vix_slope': vix_slope,
-            'regime': regime,  # 'bull', 'bear', 'sideways', 'crisis'
-            'timestamp': now()
-        })
+Located in `backend/app/services/llm_router.py` + `llm_clients/`:
+
+```
+Tier 1: Ollama (Local)      → Routine tasks, fast response, no API cost
+         ↓ (if needs search)
+Tier 2: Perplexity           → Web search + synthesis, moderate cost
+         ↓ (if needs deep reasoning)
+Tier 3: Claude               → Deep reasoning, 6 specific tasks only
 ```
 
-**Regime states** (HMM output):
-| State | VIX | Trend | Strategy |
+### LLM Clients
+| Client | File | Model | Use Case |
 |---|---|---|---|
-| Bull | <18 | +2% weekly | Momentum long |
-| Bear | >25 | -2% weekly | Reduce sizes 50% |
-| Sideways | 15-20 | Flat | Mean-reversion |
-| Crisis | >35 | Correlation spike | Cash-heavy or flat |
+| Ollama | `llm_clients/ollama_client.py` | Local models on RTX GPU | Routine agent tasks |
+| Perplexity | `llm_clients/perplexity_client.py` | Perplexity API | Search-augmented analysis |
+| Claude | `llm_clients/claude_client.py` | Claude API | Deep reasoning (6 tasks) |
 
-#### Sentiment Agent (Optional)
+### Brain Service (PC2)
+- **Protocol**: gRPC on port 50051
+- **Hardware**: RTX GPU on ProfitTrader (192.168.1.116)
+- **Client**: `services/brain_client.py`
+- **Primary user**: `hypothesis_agent.py`
 
-**Purpose**: Process unusual flow + insider data (alternative data sources).
-
-```python
-class SentimentAgent:
-    def run(self):
-        # Unusual Whales sweeps
-        sweeps = self.uw_client.get_recent_sweeps()
-
-        # Insider buying
-        insider_buys = self.sec_edgar.get_recent_insider_buys()
-
-        # Sentiment score (0-100)
-        sentiment = self.aggregate_sentiment(sweeps, insider_buys)
-
-        self.blackboard.write('sentiment', {
-            'sweeps': sweeps,
-            'insider_buys': insider_buys,
-            'aggregate_score': sentiment,
-            'timestamp': now()
-        })
-```
-
-### Tier 2: Analysis Agents (Thinkers — generate proposals)
-
-#### Signal Agent (`signal_engine.py` + debate protocol)
-
-**Purpose**: Generate trade proposals based on ML signals + regime.
-
-```python
-class SignalAgent:
-    def run(self):
-        # Get latest features
-        market_data = self.blackboard.read('market_data')
-        sentiment = self.blackboard.read('sentiment')
-
-        # Generate scores via XGBoost + LightGBM ensemble
-        for symbol in watchlist:
-            score = self.ensemble_predict(symbol, market_data, sentiment)
-            confidence = self.estimate_confidence(score)
-
-            if score >= 60:  # Tradeable signal
-                proposal = {
-                    'symbol': symbol,
-                    'signal_score': score,
-                    'confidence': confidence,
-                    'regime': market_data['regime'],
-                    'size_suggestion': self.kelly_size(score, confidence),
-                    'stop_loss': self.calculate_stop(symbol, market_data),
-                    'take_profit': self.calculate_target(score),
-                }
-                self.blackboard.write('proposals', proposal)
-```
-
-#### ML Flywheel Agent
-
-**Purpose**: Monitors model accuracy, detects drift, triggers retraining.
-
-```python
-class MLFlywheelAgent:
-    def run(self):
-        # Check prediction accuracy on recent trades
-        recent_accuracy = self.evaluate_recent_predictions(lookback_days=20)
-
-        # Detect feature drift
-        drift_score = self.detect_feature_drift()
-
-        # Retrain if accuracy drops or drift detected
-        if recent_accuracy < 0.52 or drift_score > 0.3:
-            self.trigger_retrain()  # Walk-forward CPCV retrain
-            self.blackboard.write('alerts', 'Model retraining triggered')
-            self.bus.publish('model.updated', {'status': 'retraining'})
-
-        # Publish model health
-        self.blackboard.write('model_health', {
-            'accuracy': recent_accuracy,
-            'drift_score': drift_score,
-            'last_retrain': self.last_retrain_date,
-            'model_version': self.current_model_version
-        })
-```
-
-### Tier 3: Decision Agents (Gatekeepers — approve/reject)
-
-#### Risk Shield Agent (`risk_governor.py`)
-
-**Purpose**: Final veto power. CANNOT be overridden.
-
-```python
-class RiskShieldAgent:
-    def review_proposal(self, proposal):
-        """Returns APPROVED or REJECTED with immutable checks."""
-        checks = [
-            self.check_position_size(proposal),        # ≤ 1.5%
-            self.check_portfolio_heat(proposal),        # ≤ 8% total
-            self.check_sector_concentration(proposal),  # ≤ 3 per sector
-            self.check_correlation(proposal),           # < 0.6 with portfolio
-            self.check_drawdown_circuit_breaker(),      # Not in drawdown mode
-            self.check_regime_allows_trading(),         # Not in crisis mode
-            self.check_stop_loss_present(proposal),     # Must have stop
-            self.check_liquidity(proposal),             # ADV > 100k shares
-        ]
-
-        rejections = [c for c in checks if c.status == 'REJECT']
-        if rejections:
-            self.bus.publish('risk.alert', {
-                'proposal': proposal,
-                'reasons': rejections,
-                'timestamp': now()
-            })
-            return REJECTED, rejections
-
-        return APPROVED, "All risk checks passed"
-```
-
-**Design principles**:
-1. Veto is final — no override possible
-2. Fail-safe: If Risk Shield crashes, DEFAULT TO REJECT
-3. Transparent: Every rejection is logged with reason
-4. Immutable: Hard limits cannot be changed at runtime
-5. Auditable: All decisions persisted to DuckDB
-
-### Tier 4: Execution Agent (Actor)
-
-#### Execution Agent
-
-**Purpose**: Translate approved proposals into Alpaca bracket orders.
-
-```python
-class ExecutionAgent:
-    def execute(self, approved_proposal):
-        # Verify proposal not stale
-        current_price = self.alpaca_client.get_quote(approved_proposal.symbol)
-        if self.price_has_moved_too_far(approved_proposal, current_price):
-            return  # Skip stale proposal
-
-        # Build bracket order (entry + stop + target)
-        order = {
-            'symbol': approved_proposal.symbol,
-            'qty': approved_proposal.quantity,
-            'side': approved_proposal.side,
-            'order_type': 'limit',
-            'limit_price': current_price,
-            'stop_loss': approved_proposal.stop_loss,
-            'take_profit': approved_proposal.take_profit,
-        }
-
-        # Submit via Alpaca
-        result = self.alpaca_client.submit_bracket_order(order)
-
-        # Log execution
-        self.bus.publish('order.submitted', {
-            'proposal': approved_proposal,
-            'order': result,
-            'timestamp': now()
-        })
-```
+### Cognitive Layer
+| Component | Purpose |
+|---|---|
+| MemoryBank | Historical pattern storage and retrieval |
+| HeuristicEngine | Rule-based rapid decision heuristics |
+| KnowledgeGraph (ETBI) | Entity-relationship graph for market knowledge |
 
 ---
 
-## 🔄 The 15-Minute Cycle
+## CouncilGate: Signal → Council Bridge
 
-OpenClaw operates on a **15-minute analysis cycle** during market hours (9:30 AM – 4:00 PM ET).
+**File**: `council/council_gate.py`
 
-```
-Minute  0:00  ── Market Data Agent fetches fresh bars + VIX
-Minute  0:30  ── Sentiment Agent processes alternative data
-Minute  1:00  ── ML Flywheel checks model health
-Minute  2:00  ── Signal Agent generates scores for universe
-Minute  4:00  ── Signal Agent publishes trade proposals (if any)
-Minute  5:00  ── DEBATE PHASE: Bull/Bear challenge proposals
-Minute  8:00  ── Risk Shield Agent reviews survivors
-Minute 10:00  ── Execution Agent submits approved orders
-Minute 11:00  ── Portfolio Agent updates positions + P&L
-Minute 12:00  ── Blackboard cleanup + logging
-Minute 13:00  ── System health check
-Minute 14:00  ── Buffer for late completions
-Minute 15:00  ── NEW CYCLE
+CouncilGate decides which signals get sent to the full council for evaluation.
+
+```python
+# Current threshold: 65
+# KNOWN ISSUE: This filters 20-40% of profitable signals (Phase B fix)
+# Signals below threshold are logged but not sent to council
 ```
 
 **Rules**:
-- Agents have hard deadlines within the cycle
-- If an agent misses its window, it SKIPS (doesn't delay cycle)
-- The cycle is sacred — never run two cycles concurrently
-- First cycle of day includes extra market-open analysis
-- Last cycle includes end-of-day review
+- Signals MUST go through CouncilGate — do NOT bypass
+- Gate evaluates signal score, confidence, and basic quality checks
+- Below threshold → logged, not traded
+- Above threshold → full council evaluation
 
 ---
 
-## 🎯 Bull/Bear Debate Protocol
+## WeightLearner: Bayesian Agent Weights
 
-Research into LLM-based trading agents (TradingAgents, arXiv:2412.20138) shows that **explicit bull/bear debate outperforms simple voting by 15-25%**.
+**File**: `council/weight_learner.py`
 
-### Protocol Design
+Each agent's vote weight is learned over time using **Bayesian Beta distributions**:
 
 ```python
-class BullBearDebateProtocol:
-    """
-    Force balanced assessment before any trade.
-    Prevents groupthink and catches one-sided analysis.
-    """
-
-    def run_debate(self, proposal):
-        # Phase 1: Bull case
-        bull_case = self.bull_researcher.argue_for(
-            proposal=proposal,
-            market_data=self.blackboard.read('market_data')
-        )
-
-        # Phase 2: Bear case (sees bull argument, counters explicitly)
-        bear_case = self.bear_researcher.argue_against(
-            proposal=proposal,
-            bull_case=bull_case,  # Direct counter
-            market_data=self.blackboard.read('market_data')
-        )
-
-        # Phase 3: Synthesis (XGBoost score is the anchor)
-        synthesis = self.signal_agent.synthesize(
-            proposal=proposal,
-            bull_case=bull_case,
-            bear_case=bear_case,
-            quant_score=proposal.signal_score,  # Not overridden
-            regime=self.blackboard.read('regime_state'),
-            debate_effectiveness=self.measure_debate_quality(bull_case, bear_case)
-        )
-
-        # Phase 4: Risk Shield veto (unchanged)
-        if synthesis.recommendation == 'TRADE':
-            return self.risk_shield.review(synthesis)
-
-        # Log debate for analysis
-        self.blackboard.write('debate_records', {
-            'proposal': proposal,
-            'bull_case': bull_case,
-            'bear_case': bear_case,
-            'synthesis': synthesis,
-            'timestamp': now()
-        })
-
-        return synthesis.recommendation
+# Agent weight = Beta(α, β)
+# α = successful predictions, β = failed predictions
+# E[weight] = α / (α + β)
+# As agent accumulates correct predictions, weight increases
+# As agent accumulates wrong predictions, weight decreases
+# This is mathematically correct and proven (see CLAUDE.md)
 ```
 
-**Design principles**:
+**KNOWN ISSUE**: Confidence floor of 0.5 drops 50%+ of trade outcomes from learning (Phase C fix).
+
+---
+
+## Order Executor Enforcement (Phase A)
+
+**File**: `services/order_executor.py`
+
+Three enforcement gates added in Phase A:
+
+| Gate | Check | Action |
+|---|---|---|
+| **Gate 2b** (Regime) | regime max_pos=0 or kelly_scale=0 | Block entry (RED/CRISIS regime) |
+| **Gate 2c** (Circuit Breaker) | leverage > 2x or concentration > 25% | Block entry |
+| **Safety Gate** | Account type vs TRADING_MODE | Force SHADOW mode on mismatch |
+
+**VIX-based regime fallback**: When OpenClaw bridge is offline, uses VIX levels for regime classification.
+
+---
+
+## AgentVote Schema (ALL agents must return this)
+
+**File**: `council/schemas.py`
+
+```python
+class AgentVote:
+    agent_name: str          # e.g., "risk_agent"
+    direction: str           # "BULLISH", "BEARISH", "NEUTRAL"
+    confidence: float        # 0.0 - 1.0
+    score: float             # 0 - 100
+    reasoning: str           # Human-readable explanation
+    veto: bool = False       # Only risk + execution agents can set True
+    metadata: dict = {}      # Agent-specific data
+```
+
+---
+
+## Bull/Bear Debate Protocol
+
+Research shows explicit bull/bear debate outperforms simple voting by 15-25%.
+
+### Protocol Flow
+
+1. **Bull Debater** argues FOR the trade proposal
+2. **Bear Debater** sees Bull's argument, argues AGAINST (direct counter)
+3. **Red Team** adversarially stress-tests the thesis
+4. **Debate Scorer** evaluates argument quality
+5. Debate result feeds into Arbiter's final decision
+
+### Design Principles
 1. Bull and Bear are **separate agents**, not roles
 2. Bear **sees Bull's argument** — direct counter, not independent
-3. Asymmetric veto: Risk Shield can veto alone; debate only informs
-4. Recorded reasoning: Every case has human-readable reason + confidence
-5. Time-boxed: 3-minute window (no response = no opinion)
-6. Quantitative anchor: XGBoost signal never overridden by debate
-7. Escalation: If debate is split 50/50 and signal < 0.55, default NO TRADE
+3. Asymmetric veto: Risk/Execution agents can veto alone; debate only informs
+4. Time-boxed: agents have deadlines within the DAG stage
+5. Quantitative anchor: ML signal score is never overridden by debate alone
+6. Split verdict: If debate is split 50/50 and signal < 0.55, default NO TRADE
 
 ---
 
-## 📊 Agent Evaluation & Monitoring
+## Agent Evaluation & Monitoring
 
-Measure every agent's contribution.
+### Bayesian Weight Tracking
+Every agent's accuracy is tracked via WeightLearner Beta(α,β) distributions. Over time:
+- Accurate agents gain weight in arbiter decisions
+- Inaccurate agents lose weight
+- New agents start with uniform prior Beta(1,1)
 
-### Per-Agent Accuracy Tracking
+### Self-Awareness System
+**File**: `council/self_awareness.py`
+- Monitors council decision quality over time
+- Tracks win/loss ratios by agent, by regime, by sector
+- Flags degrading agent performance
 
-```python
-def evaluate_agent_accuracy(agent_name, lookback_days=30):
-    """Track whether agent predictions were correct over time."""
-    decisions = fetch_agent_decisions(agent_name, lookback_days)
-    outcomes = fetch_trade_outcomes(decisions)
+### Homeostasis
+**File**: `council/homeostasis.py`
+- Maintains system balance
+- Prevents runaway behavior (e.g., all agents agree too often)
+- Monitors diversity of opinions
 
-    correct = sum(1 for d, o in zip(decisions, outcomes)
-                  if d.prediction == o.result)
-    accuracy = correct / len(decisions) if decisions else 0
-
-    return {
-        'agent': agent_name,
-        'accuracy_30d': accuracy,
-        'sample_size': len(decisions),
-        'recommendation': 'disable' if accuracy < 0.50
-                         else 'monitor' if accuracy < 0.55
-                         else 'healthy'
-    }
-```
-
-### Attribution Analysis
-
-When a trade succeeds/fails, which agent's input was most predictive?
-
-```python
-def attribution_analysis(trade_symbol, trade_outcome):
-    """Correlate each agent's signal with trade result."""
-    agents_involved = get_agents_for_trade(trade_symbol)
-
-    for agent in agents_involved:
-        agent_signal = agent.get_contribution(trade_symbol)
-        correlation = compute_correlation(agent_signal, trade_outcome)
-
-        blackboard.write('agent_attribution', {
-            'agent': agent.name,
-            'trade': trade_symbol,
-            'correlation': correlation,  # 0-1 scale
-            'timestamp': now()
-        })
-```
+### Overfitting Guard
+**File**: `council/overfitting_guard.py`
+- Detects when agents overfit to recent market conditions
+- Triggers retraining or weight resets when detected
 
 ---
 
-## 🔧 Deploying New Agents
+## Shadow Tracker
+
+**File**: `council/shadow_tracker.py`
+
+Tracks what the council WOULD have done vs what it actually did:
+- In SHADOW mode: council runs but doesn't execute trades
+- Records hypothetical P&L for comparison
+- Used for validation before going live with new agents or parameters
+
+---
+
+## Deploying New Agents
 
 ### Agent Template
 
-```python
-class NewAgent:
-    """Template for new agents in OpenClaw."""
+All agents MUST:
+1. Return `AgentVote` from `council/schemas.py`
+2. Be registered in `council/registry.py`
+3. Be assigned to a stage in `council/agent_config.py`
+4. Handle errors gracefully (don't crash the DAG)
 
+```python
+from app.council.schemas import AgentVote
+
+class NewAgent:
     def __init__(self, blackboard, message_bus):
         self.blackboard = blackboard
         self.bus = message_bus
-        self.name = "NewAgent"
+        self.name = "new_agent"
 
-    def run(self):
-        """Main agent logic. Called once per cycle."""
+    async def vote(self, symbol: str, context: dict) -> AgentVote:
         # 1. Read from blackboard
         data = self.blackboard.read('key_data')
 
-        # 2. Compute / analyze
-        result = self.analyze(data)
+        # 2. Analyze
+        score, confidence = self.analyze(data, symbol)
 
-        # 3. Write to blackboard or publish event
-        if important_result:
-            self.bus.publish('system.alert', result)
-        else:
-            self.blackboard.write('result_key', result)
-
-    def analyze(self, data):
-        # Your logic here
-        return result
+        # 3. Return AgentVote (REQUIRED schema)
+        return AgentVote(
+            agent_name=self.name,
+            direction="BULLISH" if score > 60 else "BEARISH" if score < 40 else "NEUTRAL",
+            confidence=confidence,
+            score=score,
+            reasoning="Explanation of analysis",
+            veto=False,  # Only risk/execution can veto
+        )
 ```
 
-### Safety Patterns (REQUIRED)
-
-For generated agents created by meta_agent_architect:
+### Safety Rules
 - **No eval/exec** — Hard ban
 - **No file writes** — Use DuckDB only
 - **No hardcoded secrets** — Read from environment
 - **Timeouts** — Every operation must have timeout
-- **Audit trail** — Log all decisions with source agent + timestamp
+- **Audit trail** — All decisions logged via AgentVote
 
 ---
 
-## 🧠 How to Think About Agent Design
+## Debugging Agent Issues
 
-### When should this be an agent?
+**Agent decisions are wrong**: Check WeightLearner Beta(α,β). If weight < 0.45, agent is underperforming.
 
-1. **Does it make a decision?** → Probably yes
-2. **Does it run repeatedly?** → Probably yes
-3. **Does it need to coordinate with other agents?** → Definitely yes
-4. **Can it be unit-tested independently?** → Definitely yes
+**Council takes too long**: Profile which stage is slow. Check if external APIs (LLM, data sources) are timing out.
 
-### When to combine agents vs. keep separate?
+**Agent crashes**: `_supervised_loop()` wrapper auto-recovers (3 retries + Slack alerts). Check logs.
 
-**Keep separate if**:
-- Different cadences (one runs every 60s, one every 15 min)
-- Different data dependencies
-- Can be disabled independently
-- Have different failure modes
+**Agents agree too much**: Check homeostasis metrics. Debate protocol should force disagreement.
 
-**Combine if**:
-- Always run together
-- Share most data
-- Failure of one makes other useless
-- Would be confusing to split
+**Scout not finding ideas**: Check if underlying data source API is returning data. Phase A1 fixed 5 scout crashes.
 
-### Debugging Agent Issues
-
-**Problem**: Agent decisions are wrong
-**Solution**: Check agent accuracy tracking. If < 55%, disable and debug.
-
-**Problem**: Cycle takes too long
-**Solution**: Profile which agent is slow. Move to async or split across cycles.
-
-**Problem**: Agent crashes
-**Solution**: Wrap in try/catch, publish error event, continue cycle.
-
-**Problem**: Agents disagree too much
-**Solution**: Check debate_effectiveness metrics. Are Bull/Bear signals too weak?
+**Signals not reaching council**: Check CouncilGate threshold (currently 65). Known issue: filters 20-40% of profitable signals.
