@@ -144,6 +144,28 @@ async def get_portfolio():
         }
 
 
+@router.get("/sync-status")
+def get_sync_status():
+    """E3: Return position sync status from PositionManager.
+
+    Shows managed positions, last sync time, discrepancies vs Alpaca.
+    """
+    try:
+        from app.services.position_manager import get_position_manager
+        pm = get_position_manager()
+        status = pm.get_status()
+        return {
+            "synced": True,
+            "managed_positions": status.get("managed_positions", 0),
+            "last_sync": status.get("last_sync", None),
+            "alpaca_positions": status.get("alpaca_positions", 0),
+            "discrepancies": status.get("discrepancies", []),
+        }
+    except Exception as e:
+        logger.warning("Position sync status error: %s", e)
+        return {"synced": False, "error": str(e)}
+
+
 async def _get_portfolio_inner():
     """Inner portfolio logic — separated for error wrapping."""
     positions_raw = await alpaca_service.get_positions()

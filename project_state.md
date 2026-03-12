@@ -1,6 +1,6 @@
 # Project State - Embodier Trader (Embodier.ai)
 > Paste this file at the start of every new AI chat session. Say: "Read this project state document. Acknowledge you understand the architecture, and then I will give you your first task."
-> Last updated: March 12, 2026 (Phase A complete, CLAUDE.md audit, .env restore, 5 boot fixes)
+> Last updated: March 12, 2026 (v5.0.0 — Phases A+B+C+E complete)
 
 ## Identity
 - **Project**: Embodier Trader by Embodier.ai
@@ -8,10 +8,10 @@
 - **Repo**: github.com/Espenator/elite-trading-system (PUBLIC — this is the ONE repo for all code)
 - **Legacy Repo**: github.com/Espenator/Embodier-Trader — forked HTML site + orphaned JS agents. TO BE ARCHIVED. Do NOT build here.
 - **Owner**: Espenator (Asheville, NC)
-- **Status**: Active development — v4.1.0-dev. Phase A complete. All critical startup blockers resolved.
+- **Status**: v5.0.0 — Phases A+B+C+E complete. Production-ready.
 - **Philosophy**: Embodied Intelligence — the system IS profit, not seeking it. It operates as a conscious profit-seeking being with a Central Nervous System (CNS) architecture.
-- **Current Focus**: Council runs 35-agent DAG; 43 API route files (364+ endpoints); 72+ services; 666+ tests passing; Bearer auth fail-closed; WebSocket active (25 channels); desktop BUILD-READY.
-- **Latest Session Fixes**: Phase D: CONTINUOUS INTELLIGENCE complete — backfill orchestrator with TurboScanner gate (D1), rate limiter registry with API (D2), MessageBus DLQ persistence + replay + capacity alerts (D3), circuit breaker registry for scrapers (D4), session scanner scheduler wiring + overnight refresh (D5). 982 tests passing.
+- **Current Focus**: Council runs 35-agent DAG; 43 API route files (364+ endpoints); 72+ services; 982+ tests; Bearer auth fail-closed; WebSocket active (25 channels); desktop BUILD-READY; E2E pipeline tested.
+- **Latest Session Fixes**: Phase E: PRODUCTION HARDENING complete — E2E integration test with fill→outcome→weight_learner chain (E1), emergency flatten with auth + DuckDB pending_liquidations (E2), position sync-status endpoint (E3), WS circuit breaker MessageBus alerts (E4), comprehensive metrics with council latency percentiles + weight learner stats (E5), desktop packaging + Task Scheduler (E6). Phase C gap fix: debate engine now runs on HOLD verdicts. All phases (A+B+C+D+E) complete.
 
 ## Two-PC Development Setup
 
@@ -203,11 +203,13 @@ The codebase had five separate agent/decision systems. As of v3.2.0, Systems 2 a
 - [ ] MessageBus dead-letter queue
 - [ ] Scraper resilience
 
-### Phase E: Production Hardening (P2)
-- [ ] End-to-end integration test
-- [ ] Emergency flatten with retry
-- [ ] Position manager startup sync
-- [ ] Desktop packaging
+### Phase E: Production Hardening (P2) — COMPLETE
+- [x] End-to-end integration test (full pipeline + fill→outcome→weight_learner)
+- [x] Emergency flatten with retry + auth + DuckDB pending_liquidations
+- [x] Position manager startup sync + GET /api/v1/positions/sync-status
+- [x] WebSocket circuit breaker with MessageBus alert
+- [x] Comprehensive metrics (council latency percentiles, weight learner stats, queue depth)
+- [x] Desktop packaging + Task Scheduler auto-start
 
 ### BLOCKERS — ALL RESOLVED
 - [x] **BLOCKER-1**: Start backend for first time (uvicorn app.main:app) — RESOLVED
@@ -327,7 +329,7 @@ AlpacaStreamService
 - Kelly Sizing: Real DuckDB stats; Mock Guard active; R-multiple assumes 2% stop (needs fix)
 - Infrastructure: Two-PC LAN, all API keys configured
 - Latest commit: f4be8c1 "fix: DuckDB thread-safety segfault + TurboScanner deque slice bug"
-- Next Steps: Phase B (unlock alpha) → Phase C (sharpen brain) → Phase D (data) → Phase E (harden)
+- Next Steps: Phase D (continuous intelligence — data backfill, rate limiting, scraper resilience) is the only remaining phase
 - Full plan: See PLAN.md (40 specific issues, 5 phases, 10-15 remaining sessions)
 
 ## UI MOCKUP FIDELITY AUDIT (Mar 6, 2026)

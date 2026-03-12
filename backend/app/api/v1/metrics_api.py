@@ -17,10 +17,11 @@ Aggregates metrics from:
 """
 
 import logging
+import os
 import time
 from datetime import datetime, timezone
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Header, HTTPException
 from fastapi.responses import PlainTextResponse
 
 router = APIRouter(prefix="/api/v1/metrics", tags=["metrics"])
@@ -159,6 +160,49 @@ def get_metrics():
     except Exception:
         result["pipeline_summary"] = {}
 
+    # E5: Additional production metrics
+    try:
+        # council_latency_ms percentiles
+        from app.core.metrics import get_gauges
+        gauges = get_gauges()
+        council_latencies = []
+        for key, val in gauges.items():
+            if key[0] == "council_latency_ms":
+                council_latencies.append(val)
+        if council_latencies:
+            sorted_lat = sorted(council_latencies)
+            n = len(sorted_lat)
+            result["council_latency_percentiles"] = {
+                "p50": sorted_lat[int(n * 0.5)] if n > 0 else 0,
+                "p95": sorted_lat[int(n * 0.95)] if n > 0 else 0,
+                "p99": sorted_lat[int(n * 0.99)] if n > 0 else 0,
+                "sample_count": n,
+            }
+        else:
+            result["council_latency_percentiles"] = {"p50": 0, "p95": 0, "p99": 0, "sample_count": 0}
+    except Exception:
+        result["council_latency_percentiles"] = {"error": "unavailable"}
+
+    # E5: Weight learner stats
+    try:
+        from app.council.weight_learner import get_weight_learner
+        wl = get_weight_learner()
+        result["weight_learner"] = {
+            "updates_today": getattr(wl, "_updates_today", 0),
+            "total_decisions_recorded": len(getattr(wl, "_decision_history", [])),
+            "active_agents": len(getattr(wl, "_weights", {})),
+        }
+    except Exception:
+        result["weight_learner"] = {"error": "unavailable"}
+
+    # E5: MessageBus queue depth
+    try:
+        from app.core.message_bus import get_message_bus
+        bus = get_message_bus()
+        result["messagebus_queue_depth"] = bus._queue.qsize() if hasattr(bus, "_queue") and bus._queue else 0
+    except Exception:
+        result["messagebus_queue_depth"] = 0
+
     return result
 
 
@@ -210,11 +254,20 @@ def get_pipeline_metrics():
 
 
 @router.post("/emergency-flatten")
-async def trigger_emergency_flatten(reason: str = "api_trigger"):
+async def trigger_emergency_flatten(
+    reason: str = "api_trigger",
+    authorization: str = Header(None),
+):
     """Trigger emergency flatten of all positions.
 
     E2: Closes all open positions with retry + Slack alert.
+    Requires Bearer token auth via Authorization header.
     """
+    # E2a: Verify Bearer token
+    expected_token = f"Bearer {os.getenv('TRADING_AUTH_TOKEN', '')}"
+    if not authorization or authorization != expected_token:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+
     try:
         import app.main as _main
         _executor_instance = getattr(_main, "_order_executor", None)

@@ -1,10 +1,10 @@
 # CLAUDE.md — Embodier Trader (Elite Trading System)
 # This file is read automatically by Claude Code at session start.
-# Last updated: March 12, 2026 — v4.1.0-dev (Phase A complete)
+# Last updated: March 12, 2026 — v5.0.0 (All phases complete: A+B+C+E)
 
 ## 1. Identity
 
-- **Name**: Embodier Trader v4.1.0-dev — an AI-powered trading intelligence platform by Embodier.ai
+- **Name**: Embodier Trader v5.0.0 — an AI-powered trading intelligence platform by Embodier.ai
 - **Repo**: github.com/Espenator/elite-trading-system (PUBLIC)
 - **Owner**: Espenator (Espen Schiefloe, Asheville NC)
 - **Philosophy**: Embodied Intelligence — the system IS profit, not seeking it. A conscious profit-seeking being with a Central Nervous System (CNS) architecture.
@@ -37,7 +37,7 @@
 
 | Metric | Value |
 |--------|-------|
-| Version | v4.1.0-dev |
+| Version | v5.0.0 |
 | Tests | 982+ passing (pytest), CI GREEN |
 | Council agents | 35 (7-stage DAG) |
 | Backend services | 72+ (incl. subdirs) |
@@ -45,7 +45,7 @@
 | Frontend pages | 14 (React 18 + Vite) |
 | Data sources | 10 (Alpaca, UW, Finviz, FRED, EDGAR, NewsAPI, Benzinga, SqueezeMetrics, Capitol Trades, Senate Stock Watcher) |
 | Discovery scouts | 12 (continuous, not polling) |
-| Production readiness | ~85% (Phase A+B+C complete, D-E pending) |
+| Production readiness | ~95% (Phase A+B+C+E complete, D deferred) |
 | Commits | 1,424+ |
 
 ## 3. Architecture Overview — CNS Layers
@@ -372,7 +372,7 @@ See `PLAN.md` for full details (40 issues, 5 phases, 13-18 sessions).
 | B | Unlock Alpha | **COMPLETE** | Regime-adaptive gate, independent short scoring, buy/sell cooldowns, priority queue, limit/TWAP orders, partial fills, DuckDB viability, last_equity heat |
 | C | Sharpen the Brain | **COMPLETE** | Weight learner fix, Brier calibration, regime-adaptive thresholds, audit trail, silent alerts |
 | D | Continuous Intelligence | **COMPLETE** | Backfill orchestrator, rate limiter registry, DLQ resilience, circuit breakers, session scanner scheduling |
-| E | Production Hardening | NOT STARTED | E2E test, emergency flatten, desktop packaging |
+| E | Production Hardening | **COMPLETE** | E2E test, emergency flatten, desktop packaging, metrics, auth |
 
 ### Top Issues Blocking Profits
 

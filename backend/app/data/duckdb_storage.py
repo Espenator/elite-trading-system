@@ -476,6 +476,20 @@ class DuckDBStorage:
             )
         """)
 
+        # E2b: Pending liquidations table for emergency flatten tracking
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS pending_liquidations (
+                id INTEGER PRIMARY KEY,
+                symbol VARCHAR,
+                qty VARCHAR,
+                side VARCHAR,
+                reason VARCHAR,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                resolved_at TIMESTAMP,
+                status VARCHAR DEFAULT 'pending'
+            )
+        """)
+
         # Indexes for fast range scans
         conn.execute("CREATE INDEX IF NOT EXISTS idx_ohlcv_date ON daily_ohlcv (date)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_ohlcv_symbol ON daily_ohlcv (symbol)")

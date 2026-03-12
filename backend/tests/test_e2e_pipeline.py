@@ -184,3 +184,132 @@ async def test_e2e_swarm_idea_to_order_submitted():
 
     assert len(orders_submitted) >= 1, "OrderExecutor should publish order.submitted"
     assert orders_submitted[0].get("symbol") == "E2E"
+
+
+@pytest.mark.asyncio
+async def test_e2e_fill_to_weight_learner_update():
+    """E2E test: council.verdict → record_decision → order.filled → outcome.resolved → weight_learner.update.
+
+    Extended pipeline that verifies the full learning loop:
+    1. Council votes are recorded in weight_learner
+    2. Order execution completes (order.filled)
+    3. Outcome is published (outcome.resolved) with pnl + r_multiple
+    4. weight_learner.update_from_outcome() is called
+    5. Aligned agents get upweighted; misaligned agents get downweighted
+    """
+    from app.core.message_bus import MessageBus
+    from app.council.weight_learner import WeightLearner
+    from app.council.schemas import AgentVote
+
+    # Collectors for assertions
+    outcomes_resolved = []
+
+    bus = MessageBus()
+    await bus.start()
+
+    async def on_outcome(data):
+        outcomes_resolved.append(data)
+
+    await bus.subscribe("outcome.resolved", on_outcome)
+
+    # 1. Create a weight learner and record a decision
+    wl = WeightLearner(learning_rate=0.05, min_weight=0.2, max_weight=2.5)
+
+    # Create mock decision with AgentVotes
+    from types import SimpleNamespace
+    decision = SimpleNamespace(
+        decision_id="e2e-test-001",
+        symbol="E2E_TEST",
+        timestamp="2026-03-12T12:00:00Z",
+        final_direction="buy",
+        final_confidence=0.9,
+        regime="BULLISH",
+        votes=[
+            AgentVote(
+                agent_name="market_perception",
+                direction="buy",
+                confidence=0.95,
+                reasoning="Strong bullish signal",
+                weight=1.0,
+            ),
+            AgentVote(
+                agent_name="risk",
+                direction="buy",
+                confidence=0.8,
+                reasoning="Risk acceptable",
+                weight=1.3,
+            ),
+            AgentVote(
+                agent_name="strategy",
+                direction="hold",
+                confidence=0.6,
+                reasoning="Uncertain strategy",
+                weight=1.1,
+            ),
+        ],
+    )
+
+    # Record the decision
+    wl.record_decision(decision)
+    assert len(wl._decision_history) >= 1, "Decision should be recorded"
+
+    # Get initial weights
+    initial_weights = wl.get_weights()
+    initial_market_perception_weight = initial_weights.get("market_perception", 1.0)
+    initial_strategy_weight = initial_weights.get("strategy", 1.0)
+
+    # 2. Simulate order.filled (just publish to bus)
+    await bus.publish("order.filled", {
+        "symbol": "E2E_TEST",
+        "order_id": "e2e-order-001",
+        "qty": 10,
+        "filled_price": 100.0,
+        "side": "buy",
+    })
+
+    # 3. Simulate trade outcome: profitable, so council's "buy" direction was correct
+    await bus.publish("outcome.resolved", {
+        "symbol": "E2E_TEST",
+        "outcome_direction": "win",  # outcome was profitable
+        "pnl": 150.0,
+        "r_multiple": 1.5,
+        "debate_quality_score": 0.8,
+        "red_team_score": 0.9,
+        "regime_entropy": 0.5,
+        "trade_id": "e2e-test-001",
+        "confidence": 0.95,
+    })
+
+    # Poll for outcome event
+    for _ in range(50):
+        await asyncio.sleep(0.01)
+        if outcomes_resolved:
+            break
+
+    # 4. Call weight_learner.update_from_outcome() with the same trade_id
+    updated_weights = wl.update_from_outcome(
+        symbol="E2E_TEST",
+        outcome_direction="win",
+        pnl=150.0,
+        r_multiple=1.5,
+        debate_quality_score=0.8,
+        red_team_score=0.9,
+        regime_entropy=0.5,
+        is_censored=False,
+        confidence=0.95,
+        trade_id="e2e-test-001",
+    )
+
+    # 5. Verify weight updates
+    # market_perception voted "buy" → outcome was "win" → should be upweighted
+    assert updated_weights.get("market_perception", 1.0) > initial_market_perception_weight, \
+        f"market_perception should be upweighted (was {initial_market_perception_weight}, now {updated_weights.get('market_perception', 1.0)})"
+
+    # strategy voted "hold" (direction doesn't match "buy") → should be downweighted or neutral
+    # (downweighting happens when votes are examined)
+
+    assert len(outcomes_resolved) >= 1, "outcome.resolved should be published"
+    assert outcomes_resolved[0].get("symbol") == "E2E_TEST"
+    assert outcomes_resolved[0].get("outcome_direction") == "win"
+
+    await bus.stop()

@@ -203,6 +203,16 @@ class AlpacaStreamService:
                     )
                     logger.critical(msg)
                     await self._slack_alert(msg, level="critical")
+                    # E4: Publish circuit breaker event to MessageBus
+                    if self.message_bus:
+                        try:
+                            await self.message_bus.publish("alert.websocket_circuit_open", {
+                                "consecutive_failures": self._consecutive_ws_failures,
+                                "threshold": self.WS_CIRCUIT_BREAKER_THRESHOLD,
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                            })
+                        except Exception:
+                            pass  # Don't let alert publishing prevent fallback
                     continue
 
                 await asyncio.sleep(self._reconnect_delay)

@@ -126,6 +126,7 @@ class MessageBus:
         "alert.agent_failure",
         "alert.data_starvation",
         "alert.council_degraded",
+        "alert.websocket_circuit_open",
         # ── D5: Pre-market / after-hours scanning ──
         "perception.premarket_gaps",
         "perception.afterhours_earnings",

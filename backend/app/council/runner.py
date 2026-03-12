@@ -520,9 +520,22 @@ async def run_council(
                 proposed_confidence = v.confidence
                 break
 
-        if getattr(app_settings, "DEBATE_ENABLED", True) and proposed_direction != "hold":
+        if getattr(app_settings, "DEBATE_ENABLED", True):
             from app.council.debate.debate_engine import DebateEngine
             from app.council.agents.red_team_agent import stress_test
+
+            # C3 fix: Run debate on ALL verdicts including HOLD to strengthen
+            # HOLD conviction. For HOLD, we debate whether to BUY or SELL instead.
+            debate_direction = proposed_direction
+            debate_confidence = proposed_confidence
+            if proposed_direction == "hold":
+                # Determine which direction had the most support for the debate
+                buy_weight = sum(v.confidence * v.weight for v in all_votes if v.direction == "buy")
+                sell_weight = sum(v.confidence * v.weight for v in all_votes if v.direction == "sell")
+                debate_direction = "buy" if buy_weight >= sell_weight else "sell"
+                debate_confidence = max(buy_weight, sell_weight) / max(1, len(all_votes))
+                logger.info("HOLD debate for %s: debating strongest minority direction=%s",
+                            symbol, debate_direction)
 
             debate_engine = DebateEngine(
                 max_rounds=getattr(app_settings, "DEBATE_MAX_ROUNDS", 3)
@@ -532,13 +545,13 @@ async def run_council(
             debate_coro = debate_engine.run_debate(
                 blackboard=blackboard,
                 symbol=symbol,
-                proposed_direction=proposed_direction,
+                proposed_direction=debate_direction,
                 context=context,
             )
             red_team_coro = stress_test(
                 blackboard=blackboard,
-                proposed_direction=proposed_direction,
-                proposed_confidence=proposed_confidence,
+                proposed_direction=debate_direction,
+                proposed_confidence=debate_confidence,
                 context=context,
             )
 
