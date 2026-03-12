@@ -215,12 +215,29 @@ async def get_earnings_transcript(symbol: str) -> Optional[Dict[str, Any]]:
         if len(clean) < 200:
             return None
 
-        return {
+        transcript = {
             "symbol": symbol.upper(),
             "source": "benzinga",
             "text": clean[:50000],  # Cap at 50k chars
             "date": datetime.now(timezone.utc).isoformat(),
         }
+
+        # C8: Publish earnings transcript to MessageBus
+        try:
+            from app.core.message_bus import get_message_bus
+            bus = get_message_bus()
+            if bus._running:
+                import asyncio
+                asyncio.get_event_loop().create_task(bus.publish("perception.earnings", {
+                    "type": "earnings_transcript",
+                    "symbol": symbol.upper(),
+                    "source": "benzinga_service",
+                    "timestamp": time.time(),
+                }))
+        except Exception:
+            pass
+
+        return transcript
     except Exception as e:
         logger.debug("Benzinga transcript fetch failed for %s: %s", symbol, e)
         return None

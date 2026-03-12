@@ -579,6 +579,60 @@ class DuckDBStorage:
             )
         """)
 
+        # ── Phase C Tables ─────────────────────────────────────────────
+
+        # C2: Agent calibration (Brier scores)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS agent_calibration (
+                agent_name VARCHAR PRIMARY KEY,
+                brier_score DOUBLE DEFAULT 0.25,
+                window_start TIMESTAMP,
+                window_end TIMESTAMP,
+                n_trades INTEGER DEFAULT 0,
+                weight_penalty DOUBLE DEFAULT 0.0,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # C3: Debate history
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS debate_history (
+                id INTEGER PRIMARY KEY,
+                debate_id VARCHAR,
+                signal_id VARCHAR,
+                symbol VARCHAR,
+                agent_name VARCHAR,
+                vote VARCHAR,
+                confidence DOUBLE,
+                reasoning_summary VARCHAR,
+                winner VARCHAR,
+                quality_score DOUBLE,
+                action_modifier VARCHAR,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # C4: Council decision audit trail
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS council_decisions (
+                decision_id VARCHAR PRIMARY KEY,
+                signal_id VARCHAR,
+                symbol VARCHAR,
+                regime VARCHAR,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                agent_votes VARCHAR,
+                final_verdict VARCHAR,
+                final_confidence DOUBLE,
+                arbiter_weighted_score DOUBLE,
+                gate_threshold_used DOUBLE,
+                was_gated BOOLEAN DEFAULT FALSE,
+                was_executed BOOLEAN DEFAULT FALSE,
+                execution_result VARCHAR DEFAULT '',
+                degraded BOOLEAN DEFAULT FALSE,
+                homeostasis_mode VARCHAR DEFAULT 'NORMAL'
+            )
+        """)
+
         # Indexes for new tables
         conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_calls_agent ON llm_calls (agent_name, ts)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_calls_decision ON llm_calls (council_decision_id)")
@@ -588,6 +642,10 @@ class DuckDBStorage:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_trade ON agent_memories (trade_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_heuristics_agent ON heuristics (agent_name, regime)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_knowledge_edges_src ON knowledge_edges (source_heuristic_id)")
+        # Phase C indexes
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_council_decisions_symbol ON council_decisions (symbol)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_council_decisions_ts ON council_decisions (timestamp)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_debate_history_symbol ON debate_history (symbol)")
 
         logger.info("DuckDB analytics schema initialized at %s", self._db_path)
 

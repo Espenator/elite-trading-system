@@ -180,13 +180,20 @@ The codebase had five separate agent/decision systems. As of v3.2.0, Systems 2 a
 - [ ] Partial fill re-execution
 - [ ] Fix viability gate and portfolio heat check
 
-### Phase C: Sharpen the Brain (P1 — intelligence quality)
-- [ ] Fix weight learner (lower confidence floor, regime-stratified, symmetric loss)
-- [ ] Confidence calibration (Brier score)
-- [ ] Wire debate to learning, council audit trail
-- [ ] Fix trade stats R-multiple, wire homeostasis to sizing
-- [ ] Regime-adaptive thresholds everywhere
-- [ ] Publish all data sources to MessageBus
+### Phase C: Sharpen the Brain — COMPLETE (March 12, 2026)
+- [x] Fix weight learner (confidence floor 0.20, regime-stratified Beta(α,β), symmetric loss, trade_id matching)
+- [x] Confidence calibration (Brier score tracking per agent, 20% penalty for poorly calibrated)
+- [x] Wire debate to learning, council decision audit trail (DuckDB tables + API endpoints)
+- [x] Fix trade stats R-multiple (actual stop_price, r_multiple_estimated flag)
+- [x] Wire homeostasis to position sizing (AGGRESSIVE/NORMAL/DEFENSIVE/HALTED multipliers)
+- [x] Regime-adaptive thresholds centralized in config/regime_thresholds.py
+- [x] Publish all 5 data sources to MessageBus (FRED, SEC EDGAR, SqueezeMetrics, Benzinga, Capitol Trades)
+- [x] Silent failure alerting (alert.agent_failure, alert.data_starvation, alert.council_degraded)
+- [x] Activate SelfAwareness Bayesian tracking (Issue #48)
+- [x] IntelligenceCache.start() at startup (Issue #49)
+- [x] 12 Academic Edge agents in runner.py DAG (Issue #50)
+- [x] brain_service gRPC wired to hypothesis_agent (Issue #51)
+- [x] Explicit weights for 6 supplemental agents (Issue #52)
 
 ### Phase D: Continuous Intelligence (P1)
 - [ ] Autonomous daily data backfill

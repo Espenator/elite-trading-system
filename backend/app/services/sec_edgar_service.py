@@ -2,6 +2,7 @@
 
 import logging
 import os
+import time
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -133,6 +134,20 @@ class SecEdgarService:
 
         except Exception as e:
             logger.warning("get_recent_insider_transactions error: %s", e)
+
+        # C8: Publish insider transactions to MessageBus
+        try:
+            from app.core.message_bus import get_message_bus
+            bus = get_message_bus()
+            if bus._running:
+                await bus.publish("perception.insider", {
+                    "type": "insider_transactions",
+                    "transactions": transactions[:limit],
+                    "source": "sec_edgar_service",
+                    "timestamp": time.time(),
+                })
+        except Exception:
+            pass
 
         return transactions[:limit]
 

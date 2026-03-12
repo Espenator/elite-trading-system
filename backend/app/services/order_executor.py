@@ -452,6 +452,32 @@ class OrderExecutor:
             )
             return
 
+        # -- Gate 6b: Homeostasis position scaling (Phase C, C6) --
+        # Multiply Kelly qty by homeostasis mode multiplier:
+        # AGGRESSIVE=1.5x, NORMAL=1.0x, DEFENSIVE=0.5x, HALTED=0x
+        try:
+            from app.council.homeostasis import get_homeostasis
+            homeo = get_homeostasis()
+            homeo_scale = homeo.get_position_scale()
+            homeo_mode = homeo.get_mode()
+            if homeo_scale <= 0:
+                self._reject(
+                    symbol, score,
+                    f"Homeostasis HALTED mode — no new positions (mode={homeo_mode})",
+                    ExecutionDenyReason.REGIME_BLOCKED,
+                )
+                return
+            if homeo_scale != 1.0:
+                original_qty = kelly_result["qty"]
+                kelly_result["qty"] = max(1, int(kelly_result["qty"] * homeo_scale))
+                kelly_result["kelly_pct"] = kelly_result["kelly_pct"] * homeo_scale
+                logger.info(
+                    "Homeostasis %s: scaled %s qty %d -> %d (%.1fx)",
+                    homeo_mode, symbol, original_qty, kelly_result["qty"], homeo_scale,
+                )
+        except Exception as e:
+            logger.debug("Homeostasis check unavailable: %s", e)
+
         # -- Gate 7: Portfolio heat --
         heat_ok, heat_info = await self._check_portfolio_heat(kelly_result["kelly_pct"])
         if not heat_ok:

@@ -158,6 +158,22 @@ async def get_dix_gex() -> Optional[Dict[str, Any]]:
             _CACHE["data"] = result
             _CACHE["ts"] = now
             logger.info("SqueezeMetrics DIX=%.4f GEX=%s", result.get("dix", 0), result.get("gex"))
+
+            # C8: Publish DIX/GEX to MessageBus
+            try:
+                from app.core.message_bus import get_message_bus
+                bus = get_message_bus()
+                if bus._running:
+                    import asyncio
+                    asyncio.get_event_loop().create_task(bus.publish("perception.squeezemetrics", {
+                        "type": "dix_gex",
+                        "data": result,
+                        "source": "squeezemetrics_service",
+                        "timestamp": time.time(),
+                    }))
+            except Exception:
+                pass
+
             return result
 
         logger.warning("SqueezeMetrics: could not parse DIX/GEX from page")
