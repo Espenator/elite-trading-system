@@ -116,6 +116,16 @@ class MessageBus:
         "position.partial_exit",
         "position.closed",
         "symbol.prep.ready",
+        # ── C8: Data source → MessageBus wiring ──
+        "macro.fred",
+        "perception.insider",
+        "perception.squeezemetrics",
+        "perception.earnings",
+        "perception.congressional",
+        # ── C9: Silent failure alerting ──
+        "alert.agent_failure",
+        "alert.data_starvation",
+        "alert.council_degraded",
         # ── PLANNED (reserved for Phase B-E features) ──
         "model.updated",
         "risk.alert",

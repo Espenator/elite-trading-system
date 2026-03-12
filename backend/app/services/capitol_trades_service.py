@@ -43,12 +43,40 @@ async def get_trades_by_ticker(symbol: str) -> List[Dict[str, Any]]:
     trades = await _fetch_from_unusual_whales(symbol)
     if trades:
         _CACHE[cache_key] = {"data": trades, "ts": now}
+        # C8: Publish congressional trades to MessageBus
+        try:
+            from app.core.message_bus import get_message_bus
+            bus = get_message_bus()
+            if bus._running:
+                await bus.publish("perception.congressional", {
+                    "type": "congressional_trades",
+                    "symbol": symbol,
+                    "trades": trades,
+                    "source": "capitol_trades_service",
+                    "timestamp": time.time(),
+                })
+        except Exception:
+            pass
         return trades
 
     # Fallback: scrape capitoltrades.com
     trades = await _scrape_capitol_trades(symbol)
     if trades:
         _CACHE[cache_key] = {"data": trades, "ts": now}
+        # C8: Publish congressional trades to MessageBus (scrape fallback)
+        try:
+            from app.core.message_bus import get_message_bus
+            bus = get_message_bus()
+            if bus._running:
+                await bus.publish("perception.congressional", {
+                    "type": "congressional_trades",
+                    "symbol": symbol,
+                    "trades": trades,
+                    "source": "capitol_trades_service",
+                    "timestamp": time.time(),
+                })
+        except Exception:
+            pass
     return trades
 
 

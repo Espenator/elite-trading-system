@@ -217,6 +217,7 @@ class TaskSpawner:
         except asyncio.TimeoutError:
             elapsed = (time.monotonic() - start) * 1000
             logger.warning("Agent %s timed out after %.0fms (limit=%.0fs)", name, elapsed, timeout)
+            self._publish_agent_failure(name, "TimeoutError", f"Timeout after {elapsed:.0f}ms")
             return AgentVote(
                 agent_name=name,
                 direction="hold",
@@ -227,6 +228,7 @@ class TaskSpawner:
         except Exception as e:
             elapsed = (time.monotonic() - start) * 1000
             logger.exception("Agent %s failed after %.0fms: %s", name, elapsed, e)
+            self._publish_agent_failure(name, type(e).__name__, str(e))
             return AgentVote(
                 agent_name=name,
                 direction="hold",
@@ -258,6 +260,21 @@ class TaskSpawner:
                 logger.warning("Background agent failed: %s", r)
         self._background.clear()
         return votes
+
+    def _publish_agent_failure(self, agent_name: str, exc_type: str, exc_msg: str) -> None:
+        """Phase C (C9): Publish silent failure alert when agent falls back to HOLD."""
+        try:
+            from app.core.message_bus import get_message_bus
+            bus = get_message_bus()
+            asyncio.create_task(bus.publish("alert.agent_failure", {
+                "agent_name": agent_name,
+                "exception_type": exc_type,
+                "exception_message": exc_msg[:500],
+                "decision_id": self.blackboard.council_decision_id,
+                "symbol": self.blackboard.symbol,
+            }))
+        except Exception:
+            pass  # Best-effort alerting
 
     @property
     def registered_agents(self) -> List[str]:
