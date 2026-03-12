@@ -1,6 +1,6 @@
 # CLAUDE.md — Embodier Trader Backend
 # Python 3.11 + FastAPI + uvicorn + DuckDB + pydantic-settings
-# Last updated: March 12, 2026 — v4.1.0-dev
+# Last updated: March 12, 2026 — v5.0.0
 
 ## Stack
 
@@ -183,7 +183,7 @@ AlpacaStreamService → market_data.bar (MessageBus)
 
 ```bash
 cd backend
-python -m pytest --tb=short -q          # All 921 tests
+python -m pytest --tb=short -q          # 1,182+ tests
 python -m pytest tests/test_api.py -v   # Specific file
 python -m pytest -k "test_signals"      # By name pattern
 ```
@@ -221,4 +221,4 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
 5. **AgentVote schema required** — all agents must return it
 6. **No yfinance** — use Alpaca/FinViz/UW
 7. **No mock data** — all endpoints return real data
-8. **Run tests before/after changes** — maintain 921 GREEN
+8. **Run tests before/after changes** — maintain 1,182+ GREEN

@@ -1,15 +1,16 @@
 // AGENT COMMAND CENTER — Embodier.ai
 // Mockups: 01-agent-command-center-final.png, 05-agent-command-center.png,
 //          05b-agent-command-center-spawn.png, 05c-agent-registry.png
-// Header bar + 8 tabs, each in its own component file
-import React, { useState, useMemo } from "react";
+// Header bar + 5 tabs (SwarmOverview, AgentRegistry, LiveWiring, SpawnScale, Remaining)
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Activity, Cpu, Shield, Zap, AlertTriangle, Power,
 } from "lucide-react";
 import { useApi } from "../hooks/useApi";
 import { toast } from "react-toastify";
-import { getApiUrl, getAuthHeaders } from "../config/api";
+import { getApiUrl, getAuthHeaders, WS_CHANNELS } from "../config/api";
+import ws from "../services/websocket";
 
 // Tab components (split for manageable file sizes)
 import SwarmOverviewTab from "./agent-tabs/SwarmOverviewTab";
@@ -21,13 +22,45 @@ import { BlackboardCommsTab, ConferenceConsensusTab, MlOpsTab, LogsTelemetryTab 
 const TABS = [
   { key: "overview", label: "Swarm Overview" },
   { key: "registry", label: "Agent Registry" },
-  { key: "spawn", label: "Spawn & Scale" },
   { key: "wiring", label: "Live Wiring Map" },
+  { key: "spawn", label: "Spawn & Scale" },
+  { key: "remaining", label: "More" },
+];
+
+// Remaining tab: sub-tabs for Blackboard, Conference, MLOps, Logs
+const REMAINING_SUBTABS = [
   { key: "blackboard", label: "Blackboard & Comms" },
   { key: "conference", label: "Conference & Consensus" },
   { key: "mlops", label: "ML Ops" },
   { key: "logs", label: "Logs & Telemetry" },
 ];
+
+function RemainingTabContent() {
+  const [subTab, setSubTab] = useState("blackboard");
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 border-b border-[#1e293b] pb-2">
+        {REMAINING_SUBTABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setSubTab(t.key)}
+            className={`px-3 py-1.5 text-[11px] font-medium rounded-t transition-all ${
+              subTab === t.key
+                ? "text-[#06b6d4] bg-[#164e63]/20 border border-b-0 border-[#1e293b] -mb-[2px]"
+                : "text-[#64748b] hover:text-[#94a3b8]"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {subTab === "blackboard" && <BlackboardCommsTab />}
+      {subTab === "conference" && <ConferenceConsensusTab />}
+      {subTab === "mlops" && <MlOpsTab />}
+      {subTab === "logs" && <LogsTelemetryTab />}
+    </div>
+  );
+}
 
 // Progress bar component for system metrics
 function MetricBar({ value, max = 100, color = "#00D9FF" }) {
@@ -47,10 +80,12 @@ function MetricBar({ value, max = 100, color = "#00D9FF" }) {
 
 export default function AgentCommandCenter() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get("tab") || "overview";
+  const tabParam = searchParams.get("tab") || "overview";
+  const activeTab = TABS.some((t) => t.key === tabParam) ? tabParam : "overview";
+  const [wsState, setWsState] = useState(ws.getState());
 
   // Data hooks (real API — no mock data)
-  const { data: agentsRaw } = useApi("agents", { pollIntervalMs: 15000 });
+  const { data: agentsRaw, loading: agentsLoading } = useApi("agents", { pollIntervalMs: 15000 });
   const { data: systemStatus } = useApi("system/health");
   const { data: teamsRaw } = useApi("teams", { pollIntervalMs: 20000 });
   const { data: alertsRaw } = useApi("systemAlerts", { pollIntervalMs: 20000 });
@@ -58,7 +93,14 @@ export default function AgentCommandCenter() {
   const { data: driftRaw } = useApi("drift", { pollIntervalMs: 30000 });
   const { data: blackboardRaw } = useApi("cnsBlackboard", { pollIntervalMs: 15000 });
   const { data: cnsAgentsHealthRaw } = useApi("cnsAgentsHealth", { pollIntervalMs: 15000 });
-  const agents = useMemo(() => (Array.isArray(agentsRaw) ? agentsRaw : []), [agentsRaw]);
+
+  // Backend GET /agents returns { agents: [...], logs: [...] }
+  const agents = useMemo(() => {
+    if (Array.isArray(agentsRaw)) return agentsRaw;
+    if (agentsRaw?.agents && Array.isArray(agentsRaw.agents)) return agentsRaw.agents;
+    return [];
+  }, [agentsRaw]);
+
   const teams = useMemo(() => (Array.isArray(teamsRaw) ? teamsRaw : teamsRaw?.teams ?? []), [teamsRaw]);
   const alerts = useMemo(() => (Array.isArray(alertsRaw) ? alertsRaw : alertsRaw?.alerts ?? []), [alertsRaw]);
   const conferenceData = useMemo(() => conferenceRaw?.current ?? conferenceRaw?.conference ?? conferenceRaw ?? null, [conferenceRaw]);
@@ -84,23 +126,42 @@ export default function AgentCommandCenter() {
     return agents;
   }, [cnsAgentsHealthRaw, agents]);
 
-  // Derived metrics
-  const onlineCount = agents.filter(a => a.status === "running").length;
-  const totalCount = agents.length || 42;
+  // Real agent counts from /agents (no mock)
+  const totalCount = agents.length;
+  const activeCount = useMemo(() => agents.filter(a => (a.status || "").toLowerCase() === "running").length, [agents]);
+  const erroredCount = useMemo(() => agents.filter(a => (a.status || "").toLowerCase() === "error" || (a.health || "").toLowerCase() === "error").length, [agents]);
   const cpuAvg = agents.length > 0
-    ? Math.round(agents.reduce((s, a) => s + (a.cpu_usage || 0), 0) / agents.length)
-    : 47;
-  const ramPct = systemStatus?.memory_percent || 31;
-  const gpuPct = systemStatus?.gpu_percent || 61;
-  const uptime = systemStatus?.uptime || "47d 12h 33m";
+    ? Math.round(agents.reduce((s, a) => s + (a.cpu_usage ?? a.cpu ?? a.cpuPercent ?? 0), 0) / agents.length)
+    : 0;
+  const ramPct = systemStatus?.memory_percent ?? 0;
+  const gpuPct = systemStatus?.gpu_percent ?? 0;
+  const uptime = systemStatus?.uptime ?? "—";
 
-  const setTab = (key) => setSearchParams({ tab: key });
+  const setTab = useCallback((key) => setSearchParams((prev) => {
+    const next = new URLSearchParams(prev);
+    next.set("tab", key);
+    return next;
+  }), [setSearchParams]);
+
+  // WebSocket: connect on mount, subscribe to agents + swarm for live events, track connection state
+  useEffect(() => {
+    ws.connect();
+    setWsState(ws.getState());
+    const onState = () => setWsState(ws.getState());
+    const unsubStar = ws.on("*", onState);
+    const unsubAgents = ws.on(WS_CHANNELS.agents, () => {});
+    const unsubSwarm = ws.on(WS_CHANNELS.swarm, () => {});
+    return () => {
+      unsubStar?.();
+      unsubAgents?.();
+      unsubSwarm?.();
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#0B0E14] text-white flex flex-col">
-      {/* ========== HEADER BAR (mockup 01: AGENT COMMAND CENTER, GREEN, Uptime, 42/42 ONLINE, CPU/RAM/GPU, KILL SWITCH, ELITE TRADING SYSTEM) ========== */}
+      {/* ========== HEADER BAR ========== */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#1e293b] bg-[#111827] shrink-0">
-        {/* Left: Title + Status */}
         <div className="flex items-center gap-3">
           <Activity className="w-5 h-5 text-[#06b6d4]" />
           <h1 className="text-sm font-bold tracking-widest text-[#f8fafc] font-mono">AGENT COMMAND CENTER</h1>
@@ -109,16 +170,24 @@ export default function AgentCommandCenter() {
           </span>
         </div>
 
-        {/* Center: System Metrics */}
         <div className="flex items-center gap-5 text-[10px] font-mono">
           <div className="flex items-center gap-1.5">
             <span className="text-[#64748b]">Uptime:</span>
             <span className="text-[#f8fafc] font-bold">{uptime}</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="text-[#f8fafc] font-bold">{onlineCount}/{totalCount}</span>
-            <span className="text-[#10b981] font-bold">ONLINE</span>
-            <div className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse" />
+            {agentsLoading ? (
+              <span className="text-[#64748b]">Loading…</span>
+            ) : (
+              <>
+                <span className="text-[#f8fafc] font-bold">{activeCount}/{totalCount}</span>
+                <span className={erroredCount > 0 ? "text-[#f87171] font-bold" : "text-[#10b981] font-bold"}>
+                  {erroredCount > 0 ? "ERRORS" : "ONLINE"}
+                </span>
+                {erroredCount > 0 && <span className="text-[#f87171] text-[10px]">({erroredCount})</span>}
+                <div className={`w-1.5 h-1.5 rounded-full ${erroredCount > 0 ? "bg-[#f87171]" : "bg-[#10b981]"} animate-pulse`} />
+              </>
+            )}
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-[#64748b]">CPU:</span>
@@ -137,7 +206,6 @@ export default function AgentCommandCenter() {
           </div>
         </div>
 
-        {/* Right: Kill Switch + Branding */}
         <div className="flex items-center gap-4">
           <button
             className="px-4 py-1.5 text-[11px] font-bold bg-[#7f1d1d] text-[#f87171] border border-[#ef4444]/50 rounded-full hover:bg-[#991b1b] hover:shadow-[0_0_12px_rgba(239,68,68,0.3)] transition-all flex items-center gap-1.5 tracking-wider"
@@ -162,7 +230,7 @@ export default function AgentCommandCenter() {
         </div>
       </div>
 
-      {/* ========== TAB BAR (mockup: Swarm Overview active with underline) ========== */}
+      {/* ========== TAB BAR ========== */}
       <div className="flex items-center px-4 border-b border-[#1e293b] bg-[#111827]/60 shrink-0">
         {TABS.map(t => (
           <button
@@ -184,7 +252,12 @@ export default function AgentCommandCenter() {
 
       {/* ========== TAB CONTENT ========== */}
       <div className="flex-1 p-3 overflow-y-auto">
-        {activeTab === "overview" && (
+        {(activeTab === "overview" || activeTab === "registry") && agentsLoading && (
+          <div className="flex items-center justify-center py-8 text-[#64748b] text-sm font-mono">
+            Loading agents…
+          </div>
+        )}
+        {activeTab === "overview" && !agentsLoading && (
           <SwarmOverviewTab
             agents={agentsForHealth}
             teams={teams}
@@ -194,42 +267,40 @@ export default function AgentCommandCenter() {
             driftData={driftData}
           />
         )}
-        {activeTab === "registry" && <AgentRegistryTab agents={agents} />}
-        {activeTab === "spawn" && <SpawnScaleTab />}
-        {activeTab === "wiring" && <LiveWiringTab />}
-        {activeTab === "blackboard" && <BlackboardCommsTab />}
-        {activeTab === "conference" && <ConferenceConsensusTab />}
-        {activeTab === "mlops" && <MlOpsTab />}
-        {activeTab === "logs" && <LogsTelemetryTab />}
+        {activeTab === "registry" && !agentsLoading && <AgentRegistryTab agents={agents} />}
+        {activeTab === "wiring" && <LiveWiringTab agents={agents} wsConnected={wsState === "connected"} />}
+        {activeTab === "spawn" && <SpawnScaleTab agents={agents} />}
+        {activeTab === "remaining" && <RemainingTabContent />}
       </div>
 
-      {/* ========== FOOTER BAR (mockup: WebSocket Connected • API Healthy • 42 agents • LLM Flow 847 • Conference 8/12 • Last Refresh • Load • Uptime) ========== */}
+      {/* ========== FOOTER BAR: real WS state, agent count, uptime ========== */}
       <div className="flex items-center justify-between px-4 py-1.5 border-t border-[#1e293b] bg-[#111827] text-[10px] font-mono shrink-0">
         <div className="flex items-center gap-3 text-[#64748b]">
           <span className="flex items-center gap-1">
-            WebSocket <span className="text-[#10b981] ml-0.5">Connected</span>
-            <div className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse ml-0.5" />
-          </span>
-          <span className="text-[#374151]">|</span>
-          <span>API <span className="text-[#10b981]">Healthy</span>
-            <div className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse inline-block ml-0.5" />
+            WebSocket{" "}
+            {wsState === "connected" ? (
+              <>
+                <span className="text-[#10b981] ml-0.5">Connected</span>
+                <div className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse ml-0.5" />
+              </>
+            ) : wsState === "connecting" || wsState === "reconnecting" ? (
+              <span className="text-amber-400 ml-0.5">{wsState === "reconnecting" ? "Reconnecting…" : "Connecting…"}</span>
+            ) : (
+              <span className="text-[#64748b] ml-0.5">Disconnected</span>
+            )}
           </span>
           <span className="text-[#374151]">|</span>
           <span><span className="text-[#f8fafc]">{totalCount}</span> agents</span>
-          <span className="text-[#374151]">|</span>
-          <span>LLM Flow <span className="text-[#f8fafc]">847</span></span>
-          <span className="text-[#374151]">|</span>
-          <span>Conference <span className="text-[#f8fafc]">8/12</span></span>
-          <span className="text-[#374151]">|</span>
-          <span>Last Refresh <span className="text-[#06b6d4]">{new Date().toLocaleTimeString("en-US", { hour12: false })}</span></span>
-          <span className="text-[#374151]">|</span>
-          <span>Load <span className="text-[#f8fafc]">2.4/4.0</span></span>
+          {erroredCount > 0 && (
+            <>
+              <span className="text-[#374151]">|</span>
+              <span className="text-[#f87171]">{erroredCount} error{erroredCount !== 1 ? "s" : ""}</span>
+            </>
+          )}
           <span className="text-[#374151]">|</span>
           <span>Uptime <span className="text-[#f8fafc]">{uptime}</span></span>
         </div>
-        <div className="text-[#64748b]">
-          Embodier.ai v2.0
-        </div>
+        <div className="text-[#64748b]">Embodier.ai v2.0</div>
       </div>
     </div>
   );

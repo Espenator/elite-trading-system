@@ -31,7 +31,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      # Backend: 898 tests (as of March 2026). Fail if pytest exits non-zero.
+      # Backend: 1,182+ tests (as of March 2026). Fail if pytest exits non-zero.
       - name: Run pytest
         run: pytest tests/ -v --cov=app --cov-report=term-missing
         env:
@@ -83,7 +83,10 @@ jobs:
       - name: Build
         run: npm run build
 
-  e2e-gate:
+  # Frontend smoke: app boot + 14 pages render without crash (no backend required).
+  # Full pipeline E2E (bar→signal→council→order) would require backend + optional paper run.
+  frontend-smoke:
+    name: Frontend smoke
     needs: [frontend-build, backend-test]
     runs-on: ubuntu-latest
     steps:
@@ -96,14 +99,15 @@ jobs:
 
       - name: Install deps
         working-directory: ./frontend-v2
-        run: npm install
+        run: npm ci
 
       - name: Install Playwright browsers
         working-directory: ./frontend-v2
         run: npx playwright install --with-deps chromium
 
-      - name: Run E2E tests
+      - name: Run frontend smoke tests
         working-directory: ./frontend-v2
         run: npx playwright test --reporter=github
         env:
           CI: true
+          HAS_BACKEND: "false"

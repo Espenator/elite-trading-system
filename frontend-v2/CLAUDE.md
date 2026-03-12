@@ -1,6 +1,6 @@
 # CLAUDE.md — Embodier Trader Frontend
 # React 18 + Vite + TailwindCSS
-# Last updated: March 12, 2026 — v4.1.0-dev
+# Last updated: March 12, 2026 — v5.0.0
 
 ## Stack
 

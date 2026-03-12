@@ -451,23 +451,43 @@ async def _start_event_driven_pipeline():
         log.info("\u2705 Signal->Verdict fallback subscriber registered (CouncilGate bypass)")
 
     # 3.5 Paper/Live safety gate (US8 fix)
-    # Validate Alpaca account type matches TRADING_MODE before enabling auto-execute
+    # Validate Alpaca account type matches TRADING_MODE before enabling auto-execute.
+    # When TRADING_MODE=live and validation fails, refuse to start (fail-closed).
     auto_execute = os.getenv("AUTO_EXECUTE_TRADES", "false").lower() == "true"
-    if auto_execute:
+    _trading_mode = (getattr(settings, "TRADING_MODE", "paper") or "paper").strip().lower()
+    _alpaca_configured = bool(
+        (getattr(settings, "ALPACA_API_KEY", "") or os.getenv("ALPACA_API_KEY", "") or "").strip()
+    )
+    if _alpaca_configured:
         try:
             from app.services.alpaca_service import alpaca_service
             safety = await alpaca_service.validate_account_safety()
             if not safety.get("valid"):
+                if _trading_mode == "live":
+                    msg = (
+                        "SAFETY: Refusing to start — TRADING_MODE=live but account validation failed. "
+                        "Fix URL/mode mismatch or set TRADING_MODE=paper. Warnings: %s"
+                    ) % (safety.get("warnings", []),)
+                    log.critical(msg)
+                    raise RuntimeError(msg)
                 log.critical(
                     "SAFETY: Account validation FAILED — forcing SHADOW mode. Warnings: %s",
                     safety.get("warnings", []),
                 )
-                auto_execute = False  # Force shadow mode on safety failure
+                auto_execute = False
             else:
                 for w in safety.get("warnings", []):
                     log.warning("Account safety warning: %s", w)
+                if auto_execute and _trading_mode == "live":
+                    log.info("Account safety check OK (live mode, auto-execute enabled)")
+        except RuntimeError:
+            raise
         except Exception as e:
-            log.warning("Account safety check failed (non-fatal): %s", e)
+            if _trading_mode == "live" and auto_execute:
+                log.warning("Account safety check failed (non-fatal): %s — forcing SHADOW", e)
+                auto_execute = False
+            else:
+                log.warning("Account safety check failed (non-fatal): %s", e)
 
     # 4. OrderExecutor (subscribes to council.verdict)
     from app.services.order_executor import OrderExecutor

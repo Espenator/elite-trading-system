@@ -1,6 +1,6 @@
 # Project State - Embodier Trader (Embodier.ai)
 > Paste this file at the start of every new AI chat session. Say: "Read this project state document. Acknowledge you understand the architecture, and then I will give you your first task."
-> Last updated: March 12, 2026 (v5.0.0 — ALL Phases A+B+C+D+E complete. 1,044 tests passing. CI GREEN.)
+> Last updated: March 12, 2026 (v5.0.0 — ALL Phases A+B+C+D+E complete. 1,182+ tests passing. CI GREEN.)
 
 ## Identity
 - **Project**: Embodier Trader by Embodier.ai
@@ -10,7 +10,7 @@
 - **Owner**: Espenator (Asheville, NC)
 - **Status**: v5.0.0 — ALL Phases A+B+C+D+E complete. Production-ready (~95%).
 - **Philosophy**: Embodied Intelligence — the system IS profit, not seeking it. It operates as a conscious profit-seeking being with a Central Nervous System (CNS) architecture.
-- **Current Focus**: Council runs 35-agent DAG; 43 API route files (364+ endpoints); 72+ services; 1,044 tests; Bearer auth fail-closed; WebSocket active (25 channels); desktop BUILD-READY; E2E pipeline tested; Slack notifications wired to all trading events. 1,459+ commits. CI GREEN (3 jobs: backend-test + frontend-build + e2e-gate).BUILD-READY; E2E pipeline tested; Slack notifications wired to all trading events.
+- **Current Focus**: Council runs 35-agent DAG; 43 API route files (364+ endpoints); 72+ services; 1,182+ tests; Bearer auth fail-closed; WebSocket active (25 channels); desktop BUILD-READY; E2E pipeline tested; Slack notifications wired to all trading events. 1,459+ commits. CI GREEN (3 jobs: backend-test + frontend-build + frontend-smoke).BUILD-READY; E2E pipeline tested; Slack notifications wired to all trading events.
 - **Latest Session Fixes**: Slack notification bridges wired (council.verdict, order.submitted, order.filled, signal.generated, alert.* → Slack channels). Fixed 3 broken Slack imports. Fixed device-config.js .env regeneration bug (hardcoded API key defaults). Fixed weight learner test_symmetric_penalty. All phases (A+B+C+D+E) complete.
 
 ## Two-PC Development Setup
@@ -86,7 +86,7 @@ Slack tokens expire every 12h — refresh at https://api.slack.com/apps. Config 
 ### Current Architecture Snapshot
 - **Council**: 35-agent DAG in 7 stages. All agents are real implementations (not stubs). CouncilGate invokes full council on every signal (score >= 65).
 - **Backend**: 43 API route files in api/v1/ (364+ endpoints); 72+ services (incl. subdirs: scouts, llm_clients, channel_agents, firehose_agents, integrations). brain_service wired (hypothesis_agent → gRPC).
-- **Tests**: 1,044 passing (backend pytest). CI GREEN.
+- **Tests**: 1,182+ passing (backend pytest). CI GREEN.
 - **Auth**: Bearer token auth, fail-closed for live trading.
 - **WebSocket**: Active; 25 channels with token auth, heartbeat (30s/60s). 5 pages wired.
 - **Desktop**: Electron app in `desktop/` — BUILD-READY.
@@ -103,7 +103,7 @@ A line-by-line audit of the entire codebase found 40 specific issues in 4 catego
 - **10 Unenforced Safeguards**: 9 of 10 circuit breakers advisory-only, regime params ignored, no paper/live safety check
 - **10 Intelligence Gaps**: no regime-adaptive thresholds, no confidence calibration, debate not wired to learning
 
-**What IS working well**: All 33+ agents real, Bayesian weights correct, VETO enforced, sub-1s latency, Kelly math sound, 3-tier LLM router, 1,044 tests GREEN.
+**What IS working well**: All 33+ agents real, Bayesian weights correct, VETO enforced, sub-1s latency, Kelly math sound, 3-tier LLM router, 1,182+ tests GREEN.
 
 **See `PLAN.md` for the complete 5-phase enhancement plan (Phases A-E, 13-18 sessions).**
 
@@ -226,7 +226,7 @@ The codebase had five separate agent/decision systems. As of v3.2.0, Systems 2 a
 | Council | 35-agent DAG with Bayesian-weighted arbiter (7 stages) |
 | Brain Service | gRPC + Ollama (PC2) for LLM inference |
 | Event Pipeline | MessageBus → CouncilGate → Council → OrderExecutor |
-| CI/CD | GitHub Actions (666 tests passing, backend pytest) |
+| CI/CD | GitHub Actions (1,182+ tests passing, backend pytest) |
 | Infra | Docker, docker-compose.yml, Redis (where used) |
 | Local AI | Ollama on RTX GPU cluster; 3-tier router (Ollama → Perplexity → Claude) |
 | Auth | Bearer token, fail-closed for live trading |
@@ -316,7 +316,7 @@ AlpacaStreamService
 7. Weight Learning: WeightLearner.update(agent, won) adjusts Bayesian alpha/beta -> arbiter uses learned weights
 
 ## Current State (March 12, 2026 — v5.0.0, All Phases A-E Complete)
-- CI: 1,044 tests passing (backend pytest), GREEN
+- CI: 1,182+ tests passing (backend pytest), GREEN
 - Version: v5.0.0. All phases (A-E) complete. Deep audit + CLAUDE.md audit complete.
 - Production Readiness: ~95%. Critical enforcement gaps closed, scout crashes fixed, safety gates active.
 - Frontend: 14 pages, all pixel-matched to mockups, wired to real API hooks, 28 action buttons verified

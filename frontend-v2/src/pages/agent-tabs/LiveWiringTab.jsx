@@ -1,12 +1,12 @@
 // LiveWiringTab — matches mockup 05-agent-command-center.png
 // Layout: 5-column architecture diagram showing data flow
-// External Sources → Agent → Processing Engines → Storage/Databases → Frontend/Interfaces
-// Right sidebar: Connection Health Matrix, Traffic Node Discovery, WebSocket Channels, API Route Status
-import React from "react";
+// Fetches agentWsChannels, swarmTopology. Accepts agents, wsConnected from parent.
+import React, { useMemo } from "react";
 import {
   Globe, Database, Server, Monitor, Cpu, Radio, Wifi, Activity,
   ArrowRight, CheckCircle, AlertTriangle, XCircle,
 } from "lucide-react";
+import { useApi } from "../../hooks/useApi";
 
 // Node names/icons define the architecture. All statuses default to "off" (disconnected).
 // Parent component or real API data should set status to "ok" when connected.
@@ -182,25 +182,61 @@ function ApiRouteStatus({ routes = [] }) {
 }
 
 // === MAIN TAB ===
-// Accepts props: cpu, ram, latency, gpu, healthData, topology, channels, routes
+// Fetches agentWsChannels, swarmTopology. Accepts agents, wsConnected from parent.
 export default function LiveWiringTab({
+  agents = [],
+  wsConnected = false,
   cpu = "0%",
   ram = "0",
   latency = "0ms",
   gpu = "0%",
   healthData,
-  topology,
-  channels,
+  topology: topologyProp,
+  channels: channelsProp,
   routes,
 } = {}) {
+  const { data: channelsData } = useApi("agentWsChannels", { pollIntervalMs: 20000 });
+  const { data: topologyData } = useApi("swarmTopology", { pollIntervalMs: 20000 });
+
+  const topology = useMemo(() => {
+    if (topologyProp) return topologyProp;
+    if (!topologyData || typeof topologyData !== "object") return null;
+    return {
+      mesh: topologyData.mesh ?? topologyData.auto_mesh ?? topologyData.design ?? null,
+      design: topologyData.design ?? topologyData.topology ?? null,
+      autoDiscovery: topologyData.auto_discovery ?? topologyData.autoDiscovery ?? null,
+    };
+  }, [topologyProp, topologyData]);
+
+  const channels = useMemo(() => {
+    if (Array.isArray(channelsProp) && channelsProp.length > 0) return channelsProp;
+    const raw = channelsData?.channels ?? channelsData?.ws_channels ?? (Array.isArray(channelsData) ? channelsData : []);
+    if (!Array.isArray(raw)) return [];
+    return raw.map((ch) => ({
+      name: ch.name ?? ch.channel ?? ch.id ?? "—",
+      status: ch.status === "active" || ch.connected ? "ok" : "off",
+      msgs: ch.msgs ?? ch.msg_per_sec ?? ch.rate,
+    }));
+  }, [channelsProp, channelsData]);
+
+  const systemCpu = cpu === "0%" && agents.length > 0
+    ? Math.round(agents.reduce((s, a) => s + (a.cpu ?? a.cpuPercent ?? 0), 0) / agents.length) + "%"
+    : cpu;
+
   return (
     <div className="space-y-3">
       {/* Architecture Flow Diagram — 5 columns */}
       <div className="aurora-card p-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-xs font-bold text-white uppercase tracking-wider">Live Wiring Map</h3>
-          <div className="flex gap-3 text-[9px] text-gray-500">
-            <span>CPU: <span className="text-white">{cpu}</span></span>
+          <div className="flex gap-3 text-[9px] text-gray-500 items-center">
+            {wsConnected && (
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-emerald-400">WS</span>
+              </span>
+            )}
+            <span>CPU: <span className="text-white">{systemCpu}</span></span>
             <span>RAM: <span className="text-white">{ram}</span></span>
             <span>Latency: <span className="text-emerald-400">{latency}</span></span>
             <span>GPU: <span className="text-amber-400">{gpu}</span></span>
