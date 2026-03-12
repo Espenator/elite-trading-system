@@ -144,6 +144,15 @@ class MessageBus:
     # Redis channel prefix to avoid collisions with other apps
     REDIS_PREFIX = "etbus:"
 
+    # Per-topic rate limits (events/second).  Topics not listed are unlimited.
+    # Override via env: MSGBUS_RATE_LIMIT_SWARM_IDEA=50
+    TOPIC_RATE_LIMITS: Dict[str, float] = {
+        "swarm.idea": float(os.environ.get("MSGBUS_RATE_LIMIT_SWARM_IDEA", "50")),
+        "scout.heartbeat": float(os.environ.get("MSGBUS_RATE_LIMIT_SCOUT_HEARTBEAT", "10")),
+        "triage.dropped": float(os.environ.get("MSGBUS_RATE_LIMIT_TRIAGE_DROPPED", "20")),
+        "cluster.telemetry": float(os.environ.get("MSGBUS_RATE_LIMIT_CLUSTER_TELEMETRY", "10")),
+    }
+
     def __init__(self, max_queue_size: int = 10_000):
         self._subscribers: Dict[str, List[EventHandler]] = defaultdict(list)
         self._queue: asyncio.Queue = asyncio.Queue(maxsize=max_queue_size)
@@ -152,6 +161,11 @@ class MessageBus:
         self._metrics: Dict[str, int] = defaultdict(int)
         self._error_count: int = 0
         self._start_time: Optional[float] = None
+
+        # Per-topic token bucket state for rate limiting
+        self._topic_tokens: Dict[str, float] = {}       # Available tokens
+        self._topic_last_refill: Dict[str, float] = {}   # Last refill timestamp
+        self._rate_limited_count: Dict[str, int] = defaultdict(int)  # Dropped by rate limit
 
         # D3: Dead-letter queue — stores events that failed all handler retries
         self._dlq: List[Dict[str, Any]] = []
@@ -267,6 +281,20 @@ class MessageBus:
                          topic, sorted(self.VALID_TOPICS))
             return
 
+        # Per-topic rate limiting (token bucket)
+        if topic in self.TOPIC_RATE_LIMITS:
+            if not self._check_rate_limit(topic):
+                self._rate_limited_count[topic] += 1
+                self._metrics[topic] += 1  # Still count for observability
+                # Log periodically to avoid log flooding
+                if self._rate_limited_count[topic] % 100 == 1:
+                    logger.warning(
+                        "Rate-limiting topic '%s' — %d events dropped (limit: %.0f/s)",
+                        topic, self._rate_limited_count[topic],
+                        self.TOPIC_RATE_LIMITS[topic],
+                    )
+                return
+
         # Enforce canonical score semantics at the bus boundary so every publisher
         # (current + future) preserves the invariant:
         #   signal.generated.score ∈ [0, 100]
@@ -309,6 +337,39 @@ class MessageBus:
         # Redis bridge (cross-PC delivery)
         if self._redis_connected and topic in self.REDIS_BRIDGED_TOPICS:
             await self._redis_publish(topic, data)
+
+    # ------------------------------------------------------------------
+    # Per-topic rate limiting (token bucket)
+    # ------------------------------------------------------------------
+
+    def _check_rate_limit(self, topic: str) -> bool:
+        """Return True if this event is allowed under the topic rate limit.
+
+        Uses a simple token-bucket algorithm: tokens refill at TOPIC_RATE_LIMITS[topic]
+        per second, burst size equals the rate (1 second worth of tokens).
+        """
+        now = time.time()
+        rate = self.TOPIC_RATE_LIMITS[topic]
+        burst = max(rate, 10.0)  # Allow at least 10-event bursts
+
+        # Initialize on first call
+        if topic not in self._topic_tokens:
+            self._topic_tokens[topic] = burst
+            self._topic_last_refill[topic] = now
+
+        # Refill tokens
+        elapsed = now - self._topic_last_refill[topic]
+        if elapsed > 0:
+            self._topic_tokens[topic] = min(
+                burst, self._topic_tokens[topic] + elapsed * rate
+            )
+            self._topic_last_refill[topic] = now
+
+        # Consume one token
+        if self._topic_tokens[topic] >= 1.0:
+            self._topic_tokens[topic] -= 1.0
+            return True
+        return False
 
     # ------------------------------------------------------------------
     # Local event processor (unchanged logic)
@@ -629,6 +690,25 @@ class MessageBus:
             logger.exception("MessageBus: error processing Redis message")
 
     # ------------------------------------------------------------------
+    # Queue introspection (used by publishers for backpressure)
+    # ------------------------------------------------------------------
+
+    @property
+    def queue_depth(self) -> int:
+        """Current number of events waiting in the queue."""
+        return self._queue.qsize()
+
+    @property
+    def queue_max(self) -> int:
+        """Maximum queue capacity."""
+        return self._queue.maxsize
+
+    @property
+    def queue_usage_pct(self) -> float:
+        """Queue usage as a percentage (0.0–100.0)."""
+        return (self._queue.qsize() / max(self._queue.maxsize, 1)) * 100
+
+    # ------------------------------------------------------------------
     # Metrics
     # ------------------------------------------------------------------
 
@@ -654,6 +734,8 @@ class MessageBus:
                 "max": self._dlq_max,
                 "capacity_alert_active": self._capacity_alert_sent,
             },
+            # Rate limiting stats
+            "rate_limited": dict(self._rate_limited_count),
             # Redis bridge metrics
             "redis": {
                 "connected": self._redis_connected,

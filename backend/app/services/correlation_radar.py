@@ -22,7 +22,7 @@ Data Flow:
 import asyncio
 import logging
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -174,9 +174,9 @@ class CorrelationRadar:
         self._task: Optional[asyncio.Task] = None
         self._scan_interval = 300  # 5 minutes
         self._correlation_cache: Dict[str, float] = {}
-        self._rotation_history: List[RotationSignal] = []
-        self._break_history: List[CorrelationBreak] = []
-        self._reversion_history: List[MeanReversionSignal] = []
+        self._rotation_history: deque = deque(maxlen=100)
+        self._break_history: deque = deque(maxlen=100)
+        self._reversion_history: deque = deque(maxlen=100)
         self._stats = {
             "scans": 0,
             "correlation_breaks": 0,
@@ -244,11 +244,7 @@ class CorrelationRadar:
             self._stats["reversion_signals"] += 1
             await self._trigger_swarm_from_reversion(rev)
 
-        # Trim histories
-        max_history = 100
-        self._break_history = self._break_history[-max_history:]
-        self._rotation_history = self._rotation_history[-max_history:]
-        self._reversion_history = self._reversion_history[-max_history:]
+        # deque(maxlen=100) handles history trimming automatically
 
     # ──────────────────────────────────────────────────────────────────────
     # Data Loading

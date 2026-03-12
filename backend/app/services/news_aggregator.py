@@ -29,6 +29,7 @@ import os
 import re
 import time
 import xml.etree.ElementTree as ET
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Set
@@ -146,7 +147,7 @@ class NewsAggregator:
         self._running = False
         self._task: Optional[asyncio.Task] = None
         self._seen_hashes: Set[str] = set()
-        self._news_history: List[NewsItem] = []
+        self._news_history: deque = deque(maxlen=500)
         self._stats = {
             "total_items": 0,
             "total_actionable": 0,
@@ -202,8 +203,7 @@ class NewsAggregator:
                         self._stats["total_actionable"] += 1
                         await self._trigger_swarm(item)
 
-                # Trim history
-                self._news_history = self._news_history[-500:]
+                # deque(maxlen=500) handles history trimming automatically
                 # Trim seen hashes (keep last 5000)
                 if len(self._seen_hashes) > 5000:
                     self._seen_hashes = set(list(self._seen_hashes)[-3000:])

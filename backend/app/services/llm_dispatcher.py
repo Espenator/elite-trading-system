@@ -155,6 +155,14 @@ class LLMDispatcher:
         except Exception:
             pass
 
+        # Dual-instance: tag deep port for task affinity routing
+        import os
+        deep_port = os.getenv("OLLAMA_DEEP_PORT", "")
+        if deep_port:
+            self._deep_url = f"http://localhost:{deep_port}"
+        else:
+            self._deep_url = ""
+
     # -- Telemetry ingestion --------------------------------------------------
 
     def ingest_telemetry(self, telemetry: Dict[str, Any]) -> None:
@@ -322,9 +330,20 @@ class LLMDispatcher:
     # -- Resolution strategies ------------------------------------------------
 
     def _resolve_by_task(self, task: str) -> Tuple[str, str]:
-        """Resolve target URL by task affinity from ModelPinningRegistry."""
+        """Resolve target URL by task affinity from ModelPinningRegistry.
+
+        Dual-instance enhancement: deep tasks (postmortem, thesis, strategy_critic)
+        route to OLLAMA_DEEP_PORT instance to avoid blocking fast reflexive tasks.
+        """
         if not task:
             return "", ""
+
+        # Dual-instance: route deep tasks to deep port if available
+        _deep_tasks = {"deep_postmortem", "trade_thesis", "strategy_critic", "debate"}
+        if hasattr(self, "_deep_url") and self._deep_url and task in _deep_tasks:
+            if self._is_healthy(self._deep_url):
+                return self._deep_url, f"dual_instance_deep_{task}"
+
         try:
             from app.services.model_pinning import get_model_pinning
             registry = get_model_pinning()

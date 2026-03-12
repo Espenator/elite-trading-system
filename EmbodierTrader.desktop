@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Embodier Trader
+GenericName=Elite Trading System
+Comment=ESPENMAIN (PC1) — AI-Powered Trading Platform with 35-Agent Council
+Exec=/home/user/elite-trading-system/start-espenmain.sh start
+Path=/home/user/elite-trading-system
+Terminal=true
+StartupNotify=true
+Categories=Finance;Development;
+Keywords=trading;stocks;ai;council;alpaca;

@@ -247,48 +247,119 @@ async def run_council(
 
     all_votes: List[AgentVote] = []
 
-    # Stage 1: Perception + Data Sources + Intermarket (parallel — 7 agents)
-    _stage_start = time.monotonic() * 1000
-    stage1_configs = [
-        {"agent_type": "market_perception", "symbol": symbol, "timeframe": timeframe, "context": context},
-        {"agent_type": "flow_perception", "symbol": symbol, "timeframe": timeframe, "context": context},
-        {"agent_type": "regime", "symbol": symbol, "timeframe": timeframe, "context": context},
-        {"agent_type": "social_perception", "symbol": symbol, "timeframe": timeframe, "context": context},
-        {"agent_type": "news_catalyst", "symbol": symbol, "timeframe": timeframe, "context": context},
-        {"agent_type": "youtube_knowledge", "symbol": symbol, "timeframe": timeframe, "context": context},
-        {"agent_type": "intermarket", "symbol": symbol, "timeframe": timeframe, "context": context},
-        # Academic Edge P0 agents
-        {"agent_type": "gex_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
-        {"agent_type": "insider_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
-        # Academic Edge P1 agents
-        {"agent_type": "finbert_sentiment_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
-        {"agent_type": "earnings_tone_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
-        # Academic Edge P2 agents
-        {"agent_type": "dark_pool_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
-        # Academic Edge P4 agents (macro runs early to inform regime)
-        {"agent_type": "macro_regime_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
-    ]
-    stage1 = await spawner.spawn_parallel(stage1_configs)
-    all_votes.extend(stage1)
-    context["stage1"] = {v.agent_name: v.to_dict() for v in stage1}
-    for v in stage1:
-        blackboard.perceptions[v.agent_name] = v.to_dict()
-    blackboard.stage_latencies["stage1"] = time.monotonic() * 1000 - _stage_start
+    # ── Level 3A: Distributed Council — Stage 1 + Stage 2 ──────────────
+    # When Brain Service (PC2) is available, offload Stage 1 perception agents
+    # to PC2 while PC1 runs Stage 2 technical analysis simultaneously.
+    # This cuts stage 1+2 latency from ~400-500ms sequential to ~300ms parallel.
 
-    # Stage 2: Technical Analysis (parallel — 5 agents)
-    _stage_start = time.monotonic() * 1000
+    _stage1_agent_types = [
+        "market_perception", "flow_perception", "regime", "social_perception",
+        "news_catalyst", "youtube_knowledge", "intermarket",
+        "gex_agent", "insider_agent",
+        "finbert_sentiment_agent", "earnings_tone_agent",
+        "dark_pool_agent", "macro_regime_agent",
+    ]
+
     stage2_configs = [
         {"agent_type": "rsi", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "bbv", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "ema_trend", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "relative_strength", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "cycle_timing", "symbol": symbol, "timeframe": timeframe, "context": context},
-        # Academic Edge P1/P2 data enrichment agents
         {"agent_type": "supply_chain_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "institutional_flow_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
         {"agent_type": "congressional_agent", "symbol": symbol, "timeframe": timeframe, "context": context},
     ]
-    stage2 = await spawner.spawn_parallel(stage2_configs)
+
+    # Check if distributed council is available
+    _use_distributed = False
+    try:
+        from app.services.brain_client import get_brain_client
+        brain = get_brain_client()
+        if brain.enabled and brain._circuit.can_execute():
+            _use_distributed = True
+    except Exception:
+        pass
+
+    _stage_start = time.monotonic() * 1000
+
+    if _use_distributed:
+        # DISTRIBUTED: PC2 runs Stage 1 perception while PC1 runs Stage 2 technical
+        import json as _json
+        logger.info("Distributed council: Stage 1 → PC2, Stage 2 → PC1 (parallel)")
+
+        _feat_json = _json.dumps(features, default=str)
+        _ctx_json = _json.dumps(
+            {k: v for k, v in context.items() if k != "blackboard"},
+            default=str,
+        )
+
+        stage1_remote_coro = brain.run_council_stage(
+            symbol=symbol,
+            timeframe=timeframe,
+            feature_json=_feat_json,
+            context_json=_ctx_json,
+            stage=1,
+            agent_types=_stage1_agent_types,
+        )
+        stage2_local_coro = spawner.spawn_parallel(stage2_configs)
+
+        stage1_result, stage2 = await asyncio.gather(
+            stage1_remote_coro, stage2_local_coro, return_exceptions=True,
+        )
+
+        # Process Stage 1 remote results
+        stage1 = []
+        if isinstance(stage1_result, dict) and stage1_result.get("votes"):
+            for v_data in stage1_result["votes"]:
+                vote = AgentVote(
+                    agent_name=v_data["agent_name"],
+                    direction=v_data["direction"],
+                    confidence=v_data["confidence"],
+                    reasoning=v_data["reasoning"],
+                    veto=v_data.get("veto", False),
+                    veto_reason=v_data.get("veto_reason", ""),
+                    metadata=v_data.get("metadata", {}),
+                    blackboard_ref=blackboard.council_decision_id,
+                )
+                stage1.append(vote)
+            logger.info(
+                "Distributed Stage 1: %d votes from PC2 in %.0fms",
+                len(stage1), stage1_result.get("stage_latency_ms", 0),
+            )
+        else:
+            # Fallback: run Stage 1 locally if PC2 failed
+            logger.warning("Distributed Stage 1 failed, falling back to local")
+            stage1_configs = [
+                {"agent_type": at, "symbol": symbol, "timeframe": timeframe, "context": context}
+                for at in _stage1_agent_types
+            ]
+            stage1 = await spawner.spawn_parallel(stage1_configs)
+
+        if isinstance(stage2, Exception):
+            logger.warning("Stage 2 local failed: %s", stage2)
+            stage2 = []
+    else:
+        # LOCAL: Run Stage 1 then Stage 2 sequentially (original behavior)
+        stage1_configs = [
+            {"agent_type": at, "symbol": symbol, "timeframe": timeframe, "context": context}
+            for at in _stage1_agent_types
+        ]
+        stage1 = await spawner.spawn_parallel(stage1_configs)
+
+        blackboard.stage_latencies["stage1"] = time.monotonic() * 1000 - _stage_start
+        _stage_start = time.monotonic() * 1000
+
+        stage2 = await spawner.spawn_parallel(stage2_configs)
+
+    # Merge Stage 1 + Stage 2 votes
+    all_votes.extend(stage1)
+    context["stage1"] = {v.agent_name: v.to_dict() for v in stage1}
+    for v in stage1:
+        blackboard.perceptions[v.agent_name] = v.to_dict()
+    if "stage1" not in blackboard.stage_latencies:
+        blackboard.stage_latencies["stage1"] = time.monotonic() * 1000 - _stage_start
+
     all_votes.extend(stage2)
     context["stage2"] = {v.agent_name: v.to_dict() for v in stage2}
     for v in stage2:

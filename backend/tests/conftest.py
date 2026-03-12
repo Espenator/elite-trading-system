@@ -10,6 +10,20 @@ os.environ["ALPACA_SECRET_KEY"] = "test_secret"
 os.environ["API_AUTH_TOKEN"] = "test_auth_token_for_tests"
 
 from app.main import app  # noqa: E402
+from app.core.security import reset_auth_cache  # noqa: E402
+
+# Re-set after import because pydantic-settings/dotenv may overwrite os.environ
+# with values from .env file during Settings() instantiation
+os.environ["API_AUTH_TOKEN"] = "test_auth_token_for_tests"
+reset_auth_cache()
+
+
+@pytest.fixture(autouse=True)
+def _reset_security_cache():
+    """Ensure each test uses the test auth token, not a stale cached value."""
+    reset_auth_cache()
+    yield
+    reset_auth_cache()
 
 
 @pytest.fixture

@@ -42,7 +42,10 @@ BLOCKED_PAYLOAD = {
     "strategy": "",       # empty strategy fails mandate check
 }
 
-AUTH_HEADERS = {"Authorization": f"Bearer {__import__('os').environ.get('API_AUTH_TOKEN', '')}"}
+def _auth_headers():
+    """Build auth headers at call time (after conftest sets API_AUTH_TOKEN)."""
+    import os
+    return {"Authorization": f"Bearer {os.environ.get('API_AUTH_TOKEN', '')}"}
 
 
 # ---------------------------------------------------------------------------
@@ -53,7 +56,7 @@ async def test_preflight_returns_200():
     """POST /preflight must return 200, never 404/500."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        r = await ac.post("/api/v1/alignment/preflight", json=DEFAULT_PAYLOAD, headers=AUTH_HEADERS)
+        r = await ac.post("/api/v1/alignment/preflight", json=DEFAULT_PAYLOAD, headers=_auth_headers())
     assert r.status_code == 200, f"Expected 200, got {r.status_code}: {r.text}"
 
 
@@ -62,7 +65,7 @@ async def test_preflight_schema_has_required_top_keys():
     """Response must include all keys the frontend destructures."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        r = await ac.post("/api/v1/alignment/preflight", json=DEFAULT_PAYLOAD, headers=AUTH_HEADERS)
+        r = await ac.post("/api/v1/alignment/preflight", json=DEFAULT_PAYLOAD, headers=_auth_headers())
     body = r.json()
     missing = REQUIRED_TOP_KEYS - set(body.keys())
     assert not missing, f"Missing top-level keys: {missing}. Got: {list(body.keys())}"
@@ -73,7 +76,7 @@ async def test_preflight_allowed_is_bool():
     """'allowed' must be a boolean — frontend does `if (verdict.allowed)`."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        r = await ac.post("/api/v1/alignment/preflight", json=DEFAULT_PAYLOAD, headers=AUTH_HEADERS)
+        r = await ac.post("/api/v1/alignment/preflight", json=DEFAULT_PAYLOAD, headers=_auth_headers())
     body = r.json()
     assert isinstance(body["allowed"], bool), f"'allowed' must be bool, got {type(body['allowed'])}"
 
@@ -83,7 +86,7 @@ async def test_preflight_checks_is_list_of_dicts():
     """'checks' must be a list of objects with at least {name, passed}."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        r = await ac.post("/api/v1/alignment/preflight", json=DEFAULT_PAYLOAD, headers=AUTH_HEADERS)
+        r = await ac.post("/api/v1/alignment/preflight", json=DEFAULT_PAYLOAD, headers=_auth_headers())
     checks = r.json()["checks"]
     assert isinstance(checks, list), f"'checks' must be list, got {type(checks)}"
     assert len(checks) >= 1, "Must have at least 1 check"
@@ -99,7 +102,7 @@ async def test_preflight_timestamp_is_iso_string():
     from datetime import datetime
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        r = await ac.post("/api/v1/alignment/preflight", json=DEFAULT_PAYLOAD, headers=AUTH_HEADERS)
+        r = await ac.post("/api/v1/alignment/preflight", json=DEFAULT_PAYLOAD, headers=_auth_headers())
     ts = r.json()["timestamp"]
     assert isinstance(ts, str), f"'timestamp' must be str, got {type(ts)}"
     try:
@@ -113,7 +116,7 @@ async def test_preflight_allowed_trade_passes():
     """Normal small trade should be ALLOWED."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        r = await ac.post("/api/v1/alignment/preflight", json=DEFAULT_PAYLOAD, headers=AUTH_HEADERS)
+        r = await ac.post("/api/v1/alignment/preflight", json=DEFAULT_PAYLOAD, headers=_auth_headers())
     body = r.json()
     assert body["allowed"] is True, f"Expected allowed=True: {body['summary']}"
     assert body["blockedBy"] is None
@@ -124,7 +127,7 @@ async def test_preflight_blocked_trade_returns_blocker():
     """Over-sized trade with empty strategy should be BLOCKED."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        r = await ac.post("/api/v1/alignment/preflight", json=BLOCKED_PAYLOAD, headers=AUTH_HEADERS)
+        r = await ac.post("/api/v1/alignment/preflight", json=BLOCKED_PAYLOAD, headers=_auth_headers())
     body = r.json()
     assert body["allowed"] is False, f"Expected allowed=False: {body['summary']}"
     assert body["blockedBy"] is not None, "blockedBy must name the blocking check"
@@ -136,7 +139,7 @@ async def test_preflight_summary_contains_symbol():
     """Summary must mention the symbol so the UI can display context."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        r = await ac.post("/api/v1/alignment/preflight", json=DEFAULT_PAYLOAD, headers=AUTH_HEADERS)
+        r = await ac.post("/api/v1/alignment/preflight", json=DEFAULT_PAYLOAD, headers=_auth_headers())
     summary = r.json()["summary"]
     assert "SPY" in summary, f"Summary must contain symbol: {summary}"
 
@@ -146,7 +149,7 @@ async def test_preflight_six_checks():
     """Must run all 6 constitutive design pattern checks."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        r = await ac.post("/api/v1/alignment/preflight", json=DEFAULT_PAYLOAD, headers=AUTH_HEADERS)
+        r = await ac.post("/api/v1/alignment/preflight", json=DEFAULT_PAYLOAD, headers=_auth_headers())
     checks = r.json()["checks"]
     assert len(checks) == 6, f"Expected 6 checks (one per design pattern), got {len(checks)}"
 

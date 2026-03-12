@@ -249,16 +249,26 @@ class AlpacaStreamService:
         This works 24/7 and returns real prices at all times.
         """
         try:
+            import asyncio
             from app.services.alpaca_service import alpaca_service
 
-            # Batch symbols to avoid URL length limits
-            for i in range(0, len(self.symbols), self.SNAPSHOT_BATCH_SIZE):
-                batch = self.symbols[i:i + self.SNAPSHOT_BATCH_SIZE]
-                snapshots = await alpaca_service.get_snapshots(batch)
+            # Build all snapshot batches, then fetch in parallel.
+            # With Algo Trader Plus (10K req/min, 50 concurrent), we can safely
+            # fire all batches simultaneously instead of sequentially.
+            batches = [
+                self.symbols[i:i + self.SNAPSHOT_BATCH_SIZE]
+                for i in range(0, len(self.symbols), self.SNAPSHOT_BATCH_SIZE)
+            ]
 
-                if not snapshots:
+            # Fetch all batches concurrently
+            snapshot_results = await asyncio.gather(
+                *[alpaca_service.get_snapshots(batch) for batch in batches],
+                return_exceptions=True,
+            )
+
+            for snapshots in snapshot_results:
+                if isinstance(snapshots, Exception) or not snapshots:
                     continue
-
                 for symbol, snap in snapshots.items():
                     bar_data = self._snapshot_to_bar(symbol, snap)
                     if bar_data:

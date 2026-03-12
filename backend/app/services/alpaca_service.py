@@ -87,6 +87,11 @@ class AlpacaService:
             
         self._cache: Dict[str, Any] = {}  # key -> (timestamp, data)
 
+        # Persistent connection pool — reuses TCP/SSL connections across calls.
+        # Previous: created fresh httpx.AsyncClient per call (SSL handshake overhead).
+        # Now: single pooled client with keep-alive, 50 max connections.
+        self._http_client: Optional[httpx.AsyncClient] = None
+
         logger.info("AlpacaService initialized: mode=%s, url=%s, configured=%s",
                     self.trading_mode, self.base_url, self._is_configured())
 
@@ -166,6 +171,31 @@ class AlpacaService:
             self._cache = {k: v for k, v in self._cache.items() if (now - v[0]) < 300}
         self._cache[key] = (time.time(), data)
 
+    def _get_http_client(self) -> httpx.AsyncClient:
+        """Get or create persistent connection-pooled HTTP client.
+
+        Reuses TCP/SSL connections across calls. This avoids the overhead of
+        creating a new SSL handshake on every API call (~50-100ms per call saved).
+        The pool maintains up to 50 connections with keep-alive.
+        """
+        if self._http_client is None or self._http_client.is_closed:
+            self._http_client = httpx.AsyncClient(
+                timeout=_TIMEOUT,
+                limits=httpx.Limits(
+                    max_connections=50,
+                    max_keepalive_connections=20,
+                    keepalive_expiry=30,
+                ),
+                headers=self._get_headers(),
+            )
+        return self._http_client
+
+    async def close(self) -> None:
+        """Close the persistent HTTP client (call on shutdown)."""
+        if self._http_client and not self._http_client.is_closed:
+            await self._http_client.aclose()
+            self._http_client = None
+
     async def _request(
         self,
         method: str,
@@ -175,25 +205,25 @@ class AlpacaService:
         timeout: float = _TIMEOUT,
         _retries: int = 3,
     ) -> Optional[Any]:
-        """Centralised HTTP caller with error handling and retry for 429/503."""
+        """Centralised HTTP caller with persistent connection pool and retry for 429/503."""
         if not self._is_configured():
             logger.warning("Alpaca API keys not configured")
             return None
         url = f"{self.base_url}{path}"
 
         import asyncio
+        client = self._get_http_client()
 
         for attempt in range(_retries + 1):
             try:
-                async with httpx.AsyncClient() as client:
-                    resp = await client.request(
-                        method,
-                        url,
-                        headers=self._get_headers(),
-                        params=params,
-                        json=json_body,
-                        timeout=timeout,
-                    )
+                resp = await client.request(
+                    method,
+                    url,
+                    headers=self._get_headers(),
+                    params=params,
+                    json=json_body,
+                    timeout=timeout,
+                )
                 if resp.status_code == 200:
                     return resp.json()
                 if resp.status_code == 204:
@@ -485,13 +515,13 @@ class AlpacaService:
         if not self._is_configured():
             return out
         try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(
-                    f"{self.base_url}/assets",
-                    params={"status": "active", "asset_class": "us_equity"},
-                    headers=self._get_headers(),
-                    timeout=60.0,
-                )
+            client = self._get_http_client()
+            resp = await client.get(
+                f"{self.base_url}/assets",
+                params={"status": "active", "asset_class": "us_equity"},
+                headers=self._get_headers(),
+                timeout=60.0,
+            )
             if resp.status_code != 200:
                 return out
             for asset in resp.json() or []:
@@ -534,14 +564,14 @@ class AlpacaService:
             return None
         url = f"{self.DATA_BASE_URL}{path}"
         try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.request(
-                    method,
-                    url,
-                    headers=self._get_headers(),
-                    params=params,
-                    timeout=timeout,
-                )
+            client = self._get_http_client()
+            resp = await client.request(
+                method,
+                url,
+                headers=self._get_headers(),
+                params=params,
+                timeout=timeout,
+            )
             if resp.status_code == 200:
                 return resp.json()
             logger.error("Alpaca Data API %s %s -> %s", method, path, resp.status_code)
@@ -644,20 +674,167 @@ class AlpacaService:
         if end:
             params["end"] = end
         try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(
-                    url,
-                    headers=self._get_headers(),
-                    params=params,
-                    timeout=_TIMEOUT,
-                )
-                if resp.status_code != 200:
-                    logger.error("Alpaca bars %s -> %s", symbol, resp.status_code)
-                    return None
-                data = resp.json()
-                return data.get("bars", [])
+            client = self._get_http_client()
+            resp = await client.get(
+                url,
+                headers=self._get_headers(),
+                params=params,
+                timeout=_TIMEOUT,
+            )
+            if resp.status_code != 200:
+                logger.error("Alpaca bars %s -> %s", symbol, resp.status_code)
+                return None
+            data = resp.json()
+            return data.get("bars", [])
         except Exception as exc:
             logger.error("Alpaca get_bars error for %s: %s", symbol, exc)
+            return None
+
+    # ── Batch Multi-Symbol Bars (Algo Trader Plus optimization) ───────────────
+
+    async def get_multi_bars(
+        self,
+        symbols: List[str],
+        timeframe: str = "1Day",
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        limit: int = 60,
+        feed: str = "sip",
+    ) -> Optional[Dict[str, list]]:
+        """GET /v2/stocks/bars — multi-symbol bars in a single request.
+
+        Alpaca's multi-bars endpoint accepts up to ~200 symbols per call,
+        returning OHLCV data for all of them. This is 50-200x more efficient
+        than calling get_bars() per symbol.
+
+        With Algo Trader Plus (10K req/min), we can fetch 200 symbols x 60 bars
+        in one request instead of 200 separate calls.
+
+        Returns dict keyed by symbol: {"AAPL": [{bar}, ...], "MSFT": [...]}
+        """
+        if not symbols:
+            return {}
+        params: Dict[str, Any] = {
+            "symbols": ",".join(s.upper() for s in symbols),
+            "timeframe": timeframe,
+            "limit": limit,
+            "feed": feed,
+            "adjustment": "split",
+        }
+        if start:
+            params["start"] = start
+        if end:
+            params["end"] = end
+
+        result = await self._data_request("GET", "/stocks/bars", params=params)
+        if result and "bars" in result:
+            return result["bars"]
+        return result
+
+    async def get_multi_snapshots(
+        self,
+        symbols: List[str],
+        feed: str = "sip",
+    ) -> Optional[Dict]:
+        """GET /v2/stocks/snapshots — batch snapshots for many symbols.
+
+        Wrapper around get_snapshots that handles splitting into batches
+        of 100 symbols and fetching concurrently. Returns merged dict.
+        """
+        import asyncio
+
+        if not symbols:
+            return {}
+
+        batch_size = 100  # Alpaca allows ~200 but URL length limits apply
+        batches = [symbols[i:i + batch_size] for i in range(0, len(symbols), batch_size)]
+
+        results = await asyncio.gather(
+            *[self.get_snapshots(batch) for batch in batches],
+            return_exceptions=True,
+        )
+
+        merged = {}
+        for r in results:
+            if isinstance(r, dict):
+                merged.update(r)
+        return merged
+
+    async def get_latest_multi_trades(
+        self,
+        symbols: List[str],
+        feed: str = "sip",
+    ) -> Optional[Dict]:
+        """GET /v2/stocks/trades/latest — latest trade for multiple symbols.
+
+        Returns dict keyed by symbol with latest trade info.
+        """
+        if not symbols:
+            return {}
+        params = {
+            "symbols": ",".join(s.upper() for s in symbols),
+            "feed": feed,
+        }
+        return await self._data_request("GET", "/stocks/trades/latest", params=params)
+
+    async def get_most_actives(
+        self,
+        by: str = "volume",
+        top: int = 20,
+    ) -> Optional[list]:
+        """GET /v1beta1/screener/stocks/most-actives — Alpaca screener.
+
+        Returns the most active stocks by volume or trade count.
+        Useful for discovery scanning without using a full universe scan.
+        Available on Algo Trader Plus plan.
+        """
+        params = {"by": by, "top": top}
+        # Screener uses v1beta1, not v2
+        data_url = self.DATA_BASE_URL.replace("/v2", "")
+        url = f"{data_url}/v1beta1/screener/stocks/most-actives"
+        try:
+            client = self._get_http_client()
+            resp = await client.get(
+                url,
+                headers=self._get_headers(),
+                params=params,
+                timeout=_TIMEOUT,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                return data.get("most_actives", [])
+            logger.debug("Alpaca screener most-actives -> %s", resp.status_code)
+            return None
+        except Exception as exc:
+            logger.debug("Alpaca screener error: %s", exc)
+            return None
+
+    async def get_market_movers(
+        self,
+        market_type: str = "stocks",
+        top: int = 20,
+    ) -> Optional[Dict]:
+        """GET /v1beta1/screener/{market_type}/movers — top gainers/losers.
+
+        Returns dict with 'gainers' and 'losers' lists.
+        Available on Algo Trader Plus plan.
+        """
+        data_url = self.DATA_BASE_URL.replace("/v2", "")
+        url = f"{data_url}/v1beta1/screener/{market_type}/movers"
+        try:
+            client = self._get_http_client()
+            resp = await client.get(
+                url,
+                headers=self._get_headers(),
+                params={"top": top},
+                timeout=_TIMEOUT,
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            logger.debug("Alpaca movers -> %s", resp.status_code)
+            return None
+        except Exception as exc:
+            logger.debug("Alpaca movers error: %s", exc)
             return None
 
 

@@ -74,7 +74,7 @@ class CouncilGate:
         self,
         message_bus,
         gate_threshold: float = 65.0,
-        max_concurrent: int = 5,
+        max_concurrent: int = 15,
         cooldown_seconds: int = 120,
     ):
         self.message_bus = message_bus
