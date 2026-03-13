@@ -8,7 +8,7 @@ try:
 except ImportError:
     TORCH_AVAILABLE = False
     import logging as _log
-    _log.getLogger(__name__).warning(
+    _log.getLogger(__name__).info(
         "PyTorch not installed — LSTM inference unavailable. "
         "Install torch or remove backend/app/models/ if not needed."
     )

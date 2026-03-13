@@ -96,7 +96,7 @@ class PeerMonitor extends EventEmitter {
     if (!peer) return;
 
     const { config } = peer;
-    const host = config.ip || config.hostname;
+    const host = config.ip || config.hostname || config.address;
     const port = config.port || 8000;
     const url = `http://${host}:${port}/health`;
     const startMs = Date.now();
@@ -173,18 +173,24 @@ class PeerMonitor extends EventEmitter {
 
   /**
    * Get status for a specific peer.
+   * Derives services from role when peer.config.services is not set (e.g. setup wizard).
    */
   _peerStatus(peerId) {
     const peer = this._peers.get(peerId);
     if (!peer) return null;
+    const role = peer.config.role || "unknown";
+    const services =
+      peer.config.services && peer.config.services.length > 0
+        ? peer.config.services
+        : (deviceConfig.getServicesForRole && deviceConfig.getServicesForRole(role)) || [];
     return {
       id: peerId,
       state: peer.state,
       lastSeen: peer.lastSeen,
       latencyMs: peer.latencyMs,
       missedCount: peer.missedCount,
-      services: peer.config.services || [],
-      role: peer.config.role || "unknown",
+      services,
+      role,
     };
   }
 
@@ -241,13 +247,12 @@ class PeerMonitor extends EventEmitter {
    */
   isServiceAvailable(serviceName) {
     for (const [, peer] of this._peers) {
-      if (
-        peer.state === PEER_STATE.CONNECTED &&
-        peer.config.services &&
-        peer.config.services.includes(serviceName)
-      ) {
-        return true;
-      }
+      if (peer.state !== PEER_STATE.CONNECTED) continue;
+      const services =
+        peer.config.services?.length > 0
+          ? peer.config.services
+          : (deviceConfig.getServicesForRole && deviceConfig.getServicesForRole(peer.config.role || "full")) || [];
+      if (services.includes(serviceName)) return true;
     }
     return false;
   }

@@ -73,6 +73,29 @@ def get_metrics() -> Dict[str, Any]:
         return {"counters": counters_list, "gauges": gauges_list}
 
 
+def get_last_council_eval_timestamp() -> Optional[float]:
+    """Last council evaluation timestamp (epoch seconds). None if no eval has run yet."""
+    with _lock:
+        val = _gauges.get(("council_last_eval_timestamp",))
+        return float(val) if val is not None else None
+
+
+def get_council_latency_percentiles() -> Dict[str, Any]:
+    """Council latency percentiles from council_latency_ms gauges. Empty counts when no evals yet."""
+    with _lock:
+        council_latencies = [v for k, v in _gauges.items() if k[0] == "council_latency_ms"]
+    if not council_latencies:
+        return {"p50": 0, "p95": 0, "p99": 0, "sample_count": 0}
+    sorted_lat = sorted(council_latencies)
+    n = len(sorted_lat)
+    return {
+        "p50": sorted_lat[int(n * 0.5)] if n > 0 else 0,
+        "p95": sorted_lat[int(n * 0.95)] if n > 0 else 0,
+        "p99": sorted_lat[min(int(n * 0.99), n - 1)] if n > 0 else 0,
+        "sample_count": n,
+    }
+
+
 def format_prometheus() -> str:
     """Format metrics in Prometheus text exposition format."""
     lines = []

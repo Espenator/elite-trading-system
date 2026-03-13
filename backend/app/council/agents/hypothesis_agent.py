@@ -102,16 +102,23 @@ async def evaluate(
         if bullets:
             reasoning += " | " + "; ".join(bullets[:3])
 
+        # LLM calibration: record tier (brain = ollama), confidence, direction, latency
+        latency_ms = int(result.get("latency_ms", 0)) if result.get("latency_ms") is not None else 0
+        metadata = {
+            "brain_enabled": True,
+            "risk_flags": risk_flags,
+            "llm_tier": "ollama",
+            "llm_confidence": round(llm_conf, 4),
+            "llm_direction": direction,
+            "llm_latency_ms": latency_ms,
+        }
         return AgentVote(
             agent_name=NAME,
             direction=direction,
             confidence=round(llm_conf, 2),
             reasoning=reasoning,
             weight=cfg["weight_hypothesis"],
-            metadata={
-                "brain_enabled": True,
-                "risk_flags": risk_flags,
-            },
+            metadata=metadata,
         )
 
     except Exception as e:
@@ -312,6 +319,9 @@ async def _hypothesis_via_router(
 
     combined_summary = " | ".join(summaries[:4])
     tier_used = valid_results[0].get("_tier", "unknown") if valid_results else "unknown"
+    tier_normalized = (tier_used or "unknown").lower() if isinstance(tier_used, str) else "unknown"
+    if tier_normalized not in ("ollama", "perplexity", "claude"):
+        tier_normalized = "ollama" if tier_normalized == "unknown" else tier_normalized
 
     return AgentVote(
         agent_name=NAME,
@@ -324,6 +334,10 @@ async def _hypothesis_via_router(
             "router_fallback": True,
             "parallel_angles": angles_completed,
             "tier": tier_used,
+            "llm_tier": tier_normalized,
+            "llm_confidence": round(synth_confidence, 4),
+            "llm_direction": direction,
+            "llm_latency_ms": 0,
             "vote_split": {"buy": buy_votes, "sell": sell_votes, "hold": hold_votes},
             "avg_confidence": round(avg_confidence, 3),
             "consensus_ratio": round(consensus_ratio, 3),
@@ -375,6 +389,8 @@ async def _hypothesis_single_call(
     direction = parsed.get("direction", "hold")
     llm_conf = float(parsed.get("confidence", 0.5))
     summary = parsed.get("summary", "Router hypothesis")
+    tier_raw = getattr(result, "tier", "unknown")
+    tier_normalized = (tier_raw or "unknown").lower() if isinstance(tier_raw, str) else "ollama"
 
     return AgentVote(
         agent_name=NAME,
@@ -387,6 +403,10 @@ async def _hypothesis_single_call(
             "router_fallback": True,
             "parallel_angles": 0,
             "tier": result.tier,
+            "llm_tier": tier_normalized,
+            "llm_confidence": round(llm_conf, 4),
+            "llm_direction": direction,
+            "llm_latency_ms": 0,
             "risk_flags": parsed.get("risk_flags", []),
         },
     )

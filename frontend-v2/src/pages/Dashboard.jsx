@@ -846,16 +846,20 @@ export default function Dashboard() {
     if (sym && sym !== selectedSymbol) setSelectedSymbol(sym);
   }, [searchParams]);
 
+  // Metrics (must be declared before any effect that uses metricsData)
+  const { data: metricsData, refetch: refetchMetrics } = useApi("metrics", { pollIntervalMs: 15000 });
+
+  // Sync auto-execute (Manual vs Automated) from backend metrics
+  useEffect(() => {
+    const oe = metricsData?.order_executor;
+    if (oe && typeof oe.auto_execute === "boolean") setAutoExec(oe.auto_execute);
+  }, [metricsData?.order_executor?.auto_execute]);
+
   const setSelectedSymbolAndUrl = useCallback((sym) => {
     const s = (sym && sym.trim().toUpperCase()) || "";
     if (!s) return;
-    setSelectedSymbol(s);
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      next.set("symbol", s);
-      return next;
-    });
-  }, [setSearchParams]);
+    navigate(`/symbol/${encodeURIComponent(s)}`);
+  }, [navigate]);
 
   // --- WebSocket connection (Layout handles this now, but keep as safety net) ---
   useEffect(() => {
@@ -979,12 +983,12 @@ export default function Dashboard() {
     });
   }, [processedSignals, scoreFilter, scoreFilterSpec]);
 
-  // Auto-select first symbol on load when none selected
+  // Auto-select first symbol for right panel only when none selected — stay on dashboard (do not navigate)
   useEffect(() => {
     if (processedSignals.length > 0 && !selectedSymbol) {
-      setSelectedSymbolAndUrl(processedSignals[0].symbol);
+      setSelectedSymbol(processedSignals[0].symbol);
     }
-  }, [processedSignals, selectedSymbol, setSelectedSymbolAndUrl]);
+  }, [processedSignals, selectedSymbol]);
 
   const selectedSignal = useMemo(() => {
     const fromTable = processedSignals.find((s) => s.symbol === selectedSymbol) || processedSignals[0];
@@ -1031,17 +1035,25 @@ export default function Dashboard() {
   // --- ACTION HANDLERS ---
   const handleRunScan = useCallback(async () => {
     try {
-      const res = await fetch(getApiUrl("signals"), { method: "POST", headers: getAuthHeaders() });
-      if (!res.ok) log.error("Scan failed:", res.status);
+      const res = await fetch(getApiUrl("signals"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        log.error("Scan failed:", res.status, err?.detail ?? err);
+        return;
+      }
     } catch (e) {
       log.error(e);
     }
   }, []);
   const handleExecTop5 = useCallback(async () => {
     const top5 = displayedSignals.slice(0, 5);
+    let ok = 0;
     for (const sig of top5) {
       try {
-        await fetch(getApiUrl("orders/advanced"), {
+        const res = await fetch(getApiUrl("orders/advanced"), {
           method: "POST",
           headers: { "Content-Type": "application/json", ...getAuthHeaders() },
           body: JSON.stringify({
@@ -1052,27 +1064,70 @@ export default function Dashboard() {
             qty: "100",
           }),
         });
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        ok++;
       } catch (e) {
-        log.error(e);
+        log.error("Exec top 5 item failed:", e);
       }
     }
+    if (ok > 0) alert(`Sent ${ok}/${top5.length} orders.`);
   }, [displayedSignals]);
   const handleFlatten = useCallback(async () => {
     try {
-      const res = await fetch(getApiUrl("orders") + "/flatten-all", { method: "POST", headers: getAuthHeaders() });
-      if (!res.ok) log.error("Flatten failed:", res.status);
+      const res = await fetch(getApiUrl("orders/flatten-all"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        log.error("Flatten failed:", res.status, err?.detail ?? err);
+        alert(`Flatten failed: ${err?.detail?.message ?? err?.detail ?? res.statusText}`);
+        return;
+      }
+      alert("Flatten all executed.");
     } catch (e) {
       log.error(e);
+      alert(`Flatten failed: ${e?.message ?? "network error"}`);
     }
   }, []);
   const handleEmergencyStop = useCallback(async () => {
     try {
-      const res = await fetch(getApiUrl("orders") + "/emergency-stop", { method: "POST", headers: getAuthHeaders() });
-      if (!res.ok) log.error("Emergency stop failed:", res.status);
+      const res = await fetch(getApiUrl("orders/emergency-stop"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        log.error("Emergency stop failed:", res.status, err?.detail ?? err);
+        alert(`Emergency stop failed: ${err?.detail?.message ?? err?.detail ?? res.statusText}`);
+        return;
+      }
+      alert("Emergency stop executed — all orders cancelled, positions closed.");
     } catch (e) {
       log.error(e);
+      alert(`Emergency stop failed: ${e?.message ?? "network error"}`);
     }
   }, []);
+
+  // Toggle Manual (shadow) vs Automated (AI/Embodier buys and sells) trading mode
+  const handleSetAutoExecute = useCallback(async (enabled) => {
+    try {
+      const res = await fetch(getApiUrl("metricsSetAutoExecute"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ enabled }),
+      });
+      const data = res.ok ? await res.json().catch(() => ({})) : null;
+      if (!res.ok) {
+        log.error("Set auto-execute failed:", res.status, data?.detail ?? data?.error);
+        return;
+      }
+      setAutoExec(!!enabled);
+      refetchMetrics();
+    } catch (e) {
+      log.error("Set auto-execute error:", e);
+    }
+  }, [refetchMetrics]);
 
   const handleExportCSV = useCallback(() => {
     const data = displayedSignals;
@@ -1106,6 +1161,7 @@ export default function Dashboard() {
     refetchSentiment();
     refetchCognitive();
     refetchDataSources();
+    refetchMetrics();
     if (selectedSymbol) {
       refetchRisk();
       refetchQuotes();
@@ -1114,7 +1170,7 @@ export default function Dashboard() {
     refetchStatus, refetchSignals, refetchKelly, refetchPortfolio, refetchIndices,
     refetchOpenclaw, refetchPerformance, refetchPerformanceEquity, refetchConsensus,
     refetchRiskScore, refetchAlerts, refetchFlywheel, refetchSentiment, refetchCognitive,
-    refetchDataSources, refetchRisk, refetchQuotes, selectedSymbol,
+    refetchDataSources, refetchMetrics, refetchRisk, refetchQuotes, selectedSymbol,
   ]);
 
   // Council verdict highlight: show cyan glow on row for 1.5s when verdict matches symbol
@@ -1333,6 +1389,28 @@ export default function Dashboard() {
           >
             Refresh All
           </button>
+          {/* Manual vs Automated trading — lever on landing page */}
+          <div className="flex items-center gap-0 rounded border border-[rgba(42,52,68,0.5)] bg-[#0f172a]/80 overflow-hidden">
+            <span className="px-2 py-0.5 text-[9px] text-slate-500 font-bold uppercase tracking-wider border-r border-[rgba(42,52,68,0.5)]">
+              Trading
+            </span>
+            <button
+              type="button"
+              onClick={() => handleSetAutoExecute(false)}
+              className={`px-2.5 py-0.5 text-[9px] font-mono font-bold transition-colors ${!autoExec ? "bg-amber-500/25 text-amber-300 border-amber-500/50" : "text-slate-400 hover:bg-white/5 hover:text-slate-300"}`}
+              title="You place all trades manually; council runs in shadow (no orders sent)"
+            >
+              Manual
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSetAutoExecute(true)}
+              className={`px-2.5 py-0.5 text-[9px] font-mono font-bold transition-colors ${autoExec ? "bg-emerald-500/25 text-emerald-300 border-emerald-500/50" : "text-slate-400 hover:bg-white/5 hover:text-slate-300"}`}
+              title="AI and Embodier Trader buy and sell automatically from council verdicts (paper/live)"
+            >
+              Automated
+            </button>
+          </div>
           {/* Regime Badges */}
           <div
             className={`px-2 py-0.5 rounded font-bold tracking-wider ${openclaw.regime === "BEAR" ? "bg-red-500/20 text-red-400 border border-red-500/50" : "bg-green-500/20 text-green-400 border border-green-500/50"}`}
@@ -1437,7 +1515,7 @@ export default function Dashboard() {
       </header>
 
       {/* SCROLLING TICKER STRIP */}
-      <TickerStrip indices={indices} signals={processedSignals} onSelectSymbol={setSelectedSymbolAndUrl} />
+      <TickerStrip indices={indices} signals={processedSignals} onSelectSymbol={setSelectedSymbol} />
 
       {/* Data Sources strip — API /api/v1/data-sources/ flowing through landing page */}
       {(dataSourcesLoading || sourcesList.length > 0) && (
@@ -1521,7 +1599,7 @@ export default function Dashboard() {
             </div>
             <div className="flex items-center gap-3 text-[8px]">
               <button
-                onClick={() => setAutoExec(!autoExec)}
+                onClick={() => handleSetAutoExecute(!autoExec)}
                 className="flex items-center gap-1 cursor-pointer hover:text-white transition-colors"
               >
                 <div className={`w-1.5 h-1.5 rounded-full ${autoExec ? "bg-green-500 animate-pulse" : "bg-red-500"}`} />
@@ -1560,7 +1638,7 @@ export default function Dashboard() {
                   return (
                     <tr
                       key={sig.symbol + idx}
-                      onClick={() => navigate(`/signal-intelligence-v3?symbol=${encodeURIComponent(sig.symbol)}`)}
+                      onClick={() => navigate(`/symbol/${encodeURIComponent(sig.symbol)}`)}
                       className={`cursor-pointer hover:bg-[#1e293b]/30 transition-colors ${isSelected ? "bg-[#164e63]/30 border-l-2 border-[#00D9FF]" : "border-l-2 border-transparent"} ${hasCouncilGlow ? "animate-cyan-glow" : ""}`}
                       style={hasCouncilGlow ? { boxShadow: "inset 0 0 12px rgba(0,217,255,0.4)" } : undefined}
                     >
@@ -1651,7 +1729,7 @@ export default function Dashboard() {
                 if (e.key === "Enter") {
                   e.preventDefault();
                   const sym = (symbolSearch || "").trim().toUpperCase();
-                  if (sym) { setSelectedSymbolAndUrl(sym); setSymbolSearch(""); }
+                  if (sym) { setSelectedSymbol(sym); setSymbolSearch(""); }
                 }
               }}
               className="flex-1 min-w-0 px-2 py-1.5 rounded bg-[#0B0E14] border border-[#374151] text-white text-[10px] font-mono placeholder:text-[#64748b] focus:border-[#00D9FF] focus:outline-none"
@@ -1660,7 +1738,7 @@ export default function Dashboard() {
               type="button"
               onClick={() => {
                 const sym = (symbolSearch || "").trim().toUpperCase();
-                if (sym) { setSelectedSymbolAndUrl(sym); setSymbolSearch(""); }
+                if (sym) { setSelectedSymbol(sym); setSymbolSearch(""); }
               }}
               className="px-2.5 py-1.5 rounded bg-[#00D9FF]/20 text-[#00D9FF] border border-[#00D9FF]/50 text-[10px] font-mono font-bold hover:bg-[#00D9FF]/30 transition-colors"
             >
@@ -1706,7 +1784,7 @@ export default function Dashboard() {
             <SignalBarChart
               signals={displayedSignals.slice(0, 20)}
               selectedSymbol={selectedSymbol}
-              onSelect={setSelectedSymbolAndUrl}
+              onSelect={setSelectedSymbol}
             />
           </div>
 
@@ -1729,14 +1807,23 @@ export default function Dashboard() {
           {/* Selected Symbol Detail Panel (skeleton when no selection) */}
           {selectedSignal ? (
             <div className="border-b border-[rgba(42,52,68,0.5)] p-2.5 space-y-2">
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center flex-wrap gap-1">
                 <h2 className="text-sm font-bold text-white flex items-center gap-1.5">
                   {selectedSignal.symbol}
                   <span className={selectedSignal.direction === "LONG" ? "text-green-400 text-[10px]" : "text-red-400 text-[10px]"}>
                     {selectedSignal.direction || "LONG"}
                   </span>
                 </h2>
-                <span className="text-lg font-mono font-bold text-[#00D9FF]">{selectedSignal.score ?? 0}</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSymbolAndUrl(selectedSignal.symbol)}
+                    className="text-[10px] font-mono text-[#00D9FF] hover:text-cyan-300 underline"
+                  >
+                    Open full page
+                  </button>
+                  <span className="text-lg font-mono font-bold text-[#00D9FF]">{selectedSignal.score ?? 0}</span>
+                </div>
               </div>
 
               {/* Composite Breakdown Bars */}

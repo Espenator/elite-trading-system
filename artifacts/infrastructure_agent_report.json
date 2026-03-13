@@ -1,0 +1,16 @@
+{
+  "agent": "infrastructure",
+  "tests_passing": 1122,
+  "backend_boots": true,
+  "duckdb_init": false,
+  "brain_service_reachable": false,
+  "brain_service_fallback_works": true,
+  "env_vars_loaded": true,
+  "directives_loaded": true,
+  "errors": [
+    "pytest: 7 tests failed (4x test_feature_store.py DuckDB file lock; 1x test_jobs.py idempotent; 2x test_redis_bridge.py Redis env)",
+    "DuckDB init skipped this run: analytics.duckdb file in use by another process",
+    "GET /api/v1/ returned 404 (no root route); GET /health, GET /docs, GET /api/v1/health return 200",
+    "brain_service has no client.py; BrainClient in backend app.services.brain_client; PC2 gRPC unreachable, fallback OK"
+  ]
+}

@@ -26,13 +26,38 @@ _DEFAULTS = {
 
 
 def _get_thresholds() -> dict:
-    """Load circuit breaker thresholds from settings, falling back to defaults."""
+    """Load circuit breaker thresholds from directives/global.md when available, else agent_config, else defaults."""
+    out = _DEFAULTS.copy()
+    # Prefer directives/global.md (canonical source)
+    try:
+        from app.council.directives.loader import directive_loader
+        vix = directive_loader.get_threshold("VIX spike threshold")
+        if vix is not None:
+            out["cb_vix_spike_threshold"] = float(vix)
+        dd = directive_loader.get_threshold("Daily drawdown limit")
+        if dd is not None:
+            out["cb_daily_drawdown_limit"] = float(dd)
+        fc = directive_loader.get_threshold("Flash crash threshold")
+        if fc is not None:
+            out["cb_flash_crash_threshold"] = float(fc)
+        max_pos = directive_loader.get_threshold("Max positions")
+        if max_pos is not None:
+            out["cb_max_positions"] = int(max_pos)
+        max_single = directive_loader.get_threshold("Max single position")
+        if max_single is not None:
+            out["cb_max_single_position_pct"] = float(max_single)
+    except Exception:
+        pass
+    # Override with agent_config / settings if available
     try:
         from app.council.agent_config import get_agent_thresholds
         cfg = get_agent_thresholds()
-        return {k: cfg.get(k, v) for k, v in _DEFAULTS.items()}
+        for k, v in _DEFAULTS.items():
+            if k in cfg:
+                out[k] = cfg[k]
     except Exception:
-        return _DEFAULTS.copy()
+        pass
+    return out
 
 
 class CircuitBreaker:
@@ -73,9 +98,16 @@ class CircuitBreaker:
         """Detect rapid price drops (>5% in 5min equivalent)."""
         thresholds = _get_thresholds()
         f = blackboard.raw_features.get("features", blackboard.raw_features)
+        # Also check top-level raw_features for price_change_5min (alias for 5min move)
+        raw = blackboard.raw_features
         threshold = thresholds["cb_flash_crash_threshold"]
         # Prefer intraday returns if available for true flash crash detection
-        intraday_ret = f.get("return_5min") or f.get("return_15min") or f.get("return_1h")
+        intraday_ret = (
+            f.get("return_5min")
+            or raw.get("price_change_5min")
+            or f.get("return_15min")
+            or f.get("return_1h")
+        )
         if intraday_ret is not None:
             ret = abs(intraday_ret)
             if ret > threshold:
@@ -91,7 +123,8 @@ class CircuitBreaker:
         """Detect VIX above panic threshold."""
         thresholds = _get_thresholds()
         f = blackboard.raw_features.get("features", blackboard.raw_features)
-        vix = f.get("vix_close", 0) or f.get("vix", 0)
+        raw = blackboard.raw_features
+        vix = f.get("vix_close", 0) or f.get("vix", 0) or raw.get("vix", 0)
         if vix > thresholds["cb_vix_spike_threshold"]:
             return f"VIX spike: {vix:.1f} exceeds {thresholds['cb_vix_spike_threshold']:.0f} threshold"
         return None

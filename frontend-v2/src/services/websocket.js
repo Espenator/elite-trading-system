@@ -8,9 +8,9 @@
 import { getWsBaseUrl } from "../config/api";
 
 const RECONNECT_DELAY_MS = 2000;
-const MAX_RECONNECT_DELAY = 30000;
-const MAX_RECONNECT_ATTEMPTS = 20;
+const MAX_RECONNECT_DELAY = 60000; // cap backoff at 60s for 24/7 resilience
 const HEARTBEAT_INTERVAL = 25000;
+// No max reconnect attempts — reconnect forever so WS stays up 24/7
 
 class AppWebSocket {
   constructor() {
@@ -83,11 +83,10 @@ class AppWebSocket {
         this.state = "disconnected";
         if (this.handlers.has("*"))
           this.handlers.get("*").forEach((fn) => fn({ type: "disconnected" }));
-        if (
-          !this._intentionalClose &&
-          this._reconnectAttempts < MAX_RECONNECT_ATTEMPTS
-        ) {
+        if (!this._intentionalClose) {
           this.state = "reconnecting";
+          if (this.handlers.has("*"))
+            this.handlers.get("*").forEach((fn) => fn({ type: "reconnecting" }));
           const delay = Math.min(
             RECONNECT_DELAY_MS * Math.pow(1.5, this._reconnectAttempts),
             MAX_RECONNECT_DELAY

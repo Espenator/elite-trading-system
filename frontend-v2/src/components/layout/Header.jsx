@@ -115,6 +115,7 @@ export default function Header() {
     circuitBreakerFired,
     latestVerdict,
     wsConnected,
+    wsReconnecting,
     notifications = [],
     unreadCount = 0,
     markRead,
@@ -148,7 +149,7 @@ export default function Header() {
     if (!sym) return;
     setSearchValue("");
     setSearchFocused(false);
-    navigate(`/dashboard?symbol=${encodeURIComponent(sym)}`);
+    navigate(`/symbol/${encodeURIComponent(sym)}`);
   }, [searchValue, navigate]);
 
   return (
@@ -204,27 +205,29 @@ export default function Header() {
 
       {/* ── Center: CNS Status ──────────────────────────────────────────── */}
       <div className="flex items-center gap-2">
-        {/* WS Connection */}
+        {/* WS Connection — LIVE | RECONNECTING | DOWN (24/7 auto-reconnect) */}
         <StatusPill
-          bg={wsConnected ? "rgba(16,185,129,0.10)" : "rgba(239,68,68,0.10)"}
-          border={wsConnected ? "rgba(16,185,129,0.35)" : "rgba(239,68,68,0.35)"}
+          bg={wsConnected ? "rgba(16,185,129,0.10)" : wsReconnecting ? "rgba(245,158,11,0.10)" : "rgba(239,68,68,0.10)"}
+          border={wsConnected ? "rgba(16,185,129,0.35)" : wsReconnecting ? "rgba(245,158,11,0.35)" : "rgba(239,68,68,0.35)"}
         >
           {wsConnected ? (
             <Wifi className="w-3.5 h-3.5" style={{ color: "#10B981" }} />
+          ) : wsReconnecting ? (
+            <Wifi className="w-3.5 h-3.5 animate-pulse" style={{ color: "#F59E0B" }} />
           ) : (
             <WifiOff className="w-3.5 h-3.5 animate-pulse" style={{ color: "#EF4444" }} />
           )}
           <span
             className="text-xs font-bold tracking-wider"
-            style={{ color: wsConnected ? "#10B981" : "#EF4444" }}
+            style={{ color: wsConnected ? "#10B981" : wsReconnecting ? "#F59E0B" : "#EF4444" }}
           >
-            {wsConnected ? "WS" : "WS"}
+            WS
           </span>
           <span
             className="text-[10px]"
-            style={{ color: wsConnected ? "#10B981" : "#EF4444", opacity: 0.8 }}
+            style={{ color: wsConnected ? "#10B981" : wsReconnecting ? "#F59E0B" : "#EF4444", opacity: 0.8 }}
           >
-            {wsConnected ? "LIVE" : "DOWN"}
+            {wsConnected ? "LIVE" : wsReconnecting ? "RECONNECTING" : "DOWN"}
           </span>
         </StatusPill>
 

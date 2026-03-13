@@ -3,6 +3,7 @@
 GET /api/v1/metrics          -> JSON metrics from all services
 GET /api/v1/metrics/prometheus -> Prometheus text exposition format
 GET /api/v1/metrics/pipeline -> Pipeline-specific metrics (signals, council, fills)
+POST /api/v1/metrics/auto-execute -> Set Manual (enabled=false) vs Automated (enabled=true) trading mode
 POST /api/v1/metrics/emergency-flatten -> Trigger emergency flatten
 
 Aggregates metrics from:
@@ -22,10 +23,16 @@ import secrets
 import time
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Body, Header, HTTPException
 from fastapi.responses import PlainTextResponse
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/v1/metrics", tags=["metrics"])
+
+
+class AutoExecuteBody(BaseModel):
+    """Request body for POST /metrics/auto-execute."""
+    enabled: bool = False
 logger = logging.getLogger(__name__)
 
 
@@ -252,6 +259,37 @@ def get_pipeline_metrics():
     except Exception as e:
         logger.warning("Pipeline metrics error: %s", e)
         return {"error": "Service unavailable"}
+
+
+@router.post("/auto-execute")
+async def set_auto_execute_mode(
+    body: AutoExecuteBody = Body(...),
+    authorization: str = Header(None),
+):
+    """Set automated trading mode (Manual vs Automated).
+
+    When enabled=true: OrderExecutor submits real orders from council verdicts (AI/Embodier trades).
+    When enabled=false: Shadow mode — council runs but orders are not sent (manual trading only).
+    Requires Bearer token auth.
+    """
+    from app.core.config import settings
+    expected_token = (settings.API_AUTH_TOKEN or "").strip()
+    if not expected_token:
+        raise HTTPException(status_code=403, detail="API_AUTH_TOKEN not configured")
+    if not authorization or not secrets.compare_digest((authorization or "").strip(), f"Bearer {expected_token}"):
+        raise HTTPException(status_code=403, detail="Unauthorized")
+
+    enabled = body.enabled
+    try:
+        import app.main as _main
+        _executor_instance = getattr(_main, "_order_executor", None)
+        if not _executor_instance:
+            return {"error": "OrderExecutor not initialized", "status": "failed"}
+        result = await _executor_instance.set_auto_execute(bool(enabled))
+        return result
+    except Exception as e:
+        logger.exception("Set auto-execute API error")
+        return {"error": str(e), "status": "failed"}
 
 
 @router.post("/emergency-flatten")

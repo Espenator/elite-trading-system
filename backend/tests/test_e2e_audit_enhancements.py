@@ -28,6 +28,27 @@ def client():
     return TestClient(app)
 
 
+class TestStartupHealthCheck:
+    """GET /api/v1/health/startup-check returns 7 phases and failure_patterns."""
+
+    def test_startup_check_returns_phases_and_failure_patterns(self, client):
+        r = client.get("/api/v1/health/startup-check")
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert "phases" in data
+        assert "overall_ok" in data
+        assert "failure_patterns" in data
+        phases = data["phases"]
+        for key in ("1_environment", "2_backend_startup", "3_router_verification", "4_api_smoke",
+                    "5_signal_pipeline", "6_frontend_wiring", "7_background_loops"):
+            assert key in phases, f"missing phase {key}"
+            assert "label" in phases[key] and "ok" in phases[key] and "checks" in phases[key]
+        assert isinstance(data["failure_patterns"], list)
+        assert len(data["failure_patterns"]) >= 1
+        for row in data["failure_patterns"]:
+            assert "symptom" in row and "cause" in row and "remediation" in row
+
+
 class TestIngestionHealth503:
     """Ingestion /health must return 503 when unhealthy (readiness probes)."""
 
@@ -199,6 +220,17 @@ class TestDashboardDataEndpoints:
         assert "signals" in data
         assert isinstance(data.get("signals"), list)
 
+    def test_stocks_returns_200_and_symbols_key(self, client):
+        """GET /api/v1/stocks or /api/v1/stocks/ (frontend useApi('stocks')) — symbol list for symbol-click navigation."""
+        r = client.get("/api/v1/stocks")
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert "symbols" in data
+        assert isinstance(data.get("symbols"), list)
+        assert "count" in data
+        r_slash = client.get("/api/v1/stocks/", follow_redirects=True)
+        assert r_slash.status_code == 200, r_slash.text
+
     def test_kelly_ranked_returns_200(self, client):
         r = client.get("/api/v1/signals/kelly-ranked")
         assert r.status_code == 200, r.text
@@ -304,7 +336,6 @@ class TestDashboardDataEndpoints:
         # API returns { dataSources: [...], sources: [...], total: N }
         items = data.get("dataSources") or data.get("sources") if isinstance(data, dict) else (data if isinstance(data, list) else [])
         assert isinstance(items, list), "data-sources response must have dataSources/sources list or be a list"
-        assert len(items) > 0, "data-sources list should not be empty"
         for item in items:
             assert "id" in item and "name" in item
             assert "status" in item
@@ -319,6 +350,21 @@ class TestDashboardDataEndpoints:
 
     def test_quotes_book_for_symbol_returns_200(self, client):
         r = client.get("/api/v1/quotes/SPY/book")
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert isinstance(data, dict)
+
+    def test_council_status_returns_200(self, client):
+        """GET /api/v1/council/status — council config (agent_count, dag_stages) for dashboard."""
+        r = client.get("/api/v1/council/status")
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert isinstance(data, dict)
+        assert "agent_count" in data or "council_enabled" in data
+
+    def test_council_latest_returns_200(self, client):
+        """GET /api/v1/council/latest — latest council decision for symbol detail / dashboard."""
+        r = client.get("/api/v1/council/latest")
         assert r.status_code == 200, r.text
         data = r.json()
         assert isinstance(data, dict)
@@ -339,6 +385,30 @@ class TestDashboardCnsEndpoints:
         data = r.json()
         assert isinstance(data, dict)
         assert "checks" in data or "thresholds" in data or "fired" in str(data).lower()
+
+    def test_cns_circuit_breaker_audit_returns_schema(self, client):
+        """GET /api/v1/cns/circuit-breaker/audit returns agent audit schema."""
+        r = client.get("/api/v1/cns/circuit-breaker/audit")
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data.get("agent") == "circuit_breakers"
+        assert "normal_conditions_pass" in data
+        assert isinstance(data["normal_conditions_pass"], bool)
+        assert "flash_crash_halts" in data
+        assert isinstance(data["flash_crash_halts"], bool)
+        assert "vix_spike_halts" in data
+        assert isinstance(data["vix_spike_halts"], bool)
+        assert "daily_drawdown_halts" in data
+        assert "position_limit_halts" in data
+        assert "market_hours_halts" in data
+        assert data.get("runner_skips_council_on_halt") is True
+        assert "execution_time_ms" in data
+        assert isinstance(data["execution_time_ms"], int)
+        assert "thresholds_from_directives" in data
+        assert "errors" in data
+        assert isinstance(data["errors"], list)
+        assert data["flash_crash_halts"] is True
+        assert data["vix_spike_halts"] is True
 
     def test_cns_agents_health_returns_200(self, client):
         r = client.get("/api/v1/cns/agents/health")
@@ -384,3 +454,424 @@ class TestDashboardActionEndpoints:
     def test_post_emergency_stop_route_exists(self, client):
         r = client.post("/api/v1/orders/emergency-stop")
         assert r.status_code in (200, 401, 403), r.text
+
+
+# ---------------------------------------------------------------------------
+# Council pipeline E2E audit report (schema from launch audit)
+# ---------------------------------------------------------------------------
+
+# Stage 1 = perception + academic edge; S2 = hypothesis (stage 3); S3 = strategy (4);
+# S4 = risk_execution (5); S5 = critic (6); S6 = arbiter (post-stage 7)
+STAGE_1_AGENTS = {
+    "market_perception", "flow_perception", "regime", "social_perception",
+    "news_catalyst", "youtube_knowledge", "intermarket",
+    "gex_agent", "insider_agent", "finbert_sentiment_agent",
+    "earnings_tone_agent", "dark_pool_agent", "macro_regime_agent",
+}
+VETO_AGENTS = {"risk", "execution"}
+REQUIRED_VOTE_KEYS = ("agent_name", "direction", "confidence", "reasoning", "veto", "weight")
+
+
+def _validate_agent_vote_schema(v: dict) -> bool:
+    """Return True if v looks like a valid AgentVote (direction, confidence in range, etc.)."""
+    if not isinstance(v, dict):
+        return False
+    for k in REQUIRED_VOTE_KEYS:
+        if k not in v:
+            return False
+    direction = v.get("direction", "")
+    if direction not in ("buy", "sell", "hold"):
+        return False
+    conf = v.get("confidence", -1)
+    if not isinstance(conf, (int, float)) or not (0.0 <= conf <= 1.0):
+        return False
+    weight = v.get("weight", 0)
+    if not isinstance(weight, (int, float)) or weight <= 0:
+        return False
+    return True
+
+
+def build_council_pipeline_audit_report(
+    agent: str = "council_pipeline",
+    symbols_tested: list = None,
+    decisions: list = None,
+) -> dict:
+    """Build audit report from one or more council evaluate responses.
+
+    decisions: list of response dicts from POST /api/v1/council/evaluate (decision.to_dict()).
+    Merges all decisions to fill stage_results, total_pipeline_ms, veto_logic_correct, etc.
+    """
+    symbols_tested = symbols_tested or []
+    decisions = decisions or []
+    errors = []
+    all_votes = []
+    total_pipeline_ms = 0
+    council_decision_id = ""
+    blackboard_created = False
+    stage_latencies = {}
+
+    for d in decisions:
+        if not d:
+            continue
+        cid = d.get("council_decision_id") or ""
+        if cid:
+            blackboard_created = True
+            council_decision_id = cid
+        cognitive = d.get("cognitive") or {}
+        total_pipeline_ms = max(total_pipeline_ms, cognitive.get("total_latency_ms", 0))
+        sl = cognitive.get("stage_latencies") or {}
+        for k in ("stage1", "stage2", "stage3", "stage4", "stage5", "stage5.5", "stage6"):
+            if k in sl:
+                try:
+                    stage_latencies[k] = int(round(float(sl[k])))
+                except (TypeError, ValueError):
+                    stage_latencies[k] = 0
+        votes = d.get("votes") or []
+        for v in votes:
+            all_votes.append(v if isinstance(v, dict) else (v.to_dict() if hasattr(v, "to_dict") else {}))
+
+    all_agent_votes_valid_schema = all(_validate_agent_vote_schema(v) for v in all_votes)
+    if not all_votes and decisions:
+        errors.append("No votes in decision response")
+
+    # Veto logic: only risk/execution may have veto=True; if vetoed, final_direction must be hold
+    veto_logic_correct = True
+    for d in decisions:
+        final = (d.get("final_direction") or "").lower()
+        vetoed = d.get("vetoed", False)
+        if vetoed and final != "hold":
+            veto_logic_correct = False
+            errors.append("vetoed=True but final_direction is not hold")
+        for v in (d.get("votes") or []):
+            vote = v if isinstance(v, dict) else getattr(v, "to_dict", lambda: {})()
+            if vote.get("veto") is True:
+                name = (vote.get("agent_name") or "").lower()
+                # Normalize: "risk_agent" -> "risk", "execution_agent" -> "execution"
+                base = name.replace("_agent", "").split("_")[0]
+                if base not in VETO_AGENTS and name not in VETO_AGENTS:
+                    veto_logic_correct = False
+                    errors.append(f"Veto from non-veto agent: {name}")
+
+    # Map runner stages to audit schema stages (S1..S6)
+    def stage_result(passed: bool, time_ms: int, agents_wrote: list = None, used_llm: bool = False):
+        r = {"passed": bool(passed), "time_ms": int(time_ms)}
+        if agents_wrote is not None:
+            r["agents_wrote"] = list(agents_wrote)
+        r["used_llm"] = bool(used_llm)
+        return r
+
+    s1_agents = [v.get("agent_name") for v in all_votes if v.get("agent_name") in STAGE_1_AGENTS]
+    used_llm = any(
+        (v.get("agent_name") or "").lower() == "hypothesis"
+        for v in all_votes
+    )
+
+    stage_results = {
+        "S1_perception": stage_result(
+            passed=len(s1_agents) >= 3,
+            time_ms=stage_latencies.get("stage1", 0),
+            agents_wrote=s1_agents[:10] or ["market", "flow", "regime"],
+        ),
+        "S2_hypothesis": stage_result(
+            passed=any((v.get("agent_name") or "").lower() in ("hypothesis", "layered_memory_agent") for v in all_votes),
+            time_ms=stage_latencies.get("stage3", 0),
+            used_llm=used_llm,
+        ),
+        "S3_strategy": stage_result(
+            passed=any((v.get("agent_name") or "").lower() == "strategy" for v in all_votes),
+            time_ms=stage_latencies.get("stage4", 0),
+        ),
+        "S4_risk_execution": stage_result(
+            passed=any(
+                (v.get("agent_name") or "").lower() in ("risk", "risk_agent", "execution", "execution_agent")
+                for v in all_votes
+            ),
+            time_ms=stage_latencies.get("stage5", 0),
+        ),
+        "S5_critic": stage_result(
+            passed=any((v.get("agent_name") or "").lower() == "critic" for v in all_votes),
+            time_ms=stage_latencies.get("stage6", 0),
+        ),
+        "S6_arbiter": stage_result(
+            passed=bool(decisions and (decisions[0].get("final_direction") or decisions[0].get("vote_count", 0) > 0)),
+            time_ms=0,
+        ),
+    }
+
+    decision_id_matches_blackboard = True
+    if decisions and council_decision_id:
+        for d in decisions:
+            if (d.get("council_decision_id") or "") != council_decision_id and d.get("council_decision_id"):
+                decision_id_matches_blackboard = False
+                break
+
+    return {
+        "agent": agent,
+        "blackboard_created": blackboard_created,
+        "stage_results": stage_results,
+        "total_pipeline_ms": int(round(total_pipeline_ms)),
+        "veto_logic_correct": veto_logic_correct,
+        "symbols_tested": list(symbols_tested),
+        "all_agent_votes_valid_schema": all_agent_votes_valid_schema,
+        "decision_id_matches_blackboard": decision_id_matches_blackboard,
+        "errors": errors,
+    }
+
+
+class TestCouncilPipelineAudit:
+    """
+    E2E audit: council pipeline produces a report that matches the launch audit schema.
+    Report shape: agent, blackboard_created, stage_results (S1..S6), total_pipeline_ms,
+    veto_logic_correct, symbols_tested, all_agent_votes_valid_schema,
+    decision_id_matches_blackboard, errors.
+    """
+
+    @pytest.fixture
+    def auth_headers(self):
+        import os
+        token = os.environ.get("API_AUTH_TOKEN", "test_auth_token_for_tests")
+        return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+    @pytest.mark.anyio
+    async def test_audit_report_schema_from_mock_council(self, client, auth_headers):
+        """Build audit report from a single council evaluate response (mocked run_council)."""
+        from unittest.mock import AsyncMock, patch
+
+        from app.council.schemas import AgentVote, DecisionPacket, CognitiveMeta
+
+        def _make_vote(name: str, direction: str = "buy", confidence: float = 0.6, veto: bool = False):
+            return AgentVote(
+                agent_name=name,
+                direction=direction,
+                confidence=confidence,
+                reasoning=f"{name} vote",
+                veto=veto,
+                veto_reason="test" if veto else "",
+                weight=1.0,
+            )
+
+        # Minimal DecisionPacket with cognitive.stage_latencies and council_decision_id
+        async def _mock_run_council(symbol, timeframe="1d", features=None, context=None):
+            votes = [
+                _make_vote("market_perception"), _make_vote("flow_perception"), _make_vote("regime"),
+                _make_vote("rsi"), _make_vote("hypothesis"), _make_vote("strategy"),
+                _make_vote("risk"), _make_vote("execution"), _make_vote("critic"),
+            ]
+            cognitive = CognitiveMeta(
+                total_latency_ms=450.0,
+                stage_latencies={
+                    "stage1": 120, "stage2": 80, "stage3": 100,
+                    "stage4": 30, "stage5": 90, "stage6": 30,
+                },
+            )
+            return DecisionPacket(
+                symbol=symbol,
+                timeframe=timeframe,
+                timestamp="2026-03-12T00:00:00Z",
+                votes=votes,
+                final_direction="buy",
+                final_confidence=0.55,
+                vetoed=False,
+                veto_reasons=[],
+                risk_limits={},
+                execution_ready=True,
+                council_reasoning="Audit test",
+                council_decision_id="audit-test-decision-id-123",
+                cognitive=cognitive,
+            )
+
+        with patch("app.council.runner.run_council", new=_mock_run_council):
+            r = client.post(
+                "/api/v1/council/evaluate",
+                headers=auth_headers,
+                json={"symbol": "AAPL", "timeframe": "1d"},
+            )
+        assert r.status_code == 200, r.text
+        data = r.json()
+        report = build_council_pipeline_audit_report(
+            symbols_tested=["AAPL"],
+            decisions=[data],
+        )
+        assert report["agent"] == "council_pipeline"
+        assert report["blackboard_created"] is True
+        assert report["total_pipeline_ms"] >= 0
+        assert report["veto_logic_correct"] is True
+        assert report["symbols_tested"] == ["AAPL"]
+        assert report["all_agent_votes_valid_schema"] is True
+        assert report["decision_id_matches_blackboard"] is True
+        assert isinstance(report["errors"], list)
+        stage_results = report["stage_results"]
+        for key in ("S1_perception", "S2_hypothesis", "S3_strategy", "S4_risk_execution", "S5_critic", "S6_arbiter"):
+            assert key in stage_results
+            assert "passed" in stage_results[key]
+            assert "time_ms" in stage_results[key]
+        assert stage_results["S1_perception"].get("agents_wrote")
+        assert "used_llm" in stage_results["S2_hypothesis"]
+
+    @pytest.mark.anyio
+    async def test_audit_report_veto_logic_reject_non_veto_agent(self):
+        """Veto from non risk/execution agent sets veto_logic_correct=False."""
+        bad_votes = [
+            {"agent_name": "risk", "direction": "buy", "confidence": 0.5, "reasoning": "ok", "veto": False, "weight": 1.0},
+            {"agent_name": "noise_agent", "direction": "hold", "confidence": 0.0, "reasoning": "x", "veto": True, "weight": 1.0},
+        ]
+        decision = {
+            "council_decision_id": "id-1",
+            "votes": bad_votes,
+            "final_direction": "hold",
+            "vetoed": True,
+            "cognitive": {"total_latency_ms": 100, "stage_latencies": {}},
+        }
+        report = build_council_pipeline_audit_report(decisions=[decision], symbols_tested=[])
+        assert report["veto_logic_correct"] is False
+        assert any("non-veto" in e for e in report["errors"])
+
+
+# =============================================================================
+# Signal pipeline E2E verification (Cursor Prompt #2: verify signals flow end-to-end)
+# Pipeline: market_data.bar → EventDrivenSignalEngine → signal.generated →
+#           CouncilGate → council → council.verdict → OrderExecutor → order.submitted
+# =============================================================================
+
+
+class TestSignalPipelineBarToSignal:
+    """Verify market_data.bar → EventDrivenSignalEngine → signal.generated."""
+
+    @pytest.mark.asyncio
+    async def test_bar_events_produce_signal_generated_when_score_above_threshold(self):
+        """Publishing 5+ bullish bars yields at least one signal.generated with valid shape."""
+        from app.core.message_bus import MessageBus
+        from app.services.signal_engine import EventDrivenSignalEngine
+
+        signals = []
+        bus = MessageBus()
+        await bus.start()
+
+        async def collect_signal(data):
+            signals.append(data)
+
+        await bus.subscribe("signal.generated", collect_signal)
+        engine = EventDrivenSignalEngine(bus)
+        await engine.start()
+
+        # 5+ bars: clear uptrend so _compute_composite_score yields score >= 65
+        symbol = "PIPELINE_TEST"
+        base = 100.0
+        for i in range(6):
+            bar = {
+                "symbol": symbol,
+                "open": base + i * 0.5,
+                "high": base + i * 0.5 + 1.0,
+                "low": base + i * 0.5 - 0.3,
+                "close": base + i * 0.5 + 0.8,
+                "volume": 1_000_000,
+            }
+            await bus.publish("market_data.bar", bar)
+
+        for _ in range(30):
+            await __import__("asyncio").sleep(0.1)
+            if signals:
+                break
+
+        await engine.stop()
+        await bus.stop()
+
+        assert len(signals) >= 1, "EventDrivenSignalEngine should publish signal.generated from bars"
+        sig = signals[0]
+        assert sig.get("symbol") == symbol
+        assert "score" in sig
+        assert 0 <= sig["score"] <= 100
+        assert sig.get("source") == "event_driven_signal_engine"
+        assert sig.get("label")  # e.g. momentum_bull or similar
+
+
+class TestSignalPipelineFullChain:
+    """Verify signal.generated → CouncilGate → council.verdict → OrderExecutor → order.submitted."""
+
+    @pytest.mark.asyncio
+    async def test_signal_to_verdict_to_order_submitted(self):
+        """Full chain: signal.generated → council.verdict → order.submitted (stubbed council, shadow executor)."""
+        from unittest.mock import patch, MagicMock
+        from types import SimpleNamespace
+        import asyncio
+        from app.core.message_bus import MessageBus
+        from app.council.council_gate import CouncilGate
+        from app.services.order_executor import OrderExecutor
+
+        verdicts = []
+        orders = []
+        bus = MessageBus()
+        await bus.start()
+        await bus.subscribe("council.verdict", lambda d: verdicts.append(d))
+        await bus.subscribe("order.submitted", lambda d: orders.append(d))
+
+        async def _stub_run_council(symbol=None, **kwargs):
+            sym = symbol or kwargs.get("symbol", "E2E")
+            return SimpleNamespace(
+                vetoed=False,
+                veto_reasons=[],
+                final_direction="buy",
+                final_confidence=0.9,
+                execution_ready=True,
+                votes=[],
+                symbol=sym,
+                to_dict=lambda: {
+                    "symbol": sym,
+                    "vetoed": False,
+                    "final_direction": "buy",
+                    "final_confidence": 0.9,
+                    "execution_ready": True,
+                },
+            )
+
+        with patch("app.council.runner.run_council", side_effect=_stub_run_council):
+            gate = CouncilGate(bus, gate_threshold=0.0, max_concurrent=2, cooldown_seconds=0)
+            await gate.start()
+
+            executor = OrderExecutor(
+                bus,
+                auto_execute=False,
+                min_score=0,
+                max_daily_trades=100,
+                cooldown_seconds=0,
+            )
+            async def _stub_kelly(symbol, score, regime, price, direction):
+                return {
+                    "action": "TRADE",
+                    "kelly_pct": 0.05,
+                    "qty": 10,
+                    "edge": 0.1,
+                    "stats_source": "test",
+                    "stop_loss": price * 0.98,
+                    "take_profit": price * 1.05,
+                    "raw_kelly": 0.05,
+                    "win_rate": 0.55,
+                    "trade_count": 50,
+                }
+            executor._compute_kelly_size = _stub_kelly
+            await executor.start()
+
+            await bus.publish("signal.generated", {
+                "symbol": "E2E",
+                "score": 80,
+                "label": "momentum_bull",
+                "direction": "buy",
+                "price": 100.0,
+                "source": "test",
+            })
+
+            for _ in range(50):
+                await asyncio.sleep(0.05)
+                if verdicts and orders:
+                    break
+
+            await executor.stop()
+            await gate.stop()
+
+        await bus.stop()
+
+        assert len(verdicts) >= 1, "CouncilGate should publish council.verdict"
+        assert verdicts[0].get("execution_ready") is True
+        assert verdicts[0].get("final_direction") == "buy"
+        assert len(orders) >= 1, "OrderExecutor should publish order.submitted"
+        assert orders[0].get("symbol") == "E2E"

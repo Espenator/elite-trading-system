@@ -4,6 +4,7 @@
  * Real Alpaca API via useApi hooks
  */
 import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import log from "@/utils/logger";
 import {
@@ -186,6 +187,7 @@ const TAB_ORDERS = "orders";
 const TAB_HISTORY = "history";
 
 export default function Trades() {
+  const navigate = useNavigate();
   // ── State ──
   const [activeTab, setActiveTab] = useState(TAB_POSITIONS);
   const [posFilter, setPosFilter] = useState("");
@@ -438,29 +440,34 @@ export default function Trades() {
 
   const handleCancelOrder = async (orderId) => {
     try {
-      await fetch(getApiUrl("orders") + `/${orderId}`, {
+      const res = await fetch(getApiUrl("orders") + `/${encodeURIComponent(orderId)}`, {
         method: "DELETE",
         headers: getAuthHeaders(),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.detail?.message ?? err?.detail ?? res.statusText ?? `HTTP ${res.status}`);
+      }
       toast.success("Order cancelled");
       refetchOrders();
     } catch (e) {
       log.error("Cancel order failed:", e);
-      toast.error(`Cancel failed: ${e.message}`);
+      toast.error(`Cancel failed: ${e?.message || "Unknown error"}`);
     }
   };
 
   const handleCancelAll = async () => {
     if (!window.confirm("Cancel ALL open orders?")) return;
     try {
-      await fetch(getApiUrl("orders"), {
+      const res = await fetch(getApiUrl("orders"), {
         method: "DELETE",
         headers: getAuthHeaders(),
       });
+      if (!res.ok) throw new Error(res.statusText || `HTTP ${res.status}`);
       toast.success("All orders cancelled");
       refetchOrders();
     } catch (e) {
-      toast.error(`Cancel all failed: ${e.message}`);
+      toast.error(`Cancel all failed: ${e?.message || "Unknown error"}`);
     }
   };
 
@@ -804,10 +811,14 @@ export default function Trades() {
                       className="hover:bg-[#1E293B]/50 transition-colors border-b border-[rgba(42,52,68,0.5)]/30 cursor-pointer"
                     >
                       {/* Symbol */}
-                      <td className="px-1.5 py-[3px] text-left">
-                        <span className="font-bold text-white font-mono text-[10px]">
+                      <td className="px-1.5 py-[3px] text-left" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => sym !== "--" && navigate(`/symbol/${encodeURIComponent(sym)}`)}
+                          className="font-bold text-white font-mono text-[10px] hover:text-cyan-400 underline cursor-pointer"
+                        >
                           {sym}
-                        </span>
+                        </button>
                       </td>
                       {/* Side */}
                       <td className="px-1.5 py-[3px] text-left">

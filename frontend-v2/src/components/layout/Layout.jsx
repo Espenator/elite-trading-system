@@ -13,7 +13,7 @@ import { useApi } from '../../hooks/useApi';
 import ws from '../../services/websocket';
 
 function LayoutInner() {
-  const { wsConnected, mode } = useCNS();
+  const { wsConnected, wsReconnecting, mode } = useCNS();
 
   // Poll system status + market indices for the footer bar
   const { data: systemData } = useApi("system", { pollIntervalMs: 15000 });
@@ -68,7 +68,7 @@ function LayoutInner() {
           <Outlet />
         </main>
         <StatusFooter
-          wsStatus={wsConnected ? "green" : "red"}
+          wsStatus={wsConnected ? "green" : wsReconnecting ? "amber" : "red"}
           apiStatus={apiHealthy ? "green" : "red"}
           mlStatus={agentCount > 0 ? "green" : "amber"}
           agentCount={agentCount}

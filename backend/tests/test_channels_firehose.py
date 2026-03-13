@@ -9,6 +9,11 @@ from app.services.channels.schemas import SensoryEvent
 from app.services.channels.router import SensoryRouter
 from app.services.channels.base_channel_agent import BaseChannelAgent
 
+# Firehose imports for circuit breaker and backpressure tests
+from app.services.firehose.base_agent import BaseFirehoseAgent
+from app.services.firehose.schemas import SensoryEvent as FirehoseSensoryEvent
+from app.services.firehose.schemas import SensorySource
+
 
 class DummyBus:
     def __init__(self) -> None:
@@ -256,6 +261,135 @@ async def test_base_channel_agent_retry_and_dlq_on_failure():
     assert "ingest.dlq" in topics
     status = agent.get_status()
     assert status["metrics"]["events_dlq"] >= 1
+
+
+@pytest.mark.asyncio
+async def test_dlq_flow_channel_agent_failure_reaches_ingest_dlq():
+    """Verify failed channel agent events reach ingest.dlq with correct payload shape."""
+    from app.services.channels.base_channel_agent import RetryPolicy
+
+    bus = DummyBus()
+
+    class FailingRouter:
+        async def route_and_publish(self, ev: SensoryEvent) -> None:
+            raise ValueError("publish_failed")
+
+    agent = BaseChannelAgent(
+        name="dlq_test_agent",
+        router=FailingRouter(),
+        message_bus=bus,
+        max_queue_size=10,
+        batch_size=1,
+        retry=RetryPolicy(max_retries=0, base_delay_s=0.01),
+    )
+    await agent.start()
+
+    ev = SensoryEvent(
+        source="unusual_whales",
+        event_type="options_flow",
+        symbols=["SPY"],
+        raw={"premium": 100000},
+        normalized={"premium": 100000},
+        data_quality="live",
+    )
+    await agent.enqueue(ev)
+    await asyncio.sleep(0.5)
+    await agent.stop()
+
+    dlq_publishes = [(t, d) for (t, d) in bus.published if t == "ingest.dlq"]
+    assert len(dlq_publishes) >= 1
+    topic, payload = dlq_publishes[0]
+    assert topic == "ingest.dlq"
+    assert payload.get("agent") == "dlq_test_agent"
+    assert "error" in payload
+    assert "publish_failed" in payload["error"] or "publish_failed" in str(payload.get("error", ""))
+    assert "event" in payload
+    assert payload["event"].get("source") == "unusual_whales"
+    assert payload["event"].get("event_type") == "options_flow"
+    assert "ts" in payload
+    assert agent.get_status()["metrics"]["events_dlq"] >= 1
+
+
+@pytest.mark.asyncio
+async def test_firehose_circuit_breaker_five_failures_then_reset():
+    """Five consecutive failures open circuit; after reset_timeout agent processes again."""
+    publish_count = 0
+
+    class FailingThenSucceedBus:
+        def __init__(self):
+            self.published: list = []
+
+        async def publish(self, topic: str, data: Dict[str, Any]) -> None:
+            nonlocal publish_count
+            publish_count += 1
+            if publish_count <= 5:
+                raise RuntimeError("simulated failure")
+            self.published.append((topic, data))
+
+    bus = FailingThenSucceedBus()
+
+    class TestFirehoseAgent(BaseFirehoseAgent):
+        agent_id = "test_circuit_agent"
+        circuit_failures = 5
+        circuit_reset_sec = 0.6  # long enough to assert circuit open
+
+        async def fetch(self):
+            return []
+
+    agent = TestFirehoseAgent(bus)
+    await agent.start()
+
+    for _ in range(6):
+        ev = FirehoseSensoryEvent(
+            source=SensorySource.UNUSUAL_WHALES,
+            symbols=["SPY"],
+            topic_hint="swarm.idea",
+            payload={"reasoning": "test"},
+        )
+        agent.enqueue(ev)
+
+    for _ in range(30):
+        await asyncio.sleep(0.05)
+        status = agent.get_status()
+        if status["failures"] >= 5:
+            assert status["circuit_open"] is True, "Circuit should open after 5 failures"
+            break
+    else:
+        pytest.fail("Expected 5 failures to trigger circuit open")
+
+    await asyncio.sleep(2.0)
+    await agent.stop()
+
+    assert len(bus.published) >= 1, "After reset window, 6th event should be published"
+    assert any(t == "swarm.idea" for t, _ in bus.published)
+
+
+@pytest.mark.asyncio
+async def test_backpressure_message_bus_queue_full_event_to_dlq():
+    """When MessageBus queue is full, publish puts event in DLQ (queue_full)."""
+    from app.core.message_bus import MessageBus
+
+    bus = MessageBus(max_queue_size=2)
+    slow_done = asyncio.Event()
+
+    async def slow_handler(_):
+        await asyncio.sleep(0.5)
+        slow_done.set()
+
+    await bus.subscribe("ingest.health", slow_handler)
+    await bus.start()
+
+    try:
+        for i in range(4):
+            await bus.publish("ingest.health", {"agent": f"a{i}", "ts": "2026-01-01T00:00:00Z"})
+        await asyncio.sleep(0.2)
+
+        dlq = bus.get_dlq_sync(limit=20)
+        queue_full_dlq = [e for e in dlq if e.get("reason") == "queue_full"]
+        assert len(queue_full_dlq) >= 1, "Event should land in DLQ when queue is full"
+    finally:
+        await slow_done.wait()
+        await bus.stop()
 
 
 @pytest.mark.asyncio

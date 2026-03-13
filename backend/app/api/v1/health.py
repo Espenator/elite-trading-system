@@ -4,16 +4,31 @@ GET /api/v1/health           -> Comprehensive status: DuckDB, Alpaca, Brain gRPC
                                 MessageBus queue depth, last council eval, data sources
 GET /api/v1/health/alerts    -> Slack alerter status + recent alerts
 GET /api/v1/health/incidents -> Recent health incidents
+GET /api/v1/health/startup-check -> Full system startup health (7 phases) + failure patterns
 """
 
 import logging
+import sys
 import time
-from typing import Any, Dict
+from datetime import datetime, timezone
+from typing import Any, Dict, List
 
 from fastapi import APIRouter
 
 router = APIRouter(prefix="/api/v1/health", tags=["health"])
 logger = logging.getLogger(__name__)
+
+# Common failure patterns (same as scripts/startup_health_check.py)
+STARTUP_FAILURE_PATTERNS: List[Dict[str, str]] = [
+    {"symptom": "Backend /healthz timeouts or connection refused", "cause": "Backend not running, wrong port, or firewall", "remediation": "Start backend: cd backend && uvicorn app.main:app --host 0.0.0.0 --port 8000"},
+    {"symptom": "DuckDB check fails in /readyz or /api/v1/health", "cause": "DuckDB file locked, missing data dir, or schema not initialized", "remediation": "Ensure backend/data/ exists; restart backend; check no other process holds DuckDB."},
+    {"symptom": "Alpaca configured but connectivity error", "cause": "Invalid API keys, network block, or Alpaca API outage", "remediation": "Verify ALPACA_API_KEY and ALpaca base URL in backend/.env; use paper URL for paper trading."},
+    {"symptom": "MessageBus or council_gate not_started in /health", "cause": "Lifespan startup failed or deferred services not yet started", "remediation": "Check backend logs for lifespan errors; increase DEFERRED_STARTUP_DELAY if heavy init fails."},
+    {"symptom": "Frontend loads but API calls 404 or CORS errors", "cause": "Wrong VITE_API_URL, backend not on expected port, or CORS origin not allowed", "remediation": "Set VITE_API_URL to backend URL; ensure backend CORS includes frontend origin."},
+    {"symptom": "Brain gRPC or Ollama unavailable", "cause": "Brain service not running on PC2, or Ollama not running", "remediation": "Start brain_service on ProfitTrader; or set LLM_ENABLED=false to run without LLM."},
+    {"symptom": "Redis unavailable (when REDIS_URL set)", "cause": "Redis not running or wrong host/port", "remediation": "Start Redis or set REDIS_REQUIRED=false to allow local-only MessageBus."},
+    {"symptom": "Scouts or discovery agents crash repeatedly", "cause": "Missing API keys (UW, Finviz, etc.) or rate limits", "remediation": "Check SCOUTS_ENABLED and optional env vars; see logs for specific scout exceptions."},
+]
 
 
 async def _check_duckdb() -> Dict[str, Any]:
@@ -151,3 +166,96 @@ async def recent_incidents():
     except Exception as e:
         logger.warning("Health incidents unavailable: %s", e)
         return {"incidents": [], "error": "Service unavailable"}
+
+
+@router.get("/startup-check")
+async def startup_check():
+    """Full system startup health: 7 phases (environment → backend → router → API smoke →
+    signal pipeline → frontend wiring → background loops). Returns same structure as
+    scripts/startup_health_check.py and includes common failure patterns table for the View."""
+    result = await _run_startup_phases_async()
+    return result
+
+
+async def _run_startup_phases_async() -> Dict[str, Any]:
+    """Async wrapper so we can await _check_duckdb and status in phase 4/7."""
+    phases: Dict[str, Any] = {}
+    overall_ok = True
+
+    # Phase 1
+    env_checks = []
+    py_ok = (sys.version_info.major, sys.version_info.minor) >= (3, 10)
+    env_checks.append({"check": "Python 3.10+", "status": "ok" if py_ok else "fail", "detail": f"{sys.version_info.major}.{sys.version_info.minor}"})
+    try:
+        from app.core.config import settings  # noqa: F401
+        env_checks.append({"check": "Config loaded", "status": "ok", "detail": "pydantic settings"})
+    except Exception as e:
+        env_checks.append({"check": "Config loaded", "status": "fail", "detail": str(e)[:100]})
+        overall_ok = False
+    phases["1_environment"] = {"label": "Environment check", "ok": py_ok, "checks": env_checks}
+    if not py_ok:
+        overall_ok = False
+
+    phases["2_backend_startup"] = {"label": "Backend startup", "ok": True, "checks": [{"check": "Backend /healthz", "status": "ok", "detail": "process running"}]}
+
+    try:
+        from app.main import app
+        routes = [r for r in app.routes if hasattr(r, "path") and r.path]
+        phases["3_router_verification"] = {"label": "Router verification", "ok": True, "checks": [{"check": "Routes registered", "status": "ok", "detail": f"{len(routes)} routes"}]}
+    except Exception as e:
+        phases["3_router_verification"] = {"label": "Router verification", "ok": False, "checks": [{"check": "Routes", "status": "fail", "detail": str(e)[:100]}]}
+        overall_ok = False
+
+    smoke_checks = []
+    try:
+        duck = await _check_duckdb()
+        smoke_checks.append({"check": "GET /api/v1/health (DuckDB)", "status": "ok" if duck.get("connected") else "warn", "detail": str(duck)[:60]})
+    except Exception as e:
+        smoke_checks.append({"check": "GET /api/v1/health", "status": "fail", "detail": str(e)[:80]})
+        overall_ok = False
+    try:
+        from app.api.v1.status import system_status
+        st = await system_status()
+        smoke_checks.append({"check": "GET /api/v1/status", "status": "ok", "detail": f"healthy={st.get('healthy')}"})
+    except Exception as e:
+        smoke_checks.append({"check": "GET /api/v1/status", "status": "fail", "detail": str(e)[:80]})
+        overall_ok = False
+    phases["4_api_smoke"] = {"label": "API smoke tests", "ok": all(c.get("status") == "ok" for c in smoke_checks), "checks": smoke_checks}
+    if not phases["4_api_smoke"]["ok"]:
+        overall_ok = False
+
+    pipe_checks = []
+    mb = _messagebus_queue_depth()
+    council = _last_council_eval()
+    mb_ok = mb.get("queue_depth") is not None or mb.get("running") is not None
+    # Pipeline is "ok" if council block is present (wired); no eval yet is fine after fresh start
+    has_eval = council.get("last_eval_timestamp") is not None or council.get("last_eval_iso") is not None
+    wired_no_error = council.get("error") is None and isinstance(council, dict)
+    council_ok = has_eval or wired_no_error
+    pipe_checks.append({"check": "MessageBus", "status": "ok" if mb_ok else "warn", "detail": str(mb)[:80]})
+    pipe_checks.append({"check": "Council (last eval)", "status": "ok" if council_ok else "warn", "detail": council.get("last_eval_iso") or str(council)[:60]})
+    phases["5_signal_pipeline"] = {"label": "Signal pipeline", "ok": mb_ok and council_ok, "checks": pipe_checks}
+    if not phases["5_signal_pipeline"]["ok"]:
+        overall_ok = False
+
+    phases["6_frontend_wiring"] = {"label": "Frontend wiring", "ok": True, "checks": [{"check": "Frontend URL", "status": "skip", "detail": "run from script or UI"}]}
+
+    loop_checks = []
+    try:
+        from app.data.duckdb_storage import duckdb_store
+        h = duckdb_store.health_check()
+        loop_checks.append({"check": "Readiness (DuckDB)", "status": "ok" if h.get("total_tables", 0) > 0 else "warn", "detail": str(h)[:60]})
+    except Exception as e:
+        loop_checks.append({"check": "Readiness", "status": "fail", "detail": str(e)[:80]})
+        overall_ok = False
+    try:
+        from app.api.v1.status import system_status
+        st = await system_status()
+        loop_checks.append({"check": "Background / status", "status": "ok", "detail": f"activeAgents={st.get('activeAgents', '?')}"})
+    except Exception as e:
+        loop_checks.append({"check": "Background status", "status": "warn", "detail": str(e)[:60]})
+    phases["7_background_loops"] = {"label": "Background loops", "ok": not any(c.get("status") == "fail" for c in loop_checks), "checks": loop_checks}
+    if not phases["7_background_loops"]["ok"]:
+        overall_ok = False
+
+    return {"phases": phases, "overall_ok": overall_ok, "failure_patterns": STARTUP_FAILURE_PATTERNS, "timestamp": datetime.now(timezone.utc).isoformat()}

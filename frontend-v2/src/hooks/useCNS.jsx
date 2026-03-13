@@ -35,6 +35,7 @@ export function CNSProvider({ children }) {
   const [circuitBreakerFired, setCircuitBreakerFired] = useState(null);
   const [latestVerdict, setLatestVerdict] = useState(null);
   const [wsConnected, setWsConnected] = useState(false);
+  const [wsReconnecting, setWsReconnecting] = useState(false);
 
   // Notification queue — components subscribe to this
   const [notifications, setNotifications] = useState([]);
@@ -100,10 +101,17 @@ export function CNSProvider({ children }) {
   useEffect(() => {
     const unsubs = [];
 
-    // Global connection status
+    // Global connection status (24/7: reconnecting state for UX)
     unsubs.push(ws.on('*', (ev) => {
-      if (ev.type === 'connected') setWsConnected(true);
-      if (ev.type === 'disconnected') setWsConnected(false);
+      if (ev.type === 'connected') {
+        setWsConnected(true);
+        setWsReconnecting(false);
+      }
+      if (ev.type === 'disconnected') {
+        setWsConnected(false);
+        setWsReconnecting(false);
+      }
+      if (ev.type === 'reconnecting') setWsReconnecting(true);
     }));
 
     // Council verdicts
@@ -177,6 +185,7 @@ export function CNSProvider({ children }) {
     circuitBreakerFired,
     latestVerdict,
     wsConnected,
+    wsReconnecting,
 
     // Notifications
     notifications,
@@ -208,6 +217,7 @@ export function useCNS() {
       circuitBreakerFired: null,
       latestVerdict: null,
       wsConnected: false,
+      wsReconnecting: false,
       notifications: [],
       unreadCount: 0,
       addNotification: () => {},

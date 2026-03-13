@@ -717,9 +717,20 @@ export default function TradeExecution() {
       {/* ═══ COUNCIL DECISION PANEL ═══ */}
       <div className="shrink-0 border-t border-[rgba(42,52,68,0.5)] bg-[#111827]/80 p-3">
         <CouncilDecisionPanel
-          onExecute={(data) => { console.log('Execute:', data); }}
-          onOverride={() => { console.log('Override'); }}
-          onDismiss={() => { console.log('Dismiss'); }}
+          onExecute={(verdict) => {
+            if (!verdict?.symbol) return;
+            const side = (verdict.direction === 'BUY' ? 'buy' : 'sell');
+            const qty = Number(verdict.suggested_qty ?? verdict.quantity ?? orderForm.quantity) || 100;
+            submitOrder({
+              symbol: verdict.symbol,
+              side,
+              orderType: 'market',
+              quantity: qty,
+              timeInForce: 'day',
+            });
+          }}
+          onOverride={() => { /* Override: keep current form, user can edit */ }}
+          onDismiss={() => { /* Dismiss: no-op or clear council highlight */ }}
         />
       </div>
     </div>

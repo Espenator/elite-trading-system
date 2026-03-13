@@ -633,6 +633,21 @@ class AlpacaService:
             params={"symbols": ",".join(symbols), "feed": feed},
         )
 
+    async def get_latest_quote(self, symbol: str, feed: str = "sip") -> Optional[Dict]:
+        """GET /v2/stocks/quotes/latest for a single symbol.
+
+        Returns the quote dict (bid_price, ask_price, etc.) or None.
+        Used by order_executor._get_fresh_price and outcome_tracker.
+        """
+        result = await self.get_latest_quotes([symbol.upper()], feed=feed)
+        if not result or not isinstance(result, dict):
+            return None
+        # Alpaca returns {"SYMBOL": { "bp", "ap", ... } } or {"quotes": {...}}
+        if symbol.upper() in result:
+            return result[symbol.upper()]
+        quotes = result.get("quotes", result)
+        return quotes.get(symbol.upper()) if isinstance(quotes, dict) else None
+
     async def get_latest_quotes(
         self, symbols: List[str], feed: str = "sip"
     ) -> Optional[Dict]:

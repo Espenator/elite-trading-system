@@ -4,6 +4,7 @@
 // Rebuilt to match mockup 13-risk-intelligence.png
 // =============================================================================
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApi } from "../hooks/useApi";
 import { useRiskScore, useDrawdownCheck, useKellyRanked } from "../hooks/useApi";
 import { useSettings } from "../hooks/useSettings";
@@ -221,6 +222,7 @@ function PositionSizer({ kelly, portfolioValue, loading }) {
 // MAIN COMPONENT
 // =============================================================================
 export default function RiskIntelligence() {
+  const navigate = useNavigate();
   const [timeframe, setTimeframe] = useState('1D');
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [riskModel, setRiskModel] = useState('Adaptive Multi-Factor');
@@ -342,10 +344,11 @@ export default function RiskIntelligence() {
     if (emergencyCountdown <= 0) {
       (async () => {
         try {
-          await fetch(getApiUrl('orders/emergency-stop'), {
+          const res = await fetch(getApiUrl('orders/emergency-stop'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
           });
+          if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
           handleRefresh();
         } catch (err) {
           log.error('Emergency stop failed:', err);
@@ -368,12 +371,20 @@ export default function RiskIntelligence() {
     setEmergencyCountdown(null);
   }, []);
 
+  // Backend risk.py supports: halt, resume, flatten. Map UI actions to these.
   const handleOtherEmergency = async (action) => {
+    const actionMap = { HEDGE: 'halt', REDUCE: 'flatten', FREEZE: 'halt' };
+    const backendAction = actionMap[action] || action.toLowerCase();
     try {
-      await fetch(getApiUrl('risk') + `/emergency/${action.toLowerCase()}`, {
+      const res = await fetch(`${getApiUrl('risk')}/emergency/${backendAction}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        log.error(`Emergency ${action} failed:`, res.status, data?.detail ?? data);
+        return;
+      }
       handleRefresh();
     } catch (err) {
       log.error(`Emergency ${action} failed:`, err);
@@ -390,7 +401,8 @@ export default function RiskIntelligence() {
     const values = sweepParams;
     setSweepParams(null);
     try {
-      await fetch(getApiUrl('swarmSweepStatus'), { headers: getAuthHeaders() });
+      const res = await fetch(getApiUrl('swarmSweepStatus'), { headers: getAuthHeaders() });
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
       handleRefresh();
     } catch (err) {
       log.error('Sweep status fetch failed:', err);
@@ -402,6 +414,11 @@ export default function RiskIntelligence() {
     setStressResult(null);
     try {
       const res = await fetch(getApiUrl('risk/stress-test'), { headers: getAuthHeaders() });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        setStressResult({ error: errBody?.detail ?? `HTTP ${res.status}: ${res.statusText}` });
+        return;
+      }
       const data = await res.json();
       setStressResult(data);
     } catch (err) {
@@ -795,7 +812,7 @@ export default function RiskIntelligence() {
           <CorrelationHeatmap
             data={correlationData}
             loading={correlationLoading}
-            onCellClick={(sym1, sym2, value) => setCorrelationDrill({ sym1, sym2, value })}
+            onCellClick={(sym1) => navigate(`/symbol/${encodeURIComponent(sym1)}`)}
           />
           {correlationDrill && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setCorrelationDrill(null)}>
@@ -806,7 +823,7 @@ export default function RiskIntelligence() {
                 </div>
                 <div className="text-[10px] font-mono text-gray-300 space-y-1">
                   <div>{correlationDrill.sym1} vs {correlationDrill.sym2}</div>
-                  <div style={{ color: C.cyan }}>Correlation: {Number(correlationDrill.value).toFixed(3)}</div>
+                  <div style={{ color: C.cyan }}>Correlation: {(Number(correlationDrill?.value) ?? 0).toFixed(3)}</div>
                 </div>
               </div>
             </div>

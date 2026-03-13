@@ -465,8 +465,11 @@ function PatternIntelligence({ onOpenTemplates, onKillAllConfirm }) {
   const handleApplyMlMetrics = useCallback(async () => {
     const payload = { ...(settings?.[category] ?? {}), recursiveSelfImprove, academicValidation, sharpeRatio, profitFactor, maxDrawdown, walkForwardEff, outOfSampleAcc, monteCarloCI, patternComplexity, swarmSize, patternName, llmModel, architecture };
     try {
-      await fetch(`${settingsBase}/${category}`, { method: "PUT", headers: { "Content-Type": "application/json", ...getAuthHeaders() }, body: JSON.stringify(payload) });
-    } catch { /* no-op */ }
+      const res = await fetch(`${settingsBase}/${category}`, { method: "PUT", headers: { "Content-Type": "application/json", ...getAuthHeaders() }, body: JSON.stringify(payload) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    } catch (e) {
+      toast.error("Apply ML metrics failed: " + (e?.message || "network error"));
+    }
   }, [category, settings, settingsBase, recursiveSelfImprove, academicValidation, sharpeRatio, profitFactor, maxDrawdown, walkForwardEff, outOfSampleAcc, monteCarloCI, patternComplexity, swarmSize, patternName, llmModel, architecture]);
 
   const postSpawnPattern = useCallback(async () => {

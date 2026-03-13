@@ -1,0 +1,56 @@
+// @version=5
+indicator("Embodier Signal Overlay", overlay=true, max_lines_count=500, max_labels_count=500, max_boxes_count=500)
+
+// ─── Inputs ─────────────────────────────────────────────────────────────────
+entryPrice = input.float(0.0, "Entry Price", group="Embodier Levels", minval=0.0)
+stopLoss   = input.float(0.0, "Stop Loss", group="Embodier Levels", minval=0.0)
+target1    = input.float(0.0, "Target 1 (2R)", group="Embodier Levels", minval=0.0)
+target2    = input.float(0.0, "Target 2 (3R)", group="Embodier Levels", minval=0.0)
+direction  = input.string("none", "Direction", group="Embodier Levels", options=["long", "short", "none"])
+confidence = input.int(0, "Confidence %", group="Embodier Levels", minval=0, maxval=100)
+
+// ─── Plot levels (only when direction is set and levels > 0) ─────────────────
+hasLevels = direction != "none" and entryPrice > 0 and stopLoss > 0
+
+plot(hasLevels ? entryPrice : na, "Entry", color=color.new(color.blue, 0), linewidth=2)
+plot(hasLevels ? stopLoss   : na, "Stop",  color=color.new(color.red, 0),   linewidth=2)
+plot(hasLevels ? target1    : na, "T1 (2R)", color=color.new(color.green, 0), linewidth=1)
+plot(hasLevels ? target2    : na, "T2 (3R)", color=color.new(color.lime, 0),   linewidth=1)
+
+// ─── Fills: entry-to-stop (red), entry-to-target1 (green) ───────────────────
+plotStopLo   = hasLevels ? math.min(entryPrice, stopLoss)   : na
+plotStopHi   = hasLevels ? math.max(entryPrice, stopLoss)   : na
+plotTargetLo = hasLevels and target1 > 0 ? math.min(entryPrice, target1) : na
+plotTargetHi = hasLevels and target1 > 0 ? math.max(entryPrice, target1) : na
+pStopLo   = plot(plotStopLo, color=color.new(color.red, 100))
+pStopHi   = plot(plotStopHi, color=color.new(color.red, 100))
+pTargetLo = plot(plotTargetLo, color=color.new(color.green, 100))
+pTargetHi = plot(plotTargetHi, color=color.new(color.green, 100))
+fill(pStopLo, pStopHi, color=color.new(color.red, 85))
+fill(pTargetLo, pTargetHi, color=color.new(color.green, 85))
+
+// ─── Label at entry ────────────────────────────────────────────────────────
+dirLabel = direction == "long" ? "LONG" : direction == "short" ? "SHORT" : "—"
+labelText = "Embodier: " + dirLabel + " " + str.tostring(confidence) + "%"
+if hasLevels and barstate.islast
+    label.new(bar_index, entryPrice, labelText, style=label.style_label_left, color=color.blue, textcolor=color.white, size=size.small)
+
+// ─── Entry zone (0.3% band around entry) ────────────────────────────────────
+entryZoneLo = entryPrice * 0.997
+entryZoneHi = entryPrice * 1.003
+
+// Long: price crosses down into entry zone (was above, now within)
+longInZone  = direction == "long"  and close <= entryZoneHi and close >= entryZoneLo and close[1] > entryZoneHi
+shortInZone = direction == "short" and close >= entryZoneLo and close <= entryZoneHi and close[1] < entryZoneLo
+
+// Stop / targets hit
+stopHit   = hasLevels and ((direction == "long" and low <= stopLoss) or (direction == "short" and high >= stopLoss))
+target1Hit = hasLevels and target1 > 0 and ((direction == "long" and high >= target1) or (direction == "short" and low <= target1))
+target2Hit = hasLevels and target2 > 0 and ((direction == "long" and high >= target2) or (direction == "short" and low <= target2))
+
+// ─── Alert conditions ──────────────────────────────────────────────────────
+alertcondition(longInZone,  "Long Entry Zone",  "EMBODIER: Price in LONG entry zone")
+alertcondition(shortInZone, "Short Entry Zone", "EMBODIER: Price in SHORT entry zone")
+alertcondition(stopHit,    "Stop Hit",         "EMBODIER: Stop loss hit")
+alertcondition(target1Hit, "Target 1 Hit",      "EMBODIER: Target 1 (2R) hit")
+alertcondition(target2Hit,  "Target 2 Hit",      "EMBODIER: Target 2 (3R) hit")

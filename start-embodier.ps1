@@ -1,22 +1,19 @@
-# start-embodier.ps1 - Robust Embodier Trader Launcher (v5.0.0)
-# Usage: powershell -ExecutionPolicy Bypass -File start-embodier.ps1
-#        powershell -ExecutionPolicy Bypass -File start-embodier.ps1 -Watch   # bulletproof: auto-restart + port resolution
-# Or double-click start-embodier.bat
+# start-embodier.ps1 - Embodier Trader Launcher (v5.0.0) — DEFAULT: run 24/7 with auto-restart
+# Usage: .\start-embodier.ps1   # DEFAULT: stop existing, then run full stack 24/7 (CleanPorts + Supervisor, no Electron)
+#        .\start-embodier.ps1 -OneShot   # one-shot start (no supervisor, backend in this window)
+#        .\start-embodier.ps1 -Watch    # watch mode: backend + frontend auto-restart, press Enter to stop
+#        .\start-embodier.ps1 -FullStack   # 24/7 with Electron
 #
-# BEHAVIOR:
-#   - Cleans stale Python/Node processes and frees ports when possible.
-#   - If preferred port (8000/5173) is stuck (e.g. TIME_WAIT), uses next free port (8001, 8002... / 5174, 5175...).
-#   - Backend reads PORT from environment; frontend gets VITE_PORT and VITE_BACKEND_URL.
-#   - Writes chosen ports to .embodier-ports.json so you know what's in use.
-#   -Watch: same cleanup + port resolution, then starts backend and frontend with auto-restart (watchdog);
-#           backend restarts on crash or health-check failure; frontend restarts on exit. Press Enter in launcher to stop all.
+# Default (no args): runs .\scripts\stop_embodier.ps1 then .\scripts\run_full_stack_24_7.ps1 so the app runs and restarts automatically.
 
 param(
     [int]$BackendPort  = 8000,
     [int]$FrontendPort = 5173,
     [int]$BackendPortMax  = 8010,
     [int]$FrontendPortMax = 5183,
-    [switch]$Watch
+    [switch]$Watch,
+    [switch]$FullStack,
+    [switch]$OneShot
 )
 
 $ErrorActionPreference = "SilentlyContinue"
@@ -26,6 +23,24 @@ $BackendDir  = Join-Path $Root "backend"
 $FrontendDir = Join-Path $Root "frontend-v2"
 $PythonExe   = Join-Path $BackendDir "venv\Scripts\python.exe"
 $PortsFile   = Join-Path $Root ".embodier-ports.json"
+
+# ----------------------------------------------------------------
+# DEFAULT: Run 24/7 with auto-restart (stop existing, then full stack supervisor)
+# ----------------------------------------------------------------
+if (-not $Watch -and -not $FullStack -and -not $OneShot) {
+    $stopScript = Join-Path $Root "scripts\stop_embodier.ps1"
+    $runScript  = Join-Path $Root "scripts\run_full_stack_24_7.ps1"
+    if (Test-Path $stopScript) {
+        Write-Host "  Stopping any existing Embodier processes..." -ForegroundColor Yellow
+        & $stopScript 2>$null
+        Start-Sleep -Seconds 2
+    }
+    if (Test-Path $runScript) {
+        Write-Host "  Starting 24/7 stack (auto-restart + supervisor)..." -ForegroundColor Cyan
+        & $runScript
+        exit 0
+    }
+}
 
 # ----------------------------------------------------------------
 # Helpers: port status and free-port discovery
@@ -219,20 +234,40 @@ if ($chosenFrontend -ne $FrontendPort) {
 } | ConvertTo-Json | Set-Content -Path $PortsFile -Encoding utf8 -Force
 Write-Host "    Ports saved to .embodier-ports.json" -ForegroundColor DarkGray
 
-# Update frontend .env so manual 'npm run dev' uses same ports
+# Update frontend .env so manual 'npm run dev' uses same ports (API + WebSocket)
 $frontendEnv = Join-Path $FrontendDir ".env"
+$backendUrlEnv = "http://localhost:$chosenBackend"
+$wsUrlEnv = "ws://localhost:$chosenBackend"
 if (Test-Path $frontendEnv) {
     $lines = Get-Content $frontendEnv -ErrorAction SilentlyContinue
     $hasPort = $false
     $hasBackend = $false
+    $hasWs = $false
     $newLines = $lines | ForEach-Object {
         if ($_ -match "^\s*VITE_PORT\s*=") { $hasPort = $true; "VITE_PORT=$chosenFrontend" }
-        elseif ($_ -match "^\s*VITE_BACKEND_URL\s*=") { $hasBackend = $true; "VITE_BACKEND_URL=http://localhost:$chosenBackend" }
+        elseif ($_ -match "^\s*VITE_BACKEND_URL\s*=") { $hasBackend = $true; "VITE_BACKEND_URL=$backendUrlEnv" }
+        elseif ($_ -match "^\s*VITE_WS_URL\s*=") { $hasWs = $true; "VITE_WS_URL=$wsUrlEnv" }
         else { $_ }
     }
     if (-not $hasPort) { $newLines += "VITE_PORT=$chosenFrontend" }
-    if (-not $hasBackend) { $newLines += "VITE_BACKEND_URL=http://localhost:$chosenBackend" }
+    if (-not $hasBackend) { $newLines += "VITE_BACKEND_URL=$backendUrlEnv" }
+    if (-not $hasWs) { $newLines += "VITE_WS_URL=$wsUrlEnv" }
     $newLines | Set-Content -Path $frontendEnv -Encoding utf8
+}
+
+# ----------------------------------------------------------------
+# FULL STACK 24/7 with Electron (delegate to run_full_stack_24_7.ps1)
+# ----------------------------------------------------------------
+if ($FullStack) {
+    $stopScript = Join-Path $Root "scripts\stop_embodier.ps1"
+    $fullStackScript = Join-Path $Root "scripts\run_full_stack_24_7.ps1"
+    if (Test-Path $stopScript) { & $stopScript 2>$null; Start-Sleep -Seconds 2 }
+    if (Test-Path $fullStackScript) {
+        & $fullStackScript -Electron
+        exit 0
+    }
+    Write-Host "  ERROR: $fullStackScript not found." -ForegroundColor Red
+    exit 1
 }
 
 # ----------------------------------------------------------------
@@ -272,7 +307,7 @@ if ($Watch) {
     $frontendProc = Start-Process powershell -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-File", $frontendScript, "-FrontendPort", $chosenFrontend.ToString(), "-BackendPort", $chosenBackend.ToString() -WorkingDirectory $Root -PassThru
     Write-Host ""
     Write-Host "  ============================================" -ForegroundColor Green
-    Write-Host "    WATCH MODE — Backend & frontend auto-restart on crash" -ForegroundColor White
+    Write-Host '    WATCH MODE - Backend and frontend auto-restart on crash' -ForegroundColor White
     Write-Host "    Backend:   http://localhost:$chosenBackend/docs" -ForegroundColor White
     Write-Host "    Dashboard: http://localhost:$chosenFrontend/dashboard" -ForegroundColor White
     Write-Host "  ============================================" -ForegroundColor Green
@@ -335,5 +370,5 @@ try {
             if ($cmd -and $cmd -match "vite") { Stop-Process -Id $_.Id -Force }
         } catch {}
     }
-    Write-Host "  All services stopped." -ForegroundColor DarkGray
+    Write-Host '  All services stopped.' -ForegroundColor DarkGray
 }

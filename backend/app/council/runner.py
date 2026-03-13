@@ -118,6 +118,19 @@ async def run_council(
             logger.warning("Feature aggregation failed for %s: %s", symbol, e)
             features = {"features": {}, "symbol": symbol}
 
+    # Merge sensory store (perception.*, macro.fred, etc.) into features for agents
+    try:
+        from app.core.sensory_store import get_snapshot
+        sensory = get_snapshot()
+        if sensory:
+            _feat = features.get("features", {})
+            if not isinstance(_feat, dict):
+                _feat = {}
+            _feat["sensory"] = sensory
+            features["features"] = _feat
+    except Exception as e:
+        logger.debug("Sensory store merge skipped: %s", e)
+
     # Phase C (C9): Data starvation alerting
     _feat_inner = features.get("features", features) if features else {}
     if not _feat_inner or len(_feat_inner) < 3:
@@ -167,6 +180,7 @@ async def run_council(
                 execution_ready=False,
                 council_reasoning=f"HALTED by homeostasis: risk_score={vitals.get('risk_score', 0)}",
                 council_decision_id=blackboard.council_decision_id,
+                homeostasis_mode=mode,
             )
     except Exception as e:
         logger.debug("Homeostasis check failed (proceeding): %s", e)
@@ -178,6 +192,50 @@ async def run_council(
         if halt_reason:
             logger.warning("Circuit breaker halted council for %s: %s", symbol, halt_reason)
             blackboard.metadata["circuit_breaker"] = halt_reason
+            # Agent 7: learning signal — publish, broadcast, audit, homeostasis (fire-and-forget, <50ms)
+            _feats = features.get("features", features) if features else {}
+            features_snapshot = {
+                k: _feats.get(k) for k in ["vix_close", "return_5min", "daily_pnl_pct"]
+                if _feats.get(k) is not None
+            }
+            halt_payload = {
+                "reason": halt_reason,
+                "symbol": symbol,
+                "features_snapshot": features_snapshot,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+
+            async def _emit_halt():
+                try:
+                    from app.core.message_bus import get_message_bus
+                    bus = get_message_bus()
+                    await bus.publish("circuit_breaker.halt", halt_payload)
+                except Exception:
+                    pass
+                try:
+                    from app.websocket_manager import broadcast_ws
+                    await broadcast_ws("circuit_breaker", {"type": "halt", "reason": halt_reason})
+                except Exception:
+                    pass
+                try:
+                    from app.council.homeostasis import get_homeostasis
+                    get_homeostasis().record_circuit_breaker_halt()
+                except Exception:
+                    pass
+                try:
+                    from app.data.duckdb_storage import duckdb_store
+                    await asyncio.to_thread(
+                        duckdb_store.insert_circuit_breaker_halt,
+                        halt_reason,
+                        symbol,
+                        features_snapshot,
+                        halt_payload["timestamp"],
+                    )
+                except Exception:
+                    pass
+
+            asyncio.create_task(_emit_halt())
+
             return DecisionPacket(
                 symbol=symbol,
                 timeframe=timeframe,
@@ -377,6 +435,15 @@ async def run_council(
     for v in stage3:
         if v.agent_name == "hypothesis":
             blackboard.hypothesis = v.to_dict()
+            meta = getattr(v, "metadata", {}) or {}
+            if meta.get("llm_tier"):
+                blackboard.llm_trace.append({
+                    "agent": "hypothesis",
+                    "llm_tier": meta.get("llm_tier"),
+                    "llm_confidence": meta.get("llm_confidence"),
+                    "llm_direction": meta.get("llm_direction"),
+                    "llm_latency_ms": meta.get("llm_latency_ms"),
+                })
             break
     blackboard.stage_latencies["stage3"] = time.monotonic() * 1000 - _stage_start
     for lat in stage3_lats:
@@ -646,6 +713,7 @@ async def run_council(
     decision.cognitive = cognitive
     decision.active_hypothesis = blackboard.hypothesis
     decision.semantic_context = blackboard.knowledge_context
+    decision.homeostasis_mode = blackboard.metadata.get("homeostasis_mode", "NORMAL")
 
     logger.info(
         "Council decision for %s [%s]: %s @ %.0f%% confidence (vetoed=%s, agents=%d)",
@@ -790,6 +858,7 @@ async def run_council(
             final_direction=decision.final_direction,
             votes=[v.to_dict() for v in all_votes],
             trade_id=context.get("trade_id"),
+            council_decision_id=blackboard.council_decision_id,
         )
     except Exception as e:
         logger.debug("Feedback loop record failed: %s", e)

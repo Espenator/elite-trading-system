@@ -118,6 +118,8 @@ class MessageBus:
         "position.partial_exit",
         "position.closed",
         "symbol.prep.ready",
+        # ── Agent 7: circuit breaker learning (halt → learning signal) ──
+        "circuit_breaker.halt",
         # ── C8: Data source → MessageBus wiring ──
         "macro.fred",
         "perception.insider",

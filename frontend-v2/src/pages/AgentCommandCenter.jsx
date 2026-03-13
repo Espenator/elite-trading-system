@@ -161,15 +161,18 @@ export default function AgentCommandCenter() {
             className="px-4 py-1.5 text-[11px] font-bold bg-[#ef4444] text-white border border-[#ef4444]/50 rounded-md hover:bg-[#dc2626] hover:shadow-[0_0_12px_rgba(239,68,68,0.3)] transition-all flex items-center gap-1.5 tracking-wider cursor-pointer"
             onClick={async () => {
               try {
-                const res = await fetch(getApiUrl("orders/emergency-stop"), { method: "POST", headers: getAuthHeaders() });
+                const res = await fetch(getApiUrl("orders/emergency-stop"), {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+                });
                 if (res.ok) {
-                  toast.error("KILL SWITCH activated — orders cancelled, positions closed.");
+                  toast.success("Kill switch activated — orders cancelled, positions closed.");
                 } else {
                   const err = await res.json().catch(() => ({}));
-                  toast.error(err?.detail || `Emergency stop failed: ${res.status}`);
+                  toast.error(err?.detail?.message ?? err?.detail ?? `Emergency stop failed: ${res.status}`);
                 }
               } catch (e) {
-                toast.error("KILL SWITCH request failed: " + (e?.message || "network error"));
+                toast.error("Kill switch request failed: " + (e?.message || "network error"));
               }
             }}
           >

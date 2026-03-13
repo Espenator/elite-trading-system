@@ -1,24 +1,28 @@
-# run_all_autorestart.ps1 - Start backend and frontend with auto-restart on failure
+# run_all_autorestart.ps1 - Start backend and frontend with auto-restart on failure (24/7)
 # Usage: .\scripts\run_all_autorestart.ps1
-#        .\scripts\run_all_autorestart.ps1 -CleanPorts   # kill processes on 8000/5173 first
+#        .\scripts\run_all_autorestart.ps1 -CleanPorts   # kill processes on ports first, then start
 #
 # - Backend: runs in a separate window; restarts on crash or when /health fails (watchdog).
 # - Frontend: runs in another window with auto-restart on exit.
-# - Waits for backend to respond before starting frontend so data can flow immediately.
+# - Waits for backend to respond before starting frontend so API data flows immediately.
 # - If .embodier-ports.json exists (e.g. from start-embodier.ps1), uses those ports.
+# - With -CleanPorts: frees 8000/5173 (or next free in 8000..8010, 5173..5183) and writes .embodier-ports.json.
 #
-# For full bulletproof (port conflict resolution + cleanup): .\start-embodier.ps1 -Watch
+# For full bulletproof (cleanup + port resolution + watch): .\start-embodier.ps1 -Watch
 
 param(
     [int]$BackendPort = 8000,
     [int]$FrontendPort = 5173,
+    [int]$BackendPortMax = 8010,
+    [int]$FrontendPortMax = 5183,
     [int]$RestartDelaySeconds = 3,
     [int]$BackendWaitSeconds = 60,
     [switch]$CleanPorts
 )
 
 $ErrorActionPreference = "SilentlyContinue"
-$Root = $PSScriptRoot
+# When run as .\scripts\run_all_autorestart.ps1, PSScriptRoot is ...\scripts; repo root is parent
+$Root = if (Test-Path (Join-Path $PSScriptRoot "backend")) { $PSScriptRoot } else { Split-Path -Parent $PSScriptRoot }
 $BackendDir = Join-Path $Root "backend"
 $FrontendDir = Join-Path $Root "frontend-v2"
 $PortsFile = Join-Path $Root ".embodier-ports.json"
@@ -34,6 +38,17 @@ if (Test-Path $PortsFile) {
     } catch {}
 }
 
+function Get-PortStatus {
+    param([int]$Port)
+    try {
+        $conns = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue
+        if (-not $conns) { return "Free" }
+        $listeners = $conns | Where-Object { $_.State -eq "Listen" }
+        if (($listeners | Where-Object { $_.OwningProcess -gt 0 })) { return "InUseByProcess" }
+        return "Stuck"
+    } catch { return "Free" }
+}
+
 function Kill-ProcessesOnPort {
     param([int]$Port)
     try {
@@ -44,11 +59,55 @@ function Kill-ProcessesOnPort {
     } catch {}
 }
 
+function Find-FreePort {
+    param([int]$Preferred, [int]$MaxPort)
+    for ($p = $Preferred; $p -le $MaxPort; $p++) {
+        $status = Get-PortStatus -Port $p
+        if ($status -eq "Free") { return $p }
+        if ($status -eq "InUseByProcess") {
+            Kill-ProcessesOnPort -Port $p
+            Start-Sleep -Seconds 2
+            if ((Get-PortStatus -Port $p) -eq "Free") { return $p }
+        }
+    }
+    return $null
+}
+
 if ($CleanPorts) {
-    Write-Host "  Cleaning ports $BackendPort and $FrontendPort..." -ForegroundColor Yellow
+    Write-Host "  Cleaning and resolving ports..." -ForegroundColor Yellow
     Kill-ProcessesOnPort -Port $BackendPort
     Kill-ProcessesOnPort -Port $FrontendPort
     Start-Sleep -Seconds 2
+    $resolvedBackend = Find-FreePort -Preferred $BackendPort -MaxPort $BackendPortMax
+    $resolvedFrontend = Find-FreePort -Preferred $FrontendPort -MaxPort $FrontendPortMax
+    if ($resolvedBackend) { $BackendPort = $resolvedBackend }
+    if ($resolvedFrontend) { $FrontendPort = $resolvedFrontend }
+    @{ backendPort = $BackendPort; frontendPort = $FrontendPort; updated = (Get-Date).ToString("o") } |
+        ConvertTo-Json | Set-Content -Path $PortsFile -Encoding utf8 -Force
+    Write-Host "  Using backend :$BackendPort, frontend :$FrontendPort (saved to .embodier-ports.json)" -ForegroundColor Gray
+}
+
+# Ensure frontend .env has VITE_PORT, VITE_BACKEND_URL, VITE_WS_URL (API + WebSocket auto-fixed)
+$frontendEnv = Join-Path $FrontendDir ".env"
+$backendUrl = "http://localhost:$BackendPort"
+$wsUrl = "ws://localhost:$BackendPort"
+if (Test-Path $frontendEnv) {
+    $lines = Get-Content $frontendEnv -ErrorAction SilentlyContinue
+    $hasPort = $false
+    $hasBackend = $false
+    $hasWs = $false
+    $newLines = $lines | ForEach-Object {
+        if ($_ -match "^\s*VITE_PORT\s*=") { $hasPort = $true; "VITE_PORT=$FrontendPort" }
+        elseif ($_ -match "^\s*VITE_BACKEND_URL\s*=") { $hasBackend = $true; "VITE_BACKEND_URL=$backendUrl" }
+        elseif ($_ -match "^\s*VITE_WS_URL\s*=") { $hasWs = $true; "VITE_WS_URL=$wsUrl" }
+        else { $_ }
+    }
+    if (-not $hasPort) { $newLines += "VITE_PORT=$FrontendPort" }
+    if (-not $hasBackend) { $newLines += "VITE_BACKEND_URL=$backendUrl" }
+    if (-not $hasWs) { $newLines += "VITE_WS_URL=$wsUrl" }
+    $newLines | Set-Content -Path $frontendEnv -Encoding utf8
+} else {
+    @("VITE_PORT=$FrontendPort", "VITE_BACKEND_URL=$backendUrl", "VITE_WS_URL=$wsUrl") | Set-Content -Path $frontendEnv -Encoding utf8
 }
 
 if (-not (Test-Path $BackendAutorestart)) {
@@ -97,6 +156,6 @@ while ($waited -lt $BackendWaitSeconds) {
 Start-Process powershell -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-File", $FrontendAutorestart, "-FrontendPort", $FrontendPort.ToString(), "-BackendPort", $BackendPort.ToString() -WorkingDirectory $Root
 Write-Host "  Frontend window started (auto-restart on exit)." -ForegroundColor Gray
 Write-Host ""
-Write-Host "  Open http://localhost:${FrontendPort}/dashboard — data flows when backend is up." -ForegroundColor Green
-Write-Host "  Close the backend/frontend windows to stop. For full port cleanup use: .\start-embodier.ps1 -Watch" -ForegroundColor DarkGray
+Write-Host "  Open http://localhost:${FrontendPort}/dashboard - data flows when backend is up." -ForegroundColor Green
+Write-Host '  Close the backend/frontend windows to stop. For full port cleanup use: .\start-embodier.ps1 -Watch' -ForegroundColor DarkGray
 Write-Host ""

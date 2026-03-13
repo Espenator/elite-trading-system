@@ -14,7 +14,7 @@ Fixes Issue #25 — DuckDB query engine for feature pipeline.
 import asyncio
 import logging
 import threading
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from functools import partial
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -734,6 +734,47 @@ class DuckDBStorage:
             )
         """)
 
+        # Agent 7: Circuit breaker halt events (for learning / dashboard)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS circuit_breaker_events (
+                id INTEGER PRIMARY KEY,
+                halt_reason VARCHAR NOT NULL,
+                symbol VARCHAR,
+                features_snapshot VARCHAR,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # LLM calibration: predictions per tier for outcome matching and Brier
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS llm_predictions (
+                id INTEGER PRIMARY KEY,
+                council_decision_id VARCHAR NOT NULL,
+                trade_id VARCHAR,
+                llm_tier VARCHAR NOT NULL,
+                symbol VARCHAR NOT NULL,
+                regime VARCHAR NOT NULL,
+                predicted_direction VARCHAR NOT NULL,
+                predicted_confidence DOUBLE NOT NULL,
+                llm_latency_ms INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                actual_outcome VARCHAR,
+                r_multiple DOUBLE,
+                resolved_at TIMESTAMP
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS llm_calibration (
+                llm_tier VARCHAR NOT NULL,
+                regime VARCHAR NOT NULL,
+                n_predictions INTEGER DEFAULT 0,
+                n_correct INTEGER DEFAULT 0,
+                brier_score DOUBLE DEFAULT 0.25,
+                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (llm_tier, regime)
+            )
+        """)
+
         # Indexes for new tables
         conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_calls_agent ON llm_calls (agent_name, ts)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_calls_decision ON llm_calls (council_decision_id)")
@@ -747,6 +788,11 @@ class DuckDBStorage:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_council_decisions_symbol ON council_decisions (symbol)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_council_decisions_ts ON council_decisions (timestamp)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_debate_history_symbol ON debate_history (symbol)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_predictions_decision ON llm_predictions (council_decision_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_predictions_trade ON llm_predictions (trade_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_llm_predictions_tier_regime ON llm_predictions (llm_tier, regime)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_circuit_breaker_events_ts ON circuit_breaker_events (timestamp)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_circuit_breaker_events_symbol ON circuit_breaker_events (symbol)")
 
         logger.info("DuckDB analytics schema initialized at %s", self._db_path)
 
@@ -819,9 +865,10 @@ class DuckDBStorage:
         """Insert or update one row in symbol_registry (DATABASE-DESIGN-REVIEW)."""
         with self._lock:
             conn = self._get_conn()
+            now_ts = datetime.now(timezone.utc)
             conn.execute("""
                 INSERT INTO symbol_registry (symbol, asset_class, name, first_date, last_date, source, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (symbol) DO UPDATE SET
                     asset_class = COALESCE(excluded.asset_class, symbol_registry.asset_class),
                     name = COALESCE(excluded.name, symbol_registry.name),
@@ -834,8 +881,8 @@ class DuckDBStorage:
                         WHEN excluded.last_date IS NOT NULL AND excluded.last_date > symbol_registry.last_date THEN excluded.last_date
                         ELSE symbol_registry.last_date END,
                     source = COALESCE(excluded.source, symbol_registry.source),
-                    updated_at = CURRENT_TIMESTAMP
-            """, [symbol.upper(), asset_class, name, first_date, last_date, source])
+                    updated_at = ?
+            """, [symbol.upper(), asset_class, name, first_date, last_date, source, now_ts, now_ts])
 
     def _update_symbol_registry_from_ohlcv_impl(self, conn, df: pd.DataFrame) -> int:
         """Update symbol_registry from OHLCV df. Caller must hold self._lock and pass conn."""
@@ -843,17 +890,18 @@ class DuckDBStorage:
             return 0
         agg = df.groupby("symbol").agg({"date": ["min", "max"]}).reset_index()
         agg.columns = ["symbol", "first_date", "last_date"]
+        now_ts = datetime.now(timezone.utc)
         for _, row in agg.iterrows():
             conn.execute("""
                 INSERT INTO symbol_registry (symbol, asset_class, first_date, last_date, source, updated_at)
-                VALUES (?, 'us_equity', ?, ?, 'alpaca', CURRENT_TIMESTAMP)
+                VALUES (?, 'us_equity', ?, ?, 'alpaca', ?)
                 ON CONFLICT (symbol) DO UPDATE SET
                     first_date = CASE WHEN symbol_registry.first_date IS NULL OR excluded.first_date < symbol_registry.first_date
                         THEN excluded.first_date ELSE symbol_registry.first_date END,
                     last_date = CASE WHEN symbol_registry.last_date IS NULL OR excluded.last_date > symbol_registry.last_date
                         THEN excluded.last_date ELSE symbol_registry.last_date END,
-                    updated_at = CURRENT_TIMESTAMP
-            """, [str(row["symbol"]).upper(), row["first_date"], row["last_date"]])
+                    updated_at = ?
+            """, [str(row["symbol"]).upper(), row["first_date"], row["last_date"], now_ts, now_ts])
         return len(agg)
 
     def update_symbol_registry_from_ohlcv_df(self, df: pd.DataFrame) -> int:
@@ -1090,6 +1138,26 @@ class DuckDBStorage:
         finally:
             cur.close()
         return result[0] if result else 0
+
+    def insert_circuit_breaker_halt(
+        self,
+        halt_reason: str,
+        symbol: str = "",
+        features_snapshot: Optional[Dict] = None,
+        timestamp: Optional[str] = None,
+    ) -> None:
+        """Record a circuit breaker halt for audit and pattern analysis. Sync, run via to_thread from runner."""
+        import json
+        ts = timestamp or datetime.now(timezone.utc).isoformat()
+        snapshot_str = json.dumps(features_snapshot or {}, default=str) if features_snapshot else None
+        # Unique id for DuckDB (no SERIAL); use microsecond timestamp
+        uid = int(datetime.now(timezone.utc).timestamp() * 1e6)
+        with self._write_lock:
+            conn = self._get_conn()
+            conn.execute("""
+                INSERT INTO circuit_breaker_events (id, halt_reason, symbol, features_snapshot, timestamp)
+                VALUES (?, ?, ?, ?, ?)
+            """, [uid, halt_reason, symbol or None, snapshot_str, ts])
 
     def health_check(self) -> Dict:
         """Return storage health metrics."""

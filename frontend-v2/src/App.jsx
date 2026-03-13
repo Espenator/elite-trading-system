@@ -42,13 +42,16 @@ const Backtesting = lazy(() => import("./pages/Backtesting"));
 const PerformanceAnalytics = lazy(() => import("./pages/PerformanceAnalytics"));
 const MarketRegime = lazy(() => import("./pages/MarketRegime"));
 
-// EXECUTION section (3 pages)
+// EXECUTION section (4 pages)
 const Trades = lazy(() => import("./pages/Trades"));
 const RiskIntelligence = lazy(() => import("./pages/RiskIntelligence"));
 const TradeExecution = lazy(() => import("./pages/TradeExecution"));
+const TradingViewBridge = lazy(() => import("./pages/TradingViewBridge"));
+const SymbolDetail = lazy(() => import("./pages/SymbolDetail"));
 
 // SYSTEM section
 const Settings = lazy(() => import("./pages/Settings"));
+const StartupHealth = lazy(() => import("./pages/StartupHealth"));
 
 // ----------- LOADING FALLBACK -----------
 function PageLoader() {
@@ -135,9 +138,12 @@ function App() {
             <Route path="trades" element={<P><Trades /></P>} />
             <Route path="risk" element={<P><RiskIntelligence /></P>} />
             <Route path="trade-execution" element={<P><TradeExecution /></P>} />
+            <Route path="tradingview" element={<P><TradingViewBridge /></P>} />
+            <Route path="symbol/:ticker" element={<P><SymbolDetail /></P>} />
 
             {/* SYSTEM */}
             <Route path="settings" element={<P><Settings /></P>} />
+            <Route path="startup-health" element={<P><StartupHealth /></P>} />
 
             {/* 404 Catch-all */}
             <Route path="*" element={<NotFound />} />

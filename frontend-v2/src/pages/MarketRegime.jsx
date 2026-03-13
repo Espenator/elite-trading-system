@@ -216,7 +216,7 @@ function RegimeStateMachine({ currentState, regimeData, selectedState, onSelectS
           <span className={clsx("font-bold", REGIME_COLORS[selectedState]?.text || "text-gray-400")}>
             {selectedState}
           </span>
-          {regimeData?.transitions && (
+          {regimeData?.transitions?.length > 0 && (
             <div className="mt-1">
               Last transition:{" "}
               {regimeData.transitions.find((t) => t.to === selectedState)?.timestamp ?? "\u2014"}
@@ -863,11 +863,12 @@ function CrashProtocol({ macroData }) {
     const updated = { ...armed, [key]: !armed[key] };
     setArmed(updated);
     try {
-      await fetch(getApiUrl("risk/config"), {
+      const res = await fetch(getApiUrl("risk/config"), {
         method: "PUT",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ crash_triggers: updated }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
     } catch (e) {
       log.error("Failed to update crash trigger config:", e);
     }

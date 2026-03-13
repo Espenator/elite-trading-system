@@ -31,6 +31,8 @@ _RATE_LIMIT_WINDOW = 60  # seconds
 class CouncilEvalRequest(BaseModel):
     symbol: str
     timeframe: str = "1d"
+    score: Optional[float] = None  # optional signal score (0-100) for context
+    direction: Optional[str] = None  # optional "buy"|"sell" for context
     features: Optional[Dict[str, Any]] = None
     context: Optional[Dict[str, Any]] = None
 
@@ -56,12 +58,17 @@ async def evaluate_symbol(req: CouncilEvalRequest):
     try:
         from app.council.runner import run_council
 
+        context = dict(req.context or {})
+        if req.score is not None:
+            context["score"] = req.score
+        if req.direction is not None:
+            context["direction"] = req.direction
         decision = await asyncio.wait_for(
             run_council(
                 symbol=req.symbol,
                 timeframe=req.timeframe,
                 features=req.features,
-                context=req.context or {},
+                context=context,
             ),
             timeout=120.0,  # Hard 2-minute cap on full council evaluation
         )

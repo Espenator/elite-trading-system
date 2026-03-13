@@ -391,6 +391,25 @@ class CouncilGate:
                 except Exception:
                     pass
 
+                # LLM calibration: record hypothesis prediction for outcome matching
+                try:
+                    hyp = getattr(decision, "active_hypothesis", None) or {}
+                    meta = (hyp.get("metadata") or {}) if isinstance(hyp, dict) else {}
+                    if meta.get("llm_tier"):
+                        from app.services.llm_calibration import record_llm_prediction
+                        regime_val = getattr(decision, "regime", None) or regime or "UNKNOWN"
+                        record_llm_prediction(
+                            council_decision_id=getattr(decision, "council_decision_id", "") or "",
+                            symbol=symbol,
+                            regime=str(regime_val).upper(),
+                            llm_tier=str(meta.get("llm_tier", "ollama")).lower(),
+                            predicted_direction=str(meta.get("llm_direction", hyp.get("direction", "hold"))).lower(),
+                            predicted_confidence=float(meta.get("llm_confidence", hyp.get("confidence", 0.5))),
+                            llm_latency_ms=int(meta.get("llm_latency_ms", 0)),
+                        )
+                except Exception:
+                    pass
+
             except Exception as e:
                 logger.exception(
                     "CouncilGate evaluation failed for %s: %s", symbol, e

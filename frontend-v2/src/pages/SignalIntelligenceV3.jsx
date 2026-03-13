@@ -5,6 +5,7 @@ import React, {
   useRef,
   useMemo,
 } from "react";
+import { useNavigate } from "react-router-dom";
 import { useApi, fetchCouncilEvaluate, postAgentOverrideStatus } from "../hooks/useApi";
 import { useSettings } from "../hooks/useSettings";
 import { getApiUrl, getAuthHeaders } from "../config/api";
@@ -227,11 +228,12 @@ const Toggle = ({ checked, onChange, size = "md", variant = "cyan" }) => {
 // MAIN DASHBOARD COMPONENT
 // ============================================================================
 export default function SignalIntelligenceV3() {
+  const navigate = useNavigate();
   // --- REAL API HOOKS (mapped to config/api.js endpoints) ---
   const { data: apiSignals, loading: sigLoading, refetch: refetchSignals } = useApi('signals', { pollIntervalMs: 15000 });
-  const { data: apiAgents } = useApi('agents', { pollIntervalMs: 30000 });
+  const { data: apiAgents, loading: agentsLoading } = useApi('agents', { pollIntervalMs: 30000 });
   const { data: apiOpenclaw } = useApi('openclaw', { pollIntervalMs: 15000 });
-  const { data: apiDataSources } = useApi('dataSources', { pollIntervalMs: 30000 });
+  const { data: apiDataSources, loading: dataSourcesLoading } = useApi('dataSources', { pollIntervalMs: 30000 });
   const { data: apiSentiment } = useApi('sentiment', { pollIntervalMs: 30000 });
   const { data: apiYoutube } = useApi('youtubeKnowledge', { pollIntervalMs: 60000 });
   const { data: apiTraining } = useApi('training', { pollIntervalMs: 30000 });
@@ -1174,9 +1176,7 @@ export default function SignalIntelligenceV3() {
                     <tr
                       key={sig.id || idx}
                       className="border-b border-[rgba(42,52,68,0.5)]/30 hover:bg-[#00D9FF]/5 cursor-pointer transition-colors"
-                      onClick={() =>
-                        setSelectedSymbol(sig.symbol || sig.ticker)
-                      }
+                      onClick={() => navigate(`/symbol/${encodeURIComponent(sig.symbol || sig.ticker)}`)}
                     >
                       <td className="py-0.5 px-1 font-bold font-mono text-[#00D9FF]">
                         {sig.symbol || sig.ticker}

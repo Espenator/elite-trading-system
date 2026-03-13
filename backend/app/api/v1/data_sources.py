@@ -33,7 +33,10 @@ logger = logging.getLogger(__name__)
 FERNET_KEY = os.getenv("FERNET_KEY")
 if not FERNET_KEY:
     import secrets
-    logger.warning("FERNET_KEY not set! Generating ephemeral key (credentials will not persist across restarts)")
+    logger.info(
+        "FERNET_KEY not set — using ephemeral key (credentials will not persist across restarts). "
+        "Set FERNET_KEY in .env for production."
+    )
     FERNET_KEY = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode()
 _cipher = Fernet(FERNET_KEY.encode())
 
