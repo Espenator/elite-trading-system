@@ -353,33 +353,9 @@ export default function MLBrainFlywheel() {
     },
   ];
 
-  // Default signal rows matching mockup
-  const defaultSignals = [
-    { symbol: 'NVDA', dir: 'LONG', winProb: 94, compression: '5 Days', velezScore: '85% (Daily/4H)', volRatio: '2.1x Avg' },
-    { symbol: 'MSTR', dir: 'LONG', winProb: 89, compression: '3 Days', velezScore: '80% (Daily/4H)', volRatio: '1.8x Avg' },
-    { symbol: 'AAPL', dir: 'SHORT', winProb: 82, compression: '7 Days', velezScore: '20% (Daily/4H)', volRatio: '1.5x Avg' },
-    { symbol: 'TSLA', dir: 'LONG', winProb: 78, compression: '4 Days', velezScore: '75% (Daily/4H)', volRatio: '1.9x Avg' },
-    { symbol: 'AMD', dir: 'LONG', winProb: 76, compression: '2 Days', velezScore: '70% (Daily)', volRatio: '1.4x Avg' },
-    { symbol: 'SMCI', dir: 'SHORT', winProb: 88, compression: '6 Days', velezScore: '15% (Daily)', volRatio: '2.5x Avg' },
-    { symbol: 'COIN', dir: 'LONG', winProb: 91, compression: '5 Days', velezScore: '82% (Daily/4H)', volRatio: '2.0x Avg' },
-    { symbol: 'PLTR', dir: 'LONG', winProb: 85, compression: '8 Days', velezScore: '78% (Daily/4H)', volRatio: '1.7x Avg' },
-    { symbol: 'META', dir: 'SHORT', winProb: 72, compression: '3 Days', velezScore: '35% (Daily)', volRatio: '1.6x Avg' },
-    { symbol: 'CRWD', dir: 'LONG', winProb: 84, compression: '4 Days', velezScore: '72% (Daily/4H)', volRatio: '1.8x Avg' },
-  ];
-
-  const displaySignals = signalsData.length > 0 ? signalsData : defaultSignals;
-
-  // Default model data matching mockup
-  const defaultModels = [
-    { name: 'XGBoost Classifier', status: 'PRODUCTION', uptime: '42ms', precision: 0.924, f1: 0.891, lookback: '252 Days', sparkColor: '#10b981' },
-    { name: 'RF Ensemble Model', status: 'VALIDATION', uptime: '65ms', precision: 0.885, f1: 0.862, lookback: '63 Days', sparkColor: '#f59e0b' },
-    { name: 'Velez Engine v2.0', status: 'PRODUCTION', uptime: '15ms', precision: 0.865, f1: 0.840, lookback: 'N/A (Rules)', sparkColor: '#00D9FF' },
-    { name: 'Compression Detector', status: 'PRODUCTION', uptime: '8ms', precision: 0.941, f1: 0.912, lookback: '14 Days', sparkColor: '#10b981' },
-    { name: 'Ignition Detector', status: 'PRODUCTION', uptime: '12ms', precision: 0.880, f1: 0.860, lookback: '3 Days', sparkColor: '#10b981' },
-    { name: 'Regime Manager (VIX)', status: 'PRODUCTION', uptime: '2ms', precision: 0.990, f1: 0.985, lookback: '60 Days', sparkColor: '#a855f7' },
-  ];
-
-  const displayModels = modelsData.length > 0 ? modelsData : defaultModels;
+  // Real API data only — no hardcoded fallback signals or models
+  const displaySignals = signalsData;
+  const displayModels = modelsData;
 
   return (
     <div className="flex flex-col min-h-screen w-full bg-[#0B0E14] text-gray-200 font-sans overflow-y-auto">

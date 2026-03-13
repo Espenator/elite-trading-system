@@ -690,53 +690,8 @@ function RegimeFlowDiagram({ regimeState, paramsData }) {
 // ============================================================
 // TRANSITION HISTORY (mockup: Time, FROM->TO, trigger, confidence, duration, P&L)
 // ============================================================
-const FALLBACK_TRANSITIONS = [
-  {
-    timestamp: "23.03.23 00:33:00",
-    from: "GREEN",
-    to: "YELLOW",
-    trigger: "trigger",
-    confidence: 92,
-    duration: "10 min",
-    pnl_impact: 1335,
-  },
-  {
-    timestamp: "23.03.23 10:32:00",
-    from: "GREEN",
-    to: "YELLOW",
-    trigger: "trigger",
-    confidence: 92,
-    duration: "13 min",
-    pnl_impact: 2455,
-  },
-  {
-    timestamp: "23.03.23 10:33:00",
-    from: "GREEN",
-    to: "YELLOW",
-    trigger: "trigger",
-    confidence: 92,
-    duration: "10 min",
-    pnl_impact: 3455,
-  },
-  {
-    timestamp: "23.03.22 10:03:00",
-    from: "GREEN",
-    to: "YELLOW",
-    trigger: "trigger",
-    confidence: 93,
-    duration: "10 min",
-    pnl_impact: -5156,
-  },
-  {
-    timestamp: "23.03.23 10:27:00",
-    from: "RED",
-    to: "RED",
-    trigger: "trigger",
-    confidence: 95,
-    duration: "20 min",
-    pnl_impact: -12030,
-  },
-];
+// No fallback data — transitions come from real API only
+const FALLBACK_TRANSITIONS = [];
 
 function TransitionHistory({ transitionData, regimeData }) {
   const raw = transitionData?.transitions || regimeData?.transitions || [];
@@ -821,12 +776,8 @@ function TransitionHistory({ transitionData, regimeData }) {
 // ============================================================
 // SECTOR ROTATION (mockup: horizontal bar chart - Tech, Healthcare, Energy, Financials)
 // ============================================================
-const FALLBACK_SECTORS = [
-  { sector: "Tech", score: 85 },
-  { sector: "Healthcare", score: 72 },
-  { sector: "Energy", score: 45 },
-  { sector: "Financials", score: 38 },
-];
+// No fallback data — sectors come from real API only
+const FALLBACK_SECTORS = [];
 
 function SectorRotation({ sectorsData }) {
   const sectors = sectorsData?.sectors?.length

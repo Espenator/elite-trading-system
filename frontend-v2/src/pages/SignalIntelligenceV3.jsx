@@ -35,28 +35,8 @@ import ws from "../services/websocket";
 import Slider from "../components/ui/Slider";
 
 // ============================================================================
-// CONSTANTS & INITIAL DATA (fallbacks when API is unavailable)
-// ============================================================================
-
-const FALLBACK_CORE_AGENTS = [
-  { id: "apex", name: "Apex Orchestrator", defaultWeight: 100, type: "Core" },
-  {
-    id: "rel_weak",
-    name: "Relative Weakness",
-    defaultWeight: 85,
-    type: "Core",
-  },
-  { id: "short_basket", name: "Short Basket", defaultWeight: 75, type: "Core" },
-  { id: "meta_arch", name: "Meta Architect", defaultWeight: 90, type: "Core" },
-  { id: "meta_alch", name: "Meta Alchemist", defaultWeight: 80, type: "Core" },
-  { id: "risk_gov", name: "Risk Governor", defaultWeight: 100, type: "Risk" },
-  {
-    id: "signal_eng",
-    name: "Signal Engine",
-    defaultWeight: 95,
-    type: "Engine",
-  },
-];
+// No hardcoded fallback agents — real API data only
+const FALLBACK_CORE_AGENTS = [];
 const FALLBACK_EXTENDED_AGENTS = [];
 
 /** Parse API agents response into { core, extended, all } using fallbacks */

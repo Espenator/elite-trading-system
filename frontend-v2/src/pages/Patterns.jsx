@@ -618,15 +618,10 @@ function FormingDetectionCard({ pattern }) {
   );
 }
 
-// Fallback feed entries to show layout when API empty (per mockup format)
-const FALLBACK_FEED_ENTRIES = [
-  { id: "1", timestamp: "[10:45:32]", symbol: "AAPL", agent: "AlphaHunter_V4", action: "Dark Pool Buy 50k shares" },
-  { id: "2", timestamp: "[10:44:18]", symbol: "SPY", agent: "Beta Rotator", action: "Volatility Spike, Sector Momentum > Tech" },
-  { id: "3", timestamp: "[10:43:01]", symbol: "NVDA", agent: "AlphaHunter_V4", action: "Relative Strength > 1.5" },
-];
-
+// No fallback feed data — real API only
 function ConsolidatedLiveFeed() {
-  const [feedEntries] = useState(FALLBACK_FEED_ENTRIES);
+  const { data: feedData } = useApi('patternFeed', { pollIntervalMs: 10000 });
+  const feedEntries = feedData?.entries || feedData?.feed || [];
   const feedRef = useRef(null);
 
   return (
@@ -666,13 +661,10 @@ function PatternArsenalPanel() {
   );
 }
 
-const FALLBACK_FORMING = [
-  { id: "1", name: "H&S Forming", symbol: "AMD", confidence: 85, data: Array.from({ length: 20 }, (_, i) => ({ x: i, y: 50 + Math.sin(i * 0.5) * 30 })) },
-  { id: "2", name: "Cup & Handle", symbol: "NVDA", confidence: 62, data: Array.from({ length: 20 }, (_, i) => ({ x: i, y: 60 - i * 1.5 })) },
-];
-
+// No fallback forming data — real API only
 function FormingDetectionsPanel() {
-  const [forming] = useState(FALLBACK_FORMING);
+  const { data: formingData } = useApi('patternForming', { pollIntervalMs: 15000 });
+  const forming = formingData?.detections || formingData?.forming || [];
 
   return (
     <SectionBox title="Forming Detections" icon={Crosshair} windowControls className="flex-1 min-h-0 flex flex-col">

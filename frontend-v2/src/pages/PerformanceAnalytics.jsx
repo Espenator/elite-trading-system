@@ -16,83 +16,46 @@ import { useApi } from '../hooks/useApi';
 import clsx from 'clsx';
 import { TradingGradeHero, ReturnsHeatmapCalendar, ConcentricAIDial } from '../components/dashboard/PerformanceWidgets';
 
-// ─── FALLBACK DATA (zeros / empty until API provides real values) ────────────
+// ─── EMPTY DEFAULTS (all data from real API — no mock/fallback data) ─────────
 
-// Mockup fallback values
-const FALLBACK_KPI = {
-  equity: '$0', daily_pnl: '$0', open_positions: 0, win_rate: 68.4,
-  avg_win: 312.5, avg_loss: -187.2, profit_factor: 2.14, sharpe: 1.87,
-  max_drawdown: '0%', total_trades: 247, grade: 'A', score: 87,
-  deployed_pct: '0%', alpha: '0', expectancy: 89.4, max_dd: 4230,
-  max_dd_pct: -8.2, kelly_fraction: '0%', sortino: 2.85, calmar: 1.87,
-  netPnl: 12847.32, maxDd: 4230, totalTrades: 247, winRate: 68.4,
-  avgWin: 312.5, avgLoss: -187.2, profitFactor: 2.14,
-  riskReward: 1.67,
-  // Change indicators for KPI strip
-  netPnlChg: 0.37, winRateChg: 0.07, avgWinChg: 0.07, avgLossChg: -0.27,
+const EMPTY_KPI = {
+  equity: '$0', daily_pnl: '$0', open_positions: 0, win_rate: 0,
+  avg_win: 0, avg_loss: 0, profit_factor: 0, sharpe: 0,
+  max_drawdown: '0%', total_trades: 0, grade: '—', score: 0,
+  deployed_pct: '0%', alpha: '0', expectancy: 0, max_dd: 0,
+  max_dd_pct: 0, kelly_fraction: '0%', sortino: 0, calmar: 0,
+  netPnl: 0, maxDd: 0, totalTrades: 0, winRate: 0,
+  avgWin: 0, avgLoss: 0, profitFactor: 0,
+  riskReward: 0,
+  netPnlChg: 0, winRateChg: 0, avgWinChg: 0, avgLossChg: 0,
 };
-
-const FALLBACK_EQUITY = Array.from({ length: 21 }, (_, i) => ({
-  date: String(i),
-  equity: 100000 + i * 600 + Math.sin(i / 2) * 2000,
-  drawdown: -Math.min(i * 0.4, 10),
-}));
 
 const agentColors = ['#F59E0B', '#94a3b8', '#B45309', '#6B7280', '#4B5563'];
-const FALLBACK_AGENTS = [
-  { name: 'Alpha Scout', elo: 1850, change: 45, changePct: 2.5, contribution: 28, winRate: 72, color: agentColors[0], pnl: 3600, trades: 84 },
-  { name: 'Risk Guardian', elo: 1780, change: -12, changePct: -0.7, contribution: 22, winRate: 68, color: agentColors[1], pnl: 2827, trades: 66 },
-  { name: 'Momentum Tracker', elo: 1720, change: 38, changePct: 2.2, contribution: 18, winRate: 65, color: agentColors[2], pnl: 2312, trades: 54 },
-  { name: 'Sector Rotator', elo: 1690, change: 22, changePct: 1.3, contribution: 15, winRate: 61, color: agentColors[3], pnl: 1927, trades: 43 },
-];
-const FALLBACK_PNL_BY_SYMBOL = [
-  { symbol: 'AAPL', pnl: 4200 },
-  { symbol: 'TSLA', pnl: -1200 },
-  { symbol: 'NVDA', pnl: 5800 },
-  { symbol: 'MSFT', pnl: 2100 },
-  { symbol: 'GOOGL', pnl: 1800 },
-  { symbol: 'META', pnl: -800 },
-];
 
-const FALLBACK_TRADES = [
-  { id: '1', date: '02/28', symbol: 'NVDA', side: 'L', qty: 50, entry: 875.2, exit: 891.4, pnl: 810, pnlPct: 1.9 },
-  { id: '2', date: '02/28', symbol: 'AAPL', side: 'H', qty: 100, entry: 178.5, exit: 177.2, pnl: -130, pnlPct: -0.7 },
-  { id: '3', date: '02/27', symbol: 'TSLA', side: 'L', qty: 25, entry: 205.0, exit: 212.8, pnl: 195, pnlPct: 3.8 },
-  { id: '4', date: '02/27', symbol: 'MSFT', side: 'L', qty: 40, entry: 408.1, exit: 412.0, pnl: 156, pnlPct: 1.0 },
-  { id: '5', date: '02/26', symbol: 'GOOGL', side: 'L', qty: 30, entry: 142.0, exit: 143.5, pnl: 45, pnlPct: 1.1 },
-  { id: '6', date: '02/26', symbol: 'META', side: 'H', qty: 20, entry: 495.0, exit: 502.1, pnl: -142, pnlPct: -1.4 },
-];
-
-const FALLBACK_ROLLING_RISK = [{ date: 0, y: 0.5 }, { date: 2, y: 0.7 }, { date: 4, y: 0.6 }, { date: 6, y: 0.9 }, { date: 8, y: 1.0 }, { date: 10, y: 1.2 }];
-
-const FALLBACK_CONVEXITY = [];
-
-const FALLBACK_RR_EXPECT = [{ name: 'R:R', rr: 1.67, expectancy: 89.4 }];
-
-const FALLBACK_ML = {
-  flywheel_cycles: 12, models_active: 4, accuracy: '0%', last_retrain: '—',
+const EMPTY_ML = {
+  flywheel_cycles: 0, models_active: 0, accuracy: '0%', last_retrain: '—',
   drift_psi: 0, f1: '0', feature_store_sync: '—',
-  accuracyTrend: Array.from({ length: 20 }, (_, i) => ({ accuracy: 0.7 + (i / 20) * 0.25 + Math.sin(i / 3) * 0.05 })),
-  stagedInferences: 1847,
-  totalInferences: 2103,
-  pipelineHealth: 85,
+  accuracyTrend: [],
+  stagedInferences: 0,
+  totalInferences: 0,
+  pipelineHealth: 0,
 };
 
-const FALLBACK_RISK_EXPANDED = {
-  shieldStatus: 'ACTIVE',
-  varDaily: 4.2,
-  varWeekly: 6.8,
-  currentExposure: 65,
+const EMPTY_RISK = {
+  shieldStatus: '—',
+  varDaily: 0,
+  varWeekly: 0,
+  currentExposure: 0,
   maxExposure: 100,
-  riskHistory: Array.from({ length: 61 }, (_, i) => ({ score: 50 + Math.sin(i / 8) * 40 + i * 0.5 })),
+  riskHistory: [],
 };
 
-const FALLBACK_STRATEGY = {
-  signalHitRate: 72,
-  totalSignals: 312,
-  activeStrategies: ['Strateg A'],
-  sentiment: 'Bullish',
-  regime: 'GREEN',
+const EMPTY_STRATEGY = {
+  signalHitRate: 0,
+  totalSignals: 0,
+  activeStrategies: [],
+  sentiment: '—',
+  regime: '—',
 };
 
 // ─── HELPER COMPONENTS ───────────────────────────────────────────────────────
@@ -276,13 +239,13 @@ export default function PerformanceAnalytics() {
 
   const [tradeSort, setTradeSort] = useState({ key: 'date', dir: 'desc' });
 
-  // Merge API data with fallbacks
-  const kpi = useMemo(() => ({ ...FALLBACK_KPI, ...(perfData?.kpi || perfData || {}) }), [perfData]);
-  const equityData = useMemo(() => perfData?.equity || FALLBACK_EQUITY, [perfData]);
-  const agents = useMemo(() => agentsData?.leaderboard || FALLBACK_AGENTS, [agentsData]);
-  const pnlBySymbol = useMemo(() => perfData?.pnlBySymbol || FALLBACK_PNL_BY_SYMBOL, [perfData]);
+  // Merge API data with empty defaults — no fake data
+  const kpi = useMemo(() => ({ ...EMPTY_KPI, ...(perfData?.kpi || perfData || {}) }), [perfData]);
+  const equityData = useMemo(() => perfData?.equity || [], [perfData]);
+  const agents = useMemo(() => agentsData?.leaderboard || [], [agentsData]);
+  const pnlBySymbol = useMemo(() => perfData?.pnlBySymbol || [], [perfData]);
   const trades = useMemo(() => {
-    const raw = tradesData?.trades || FALLBACK_TRADES;
+    const raw = tradesData?.trades || [];
     const sorted = [...raw].sort((a, b) => {
       const av = a[tradeSort.key], bv = b[tradeSort.key];
       if (typeof av === 'string') return tradeSort.dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
@@ -291,17 +254,17 @@ export default function PerformanceAnalytics() {
     return sorted;
   }, [tradesData, tradeSort]);
   const rollingRisk = useMemo(() => {
-    const raw = perfData?.rollingRisk || FALLBACK_ROLLING_RISK;
+    const raw = perfData?.rollingRisk || [];
     return raw.map((r, i) => ({
       date: r.date ?? r.x ?? i,
-      y: r.y ?? r.rollingSharpe ?? r.value ?? FALLBACK_ROLLING_RISK[i]?.y ?? 0.5,
+      y: r.y ?? r.rollingSharpe ?? r.value ?? 0,
     }));
   }, [perfData]);
-  const convexityData = useMemo(() => perfData?.convexity || FALLBACK_CONVEXITY, [perfData]);
-  const rrExpect = useMemo(() => perfData?.rrExpectancy || FALLBACK_RR_EXPECT, [perfData]);
-  const ml = useMemo(() => ({ ...FALLBACK_ML, ...(flywheelData || {}) }), [flywheelData]);
-  const riskExp = useMemo(() => ({ ...FALLBACK_RISK_EXPANDED, ...(riskData || {}) }), [riskData]);
-  const strategy = useMemo(() => ({ ...FALLBACK_STRATEGY, ...(perfData?.strategy || {}) }), [perfData]);
+  const convexityData = useMemo(() => perfData?.convexity || [], [perfData]);
+  const rrExpect = useMemo(() => perfData?.rrExpectancy || [], [perfData]);
+  const ml = useMemo(() => ({ ...EMPTY_ML, ...(flywheelData || {}) }), [flywheelData]);
+  const riskExp = useMemo(() => ({ ...EMPTY_RISK, ...(riskData || {}) }), [riskData]);
+  const strategy = useMemo(() => ({ ...EMPTY_STRATEGY, ...(perfData?.strategy || {}) }), [perfData]);
 
   const handleSort = (key) => {
     setTradeSort(prev => ({
@@ -458,7 +421,7 @@ export default function PerformanceAnalytics() {
                 <div className="text-[10px] text-gray-500 mb-1">Rolling Risk Sharpe</div>
                 <div className="h-[80px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={rollingRisk.length ? rollingRisk : FALLBACK_ROLLING_RISK} margin={{ top: 2, right: 5, left: -15, bottom: 0 }}>
+                    <AreaChart data={rollingRisk} margin={{ top: 2, right: 5, left: -15, bottom: 0 }}>
                       <defs>
                         <linearGradient id="rollingGrad" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%" stopColor="#06B6D4" stopOpacity={0.4} />

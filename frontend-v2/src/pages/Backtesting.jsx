@@ -504,23 +504,11 @@ const defaultStratEdges = [
 ];
 
 /* ------------------------------------------------------------------ */
-/*  Swarm agents list for OpenClaw panel (mockup: 7 Core Agents)       */
+/*  Swarm agents/teams — populated from real API (no hardcoded data)   */
 /* ------------------------------------------------------------------ */
-const SWARM_AGENTS = [
-  { name: "Apex Orchestrator", pct: 100, icon: Brain, color: "#00D9FF" },
-  { name: "Relative Weakness", pct: 81, icon: TrendingDown, color: "#00D9FF" },
-  { name: "Short Basket", pct: 75, icon: TrendingDown, color: "#00D9FF" },
-  { name: "Meta Architect", pct: 90, icon: Layers, color: "#00D9FF" },
-  { name: "Meta Alchemist", pct: 81, icon: Layers, color: "#00D9FF" },
-  { name: "Risk Governor", pct: 100, icon: Shield, color: "#00D9FF" },
-  { name: "Signal Engine", pct: 95, icon: Cpu, color: "#00D9FF" },
-];
-const SWARM_TEAMS = [
-  { name: "Team Alpha", agents: 23, pct: 92, status: "green" },
-  { name: "Team Beta", agents: 31, pct: 88, status: "green" },
-  { name: "Team Gamma", agents: 22, pct: 72, status: "yellow" },
-  { name: "Team Delta", agents: 17, pct: 58, status: "orange" },
-];
+// SWARM_AGENTS and SWARM_TEAMS are now fetched from the agents API
+// in the main component and passed to rendering sections below.
+// Empty arrays used as defaults when API has no data.
 
 /* ------------------------------------------------------------------ */
 /*  Recharts dark tooltip                                             */
@@ -571,6 +559,27 @@ export default function Backtesting() {
   const { data: runsRaw, loading: loadRuns } = useApi("backtestRuns", {
     pollIntervalMs: 30000,
   });
+  const { data: agentsRaw } = useApi("agents", { pollIntervalMs: 30000 });
+
+  // Swarm agents/teams from real API — no hardcoded fallback
+  const SWARM_AGENTS = useMemo(() => {
+    const agents = agentsRaw?.agents || agentsRaw?.swarm?.agents || [];
+    return agents.slice(0, 7).map(a => ({
+      name: a.name || a.agent_name || 'Unknown',
+      pct: a.health ?? a.pct ?? 0,
+      icon: Brain,
+      color: '#00D9FF',
+    }));
+  }, [agentsRaw]);
+  const SWARM_TEAMS = useMemo(() => {
+    const teams = agentsRaw?.teams || agentsRaw?.swarm?.teams || [];
+    return teams.slice(0, 4).map(t => ({
+      name: t.name || 'Unknown',
+      agents: t.count ?? t.agents ?? 0,
+      pct: t.health ?? t.pct ?? 0,
+      status: (t.health ?? t.pct ?? 0) >= 80 ? 'green' : (t.health ?? t.pct ?? 0) >= 60 ? 'yellow' : 'orange',
+    }));
+  }, [agentsRaw]);
 
   // --- Normalize API data ---
   const results = useMemo(

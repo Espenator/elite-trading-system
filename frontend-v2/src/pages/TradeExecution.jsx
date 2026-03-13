@@ -251,42 +251,18 @@ export default function TradeExecution() {
   /* ── Fallback: Order Book (mockup: Bid/Size/Total, Ask/Size/Total) ── */
   const bookBids = orderBook?.bids || [];
   const bookAsks = orderBook?.asks || [];
-  const displayBookBids = bookBids.length > 0 ? bookBids.slice(0, 10) : [
-    { price: 4450.25, size: 310, total: 310 },
-    { price: 4450.50, size: 85, total: 395 },
-    { price: 4449.75, size: 120, total: 515 },
-    { price: 4449.50, size: 45, total: 560 },
-    { price: 4449.25, size: 200, total: 760 },
-  ];
-  const displayBookAsks = bookAsks.length > 0 ? bookAsks.slice(0, 10) : [
-    { price: 4450.50, size: 72, total: 72 },
-    { price: 4450.75, size: 95, total: 167 },
-    { price: 4451.50, size: 38, total: 205 },
-    { price: 4451.75, size: 110, total: 315 },
-    { price: 4452.00, size: 60, total: 375 },
-  ];
+  // Real API data only — no hardcoded order book fallback
+  const displayBookBids = bookBids.slice(0, 10);
+  const displayBookAsks = bookAsks.slice(0, 10);
 
-  /* ── Fallback: News Feed (mockup: timestamp first, colored dot, headline) ── */
-  const displayNews = newsArr.length > 0 ? newsArr : [
-    { time: '09:30:05', text: 'FED official comments on interest rates cause market volatility.', type: 'info' },
-    { time: '09:25:45', text: 'Strong economic data released, boosting sentiment.', type: 'positive' },
-    { time: '09:15:30', text: 'Breaking: Geopolitical tensions escalate, impacting oil prices.', type: 'negative' },
-    { time: '09:10:15', text: 'Earnings Alert: XYZ Inc. reports Q2 results, beats estimates.', type: 'warning' },
-  ];
+  /* ── News Feed — real API data only ── */
+  const displayNews = newsArr;
 
-  /* ── Fallback: System Status Log (mockup: timestamp, dot, message) ── */
-  const displayStatus = statusArr.length > 0 ? statusArr : [
-    { time: '09:30:12', text: 'Order #123456 executed successfully (SPX, Buy, 50 contracts).', type: 'success' },
-    { time: '09:30:08', text: 'Connected to market data feed: Latency 8ms.', type: 'info' },
-    { time: '09:30:02', text: 'Warning: High market volatility detected.', type: 'warning' },
-    { time: '09:30:00', text: 'System initialized. All services online.', type: 'success' },
-    { time: '09:29:55', text: 'User Logged In: ELITE status confirmed.', type: 'info' },
-  ];
+  /* ── System Status Log — real API data only ── */
+  const displayStatus = statusArr;
 
-  /* ── Fallback: Positions (mockup: Symbol, Side, Qty, Avg Price, Current Price, P/L, Actions) ── */
-  const displayPositions = posArr.length > 0 ? posArr : [
-    { symbol: 'SPX', side: 'Long',  quantity: 10, avgPrice: 4450.25, currentPrice: 4450.25, pnl: 7625 },
-    { symbol: 'SPX', side: 'Short', quantity: 10, avgPrice: 4450.25, currentPrice: 4450.25, pnl: 7625 },
+  /* ── Positions — real API data only ── */
+  const displayPositions = posArr;
   ];
 
   /* Strike helpers */
@@ -313,11 +289,11 @@ export default function TradeExecution() {
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-400 to-transparent" />
         <span className="font-mono text-sm font-bold text-white uppercase tracking-widest">TRADE EXECUTION</span>
         <div className="flex items-center gap-5 ml-auto font-mono text-[10px]">
-          <span><span className="text-gray-500 mr-1">Portfolio:</span><span className="text-white">{fmtUsd(portfolio.value || 1580420.55)}</span></span>
+          <span><span className="text-gray-500 mr-1">Portfolio:</span><span className="text-white">{fmtUsd(portfolio.value || 0)}</span></span>
           <span className="text-gray-700">|</span>
-          <span><span className="text-gray-500 mr-1">Daily P/L:</span><span className="text-[#00e676]">+{fmtUsd(portfolio.dailyPnl || 12500.80)}</span></span>
+          <span><span className="text-gray-500 mr-1">Daily P/L:</span><span className={portfolio.dailyPnl >= 0 ? "text-[#00e676]" : "text-red-400"}>{portfolio.dailyPnl >= 0 ? '+' : ''}{fmtUsd(portfolio.dailyPnl || 0)}</span></span>
           <span className="text-gray-700">|</span>
-          <span><span className="text-gray-500 mr-1">Status:</span><span className="px-2 py-0.5 rounded text-[9px] font-bold bg-[#00D9FF]/25 text-[#00D9FF]">{portfolio.status || 'ELITE'}</span></span>
+          <span><span className="text-gray-500 mr-1">Status:</span><span className="px-2 py-0.5 rounded text-[9px] font-bold bg-[#00D9FF]/25 text-[#00D9FF]">{portfolio.status || '—'}</span></span>
           <span className="text-gray-700">|</span>
           <span><span className="text-gray-500 mr-1">Latency:</span><span className="text-white">{portfolio.latency || 8}ms</span></span>
         </div>
