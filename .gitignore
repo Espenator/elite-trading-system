@@ -2,6 +2,8 @@
 
 # ── Launcher state (chosen ports when preferred was busy) ──
 .embodier-ports.json
+.embodier.pid
+backend/.embodier.pid
 
 # ── Environment (AUDIT FIX Task 16: catch ALL .env variants) ──
 .env*

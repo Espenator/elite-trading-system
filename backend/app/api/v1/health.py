@@ -113,6 +113,13 @@ async def system_health():
     result: Dict[str, Any] = {}
 
     # Core infrastructure checks
+    # Process lock info
+    try:
+        from app.core.process_lock import get_lock_info
+        result["process_lock"] = get_lock_info()
+    except Exception:
+        result["process_lock"] = {"locked": False}
+
     result["duckdb"] = await _check_duckdb()
     result["alpaca"] = await _check_alpaca()
     result["brain_grpc"] = await _check_brain_grpc()

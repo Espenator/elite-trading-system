@@ -1336,8 +1336,12 @@ async def _stop_event_driven_pipeline():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize data schema on startup; start background loops."""
-    # 0. Thread pool for concurrent DuckDB/blocking work (tunable via ASYNCIO_THREAD_POOL_WORKERS)
+    # -1. Process lock — prevent duplicate backend instances (solves port/DuckDB conflicts)
     from app.core.config import settings
+    from app.core.process_lock import acquire_lock, release_lock
+    acquire_lock(port=settings.effective_port)
+
+    # 0. Thread pool for concurrent DuckDB/blocking work (tunable via ASYNCIO_THREAD_POOL_WORKERS)
     _pool_size = getattr(settings, "ASYNCIO_THREAD_POOL_WORKERS", 64)
     loop = asyncio.get_running_loop()
     loop.set_default_executor(concurrent.futures.ThreadPoolExecutor(max_workers=_pool_size))
@@ -1708,6 +1712,8 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass
 
+        # Release process lock
+        release_lock()
         log.info("Application shutdown complete")
 
 
