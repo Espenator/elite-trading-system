@@ -54,6 +54,21 @@ When editing or referring to files:
 
 ---
 
+## 3b. CRITICAL: Primary vs stale copy (ESPENMAIN / this machine)
+
+On this machine there are **two** clones of the repo. Only the **primary** must be used to run services.
+
+| Copy | Path | Use |
+|------|------|-----|
+| **PRIMARY** | `C:\Users\Espen\elite-trading-system` | **Use this.** Backend → 8000, Frontend → 5173. All dev and service starts. |
+| **STALE** | `C:\Users\Espen\Dev\elite-trading-system` | **Do not run services from here.** Causes port conflicts (8004/5176), DuckDB locks, and fights the primary. |
+
+- **Do NOT** start backend, frontend, or any dev servers from the Dev copy.
+- **Do NOT** run both copies at the same time.
+- When starting services, use **only** the primary path: `C:\Users\Espen\elite-trading-system\backend` (port 8000) and `C:\Users\Espen\elite-trading-system\frontend-v2` (port 5173).
+
+---
+
 ## 4. Canonical machine paths (for humans and scripts)
 
 When you need an absolute path (e.g. terminal, shortcuts), use the canonical path for that machine. All documentation uses these consistently.

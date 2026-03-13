@@ -2,11 +2,39 @@
 
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
 from app.data.storage import get_conn, DB_PATH
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+# Readiness: poll GET /api/v1/status/ready or GET /readyz until 200 before starting frontend.
+READINESS_DUCKDB_KEY = "duckdb_ready"
+READINESS_MESSAGEBUS_KEY = "message_bus_ready"
+
+
+@router.get("/ready")
+async def get_ready(request: Request):
+    """
+    Readiness check: returns 200 only when DuckDB and MessageBus are ready.
+
+    Launcher should poll this URL (or GET /readyz) until 200 before starting the frontend.
+    Returns 503 with checks detail when not ready.
+    """
+    duckdb_ready = getattr(request.app.state, READINESS_DUCKDB_KEY, False)
+    message_bus_ready = getattr(request.app.state, READINESS_MESSAGEBUS_KEY, False)
+    ready = duckdb_ready and message_bus_ready
+    checks = {
+        "duckdb": "ok" if duckdb_ready else "not_ready",
+        "message_bus": "ok" if message_bus_ready else "not_ready",
+    }
+    status_code = 200 if ready else 503
+    return JSONResponse(
+        status_code=status_code,
+        content={"status": "ready" if ready else "not_ready", "checks": checks},
+    )
 
 
 @router.get("")

@@ -438,3 +438,4 @@ export default function AgentRegistryTab({ agents, preselectedAgentName, onClear
     </div>
   );
 }
+

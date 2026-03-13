@@ -304,7 +304,7 @@ class BriefingService:
         try:
             from app.core.message_bus import MessageBus
             bus = MessageBus.get_instance()
-            bus.publish("briefing.generated", {"timestamp": timestamp, "ideas_count": len(ideas)})
+            await bus.publish("briefing.generated", {"timestamp": timestamp, "ideas_count": len(ideas)})
         except Exception as e:
             logger.debug("MessageBus briefing.generated: %s", e)
 

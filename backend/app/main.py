@@ -42,6 +42,7 @@ from app.websocket_manager import (
 import json
 
 from app.core.config import settings
+from app.core.process_lock import acquire_lock, release_lock
 from app.api.v1 import (
     stocks,
     quotes,
@@ -1333,17 +1334,39 @@ async def _stop_event_driven_pipeline():
     log.info("Event-driven pipeline shutdown complete")
 
 
+# Readiness state: set during lifespan so /readyz and /api/v1/status/ready can return 200 only when ready.
+# Launcher should poll: GET /readyz or GET /api/v1/status/ready until 200 before starting frontend.
+READINESS_DUCKDB_KEY = "duckdb_ready"
+READINESS_MESSAGEBUS_KEY = "message_bus_ready"
+DUCKDB_INIT_ATTEMPTS = 3
+DUCKDB_INIT_DELAY_SEC = 2.0
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize data schema on startup; start background loops."""
-    # 0. Thread pool for concurrent DuckDB/blocking work (tunable via ASYNCIO_THREAD_POOL_WORKERS)
+    """Initialize data schema on startup; start background loops.
+
+    6-phase lifespan: (0) thread pool, (0b) infra checks, (1) DB schema + DuckDB with retry,
+    (1b) ingestion, (2) ML singletons, (3) event pipeline. If a critical phase fails,
+    we log clearly and fail fast (or retry for DuckDB) so the app does not yield in a broken state.
+    """
+    app.state.duckdb_ready = False
+    app.state.message_bus_ready = False
+    _lock_acquired = False
+
+    # Process guard: block duplicate backend instances before DuckDB init.
+    if not acquire_lock():
+        os._exit(3)
+    _lock_acquired = True
+
+    # Phase 0: Thread pool for concurrent DuckDB/blocking work (tunable via ASYNCIO_THREAD_POOL_WORKERS)
     from app.core.config import settings
     _pool_size = getattr(settings, "ASYNCIO_THREAD_POOL_WORKERS", 64)
     loop = asyncio.get_running_loop()
     loop.set_default_executor(concurrent.futures.ThreadPoolExecutor(max_workers=_pool_size))
     log.info("Thread pool set to %d workers for async DuckDB operations", _pool_size)
 
-    # 0b. Infrastructure health checks (PC2 + Redis)
+    # Phase 0b: Infrastructure health checks (PC2 + Redis) — non-fatal
     _infra_status = {}
     try:
         from app.core.pc2_health import run_infrastructure_checks
@@ -1353,7 +1376,7 @@ async def lifespan(app: FastAPI):
         log.warning("Infrastructure health checks failed: %s", e)
         app.state.infra_status = {"dual_pc_operational": False}
 
-    # 1. Data schema
+    # Phase 1a: SQLite schema (non-fatal)
     try:
         from app.data.storage import init_schema
         init_schema()
@@ -1361,26 +1384,53 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         log.warning("SQLite schema init skipped: %s", e)
 
-    try:
-        from app.data.duckdb_storage import duckdb_store
-        duckdb_store.init_schema()
-        health = duckdb_store.health_check()
-        log.info(
-            "DuckDB ready: %d tables, %d rows",
-            health.get("total_tables", 0),
-            health.get("total_rows", 0),
-        )
-    except Exception as e:
-        err_msg = str(e).lower()
-        if ("already open" in err_msg or "file is already open" in err_msg or "being used by another process" in err_msg):
-            log.warning(
-                "DuckDB init skipped (file in use by another process). "
-                "Only one backend instance per data directory. Exiting to stop window loop."
+    # Phase 1b: DuckDB schema with retry (3 attempts, 2s apart) — fail fast if still locked/unavailable
+    from app.data.duckdb_storage import duckdb_store
+    _duckdb_ok = False
+    _last_duckdb_error = None
+    for attempt in range(1, DUCKDB_INIT_ATTEMPTS + 1):
+        try:
+            duckdb_store.init_schema()
+            health = duckdb_store.health_check()
+            _duckdb_ok = True
+            log.info(
+                "DuckDB ready: %d tables, %d rows (attempt %d/%d)",
+                health.get("total_tables", 0),
+                health.get("total_rows", 0),
+                attempt,
+                DUCKDB_INIT_ATTEMPTS,
             )
-            # os._exit cannot be caught; ensures duplicate process dies immediately
-            os._exit(2)  # EXIT_DUPLICATE_INSTANCE — autorestart script will wait instead of quick-restart
-        else:
-            log.warning("DuckDB init skipped: %s", e)
+            break
+        except Exception as e:
+            _last_duckdb_error = e
+            err_msg = str(e).lower()
+            is_lock = (
+                "already open" in err_msg
+                or "file is already open" in err_msg
+                or "being used by another process" in err_msg
+                or "locked" in err_msg
+                or "cannot open" in err_msg
+            )
+            log.warning(
+                "DuckDB init attempt %d/%d failed: %s",
+                attempt, DUCKDB_INIT_ATTEMPTS, e,
+            )
+            if attempt < DUCKDB_INIT_ATTEMPTS:
+                log.info("Retrying DuckDB init in %.1fs...", DUCKDB_INIT_DELAY_SEC)
+                await asyncio.sleep(DUCKDB_INIT_DELAY_SEC)
+            else:
+                if is_lock:
+                    log.critical(
+                        "DuckDB init failed after %d attempts (file locked by another process). "
+                        "Only one backend instance per data directory. Exiting.",
+                        DUCKDB_INIT_ATTEMPTS,
+                    )
+                    os._exit(2)  # EXIT_DUPLICATE_INSTANCE
+                raise RuntimeError(
+                    f"DuckDB init failed after {DUCKDB_INIT_ATTEMPTS} attempts: {_last_duckdb_error}"
+                ) from _last_duckdb_error
+    if _duckdb_ok:
+        app.state.duckdb_ready = True
 
     # 1b. Ingestion framework (incremental adapters)
     try:
@@ -1409,13 +1459,15 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         log.warning("ML singletons init failed: %s", e)
 
-    # 3. Event-driven pipeline (council-controlled)
+    # Phase 3: Event-driven pipeline (council-controlled) — fail fast so app is not left broken
     try:
         await _start_event_driven_pipeline()
+        app.state.message_bus_ready = True
     except Exception:
         log.exception(
-            "Event-driven pipeline failed to start -- falling back to polling only"
+            "Event-driven pipeline failed to start — backend cannot serve traffic. Failing fast."
         )
+        raise
 
     # 3b. Flywheel scheduler (optional)
     try:
@@ -1708,6 +1760,9 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass
 
+        if _lock_acquired:
+            release_lock()
+
         log.info("Application shutdown complete")
 
 
@@ -1956,6 +2011,18 @@ async def websocket_endpoint(websocket: WebSocket):
         remove_connection(websocket)
 
 
+@app.get("/")
+async def root():
+    """Root path — redirects to docs and confirms API is up."""
+    return {
+        "app": "Embodier Trader",
+        "version": getattr(settings, "APP_VERSION", "5.0.0"),
+        "docs": "/docs",
+        "health": "/health",
+        "healthz": "/healthz",
+    }
+
+
 @app.get("/healthz")
 async def liveness():
     """Liveness probe — confirms the process is alive and can serve HTTP.
@@ -1967,34 +2034,43 @@ async def liveness():
 
 
 @app.get("/readyz")
-async def readiness():
+async def readiness(request: Request):
     """Readiness probe — confirms the app can serve real traffic.
 
-    Kubernetes uses this to decide whether to route traffic to this pod.
-    Checks critical dependencies: DuckDB, Alpaca connectivity, service health.
-    Returns 503 if any critical dependency is down.
+    Returns 200 only when DuckDB and MessageBus are ready (set during lifespan).
+    Launcher should poll this URL (or GET /api/v1/status/ready) before starting the frontend.
 
-    AUDIT FIX (Task 8): Includes per-service health from the service registry
-    so operators and the HITL gate know which intelligence layers are active.
+    Kubernetes uses this to decide whether to route traffic to this pod.
+    Returns 503 if any critical dependency is down.
     """
     checks = {}
     ready = True
 
-    # DuckDB — critical for all data operations
-    try:
-        from app.data.duckdb_storage import duckdb_store
-        health = duckdb_store.health_check()
-        checks["duckdb"] = "ok" if health.get("total_tables", 0) > 0 else "degraded"
-    except Exception:
-        checks["duckdb"] = "unavailable"
+    # Lifespan-set flags take precedence (backend ready only after full 6-phase startup)
+    duckdb_ready = getattr(request.app.state, READINESS_DUCKDB_KEY, False)
+    message_bus_ready = getattr(request.app.state, READINESS_MESSAGEBUS_KEY, False)
+    if not duckdb_ready or not message_bus_ready:
+        checks["duckdb"] = "ok" if duckdb_ready else "not_ready"
+        checks["message_bus"] = "ok" if message_bus_ready else "not_ready"
         ready = False
+    else:
+        # Confirm with live checks
+        try:
+            from app.data.duckdb_storage import duckdb_store
+            health = duckdb_store.health_check()
+            checks["duckdb"] = "ok" if health.get("total_tables", 0) > 0 else "degraded"
+            if checks["duckdb"] != "ok":
+                ready = False
+        except Exception:
+            checks["duckdb"] = "unavailable"
+            ready = False
+        checks["message_bus"] = "ok" if _message_bus else "not_started"
+        if not _message_bus:
+            ready = False
 
     # Alpaca API keys configured (required for trading)
     from app.services.alpaca_service import alpaca_service
     checks["alpaca_configured"] = "ok" if alpaca_service._is_configured() else "not_configured"
-
-    # Event pipeline running
-    checks["message_bus"] = "ok" if _message_bus else "not_started"
 
     # Per-service health (Audit Task 8)
     try:

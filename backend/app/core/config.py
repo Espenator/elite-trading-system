@@ -209,6 +209,7 @@ class Settings(BaseSettings):
 
     # ── Database ────────────────────────────────────────────
     DATABASE_URL: str = "duckdb:///data/elite_trading.duckdb"
+    DUCKDB_PATH: str = ""  # Optional override for analytics DuckDB file path
 
     # ── Efficiency / performance (EFFICIENCY-AND-HARDWARE-DESIGN.md) ──
     ASYNCIO_THREAD_POOL_WORKERS: int = 64  # Default executor for DuckDB/blocking work

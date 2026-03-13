@@ -186,6 +186,13 @@ class MessageBus:
         "data.futures.finviz",
         "system.swarm.health",
         "system.collector.health",
+        # ── RegimePublisher + council runner latency + audit (Mar 2026) ──
+        "regime.current",
+        "alert.latency_exceeded",
+        "emergency.flatten",
+        "briefing.generated",
+        "signal.overnight_gap",
+        "data.staleness_alert",
     }
 
     # Topics bridged through Redis when cluster mode is active.

@@ -297,9 +297,7 @@ export default function TradeExecution() {
           <span className="text-gray-700">|</span>
           <span><span className="text-gray-500 mr-1">Equity:</span><span className="text-white">{fmtUsd(portfolio?.value)}</span></span>
           <span className="text-gray-700">|</span>
-          <span><span className="text-gray-500 mr-1">Daily P/L:</span><span className={(portfolio?.dailyPnl ?? 0) >= 0 ? "text-[#00e676]" : "text-red-400"}">{(portfolio?.dailyPnl ?? 0) >= 0 ? '+' : ''}{fmtUsd(portfolio?.dailyPnl || 0)}</span></span>
-          <span className="text-gray-700">|</span>
-          <span><span className="text-gray-500 mr-1">Status:</span><span className="px-2 py-0.5 rounded text-[9px] font-bold bg-[#00D9FF]/25 text-[#00D9FF]">{portfolio?.status ?? '—'}</span></span>
+          <span><span className="text-gray-500 mr-1">Daily P/L:</span><span className={(portfolio?.dailyPnl ?? 0) < 0 ? 'text-red-400' : 'text-emerald-400'}>{(portfolio?.dailyPnl ?? 0) < 0 ? '' : '+'}{fmtUsd(portfolio?.dailyPnl || 0)}</span></span>
           <span className="text-gray-700">|</span>
           <span><span className="text-gray-500 mr-1">Status:</span><span className="px-2 py-0.5 rounded text-[9px] font-bold bg-[#00D9FF]/25 text-[#00D9FF]">{portfolio?.status ?? '—'}</span></span>
           <span className="text-gray-700">|</span>

@@ -13,6 +13,7 @@ Fixes Issue #25 — DuckDB query engine for feature pipeline.
 
 import asyncio
 import logging
+import os
 import threading
 from datetime import date, datetime, timezone
 from functools import partial
@@ -20,6 +21,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +30,13 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 DB_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 DB_DIR.mkdir(parents=True, exist_ok=True)
-DUCKDB_PATH = DB_DIR / "analytics.duckdb"
+_duckdb_override = (
+    settings.DUCKDB_PATH
+    or os.getenv("DUCKDB_PATH", "")
+    or os.getenv("EMBODIER_DUCKDB_PATH", "")
+).strip()
+DUCKDB_PATH = Path(_duckdb_override) if _duckdb_override else (DB_DIR / "analytics.duckdb")
+DUCKDB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 _lock = threading.Lock()
 

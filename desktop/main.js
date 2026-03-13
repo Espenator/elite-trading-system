@@ -193,7 +193,8 @@ async function createMainWindow() {
       }
     });
 
-    // 3) Open DevTools once the real app loads
+    // 3) Optionally open DevTools once the real app loads (opt-in to avoid multiple windows + stealing focus)
+    const openDevToolsEnv = process.env.ELECTRON_OPEN_DEVTOOLS === '1' || process.env.ELECTRON_OPEN_DEVTOOLS === 'true';
     mainWindow.webContents.on('did-finish-load', () => {
       if (!mainWindow || mainWindow.isDestroyed()) return;
       const currentUrl = mainWindow.webContents.getURL();
@@ -201,7 +202,11 @@ async function createMainWindow() {
         devToolsOpened = true;
         loadRetryCount = 0; // Reset retries on success
         console.log('[main] Vite app loaded successfully');
-        mainWindow.webContents.openDevTools({ mode: 'detach' });
+        // Only open DevTools when explicitly requested (prevents multiple DevTools + app page not loading)
+        if (openDevToolsEnv && !mainWindow._devToolsOpened) {
+          mainWindow._devToolsOpened = true;
+          mainWindow.webContents.openDevTools({ mode: 'detach' });
+        }
       }
     });
 

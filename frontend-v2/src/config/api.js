@@ -36,8 +36,8 @@ const API_CONFIG = {
   // Env overrides; fallback to hardcoded backend so app runs automatically.
   BASE_URL: import.meta.env.VITE_API_URL ?? import.meta.env.VITE_BACKEND_URL ?? _DEFAULT_BACKEND,
   API_PREFIX: "/api/v1",
-  // WS base; fallback to hardcoded so WebSocket reconnects to backend automatically.
-  WS_URL: import.meta.env.VITE_WS_URL ?? _deriveWsFromBackend(import.meta.env.VITE_BACKEND_URL ?? "") || _DEFAULT_WS,
+  // WS base: (VITE_WS_URL ?? derived from VITE_BACKEND_URL) || default ws://localhost:8000. Parens required when mixing ?? and ||.
+  WS_URL: (import.meta.env.VITE_WS_URL ?? _deriveWsFromBackend(import.meta.env.VITE_BACKEND_URL ?? "")) || _DEFAULT_WS,
 
   endpoints: {
     // ---- CORE DATA ----
